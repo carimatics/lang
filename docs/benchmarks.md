@@ -94,6 +94,7 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 ## Interpretation and limits
 
 - The harness checks VM, JIT, and direct Rust results for equivalence before timing, including both outcomes of minimum and the immediate-return/loop paths of countdown.
+- The separate two-value accumulator prototype broadens CFG validation and AOT integration, but schema 5 does not benchmark it. Its lowering, compilation, artifact size, and runtime rows remain future evidence.
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
 - The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown. Both precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).

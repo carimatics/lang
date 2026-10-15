@@ -236,6 +236,8 @@ Schema 4 keeps the same backend-neutral link path and adds the linked executable
 
 Schema 5 retains that single-launch row and adds a configurable batched startup row. Each sample runs the requested number of sequential launches and reports elapsed time per launch, reducing the leverage of one delayed launch on the sample while preserving the single-launch row for tail-sensitive evidence. The two rows remain semantically distinct: batching estimates amortized process-launch cost and does not replace individual startup latency. A clean macOS AArch64 result reduces startup RSD from 256.272% for single launches to 4.688% for ten-launch batches while keeping similar 1.487 ms and 1.499 ms medians; Windows comparison remains open.
 
+A broader CFG prototype now carries two `i64` values—a descending counter and wrapping accumulator—through block parameters on the same back-edge. MIR validation, bytecode execution, and Cranelift JIT agree for non-positive and bounded positive inputs. Native object emission is exercised by macOS direct/response-file link-and-run integration and by host-independent Windows x86-64 COFF symbol validation; the cfg-gated MSVC integration mirrors the execution path. This remains MIR evidence: source-level loop semantics and benchmark measurements for the workload are still open.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.

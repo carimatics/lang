@@ -236,6 +236,8 @@ Schema 4は同じbackend-neutral link pathを維持し、link済みexecutableの
 
 Schema 5はそのsingle-launch rowを維持し、設定可能なbatched startup rowを追加します。各sampleは要求数のlaunchを順番に実行してlaunch当たりの経過時間を報告し、single-launch rowをtail-sensitiveなevidenceとして維持しながら、1回の遅延したlaunchがsampleへ与える影響を小さくします。2つのrowは意味的に別であり、batchingはamortized process-launch costを推定しますが、individual startup latencyを置き換えません。CleanなmacOS AArch64 resultでは、1.487 msと1.499 msという近いmedianを維持しながら、startup RSDがsingle launchの256.272%から10-launch batchの4.688%へ下がりました。Windows comparisonは未完了です。
 
+より広いCFG prototypeは、descending counterとwrapping accumulatorという2つの `i64` valueを、同じback-edgeのblock parameterで運びます。MIR validation、bytecode execution、Cranelift JITはnon-positive inputとbounded positive inputで一致します。Native object emissionはmacOS direct／response-file link-and-run integrationとhost非依存Windows x86-64 COFF symbol validationで検証し、cfg-gated MSVC integrationも同じexecution pathを反映します。これはMIR evidenceにとどまり、source-level loop semanticsとこのworkloadのbenchmark measurementは未完了です。
+
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。

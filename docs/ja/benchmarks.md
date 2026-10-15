@@ -94,6 +94,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 ## 解釈と制限
 
 - Harnessは計測前に、minimumの両方の結果とcountdownのimmediate-return／loop pathを含め、VM、JIT、direct Rustのresultが等価であることを確認します。
+- 別の2-value accumulator prototypeはCFG validationとAOT integrationを広げますが、schema 5ではbenchmarkしていません。そのlowering、compilation、artifact size、runtime rowは今後のevidenceです。
 - VM rowには、呼び出しごとのbytecode verificationとregister allocationが含まれます。Interpreter dispatchだけでなく、現在のend-to-end embedding APIを計測しています。
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
 - Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdownを追加します。どちらもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
