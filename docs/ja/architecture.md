@@ -95,6 +95,20 @@ Hashとtiming explanationを永続化し、build toolがunitを再buildした理
 
 Prototypeが必要な未解決問題には、cyclic graphのergonomics、borrowを伴うasync suspension／cancellation、self-referential value、cancellation中のdestruction、atomic `shared` referenceのcost modelがあります。
 
+### Async borrow／cancellation実験
+
+`crates/semantics` の実行可能modelでは、意図的に厳格なbaseline仮説を検証します。
+
+- Task-owned valueはsuspensionを越えてtask frame内でliveのままにする。
+- Suspension pointでactiveなshared／exclusive borrowはstructured diagnostic `SEM0007` でrejectし、suspension前に終了したborrowはacceptする。
+- Cancellationはtaskがsuspendedである間だけ観測する。
+- Completionとcancellationでは、task-owned valueを逆生成順に正確に1回dropする。
+- すべてのoperationがsource spanを持ち、failureではboundaryとそれを越えたborrowの両方を示す。
+
+これはより単純な代替案であり、承認済み意味論ではありません。最も強い競合designは、選択されたframe-resident borrowまたはpinned borrowがsuspensionを越えることを許可します。Library規約だけではcompilerのborrow ruleを強制できず、決定を先送りすると未解決のcancellation／self-reference制約がMIR loweringへ流入します。後続prototypeではこれらの代替案を比較し、nested scope、partial initialization、destructor failure、panic containment、self-referential task frame、VM／native traceを扱う必要があります。
+
+レビュー結果：**needs prototype/measurement**。blocking questionは、borrowがsuspensionを越えられるか、task-frame ownershipとpinningがどう相互作用するか、destructor failure時にcleanupがどう動作するかです。Surface syntaxとscheduler APIは任意のfollow-upです。
+
 ## Error／effect model
 
 - Recoverable errorはtyped result valueを使用し、surface sugarとして `throws E`／propagation syntaxを提供する。

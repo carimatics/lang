@@ -1,0 +1,6 @@
+[package]
+name = "lang-semantics"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

@@ -178,7 +178,7 @@ A VM-only implementation would deliver scripting earlier. It is simpler, but it 
 
 ## Implementation plan
 
-Prototype status as of 2026-10-15: steps 1–3 are complete for the local `i64` vertical slice. Step 3 covers typed registration, VM/native differential execution, duplicate registration rejection, and unknown-function rejection; it does not complete the stable embedding or component boundary.
+Prototype status as of 2026-10-15: steps 1–3 are complete for the local `i64` vertical slice. Step 3 covers typed registration, VM/native differential execution, duplicate registration rejection, and unknown-function rejection; it does not complete the stable embedding or component boundary. Step 4 has started with an executable strict async-borrow and cancellation model; cyclic graphs, shared mutable services, and less restrictive async alternatives remain open.
 
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
@@ -195,6 +195,7 @@ Prototype status as of 2026-10-15: steps 1–3 are complete for the local `i64` 
 - Add malformed MIR and bytecode tests before deserialization is introduced.
 - Add property and fuzz tests as instruction and type counts grow.
 - Test the implemented `i64` host call and callback for VM/native equivalence, duplicate registration rejection, and unknown-function rejection. Add panic containment and capability rejection when those mechanisms are introduced.
+- Test semantics experiments with stable diagnostic codes, primary/secondary source spans, deterministic event traces, and exact destruction counts.
 - Run formatting, Clippy with warnings denied, all workspace tests, and documentation builds in CI.
 - Add macOS AArch64 and Windows x86-64 CI before declaring the vertical slice portable.
 - Store benchmark inputs and raw metadata with summarized results.
@@ -213,7 +214,7 @@ Review outcome: **needs prototype/measurement**. The blocking questions are the 
 ## Sources
 
 - `docs/research.md`, project research, last updated 2026-10-15 22:29 JST.
-- `docs/architecture.md`, proposed design baseline, last updated 2026-10-15 22:30 JST.
-- `docs/roadmap.md`, implementation milestones, last updated 2026-10-15 23:17 JST.
+- `docs/architecture.md`, proposed design baseline, last updated 2026-10-15 23:26 JST.
+- `docs/roadmap.md`, implementation milestones, last updated 2026-10-15 23:26 JST.
 - Cranelift documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-jit/0.136.3/

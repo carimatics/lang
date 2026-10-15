@@ -178,7 +178,7 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 
 ## 実装計画
 
-2026-10-15時点のprototype状況：step 1〜3は、local `i64` vertical sliceについて完了しています。Step 3では型付き登録、VM／native差分実行、重複登録の拒否、未知関数の拒否を扱いますが、stable embedding boundaryまたはcomponent boundaryは完成していません。
+2026-10-15時点のprototype状況：step 1〜3は、local `i64` vertical sliceについて完了しています。Step 3では型付き登録、VM／native差分実行、重複登録の拒否、未知関数の拒否を扱いますが、stable embedding boundaryまたはcomponent boundaryは完成していません。Step 4は、実行可能な厳格async-borrow／cancellation modelから開始しました。Cyclic graph、shared mutable service、より制限の少ないasync代替案は未完了です。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -195,6 +195,7 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 - deserialize導入前に、不正なMIRとbytecodeのテストを追加する。
 - instruction数とtype数の増加に合わせてproperty testとfuzz testを追加する。
 - 実装済み `i64` host callとcallbackについて、VM／native等価性、重複登録の拒否、未知関数の拒否をテストする。Panic containmentとcapability rejectionは、それらのmechanism導入時に追加する。
+- Semantics実験では、stable diagnostic code、primary／secondary source span、deterministic event trace、正確なdestruction回数をテストする。
 - CIでformatting、警告を拒否するClippy、workspace全test、documentation buildを実行する。
 - 縦断スライスをportableと宣言する前に、macOS AArch64とWindows x86-64 CIを追加する。
 - benchmark入力とraw metadataを要約結果とともに保存する。
@@ -213,7 +214,7 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 ## 情報源
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、設計baseline案、最終更新 2026-10-15 22:30 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-15 23:17 JST。
+- `docs/architecture.md`、設計baseline案、最終更新 2026-10-15 23:26 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-15 23:26 JST。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/

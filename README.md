@@ -61,6 +61,8 @@ The command constructs a validated typed MIR function, lowers it to verified reg
 
 Workspace tests also exercise a minimal embedding path: a backend-neutral host-function ID resolves a typed `extern "C" fn(i64) -> i64` registration, and the same MIR host call runs through both the VM and Cranelift JIT. This prototype does not define a stable ABI and does not yet provide aggregate values, error transport, panic containment, capabilities, or resource limits.
 
+Run the executable async ownership experiment separately with `cargo test -p lang-semantics`. It models source spans, structured diagnostics, borrow exclusivity, suspension, cancellation, and deterministic destruction. The model records design evidence only; it is not accepted language semantics.
+
 Common checks:
 
 ```bash
@@ -70,7 +72,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-The workspace currently contains only the components exercised by this vertical slice: `lang-mir`, `lang-bytecode`, `lang-vm`, `lang-codegen-clif`, and the typed host-function registry in `lang-runtime`. Additional boundaries from `docs/architecture.md` should appear only with their implementation.
+The workspace currently contains only the components exercised by the prototypes: `lang-mir`, `lang-bytecode`, `lang-vm`, `lang-codegen-clif`, the typed host-function registry in `lang-runtime`, and executable design models in `lang-semantics`. Additional boundaries from `docs/architecture.md` should appear only with their implementation.
 
 ## Design process
 

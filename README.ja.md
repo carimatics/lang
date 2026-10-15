@@ -61,6 +61,8 @@ cargo run -- 20 22
 
 Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、resource limitはまだ提供しません。
 
+実行可能なasync ownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Source span、structured diagnostic、borrow exclusivity、suspension、cancellation、deterministic destructionをmodel化します。このmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
+
 共通チェック：
 
 ```bash
@@ -70,7 +72,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-現在のworkspaceには、この縦断スライスで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif` と、型付きhost-function registryを持つ `lang-runtime` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
+現在のworkspaceには、prototypeで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif`、型付きhost-function registryを持つ `lang-runtime`、実行可能な設計modelを持つ `lang-semantics` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
 
 ## 設計プロセス
 

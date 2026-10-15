@@ -308,6 +308,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "lang-semantics"
+version = "0.1.0"
+
+[[package]]
 name = "lang-vm"
 version = "0.1.0"
 dependencies = [

@@ -95,6 +95,20 @@ Prototype this model:
 
 Open questions requiring prototypes include cyclic graph ergonomics, async suspension with borrows, self-referential values, destruction during cancellation, and the cost model of atomic `shared` references.
 
+### Async borrow and cancellation experiment
+
+The executable model in `crates/semantics` tests a deliberately strict baseline hypothesis:
+
+- Task-owned values remain live in the task frame across suspension.
+- An active shared or exclusive borrow at a suspension point is rejected with structured diagnostic `SEM0007`; a borrow that ends before suspension is accepted.
+- Cancellation is observed only while the task is suspended.
+- Completion and cancellation drop task-owned values exactly once in reverse creation order.
+- Every operation carries a source span so failures identify both the boundary and the borrow that crossed it.
+
+This is the simpler alternative, not accepted semantics. The strongest competing design would permit selected frame-resident or pinned borrows across suspension. A library-only convention cannot enforce compiler borrow rules, while deferring the decision would move unresolved cancellation and self-reference constraints into MIR lowering. Later prototypes must compare those alternatives and cover nested scopes, partial initialization, destructor failure, panic containment, self-referential task frames, and VM/native traces.
+
+Review outcome: **needs prototype/measurement**. Blocking questions are whether any borrow may cross suspension, how task-frame ownership and pinning interact, and how cleanup behaves when destructors fail. Surface syntax and scheduler APIs are optional follow-ups.
+
 ## Error and effect model
 
 - Recoverable errors use typed result values with `throws E`/propagation syntax as surface sugar.

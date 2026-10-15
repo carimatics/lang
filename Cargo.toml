@@ -5,6 +5,7 @@ members = [
     "crates/codegen-clif",
     "crates/mir",
     "crates/runtime",
+    "crates/semantics",
     "crates/vm",
 ]
 resolver = "3"
@@ -22,6 +23,7 @@ lang-bytecode = { path = "crates/bytecode" }
 lang-codegen-clif = { path = "crates/codegen-clif" }
 lang-mir = { path = "crates/mir" }
 lang-runtime = { path = "crates/runtime" }
+lang-semantics = { path = "crates/semantics" }
 lang-vm = { path = "crates/vm" }
 
 [package]
