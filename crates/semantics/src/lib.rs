@@ -12,6 +12,7 @@
 //! cycles are released in bulk.
 
 pub mod graph;
+pub mod service;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;

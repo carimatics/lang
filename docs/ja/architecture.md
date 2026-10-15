@@ -143,6 +143,20 @@ Prototypeが必要な未解決問題には、cyclic graphのergonomics、borrow�
 
 Schedulerは交換可能なruntime serviceとします。Libraryはglobal executorを前提とせず、embedded hostがschedulerをdriveまたは統合できる必要があります。
 
+### Shared mutable service実験
+
+`crates/semantics` のservice modelでは、厳格なactor-isolation仮説を検証します。
+
+- 1つのowner taskだけがservice stateへ直接mutable accessを持つ。Shared handleはmessageをenqueueできますが、別taskからのdirect mutationは `SEM0031` を報告する。
+- Sendはpayloadをmailboxへmoveする。Non-sendable payloadは `SEM0028`、成功したmove後の再利用は `SEM0027` を報告する。
+- OwnerはmessageをFIFO順にprocessする。有効な任意のhandleからのcancellation requestは、active mutationが終了するまでdeferする。
+- Cancellationはqueued messageをFIFO順にdiscardし、queued payloadとservice stateをそれぞれ正確に1回dropしてから、後続sendを `SEM0024` でrejectする。
+- Operationはstable diagnostic code `SEM0022`〜`SEM0035` のもとでprimaryおよび関連source spanを保持する。
+
+このmodelはsurface syntax、scheduler thread、atomic ordering、mailbox backpressure、fairness、panic behavior、distributed serviceを定義しません。最も強い競合designはlockまたはatomic capabilityを通じてshared mutable stateを公開する方式であり、より単純な代替案はshareable handleを持たないsingle-threaded event loopです。Library-only actorではsendabilityやisolationを言語levelのpropertyとして強制できません。
+
+レビュー結果：**needs prototype/measurement**。Blocking questionは、send／share capabilityをどう導出するか、cancellationがbackpressureやhandler failureとどう相互作用するか、VM／native executionが同等のorderingとcostを維持するかです。Surface syntaxとstandard actor APIは任意のfollow-upです。
+
 ## AOTとscript実行
 
 ### Bytecode first

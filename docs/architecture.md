@@ -143,6 +143,20 @@ Combine several layers rather than forcing one abstraction:
 
 The scheduler is a replaceable runtime service. Libraries must not assume a global executor, and embedded hosts must be able to drive or integrate the scheduler.
 
+### Shared mutable service experiment
+
+The service model in `crates/semantics` tests a strict actor-isolation hypothesis:
+
+- One owner task has direct mutable access to service state. Shared handles may enqueue messages but direct mutation from another task reports `SEM0031`.
+- Sending moves a payload into the mailbox. A non-sendable payload reports `SEM0028`, and reuse after a successful move reports `SEM0027`.
+- The owner processes messages in FIFO order. A cancellation request from any valid handle is deferred until an active mutation ends.
+- Cancellation discards queued messages in FIFO order, drops every queued payload and the service state exactly once, then rejects later sends with `SEM0024`.
+- Operations retain primary and related source spans under stable diagnostic codes `SEM0022` through `SEM0035`.
+
+This model does not define surface syntax, scheduler threads, atomic ordering, mailbox backpressure, fairness, panic behavior, or distributed services. The strongest competing design would expose shared mutable state through lock or atomic capabilities; a simpler alternative would provide a single-threaded event loop without shareable handles. Library-only actors cannot enforce sendability or isolation as language-level properties.
+
+Review outcome: **needs prototype/measurement**. Blocking questions are how send/share capabilities are derived, how cancellation interacts with backpressure and failed handlers, and whether VM/native execution preserves equivalent ordering and cost. Surface syntax and standard actor APIs are optional follow-ups.
+
 ## AOT and script execution
 
 ### Bytecode first

@@ -178,7 +178,7 @@ A VM-only implementation would deliver scripting earlier. It is simpler, but it 
 
 ## Implementation plan
 
-Prototype status as of 2026-10-15: steps 1–3 are complete for the local `i64` vertical slice. Step 3 covers typed registration, VM/native differential execution, duplicate registration rejection, and unknown-function rejection; it does not complete the stable embedding or component boundary. Step 4 now has executable strict models for async borrowing/cancellation and cyclic graphs; shared mutable services and less restrictive graph and async alternatives remain open.
+Prototype status as of 2026-10-15: steps 1–3 are complete for the local `i64` vertical slice. Step 3 covers typed registration, VM/native differential execution, duplicate registration rejection, and unknown-function rejection; it does not complete the stable embedding or component boundary. Step 4 now has executable strict models for all three stress cases: async borrowing/cancellation, cyclic graphs, and shared mutable services. Less restrictive alternatives remain open.
 
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
@@ -214,7 +214,7 @@ Review outcome: **needs prototype/measurement**. The blocking questions are the 
 ## Sources
 
 - `docs/research.md`, project research, last updated 2026-10-15 22:29 JST.
-- `docs/architecture.md`, proposed design baseline, last updated 2026-10-15 23:38 JST.
-- `docs/roadmap.md`, implementation milestones, last updated 2026-10-15 23:38 JST.
+- `docs/architecture.md`, proposed design baseline, last updated 2026-10-15 23:46 JST.
+- `docs/roadmap.md`, implementation milestones, last updated 2026-10-15 23:46 JST.
 - Cranelift documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-jit/0.136.3/
