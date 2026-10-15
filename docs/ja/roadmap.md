@@ -10,6 +10,8 @@
 
 現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registrationとscript-to-host callbackも両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMには、side effect前にinstructionとterminatorを課金するopt-inのdeterministic instruction-fuel limitがあります。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、hostの `cc` を起動してstructured failureを報告し、macOS AArch64 integrationは3つすべてのobject形式をこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 2 benchmark baseline](benchmarks.md)は、addとminimumのlowering、JIT／AOT compilation、code／object size、direct／VM／JIT call、host callback、system linkingを扱います。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64 evidence、block parameter／loop-carried valueとallocation、backend決定は未完了です。
 
+CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequenceが変わらないことを確認しました。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。
