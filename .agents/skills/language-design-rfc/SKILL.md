@@ -3,6 +3,8 @@ name: language-design-rfc
 description: Draft or review RFCs for this repository's language semantics, compiler IR, memory model, concurrency, ABI, runtime, and developer tooling. Use for user-visible or compatibility-sensitive design changes; do not use for routine implementation that follows an accepted design.
 ---
 
+<!-- canonical-language: en; japanese-translation: ../../../docs/ja/codex/language-design-rfc.md -->
+
 # Language Design RFC
 
 Produce a decision-ready RFC or review that exposes semantic and implementation tradeoffs without presenting hypotheses as accepted behavior.

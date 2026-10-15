@@ -1,4 +1,8 @@
+<!-- canonical-language: en; japanese-translation: ja/research.md -->
+
 # Language and ecosystem research
+
+[日本語版](ja/research.md)
 
 Research baseline: **2026-10-15 22:08 JST**.
 

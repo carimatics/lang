@@ -1,4 +1,8 @@
+<!-- canonical-language: en; japanese-translation: ja/architecture.md -->
+
 # Architecture proposal
+
+[日本語版](ja/architecture.md)
 
 Status: **proposed design baseline**. Individual semantics require RFC acceptance and prototypes.
 

@@ -1,4 +1,8 @@
+<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0000-template.md -->
+
 # RFC 0000: Title
+
+[日本語版](../ja/rfcs/0000-template.md)
 
 - Status: proposed
 - Authors:

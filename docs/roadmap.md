@@ -1,4 +1,8 @@
+<!-- canonical-language: en; japanese-translation: ja/roadmap.md -->
+
 # Implementation roadmap
+
+[日本語版](ja/roadmap.md)
 
 The roadmap is ordered by risk reduction. Milestones are exit criteria, not calendar commitments.
 

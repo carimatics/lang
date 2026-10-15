@@ -1,6 +1,24 @@
+<!-- canonical-language: en; japanese-translation: AGENTS.ja.md -->
+
 # Repository instructions
 
 These instructions apply to the entire repository.
+
+## Documentation languages
+
+- English documents are canonical for implementation decisions and AI instructions.
+- Japanese documents are human-readable mirrors and must not introduce additional requirements.
+- `AGENTS.ja.md` is an informational translation; Codex must not treat it as another instruction source.
+- Update both files in a translation pair in the same change. Preserve equivalent headings, links, examples, tables, status labels, and source dates.
+- Translation pairs are:
+  - `README.md` and `README.ja.md`
+  - `AGENTS.md` and `AGENTS.ja.md`
+  - `CONTRIBUTING.md` and `CONTRIBUTING.ja.md`
+  - `docs/research.md` and `docs/ja/research.md`
+  - `docs/architecture.md` and `docs/ja/architecture.md`
+  - `docs/roadmap.md` and `docs/ja/roadmap.md`
+  - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
+  - `.agents/skills/language-design-rfc/SKILL.md` and `docs/ja/codex/language-design-rfc.md`
 
 ## Start here
 

@@ -1,4 +1,8 @@
+<!-- canonical-language: en; japanese-translation: CONTRIBUTING.ja.md -->
+
 # Contributing
+
+[日本語版](CONTRIBUTING.ja.md)
 
 This project is in the research and bootstrapping phase. Small, testable vertical slices are preferred over broad scaffolding.
 

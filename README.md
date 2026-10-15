@@ -1,4 +1,8 @@
+<!-- canonical-language: en; japanese-translation: README.ja.md -->
+
 # lang
+
+[日本語版](README.ja.md)
 
 `lang` is a pre-alpha research project for a new systems programming language and its complete developer toolchain. The implementation starts in Rust and is intended to become self-hosting after the language, compiler, and bootstrap process are stable enough to reproduce themselves.
 
