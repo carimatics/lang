@@ -1,16 +1,17 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use lang::{prototype_add_function, prototype_host_callback_function};
+use lang::{prototype_add_function, prototype_host_callback_function, prototype_min_function};
 use lang_codegen_clif::emit_host_object;
 use lang_mir::Function;
 
 const USAGE: &str = "usage: cargo run --release --bin prototype-object -- \
-                     <add|host-callback> <output.o>";
+                     <add|min|host-callback> <output.o>";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Prototype {
     Add,
+    Min,
     HostCallback,
 }
 
@@ -18,6 +19,7 @@ impl Prototype {
     fn parse(value: &str) -> Result<Self, String> {
         match value {
             "add" => Ok(Self::Add),
+            "min" => Ok(Self::Min),
             "host-callback" => Ok(Self::HostCallback),
             _ => Err(format!("unknown prototype {value:?}; {USAGE}")),
         }
@@ -26,6 +28,7 @@ impl Prototype {
     fn function(self) -> Function {
         match self {
             Self::Add => prototype_add_function(),
+            Self::Min => prototype_min_function(),
             Self::HostCallback => prototype_host_callback_function(),
         }
     }
@@ -91,12 +94,19 @@ mod tests {
     use super::{Arguments, Prototype, USAGE};
 
     #[test]
-    fn parses_add_and_host_callback_prototypes() {
+    fn parses_supported_prototypes() {
         assert_eq!(
             Arguments::parse(["add".to_owned(), "add.o".to_owned()]),
             Ok(Arguments {
                 prototype: Prototype::Add,
                 output: PathBuf::from("add.o"),
+            })
+        );
+        assert_eq!(
+            Arguments::parse(["min".to_owned(), "min.o".to_owned()]),
+            Ok(Arguments {
+                prototype: Prototype::Min,
+                output: PathBuf::from("min.o"),
             })
         );
         assert_eq!(

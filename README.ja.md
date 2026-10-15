@@ -70,10 +70,11 @@ Symbolとdisassemblyを検査するため、どちらかのinspection targetをh
 
 ```bash
 cargo run --release --bin prototype-object -- add /tmp/prototype-add.o
+cargo run --release --bin prototype-object -- min /tmp/prototype-min.o
 cargo run --release --bin prototype-object -- host-callback /tmp/prototype-host-callback.o
 ```
 
-このcommandはexported symbol、生成function-code size、object全体のsizeを報告します。Linkerは実行しません。
+このcommandはadd、signed-minimum、host-callback targetについて、exported symbol、生成function-code size、object全体のsizeを報告します。Linkerは実行しません。
 
 実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelはsource span、structured diagnostic、borrow exclusivity、suspension、cancellation、deterministic destructionを扱います。Graph modelは明示的なshared／weak edgeとarena-scoped cyclic storageを比較します。Service modelはactor-isolated mutation、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを検証します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
 
