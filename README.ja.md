@@ -68,7 +68,7 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 `LinkTarget` は、`aarch64-apple-darwin` と `x86_64-pc-windows-msvc` に対する初期tier-1 linker policyを一元化します。各exact tripleをlinker flavor、default program、ordered discovery candidateへ対応付け、未supportのtripleをstructuredに拒否し、`SystemLinker` による明示targetの構築とdiscoveryを駆動します。Object-format testとcfg-gatedの両platform integrationは、この共有policyを使用します。追加targetのpolicyは未完了です。
 
-Schema 2 benchmark harnessは、macOSの `cc` とWindows MSVCの `link.exe` という両tier-1 hostでsystem linkingを計測するようになりました。Windows CIは文書化済みparameterでbenchmarkを実行し、schema、clean-checkout metadata、target identity、system-link rowを検証して、JSONを30日間workflow artifactとして保持します。Remote resultはまだrepositoryへ記録されていないため、Windows benchmark evidenceは未完了です。
+Schema 3 benchmark harnessは、add、minimum、host-callback workloadに加えて、block parameterとback-edgeを持つbounded countdown loopを計測します。また、macOSの `cc` とWindows MSVCの `link.exe` という両tier-1 hostでsystem linkingを計測します。Windows CIは文書化済みparameterでbenchmarkを実行し、schema、clean-checkout metadata、target identity、拡張済みsystem-link rowを検証して、JSONを30日間workflow artifactとして保持します。Cleanなschema 3 baselineもremote resultも、まだrepositoryへ記録されていません。
 
 Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonと明示的control-flow graphも共有します。2引数minimum functionはentry blockから個別のreturn blockへ分岐し、焦点化されたjump testが明示的edgeを検証します。型付きblock parameterとedge argumentは、専用phi instructionなしでphiに相当するmergeを表現します。MIRとbytecodeのvalidationは、invalid target、unreachable block、entry-block predecessorまたはparameter、edge argumentのarity／type mismatch、useをdominateしないvalueを拒否します。Countdown workloadはback-edgeを介して `i64` を運び、VMとJITで同じ結果を生成し、object pathもこれをemitします。Bytecode back-edge testは、instruction fuelが非停止loopを停止することを証明します。Allocationとsource-level control-flow semanticsは未実装です。
 
@@ -93,7 +93,7 @@ cargo run --release --bin prototype-bench -- \
   --runtime-iterations 100000
 ```
 
-Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT codeとAOT object size、bytecode lowering、JIT／AOT compilation、direct call、VM call、host callback、交互に分岐するminimum-function control-flow workload、macOS system linkingのdistribution statisticsを含むversion付きJSONを出力します。Schema version 2ではminimum functionのmeasurementとsizeを個別に追加し、link系列はC harnessを事前compileして、addとminimum objectに対する `cc` driverとsystem-linker invocationを計測します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
+Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT codeとAOT object size、bytecode lowering、JIT／AOT compilation、direct call、VM call、host callback、control flow、system linkingのdistribution statisticsを含むversion付きJSONを出力します。Schema version 3は、countdownのlowering／compilation／call measurementとartifact sizeを追加し、link setが3 objectすべてを含むため `system_link_add_min` を `system_link_add_min_countdown` へrenameします。Countdown callは、back-edgeを通ってzeroへ到達する `64` と、即時returnする `-7` を交互に使用します。Schema 2 fileはhistorical inputとして残り、それ自身のversionに従って解釈する必要があります。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
 
 共通チェック：
 

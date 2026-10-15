@@ -230,7 +230,7 @@ Host linker discoveryは、deterministicなcandidate順で `PATH` を探索し�
 
 Root crateは、初期tier-1 linker policyをbackend-neutralな `LinkTarget` domain typeとして表現します。Exactな `aarch64-apple-darwin` と `x86_64-pc-windows-msvc` tripleがcommand flavor、default program、ordered `PATH` candidateを決定し、未supportのtripleはhost policyを暗黙に継承せずstructured errorになります。明示targetのlinker構築、discovery、platform integration、cross-target COFF testがこのmappingを共有します。別targetのsupportには明示的なpolicy追加が必要です。Installation discoveryとtarget固有のstartup／runtime inputは別layerのままです。
 
-Schema 2 benchmarkは、両方の初期tier-1 hostでsystem-link measurementにこのpolicyを使用します。Platform C harnessを事前compileし、link済みexecutableを1回検証してから、compiler setupとlinker discoveryを含めずに `cc` または `link.exe` の反復呼び出しを計測します。Windows CIはmachine-readable envelopeを検証して期限付きartifactとしてuploadします。Benchmark valueがproject evidenceになるのは、runner結果を検査して記録した後だけです。
+Schema 3 benchmarkは、両方の初期tier-1 hostでsystem-link measurementにこのpolicyを使用します。計測対象MIRへ、back-edgeを介して `i64` block parameterを運ぶbounded countdown loopを追加し、platform C harnessを事前compileし、link済みexecutableを1回検証してから、compiler setupとlinker discoveryを含めずに `cc` または `link.exe` の反復呼び出しを計測します。Windows CIはmachine-readable envelopeを検証して期限付きartifactとしてuploadします。Benchmark valueがproject evidenceになるのは、cleanなrunner結果を検査して記録した後だけです。
 
 ## Diagnostics、LSP、debugging
 

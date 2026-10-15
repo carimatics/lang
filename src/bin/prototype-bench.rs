@@ -14,8 +14,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
-    PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_host_callback_function,
-    prototype_min_function,
+    PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_countdown_function,
+    prototype_host_callback_function, prototype_min_function,
 };
 use lang_bytecode::lower;
 use lang_codegen_clif::{CompiledFunction, emit_host_object};
@@ -100,10 +100,12 @@ struct Measurement {
 struct PreparedWorkloads<'a> {
     add_program: &'a lang_bytecode::Program,
     min_program: &'a lang_bytecode::Program,
+    countdown_program: &'a lang_bytecode::Program,
     host_program: &'a lang_bytecode::Program,
     host_functions: &'a HostFunctionRegistry,
     compiled_add: &'a CompiledFunction,
     compiled_min: &'a CompiledFunction,
+    compiled_countdown: &'a CompiledFunction,
     compiled_host: &'a CompiledFunction,
 }
 
@@ -111,9 +113,11 @@ struct PreparedWorkloads<'a> {
 struct ArtifactSizes {
     add_code: usize,
     min_code: usize,
+    countdown_code: usize,
     host_code: usize,
     add_object: usize,
     min_object: usize,
+    countdown_object: usize,
 }
 
 impl Measurement {
@@ -180,29 +184,37 @@ fn run() -> Result<(), String> {
 
     let add_function = prototype_add_function();
     let min_function = prototype_min_function();
+    let countdown_function = prototype_countdown_function();
     let host_function = prototype_host_callback_function();
     let add_program = lower(&add_function).map_err(|error| error.to_string())?;
     let min_program = lower(&min_function).map_err(|error| error.to_string())?;
+    let countdown_program = lower(&countdown_function).map_err(|error| error.to_string())?;
     let host_program = lower(&host_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let compiled_add =
         CompiledFunction::compile(&add_function).map_err(|error| error.to_string())?;
     let compiled_min =
         CompiledFunction::compile(&min_function).map_err(|error| error.to_string())?;
+    let compiled_countdown =
+        CompiledFunction::compile(&countdown_function).map_err(|error| error.to_string())?;
     let compiled_host = CompiledFunction::compile_with_hosts(&host_function, &host_functions)
         .map_err(|error| error.to_string())?;
     let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
     let aot_min = emit_host_object(&min_function).map_err(|error| error.to_string())?;
+    let aot_countdown = emit_host_object(&countdown_function).map_err(|error| error.to_string())?;
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
-    let link_benchmark = LinkBenchmark::prepare(aot_add.bytes(), aot_min.bytes())?;
+    let link_benchmark =
+        LinkBenchmark::prepare(aot_add.bytes(), aot_min.bytes(), aot_countdown.bytes())?;
 
     let workloads = PreparedWorkloads {
         add_program: &add_program,
         min_program: &min_program,
+        countdown_program: &countdown_program,
         host_program: &host_program,
         host_functions: &host_functions,
         compiled_add: &compiled_add,
         compiled_min: &compiled_min,
+        compiled_countdown: &compiled_countdown,
         compiled_host: &compiled_host,
     };
     check_results(&workloads)?;
@@ -220,6 +232,12 @@ fn run() -> Result<(), String> {
         config.samples,
         config.lowering_iterations,
         || lower(black_box(&min_function)).expect("validated conditional MIR lowers"),
+    ));
+    measurements.push(measure_construction(
+        "bytecode_lower_countdown",
+        config.samples,
+        config.lowering_iterations,
+        || lower(black_box(&countdown_function)).expect("validated countdown MIR lowers"),
     ));
     measurements.push(measure_construction(
         "jit_compile_add",
@@ -240,6 +258,15 @@ fn run() -> Result<(), String> {
         },
     ));
     measurements.push(measure_construction(
+        "jit_compile_countdown",
+        config.samples,
+        1,
+        || {
+            CompiledFunction::compile(black_box(&countdown_function))
+                .expect("validated countdown MIR compiles")
+        },
+    ));
+    measurements.push(measure_construction(
         "aot_object_emit_add",
         config.samples,
         1,
@@ -255,6 +282,15 @@ fn run() -> Result<(), String> {
         || {
             emit_host_object(black_box(&min_function))
                 .expect("validated conditional MIR emits an object")
+        },
+    ));
+    measurements.push(measure_construction(
+        "aot_object_emit_countdown",
+        config.samples,
+        1,
+        || {
+            emit_host_object(black_box(&countdown_function))
+                .expect("validated countdown MIR emits an object")
         },
     ));
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
@@ -313,6 +349,34 @@ fn run() -> Result<(), String> {
         },
     ));
     measurements.push(measure_calls(
+        "rust_countdown_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| rust_countdown(alternating_countdown_input(iteration)),
+    ));
+    measurements.push(measure_calls(
+        "vm_countdown_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            execute(
+                &countdown_program,
+                &[alternating_countdown_input(iteration)],
+            )
+            .expect("verified countdown bytecode executes")
+        },
+    ));
+    measurements.push(measure_calls(
+        "jit_countdown_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            compiled_countdown
+                .invoke_i64_1(alternating_countdown_input(iteration))
+                .expect("compiled countdown prototype has the expected signature")
+        },
+    ));
+    measurements.push(measure_calls(
         "rust_host_call",
         config.samples,
         config.runtime_iterations,
@@ -346,9 +410,11 @@ fn run() -> Result<(), String> {
             ArtifactSizes {
                 add_code: compiled_add.code_size(),
                 min_code: compiled_min.code_size(),
+                countdown_code: compiled_countdown.code_size(),
                 host_code: compiled_host.code_size(),
                 add_object: aot_add.bytes().len(),
                 min_object: aot_min.bytes().len(),
+                countdown_object: aot_countdown.bytes().len(),
             },
             &measurements,
         )
@@ -379,6 +445,18 @@ fn alternating_min_inputs(iteration: u64) -> (i64, i64) {
     (left, left ^ 1)
 }
 
+fn alternating_countdown_input(iteration: u64) -> i64 {
+    if iteration.is_multiple_of(2) { 64 } else { -7 }
+}
+
+#[inline(never)]
+extern "C" fn rust_countdown(mut value: i64) -> i64 {
+    while value >= 1 {
+        value -= 1;
+    }
+    value
+}
+
 #[inline(never)]
 extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
     value.wrapping_mul(2)
@@ -401,6 +479,18 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         if (vm_min, jit_min) != (expected_min, expected_min) {
             return Err("conditional execution modes disagreed before measurement".to_owned());
+        }
+    }
+    for value in [-7, 0, 1, 64] {
+        let expected_countdown = rust_countdown(value);
+        let vm_countdown =
+            execute(workloads.countdown_program, &[value]).map_err(|error| error.to_string())?;
+        let jit_countdown = workloads
+            .compiled_countdown
+            .invoke_i64_1(value)
+            .map_err(|error| error.to_string())?;
+        if (vm_countdown, jit_countdown) != (expected_countdown, expected_countdown) {
+            return Err("countdown execution modes disagreed before measurement".to_owned());
         }
     }
     let expected_host = prototype_wrapping_double(21);
@@ -445,6 +535,18 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
                 .invoke_i64_2(left, right)
                 .expect("compiled conditional prototype has the expected signature"),
         );
+        let countdown_input = alternating_countdown_input(iteration);
+        black_box(rust_countdown(countdown_input));
+        black_box(
+            execute(workloads.countdown_program, &[countdown_input])
+                .expect("verified countdown bytecode executes"),
+        );
+        black_box(
+            workloads
+                .compiled_countdown
+                .invoke_i64_1(countdown_input)
+                .expect("compiled countdown prototype has the expected signature"),
+        );
         black_box(prototype_wrapping_double(value));
         black_box(
             execute_with_hosts(workloads.host_program, &[value], workloads.host_functions)
@@ -464,10 +566,14 @@ const LINK_HARNESS: &str = r#"
 #include <stdint.h>
 
 extern int64_t prototype_add(int64_t left, int64_t right);
+extern int64_t prototype_countdown(int64_t value);
 extern int64_t prototype_min(int64_t left, int64_t right);
 
 int main(void) {
-    return prototype_add(20, 22) == 42 && prototype_min(-7, 4) == -7 ? 0 : 1;
+    return prototype_add(20, 22) == 42 &&
+        prototype_countdown(64) == 0 &&
+        prototype_countdown(-7) == -7 &&
+        prototype_min(-7, 4) == -7 ? 0 : 1;
 }
 "#;
 
@@ -510,31 +616,39 @@ struct LinkBenchmark {
     harness_object: PathBuf,
     add_object: PathBuf,
     min_object: PathBuf,
+    countdown_object: PathBuf,
     executable: PathBuf,
 }
 
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 impl LinkBenchmark {
-    fn prepare(add_object_bytes: &[u8], min_object_bytes: &[u8]) -> Result<Self, String> {
+    fn prepare(
+        add_object_bytes: &[u8],
+        min_object_bytes: &[u8],
+        countdown_object_bytes: &[u8],
+    ) -> Result<Self, String> {
         let directory = BenchmarkDirectory::create()?;
         let harness_source = directory.path().join("harness.c");
         #[cfg(target_os = "macos")]
-        let (harness_object, add_object, min_object, executable) = (
+        let (harness_object, add_object, min_object, countdown_object, executable) = (
             directory.path().join("harness.o"),
             directory.path().join("prototype_add.o"),
             directory.path().join("prototype_min.o"),
+            directory.path().join("prototype_countdown.o"),
             directory.path().join("prototype-aot"),
         );
         #[cfg(all(target_os = "windows", target_env = "msvc"))]
-        let (harness_object, add_object, min_object, executable) = (
+        let (harness_object, add_object, min_object, countdown_object, executable) = (
             directory.path().join("harness.obj"),
             directory.path().join("prototype_add.obj"),
             directory.path().join("prototype_min.obj"),
+            directory.path().join("prototype_countdown.obj"),
             directory.path().join("prototype-aot.exe"),
         );
         fs::write(&harness_source, LINK_HARNESS).map_err(|error| error.to_string())?;
         fs::write(&add_object, add_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&min_object, min_object_bytes).map_err(|error| error.to_string())?;
+        fs::write(&countdown_object, countdown_object_bytes).map_err(|error| error.to_string())?;
 
         let compile = compile_link_harness(&harness_source, &harness_object)?;
         ensure_command_succeeded("C harness compilation", &compile)?;
@@ -551,6 +665,7 @@ impl LinkBenchmark {
             harness_object,
             add_object,
             min_object,
+            countdown_object,
             executable,
         };
         benchmark.link_once()?;
@@ -568,14 +683,19 @@ impl LinkBenchmark {
             self.link_once()?;
             samples.push(started.elapsed().as_secs_f64() * 1_000_000_000.0);
         }
-        Ok(Measurement::from_samples("system_link_add_min", 1, samples))
+        Ok(Measurement::from_samples(
+            "system_link_add_min_countdown",
+            1,
+            samples,
+        ))
     }
 
     fn link_once(&self) -> Result<(), String> {
         let request = LinkRequest::new(&self.executable)
             .with_object(&self.harness_object)
             .with_object(&self.add_object)
-            .with_object(&self.min_object);
+            .with_object(&self.min_object)
+            .with_object(&self.countdown_object);
         self.linker
             .link(&request)
             .map_err(|error| error.to_string())
@@ -681,7 +801,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 2,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 3,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -702,12 +822,16 @@ fn render_json(
     writeln!(output, "  \"generated_code_bytes\": {{").expect("writing to String succeeds");
     writeln!(output, "    \"jit_add\": {},", sizes.add_code).expect("writing to String succeeds");
     writeln!(output, "    \"jit_min\": {},", sizes.min_code).expect("writing to String succeeds");
+    writeln!(output, "    \"jit_countdown\": {},", sizes.countdown_code)
+        .expect("writing to String succeeds");
     writeln!(output, "    \"jit_host_callback\": {}", sizes.host_code)
         .expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"object_file_bytes\": {{").expect("writing to String succeeds");
     writeln!(output, "    \"aot_add\": {},", sizes.add_object).expect("writing to String succeeds");
-    writeln!(output, "    \"aot_min\": {}", sizes.min_object).expect("writing to String succeeds");
+    writeln!(output, "    \"aot_min\": {},", sizes.min_object).expect("writing to String succeeds");
+    writeln!(output, "    \"aot_countdown\": {}", sizes.countdown_object)
+        .expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"measurements\": [").expect("writing to String succeeds");
     for (index, measurement) in measurements.iter().enumerate() {
@@ -834,7 +958,10 @@ fn os_version() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, Measurement, escape_json};
+    use super::{
+        ArtifactSizes, Config, Measurement, alternating_countdown_input, escape_json, render_json,
+        rust_countdown,
+    };
 
     #[test]
     fn parses_explicit_configuration() {
@@ -883,5 +1010,39 @@ mod tests {
     #[test]
     fn escapes_json_control_characters() {
         assert_eq!(escape_json("a\n\"b\\c"), "a\\n\\\"b\\\\c");
+    }
+
+    #[test]
+    fn countdown_inputs_cover_the_loop_and_immediate_return() {
+        assert_eq!(alternating_countdown_input(0), 64);
+        assert_eq!(alternating_countdown_input(1), -7);
+        assert_eq!(rust_countdown(64), 0);
+        assert_eq!(rust_countdown(-7), -7);
+    }
+
+    #[test]
+    fn schema_three_includes_countdown_artifact_sizes() {
+        let output = render_json(
+            "prototype-bench",
+            Config {
+                samples: 3,
+                lowering_iterations: 1,
+                runtime_iterations: 1,
+            },
+            ArtifactSizes {
+                add_code: 1,
+                min_code: 2,
+                countdown_code: 3,
+                host_code: 4,
+                add_object: 5,
+                min_object: 6,
+                countdown_object: 7,
+            },
+            &[],
+        );
+
+        assert!(output.contains("\"schema_version\": 3"));
+        assert!(output.contains("\"jit_countdown\": 3"));
+        assert!(output.contains("\"aot_countdown\": 7"));
     }
 }

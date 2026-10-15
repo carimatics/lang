@@ -186,7 +186,7 @@ CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequ
 
 初期tier-1 linker strategyは、backend-neutralな `LinkTarget` でcode化しました。Exactな `aarch64-apple-darwin` と `x86_64-pc-windows-msvc` tripleを、それぞれのcommand flavor、default program、ordered discovery candidateへ対応付けます。明示targetのlinker構築／discovery、両platform integration、cross-target COFF testがこの共有mappingを使用し、未supportのtripleはstructuredに失敗します。追加targetのpolicy、installation discovery、startup／runtime inputは未完了です。
 
-Schema 2 benchmarkは、macOS AArch64に加えてWindows x86-64 MSVCでもsystem-link pathを実行するようになりました。Windows CIはschema、clean-checkout metadata、target identity、link rowを検証してからJSONを30日間保持します。これは再現可能なevidence収集を準備しますが、検査・記録済みrunner結果の代わりにはなりません。
+Schema 3 benchmarkは、型付きcountdown back-edgeをlowering、JIT／AOT compilation、direct／VM／JIT call、artifact size、両tier-1 system-link pathへ追加します。Schema bumpは、追加fieldとlink-series renameを明示的に記録します。Windows CIはschema、clean-checkout metadata、target identity、拡張済みlink rowを検証してからJSONを30日間保持します。Cleanなschema 3 resultはまだ記録していないため、これはcross-platform evidenceではなくevidence生成pathのままです。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
