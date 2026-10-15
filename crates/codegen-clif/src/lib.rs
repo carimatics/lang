@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
@@ -5,7 +6,8 @@ use cranelift_codegen::ir::{AbiParam, InstBuilder, types};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, default_libcall_names};
-use lang_mir::{Function, Instruction, Terminator, Type, ValidationError};
+use lang_mir::{Function, HostFunctionId, Instruction, Terminator, Type, ValidationError};
+use lang_runtime::HostFunctionRegistry;
 
 pub struct CompiledFunction {
     _module: JITModule,
@@ -15,14 +17,42 @@ pub struct CompiledFunction {
 
 impl CompiledFunction {
     pub fn compile(function: &Function) -> Result<Self, CompileError> {
+        Self::compile_with_hosts(function, &HostFunctionRegistry::new())
+    }
+
+    pub fn compile_with_hosts(
+        function: &Function,
+        host_functions: &HostFunctionRegistry,
+    ) -> Result<Self, CompileError> {
         function.validate().map_err(CompileError::InvalidMir)?;
 
         if function.signature().result() != Type::I64 {
             return Err(CompileError::UnsupportedSignature);
         }
 
-        let jit_builder =
+        let mut jit_builder =
             JITBuilder::new(default_libcall_names()).map_err(CompileError::backend)?;
+        let mut host_symbols = HashMap::new();
+        for instruction in function.instructions() {
+            let Instruction::CallHostI64 {
+                function: host_id, ..
+            } = instruction
+            else {
+                continue;
+            };
+
+            if host_symbols.contains_key(host_id) {
+                continue;
+            }
+
+            let callback = host_functions
+                .resolve_i64(*host_id)
+                .ok_or(CompileError::UnknownHostFunction(*host_id))?;
+            let symbol = host_symbol_name(*host_id);
+            jit_builder.symbol(symbol.clone(), callback as *const u8);
+            host_symbols.insert(*host_id, symbol);
+        }
+
         let mut module = JITModule::new(jit_builder);
         let mut context = module.make_context();
         context.func.signature.params.extend(
@@ -43,6 +73,18 @@ impl CompiledFunction {
             .map_err(CompileError::backend)?;
         let mut builder_context = FunctionBuilderContext::new();
         let frontend_config = module.target_config();
+        let mut host_references = HashMap::new();
+
+        for (host_id, symbol) in host_symbols {
+            let mut signature = module.make_signature();
+            signature.params.push(AbiParam::new(types::I64));
+            signature.returns.push(AbiParam::new(types::I64));
+            let function_id = module
+                .declare_function(&symbol, Linkage::Import, &signature)
+                .map_err(CompileError::backend)?;
+            let function_reference = module.declare_func_in_func(function_id, &mut context.func);
+            host_references.insert(host_id, function_reference);
+        }
 
         {
             let mut builder = FunctionBuilder::new(&mut context.func, &mut builder_context);
@@ -60,6 +102,17 @@ impl CompiledFunction {
                     Instruction::I64AddWrapping { left, right, .. } => builder
                         .ins()
                         .iadd(values[left.index()], values[right.index()]),
+                    Instruction::CallHostI64 {
+                        function, argument, ..
+                    } => {
+                        let function_reference = host_references
+                            .get(&function)
+                            .expect("host reference was declared before lowering");
+                        let call = builder
+                            .ins()
+                            .call(*function_reference, &[values[argument.index()]]);
+                        builder.inst_results(call)[0]
+                    }
                 };
                 values.push(value);
             }
@@ -93,16 +146,41 @@ impl CompiledFunction {
             });
         }
 
+        // SAFETY: compilation records the validated MIR arity, and this branch
+        // accepts only the exact two-i64 signature used for this function.
         let function: unsafe extern "C" fn(i64, i64) -> i64 =
             unsafe { std::mem::transmute(self.code) };
+        // SAFETY: JIT code remains alive with `self._module`, and the signature
+        // checked above matches the generated function's native signature.
         Ok(unsafe { function(left, right) })
     }
+
+    pub fn invoke_i64_1(&self, argument: i64) -> Result<i64, InvokeError> {
+        if self.parameter_count != 1 {
+            return Err(InvokeError::Arity {
+                expected: self.parameter_count,
+                actual: 1,
+            });
+        }
+
+        // SAFETY: compilation records the validated MIR arity, and this branch
+        // accepts only the exact one-i64 signature used for this function.
+        let function: unsafe extern "C" fn(i64) -> i64 = unsafe { std::mem::transmute(self.code) };
+        // SAFETY: JIT code remains alive with `self._module`, and the signature
+        // checked above matches the generated function's native signature.
+        Ok(unsafe { function(argument) })
+    }
+}
+
+fn host_symbol_name(id: HostFunctionId) -> String {
+    format!("lang_host_i64_{}", id.as_u32())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CompileError {
     InvalidMir(ValidationError),
     UnsupportedSignature,
+    UnknownHostFunction(HostFunctionId),
     Backend(String),
 }
 
@@ -117,6 +195,9 @@ impl Display for CompileError {
         match self {
             Self::InvalidMir(error) => write!(formatter, "invalid MIR: {error}"),
             Self::UnsupportedSignature => formatter.write_str("unsupported function signature"),
+            Self::UnknownHostFunction(id) => {
+                write!(formatter, "host function {id} is not registered")
+            }
             Self::Backend(error) => write!(formatter, "Cranelift backend error: {error}"),
         }
     }
@@ -143,3 +224,30 @@ impl Display for InvokeError {
 }
 
 impl Error for InvokeError {}
+
+#[cfg(test)]
+mod tests {
+    use lang_mir::{Function, HostFunctionId, Instruction, Signature, Terminator, Type, ValueId};
+
+    use super::{CompileError, CompiledFunction};
+
+    #[test]
+    fn rejects_unregistered_host_functions() {
+        let host_id = HostFunctionId::new(9);
+        let function = Function::new(
+            "missing_host",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![Instruction::CallHostI64 {
+                result: ValueId::new(1),
+                function: host_id,
+                argument: ValueId::new(0),
+            }],
+            Terminator::Return(ValueId::new(1)),
+        );
+
+        assert_eq!(
+            CompiledFunction::compile(&function).map(|_| ()),
+            Err(CompileError::UnknownHostFunction(host_id))
+        );
+    }
+}

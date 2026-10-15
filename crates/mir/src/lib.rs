@@ -21,6 +21,25 @@ impl ValueId {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct HostFunctionId(u32);
+
+impl HostFunctionId {
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    pub const fn as_u32(self) -> u32 {
+        self.0
+    }
+}
+
+impl Display for HostFunctionId {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Signature {
     parameters: Vec<Type>,
@@ -52,12 +71,19 @@ pub enum Instruction {
         left: ValueId,
         right: ValueId,
     },
+    CallHostI64 {
+        result: ValueId,
+        function: HostFunctionId,
+        argument: ValueId,
+    },
 }
 
 impl Instruction {
     pub const fn result(&self) -> ValueId {
         match self {
-            Self::I64Constant { result, .. } | Self::I64AddWrapping { result, .. } => *result,
+            Self::I64Constant { result, .. }
+            | Self::I64AddWrapping { result, .. }
+            | Self::CallHostI64 { result, .. } => *result,
         }
     }
 
@@ -65,6 +91,7 @@ impl Instruction {
         let operands = match self {
             Self::I64Constant { .. } => [None, None],
             Self::I64AddWrapping { left, right, .. } => [Some(*left), Some(*right)],
+            Self::CallHostI64 { argument, .. } => [Some(*argument), None],
         };
         operands.into_iter().flatten()
     }

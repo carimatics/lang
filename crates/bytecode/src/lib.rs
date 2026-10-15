@@ -3,7 +3,9 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use lang_mir::{Function, Instruction as MirInstruction, Terminator, ValidationError};
+use lang_mir::{
+    Function, HostFunctionId, Instruction as MirInstruction, Terminator, ValidationError,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Instruction {
@@ -15,6 +17,11 @@ pub enum Instruction {
         destination: usize,
         left: usize,
         right: usize,
+    },
+    CallHostI64 {
+        destination: usize,
+        function: HostFunctionId,
+        argument: usize,
     },
 }
 
@@ -83,6 +90,15 @@ impl Program {
                     verify_destination(destination, &initialized)?;
                     initialized[destination] = true;
                 }
+                Instruction::CallHostI64 {
+                    destination,
+                    argument,
+                    ..
+                } => {
+                    verify_source(argument, &initialized)?;
+                    verify_destination(destination, &initialized)?;
+                    initialized[destination] = true;
+                }
             }
         }
 
@@ -125,6 +141,15 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
                 destination: result.index(),
                 left: left.index(),
                 right: right.index(),
+            },
+            MirInstruction::CallHostI64 {
+                result,
+                function,
+                argument,
+            } => Instruction::CallHostI64 {
+                destination: result.index(),
+                function,
+                argument: argument.index(),
             },
         })
         .collect();
@@ -190,6 +215,8 @@ impl Error for LowerError {}
 
 #[cfg(test)]
 mod tests {
+    use lang_mir::HostFunctionId;
+
     use super::{Instruction, Program, VerificationError};
 
     #[test]
@@ -206,5 +233,21 @@ mod tests {
         );
 
         assert_eq!(result, Err(VerificationError::UninitializedRegister(1)));
+    }
+
+    #[test]
+    fn rejects_uninitialized_host_call_arguments() {
+        let result = Program::new(
+            0,
+            2,
+            vec![Instruction::CallHostI64 {
+                destination: 1,
+                function: HostFunctionId::new(0),
+                argument: 0,
+            }],
+            1,
+        );
+
+        assert_eq!(result, Err(VerificationError::UninitializedRegister(0)));
     }
 }

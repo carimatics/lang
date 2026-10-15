@@ -5,3 +5,5 @@ edition.workspace = true
 
 [dependencies]
 lang-bytecode.workspace = true
+lang-mir.workspace = true
+lang-runtime.workspace = true

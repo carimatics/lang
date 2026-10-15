@@ -9,3 +9,4 @@ cranelift-frontend.workspace = true
 cranelift-jit.workspace = true
 cranelift-module.workspace = true
 lang-mir.workspace = true
+lang-runtime.workspace = true

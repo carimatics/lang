@@ -106,6 +106,8 @@ RFCは以下の状態を使用します。
 - 埋め込みhost callとcallbackは、最終的に型なしraw pointerではなく、型付き登録と生成adapterを利用する。
 - WebAssembly/component実行は将来のsandbox tierであり、最初のプロトタイプには必須でない。
 
+現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、resource limit、serialized interfaceは未指定かつ未実装のままです。
+
 実行モード間に意図的な差を設ける場合、RFC、必要に応じた診断、その境界を示すテストが必要です。
 
 ## ABIと互換性
@@ -176,6 +178,8 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 
 ## 実装計画
 
+2026-10-15時点のprototype状況：step 1〜3は、local `i64` vertical sliceについて完了しています。Step 3では型付き登録、VM／native差分実行、重複登録の拒否、未知関数の拒否を扱いますが、stable embedding boundaryまたはcomponent boundaryは完成していません。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。
@@ -190,7 +194,7 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 - 同一の入力表をVMとnative codeで実行し、結果を比較する。
 - deserialize導入前に、不正なMIRとbytecodeのテストを追加する。
 - instruction数とtype数の増加に合わせてproperty testとfuzz testを追加する。
-- embedding追加時にhost call、callback、panic containment、capability rejectionをテストする。
+- 実装済み `i64` host callとcallbackについて、VM／native等価性、重複登録の拒否、未知関数の拒否をテストする。Panic containmentとcapability rejectionは、それらのmechanism導入時に追加する。
 - CIでformatting、警告を拒否するClippy、workspace全test、documentation buildを実行する。
 - 縦断スライスをportableと宣言する前に、macOS AArch64とWindows x86-64 CIを追加する。
 - benchmark入力とraw metadataを要約結果とともに保存する。
@@ -210,6 +214,6 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
 - `docs/architecture.md`、設計baseline案、最終更新 2026-10-15 22:30 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-15 22:31 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-15 23:17 JST。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/

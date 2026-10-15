@@ -106,6 +106,8 @@ The initial execution model has one semantic input and multiple lowerings:
 - Embedded host calls and callbacks must eventually use typed registration and generated adapters rather than untyped raw pointers.
 - WebAssembly/component execution remains a future sandbox tier and is not required by the first prototype.
 
+The current embedding experiment assigns each host function a backend-neutral MIR identifier and resolves a typed `extern "C" fn(i64) -> i64` from a per-runtime registry. The VM dispatches through that registry, while Cranelift imports the same registered function into the JIT module. This is test scaffolding rather than a stable ABI: aggregate values, error transport, panic containment, capabilities, resource limits, and serialized interfaces remain unspecified and unimplemented.
+
 Any intentional difference between execution modes requires an RFC, a diagnostic where relevant, and tests that demonstrate the boundary.
 
 ## ABI and compatibility
@@ -176,6 +178,8 @@ A VM-only implementation would deliver scripting earlier. It is simpler, but it 
 
 ## Implementation plan
 
+Prototype status as of 2026-10-15: steps 1–3 are complete for the local `i64` vertical slice. Step 3 covers typed registration, VM/native differential execution, duplicate registration rejection, and unknown-function rejection; it does not complete the stable embedding or component boundary.
+
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
 3. Add typed host-function registration and a script-to-host callback; then call a compiled function from the embedded runtime.
@@ -190,7 +194,7 @@ A VM-only implementation would deliver scripting earlier. It is simpler, but it 
 - Run identical input tables through VM and native code and compare results.
 - Add malformed MIR and bytecode tests before deserialization is introduced.
 - Add property and fuzz tests as instruction and type counts grow.
-- Test host calls, callbacks, panic containment, and capability rejection when embedding is added.
+- Test the implemented `i64` host call and callback for VM/native equivalence, duplicate registration rejection, and unknown-function rejection. Add panic containment and capability rejection when those mechanisms are introduced.
 - Run formatting, Clippy with warnings denied, all workspace tests, and documentation builds in CI.
 - Add macOS AArch64 and Windows x86-64 CI before declaring the vertical slice portable.
 - Store benchmark inputs and raw metadata with summarized results.
@@ -210,6 +214,6 @@ Review outcome: **needs prototype/measurement**. The blocking questions are the 
 
 - `docs/research.md`, project research, last updated 2026-10-15 22:29 JST.
 - `docs/architecture.md`, proposed design baseline, last updated 2026-10-15 22:30 JST.
-- `docs/roadmap.md`, implementation milestones, last updated 2026-10-15 22:31 JST.
+- `docs/roadmap.md`, implementation milestones, last updated 2026-10-15 23:17 JST.
 - Cranelift documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-jit/0.136.3/

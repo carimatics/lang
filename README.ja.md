@@ -59,6 +59,8 @@ cargo run -- 20 22
 
 このcommandは、検証済みの型付きMIR関数を構築し、検証済みregister bytecodeへloweringしてVMで実行し、同じMIRをCranelift JITでcompileして結果を比較します。wrapping `i64` 加算はプロトタイプ動作であり、承認済み言語意味論ではありません。
 
+Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、resource limitはまだ提供しません。
+
 共通チェック：
 
 ```bash
@@ -68,7 +70,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-現在のworkspaceには、この縦断スライスで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
+現在のworkspaceには、この縦断スライスで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif` と、型付きhost-function registryを持つ `lang-runtime` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
 
 ## 設計プロセス
 

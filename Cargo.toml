@@ -4,6 +4,7 @@ members = [
     "crates/bytecode",
     "crates/codegen-clif",
     "crates/mir",
+    "crates/runtime",
     "crates/vm",
 ]
 resolver = "3"
@@ -20,6 +21,7 @@ cranelift-module = "0.136.0"
 lang-bytecode = { path = "crates/bytecode" }
 lang-codegen-clif = { path = "crates/codegen-clif" }
 lang-mir = { path = "crates/mir" }
+lang-runtime = { path = "crates/runtime" }
 lang-vm = { path = "crates/vm" }
 
 [package]
@@ -31,4 +33,5 @@ edition.workspace = true
 lang-bytecode.workspace = true
 lang-codegen-clif.workspace = true
 lang-mir.workspace = true
+lang-runtime.workspace = true
 lang-vm.workspace = true

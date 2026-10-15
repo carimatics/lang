@@ -273,6 +273,7 @@ dependencies = [
  "lang-bytecode",
  "lang-codegen-clif",
  "lang-mir",
+ "lang-runtime",
  "lang-vm",
 ]
 
@@ -292,6 +293,7 @@ dependencies = [
  "cranelift-jit",
  "cranelift-module",
  "lang-mir",
+ "lang-runtime",
 ]
 
 [[package]]
@@ -299,10 +301,19 @@ name = "lang-mir"
 version = "0.1.0"
 
 [[package]]
+name = "lang-runtime"
+version = "0.1.0"
+dependencies = [
+ "lang-mir",
+]
+
+[[package]]
 name = "lang-vm"
 version = "0.1.0"
 dependencies = [
  "lang-bytecode",
+ "lang-mir",
+ "lang-runtime",
 ]
 
 [[package]]
