@@ -118,6 +118,7 @@ struct ArtifactSizes {
     add_object: usize,
     min_object: usize,
     countdown_object: usize,
+    aot_executable: Option<u64>,
 }
 
 impl Measurement {
@@ -205,6 +206,10 @@ fn run() -> Result<(), String> {
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     let link_benchmark =
         LinkBenchmark::prepare(aot_add.bytes(), aot_min.bytes(), aot_countdown.bytes())?;
+    #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
+    let aot_executable_size = Some(link_benchmark.executable_size()?);
+    #[cfg(not(any(target_os = "macos", all(target_os = "windows", target_env = "msvc"))))]
+    let aot_executable_size = None;
 
     let workloads = PreparedWorkloads {
         add_program: &add_program,
@@ -294,7 +299,10 @@ fn run() -> Result<(), String> {
         },
     ));
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
-    measurements.push(link_benchmark.measure(config.samples)?);
+    {
+        measurements.push(link_benchmark.measure_link(config.samples)?);
+        measurements.push(link_benchmark.measure_startup(config.samples)?);
+    }
     measurements.push(measure_calls(
         "rust_add_call",
         config.samples,
@@ -415,6 +423,7 @@ fn run() -> Result<(), String> {
                 add_object: aot_add.bytes().len(),
                 min_object: aot_min.bytes().len(),
                 countdown_object: aot_countdown.bytes().len(),
+                aot_executable: aot_executable_size,
             },
             &measurements,
         )
@@ -676,7 +685,13 @@ impl LinkBenchmark {
         Ok(benchmark)
     }
 
-    fn measure(&self, sample_count: usize) -> Result<Measurement, String> {
+    fn executable_size(&self) -> Result<u64, String> {
+        fs::metadata(&self.executable)
+            .map(|metadata| metadata.len())
+            .map_err(|error| format!("failed to inspect the linked executable: {error}"))
+    }
+
+    fn measure_link(&self, sample_count: usize) -> Result<Measurement, String> {
         let mut samples = Vec::with_capacity(sample_count);
         for _ in 0..sample_count {
             let started = Instant::now();
@@ -685,6 +700,23 @@ impl LinkBenchmark {
         }
         Ok(Measurement::from_samples(
             "system_link_add_min_countdown",
+            1,
+            samples,
+        ))
+    }
+
+    fn measure_startup(&self, sample_count: usize) -> Result<Measurement, String> {
+        let mut samples = Vec::with_capacity(sample_count);
+        for _ in 0..sample_count {
+            let started = Instant::now();
+            let execution = Command::new(&self.executable)
+                .output()
+                .map_err(|error| format!("failed to run the linked executable: {error}"))?;
+            samples.push(started.elapsed().as_secs_f64() * 1_000_000_000.0);
+            ensure_command_succeeded("linked executable", &execution)?;
+        }
+        Ok(Measurement::from_samples(
+            "aot_process_startup_add_min_countdown",
             1,
             samples,
         ))
@@ -801,7 +833,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 3,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 4,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -832,6 +864,14 @@ fn render_json(
     writeln!(output, "    \"aot_min\": {},", sizes.min_object).expect("writing to String succeeds");
     writeln!(output, "    \"aot_countdown\": {}", sizes.countdown_object)
         .expect("writing to String succeeds");
+    writeln!(output, "  }},").expect("writing to String succeeds");
+    writeln!(output, "  \"executable_file_bytes\": {{").expect("writing to String succeeds");
+    match sizes.aot_executable {
+        Some(size) => writeln!(output, "    \"aot_add_min_countdown\": {size}")
+            .expect("writing to String succeeds"),
+        None => writeln!(output, "    \"aot_add_min_countdown\": null")
+            .expect("writing to String succeeds"),
+    }
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"measurements\": [").expect("writing to String succeeds");
     for (index, measurement) in measurements.iter().enumerate() {
@@ -1021,7 +1061,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_three_includes_countdown_artifact_sizes() {
+    fn schema_four_includes_countdown_and_executable_artifact_sizes() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1037,12 +1077,39 @@ mod tests {
                 add_object: 5,
                 min_object: 6,
                 countdown_object: 7,
+                aot_executable: Some(8),
             },
             &[],
         );
 
-        assert!(output.contains("\"schema_version\": 3"));
+        assert!(output.contains("\"schema_version\": 4"));
         assert!(output.contains("\"jit_countdown\": 3"));
         assert!(output.contains("\"aot_countdown\": 7"));
+        assert!(output.contains("\"aot_add_min_countdown\": 8"));
+    }
+
+    #[test]
+    fn schema_four_uses_null_when_no_tier_one_executable_is_available() {
+        let output = render_json(
+            "prototype-bench",
+            Config {
+                samples: 3,
+                lowering_iterations: 1,
+                runtime_iterations: 1,
+            },
+            ArtifactSizes {
+                add_code: 1,
+                min_code: 2,
+                countdown_code: 3,
+                host_code: 4,
+                add_object: 5,
+                min_object: 6,
+                countdown_object: 7,
+                aot_executable: None,
+            },
+            &[],
+        );
+
+        assert!(output.contains("\"aot_add_min_countdown\": null"));
     }
 }

@@ -188,6 +188,8 @@ The initial tier-1 linker strategy is now encoded by a backend-neutral `LinkTarg
 
 The schema 3 benchmark adds the typed countdown back-edge to lowering, JIT/AOT compilation, direct/VM/JIT calls, artifact sizes, and both tier-1 system-link paths. The schema bump records the added fields and link-series rename explicitly. A clean macOS AArch64 schema 3 result is recorded. Windows CI validates schema, clean-checkout metadata, target identity, and the expanded link row before retaining the JSON for 30 days; without an inspected Windows result, this is not yet cross-platform evidence.
 
+Schema 4 adds linked AOT executable size and repeated warm-cache process-startup measurements to both tier-1 evidence paths. Process startup remains distinct from system-link time and includes process creation, loader work, the tiny harness, output collection, and termination; it neither flushes operating-system caches nor represents a complete runtime distribution. Windows CI validates the new row and size field, but no clean schema 4 result has been recorded, so startup and executable-size evidence remain provisional.
+
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
 3. Add typed host-function registration and a script-to-host callback; then call a compiled function from the embedded runtime.

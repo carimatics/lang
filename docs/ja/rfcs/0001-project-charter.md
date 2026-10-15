@@ -188,6 +188,8 @@ CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequ
 
 Schema 3 benchmarkは、型付きcountdown back-edgeをlowering、JIT／AOT compilation、direct／VM／JIT call、artifact size、両tier-1 system-link pathへ追加します。Schema bumpは、追加fieldとlink-series renameを明示的に記録します。CleanなmacOS AArch64 schema 3 resultを記録しました。Windows CIはschema、clean-checkout metadata、target identity、拡張済みlink rowを検証してからJSONを30日間保持します。検査済みWindows resultがないため、これはまだcross-platform evidenceではありません。
 
+Schema 4は、両tier-1 evidence pathへlink済みAOT executable sizeと反復warm-cache process-startup measurementを追加します。Process startupはsystem-link timeと分離したままで、process creation、loader処理、小さなharness、output collection、terminationを含みます。Operating-system cacheをflushせず、完全なruntime distributionを表すものでもありません。Windows CIは新しいrowとsize fieldを検証しますが、cleanなschema 4 resultはまだ記録していないため、startupとexecutable-size evidenceはprovisionalです。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。

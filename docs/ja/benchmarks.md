@@ -46,6 +46,14 @@ cargo run --release --bin prototype-bench -- \
 
 Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、countdownが20 byte、host callbackが40 byte含まれました。生成されたadd、minimum、countdown objectは352、368、376 byteでした。JIT code sizeにはobject-file structure、relocation data、unwind/debug information、runtime support、linker outputは含まれません。Object sizeにはMach-O structureが含まれますが、C harnessと最終executableは含まれません。
 
+## Schema 4 formatとmigration
+
+Schema 4は `executable_file_bytes.aot_add_min_countdown` と `aot_process_startup_add_min_countdown` measurementを追加します。Executable-size fieldは初期tier-1 hostでは正のbyte count、それ以外では `null` です。Consumerは `schema_version` で分岐する必要があり、既存のschema 1〜3 JSON fileはimmutableなevidenceとして残します。
+
+Startup rowは、反復するprocess creation、dynamic loading、add／minimum／countdown checkの実行、output collection、process terminationを計測します。Harnessは計測前にlinkとexecutionを1回検証し、operating-system cacheをflushしません。そのため、これはcold-boot latencyではなくwarm-cache process-startup measurementです。Executableには事前compile済みC harnessとplatform linkerのdefaultが含まれますが、完全なruntime distributionやinstallation-size measurementではありません。
+
+Schema 4の実装とWindows evidence pathは存在しますが、cleanなschema 4 resultはまだ記録していません。上のschema 3 tableが現在の測定済みbaselineです。
+
 ## Schema 3 formatとmigration
 
 Schema 3は、bounded countdown workloadをbytecode lowering、JIT compilation、AOT object emission、direct／VM／JIT call、artifact size、system-link setへ追加します。Runtime sampleは、`i64` block parameterをback-edgeの周囲で運んでzeroへ到達するinput `64` と、immediate-return pathを取る `-7` を交互に使用します。Harnessは計測前に、`-7`、`0`、`1`、`64` についてdirect／VM／JITの等価性を確認します。
@@ -54,7 +62,7 @@ Schema 3は `jit_countdown` と `aot_countdown` size field、6つのcountdown me
 
 ## Windows x86-64 evidence path
 
-Schema 3 harnessは、Windows x86-64 MSVCでも同じ `system_link_add_min_countdown` rowを記録します。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証してから、反復linkだけを計測します。Windows Server 2025 workflowは同じ31／1,000／100,000 parameterで実行し、schema 3、clean checkout、`windows`／`x86_64` identity、拡張済みsystem-link rowの存在を検証し、そのJSONを30日間uploadします。
+Schema 4 harnessは、Windows x86-64 MSVCで `system_link_add_min_countdown`、`aot_process_startup_add_min_countdown`、`executable_file_bytes.aot_add_min_countdown` を記録します。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証します。Windows Server 2025 workflowは同じ31／1,000／100,000 parameterで実行し、schema 4、clean-checkout metadata、`windows`／`x86_64` identity、両platform measurement、正のexecutable sizeを検証し、そのJSONを30日間uploadします。
 
 これはevidenceを生成するpathであり、記録済みWindows evidenceではありません。この変更によるremote runner結果はまだ検査もcommitもされていません。したがって、上のmacOS tableが現在唯一の測定済みbaselineです。
 
@@ -78,11 +86,12 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - VM rowには、呼び出しごとのbytecode verificationとregister allocationが含まれます。Interpreter dispatchだけでなく、現在のend-to-end embedding APIを計測しています。
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
 - Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdownを追加します。どちらもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
+- Schema 4のprocess-startup rowには、process creation、loader処理、小さなharness workload、output collection、終了待ちが含まれます。Operating-system cacheをflushせず、loader timeも分離しません。Executable-size fieldにはplatform C harnessとdefault linker outputが含まれます。
 - JIT add compilationのRSDは72.237%で、medianが19.375 usである一方、1 sampleは116.333 usに達しました。Countdown JIT／AOT medianは27.541 us／21.625 usで、RSDは11.217%／5.546%です。これらのmedianは方向性の証拠として有用ですが、add compile-time variationが大きすぎるためstable performance budgetには使用できません。
 - VM／JIT runtime rowのRSDは1.5%未満でした。64-iteration back-edgeとimmediate returnを交互に実行すると、JIT medianは12.729 ns、VM medianは1,558.118 nsになります。このbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。Sub-nanosecond direct-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、両tier-1 hostでschema 3を記録し、allocationとより広いCFG workloadを追加し、startup、memory、executable size、debug qualityを計測します。
+初期native backendを選定する前に、両tier-1 hostでschema 4を記録し、allocationとより広いCFG workloadを追加し、memoryとdebug qualityを計測します。Schema 4はprocess startupとlinked executable sizeをinstrumentしますが、clean resultを記録して解釈するまでは、これらのdimensionは未立証です。
 
 ## 以前のbaseline
 

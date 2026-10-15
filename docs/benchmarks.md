@@ -46,6 +46,14 @@ Each row reports nanoseconds per operation. RSD is the relative population stand
 
 Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, 20 bytes for countdown, and 40 bytes for the host callback. The emitted add, minimum, and countdown objects were 352, 368, and 376 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable.
 
+## Schema 4 format and migration
+
+Schema 4 adds `executable_file_bytes.aot_add_min_countdown` and the `aot_process_startup_add_min_countdown` measurement. The executable-size field is a positive byte count on the initial tier-1 hosts and `null` elsewhere. Consumers must branch on `schema_version`; existing schema 1–3 JSON files remain immutable evidence.
+
+The startup row measures repeated process creation, dynamic loading, execution of the add, minimum, and countdown checks, output collection, and process termination. The harness validates one link and execution before timing and does not flush operating-system caches, so this is a warm-cache process-startup measurement rather than cold-boot latency. The executable includes the precompiled C harness and platform linker defaults; it is not a complete runtime distribution or installation-size measurement.
+
+The schema 4 implementation and Windows evidence path are present, but no clean schema 4 result is recorded yet. The schema 3 table above remains the current measured baseline.
+
 ## Schema 3 format and migration
 
 Schema 3 adds a bounded countdown workload to bytecode lowering, JIT compilation, AOT object emission, direct/VM/JIT calls, artifact sizes, and the system-link set. Runtime samples alternate between input `64`, which carries an `i64` block parameter around a back-edge until it reaches zero, and `-7`, which takes the immediate-return path. The harness checks `-7`, `0`, `1`, and `64` for direct/VM/JIT equivalence before timing.
@@ -54,7 +62,7 @@ Schema 3 adds `jit_countdown` and `aot_countdown` size fields plus six countdown
 
 ## Windows x86-64 evidence path
 
-The schema 3 harness records the same `system_link_add_min_countdown` row on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, validates one link and execution before timing, and then measures only repeated links. The Windows Server 2025 workflow runs the same 31/1,000/100,000 parameters, validates schema 3, a clean checkout, the `windows`/`x86_64` identity, and presence of the expanded system-link row, then uploads the JSON for 30 days.
+The schema 4 harness records `system_link_add_min_countdown`, `aot_process_startup_add_min_countdown`, and `executable_file_bytes.aot_add_min_countdown` on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, and validates one link and execution before timing. The Windows Server 2025 workflow runs the same 31/1,000/100,000 parameters, validates schema 4, clean-checkout metadata, the `windows`/`x86_64` identity, both platform measurements, and a positive executable size, then uploads the JSON for 30 days.
 
 This is an evidence-producing path, not recorded Windows evidence: no remote runner result from this change has been inspected or committed. The macOS table above therefore remains the only current measured baseline.
 
@@ -78,11 +86,12 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
 - The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown. Both precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).
+- Schema 4's process-startup row includes process creation, loader work, the tiny harness workload, output collection, and waiting for termination. It neither flushes operating-system caches nor isolates loader time, and the executable-size field includes the platform C harness and default linker output.
 - JIT add compilation has 72.237% RSD because one sample reached 116.333 us, while its median was 19.375 us. The countdown JIT and AOT medians are 27.541 us and 21.625 us with 11.217% and 5.546% RSD. These medians are useful as directional evidence, but the add compile-time variation is too high for a stable performance budget.
 - VM/JIT runtime rows stayed below 1.5% RSD. Alternating between a 64-iteration back-edge and immediate return raises the JIT median to 12.729 ns and the VM median to 1,558.118 ns; this bounded microbenchmark does not predict representative control-flow performance. Sub-nanosecond direct-call rows are timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record schema 3 on both tier-1 hosts, add allocation and broader CFG workloads, and measure startup, memory, executable size, and debug quality.
+Before selecting the initial native backend, record schema 4 on both tier-1 hosts, add allocation and broader CFG workloads, and measure memory and debug quality. Schema 4 instruments process startup and linked executable size, but those dimensions remain unproven until clean results are recorded and interpreted.
 
 ## Earlier baseline
 

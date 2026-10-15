@@ -232,6 +232,8 @@ Root crateは、初期tier-1 linker policyをbackend-neutralな `LinkTarget` dom
 
 Schema 3 benchmarkは、両方の初期tier-1 hostでsystem-link measurementにこのpolicyを使用します。計測対象MIRへ、back-edgeを介して `i64` block parameterを運ぶbounded countdown loopを追加し、platform C harnessを事前compileし、link済みexecutableを1回検証してから、compiler setupとlinker discoveryを含めずに `cc` または `link.exe` の反復呼び出しを計測します。Windows CIはmachine-readable envelopeを検証して期限付きartifactとしてuploadします。Benchmark valueがproject evidenceになるのは、cleanなrunner結果を検査して記録した後だけです。
 
+Schema 4は同じbackend-neutral link pathを維持し、link済みexecutableのbyte sizeと反復process-startup rowを追加します。Startup measurementは、1回のvalidation run後にoperating-system cacheをflushせず、process creation、platform loader処理、小さなAOT harness、output collection、terminationを含めます。これにより、測定したwarm-cache process costをcold boot、loader-only cost、完全なruntime distribution sizeから区別します。
+
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。

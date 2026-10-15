@@ -18,6 +18,8 @@ CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequ
 
 Schema 3 harnessは、addとminimumに加えてbounded countdown back-edgeのlowering、JIT／AOT compilation、direct／VM／JIT call、artifact size、system linkingを計測します。新fieldとrename済みlink seriesは明示的にversion管理します。CleanなmacOS AArch64 schema 3 baselineを記録しました。Windows CIは対応JSONを検証して30日間uploadしますが、remote runner結果はまだ記録していません。Allocation、より広いCFG coverage、Windows benchmarkの解釈は未完了です。
 
+Schema 4 harnessは、両tier-1 evidence pathでlink済みAOT executable sizeと反復warm-cache process startupを記録します。このrowをsystem-link timeから分離し、process creation、loader処理、小さなharness、output collection、terminationを含むことを文書化します。Windows CIは両rowと正のexecutable sizeを検証します。Cleanなschema 4 resultはまだ記録していません。Memory、debug quality、allocation、より広いCFG coverage、cross-platform interpretationは未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。
