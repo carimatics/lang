@@ -40,6 +40,7 @@
 - [アーキテクチャ提案](docs/ja/architecture.md)
 - [実装ロードマップ](docs/ja/roadmap.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
+- [RFC 0001：プロジェクト憲章と互換性ポリシー](docs/ja/rfcs/0001-project-charter.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
@@ -50,16 +51,24 @@
 - 固定ツールチェーンから導入される `rustfmt` とClippy
 - リポジトリの補助ツールバージョンを利用する場合は `mise`
 
+現在のVM/native等価性プロトタイプを実行します。
+
+```bash
+cargo run -- 20 22
+```
+
+このcommandは、検証済みの型付きMIR関数を構築し、検証済みregister bytecodeへloweringしてVMで実行し、同じMIRをCranelift JITでcompileして結果を比較します。wrapping `i64` 加算はプロトタイプ動作であり、承認済み言語意味論ではありません。
+
 共通チェック：
 
 ```bash
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-cargo doc --no-deps
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+cargo doc --workspace --no-deps
 ```
 
-現在、リポジトリは単一crateです。`docs/ja/architecture.md` に示すworkspace分割は、実際のコンパイラコンポーネントが現れた段階で段階的に導入し、空のscaffoldとして先に作成しません。
+現在のworkspaceには、この縦断スライスで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
 
 ## 設計プロセス
 

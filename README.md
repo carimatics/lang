@@ -40,6 +40,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture propo
 - [Architecture proposal](docs/architecture.md)
 - [Implementation roadmap](docs/roadmap.md)
 - [RFC process and template](docs/rfcs/0000-template.md)
+- [RFC 0001: Project charter and compatibility policy](docs/rfcs/0001-project-charter.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
@@ -50,16 +51,24 @@ Requirements:
 - `rustfmt` and Clippy, installed by the pinned toolchain
 - `mise` when using the repository's auxiliary tool versions
 
+Run the current VM/native equivalence prototype:
+
+```bash
+cargo run -- 20 22
+```
+
+The command constructs a validated typed MIR function, lowers it to verified register bytecode, executes it in the VM, compiles the same MIR with Cranelift JIT, and compares the results. Its wrapping `i64` addition is a prototype behavior, not accepted language semantics.
+
 Common checks:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-cargo doc --no-deps
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+cargo doc --workspace --no-deps
 ```
 
-The repository is currently a single crate. The proposed workspace split in `docs/architecture.md` should be introduced incrementally as real compiler components appear, not as empty scaffolding.
+The workspace currently contains only the components exercised by this vertical slice: `lang-mir`, `lang-bytecode`, `lang-vm`, and `lang-codegen-clif`. Additional boundaries from `docs/architecture.md` should appear only with their implementation.
 
 ## Design process
 

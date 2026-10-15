@@ -1,0 +1,7 @@
+[package]
+name = "lang-bytecode"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lang-mir.workspace = true

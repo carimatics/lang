@@ -17,7 +17,7 @@ mise install
 次のコマンドでcheckoutを検証します。
 
 ```bash
-cargo test --all-targets --all-features
+cargo test --workspace --all-targets --all-features
 ```
 
 ## 必須チェック
@@ -26,9 +26,9 @@ cargo test --all-targets --all-features
 
 ```bash
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-cargo doc --no-deps
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+cargo doc --workspace --no-deps
 ```
 
 ## RFCが必要な場合

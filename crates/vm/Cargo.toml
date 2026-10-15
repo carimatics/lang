@@ -1,0 +1,7 @@
+[package]
+name = "lang-vm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lang-bytecode.workspace = true

@@ -17,7 +17,7 @@ mise install
 Verify the checkout with:
 
 ```bash
-cargo test --all-targets --all-features
+cargo test --workspace --all-targets --all-features
 ```
 
 ## Required checks
@@ -26,9 +26,9 @@ Before submitting a change, run:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-cargo doc --no-deps
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+cargo doc --workspace --no-deps
 ```
 
 ## When an RFC is required

@@ -8,6 +8,8 @@
 
 ## Milestone 0：設計baseline
 
+現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行できます。RFC 0001はproposedのままであり、embedding callback、memory model stress case、cross-platform evidence、backend measurementは未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

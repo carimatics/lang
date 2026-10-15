@@ -58,9 +58,9 @@
 
 ```bash
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-cargo doc --no-deps
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+cargo doc --workspace --no-deps
 ```
 
 動作変更には焦点を絞ったテストを追加してください。コンパイラ作業では、parser snapshot、compile-pass test、compile-fail diagnostics、MIR／bytecode snapshot、VM／native differential test、fuzzing、platform integration testを適切に組み合わせてください。

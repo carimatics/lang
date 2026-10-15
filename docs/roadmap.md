@@ -8,6 +8,8 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Milestone 0: design baseline
 
+Current progress: the first typed function now runs through both verified bytecode and a Cranelift JIT prototype. RFC 0001 remains proposed, and embedding callbacks, memory-model stress cases, cross-platform evidence, and backend measurements remain open.
+
 - Accept goals, non-goals, and terminology.
 - Establish the RFC process and compatibility labels.
 - Prototype three memory-model stress cases: cyclic graphs, async borrows/cancellation, and shared mutable services.

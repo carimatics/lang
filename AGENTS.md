@@ -58,9 +58,9 @@ Run the smallest relevant checks first, then the full baseline before finalizing
 
 ```bash
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
-cargo doc --no-deps
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+cargo doc --workspace --no-deps
 ```
 
 Add focused tests for behavior changes. Compiler work should use the appropriate mix of parser snapshots, compile-pass tests, compile-fail diagnostics, MIR/bytecode snapshots, differential VM/native tests, fuzzing, and platform integration tests.

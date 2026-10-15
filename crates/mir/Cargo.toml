@@ -1,0 +1,6 @@
+[package]
+name = "lang-mir"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

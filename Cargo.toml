@@ -1,6 +1,34 @@
-[package]
-name = "lang"
+[workspace]
+members = [
+    ".",
+    "crates/bytecode",
+    "crates/codegen-clif",
+    "crates/mir",
+    "crates/vm",
+]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
+[workspace.dependencies]
+cranelift-codegen = "0.136.0"
+cranelift-frontend = "0.136.0"
+cranelift-jit = "0.136.0"
+cranelift-module = "0.136.0"
+lang-bytecode = { path = "crates/bytecode" }
+lang-codegen-clif = { path = "crates/codegen-clif" }
+lang-mir = { path = "crates/mir" }
+lang-vm = { path = "crates/vm" }
+
+[package]
+name = "lang"
+version.workspace = true
+edition.workspace = true
+
 [dependencies]
+lang-bytecode.workspace = true
+lang-codegen-clif.workspace = true
+lang-mir.workspace = true
+lang-vm.workspace = true
