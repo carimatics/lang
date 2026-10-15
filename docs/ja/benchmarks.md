@@ -34,6 +34,19 @@ cargo run --release --bin prototype-bench -- \
 
 Craneliftのcompiled code bufferには、add functionについて8 byte、host-callback functionについて40 byteが含まれました。生成されたadd objectは352 byteでした。JIT code sizeにはobject-file structure、relocation data、unwind/debug information、runtime support、linker outputは含まれません。Object sizeにはMach-O structureが含まれますが、C harnessと最終executableは含まれません。
 
+## 生成コード検査
+
+2つのnative object prototypeをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad` から再生成し、2026-10-16 00:25 JSTに同じmacOS AArch64 hostで検査しました。
+
+| Prototype | Export | Import | 生成body | Relocation |
+| --- | --- | --- | --- | --- |
+| Wrapping `i64` add | `_prototype_add` | なし | `add x0, x0, x1`; `ret` | なし |
+| 型付きhost callback | `_prototype_host_callback` | `_lang_host_i64_0` | Pointer authentication付きframe、GOT load、間接 `blr`、authenticated return | `_lang_host_i64_0` に対する `GOTLDP` と `GOTLDPOFF` |
+
+両方のfileは64-bit ARM64 Mach-O objectです。Add prototypeはrelocationなしの8-byte、2-instruction bodyへloweringされています。Callbackはlinkerが解決するexternal importのままであり、position-independentなGOT addressingを使用します。そのbodyは32 bytesです。これは意図したexport／import boundaryを確認し、callbackのcode sizeが大きい理由を示します。Control flow、allocation、debug metadata、unwind behavior、他targetは評価していません。
+
+完全なcommandと、取得した `file`、`nm`、`otool` の出力は[raw inspection transcript](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)に保存しています。
+
 ## 解釈と制限
 
 - Harnessは計測前に、VM、JIT、direct Rustのresultが等価であることを確認します。
@@ -43,7 +56,7 @@ Craneliftのcompiled code bufferには、add functionについて8 byte、host-c
 - JIT compile resultのRSDは66.169%で、medianが20.583 usである一方、1 sampleは112.333 usに達しました。Object-emission resultのRSDは13.802%です。これらのmedianは初期baselineに有用ですが、variationが大きすぎるためstable performance budgetには使用できません。
 - この1 instruction microbenchmarkは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、Windows x86-64上で同じschemaを反復し、代表的なcontrol-flowとallocation workloadを追加し、generated codeを検査し、startup、memory、executable size、debug qualityを計測します。
+初期native backendを選定する前に、Windows x86-64上で同じschemaを反復し、代表的なcontrol-flowとallocation workloadを追加し、startup、memory、executable size、debug qualityを計測します。
 
 ## 以前のbaseline
 
@@ -52,7 +65,9 @@ Commit `b55848cfd5d24678f09eb00a9edda987dc25b257` から2026-10-16 00:05:30 JST�
 ## 情報源
 
 - [現在のraw macOS AArch64 result](../../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json)、2026-10-16 00:20:21 JSTに計測。
+- [macOS AArch64 generated-object inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)、2026-10-16 00:25 JSTに取得。
 - Repository commit `0808ce75f128dfb16bf9c6e6453200fea7749401`、2026-10-16にcommit。
+- Repository commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad`、2026-10-16にcommit。
 - Raw resultに記録されたRust compiler metadata。Compiler commit dateは2026-09-28。
 
 これらのlocal measurement baselineには外部Web情報源を使用していません。
