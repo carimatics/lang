@@ -182,6 +182,8 @@ Prototype status as of 2026-10-16: steps 1–3 are complete for the local `i64` 
 
 A post-CFG reinspection confirms unchanged minimum code and object sizes and instruction sequence. `SystemLinker` now models `Cc` and `MsvcLink` command flavors, selects the matching host default, supports an explicit driver with ordered prefix arguments, exposes the complete command, and retains it in structured execution failures. Ordered library search paths and logical library names lower to flavor-specific arguments, and validation rejects empty object paths, search paths, and names. Explicit response-file linking uses GNU-escaped UTF-8 for `Cc` and Windows-escaped, BOM-prefixed UTF-16LE for `MsvcLink`; focused serialization tests and macOS direct/response-file execution pass. Toolchain discovery and broader target policy remain open. A cfg-gated Windows x86-64 MSVC direct/response-file object-link-execute test and SHA-pinned Windows Server 2025 CI workflow are configured, but no runner result is recorded for this commit.
 
+Initial host-toolchain discovery scans `PATH` in deterministic candidate order, requires executable Unix files, and reports the searched path and candidates through a structured error. The macOS integration uses the discovered driver, and the cfg-gated MSVC integration uses the same discovery after its developer environment initializes `PATH`. Installation discovery outside an initialized environment remains open.
+
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
 3. Add typed host-function registration and a script-to-host callback; then call a compiled function from the embedded runtime.

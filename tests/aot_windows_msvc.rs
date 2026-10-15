@@ -113,7 +113,9 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .with_object(&add_object)
         .with_object(&callback_object)
         .with_object(&min_object);
-    let linker = SystemLinker::host().with_argument("/NOLOGO");
+    let linker = SystemLinker::discover_host()
+        .expect("discovers link.exe in the MSVC developer environment")
+        .with_argument("/NOLOGO");
     linker
         .link(&request)
         .expect("links the AOT objects through link.exe");

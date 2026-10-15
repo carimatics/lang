@@ -182,6 +182,8 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 
 CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequenceが変わらないことを確認しました。`SystemLinker` は `Cc` と `MsvcLink` のcommand flavorをmodel化して対応するhost defaultを選択し、ordered prefix argument付きの明示driverをsupportし、完全なcommandを公開してstructured execution failureへ保持します。Ordered library search pathとlogical library nameをflavor固有argumentへloweringし、validationが空のobject path、search path、nameを拒否します。明示的なresponse-file linkは、`Cc` にGNU-escaped UTF-8、`MsvcLink` にWindows-escaped BOM-prefixed UTF-16LEを使用し、focused serialization testとmacOS direct／response-file executionが成功しています。Toolchain discoveryとより広いtarget policyは未完了です。cfg-gated Windows x86-64 MSVC direct／response-file object-link-execute testと完全SHAでpinしたWindows Server 2025 CI workflowを構成しましたが、このcommitにはrunner結果が記録されていません。
 
+初期host-toolchain discoveryは、deterministicなcandidate順で `PATH` を探索し、Unixではexecutable fileを要求し、探索したpathとcandidateをstructured errorで報告します。macOS integrationは発見したdriverを使用し、cfg-gated MSVC integrationもdeveloper environmentが `PATH` を初期化した後に同じdiscoveryを使用します。初期化済みenvironment外のinstallation discoveryは未完了です。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。

@@ -3,7 +3,7 @@ use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
-use std::{fs, io};
+use std::{env, fs, io};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkRequest {
@@ -100,6 +100,36 @@ pub enum LinkerFlavor {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LinkerDiscoveryError {
+    MissingPath,
+    NotFound {
+        candidates: Vec<OsString>,
+        search_path: OsString,
+    },
+}
+
+impl Display for LinkerDiscoveryError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingPath => formatter.write_str("PATH is not set for host linker discovery"),
+            Self::NotFound {
+                candidates,
+                search_path,
+            } => {
+                formatter.write_str("no host linker candidate found on PATH ")?;
+                write!(formatter, "{search_path:?}; searched")?;
+                for candidate in candidates {
+                    write!(formatter, " {candidate:?}")?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl Error for LinkerDiscoveryError {}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SystemLinker {
     program: OsString,
     arguments: Vec<OsString>,
@@ -113,6 +143,33 @@ impl SystemLinker {
         } else {
             Self::new("cc")
         }
+    }
+
+    pub fn discover_host() -> Result<Self, LinkerDiscoveryError> {
+        let search_path = env::var_os("PATH").ok_or(LinkerDiscoveryError::MissingPath)?;
+        Self::discover_host_in(search_path)
+    }
+
+    pub fn discover_host_in(search_path: impl AsRef<OsStr>) -> Result<Self, LinkerDiscoveryError> {
+        let search_path = search_path.as_ref();
+        let (candidates, flavor) = host_linker_candidates();
+        let directories = env::split_paths(search_path)
+            .filter(|directory| !directory.as_os_str().is_empty())
+            .collect::<Vec<_>>();
+
+        for candidate in candidates {
+            for directory in &directories {
+                let program = directory.join(candidate);
+                if is_executable_file(&program) {
+                    return Ok(Self::new_with_flavor(program.into_os_string(), flavor));
+                }
+            }
+        }
+
+        Err(LinkerDiscoveryError::NotFound {
+            candidates: candidates.iter().map(OsString::from).collect(),
+            search_path: search_path.to_os_string(),
+        })
     }
 
     pub fn new(program: impl Into<OsString>) -> Self {
@@ -398,6 +455,37 @@ fn push_windows_response_argument(output: &mut String, argument: &str) {
     output.push('"');
 }
 
+fn host_linker_candidates() -> (&'static [&'static str], LinkerFlavor) {
+    if cfg!(target_env = "msvc") {
+        (&["link.exe"], LinkerFlavor::MsvcLink)
+    } else if cfg!(windows) {
+        (&["cc.exe", "clang.exe", "gcc.exe"], LinkerFlavor::Cc)
+    } else {
+        (&["cc", "clang", "gcc"], LinkerFlavor::Cc)
+    }
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
 #[derive(Debug)]
 pub enum LinkError {
     EmptyProgram,
@@ -546,11 +634,60 @@ impl Error for LinkError {
 #[cfg(test)]
 mod tests {
     use std::ffi::{OsStr, OsString};
+    use std::fs;
     use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-    use super::{LinkError, LinkRequest, LinkerFlavor, SystemLinker};
+    use super::{
+        LinkError, LinkRequest, LinkerDiscoveryError, LinkerFlavor, SystemLinker,
+        host_linker_candidates,
+    };
 
     const MISSING_LINKER: &str = "lang-linker-test-command-that-does-not-exist";
+
+    struct TestDirectory {
+        path: PathBuf,
+    }
+
+    impl TestDirectory {
+        fn create() -> Self {
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock is after the Unix epoch")
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "lang linker discovery test {} {nonce}",
+                std::process::id()
+            ));
+            fs::create_dir(&path).expect("creates an isolated linker discovery directory");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn create_executable(path: &Path) {
+        fs::write(path, b"").expect("creates a linker candidate");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mut permissions = fs::metadata(path)
+                .expect("reads linker candidate metadata")
+                .permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(path, permissions).expect("makes linker candidate executable");
+        }
+    }
 
     #[test]
     fn request_preserves_object_order_and_output() {
@@ -802,6 +939,75 @@ mod tests {
             assert_eq!(linker.program(), OsStr::new("cc"));
             assert_eq!(linker.flavor(), LinkerFlavor::Cc);
         }
+    }
+
+    #[test]
+    fn discovers_the_preferred_host_linker_on_path() {
+        let directory = TestDirectory::create();
+        let (candidates, expected_flavor) = host_linker_candidates();
+        let expected_program = directory.path().join(candidates[0]);
+        create_executable(&expected_program);
+        let search_path = std::env::join_paths([directory.path()]).unwrap();
+
+        let linker = SystemLinker::discover_host_in(&search_path).unwrap();
+
+        assert_eq!(linker.program(), expected_program.as_os_str());
+        assert_eq!(linker.flavor(), expected_flavor);
+    }
+
+    #[cfg(all(unix, not(target_env = "msvc")))]
+    #[test]
+    fn skips_non_executable_candidates_during_discovery() {
+        let directory = TestDirectory::create();
+        fs::write(directory.path().join("cc"), b"").expect("creates a non-executable candidate");
+        let expected_program = directory.path().join("clang");
+        create_executable(&expected_program);
+        let search_path = std::env::join_paths([directory.path()]).unwrap();
+
+        let linker = SystemLinker::discover_host_in(&search_path).unwrap();
+
+        assert_eq!(linker.program(), expected_program.as_os_str());
+    }
+
+    #[cfg(not(target_env = "msvc"))]
+    #[test]
+    fn discovery_prefers_candidate_order_before_path_order() {
+        let first_directory = TestDirectory::create();
+        let second_directory = TestDirectory::create();
+        create_executable(&first_directory.path().join(if cfg!(windows) {
+            "clang.exe"
+        } else {
+            "clang"
+        }));
+        let expected_program =
+            second_directory
+                .path()
+                .join(if cfg!(windows) { "cc.exe" } else { "cc" });
+        create_executable(&expected_program);
+        let search_path =
+            std::env::join_paths([first_directory.path(), second_directory.path()]).unwrap();
+
+        let linker = SystemLinker::discover_host_in(&search_path).unwrap();
+
+        assert_eq!(linker.program(), expected_program.as_os_str());
+    }
+
+    #[test]
+    fn reports_searched_candidates_when_discovery_fails() {
+        let directory = TestDirectory::create();
+        let search_path = std::env::join_paths([directory.path()]).unwrap();
+        let (expected_candidates, _) = host_linker_candidates();
+
+        let error = SystemLinker::discover_host_in(&search_path)
+            .expect_err("reports missing host linker candidates");
+
+        assert_eq!(
+            error,
+            LinkerDiscoveryError::NotFound {
+                candidates: expected_candidates.iter().map(OsString::from).collect(),
+                search_path,
+            }
+        );
     }
 
     #[test]

@@ -110,7 +110,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .with_object(&add_object)
         .with_object(&callback_object)
         .with_object(&min_object);
-    let linker = SystemLinker::host();
+    let linker = SystemLinker::discover_host().expect("discovers the host C compiler driver");
     linker
         .link(&request)
         .expect("links the AOT objects through the host C compiler driver");
