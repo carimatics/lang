@@ -14,6 +14,8 @@ A post-CFG reinspection confirms unchanged minimum code and object sizes and ins
 
 Initial host-toolchain discovery now scans `PATH` in deterministic candidate order, rejects non-executable Unix files, reports the searched path and candidates structurally, and drives the macOS integration. The cfg-gated MSVC integration uses the same discovery after the developer environment initializes `PATH`; Visual Studio, SDK, and compiler installation discovery outside an initialized environment remains open.
 
+The initial tier-1 linker policy is now explicit: backend-neutral `LinkTarget` values own the exact `aarch64-apple-darwin` and `x86_64-pc-windows-msvc` triples and map them to command flavor, default program, and ordered discovery candidates. Explicit-target construction/discovery, the COFF object test, and both platform integrations share the mapping, while unsupported triples fail structurally. Policies for additional targets, installation discovery, and startup/runtime inputs remain open.
+
 - Accept goals, non-goals, and terminology.
 - Establish the RFC process and compatibility labels.
 - Prototype three memory-model stress cases: cyclic graphs, async borrows/cancellation, and shared mutable services.

@@ -99,6 +99,96 @@ pub enum LinkerFlavor {
     MsvcLink,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LinkTarget {
+    MacosAarch64,
+    WindowsX86_64Msvc,
+}
+
+impl LinkTarget {
+    pub const fn host() -> Option<Self> {
+        if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            Some(Self::MacosAarch64)
+        } else if cfg!(all(
+            target_os = "windows",
+            target_arch = "x86_64",
+            target_env = "msvc"
+        )) {
+            Some(Self::WindowsX86_64Msvc)
+        } else {
+            None
+        }
+    }
+
+    pub fn from_triple(triple: &str) -> Result<Self, UnsupportedLinkTarget> {
+        match triple {
+            "aarch64-apple-darwin" => Ok(Self::MacosAarch64),
+            "x86_64-pc-windows-msvc" => Ok(Self::WindowsX86_64Msvc),
+            _ => Err(UnsupportedLinkTarget {
+                triple: triple.to_owned(),
+            }),
+        }
+    }
+
+    pub const fn triple(self) -> &'static str {
+        match self {
+            Self::MacosAarch64 => "aarch64-apple-darwin",
+            Self::WindowsX86_64Msvc => "x86_64-pc-windows-msvc",
+        }
+    }
+
+    pub const fn linker_flavor(self) -> LinkerFlavor {
+        match self {
+            Self::MacosAarch64 => LinkerFlavor::Cc,
+            Self::WindowsX86_64Msvc => LinkerFlavor::MsvcLink,
+        }
+    }
+
+    pub const fn linker_candidates(self) -> &'static [&'static str] {
+        match self {
+            Self::MacosAarch64 => &["cc", "clang", "gcc"],
+            Self::WindowsX86_64Msvc => &["link.exe"],
+        }
+    }
+
+    pub const fn default_linker_program(self) -> &'static str {
+        self.linker_candidates()[0]
+    }
+}
+
+impl std::str::FromStr for LinkTarget {
+    type Err = UnsupportedLinkTarget;
+
+    fn from_str(triple: &str) -> Result<Self, Self::Err> {
+        Self::from_triple(triple)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnsupportedLinkTarget {
+    triple: String,
+}
+
+impl UnsupportedLinkTarget {
+    pub fn triple(&self) -> &str {
+        &self.triple
+    }
+}
+
+impl Display for UnsupportedLinkTarget {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "unsupported linker target triple {:?}; supported triples are {:?} and {:?}",
+            self.triple,
+            LinkTarget::MacosAarch64.triple(),
+            LinkTarget::WindowsX86_64Msvc.triple()
+        )
+    }
+}
+
+impl Error for UnsupportedLinkTarget {}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LinkerDiscoveryError {
     MissingPath,
@@ -111,12 +201,12 @@ pub enum LinkerDiscoveryError {
 impl Display for LinkerDiscoveryError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MissingPath => formatter.write_str("PATH is not set for host linker discovery"),
+            Self::MissingPath => formatter.write_str("PATH is not set for linker discovery"),
             Self::NotFound {
                 candidates,
                 search_path,
             } => {
-                formatter.write_str("no host linker candidate found on PATH ")?;
+                formatter.write_str("no linker candidate found on PATH ")?;
                 write!(formatter, "{search_path:?}; searched")?;
                 for candidate in candidates {
                     write!(formatter, " {candidate:?}")?;
@@ -138,11 +228,17 @@ pub struct SystemLinker {
 
 impl SystemLinker {
     pub fn host() -> Self {
-        if cfg!(target_env = "msvc") {
+        if let Some(target) = LinkTarget::host() {
+            Self::for_target(target)
+        } else if cfg!(target_env = "msvc") {
             Self::new_with_flavor("link.exe", LinkerFlavor::MsvcLink)
         } else {
             Self::new("cc")
         }
+    }
+
+    pub fn for_target(target: LinkTarget) -> Self {
+        Self::new_with_flavor(target.default_linker_program(), target.linker_flavor())
     }
 
     pub fn discover_host() -> Result<Self, LinkerDiscoveryError> {
@@ -151,8 +247,31 @@ impl SystemLinker {
     }
 
     pub fn discover_host_in(search_path: impl AsRef<OsStr>) -> Result<Self, LinkerDiscoveryError> {
-        let search_path = search_path.as_ref();
         let (candidates, flavor) = host_linker_candidates();
+        Self::discover_in(search_path.as_ref(), candidates, flavor)
+    }
+
+    pub fn discover_target(target: LinkTarget) -> Result<Self, LinkerDiscoveryError> {
+        let search_path = env::var_os("PATH").ok_or(LinkerDiscoveryError::MissingPath)?;
+        Self::discover_target_in(target, search_path)
+    }
+
+    pub fn discover_target_in(
+        target: LinkTarget,
+        search_path: impl AsRef<OsStr>,
+    ) -> Result<Self, LinkerDiscoveryError> {
+        Self::discover_in(
+            search_path.as_ref(),
+            target.linker_candidates(),
+            target.linker_flavor(),
+        )
+    }
+
+    fn discover_in(
+        search_path: &OsStr,
+        candidates: &[&str],
+        flavor: LinkerFlavor,
+    ) -> Result<Self, LinkerDiscoveryError> {
         let directories = env::split_paths(search_path)
             .filter(|directory| !directory.as_os_str().is_empty())
             .collect::<Vec<_>>();
@@ -456,7 +575,9 @@ fn push_windows_response_argument(output: &mut String, argument: &str) {
 }
 
 fn host_linker_candidates() -> (&'static [&'static str], LinkerFlavor) {
-    if cfg!(target_env = "msvc") {
+    if let Some(target) = LinkTarget::host() {
+        (target.linker_candidates(), target.linker_flavor())
+    } else if cfg!(target_env = "msvc") {
         (&["link.exe"], LinkerFlavor::MsvcLink)
     } else if cfg!(windows) {
         (&["cc.exe", "clang.exe", "gcc.exe"], LinkerFlavor::Cc)
@@ -639,8 +760,8 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        LinkError, LinkRequest, LinkerDiscoveryError, LinkerFlavor, SystemLinker,
-        host_linker_candidates,
+        LinkError, LinkRequest, LinkTarget, LinkerDiscoveryError, LinkerFlavor, SystemLinker,
+        UnsupportedLinkTarget, host_linker_candidates,
     };
 
     const MISSING_LINKER: &str = "lang-linker-test-command-that-does-not-exist";
@@ -939,6 +1060,53 @@ mod tests {
             assert_eq!(linker.program(), OsStr::new("cc"));
             assert_eq!(linker.flavor(), LinkerFlavor::Cc);
         }
+    }
+
+    #[test]
+    fn tier_one_link_targets_round_trip_through_their_triples() {
+        for target in [LinkTarget::MacosAarch64, LinkTarget::WindowsX86_64Msvc] {
+            assert_eq!(target.triple().parse::<LinkTarget>(), Ok(target));
+        }
+    }
+
+    #[test]
+    fn unsupported_link_target_preserves_the_triple() {
+        let error = "x86_64-unknown-linux-gnu"
+            .parse::<LinkTarget>()
+            .expect_err("rejects a target outside the initial tier-one policy");
+
+        assert_eq!(error.triple(), "x86_64-unknown-linux-gnu");
+        assert_eq!(
+            error,
+            UnsupportedLinkTarget {
+                triple: String::from("x86_64-unknown-linux-gnu"),
+            }
+        );
+    }
+
+    #[test]
+    fn tier_one_targets_select_their_linker_policy() {
+        let macos = SystemLinker::for_target(LinkTarget::MacosAarch64);
+        assert_eq!(macos.program(), OsStr::new("cc"));
+        assert_eq!(macos.flavor(), LinkerFlavor::Cc);
+
+        let windows = SystemLinker::for_target(LinkTarget::WindowsX86_64Msvc);
+        assert_eq!(windows.program(), OsStr::new("link.exe"));
+        assert_eq!(windows.flavor(), LinkerFlavor::MsvcLink);
+    }
+
+    #[test]
+    fn discovers_a_linker_for_an_explicit_tier_one_target() {
+        let directory = TestDirectory::create();
+        let expected_program = directory.path().join("link.exe");
+        create_executable(&expected_program);
+        let search_path = std::env::join_paths([directory.path()]).unwrap();
+
+        let linker =
+            SystemLinker::discover_target_in(LinkTarget::WindowsX86_64Msvc, &search_path).unwrap();
+
+        assert_eq!(linker.program(), expected_program.as_os_str());
+        assert_eq!(linker.flavor(), LinkerFlavor::MsvcLink);
     }
 
     #[test]

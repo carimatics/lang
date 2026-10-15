@@ -228,6 +228,8 @@ The current prototype emits either in-process JIT code or an object artifact fro
 
 Host linker discovery now searches `PATH` in deterministic candidate order, requires executable files on Unix, and returns a structured diagnostic containing the searched path and candidate names when no driver is available. The macOS integration uses the discovered driver, and the cfg-gated MSVC integration will exercise the same discovery after the developer environment initializes `PATH`. Installation discovery for Visual Studio, SDKs, and compilers outside such an environment remains separate work.
 
+The root crate now expresses the initial tier-1 linker policy as a backend-neutral `LinkTarget` domain type. Exact `aarch64-apple-darwin` and `x86_64-pc-windows-msvc` triples determine command flavor, default program, and ordered `PATH` candidates; unsupported triples remain structured errors instead of silently inheriting host policy. Explicit-target linker construction, discovery, platform integration, and the cross-target COFF test share this mapping. Supporting another target requires an explicit policy addition; installation discovery and target-specific startup/runtime inputs remain separate layers.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.

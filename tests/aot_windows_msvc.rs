@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lang::linker::{LinkRequest, SystemLinker};
+use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{prototype_add_function, prototype_host_callback_function, prototype_min_function};
 use lang_codegen_clif::emit_host_object;
 
@@ -113,7 +113,7 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .with_object(&add_object)
         .with_object(&callback_object)
         .with_object(&min_object);
-    let linker = SystemLinker::discover_host()
+    let linker = SystemLinker::discover_target(LinkTarget::WindowsX86_64Msvc)
         .expect("discovers link.exe in the MSVC developer environment")
         .with_argument("/NOLOGO");
     linker

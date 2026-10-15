@@ -66,6 +66,8 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 `SystemLinker::discover_host` は、host flavorのcandidate（`cc`、`clang`、`gcc`、またはMSVCの `link.exe`）を `PATH` から探索し、Unixではnon-executable fileをskipし、探索したpathとcandidateをstructured errorで報告します。Platform integration testは、発見したexecutableを使用します。初期化済みtoolchain environmentの外側にあるVisual Studio、SDK、compiler installationのdiscoveryは未完了です。
 
+`LinkTarget` は、`aarch64-apple-darwin` と `x86_64-pc-windows-msvc` に対する初期tier-1 linker policyを一元化します。各exact tripleをlinker flavor、default program、ordered discovery candidateへ対応付け、未supportのtripleをstructuredに拒否し、`SystemLinker` による明示targetの構築とdiscoveryを駆動します。Object-format testとcfg-gatedの両platform integrationは、この共有policyを使用します。追加targetのpolicyは未完了です。
+
 Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonと明示的control-flow graphも共有します。2引数minimum functionはentry blockから個別のreturn blockへ分岐し、焦点化されたjump testが明示的edgeを検証します。型付きblock parameterとedge argumentは、専用phi instructionなしでphiに相当するmergeを表現します。MIRとbytecodeのvalidationは、invalid target、unreachable block、entry-block predecessorまたはparameter、edge argumentのarity／type mismatch、useをdominateしないvalueを拒否します。Countdown workloadはback-edgeを介して `i64` を運び、VMとJITで同じ結果を生成し、object pathもこれをemitします。Bytecode back-edge testは、instruction fuelが非停止loopを停止することを証明します。Allocationとsource-level control-flow semanticsは未実装です。
 
 Symbolとdisassemblyを検査するため、どちらかのinspection targetをhost-native object fileへ書き出します。

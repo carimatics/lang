@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lang::linker::{LinkRequest, SystemLinker};
+use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{prototype_add_function, prototype_host_callback_function, prototype_min_function};
 use lang_codegen_clif::emit_host_object;
 
@@ -110,7 +110,8 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .with_object(&add_object)
         .with_object(&callback_object)
         .with_object(&min_object);
-    let linker = SystemLinker::discover_host().expect("discovers the host C compiler driver");
+    let linker = SystemLinker::discover_target(LinkTarget::MacosAarch64)
+        .expect("discovers the tier-one macOS AArch64 C compiler driver");
     linker
         .link(&request)
         .expect("links the AOT objects through the host C compiler driver");

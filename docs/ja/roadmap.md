@@ -14,6 +14,8 @@ CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequ
 
 初期host-toolchain discoveryは、deterministicなcandidate順で `PATH` を探索し、non-executable Unix fileを拒否し、探索したpathとcandidateをstructuredに報告して、macOS integrationを駆動します。cfg-gated MSVC integrationは、developer environmentが `PATH` を初期化した後に同じdiscoveryを使用します。初期化済みenvironmentの外側にあるVisual Studio、SDK、compiler installationのdiscoveryは未完了です。
 
+初期tier-1 linker policyを明示しました。Backend-neutralな `LinkTarget` valueがexactな `aarch64-apple-darwin` と `x86_64-pc-windows-msvc` tripleを所有し、command flavor、default program、ordered discovery candidateへ対応付けます。明示targetの構築／discovery、COFF object test、両platform integrationがこのmappingを共有し、未supportのtripleはstructuredに失敗します。追加targetのpolicy、installation discovery、startup／runtime inputは未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

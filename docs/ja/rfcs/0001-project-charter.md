@@ -184,6 +184,8 @@ CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequ
 
 初期host-toolchain discoveryは、deterministicなcandidate順で `PATH` を探索し、Unixではexecutable fileを要求し、探索したpathとcandidateをstructured errorで報告します。macOS integrationは発見したdriverを使用し、cfg-gated MSVC integrationもdeveloper environmentが `PATH` を初期化した後に同じdiscoveryを使用します。初期化済みenvironment外のinstallation discoveryは未完了です。
 
+初期tier-1 linker strategyは、backend-neutralな `LinkTarget` でcode化しました。Exactな `aarch64-apple-darwin` と `x86_64-pc-windows-msvc` tripleを、それぞれのcommand flavor、default program、ordered discovery candidateへ対応付けます。明示targetのlinker構築／discovery、両platform integration、cross-target COFF testがこの共有mappingを使用し、未supportのtripleはstructuredに失敗します。追加targetのpolicy、installation discovery、startup／runtime inputは未完了です。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。

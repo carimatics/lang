@@ -1,12 +1,12 @@
+use lang::linker::LinkTarget;
 use lang::{prototype_add_function, prototype_host_callback_function};
 use lang_codegen_clif::{Triple, emit_object_for_target};
 use object::{Architecture, BinaryFormat, Object, ObjectSymbol};
 
-const WINDOWS_X86_64_MSVC: &str = "x86_64-pc-windows-msvc";
-
 #[test]
 fn emits_windows_x86_64_coff_with_expected_symbols() {
-    let target = WINDOWS_X86_64_MSVC
+    let target = LinkTarget::WindowsX86_64Msvc
+        .triple()
         .parse::<Triple>()
         .expect("the Windows x86-64 target triple is valid");
     let add = emit_object_for_target(&prototype_add_function(), target.clone())
