@@ -62,7 +62,7 @@ cargo run -- 20 22
 
 Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、resource limitはまだ提供しません。
 
-`lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。これはobject generationのみのprototypeです。System linking、startup code、stable native ABI、debug metadata、cross-target emissionは未実装です。
+`lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。macOS AArch64 integration testはadd objectとcallback objectをsystem compilerでC harnessへlinkし、実行します。Production linker driver、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
 
 実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelはsource span、structured diagnostic、borrow exclusivity、suspension、cancellation、deterministic destructionを扱います。Graph modelは明示的なshared／weak edgeとarena-scoped cyclic storageを比較します。Service modelはactor-isolated mutation、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを検証します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
 

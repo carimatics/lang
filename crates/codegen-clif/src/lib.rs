@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use cranelift_codegen::ir::{AbiParam, InstBuilder, types};
-use cranelift_codegen::settings;
+use cranelift_codegen::settings::{self, Configurable};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, default_libcall_names};
@@ -119,9 +119,13 @@ impl CompiledFunction {
 
 pub fn emit_host_object(function: &Function) -> Result<ObjectArtifact, CompileError> {
     validate_function(function)?;
+    let mut flag_builder = settings::builder();
+    flag_builder
+        .set("is_pic", "true")
+        .map_err(CompileError::backend)?;
     let isa_builder = cranelift_native::builder().map_err(CompileError::backend)?;
     let isa = isa_builder
-        .finish(settings::Flags::new(settings::builder()))
+        .finish(settings::Flags::new(flag_builder))
         .map_err(CompileError::backend)?;
     let object_builder = ObjectBuilder::new(isa, b"lang".to_vec(), default_libcall_names())
         .map_err(CompileError::backend)?;
