@@ -139,5 +139,10 @@ Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用�
 | [WebAssembly Component Model rationale](https://component-model.bytecodealliance.org/design/why-component-model.html) | Living documentation、日付は非公開 | 2026-10-15確認 |
 | [LSP 3.18 specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/) | Version 3.18.0、2026-06-04 | 2026-10-15確認 |
 | [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/) | Specification 1.71.0、日付は非公開 | 2026-10-15確認 |
+| [GitHub Docs：Building and testing Rust](https://docs.github.com/en/actions/tutorials/build-and-test-code/rust) | Living documentation、日付は非公開 | 2026-10-16確認 |
+| [GitHub Docs：Secure use reference](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions) | Living documentation、日付は非公開 | 2026-10-16確認。read-only token permissionと完全SHAのaction pinに使用 |
+| [GitHub Windows Server 2025 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md) | Image version 20261004.281.1、page更新timestampは非公開 | 2026-10-16確認 |
+| [actions/checkout v7.0.1 commit](https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1) | 2026-07-17 | 2026-10-16に `v7` tagの参照先として確認 |
+| [ilammy/msvc-dev-cmd v1 commit](https://github.com/ilammy/msvc-dev-cmd/commit/0b201ec74fa43914dc39ae48a89fd1d8cb592756) | 2024-01-01 | 2026-10-16に `v1` tagの参照先として確認 |
 
 公開更新時刻のないLiving Documentationについては、CDN responseやsearch indexから日付を推測せず、意図的に「非公開」と記載しています。

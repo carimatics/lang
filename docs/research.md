@@ -139,6 +139,11 @@ The original requirements should be extended with the following:
 | [WebAssembly Component Model rationale](https://component-model.bytecodealliance.org/design/why-component-model.html) | Living documentation; date not published | Verified 2026-10-15 |
 | [LSP 3.18 specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/) | Version 3.18.0, 2026-06-04 | Verified 2026-10-15 |
 | [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/) | Specification 1.71.0; date not published | Verified 2026-10-15 |
+| [GitHub Docs: Building and testing Rust](https://docs.github.com/en/actions/tutorials/build-and-test-code/rust) | Living documentation; date not published | Verified 2026-10-16 |
+| [GitHub Docs: Secure use reference](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions) | Living documentation; date not published | Verified 2026-10-16; used for read-only token permissions and full-SHA action pins |
+| [GitHub Windows Server 2025 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md) | Image version 20261004.281.1; page update timestamp not published | Verified 2026-10-16 |
+| [actions/checkout v7.0.1 commit](https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1) | 2026-07-17 | Verified as the `v7` tag target 2026-10-16 |
+| [ilammy/msvc-dev-cmd v1 commit](https://github.com/ilammy/msvc-dev-cmd/commit/0b201ec74fa43914dc39ae48a89fd1d8cb592756) | 2024-01-01 | Verified as the `v1` tag target 2026-10-16 |
 
 For living documentation without a published update time, the table intentionally reports “not published” rather than inferring a date from a CDN response or search index.
 
