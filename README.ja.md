@@ -64,6 +64,15 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 `lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。macOS AArch64 integration testはadd objectとcallback objectをsystem compilerでC harnessへlinkし、実行します。Production linker driver、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
 
+Symbolとdisassemblyを検査するため、どちらかのprototypeをhost-native object fileへ書き出します。
+
+```bash
+cargo run --release --bin prototype-object -- add /tmp/prototype-add.o
+cargo run --release --bin prototype-object -- host-callback /tmp/prototype-host-callback.o
+```
+
+このcommandはexported symbol、生成function-code size、object全体のsizeを報告します。Linkerは実行しません。
+
 実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelはsource span、structured diagnostic、borrow exclusivity、suspension、cancellation、deterministic destructionを扱います。Graph modelは明示的なshared／weak edgeとarena-scoped cyclic storageを比較します。Service modelはactor-isolated mutation、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを検証します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
 
 クリーンなrelease buildからprototype backend measurement harnessを実行します。
