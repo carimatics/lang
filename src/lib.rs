@@ -69,6 +69,35 @@ pub fn run_prototype_add(left: i64, right: i64) -> Result<ExecutionResults, Prot
     Ok(ExecutionResults { bytecode, native })
 }
 
+pub fn prototype_min_function() -> Function {
+    Function::new(
+        "prototype_min",
+        Signature::new(vec![Type::I64, Type::I64], Type::I64),
+        vec![Instruction::I64LessThanSigned {
+            result: ValueId::new(2),
+            left: ValueId::new(0),
+            right: ValueId::new(1),
+        }],
+        Terminator::BranchReturn {
+            condition: ValueId::new(2),
+            then_value: ValueId::new(0),
+            else_value: ValueId::new(1),
+        },
+    )
+}
+
+pub fn run_prototype_min(left: i64, right: i64) -> Result<ExecutionResults, PrototypeError> {
+    let function = prototype_min_function();
+    let program = lower(&function).map_err(PrototypeError::Bytecode)?;
+    let bytecode = execute(&program, &[left, right]).map_err(PrototypeError::Vm)?;
+    let compiled = CompiledFunction::compile(&function).map_err(PrototypeError::NativeCompile)?;
+    let native = compiled
+        .invoke_i64_2(left, right)
+        .map_err(PrototypeError::NativeInvoke)?;
+
+    Ok(ExecutionResults { bytecode, native })
+}
+
 pub fn prototype_host_callback_function() -> Function {
     Function::new(
         "prototype_host_callback",
@@ -103,7 +132,9 @@ pub fn run_prototype_host_callback(value: i64) -> Result<ExecutionResults, Proto
 
 #[cfg(test)]
 mod tests {
-    use super::{ExecutionResults, run_prototype_add, run_prototype_host_callback};
+    use super::{
+        ExecutionResults, run_prototype_add, run_prototype_host_callback, run_prototype_min,
+    };
 
     #[test]
     fn execution_modes_are_equivalent() {
@@ -129,6 +160,28 @@ mod tests {
             let expected = value.wrapping_mul(2);
             assert_eq!(
                 run_prototype_host_callback(value).unwrap(),
+                ExecutionResults {
+                    bytecode: expected,
+                    native: expected,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_returns_are_equivalent() {
+        let cases = [
+            (2, 2),
+            (-7, 4),
+            (9, 3),
+            (i64::MAX, i64::MIN),
+            (i64::MIN, i64::MAX),
+        ];
+
+        for (left, right) in cases {
+            let expected = left.min(right);
+            assert_eq!(
+                run_prototype_min(left, right).unwrap(),
                 ExecutionResults {
                     bytecode: expected,
                     native: expected,

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use cranelift_codegen::ir::{AbiParam, InstBuilder, types};
+use cranelift_codegen::ir::{AbiParam, InstBuilder, condcodes::IntCC, types};
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
@@ -197,6 +197,11 @@ fn define_function<M: Module>(
                 Instruction::I64AddWrapping { left, right, .. } => builder
                     .ins()
                     .iadd(values[left.index()], values[right.index()]),
+                Instruction::I64LessThanSigned { left, right, .. } => builder.ins().icmp(
+                    IntCC::SignedLessThan,
+                    values[left.index()],
+                    values[right.index()],
+                ),
                 Instruction::CallHostI64 {
                     function, argument, ..
                 } => {
@@ -212,8 +217,30 @@ fn define_function<M: Module>(
             values.push(value);
         }
 
-        let Terminator::Return(return_value) = function.terminator();
-        builder.ins().return_(&[values[return_value.index()]]);
+        match function.terminator() {
+            Terminator::Return(return_value) => {
+                builder.ins().return_(&[values[return_value.index()]]);
+            }
+            Terminator::BranchReturn {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                let then_block = builder.create_block();
+                let else_block = builder.create_block();
+                builder
+                    .ins()
+                    .brif(values[condition.index()], then_block, &[], else_block, &[]);
+
+                builder.switch_to_block(then_block);
+                builder.seal_block(then_block);
+                builder.ins().return_(&[values[then_value.index()]]);
+
+                builder.switch_to_block(else_block);
+                builder.seal_block(else_block);
+                builder.ins().return_(&[values[else_value.index()]]);
+            }
+        }
         builder.finalize(frontend_config);
     }
 
@@ -235,7 +262,9 @@ fn define_function<M: Module>(
 
 fn validate_function(function: &Function) -> Result<(), CompileError> {
     function.validate().map_err(CompileError::InvalidMir)?;
-    if function.signature().result() != Type::I64 {
+    if function.signature().parameters().contains(&Type::Bool)
+        || function.signature().result() != Type::I64
+    {
         return Err(CompileError::UnsupportedSignature);
     }
     Ok(())
@@ -329,6 +358,34 @@ mod tests {
 
         assert!(compiled.code_size() > 0);
         assert_eq!(compiled.invoke_i64_1(42), Ok(42));
+    }
+
+    #[test]
+    fn compiles_typed_conditional_returns() {
+        let function = Function::new(
+            "minimum",
+            Signature::new(vec![Type::I64, Type::I64], Type::I64),
+            vec![Instruction::I64LessThanSigned {
+                result: ValueId::new(2),
+                left: ValueId::new(0),
+                right: ValueId::new(1),
+            }],
+            Terminator::BranchReturn {
+                condition: ValueId::new(2),
+                then_value: ValueId::new(0),
+                else_value: ValueId::new(1),
+            },
+        );
+
+        let compiled = CompiledFunction::compile(&function).unwrap();
+
+        assert_eq!(compiled.invoke_i64_2(-7, 4), Ok(-7));
+        assert_eq!(compiled.invoke_i64_2(9, 3), Ok(3));
+        assert_eq!(compiled.invoke_i64_2(5, 5), Ok(5));
+
+        let artifact = emit_host_object(&function).unwrap();
+        assert!(artifact.code_size() > 0);
+        assert!(!artifact.into_bytes().is_empty());
     }
 
     #[test]

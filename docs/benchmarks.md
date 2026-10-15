@@ -56,7 +56,7 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 - The JIT compile result has 66.169% RSD because one sample reached 112.333 us, while its median was 20.583 us. The object-emission result has 13.802% RSD. These medians are useful for an initial baseline, but their variation is too high for a stable performance budget.
 - This one-instruction microbenchmark supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, repeat the same schema on Windows x86-64, add representative control-flow and allocation workloads, and measure startup, memory, executable size, and debug quality.
+Before selecting the initial native backend, repeat the same schema on Windows x86-64, benchmark the implemented conditional-return workload, add allocation and broader control-flow workloads, and measure startup, memory, executable size, and debug quality.
 
 ## Earlier baseline
 

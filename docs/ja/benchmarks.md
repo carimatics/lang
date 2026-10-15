@@ -56,7 +56,7 @@ Craneliftのcompiled code bufferには、add functionについて8 byte、host-c
 - JIT compile resultのRSDは66.169%で、medianが20.583 usである一方、1 sampleは112.333 usに達しました。Object-emission resultのRSDは13.802%です。これらのmedianは初期baselineに有用ですが、variationが大きすぎるためstable performance budgetには使用できません。
 - この1 instruction microbenchmarkは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、Windows x86-64上で同じschemaを反復し、代表的なcontrol-flowとallocation workloadを追加し、startup、memory、executable size、debug qualityを計測します。
+初期native backendを選定する前に、Windows x86-64上で同じschemaを反復し、実装済みconditional-return workloadをbenchmarkし、allocationとより広いcontrol-flow workloadを追加し、startup、memory、executable size、debug qualityを計測します。
 
 ## 以前のbaseline
 

@@ -4,7 +4,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use lang_mir::{
-    Function, HostFunctionId, Instruction as MirInstruction, Terminator, ValidationError,
+    Function, HostFunctionId, Instruction as MirInstruction, Terminator as MirTerminator, Type,
+    ValidationError,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,10 +19,25 @@ pub enum Instruction {
         left: usize,
         right: usize,
     },
+    I64LessThanSigned {
+        destination: usize,
+        left: usize,
+        right: usize,
+    },
     CallHostI64 {
         destination: usize,
         function: HostFunctionId,
         argument: usize,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Terminator {
+    Return(usize),
+    BranchReturn {
+        condition: usize,
+        then_register: usize,
+        else_register: usize,
     },
 }
 
@@ -30,7 +46,7 @@ pub struct Program {
     parameter_count: usize,
     register_count: usize,
     instructions: Vec<Instruction>,
-    return_register: usize,
+    terminator: Terminator,
 }
 
 impl Program {
@@ -40,11 +56,25 @@ impl Program {
         instructions: Vec<Instruction>,
         return_register: usize,
     ) -> Result<Self, VerificationError> {
+        Self::with_terminator(
+            parameter_count,
+            register_count,
+            instructions,
+            Terminator::Return(return_register),
+        )
+    }
+
+    pub fn with_terminator(
+        parameter_count: usize,
+        register_count: usize,
+        instructions: Vec<Instruction>,
+        terminator: Terminator,
+    ) -> Result<Self, VerificationError> {
         let program = Self {
             parameter_count,
             register_count,
             instructions,
-            return_register,
+            terminator,
         };
         program.verify()?;
         Ok(program)
@@ -62,8 +92,8 @@ impl Program {
         &self.instructions
     }
 
-    pub const fn return_register(&self) -> usize {
-        self.return_register
+    pub const fn terminator(&self) -> Terminator {
+        self.terminator
     }
 
     pub fn verify(&self) -> Result<(), VerificationError> {
@@ -71,59 +101,97 @@ impl Program {
             return Err(VerificationError::InvalidParameterCount);
         }
 
-        let mut initialized = vec![false; self.register_count];
-        initialized[..self.parameter_count].fill(true);
+        let mut register_types = vec![None; self.register_count];
+        register_types[..self.parameter_count].fill(Some(Type::I64));
 
         for instruction in &self.instructions {
             match *instruction {
                 Instruction::I64Constant { destination, .. } => {
-                    verify_destination(destination, &initialized)?;
-                    initialized[destination] = true;
+                    verify_destination(destination, &register_types)?;
+                    register_types[destination] = Some(Type::I64);
                 }
                 Instruction::I64AddWrapping {
                     destination,
                     left,
                     right,
                 } => {
-                    verify_source(left, &initialized)?;
-                    verify_source(right, &initialized)?;
-                    verify_destination(destination, &initialized)?;
-                    initialized[destination] = true;
+                    verify_source(left, Type::I64, &register_types)?;
+                    verify_source(right, Type::I64, &register_types)?;
+                    verify_destination(destination, &register_types)?;
+                    register_types[destination] = Some(Type::I64);
+                }
+                Instruction::I64LessThanSigned {
+                    destination,
+                    left,
+                    right,
+                } => {
+                    verify_source(left, Type::I64, &register_types)?;
+                    verify_source(right, Type::I64, &register_types)?;
+                    verify_destination(destination, &register_types)?;
+                    register_types[destination] = Some(Type::Bool);
                 }
                 Instruction::CallHostI64 {
                     destination,
                     argument,
                     ..
                 } => {
-                    verify_source(argument, &initialized)?;
-                    verify_destination(destination, &initialized)?;
-                    initialized[destination] = true;
+                    verify_source(argument, Type::I64, &register_types)?;
+                    verify_destination(destination, &register_types)?;
+                    register_types[destination] = Some(Type::I64);
                 }
             }
         }
 
-        verify_source(self.return_register, &initialized)
+        match self.terminator {
+            Terminator::Return(register) => verify_source(register, Type::I64, &register_types),
+            Terminator::BranchReturn {
+                condition,
+                then_register,
+                else_register,
+            } => {
+                verify_source(condition, Type::Bool, &register_types)?;
+                verify_source(then_register, Type::I64, &register_types)?;
+                verify_source(else_register, Type::I64, &register_types)
+            }
+        }
     }
 }
 
-fn verify_source(register: usize, initialized: &[bool]) -> Result<(), VerificationError> {
-    match initialized.get(register) {
-        Some(true) => Ok(()),
-        Some(false) => Err(VerificationError::UninitializedRegister(register)),
+fn verify_source(
+    register: usize,
+    expected: Type,
+    register_types: &[Option<Type>],
+) -> Result<(), VerificationError> {
+    match register_types.get(register) {
+        Some(Some(actual)) if *actual == expected => Ok(()),
+        Some(Some(actual)) => Err(VerificationError::TypeMismatch {
+            register,
+            expected,
+            actual: *actual,
+        }),
+        Some(None) => Err(VerificationError::UninitializedRegister(register)),
         None => Err(VerificationError::RegisterOutOfBounds(register)),
     }
 }
 
-fn verify_destination(register: usize, initialized: &[bool]) -> Result<(), VerificationError> {
-    match initialized.get(register) {
-        Some(false) => Ok(()),
-        Some(true) => Err(VerificationError::RegisterAlreadyInitialized(register)),
+fn verify_destination(
+    register: usize,
+    register_types: &[Option<Type>],
+) -> Result<(), VerificationError> {
+    match register_types.get(register) {
+        Some(None) => Ok(()),
+        Some(Some(_)) => Err(VerificationError::RegisterAlreadyInitialized(register)),
         None => Err(VerificationError::RegisterOutOfBounds(register)),
     }
 }
 
 pub fn lower(function: &Function) -> Result<Program, LowerError> {
     function.validate().map_err(LowerError::InvalidMir)?;
+    if function.signature().parameters().contains(&Type::Bool)
+        || function.signature().result() != Type::I64
+    {
+        return Err(LowerError::UnsupportedSignature);
+    }
 
     let instructions = function
         .instructions()
@@ -142,6 +210,15 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
                 left: left.index(),
                 right: right.index(),
             },
+            MirInstruction::I64LessThanSigned {
+                result,
+                left,
+                right,
+            } => Instruction::I64LessThanSigned {
+                destination: result.index(),
+                left: left.index(),
+                right: right.index(),
+            },
             MirInstruction::CallHostI64 {
                 result,
                 function,
@@ -153,13 +230,24 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
             },
         })
         .collect();
-    let Terminator::Return(return_value) = function.terminator();
+    let terminator = match function.terminator() {
+        MirTerminator::Return(return_value) => Terminator::Return(return_value.index()),
+        MirTerminator::BranchReturn {
+            condition,
+            then_value,
+            else_value,
+        } => Terminator::BranchReturn {
+            condition: condition.index(),
+            then_register: then_value.index(),
+            else_register: else_value.index(),
+        },
+    };
 
-    Program::new(
+    Program::with_terminator(
         function.signature().parameters().len(),
         function.value_count(),
         instructions,
-        return_value.index(),
+        terminator,
     )
     .map_err(LowerError::InvalidBytecode)
 }
@@ -170,6 +258,11 @@ pub enum VerificationError {
     RegisterOutOfBounds(usize),
     UninitializedRegister(usize),
     RegisterAlreadyInitialized(usize),
+    TypeMismatch {
+        register: usize,
+        expected: Type,
+        actual: Type,
+    },
 }
 
 impl Display for VerificationError {
@@ -190,6 +283,14 @@ impl Display for VerificationError {
                     "register {register} is initialized more than once"
                 )
             }
+            Self::TypeMismatch {
+                register,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "register {register} has type {actual}, expected {expected}"
+            ),
         }
     }
 }
@@ -200,6 +301,7 @@ impl Error for VerificationError {}
 pub enum LowerError {
     InvalidMir(ValidationError),
     InvalidBytecode(VerificationError),
+    UnsupportedSignature,
 }
 
 impl Display for LowerError {
@@ -207,6 +309,9 @@ impl Display for LowerError {
         match self {
             Self::InvalidMir(error) => write!(formatter, "invalid MIR: {error}"),
             Self::InvalidBytecode(error) => write!(formatter, "invalid bytecode: {error}"),
+            Self::UnsupportedSignature => {
+                formatter.write_str("bytecode prototype supports only i64 parameters and results")
+            }
         }
     }
 }
@@ -215,9 +320,9 @@ impl Error for LowerError {}
 
 #[cfg(test)]
 mod tests {
-    use lang_mir::HostFunctionId;
+    use lang_mir::{HostFunctionId, Type};
 
-    use super::{Instruction, Program, VerificationError};
+    use super::{Instruction, Program, Terminator, VerificationError};
 
     #[test]
     fn rejects_reads_from_uninitialized_registers() {
@@ -249,5 +354,48 @@ mod tests {
         );
 
         assert_eq!(result, Err(VerificationError::UninitializedRegister(0)));
+    }
+
+    #[test]
+    fn verifies_typed_conditional_returns() {
+        let result = Program::with_terminator(
+            2,
+            3,
+            vec![Instruction::I64LessThanSigned {
+                destination: 2,
+                left: 0,
+                right: 1,
+            }],
+            Terminator::BranchReturn {
+                condition: 2,
+                then_register: 0,
+                else_register: 1,
+            },
+        );
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_i64_branch_conditions() {
+        let result = Program::with_terminator(
+            2,
+            2,
+            vec![],
+            Terminator::BranchReturn {
+                condition: 0,
+                then_register: 0,
+                else_register: 1,
+            },
+        );
+
+        assert_eq!(
+            result,
+            Err(VerificationError::TypeMismatch {
+                register: 0,
+                expected: Type::Bool,
+                actual: Type::I64,
+            })
+        );
     }
 }

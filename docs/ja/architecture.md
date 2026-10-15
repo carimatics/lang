@@ -222,7 +222,7 @@ Whole-program build内では、compilerがcompatible layoutとownershipを証明
 - Craneliftがrelease performance、optimization、debug要件を満たせない場合にLLVM backendを追加する。
 - 最初はsystem linkerを使用し、reproducibilityとinstallation dataが正当化した場合のみbundled LLDを評価する。
 
-現在のprototypeは、同じ検証済みMIR loweringからin-process JIT codeまたはhost-native object artifactを生成します。Object artifactは、Craneliftまたはobject-libraryの型をcallerへ公開せず、byte、exportされたfunction symbol、生成function-code sizeを提供します。macOS AArch64 integration coverageは、exportされたfunctionとimportされたhost callbackをsystem compilerでC harnessへlinkし、結果を実行します。まだ完全なAOT pathではありません。Production linker driver、startup code、stable ABI adapter、debug metadata、Windows integration、cross-target configurationは個別の作業として残っています。
+現在のprototypeは、同じ検証済みMIR loweringからin-process JIT codeまたはhost-native object artifactを生成します。Object artifactは、Craneliftまたはobject-libraryの型をcallerへ公開せず、byte、exportされたfunction symbol、生成function-code sizeを提供します。型付きsigned `i64` comparisonとconditional-return terminatorが、最初の焦点化されたcontrol-flow workloadを提供します。Bytecode verifierはそのboolean resultを追跡し、VM／JIT differential testは両方の分岐結果を検証します。macOS AArch64 integration coverageは、add、conditional-return、importされたhost callbackのobjectをsystem compilerでC harnessへlinkし、結果を実行します。これは一般的なCFGでも完全なAOT pathでもありません。Jump、loop、block parameter、merge validation、production linker driver、startup code、stable ABI adapter、debug metadata、Windows integration、cross-target configurationは個別の作業として残っています。
 
 ## Diagnostics、LSP、debugging
 

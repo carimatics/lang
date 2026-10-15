@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use lang_bytecode::{Instruction, Program, VerificationError};
+use lang_bytecode::{Instruction, Program, Terminator, VerificationError};
 use lang_mir::HostFunctionId;
 use lang_runtime::HostFunctionRegistry;
 
@@ -40,6 +40,13 @@ pub fn execute_with_hosts(
             } => {
                 registers[destination] = registers[left].wrapping_add(registers[right]);
             }
+            Instruction::I64LessThanSigned {
+                destination,
+                left,
+                right,
+            } => {
+                registers[destination] = i64::from(registers[left] < registers[right]);
+            }
             Instruction::CallHostI64 {
                 destination,
                 function,
@@ -53,7 +60,22 @@ pub fn execute_with_hosts(
         }
     }
 
-    Ok(registers[program.return_register()])
+    let result = match program.terminator() {
+        Terminator::Return(register) => registers[register],
+        Terminator::BranchReturn {
+            condition,
+            then_register,
+            else_register,
+        } => {
+            if registers[condition] != 0 {
+                registers[then_register]
+            } else {
+                registers[else_register]
+            }
+        }
+    };
+
+    Ok(result)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -89,6 +111,7 @@ mod tests {
     use lang_runtime::HostFunctionRegistry;
 
     use super::{VmError, execute, execute_with_hosts};
+    use lang_bytecode::Terminator;
 
     extern "C" fn wrapping_double(value: i64) -> i64 {
         value.wrapping_mul(2)
@@ -116,6 +139,29 @@ mod tests {
                 actual: 1,
             })
         );
+    }
+
+    #[test]
+    fn executes_conditional_return() {
+        let program = Program::with_terminator(
+            2,
+            3,
+            vec![Instruction::I64LessThanSigned {
+                destination: 2,
+                left: 0,
+                right: 1,
+            }],
+            Terminator::BranchReturn {
+                condition: 2,
+                then_register: 0,
+                else_register: 1,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(execute(&program, &[-7, 4]), Ok(-7));
+        assert_eq!(execute(&program, &[9, 3]), Ok(3));
+        assert_eq!(execute(&program, &[5, 5]), Ok(5));
     }
 
     #[test]

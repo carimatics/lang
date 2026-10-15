@@ -5,7 +5,17 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Type {
+    Bool,
     I64,
+}
+
+impl Display for Type {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bool => formatter.write_str("bool"),
+            Self::I64 => formatter.write_str("i64"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -71,6 +81,11 @@ pub enum Instruction {
         left: ValueId,
         right: ValueId,
     },
+    I64LessThanSigned {
+        result: ValueId,
+        left: ValueId,
+        right: ValueId,
+    },
     CallHostI64 {
         result: ValueId,
         function: HostFunctionId,
@@ -83,15 +98,28 @@ impl Instruction {
         match self {
             Self::I64Constant { result, .. }
             | Self::I64AddWrapping { result, .. }
+            | Self::I64LessThanSigned { result, .. }
             | Self::CallHostI64 { result, .. } => *result,
         }
     }
 
-    fn operands(&self) -> impl Iterator<Item = ValueId> {
+    const fn result_type(&self) -> Type {
+        match self {
+            Self::I64LessThanSigned { .. } => Type::Bool,
+            Self::I64Constant { .. } | Self::I64AddWrapping { .. } | Self::CallHostI64 { .. } => {
+                Type::I64
+            }
+        }
+    }
+
+    fn operands(&self) -> impl Iterator<Item = (ValueId, Type)> {
         let operands = match self {
             Self::I64Constant { .. } => [None, None],
-            Self::I64AddWrapping { left, right, .. } => [Some(*left), Some(*right)],
-            Self::CallHostI64 { argument, .. } => [Some(*argument), None],
+            Self::I64AddWrapping { left, right, .. }
+            | Self::I64LessThanSigned { left, right, .. } => {
+                [Some((*left, Type::I64)), Some((*right, Type::I64))]
+            }
+            Self::CallHostI64 { argument, .. } => [Some((*argument, Type::I64)), None],
         };
         operands.into_iter().flatten()
     }
@@ -100,6 +128,11 @@ impl Instruction {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Terminator {
     Return(ValueId),
+    BranchReturn {
+        condition: ValueId,
+        then_value: ValueId,
+        else_value: ValueId,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -150,12 +183,10 @@ impl Function {
             return Err(ValidationError::EmptyName);
         }
 
-        let mut next_value = self.signature.parameters.len();
-        for instruction in &self.instructions {
-            for operand in instruction.operands() {
-                if operand.index() >= next_value {
-                    return Err(ValidationError::UndefinedValue(operand));
-                }
+        let mut value_types = self.signature.parameters.clone();
+        for (next_value, instruction) in (value_types.len()..).zip(self.instructions.iter()) {
+            for (operand, expected) in instruction.operands() {
+                validate_operand(operand, expected, &value_types)?;
             }
 
             if instruction.result().index() != next_value {
@@ -164,23 +195,59 @@ impl Function {
                     actual: instruction.result(),
                 });
             }
-            next_value += 1;
+            value_types.push(instruction.result_type());
         }
 
-        let Terminator::Return(value) = self.terminator;
-        if value.index() >= next_value {
-            return Err(ValidationError::UndefinedValue(value));
+        match self.terminator {
+            Terminator::Return(value) => {
+                validate_operand(value, self.signature.result, &value_types)?;
+            }
+            Terminator::BranchReturn {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                validate_operand(condition, Type::Bool, &value_types)?;
+                validate_operand(then_value, self.signature.result, &value_types)?;
+                validate_operand(else_value, self.signature.result, &value_types)?;
+            }
         }
 
         Ok(())
     }
 }
 
+fn validate_operand(
+    value: ValueId,
+    expected: Type,
+    value_types: &[Type],
+) -> Result<(), ValidationError> {
+    let Some(&actual) = value_types.get(value.index()) else {
+        return Err(ValidationError::UndefinedValue(value));
+    };
+    if actual != expected {
+        return Err(ValidationError::TypeMismatch {
+            value,
+            expected,
+            actual,
+        });
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValidationError {
     EmptyName,
     UndefinedValue(ValueId),
-    NonSequentialResult { expected: ValueId, actual: ValueId },
+    NonSequentialResult {
+        expected: ValueId,
+        actual: ValueId,
+    },
+    TypeMismatch {
+        value: ValueId,
+        expected: Type,
+        actual: Type,
+    },
 }
 
 impl Display for ValidationError {
@@ -199,6 +266,15 @@ impl Display for ValidationError {
                 "expected result value {}, found {}",
                 expected.index(),
                 actual.index()
+            ),
+            Self::TypeMismatch {
+                value,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "value {} has type {actual}, expected {expected}",
+                value.index()
             ),
         }
     }
@@ -226,6 +302,49 @@ mod tests {
         assert_eq!(
             function.validate(),
             Err(ValidationError::UndefinedValue(ValueId::new(2)))
+        );
+    }
+
+    #[test]
+    fn validates_typed_conditional_return() {
+        let function = Function::new(
+            "minimum",
+            Signature::new(vec![Type::I64, Type::I64], Type::I64),
+            vec![Instruction::I64LessThanSigned {
+                result: ValueId::new(2),
+                left: ValueId::new(0),
+                right: ValueId::new(1),
+            }],
+            Terminator::BranchReturn {
+                condition: ValueId::new(2),
+                then_value: ValueId::new(0),
+                else_value: ValueId::new(1),
+            },
+        );
+
+        assert_eq!(function.validate(), Ok(()));
+    }
+
+    #[test]
+    fn rejects_non_boolean_branch_conditions() {
+        let function = Function::new(
+            "invalid_condition",
+            Signature::new(vec![Type::I64, Type::I64], Type::I64),
+            vec![],
+            Terminator::BranchReturn {
+                condition: ValueId::new(0),
+                then_value: ValueId::new(0),
+                else_value: ValueId::new(1),
+            },
+        );
+
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::TypeMismatch {
+                value: ValueId::new(0),
+                expected: Type::Bool,
+                actual: Type::I64,
+            })
         );
     }
 }

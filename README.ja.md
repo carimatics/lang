@@ -64,7 +64,9 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 `lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。macOS AArch64 integration testはadd objectとcallback objectをsystem compilerでC harnessへlinkし、実行します。Production linker driver、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
 
-Symbolとdisassemblyを検査するため、どちらかのprototypeをhost-native object fileへ書き出します。
+Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonとconditional-return prototypeも共有します。Differential testは2引数minimum functionをVMとJITで実行し、macOS integration testはそのAOT objectをlinkして実行します。これは焦点を絞ったcontrol-flow実験であり、一般的なbasic-block CFGではありません。Jump、loop、block parameter、merge validationは未実装です。
+
+Symbolとdisassemblyを検査するため、どちらかのinspection targetをhost-native object fileへ書き出します。
 
 ```bash
 cargo run --release --bin prototype-object -- add /tmp/prototype-add.o

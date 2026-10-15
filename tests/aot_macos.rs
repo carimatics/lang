@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use lang::{prototype_add_function, prototype_host_callback_function};
+use lang::{prototype_add_function, prototype_host_callback_function, prototype_min_function};
 use lang_codegen_clif::emit_host_object;
 
 const C_HARNESS: &str = r#"
@@ -14,6 +14,7 @@ const C_HARNESS: &str = r#"
 
 extern int64_t prototype_add(int64_t left, int64_t right);
 extern int64_t prototype_host_callback(int64_t value);
+extern int64_t prototype_min(int64_t left, int64_t right);
 
 int64_t lang_host_i64_0(int64_t value) {
     return value * 2;
@@ -22,8 +23,9 @@ int64_t lang_host_i64_0(int64_t value) {
 int main(void) {
     int64_t add = prototype_add(20, 22);
     int64_t callback = prototype_host_callback(21);
-    printf("%lld %lld\n", (long long)add, (long long)callback);
-    return add == 42 && callback == 42 ? 0 : 1;
+    int64_t minimum = prototype_min(-7, 4);
+    printf("%lld %lld %lld\n", (long long)add, (long long)callback, (long long)minimum);
+    return add == 42 && callback == 42 && minimum == -7 ? 0 : 1;
 }
 "#;
 
@@ -55,18 +57,21 @@ impl Drop for TestDirectory {
 }
 
 #[test]
-fn system_linker_runs_exported_function_and_host_callback() {
+fn system_linker_runs_exported_functions_and_host_callback() {
     let directory = TestDirectory::create();
     let add_object = directory.path().join("prototype_add.o");
     let callback_object = directory.path().join("prototype_host_callback.o");
+    let min_object = directory.path().join("prototype_min.o");
     let harness_source = directory.path().join("harness.c");
     let executable = directory.path().join("prototype-aot");
 
     let add = emit_host_object(&prototype_add_function()).expect("emits the add object");
     let callback = emit_host_object(&prototype_host_callback_function())
         .expect("emits the host-callback object");
+    let minimum = emit_host_object(&prototype_min_function()).expect("emits the minimum object");
     fs::write(&add_object, add.bytes()).expect("writes the add object");
     fs::write(&callback_object, callback.bytes()).expect("writes the callback object");
+    fs::write(&min_object, minimum.bytes()).expect("writes the minimum object");
     fs::write(&harness_source, C_HARNESS).expect("writes the C harness");
 
     let link = Command::new("cc")
@@ -74,6 +79,7 @@ fn system_linker_runs_exported_function_and_host_callback() {
             harness_source.as_os_str(),
             add_object.as_os_str(),
             callback_object.as_os_str(),
+            min_object.as_os_str(),
         ])
         .arg("-o")
         .arg(&executable)
@@ -95,5 +101,5 @@ fn system_linker_runs_exported_function_and_host_callback() {
         execution.status,
         String::from_utf8_lossy(&execution.stderr)
     );
-    assert_eq!(execution.stdout, b"42 42\n");
+    assert_eq!(execution.stdout, b"42 42 -7\n");
 }

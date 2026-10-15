@@ -64,7 +64,9 @@ Workspace tests also exercise a minimal embedding path: a backend-neutral host-f
 
 `lang-codegen-clif` can also emit a host-native object artifact for the same MIR, exporting the compiled function and leaving host callbacks as imports. A macOS AArch64 integration test links the add and callback objects into a C harness with the system compiler and executes it. A production linker driver, startup code, a stable native ABI, debug metadata, Windows evidence, and cross-target emission remain unimplemented.
 
-Write either prototype to a host-native object file for symbol and disassembly inspection:
+The typed MIR, bytecode verifier, VM, JIT, and object path also share a signed `i64` comparison and conditional-return prototype. Differential tests run a two-argument minimum function through the VM and JIT, while the macOS integration test links and executes its AOT object. This is a focused control-flow experiment, not a general basic-block CFG: jumps, loops, block parameters, and merge validation remain unimplemented.
+
+Write either inspection target to a host-native object file for symbol and disassembly inspection:
 
 ```bash
 cargo run --release --bin prototype-object -- add /tmp/prototype-add.o
