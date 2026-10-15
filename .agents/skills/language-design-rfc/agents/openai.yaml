@@ -1,0 +1,4 @@
+interface:
+  display_name: "Language Design RFC"
+  short_description: "Design and review language features with explicit tradeoffs"
+  default_prompt: "Use $language-design-rfc to draft or review a language design RFC."
