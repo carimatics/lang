@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Milestone 0: design baseline
 
-Current progress: the first typed function now runs through both verified bytecode and a Cranelift JIT prototype. A minimal typed `i64` host-function registration and script-to-host callback also run through both modes. The first memory-model stress experiment now checks a strict no-borrow-across-suspension rule and deterministic cancellation cleanup. RFC 0001 remains proposed; cyclic graphs, shared mutable services, richer async alternatives, embedding resource controls, cross-platform evidence, and backend measurements remain open.
+Current progress: the first typed function now runs through both verified bytecode and a Cranelift JIT prototype. A minimal typed `i64` host-function registration and script-to-host callback also run through both modes. Two memory-model stress experiments now cover a strict no-borrow-across-suspension rule with deterministic cancellation cleanup, plus explicit shared/weak and arena-scoped cyclic graphs. RFC 0001 remains proposed; shared mutable services, alternative graph and async designs, embedding resource controls, cross-platform evidence, and backend measurements remain open.
 
 - Accept goals, non-goals, and terminology.
 - Establish the RFC process and compatibility labels.

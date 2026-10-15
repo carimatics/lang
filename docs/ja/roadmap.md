@@ -8,7 +8,7 @@
 
 ## Milestone 0：設計baseline
 
-現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行できます。最小の型付き `i64` host-function registrationとscript-to-host callbackも、両方のmodeで実行できます。最初のmemory-model stress実験では、厳格なno-borrow-across-suspension ruleとdeterministic cancellation cleanupを検証します。RFC 0001はproposedのままであり、cyclic graph、shared mutable service、より豊かなasync代替案、embedding resource control、cross-platform evidence、backend measurementは未完了です。
+現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行できます。最小の型付き `i64` host-function registrationとscript-to-host callbackも、両方のmodeで実行できます。2つのmemory-model stress実験で、厳格なno-borrow-across-suspension ruleとdeterministic cancellation cleanup、および明示的なshared／weak graphとarena-scoped cyclic graphを検証します。RFC 0001はproposedのままであり、shared mutable service、graph／asyncの代替design、embedding resource control、cross-platform evidence、backend measurementは未完了です。
 
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。

@@ -7,6 +7,11 @@
 //! live in a task frame across suspension, active borrows may not cross a
 //! suspension point, and cancellation drops task-owned values exactly once in
 //! reverse creation order.
+//! The graph model compares explicit shared/weak ownership with arena-scoped
+//! storage: shared strong-reference cycles are rejected, while arena-local
+//! cycles are released in bulk.
+
+pub mod graph;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;

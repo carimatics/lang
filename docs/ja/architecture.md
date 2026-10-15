@@ -95,6 +95,20 @@ Hashとtiming explanationを永続化し、build toolがunitを再buildした理
 
 Prototypeが必要な未解決問題には、cyclic graphのergonomics、borrowを伴うasync suspension／cancellation、self-referential value、cancellation中のdestruction、atomic `shared` referenceのcost modelがあります。
 
+### Cyclic graph実験
+
+`crates/semantics` のgraph modelでは、意図的に明示的な2つのownership戦略を比較します。
+
+- Shared nodeはexternal rootを1つ持って開始する。Strong edgeはtargetをretainし、weak edgeはretainしない。
+- Shared-reference cycleを閉じるstrong edgeはstructured diagnostic `SEM0018` でrejectする。同じcycleをweak edgeで閉じることは許可し、expired weak edgeのupgradeは `SEM0021` を報告する。
+- 1つのarena内のnodeは、arenaがlifetimeを所有するため任意のcycleを形成できる。Arena間、またはarena storageとshared storage間のedgeは `SEM0017` を報告する。
+- Arenaをdropするとnodeを逆生成順に正確に1回releaseする。その後にstale node handleを使うと `SEM0012` を報告する。
+- すべてのoperationがsource spanを持ち、関連するallocationまたはedge spanが存在する場合はdiagnosticに保持する。
+
+この厳格なmodelは暗黙のreference-counted cycleを避けてregion boundaryを可視化しますが、surface syntax、atomic、thread safety、destructor failure、production reclamation algorithmは定義しません。最も強い競合designはstrong cycleを許可してtracingまたはcycle collectionを追加する方式であり、より単純な代替案はarena-only graph storageです。Library規約だけではstale-handle rejectionを保証できず、loweringを通じて同じdiagnostic contractを維持できません。
+
+レビュー結果：**needs prototype/measurement**。Blocking questionは、shared cycleをstaticまたはdynamicのどちらでrejectするか、generation-tagged arena handleが必要か、両戦略がallocation costとdestruction observabilityへどう影響するかです。Surface syntaxとgraph-container APIは任意のfollow-upです。
+
 ### Async borrow／cancellation実験
 
 `crates/semantics` の実行可能modelでは、意図的に厳格なbaseline仮説を検証します。

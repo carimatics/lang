@@ -61,7 +61,7 @@ cargo run -- 20 22
 
 Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、resource limitはまだ提供しません。
 
-実行可能なasync ownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Source span、structured diagnostic、borrow exclusivity、suspension、cancellation、deterministic destructionをmodel化します。このmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
+実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelはsource span、structured diagnostic、borrow exclusivity、suspension、cancellation、deterministic destructionを扱います。Graph modelは明示的なshared／weak edgeとarena-scoped cyclic storageを比較します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
 
 共通チェック：
 
