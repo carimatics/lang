@@ -147,5 +147,7 @@ Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用�
 | [GCC：Overall Options](https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html) | Living documentation、日付は非公開 | 2026-10-16確認。`@file`、whitespace separation、quoting、escaping、recursive expansionを定義 |
 | [MSVC LINK：linker response fileの指定](https://learn.microsoft.com/en-us/cpp/build/reference/at-specify-a-linker-response-file?view=msvc-170) | 2022-05-18 | 2026-10-16確認 |
 | [rustc linker response-file implementation](https://github.com/rust-lang/rust/blob/364c4856ae0eb8e5b058a2c6699749d1e3efa7ef/compiler/rustc_codegen_ssa/src/back/link.rs#L2100) | File最終変更2026-10-08 | 2026-10-16確認。GNU／Windows escapingとMSVC UTF-16LE encodingの先例として使用 |
+| [GitHub Docs：workflow artifactによるdataの保存と共有](https://docs.github.com/en/actions/tutorials/store-and-share-data) | Living documentation、日付は非公開 | 2026-10-16確認。workflow-artifact uploadとretention設定に使用 |
+| [actions/upload-artifact v7.0.2 commit](https://github.com/actions/upload-artifact/commit/cf430e030ddbb5b0abf93d22962f4752f3646cd9) | 2026-10-07 | 2026-10-16にlatest release tagの参照先として確認 |
 
 公開更新時刻のないLiving Documentationについては、CDN responseやsearch indexから日付を推測せず、意図的に「非公開」と記載しています。

@@ -1,16 +1,18 @@
 use std::cmp::Ordering;
 use std::env;
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+use std::ffi::OsString;
 use std::fmt::Write as _;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use std::fs;
 use std::hint::black_box;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-#[cfg(target_os = "macos")]
-use lang::linker::{LinkRequest, SystemLinker};
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
+use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
     PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_host_callback_function,
     prototype_min_function,
@@ -191,7 +193,7 @@ fn run() -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
     let aot_min = emit_host_object(&min_function).map_err(|error| error.to_string())?;
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     let link_benchmark = LinkBenchmark::prepare(aot_add.bytes(), aot_min.bytes())?;
 
     let workloads = PreparedWorkloads {
@@ -255,7 +257,7 @@ fn run() -> Result<(), String> {
                 .expect("validated conditional MIR emits an object")
         },
     ));
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     measurements.push(link_benchmark.measure(config.samples)?);
     measurements.push(measure_calls(
         "rust_add_call",
@@ -457,7 +459,7 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 const LINK_HARNESS: &str = r#"
 #include <stdint.h>
 
@@ -469,12 +471,12 @@ int main(void) {
 }
 "#;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 struct BenchmarkDirectory {
     path: PathBuf,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 impl BenchmarkDirectory {
     fn create() -> Result<Self, String> {
         let nonce = SystemTime::now()
@@ -494,46 +496,58 @@ impl BenchmarkDirectory {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 impl Drop for BenchmarkDirectory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.path);
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 struct LinkBenchmark {
     _directory: BenchmarkDirectory,
+    linker: SystemLinker,
     harness_object: PathBuf,
     add_object: PathBuf,
     min_object: PathBuf,
     executable: PathBuf,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 impl LinkBenchmark {
     fn prepare(add_object_bytes: &[u8], min_object_bytes: &[u8]) -> Result<Self, String> {
         let directory = BenchmarkDirectory::create()?;
         let harness_source = directory.path().join("harness.c");
-        let harness_object = directory.path().join("harness.o");
-        let add_object = directory.path().join("prototype_add.o");
-        let min_object = directory.path().join("prototype_min.o");
-        let executable = directory.path().join("prototype-aot");
+        #[cfg(target_os = "macos")]
+        let (harness_object, add_object, min_object, executable) = (
+            directory.path().join("harness.o"),
+            directory.path().join("prototype_add.o"),
+            directory.path().join("prototype_min.o"),
+            directory.path().join("prototype-aot"),
+        );
+        #[cfg(all(target_os = "windows", target_env = "msvc"))]
+        let (harness_object, add_object, min_object, executable) = (
+            directory.path().join("harness.obj"),
+            directory.path().join("prototype_add.obj"),
+            directory.path().join("prototype_min.obj"),
+            directory.path().join("prototype-aot.exe"),
+        );
         fs::write(&harness_source, LINK_HARNESS).map_err(|error| error.to_string())?;
         fs::write(&add_object, add_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&min_object, min_object_bytes).map_err(|error| error.to_string())?;
 
-        let compile = Command::new("cc")
-            .args(["-O2", "-c"])
-            .arg(&harness_source)
-            .arg("-o")
-            .arg(&harness_object)
-            .output()
-            .map_err(|error| format!("failed to run the system C compiler: {error}"))?;
+        let compile = compile_link_harness(&harness_source, &harness_object)?;
         ensure_command_succeeded("C harness compilation", &compile)?;
+
+        let target = LinkTarget::host()
+            .ok_or_else(|| "system-link benchmark requires an initial tier-1 host".to_owned())?;
+        let linker = SystemLinker::discover_target(target).map_err(|error| error.to_string())?;
+        #[cfg(all(target_os = "windows", target_env = "msvc"))]
+        let linker = linker.with_argument("/NOLOGO");
 
         let benchmark = Self {
             _directory: directory,
+            linker,
             harness_object,
             add_object,
             min_object,
@@ -562,13 +576,42 @@ impl LinkBenchmark {
             .with_object(&self.harness_object)
             .with_object(&self.add_object)
             .with_object(&self.min_object);
-        SystemLinker::host()
+        self.linker
             .link(&request)
             .map_err(|error| error.to_string())
     }
 }
 
 #[cfg(target_os = "macos")]
+fn compile_link_harness(
+    harness_source: &Path,
+    harness_object: &Path,
+) -> Result<std::process::Output, String> {
+    Command::new("cc")
+        .args(["-O2", "-c"])
+        .arg(harness_source)
+        .arg("-o")
+        .arg(harness_object)
+        .output()
+        .map_err(|error| format!("failed to run the system C compiler: {error}"))
+}
+
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn compile_link_harness(
+    harness_source: &Path,
+    harness_object: &Path,
+) -> Result<std::process::Output, String> {
+    let mut output_argument = OsString::from("/Fo:");
+    output_argument.push(harness_object);
+    Command::new("cl.exe")
+        .args(["/nologo", "/O2", "/c"])
+        .arg(harness_source)
+        .arg(output_argument)
+        .output()
+        .map_err(|error| format!("failed to run the MSVC C compiler: {error}"))
+}
+
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 fn ensure_command_succeeded(label: &str, output: &std::process::Output) -> Result<(), String> {
     if output.status.success() {
         return Ok(());
@@ -749,7 +792,12 @@ fn system_linker() -> String {
     command_output("cc", &["--version"])
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn system_linker() -> String {
+    command_output("link.exe", &["/?"])
+}
+
+#[cfg(not(any(target_os = "macos", all(target_os = "windows", target_env = "msvc"))))]
 fn system_linker() -> String {
     "not measured by this harness on this platform".to_owned()
 }

@@ -757,6 +757,7 @@ mod tests {
     use std::ffi::{OsStr, OsString};
     use std::fs;
     use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
@@ -765,6 +766,7 @@ mod tests {
     };
 
     const MISSING_LINKER: &str = "lang-linker-test-command-that-does-not-exist";
+    static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
     struct TestDirectory {
         path: PathBuf,
@@ -776,9 +778,10 @@ mod tests {
                 .duration_since(UNIX_EPOCH)
                 .expect("system clock is after the Unix epoch")
                 .as_nanos();
+            let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, AtomicOrdering::Relaxed);
             let path = std::env::temp_dir().join(format!(
-                "lang linker discovery test {} {nonce}",
-                std::process::id()
+                "lang linker discovery test {} {nonce} {sequence}",
+                std::process::id(),
             ));
             fs::create_dir(&path).expect("creates an isolated linker discovery directory");
             Self { path }

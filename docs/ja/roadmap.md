@@ -16,6 +16,8 @@ CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequ
 
 初期tier-1 linker policyを明示しました。Backend-neutralな `LinkTarget` valueがexactな `aarch64-apple-darwin` と `x86_64-pc-windows-msvc` tripleを所有し、command flavor、default program、ordered discovery candidateへ対応付けます。明示targetの構築／discovery、COFF object test、両platform integrationがこのmappingを共有し、未supportのtripleはstructuredに失敗します。追加targetのpolicy、installation discovery、startup／runtime inputは未完了です。
 
+Schema 2 harnessは、Windows x86-64 MSVCでも同じsystem-link measurementを含むようになり、Windows CIは生成JSONを検証して30日間uploadします。このcommitはevidence pathを構成しますが、remote runner結果を記録するものではありません。Windows benchmark valueとその解釈は未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

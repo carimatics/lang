@@ -40,6 +40,12 @@ cargo run --release --bin prototype-bench -- \
 
 Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、host callbackが40 byte含まれました。生成されたadd objectとminimum objectは352 byteと368 byteでした。JIT code sizeにはobject-file structure、relocation data、unwind/debug information、runtime support、linker outputは含まれません。Object sizeにはMach-O structureが含まれますが、C harnessと最終executableは含まれません。
 
+## Windows x86-64 evidence path
+
+Schema 2 harnessは、Windows x86-64 MSVCでも同じ `system_link_add_min` rowを記録するようになりました。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証してから、反復linkだけを計測します。Windows Server 2025 workflowは同じ31／1,000／100,000 parameterで実行し、schema 2、clean checkout、`windows`／`x86_64` identity、system-link rowの存在を検証し、そのJSONを30日間uploadします。
+
+これはevidenceを生成するpathであり、記録済みWindows evidenceではありません。この変更によるremote runner結果はまだ検査もcommitもされていません。したがって、上のmacOS tableが現在唯一の測定済みbaselineです。
+
 ## 生成コード検査
 
 Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad` から再生成し、2026-10-16 00:25 JSTにmacOS AArch64 hostで検査しました。Signed-minimum objectはclean commit `dfc65f5c0f944abccaf24555ba3f6dbe77017483` から00:43 JSTに最初に再生成し、その後、明示的CFGへの移行後にclean commit `f6eb016798c237412b59057fa32257ca2bc5d016` から01:08 JSTに再生成しました。
@@ -59,7 +65,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - Harnessは計測前に、minimum functionの両方の結果を含め、VM、JIT、direct Rustのresultが等価であることを確認します。
 - VM rowには、呼び出しごとのbytecode verificationとregister allocationが含まれます。Interpreter dispatchだけでなく、現在のend-to-end embedding APIを計測しています。
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
-- Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。System-link rowはC harnessを事前compileし、harness、add、minimumのobjectからexecutableを生成する `cc` driverとsystem linkerを計測します。
+- Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。System-link rowはC harnessを事前compileし、harness、add、minimumのobjectからexecutableを生成するplatform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
 - JIT add compilationのRSDは57.043%で、medianが22.583 usである一方、1 sampleは105.542 usに達しました。Minimum AOT emissionのRSDは50.846%で、maximumが89.667 us、medianが23.042 usです。これらのmedianは方向性の証拠として有用ですが、compile-time variationが大きすぎるためstable performance budgetには使用できません。
 - Runtime rowのRSDは3%未満でした。Conditional workloadではJIT call medianがaddの1.867 nsからminimumの2.664 nsへ増えますが、どちらも限定的microbenchmarkであり、代表的programのperformanceを予測しません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。

@@ -40,6 +40,12 @@ Each row reports nanoseconds per operation. RSD is the relative population stand
 
 Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, and 40 bytes for the host callback. The emitted add and minimum objects were 352 and 368 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable.
 
+## Windows x86-64 evidence path
+
+The schema 2 harness now records the same `system_link_add_min` row on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, validates one link and execution before timing, and then measures only repeated links. The Windows Server 2025 workflow runs the same 31/1,000/100,000 parameters, validates schema 2, a clean checkout, the `windows`/`x86_64` identity, and presence of the system-link row, then uploads the JSON for 30 days.
+
+This is an evidence-producing path, not recorded Windows evidence: no remote runner result from this change has been inspected or committed. The macOS table above therefore remains the only current measured baseline.
+
 ## Generated-code inspection
 
 The add and host-callback objects were regenerated from clean commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad` and inspected on the macOS AArch64 host on 2026-10-16 at 00:25 JST. The signed-minimum object was first regenerated from clean commit `dfc65f5c0f944abccaf24555ba3f6dbe77017483` at 00:43 JST, then regenerated after the explicit-CFG migration from clean commit `f6eb016798c237412b59057fa32257ca2bc5d016` at 01:08 JST.
@@ -59,7 +65,7 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 - The harness checks VM, JIT, and direct Rust results for equivalence before timing, including both outcomes of the minimum function.
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
-- The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. The system-link row precompiles the C harness, then times the `cc` driver and system linker producing an executable from the harness, add, and minimum objects.
+- The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. The system-link row precompiles the C harness, then times the platform driver and system linker producing an executable from the harness, add, and minimum objects (`cc` on macOS or `link.exe` on Windows MSVC).
 - JIT add compilation has 57.043% RSD because one sample reached 105.542 us, while its median was 22.583 us. Minimum AOT emission has 50.846% RSD, with an 89.667 us maximum and 23.042 us median. These medians are useful as directional evidence, but the compile-time variation is too high for a stable performance budget.
 - Runtime rows stayed below 3% RSD. The conditional workload increases the JIT call median from 1.867 ns for add to 2.664 ns for minimum, but both are narrow microbenchmarks and do not predict representative program performance.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.

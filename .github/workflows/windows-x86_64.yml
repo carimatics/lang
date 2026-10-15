@@ -45,3 +45,34 @@ jobs:
 
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
+
+      - name: Record the schema 2 prototype benchmark
+        shell: pwsh
+        run: |
+          $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
+          cargo run --locked --release --bin prototype-bench -- --samples 31 --lowering-iterations 1000 --runtime-iterations 100000 | Tee-Object -FilePath $benchmark
+          if ($LASTEXITCODE -ne 0) {
+            throw "prototype-bench failed with exit code $LASTEXITCODE"
+          }
+
+          $result = Get-Content $benchmark -Raw | ConvertFrom-Json
+          if ($result.schema_version -ne 2) {
+            throw "expected benchmark schema 2, got $($result.schema_version)"
+          }
+          if ($result.git_dirty) {
+            throw "benchmark must run from a clean checkout"
+          }
+          if ($result.os -ne "windows" -or $result.architecture -ne "x86_64") {
+            throw "unexpected benchmark target $($result.os)/$($result.architecture)"
+          }
+          if ($result.measurements.name -notcontains "system_link_add_min") {
+            throw "benchmark did not record the Windows system-link measurement"
+          }
+
+      - name: Upload the prototype benchmark
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: prototype-benchmark-windows-x86_64-msvc
+          path: ${{ runner.temp }}\prototype-benchmark-windows-x86_64-msvc.json
+          if-no-files-found: error
+          retention-days: 30

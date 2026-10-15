@@ -16,6 +16,8 @@ Initial host-toolchain discovery now scans `PATH` in deterministic candidate ord
 
 The initial tier-1 linker policy is now explicit: backend-neutral `LinkTarget` values own the exact `aarch64-apple-darwin` and `x86_64-pc-windows-msvc` triples and map them to command flavor, default program, and ordered discovery candidates. Explicit-target construction/discovery, the COFF object test, and both platform integrations share the mapping, while unsupported triples fail structurally. Policies for additional targets, installation discovery, and startup/runtime inputs remain open.
 
+The schema 2 harness now includes the same system-link measurement on Windows x86-64 MSVC, and Windows CI validates and uploads the resulting JSON for 30 days. This commit configures the evidence path but does not record a remote runner result; Windows benchmark values and their interpretation remain open.
+
 - Accept goals, non-goals, and terminology.
 - Establish the RFC process and compatibility labels.
 - Prototype three memory-model stress cases: cyclic graphs, async borrows/cancellation, and shared mutable services.

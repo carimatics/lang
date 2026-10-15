@@ -186,6 +186,8 @@ Initial host-toolchain discovery scans `PATH` in deterministic candidate order, 
 
 The initial tier-1 linker strategy is now encoded by a backend-neutral `LinkTarget`: exact `aarch64-apple-darwin` and `x86_64-pc-windows-msvc` triples map to their command flavor, default program, and ordered discovery candidates. Explicit-target linker construction/discovery, both platform integrations, and the cross-target COFF test use that shared mapping; unsupported triples fail structurally. Additional target policies, installation discovery, and startup/runtime inputs remain open.
 
+The schema 2 benchmark now exercises the system-link path on Windows x86-64 MSVC as well as macOS AArch64. Windows CI validates schema, clean-checkout metadata, target identity, and the link row before retaining the JSON for 30 days. This prepares reproducible evidence collection but does not substitute for an inspected and recorded runner result.
+
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
 3. Add typed host-function registration and a script-to-host callback; then call a compiled function from the embedded runtime.

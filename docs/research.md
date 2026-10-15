@@ -147,6 +147,8 @@ The original requirements should be extended with the following:
 | [GCC: Overall Options](https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html) | Living documentation; date not published | Verified 2026-10-16; defines `@file`, whitespace separation, quoting, escaping, and recursive expansion |
 | [MSVC LINK: Specify a linker response file](https://learn.microsoft.com/en-us/cpp/build/reference/at-specify-a-linker-response-file?view=msvc-170) | 2022-05-18 | Verified 2026-10-16 |
 | [rustc linker response-file implementation](https://github.com/rust-lang/rust/blob/364c4856ae0eb8e5b058a2c6699749d1e3efa7ef/compiler/rustc_codegen_ssa/src/back/link.rs#L2100) | File last changed 2026-10-08 | Verified 2026-10-16; used for GNU/Windows escaping and MSVC UTF-16LE encoding precedent |
+| [GitHub Docs: Store and share data with workflow artifacts](https://docs.github.com/en/actions/tutorials/store-and-share-data) | Living documentation; date not published | Verified 2026-10-16; used for workflow-artifact upload and retention configuration |
+| [actions/upload-artifact v7.0.2 commit](https://github.com/actions/upload-artifact/commit/cf430e030ddbb5b0abf93d22962f4752f3646cd9) | 2026-10-07 | Verified as the latest release tag target 2026-10-16 |
 
 For living documentation without a published update time, the table intentionally reports “not published” rather than inferring a date from a CDN response or search index.
 
