@@ -10,6 +10,8 @@ These measurements are design evidence for the pre-alpha prototypes. They are no
 
 The current baseline was recorded from clean commit `0808ce75f128dfb16bf9c6e6453200fea7749401` on an Apple M1 Max running macOS 27.0.1. It used the pinned Rust 1.99.0 toolchain and Apple Clang 21.0.0 in a release build.
 
+This saved result uses harness schema 1 and predates the conditional-return workload. The current schema 2 harness additionally measures minimum-function lowering, JIT and AOT compilation, direct/VM/JIT calls with alternating branch outcomes, JIT code size, AOT object size, and a system link containing both add and minimum objects. A clean schema 2 baseline has not yet been recorded; smoke results are not used for design decisions.
+
 ```bash
 cargo run --release --bin prototype-bench -- \
   --samples 31 \
@@ -56,7 +58,7 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 - The JIT compile result has 66.169% RSD because one sample reached 112.333 us, while its median was 20.583 us. The object-emission result has 13.802% RSD. These medians are useful for an initial baseline, but their variation is too high for a stable performance budget.
 - This one-instruction microbenchmark supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, repeat the same schema on Windows x86-64, benchmark the implemented conditional-return workload, add allocation and broader control-flow workloads, and measure startup, memory, executable size, and debug quality.
+Before selecting the initial native backend, record a clean schema 2 baseline, repeat it on Windows x86-64, add allocation and broader control-flow workloads, and measure startup, memory, executable size, and debug quality.
 
 ## Earlier baseline
 

@@ -86,7 +86,7 @@ cargo run --release --bin prototype-bench -- \
   --runtime-iterations 100000
 ```
 
-Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT codeとAOT object size、bytecode lowering、JIT／AOT compilation、direct call、VM call、host callback、macOS system linkingのdistribution statisticsを含むJSONを出力します。Link系列はC harnessを事前compileし、`cc` driverとsystem-linker invocationを計測します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
+Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT codeとAOT object size、bytecode lowering、JIT／AOT compilation、direct call、VM call、host callback、交互に分岐するconditional-return workload、macOS system linkingのdistribution statisticsを含むversion付きJSONを出力します。Schema version 2ではminimum functionのmeasurementとsizeを個別に追加し、link系列はC harnessを事前compileして、addとminimum objectに対する `cc` driverとsystem-linker invocationを計測します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
 
 共通チェック：
 

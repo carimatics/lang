@@ -10,6 +10,8 @@
 
 現在のbaselineは、macOS 27.0.1を実行するApple M1 Max上で、clean commit `0808ce75f128dfb16bf9c6e6453200fea7749401` から記録しました。Release buildで、固定されたRust 1.99.0 toolchainとApple Clang 21.0.0を使用しました。
 
+この保存済みresultはharness schema 1を使用しており、conditional-return workloadより前のものです。現在のschema 2 harnessは、minimum functionのlowering、JIT／AOT compilation、分岐結果を交互にするdirect／VM／JIT call、JIT code size、AOT object size、addとminimumの両objectを含むsystem linkも計測します。Cleanなschema 2 baselineはまだ記録しておらず、smoke resultは設計判断に使用しません。
+
 ```bash
 cargo run --release --bin prototype-bench -- \
   --samples 31 \
@@ -56,7 +58,7 @@ Craneliftのcompiled code bufferには、add functionについて8 byte、host-c
 - JIT compile resultのRSDは66.169%で、medianが20.583 usである一方、1 sampleは112.333 usに達しました。Object-emission resultのRSDは13.802%です。これらのmedianは初期baselineに有用ですが、variationが大きすぎるためstable performance budgetには使用できません。
 - この1 instruction microbenchmarkは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、Windows x86-64上で同じschemaを反復し、実装済みconditional-return workloadをbenchmarkし、allocationとより広いcontrol-flow workloadを追加し、startup、memory、executable size、debug qualityを計測します。
+初期native backendを選定する前に、cleanなschema 2 baselineを記録し、Windows x86-64上で反復し、allocationとより広いcontrol-flow workloadを追加し、startup、memory、executable size、debug qualityを計測します。
 
 ## 以前のbaseline
 

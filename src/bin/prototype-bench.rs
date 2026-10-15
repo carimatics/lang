@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use lang::{PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_host_callback_function};
+use lang::{
+    PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_host_callback_function,
+    prototype_min_function,
+};
 use lang_bytecode::lower;
 use lang_codegen_clif::{CompiledFunction, emit_host_object};
 use lang_runtime::HostFunctionRegistry;
@@ -90,6 +93,25 @@ struct Measurement {
     relative_stddev_percent: f64,
 }
 
+struct PreparedWorkloads<'a> {
+    add_program: &'a lang_bytecode::Program,
+    min_program: &'a lang_bytecode::Program,
+    host_program: &'a lang_bytecode::Program,
+    host_functions: &'a HostFunctionRegistry,
+    compiled_add: &'a CompiledFunction,
+    compiled_min: &'a CompiledFunction,
+    compiled_host: &'a CompiledFunction,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ArtifactSizes {
+    add_code: usize,
+    min_code: usize,
+    host_code: usize,
+    add_object: usize,
+    min_object: usize,
+}
+
 impl Measurement {
     fn from_samples(
         name: &'static str,
@@ -153,33 +175,34 @@ fn run() -> Result<(), String> {
     let config = Config::parse(env::args().skip(1))?;
 
     let add_function = prototype_add_function();
+    let min_function = prototype_min_function();
     let host_function = prototype_host_callback_function();
     let add_program = lower(&add_function).map_err(|error| error.to_string())?;
+    let min_program = lower(&min_function).map_err(|error| error.to_string())?;
     let host_program = lower(&host_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let compiled_add =
         CompiledFunction::compile(&add_function).map_err(|error| error.to_string())?;
+    let compiled_min =
+        CompiledFunction::compile(&min_function).map_err(|error| error.to_string())?;
     let compiled_host = CompiledFunction::compile_with_hosts(&host_function, &host_functions)
         .map_err(|error| error.to_string())?;
     let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
+    let aot_min = emit_host_object(&min_function).map_err(|error| error.to_string())?;
     #[cfg(target_os = "macos")]
-    let link_benchmark = LinkBenchmark::prepare(aot_add.bytes())?;
+    let link_benchmark = LinkBenchmark::prepare(aot_add.bytes(), aot_min.bytes())?;
 
-    check_results(
-        &add_program,
-        &host_program,
-        &host_functions,
-        &compiled_add,
-        &compiled_host,
-    )?;
-    warm_up(
-        config.runtime_iterations,
-        &add_program,
-        &host_program,
-        &host_functions,
-        &compiled_add,
-        &compiled_host,
-    );
+    let workloads = PreparedWorkloads {
+        add_program: &add_program,
+        min_program: &min_program,
+        host_program: &host_program,
+        host_functions: &host_functions,
+        compiled_add: &compiled_add,
+        compiled_min: &compiled_min,
+        compiled_host: &compiled_host,
+    };
+    check_results(&workloads)?;
+    warm_up(config.runtime_iterations, &workloads);
 
     let mut measurements = Vec::new();
     measurements.push(measure_construction(
@@ -187,6 +210,12 @@ fn run() -> Result<(), String> {
         config.samples,
         config.lowering_iterations,
         || lower(black_box(&add_function)).expect("validated prototype MIR lowers"),
+    ));
+    measurements.push(measure_construction(
+        "bytecode_lower_min",
+        config.samples,
+        config.lowering_iterations,
+        || lower(black_box(&min_function)).expect("validated conditional MIR lowers"),
     ));
     measurements.push(measure_construction(
         "jit_compile_add",
@@ -198,12 +227,30 @@ fn run() -> Result<(), String> {
         },
     ));
     measurements.push(measure_construction(
+        "jit_compile_min",
+        config.samples,
+        1,
+        || {
+            CompiledFunction::compile(black_box(&min_function))
+                .expect("validated conditional MIR compiles")
+        },
+    ));
+    measurements.push(measure_construction(
         "aot_object_emit_add",
         config.samples,
         1,
         || {
             emit_host_object(black_box(&add_function))
                 .expect("validated prototype MIR emits an object")
+        },
+    ));
+    measurements.push(measure_construction(
+        "aot_object_emit_min",
+        config.samples,
+        1,
+        || {
+            emit_host_object(black_box(&min_function))
+                .expect("validated conditional MIR emits an object")
         },
     ));
     #[cfg(target_os = "macos")]
@@ -230,6 +277,35 @@ fn run() -> Result<(), String> {
             compiled_add
                 .invoke_i64_2(iteration as i64, 17)
                 .expect("compiled prototype has the expected signature")
+        },
+    ));
+    measurements.push(measure_calls(
+        "rust_min_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            let (left, right) = alternating_min_inputs(iteration);
+            rust_min(left, right)
+        },
+    ));
+    measurements.push(measure_calls(
+        "vm_min_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            let (left, right) = alternating_min_inputs(iteration);
+            execute(&min_program, &[left, right]).expect("verified conditional bytecode executes")
+        },
+    ));
+    measurements.push(measure_calls(
+        "jit_min_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            let (left, right) = alternating_min_inputs(iteration);
+            compiled_min
+                .invoke_i64_2(left, right)
+                .expect("compiled conditional prototype has the expected signature")
         },
     ));
     measurements.push(measure_calls(
@@ -263,9 +339,13 @@ fn run() -> Result<(), String> {
         render_json(
             &command_line,
             config,
-            compiled_add.code_size(),
-            compiled_host.code_size(),
-            aot_add.bytes().len(),
+            ArtifactSizes {
+                add_code: compiled_add.code_size(),
+                min_code: compiled_min.code_size(),
+                host_code: compiled_host.code_size(),
+                add_object: aot_add.bytes().len(),
+                min_object: aot_min.bytes().len(),
+            },
             &measurements,
         )
     );
@@ -286,26 +366,44 @@ extern "C" fn rust_wrapping_add(left: i64, right: i64) -> i64 {
 }
 
 #[inline(never)]
+extern "C" fn rust_min(left: i64, right: i64) -> i64 {
+    left.min(right)
+}
+
+fn alternating_min_inputs(iteration: u64) -> (i64, i64) {
+    let left = iteration as i64;
+    (left, left ^ 1)
+}
+
+#[inline(never)]
 extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
     value.wrapping_mul(2)
 }
 
-fn check_results(
-    add_program: &lang_bytecode::Program,
-    host_program: &lang_bytecode::Program,
-    host_functions: &HostFunctionRegistry,
-    compiled_add: &CompiledFunction,
-    compiled_host: &CompiledFunction,
-) -> Result<(), String> {
+fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
     let expected_add = rust_wrapping_add(20, 22);
-    let vm_add = execute(add_program, &[20, 22]).map_err(|error| error.to_string())?;
-    let jit_add = compiled_add
+    let vm_add = execute(workloads.add_program, &[20, 22]).map_err(|error| error.to_string())?;
+    let jit_add = workloads
+        .compiled_add
         .invoke_i64_2(20, 22)
         .map_err(|error| error.to_string())?;
+    for (left, right) in [(-7, 4), (9, 3)] {
+        let expected_min = rust_min(left, right);
+        let vm_min =
+            execute(workloads.min_program, &[left, right]).map_err(|error| error.to_string())?;
+        let jit_min = workloads
+            .compiled_min
+            .invoke_i64_2(left, right)
+            .map_err(|error| error.to_string())?;
+        if (vm_min, jit_min) != (expected_min, expected_min) {
+            return Err("conditional execution modes disagreed before measurement".to_owned());
+        }
+    }
     let expected_host = prototype_wrapping_double(21);
-    let vm_host = execute_with_hosts(host_program, &[21], host_functions)
+    let vm_host = execute_with_hosts(workloads.host_program, &[21], workloads.host_functions)
         .map_err(|error| error.to_string())?;
-    let jit_host = compiled_host
+    let jit_host = workloads
+        .compiled_host
         .invoke_i64_1(21)
         .map_err(|error| error.to_string())?;
 
@@ -317,31 +415,40 @@ fn check_results(
     Ok(())
 }
 
-fn warm_up(
-    runtime_iterations: u64,
-    add_program: &lang_bytecode::Program,
-    host_program: &lang_bytecode::Program,
-    host_functions: &HostFunctionRegistry,
-    compiled_add: &CompiledFunction,
-    compiled_host: &CompiledFunction,
-) {
+fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
     let iterations = runtime_iterations.clamp(1_000, 10_000);
     for iteration in 0..iterations {
         let value = iteration as i64;
         black_box(rust_wrapping_add(value, 17));
-        black_box(execute(add_program, &[value, 17]).expect("verified bytecode executes"));
         black_box(
-            compiled_add
+            execute(workloads.add_program, &[value, 17]).expect("verified bytecode executes"),
+        );
+        black_box(
+            workloads
+                .compiled_add
                 .invoke_i64_2(value, 17)
                 .expect("compiled prototype has the expected signature"),
         );
+        let (left, right) = alternating_min_inputs(iteration);
+        black_box(rust_min(left, right));
+        black_box(
+            execute(workloads.min_program, &[left, right])
+                .expect("verified conditional bytecode executes"),
+        );
+        black_box(
+            workloads
+                .compiled_min
+                .invoke_i64_2(left, right)
+                .expect("compiled conditional prototype has the expected signature"),
+        );
         black_box(prototype_wrapping_double(value));
         black_box(
-            execute_with_hosts(host_program, &[value], host_functions)
+            execute_with_hosts(workloads.host_program, &[value], workloads.host_functions)
                 .expect("verified host-call bytecode executes"),
         );
         black_box(
-            compiled_host
+            workloads
+                .compiled_host
                 .invoke_i64_1(value)
                 .expect("compiled host callback has the expected signature"),
         );
@@ -353,9 +460,10 @@ const LINK_HARNESS: &str = r#"
 #include <stdint.h>
 
 extern int64_t prototype_add(int64_t left, int64_t right);
+extern int64_t prototype_min(int64_t left, int64_t right);
 
 int main(void) {
-    return prototype_add(20, 22) == 42 ? 0 : 1;
+    return prototype_add(20, 22) == 42 && prototype_min(-7, 4) == -7 ? 0 : 1;
 }
 "#;
 
@@ -396,19 +504,22 @@ struct LinkBenchmark {
     _directory: BenchmarkDirectory,
     harness_object: PathBuf,
     add_object: PathBuf,
+    min_object: PathBuf,
     executable: PathBuf,
 }
 
 #[cfg(target_os = "macos")]
 impl LinkBenchmark {
-    fn prepare(add_object_bytes: &[u8]) -> Result<Self, String> {
+    fn prepare(add_object_bytes: &[u8], min_object_bytes: &[u8]) -> Result<Self, String> {
         let directory = BenchmarkDirectory::create()?;
         let harness_source = directory.path().join("harness.c");
         let harness_object = directory.path().join("harness.o");
         let add_object = directory.path().join("prototype_add.o");
+        let min_object = directory.path().join("prototype_min.o");
         let executable = directory.path().join("prototype-aot");
         fs::write(&harness_source, LINK_HARNESS).map_err(|error| error.to_string())?;
         fs::write(&add_object, add_object_bytes).map_err(|error| error.to_string())?;
+        fs::write(&min_object, min_object_bytes).map_err(|error| error.to_string())?;
 
         let compile = Command::new("cc")
             .args(["-O2", "-c"])
@@ -423,6 +534,7 @@ impl LinkBenchmark {
             _directory: directory,
             harness_object,
             add_object,
+            min_object,
             executable,
         };
         benchmark.link_once()?;
@@ -440,12 +552,16 @@ impl LinkBenchmark {
             self.link_once()?;
             samples.push(started.elapsed().as_secs_f64() * 1_000_000_000.0);
         }
-        Ok(Measurement::from_samples("system_link_add", 1, samples))
+        Ok(Measurement::from_samples("system_link_add_min", 1, samples))
     }
 
     fn link_once(&self) -> Result<(), String> {
         let link = Command::new("cc")
-            .args([self.harness_object.as_os_str(), self.add_object.as_os_str()])
+            .args([
+                self.harness_object.as_os_str(),
+                self.add_object.as_os_str(),
+                self.min_object.as_os_str(),
+            ])
             .arg("-o")
             .arg(&self.executable)
             .output()
@@ -510,9 +626,7 @@ fn measure_calls(
 fn render_json(
     command_line: &str,
     config: Config,
-    add_code_size: usize,
-    host_code_size: usize,
-    add_object_size: usize,
+    sizes: ArtifactSizes,
     measurements: &[Measurement],
 ) -> String {
     let mut output = String::new();
@@ -526,7 +640,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 1,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 2,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -545,12 +659,14 @@ fn render_json(
     write_json_string(&mut output, "system_linker", &system_linker(), true);
     writeln!(output, "  \"samples\": {},", config.samples).expect("writing to String succeeds");
     writeln!(output, "  \"generated_code_bytes\": {{").expect("writing to String succeeds");
-    writeln!(output, "    \"jit_add\": {add_code_size},").expect("writing to String succeeds");
-    writeln!(output, "    \"jit_host_callback\": {host_code_size}")
+    writeln!(output, "    \"jit_add\": {},", sizes.add_code).expect("writing to String succeeds");
+    writeln!(output, "    \"jit_min\": {},", sizes.min_code).expect("writing to String succeeds");
+    writeln!(output, "    \"jit_host_callback\": {}", sizes.host_code)
         .expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"object_file_bytes\": {{").expect("writing to String succeeds");
-    writeln!(output, "    \"aot_add\": {add_object_size}").expect("writing to String succeeds");
+    writeln!(output, "    \"aot_add\": {},", sizes.add_object).expect("writing to String succeeds");
+    writeln!(output, "    \"aot_min\": {}", sizes.min_object).expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"measurements\": [").expect("writing to String succeeds");
     for (index, measurement) in measurements.iter().enumerate() {
