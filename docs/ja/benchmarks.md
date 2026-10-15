@@ -8,42 +8,44 @@
 
 ## 現在のmacOS AArch64 baseline
 
-現在のbaselineは、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 03:08:08 JSTにclean commit `78fd3edff8d5dbeb38ff501999f7094a604404bd` から記録しました。Release buildで、harness schema 4、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0を使用しました。
+現在のbaselineは、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 04:50:50 JSTにclean commit `180af8502341c4ed00d90a658193cfa14b5ce1da` から記録しました。Release buildで、harness schema 5、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0を使用しました。
 
 ```bash
 target/release/prototype-bench \
   --samples 31 \
   --lowering-iterations 1000 \
-  --runtime-iterations 100000
+  --runtime-iterations 100000 \
+  --startup-iterations 10
 ```
 
 各rowはoperation当たりのnanosecondを示します。RSDは31 sample全体のrelative population standard deviationです。
 
 | Measurement | Sample当たりのoperation数 | Median | p95 | RSD |
 | --- | ---: | ---: | ---: | ---: |
-| Bytecode lowering：wrapping `i64` add | 1,000 | 419.750 ns | 470.791 ns | 5.168% |
-| Bytecode lowering：signed minimum | 1,000 | 1,124.250 ns | 1,198.209 ns | 4.255% |
-| Bytecode lowering：countdown back-edge | 1,000 | 1,664.708 ns | 1,805.333 ns | 3.746% |
-| Cranelift JIT compilation：wrapping `i64` add | 1 | 20.916 us | 30.125 us | 67.711% |
-| Cranelift JIT compilation：signed minimum | 1 | 23.375 us | 30.916 us | 21.480% |
-| Cranelift JIT compilation：countdown back-edge | 1 | 27.166 us | 35.208 us | 13.675% |
-| Cranelift AOT object emission：wrapping `i64` add | 1 | 13.375 us | 16.917 us | 20.476% |
-| Cranelift AOT object emission：signed minimum | 1 | 17.666 us | 19.416 us | 4.242% |
-| Cranelift AOT object emission：countdown back-edge | 1 | 21.459 us | 23.541 us | 3.617% |
-| macOS system link：事前compile済みC harnessとadd／minimum／countdown object | 1 | 36.712 ms | 38.449 ms | 2.344% |
-| macOS AOT process startup：add／minimum／countdown harness | 1 | 1.511 ms | 1.906 ms | 276.388% |
-| Direct Rust wrapping `i64` add call | 100,000 | 0.930 ns | 0.960 ns | 1.074% |
-| VM wrapping `i64` add call | 100,000 | 177.461 ns | 178.857 ns | 0.473% |
-| JIT wrapping `i64` add call | 100,000 | 1.860 ns | 1.960 ns | 2.836% |
-| Direct Rust signed minimum call | 100,000 | 0.930 ns | 0.957 ns | 2.533% |
-| VM signed minimum call | 100,000 | 497.900 ns | 509.294 ns | 5.382% |
-| JIT signed minimum call | 100,000 | 2.695 ns | 2.953 ns | 9.008% |
-| Direct Rust countdown call | 100,000 | 0.971 ns | 0.996 ns | 1.620% |
-| VM countdown call | 100,000 | 1,590.605 ns | 1,634.968 ns | 2.138% |
-| JIT countdown call | 100,000 | 12.735 ns | 13.022 ns | 1.023% |
-| Direct Rust host callback | 100,000 | 0.930 ns | 0.931 ns | 0.074% |
-| VM host callback | 100,000 | 173.798 ns | 176.845 ns | 1.039% |
-| JIT host callback | 100,000 | 2.790 ns | 2.979 ns | 2.702% |
+| Bytecode lowering：wrapping `i64` add | 1,000 | 457.125 ns | 479.375 ns | 4.471% |
+| Bytecode lowering：signed minimum | 1,000 | 1,064.542 ns | 1,216.125 ns | 5.064% |
+| Bytecode lowering：countdown back-edge | 1,000 | 1,665.042 ns | 1,853.625 ns | 4.118% |
+| Cranelift JIT compilation：wrapping `i64` add | 1 | 20.416 us | 34.959 us | 74.097% |
+| Cranelift JIT compilation：signed minimum | 1 | 23.834 us | 31.292 us | 20.092% |
+| Cranelift JIT compilation：countdown back-edge | 1 | 28.291 us | 36.834 us | 13.284% |
+| Cranelift AOT object emission：wrapping `i64` add | 1 | 13.875 us | 36.750 us | 65.320% |
+| Cranelift AOT object emission：signed minimum | 1 | 18.167 us | 25.959 us | 26.924% |
+| Cranelift AOT object emission：countdown back-edge | 1 | 22.000 us | 27.209 us | 14.202% |
+| macOS system link：事前compile済みC harnessとadd／minimum／countdown object | 1 | 36.837 ms | 39.596 ms | 2.958% |
+| macOS AOT process startup：single launch | 1 | 1.487 ms | 1.846 ms | 256.272% |
+| macOS AOT process startup：10-launch batch、launch当たり | 10 | 1.499 ms | 1.639 ms | 4.688% |
+| Direct Rust wrapping `i64` add call | 100,000 | 0.958 ns | 0.974 ns | 0.659% |
+| VM wrapping `i64` add call | 100,000 | 182.419 ns | 183.855 ns | 0.657% |
+| JIT wrapping `i64` add call | 100,000 | 1.860 ns | 1.917 ns | 4.034% |
+| Direct Rust signed minimum call | 100,000 | 0.958 ns | 0.991 ns | 1.624% |
+| VM signed minimum call | 100,000 | 509.131 ns | 524.915 ns | 3.813% |
+| JIT signed minimum call | 100,000 | 2.756 ns | 2.847 ns | 2.134% |
+| Direct Rust countdown call | 100,000 | 0.958 ns | 1.207 ns | 38.693% |
+| VM countdown call | 100,000 | 1,585.620 ns | 1,608.688 ns | 1.834% |
+| JIT countdown call | 100,000 | 12.707 ns | 12.992 ns | 0.946% |
+| Direct Rust host callback | 100,000 | 0.930 ns | 1.018 ns | 4.664% |
+| VM host callback | 100,000 | 171.864 ns | 174.175 ns | 0.792% |
+| JIT host callback | 100,000 | 2.789 ns | 2.868 ns | 0.898% |
 
 Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、countdownが20 byte、host callbackが40 byte含まれました。生成されたadd、minimum、countdown objectは352、368、376 byteでした。Link済みAOT harnessは16,992 byteでした。JIT code sizeにはobject-file structure、relocation data、unwind/debug information、runtime support、linker outputは含まれません。Object sizeにはMach-O structureが含まれますが、C harnessと最終executableは含まれません。Executable sizeにはその両方とplatform linkerのdefaultが含まれますが、完全なruntime distributionは含まれません。
 
@@ -53,7 +55,7 @@ Schema 5はtop-levelの `startup_iterations` fieldと `aot_process_startup_batch
 
 2つのrowは異なる問いに答えるため、mergeしてはいけません。Batchingはloader timeを分離せず、host noiseを除去せず、individual-latency percentileを置き換えません。Consumerは `schema_version` で分岐する必要があり、既存のschema 1〜4 JSON fileはimmutableなevidenceとして残します。
 
-Schema 5の実装とWindows evidence pathは存在しますが、cleanなschema 5 resultはまだ記録していません。上のschema 4 tableが現在の測定済みbaselineです。
+CleanなmacOS AArch64 schema 5 resultを上に記録しました。Windows evidence pathは存在しますが、remote schema 5 resultはまだ検査もcommitもしていません。
 
 ## Schema 4 formatとmigration
 
@@ -97,22 +99,23 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdownを追加します。どちらもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
 - Schema 4のprocess-startup rowには、process creation、loader処理、小さなharness workload、output collection、終了待ちが含まれます。Operating-system cacheをflushせず、loader timeも分離しません。Executable-size fieldにはplatform C harnessとdefault linker outputが含まれます。
 - Schema 5はsingle-launch rowを維持し、設定可能なbatched rowを追加します。Batched per-operation valueは、1回の遅延したlaunchがsampleへ与える影響を小さくしますが、individual startup latencyの代わりではなくamortized throughput estimateです。
-- JIT add compilationのRSDは67.711%で、medianは20.916 usです。Countdown JIT／AOT medianは27.166 us／21.459 usで、RSDは13.675%／3.617%です。これらのmedianは方向性の証拠として有用ですが、add compile-time variationが大きすぎるためstable performance budgetには使用できません。
-- AOT process-startup medianは1.511 ms、p95は1.906 msですが、49.824 msの1 sampleによりRSDが276.388%まで上がりました。これは現在の31-sample startup methodが、stable budgetにはschedulingまたはhost noiseの影響を受けすぎる証拠です。Methodを改善するときはmedianだけでなくraw distributionを使用します。
-- VM／JIT runtime medianはschema 3と方向的に一貫していますが、複数のRSDが1.5%を超えました。64-iteration back-edgeとimmediate returnを交互に実行すると、JIT medianは12.735 ns、VM medianは1,590.605 nsになります。このbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。Sub-nanosecond direct-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
+- JIT add compilationのRSDは74.097%、AOT add emissionのRSDは65.320%です。Countdown JIT／AOT medianは28.291 us／22.000 usで、RSDは13.284%／14.202%です。これらのmedianは方向性の証拠として有用ですが、compile-time variationはstable performance budgetには依然として大きすぎます。
+- Single-launch AOT startup medianは1.487 ms、p95は1.846 msですが、42.796 msの1 sampleによりRSDが256.272%まで上がりました。10-launch batched rowは、同程度の1.499 ms median、1.639 ms p95をRSD 4.688%で報告します。Batchingはamortized estimateに対するhost-noiseの影響を大きく下げ、single rowはtail-sensitiveなlatencyを引き続き示します。
+- VM／JIT runtime medianはschema 4と方向的に一貫しています。64-iteration back-edgeとimmediate returnを交互に実行すると、JIT medianは12.707 ns、VM medianは1,585.620 nsになります。このbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。Sub-nanosecond direct-call rowとその大きいrelative variationはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、両tier-1 hostでschema 5を記録し、singleとbatched startup distributionを比較し、allocationとより広いCFG workloadを追加し、memoryとdebug qualityを計測します。macOS schema 4 executable-size resultはharness artifactであり、release packaging budgetではありません。
+初期native backendを選定する前に、Windows x86-64でschema 5を記録し、allocationとより広いCFG workloadを追加し、memoryとdebug qualityを計測します。Batched macOS startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
 
 ## 以前のbaseline
 
-[Schema 3 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json)はcommit `fc216b26cdd8cdbd77f8e78e598f9a2143514bd3` から2026-10-16 02:27:40 JSTに計測され、process-startupとexecutable-size evidenceより前のresultであるためschema 4に置き換えられます。[Schema 2 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json)、[Schema 1 AOT／link result](../../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json)、[以前のJIT-only result](../../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json)はharness履歴として残します。
+[Schema 4 result](../../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json)はcommit `78fd3edff8d5dbeb38ff501999f7094a604404bd` から2026-10-16 03:08:08 JSTに計測され、batched startup evidenceより前のresultであるためschema 5に置き換えられます。[Schema 3 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json)、[Schema 2 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json)、[Schema 1 AOT／link result](../../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json)、[以前のJIT-only result](../../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json)はharness履歴として残します。
 
 ## 情報源
 
-- [現在のraw macOS AArch64 schema 4 result](../../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json)、2026-10-16 03:08:08 JSTに計測。
+- [現在のraw macOS AArch64 schema 5 result](../../benchmarks/results/2026-10-16-macos-aarch64-180af85.json)、2026-10-16 04:50:50 JSTに計測。
 - [macOS AArch64 generated-object inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)、2026-10-16 00:25 JSTに取得。
 - [macOS AArch64 signed-minimum inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md)、2026-10-16 00:43:31 JSTに取得。
+- Repository commit `180af8502341c4ed00d90a658193cfa14b5ce1da`、2026-10-16にcommit。
 - Repository commit `78fd3edff8d5dbeb38ff501999f7094a604404bd`、2026-10-16にcommit。
 - Repository commit `fc216b26cdd8cdbd77f8e78e598f9a2143514bd3`、2026-10-16にcommit。
 - Repository commit `fc86889fed093a910d575ac47eca66239a7b47e8`、2026-10-16にcommit。
