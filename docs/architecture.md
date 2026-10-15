@@ -183,6 +183,8 @@ Provide a stable C ABI embedding layer regardless of the implementation language
 
 Cache call-site validation and generated thunks. Calls remain in-process and avoid IPC, but boundary checks and representation conversions are still real costs and must be benchmarked.
 
+The VM prototype implements one narrow resource-control layer: an opt-in instruction-fuel budget. Each bytecode instruction and the function terminator consume one unit; validation and arity checks occur before metering, and host callbacks run only after their instruction's fuel is consumed. The limited API returns both the value and consumed fuel, while existing convenience APIs remain unbounded. This does not yet cover memory, recursion, tasks, wall-clock time, interruption, loops, or native/JIT execution, so it is evidence for the embedding interface rather than a complete sandbox.
+
 ### Plugin trust tiers
 
 1. **Trusted native:** AOT object/static library, specialized calls, maximum performance, no sandbox claim.

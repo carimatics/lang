@@ -60,7 +60,7 @@ cargo run -- 20 22
 
 このcommandは、検証済みの型付きMIR関数を構築し、検証済みregister bytecodeへloweringしてVMで実行し、同じMIRをCranelift JITでcompileして結果を比較します。wrapping `i64` 加算はプロトタイプ動作であり、承認済み言語意味論ではありません。
 
-Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、resource limitはまだ提供しません。
+Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。VMはopt-inのinstruction-fuel limitを公開し、消費fuelを報告します。各bytecode instructionとterminatorが1 unitを消費し、host callbackを呼び出す前にfuelを確認します。既存のexecution functionはunboundedのままです。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、memory／recursion／task／wall-clock limit、interruption、JIT resource enforcementはまだ提供しません。
 
 `lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。macOS AArch64 integration testはadd objectとcallback objectをsystem compilerでC harnessへlinkし、実行します。Production linker driver、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
 

@@ -183,6 +183,8 @@ AST interpreterではなく、typed register-based bytecode VMを使用します
 
 Call-site validationとgenerated thunkをcacheします。Callはin-processのままでIPCを回避しますが、boundary checkとrepresentation conversionは実在するcostであり、benchmarkする必要があります。
 
+VM prototypeは、狭いresource-control layerとしてopt-inのinstruction-fuel budgetを実装します。各bytecode instructionとfunction terminatorが1 unitを消費します。Validationとarity checkはmetering前に行い、host callbackはそのinstructionのfuel消費後にだけ実行します。Limit付きAPIはvalueと消費fuelの両方を返し、既存のconvenience APIはunboundedのままです。Memory、recursion、task、wall-clock time、interruption、loop、native／JIT executionは未対応であるため、これは完全なsandboxではなくembedding interfaceの証拠です。
+
 ### Plugin trust tier
 
 1. **Trusted native:** AOT object／static library、specialized call、最大性能、sandboxの保証なし。

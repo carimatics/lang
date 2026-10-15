@@ -106,7 +106,7 @@ RFCは以下の状態を使用します。
 - 埋め込みhost callとcallbackは、最終的に型なしraw pointerではなく、型付き登録と生成adapterを利用する。
 - WebAssembly/component実行は将来のsandbox tierであり、最初のプロトタイプには必須でない。
 
-現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、resource limit、serialized interfaceは未指定かつ未実装のままです。
+現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。VMはopt-in instruction fuelも試作します。各instructionとterminatorが1 unitを消費し、callbackはfuel消費後にだけ実行します。既存APIはunboundedのままで、native／JIT executionに同等のenforcementはありません。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、より広いresource limit、serialized interfaceは未指定かつ未実装のままです。
 
 実行モード間に意図的な差を設ける場合、RFC、必要に応じた診断、その境界を示すテストが必要です。
 
@@ -151,7 +151,7 @@ benchmarkにはtoolchain version、commit identifier、hardware、OS、command l
 ソーステキスト、package metadata、bytecode、component description、debug data、plugin inputは、明示的に信頼が確立されない限りuntrustedです。
 
 - MIRとbytecodeは、実行またはnative loweringの前に検証する。
-- 関連機能の導入時に、VMはboundsとresource limitを強制する。
+- VMはbytecodeを検証し、prototype instruction-fuel limitを強制できる。より広いboundsとresource limitは段階的作業として残る。
 - native pluginはtrusted codeであり、明示的なopt-inを要求する。
 - untrusted pluginはcapability制限付きscriptまたはWebAssembly tierを使用する。
 - 承認済み表現がない限り、panicとunwindingはFFIまたはcomponent boundaryを越えない。
@@ -178,7 +178,7 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 
 ## 実装計画
 
-2026-10-16時点のprototype状況：step 1〜3は、local `i64` vertical sliceについて完了しています。Step 3では型付き登録、VM／native差分実行、重複登録の拒否、未知関数の拒否を扱いますが、stable embedding boundaryまたはcomponent boundaryは完成していません。Cranelift backendは、exportされたMIR functionとimportされたhost callbackを持つhost-native object artifactを生成でき、macOS AArch64 integration testはadd、型付きconditional-return、callbackのobjectをsystem compilerでlinkし、生成されたC harnessを実行します。Production linker driverとstable native ABIは未完了です。Step 4には、async borrowing／cancellation、cyclic graph、shared mutable serviceという3つすべてのstress caseについて実行可能な厳格modelがあります。Step 5には、addとminimumのbytecode lowering、Cranelift JIT／AOT compilation、生成codeとobject size、VM／native call、host callback、system linkingに関するcleanなmacOS AArch64 [schema 2 benchmark baseline](../benchmarks.md)があります。記録したAArch64 generated-code inspectionでは、意図した2-instruction add、compare-and-branch minimum、position-independentなhost importを確認しました。Windows x86-64、より広いcontrol-flowとallocation workload、より制限の少ないmemory-model代替案は未完了です。
+2026-10-16時点のprototype状況：step 1〜3は、local `i64` vertical sliceについて完了しています。Step 3では型付き登録、VM／native差分実行、重複登録の拒否、未知関数の拒否、deterministic VM instruction fuelを扱いますが、stable embedding boundaryまたはcomponent boundaryは完成していません。Cranelift backendは、exportされたMIR functionとimportされたhost callbackを持つhost-native object artifactを生成でき、macOS AArch64 integration testはadd、型付きconditional-return、callbackのobjectをsystem compilerでlinkし、生成されたC harnessを実行します。Production linker driverとstable native ABIは未完了です。Step 4には、async borrowing／cancellation、cyclic graph、shared mutable serviceという3つすべてのstress caseについて実行可能な厳格modelがあります。Step 5には、addとminimumのbytecode lowering、Cranelift JIT／AOT compilation、生成codeとobject size、VM／native call、host callback、system linkingに関するcleanなmacOS AArch64 [schema 2 benchmark baseline](../benchmarks.md)があります。記録したAArch64 generated-code inspectionでは、意図した2-instruction add、compare-and-branch minimum、position-independentなhost importを確認しました。Windows x86-64、より広いcontrol-flowとallocation workload、より広いembedding limit、native enforcement、より制限の少ないmemory-model代替案は未完了です。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -206,10 +206,10 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 - 最初の公開pre-1.0 releaseで、どの互換性保証を開始するか。
 - Windows AArch64を最初のnative backend milestoneの前と後のどちらでTier 1に加えるか。
 - canonical ABI実験の出発点として、どのcomponent modelを利用するか。
-- embedded hostはuntrusted scriptに対してどのresource-budget interfaceを使用するか。
+- Memory、recursion、task、wall-clock budget、interruptionをprototype instruction-fuel interfaceとどう合成するか。
 - Craneliftをprototype backendにとどめずinitial backendとして選定するために、どの測定をblockingとするか。
 
-レビュー結果：**needs prototype/measurement**。blocking questionはcomponent boundary、embedded resource control、backend measurementです。命名とWindows AArch64の時期は、このRFCに対する任意のfollow-upです。
+レビュー結果：**needs prototype/measurement**。blocking questionはcomponent boundary、VM instruction fuelを超えるresource control、cross-platform／backend measurementです。命名とWindows AArch64の時期は、このRFCに対する任意のfollow-upです。
 
 ## 情報源
 

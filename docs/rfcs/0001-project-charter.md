@@ -106,7 +106,7 @@ The initial execution model has one semantic input and multiple lowerings:
 - Embedded host calls and callbacks must eventually use typed registration and generated adapters rather than untyped raw pointers.
 - WebAssembly/component execution remains a future sandbox tier and is not required by the first prototype.
 
-The current embedding experiment assigns each host function a backend-neutral MIR identifier and resolves a typed `extern "C" fn(i64) -> i64` from a per-runtime registry. The VM dispatches through that registry, while Cranelift imports the same registered function into the JIT module. This is test scaffolding rather than a stable ABI: aggregate values, error transport, panic containment, capabilities, resource limits, and serialized interfaces remain unspecified and unimplemented.
+The current embedding experiment assigns each host function a backend-neutral MIR identifier and resolves a typed `extern "C" fn(i64) -> i64` from a per-runtime registry. The VM dispatches through that registry, while Cranelift imports the same registered function into the JIT module. The VM also prototypes opt-in instruction fuel: each instruction and terminator costs one unit, and callbacks run only after fuel is consumed. Existing APIs remain unbounded, and native/JIT execution has no equivalent enforcement. This is test scaffolding rather than a stable ABI: aggregate values, error transport, panic containment, capabilities, broader resource limits, and serialized interfaces remain unspecified and unimplemented.
 
 Any intentional difference between execution modes requires an RFC, a diagnostic where relevant, and tests that demonstrate the boundary.
 
@@ -151,7 +151,7 @@ Benchmarks record toolchain versions, commit identifiers, hardware, operating sy
 Source text, package metadata, bytecode, component descriptions, debug data, and plugin inputs are untrusted unless explicitly established otherwise.
 
 - MIR and bytecode are validated before execution or native lowering.
-- The VM enforces bounds and resource limits as those facilities are introduced.
+- The VM validates bytecode and can enforce the prototype instruction-fuel limit; broader bounds and resource limits remain incremental work.
 - Native plugins are trusted code and require an explicit opt-in.
 - Untrusted plugins use capability-restricted script or WebAssembly tiers.
 - Panic and unwinding do not cross FFI or component boundaries without an accepted representation.
@@ -178,7 +178,7 @@ A VM-only implementation would deliver scripting earlier. It is simpler, but it 
 
 ## Implementation plan
 
-Prototype status as of 2026-10-16: steps 1–3 are complete for the local `i64` vertical slice. Step 3 covers typed registration, VM/native differential execution, duplicate registration rejection, and unknown-function rejection; it does not complete the stable embedding or component boundary. The Cranelift backend can emit a host-native object artifact with an exported MIR function and imported host callbacks; a macOS AArch64 integration test links the add, typed conditional-return, and callback objects through the system compiler and executes the resulting C harness. A production linker driver and stable native ABI remain open. Step 4 has executable strict models for all three stress cases: async borrowing/cancellation, cyclic graphs, and shared mutable services. Step 5 has a clean macOS AArch64 [schema 2 benchmark baseline](../benchmarks.md) for add and minimum bytecode lowering, Cranelift JIT and AOT compilation, generated code and object size, VM/native calls, host callbacks, and system linking. Recorded AArch64 generated-code inspection confirms the expected two-instruction add, compare-and-branch minimum, and position-independent host import. Windows x86-64, broader control-flow and allocation workloads, and less restrictive memory-model alternatives remain open.
+Prototype status as of 2026-10-16: steps 1–3 are complete for the local `i64` vertical slice. Step 3 covers typed registration, VM/native differential execution, duplicate registration rejection, unknown-function rejection, and deterministic VM instruction fuel; it does not complete the stable embedding or component boundary. The Cranelift backend can emit a host-native object artifact with an exported MIR function and imported host callbacks; a macOS AArch64 integration test links the add, typed conditional-return, and callback objects through the system compiler and executes the resulting C harness. A production linker driver and stable native ABI remain open. Step 4 has executable strict models for all three stress cases: async borrowing/cancellation, cyclic graphs, and shared mutable services. Step 5 has a clean macOS AArch64 [schema 2 benchmark baseline](../benchmarks.md) for add and minimum bytecode lowering, Cranelift JIT and AOT compilation, generated code and object size, VM/native calls, host callbacks, and system linking. Recorded AArch64 generated-code inspection confirms the expected two-instruction add, compare-and-branch minimum, and position-independent host import. Windows x86-64, broader control-flow and allocation workloads, broader embedding limits, native enforcement, and less restrictive memory-model alternatives remain open.
 
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
@@ -206,10 +206,10 @@ Prototype status as of 2026-10-16: steps 1–3 are complete for the local `i64` 
 - Which exact compatibility guarantees begin at the first public pre-1.0 release?
 - Should Windows AArch64 join Tier 1 before or after the first native backend milestone?
 - Which component model provides the starting point for canonical ABI experiments?
-- What resource-budget interface should embedded hosts use for untrusted scripts?
+- How should memory, recursion, task, and wall-clock budgets and interruption compose with the prototype instruction-fuel interface?
 - Which measurements are blocking for selecting Cranelift as the initial backend rather than only a prototype backend?
 
-Review outcome: **needs prototype/measurement**. The blocking questions are the component boundary, embedded resource controls, and backend measurements. Naming and Windows AArch64 timing are optional follow-ups for this RFC.
+Review outcome: **needs prototype/measurement**. The blocking questions are the component boundary, resource controls beyond VM instruction fuel, and cross-platform/backend measurements. Naming and Windows AArch64 timing are optional follow-ups for this RFC.
 
 ## Sources
 

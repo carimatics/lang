@@ -60,7 +60,7 @@ cargo run -- 20 22
 
 The command constructs a validated typed MIR function, lowers it to verified register bytecode, executes it in the VM, compiles the same MIR with Cranelift JIT, and compares the results. Its wrapping `i64` addition is a prototype behavior, not accepted language semantics.
 
-Workspace tests also exercise a minimal embedding path: a backend-neutral host-function ID resolves a typed `extern "C" fn(i64) -> i64` registration, and the same MIR host call runs through both the VM and Cranelift JIT. This prototype does not define a stable ABI and does not yet provide aggregate values, error transport, panic containment, capabilities, or resource limits.
+Workspace tests also exercise a minimal embedding path: a backend-neutral host-function ID resolves a typed `extern "C" fn(i64) -> i64` registration, and the same MIR host call runs through both the VM and Cranelift JIT. The VM exposes an opt-in instruction-fuel limit and reports consumed fuel; every bytecode instruction and terminator costs one unit, and fuel is checked before invoking a host callback. Existing execution functions remain unbounded. This prototype does not define a stable ABI and does not yet provide aggregate values, error transport, panic containment, capabilities, memory/recursion/task/wall-clock limits, interruption, or JIT resource enforcement.
 
 `lang-codegen-clif` can also emit a host-native object artifact for the same MIR, exporting the compiled function and leaving host callbacks as imports. A macOS AArch64 integration test links the add and callback objects into a C harness with the system compiler and executes it. A production linker driver, startup code, a stable native ABI, debug metadata, Windows evidence, and cross-target emission remain unimplemented.
 
