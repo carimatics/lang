@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "timestamp_unix_seconds": 1792077621,
+  "command": "target/release/prototype-bench --samples 31 --lowering-iterations 1000 --runtime-iterations 100000",
+  "git_commit": "0808ce75f128dfb16bf9c6e6453200fea7749401",
+  "git_dirty": false,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "os": "macos",
+  "os_version": "27.0.1",
+  "architecture": "aarch64",
+  "cpu": "Apple M1 Max",
+  "system_linker": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+  "samples": 31,
+  "generated_code_bytes": {
+    "jit_add": 8,
+    "jit_host_callback": 40
+  },
+  "object_file_bytes": {
+    "aot_add": 352
+  },
+  "measurements": [
+    {
+      "name": "bytecode_lower_add",
+      "unit": "ns/operation",
+      "operations_per_sample": 1000,
+      "minimum": 29.958,
+      "median": 35.25,
+      "p95": 42.458,
+      "maximum": 46.167,
+      "mean": 34.074,
+      "relative_stddev_percent": 11.394
+    },
+    {
+      "name": "jit_compile_add",
+      "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 18917,
+      "median": 20583,
+      "p95": 34000,
+      "maximum": 112333,
+      "mean": 24647.903,
+      "relative_stddev_percent": 66.169
+    },
+    {
+      "name": "aot_object_emit_add",
+      "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 15375,
+      "median": 15792,
+      "p95": 20083,
+      "maximum": 27584,
+      "mean": 16469.097,
+      "relative_stddev_percent": 13.802
+    },
+    {
+      "name": "system_link_add",
+      "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 36703625,
+      "median": 38031208,
+      "p95": 39093292,
+      "maximum": 39144791,
+      "mean": 37945964.968,
+      "relative_stddev_percent": 1.665
+    },
+    {
+      "name": "rust_add_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 0.958,
+      "median": 0.988,
+      "p95": 0.99,
+      "maximum": 0.995,
+      "mean": 0.978,
+      "relative_stddev_percent": 1.425
+    },
+    {
+      "name": "vm_add_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 36.775,
+      "median": 38.567,
+      "p95": 39.618,
+      "maximum": 40.875,
+      "mean": 38.625,
+      "relative_stddev_percent": 2.093
+    },
+    {
+      "name": "jit_add_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1.915,
+      "median": 1.916,
+      "p95": 1.962,
+      "maximum": 1.972,
+      "mean": 1.922,
+      "relative_stddev_percent": 0.714
+    },
+    {
+      "name": "rust_host_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 0.929,
+      "median": 0.93,
+      "p95": 0.995,
+      "maximum": 1.066,
+      "mean": 0.95,
+      "relative_stddev_percent": 3.368
+    },
+    {
+      "name": "vm_host_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 36.244,
+      "median": 37.45,
+      "p95": 38.214,
+      "maximum": 39.034,
+      "mean": 37.253,
+      "relative_stddev_percent": 1.686
+    },
+    {
+      "name": "jit_host_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 2.873,
+      "median": 2.874,
+      "p95": 2.928,
+      "maximum": 2.972,
+      "mean": 2.886,
+      "relative_stddev_percent": 0.751
+    }
+  ]
+}
