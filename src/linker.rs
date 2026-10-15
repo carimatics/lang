@@ -9,6 +9,8 @@ use std::process::{Command, ExitStatus};
 pub struct LinkRequest {
     output: PathBuf,
     objects: Vec<PathBuf>,
+    library_search_paths: Vec<PathBuf>,
+    libraries: Vec<OsString>,
 }
 
 impl LinkRequest {
@@ -16,6 +18,8 @@ impl LinkRequest {
         Self {
             output: output.into(),
             objects: Vec::new(),
+            library_search_paths: Vec::new(),
+            libraries: Vec::new(),
         }
     }
 
@@ -34,6 +38,32 @@ impl LinkRequest {
 
     pub fn objects(&self) -> &[PathBuf] {
         &self.objects
+    }
+
+    pub fn with_library_search_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.push_library_search_path(path);
+        self
+    }
+
+    pub fn push_library_search_path(&mut self, path: impl Into<PathBuf>) {
+        self.library_search_paths.push(path.into());
+    }
+
+    pub fn library_search_paths(&self) -> &[PathBuf] {
+        &self.library_search_paths
+    }
+
+    pub fn with_library(mut self, name: impl Into<OsString>) -> Self {
+        self.push_library(name);
+        self
+    }
+
+    pub fn push_library(&mut self, name: impl Into<OsString>) {
+        self.libraries.push(name.into());
+    }
+
+    pub fn libraries(&self) -> &[OsString] {
+        &self.libraries
     }
 }
 
@@ -128,6 +158,27 @@ impl SystemLinker {
         if request.objects.is_empty() {
             return Err(LinkError::NoObjects);
         }
+        if let Some(index) = request
+            .objects
+            .iter()
+            .position(|object| object.as_os_str().is_empty())
+        {
+            return Err(LinkError::EmptyObjectPath { index });
+        }
+        if let Some(index) = request
+            .library_search_paths
+            .iter()
+            .position(|path| path.as_os_str().is_empty())
+        {
+            return Err(LinkError::EmptyLibrarySearchPath { index });
+        }
+        if let Some(index) = request
+            .libraries
+            .iter()
+            .position(|library| library.is_empty())
+        {
+            return Err(LinkError::EmptyLibraryName { index });
+        }
 
         let mut arguments = self.arguments.clone();
         arguments.extend(
@@ -136,6 +187,28 @@ impl SystemLinker {
                 .iter()
                 .map(|object| object.as_os_str().to_os_string()),
         );
+        for path in &request.library_search_paths {
+            let mut argument = OsString::from(match self.flavor {
+                LinkerFlavor::Cc => "-L",
+                LinkerFlavor::MsvcLink => "/LIBPATH:",
+            });
+            argument.push(path.as_os_str());
+            arguments.push(argument);
+        }
+        for library in &request.libraries {
+            let mut argument = OsString::new();
+            match self.flavor {
+                LinkerFlavor::Cc => {
+                    argument.push("-l");
+                    argument.push(library);
+                }
+                LinkerFlavor::MsvcLink => {
+                    argument.push(library);
+                    argument.push(".lib");
+                }
+            }
+            arguments.push(argument);
+        }
         match self.flavor {
             LinkerFlavor::Cc => {
                 arguments.push(OsString::from("-o"));
@@ -188,6 +261,15 @@ pub enum LinkError {
     EmptyProgram,
     EmptyOutput,
     NoObjects,
+    EmptyObjectPath {
+        index: usize,
+    },
+    EmptyLibrarySearchPath {
+        index: usize,
+    },
+    EmptyLibraryName {
+        index: usize,
+    },
     Spawn {
         command: LinkCommand,
         source: io::Error,
@@ -210,6 +292,22 @@ impl Display for LinkError {
             Self::EmptyProgram => formatter.write_str("system linker program must not be empty"),
             Self::EmptyOutput => formatter.write_str("link output path must not be empty"),
             Self::NoObjects => formatter.write_str("link request must contain at least one object"),
+            Self::EmptyObjectPath { index } => {
+                write!(
+                    formatter,
+                    "link request object path {index} must not be empty"
+                )
+            }
+            Self::EmptyLibrarySearchPath { index } => write!(
+                formatter,
+                "link request library search path {index} must not be empty"
+            ),
+            Self::EmptyLibraryName { index } => {
+                write!(
+                    formatter,
+                    "link request library name {index} must not be empty"
+                )
+            }
             Self::Spawn { command, source } => {
                 write!(
                     formatter,
@@ -243,6 +341,9 @@ impl Error for LinkError {
             Self::EmptyProgram
             | Self::EmptyOutput
             | Self::NoObjects
+            | Self::EmptyObjectPath { .. }
+            | Self::EmptyLibrarySearchPath { .. }
+            | Self::EmptyLibraryName { .. }
             | Self::Failed { .. }
             | Self::MissingOutput { .. } => None,
         }
@@ -263,7 +364,10 @@ mod tests {
         let request = LinkRequest::new("build/program")
             .with_object("build/start.o")
             .with_object("build/main.o")
-            .with_object("build/runtime.o");
+            .with_object("build/runtime.o")
+            .with_library_search_path("build/lib")
+            .with_library("support")
+            .with_library("runtime");
 
         assert_eq!(request.output(), Path::new("build/program"));
         assert_eq!(
@@ -273,6 +377,11 @@ mod tests {
                 PathBuf::from("build/main.o"),
                 PathBuf::from("build/runtime.o"),
             ]
+        );
+        assert_eq!(request.library_search_paths(), [PathBuf::from("build/lib")]);
+        assert_eq!(
+            request.libraries(),
+            [OsString::from("support"), OsString::from("runtime")]
         );
     }
 
@@ -284,7 +393,10 @@ mod tests {
             .with_argument("clang");
         let request = LinkRequest::new("build/program")
             .with_object("build/start.o")
-            .with_object("build/main.o");
+            .with_object("build/main.o")
+            .with_library_search_path("build/lib")
+            .with_library("support")
+            .with_library("runtime");
 
         let command = linker.command(&request).unwrap();
 
@@ -306,6 +418,9 @@ mod tests {
                 OsString::from("clang"),
                 OsString::from("build/start.o"),
                 OsString::from("build/main.o"),
+                OsString::from("-Lbuild/lib"),
+                OsString::from("-lsupport"),
+                OsString::from("-lruntime"),
                 OsString::from("-o"),
                 OsString::from("build/program"),
             ]
@@ -318,7 +433,10 @@ mod tests {
             .with_argument("/NOLOGO");
         let request = LinkRequest::new("build/program.exe")
             .with_object("build/start.obj")
-            .with_object("build/main.obj");
+            .with_object("build/main.obj")
+            .with_library_search_path("build/lib")
+            .with_library("support")
+            .with_library("runtime");
 
         let command = linker.command(&request).unwrap();
 
@@ -330,6 +448,9 @@ mod tests {
                 OsString::from("/NOLOGO"),
                 OsString::from("build/start.obj"),
                 OsString::from("build/main.obj"),
+                OsString::from("/LIBPATH:build/lib"),
+                OsString::from("support.lib"),
+                OsString::from("runtime.lib"),
                 OsString::from("/OUT:build/program.exe"),
             ]
         );
@@ -380,6 +501,43 @@ mod tests {
             .expect_err("rejects a request without objects");
 
         assert!(matches!(error, LinkError::NoObjects));
+    }
+
+    #[test]
+    fn rejects_an_empty_object_path_before_spawning() {
+        let request = LinkRequest::new("program").with_object("");
+        let error = SystemLinker::new(MISSING_LINKER)
+            .link(&request)
+            .expect_err("rejects an empty object path");
+
+        assert!(matches!(error, LinkError::EmptyObjectPath { index: 0 }));
+    }
+
+    #[test]
+    fn rejects_an_empty_library_search_path_before_spawning() {
+        let request = LinkRequest::new("program")
+            .with_object("main.o")
+            .with_library_search_path("");
+        let error = SystemLinker::new(MISSING_LINKER)
+            .link(&request)
+            .expect_err("rejects an empty library search path");
+
+        assert!(matches!(
+            error,
+            LinkError::EmptyLibrarySearchPath { index: 0 }
+        ));
+    }
+
+    #[test]
+    fn rejects_an_empty_library_name_before_spawning() {
+        let request = LinkRequest::new("program")
+            .with_object("main.o")
+            .with_library("");
+        let error = SystemLinker::new(MISSING_LINKER)
+            .link(&request)
+            .expect_err("rejects an empty library name");
+
+        assert!(matches!(error, LinkError::EmptyLibraryName { index: 0 }));
     }
 
     #[test]
