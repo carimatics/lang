@@ -1,9 +1,9 @@
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter};
-use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
+use std::{fs, io};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LinkRequest {
@@ -149,6 +149,60 @@ impl SystemLinker {
     }
 
     pub fn command(&self, request: &LinkRequest) -> Result<LinkCommand, LinkError> {
+        self.validate(request)?;
+
+        let mut arguments = self.arguments.clone();
+        arguments.extend(self.request_arguments(request));
+
+        Ok(LinkCommand {
+            program: self.program.clone(),
+            arguments,
+        })
+    }
+
+    pub fn command_with_response_file(
+        &self,
+        request: &LinkRequest,
+        response_file: impl AsRef<Path>,
+    ) -> Result<LinkCommand, LinkError> {
+        self.validate(request)?;
+        let response_file = response_file.as_ref();
+        self.validate_response_file_path(request, response_file)?;
+
+        let mut response_argument = OsString::from("@");
+        response_argument.push(response_file.as_os_str());
+        let mut arguments = self.arguments.clone();
+        arguments.push(response_argument);
+
+        Ok(LinkCommand {
+            program: self.program.clone(),
+            arguments,
+        })
+    }
+
+    pub fn link(&self, request: &LinkRequest) -> Result<(), LinkError> {
+        let command = self.command(request)?;
+        Self::execute(request, command)
+    }
+
+    /// Writes or replaces `response_file`, retains it after the linker exits,
+    /// and invokes the linker with the generated `@file` argument.
+    pub fn link_with_response_file(
+        &self,
+        request: &LinkRequest,
+        response_file: impl AsRef<Path>,
+    ) -> Result<(), LinkError> {
+        let response_file = response_file.as_ref();
+        let command = self.command_with_response_file(request, response_file)?;
+        let contents = self.response_file_contents(request)?;
+        fs::write(response_file, contents).map_err(|source| LinkError::WriteResponseFile {
+            path: response_file.to_path_buf(),
+            source,
+        })?;
+        Self::execute(request, command)
+    }
+
+    fn validate(&self, request: &LinkRequest) -> Result<(), LinkError> {
         if self.program.is_empty() {
             return Err(LinkError::EmptyProgram);
         }
@@ -180,7 +234,33 @@ impl SystemLinker {
             return Err(LinkError::EmptyLibraryName { index });
         }
 
-        let mut arguments = self.arguments.clone();
+        Ok(())
+    }
+
+    fn validate_response_file_path(
+        &self,
+        request: &LinkRequest,
+        response_file: &Path,
+    ) -> Result<(), LinkError> {
+        if response_file.as_os_str().is_empty() {
+            return Err(LinkError::EmptyResponseFilePath);
+        }
+        if response_file == request.output {
+            return Err(LinkError::ResponseFileConflictsWithOutput);
+        }
+        if let Some(index) = request
+            .objects
+            .iter()
+            .position(|object| object == response_file)
+        {
+            return Err(LinkError::ResponseFileConflictsWithObject { index });
+        }
+
+        Ok(())
+    }
+
+    fn request_arguments(&self, request: &LinkRequest) -> Vec<OsString> {
+        let mut arguments = Vec::new();
         arguments.extend(
             request
                 .objects
@@ -221,14 +301,43 @@ impl SystemLinker {
             }
         }
 
-        Ok(LinkCommand {
-            program: self.program.clone(),
-            arguments,
-        })
+        arguments
     }
 
-    pub fn link(&self, request: &LinkRequest) -> Result<(), LinkError> {
-        let command = self.command(request)?;
+    fn response_file_contents(&self, request: &LinkRequest) -> Result<Vec<u8>, LinkError> {
+        self.validate(request)?;
+
+        let mut text = String::new();
+        for (index, argument) in self.request_arguments(request).iter().enumerate() {
+            let argument = argument
+                .to_str()
+                .ok_or(LinkError::NonUnicodeResponseFileArgument { index })?;
+            if argument.contains('\0') {
+                return Err(LinkError::NulInResponseFileArgument { index });
+            }
+            if argument.contains(['\r', '\n']) {
+                return Err(LinkError::NewlineInResponseFileArgument { index });
+            }
+            match self.flavor {
+                LinkerFlavor::Cc => push_gnu_response_argument(&mut text, argument),
+                LinkerFlavor::MsvcLink => push_windows_response_argument(&mut text, argument),
+            }
+            text.push('\n');
+        }
+
+        match self.flavor {
+            LinkerFlavor::Cc => Ok(text.into_bytes()),
+            LinkerFlavor::MsvcLink => {
+                let mut bytes = Vec::with_capacity((text.len() + 1) * 2);
+                for code_unit in std::iter::once(0xfeff).chain(text.encode_utf16()) {
+                    bytes.extend_from_slice(&code_unit.to_le_bytes());
+                }
+                Ok(bytes)
+            }
+        }
+    }
+
+    fn execute(request: &LinkRequest, command: LinkCommand) -> Result<(), LinkError> {
         let output = Command::new(command.program())
             .args(command.arguments())
             .output()
@@ -256,6 +365,39 @@ impl SystemLinker {
     }
 }
 
+fn push_gnu_response_argument(output: &mut String, argument: &str) {
+    output.push('"');
+    for character in argument.chars() {
+        if matches!(character, '\\' | '"') {
+            output.push('\\');
+        }
+        output.push(character);
+    }
+    output.push('"');
+}
+
+fn push_windows_response_argument(output: &mut String, argument: &str) {
+    output.push('"');
+    let mut backslashes = 0;
+    for character in argument.chars() {
+        if character == '\\' {
+            backslashes += 1;
+            continue;
+        }
+
+        let count = if character == '"' {
+            backslashes * 2 + 1
+        } else {
+            backslashes
+        };
+        output.extend(std::iter::repeat_n('\\', count));
+        output.push(character);
+        backslashes = 0;
+    }
+    output.extend(std::iter::repeat_n('\\', backslashes * 2));
+    output.push('"');
+}
+
 #[derive(Debug)]
 pub enum LinkError {
     EmptyProgram,
@@ -269,6 +411,24 @@ pub enum LinkError {
     },
     EmptyLibraryName {
         index: usize,
+    },
+    EmptyResponseFilePath,
+    ResponseFileConflictsWithOutput,
+    ResponseFileConflictsWithObject {
+        index: usize,
+    },
+    NonUnicodeResponseFileArgument {
+        index: usize,
+    },
+    NulInResponseFileArgument {
+        index: usize,
+    },
+    NewlineInResponseFileArgument {
+        index: usize,
+    },
+    WriteResponseFile {
+        path: PathBuf,
+        source: io::Error,
     },
     Spawn {
         command: LinkCommand,
@@ -308,6 +468,33 @@ impl Display for LinkError {
                     "link request library name {index} must not be empty"
                 )
             }
+            Self::EmptyResponseFilePath => {
+                formatter.write_str("link response-file path must not be empty")
+            }
+            Self::ResponseFileConflictsWithOutput => {
+                formatter.write_str("link response-file path must differ from the output path")
+            }
+            Self::ResponseFileConflictsWithObject { index } => write!(
+                formatter,
+                "link response-file path must differ from object path {index}"
+            ),
+            Self::NonUnicodeResponseFileArgument { index } => write!(
+                formatter,
+                "link response-file argument {index} must be valid Unicode"
+            ),
+            Self::NulInResponseFileArgument { index } => write!(
+                formatter,
+                "link response-file argument {index} must not contain NUL"
+            ),
+            Self::NewlineInResponseFileArgument { index } => write!(
+                formatter,
+                "link response-file argument {index} must not contain a newline"
+            ),
+            Self::WriteResponseFile { path, source } => write!(
+                formatter,
+                "failed to write linker response file `{}`: {source}",
+                path.display()
+            ),
             Self::Spawn { command, source } => {
                 write!(
                     formatter,
@@ -337,13 +524,19 @@ impl Display for LinkError {
 impl Error for LinkError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::Spawn { source, .. } => Some(source),
+            Self::WriteResponseFile { source, .. } | Self::Spawn { source, .. } => Some(source),
             Self::EmptyProgram
             | Self::EmptyOutput
             | Self::NoObjects
             | Self::EmptyObjectPath { .. }
             | Self::EmptyLibrarySearchPath { .. }
             | Self::EmptyLibraryName { .. }
+            | Self::EmptyResponseFilePath
+            | Self::ResponseFileConflictsWithOutput
+            | Self::ResponseFileConflictsWithObject { .. }
+            | Self::NonUnicodeResponseFileArgument { .. }
+            | Self::NulInResponseFileArgument { .. }
+            | Self::NewlineInResponseFileArgument { .. }
             | Self::Failed { .. }
             | Self::MissingOutput { .. } => None,
         }
@@ -454,6 +647,144 @@ mod tests {
                 OsString::from("/OUT:build/program.exe"),
             ]
         );
+    }
+
+    #[test]
+    fn cc_response_file_preserves_arguments_and_uses_gnu_escaping() {
+        let linker = SystemLinker::new("xcrun")
+            .with_argument("--sdk")
+            .with_argument("macosx")
+            .with_argument("clang");
+        let request = LinkRequest::new("build/program")
+            .with_object("build/start file.o")
+            .with_object("build/quote\"and\\slash.o")
+            .with_library_search_path("build/lib dir")
+            .with_library("support");
+
+        let command = linker
+            .command_with_response_file(&request, "build/link arguments.rsp")
+            .unwrap();
+        let contents = String::from_utf8(linker.response_file_contents(&request).unwrap()).unwrap();
+
+        assert_eq!(
+            command.arguments(),
+            [
+                OsString::from("--sdk"),
+                OsString::from("macosx"),
+                OsString::from("clang"),
+                OsString::from("@build/link arguments.rsp"),
+            ]
+        );
+        assert_eq!(
+            contents,
+            concat!(
+                "\"build/start file.o\"\n",
+                "\"build/quote\\\"and\\\\slash.o\"\n",
+                "\"-Lbuild/lib dir\"\n",
+                "\"-lsupport\"\n",
+                "\"-o\"\n",
+                "\"build/program\"\n",
+            )
+        );
+    }
+
+    #[test]
+    fn msvc_response_file_uses_windows_escaping_and_utf16() {
+        let linker = SystemLinker::new_with_flavor("link.exe", LinkerFlavor::MsvcLink)
+            .with_argument("/NOLOGO");
+        let request = LinkRequest::new("build\\program.exe")
+            .with_object("build\\start file.obj")
+            .with_object("build\\trailing\\")
+            .with_library_search_path("build\\lib dir")
+            .with_library("support");
+
+        let command = linker
+            .command_with_response_file(&request, "build\\link arguments.rsp")
+            .unwrap();
+        let bytes = linker.response_file_contents(&request).unwrap();
+        let (chunks, remainder) = bytes.as_chunks::<2>();
+        assert!(remainder.is_empty());
+        let code_units = chunks
+            .iter()
+            .map(|chunk| u16::from_le_bytes(*chunk))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            command.arguments(),
+            [
+                OsString::from("/NOLOGO"),
+                OsString::from("@build\\link arguments.rsp"),
+            ]
+        );
+        assert_eq!(code_units[0], 0xfeff);
+        assert_eq!(
+            String::from_utf16(&code_units[1..]).unwrap(),
+            concat!(
+                "\"build\\start file.obj\"\n",
+                "\"build\\trailing\\\\\"\n",
+                "\"/LIBPATH:build\\lib dir\"\n",
+                "\"support.lib\"\n",
+                "\"/OUT:build\\program.exe\"\n",
+            )
+        );
+    }
+
+    #[test]
+    fn rejects_unsafe_response_file_paths_and_arguments() {
+        let linker = SystemLinker::new("cc");
+        let request = LinkRequest::new("program").with_object("main.o");
+
+        assert!(matches!(
+            linker.command_with_response_file(&request, ""),
+            Err(LinkError::EmptyResponseFilePath)
+        ));
+        assert!(matches!(
+            linker.command_with_response_file(&request, "program"),
+            Err(LinkError::ResponseFileConflictsWithOutput)
+        ));
+        assert!(matches!(
+            linker.command_with_response_file(&request, "main.o"),
+            Err(LinkError::ResponseFileConflictsWithObject { index: 0 })
+        ));
+
+        let request = LinkRequest::new("program").with_object("main\nobject.o");
+        assert!(matches!(
+            linker.response_file_contents(&request),
+            Err(LinkError::NewlineInResponseFileArgument { index: 0 })
+        ));
+
+        let request = LinkRequest::new("program").with_object("main\0object.o");
+        assert!(matches!(
+            linker.response_file_contents(&request),
+            Err(LinkError::NulInResponseFileArgument { index: 0 })
+        ));
+    }
+
+    #[test]
+    fn reports_response_file_write_failures_before_spawning() {
+        let request = LinkRequest::new("program").with_object("main.o");
+        let error = SystemLinker::new(MISSING_LINKER)
+            .link_with_response_file(&request, std::env::temp_dir())
+            .expect_err("reports an unwritable response-file path");
+
+        assert!(matches!(error, LinkError::WriteResponseFile { .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_non_unicode_response_file_arguments() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let object = OsString::from_vec(vec![b'm', b'a', b'i', b'n', 0xff, b'.', b'o']);
+        let request = LinkRequest::new("program").with_object(PathBuf::from(object));
+        let error = SystemLinker::new("cc")
+            .response_file_contents(&request)
+            .expect_err("rejects a non-Unicode response-file argument");
+
+        assert!(matches!(
+            error,
+            LinkError::NonUnicodeResponseFileArgument { index: 0 }
+        ));
     }
 
     #[test]

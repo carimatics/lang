@@ -41,7 +41,7 @@ impl TestDirectory {
             .expect("system clock is after the Unix epoch")
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("lang-aot-test-{}-{nonce}", std::process::id()));
+            std::env::temp_dir().join(format!("lang aot test {} {nonce}", std::process::id()));
         fs::create_dir(&path).expect("creates an isolated AOT test directory");
         Self { path }
     }
@@ -57,6 +57,19 @@ impl Drop for TestDirectory {
     }
 }
 
+fn assert_aot_executable(executable: &Path) {
+    let execution = Command::new(executable)
+        .output()
+        .expect("runs the linked AOT executable");
+    assert!(
+        execution.status.success(),
+        "AOT executable failed with status {}: {}",
+        execution.status,
+        String::from_utf8_lossy(&execution.stderr)
+    );
+    assert_eq!(execution.stdout, b"42 42 -7\n");
+}
+
 #[test]
 fn system_linker_runs_exported_functions_and_host_callback() {
     let directory = TestDirectory::create();
@@ -66,6 +79,8 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     let harness_source = directory.path().join("harness.c");
     let harness_object = directory.path().join("harness.o");
     let executable = directory.path().join("prototype-aot");
+    let response_executable = directory.path().join("prototype-aot-response");
+    let response_file = directory.path().join("link arguments.rsp");
 
     let add = emit_host_object(&prototype_add_function()).expect("emits the add object");
     let callback = emit_host_object(&prototype_host_callback_function())
@@ -95,18 +110,20 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .with_object(&add_object)
         .with_object(&callback_object)
         .with_object(&min_object);
-    SystemLinker::host()
+    let linker = SystemLinker::host();
+    linker
         .link(&request)
         .expect("links the AOT objects through the host C compiler driver");
+    assert_aot_executable(&executable);
 
-    let execution = Command::new(&executable)
-        .output()
-        .expect("runs the linked AOT executable");
-    assert!(
-        execution.status.success(),
-        "AOT executable failed with status {}: {}",
-        execution.status,
-        String::from_utf8_lossy(&execution.stderr)
-    );
-    assert_eq!(execution.stdout, b"42 42 -7\n");
+    let response_request = LinkRequest::new(&response_executable)
+        .with_object(&harness_object)
+        .with_object(&add_object)
+        .with_object(&callback_object)
+        .with_object(&min_object);
+    linker
+        .link_with_response_file(&response_request, &response_file)
+        .expect("links the AOT objects through a response file");
+    assert!(response_file.is_file());
+    assert_aot_executable(&response_executable);
 }

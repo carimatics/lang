@@ -144,5 +144,8 @@ Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用�
 | [GitHub Windows Server 2025 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md) | Image version 20261004.281.1、page更新timestampは非公開 | 2026-10-16確認 |
 | [actions/checkout v7.0.1 commit](https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1) | 2026-07-17 | 2026-10-16に `v7` tagの参照先として確認 |
 | [ilammy/msvc-dev-cmd v1 commit](https://github.com/ilammy/msvc-dev-cmd/commit/0b201ec74fa43914dc39ae48a89fd1d8cb592756) | 2024-01-01 | 2026-10-16に `v1` tagの参照先として確認 |
+| [GCC：Overall Options](https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html) | Living documentation、日付は非公開 | 2026-10-16確認。`@file`、whitespace separation、quoting、escaping、recursive expansionを定義 |
+| [MSVC LINK：linker response fileの指定](https://learn.microsoft.com/en-us/cpp/build/reference/at-specify-a-linker-response-file?view=msvc-170) | 2022-05-18 | 2026-10-16確認 |
+| [rustc linker response-file implementation](https://github.com/rust-lang/rust/blob/364c4856ae0eb8e5b058a2c6699749d1e3efa7ef/compiler/rustc_codegen_ssa/src/back/link.rs#L2100) | File最終変更2026-10-08 | 2026-10-16確認。GNU／Windows escapingとMSVC UTF-16LE encodingの先例として使用 |
 
 公開更新時刻のないLiving Documentationについては、CDN responseやsearch indexから日付を推測せず、意図的に「非公開」と記載しています。

@@ -144,6 +144,9 @@ The original requirements should be extended with the following:
 | [GitHub Windows Server 2025 runner image](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md) | Image version 20261004.281.1; page update timestamp not published | Verified 2026-10-16 |
 | [actions/checkout v7.0.1 commit](https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1) | 2026-07-17 | Verified as the `v7` tag target 2026-10-16 |
 | [ilammy/msvc-dev-cmd v1 commit](https://github.com/ilammy/msvc-dev-cmd/commit/0b201ec74fa43914dc39ae48a89fd1d8cb592756) | 2024-01-01 | Verified as the `v1` tag target 2026-10-16 |
+| [GCC: Overall Options](https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html) | Living documentation; date not published | Verified 2026-10-16; defines `@file`, whitespace separation, quoting, escaping, and recursive expansion |
+| [MSVC LINK: Specify a linker response file](https://learn.microsoft.com/en-us/cpp/build/reference/at-specify-a-linker-response-file?view=msvc-170) | 2022-05-18 | Verified 2026-10-16 |
+| [rustc linker response-file implementation](https://github.com/rust-lang/rust/blob/364c4856ae0eb8e5b058a2c6699749d1e3efa7ef/compiler/rustc_codegen_ssa/src/back/link.rs#L2100) | File last changed 2026-10-08 | Verified 2026-10-16; used for GNU/Windows escaping and MSVC UTF-16LE encoding precedent |
 
 For living documentation without a published update time, the table intentionally reports “not published” rather than inferring a date from a CDN response or search index.
 
