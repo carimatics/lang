@@ -42,16 +42,17 @@ Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、host ca
 
 ## 生成コード検査
 
-2つのnative object prototypeをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad` から再生成し、2026-10-16 00:25 JSTに同じmacOS AArch64 hostで検査しました。
+Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad` から再生成し、2026-10-16 00:25 JSTにmacOS AArch64 hostで検査しました。Signed-minimum objectはclean commit `dfc65f5c0f944abccaf24555ba3f6dbe77017483` から再生成し、同じhostで00:43 JSTに検査しました。
 
 | Prototype | Export | Import | 生成body | Relocation |
 | --- | --- | --- | --- | --- |
 | Wrapping `i64` add | `_prototype_add` | なし | `add x0, x0, x1`; `ret` | なし |
+| Signed `i64` minimum | `_prototype_min` | なし | `cmp`、conditional `b.lt`、else側の `mov`、2つの `ret` path | なし |
 | 型付きhost callback | `_prototype_host_callback` | `_lang_host_i64_0` | Pointer authentication付きframe、GOT load、間接 `blr`、authenticated return | `_lang_host_i64_0` に対する `GOTLDP` と `GOTLDPOFF` |
 
-両方のfileは64-bit ARM64 Mach-O objectです。Add prototypeはrelocationなしの8-byte、2-instruction bodyへloweringされています。Callbackはlinkerが解決するexternal importのままであり、position-independentなGOT addressingを使用します。そのbodyは32 bytesです。これは意図したexport／import boundaryを確認し、callbackのcode sizeが大きい理由を示します。Control flow、allocation、debug metadata、unwind behavior、他targetは評価していません。
+3つすべてのfileは64-bit ARM64 Mach-O objectです。Add prototypeはrelocationなしの8-byte、2-instruction bodyへloweringされています。Minimumはrelocationなしの20-byte compareと実際のconditional branchへloweringされています。Less-than pathは最初のargumentを `x0` に保持し、もう一方のpathは `x1` をreturn registerへmoveします。Callbackはlinkerが解決するexternal importのままであり、position-independentなGOT addressingを使用します。そのbodyは32 bytesです。これは意図したarithmetic、control-flow、export／import lowering boundaryを確認します。Loop、allocation、debug metadata、unwind behavior、他targetは評価していません。
 
-完全なcommandと、取得した `file`、`nm`、`otool` の出力は[raw inspection transcript](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)に保存しています。
+完全なcommandと、取得した `file`、`nm`、`otool` の出力は[add／callback transcript](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)と[minimum transcript](../../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md)に保存しています。
 
 ## 解釈と制限
 
@@ -63,7 +64,7 @@ Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、host ca
 - Runtime rowのRSDは3%未満でした。Conditional workloadではJIT call medianがaddの1.867 nsからminimumの2.664 nsへ増えますが、どちらも限定的microbenchmarkであり、代表的programのperformanceを予測しません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、minimum functionの生成コードを検査し、Windows x86-64上でschema 2を反復し、allocationと一般CFG workloadを追加し、startup、memory、executable size、debug qualityを計測します。
+初期native backendを選定する前に、Windows x86-64上でschema 2を反復し、allocationと一般CFG workloadを追加し、startup、memory、executable size、debug qualityを計測します。
 
 ## 以前のbaseline
 
@@ -73,8 +74,10 @@ Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、host ca
 
 - [現在のraw macOS AArch64 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json)、2026-10-16 00:39:25 JSTに計測。
 - [macOS AArch64 generated-object inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)、2026-10-16 00:25 JSTに取得。
+- [macOS AArch64 signed-minimum inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md)、2026-10-16 00:43:31 JSTに取得。
 - Repository commit `fc86889fed093a910d575ac47eca66239a7b47e8`、2026-10-16にcommit。
 - Repository commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad`、2026-10-16にcommit。
+- Repository commit `dfc65f5c0f944abccaf24555ba3f6dbe77017483`、2026-10-16にcommit。
 - Raw resultに記録されたRust compiler metadata。Compiler commit dateは2026-09-28。
 
 これらのlocal measurement baselineには外部Web情報源を使用していません。

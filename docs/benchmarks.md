@@ -42,16 +42,17 @@ Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum
 
 ## Generated-code inspection
 
-The two native object prototypes were regenerated from clean commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad` and inspected on the same macOS AArch64 host on 2026-10-16 at 00:25 JST.
+The add and host-callback objects were regenerated from clean commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad` and inspected on the macOS AArch64 host on 2026-10-16 at 00:25 JST. The signed-minimum object was regenerated from clean commit `dfc65f5c0f944abccaf24555ba3f6dbe77017483` and inspected on the same host at 00:43 JST.
 
 | Prototype | Export | Import | Generated body | Relocations |
 | --- | --- | --- | --- | --- |
 | Wrapping `i64` add | `_prototype_add` | None | `add x0, x0, x1`; `ret` | None |
+| Signed `i64` minimum | `_prototype_min` | None | `cmp`; conditional `b.lt`; else-side `mov`; two `ret` paths | None |
 | Typed host callback | `_prototype_host_callback` | `_lang_host_i64_0` | Pointer-authenticated frame, GOT load, indirect `blr`, authenticated return | `GOTLDP` and `GOTLDPOFF` against `_lang_host_i64_0` |
 
-Both files are 64-bit ARM64 Mach-O objects. The add prototype lowers to an eight-byte, two-instruction body without relocations. The callback remains a linker-resolved external import and uses position-independent GOT addressing; its body is 32 bytes. This confirms the intended export/import boundary and explains the callback's larger code size. It does not evaluate control flow, allocation, debug metadata, unwind behavior, or other targets.
+All three files are 64-bit ARM64 Mach-O objects. The add prototype lowers to an eight-byte, two-instruction body without relocations. Minimum lowers to a 20-byte compare and real conditional branch with no relocations: the less-than path preserves the first argument in `x0`, while the other path moves `x1` into the return register. The callback remains a linker-resolved external import and uses position-independent GOT addressing; its body is 32 bytes. This confirms the intended arithmetic, control-flow, and export/import lowering boundaries. It does not evaluate loops, allocation, debug metadata, unwind behavior, or other targets.
 
-The complete commands and captured `file`, `nm`, and `otool` output are preserved in the [raw inspection transcript](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md).
+The complete commands and captured `file`, `nm`, and `otool` output are preserved in the [add/callback transcript](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md) and [minimum transcript](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md).
 
 ## Interpretation and limits
 
@@ -63,7 +64,7 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 - Runtime rows stayed below 3% RSD. The conditional workload increases the JIT call median from 1.867 ns for add to 2.664 ns for minimum, but both are narrow microbenchmarks and do not predict representative program performance.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, inspect the minimum function's generated code, repeat schema 2 on Windows x86-64, add allocation and general CFG workloads, and measure startup, memory, executable size, and debug quality.
+Before selecting the initial native backend, repeat schema 2 on Windows x86-64, add allocation and general CFG workloads, and measure startup, memory, executable size, and debug quality.
 
 ## Earlier baseline
 
@@ -73,8 +74,10 @@ The [schema 1 AOT/link result](../benchmarks/results/2026-10-16-macos-aarch64-08
 
 - [Current raw macOS AArch64 result](../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json), measured 2026-10-16 00:39:25 JST.
 - [macOS AArch64 generated-object inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), captured 2026-10-16 00:25 JST.
+- [macOS AArch64 signed-minimum inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), captured 2026-10-16 00:43:31 JST.
 - Repository commit `fc86889fed093a910d575ac47eca66239a7b47e8`, committed 2026-10-16.
 - Repository commit `f2559b8046d4533907f34e93fe53c12bdb5b3cad`, committed 2026-10-16.
+- Repository commit `dfc65f5c0f944abccaf24555ba3f6dbe77017483`, committed 2026-10-16.
 - Rust compiler metadata recorded in the raw result; compiler commit date 2026-09-28.
 
 No external web sources were used for these locally measured baselines.
