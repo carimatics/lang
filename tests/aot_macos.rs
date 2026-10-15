@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use lang::linker::{LinkRequest, SystemLinker};
 use lang::{prototype_add_function, prototype_host_callback_function, prototype_min_function};
 use lang_codegen_clif::emit_host_object;
 
@@ -63,6 +64,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     let callback_object = directory.path().join("prototype_host_callback.o");
     let min_object = directory.path().join("prototype_min.o");
     let harness_source = directory.path().join("harness.c");
+    let harness_object = directory.path().join("harness.o");
     let executable = directory.path().join("prototype-aot");
 
     let add = emit_host_object(&prototype_add_function()).expect("emits the add object");
@@ -74,23 +76,28 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     fs::write(&min_object, minimum.bytes()).expect("writes the minimum object");
     fs::write(&harness_source, C_HARNESS).expect("writes the C harness");
 
-    let link = Command::new("cc")
-        .args([
-            harness_source.as_os_str(),
-            add_object.as_os_str(),
-            callback_object.as_os_str(),
-            min_object.as_os_str(),
-        ])
+    let compilation = Command::new("cc")
+        .arg("-c")
+        .arg(&harness_source)
         .arg("-o")
-        .arg(&executable)
+        .arg(&harness_object)
         .output()
-        .expect("runs the system C compiler and linker");
+        .expect("runs the host C compiler");
     assert!(
-        link.status.success(),
-        "system linker failed:\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&link.stdout),
-        String::from_utf8_lossy(&link.stderr)
+        compilation.status.success(),
+        "C harness compilation failed:\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&compilation.stdout),
+        String::from_utf8_lossy(&compilation.stderr)
     );
+
+    let request = LinkRequest::new(&executable)
+        .with_object(&harness_object)
+        .with_object(&add_object)
+        .with_object(&callback_object)
+        .with_object(&min_object);
+    SystemLinker::host()
+        .link(&request)
+        .expect("links the AOT objects through the host C compiler driver");
 
     let execution = Command::new(&executable)
         .output()

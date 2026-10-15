@@ -7,6 +7,8 @@ use lang_mir::{Function, HostFunctionId, Instruction, Signature, Terminator, Typ
 use lang_runtime::{HostFunctionRegistry, RegistrationError};
 use lang_vm::{VmError, execute, execute_with_hosts};
 
+pub mod linker;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionResults {
     pub bytecode: i64,

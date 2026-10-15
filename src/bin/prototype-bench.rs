@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+#[cfg(target_os = "macos")]
+use lang::linker::{LinkRequest, SystemLinker};
 use lang::{
     PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_host_callback_function,
     prototype_min_function,
@@ -556,17 +558,13 @@ impl LinkBenchmark {
     }
 
     fn link_once(&self) -> Result<(), String> {
-        let link = Command::new("cc")
-            .args([
-                self.harness_object.as_os_str(),
-                self.add_object.as_os_str(),
-                self.min_object.as_os_str(),
-            ])
-            .arg("-o")
-            .arg(&self.executable)
-            .output()
-            .map_err(|error| format!("failed to run the system linker: {error}"))?;
-        ensure_command_succeeded("system linking", &link)
+        let request = LinkRequest::new(&self.executable)
+            .with_object(&self.harness_object)
+            .with_object(&self.add_object)
+            .with_object(&self.min_object);
+        SystemLinker::host()
+            .link(&request)
+            .map_err(|error| error.to_string())
     }
 }
 

@@ -62,7 +62,7 @@ cargo run -- 20 22
 
 Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。VMはopt-inのinstruction-fuel limitを公開し、消費fuelを報告します。各bytecode instructionとterminatorが1 unitを消費し、host callbackを呼び出す前にfuelを確認します。既存のexecution functionはunboundedのままです。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、memory／recursion／task／wall-clock limit、interruption、JIT resource enforcementはまだ提供しません。
 
-`lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。macOS AArch64 integration testはadd objectとcallback objectをsystem compilerでC harnessへlinkし、実行します。Production linker driver、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
+`lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。Root crateは、object順序を保持し、requestを検証し、hostの `cc` driverを起動し、spawn、exit-status、missing-output failureをstructured errorとして報告する初期 `LinkRequest`／`SystemLinker` layerを提供します。macOS AArch64 integration testとsystem-link benchmarkは、この共通pathを使用します。Production driver hardening、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
 
 Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonとconditional-return prototypeも共有します。Differential testは2引数minimum functionをVMとJITで実行し、macOS integration testはそのAOT objectをlinkして実行します。これは焦点を絞ったcontrol-flow実験であり、一般的なbasic-block CFGではありません。Jump、loop、block parameter、merge validationは未実装です。
 
