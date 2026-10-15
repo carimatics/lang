@@ -64,7 +64,7 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 `lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。Root crateは、object順序を保持し、requestを検証し、hostの `cc` driverを起動し、spawn、exit-status、missing-output failureをstructured errorとして報告する初期 `LinkRequest`／`SystemLinker` layerを提供します。macOS AArch64 integration testとsystem-link benchmarkは、この共通pathを使用します。Production driver hardening、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
 
-Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonとconditional-return prototypeも共有します。Differential testは2引数minimum functionをVMとJITで実行し、macOS integration testはそのAOT objectをlinkして実行します。これは焦点を絞ったcontrol-flow実験であり、一般的なbasic-block CFGではありません。Jump、loop、block parameter、merge validationは未実装です。
+Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonと初期の明示的control-flow graphも共有します。2引数minimum functionはentry blockから個別のreturn blockへ分岐し、焦点化されたjump testが明示的edgeを検証します。MIRとbytecodeのvalidationは、invalid target、unreachable block、entry-block predecessor、useをdominateしないvalueを拒否します。Bytecode back-edge testは、instruction fuelが非停止loopを停止することも証明します。Block parameter／phi node、loop-carried value、allocation、source-level control-flow semanticsは未実装です。
 
 Symbolとdisassemblyを検査するため、どちらかのinspection targetをhost-native object fileへ書き出します。
 
@@ -87,7 +87,7 @@ cargo run --release --bin prototype-bench -- \
   --runtime-iterations 100000
 ```
 
-Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT codeとAOT object size、bytecode lowering、JIT／AOT compilation、direct call、VM call、host callback、交互に分岐するconditional-return workload、macOS system linkingのdistribution statisticsを含むversion付きJSONを出力します。Schema version 2ではminimum functionのmeasurementとsizeを個別に追加し、link系列はC harnessを事前compileして、addとminimum objectに対する `cc` driverとsystem-linker invocationを計測します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
+Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT codeとAOT object size、bytecode lowering、JIT／AOT compilation、direct call、VM call、host callback、交互に分岐するminimum-function control-flow workload、macOS system linkingのdistribution statisticsを含むversion付きJSONを出力します。Schema version 2ではminimum functionのmeasurementとsizeを個別に追加し、link系列はC harnessを事前compileして、addとminimum objectに対する `cc` driverとsystem-linker invocationを計測します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
 
 共通チェック：
 

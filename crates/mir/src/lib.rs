@@ -5,15 +5,15 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Type {
-    Bool,
     I64,
+    Bool,
 }
 
 impl Display for Type {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Bool => formatter.write_str("bool"),
             Self::I64 => formatter.write_str("i64"),
+            Self::Bool => formatter.write_str("bool"),
         }
     }
 }
@@ -22,6 +22,21 @@ impl Display for Type {
 pub struct ValueId(u32);
 
 impl ValueId {
+    pub const fn new(index: u32) -> Self {
+        Self(index)
+    }
+
+    pub const fn index(self) -> usize {
+        self.0 as usize
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BlockId(u32);
+
+impl BlockId {
+    pub const ENTRY: Self = Self(0);
+
     pub const fn new(index: u32) -> Self {
         Self(index)
     }
@@ -95,15 +110,15 @@ pub enum Instruction {
 
 impl Instruction {
     pub const fn result(&self) -> ValueId {
-        match self {
+        match *self {
             Self::I64Constant { result, .. }
             | Self::I64AddWrapping { result, .. }
             | Self::I64LessThanSigned { result, .. }
-            | Self::CallHostI64 { result, .. } => *result,
+            | Self::CallHostI64 { result, .. } => result,
         }
     }
 
-    const fn result_type(&self) -> Type {
+    pub const fn result_type(&self) -> Type {
         match self {
             Self::I64LessThanSigned { .. } => Type::Bool,
             Self::I64Constant { .. } | Self::I64AddWrapping { .. } | Self::CallHostI64 { .. } => {
@@ -112,35 +127,79 @@ impl Instruction {
         }
     }
 
-    fn operands(&self) -> impl Iterator<Item = (ValueId, Type)> {
-        let operands = match self {
-            Self::I64Constant { .. } => [None, None],
+    fn operands(&self) -> Vec<(ValueId, Type)> {
+        match *self {
+            Self::I64Constant { .. } => Vec::new(),
             Self::I64AddWrapping { left, right, .. }
             | Self::I64LessThanSigned { left, right, .. } => {
-                [Some((*left, Type::I64)), Some((*right, Type::I64))]
+                vec![(left, Type::I64), (right, Type::I64)]
             }
-            Self::CallHostI64 { argument, .. } => [Some((*argument, Type::I64)), None],
-        };
-        operands.into_iter().flatten()
+            Self::CallHostI64 { argument, .. } => vec![(argument, Type::I64)],
+        }
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Terminator {
     Return(ValueId),
-    BranchReturn {
+    Jump(BlockId),
+    Branch {
         condition: ValueId,
-        then_value: ValueId,
-        else_value: ValueId,
+        then_block: BlockId,
+        else_block: BlockId,
     },
+}
+
+impl Terminator {
+    fn successors(self) -> Vec<BlockId> {
+        match self {
+            Self::Return(_) => Vec::new(),
+            Self::Jump(target) => vec![target],
+            Self::Branch {
+                then_block,
+                else_block,
+                ..
+            } => vec![then_block, else_block],
+        }
+    }
+
+    fn operands(self, result_type: Type) -> Vec<(ValueId, Type)> {
+        match self {
+            Self::Return(value) => vec![(value, result_type)],
+            Self::Jump(_) => Vec::new(),
+            Self::Branch { condition, .. } => vec![(condition, Type::Bool)],
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BasicBlock {
+    instructions: Vec<Instruction>,
+    terminator: Terminator,
+}
+
+impl BasicBlock {
+    pub fn new(instructions: Vec<Instruction>, terminator: Terminator) -> Self {
+        Self {
+            instructions,
+            terminator,
+        }
+    }
+
+    pub fn instructions(&self) -> &[Instruction] {
+        &self.instructions
+    }
+
+    pub const fn terminator(&self) -> Terminator {
+        self.terminator
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
     name: String,
     signature: Signature,
-    instructions: Vec<Instruction>,
-    terminator: Terminator,
+    blocks: Vec<BasicBlock>,
 }
 
 impl Function {
@@ -150,11 +209,22 @@ impl Function {
         instructions: Vec<Instruction>,
         terminator: Terminator,
     ) -> Self {
+        Self::with_blocks(
+            name,
+            signature,
+            vec![BasicBlock::new(instructions, terminator)],
+        )
+    }
+
+    pub fn with_blocks(
+        name: impl Into<String>,
+        signature: Signature,
+        blocks: Vec<BasicBlock>,
+    ) -> Self {
         Self {
             name: name.into(),
             signature,
-            instructions,
-            terminator,
+            blocks,
         }
     }
 
@@ -166,50 +236,82 @@ impl Function {
         &self.signature
     }
 
-    pub fn instructions(&self) -> &[Instruction] {
-        &self.instructions
-    }
-
-    pub const fn terminator(&self) -> Terminator {
-        self.terminator
+    pub fn blocks(&self) -> &[BasicBlock] {
+        &self.blocks
     }
 
     pub fn value_count(&self) -> usize {
-        self.signature.parameters.len() + self.instructions.len()
+        self.signature.parameters.len()
+            + self
+                .blocks
+                .iter()
+                .map(|block| block.instructions.len())
+                .sum::<usize>()
     }
 
     pub fn validate(&self) -> Result<(), ValidationError> {
         if self.name.is_empty() {
             return Err(ValidationError::EmptyName);
         }
-
-        let mut value_types = self.signature.parameters.clone();
-        for (next_value, instruction) in (value_types.len()..).zip(self.instructions.iter()) {
-            for (operand, expected) in instruction.operands() {
-                validate_operand(operand, expected, &value_types)?;
-            }
-
-            if instruction.result().index() != next_value {
-                return Err(ValidationError::NonSequentialResult {
-                    expected: ValueId::new(next_value as u32),
-                    actual: instruction.result(),
-                });
-            }
-            value_types.push(instruction.result_type());
+        if self.blocks.is_empty() {
+            return Err(ValidationError::EmptyBody);
         }
 
-        match self.terminator {
-            Terminator::Return(value) => {
-                validate_operand(value, self.signature.result, &value_types)?;
+        let mut value_types = self.signature.parameters.clone();
+        let mut definition_blocks = vec![None; value_types.len()];
+        let mut uses = Vec::new();
+
+        for (block_index, block) in self.blocks.iter().enumerate() {
+            let block_id = BlockId::new(block_index as u32);
+            for instruction in block.instructions() {
+                for (operand, expected) in instruction.operands() {
+                    validate_operand(operand, expected, &value_types)?;
+                    uses.push((operand, block_id));
+                }
+
+                let expected = ValueId::new(value_types.len() as u32);
+                if instruction.result() != expected {
+                    return Err(ValidationError::NonSequentialResult {
+                        expected,
+                        actual: instruction.result(),
+                    });
+                }
+                value_types.push(instruction.result_type());
+                definition_blocks.push(Some(block_id));
             }
-            Terminator::BranchReturn {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                validate_operand(condition, Type::Bool, &value_types)?;
-                validate_operand(then_value, self.signature.result, &value_types)?;
-                validate_operand(else_value, self.signature.result, &value_types)?;
+
+            for (operand, expected) in block.terminator().operands(self.signature.result) {
+                validate_operand(operand, expected, &value_types)?;
+                uses.push((operand, block_id));
+            }
+            for target in block.terminator().successors() {
+                if target.index() >= self.blocks.len() {
+                    return Err(ValidationError::UndefinedBlock(target));
+                }
+                if target == BlockId::ENTRY {
+                    return Err(ValidationError::EntryBlockHasPredecessor {
+                        predecessor: block_id,
+                    });
+                }
+            }
+        }
+
+        let reachable = reachable_blocks(&self.blocks);
+        if let Some(block) = reachable.iter().position(|is_reachable| !is_reachable) {
+            return Err(ValidationError::UnreachableBlock(BlockId::new(
+                block as u32,
+            )));
+        }
+
+        let dominators = compute_dominators(&self.blocks);
+        for (value, use_block) in uses {
+            if let Some(definition_block) = definition_blocks[value.index()]
+                && !dominators[use_block.index()][definition_block.index()]
+            {
+                return Err(ValidationError::ValueDoesNotDominateUse {
+                    value,
+                    block: use_block,
+                });
             }
         }
 
@@ -235,9 +337,59 @@ fn validate_operand(
     Ok(())
 }
 
+fn reachable_blocks(blocks: &[BasicBlock]) -> Vec<bool> {
+    let mut reachable = vec![false; blocks.len()];
+    let mut pending = vec![BlockId::ENTRY];
+    while let Some(block) = pending.pop() {
+        if reachable[block.index()] {
+            continue;
+        }
+        reachable[block.index()] = true;
+        pending.extend(blocks[block.index()].terminator().successors());
+    }
+    reachable
+}
+
+fn compute_dominators(blocks: &[BasicBlock]) -> Vec<Vec<bool>> {
+    let block_count = blocks.len();
+    let mut predecessors = vec![Vec::new(); block_count];
+    for (block_index, block) in blocks.iter().enumerate() {
+        for successor in block.terminator().successors() {
+            predecessors[successor.index()].push(block_index);
+        }
+    }
+
+    let mut dominators = vec![vec![true; block_count]; block_count];
+    dominators[BlockId::ENTRY.index()].fill(false);
+    dominators[BlockId::ENTRY.index()][BlockId::ENTRY.index()] = true;
+
+    loop {
+        let mut changed = false;
+        for block in 1..block_count {
+            let mut next = vec![true; block_count];
+            for &predecessor in &predecessors[block] {
+                for (candidate, predecessor_dominates) in
+                    next.iter_mut().zip(&dominators[predecessor])
+                {
+                    *candidate &= predecessor_dominates;
+                }
+            }
+            next[block] = true;
+            if next != dominators[block] {
+                dominators[block] = next;
+                changed = true;
+            }
+        }
+        if !changed {
+            return dominators;
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValidationError {
     EmptyName,
+    EmptyBody,
     UndefinedValue(ValueId),
     NonSequentialResult {
         expected: ValueId,
@@ -248,12 +400,22 @@ pub enum ValidationError {
         expected: Type,
         actual: Type,
     },
+    UndefinedBlock(BlockId),
+    EntryBlockHasPredecessor {
+        predecessor: BlockId,
+    },
+    UnreachableBlock(BlockId),
+    ValueDoesNotDominateUse {
+        value: ValueId,
+        block: BlockId,
+    },
 }
 
 impl Display for ValidationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::EmptyName => formatter.write_str("function name must not be empty"),
+            Self::EmptyBody => formatter.write_str("function must contain an entry block"),
             Self::UndefinedValue(value) => {
                 write!(
                     formatter,
@@ -276,6 +438,23 @@ impl Display for ValidationError {
                 "value {} has type {actual}, expected {expected}",
                 value.index()
             ),
+            Self::UndefinedBlock(block) => {
+                write!(formatter, "block {} is not defined", block.index())
+            }
+            Self::EntryBlockHasPredecessor { predecessor } => write!(
+                formatter,
+                "block {} branches to the entry block",
+                predecessor.index()
+            ),
+            Self::UnreachableBlock(block) => {
+                write!(formatter, "block {} is unreachable", block.index())
+            }
+            Self::ValueDoesNotDominateUse { value, block } => write!(
+                formatter,
+                "value {} does not dominate its use in block {}",
+                value.index(),
+                block.index()
+            ),
         }
     }
 }
@@ -284,7 +463,10 @@ impl Error for ValidationError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Function, Instruction, Signature, Terminator, Type, ValidationError, ValueId};
+    use super::{
+        BasicBlock, BlockId, Function, Instruction, Signature, Terminator, Type, ValidationError,
+        ValueId,
+    };
 
     #[test]
     fn rejects_use_before_definition() {
@@ -306,36 +488,48 @@ mod tests {
     }
 
     #[test]
-    fn validates_typed_conditional_return() {
+    fn rejects_non_sequential_results() {
         let function = Function::new(
-            "minimum",
-            Signature::new(vec![Type::I64, Type::I64], Type::I64),
-            vec![Instruction::I64LessThanSigned {
-                result: ValueId::new(2),
-                left: ValueId::new(0),
-                right: ValueId::new(1),
+            "invalid",
+            Signature::new(vec![], Type::I64),
+            vec![Instruction::I64Constant {
+                result: ValueId::new(1),
+                value: 42,
             }],
-            Terminator::BranchReturn {
-                condition: ValueId::new(2),
-                then_value: ValueId::new(0),
-                else_value: ValueId::new(1),
-            },
+            Terminator::Return(ValueId::new(1)),
         );
 
-        assert_eq!(function.validate(), Ok(()));
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::NonSequentialResult {
+                expected: ValueId::new(0),
+                actual: ValueId::new(1),
+            })
+        );
+    }
+
+    #[test]
+    fn validates_typed_control_flow() {
+        assert_eq!(minimum_function().validate(), Ok(()));
     }
 
     #[test]
     fn rejects_non_boolean_branch_conditions() {
-        let function = Function::new(
+        let function = Function::with_blocks(
             "invalid_condition",
             Signature::new(vec![Type::I64, Type::I64], Type::I64),
-            vec![],
-            Terminator::BranchReturn {
-                condition: ValueId::new(0),
-                then_value: ValueId::new(0),
-                else_value: ValueId::new(1),
-            },
+            vec![
+                BasicBlock::new(
+                    vec![],
+                    Terminator::Branch {
+                        condition: ValueId::new(0),
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(1))),
+            ],
         );
 
         assert_eq!(
@@ -346,5 +540,122 @@ mod tests {
                 actual: Type::I64,
             })
         );
+    }
+
+    #[test]
+    fn rejects_undefined_and_unreachable_blocks() {
+        let undefined = Function::with_blocks(
+            "undefined",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1)))],
+        );
+        assert_eq!(
+            undefined.validate(),
+            Err(ValidationError::UndefinedBlock(BlockId::new(1)))
+        );
+
+        let unreachable = Function::with_blocks(
+            "unreachable",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+            ],
+        );
+        assert_eq!(
+            unreachable.validate(),
+            Err(ValidationError::UnreachableBlock(BlockId::new(1)))
+        );
+    }
+
+    #[test]
+    fn rejects_entry_block_predecessors() {
+        let function = Function::with_blocks(
+            "entry_back_edge",
+            Signature::new(vec![], Type::I64),
+            vec![
+                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
+                BasicBlock::new(vec![], Terminator::Jump(BlockId::ENTRY)),
+            ],
+        );
+
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::EntryBlockHasPredecessor {
+                predecessor: BlockId::new(1),
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_values_that_do_not_dominate_their_use() {
+        let function = Function::with_blocks(
+            "invalid_merge",
+            Signature::new(vec![Type::I64, Type::Bool], Type::I64),
+            vec![
+                BasicBlock::new(
+                    vec![],
+                    Terminator::Branch {
+                        condition: ValueId::new(1),
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                BasicBlock::new(
+                    vec![Instruction::I64Constant {
+                        result: ValueId::new(2),
+                        value: 42,
+                    }],
+                    Terminator::Jump(BlockId::new(3)),
+                ),
+                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(3))),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(2))),
+            ],
+        );
+
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::ValueDoesNotDominateUse {
+                value: ValueId::new(2),
+                block: BlockId::new(3),
+            })
+        );
+    }
+
+    #[test]
+    fn validates_a_back_edge_outside_the_entry_block() {
+        let function = Function::with_blocks(
+            "loop_forever",
+            Signature::new(vec![], Type::I64),
+            vec![
+                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
+                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
+            ],
+        );
+
+        assert_eq!(function.validate(), Ok(()));
+    }
+
+    fn minimum_function() -> Function {
+        Function::with_blocks(
+            "minimum",
+            Signature::new(vec![Type::I64, Type::I64], Type::I64),
+            vec![
+                BasicBlock::new(
+                    vec![Instruction::I64LessThanSigned {
+                        result: ValueId::new(2),
+                        left: ValueId::new(0),
+                        right: ValueId::new(1),
+                    }],
+                    Terminator::Branch {
+                        condition: ValueId::new(2),
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(1))),
+            ],
+        )
     }
 }

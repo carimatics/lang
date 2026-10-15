@@ -8,6 +8,21 @@ use lang_mir::{
     ValidationError,
 };
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct BlockId(usize);
+
+impl BlockId {
+    pub const ENTRY: Self = Self(0);
+
+    pub const fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    pub const fn index(self) -> usize {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Instruction {
     I64Constant {
@@ -31,22 +46,98 @@ pub enum Instruction {
     },
 }
 
+impl Instruction {
+    const fn destination(self) -> usize {
+        match self {
+            Self::I64Constant { destination, .. }
+            | Self::I64AddWrapping { destination, .. }
+            | Self::I64LessThanSigned { destination, .. }
+            | Self::CallHostI64 { destination, .. } => destination,
+        }
+    }
+
+    const fn result_type(self) -> Type {
+        match self {
+            Self::I64LessThanSigned { .. } => Type::Bool,
+            Self::I64Constant { .. } | Self::I64AddWrapping { .. } | Self::CallHostI64 { .. } => {
+                Type::I64
+            }
+        }
+    }
+
+    fn sources(self) -> Vec<(usize, Type)> {
+        match self {
+            Self::I64Constant { .. } => Vec::new(),
+            Self::I64AddWrapping { left, right, .. }
+            | Self::I64LessThanSigned { left, right, .. } => {
+                vec![(left, Type::I64), (right, Type::I64)]
+            }
+            Self::CallHostI64 { argument, .. } => vec![(argument, Type::I64)],
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Terminator {
     Return(usize),
-    BranchReturn {
+    Jump(BlockId),
+    Branch {
         condition: usize,
-        then_register: usize,
-        else_register: usize,
+        then_block: BlockId,
+        else_block: BlockId,
     },
+}
+
+impl Terminator {
+    fn successors(self) -> Vec<BlockId> {
+        match self {
+            Self::Return(_) => Vec::new(),
+            Self::Jump(target) => vec![target],
+            Self::Branch {
+                then_block,
+                else_block,
+                ..
+            } => vec![then_block, else_block],
+        }
+    }
+
+    fn sources(self) -> Vec<(usize, Type)> {
+        match self {
+            Self::Return(register) => vec![(register, Type::I64)],
+            Self::Jump(_) => Vec::new(),
+            Self::Branch { condition, .. } => vec![(condition, Type::Bool)],
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Block {
+    instructions: Vec<Instruction>,
+    terminator: Terminator,
+}
+
+impl Block {
+    pub fn new(instructions: Vec<Instruction>, terminator: Terminator) -> Self {
+        Self {
+            instructions,
+            terminator,
+        }
+    }
+
+    pub fn instructions(&self) -> &[Instruction] {
+        &self.instructions
+    }
+
+    pub const fn terminator(&self) -> Terminator {
+        self.terminator
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Program {
     parameter_count: usize,
     register_count: usize,
-    instructions: Vec<Instruction>,
-    terminator: Terminator,
+    blocks: Vec<Block>,
 }
 
 impl Program {
@@ -70,11 +161,22 @@ impl Program {
         instructions: Vec<Instruction>,
         terminator: Terminator,
     ) -> Result<Self, VerificationError> {
+        Self::with_blocks(
+            parameter_count,
+            register_count,
+            vec![Block::new(instructions, terminator)],
+        )
+    }
+
+    pub fn with_blocks(
+        parameter_count: usize,
+        register_count: usize,
+        blocks: Vec<Block>,
+    ) -> Result<Self, VerificationError> {
         let program = Self {
             parameter_count,
             register_count,
-            instructions,
-            terminator,
+            blocks,
         };
         program.verify()?;
         Ok(program)
@@ -88,72 +190,70 @@ impl Program {
         self.register_count
     }
 
-    pub fn instructions(&self) -> &[Instruction] {
-        &self.instructions
-    }
-
-    pub const fn terminator(&self) -> Terminator {
-        self.terminator
+    pub fn blocks(&self) -> &[Block] {
+        &self.blocks
     }
 
     pub fn verify(&self) -> Result<(), VerificationError> {
         if self.parameter_count > self.register_count {
             return Err(VerificationError::InvalidParameterCount);
         }
+        if self.blocks.is_empty() {
+            return Err(VerificationError::EmptyProgram);
+        }
 
         let mut register_types = vec![None; self.register_count];
         register_types[..self.parameter_count].fill(Some(Type::I64));
+        let mut definition_blocks = vec![None; self.register_count];
+        let mut uses = Vec::new();
 
-        for instruction in &self.instructions {
-            match *instruction {
-                Instruction::I64Constant { destination, .. } => {
-                    verify_destination(destination, &register_types)?;
-                    register_types[destination] = Some(Type::I64);
+        for (block_index, block) in self.blocks.iter().enumerate() {
+            let block_id = BlockId::new(block_index);
+            for &instruction in block.instructions() {
+                for (source, expected) in instruction.sources() {
+                    verify_source(source, expected, &register_types)?;
+                    uses.push((source, block_id));
                 }
-                Instruction::I64AddWrapping {
-                    destination,
-                    left,
-                    right,
-                } => {
-                    verify_source(left, Type::I64, &register_types)?;
-                    verify_source(right, Type::I64, &register_types)?;
-                    verify_destination(destination, &register_types)?;
-                    register_types[destination] = Some(Type::I64);
+                let destination = instruction.destination();
+                verify_destination(destination, &register_types)?;
+                register_types[destination] = Some(instruction.result_type());
+                definition_blocks[destination] = Some(block_id);
+            }
+
+            for (source, expected) in block.terminator().sources() {
+                verify_source(source, expected, &register_types)?;
+                uses.push((source, block_id));
+            }
+            for target in block.terminator().successors() {
+                if target.index() >= self.blocks.len() {
+                    return Err(VerificationError::BlockOutOfBounds(target));
                 }
-                Instruction::I64LessThanSigned {
-                    destination,
-                    left,
-                    right,
-                } => {
-                    verify_source(left, Type::I64, &register_types)?;
-                    verify_source(right, Type::I64, &register_types)?;
-                    verify_destination(destination, &register_types)?;
-                    register_types[destination] = Some(Type::Bool);
-                }
-                Instruction::CallHostI64 {
-                    destination,
-                    argument,
-                    ..
-                } => {
-                    verify_source(argument, Type::I64, &register_types)?;
-                    verify_destination(destination, &register_types)?;
-                    register_types[destination] = Some(Type::I64);
+                if target == BlockId::ENTRY {
+                    return Err(VerificationError::EntryBlockHasPredecessor {
+                        predecessor: block_id,
+                    });
                 }
             }
         }
 
-        match self.terminator {
-            Terminator::Return(register) => verify_source(register, Type::I64, &register_types),
-            Terminator::BranchReturn {
-                condition,
-                then_register,
-                else_register,
-            } => {
-                verify_source(condition, Type::Bool, &register_types)?;
-                verify_source(then_register, Type::I64, &register_types)?;
-                verify_source(else_register, Type::I64, &register_types)
+        let reachable = reachable_blocks(&self.blocks);
+        if let Some(block) = reachable.iter().position(|is_reachable| !is_reachable) {
+            return Err(VerificationError::UnreachableBlock(BlockId::new(block)));
+        }
+
+        let dominators = compute_dominators(&self.blocks);
+        for (register, use_block) in uses {
+            if let Some(definition_block) = definition_blocks[register]
+                && !dominators[use_block.index()][definition_block.index()]
+            {
+                return Err(VerificationError::RegisterDoesNotDominateUse {
+                    register,
+                    block: use_block,
+                });
             }
         }
+
+        Ok(())
     }
 }
 
@@ -185,6 +285,55 @@ fn verify_destination(
     }
 }
 
+fn reachable_blocks(blocks: &[Block]) -> Vec<bool> {
+    let mut reachable = vec![false; blocks.len()];
+    let mut pending = vec![BlockId::ENTRY];
+    while let Some(block) = pending.pop() {
+        if reachable[block.index()] {
+            continue;
+        }
+        reachable[block.index()] = true;
+        pending.extend(blocks[block.index()].terminator().successors());
+    }
+    reachable
+}
+
+fn compute_dominators(blocks: &[Block]) -> Vec<Vec<bool>> {
+    let block_count = blocks.len();
+    let mut predecessors = vec![Vec::new(); block_count];
+    for (block_index, block) in blocks.iter().enumerate() {
+        for successor in block.terminator().successors() {
+            predecessors[successor.index()].push(block_index);
+        }
+    }
+
+    let mut dominators = vec![vec![true; block_count]; block_count];
+    dominators[BlockId::ENTRY.index()].fill(false);
+    dominators[BlockId::ENTRY.index()][BlockId::ENTRY.index()] = true;
+
+    loop {
+        let mut changed = false;
+        for block in 1..block_count {
+            let mut next = vec![true; block_count];
+            for &predecessor in &predecessors[block] {
+                for (candidate, predecessor_dominates) in
+                    next.iter_mut().zip(&dominators[predecessor])
+                {
+                    *candidate &= predecessor_dominates;
+                }
+            }
+            next[block] = true;
+            if next != dominators[block] {
+                dominators[block] = next;
+                changed = true;
+            }
+        }
+        if !changed {
+            return dominators;
+        }
+    }
+}
+
 pub fn lower(function: &Function) -> Result<Program, LowerError> {
     function.validate().map_err(LowerError::InvalidMir)?;
     if function.signature().parameters().contains(&Type::Bool)
@@ -193,61 +342,68 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
         return Err(LowerError::UnsupportedSignature);
     }
 
-    let instructions = function
-        .instructions()
+    let blocks = function
+        .blocks()
         .iter()
-        .map(|instruction| match *instruction {
-            MirInstruction::I64Constant { result, value } => Instruction::I64Constant {
-                destination: result.index(),
-                value,
-            },
-            MirInstruction::I64AddWrapping {
-                result,
-                left,
-                right,
-            } => Instruction::I64AddWrapping {
-                destination: result.index(),
-                left: left.index(),
-                right: right.index(),
-            },
-            MirInstruction::I64LessThanSigned {
-                result,
-                left,
-                right,
-            } => Instruction::I64LessThanSigned {
-                destination: result.index(),
-                left: left.index(),
-                right: right.index(),
-            },
-            MirInstruction::CallHostI64 {
-                result,
-                function,
-                argument,
-            } => Instruction::CallHostI64 {
-                destination: result.index(),
-                function,
-                argument: argument.index(),
-            },
+        .map(|block| {
+            let instructions = block
+                .instructions()
+                .iter()
+                .map(|instruction| match *instruction {
+                    MirInstruction::I64Constant { result, value } => Instruction::I64Constant {
+                        destination: result.index(),
+                        value,
+                    },
+                    MirInstruction::I64AddWrapping {
+                        result,
+                        left,
+                        right,
+                    } => Instruction::I64AddWrapping {
+                        destination: result.index(),
+                        left: left.index(),
+                        right: right.index(),
+                    },
+                    MirInstruction::I64LessThanSigned {
+                        result,
+                        left,
+                        right,
+                    } => Instruction::I64LessThanSigned {
+                        destination: result.index(),
+                        left: left.index(),
+                        right: right.index(),
+                    },
+                    MirInstruction::CallHostI64 {
+                        result,
+                        function,
+                        argument,
+                    } => Instruction::CallHostI64 {
+                        destination: result.index(),
+                        function,
+                        argument: argument.index(),
+                    },
+                })
+                .collect();
+            let terminator = match block.terminator() {
+                MirTerminator::Return(return_value) => Terminator::Return(return_value.index()),
+                MirTerminator::Jump(target) => Terminator::Jump(BlockId::new(target.index())),
+                MirTerminator::Branch {
+                    condition,
+                    then_block,
+                    else_block,
+                } => Terminator::Branch {
+                    condition: condition.index(),
+                    then_block: BlockId::new(then_block.index()),
+                    else_block: BlockId::new(else_block.index()),
+                },
+            };
+            Block::new(instructions, terminator)
         })
         .collect();
-    let terminator = match function.terminator() {
-        MirTerminator::Return(return_value) => Terminator::Return(return_value.index()),
-        MirTerminator::BranchReturn {
-            condition,
-            then_value,
-            else_value,
-        } => Terminator::BranchReturn {
-            condition: condition.index(),
-            then_register: then_value.index(),
-            else_register: else_value.index(),
-        },
-    };
 
-    Program::with_terminator(
+    Program::with_blocks(
         function.signature().parameters().len(),
         function.value_count(),
-        instructions,
-        terminator,
+        blocks,
     )
     .map_err(LowerError::InvalidBytecode)
 }
@@ -255,6 +411,7 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VerificationError {
     InvalidParameterCount,
+    EmptyProgram,
     RegisterOutOfBounds(usize),
     UninitializedRegister(usize),
     RegisterAlreadyInitialized(usize),
@@ -262,6 +419,15 @@ pub enum VerificationError {
         register: usize,
         expected: Type,
         actual: Type,
+    },
+    BlockOutOfBounds(BlockId),
+    EntryBlockHasPredecessor {
+        predecessor: BlockId,
+    },
+    UnreachableBlock(BlockId),
+    RegisterDoesNotDominateUse {
+        register: usize,
+        block: BlockId,
     },
 }
 
@@ -271,6 +437,7 @@ impl Display for VerificationError {
             Self::InvalidParameterCount => {
                 formatter.write_str("parameter count exceeds register count")
             }
+            Self::EmptyProgram => formatter.write_str("program must contain an entry block"),
             Self::RegisterOutOfBounds(register) => {
                 write!(formatter, "register {register} is out of bounds")
             }
@@ -290,6 +457,22 @@ impl Display for VerificationError {
             } => write!(
                 formatter,
                 "register {register} has type {actual}, expected {expected}"
+            ),
+            Self::BlockOutOfBounds(block) => {
+                write!(formatter, "block {} is out of bounds", block.index())
+            }
+            Self::EntryBlockHasPredecessor { predecessor } => write!(
+                formatter,
+                "block {} branches to the entry block",
+                predecessor.index()
+            ),
+            Self::UnreachableBlock(block) => {
+                write!(formatter, "block {} is unreachable", block.index())
+            }
+            Self::RegisterDoesNotDominateUse { register, block } => write!(
+                formatter,
+                "register {register} does not dominate its use in block {}",
+                block.index()
             ),
         }
     }
@@ -322,7 +505,7 @@ impl Error for LowerError {}
 mod tests {
     use lang_mir::{HostFunctionId, Type};
 
-    use super::{Instruction, Program, Terminator, VerificationError};
+    use super::{Block, BlockId, Instruction, Program, Terminator, VerificationError};
 
     #[test]
     fn rejects_reads_from_uninitialized_registers() {
@@ -357,36 +540,29 @@ mod tests {
     }
 
     #[test]
-    fn verifies_typed_conditional_returns() {
-        let result = Program::with_terminator(
-            2,
-            3,
-            vec![Instruction::I64LessThanSigned {
-                destination: 2,
-                left: 0,
-                right: 1,
-            }],
-            Terminator::BranchReturn {
-                condition: 2,
-                then_register: 0,
-                else_register: 1,
-            },
-        );
+    fn verifies_typed_control_flow() {
+        let result = minimum_program();
 
         assert!(result.is_ok());
     }
 
     #[test]
     fn rejects_i64_branch_conditions() {
-        let result = Program::with_terminator(
+        let result = Program::with_blocks(
             2,
             2,
-            vec![],
-            Terminator::BranchReturn {
-                condition: 0,
-                then_register: 0,
-                else_register: 1,
-            },
+            vec![
+                Block::new(
+                    vec![],
+                    Terminator::Branch {
+                        condition: 0,
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                Block::new(vec![], Terminator::Return(0)),
+                Block::new(vec![], Terminator::Return(1)),
+            ],
         );
 
         assert_eq!(
@@ -397,5 +573,122 @@ mod tests {
                 actual: Type::I64,
             })
         );
+    }
+
+    #[test]
+    fn rejects_registers_that_do_not_dominate_their_use() {
+        let result = Program::with_blocks(
+            1,
+            3,
+            vec![
+                Block::new(
+                    vec![Instruction::I64LessThanSigned {
+                        destination: 1,
+                        left: 0,
+                        right: 0,
+                    }],
+                    Terminator::Branch {
+                        condition: 1,
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                Block::new(
+                    vec![Instruction::I64Constant {
+                        destination: 2,
+                        value: 42,
+                    }],
+                    Terminator::Jump(BlockId::new(3)),
+                ),
+                Block::new(vec![], Terminator::Jump(BlockId::new(3))),
+                Block::new(vec![], Terminator::Return(2)),
+            ],
+        );
+
+        assert_eq!(
+            result,
+            Err(VerificationError::RegisterDoesNotDominateUse {
+                register: 2,
+                block: BlockId::new(3),
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_block_graphs() {
+        let out_of_bounds = Program::with_blocks(
+            0,
+            0,
+            vec![Block::new(vec![], Terminator::Jump(BlockId::new(1)))],
+        );
+        assert_eq!(
+            out_of_bounds,
+            Err(VerificationError::BlockOutOfBounds(BlockId::new(1)))
+        );
+
+        let unreachable = Program::with_blocks(
+            1,
+            1,
+            vec![
+                Block::new(vec![], Terminator::Return(0)),
+                Block::new(vec![], Terminator::Return(0)),
+            ],
+        );
+        assert_eq!(
+            unreachable,
+            Err(VerificationError::UnreachableBlock(BlockId::new(1)))
+        );
+
+        let entry_predecessor = Program::with_blocks(
+            0,
+            0,
+            vec![
+                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
+                Block::new(vec![], Terminator::Jump(BlockId::ENTRY)),
+            ],
+        );
+        assert_eq!(
+            entry_predecessor,
+            Err(VerificationError::EntryBlockHasPredecessor {
+                predecessor: BlockId::new(1),
+            })
+        );
+    }
+
+    #[test]
+    fn verifies_a_back_edge_outside_the_entry_block() {
+        let result = Program::with_blocks(
+            0,
+            0,
+            vec![
+                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
+                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
+            ],
+        );
+
+        assert!(result.is_ok());
+    }
+
+    fn minimum_program() -> Result<Program, VerificationError> {
+        Program::with_blocks(
+            2,
+            3,
+            vec![
+                Block::new(
+                    vec![Instruction::I64LessThanSigned {
+                        destination: 2,
+                        left: 0,
+                        right: 1,
+                    }],
+                    Terminator::Branch {
+                        condition: 2,
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                Block::new(vec![], Terminator::Return(0)),
+                Block::new(vec![], Terminator::Return(1)),
+            ],
+        )
     }
 }

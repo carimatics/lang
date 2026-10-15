@@ -185,62 +185,76 @@ fn define_function<M: Module>(
     let frontend_config = module.target_config();
     {
         let mut builder = FunctionBuilder::new(&mut context.func, &mut builder_context);
-        let entry = builder.create_block();
+        let blocks: Vec<_> = function
+            .blocks()
+            .iter()
+            .map(|_| builder.create_block())
+            .collect();
+        let entry = blocks[0];
         builder.append_block_params_for_function_params(entry);
-        builder.switch_to_block(entry);
-        builder.seal_block(entry);
+        let mut values = vec![None; function.value_count()];
+        for (index, &value) in builder.block_params(entry).iter().enumerate() {
+            values[index] = Some(value);
+        }
 
-        let mut values = builder.block_params(entry).to_vec();
-        for instruction in function.instructions() {
-            let value = match *instruction {
-                Instruction::I64Constant { value, .. } => builder.ins().iconst(types::I64, value),
-                Instruction::I64AddWrapping { left, right, .. } => builder
-                    .ins()
-                    .iadd(values[left.index()], values[right.index()]),
-                Instruction::I64LessThanSigned { left, right, .. } => builder.ins().icmp(
-                    IntCC::SignedLessThan,
-                    values[left.index()],
-                    values[right.index()],
-                ),
-                Instruction::CallHostI64 {
-                    function, argument, ..
-                } => {
-                    let function_reference = host_references
-                        .get(&function)
-                        .expect("host reference was declared before lowering");
-                    let call = builder
-                        .ins()
-                        .call(*function_reference, &[values[argument.index()]]);
-                    builder.inst_results(call)[0]
+        for (block_index, block) in function.blocks().iter().enumerate() {
+            builder.switch_to_block(blocks[block_index]);
+            for instruction in block.instructions() {
+                let value = match *instruction {
+                    Instruction::I64Constant { value, .. } => {
+                        builder.ins().iconst(types::I64, value)
+                    }
+                    Instruction::I64AddWrapping { left, right, .. } => builder.ins().iadd(
+                        values[left.index()].expect("validated operands have translated values"),
+                        values[right.index()].expect("validated operands have translated values"),
+                    ),
+                    Instruction::I64LessThanSigned { left, right, .. } => builder.ins().icmp(
+                        IntCC::SignedLessThan,
+                        values[left.index()].expect("validated operands have translated values"),
+                        values[right.index()].expect("validated operands have translated values"),
+                    ),
+                    Instruction::CallHostI64 {
+                        function, argument, ..
+                    } => {
+                        let function_reference = host_references
+                            .get(&function)
+                            .expect("host reference was declared before lowering");
+                        let call = builder.ins().call(
+                            *function_reference,
+                            &[values[argument.index()]
+                                .expect("validated operands have translated values")],
+                        );
+                        builder.inst_results(call)[0]
+                    }
+                };
+                values[instruction.result().index()] = Some(value);
+            }
+
+            match block.terminator() {
+                Terminator::Return(return_value) => {
+                    builder.ins().return_(&[values[return_value.index()]
+                        .expect("validated return values have translated values")]);
                 }
-            };
-            values.push(value);
-        }
-
-        match function.terminator() {
-            Terminator::Return(return_value) => {
-                builder.ins().return_(&[values[return_value.index()]]);
-            }
-            Terminator::BranchReturn {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                let then_block = builder.create_block();
-                let else_block = builder.create_block();
-                builder
-                    .ins()
-                    .brif(values[condition.index()], then_block, &[], else_block, &[]);
-
-                builder.switch_to_block(then_block);
-                builder.seal_block(then_block);
-                builder.ins().return_(&[values[then_value.index()]]);
-
-                builder.switch_to_block(else_block);
-                builder.seal_block(else_block);
-                builder.ins().return_(&[values[else_value.index()]]);
+                Terminator::Jump(target) => {
+                    builder.ins().jump(blocks[target.index()], &[]);
+                }
+                Terminator::Branch {
+                    condition,
+                    then_block,
+                    else_block,
+                } => {
+                    builder.ins().brif(
+                        values[condition.index()]
+                            .expect("validated branch conditions have translated values"),
+                        blocks[then_block.index()],
+                        &[],
+                        blocks[else_block.index()],
+                        &[],
+                    );
+                }
             }
         }
+        builder.seal_all_blocks();
         builder.finalize(frontend_config);
     }
 
@@ -272,15 +286,17 @@ fn validate_function(function: &Function) -> Result<(), CompileError> {
 
 fn collect_host_symbols(function: &Function) -> Vec<(HostFunctionId, String)> {
     let mut host_symbols = Vec::new();
-    for instruction in function.instructions() {
-        let Instruction::CallHostI64 {
-            function: host_id, ..
-        } = instruction
-        else {
-            continue;
-        };
-        if host_symbols.iter().all(|(id, _)| id != host_id) {
-            host_symbols.push((*host_id, host_symbol_name(*host_id)));
+    for block in function.blocks() {
+        for instruction in block.instructions() {
+            let Instruction::CallHostI64 {
+                function: host_id, ..
+            } = instruction
+            else {
+                continue;
+            };
+            if host_symbols.iter().all(|(id, _)| id != host_id) {
+                host_symbols.push((*host_id, host_symbol_name(*host_id)));
+            }
         }
     }
     host_symbols
@@ -341,7 +357,10 @@ impl Error for InvokeError {}
 
 #[cfg(test)]
 mod tests {
-    use lang_mir::{Function, HostFunctionId, Instruction, Signature, Terminator, Type, ValueId};
+    use lang_mir::{
+        BasicBlock, BlockId, Function, HostFunctionId, Instruction, Signature, Terminator, Type,
+        ValueId,
+    };
 
     use super::{CompileError, CompiledFunction, emit_host_object};
 
@@ -361,20 +380,26 @@ mod tests {
     }
 
     #[test]
-    fn compiles_typed_conditional_returns() {
-        let function = Function::new(
+    fn compiles_typed_control_flow() {
+        let function = Function::with_blocks(
             "minimum",
             Signature::new(vec![Type::I64, Type::I64], Type::I64),
-            vec![Instruction::I64LessThanSigned {
-                result: ValueId::new(2),
-                left: ValueId::new(0),
-                right: ValueId::new(1),
-            }],
-            Terminator::BranchReturn {
-                condition: ValueId::new(2),
-                then_value: ValueId::new(0),
-                else_value: ValueId::new(1),
-            },
+            vec![
+                BasicBlock::new(
+                    vec![Instruction::I64LessThanSigned {
+                        result: ValueId::new(2),
+                        left: ValueId::new(0),
+                        right: ValueId::new(1),
+                    }],
+                    Terminator::Branch {
+                        condition: ValueId::new(2),
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(1))),
+            ],
         );
 
         let compiled = CompiledFunction::compile(&function).unwrap();
@@ -386,6 +411,22 @@ mod tests {
         let artifact = emit_host_object(&function).unwrap();
         assert!(artifact.code_size() > 0);
         assert!(!artifact.into_bytes().is_empty());
+    }
+
+    #[test]
+    fn compiles_an_explicit_jump() {
+        let function = Function::with_blocks(
+            "jump_identity",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![
+                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+            ],
+        );
+
+        let compiled = CompiledFunction::compile(&function).unwrap();
+
+        assert_eq!(compiled.invoke_i64_1(42), Ok(42));
     }
 
     #[test]

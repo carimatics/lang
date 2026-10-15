@@ -64,7 +64,7 @@ Workspace tests also exercise a minimal embedding path: a backend-neutral host-f
 
 `lang-codegen-clif` can also emit a host-native object artifact for the same MIR, exporting the compiled function and leaving host callbacks as imports. The root crate provides an initial `LinkRequest` and `SystemLinker` layer that preserves object order, validates the request, invokes the host `cc` driver, and reports spawn, exit-status, and missing-output failures as structured errors. The macOS AArch64 integration test and system-link benchmark use that shared path. Production driver hardening, startup code, a stable native ABI, debug metadata, Windows evidence, and cross-target emission remain unimplemented.
 
-The typed MIR, bytecode verifier, VM, JIT, and object path also share a signed `i64` comparison and conditional-return prototype. Differential tests run a two-argument minimum function through the VM and JIT, while the macOS integration test links and executes its AOT object. This is a focused control-flow experiment, not a general basic-block CFG: jumps, loops, block parameters, and merge validation remain unimplemented.
+The typed MIR, bytecode verifier, VM, JIT, and object path also share a signed `i64` comparison and an initial explicit control-flow graph. The two-argument minimum function branches from an entry block to separate return blocks, while a focused jump test covers an explicit edge. MIR and bytecode validation reject invalid targets, unreachable blocks, entry-block predecessors, and values that do not dominate their uses. A bytecode back-edge test also proves that instruction fuel stops a non-terminating loop. Block parameters/phi nodes, loop-carried values, allocation, and source-level control-flow semantics remain unimplemented.
 
 Write either inspection target to a host-native object file for symbol and disassembly inspection:
 
@@ -87,7 +87,7 @@ cargo run --release --bin prototype-bench -- \
   --runtime-iterations 100000
 ```
 
-The harness emits versioned JSON containing the commit and dirty state, toolchain, host, and system-linker metadata, generated JIT code and AOT object sizes, and distribution statistics for bytecode lowering, JIT and AOT compilation, direct calls, VM calls, host callbacks, the alternating conditional-return workload, and macOS system linking. Schema version 2 adds separate minimum-function measurements and sizes; its link series precompiles the C harness and measures the `cc` driver plus system-linker invocation over the add and minimum objects. These measurements are prototype evidence rather than accepted performance guarantees. Record results only from a quiet machine and retain the exact command and raw JSON.
+The harness emits versioned JSON containing the commit and dirty state, toolchain, host, and system-linker metadata, generated JIT code and AOT object sizes, and distribution statistics for bytecode lowering, JIT and AOT compilation, direct calls, VM calls, host callbacks, the alternating minimum-function control-flow workload, and macOS system linking. Schema version 2 adds separate minimum-function measurements and sizes; its link series precompiles the C harness and measures the `cc` driver plus system-linker invocation over the add and minimum objects. These measurements are prototype evidence rather than accepted performance guarantees. Record results only from a quiet machine and retain the exact command and raw JSON.
 
 Common checks:
 

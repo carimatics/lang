@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use lang_bytecode::{Instruction, Program, Terminator, VerificationError};
+use lang_bytecode::{BlockId, Instruction, Program, Terminator, VerificationError};
 use lang_mir::HostFunctionId;
 use lang_runtime::HostFunctionRegistry;
 
@@ -98,59 +98,64 @@ pub fn execute_with_hosts_and_limits(
     registers[..arguments.len()].copy_from_slice(arguments);
     let mut fuel = FuelMeter::new(limits);
 
-    for instruction in program.instructions() {
+    let mut current_block = BlockId::ENTRY;
+    loop {
+        let block = &program.blocks()[current_block.index()];
+        for instruction in block.instructions() {
+            fuel.consume()?;
+            match *instruction {
+                Instruction::I64Constant { destination, value } => {
+                    registers[destination] = value;
+                }
+                Instruction::I64AddWrapping {
+                    destination,
+                    left,
+                    right,
+                } => {
+                    registers[destination] = registers[left].wrapping_add(registers[right]);
+                }
+                Instruction::I64LessThanSigned {
+                    destination,
+                    left,
+                    right,
+                } => {
+                    registers[destination] = i64::from(registers[left] < registers[right]);
+                }
+                Instruction::CallHostI64 {
+                    destination,
+                    function,
+                    argument,
+                } => {
+                    let callback = host_functions
+                        .resolve_i64(function)
+                        .ok_or(VmError::UnknownHostFunction(function))?;
+                    registers[destination] = callback(registers[argument]);
+                }
+            }
+        }
+
         fuel.consume()?;
-        match *instruction {
-            Instruction::I64Constant { destination, value } => {
-                registers[destination] = value;
+        match block.terminator() {
+            Terminator::Return(register) => {
+                return Ok(ExecutionOutcome {
+                    value: registers[register],
+                    instruction_fuel_consumed: fuel.consumed,
+                });
             }
-            Instruction::I64AddWrapping {
-                destination,
-                left,
-                right,
+            Terminator::Jump(target) => current_block = target,
+            Terminator::Branch {
+                condition,
+                then_block,
+                else_block,
             } => {
-                registers[destination] = registers[left].wrapping_add(registers[right]);
-            }
-            Instruction::I64LessThanSigned {
-                destination,
-                left,
-                right,
-            } => {
-                registers[destination] = i64::from(registers[left] < registers[right]);
-            }
-            Instruction::CallHostI64 {
-                destination,
-                function,
-                argument,
-            } => {
-                let callback = host_functions
-                    .resolve_i64(function)
-                    .ok_or(VmError::UnknownHostFunction(function))?;
-                registers[destination] = callback(registers[argument]);
+                current_block = if registers[condition] != 0 {
+                    then_block
+                } else {
+                    else_block
+                };
             }
         }
     }
-
-    fuel.consume()?;
-    let result = match program.terminator() {
-        Terminator::Return(register) => registers[register],
-        Terminator::BranchReturn {
-            condition,
-            then_register,
-            else_register,
-        } => {
-            if registers[condition] != 0 {
-                registers[then_register]
-            } else {
-                registers[else_register]
-            }
-        }
-    };
-
-    Ok(ExecutionOutcome {
-        value: result,
-        instruction_fuel_consumed: fuel.consumed,
-    })
 }
 
 struct FuelMeter {
@@ -213,7 +218,7 @@ impl Error for VmError {}
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use lang_bytecode::{Instruction, Program};
+    use lang_bytecode::{Block, BlockId, Instruction, Program};
     use lang_mir::HostFunctionId;
     use lang_runtime::HostFunctionRegistry;
 
@@ -259,26 +264,53 @@ mod tests {
     }
 
     #[test]
-    fn executes_conditional_return() {
-        let program = Program::with_terminator(
+    fn executes_explicit_control_flow() {
+        let program = Program::with_blocks(
             2,
             3,
-            vec![Instruction::I64LessThanSigned {
-                destination: 2,
-                left: 0,
-                right: 1,
-            }],
-            Terminator::BranchReturn {
-                condition: 2,
-                then_register: 0,
-                else_register: 1,
-            },
+            vec![
+                Block::new(
+                    vec![Instruction::I64LessThanSigned {
+                        destination: 2,
+                        left: 0,
+                        right: 1,
+                    }],
+                    Terminator::Branch {
+                        condition: 2,
+                        then_block: BlockId::new(1),
+                        else_block: BlockId::new(2),
+                    },
+                ),
+                Block::new(vec![], Terminator::Return(0)),
+                Block::new(vec![], Terminator::Return(1)),
+            ],
         )
         .unwrap();
 
         assert_eq!(execute(&program, &[-7, 4]), Ok(-7));
         assert_eq!(execute(&program, &[9, 3]), Ok(3));
         assert_eq!(execute(&program, &[5, 5]), Ok(5));
+    }
+
+    #[test]
+    fn fuel_stops_a_back_edge() {
+        let program = Program::with_blocks(
+            0,
+            0,
+            vec![
+                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
+                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            execute_with_limits(&program, &[], ExecutionLimits::with_instruction_fuel(3)),
+            Err(VmError::InstructionFuelExhausted {
+                limit: 3,
+                consumed: 3,
+            })
+        );
     }
 
     #[test]

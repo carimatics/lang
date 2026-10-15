@@ -3,7 +3,10 @@ use std::fmt::{Display, Formatter};
 
 use lang_bytecode::{LowerError, lower};
 use lang_codegen_clif::{CompileError, CompiledFunction, InvokeError};
-use lang_mir::{Function, HostFunctionId, Instruction, Signature, Terminator, Type, ValueId};
+use lang_mir::{
+    BasicBlock, BlockId, Function, HostFunctionId, Instruction, Signature, Terminator, Type,
+    ValueId,
+};
 use lang_runtime::{HostFunctionRegistry, RegistrationError};
 use lang_vm::{VmError, execute, execute_with_hosts};
 
@@ -72,19 +75,25 @@ pub fn run_prototype_add(left: i64, right: i64) -> Result<ExecutionResults, Prot
 }
 
 pub fn prototype_min_function() -> Function {
-    Function::new(
+    Function::with_blocks(
         "prototype_min",
         Signature::new(vec![Type::I64, Type::I64], Type::I64),
-        vec![Instruction::I64LessThanSigned {
-            result: ValueId::new(2),
-            left: ValueId::new(0),
-            right: ValueId::new(1),
-        }],
-        Terminator::BranchReturn {
-            condition: ValueId::new(2),
-            then_value: ValueId::new(0),
-            else_value: ValueId::new(1),
-        },
+        vec![
+            BasicBlock::new(
+                vec![Instruction::I64LessThanSigned {
+                    result: ValueId::new(2),
+                    left: ValueId::new(0),
+                    right: ValueId::new(1),
+                }],
+                Terminator::Branch {
+                    condition: ValueId::new(2),
+                    then_block: BlockId::new(1),
+                    else_block: BlockId::new(2),
+                },
+            ),
+            BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+            BasicBlock::new(vec![], Terminator::Return(ValueId::new(1))),
+        ],
     )
 }
 
@@ -171,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn conditional_returns_are_equivalent() {
+    fn explicit_control_flow_is_equivalent() {
         let cases = [
             (2, 2),
             (-7, 4),
