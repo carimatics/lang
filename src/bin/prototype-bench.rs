@@ -1,13 +1,17 @@
 use std::cmp::Ordering;
 use std::env;
 use std::fmt::Write as _;
+#[cfg(target_os = "macos")]
+use std::fs;
 use std::hint::black_box;
+#[cfg(target_os = "macos")]
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use lang::{PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_host_callback_function};
 use lang_bytecode::lower;
-use lang_codegen_clif::CompiledFunction;
+use lang_codegen_clif::{CompiledFunction, emit_host_object};
 use lang_runtime::HostFunctionRegistry;
 use lang_vm::{execute, execute_with_hosts};
 
@@ -140,7 +144,7 @@ fn main() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: cargo run --release --bin prototype-bench -- \\\n+         [--samples <count>] [--lowering-iterations <count>] \\\n+         [--runtime-iterations <count>]"
+        "usage: cargo run --release --bin prototype-bench -- \\\n         [--samples <count>] [--lowering-iterations <count>] \\\n         [--runtime-iterations <count>]"
     );
 }
 
@@ -157,6 +161,9 @@ fn run() -> Result<(), String> {
         CompiledFunction::compile(&add_function).map_err(|error| error.to_string())?;
     let compiled_host = CompiledFunction::compile_with_hosts(&host_function, &host_functions)
         .map_err(|error| error.to_string())?;
+    let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
+    #[cfg(target_os = "macos")]
+    let link_benchmark = LinkBenchmark::prepare(aot_add.bytes())?;
 
     check_results(
         &add_program,
@@ -190,6 +197,17 @@ fn run() -> Result<(), String> {
                 .expect("validated prototype MIR compiles")
         },
     ));
+    measurements.push(measure_construction(
+        "aot_object_emit_add",
+        config.samples,
+        1,
+        || {
+            emit_host_object(black_box(&add_function))
+                .expect("validated prototype MIR emits an object")
+        },
+    ));
+    #[cfg(target_os = "macos")]
+    measurements.push(link_benchmark.measure(config.samples)?);
     measurements.push(measure_calls(
         "rust_add_call",
         config.samples,
@@ -247,6 +265,7 @@ fn run() -> Result<(), String> {
             config,
             compiled_add.code_size(),
             compiled_host.code_size(),
+            aot_add.bytes().len(),
             &measurements,
         )
     );
@@ -329,6 +348,125 @@ fn warm_up(
     }
 }
 
+#[cfg(target_os = "macos")]
+const LINK_HARNESS: &str = r#"
+#include <stdint.h>
+
+extern int64_t prototype_add(int64_t left, int64_t right);
+
+int main(void) {
+    return prototype_add(20, 22) == 42 ? 0 : 1;
+}
+"#;
+
+#[cfg(target_os = "macos")]
+struct BenchmarkDirectory {
+    path: PathBuf,
+}
+
+#[cfg(target_os = "macos")]
+impl BenchmarkDirectory {
+    fn create() -> Result<Self, String> {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|error| error.to_string())?
+            .as_nanos();
+        let path = env::temp_dir().join(format!(
+            "lang-link-benchmark-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir(&path).map_err(|error| error.to_string())?;
+        Ok(Self { path })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Drop for BenchmarkDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct LinkBenchmark {
+    _directory: BenchmarkDirectory,
+    harness_object: PathBuf,
+    add_object: PathBuf,
+    executable: PathBuf,
+}
+
+#[cfg(target_os = "macos")]
+impl LinkBenchmark {
+    fn prepare(add_object_bytes: &[u8]) -> Result<Self, String> {
+        let directory = BenchmarkDirectory::create()?;
+        let harness_source = directory.path().join("harness.c");
+        let harness_object = directory.path().join("harness.o");
+        let add_object = directory.path().join("prototype_add.o");
+        let executable = directory.path().join("prototype-aot");
+        fs::write(&harness_source, LINK_HARNESS).map_err(|error| error.to_string())?;
+        fs::write(&add_object, add_object_bytes).map_err(|error| error.to_string())?;
+
+        let compile = Command::new("cc")
+            .args(["-O2", "-c"])
+            .arg(&harness_source)
+            .arg("-o")
+            .arg(&harness_object)
+            .output()
+            .map_err(|error| format!("failed to run the system C compiler: {error}"))?;
+        ensure_command_succeeded("C harness compilation", &compile)?;
+
+        let benchmark = Self {
+            _directory: directory,
+            harness_object,
+            add_object,
+            executable,
+        };
+        benchmark.link_once()?;
+        let execution = Command::new(&benchmark.executable)
+            .output()
+            .map_err(|error| format!("failed to run the linked executable: {error}"))?;
+        ensure_command_succeeded("linked executable", &execution)?;
+        Ok(benchmark)
+    }
+
+    fn measure(&self, sample_count: usize) -> Result<Measurement, String> {
+        let mut samples = Vec::with_capacity(sample_count);
+        for _ in 0..sample_count {
+            let started = Instant::now();
+            self.link_once()?;
+            samples.push(started.elapsed().as_secs_f64() * 1_000_000_000.0);
+        }
+        Ok(Measurement::from_samples("system_link_add", 1, samples))
+    }
+
+    fn link_once(&self) -> Result<(), String> {
+        let link = Command::new("cc")
+            .args([self.harness_object.as_os_str(), self.add_object.as_os_str()])
+            .arg("-o")
+            .arg(&self.executable)
+            .output()
+            .map_err(|error| format!("failed to run the system linker: {error}"))?;
+        ensure_command_succeeded("system linking", &link)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_command_succeeded(label: &str, output: &std::process::Output) -> Result<(), String> {
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(format!(
+        "{label} failed with {}:\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    ))
+}
+
 fn measure_construction<T>(
     name: &'static str,
     sample_count: usize,
@@ -374,6 +512,7 @@ fn render_json(
     config: Config,
     add_code_size: usize,
     host_code_size: usize,
+    add_object_size: usize,
     measurements: &[Measurement],
 ) -> String {
     let mut output = String::new();
@@ -403,11 +542,15 @@ fn render_json(
     write_json_string(&mut output, "os_version", &os_version(), true);
     write_json_string(&mut output, "architecture", env::consts::ARCH, true);
     write_json_string(&mut output, "cpu", &cpu_model(), true);
+    write_json_string(&mut output, "system_linker", &system_linker(), true);
     writeln!(output, "  \"samples\": {},", config.samples).expect("writing to String succeeds");
     writeln!(output, "  \"generated_code_bytes\": {{").expect("writing to String succeeds");
     writeln!(output, "    \"jit_add\": {add_code_size},").expect("writing to String succeeds");
     writeln!(output, "    \"jit_host_callback\": {host_code_size}")
         .expect("writing to String succeeds");
+    writeln!(output, "  }},").expect("writing to String succeeds");
+    writeln!(output, "  \"object_file_bytes\": {{").expect("writing to String succeeds");
+    writeln!(output, "    \"aot_add\": {add_object_size}").expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"measurements\": [").expect("writing to String succeeds");
     for (index, measurement) in measurements.iter().enumerate() {
@@ -485,6 +628,16 @@ fn command_output(program: &str, arguments: &[&str]) -> String {
         .filter(|output| output.status.success())
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .map_or_else(|| "unknown".to_owned(), |output| output.trim().to_owned())
+}
+
+#[cfg(target_os = "macos")]
+fn system_linker() -> String {
+    command_output("cc", &["--version"])
+}
+
+#[cfg(not(target_os = "macos"))]
+fn system_linker() -> String {
+    "not measured by this harness on this platform".to_owned()
 }
 
 #[cfg(target_os = "macos")]

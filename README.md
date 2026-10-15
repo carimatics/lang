@@ -75,7 +75,7 @@ cargo run --release --bin prototype-bench -- \
   --runtime-iterations 100000
 ```
 
-The harness emits JSON containing the commit and dirty state, toolchain and host metadata, generated JIT code sizes, and distribution statistics for bytecode lowering, JIT compilation, direct calls, VM calls, and host callbacks. These measurements are prototype evidence rather than accepted performance guarantees. Record results only from a quiet machine and retain the exact command and raw JSON.
+The harness emits JSON containing the commit and dirty state, toolchain, host, and system-linker metadata, generated JIT code and AOT object sizes, and distribution statistics for bytecode lowering, JIT and AOT compilation, direct calls, VM calls, host callbacks, and macOS system linking. The link series precompiles its C harness and measures the `cc` driver plus system-linker invocation. These measurements are prototype evidence rather than accepted performance guarantees. Record results only from a quiet machine and retain the exact command and raw JSON.
 
 Common checks:
 
