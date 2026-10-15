@@ -40,7 +40,7 @@ Cranelift's compiled code buffer contained 8 bytes for the add function and 40 b
 - The JIT compile result has 19.754% RSD and the VM add result has 14.605% RSD. Their medians are useful for an initial baseline, but the variation is too high for a stable performance budget.
 - This one-instruction microbenchmark supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, repeat the same schema on Windows x86-64, add representative control-flow and allocation workloads, inspect generated code, and measure AOT object emission, system-linker time, startup, memory, and debug quality. AOT and link measurements cannot be produced by the current JIT-only prototype.
+Before selecting the initial native backend, repeat the same schema on Windows x86-64, add representative control-flow and allocation workloads, inspect generated code, and measure AOT object emission, system-linker time, startup, memory, and debug quality. The backend can emit a host-native object artifact, but the current harness does not yet measure object emission or link it into an executable.
 
 ## Sources
 

@@ -19,6 +19,8 @@ cranelift-codegen = "0.136.0"
 cranelift-frontend = "0.136.0"
 cranelift-jit = "0.136.0"
 cranelift-module = "0.136.0"
+cranelift-native = "0.136.0"
+cranelift-object = "0.136.0"
 lang-bytecode = { path = "crates/bytecode" }
 lang-codegen-clif = { path = "crates/codegen-clif" }
 lang-mir = { path = "crates/mir" }

@@ -222,6 +222,8 @@ Future frontends should lower first to their own HIR, then to the shared typed M
 - Add an LLVM backend if Cranelift cannot meet release performance, optimization, or debug requirements.
 - Use system linkers initially; evaluate bundled LLD only when reproducibility and installation data justify it.
 
+The current prototype emits either in-process JIT code or a host-native object artifact from the same validated MIR lowering. The object artifact exposes bytes, the exported function symbol, and generated function-code size without exposing Cranelift or object-library types to callers. It is not yet a complete AOT path: system linking, startup code, stable ABI adapters, debug metadata, and cross-target configuration remain separate work.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.
