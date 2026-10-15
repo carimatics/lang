@@ -63,21 +63,37 @@ impl Display for LinkCommand {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LinkerFlavor {
+    Cc,
+    MsvcLink,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SystemLinker {
     program: OsString,
     arguments: Vec<OsString>,
+    flavor: LinkerFlavor,
 }
 
 impl SystemLinker {
     pub fn host() -> Self {
-        Self::new("cc")
+        if cfg!(target_env = "msvc") {
+            Self::new_with_flavor("link.exe", LinkerFlavor::MsvcLink)
+        } else {
+            Self::new("cc")
+        }
     }
 
     pub fn new(program: impl Into<OsString>) -> Self {
+        Self::new_with_flavor(program, LinkerFlavor::Cc)
+    }
+
+    pub fn new_with_flavor(program: impl Into<OsString>, flavor: LinkerFlavor) -> Self {
         Self {
             program: program.into(),
             arguments: Vec::new(),
+            flavor,
         }
     }
 
@@ -98,6 +114,10 @@ impl SystemLinker {
         &self.arguments
     }
 
+    pub const fn flavor(&self) -> LinkerFlavor {
+        self.flavor
+    }
+
     pub fn command(&self, request: &LinkRequest) -> Result<LinkCommand, LinkError> {
         if self.program.is_empty() {
             return Err(LinkError::EmptyProgram);
@@ -116,8 +136,17 @@ impl SystemLinker {
                 .iter()
                 .map(|object| object.as_os_str().to_os_string()),
         );
-        arguments.push(OsString::from("-o"));
-        arguments.push(request.output.as_os_str().to_os_string());
+        match self.flavor {
+            LinkerFlavor::Cc => {
+                arguments.push(OsString::from("-o"));
+                arguments.push(request.output.as_os_str().to_os_string());
+            }
+            LinkerFlavor::MsvcLink => {
+                let mut output_argument = OsString::from("/OUT:");
+                output_argument.push(request.output.as_os_str());
+                arguments.push(output_argument);
+            }
+        }
 
         Ok(LinkCommand {
             program: self.program.clone(),
@@ -225,7 +254,7 @@ mod tests {
     use std::ffi::{OsStr, OsString};
     use std::path::{Path, PathBuf};
 
-    use super::{LinkError, LinkRequest, SystemLinker};
+    use super::{LinkError, LinkRequest, LinkerFlavor, SystemLinker};
 
     const MISSING_LINKER: &str = "lang-linker-test-command-that-does-not-exist";
 
@@ -281,6 +310,46 @@ mod tests {
                 OsString::from("build/program"),
             ]
         );
+    }
+
+    #[test]
+    fn msvc_command_uses_link_output_syntax() {
+        let linker = SystemLinker::new_with_flavor("link.exe", LinkerFlavor::MsvcLink)
+            .with_argument("/NOLOGO");
+        let request = LinkRequest::new("build/program.exe")
+            .with_object("build/start.obj")
+            .with_object("build/main.obj");
+
+        let command = linker.command(&request).unwrap();
+
+        assert_eq!(linker.flavor(), LinkerFlavor::MsvcLink);
+        assert_eq!(command.program(), OsStr::new("link.exe"));
+        assert_eq!(
+            command.arguments(),
+            [
+                OsString::from("/NOLOGO"),
+                OsString::from("build/start.obj"),
+                OsString::from("build/main.obj"),
+                OsString::from("/OUT:build/program.exe"),
+            ]
+        );
+    }
+
+    #[test]
+    fn host_linker_matches_the_toolchain_environment() {
+        let linker = SystemLinker::host();
+
+        #[cfg(target_env = "msvc")]
+        {
+            assert_eq!(linker.program(), OsStr::new("link.exe"));
+            assert_eq!(linker.flavor(), LinkerFlavor::MsvcLink);
+        }
+
+        #[cfg(not(target_env = "msvc"))]
+        {
+            assert_eq!(linker.program(), OsStr::new("cc"));
+            assert_eq!(linker.flavor(), LinkerFlavor::Cc);
+        }
     }
 
     #[test]
