@@ -38,8 +38,35 @@ impl LinkRequest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LinkCommand {
+    program: OsString,
+    arguments: Vec<OsString>,
+}
+
+impl LinkCommand {
+    pub fn program(&self) -> &OsStr {
+        &self.program
+    }
+
+    pub fn arguments(&self) -> &[OsString] {
+        &self.arguments
+    }
+}
+
+impl Display for LinkCommand {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{:?}", self.program)?;
+        for argument in &self.arguments {
+            write!(formatter, " {argument:?}")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SystemLinker {
     program: OsString,
+    arguments: Vec<OsString>,
 }
 
 impl SystemLinker {
@@ -50,14 +77,31 @@ impl SystemLinker {
     pub fn new(program: impl Into<OsString>) -> Self {
         Self {
             program: program.into(),
+            arguments: Vec::new(),
         }
+    }
+
+    pub fn with_argument(mut self, argument: impl Into<OsString>) -> Self {
+        self.push_argument(argument);
+        self
+    }
+
+    pub fn push_argument(&mut self, argument: impl Into<OsString>) {
+        self.arguments.push(argument.into());
     }
 
     pub fn program(&self) -> &OsStr {
         &self.program
     }
 
-    pub fn link(&self, request: &LinkRequest) -> Result<(), LinkError> {
+    pub fn arguments(&self) -> &[OsString] {
+        &self.arguments
+    }
+
+    pub fn command(&self, request: &LinkRequest) -> Result<LinkCommand, LinkError> {
+        if self.program.is_empty() {
+            return Err(LinkError::EmptyProgram);
+        }
         if request.output.as_os_str().is_empty() {
             return Err(LinkError::EmptyOutput);
         }
@@ -65,26 +109,45 @@ impl SystemLinker {
             return Err(LinkError::NoObjects);
         }
 
-        let output = Command::new(&self.program)
-            .args(&request.objects)
-            .arg("-o")
-            .arg(&request.output)
+        let mut arguments = self.arguments.clone();
+        arguments.extend(
+            request
+                .objects
+                .iter()
+                .map(|object| object.as_os_str().to_os_string()),
+        );
+        arguments.push(OsString::from("-o"));
+        arguments.push(request.output.as_os_str().to_os_string());
+
+        Ok(LinkCommand {
+            program: self.program.clone(),
+            arguments,
+        })
+    }
+
+    pub fn link(&self, request: &LinkRequest) -> Result<(), LinkError> {
+        let command = self.command(request)?;
+        let output = Command::new(command.program())
+            .args(command.arguments())
             .output()
             .map_err(|source| LinkError::Spawn {
-                program: self.program.clone(),
+                command: command.clone(),
                 source,
             })?;
 
         if !output.status.success() {
             return Err(LinkError::Failed {
-                program: self.program.clone(),
+                command,
                 status: output.status,
                 stdout: output.stdout,
                 stderr: output.stderr,
             });
         }
         if !request.output.is_file() {
-            return Err(LinkError::MissingOutput(request.output.clone()));
+            return Err(LinkError::MissingOutput {
+                command,
+                path: request.output.clone(),
+            });
         }
 
         Ok(())
@@ -93,48 +156,51 @@ impl SystemLinker {
 
 #[derive(Debug)]
 pub enum LinkError {
+    EmptyProgram,
     EmptyOutput,
     NoObjects,
     Spawn {
-        program: OsString,
+        command: LinkCommand,
         source: io::Error,
     },
     Failed {
-        program: OsString,
+        command: LinkCommand,
         status: ExitStatus,
         stdout: Vec<u8>,
         stderr: Vec<u8>,
     },
-    MissingOutput(PathBuf),
+    MissingOutput {
+        command: LinkCommand,
+        path: PathBuf,
+    },
 }
 
 impl Display for LinkError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::EmptyProgram => formatter.write_str("system linker program must not be empty"),
             Self::EmptyOutput => formatter.write_str("link output path must not be empty"),
             Self::NoObjects => formatter.write_str("link request must contain at least one object"),
-            Self::Spawn { program, source } => {
+            Self::Spawn { command, source } => {
                 write!(
                     formatter,
-                    "failed to start system linker `{}`: {source}",
-                    program.to_string_lossy()
+                    "failed to start system linker command {command}: {source}"
                 )
             }
             Self::Failed {
-                program,
+                command,
                 status,
                 stdout,
                 stderr,
             } => write!(
                 formatter,
-                "system linker `{}` failed with {status}:\nstdout:\n{}\nstderr:\n{}",
-                program.to_string_lossy(),
+                "system linker command {command} failed with {status}:\nstdout:\n{}\nstderr:\n{}",
                 String::from_utf8_lossy(stdout),
                 String::from_utf8_lossy(stderr)
             ),
-            Self::MissingOutput(path) => write!(
+            Self::MissingOutput { command, path } => write!(
                 formatter,
-                "system linker reported success without creating `{}`",
+                "system linker command {command} reported success without creating `{}`",
                 path.display()
             ),
         }
@@ -145,15 +211,18 @@ impl Error for LinkError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Spawn { source, .. } => Some(source),
-            Self::EmptyOutput | Self::NoObjects | Self::Failed { .. } | Self::MissingOutput(_) => {
-                None
-            }
+            Self::EmptyProgram
+            | Self::EmptyOutput
+            | Self::NoObjects
+            | Self::Failed { .. }
+            | Self::MissingOutput { .. } => None,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::{OsStr, OsString};
     use std::path::{Path, PathBuf};
 
     use super::{LinkError, LinkRequest, SystemLinker};
@@ -176,6 +245,52 @@ mod tests {
                 PathBuf::from("build/runtime.o"),
             ]
         );
+    }
+
+    #[test]
+    fn command_preserves_driver_and_argument_order() {
+        let linker = SystemLinker::new("xcrun")
+            .with_argument("--sdk")
+            .with_argument("macosx")
+            .with_argument("clang");
+        let request = LinkRequest::new("build/program")
+            .with_object("build/start.o")
+            .with_object("build/main.o");
+
+        let command = linker.command(&request).unwrap();
+
+        assert_eq!(linker.program(), OsStr::new("xcrun"));
+        assert_eq!(
+            linker.arguments(),
+            [
+                OsString::from("--sdk"),
+                OsString::from("macosx"),
+                OsString::from("clang"),
+            ]
+        );
+        assert_eq!(command.program(), OsStr::new("xcrun"));
+        assert_eq!(
+            command.arguments(),
+            [
+                OsString::from("--sdk"),
+                OsString::from("macosx"),
+                OsString::from("clang"),
+                OsString::from("build/start.o"),
+                OsString::from("build/main.o"),
+                OsString::from("-o"),
+                OsString::from("build/program"),
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_an_empty_linker_program_before_spawning() {
+        let request = LinkRequest::new("program").with_object("main.o");
+        let error = SystemLinker::new("")
+            .link(&request)
+            .expect_err("rejects an empty linker program");
+
+        assert!(matches!(error, LinkError::EmptyProgram));
     }
 
     #[test]
@@ -205,6 +320,17 @@ mod tests {
             .link(&request)
             .expect_err("reports an unavailable linker");
 
-        assert!(matches!(error, LinkError::Spawn { .. }));
+        let LinkError::Spawn { command, .. } = error else {
+            panic!("expected a spawn failure");
+        };
+        assert_eq!(command.program(), OsStr::new(MISSING_LINKER));
+        assert_eq!(
+            command.arguments(),
+            [
+                OsString::from("main.o"),
+                OsString::from("-o"),
+                OsString::from("program"),
+            ]
+        );
     }
 }
