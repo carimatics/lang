@@ -190,6 +190,8 @@ Schema 3 benchmarkは、型付きcountdown back-edgeをlowering、JIT／AOT comp
 
 Schema 4は、両tier-1 evidence pathへlink済みAOT executable sizeと反復warm-cache process-startup measurementを追加します。Process startupはsystem-link timeと分離したままで、process creation、loader処理、小さなharness、output collection、terminationを含みます。Operating-system cacheをflushせず、完全なruntime distributionを表すものでもありません。CleanなmacOS AArch64 resultは16,992-byte executableと1.511 ms median startupを記録しましたが、49.824 msの外れ値によりstartup RSDが276.388%になったため、budget設定前にmethodologyを改善する必要があります。Windows CIは新しいrowとsize fieldを検証しますが、remote Windows evidenceは未完了です。
 
+Schema 5はsingle-launch startup rowを維持し、sampleが連続launch当たりの経過時間を報告する設定可能なbatched rowを追加します。両rowを維持することで、tail-sensitiveなindividual latencyとnoiseの影響を受けにくいamortized estimateを分離します。Batch sizeはmachine-readable envelopeの一部で、Windows CIは両rowを検証しますが、cleanなschema 5 resultはまだ記録していません。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。

@@ -190,6 +190,8 @@ The schema 3 benchmark adds the typed countdown back-edge to lowering, JIT/AOT c
 
 Schema 4 adds linked AOT executable size and repeated warm-cache process-startup measurements to both tier-1 evidence paths. Process startup remains distinct from system-link time and includes process creation, loader work, the tiny harness, output collection, and termination; it neither flushes operating-system caches nor represents a complete runtime distribution. A clean macOS AArch64 result records a 16,992-byte executable and 1.511 ms median startup, but a 49.824 ms outlier raises startup RSD to 276.388%, so methodology refinement is required before setting a budget. Windows CI validates the new row and size field, but remote Windows evidence remains open.
 
+Schema 5 retains the single-launch startup row and adds a configurable batched row whose samples report elapsed time per sequential launch. Keeping both rows separates tail-sensitive individual latency from a less noise-sensitive amortized estimate. The batch size is part of the machine-readable envelope and Windows CI validates both rows, but no clean schema 5 result has been recorded.
+
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
 3. Add typed host-function registration and a script-to-host callback; then call a compiled function from the embedded runtime.

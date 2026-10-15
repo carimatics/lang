@@ -234,6 +234,8 @@ The schema 3 benchmark uses that policy for system-link measurements on both ini
 
 Schema 4 keeps the same backend-neutral link path and adds the linked executable's byte size plus a repeated process-startup row. The startup measurement includes process creation, platform loader work, the tiny AOT harness, output collection, and termination, after one validation run and without flushing operating-system caches. This distinguishes the measured warm-cache process cost from cold boot, loader-only cost, or a complete runtime distribution size. A clean macOS AArch64 result is recorded; its 49.824 ms outlier and 276.388% startup RSD require methodology refinement before setting a budget, and Windows evidence remains open.
 
+Schema 5 retains that single-launch row and adds a configurable batched startup row. Each sample runs the requested number of sequential launches and reports elapsed time per launch, reducing the leverage of one delayed launch on the sample while preserving the single-launch row for tail-sensitive evidence. The two rows remain semantically distinct: batching estimates amortized process-launch cost and does not replace individual startup latency.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.

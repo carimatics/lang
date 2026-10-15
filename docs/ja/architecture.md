@@ -234,6 +234,8 @@ Schema 3 benchmarkは、両方の初期tier-1 hostでsystem-link measurementに�
 
 Schema 4は同じbackend-neutral link pathを維持し、link済みexecutableのbyte sizeと反復process-startup rowを追加します。Startup measurementは、1回のvalidation run後にoperating-system cacheをflushせず、process creation、platform loader処理、小さなAOT harness、output collection、terminationを含めます。これにより、測定したwarm-cache process costをcold boot、loader-only cost、完全なruntime distribution sizeから区別します。CleanなmacOS AArch64 resultを記録しましたが、49.824 msの外れ値と276.388%のstartup RSDがあるため、budget設定前にmethodologyを改善する必要があり、Windows evidenceも未完了です。
 
+Schema 5はそのsingle-launch rowを維持し、設定可能なbatched startup rowを追加します。各sampleは要求数のlaunchを順番に実行してlaunch当たりの経過時間を報告し、single-launch rowをtail-sensitiveなevidenceとして維持しながら、1回の遅延したlaunchがsampleへ与える影響を小さくします。2つのrowは意味的に別であり、batchingはamortized process-launch costを推定しますが、individual startup latencyを置き換えません。
+
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。

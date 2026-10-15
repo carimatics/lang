@@ -47,6 +47,14 @@ target/release/prototype-bench \
 
 Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、countdownが20 byte、host callbackが40 byte含まれました。生成されたadd、minimum、countdown objectは352、368、376 byteでした。Link済みAOT harnessは16,992 byteでした。JIT code sizeにはobject-file structure、relocation data、unwind/debug information、runtime support、linker outputは含まれません。Object sizeにはMach-O structureが含まれますが、C harnessと最終executableは含まれません。Executable sizeにはその両方とplatform linkerのdefaultが含まれますが、完全なruntime distributionは含まれません。
 
+## Schema 5 formatとmigration
+
+Schema 5はtop-levelの `startup_iterations` fieldと `aot_process_startup_batch_add_min_countdown` measurementを追加します。既存のsingle-launch rowはsample当たり1 operationのままです。Batched rowは各sample内で設定数のprocess launchを順番に実行し、経過時間をその回数で割ります。Defaultは10です。これは1回のscheduling delayの影響を受けにくいamortized launch-cost estimateを提供し、single-launch rowはtail-sensitiveなlatency observationとして残します。
+
+2つのrowは異なる問いに答えるため、mergeしてはいけません。Batchingはloader timeを分離せず、host noiseを除去せず、individual-latency percentileを置き換えません。Consumerは `schema_version` で分岐する必要があり、既存のschema 1〜4 JSON fileはimmutableなevidenceとして残します。
+
+Schema 5の実装とWindows evidence pathは存在しますが、cleanなschema 5 resultはまだ記録していません。上のschema 4 tableが現在の測定済みbaselineです。
+
 ## Schema 4 formatとmigration
 
 Schema 4は `executable_file_bytes.aot_add_min_countdown` と `aot_process_startup_add_min_countdown` measurementを追加します。Executable-size fieldは初期tier-1 hostでは正のbyte count、それ以外では `null` です。Consumerは `schema_version` で分岐する必要があり、既存のschema 1〜3 JSON fileはimmutableなevidenceとして残します。
@@ -63,7 +71,7 @@ Schema 3は `jit_countdown` と `aot_countdown` size field、6つのcountdown me
 
 ## Windows x86-64 evidence path
 
-Schema 4 harnessは、Windows x86-64 MSVCで `system_link_add_min_countdown`、`aot_process_startup_add_min_countdown`、`executable_file_bytes.aot_add_min_countdown` を記録します。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証します。Windows Server 2025 workflowは同じ31／1,000／100,000 parameterで実行し、schema 4、clean-checkout metadata、`windows`／`x86_64` identity、両platform measurement、正のexecutable sizeを検証し、そのJSONを30日間uploadします。
+Schema 5 harnessは、Windows x86-64 MSVCで `system_link_add_min_countdown`、両process-startup row、`executable_file_bytes.aot_add_min_countdown` を記録します。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証します。Windows Server 2025 workflowは31／1,000／100,000／10 parameterで実行し、schema 5、clean-checkout metadata、`windows`／`x86_64` identity、すべてのplatform measurement、startup batch size、正のexecutable sizeを検証し、そのJSONを30日間uploadします。
 
 これはevidenceを生成するpathであり、記録済みWindows evidenceではありません。この変更によるremote runner結果はまだ検査もcommitもされていません。したがって、上のmacOS tableが現在唯一の測定済みbaselineです。
 
@@ -88,12 +96,13 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
 - Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdownを追加します。どちらもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
 - Schema 4のprocess-startup rowには、process creation、loader処理、小さなharness workload、output collection、終了待ちが含まれます。Operating-system cacheをflushせず、loader timeも分離しません。Executable-size fieldにはplatform C harnessとdefault linker outputが含まれます。
+- Schema 5はsingle-launch rowを維持し、設定可能なbatched rowを追加します。Batched per-operation valueは、1回の遅延したlaunchがsampleへ与える影響を小さくしますが、individual startup latencyの代わりではなくamortized throughput estimateです。
 - JIT add compilationのRSDは67.711%で、medianは20.916 usです。Countdown JIT／AOT medianは27.166 us／21.459 usで、RSDは13.675%／3.617%です。これらのmedianは方向性の証拠として有用ですが、add compile-time variationが大きすぎるためstable performance budgetには使用できません。
 - AOT process-startup medianは1.511 ms、p95は1.906 msですが、49.824 msの1 sampleによりRSDが276.388%まで上がりました。これは現在の31-sample startup methodが、stable budgetにはschedulingまたはhost noiseの影響を受けすぎる証拠です。Methodを改善するときはmedianだけでなくraw distributionを使用します。
 - VM／JIT runtime medianはschema 3と方向的に一貫していますが、複数のRSDが1.5%を超えました。64-iteration back-edgeとimmediate returnを交互に実行すると、JIT medianは12.735 ns、VM medianは1,590.605 nsになります。このbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。Sub-nanosecond direct-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、Windows x86-64でschema 4を記録し、noiseの大きいstartup methodを改善し、allocationとより広いCFG workloadを追加し、memoryとdebug qualityを計測します。macOS executable-size resultはharness artifactであり、release packaging budgetではありません。
+初期native backendを選定する前に、両tier-1 hostでschema 5を記録し、singleとbatched startup distributionを比較し、allocationとより広いCFG workloadを追加し、memoryとdebug qualityを計測します。macOS schema 4 executable-size resultはharness artifactであり、release packaging budgetではありません。
 
 ## 以前のbaseline
 

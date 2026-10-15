@@ -47,6 +47,14 @@ Each row reports nanoseconds per operation. RSD is the relative population stand
 
 Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, 20 bytes for countdown, and 40 bytes for the host callback. The emitted add, minimum, and countdown objects were 352, 368, and 376 bytes. The linked AOT harness was 16,992 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable; the executable size includes both plus the platform linker's defaults, but not a complete runtime distribution.
 
+## Schema 5 format and migration
+
+Schema 5 adds the top-level `startup_iterations` field and the `aot_process_startup_batch_add_min_countdown` measurement. The existing single-launch row remains at one operation per sample. The batched row runs the configured number of sequential process launches inside each sample and divides the elapsed time by that count; the default is 10. This provides an amortized launch-cost estimate that is less sensitive to one scheduling delay, while the single-launch row remains the tail-sensitive latency observation.
+
+The two rows answer different questions and must not be merged. Batching does not isolate loader time, remove host noise, or replace individual-latency percentiles. Consumers must branch on `schema_version`; existing schema 1–4 JSON files remain immutable evidence.
+
+The schema 5 implementation and Windows evidence path are present, but no clean schema 5 result is recorded yet. The schema 4 table above remains the current measured baseline.
+
 ## Schema 4 format and migration
 
 Schema 4 adds `executable_file_bytes.aot_add_min_countdown` and the `aot_process_startup_add_min_countdown` measurement. The executable-size field is a positive byte count on the initial tier-1 hosts and `null` elsewhere. Consumers must branch on `schema_version`; existing schema 1–3 JSON files remain immutable evidence.
@@ -63,7 +71,7 @@ Schema 3 adds `jit_countdown` and `aot_countdown` size fields plus six countdown
 
 ## Windows x86-64 evidence path
 
-The schema 4 harness records `system_link_add_min_countdown`, `aot_process_startup_add_min_countdown`, and `executable_file_bytes.aot_add_min_countdown` on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, and validates one link and execution before timing. The Windows Server 2025 workflow runs the same 31/1,000/100,000 parameters, validates schema 4, clean-checkout metadata, the `windows`/`x86_64` identity, both platform measurements, and a positive executable size, then uploads the JSON for 30 days.
+The schema 5 harness records `system_link_add_min_countdown`, both process-startup rows, and `executable_file_bytes.aot_add_min_countdown` on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, and validates one link and execution before timing. The Windows Server 2025 workflow runs the 31/1,000/100,000/10 parameters, validates schema 5, clean-checkout metadata, the `windows`/`x86_64` identity, all platform measurements, the startup batch size, and a positive executable size, then uploads the JSON for 30 days.
 
 This is an evidence-producing path, not recorded Windows evidence: no remote runner result from this change has been inspected or committed. The macOS table above therefore remains the only current measured baseline.
 
@@ -88,12 +96,13 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
 - The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown. Both precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).
 - Schema 4's process-startup row includes process creation, loader work, the tiny harness workload, output collection, and waiting for termination. It neither flushes operating-system caches nor isolates loader time, and the executable-size field includes the platform C harness and default linker output.
+- Schema 5 retains the single-launch row and adds a configurable batched row. The batched per-operation value reduces the leverage of one delayed launch on a sample, but it is an amortized throughput estimate rather than a replacement for individual startup latency.
 - JIT add compilation has 67.711% RSD, while its median was 20.916 us. The countdown JIT and AOT medians are 27.166 us and 21.459 us with 13.675% and 3.617% RSD. These medians are useful as directional evidence, but the add compile-time variation is too high for a stable performance budget.
 - The AOT process-startup median is 1.511 ms and p95 is 1.906 ms, but one 49.824 ms sample raises RSD to 276.388%. This is evidence that the current 31-sample startup method is too sensitive to scheduling or host noise for a stable budget; use the raw distribution, not the median alone, when refining the method.
 - VM/JIT runtime medians remain directionally consistent with schema 3, but several RSD values now exceed 1.5%. Alternating between a 64-iteration back-edge and immediate return gives a JIT median of 12.735 ns and a VM median of 1,590.605 ns; this bounded microbenchmark does not predict representative control-flow performance. Sub-nanosecond direct-call rows are timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record schema 4 on Windows x86-64, refine the noisy startup method, add allocation and broader CFG workloads, and measure memory and debug quality. The macOS executable-size result is a harness artifact, not a release packaging budget.
+Before selecting the initial native backend, record schema 5 on both tier-1 hosts, compare the single and batched startup distributions, add allocation and broader CFG workloads, and measure memory and debug quality. The macOS schema 4 executable-size result is a harness artifact, not a release packaging budget.
 
 ## Earlier baseline
 

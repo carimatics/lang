@@ -20,6 +20,8 @@ Schema 3 harnessは、addとminimumに加えてbounded countdown back-edgeのlow
 
 Schema 4 harnessは、両tier-1 evidence pathでlink済みAOT executable sizeと反復warm-cache process startupを記録します。このrowをsystem-link timeから分離し、process creation、loader処理、小さなharness、output collection、terminationを含むことを文書化します。CleanなmacOS AArch64 resultは16,992-byte executableと1.511 ms median startupを記録しましたが、49.824 msの外れ値によりstartup RSDが276.388%になったため、budget設定前にmethodを改善する必要があります。Windows CIは両rowと正のexecutable sizeを検証します。Memory、debug quality、allocation、より広いCFG coverage、remote Windows evidence、cross-platform interpretationは未完了です。
 
+Schema 5 harnessはsingle-launch startup rowを維持し、連続launch全体のlaunch当たり経過時間を報告する設定可能なbatched rowを追加します。これにより、tail-sensitiveなlatency evidenceとnoiseの影響を受けにくいamortized estimateを分離します。Windows CIは設定済みbatch sizeと両rowを検証します。Cleanなschema 5 resultはまだ記録しておらず、cross-platform comparisonと残りのevidence gapは未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

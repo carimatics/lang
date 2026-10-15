@@ -25,12 +25,14 @@ use lang_vm::{execute, execute_with_hosts};
 const DEFAULT_SAMPLES: usize = 31;
 const DEFAULT_LOWERING_ITERATIONS: u64 = 1_000;
 const DEFAULT_RUNTIME_ITERATIONS: u64 = 100_000;
+const DEFAULT_STARTUP_ITERATIONS: u64 = 10;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Config {
     samples: usize,
     lowering_iterations: u64,
     runtime_iterations: u64,
+    startup_iterations: u64,
 }
 
 impl Default for Config {
@@ -39,6 +41,7 @@ impl Default for Config {
             samples: DEFAULT_SAMPLES,
             lowering_iterations: DEFAULT_LOWERING_ITERATIONS,
             runtime_iterations: DEFAULT_RUNTIME_ITERATIONS,
+            startup_iterations: DEFAULT_STARTUP_ITERATIONS,
         }
     }
 }
@@ -59,6 +62,9 @@ impl Config {
                 }
                 "--runtime-iterations" => {
                     config.runtime_iterations = parse_positive(&value, &flag)?;
+                }
+                "--startup-iterations" => {
+                    config.startup_iterations = parse_positive(&value, &flag)?;
                 }
                 _ => return Err(format!("unknown option {flag}")),
             }
@@ -301,7 +307,16 @@ fn run() -> Result<(), String> {
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     {
         measurements.push(link_benchmark.measure_link(config.samples)?);
-        measurements.push(link_benchmark.measure_startup(config.samples)?);
+        measurements.push(link_benchmark.measure_startup(
+            "aot_process_startup_add_min_countdown",
+            config.samples,
+            1,
+        )?);
+        measurements.push(link_benchmark.measure_startup(
+            "aot_process_startup_batch_add_min_countdown",
+            config.samples,
+            config.startup_iterations,
+        )?);
     }
     measurements.push(measure_calls(
         "rust_add_call",
@@ -705,19 +720,28 @@ impl LinkBenchmark {
         ))
     }
 
-    fn measure_startup(&self, sample_count: usize) -> Result<Measurement, String> {
+    fn measure_startup(
+        &self,
+        name: &'static str,
+        sample_count: usize,
+        operations_per_sample: u64,
+    ) -> Result<Measurement, String> {
         let mut samples = Vec::with_capacity(sample_count);
         for _ in 0..sample_count {
             let started = Instant::now();
-            let execution = Command::new(&self.executable)
-                .output()
-                .map_err(|error| format!("failed to run the linked executable: {error}"))?;
-            samples.push(started.elapsed().as_secs_f64() * 1_000_000_000.0);
-            ensure_command_succeeded("linked executable", &execution)?;
+            for _ in 0..operations_per_sample {
+                let execution = Command::new(&self.executable)
+                    .output()
+                    .map_err(|error| format!("failed to run the linked executable: {error}"))?;
+                ensure_command_succeeded("linked executable", &execution)?;
+            }
+            samples.push(
+                started.elapsed().as_secs_f64() * 1_000_000_000.0 / operations_per_sample as f64,
+            );
         }
         Ok(Measurement::from_samples(
-            "aot_process_startup_add_min_countdown",
-            1,
+            name,
+            operations_per_sample,
             samples,
         ))
     }
@@ -833,7 +857,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 4,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 5,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -851,6 +875,12 @@ fn render_json(
     write_json_string(&mut output, "cpu", &cpu_model(), true);
     write_json_string(&mut output, "system_linker", &system_linker(), true);
     writeln!(output, "  \"samples\": {},", config.samples).expect("writing to String succeeds");
+    writeln!(
+        output,
+        "  \"startup_iterations\": {},",
+        config.startup_iterations
+    )
+    .expect("writing to String succeeds");
     writeln!(output, "  \"generated_code_bytes\": {{").expect("writing to String succeeds");
     writeln!(output, "    \"jit_add\": {},", sizes.add_code).expect("writing to String succeeds");
     writeln!(output, "    \"jit_min\": {},", sizes.min_code).expect("writing to String succeeds");
@@ -1012,6 +1042,8 @@ mod tests {
             "7".to_owned(),
             "--runtime-iterations".to_owned(),
             "11".to_owned(),
+            "--startup-iterations".to_owned(),
+            "13".to_owned(),
         ]);
 
         assert_eq!(
@@ -1020,6 +1052,7 @@ mod tests {
                 samples: 5,
                 lowering_iterations: 7,
                 runtime_iterations: 11,
+                startup_iterations: 13,
             })
         );
     }
@@ -1033,6 +1066,10 @@ mod tests {
         assert_eq!(
             Config::parse(["--runtime-iterations".to_owned(), "0".to_owned()]),
             Err("--runtime-iterations must be greater than zero".to_owned())
+        );
+        assert_eq!(
+            Config::parse(["--startup-iterations".to_owned(), "0".to_owned()]),
+            Err("--startup-iterations must be greater than zero".to_owned())
         );
     }
 
@@ -1061,13 +1098,14 @@ mod tests {
     }
 
     #[test]
-    fn schema_four_includes_countdown_and_executable_artifact_sizes() {
+    fn schema_five_includes_startup_configuration_and_artifact_sizes() {
         let output = render_json(
             "prototype-bench",
             Config {
                 samples: 3,
                 lowering_iterations: 1,
                 runtime_iterations: 1,
+                startup_iterations: 2,
             },
             ArtifactSizes {
                 add_code: 1,
@@ -1082,20 +1120,22 @@ mod tests {
             &[],
         );
 
-        assert!(output.contains("\"schema_version\": 4"));
+        assert!(output.contains("\"schema_version\": 5"));
+        assert!(output.contains("\"startup_iterations\": 2"));
         assert!(output.contains("\"jit_countdown\": 3"));
         assert!(output.contains("\"aot_countdown\": 7"));
         assert!(output.contains("\"aot_add_min_countdown\": 8"));
     }
 
     #[test]
-    fn schema_four_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_five_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
                 samples: 3,
                 lowering_iterations: 1,
                 runtime_iterations: 1,
+                startup_iterations: 2,
             },
             ArtifactSizes {
                 add_code: 1,

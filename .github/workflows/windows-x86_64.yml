@@ -46,18 +46,18 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 4 prototype benchmark
+      - name: Record the schema 5 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
-          cargo run --locked --release --bin prototype-bench -- --samples 31 --lowering-iterations 1000 --runtime-iterations 100000 | Tee-Object -FilePath $benchmark
+          cargo run --locked --release --bin prototype-bench -- --samples 31 --lowering-iterations 1000 --runtime-iterations 100000 --startup-iterations 10 | Tee-Object -FilePath $benchmark
           if ($LASTEXITCODE -ne 0) {
             throw "prototype-bench failed with exit code $LASTEXITCODE"
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 4) {
-            throw "expected benchmark schema 4, got $($result.schema_version)"
+          if ($result.schema_version -ne 5) {
+            throw "expected benchmark schema 5, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -70,6 +70,12 @@ jobs:
           }
           if ($result.measurements.name -notcontains "aot_process_startup_add_min_countdown") {
             throw "benchmark did not record the Windows process-startup measurement"
+          }
+          if ($result.measurements.name -notcontains "aot_process_startup_batch_add_min_countdown") {
+            throw "benchmark did not record the Windows batched process-startup measurement"
+          }
+          if ($result.startup_iterations -ne 10) {
+            throw "benchmark recorded unexpected startup iterations $($result.startup_iterations)"
           }
           if ($result.executable_file_bytes.aot_add_min_countdown -le 0) {
             throw "benchmark did not record the Windows executable size"
