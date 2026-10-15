@@ -15,7 +15,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
     PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_countdown_function,
-    prototype_host_callback_function, prototype_min_function,
+    prototype_host_callback_function, prototype_min_function, prototype_sum_to_function,
 };
 use lang_bytecode::lower;
 use lang_codegen_clif::{CompiledFunction, emit_host_object};
@@ -107,11 +107,13 @@ struct PreparedWorkloads<'a> {
     add_program: &'a lang_bytecode::Program,
     min_program: &'a lang_bytecode::Program,
     countdown_program: &'a lang_bytecode::Program,
+    sum_to_program: &'a lang_bytecode::Program,
     host_program: &'a lang_bytecode::Program,
     host_functions: &'a HostFunctionRegistry,
     compiled_add: &'a CompiledFunction,
     compiled_min: &'a CompiledFunction,
     compiled_countdown: &'a CompiledFunction,
+    compiled_sum_to: &'a CompiledFunction,
     compiled_host: &'a CompiledFunction,
 }
 
@@ -120,10 +122,12 @@ struct ArtifactSizes {
     add_code: usize,
     min_code: usize,
     countdown_code: usize,
+    sum_to_code: usize,
     host_code: usize,
     add_object: usize,
     min_object: usize,
     countdown_object: usize,
+    sum_to_object: usize,
     aot_executable: Option<u64>,
 }
 
@@ -192,10 +196,12 @@ fn run() -> Result<(), String> {
     let add_function = prototype_add_function();
     let min_function = prototype_min_function();
     let countdown_function = prototype_countdown_function();
+    let sum_to_function = prototype_sum_to_function();
     let host_function = prototype_host_callback_function();
     let add_program = lower(&add_function).map_err(|error| error.to_string())?;
     let min_program = lower(&min_function).map_err(|error| error.to_string())?;
     let countdown_program = lower(&countdown_function).map_err(|error| error.to_string())?;
+    let sum_to_program = lower(&sum_to_function).map_err(|error| error.to_string())?;
     let host_program = lower(&host_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let compiled_add =
@@ -204,14 +210,21 @@ fn run() -> Result<(), String> {
         CompiledFunction::compile(&min_function).map_err(|error| error.to_string())?;
     let compiled_countdown =
         CompiledFunction::compile(&countdown_function).map_err(|error| error.to_string())?;
+    let compiled_sum_to =
+        CompiledFunction::compile(&sum_to_function).map_err(|error| error.to_string())?;
     let compiled_host = CompiledFunction::compile_with_hosts(&host_function, &host_functions)
         .map_err(|error| error.to_string())?;
     let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
     let aot_min = emit_host_object(&min_function).map_err(|error| error.to_string())?;
     let aot_countdown = emit_host_object(&countdown_function).map_err(|error| error.to_string())?;
+    let aot_sum_to = emit_host_object(&sum_to_function).map_err(|error| error.to_string())?;
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
-    let link_benchmark =
-        LinkBenchmark::prepare(aot_add.bytes(), aot_min.bytes(), aot_countdown.bytes())?;
+    let link_benchmark = LinkBenchmark::prepare(
+        aot_add.bytes(),
+        aot_min.bytes(),
+        aot_countdown.bytes(),
+        aot_sum_to.bytes(),
+    )?;
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     let aot_executable_size = Some(link_benchmark.executable_size()?);
     #[cfg(not(any(target_os = "macos", all(target_os = "windows", target_env = "msvc"))))]
@@ -221,11 +234,13 @@ fn run() -> Result<(), String> {
         add_program: &add_program,
         min_program: &min_program,
         countdown_program: &countdown_program,
+        sum_to_program: &sum_to_program,
         host_program: &host_program,
         host_functions: &host_functions,
         compiled_add: &compiled_add,
         compiled_min: &compiled_min,
         compiled_countdown: &compiled_countdown,
+        compiled_sum_to: &compiled_sum_to,
         compiled_host: &compiled_host,
     };
     check_results(&workloads)?;
@@ -249,6 +264,12 @@ fn run() -> Result<(), String> {
         config.samples,
         config.lowering_iterations,
         || lower(black_box(&countdown_function)).expect("validated countdown MIR lowers"),
+    ));
+    measurements.push(measure_construction(
+        "bytecode_lower_sum_to",
+        config.samples,
+        config.lowering_iterations,
+        || lower(black_box(&sum_to_function)).expect("validated accumulator MIR lowers"),
     ));
     measurements.push(measure_construction(
         "jit_compile_add",
@@ -278,6 +299,15 @@ fn run() -> Result<(), String> {
         },
     ));
     measurements.push(measure_construction(
+        "jit_compile_sum_to",
+        config.samples,
+        1,
+        || {
+            CompiledFunction::compile(black_box(&sum_to_function))
+                .expect("validated accumulator MIR compiles")
+        },
+    ));
+    measurements.push(measure_construction(
         "aot_object_emit_add",
         config.samples,
         1,
@@ -304,16 +334,25 @@ fn run() -> Result<(), String> {
                 .expect("validated countdown MIR emits an object")
         },
     ));
+    measurements.push(measure_construction(
+        "aot_object_emit_sum_to",
+        config.samples,
+        1,
+        || {
+            emit_host_object(black_box(&sum_to_function))
+                .expect("validated accumulator MIR emits an object")
+        },
+    ));
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     {
         measurements.push(link_benchmark.measure_link(config.samples)?);
         measurements.push(link_benchmark.measure_startup(
-            "aot_process_startup_add_min_countdown",
+            "aot_process_startup_add_min_countdown_sum_to",
             config.samples,
             1,
         )?);
         measurements.push(link_benchmark.measure_startup(
-            "aot_process_startup_batch_add_min_countdown",
+            "aot_process_startup_batch_add_min_countdown_sum_to",
             config.samples,
             config.startup_iterations,
         )?);
@@ -400,6 +439,31 @@ fn run() -> Result<(), String> {
         },
     ));
     measurements.push(measure_calls(
+        "rust_sum_to_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| rust_sum_to(alternating_countdown_input(iteration)),
+    ));
+    measurements.push(measure_calls(
+        "vm_sum_to_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            execute(&sum_to_program, &[alternating_countdown_input(iteration)])
+                .expect("verified accumulator bytecode executes")
+        },
+    ));
+    measurements.push(measure_calls(
+        "jit_sum_to_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            compiled_sum_to
+                .invoke_i64_1(alternating_countdown_input(iteration))
+                .expect("compiled accumulator prototype has the expected signature")
+        },
+    ));
+    measurements.push(measure_calls(
         "rust_host_call",
         config.samples,
         config.runtime_iterations,
@@ -434,10 +498,12 @@ fn run() -> Result<(), String> {
                 add_code: compiled_add.code_size(),
                 min_code: compiled_min.code_size(),
                 countdown_code: compiled_countdown.code_size(),
+                sum_to_code: compiled_sum_to.code_size(),
                 host_code: compiled_host.code_size(),
                 add_object: aot_add.bytes().len(),
                 min_object: aot_min.bytes().len(),
                 countdown_object: aot_countdown.bytes().len(),
+                sum_to_object: aot_sum_to.bytes().len(),
                 aot_executable: aot_executable_size,
             },
             &measurements,
@@ -482,6 +548,16 @@ extern "C" fn rust_countdown(mut value: i64) -> i64 {
 }
 
 #[inline(never)]
+extern "C" fn rust_sum_to(mut value: i64) -> i64 {
+    let mut sum = 0_i64;
+    while value >= 1 {
+        sum = sum.wrapping_add(value);
+        value = value.wrapping_sub(1);
+    }
+    sum
+}
+
+#[inline(never)]
 extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
     value.wrapping_mul(2)
 }
@@ -515,6 +591,16 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         if (vm_countdown, jit_countdown) != (expected_countdown, expected_countdown) {
             return Err("countdown execution modes disagreed before measurement".to_owned());
+        }
+        let expected_sum_to = rust_sum_to(value);
+        let vm_sum_to =
+            execute(workloads.sum_to_program, &[value]).map_err(|error| error.to_string())?;
+        let jit_sum_to = workloads
+            .compiled_sum_to
+            .invoke_i64_1(value)
+            .map_err(|error| error.to_string())?;
+        if (vm_sum_to, jit_sum_to) != (expected_sum_to, expected_sum_to) {
+            return Err("accumulator execution modes disagreed before measurement".to_owned());
         }
     }
     let expected_host = prototype_wrapping_double(21);
@@ -571,6 +657,17 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
                 .invoke_i64_1(countdown_input)
                 .expect("compiled countdown prototype has the expected signature"),
         );
+        black_box(rust_sum_to(countdown_input));
+        black_box(
+            execute(workloads.sum_to_program, &[countdown_input])
+                .expect("verified accumulator bytecode executes"),
+        );
+        black_box(
+            workloads
+                .compiled_sum_to
+                .invoke_i64_1(countdown_input)
+                .expect("compiled accumulator prototype has the expected signature"),
+        );
         black_box(prototype_wrapping_double(value));
         black_box(
             execute_with_hosts(workloads.host_program, &[value], workloads.host_functions)
@@ -592,12 +689,15 @@ const LINK_HARNESS: &str = r#"
 extern int64_t prototype_add(int64_t left, int64_t right);
 extern int64_t prototype_countdown(int64_t value);
 extern int64_t prototype_min(int64_t left, int64_t right);
+extern int64_t prototype_sum_to(int64_t value);
 
 int main(void) {
     return prototype_add(20, 22) == 42 &&
         prototype_countdown(64) == 0 &&
         prototype_countdown(-7) == -7 &&
-        prototype_min(-7, 4) == -7 ? 0 : 1;
+        prototype_min(-7, 4) == -7 &&
+        prototype_sum_to(64) == 2080 &&
+        prototype_sum_to(-7) == 0 ? 0 : 1;
 }
 "#;
 
@@ -641,6 +741,7 @@ struct LinkBenchmark {
     add_object: PathBuf,
     min_object: PathBuf,
     countdown_object: PathBuf,
+    sum_to_object: PathBuf,
     executable: PathBuf,
 }
 
@@ -650,29 +751,33 @@ impl LinkBenchmark {
         add_object_bytes: &[u8],
         min_object_bytes: &[u8],
         countdown_object_bytes: &[u8],
+        sum_to_object_bytes: &[u8],
     ) -> Result<Self, String> {
         let directory = BenchmarkDirectory::create()?;
         let harness_source = directory.path().join("harness.c");
         #[cfg(target_os = "macos")]
-        let (harness_object, add_object, min_object, countdown_object, executable) = (
+        let (harness_object, add_object, min_object, countdown_object, sum_to_object, executable) = (
             directory.path().join("harness.o"),
             directory.path().join("prototype_add.o"),
             directory.path().join("prototype_min.o"),
             directory.path().join("prototype_countdown.o"),
+            directory.path().join("prototype_sum_to.o"),
             directory.path().join("prototype-aot"),
         );
         #[cfg(all(target_os = "windows", target_env = "msvc"))]
-        let (harness_object, add_object, min_object, countdown_object, executable) = (
+        let (harness_object, add_object, min_object, countdown_object, sum_to_object, executable) = (
             directory.path().join("harness.obj"),
             directory.path().join("prototype_add.obj"),
             directory.path().join("prototype_min.obj"),
             directory.path().join("prototype_countdown.obj"),
+            directory.path().join("prototype_sum_to.obj"),
             directory.path().join("prototype-aot.exe"),
         );
         fs::write(&harness_source, LINK_HARNESS).map_err(|error| error.to_string())?;
         fs::write(&add_object, add_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&min_object, min_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&countdown_object, countdown_object_bytes).map_err(|error| error.to_string())?;
+        fs::write(&sum_to_object, sum_to_object_bytes).map_err(|error| error.to_string())?;
 
         let compile = compile_link_harness(&harness_source, &harness_object)?;
         ensure_command_succeeded("C harness compilation", &compile)?;
@@ -690,6 +795,7 @@ impl LinkBenchmark {
             add_object,
             min_object,
             countdown_object,
+            sum_to_object,
             executable,
         };
         benchmark.link_once()?;
@@ -714,7 +820,7 @@ impl LinkBenchmark {
             samples.push(started.elapsed().as_secs_f64() * 1_000_000_000.0);
         }
         Ok(Measurement::from_samples(
-            "system_link_add_min_countdown",
+            "system_link_add_min_countdown_sum_to",
             1,
             samples,
         ))
@@ -751,7 +857,8 @@ impl LinkBenchmark {
             .with_object(&self.harness_object)
             .with_object(&self.add_object)
             .with_object(&self.min_object)
-            .with_object(&self.countdown_object);
+            .with_object(&self.countdown_object)
+            .with_object(&self.sum_to_object);
         self.linker
             .link(&request)
             .map_err(|error| error.to_string())
@@ -857,7 +964,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 5,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 6,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -886,20 +993,24 @@ fn render_json(
     writeln!(output, "    \"jit_min\": {},", sizes.min_code).expect("writing to String succeeds");
     writeln!(output, "    \"jit_countdown\": {},", sizes.countdown_code)
         .expect("writing to String succeeds");
+    writeln!(output, "    \"jit_sum_to\": {},", sizes.sum_to_code)
+        .expect("writing to String succeeds");
     writeln!(output, "    \"jit_host_callback\": {}", sizes.host_code)
         .expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"object_file_bytes\": {{").expect("writing to String succeeds");
     writeln!(output, "    \"aot_add\": {},", sizes.add_object).expect("writing to String succeeds");
     writeln!(output, "    \"aot_min\": {},", sizes.min_object).expect("writing to String succeeds");
-    writeln!(output, "    \"aot_countdown\": {}", sizes.countdown_object)
+    writeln!(output, "    \"aot_countdown\": {},", sizes.countdown_object)
+        .expect("writing to String succeeds");
+    writeln!(output, "    \"aot_sum_to\": {}", sizes.sum_to_object)
         .expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"executable_file_bytes\": {{").expect("writing to String succeeds");
     match sizes.aot_executable {
-        Some(size) => writeln!(output, "    \"aot_add_min_countdown\": {size}")
+        Some(size) => writeln!(output, "    \"aot_add_min_countdown_sum_to\": {size}")
             .expect("writing to String succeeds"),
-        None => writeln!(output, "    \"aot_add_min_countdown\": null")
+        None => writeln!(output, "    \"aot_add_min_countdown_sum_to\": null")
             .expect("writing to String succeeds"),
     }
     writeln!(output, "  }},").expect("writing to String succeeds");
@@ -1030,7 +1141,7 @@ fn os_version() -> String {
 mod tests {
     use super::{
         ArtifactSizes, Config, Measurement, alternating_countdown_input, escape_json, render_json,
-        rust_countdown,
+        rust_countdown, rust_sum_to,
     };
 
     #[test]
@@ -1095,10 +1206,12 @@ mod tests {
         assert_eq!(alternating_countdown_input(1), -7);
         assert_eq!(rust_countdown(64), 0);
         assert_eq!(rust_countdown(-7), -7);
+        assert_eq!(rust_sum_to(64), 2_080);
+        assert_eq!(rust_sum_to(-7), 0);
     }
 
     #[test]
-    fn schema_five_includes_startup_configuration_and_artifact_sizes() {
+    fn schema_six_includes_accumulator_and_executable_artifact_sizes() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1111,24 +1224,28 @@ mod tests {
                 add_code: 1,
                 min_code: 2,
                 countdown_code: 3,
-                host_code: 4,
-                add_object: 5,
-                min_object: 6,
-                countdown_object: 7,
-                aot_executable: Some(8),
+                sum_to_code: 4,
+                host_code: 5,
+                add_object: 6,
+                min_object: 7,
+                countdown_object: 8,
+                sum_to_object: 9,
+                aot_executable: Some(10),
             },
             &[],
         );
 
-        assert!(output.contains("\"schema_version\": 5"));
+        assert!(output.contains("\"schema_version\": 6"));
         assert!(output.contains("\"startup_iterations\": 2"));
         assert!(output.contains("\"jit_countdown\": 3"));
-        assert!(output.contains("\"aot_countdown\": 7"));
-        assert!(output.contains("\"aot_add_min_countdown\": 8"));
+        assert!(output.contains("\"jit_sum_to\": 4"));
+        assert!(output.contains("\"aot_countdown\": 8"));
+        assert!(output.contains("\"aot_sum_to\": 9"));
+        assert!(output.contains("\"aot_add_min_countdown_sum_to\": 10"));
     }
 
     #[test]
-    fn schema_five_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_six_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1141,15 +1258,17 @@ mod tests {
                 add_code: 1,
                 min_code: 2,
                 countdown_code: 3,
-                host_code: 4,
-                add_object: 5,
-                min_object: 6,
-                countdown_object: 7,
+                sum_to_code: 4,
+                host_code: 5,
+                add_object: 6,
+                min_object: 7,
+                countdown_object: 8,
+                sum_to_object: 9,
                 aot_executable: None,
             },
             &[],
         );
 
-        assert!(output.contains("\"aot_add_min_countdown\": null"));
+        assert!(output.contains("\"aot_add_min_countdown_sum_to\": null"));
     }
 }
