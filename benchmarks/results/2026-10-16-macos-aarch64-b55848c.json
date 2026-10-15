@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "timestamp_unix_seconds": 1792076730,
+  "command": "target/release/prototype-bench --samples 31 --lowering-iterations 1000 --runtime-iterations 100000",
+  "git_commit": "b55848cfd5d24678f09eb00a9edda987dc25b257",
+  "git_dirty": false,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "os": "macos",
+  "os_version": "27.0.1",
+  "architecture": "aarch64",
+  "cpu": "Apple M1 Max",
+  "samples": 31,
+  "generated_code_bytes": {
+    "jit_add": 8,
+    "jit_host_callback": 40
+  },
+  "measurements": [
+    {
+      "name": "bytecode_lower_add",
+      "unit": "ns/operation",
+      "operations_per_sample": 1000,
+      "minimum": 31.75,
+      "median": 37.666,
+      "p95": 38.083,
+      "maximum": 44.208,
+      "mean": 35.206,
+      "relative_stddev_percent": 9.368
+    },
+    {
+      "name": "jit_compile_add",
+      "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 20917,
+      "median": 29791,
+      "p95": 38625,
+      "maximum": 39292,
+      "mean": 30325.355,
+      "relative_stddev_percent": 19.754
+    },
+    {
+      "name": "rust_add_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1.515,
+      "median": 1.713,
+      "p95": 1.778,
+      "maximum": 2.351,
+      "mean": 1.683,
+      "relative_stddev_percent": 8.927
+    },
+    {
+      "name": "vm_add_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 37.026,
+      "median": 38.105,
+      "p95": 55.598,
+      "maximum": 60.471,
+      "mean": 40.962,
+      "relative_stddev_percent": 14.605
+    },
+    {
+      "name": "jit_add_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1.859,
+      "median": 1.86,
+      "p95": 1.91,
+      "maximum": 2.048,
+      "mean": 1.873,
+      "relative_stddev_percent": 1.873
+    },
+    {
+      "name": "rust_host_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 0.93,
+      "median": 0.959,
+      "p95": 1.023,
+      "maximum": 1.342,
+      "mean": 0.971,
+      "relative_stddev_percent": 7.332
+    },
+    {
+      "name": "vm_host_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 36.435,
+      "median": 36.919,
+      "p95": 38.52,
+      "maximum": 39.056,
+      "mean": 37.14,
+      "relative_stddev_percent": 1.811
+    },
+    {
+      "name": "jit_host_call",
+      "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 4.027,
+      "median": 4.058,
+      "p95": 4.369,
+      "maximum": 4.552,
+      "mean": 4.111,
+      "relative_stddev_percent": 2.974
+    }
+  ]
+}

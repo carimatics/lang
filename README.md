@@ -37,6 +37,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture propo
 ## Documents
 
 - [Language and ecosystem research](docs/research.md)
+- [Prototype benchmark evidence](docs/benchmarks.md)
 - [Architecture proposal](docs/architecture.md)
 - [Implementation roadmap](docs/roadmap.md)
 - [RFC process and template](docs/rfcs/0000-template.md)

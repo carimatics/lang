@@ -37,6 +37,7 @@
 ## ドキュメント
 
 - [言語・エコシステム調査](docs/ja/research.md)
+- [Prototype benchmark evidence](docs/ja/benchmarks.md)
 - [アーキテクチャ提案](docs/ja/architecture.md)
 - [実装ロードマップ](docs/ja/roadmap.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
