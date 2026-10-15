@@ -15,7 +15,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-cranelift-codegen = "0.136.0"
+cranelift-codegen = { version = "0.136.0", features = ["x86"] }
 cranelift-frontend = "0.136.0"
 cranelift-jit = "0.136.0"
 cranelift-module = "0.136.0"
@@ -27,6 +27,8 @@ lang-mir = { path = "crates/mir" }
 lang-runtime = { path = "crates/runtime" }
 lang-semantics = { path = "crates/semantics" }
 lang-vm = { path = "crates/vm" }
+object = { version = "0.40.0", default-features = false, features = ["coff", "read_core", "std"] }
+target-lexicon = "0.13.5"
 
 [package]
 name = "lang"
@@ -39,3 +41,6 @@ lang-codegen-clif.workspace = true
 lang-mir.workspace = true
 lang-runtime.workspace = true
 lang-vm.workspace = true
+
+[dev-dependencies]
+object.workspace = true

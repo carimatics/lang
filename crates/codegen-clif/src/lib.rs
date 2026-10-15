@@ -3,6 +3,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use cranelift_codegen::ir::{AbiParam, BlockArg, InstBuilder, condcodes::IntCC, types};
+use cranelift_codegen::isa::{self, OwnedTargetIsa};
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
@@ -10,6 +11,7 @@ use cranelift_module::{Linkage, Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use lang_mir::{Function, HostFunctionId, Instruction, Terminator, Type, ValidationError};
 use lang_runtime::HostFunctionRegistry;
+pub use target_lexicon::Triple;
 
 pub struct CompiledFunction {
     _module: JITModule,
@@ -127,6 +129,31 @@ pub fn emit_host_object(function: &Function) -> Result<ObjectArtifact, CompileEr
     let isa = isa_builder
         .finish(settings::Flags::new(flag_builder))
         .map_err(CompileError::backend)?;
+
+    emit_object_with_isa(function, isa)
+}
+
+pub fn emit_object_for_target(
+    function: &Function,
+    target: Triple,
+) -> Result<ObjectArtifact, CompileError> {
+    validate_function(function)?;
+    let mut flag_builder = settings::builder();
+    flag_builder
+        .set("is_pic", "true")
+        .map_err(CompileError::backend)?;
+    let isa_builder = isa::lookup(target).map_err(CompileError::backend)?;
+    let isa = isa_builder
+        .finish(settings::Flags::new(flag_builder))
+        .map_err(CompileError::backend)?;
+
+    emit_object_with_isa(function, isa)
+}
+
+fn emit_object_with_isa(
+    function: &Function,
+    isa: OwnedTargetIsa,
+) -> Result<ObjectArtifact, CompileError> {
     let object_builder = ObjectBuilder::new(isa, b"lang".to_vec(), default_libcall_names())
         .map_err(CompileError::backend)?;
     let mut module = ObjectModule::new(object_builder);

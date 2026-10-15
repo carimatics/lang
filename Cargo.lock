@@ -306,6 +306,7 @@ dependencies = [
  "lang-mir",
  "lang-runtime",
  "lang-vm",
+ "object",
 ]
 
 [[package]]
@@ -327,6 +328,7 @@ dependencies = [
  "cranelift-object",
  "lang-mir",
  "lang-runtime",
+ "target-lexicon",
 ]
 
 [[package]]

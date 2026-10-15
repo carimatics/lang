@@ -12,3 +12,4 @@ cranelift-native.workspace = true
 cranelift-object.workspace = true
 lang-mir.workspace = true
 lang-runtime.workspace = true
+target-lexicon.workspace = true
