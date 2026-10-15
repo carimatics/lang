@@ -139,59 +139,117 @@ impl Instruction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlockTarget {
+    block: BlockId,
+    arguments: Vec<ValueId>,
+}
+
+impl BlockTarget {
+    pub fn new(block: BlockId, arguments: Vec<ValueId>) -> Self {
+        Self { block, arguments }
+    }
+
+    pub const fn block(&self) -> BlockId {
+        self.block
+    }
+
+    pub fn arguments(&self) -> &[ValueId] {
+        &self.arguments
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Terminator {
     Return(ValueId),
-    Jump(BlockId),
+    Jump(BlockTarget),
     Branch {
         condition: ValueId,
-        then_block: BlockId,
-        else_block: BlockId,
+        then_target: BlockTarget,
+        else_target: BlockTarget,
     },
 }
 
 impl Terminator {
-    fn successors(self) -> Vec<BlockId> {
+    fn targets(&self) -> Vec<&BlockTarget> {
         match self {
             Self::Return(_) => Vec::new(),
             Self::Jump(target) => vec![target],
             Self::Branch {
-                then_block,
-                else_block,
+                then_target,
+                else_target,
                 ..
-            } => vec![then_block, else_block],
+            } => vec![then_target, else_target],
         }
     }
 
-    fn operands(self, result_type: Type) -> Vec<(ValueId, Type)> {
+    fn successors(&self) -> Vec<BlockId> {
+        self.targets().into_iter().map(BlockTarget::block).collect()
+    }
+
+    fn operands(&self, result_type: Type) -> Vec<(ValueId, Type)> {
         match self {
-            Self::Return(value) => vec![(value, result_type)],
+            Self::Return(value) => vec![(*value, result_type)],
             Self::Jump(_) => Vec::new(),
-            Self::Branch { condition, .. } => vec![(condition, Type::Bool)],
+            Self::Branch { condition, .. } => vec![(*condition, Type::Bool)],
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BlockParameter {
+    value: ValueId,
+    value_type: Type,
+}
+
+impl BlockParameter {
+    pub const fn new(value: ValueId, value_type: Type) -> Self {
+        Self { value, value_type }
+    }
+
+    pub const fn value(self) -> ValueId {
+        self.value
+    }
+
+    pub const fn value_type(self) -> Type {
+        self.value_type
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BasicBlock {
+    parameters: Vec<BlockParameter>,
     instructions: Vec<Instruction>,
     terminator: Terminator,
 }
 
 impl BasicBlock {
     pub fn new(instructions: Vec<Instruction>, terminator: Terminator) -> Self {
+        Self::with_parameters(Vec::new(), instructions, terminator)
+    }
+
+    pub fn with_parameters(
+        parameters: Vec<BlockParameter>,
+        instructions: Vec<Instruction>,
+        terminator: Terminator,
+    ) -> Self {
         Self {
+            parameters,
             instructions,
             terminator,
         }
+    }
+
+    pub fn parameters(&self) -> &[BlockParameter] {
+        &self.parameters
     }
 
     pub fn instructions(&self) -> &[Instruction] {
         &self.instructions
     }
 
-    pub const fn terminator(&self) -> Terminator {
-        self.terminator
+    pub const fn terminator(&self) -> &Terminator {
+        &self.terminator
     }
 }
 
@@ -245,7 +303,7 @@ impl Function {
             + self
                 .blocks
                 .iter()
-                .map(|block| block.instructions.len())
+                .map(|block| block.parameters.len() + block.instructions.len())
                 .sum::<usize>()
     }
 
@@ -256,6 +314,9 @@ impl Function {
         if self.blocks.is_empty() {
             return Err(ValidationError::EmptyBody);
         }
+        if !self.blocks[BlockId::ENTRY.index()].parameters().is_empty() {
+            return Err(ValidationError::EntryBlockHasParameters);
+        }
 
         let mut value_types = self.signature.parameters.clone();
         let mut definition_blocks = vec![None; value_types.len()];
@@ -263,6 +324,17 @@ impl Function {
 
         for (block_index, block) in self.blocks.iter().enumerate() {
             let block_id = BlockId::new(block_index as u32);
+            for parameter in block.parameters() {
+                let expected = ValueId::new(value_types.len() as u32);
+                if parameter.value() != expected {
+                    return Err(ValidationError::NonSequentialParameter {
+                        expected,
+                        actual: parameter.value(),
+                    });
+                }
+                value_types.push(parameter.value_type());
+                definition_blocks.push(Some(block_id));
+            }
             for instruction in block.instructions() {
                 for (operand, expected) in instruction.operands() {
                     validate_operand(operand, expected, &value_types)?;
@@ -284,14 +356,28 @@ impl Function {
                 validate_operand(operand, expected, &value_types)?;
                 uses.push((operand, block_id));
             }
-            for target in block.terminator().successors() {
-                if target.index() >= self.blocks.len() {
-                    return Err(ValidationError::UndefinedBlock(target));
+            for target in block.terminator().targets() {
+                let target_block = target.block();
+                if target_block.index() >= self.blocks.len() {
+                    return Err(ValidationError::UndefinedBlock(target_block));
                 }
-                if target == BlockId::ENTRY {
+                if target_block == BlockId::ENTRY {
                     return Err(ValidationError::EntryBlockHasPredecessor {
                         predecessor: block_id,
                     });
+                }
+                let parameters = self.blocks[target_block.index()].parameters();
+                if target.arguments().len() != parameters.len() {
+                    return Err(ValidationError::BlockArgumentCountMismatch {
+                        predecessor: block_id,
+                        target: target_block,
+                        expected: parameters.len(),
+                        actual: target.arguments().len(),
+                    });
+                }
+                for (&argument, parameter) in target.arguments().iter().zip(parameters) {
+                    validate_operand(argument, parameter.value_type(), &value_types)?;
+                    uses.push((argument, block_id));
                 }
             }
         }
@@ -390,7 +476,12 @@ fn compute_dominators(blocks: &[BasicBlock]) -> Vec<Vec<bool>> {
 pub enum ValidationError {
     EmptyName,
     EmptyBody,
+    EntryBlockHasParameters,
     UndefinedValue(ValueId),
+    NonSequentialParameter {
+        expected: ValueId,
+        actual: ValueId,
+    },
     NonSequentialResult {
         expected: ValueId,
         actual: ValueId,
@@ -404,6 +495,12 @@ pub enum ValidationError {
     EntryBlockHasPredecessor {
         predecessor: BlockId,
     },
+    BlockArgumentCountMismatch {
+        predecessor: BlockId,
+        target: BlockId,
+        expected: usize,
+        actual: usize,
+    },
     UnreachableBlock(BlockId),
     ValueDoesNotDominateUse {
         value: ValueId,
@@ -416,6 +513,9 @@ impl Display for ValidationError {
         match self {
             Self::EmptyName => formatter.write_str("function name must not be empty"),
             Self::EmptyBody => formatter.write_str("function must contain an entry block"),
+            Self::EntryBlockHasParameters => {
+                formatter.write_str("entry block must not declare block parameters")
+            }
             Self::UndefinedValue(value) => {
                 write!(
                     formatter,
@@ -423,6 +523,12 @@ impl Display for ValidationError {
                     value.index()
                 )
             }
+            Self::NonSequentialParameter { expected, actual } => write!(
+                formatter,
+                "expected block parameter value {}, found {}",
+                expected.index(),
+                actual.index()
+            ),
             Self::NonSequentialResult { expected, actual } => write!(
                 formatter,
                 "expected result value {}, found {}",
@@ -446,6 +552,17 @@ impl Display for ValidationError {
                 "block {} branches to the entry block",
                 predecessor.index()
             ),
+            Self::BlockArgumentCountMismatch {
+                predecessor,
+                target,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "edge from block {} to block {} passes {actual} arguments, expected {expected}",
+                predecessor.index(),
+                target.index()
+            ),
             Self::UnreachableBlock(block) => {
                 write!(formatter, "block {} is unreachable", block.index())
             }
@@ -464,8 +581,8 @@ impl Error for ValidationError {}
 #[cfg(test)]
 mod tests {
     use super::{
-        BasicBlock, BlockId, Function, Instruction, Signature, Terminator, Type, ValidationError,
-        ValueId,
+        BasicBlock, BlockId, BlockParameter, BlockTarget, Function, Instruction, Signature,
+        Terminator, Type, ValidationError, ValueId,
     };
 
     #[test]
@@ -523,8 +640,8 @@ mod tests {
                     vec![],
                     Terminator::Branch {
                         condition: ValueId::new(0),
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
@@ -547,7 +664,10 @@ mod tests {
         let undefined = Function::with_blocks(
             "undefined",
             Signature::new(vec![Type::I64], Type::I64),
-            vec![BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1)))],
+            vec![BasicBlock::new(
+                vec![],
+                Terminator::Jump(target(BlockId::new(1))),
+            )],
         );
         assert_eq!(
             undefined.validate(),
@@ -574,8 +694,8 @@ mod tests {
             "entry_back_edge",
             Signature::new(vec![], Type::I64),
             vec![
-                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
-                BasicBlock::new(vec![], Terminator::Jump(BlockId::ENTRY)),
+                BasicBlock::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+                BasicBlock::new(vec![], Terminator::Jump(target(BlockId::ENTRY))),
             ],
         );
 
@@ -597,8 +717,8 @@ mod tests {
                     vec![],
                     Terminator::Branch {
                         condition: ValueId::new(1),
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 BasicBlock::new(
@@ -606,9 +726,9 @@ mod tests {
                         result: ValueId::new(2),
                         value: 42,
                     }],
-                    Terminator::Jump(BlockId::new(3)),
+                    Terminator::Jump(target(BlockId::new(3))),
                 ),
-                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(3))),
+                BasicBlock::new(vec![], Terminator::Jump(target(BlockId::new(3)))),
                 BasicBlock::new(vec![], Terminator::Return(ValueId::new(2))),
             ],
         );
@@ -628,12 +748,119 @@ mod tests {
             "loop_forever",
             Signature::new(vec![], Type::I64),
             vec![
-                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
-                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
+                BasicBlock::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+                BasicBlock::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
             ],
         );
 
         assert_eq!(function.validate(), Ok(()));
+    }
+
+    #[test]
+    fn validates_loop_carried_block_parameters() {
+        assert_eq!(countdown_function().validate(), Ok(()));
+    }
+
+    #[test]
+    fn rejects_entry_block_parameters() {
+        let function = Function::with_blocks(
+            "entry_parameter",
+            Signature::new(vec![], Type::I64),
+            vec![BasicBlock::with_parameters(
+                vec![BlockParameter::new(ValueId::new(0), Type::I64)],
+                vec![],
+                Terminator::Return(ValueId::new(0)),
+            )],
+        );
+
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::EntryBlockHasParameters)
+        );
+    }
+
+    #[test]
+    fn rejects_non_sequential_block_parameters() {
+        let function = Function::with_blocks(
+            "non_sequential_parameter",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![
+                BasicBlock::new(
+                    vec![],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(0)])),
+                ),
+                BasicBlock::with_parameters(
+                    vec![BlockParameter::new(ValueId::new(2), Type::I64)],
+                    vec![],
+                    Terminator::Return(ValueId::new(2)),
+                ),
+            ],
+        );
+
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::NonSequentialParameter {
+                expected: ValueId::new(1),
+                actual: ValueId::new(2),
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_block_argument_count_mismatches() {
+        let function = Function::with_blocks(
+            "missing_argument",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![
+                BasicBlock::new(
+                    vec![],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![])),
+                ),
+                BasicBlock::with_parameters(
+                    vec![BlockParameter::new(ValueId::new(1), Type::I64)],
+                    vec![],
+                    Terminator::Return(ValueId::new(1)),
+                ),
+            ],
+        );
+
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::BlockArgumentCountMismatch {
+                predecessor: BlockId::ENTRY,
+                target: BlockId::new(1),
+                expected: 1,
+                actual: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_block_argument_type_mismatches() {
+        let function = Function::with_blocks(
+            "wrong_argument_type",
+            Signature::new(vec![Type::Bool], Type::I64),
+            vec![
+                BasicBlock::new(
+                    vec![],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(0)])),
+                ),
+                BasicBlock::with_parameters(
+                    vec![BlockParameter::new(ValueId::new(1), Type::I64)],
+                    vec![],
+                    Terminator::Return(ValueId::new(1)),
+                ),
+            ],
+        );
+
+        assert_eq!(
+            function.validate(),
+            Err(ValidationError::TypeMismatch {
+                value: ValueId::new(0),
+                expected: Type::I64,
+                actual: Type::Bool,
+            })
+        );
     }
 
     fn minimum_function() -> Function {
@@ -649,13 +876,65 @@ mod tests {
                     }],
                     Terminator::Branch {
                         condition: ValueId::new(2),
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
                 BasicBlock::new(vec![], Terminator::Return(ValueId::new(1))),
             ],
         )
+    }
+
+    fn countdown_function() -> Function {
+        Function::with_blocks(
+            "countdown",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![
+                BasicBlock::new(
+                    vec![
+                        Instruction::I64Constant {
+                            result: ValueId::new(1),
+                            value: -1,
+                        },
+                        Instruction::I64Constant {
+                            result: ValueId::new(2),
+                            value: 1,
+                        },
+                    ],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(0)])),
+                ),
+                BasicBlock::with_parameters(
+                    vec![BlockParameter::new(ValueId::new(3), Type::I64)],
+                    vec![Instruction::I64LessThanSigned {
+                        result: ValueId::new(4),
+                        left: ValueId::new(3),
+                        right: ValueId::new(2),
+                    }],
+                    Terminator::Branch {
+                        condition: ValueId::new(4),
+                        then_target: BlockTarget::new(BlockId::new(3), vec![ValueId::new(3)]),
+                        else_target: target(BlockId::new(2)),
+                    },
+                ),
+                BasicBlock::new(
+                    vec![Instruction::I64AddWrapping {
+                        result: ValueId::new(5),
+                        left: ValueId::new(3),
+                        right: ValueId::new(1),
+                    }],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(5)])),
+                ),
+                BasicBlock::with_parameters(
+                    vec![BlockParameter::new(ValueId::new(6), Type::I64)],
+                    vec![],
+                    Terminator::Return(ValueId::new(6)),
+                ),
+            ],
+        )
+    }
+
+    fn target(block: BlockId) -> BlockTarget {
+        BlockTarget::new(block, vec![])
     }
 }

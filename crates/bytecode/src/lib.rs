@@ -77,59 +77,120 @@ impl Instruction {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlockTarget {
+    block: BlockId,
+    arguments: Vec<usize>,
+}
+
+impl BlockTarget {
+    pub fn new(block: BlockId, arguments: Vec<usize>) -> Self {
+        Self { block, arguments }
+    }
+
+    pub const fn block(&self) -> BlockId {
+        self.block
+    }
+
+    pub fn arguments(&self) -> &[usize] {
+        &self.arguments
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Terminator {
     Return(usize),
-    Jump(BlockId),
+    Jump(BlockTarget),
     Branch {
         condition: usize,
-        then_block: BlockId,
-        else_block: BlockId,
+        then_target: BlockTarget,
+        else_target: BlockTarget,
     },
 }
 
 impl Terminator {
-    fn successors(self) -> Vec<BlockId> {
+    fn targets(&self) -> Vec<&BlockTarget> {
         match self {
             Self::Return(_) => Vec::new(),
             Self::Jump(target) => vec![target],
             Self::Branch {
-                then_block,
-                else_block,
+                then_target,
+                else_target,
                 ..
-            } => vec![then_block, else_block],
+            } => vec![then_target, else_target],
         }
     }
 
-    fn sources(self) -> Vec<(usize, Type)> {
+    fn successors(&self) -> Vec<BlockId> {
+        self.targets().into_iter().map(BlockTarget::block).collect()
+    }
+
+    fn sources(&self) -> Vec<(usize, Type)> {
         match self {
-            Self::Return(register) => vec![(register, Type::I64)],
+            Self::Return(register) => vec![(*register, Type::I64)],
             Self::Jump(_) => Vec::new(),
-            Self::Branch { condition, .. } => vec![(condition, Type::Bool)],
+            Self::Branch { condition, .. } => vec![(*condition, Type::Bool)],
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BlockParameter {
+    register: usize,
+    register_type: Type,
+}
+
+impl BlockParameter {
+    pub const fn new(register: usize, register_type: Type) -> Self {
+        Self {
+            register,
+            register_type,
+        }
+    }
+
+    pub const fn register(self) -> usize {
+        self.register
+    }
+
+    pub const fn register_type(self) -> Type {
+        self.register_type
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Block {
+    parameters: Vec<BlockParameter>,
     instructions: Vec<Instruction>,
     terminator: Terminator,
 }
 
 impl Block {
     pub fn new(instructions: Vec<Instruction>, terminator: Terminator) -> Self {
+        Self::with_parameters(Vec::new(), instructions, terminator)
+    }
+
+    pub fn with_parameters(
+        parameters: Vec<BlockParameter>,
+        instructions: Vec<Instruction>,
+        terminator: Terminator,
+    ) -> Self {
         Self {
+            parameters,
             instructions,
             terminator,
         }
+    }
+
+    pub fn parameters(&self) -> &[BlockParameter] {
+        &self.parameters
     }
 
     pub fn instructions(&self) -> &[Instruction] {
         &self.instructions
     }
 
-    pub const fn terminator(&self) -> Terminator {
-        self.terminator
+    pub const fn terminator(&self) -> &Terminator {
+        &self.terminator
     }
 }
 
@@ -201,6 +262,9 @@ impl Program {
         if self.blocks.is_empty() {
             return Err(VerificationError::EmptyProgram);
         }
+        if !self.blocks[BlockId::ENTRY.index()].parameters().is_empty() {
+            return Err(VerificationError::EntryBlockHasParameters);
+        }
 
         let mut register_types = vec![None; self.register_count];
         register_types[..self.parameter_count].fill(Some(Type::I64));
@@ -209,6 +273,12 @@ impl Program {
 
         for (block_index, block) in self.blocks.iter().enumerate() {
             let block_id = BlockId::new(block_index);
+            for parameter in block.parameters() {
+                let register = parameter.register();
+                verify_destination(register, &register_types)?;
+                register_types[register] = Some(parameter.register_type());
+                definition_blocks[register] = Some(block_id);
+            }
             for &instruction in block.instructions() {
                 for (source, expected) in instruction.sources() {
                     verify_source(source, expected, &register_types)?;
@@ -224,14 +294,28 @@ impl Program {
                 verify_source(source, expected, &register_types)?;
                 uses.push((source, block_id));
             }
-            for target in block.terminator().successors() {
-                if target.index() >= self.blocks.len() {
-                    return Err(VerificationError::BlockOutOfBounds(target));
+            for target in block.terminator().targets() {
+                let target_block = target.block();
+                if target_block.index() >= self.blocks.len() {
+                    return Err(VerificationError::BlockOutOfBounds(target_block));
                 }
-                if target == BlockId::ENTRY {
+                if target_block == BlockId::ENTRY {
                     return Err(VerificationError::EntryBlockHasPredecessor {
                         predecessor: block_id,
                     });
+                }
+                let parameters = self.blocks[target_block.index()].parameters();
+                if target.arguments().len() != parameters.len() {
+                    return Err(VerificationError::BlockArgumentCountMismatch {
+                        predecessor: block_id,
+                        target: target_block,
+                        expected: parameters.len(),
+                        actual: target.arguments().len(),
+                    });
+                }
+                for (&argument, parameter) in target.arguments().iter().zip(parameters) {
+                    verify_source(argument, parameter.register_type(), &register_types)?;
+                    uses.push((argument, block_id));
                 }
             }
         }
@@ -346,6 +430,13 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
         .blocks()
         .iter()
         .map(|block| {
+            let parameters = block
+                .parameters()
+                .iter()
+                .map(|parameter| {
+                    BlockParameter::new(parameter.value().index(), parameter.value_type())
+                })
+                .collect();
             let instructions = block
                 .instructions()
                 .iter()
@@ -385,18 +476,39 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
                 .collect();
             let terminator = match block.terminator() {
                 MirTerminator::Return(return_value) => Terminator::Return(return_value.index()),
-                MirTerminator::Jump(target) => Terminator::Jump(BlockId::new(target.index())),
+                MirTerminator::Jump(target) => Terminator::Jump(BlockTarget::new(
+                    BlockId::new(target.block().index()),
+                    target
+                        .arguments()
+                        .iter()
+                        .map(|argument| argument.index())
+                        .collect(),
+                )),
                 MirTerminator::Branch {
                     condition,
-                    then_block,
-                    else_block,
+                    then_target,
+                    else_target,
                 } => Terminator::Branch {
                     condition: condition.index(),
-                    then_block: BlockId::new(then_block.index()),
-                    else_block: BlockId::new(else_block.index()),
+                    then_target: BlockTarget::new(
+                        BlockId::new(then_target.block().index()),
+                        then_target
+                            .arguments()
+                            .iter()
+                            .map(|argument| argument.index())
+                            .collect(),
+                    ),
+                    else_target: BlockTarget::new(
+                        BlockId::new(else_target.block().index()),
+                        else_target
+                            .arguments()
+                            .iter()
+                            .map(|argument| argument.index())
+                            .collect(),
+                    ),
                 },
             };
-            Block::new(instructions, terminator)
+            Block::with_parameters(parameters, instructions, terminator)
         })
         .collect();
 
@@ -412,6 +524,7 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
 pub enum VerificationError {
     InvalidParameterCount,
     EmptyProgram,
+    EntryBlockHasParameters,
     RegisterOutOfBounds(usize),
     UninitializedRegister(usize),
     RegisterAlreadyInitialized(usize),
@@ -423,6 +536,12 @@ pub enum VerificationError {
     BlockOutOfBounds(BlockId),
     EntryBlockHasPredecessor {
         predecessor: BlockId,
+    },
+    BlockArgumentCountMismatch {
+        predecessor: BlockId,
+        target: BlockId,
+        expected: usize,
+        actual: usize,
     },
     UnreachableBlock(BlockId),
     RegisterDoesNotDominateUse {
@@ -438,6 +557,9 @@ impl Display for VerificationError {
                 formatter.write_str("parameter count exceeds register count")
             }
             Self::EmptyProgram => formatter.write_str("program must contain an entry block"),
+            Self::EntryBlockHasParameters => {
+                formatter.write_str("entry block must not declare block parameters")
+            }
             Self::RegisterOutOfBounds(register) => {
                 write!(formatter, "register {register} is out of bounds")
             }
@@ -465,6 +587,17 @@ impl Display for VerificationError {
                 formatter,
                 "block {} branches to the entry block",
                 predecessor.index()
+            ),
+            Self::BlockArgumentCountMismatch {
+                predecessor,
+                target,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "edge from block {} to block {} passes {actual} arguments, expected {expected}",
+                predecessor.index(),
+                target.index()
             ),
             Self::UnreachableBlock(block) => {
                 write!(formatter, "block {} is unreachable", block.index())
@@ -505,7 +638,10 @@ impl Error for LowerError {}
 mod tests {
     use lang_mir::{HostFunctionId, Type};
 
-    use super::{Block, BlockId, Instruction, Program, Terminator, VerificationError};
+    use super::{
+        Block, BlockId, BlockParameter, BlockTarget, Instruction, Program, Terminator,
+        VerificationError,
+    };
 
     #[test]
     fn rejects_reads_from_uninitialized_registers() {
@@ -556,8 +692,8 @@ mod tests {
                     vec![],
                     Terminator::Branch {
                         condition: 0,
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 Block::new(vec![], Terminator::Return(0)),
@@ -589,8 +725,8 @@ mod tests {
                     }],
                     Terminator::Branch {
                         condition: 1,
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 Block::new(
@@ -598,9 +734,9 @@ mod tests {
                         destination: 2,
                         value: 42,
                     }],
-                    Terminator::Jump(BlockId::new(3)),
+                    Terminator::Jump(target(BlockId::new(3))),
                 ),
-                Block::new(vec![], Terminator::Jump(BlockId::new(3))),
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(3)))),
                 Block::new(vec![], Terminator::Return(2)),
             ],
         );
@@ -619,7 +755,10 @@ mod tests {
         let out_of_bounds = Program::with_blocks(
             0,
             0,
-            vec![Block::new(vec![], Terminator::Jump(BlockId::new(1)))],
+            vec![Block::new(
+                vec![],
+                Terminator::Jump(target(BlockId::new(1))),
+            )],
         );
         assert_eq!(
             out_of_bounds,
@@ -643,8 +782,8 @@ mod tests {
             0,
             0,
             vec![
-                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
-                Block::new(vec![], Terminator::Jump(BlockId::ENTRY)),
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+                Block::new(vec![], Terminator::Jump(target(BlockId::ENTRY))),
             ],
         );
         assert_eq!(
@@ -661,12 +800,92 @@ mod tests {
             0,
             0,
             vec![
-                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
-                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
             ],
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn verifies_loop_carried_block_parameters() {
+        let result = countdown_program();
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_entry_block_parameters() {
+        let result = Program::with_blocks(
+            0,
+            1,
+            vec![Block::with_parameters(
+                vec![BlockParameter::new(0, Type::I64)],
+                vec![],
+                Terminator::Return(0),
+            )],
+        );
+
+        assert_eq!(result, Err(VerificationError::EntryBlockHasParameters));
+    }
+
+    #[test]
+    fn rejects_block_argument_count_mismatches() {
+        let result = Program::with_blocks(
+            1,
+            2,
+            vec![
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+                Block::with_parameters(
+                    vec![BlockParameter::new(1, Type::I64)],
+                    vec![],
+                    Terminator::Return(1),
+                ),
+            ],
+        );
+
+        assert_eq!(
+            result,
+            Err(VerificationError::BlockArgumentCountMismatch {
+                predecessor: BlockId::ENTRY,
+                target: BlockId::new(1),
+                expected: 1,
+                actual: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_block_argument_type_mismatches() {
+        let result = Program::with_blocks(
+            1,
+            3,
+            vec![
+                Block::new(
+                    vec![Instruction::I64LessThanSigned {
+                        destination: 1,
+                        left: 0,
+                        right: 0,
+                    }],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![1])),
+                ),
+                Block::with_parameters(
+                    vec![BlockParameter::new(2, Type::I64)],
+                    vec![],
+                    Terminator::Return(2),
+                ),
+            ],
+        );
+
+        assert_eq!(
+            result,
+            Err(VerificationError::TypeMismatch {
+                register: 1,
+                expected: Type::I64,
+                actual: Type::Bool,
+            })
+        );
     }
 
     fn minimum_program() -> Result<Program, VerificationError> {
@@ -682,13 +901,65 @@ mod tests {
                     }],
                     Terminator::Branch {
                         condition: 2,
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 Block::new(vec![], Terminator::Return(0)),
                 Block::new(vec![], Terminator::Return(1)),
             ],
         )
+    }
+
+    fn countdown_program() -> Result<Program, VerificationError> {
+        Program::with_blocks(
+            1,
+            7,
+            vec![
+                Block::new(
+                    vec![
+                        Instruction::I64Constant {
+                            destination: 1,
+                            value: -1,
+                        },
+                        Instruction::I64Constant {
+                            destination: 2,
+                            value: 1,
+                        },
+                    ],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![0])),
+                ),
+                Block::with_parameters(
+                    vec![BlockParameter::new(3, Type::I64)],
+                    vec![Instruction::I64LessThanSigned {
+                        destination: 4,
+                        left: 3,
+                        right: 2,
+                    }],
+                    Terminator::Branch {
+                        condition: 4,
+                        then_target: BlockTarget::new(BlockId::new(3), vec![3]),
+                        else_target: target(BlockId::new(2)),
+                    },
+                ),
+                Block::new(
+                    vec![Instruction::I64AddWrapping {
+                        destination: 5,
+                        left: 3,
+                        right: 1,
+                    }],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![5])),
+                ),
+                Block::with_parameters(
+                    vec![BlockParameter::new(6, Type::I64)],
+                    vec![],
+                    Terminator::Return(6),
+                ),
+            ],
+        )
+    }
+
+    fn target(block: BlockId) -> BlockTarget {
+        BlockTarget::new(block, vec![])
     }
 }

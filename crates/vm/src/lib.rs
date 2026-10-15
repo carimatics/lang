@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use lang_bytecode::{BlockId, Instruction, Program, Terminator, VerificationError};
+use lang_bytecode::{BlockId, BlockTarget, Instruction, Program, Terminator, VerificationError};
 use lang_mir::HostFunctionId;
 use lang_runtime::HostFunctionRegistry;
 
@@ -138,24 +138,40 @@ pub fn execute_with_hosts_and_limits(
         match block.terminator() {
             Terminator::Return(register) => {
                 return Ok(ExecutionOutcome {
-                    value: registers[register],
+                    value: registers[*register],
                     instruction_fuel_consumed: fuel.consumed,
                 });
             }
-            Terminator::Jump(target) => current_block = target,
+            Terminator::Jump(target) => {
+                current_block = transfer(target, program, &mut registers);
+            }
             Terminator::Branch {
                 condition,
-                then_block,
-                else_block,
+                then_target,
+                else_target,
             } => {
-                current_block = if registers[condition] != 0 {
-                    then_block
+                let target = if registers[*condition] != 0 {
+                    then_target
                 } else {
-                    else_block
+                    else_target
                 };
+                current_block = transfer(target, program, &mut registers);
             }
         }
     }
+}
+
+fn transfer(target: &BlockTarget, program: &Program, registers: &mut [i64]) -> BlockId {
+    let arguments = target
+        .arguments()
+        .iter()
+        .map(|&register| registers[register])
+        .collect::<Vec<_>>();
+    let parameters = program.blocks()[target.block().index()].parameters();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        registers[parameter.register()] = argument;
+    }
+    target.block()
 }
 
 struct FuelMeter {
@@ -218,8 +234,8 @@ impl Error for VmError {}
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use lang_bytecode::{Block, BlockId, Instruction, Program};
-    use lang_mir::HostFunctionId;
+    use lang_bytecode::{Block, BlockId, BlockParameter, BlockTarget, Instruction, Program};
+    use lang_mir::{HostFunctionId, Type};
     use lang_runtime::HostFunctionRegistry;
 
     use super::{
@@ -227,6 +243,10 @@ mod tests {
         execute_with_hosts_and_limits, execute_with_limits,
     };
     use lang_bytecode::Terminator;
+
+    fn target(block: BlockId) -> BlockTarget {
+        BlockTarget::new(block, vec![])
+    }
 
     extern "C" fn wrapping_double(value: i64) -> i64 {
         value.wrapping_mul(2)
@@ -277,8 +297,8 @@ mod tests {
                     }],
                     Terminator::Branch {
                         condition: 2,
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 Block::new(vec![], Terminator::Return(0)),
@@ -293,13 +313,43 @@ mod tests {
     }
 
     #[test]
+    fn executes_loop_carried_block_parameters() {
+        let program = countdown_program();
+
+        for value in [i64::MIN, -7, -1, 0, 1, 2, 17, 100] {
+            assert_eq!(execute(&program, &[value]), Ok(value.min(0)));
+        }
+
+        let host_functions = HostFunctionRegistry::new();
+        assert_eq!(
+            execute_with_hosts_and_limits(
+                &program,
+                &[2],
+                &host_functions,
+                ExecutionLimits::with_instruction_fuel(14),
+            ),
+            Ok(ExecutionOutcome {
+                value: 0,
+                instruction_fuel_consumed: 14,
+            })
+        );
+        assert_eq!(
+            execute_with_limits(&program, &[2], ExecutionLimits::with_instruction_fuel(13),),
+            Err(VmError::InstructionFuelExhausted {
+                limit: 13,
+                consumed: 13,
+            })
+        );
+    }
+
+    #[test]
     fn fuel_stops_a_back_edge() {
         let program = Program::with_blocks(
             0,
             0,
             vec![
-                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
-                Block::new(vec![], Terminator::Jump(BlockId::new(1))),
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
             ],
         )
         .unwrap();
@@ -311,6 +361,55 @@ mod tests {
                 consumed: 3,
             })
         );
+    }
+
+    fn countdown_program() -> Program {
+        Program::with_blocks(
+            1,
+            7,
+            vec![
+                Block::new(
+                    vec![
+                        Instruction::I64Constant {
+                            destination: 1,
+                            value: -1,
+                        },
+                        Instruction::I64Constant {
+                            destination: 2,
+                            value: 1,
+                        },
+                    ],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![0])),
+                ),
+                Block::with_parameters(
+                    vec![BlockParameter::new(3, Type::I64)],
+                    vec![Instruction::I64LessThanSigned {
+                        destination: 4,
+                        left: 3,
+                        right: 2,
+                    }],
+                    Terminator::Branch {
+                        condition: 4,
+                        then_target: BlockTarget::new(BlockId::new(3), vec![3]),
+                        else_target: target(BlockId::new(2)),
+                    },
+                ),
+                Block::new(
+                    vec![Instruction::I64AddWrapping {
+                        destination: 5,
+                        left: 3,
+                        right: 1,
+                    }],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![5])),
+                ),
+                Block::with_parameters(
+                    vec![BlockParameter::new(6, Type::I64)],
+                    vec![],
+                    Terminator::Return(6),
+                ),
+            ],
+        )
+        .unwrap()
     }
 
     #[test]

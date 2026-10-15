@@ -4,8 +4,8 @@ use std::fmt::{Display, Formatter};
 use lang_bytecode::{LowerError, lower};
 use lang_codegen_clif::{CompileError, CompiledFunction, InvokeError};
 use lang_mir::{
-    BasicBlock, BlockId, Function, HostFunctionId, Instruction, Signature, Terminator, Type,
-    ValueId,
+    BasicBlock, BlockId, BlockParameter, BlockTarget, Function, HostFunctionId, Instruction,
+    Signature, Terminator, Type, ValueId,
 };
 use lang_runtime::{HostFunctionRegistry, RegistrationError};
 use lang_vm::{VmError, execute, execute_with_hosts};
@@ -87,8 +87,8 @@ pub fn prototype_min_function() -> Function {
                 }],
                 Terminator::Branch {
                     condition: ValueId::new(2),
-                    then_block: BlockId::new(1),
-                    else_block: BlockId::new(2),
+                    then_target: BlockTarget::new(BlockId::new(1), vec![]),
+                    else_target: BlockTarget::new(BlockId::new(2), vec![]),
                 },
             ),
             BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
@@ -104,6 +104,66 @@ pub fn run_prototype_min(left: i64, right: i64) -> Result<ExecutionResults, Prot
     let compiled = CompiledFunction::compile(&function).map_err(PrototypeError::NativeCompile)?;
     let native = compiled
         .invoke_i64_2(left, right)
+        .map_err(PrototypeError::NativeInvoke)?;
+
+    Ok(ExecutionResults { bytecode, native })
+}
+
+pub fn prototype_countdown_function() -> Function {
+    Function::with_blocks(
+        "prototype_countdown",
+        Signature::new(vec![Type::I64], Type::I64),
+        vec![
+            BasicBlock::new(
+                vec![
+                    Instruction::I64Constant {
+                        result: ValueId::new(1),
+                        value: -1,
+                    },
+                    Instruction::I64Constant {
+                        result: ValueId::new(2),
+                        value: 1,
+                    },
+                ],
+                Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(0)])),
+            ),
+            BasicBlock::with_parameters(
+                vec![BlockParameter::new(ValueId::new(3), Type::I64)],
+                vec![Instruction::I64LessThanSigned {
+                    result: ValueId::new(4),
+                    left: ValueId::new(3),
+                    right: ValueId::new(2),
+                }],
+                Terminator::Branch {
+                    condition: ValueId::new(4),
+                    then_target: BlockTarget::new(BlockId::new(3), vec![ValueId::new(3)]),
+                    else_target: BlockTarget::new(BlockId::new(2), vec![]),
+                },
+            ),
+            BasicBlock::new(
+                vec![Instruction::I64AddWrapping {
+                    result: ValueId::new(5),
+                    left: ValueId::new(3),
+                    right: ValueId::new(1),
+                }],
+                Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(5)])),
+            ),
+            BasicBlock::with_parameters(
+                vec![BlockParameter::new(ValueId::new(6), Type::I64)],
+                vec![],
+                Terminator::Return(ValueId::new(6)),
+            ),
+        ],
+    )
+}
+
+pub fn run_prototype_countdown(value: i64) -> Result<ExecutionResults, PrototypeError> {
+    let function = prototype_countdown_function();
+    let program = lower(&function).map_err(PrototypeError::Bytecode)?;
+    let bytecode = execute(&program, &[value]).map_err(PrototypeError::Vm)?;
+    let compiled = CompiledFunction::compile(&function).map_err(PrototypeError::NativeCompile)?;
+    let native = compiled
+        .invoke_i64_1(value)
         .map_err(PrototypeError::NativeInvoke)?;
 
     Ok(ExecutionResults { bytecode, native })
@@ -144,7 +204,8 @@ pub fn run_prototype_host_callback(value: i64) -> Result<ExecutionResults, Proto
 #[cfg(test)]
 mod tests {
     use super::{
-        ExecutionResults, run_prototype_add, run_prototype_host_callback, run_prototype_min,
+        ExecutionResults, run_prototype_add, run_prototype_countdown, run_prototype_host_callback,
+        run_prototype_min,
     };
 
     #[test]
@@ -193,6 +254,22 @@ mod tests {
             let expected = left.min(right);
             assert_eq!(
                 run_prototype_min(left, right).unwrap(),
+                ExecutionResults {
+                    bytecode: expected,
+                    native: expected,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn loop_carried_values_are_equivalent() {
+        let cases = [i64::MIN, -7, -1, 0, 1, 2, 17, 100];
+
+        for value in cases {
+            let expected = value.min(0);
+            assert_eq!(
+                run_prototype_countdown(value).unwrap(),
                 ExecutionResults {
                     bytecode: expected,
                     native: expected,

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use cranelift_codegen::ir::{AbiParam, InstBuilder, condcodes::IntCC, types};
+use cranelift_codegen::ir::{AbiParam, BlockArg, InstBuilder, condcodes::IntCC, types};
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
@@ -192,9 +192,27 @@ fn define_function<M: Module>(
             .collect();
         let entry = blocks[0];
         builder.append_block_params_for_function_params(entry);
+        for (block_index, block) in function.blocks().iter().enumerate().skip(1) {
+            for parameter in block.parameters() {
+                let parameter_type = match parameter.value_type() {
+                    Type::I64 => types::I64,
+                    Type::Bool => types::I8,
+                };
+                builder.append_block_param(blocks[block_index], parameter_type);
+            }
+        }
         let mut values = vec![None; function.value_count()];
         for (index, &value) in builder.block_params(entry).iter().enumerate() {
             values[index] = Some(value);
+        }
+        for (block_index, block) in function.blocks().iter().enumerate().skip(1) {
+            for (parameter, &value) in block
+                .parameters()
+                .iter()
+                .zip(builder.block_params(blocks[block_index]))
+            {
+                values[parameter.value().index()] = Some(value);
+            }
         }
 
         for (block_index, block) in function.blocks().iter().enumerate() {
@@ -236,20 +254,52 @@ fn define_function<M: Module>(
                         .expect("validated return values have translated values")]);
                 }
                 Terminator::Jump(target) => {
-                    builder.ins().jump(blocks[target.index()], &[]);
+                    let arguments = target
+                        .arguments()
+                        .iter()
+                        .map(|argument| {
+                            BlockArg::Value(
+                                values[argument.index()]
+                                    .expect("validated edge arguments have translated values"),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    builder
+                        .ins()
+                        .jump(blocks[target.block().index()], &arguments);
                 }
                 Terminator::Branch {
                     condition,
-                    then_block,
-                    else_block,
+                    then_target,
+                    else_target,
                 } => {
+                    let then_arguments = then_target
+                        .arguments()
+                        .iter()
+                        .map(|argument| {
+                            BlockArg::Value(
+                                values[argument.index()]
+                                    .expect("validated edge arguments have translated values"),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let else_arguments = else_target
+                        .arguments()
+                        .iter()
+                        .map(|argument| {
+                            BlockArg::Value(
+                                values[argument.index()]
+                                    .expect("validated edge arguments have translated values"),
+                            )
+                        })
+                        .collect::<Vec<_>>();
                     builder.ins().brif(
                         values[condition.index()]
                             .expect("validated branch conditions have translated values"),
-                        blocks[then_block.index()],
-                        &[],
-                        blocks[else_block.index()],
-                        &[],
+                        blocks[then_target.block().index()],
+                        &then_arguments,
+                        blocks[else_target.block().index()],
+                        &else_arguments,
                     );
                 }
             }
@@ -358,11 +408,15 @@ impl Error for InvokeError {}
 #[cfg(test)]
 mod tests {
     use lang_mir::{
-        BasicBlock, BlockId, Function, HostFunctionId, Instruction, Signature, Terminator, Type,
-        ValueId,
+        BasicBlock, BlockId, BlockParameter, BlockTarget, Function, HostFunctionId, Instruction,
+        Signature, Terminator, Type, ValueId,
     };
 
     use super::{CompileError, CompiledFunction, emit_host_object};
+
+    fn target(block: BlockId) -> BlockTarget {
+        BlockTarget::new(block, vec![])
+    }
 
     #[test]
     fn reports_generated_code_size() {
@@ -393,8 +447,8 @@ mod tests {
                     }],
                     Terminator::Branch {
                         condition: ValueId::new(2),
-                        then_block: BlockId::new(1),
-                        else_block: BlockId::new(2),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
                     },
                 ),
                 BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
@@ -419,7 +473,7 @@ mod tests {
             "jump_identity",
             Signature::new(vec![Type::I64], Type::I64),
             vec![
-                BasicBlock::new(vec![], Terminator::Jump(BlockId::new(1))),
+                BasicBlock::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
                 BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
             ],
         );
@@ -427,6 +481,68 @@ mod tests {
         let compiled = CompiledFunction::compile(&function).unwrap();
 
         assert_eq!(compiled.invoke_i64_1(42), Ok(42));
+    }
+
+    #[test]
+    fn compiles_loop_carried_block_parameters() {
+        let function = countdown_function();
+        let compiled = CompiledFunction::compile(&function).unwrap();
+
+        for value in [i64::MIN, -7, -1, 0, 1, 2, 17, 100] {
+            assert_eq!(compiled.invoke_i64_1(value), Ok(value.min(0)));
+        }
+
+        let artifact = emit_host_object(&function).unwrap();
+        assert!(artifact.code_size() > 0);
+        assert!(!artifact.into_bytes().is_empty());
+    }
+
+    fn countdown_function() -> Function {
+        Function::with_blocks(
+            "countdown",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![
+                BasicBlock::new(
+                    vec![
+                        Instruction::I64Constant {
+                            result: ValueId::new(1),
+                            value: -1,
+                        },
+                        Instruction::I64Constant {
+                            result: ValueId::new(2),
+                            value: 1,
+                        },
+                    ],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(0)])),
+                ),
+                BasicBlock::with_parameters(
+                    vec![BlockParameter::new(ValueId::new(3), Type::I64)],
+                    vec![Instruction::I64LessThanSigned {
+                        result: ValueId::new(4),
+                        left: ValueId::new(3),
+                        right: ValueId::new(2),
+                    }],
+                    Terminator::Branch {
+                        condition: ValueId::new(4),
+                        then_target: BlockTarget::new(BlockId::new(3), vec![ValueId::new(3)]),
+                        else_target: target(BlockId::new(2)),
+                    },
+                ),
+                BasicBlock::new(
+                    vec![Instruction::I64AddWrapping {
+                        result: ValueId::new(5),
+                        left: ValueId::new(3),
+                        right: ValueId::new(1),
+                    }],
+                    Terminator::Jump(BlockTarget::new(BlockId::new(1), vec![ValueId::new(5)])),
+                ),
+                BasicBlock::with_parameters(
+                    vec![BlockParameter::new(ValueId::new(6), Type::I64)],
+                    vec![],
+                    Terminator::Return(ValueId::new(6)),
+                ),
+            ],
+        )
     }
 
     #[test]

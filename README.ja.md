@@ -64,7 +64,7 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 `lang-codegen-clif` は同じMIRからhost-native object artifactを生成し、compiled functionをexportし、host callbackをimportとして残すこともできます。Root crateは、object順序を保持し、requestを検証し、hostの `cc` driverを起動し、spawn、exit-status、missing-output failureをstructured errorとして報告する初期 `LinkRequest`／`SystemLinker` layerを提供します。macOS AArch64 integration testとsystem-link benchmarkは、この共通pathを使用します。Production driver hardening、startup code、stable native ABI、debug metadata、Windows evidence、cross-target emissionは未実装です。
 
-Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonと初期の明示的control-flow graphも共有します。2引数minimum functionはentry blockから個別のreturn blockへ分岐し、焦点化されたjump testが明示的edgeを検証します。MIRとbytecodeのvalidationは、invalid target、unreachable block、entry-block predecessor、useをdominateしないvalueを拒否します。Bytecode back-edge testは、instruction fuelが非停止loopを停止することも証明します。Block parameter／phi node、loop-carried value、allocation、source-level control-flow semanticsは未実装です。
+Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonと明示的control-flow graphも共有します。2引数minimum functionはentry blockから個別のreturn blockへ分岐し、焦点化されたjump testが明示的edgeを検証します。型付きblock parameterとedge argumentは、専用phi instructionなしでphiに相当するmergeを表現します。MIRとbytecodeのvalidationは、invalid target、unreachable block、entry-block predecessorまたはparameter、edge argumentのarity／type mismatch、useをdominateしないvalueを拒否します。Countdown workloadはback-edgeを介して `i64` を運び、VMとJITで同じ結果を生成し、object pathもこれをemitします。Bytecode back-edge testは、instruction fuelが非停止loopを停止することを証明します。Allocationとsource-level control-flow semanticsは未実装です。
 
 Symbolとdisassemblyを検査するため、どちらかのinspection targetをhost-native object fileへ書き出します。
 
