@@ -63,6 +63,17 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelはsource span、structured diagnostic、borrow exclusivity、suspension、cancellation、deterministic destructionを扱います。Graph modelは明示的なshared／weak edgeとarena-scoped cyclic storageを比較します。Service modelはactor-isolated mutation、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを検証します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
 
+クリーンなrelease buildからprototype backend measurement harnessを実行します。
+
+```bash
+cargo run --release --bin prototype-bench -- \
+  --samples 31 \
+  --lowering-iterations 1000 \
+  --runtime-iterations 100000
+```
+
+Harnessは、commitとdirty state、toolchainとhost metadata、生成されたJIT code size、bytecode lowering、JIT compilation、direct call、VM call、host callbackのdistribution statisticsを含むJSONを出力します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
+
 共通チェック：
 
 ```bash

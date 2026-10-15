@@ -12,6 +12,7 @@ use lang_runtime::HostFunctionRegistry;
 pub struct CompiledFunction {
     _module: JITModule,
     code: *const u8,
+    code_size: usize,
     parameter_count: usize,
 }
 
@@ -125,6 +126,11 @@ impl CompiledFunction {
         module
             .define_function(function_id, &mut context)
             .map_err(CompileError::backend)?;
+        let code_size = context
+            .compiled_code()
+            .expect("a successfully defined function has compiled code")
+            .code_buffer()
+            .len();
         module.clear_context(&mut context);
         module
             .finalize_definitions()
@@ -134,8 +140,13 @@ impl CompiledFunction {
         Ok(Self {
             _module: module,
             code,
+            code_size,
             parameter_count: function.signature().parameters().len(),
         })
+    }
+
+    pub const fn code_size(&self) -> usize {
+        self.code_size
     }
 
     pub fn invoke_i64_2(&self, left: i64, right: i64) -> Result<i64, InvokeError> {
@@ -230,6 +241,21 @@ mod tests {
     use lang_mir::{Function, HostFunctionId, Instruction, Signature, Terminator, Type, ValueId};
 
     use super::{CompileError, CompiledFunction};
+
+    #[test]
+    fn reports_generated_code_size() {
+        let function = Function::new(
+            "identity",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![],
+            Terminator::Return(ValueId::new(0)),
+        );
+
+        let compiled = CompiledFunction::compile(&function).unwrap();
+
+        assert!(compiled.code_size() > 0);
+        assert_eq!(compiled.invoke_i64_1(42), Ok(42));
+    }
 
     #[test]
     fn rejects_unregistered_host_functions() {

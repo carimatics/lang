@@ -63,6 +63,17 @@ Workspace tests also exercise a minimal embedding path: a backend-neutral host-f
 
 Run the executable ownership experiments separately with `cargo test -p lang-semantics`. The async model covers source spans, structured diagnostics, borrow exclusivity, suspension, cancellation, and deterministic destruction. The graph model compares explicit shared/weak edges with arena-scoped cyclic storage. The service model tests actor-isolated mutation, sendable payload moves, FIFO mailboxes, and deferred cancellation cleanup. These models record design evidence only; they are not accepted language semantics.
 
+Run the prototype backend measurement harness from a clean release build:
+
+```bash
+cargo run --release --bin prototype-bench -- \
+  --samples 31 \
+  --lowering-iterations 1000 \
+  --runtime-iterations 100000
+```
+
+The harness emits JSON containing the commit and dirty state, toolchain and host metadata, generated JIT code sizes, and distribution statistics for bytecode lowering, JIT compilation, direct calls, VM calls, and host callbacks. These measurements are prototype evidence rather than accepted performance guarantees. Record results only from a quiet machine and retain the exact command and raw JSON.
+
 Common checks:
 
 ```bash
