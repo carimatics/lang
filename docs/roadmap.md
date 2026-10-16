@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 0 pt | 86 pt | 0.0% |
+| 1 — frontend and bytecode vertical slice (current) | 5 pt | 86 pt | 5.8% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **209 pt** | **735 pt** | **28.4%** |
+| **Overall** | **214 pt** | **735 pt** | **29.1%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** begin Milestone 1 by establishing structured source diagnostics with stable codes, labels, and fix-its.
+- **Next active P0:** decide the Milestone 1 lexical specification before implementing source tokenization and parsing; the structured source-diagnostic foundation is complete.
 
 ### Tasks in priority order
 
@@ -137,9 +137,9 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 0 / 86 pt (0.0%).** Re-estimated in the 2026-10-17 review to include missing design gates and call-frame implementation. RFC 0002 alone does not specify modules, calls, aggregates, REPL state, or serialized bytecode. Implementation of each extension waits for its accepted contract.
+**Progress: 5 / 86 pt (5.8%).** Re-estimated in the 2026-10-17 review to include missing design gates and call-frame implementation. RFC 0002 alone does not specify modules, calls, aggregates, REPL state, or serialized bytecode. Implementation of each extension waits for its accepted contract.
 
-- [ ] **P0 — Establish structured source diagnostics with stable codes, labels, and fix-its.** — 5 pt
+- [x] **P0 — Establish structured source diagnostics with stable codes, labels, and fix-its.** — 5 pt
 - [ ] **P0 — Accept the RFC 0002 lexical specification: identifier/keyword rules, whitespace/comments, signed-literal tokenization, source encoding, and malformed-token diagnostics, with fixtures.** — 3 pt
 - [ ] **P0 — Implement a lossless parser with error recovery and source spans.** — 8 pt
 - [ ] **P0 — Accept source module and function-call semantics, including visibility, cycles, entry points, host calls, call frames, and recursion limits beyond RFC 0002.** — 5 pt
@@ -154,6 +154,8 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 - [ ] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
 - [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
 - [ ] **P1 — Build the initial incremental query graph shared with an LSP prototype.** — 8 pt
+
+Evidence verified 2026-10-17 (JST): commit `a4f135c` adds `lang-diagnostics` with immutable source snapshots, UTF-8-validated spans, Unicode/UTF-16 positions, accepted `SRC0001`–`SRC0007` identities, primary/secondary labels, notes, and atomic fix previews. Five focused tests cover positions, stale/foreign snapshots, code identities, cross-file rendering, edit conflicts, and control-character escaping. The full fmt/Clippy/test/doc baseline passes. Source diagnostic producers remain part of their parser/resolution/type-checking tasks. Roadmap review: the next dependency is the lexical acceptance gate; no task was removed or deferred, and the 86-point scope remains appropriate.
 
 Exit: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 

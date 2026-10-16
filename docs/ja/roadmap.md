@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 0 pt | 86 pt | 0.0% |
+| 1 — frontendとbytecodeのvertical slice（現在） | 5 pt | 86 pt | 5.8% |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **209 pt** | **735 pt** | **28.4%** |
+| **全体** | **214 pt** | **735 pt** | **29.1%** |
 
 ## Milestone 0：設計baseline
 
@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P0：** Milestone 1を開始し、stable code、label、fix-itを持つstructured source diagnosticを確立する。
+- **次の進行中P0：** Sourceのtokenization／parser実装前にMilestone 1の字句仕様を決定します。Structured source diagnosticsの基盤は完了しました。
 
 ### 優先度順のタスク
 
@@ -137,9 +137,9 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 
 ## Milestone 1：frontendとbytecodeのvertical slice（現在）
 
-**進捗：0 / 86 pt（0.0%）。** 2026-10-17レビューで不足していた設計gateとcall-frame実装を追加して再見積りしました。RFC 0002だけではmodule、call、aggregate、REPL state、serialized bytecodeを規定しません。各拡張の受理前は、その影響を受ける実装を進めません。
+**進捗：5 / 86 pt（5.8%）。** 2026-10-17レビューで不足していた設計gateとcall-frame実装を追加して再見積りしました。RFC 0002だけではmodule、call、aggregate、REPL state、serialized bytecodeを規定しません。各拡張の受理前は、その影響を受ける実装を進めません。
 
-- [ ] **P0 — Stable code、label、fix-itを持つstructured source diagnosticsを確立する。** — 5 pt
+- [x] **P0 — Stable code、label、fix-itを持つstructured source diagnosticsを確立する。** — 5 pt
 - [ ] **P0 — Identifier／keyword、空白／comment、signed-literal tokenization、source encoding、不正token診断をfixture付きで定めるRFC 0002の字句仕様を受理する。** — 3 pt
 - [ ] **P0 — Error recoveryとsource spanを持つlossless parserを実装する。** — 8 pt
 - [ ] **P0 — RFC 0002を超えるsource module／function callのvisibility、cycle、entry point、host call、call frame、recursion limitの意味論を受理する。** — 5 pt
@@ -154,6 +154,8 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 - [ ] **P0 — Deterministicなscript／REPL entry pointを提供する。** — 3 pt
 - [ ] **P1 — Formatterとparser／formatter round-trip testを実装する。** — 5 pt
 - [ ] **P1 — LSP prototypeと共有する初期incremental query graphを構築する。** — 8 pt
+
+2026-10-17（JST）検証済みevidence：commit `a4f135c` は `lang-diagnostics` にimmutableなsource snapshot、UTF-8検証済みspan、Unicode／UTF-16位置、受理済み `SRC0001`–`SRC0007` identity、primary／secondary label、note、atomic fix previewを追加しました。5つの集中testが位置、古い／別mapのsnapshot、code identity、複数fileの表示、edit競合、制御文字のescapeを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Sourceの診断生成はparser／resolution／type-checkingの各taskに含まれます。Roadmap review：次の依存は字句仕様の受理gateです。Taskの削除や延期はなく、86 ptのscopeは引き続き適切です。
 
 Exit：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがある。
 
