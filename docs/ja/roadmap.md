@@ -20,11 +20,13 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 続くRFC consistency監査では、RFC 0003だけに記載されていた2つのdecision blocker、すなわちshared MIR／backend contractを通るtyped resource loweringと、代表的multi-component application evidenceを確認しました。これらを8 pt／5 ptのMilestone 0 prototype taskとして明示します。Milestone 3のproduction component IDL／adapter implementationを置き換えるものではありません。Production package-manager I/OはMilestone 4の作業であり、RFC 0003 designを判断するprerequisiteではありません。
 
-このrepository stateに対して2026-10-16 23:05 JSTに確認した進捗snapshot：
+最初のtyped-resource slice後、8 ptのlowering taskを次のacceptance boundaryで分割し、総costを維持しました。完了済み3 pt taskはnominal MIR／bytecode typingとCranelift JIT／AOT machine laneをcoverし、残る5 pt taskはtyped VM value、adapter統合済みownership transfer／cleanup、native link／run conformanceをcoverします。
+
+このrepository stateに対して2026-10-16 23:15 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 172 pt | 209 pt | **82.3%** |
+| 0 — design baseline（現在） | 175 pt | 209 pt | **83.7%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -32,11 +34,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **172 pt** | **691 pt** | **24.9%** |
+| **全体** | **175 pt** | **691 pt** | **25.3%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：172 / 209 pt（82.3%）。**
+**進捗：175 / 209 pt（83.7%）。**
 
 ### Workstream別内訳
 
@@ -47,14 +49,14 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
-| Component／resource contract | 69 pt | 84 pt | 82.1% |
+| Component／resource contract | 72 pt | 84 pt | 85.7% |
 | Platform／backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **172 pt** | **209 pt** | **82.3%** |
+| **Milestone 0** | **175 pt** | **209 pt** | **83.7%** |
 
 このsnapshot時点の実行状態：
 
-- **Unblocked local P0：** すべてのexecution contractを通るtyped canonical resource callを1つprototypeし、その後に代表的multi-component application fixtureを1つ構成・計測する。
+- **Unblocked local P0：** Typed ownerをVM valueとadapter統合済みVM／JIT／AOT link／run conformanceで実行し、その後に代表的multi-component application fixtureを1つ構成・計測する。
 - **外部gate：** RFC 0002、RFC 0003、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-conformance runner evidence。RFC 0003がdecision-readyになるのは、local prototype taskとWindows evidenceの完了後である。
 - **依存gate：** Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
@@ -98,7 +100,8 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Production package managerを実装せず、in-memory resolverに対するdeterministicなlockfile／package-selection integrationをprototypeする。** — 5 pt
 - [x] **P0 — 同じscalar／resource-failure conformance fixtureをWindows MSVCのdirect／response-file AOT test pathへ接続する。** — 1 pt
 - [x] **P0 — Component-boundary cost evidenceをinstantiation、failure／destructor path、memory、code sizeへ拡張し、その解釈をRFC 0003へ記録する。** — 5 pt
-- [ ] **P0 — Production adapterを実装せず、transfer／cleanup semanticsを維持するtyped canonical `own<T>` resource callをMIR、bytecode／VM、JIT、AOT ABI contract全体で1つprototypeする。** — 8 pt
+- [x] **P0 — Nominal canonical `own<T>` typeを定義し、linear-use／zero-index checkを伴うstraight-line ownerをMIR、bytecode、Cranelift JIT、AOT object contract全体で運ぶ。** — 3 pt
+- [ ] **P0 — そのtyped ownerをVM valueとadapter統合済みVM／JIT／AOT native link／runのtransfer／cleanup conformanceで実行する。** — 5 pt
 - [ ] **P0 — Negotiation、exact-lock replay、instantiation、scalar／resource call、failure cleanupにまたがる代表的multi-component application fixtureを1つ構成・計測する。** — 5 pt
 - [ ] **P0 — Component-conformance pathのnative Windows execution evidenceを記録する。** — 2 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt

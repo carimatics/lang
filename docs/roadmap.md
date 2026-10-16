@@ -20,11 +20,13 @@ A native-evidence audit on the same date found that the 3-point Windows componen
 
 An RFC-consistency audit then found two RFC 0003 decision blockers that were still described only in the RFC: typed resource lowering through the shared MIR/backend contracts and representative multi-component application evidence. They are now explicit 8-point and 5-point Milestone 0 prototype tasks. They do not replace Milestone 3's production component IDL and adapter implementation. Production package-manager I/O remains Milestone 4 work and is not a prerequisite for deciding the RFC 0003 design.
 
-Progress snapshot verified against this repository state on 2026-10-16 23:05 JST:
+After the first typed-resource slice, the 8-point lowering task was split at its next acceptance boundary without changing total cost. The completed 3-point task covers nominal MIR/bytecode typing and the Cranelift JIT/AOT machine lane; the remaining 5-point task covers typed VM values, adapter-integrated ownership transfer/cleanup, and native link/run conformance.
+
+Progress snapshot verified against this repository state on 2026-10-16 23:15 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 172 pt | 209 pt | **82.3%** |
+| 0 — design baseline (current) | 175 pt | 209 pt | **83.7%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -32,11 +34,11 @@ Progress snapshot verified against this repository state on 2026-10-16 23:05 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **172 pt** | **691 pt** | **24.9%** |
+| **Overall** | **175 pt** | **691 pt** | **25.3%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 172 / 209 pt (82.3%).**
+**Progress: 175 / 209 pt (83.7%).**
 
 ### Workstream breakdown
 
@@ -47,14 +49,14 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
-| Component and resource contracts | 69 pt | 84 pt | 82.1% |
+| Component and resource contracts | 72 pt | 84 pt | 85.7% |
 | Platform and backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **172 pt** | **209 pt** | **82.3%** |
+| **Milestone 0** | **175 pt** | **209 pt** | **83.7%** |
 
 Current execution state at this snapshot:
 
-- **Unblocked local P0:** prototype one typed canonical resource call through every execution contract, then compose and measure one representative multi-component application fixture.
+- **Unblocked local P0:** execute the typed owner through VM values and adapter-integrated VM/JIT/AOT link/run conformance, then compose and measure one representative multi-component application fixture.
 - **External gates:** the RFC 0002, RFC 0003, RFC 0004, and RFC 0005 repository-owner decisions plus remote Windows object-link-run, benchmark, and component-conformance runner evidence; RFC 0003 becomes decision-ready only after its local prototype tasks and Windows evidence are complete.
 - **Dependent gates:** select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
 
@@ -98,7 +100,8 @@ Current execution state at this snapshot:
 - [x] **P0 — Prototype deterministic lockfile/package-selection integration over the in-memory resolver without implementing the production package manager.** — 5 pt
 - [x] **P0 — Connect the same scalar and resource/failure conformance fixture to the Windows MSVC direct and response-file AOT test paths.** — 1 pt
 - [x] **P0 — Extend component-boundary cost evidence to instantiation, failure/destructor paths, memory, and code size, and document the interpretation in RFC 0003.** — 5 pt
-- [ ] **P0 — Prototype one typed canonical `own<T>` resource call through MIR, bytecode/VM, JIT, and AOT ABI contracts, preserving transfer and cleanup semantics without implementing the production adapter.** — 8 pt
+- [x] **P0 — Define a nominal canonical `own<T>` type and carry one straight-line owner through MIR, bytecode, Cranelift JIT, and AOT object contracts with linear-use and zero-index checks.** — 3 pt
+- [ ] **P0 — Execute that typed owner through VM values and adapter-integrated VM/JIT/AOT native link/run transfer and cleanup conformance.** — 5 pt
 - [ ] **P0 — Compose and measure one representative multi-component application fixture across negotiation, exact-lock replay, instantiation, scalar/resource calls, and failure cleanup.** — 5 pt
 - [ ] **P0 — Record native Windows execution evidence for the component-conformance paths.** — 2 pt
 - [ ] **P0 — Decide RFC 0003, recording acceptance, requested revisions, or rejection.** — 3 pt
