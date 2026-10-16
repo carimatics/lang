@@ -8,7 +8,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use lang::component_conformance::prototype_scalar_component_function;
 use lang::component_resource_conformance::{
-    run_prototype_resource_failure_adapter, run_prototype_resource_failure_component,
+    prototype_owned_resource_function, run_prototype_resource_failure_adapter,
+    run_prototype_resource_failure_component, run_prototype_typed_resource_adapter,
+    run_prototype_typed_resource_component,
 };
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
@@ -35,6 +37,7 @@ extern int64_t prototype_min(int64_t left, int64_t right);
 extern int64_t prototype_sum_below(int64_t value, int64_t cutoff);
 extern int64_t prototype_sum_to(int64_t value);
 extern int64_t run(int64_t value);
+extern uint32_t component_transfer_owned_resource(uint32_t value);
 
 int64_t lang_host_i64_0(int64_t value) {
     return value * 2;
@@ -125,8 +128,9 @@ int main(void) {
     int64_t sum_below = prototype_sum_below(64, 33);
     int64_t sum = prototype_sum_to(64);
     int64_t component = run(21);
-    printf("%lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld\n", (long long)add, (long long)fibonacci, (long long)allocation, (long long)allocation_burst, (long long)allocation_churn, (long long)allocation_variable, (long long)callback, (long long)minimum, (long long)sum_below, (long long)sum, (long long)component);
-    return add == 42 && fibonacci == 6765 && allocation == -9 && allocation_burst == 1440 && allocation_churn == 4192 && allocation_variable == -24 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 && component == 42 ? 0 : 1;
+    uint32_t resource = component_transfer_owned_resource(1);
+    printf("%lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %u\n", (long long)add, (long long)fibonacci, (long long)allocation, (long long)allocation_burst, (long long)allocation_churn, (long long)allocation_variable, (long long)callback, (long long)minimum, (long long)sum_below, (long long)sum, (long long)component, resource);
+    return add == 42 && fibonacci == 6765 && allocation == -9 && allocation_burst == 1440 && allocation_churn == 4192 && allocation_variable == -24 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 && component == 42 && resource == 1 ? 0 : 1;
 }
 "#;
 
@@ -159,7 +163,7 @@ impl Drop for TestDirectory {
     }
 }
 
-fn assert_aot_executable(executable: &Path) -> i64 {
+fn assert_aot_executable(executable: &Path) -> (i64, u32) {
     let execution = Command::new(executable)
         .output()
         .expect("runs the linked Windows AOT executable");
@@ -177,11 +181,12 @@ fn assert_aot_executable(executable: &Path) -> i64 {
         .collect::<Vec<_>>();
     assert_eq!(
         values,
-        vec![42, 6765, -9, 1440, 4192, -24, 42, -7, 528, 2080, 42]
+        vec![42, 6765, -9, 1440, 4192, -24, 42, -7, 528, 2080, 42, 1]
     );
-    *values
-        .last()
-        .expect("AOT fixture prints the component result")
+    (
+        values[10],
+        u32::try_from(values[11]).expect("resource result is a u32"),
+    )
 }
 
 #[test]
@@ -197,6 +202,7 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .join("prototype_host_allocation_variable.obj");
     let callback_object = directory.path().join("prototype_host_callback.obj");
     let component_object = directory.path().join("component_scalar.obj");
+    let component_resource_object = directory.path().join("component_resource.obj");
     let min_object = directory.path().join("prototype_min.obj");
     let sum_below_object = directory.path().join("prototype_sum_below.obj");
     let sum_object = directory.path().join("prototype_sum_to.obj");
@@ -223,6 +229,8 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         &prototype_scalar_component_function().expect("validates the scalar component contract"),
     )
     .expect("emits the scalar component object");
+    let component_resource = emit_host_object(&prototype_owned_resource_function())
+        .expect("emits the typed resource component object");
     let minimum = emit_host_object(&prototype_min_function()).expect("emits the minimum object");
     let sum_below = emit_host_object(&prototype_sum_below_function())
         .expect("emits the conditional sum object");
@@ -238,6 +246,8 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .expect("writes the variable allocation object");
     fs::write(&callback_object, callback.bytes()).expect("writes the callback object");
     fs::write(&component_object, component.bytes()).expect("writes the component object");
+    fs::write(&component_resource_object, component_resource.bytes())
+        .expect("writes the typed resource component object");
     fs::write(&min_object, minimum.bytes()).expect("writes the minimum object");
     fs::write(&sum_below_object, sum_below.bytes()).expect("writes the conditional sum object");
     fs::write(&sum_object, sum.bytes()).expect("writes the sum object");
@@ -269,6 +279,7 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .with_object(&allocation_variable_object)
         .with_object(&callback_object)
         .with_object(&component_object)
+        .with_object(&component_resource_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)
         .with_object(&sum_object);
@@ -278,13 +289,19 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
     linker
         .link(&request)
         .expect("links the AOT objects through link.exe");
-    let aot_value = assert_aot_executable(&executable);
+    let (aot_value, aot_resource) = assert_aot_executable(&executable);
     let cross_mode = run_prototype_resource_failure_component()
         .expect("VM and JIT execute the resource/failure fixture");
     let aot_outcome = run_prototype_resource_failure_adapter(aot_value)
         .expect("AOT result executes the resource/failure adapter");
     assert_eq!(aot_outcome, cross_mode.vm);
     assert_eq!(aot_outcome, cross_mode.jit);
+    let typed_cross_mode = run_prototype_typed_resource_component()
+        .expect("VM and JIT execute the typed resource fixture");
+    let typed_aot_outcome = run_prototype_typed_resource_adapter(aot_resource)
+        .expect("AOT resource result executes transfer cleanup");
+    assert_eq!(typed_aot_outcome, typed_cross_mode.vm);
+    assert_eq!(typed_aot_outcome, typed_cross_mode.jit);
 
     let response_request = LinkRequest::new(&response_executable)
         .with_object(&harness_object)
@@ -296,6 +313,7 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .with_object(&allocation_variable_object)
         .with_object(&callback_object)
         .with_object(&component_object)
+        .with_object(&component_resource_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)
         .with_object(&sum_object);
@@ -303,10 +321,15 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .link_with_response_file(&response_request, &response_file)
         .expect("links the AOT objects through an MSVC response file");
     assert!(response_file.is_file());
-    let response_aot_value = assert_aot_executable(&response_executable);
+    let (response_aot_value, response_aot_resource) = assert_aot_executable(&response_executable);
     assert_eq!(
         run_prototype_resource_failure_adapter(response_aot_value)
             .expect("response-file AOT result executes the resource/failure adapter"),
         aot_outcome
+    );
+    assert_eq!(
+        run_prototype_typed_resource_adapter(response_aot_resource)
+            .expect("response-file AOT resource result executes transfer cleanup"),
+        typed_aot_outcome
     );
 }

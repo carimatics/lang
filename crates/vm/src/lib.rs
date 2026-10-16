@@ -2,12 +2,75 @@
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::num::NonZeroU32;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use lang_bytecode::{BlockId, BlockTarget, Instruction, Program, Terminator, VerificationError};
-use lang_mir::HostFunctionId;
+use lang_mir::{HostFunctionId, ResourceTypeId, Type};
 use lang_runtime::HostFunctionRegistry;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VmValue {
+    I64(i64),
+    Bool(bool),
+    OwnResource {
+        resource_type: ResourceTypeId,
+        index: NonZeroU32,
+    },
+}
+
+impl VmValue {
+    pub fn own_resource(resource_type: ResourceTypeId, index: u32) -> Result<Self, VmValueError> {
+        let Some(index) = NonZeroU32::new(index) else {
+            return Err(VmValueError::InvalidOwnedResourceIndex(index));
+        };
+        Ok(Self::OwnResource {
+            resource_type,
+            index,
+        })
+    }
+
+    pub const fn value_type(self) -> Type {
+        match self {
+            Self::I64(_) => Type::I64,
+            Self::Bool(_) => Type::Bool,
+            Self::OwnResource { resource_type, .. } => Type::Own(resource_type),
+        }
+    }
+
+    pub const fn owned_resource_index(self) -> Option<u32> {
+        match self {
+            Self::OwnResource { index, .. } => Some(index.get()),
+            Self::I64(_) | Self::Bool(_) => None,
+        }
+    }
+
+    const fn raw(self) -> i64 {
+        match self {
+            Self::I64(value) => value,
+            Self::Bool(value) => value as i64,
+            Self::OwnResource { index, .. } => index.get() as i64,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VmValueError {
+    InvalidOwnedResourceIndex(u32),
+}
+
+impl Display for VmValueError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidOwnedResourceIndex(index) => {
+                write!(formatter, "owned resource index {index} is invalid")
+            }
+        }
+    }
+}
+
+impl Error for VmValueError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionLimits {
@@ -185,6 +248,44 @@ pub fn execute(program: &Program, arguments: &[i64]) -> Result<i64, VmError> {
         .map(ExecutionOutcome::value)
 }
 
+pub fn execute_typed(program: &Program, arguments: &[VmValue]) -> Result<VmValue, VmError> {
+    program.verify().map_err(VmError::InvalidBytecode)?;
+    if arguments.len() != program.parameter_count() {
+        return Err(VmError::Arity {
+            expected: program.parameter_count(),
+            actual: arguments.len(),
+        });
+    }
+    for (argument, (actual, &expected)) in arguments
+        .iter()
+        .copied()
+        .map(VmValue::value_type)
+        .zip(program.parameter_types())
+        .enumerate()
+    {
+        if actual != expected {
+            return Err(VmError::ArgumentType {
+                argument,
+                expected,
+                actual,
+            });
+        }
+    }
+
+    let raw_arguments = arguments
+        .iter()
+        .copied()
+        .map(VmValue::raw)
+        .collect::<Vec<_>>();
+    let outcome = execute_raw_with_hosts_and_control(
+        program,
+        &raw_arguments,
+        &HostFunctionRegistry::new(),
+        ExecutionControl::unbounded(),
+    )?;
+    decode_typed_result(program.result_type(), outcome.value())
+}
+
 pub fn execute_with_limits(
     program: &Program,
     arguments: &[i64],
@@ -230,6 +331,23 @@ pub fn execute_with_hosts_and_limits(
 }
 
 pub fn execute_with_hosts_and_control(
+    program: &Program,
+    arguments: &[i64],
+    host_functions: &HostFunctionRegistry,
+    control: ExecutionControl<'_>,
+) -> Result<ExecutionOutcome, VmError> {
+    if program
+        .parameter_types()
+        .iter()
+        .any(|value_type| *value_type != Type::I64)
+        || program.result_type() != Type::I64
+    {
+        return Err(VmError::TypedEntryPointRequired);
+    }
+    execute_raw_with_hosts_and_control(program, arguments, host_functions, control)
+}
+
+fn execute_raw_with_hosts_and_control(
     program: &Program,
     arguments: &[i64],
     host_functions: &HostFunctionRegistry,
@@ -320,6 +438,23 @@ pub fn execute_with_hosts_and_control(
                 };
                 current_block = transfer(target, program, &mut registers);
             }
+        }
+    }
+}
+
+fn decode_typed_result(result_type: Type, value: i64) -> Result<VmValue, VmError> {
+    match result_type {
+        Type::I64 => Ok(VmValue::I64(value)),
+        Type::Bool => Ok(VmValue::Bool(value != 0)),
+        Type::Own(resource_type) => {
+            let index = u32::try_from(value)
+                .ok()
+                .and_then(NonZeroU32::new)
+                .ok_or(VmError::InvalidOwnedResourceIndex(value))?;
+            Ok(VmValue::OwnResource {
+                resource_type,
+                index,
+            })
         }
     }
 }
@@ -422,6 +557,13 @@ pub enum VmError {
         expected: usize,
         actual: usize,
     },
+    ArgumentType {
+        argument: usize,
+        expected: Type,
+        actual: Type,
+    },
+    TypedEntryPointRequired,
+    InvalidOwnedResourceIndex(i64),
     UnknownHostFunction(HostFunctionId),
     InstructionFuelExhausted {
         limit: u64,
@@ -454,6 +596,20 @@ impl Display for VmError {
                     formatter,
                     "expected {expected} arguments, received {actual}"
                 )
+            }
+            Self::ArgumentType {
+                argument,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "argument {argument} has type {actual}, expected {expected}"
+            ),
+            Self::TypedEntryPointRequired => formatter.write_str(
+                "owned-resource bytecode must be executed through the typed VM entry point",
+            ),
+            Self::InvalidOwnedResourceIndex(index) => {
+                write!(formatter, "owned resource index {index} is invalid")
             }
             Self::UnknownHostFunction(id) => {
                 write!(formatter, "host function {id} is not registered")
@@ -495,14 +651,17 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, Instant};
 
-    use lang_bytecode::{Block, BlockId, BlockParameter, BlockTarget, Instruction, Program};
-    use lang_mir::{HostFunctionId, Type};
+    use lang_bytecode::{Block, BlockId, BlockParameter, BlockTarget, Instruction, Program, lower};
+    use lang_mir::{
+        Function, HostFunctionId, ResourceTypeId, Signature, Terminator as MirTerminator, Type,
+        ValueId,
+    };
     use lang_runtime::HostFunctionRegistry;
 
     use super::{
-        ExecutionControl, ExecutionLimits, ExecutionOutcome, InterruptionFlag, VmError, execute,
-        execute_with_control, execute_with_hosts, execute_with_hosts_and_control,
-        execute_with_hosts_and_limits, execute_with_limits,
+        ExecutionControl, ExecutionLimits, ExecutionOutcome, InterruptionFlag, VmError, VmValue,
+        VmValueError, execute, execute_typed, execute_with_control, execute_with_hosts,
+        execute_with_hosts_and_control, execute_with_hosts_and_limits, execute_with_limits,
     };
     use lang_bytecode::Terminator;
 
@@ -528,6 +687,37 @@ mod tests {
         INTERRUPTING_HOST_CALLS.fetch_add(1, Ordering::SeqCst);
         CALLBACK_INTERRUPT.interrupt();
         value.wrapping_mul(2)
+    }
+
+    #[test]
+    fn executes_a_nominal_owned_resource_value() {
+        let resource = ResourceTypeId::new(7);
+        let function = Function::new(
+            "transfer_resource",
+            Signature::new(vec![Type::Own(resource)], Type::Own(resource)),
+            vec![],
+            MirTerminator::Return(ValueId::new(0)),
+        );
+        let program = lower(&function).unwrap();
+        let owner = VmValue::own_resource(resource, 17).unwrap();
+
+        assert_eq!(execute_typed(&program, &[owner]), Ok(owner));
+        assert_eq!(
+            execute_typed(&program, &[VmValue::I64(17)]),
+            Err(VmError::ArgumentType {
+                argument: 0,
+                expected: Type::Own(resource),
+                actual: Type::I64,
+            })
+        );
+        assert_eq!(
+            execute(&program, &[17]),
+            Err(VmError::TypedEntryPointRequired)
+        );
+        assert_eq!(
+            VmValue::own_resource(resource, 0),
+            Err(VmValueError::InvalidOwnedResourceIndex(0))
+        );
     }
 
     #[test]
