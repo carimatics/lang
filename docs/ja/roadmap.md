@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 5 pt | 86 pt | 5.8% |
+| 1 — frontendとbytecodeのvertical slice（現在） | 5 pt | 89 pt | 5.6% |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **214 pt** | **735 pt** | **29.1%** |
+| **全体** | **214 pt** | **738 pt** | **29.0%** |
 
 ## Milestone 0：設計baseline
 
@@ -137,7 +137,7 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 
 ## Milestone 1：frontendとbytecodeのvertical slice（現在）
 
-**進捗：5 / 86 pt（5.8%）。** 2026-10-17レビューで不足していた設計gateとcall-frame実装を追加して再見積りしました。RFC 0002だけではmodule、call、aggregate、REPL state、serialized bytecodeを規定しません。各拡張の受理前は、その影響を受ける実装を進めません。
+**進捗：5 / 89 pt（5.6%）。** 2026-10-17レビューで不足していた設計gateとcall-frame実装を追加して再見積りしました。RFC 0002だけではmodule、call、aggregate、REPL state、serialized bytecodeを規定しません。各拡張の受理前は、その影響を受ける実装を進めません。[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)作成中の追加reviewで、portable bytecodeとscript／REPL stateの受理gateが本文にしかないことを確認しました。2 ptと1 ptの独立taskとして明示し、実装scopeを削らず3 pt追加しました。RFC 0006はproposedであり、まだacceptedではありません。互換性fixtureと段階的backend制約をownerがreviewできる状態です。
 
 - [x] **P0 — Stable code、label、fix-itを持つstructured source diagnosticsを確立する。** — 5 pt
 - [ ] **P0 — Identifier／keyword、空白／comment、signed-literal tokenization、source encoding、不正token診断をfixture付きで定めるRFC 0002の字句仕様を受理する。** — 3 pt
@@ -148,14 +148,16 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 - [ ] **P0 — Record／variant／pattern／exhaustivenessの意味論、typed MIR／value表現、互換性fixtureを受理する。** — 5 pt
 - [ ] **P0 — Record、variant、pattern、exhaustivenessをtype-checkする。** — 8 pt
 - [ ] **P0 — Spanを保持しながらresolved／typed sourceをHIR経由でvalidated typed MIRへloweringする。** — 5 pt
+- [ ] **P0 — Portable bytecode schemaと上限付きdecoding／verificationの契約を受理する。** — 2 pt
 - [ ] **P0 — Prototypeをencoding、decoding、verification付きversioned register bytecodeへ昇格させる。** — 5 pt
 - [ ] **P0 — 受理済みsource call、call frame、return、bounded recursionをMIR／bytecode／VMへ実装しfailure／stack testを追加する。** — 8 pt
 - [ ] **P0 — Typed host registration付きでsource-language subsetをVM実行する。** — 5 pt
+- [ ] **P0 — Script entry／outputとtransactional REPL state／error契約を受理する。** — 1 pt
 - [ ] **P0 — Deterministicなscript／REPL entry pointを提供する。** — 3 pt
 - [ ] **P1 — Formatterとparser／formatter round-trip testを実装する。** — 5 pt
 - [ ] **P1 — LSP prototypeと共有する初期incremental query graphを構築する。** — 8 pt
 
-2026-10-17（JST）検証済みevidence：commit `a4f135c` は `lang-diagnostics` にimmutableなsource snapshot、UTF-8検証済みspan、Unicode／UTF-16位置、受理済み `SRC0001`–`SRC0007` identity、primary／secondary label、note、atomic fix previewを追加しました。5つの集中testが位置、古い／別mapのsnapshot、code identity、複数fileの表示、edit競合、制御文字のescapeを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Sourceの診断生成はparser／resolution／type-checkingの各taskに含まれます。Roadmap review：次の依存は字句仕様の受理gateです。Taskの削除や延期はなく、86 ptのscopeは引き続き適切です。
+2026-10-17（JST）検証済みevidence：commit `a4f135c` は `lang-diagnostics` にimmutableなsource snapshot、UTF-8検証済みspan、Unicode／UTF-16位置、受理済み `SRC0001`–`SRC0007` identity、primary／secondary label、note、atomic fix previewを追加しました。5つの集中testが位置、古い／別mapのsnapshot、code identity、複数fileの表示、edit競合、制御文字のescapeを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Sourceの診断生成はparser／resolution／type-checkingの各taskに含まれます。Commit `40a56cb` は英日RFC 0006提案と互換性fixture表を追加しました。Example、grammar、link、RFC metadata、roadmap算術を確認しています。Ownerの受理記録まで設計受理checkboxは完了にしません。Roadmap review：実装taskの削除や延期はなく、修正した89 ptの計画はrecord／variant／call／toolingの全scopeを維持します。次の依存は字句仕様の受理gateです。
 
 Exit：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがある。
 

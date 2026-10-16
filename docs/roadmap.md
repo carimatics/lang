@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 5 pt | 86 pt | 5.8% |
+| 1 — frontend and bytecode vertical slice (current) | 5 pt | 89 pt | 5.6% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **214 pt** | **735 pt** | **29.1%** |
+| **Overall** | **214 pt** | **738 pt** | **29.0%** |
 
 ## Milestone 0: design baseline
 
@@ -137,7 +137,7 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 5 / 86 pt (5.8%).** Re-estimated in the 2026-10-17 review to include missing design gates and call-frame implementation. RFC 0002 alone does not specify modules, calls, aggregates, REPL state, or serialized bytecode. Implementation of each extension waits for its accepted contract.
+**Progress: 5 / 89 pt (5.6%).** Re-estimated in the 2026-10-17 review to include missing design gates and call-frame implementation. RFC 0002 alone does not specify modules, calls, aggregates, REPL state, or serialized bytecode. Implementation of each extension waits for its accepted contract. A follow-up review while preparing [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) exposed two acceptance gates that had only been mentioned in prose: portable bytecode and script/REPL state. They are now explicit 2-point and 1-point tasks, adding 3 points without removing any implementation scope. RFC 0006 is proposed, not accepted; its compatibility fixtures and staged backend restrictions are ready for owner review.
 
 - [x] **P0 — Establish structured source diagnostics with stable codes, labels, and fix-its.** — 5 pt
 - [ ] **P0 — Accept the RFC 0002 lexical specification: identifier/keyword rules, whitespace/comments, signed-literal tokenization, source encoding, and malformed-token diagnostics, with fixtures.** — 3 pt
@@ -148,14 +148,16 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 - [ ] **P0 — Accept records, variants, patterns, and exhaustiveness semantics plus their typed MIR/value representation and compatibility fixtures.** — 5 pt
 - [ ] **P0 — Type-check records, variants, patterns, and exhaustiveness.** — 8 pt
 - [ ] **P0 — Lower resolved and typed source through HIR into validated typed MIR while preserving spans.** — 5 pt
+- [ ] **P0 — Accept the portable bytecode schema and bounded decoding/verification contract.** — 2 pt
 - [ ] **P0 — Promote the prototype into versioned register bytecode with encoding, decoding, and verification.** — 5 pt
 - [ ] **P0 — Implement accepted source calls, call frames, returns, and bounded recursion in MIR, bytecode, and VM with failure/stack tests.** — 8 pt
 - [ ] **P0 — Execute the source-language subset in the VM with typed host registration.** — 5 pt
+- [ ] **P0 — Accept script entry/output and transactional REPL state/error contracts.** — 1 pt
 - [ ] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
 - [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
 - [ ] **P1 — Build the initial incremental query graph shared with an LSP prototype.** — 8 pt
 
-Evidence verified 2026-10-17 (JST): commit `a4f135c` adds `lang-diagnostics` with immutable source snapshots, UTF-8-validated spans, Unicode/UTF-16 positions, accepted `SRC0001`–`SRC0007` identities, primary/secondary labels, notes, and atomic fix previews. Five focused tests cover positions, stale/foreign snapshots, code identities, cross-file rendering, edit conflicts, and control-character escaping. The full fmt/Clippy/test/doc baseline passes. Source diagnostic producers remain part of their parser/resolution/type-checking tasks. Roadmap review: the next dependency is the lexical acceptance gate; no task was removed or deferred, and the 86-point scope remains appropriate.
+Evidence verified 2026-10-17 (JST): commit `a4f135c` adds `lang-diagnostics` with immutable source snapshots, UTF-8-validated spans, Unicode/UTF-16 positions, accepted `SRC0001`–`SRC0007` identities, primary/secondary labels, notes, and atomic fix previews. Five focused tests cover positions, stale/foreign snapshots, code identities, cross-file rendering, edit conflicts, and control-character escaping. The full fmt/Clippy/test/doc baseline passes. Source diagnostic producers remain part of their parser/resolution/type-checking tasks. Commit `40a56cb` supplies the English/Japanese RFC 0006 proposal and compatibility-fixture tables; examples, grammar, links, RFC metadata, and roadmap arithmetic were checked. No design-acceptance checkbox is complete until the owner records acceptance. Roadmap review: no implementation task was removed or deferred; the corrected 89-point plan retains the complete records/variants/calls/tooling scope. The next dependency is the lexical acceptance gate.
 
 Exit: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 
