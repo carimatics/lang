@@ -8,7 +8,7 @@ These measurements are design evidence for the pre-alpha prototypes. They are no
 
 ## Current macOS AArch64 baseline
 
-The current baseline was recorded from clean commit `180af8502341c4ed00d90a658193cfa14b5ce1da` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 04:50:50 JST. It used harness schema 5, the pinned Rust 1.99.0 toolchain, and Apple Clang 21.0.0 in a release build.
+The current baseline was recorded from clean commit `bad17cf2a42a5fc92b83f1aaebdc68e3ca2cb7a6` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 09:37:56 JST. It used harness schema 6, the pinned Rust 1.99.0 toolchain, and Apple Clang 21.0.0 in a release build.
 
 ```bash
 target/release/prototype-bench \
@@ -22,32 +22,38 @@ Each row reports nanoseconds per operation. RSD is the relative population stand
 
 | Measurement | Operations per sample | Median | p95 | RSD |
 | --- | ---: | ---: | ---: | ---: |
-| Bytecode lowering: wrapping `i64` add | 1,000 | 457.125 ns | 479.375 ns | 4.471% |
-| Bytecode lowering: signed minimum | 1,000 | 1,064.542 ns | 1,216.125 ns | 5.064% |
-| Bytecode lowering: countdown back-edge | 1,000 | 1,665.042 ns | 1,853.625 ns | 4.118% |
-| Cranelift JIT compilation: wrapping `i64` add | 1 | 20.416 us | 34.959 us | 74.097% |
-| Cranelift JIT compilation: signed minimum | 1 | 23.834 us | 31.292 us | 20.092% |
-| Cranelift JIT compilation: countdown back-edge | 1 | 28.291 us | 36.834 us | 13.284% |
-| Cranelift AOT object emission: wrapping `i64` add | 1 | 13.875 us | 36.750 us | 65.320% |
-| Cranelift AOT object emission: signed minimum | 1 | 18.167 us | 25.959 us | 26.924% |
-| Cranelift AOT object emission: countdown back-edge | 1 | 22.000 us | 27.209 us | 14.202% |
-| macOS system link: precompiled C harness plus add, minimum, and countdown objects | 1 | 36.837 ms | 39.596 ms | 2.958% |
-| macOS AOT process startup: single launch | 1 | 1.487 ms | 1.846 ms | 256.272% |
-| macOS AOT process startup: ten-launch batch, per launch | 10 | 1.499 ms | 1.639 ms | 4.688% |
-| Direct Rust wrapping `i64` add call | 100,000 | 0.958 ns | 0.974 ns | 0.659% |
-| VM wrapping `i64` add call | 100,000 | 182.419 ns | 183.855 ns | 0.657% |
-| JIT wrapping `i64` add call | 100,000 | 1.860 ns | 1.917 ns | 4.034% |
-| Direct Rust signed minimum call | 100,000 | 0.958 ns | 0.991 ns | 1.624% |
-| VM signed minimum call | 100,000 | 509.131 ns | 524.915 ns | 3.813% |
-| JIT signed minimum call | 100,000 | 2.756 ns | 2.847 ns | 2.134% |
-| Direct Rust countdown call | 100,000 | 0.958 ns | 1.207 ns | 38.693% |
-| VM countdown call | 100,000 | 1,585.620 ns | 1,608.688 ns | 1.834% |
-| JIT countdown call | 100,000 | 12.707 ns | 12.992 ns | 0.946% |
-| Direct Rust host callback | 100,000 | 0.930 ns | 1.018 ns | 4.664% |
-| VM host callback | 100,000 | 171.864 ns | 174.175 ns | 0.792% |
-| JIT host callback | 100,000 | 2.789 ns | 2.868 ns | 0.898% |
+| Bytecode lowering: wrapping `i64` add | 1,000 | 387.375 ns | 457.750 ns | 5.394% |
+| Bytecode lowering: signed minimum | 1,000 | 1.086 us | 1.128 us | 2.473% |
+| Bytecode lowering: countdown back-edge | 1,000 | 1.711 us | 1.885 us | 4.356% |
+| Bytecode lowering: two-value accumulator | 1,000 | 1.781 us | 1.833 us | 1.164% |
+| Cranelift JIT compilation: wrapping `i64` add | 1 | 21.583 us | 113.000 us | 85.387% |
+| Cranelift JIT compilation: signed minimum | 1 | 24.083 us | 30.458 us | 24.956% |
+| Cranelift JIT compilation: countdown back-edge | 1 | 28.167 us | 32.334 us | 16.625% |
+| Cranelift JIT compilation: two-value accumulator | 1 | 31.292 us | 37.458 us | 8.464% |
+| Cranelift AOT object emission: wrapping `i64` add | 1 | 13.625 us | 21.833 us | 31.397% |
+| Cranelift AOT object emission: signed minimum | 1 | 18.167 us | 20.459 us | 7.174% |
+| Cranelift AOT object emission: countdown back-edge | 1 | 22.208 us | 26.750 us | 6.206% |
+| Cranelift AOT object emission: two-value accumulator | 1 | 26.334 us | 28.959 us | 4.174% |
+| macOS system link: precompiled C harness plus add, minimum, countdown, and accumulator objects | 1 | 36.834 ms | 40.020 ms | 3.516% |
+| macOS AOT process startup: single launch | 1 | 1.486 ms | 2.005 ms | 263.849% |
+| macOS AOT process startup: ten-launch batch, per launch | 10 | 1.415 ms | 1.638 ms | 5.510% |
+| Direct Rust wrapping `i64` add call | 100,000 | 0.930 ns | 0.982 ns | 1.913% |
+| VM wrapping `i64` add call | 100,000 | 177.218 ns | 178.999 ns | 0.573% |
+| JIT wrapping `i64` add call | 100,000 | 1.860 ns | 1.994 ns | 2.557% |
+| Direct Rust signed minimum call | 100,000 | 0.931 ns | 0.992 ns | 2.091% |
+| VM signed minimum call | 100,000 | 490.746 ns | 495.128 ns | 0.425% |
+| JIT signed minimum call | 100,000 | 2.634 ns | 2.782 ns | 5.347% |
+| Direct Rust countdown call | 100,000 | 0.930 ns | 0.958 ns | 1.154% |
+| VM countdown call | 100,000 | 1.562 us | 1.651 us | 1.855% |
+| JIT countdown call | 100,000 | 12.730 ns | 13.217 ns | 1.276% |
+| Direct Rust two-value accumulator call | 100,000 | 1.704 ns | 1.732 ns | 0.989% |
+| VM two-value accumulator call | 100,000 | 1.631 us | 1.640 us | 0.302% |
+| JIT two-value accumulator call | 100,000 | 12.782 ns | 13.800 ns | 2.843% |
+| Direct Rust host callback | 100,000 | 0.930 ns | 1.048 ns | 10.285% |
+| VM host callback | 100,000 | 170.679 ns | 176.610 ns | 1.245% |
+| JIT host callback | 100,000 | 2.789 ns | 2.920 ns | 1.465% |
 
-Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, 20 bytes for countdown, and 40 bytes for the host callback. The emitted add, minimum, and countdown objects were 352, 368, and 376 bytes. The linked AOT harness was 16,992 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable; the executable size includes both plus the platform linker's defaults, but not a complete runtime distribution.
+Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, 20 bytes for countdown, 36 bytes for the accumulator, and 40 bytes for the host callback. The emitted add, minimum, countdown, and accumulator objects were 352, 368, 376, and 392 bytes. The linked AOT harness was 17,056 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable; the executable size includes both plus the platform linker's defaults, but not a complete runtime distribution.
 
 ## Schema 6 format and migration
 
@@ -55,7 +61,7 @@ Schema 6 adds the two-value `sum_to` accumulator workload to bytecode lowering, 
 
 The tier-1 link and process-startup sets now include the accumulator object. Schema 6 therefore renames the three platform rows to `system_link_add_min_countdown_sum_to`, `aot_process_startup_add_min_countdown_sum_to`, and `aot_process_startup_batch_add_min_countdown_sum_to`, and renames the executable-size field to `aot_add_min_countdown_sum_to`. It also adds `jit_sum_to` and `aot_sum_to` size fields plus six accumulator measurement rows. Consumers must branch on `schema_version`; existing schema 1–5 JSON files remain immutable evidence.
 
-The schema 6 implementation and Windows evidence path are present, but no clean schema 6 result is recorded yet. The schema 5 table above remains the current measured baseline.
+A clean macOS AArch64 schema 6 result is recorded above. The Windows evidence path is present, but no remote schema 6 result has been inspected or committed.
 
 ## Schema 5 format and migration
 
@@ -101,29 +107,30 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 
 ## Interpretation and limits
 
-- The harness checks VM, JIT, and direct Rust results for equivalence before timing, including both outcomes of minimum and the immediate-return/loop paths of countdown.
-- Schema 6 adds the separate two-value accumulator prototype to every existing workload dimension, but the current schema 5 baseline predates those rows. Accumulator benchmark claims remain provisional until a clean schema 6 result is recorded.
+- The harness checks VM, JIT, and direct Rust results for equivalence before timing, including both outcomes of minimum and the immediate-return/loop paths of countdown and the accumulator.
+- The two-value accumulator carries a descending counter and wrapping sum around the same back-edge. Its direct, VM, and JIT medians are 1.704 ns, 1.631 us, and 12.782 ns. This bounded MIR workload is useful differential evidence, not a representative program benchmark.
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
-- The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown. Both precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).
+- The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown and schema 6 adds the accumulator. All precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).
 - Schema 4's process-startup row includes process creation, loader work, the tiny harness workload, output collection, and waiting for termination. It neither flushes operating-system caches nor isolates loader time, and the executable-size field includes the platform C harness and default linker output.
 - Schema 5 retains the single-launch row and adds a configurable batched row. The batched per-operation value reduces the leverage of one delayed launch on a sample, but it is an amortized throughput estimate rather than a replacement for individual startup latency.
-- JIT add compilation has 74.097% RSD, and AOT add emission has 65.320% RSD. The countdown JIT and AOT medians are 28.291 us and 22.000 us with 13.284% and 14.202% RSD. These medians are useful as directional evidence, but compile-time variation remains too high for a stable performance budget.
-- The single-launch AOT startup median is 1.487 ms and p95 is 1.846 ms, but one 42.796 ms sample raises RSD to 256.272%. The ten-launch batched row reports a similar 1.499 ms median with 1.639 ms p95 and 4.688% RSD. Batching materially reduces host-noise leverage for an amortized estimate, while the single row still exposes tail-sensitive latency.
-- VM/JIT runtime medians remain directionally consistent with schema 4. Alternating between a 64-iteration back-edge and immediate return gives a JIT median of 12.707 ns and a VM median of 1,585.620 ns; this bounded microbenchmark does not predict representative control-flow performance. Sub-nanosecond direct-call rows and their high relative variation remain timer-resolution baselines, not credible throughput claims.
+- JIT add compilation has 85.387% RSD, and AOT add emission has 31.397% RSD. Countdown JIT/AOT medians are 28.167 us and 22.208 us; accumulator JIT/AOT medians are 31.292 us and 26.334 us. These values are useful as directional evidence, but compile-time variation remains too high for a stable performance budget.
+- The single-launch AOT startup median is 1.486 ms and p95 is 2.005 ms, but one 45.908 ms sample raises RSD to 263.849%. The ten-launch batched row reports a 1.415 ms median with 1.638 ms p95 and 5.510% RSD. Batching materially reduces host-noise leverage for an amortized estimate, while the single row still exposes tail-sensitive latency.
+- Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.730 ns and 1.562 us and accumulator JIT/VM medians of 12.782 ns and 1.631 us. These bounded microbenchmarks do not predict representative control-flow performance. Sub-nanosecond direct-call rows remain timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record schema 6 on both tier-1 hosts, add allocation and additional CFG workloads, and measure memory and debug quality. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
+Before selecting the initial native backend, record schema 6 on Windows x86-64, add allocation and additional CFG workloads, and measure memory and debug quality. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
 
 ## Earlier baseline
 
-The [schema 4 result](../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json), measured 2026-10-16 03:08:08 JST from commit `78fd3edff8d5dbeb38ff501999f7094a604404bd`, predates batched startup evidence and is superseded by schema 5. The [schema 3 result](../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json), [schema 2 result](../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json), [schema 1 AOT/link result](../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json), and [earlier JIT-only result](../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json) remain available for harness history.
+The [schema 5 result](../benchmarks/results/2026-10-16-macos-aarch64-180af85.json), measured 2026-10-16 04:50:50 JST from commit `180af8502341c4ed00d90a658193cfa14b5ce1da`, predates accumulator evidence and is superseded by schema 6. The [schema 4 result](../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json), [schema 3 result](../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json), [schema 2 result](../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json), [schema 1 AOT/link result](../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json), and [earlier JIT-only result](../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json) remain available for harness history.
 
 ## Sources
 
-- [Current raw macOS AArch64 schema 5 result](../benchmarks/results/2026-10-16-macos-aarch64-180af85.json), measured 2026-10-16 04:50:50 JST.
+- [Current raw macOS AArch64 schema 6 result](../benchmarks/results/2026-10-16-macos-aarch64-bad17cf.json), measured 2026-10-16 09:37:56 JST.
 - [macOS AArch64 generated-object inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), captured 2026-10-16 00:25 JST.
 - [macOS AArch64 signed-minimum inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), captured 2026-10-16 00:43:31 JST.
+- Repository commit `bad17cf2a42a5fc92b83f1aaebdc68e3ca2cb7a6`, committed 2026-10-16.
 - Repository commit `180af8502341c4ed00d90a658193cfa14b5ce1da`, committed 2026-10-16.
 - Repository commit `78fd3edff8d5dbeb38ff501999f7094a604404bd`, committed 2026-10-16.
 - Repository commit `fc216b26cdd8cdbd77f8e78e598f9a2143514bd3`, committed 2026-10-16.

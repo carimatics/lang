@@ -238,7 +238,7 @@ Schema 5はそのsingle-launch rowを維持し、設定可能なbatched startup 
 
 より広いCFG prototypeは、descending counterとwrapping accumulatorという2つの `i64` valueを、同じback-edgeのblock parameterで運びます。MIR validation、bytecode execution、Cranelift JITはnon-positive inputとbounded positive inputで一致します。Native object emissionはmacOS direct／response-file link-and-run integrationとhost非依存Windows x86-64 COFF symbol validationで検証し、cfg-gated MSVC integrationも同じexecution pathを反映します。これはMIR evidenceにとどまり、source-level loop semanticsは未完了です。
 
-Schema 6は、accumulator workloadをbytecode lowering、JIT／AOT compilation、direct／VM／JIT call、生成code／object size、tier-1 system-link／startup setへ追加します。Link setがadd、minimum、countdown、accumulator objectを含むようになったため、platform seriesとlink済みexecutable fieldをrenameします。Windows CIは新しいrowとfieldを検証します。Cleanなschema 6 resultはまだ記録していないため、cleanなmacOS AArch64 schema 5 resultが現在の測定済みbaselineのままで、remote Windows comparisonも未完了です。
+Schema 6は、accumulator workloadをbytecode lowering、JIT／AOT compilation、direct／VM／JIT call、生成code／object size、tier-1 system-link／startup setへ追加します。Link setがadd、minimum、countdown、accumulator objectを含むようになったため、platform seriesとlink済みexecutable fieldをrenameします。CleanなmacOS AArch64 resultは新しいrowとfieldを記録し、Windows CIも同じcontractを検証しますが、remote Windows comparisonは未完了です。
 
 ## Diagnostics、LSP、debugging
 

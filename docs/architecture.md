@@ -238,7 +238,7 @@ Schema 5 retains that single-launch row and adds a configurable batched startup 
 
 A broader CFG prototype now carries two `i64` values—a descending counter and wrapping accumulator—through block parameters on the same back-edge. MIR validation, bytecode execution, and Cranelift JIT agree for non-positive and bounded positive inputs. Native object emission is exercised by macOS direct/response-file link-and-run integration and by host-independent Windows x86-64 COFF symbol validation; the cfg-gated MSVC integration mirrors the execution path. This remains MIR evidence: source-level loop semantics are still open.
 
-Schema 6 adds the accumulator workload to bytecode lowering, JIT/AOT compilation, direct/VM/JIT calls, generated code and object sizes, and the tier-1 system-link/startup set. The platform series and linked-executable field are renamed because the link set now contains add, minimum, countdown, and accumulator objects. Windows CI validates the new rows and fields. No clean schema 6 result is recorded yet, so the clean macOS AArch64 schema 5 result remains the current measured baseline and remote Windows comparison remains open.
+Schema 6 adds the accumulator workload to bytecode lowering, JIT/AOT compilation, direct/VM/JIT calls, generated code and object sizes, and the tier-1 system-link/startup set. The platform series and linked-executable field are renamed because the link set now contains add, minimum, countdown, and accumulator objects. A clean macOS AArch64 result records the new rows and fields; Windows CI validates the same contract, but remote Windows comparison remains open.
 
 ## Diagnostics, LSP, and debugging
 
