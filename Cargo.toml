@@ -6,6 +6,7 @@ members = [
     "crates/diagnostics",
     "crates/hir",
     "crates/mir",
+    "crates/query",
     "crates/runtime",
     "crates/semantics",
     "crates/vm",
@@ -30,6 +31,7 @@ lang-codegen-clif = { path = "crates/codegen-clif" }
 lang-diagnostics = { path = "crates/diagnostics" }
 lang-hir = { path = "crates/hir" }
 lang-mir = { path = "crates/mir" }
+lang-query = { path = "crates/query" }
 lang-runtime = { path = "crates/runtime" }
 lang-semantics = { path = "crates/semantics" }
 lang-vm = { path = "crates/vm" }

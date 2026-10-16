@@ -82,6 +82,8 @@ MIR ─────────────────────────�
 
 Hashとtiming explanationを永続化し、build toolがunitを再buildした理由を回答できるようにします。Source fileとpackage manifestを明示的なquery inputとして扱います。
 
+2026-10-17実装：`lang-query` はbackend非依存のin-memory graph／cache coreです。Hostはopaque key、immutableな `Arc` value、完全な明示dependency集合を渡します。Input editは推移的consumerをinvalidateし、無関係なcacheを保持します。Query publication ticketはgraph identity、query generation、dependency revisionを記録し、edit、新しいwork、publication、removal、key再利用後に古い結果で現在のvalueを置換させません。Dependency置換で古いreverse edgeを残しません。Key closeはconsumerをinvalidateし、incoming referenceを上限付きtombstoneとして保持するためreopenでも古いworkを復活させません。Cycle、node／edge／work limit、revision overflowは全bookkeepingをstate変更前に検証します。Traversalは反復的かつdeterministicです。上限対象はgraph bookkeepingであり、hostのanalysis-value memoryやcodeではありません。構造化input HIRのintegration testで診断cache再利用と古い結果の拒否を示します。Query recipeの自動実行、全input／dependency検出、hash／timing永続化、parser／module統合、LSP adapter／transportは未実装であり、graph coreだけでtooling milestoneの広いtaskを完了しません。
+
 ## Memory model baseline
 
 この設計では、memory safety、一般的なshared object graph、単純な構文、deterministic destruction、zero overhead、GCなしをすべて同時に最大化できないという基本的トレードオフを認識する必要があります。

@@ -1,0 +1,11 @@
+[package]
+name = "lang-query"
+version.workspace = true
+edition.workspace = true
+
+[dev-dependencies]
+lang-diagnostics.workspace = true
+lang-hir.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"

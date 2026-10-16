@@ -82,6 +82,8 @@ Use a dependency-tracked query system from the first non-trivial frontend. Queri
 
 Persist hashes and timing explanations so the build tool can answer why a unit rebuilt. Keep source files and package manifests as explicit query inputs.
 
+Implemented 2026-10-17: `lang-query` is a backend-independent in-memory graph/cache core. Hosts supply opaque keys, immutable `Arc` values, and complete explicit dependency sets. Input edits invalidate transitive consumers while preserving unrelated cache entries. Query publication tickets capture the graph identity, query generation, and dependency revisions; edits, newer work, publication, removal, and key reuse prevent old results from replacing current values. Dependencies can be replaced without retaining obsolete reverse edges. Closing a key invalidates its consumers; incoming references remain bounded tombstones so reopening cannot revive old work. Cycle, node/edge/work-limit, and revision-overflow failures preflight bookkeeping before any graph state change. Traversals are iterative and deterministic. These bounds cover graph bookkeeping, not the host's analysis-value memory or code. A structured-input HIR integration test demonstrates diagnostic-cache reuse and stale-result rejection. Automatic query recipes, full input/dependency discovery, persisted hashes/timings, parser/module integration, and an LSP adapter/transport remain work; the graph core alone does not complete the broader tooling milestone task.
+
 ## Memory model baseline
 
 The design must acknowledge the fundamental tradeoff: memory safety, general shared object graphs, simple syntax, deterministic destruction, zero overhead, and no GC cannot all be maximized simultaneously.

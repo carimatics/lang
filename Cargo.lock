@@ -353,6 +353,14 @@ name = "lang-mir"
 version = "0.1.0"
 
 [[package]]
+name = "lang-query"
+version = "0.1.0"
+dependencies = [
+ "lang-diagnostics",
+ "lang-hir",
+]
+
+[[package]]
 name = "lang-runtime"
 version = "0.1.0"
 dependencies = [

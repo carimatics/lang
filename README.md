@@ -55,6 +55,8 @@ Milestone 1 now has backend-independent `lang-diagnostics` and `lang-hir` crates
 
 `lang-semantics::lowering` converts that successful primitive HIR to validated typed MIR. Branch assignments merge through typed block parameters; loops carry mutable values over back-edges; early returns and unreachable statements preserve their accepted behavior. Instruction/terminator spans map into the existing bytecode and native debug metadata. Run `cargo test --test hir_lowering` for structured-input VM/JIT differential execution, host-object debug mapping, and lowering-budget checks. These tests establish the HIR-to-MIR path, not end-to-end source compilation.
 
+`lang-query` provides the shared incremental graph/cache core: immutable input revisions, explicit query dependencies, transitive invalidation, and publication tickets that reject obsolete analysis results after edits or close/reopen. It bounds graph nodes, edges, and bookkeeping work and preflights failures before state changes. `cargo test -p lang-query` covers cache isolation, stale/foreign results, dependency replacement, cycles, limits, and real structured-input HIR diagnostic caching. Adapters must declare every observed dependency; automatic compiler queries, parser/module dependency discovery, and LSP transport remain pending.
+
 Requirements:
 
 - Rust `1.99.0`, pinned by `rust-toolchain.toml`
