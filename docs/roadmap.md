@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 38 pt | 89 pt | 42.7% |
+| 1 — frontend and bytecode vertical slice (current) | 41 pt | 89 pt | 46.1% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **247 pt** | **738 pt** | **33.5%** |
+| **Overall** | **250 pt** | **738 pt** | **33.9%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** connect lossless parsed source to module loading, scope/name resolution, and HIR under accepted RFC 0006.
+- **Next active P0:** connect parsed local/pattern scopes and type paths to HIR; module loading and namespace resolution are implemented under accepted RFC 0006.
 
 ### Tasks in priority order
 
@@ -137,9 +137,9 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 38 / 89 pt (42.7%).**
+**Progress: 41 / 89 pt (46.1%).**
 
-The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five design gates account for 16 completed points. The accepted contract now governs lexical rules, modules/calls, copy-only aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Implementation and conformance remain separate outcomes. Lossless tokenization and parsing/recovery are implemented; the next active work is source-connected module loading, resolution, and HIR.
+The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five design gates account for 16 completed points. The accepted contract now governs lexical rules, modules/calls, copy-only aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Implementation and conformance remain separate outcomes. Lossless tokenization/parsing and module loading/namespaces are implemented; the next active work is parsed local/pattern scopes, type paths, and HIR integration.
 
 The 2026-10-17 estimate remains 89 points: it exposed bytecode/REPL acceptance as 2-point/1-point tasks without dropping implementation scope. Primitive typing was split into 3 points of structured-input HIR and 5 points of parser-connected source/call conformance; lowering into 2 points of primitive HIR/MIR and 3 points of parser-connected/extended-source conformance. These completed foundations do not complete the broader frontend.
 
@@ -150,7 +150,8 @@ The 8-point incremental-tooling task is likewise split into 3 points of shared g
 - [x] **P0 — Implement bounded UTF-8 ingestion and lossless tokenization with literal/comment diagnostics and source spans.** — 3 pt
 - [x] **P0 — Construct the lossless syntax tree and parse the accepted grammar with error recovery and source spans.** — 5 pt
 - [x] **P0 — Accept source module and function-call semantics, including visibility, cycles, entry points, host calls, call frames, and recursion limits beyond RFC 0002.** — 5 pt
-- [ ] **P0 — Implement scopes, name resolution, and module loading.** — 5 pt
+- [x] **P0 — Load bounded modules under an explicit source root and resolve item/import namespaces with visibility and cycle checks.** — 3 pt
+- [ ] **P0 — Resolve parsed local/pattern scopes and type paths, including public-signature visibility, into source HIR.** — 2 pt
 - [x] **P0 — Resolve and type-check structured RFC 0002 function input into span-preserving HIR with bounded analysis and diagnostic tests.** — 3 pt
 - [ ] **P0 — Connect parsed source to HIR and type-check source functions/control flow, including accepted call signatures, with compile-pass/fail fixtures.** — 5 pt
 - [x] **P0 — Accept records, variants, patterns, and exhaustiveness semantics plus their typed MIR/value representation and compatibility fixtures.** — 5 pt
@@ -182,14 +183,16 @@ Commit `8dafdeb` adds `lang-query` with 10 graph tests and one real structured-i
 
 Commit `b4a6f24` adds `lang-lsp` diagnostic data conversion with four focused tests covering UTF-16/surrogate widths, LF/CRLF/lone-CR line endings, CRLF interior boundaries, EOF ranges, related locations, severity/code preservation, missing snapshots/URIs, and source/label/note/output limits. The [architecture](architecture.md#diagnostics-lsp-and-debugging) records official LSP 3.18 sources and their 2026-10-17 verification dates; publication/update dates are not provided in those living documents. The full fmt/Clippy/test/doc baseline passes. This is a data adapter, not a server or a wire codec. The remaining 4-point integration task retains parser/module queries, capabilities, transport, document lifecycle, and revision-safe publication after RFC 0006 acceptance.
 
+Commit `eadf992` adds explicit-root canonical module loading, compilation-local IDs, namespace collection, visibility-aware module/enum-case paths, forward aliases, and iterative alias-cycle rejection. Seventeen local tests cover hierarchy, privacy, cycles, duplicates, parser/encoding failures, cumulative budgets, declaration/work limits, and Unix symlink boundaries; a Linux-only case checks non-UTF-8 filenames. The full fmt/Clippy/test/doc baseline passes. The original 5-point scopes/resolution/loading task is split into this verified 3-point module outcome and 2 points of parsed local/pattern scopes, type paths, and public-signature visibility. The 89-point total and source integration scope are preserved. A namespace graph does not establish typed bodies or source execution.
+
 ### Remaining dependency audit (2026-10-17)
 
-After owner acceptance and lossless parsing, the current checklist has 10 unchecked implementation items totaling 51 points. This table is a dependency view, not additional scope or completion credit.
+After owner acceptance, lossless parsing, and module namespaces, the current checklist has 10 unchecked implementation items totaling 48 points. This table is a dependency view, not additional scope or completion credit.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Parser-connected typing, formatter round trips, and incomplete-source LSP diagnostics |
-| Module/function-call semantics | Module loading/resolution, guest frames/recursion, typed host execution, and parser-connected source/HIR/MIR conformance |
+| Module/function-call semantics | Parsed local/pattern/type resolution, public signatures, guest frames/recursion, typed host execution, and parser-connected source/HIR/MIR conformance |
 | Record/variant/pattern semantics and representation | Aggregate typing/exhaustiveness and aggregate source/HIR/MIR/VM conformance |
 | Portable bytecode contract | Versioned encoding/decoding and bounded verification |
 | Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
