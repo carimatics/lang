@@ -14,11 +14,13 @@ Cost uses relative effort points rather than elapsed-time promises: `1` is a ver
 
 The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. A follow-up component-workstream audit separated in-memory compatibility negotiation, scalar execution-prototype integration, backend-neutral resource-adapter behavior, and boundary-cost measurement. The previous single cross-mode scalar/resource task mixed those acceptance boundaries and overlapped Milestone 3's production IDL and adapter implementation. A post-schema-18 audit found that native debug-metadata implementation and cross-platform debug-quality validation were named as backend-selection prerequisites only in prose; they are now explicit 5-point and 3-point tasks before backend selection. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites. The checklist records dependency order, not a claim that an external gate is locally executable: when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
-Progress snapshot verified against this repository state on 2026-10-16 20:19 JST:
+An RFC-readiness audit on the same date corrected another planning gap: RFC 0003 was queued for an owner decision even though its review outcome still names stable serialization, host-value and cross-mode adapter conformance, lock integration, native Windows component execution, and broader cost evidence as blockers. Those outcomes are now explicit prototype tasks before the RFC 0003 decision; Milestones 3 and 4 still own the production IDL, adapters, and package manager.
+
+Progress snapshot verified against this repository state on 2026-10-16 20:56 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 145 pt | 167 pt | **86.8%** |
+| 0 — design baseline (current) | 145 pt | 196 pt | **74.0%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +28,11 @@ Progress snapshot verified against this repository state on 2026-10-16 20:19 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **145 pt** | **649 pt** | **22.3%** |
+| **Overall** | **145 pt** | **678 pt** | **21.4%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 145 / 167 pt (86.8%).**
+**Progress: 145 / 196 pt (74.0%).**
 
 ### Workstream breakdown
 
@@ -41,16 +43,16 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
-| Component and resource contracts | 42 pt | 45 pt | 93.3% |
-| Platform and backend evidence | 48 pt | 59 pt | 81.4% |
+| Component and resource contracts | 42 pt | 71 pt | 59.2% |
+| Platform and backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **145 pt** | **167 pt** | **86.8%** |
+| **Milestone 0** | **145 pt** | **196 pt** | **74.0%** |
 
 Current execution state at this snapshot:
 
-- **Unblocked local P0:** none; all remaining Milestone 0 tasks require repository-owner decisions or remote Windows evidence.
-- **External gates:** the RFC 0002 through RFC 0005 repository-owner decisions plus remote Windows CI and benchmark evidence.
-- **Dependent gates:** select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
+- **Unblocked local P0:** stable versioned component serialization, cross-mode host-value adapter conformance, a lockfile/package-selection prototype, and expanded boundary-cost evidence for RFC 0003.
+- **External gates:** the RFC 0002, RFC 0004, and RFC 0005 repository-owner decisions plus remote Windows object-link-run, benchmark, and component-execution evidence.
+- **Dependent gates:** decide RFC 0003 after its added evidence prerequisites, select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
 
 ### Tasks in priority order
 
@@ -85,6 +87,11 @@ Current execution state at this snapshot:
 - [x] **P0 — Connect one validated schema-1 scalar import/export through the VM, JIT, and AOT prototypes and record equivalent outcomes.** — 3 pt
 - [x] **P0 — Prototype canonical resource preflight/commit, borrow scoping, cleanup ledgers, and instance poisoning in a backend-neutral adapter trace.** — 5 pt
 - [x] **P0 — Measure metadata validation/negotiation, scalar dispatch, and resource lifecycle costs as separate benchmark series and document their interpretation in RFC 0003.** — 5 pt
+- [ ] **P0 — Prototype and specify a stable versioned component serialization for normalized requirements, digests, resource identities, and failure records.** — 8 pt
+- [ ] **P0 — Prototype general component instantiation and connect canonical host-value resource/failure adapters through VM, JIT, and AOT, recording equivalent outcomes.** — 8 pt
+- [ ] **P0 — Prototype deterministic lockfile/package-selection integration over the in-memory resolver without implementing the production package manager.** — 5 pt
+- [ ] **P0 — Record native Windows component execution for the same conformance fixture.** — 3 pt
+- [ ] **P0 — Extend component-boundary cost evidence to instantiation, failure/destructor paths, memory, and code size, and document the interpretation in RFC 0003.** — 5 pt
 - [ ] **P0 — Decide RFC 0003, recording acceptance, requested revisions, or rejection.** — 3 pt
 - [x] **P0 — Draft a decision-ready ownership and cyclic-graph RFC from the completed experiments.** — 5 pt
 - [x] **P0 — Draft a decision-ready async-cancellation and shared-service concurrency RFC from the completed experiments.** — 5 pt
