@@ -16,7 +16,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 同日のRFC readiness監査では、別のplanning gapも修正しました。RFC 0003はowner decision待ちとして並んでいましたが、review outcomeはstable serialization、host-value／cross-mode adapter conformance、lock integration、native Windows component execution、より広いcost evidenceをblockerとして明記しています。これらの成果をRFC 0003 decision前の明示的なprototype taskとして追加し、production IDL、adapter、package managerは引き続きMilestone 3／4の責務とします。
 
-このrepository stateに対して2026-10-16 21:22 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 21:36 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
@@ -111,7 +111,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 実験的schema-1 `LCMP` codecはscalar declaration subsetをdeterministically encodeし、設定可能なtotal-byte、declaration-count、structural-depth、string-length limitの下でuntrusted byteをdecodeします。Malformed magic、payload前のunsupported schema、truncation、invalid UTF-8、unknown scalar tag、trailing byte、limit超過をstructured byte-offset errorで拒否します。Round-trip、encoder／decoder limit、malformed fixture、deterministic arbitrary-byte corpus、locked fuzz-target build、1,000-run libFuzzer smoke executionがpassしました。このformatはunstableなfixtureのままであり、stable contract serialization／compatibility negotiationはRFC 0003の未解決事項です。
 
-最初のschema-2 serialization sliceは、package／full-SemVer identity、canonicalにsortしたnormalized interface requirement、SHA-256 tag付きexact lock、canonical resource-type identity向けの別のcontract envelope候補を追加しました。Construction／bounded decodingはinvalid identifier、interval、duplicate、orphan／mismatched lock、malformed header／tag／boolean／UTF-8、truncation、trailing byte、byte／item／depth／string limit超過をstructured offset付きで拒否します。Golden encoding、canonical-order round trip、arbitrary-byte corpus、専用fuzz targetがlayoutをcoverします。Required-member projection／versioned failure reportは未完了であるため、8 ptのstable-serialization taskは未checkのままです。
+Schema-2 serialization prototypeは、package／full-SemVer identity、canonicalにsortしたnormalized interface requirement／required-member projection、SHA-256 tag付きexact lock、canonical resource-type identity向けのcontract envelope候補を含むようになりました。Required memberはparameter／result順序、exact capability、scalarまたはnominalな `own<T>`／`borrow<T>` typeを保持し、validationはduplicate member name、invalid capability、未宣言resource、borrowed resultを拒否します。Construction／bounded decodingはさらにinvalid identifier、interval、duplicate、orphan／mismatched lock、malformed header／tag／boolean／UTF-8、truncation、trailing byte、byte／item／depth／string limit超過をstructured offset付きで拒否します。Check-in済みgolden encoding、canonical-order round trip、projection validation、arbitrary-byte corpus、専用fuzz targetがlayoutをcoverします。Versioned failure reportは未完了であるため、8 ptのstable-serialization taskは未checkのままです。
 
 Component runtimeはgeneration tag付きowned handleと明示的なshared／exclusive borrow tokenもprototypeしました。Released slotはgenerationを進め、最小のfree slotをdeterministically再利用するため、stale ownerはreplacementをaliasできず、generation exhaustionではwrapせずslotをretireします。Shared borrowは共存し、exclusive borrow／mutable accessはexclusivityを強制し、active borrowはreleaseをblockし、borrow end／releaseのrepeatはstructuredに失敗します。6件のfocused testがslot reuse、stale owner／borrow、double release／end、conflict、mutation、deterministic reuse、generation retirement、borrow-ID exhaustionをcoverします。
 

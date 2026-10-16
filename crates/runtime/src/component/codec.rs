@@ -53,7 +53,7 @@ impl ComponentCodecLimits {
 
 impl Default for ComponentCodecLimits {
     fn default() -> Self {
-        Self::new(1024 * 1024, 1024, 3, 4096)
+        Self::new(1024 * 1024, 1024, 5, 4096)
     }
 }
 

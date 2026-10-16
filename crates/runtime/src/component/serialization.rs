@@ -9,11 +9,11 @@ use std::fmt::{Display, Formatter};
 use std::str;
 
 use super::codec::ComponentCodecLimits;
-use super::is_component_identifier;
 use super::negotiation::{
     BuildIdentifier, InterfaceKey, PackageKey, PrereleaseIdentifier, ResourceTypeKey,
     SemanticVersion, VersionIdentifierError, VersionRequirement,
 };
+use super::{is_capability_identifier, is_component_identifier};
 
 /// Magic shared with the experimental schema-1 metadata fixture.
 pub const VERSIONED_COMPONENT_MAGIC: [u8; 4] = *b"LCMP";
@@ -112,11 +112,24 @@ impl Error for VersionedDigestError {}
 pub struct ComponentContractRequirement {
     key: InterfaceKey,
     requirement: VersionRequirement,
+    required_members: Vec<ComponentContractRequiredMember>,
 }
 
 impl ComponentContractRequirement {
     pub fn new(key: InterfaceKey, requirement: VersionRequirement) -> Self {
-        Self { key, requirement }
+        Self {
+            key,
+            requirement,
+            required_members: Vec::new(),
+        }
+    }
+
+    pub fn with_required_members(
+        mut self,
+        required_members: Vec<ComponentContractRequiredMember>,
+    ) -> Self {
+        self.required_members = required_members;
+        self
     }
 
     pub fn key(&self) -> &InterfaceKey {
@@ -126,6 +139,60 @@ impl ComponentContractRequirement {
     pub fn requirement(&self) -> &VersionRequirement {
         &self.requirement
     }
+
+    pub fn required_members(&self) -> &[ComponentContractRequiredMember] {
+        &self.required_members
+    }
+}
+
+/// One function in an interface projection required by a consumer.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ComponentContractRequiredMember {
+    name: String,
+    parameters: Vec<ComponentContractValueType>,
+    results: Vec<ComponentContractValueType>,
+    capability: String,
+}
+
+impl ComponentContractRequiredMember {
+    pub fn new(
+        name: impl Into<String>,
+        parameters: Vec<ComponentContractValueType>,
+        results: Vec<ComponentContractValueType>,
+        capability: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            parameters,
+            results,
+            capability: capability.into(),
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn parameters(&self) -> &[ComponentContractValueType] {
+        &self.parameters
+    }
+
+    pub fn results(&self) -> &[ComponentContractValueType] {
+        &self.results
+    }
+
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+}
+
+/// Value types admitted by the first required-member projection prototype.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ComponentContractValueType {
+    I64,
+    Bool,
+    Own(ResourceTypeKey),
+    Borrow(ResourceTypeKey),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -176,9 +243,10 @@ impl VersionedComponentContract {
     ) -> Result<Self, ComponentContractValidationError> {
         validate_package_key(&package)?;
 
-        for requirement in &requirements {
+        for requirement in &mut requirements {
             validate_interface_key(requirement.key())?;
             validate_requirement(requirement)?;
+            canonicalize_required_members(requirement)?;
         }
         requirements.sort_by(|left, right| left.key().cmp(right.key()));
         reject_duplicate_requirements(&requirements)?;
@@ -195,6 +263,7 @@ impl VersionedComponentContract {
         }
         resources.sort();
         reject_duplicate_resources(&resources)?;
+        validate_required_member_resources(&requirements, &resources)?;
 
         Ok(Self {
             package,
@@ -232,6 +301,7 @@ pub enum ComponentContractIdentifierField {
     PackageName,
     InterfaceName,
     ResourceName,
+    RequiredMemberName,
 }
 
 impl Display for ComponentContractIdentifierField {
@@ -241,6 +311,7 @@ impl Display for ComponentContractIdentifierField {
             Self::PackageName => formatter.write_str("package name"),
             Self::InterfaceName => formatter.write_str("interface name"),
             Self::ResourceName => formatter.write_str("resource name"),
+            Self::RequiredMemberName => formatter.write_str("required member name"),
         }
     }
 }
@@ -259,6 +330,25 @@ pub enum ComponentContractValidationError {
     DuplicateRequirement(InterfaceKey),
     DuplicateLock(InterfaceKey),
     DuplicateResource(ResourceTypeKey),
+    DuplicateRequiredMember {
+        key: Box<InterfaceKey>,
+        member: String,
+    },
+    InvalidRequiredMemberCapability {
+        key: Box<InterfaceKey>,
+        member: String,
+        capability: String,
+    },
+    MissingRequiredMemberResource {
+        key: Box<InterfaceKey>,
+        member: String,
+        resource: Box<ResourceTypeKey>,
+    },
+    BorrowedRequiredMemberResult {
+        key: Box<InterfaceKey>,
+        member: String,
+        resource: Box<ResourceTypeKey>,
+    },
     MissingRequirementForLock(InterfaceKey),
     LockVersionMismatch {
         key: Box<InterfaceKey>,
@@ -287,6 +377,37 @@ impl Display for ComponentContractValidationError {
             Self::DuplicateResource(resource) => write!(
                 formatter,
                 "duplicate resource identity `{}#{}`",
+                resource.interface(),
+                resource.resource()
+            ),
+            Self::DuplicateRequiredMember { key, member } => {
+                write!(formatter, "duplicate required member `{key}.{member}`")
+            }
+            Self::InvalidRequiredMemberCapability {
+                key,
+                member,
+                capability,
+            } => write!(
+                formatter,
+                "required member `{key}.{member}` has invalid capability `{capability}`"
+            ),
+            Self::MissingRequiredMemberResource {
+                key,
+                member,
+                resource,
+            } => write!(
+                formatter,
+                "required member `{key}.{member}` references undeclared resource `{}#{}`",
+                resource.interface(),
+                resource.resource()
+            ),
+            Self::BorrowedRequiredMemberResult {
+                key,
+                member,
+                resource,
+            } => write!(
+                formatter,
+                "required member `{key}.{member}` returns unsupported borrow `{}#{}`",
                 resource.interface(),
                 resource.resource()
             ),
@@ -362,6 +483,89 @@ fn validate_requirement(
             min_inclusive: Box::new(min_inclusive.clone()),
             max_exclusive: Box::new(max_exclusive.clone()),
         });
+    }
+    Ok(())
+}
+
+fn canonicalize_required_members(
+    requirement: &mut ComponentContractRequirement,
+) -> Result<(), ComponentContractValidationError> {
+    for member in &requirement.required_members {
+        validate_identifier(
+            ComponentContractIdentifierField::RequiredMemberName,
+            member.name(),
+        )?;
+        if !is_capability_identifier(member.capability()) {
+            return Err(
+                ComponentContractValidationError::InvalidRequiredMemberCapability {
+                    key: Box::new(requirement.key().clone()),
+                    member: member.name().to_owned(),
+                    capability: member.capability().to_owned(),
+                },
+            );
+        }
+        for value_type in member.parameters().iter().chain(member.results()) {
+            if let ComponentContractValueType::Own(resource)
+            | ComponentContractValueType::Borrow(resource) = value_type
+            {
+                validate_resource_type_key(resource)?;
+            }
+        }
+        if let Some(resource) = member
+            .results()
+            .iter()
+            .find_map(|value_type| match value_type {
+                ComponentContractValueType::Borrow(resource) => Some(resource),
+                _ => None,
+            })
+        {
+            return Err(
+                ComponentContractValidationError::BorrowedRequiredMemberResult {
+                    key: Box::new(requirement.key().clone()),
+                    member: member.name().to_owned(),
+                    resource: Box::new(resource.clone()),
+                },
+            );
+        }
+    }
+
+    requirement
+        .required_members
+        .sort_by(|left, right| left.name().cmp(right.name()));
+    for adjacent in requirement.required_members.windows(2) {
+        if adjacent[0].name() == adjacent[1].name() {
+            return Err(ComponentContractValidationError::DuplicateRequiredMember {
+                key: Box::new(requirement.key().clone()),
+                member: adjacent[0].name().to_owned(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_required_member_resources(
+    requirements: &[ComponentContractRequirement],
+    resources: &[ResourceTypeKey],
+) -> Result<(), ComponentContractValidationError> {
+    for requirement in requirements {
+        for member in requirement.required_members() {
+            for value_type in member.parameters().iter().chain(member.results()) {
+                let resource = match value_type {
+                    ComponentContractValueType::Own(resource)
+                    | ComponentContractValueType::Borrow(resource) => resource,
+                    ComponentContractValueType::I64 | ComponentContractValueType::Bool => continue,
+                };
+                if resources.binary_search(resource).is_err() {
+                    return Err(
+                        ComponentContractValidationError::MissingRequiredMemberResource {
+                            key: Box::new(requirement.key().clone()),
+                            member: member.name().to_owned(),
+                            resource: Box::new(resource.clone()),
+                        },
+                    );
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -445,6 +649,9 @@ pub enum VersionedComponentSection {
     PrereleaseIdentifiers,
     BuildIdentifiers,
     Requirements,
+    RequiredMembers,
+    Parameters,
+    Results,
     Locks,
     Resources,
 }
@@ -455,6 +662,9 @@ impl Display for VersionedComponentSection {
             Self::PrereleaseIdentifiers => formatter.write_str("prerelease identifiers"),
             Self::BuildIdentifiers => formatter.write_str("build identifiers"),
             Self::Requirements => formatter.write_str("interface requirements"),
+            Self::RequiredMembers => formatter.write_str("required interface members"),
+            Self::Parameters => formatter.write_str("required-member parameters"),
+            Self::Results => formatter.write_str("required-member results"),
             Self::Locks => formatter.write_str("interface locks"),
             Self::Resources => formatter.write_str("resource identities"),
         }
@@ -467,6 +677,8 @@ pub enum VersionedComponentStringField {
     PackageName,
     InterfaceName,
     ResourceName,
+    RequiredMemberName,
+    RequiredMemberCapability,
     PrereleaseIdentifier,
     BuildIdentifier,
 }
@@ -478,6 +690,8 @@ impl Display for VersionedComponentStringField {
             Self::PackageName => formatter.write_str("package name"),
             Self::InterfaceName => formatter.write_str("interface name"),
             Self::ResourceName => formatter.write_str("resource name"),
+            Self::RequiredMemberName => formatter.write_str("required member name"),
+            Self::RequiredMemberCapability => formatter.write_str("required member capability"),
             Self::PrereleaseIdentifier => formatter.write_str("prerelease identifier"),
             Self::BuildIdentifier => formatter.write_str("build identifier"),
         }
@@ -529,6 +743,9 @@ pub enum VersionedComponentCodecErrorKind {
         tag: u8,
     },
     UnknownVersionRequirementTag {
+        tag: u8,
+    },
+    UnknownValueTypeTag {
         tag: u8,
     },
     InvalidBoolean {
@@ -595,6 +812,9 @@ impl Display for VersionedComponentCodecErrorKind {
             }
             Self::UnknownVersionRequirementTag { tag } => {
                 write!(formatter, "unknown version requirement tag {tag}")
+            }
+            Self::UnknownValueTypeTag { tag } => {
+                write!(formatter, "unknown component value-type tag {tag}")
             }
             Self::InvalidBoolean { value } => {
                 write!(formatter, "invalid canonical boolean value {value}")
@@ -667,6 +887,14 @@ pub fn encode_versioned_component_contract(
         writer.require_depth(3)?;
         writer.write_interface_key(requirement.key())?;
         writer.write_version_requirement(requirement.requirement())?;
+        writer.write_count(
+            VersionedComponentSection::RequiredMembers,
+            requirement.required_members().len(),
+        )?;
+        for member in requirement.required_members() {
+            writer.require_depth(4)?;
+            writer.write_required_member(member)?;
+        }
     }
 
     writer.write_count(VersionedComponentSection::Locks, contract.locks().len())?;
@@ -742,14 +970,21 @@ pub fn decode_versioned_component_contract(
     let package = reader.read_package_key()?;
     let version = reader.read_semantic_version()?;
 
-    let requirement_count = reader.read_count(VersionedComponentSection::Requirements, 45)?;
+    let requirement_count = reader.read_count(VersionedComponentSection::Requirements, 49)?;
     let mut requirements = Vec::with_capacity(requirement_count);
     for _ in 0..requirement_count {
         reader.require_depth(3)?;
-        requirements.push(ComponentContractRequirement::new(
+        let requirement = ComponentContractRequirement::new(
             reader.read_interface_key()?,
             reader.read_version_requirement()?,
-        ));
+        );
+        let member_count = reader.read_count(VersionedComponentSection::RequiredMembers, 16)?;
+        let mut required_members = Vec::with_capacity(member_count);
+        for _ in 0..member_count {
+            reader.require_depth(4)?;
+            required_members.push(reader.read_required_member()?);
+        }
+        requirements.push(requirement.with_required_members(required_members));
     }
 
     let lock_count = reader.read_count(VersionedComponentSection::Locks, 77)?;
@@ -977,6 +1212,51 @@ impl Writer {
                 self.write_semantic_version(min_inclusive)?;
                 self.write_semantic_version(max_exclusive)?;
                 self.write_u8(u8::from(*allow_prerelease))
+            }
+        }
+    }
+
+    fn write_required_member(
+        &mut self,
+        member: &ComponentContractRequiredMember,
+    ) -> Result<(), VersionedComponentCodecError> {
+        self.write_string(
+            VersionedComponentStringField::RequiredMemberName,
+            member.name(),
+        )?;
+        self.write_count(
+            VersionedComponentSection::Parameters,
+            member.parameters().len(),
+        )?;
+        for parameter in member.parameters() {
+            self.require_depth(5)?;
+            self.write_value_type(parameter)?;
+        }
+        self.write_count(VersionedComponentSection::Results, member.results().len())?;
+        for result in member.results() {
+            self.require_depth(5)?;
+            self.write_value_type(result)?;
+        }
+        self.write_string(
+            VersionedComponentStringField::RequiredMemberCapability,
+            member.capability(),
+        )
+    }
+
+    fn write_value_type(
+        &mut self,
+        value_type: &ComponentContractValueType,
+    ) -> Result<(), VersionedComponentCodecError> {
+        match value_type {
+            ComponentContractValueType::I64 => self.write_u8(0),
+            ComponentContractValueType::Bool => self.write_u8(1),
+            ComponentContractValueType::Own(resource) => {
+                self.write_u8(2)?;
+                self.write_resource_type_key(resource)
+            }
+            ComponentContractValueType::Borrow(resource) => {
+                self.write_u8(3)?;
+                self.write_resource_type_key(resource)
             }
         }
     }
@@ -1219,6 +1499,49 @@ impl<'a> Reader<'a> {
         }
     }
 
+    fn read_required_member(
+        &mut self,
+    ) -> Result<ComponentContractRequiredMember, VersionedComponentCodecError> {
+        let name = self.read_string(VersionedComponentStringField::RequiredMemberName)?;
+        let parameter_count = self.read_count(VersionedComponentSection::Parameters, 1)?;
+        let mut parameters = Vec::with_capacity(parameter_count);
+        for _ in 0..parameter_count {
+            self.require_depth(5)?;
+            parameters.push(self.read_value_type()?);
+        }
+        let result_count = self.read_count(VersionedComponentSection::Results, 1)?;
+        let mut results = Vec::with_capacity(result_count);
+        for _ in 0..result_count {
+            self.require_depth(5)?;
+            results.push(self.read_value_type()?);
+        }
+        let capability =
+            self.read_string(VersionedComponentStringField::RequiredMemberCapability)?;
+        Ok(ComponentContractRequiredMember::new(
+            name, parameters, results, capability,
+        ))
+    }
+
+    fn read_value_type(
+        &mut self,
+    ) -> Result<ComponentContractValueType, VersionedComponentCodecError> {
+        let tag_offset = self.offset();
+        match self.read_u8()? {
+            0 => Ok(ComponentContractValueType::I64),
+            1 => Ok(ComponentContractValueType::Bool),
+            2 => Ok(ComponentContractValueType::Own(
+                self.read_resource_type_key()?,
+            )),
+            3 => Ok(ComponentContractValueType::Borrow(
+                self.read_resource_type_key()?,
+            )),
+            tag => Err(VersionedComponentCodecError::new(
+                tag_offset,
+                VersionedComponentCodecErrorKind::UnknownValueTypeTag { tag },
+            )),
+        }
+    }
+
     fn read_digest(&mut self) -> Result<VersionedDigest, VersionedComponentCodecError> {
         let algorithm_offset = self.offset();
         let algorithm = match self.read_u8()? {
@@ -1255,8 +1578,9 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ComponentContractLock, ComponentContractRequirement, ComponentContractValidationError,
-        DigestAlgorithm, VERSIONED_COMPONENT_MAGIC, VERSIONED_COMPONENT_SCHEMA_VERSION,
+        ComponentContractLock, ComponentContractRequiredMember, ComponentContractRequirement,
+        ComponentContractValidationError, ComponentContractValueType, DigestAlgorithm,
+        VERSIONED_COMPONENT_MAGIC, VERSIONED_COMPONENT_SCHEMA_VERSION,
         VersionedComponentCodecErrorKind, VersionedComponentContract, VersionedComponentSection,
         VersionedComponentStringField, VersionedDigest, VersionedDigestError,
         decode_versioned_component_contract, encode_versioned_component_contract,
@@ -1281,6 +1605,8 @@ mod tests {
     fn contract() -> VersionedComponentContract {
         let clocks = interface("clocks");
         let storage = interface("storage");
+        let timer = ResourceTypeKey::new(clocks.clone(), "timer");
+        let object = ResourceTypeKey::new(storage.clone(), "object");
         VersionedComponentContract::new(
             PackageKey::new("example", "application"),
             version(2, 1, 0)
@@ -1295,7 +1621,13 @@ mod tests {
                 ComponentContractRequirement::new(
                     storage.clone(),
                     VersionRequirement::Exact(version(3, 2, 1)),
-                ),
+                )
+                .with_required_members(vec![ComponentContractRequiredMember::new(
+                    "put",
+                    vec![ComponentContractValueType::Own(object.clone())],
+                    vec![ComponentContractValueType::Bool],
+                    "storage.write",
+                )]),
                 ComponentContractRequirement::new(
                     clocks.clone(),
                     VersionRequirement::Interval {
@@ -1303,7 +1635,21 @@ mod tests {
                         max_exclusive: version(2, 0, 0),
                         allow_prerelease: false,
                     },
-                ),
+                )
+                .with_required_members(vec![
+                    ComponentContractRequiredMember::new(
+                        "now",
+                        Vec::new(),
+                        vec![ComponentContractValueType::I64],
+                        "clock.read",
+                    ),
+                    ComponentContractRequiredMember::new(
+                        "inspect",
+                        vec![ComponentContractValueType::Borrow(timer.clone())],
+                        vec![ComponentContractValueType::I64],
+                        "clock.read",
+                    ),
+                ]),
             ],
             vec![
                 ComponentContractLock::new(
@@ -1319,10 +1665,7 @@ mod tests {
                         .expect("valid digest"),
                 ),
             ],
-            vec![
-                ResourceTypeKey::new(storage, "object"),
-                ResourceTypeKey::new(clocks, "timer"),
-            ],
+            vec![object, timer],
         )
         .expect("fixture contract should validate")
     }
@@ -1368,6 +1711,10 @@ mod tests {
     fn round_trip_is_deterministic_and_canonicalizes_collections() {
         let contract = contract();
         assert_eq!(contract.requirements()[0].key().interface(), "clocks");
+        assert_eq!(
+            contract.requirements()[0].required_members()[0].name(),
+            "inspect"
+        );
         assert_eq!(contract.locks()[0].key().interface(), "clocks");
         assert_eq!(contract.resources()[0].resource(), "timer");
 
@@ -1392,7 +1739,7 @@ mod tests {
         ));
         assert_eq!(
             hex(&encoded),
-            "4c434d500200000000070000006578616d706c650b0000006170706c69636174696f6e0200000000000000010000000000000000000000000000000200000001040000006265746100010000003101000000050000006c696e757802000000070000006578616d706c6508000000706c6174666f726d06000000636c6f636b73010100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000070000006578616d706c6508000000706c6174666f726d0700000073746f7261676500030000000000000002000000000000000100000000000000000000000000000002000000070000006578616d706c6508000000706c6174666f726d06000000636c6f636b730100000000000000040000000000000000000000000000000000000000000000001111111111111111111111111111111111111111111111111111111111111111070000006578616d706c6508000000706c6174666f726d0700000073746f72616765030000000000000002000000000000000100000000000000000000000000000000222222222222222222222222222222222222222222222222222222222222222202000000070000006578616d706c6508000000706c6174666f726d06000000636c6f636b730500000074696d6572070000006578616d706c6508000000706c6174666f726d0700000073746f72616765060000006f626a656374"
+            include_str!("fixtures/schema2_contract.hex").trim()
         );
 
         let decoded =
@@ -1457,6 +1804,140 @@ mod tests {
                 actual: 31,
             })
         );
+    }
+
+    #[test]
+    fn validates_required_member_projection() {
+        let clocks = interface("clocks");
+        let timer = ResourceTypeKey::new(clocks.clone(), "timer");
+        let member = ComponentContractRequiredMember::new(
+            "inspect",
+            vec![ComponentContractValueType::Borrow(timer.clone())],
+            vec![ComponentContractValueType::I64],
+            "clock.read",
+        );
+        let requirement = || {
+            ComponentContractRequirement::new(
+                clocks.clone(),
+                VersionRequirement::Exact(version(1, 0, 0)),
+            )
+        };
+
+        let duplicate = VersionedComponentContract::new(
+            PackageKey::new("example", "application"),
+            version(1, 0, 0),
+            vec![requirement().with_required_members(vec![member.clone(), member.clone()])],
+            Vec::new(),
+            vec![timer.clone()],
+        );
+        assert_eq!(
+            duplicate,
+            Err(ComponentContractValidationError::DuplicateRequiredMember {
+                key: Box::new(clocks.clone()),
+                member: "inspect".to_owned(),
+            })
+        );
+
+        let invalid_capability = VersionedComponentContract::new(
+            PackageKey::new("example", "application"),
+            version(1, 0, 0),
+            vec![
+                requirement().with_required_members(vec![ComponentContractRequiredMember::new(
+                    "inspect",
+                    Vec::new(),
+                    vec![ComponentContractValueType::I64],
+                    "Clock.Read",
+                )]),
+            ],
+            Vec::new(),
+            vec![timer.clone()],
+        );
+        assert_eq!(
+            invalid_capability,
+            Err(
+                ComponentContractValidationError::InvalidRequiredMemberCapability {
+                    key: Box::new(clocks.clone()),
+                    member: "inspect".to_owned(),
+                    capability: "Clock.Read".to_owned(),
+                }
+            )
+        );
+
+        let missing_resource = VersionedComponentContract::new(
+            PackageKey::new("example", "application"),
+            version(1, 0, 0),
+            vec![requirement().with_required_members(vec![member])],
+            Vec::new(),
+            Vec::new(),
+        );
+        assert_eq!(
+            missing_resource,
+            Err(
+                ComponentContractValidationError::MissingRequiredMemberResource {
+                    key: Box::new(clocks.clone()),
+                    member: "inspect".to_owned(),
+                    resource: Box::new(timer.clone()),
+                }
+            )
+        );
+
+        let borrowed_result = VersionedComponentContract::new(
+            PackageKey::new("example", "application"),
+            version(1, 0, 0),
+            vec![
+                requirement().with_required_members(vec![ComponentContractRequiredMember::new(
+                    "inspect",
+                    Vec::new(),
+                    vec![ComponentContractValueType::Borrow(timer.clone())],
+                    "clock.read",
+                )]),
+            ],
+            Vec::new(),
+            vec![timer.clone()],
+        );
+        assert_eq!(
+            borrowed_result,
+            Err(
+                ComponentContractValidationError::BorrowedRequiredMemberResult {
+                    key: Box::new(clocks),
+                    member: "inspect".to_owned(),
+                    resource: Box::new(timer),
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_required_member_value_type_tag() {
+        let key = InterfaceKey::new(PackageKey::new("e", "p"), "i");
+        let contract = VersionedComponentContract::new(
+            PackageKey::new("e", "a"),
+            version(1, 0, 0),
+            vec![
+                ComponentContractRequirement::new(key, VersionRequirement::Exact(version(1, 0, 0)))
+                    .with_required_members(vec![ComponentContractRequiredMember::new(
+                        "x",
+                        vec![ComponentContractValueType::I64],
+                        Vec::new(),
+                        "c",
+                    )]),
+            ],
+            Vec::new(),
+            Vec::new(),
+        )
+        .expect("minimal required-member contract should validate");
+        let mut encoded =
+            encode_versioned_component_contract(&contract, ComponentCodecLimits::default())
+                .expect("minimal required-member contract should encode");
+        encoded[116] = 9;
+
+        let error = decode_versioned_component_contract(&encoded, ComponentCodecLimits::default())
+            .expect_err("unknown value type must fail");
+        assert_eq!(error.offset(), 116);
+        assert!(matches!(
+            error.kind(),
+            VersionedComponentCodecErrorKind::UnknownValueTypeTag { tag: 9 }
+        ));
     }
 
     #[test]
@@ -1647,20 +2128,20 @@ mod tests {
         ));
 
         let mut unknown_digest = encoded.clone();
-        unknown_digest[239] = 7;
+        unknown_digest[243] = 7;
         let digest_error =
             decode_versioned_component_contract(&unknown_digest, ComponentCodecLimits::default())
                 .expect_err("unknown digest algorithm should fail");
-        assert_eq!(digest_error.offset(), 239);
+        assert_eq!(digest_error.offset(), 243);
         assert!(matches!(
             digest_error.kind(),
             VersionedComponentCodecErrorKind::UnknownDigestAlgorithm { tag: 7 }
         ));
 
         let truncation_error =
-            decode_versioned_component_contract(&encoded[..240], ComponentCodecLimits::default())
+            decode_versioned_component_contract(&encoded[..244], ComponentCodecLimits::default())
                 .expect_err("truncated lock should fail before allocation");
-        assert_eq!(truncation_error.offset(), 170);
+        assert_eq!(truncation_error.offset(), 174);
         assert!(matches!(
             truncation_error.kind(),
             VersionedComponentCodecErrorKind::UnexpectedEnd {
@@ -1672,7 +2153,7 @@ mod tests {
 
     #[test]
     fn arbitrary_byte_corpus_never_panics_or_exceeds_input_bounds() {
-        let limits = limits(512, 16, 3, 64);
+        let limits = limits(512, 16, 5, 64);
         let mut state = 0x517c_c1b7_u32;
         for length in 0..=512 {
             let mut bytes = vec![0_u8; length];
