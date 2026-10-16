@@ -14,11 +14,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Component workstreamのfollow-up監査では、in-memory compatibility negotiation、scalar execution-prototype integration、backend-neutral resource-adapter behavior、boundary-cost measurementを分離しました。従来の単一cross-mode scalar／resource taskはこれらのacceptance boundaryを混在させ、Milestone 3のproduction IDL／adapter implementationとも重複していました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
-このrepository stateに対して2026-10-16 18:42 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 19:02 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 129 pt | 159 pt | **81.1%** |
+| 0 — design baseline（現在） | 134 pt | 159 pt | **84.3%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **129 pt** | **641 pt** | **20.1%** |
+| **全体** | **134 pt** | **641 pt** | **20.9%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：129 / 159 pt（81.1%）。**
+**進捗：134 / 159 pt（84.3%）。**
 
 ### Workstream別内訳
 
@@ -42,13 +42,13 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
 | Component／resource contract | 42 pt | 45 pt | 93.3% |
-| Platform／backend evidence | 32 pt | 51 pt | 62.7% |
+| Platform／backend evidence | 37 pt | 51 pt | 72.5% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **129 pt** | **159 pt** | **81.1%** |
+| **Milestone 0** | **134 pt** | **159 pt** | **84.3%** |
 
 このsnapshot時点の実行状態：
 
-- **次のunblocked local P0：** Allocator overhead／fragmentationを含む代表的なallocation workloadを計測する。
+- **次のunblocked local P0：** Cross-mode benchmark setへ代表的なCFG workloadをもう1つ追加する。
 - **外部gate：** RFC 0002〜RFC 0005のrepository-owner decisionと、remote Windows CI／benchmark evidence。
 - **最終gate：** Component、resource-control、backend-evidence prerequisiteの完了後にのみRFC 0001をdecisionする。
 
@@ -91,7 +91,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [ ] **P0 — Ownership／cyclic-graph RFCを判断する。** — 2 pt
 - [ ] **P0 — Async-cancellation／shared-service concurrency RFCを判断する。** — 2 pt
 - [x] **P0 — Exact requested payloadを含め、variable-size allocation callbackを計時／profileする。** — 5 pt
-- [ ] **P0 — Allocator overhead／fragmentationを含む代表的なallocation workloadを計測する。** — 5 pt
+- [x] **P0 — Allocator overhead／fragmentationを含む代表的なallocation workloadを計測する。** — 5 pt
 - [ ] **P0 — Cross-mode benchmark setへ代表的なCFG workloadをもう1つ追加する。** — 3 pt
 - [ ] **P0 — 完成したcross-platform performance、debug-quality、integration evidenceから初期native backendを選択し、decisionを記録する。** — 3 pt
 - [ ] **P0 — Component、resource-control、backend-evidence prerequisiteの完了後にRFC 0001を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 2 pt
@@ -114,9 +114,9 @@ Package／interface negotiationはmetadata-schema selection／package-manager re
 
 Component runtimeは、stale copyを決してaliasしない非ゼロかつ単調増加のboundary indexを持つbackend-neutralなcanonical-resource adapter traceも公開します。Call全体のpreflightは、handleを公開したりownershipを変更したりせずcommit storageを予約しながら、resource identity、ownership mode、duplicate／owned-borrow alias、active lend、poison state、destinationのlive／index capacityをvalidateします。Infallibleなcommit pathはallocationもcallbackも行いません。Dynamic borrowはchildからparent scopeの順に閉じ、frame-owned resourceはdestructor callback前にremoveしてacquisitionと逆順にcleanupし、独立したdestructor failureはdeterministicな順序で継続し、callback／invariant／destructor failureは以後のentryをpoisonします。7件のfocused testがfailed-preflight atomicity、alias rejection、indexを再利用しないtransfer／return、nested borrow order、post-commit non-rollback、ordered failureを伴うreverse cleanup、capacity rejection、poison enforcementをcoverします。これはopaqueなstate-machine traceのままであり、host valueやVM／JIT／AOT resource callには未接続で、stable failure encodingやcancellationも決定しません。
 
-Cleanなschema-16 macOS AArch64 [variable-allocation baseline](../../benchmarks/results/2026-10-16-macos-aarch64-7f2482a.json)は、31 sampleで50個のgeneral timing row、4個の正確なrequested-payload profile、8個のcomponent-boundary rowを記録します。Variable-size callbackのdirect Rust／VM／JIT medianは215.438 ns／397.544 ns／218.453 nsで、正確なprofileは `(16 allocations, 1,088 total bytes, 1,088 peak live bytes, 0 live bytes afterward)` です。維持したcomponent medianはscalar metadataのclone／validationが279.208 ns、3-candidate negotiationが822.959 ns、direct／validated scalar dispatchが0.930 ns／11.248 ns、owner／shared-borrow table lifecycleが13.737 ns／27.043 ns、canonical owner-transfer／borrow-scope traceが384.583 ns／347.125 nsです。これらのvalueは正確なprototype pathのevidenceであり、budget、allocator-overhead／fragmentation evidence、代表的application evidenceではありません。Remote Windows executionは未完了です。
+Cleanなschema-17 macOS AArch64 [representative-allocation baseline](../../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json)は、50個のgeneral timing row、4個の正確なcallback profile、8個のcomponent-boundary rowを維持しつつ、compiler-likeなmixed-lifetime traceとpaired process-memory distributionを追加します。Traceは23,894 allocations、19,183,210 total requested byte、18,102,042 peak live requested byteを記録します。23,085,056 byteのworkload medianから2,048,000 byteのcontrol medianを引いたresident deltaは21,037,056 byteで、peak live payloadをさらに引いたallocator-overhead／fragmentation合算推定値は2,935,014 byteです。この推定値はplatform固有の方向的evidenceであり、metadata、fragmentation、retained page、page roundingを分離できません。Remote Windows executionは未完了です。
 
-現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentがtest済みcountdown back-edgeを介して `i64` を運び、bounded sum workloadはcounterとwrapping accumulatorの両方をloopで運びます。MIRとbytecodeのvalidatorはentry-block制約とedge argumentのarity／typeを強制し、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 16 benchmark baseline](benchmarks.md)は、50個のgeneral timing row、4個のrequested-payload heap profile、code／object／executable size、startup／link row、31個のlink済みprocess sample、個別にlabel付けした4個のcomponent-boundary cost seriesを記録します。Remote Windows evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semanticsと代表的なallocation／memory workload、提案済みsource-level control-flow semanticsのacceptance／implementation、追加CFG workload、allocator-overhead measurement、native debug-metadata implementation、cross-platform debug-quality validation、backend決定は未完了です。
+現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentがtest済みcountdown back-edgeを介して `i64` を運び、bounded sum workloadはcounterとwrapping accumulatorの両方をloopで運びます。MIRとbytecodeのvalidatorはentry-block制約とedge argumentのarity／typeを強制し、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 17 benchmark baseline](benchmarks.md)は、50個のgeneral timing row、4個の正確なcallback heap profile、3個の別process memory distribution、code／object／executable size、startup／link row、個別にlabel付けした4個のcomponent-boundary cost seriesを記録します。Remote Windows evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semantics、提案済みsource-level control-flow semanticsのacceptance／implementation、追加CFG workload、native debug-metadata implementation、cross-platform debug-quality validation、backend決定は未完了です。
 
 CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequenceが変わらないことを確認しました。`SystemLinker` は `Cc` と `MsvcLink` のcommand flavorをmodel化して対応するhost defaultを選択し、ordered prefix argument付きの明示driverをsupportし、完全なcommandを公開してstructured execution failureへ保持します。Ordered library search pathとlogical library nameをflavor固有argumentへloweringし、validationが空のobject path、search path、nameを拒否します。明示的なresponse-file linkは、`Cc` にGNU-escaped UTF-8、`MsvcLink` にWindows-escaped BOM-prefixed UTF-16LEを使用します。Focused testがserializationとvalidationを検証し、macOS AArch64 integrationがdirect linkとresponse-file linkの両方を実行します。Toolchain discoveryとより広いtarget policyは未完了です。Target指定object emissionは明示的なtripleからISAを構築し、host非依存testが `x86_64-pc-windows-msvc` COFF outputのformat、architecture、export、importを検証します。cfg-gated MSVC direct／response-file object-link-execute testと完全SHAでpinしたWindows Server 2025 workflowを構成しましたが、このcommitにはWindows runnerの結果が記録されていないため、Windowsでのlinkとexecution evidenceは未完了です。
 
@@ -148,11 +148,11 @@ VM resource-control prototypeは、optionalなinstruction-fuel／host-call budge
 
 [RFC 0002](rfcs/0002-prototype-control-flow.md)は、実装済みinteger／CFG prototypeへ提案中のsource-level interpretationを与えます。Wrapping `i64` addition、signed comparison、left-to-right evaluation、mutable local、structured `if`／`else`／`while`、明示的return、typed block argumentを介したlive valueのloweringを定義します。Focused RFCはowner decisionに向けてreadyですがproposedのままです。Parser、HIR、formatter、source diagnostics、source-to-MIR implementationは未完了です。
 
-Schema 9 harnessは、既存VM countdown rowの隣にunset-flagの `vm_countdown_interruptible_call` rowを追加し、input sequence／bytecodeを変えずにincremental safe-point acquire-load costを直接計測できるようになりました。過去のclean schema 14 runは通常／interruption-enabled VM countdown medianとして1.611 us／1.641 usを記録します。29.868 ns（1.854%）の増加はinterruption rowの15.866% RSDより小さいため、測定可能なregressionを示さず、overhead budgetも確立しません。Schema 16がこのrowを維持し、現在のCI contractです。Remote Windows resultはまだ記録していません。
+Schema 9 harnessは、既存VM countdown rowの隣にunset-flagの `vm_countdown_interruptible_call` rowを追加し、input sequence／bytecodeを変えずにincremental safe-point acquire-load costを直接計測できるようになりました。過去のclean schema 14 runは通常／interruption-enabled VM countdown medianとして1.611 us／1.641 usを記録します。29.868 ns（1.854%）の増加はinterruption rowの15.866% RSDより小さいため、測定可能なregressionを示さず、overhead budgetも確立しません。Schema 17がこのrowを維持し、現在のCI contractです。Remote Windows resultはまだ記録していません。
 
-Schema 10 harnessは、harness準備の1時間後に設定した絶対monotonic deadline付きで同じcountdown bytecode／inputを実行する `vm_countdown_deadline_call` を追加します。Deadlineが期限前のままのsteady-state clock-check costを分離します。過去のclean schema 14 macOS AArch64 runの通常／期限前deadline付きVM countdown medianは1.611 us／3.320 us、1.709 usまたは106.071%の増加でした。Schema 16／Windows CIはこのrowを維持しますが、remote Windows resultはまだ記録していません。
+Schema 10 harnessは、harness準備の1時間後に設定した絶対monotonic deadline付きで同じcountdown bytecode／inputを実行する `vm_countdown_deadline_call` を追加します。Deadlineが期限前のままのsteady-state clock-check costを分離します。過去のclean schema 14 macOS AArch64 runの通常／期限前deadline付きVM countdown medianは1.611 us／3.320 us、1.709 usまたは106.071%の増加でした。Schema 17／Windows CIはこのrowを維持しますが、remote Windows resultはまだ記録していません。
 
-Schema 11 harnessは64-allocation burst用のdirect Rust／VM／JIT rowを追加します。過去のcleanな31-sample macOS AArch64 runは44行すべてが一意であることと782.624 ns／962.329 ns／786.270 nsのburst medianを記録し、macOS AOT／host非依存Windows COFF testは新callback importを扱います。Windows CIはschema 16で3 rowすべてを維持しますが、remote Windows resultはまだ記録していません。
+Schema 11 harnessは64-allocation burst用のdirect Rust／VM／JIT rowを追加します。過去のcleanな31-sample macOS AArch64 runは44行すべてが一意であることと782.624 ns／962.329 ns／786.270 nsのburst medianを記録し、macOS AOT／host非依存Windows COFF testは新callback importを扱います。Windows CIはschema 17で3 rowすべてを維持しますが、remote Windows resultはまだ記録していません。
 
 Schema 12 harnessは44個のtiming rowを維持し、host allocation callbackに対する決定的なrequested-payload heap profileを追加します。Single workloadは1 allocation、total／peak live 8 byte、完了後0 byteを記録し、burstは64 allocation、total／peak live 512 byte、完了後0 byteを記録します。Cleanな31-sample macOS AArch64 runは両方の正確なprofile、44個すべての一意なtiming row、burst median 768.283 ns／946.601 ns／771.625 nsを記録します。TestとWindows CIは正確な値とscopeを強制します。これは証拠を過大評価せず、最初のlogical heap-lifetime measurement gapを閉じます。Schema 13は最初のlocal process envelopeを提供しましたが、allocator metadata／fragmentation、VM／JIT内部allocation、代表的application allocation、remote Windows evidenceは未完了です。
 
@@ -160,7 +160,9 @@ Schema 13 harnessはschema 12 fieldをすべて維持し、allocationを行わ�
 
 Schema 14 harnessはschema 13の全fieldを維持し、allocation-churn callbackのdirect Rust／VM／JIT timing rowと正確なrequested-payload heap profileを追加します。決定的sequenceは64個のboxed `i64` valueをallocateし、1つおきのallocationを解放し、32個の穴をreplacementで埋めてから、最後の64個をconsumeして、`(96 allocations, 768 total bytes, 512 peak live bytes, 0 live bytes afterward)` を生成します。VM／JIT差分testはwrapping resultを扱い、macOS AArch64 direct／response-file integrationは対応するC `malloc`／`free` importを実行し、host非依存Windows COFF validationは `lang_host_i64_3` を検証し、cfg-gated MSVC integrationとWindows workflowはcontractを維持します。Cleanな31-sample macOS AArch64 runは47個すべての一意なtiming row、3つすべての正確なheap profile、direct Rust／VM／JIT churn medianの1.192 us／1.348 us／1.173 us、1,654,784〜1,671,168 byteのlink済みprocess peak memoryを記録します。Variable-size／代表的workload、allocator overhead／fragmentation、remote Windows executionは未完了です。
 
-Schema 16 harnessはvariable-size allocation callbackのdirect Rust／VM／JIT timingを追加します。このcallbackは8〜128 payload byteの16個のboxed `i64` sliceを保持し、要求した1,088 payload byteを同時にliveにして、決定的なwrapping foldを返します。Cleanな31-sample macOS AArch64 runのmedianは215.438 ns／397.544 ns／218.453 nsで、正確なprofileは `(16 allocations, 1,088 total bytes, 1,088 peak live bytes, 0 live bytes afterward)` です。VM／JIT差分testはinteger extremeを扱い、macOS AArch64 direct／response-file AOT integrationは対応するC importを実行し、host非依存Windows COFF validationは `lang_host_i64_4` を検証し、cfg-gated MSVC pathとWindows workflowもcontractを維持します。代表的allocation workload、allocator overhead／fragmentation、remote Windows executionは未完了です。
+Schema 16 harnessはvariable-size allocation callbackのdirect Rust／VM／JIT timingを追加します。このcallbackは8〜128 payload byteの16個のboxed `i64` sliceを保持し、要求した1,088 payload byteを同時にliveにして、決定的なwrapping foldを返します。Cleanな31-sample macOS AArch64 runのmedianは215.438 ns／397.544 ns／218.453 nsで、正確なprofileは `(16 allocations, 1,088 total bytes, 1,088 peak live bytes, 0 live bytes afterward)` です。VM／JIT差分testはinteger extremeを扱い、macOS AArch64 direct／response-file AOT integrationは対応するC importを実行し、host非依存Windows COFF validationは `lang_host_i64_4` を検証し、cfg-gated MSVC pathとWindows workflowもcontractを維持します。
+
+Schema 17 harnessはcompiler-likeなmixed-lifetime allocation traceと、正確なrequested-payload accounting、interleaved control／workload process-memory sampleを追加します。CleanなmacOS AArch64 resultは23,894 allocations、19,183,210 total requested byte、18,102,042 peak live requested byte、21,037,056 byteのmedian resident delta、2,935,014 byteのallocator-overhead／fragmentation合算推定値を記録します。Traceは12 size class、部分解放、異size replacement、重なり合うtransient bufferを実行します。Source-language heap、production allocator選定、分離可能なmetadata／fragmentation accountingを主張せずに、計画した代表的allocation evidenceを完了します。Remote Windows executionは未完了です。
 
 CleanなmacOS AArch64の[AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)では、commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d` からadd、minimum、host-callback objectを再生成しました。Linker-visible symbolは残りますが、3 objectすべてに `__debug_*` section、DWARF compile unit、line entry、source variable、parameter、localはありません。これはcriterionを完了するものではなく、負のdebug-quality evidenceを提供します。Source-span mapping、link済み／dSYM output、unwind metadata、Windows CodeView／PDB、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。
 
