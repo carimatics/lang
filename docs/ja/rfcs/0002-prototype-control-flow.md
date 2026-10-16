@@ -172,7 +172,7 @@ Lossless parserはcomment、whitespace、delimiter、error tokenを保持しま�
 
 このsubsetはlanguage-level allocation、reference counting、dynamic dispatch、overflow branchを必要としません。Mutable localはsource abstractionであり、SSA valueまたはregisterに残せます。Userはstack slotやmemory addressへ依存できません。`while` conditionは各iteration試行ごとに1回実行され、実行された `+` と `<` はbackend optimization前にfixed-width integer costを持ちます。
 
-既存countdown、2-value accumulator、conditional-sum benchmarkは、対応するMIR shapeについてlowering、compilation、code size、VM、JIT、AOTのevidenceを提供します。Cleanなschema 11 macOS AArch64 resultでは、通常／unset interruption／期限前deadline付きVM countdown medianが1.602 us／1.616 us／3.324 usでした。Interruption deltaは14.056 ns（0.878%）で両rowの4.793%／22.662% RSDより小さく、deadline deltaは1.723 us（107.558%）です。これらのmicrobenchmarkはoverhead budgetや、将来のparser、type checker、optimizer、代表的applicationのperformance guaranteeを確立するものではありません。
+既存countdown、2-value accumulator、conditional-sum benchmarkは、対応するMIR shapeについてlowering、compilation、code size、VM、JIT、AOTのevidenceを提供します。Cleanなschema 12 macOS AArch64 resultでは、通常／unset interruption／期限前deadline付きVM countdown medianが1.606 us／1.603 us／3.314 usでした。Interruption deltaは3.424 ns（0.213%）の減少で両rowの10.380%／0.263% RSDより小さく、deadline deltaは1.708 us（106.379%）です。これらのmicrobenchmarkはoverhead budgetや、将来のparser、type checker、optimizer、代表的applicationのperformance guaranteeを確立するものではありません。
 
 ## Securityとtrust boundary
 
@@ -229,15 +229,15 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 情報源
 
-- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 12:18 JST。
-- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 12:18 JST。
-- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 12:18 JST。
+- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 12:30 JST。
+- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 12:30 JST。
+- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 12:30 JST。
 - `crates/mir/src/lib.rs`、typed CFG／validation prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/bytecode/src/lib.rs`、verified register bytecode prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/vm/src/lib.rs`、VM execution／resource-control prototype、最終更新 2026-10-16 11:20 JST。
 - `crates/codegen-clif/src/lib.rs`、Cranelift lowering prototype、最終更新 2026-10-16 01:36 JST。
 - `src/lib.rs`、differential prototype workload、最終更新 2026-10-16 11:42 JST。
-- `src/bin/prototype-bench.rs`、schema 11 control／allocation-burst harness、最終更新 2026-10-16 11:42 JST。
-- `benchmarks/results/2026-10-16-macos-aarch64-664edb9.json`、clean schema 11 macOS AArch64 evidence、2026-10-16 11:50:37 JSTに計測。
+- `src/bin/prototype-bench.rs`、schema 12 control／allocation／heap-profile harness、最終更新 2026-10-16 12:18 JST。
+- `benchmarks/results/2026-10-16-macos-aarch64-fa9a69b.json`、clean schema 12 macOS AArch64 evidence、2026-10-16 12:24:45 JSTに計測。
 
 このRFCは外部の事実に関する主張を追加しません。Design proposalはrepositoryの実行可能prototypeとproject decisionから導出しています。
