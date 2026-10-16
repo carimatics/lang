@@ -214,6 +214,8 @@ Benchmark schema 10 adds `vm_countdown_deadline_call`, which executes identical 
 
 Benchmark schema 11 adds direct Rust, VM, and JIT rows for the 64-allocation burst while retaining all schema 10 fields. A clean 31-sample macOS AArch64 run records all 44 unique rows and burst medians of 782.624 ns, 962.329 ns, and 786.270 ns; macOS AOT integration executes the imported callback, and a host-independent test validates its Windows COFF import. Windows CI requires the three new rows; remote Windows evidence remains open.
 
+A clean macOS AArch64 [AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) regenerates add, minimum, and host-callback objects from commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d`. All retain external symbols, but none contains a `__debug_*` section, DWARF compile unit, line entry, source variable, parameter, or local. This establishes the current debug-quality floor without accepting a backend: source-span mapping, linked/dSYM output, unwind metadata, Windows CodeView/PDB, JIT debugger registration, optimized stepping, and representative source-program validation remain open. The review outcome therefore remains **needs prototype/measurement**.
+
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
 3. Add typed host-function registration and a script-to-host callback; then call a compiled function from the embedded runtime.
@@ -248,11 +250,12 @@ Review outcome: **needs prototype/measurement**. The blocking questions are the 
 ## Sources
 
 - `docs/research.md`, project research, last updated 2026-10-15 22:29 JST.
-- `docs/architecture.md`, proposed design baseline, last updated 2026-10-16 12:01 JST.
-- `docs/roadmap.md`, implementation milestones, last updated 2026-10-16 12:01 JST.
+- `docs/architecture.md`, proposed design baseline, last updated 2026-10-16 12:09 JST.
+- `docs/roadmap.md`, implementation milestones, last updated 2026-10-16 12:09 JST.
 - `crates/vm/src/lib.rs`, deadline-enabled VM resource-control prototype, last updated 2026-10-16 11:20 JST.
 - `src/lib.rs`, 64-allocation burst boundary prototype, last updated 2026-10-16 11:42 JST.
 - `src/bin/prototype-bench.rs`, schema 11 allocation-burst harness, last updated 2026-10-16 11:42 JST.
 - `benchmarks/results/2026-10-16-macos-aarch64-664edb9.json`, clean schema 11 macOS AArch64 evidence, measured 2026-10-16 11:50:37 JST.
+- `benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md`, macOS AArch64 AOT debug-information inspection, captured 2026-10-16 12:06:01 JST.
 - Cranelift documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-jit/0.136.3/

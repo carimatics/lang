@@ -214,6 +214,8 @@ Benchmark schema 10は、harness準備の1時間後に設定した絶対monotoni
 
 Benchmark schema 11はschema 10 fieldをすべて維持しながら、64-allocation burst用のdirect Rust／VM／JIT rowを追加します。Cleanな31-sample macOS AArch64 runは44行すべてが一意であることと782.624 ns／962.329 ns／786.270 nsのburst medianを記録し、macOS AOT integrationはimport済みcallbackを実行し、host非依存testはそのWindows COFF importを検証します。Windows CIは新しい3 rowを要求しますが、remote Windows evidenceは未完了です。
 
+CleanなmacOS AArch64の[AOT debug-information inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)では、commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d` からadd、minimum、host-callback objectを再生成しました。すべてexternal symbolを保持しますが、`__debug_*` section、DWARF compile unit、line entry、source variable、parameter、localはいずれも含みません。これはbackendをacceptせずに現在のdebug-quality floorを確立します。Source-span mapping、link済み／dSYM output、unwind metadata、Windows CodeView／PDB、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。
@@ -248,11 +250,12 @@ Benchmark schema 11はschema 10 fieldをすべて維持しながら、64-allocat
 ## 情報源
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 12:01 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 12:01 JST。
+- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 12:09 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 12:09 JST。
 - `crates/vm/src/lib.rs`、deadline-enabled VM resource-control prototype、最終更新 2026-10-16 11:20 JST。
 - `src/lib.rs`、64-allocation burst boundary prototype、最終更新 2026-10-16 11:42 JST。
 - `src/bin/prototype-bench.rs`、schema 11 allocation-burst harness、最終更新 2026-10-16 11:42 JST。
 - `benchmarks/results/2026-10-16-macos-aarch64-664edb9.json`、clean schema 11 macOS AArch64 evidence、2026-10-16 11:50:37 JSTに計測。
+- `benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md`、macOS AArch64 AOT debug-information inspection、2026-10-16 12:06:01 JSTに取得。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/
