@@ -10,6 +10,14 @@ use object::{BinaryFormat, RelocationEncoding, RelocationFlags, RelocationKind, 
 
 use super::CompiledSourceMap;
 
+const CODEVIEW_SIGNATURE_C13: u32 = 4;
+const DEBUG_S_LINES: u32 = 0xf2;
+const DEBUG_S_STRING_TABLE: u32 = 0xf3;
+const DEBUG_S_FILE_CHECKSUMS: u32 = 0xf4;
+const CODEVIEW_LINES_HAVE_COLUMNS: u16 = 1;
+const CODEVIEW_LINE_IS_STATEMENT: u32 = 1 << 31;
+const CODEVIEW_MAX_LINE: u32 = (1 << 24) - 1;
+
 const DWARF_SECTIONS: [DwarfSectionId; 11] = [
     DwarfSectionId::DebugAbbrev,
     DwarfSectionId::DebugStr,
@@ -55,14 +63,34 @@ impl RelocateWriter for DwarfSection {
     }
 }
 
-pub(super) fn add_macho_dwarf(
+pub(super) fn add_native_debug(
     object: &mut Object<'_>,
     function_symbol: SymbolId,
     function_name: &str,
     code_size: usize,
     source_map: &CompiledSourceMap,
 ) -> Result<(), String> {
-    if object.format() != BinaryFormat::MachO || source_map.ranges().is_empty() {
+    match object.format() {
+        BinaryFormat::MachO => add_macho_dwarf(
+            object,
+            function_symbol,
+            function_name,
+            code_size,
+            source_map,
+        ),
+        BinaryFormat::Coff => add_coff_codeview(object, function_symbol, code_size, source_map),
+        _ => Ok(()),
+    }
+}
+
+fn add_macho_dwarf(
+    object: &mut Object<'_>,
+    function_symbol: SymbolId,
+    function_name: &str,
+    code_size: usize,
+    source_map: &CompiledSourceMap,
+) -> Result<(), String> {
+    if source_map.ranges().is_empty() {
         return Ok(());
     }
 
@@ -124,6 +152,171 @@ pub(super) fn add_macho_dwarf(
     }
 
     Ok(())
+}
+
+fn add_coff_codeview(
+    object: &mut Object<'_>,
+    function_symbol: SymbolId,
+    code_size: usize,
+    source_map: &CompiledSourceMap,
+) -> Result<(), String> {
+    if source_map.ranges().is_empty() {
+        return Ok(());
+    }
+
+    let (section_data, relocation_offset, relocation_segment) =
+        build_codeview(code_size, source_map)?;
+    let section = object.add_section(Vec::new(), b".debug$S".to_vec(), SectionKind::Debug);
+    object.append_section_data(section, &section_data, 4);
+    object
+        .add_relocation(
+            section,
+            Relocation {
+                offset: relocation_offset as u64,
+                symbol: function_symbol,
+                addend: 0,
+                flags: RelocationFlags::Generic {
+                    kind: RelocationKind::SectionOffset,
+                    encoding: RelocationEncoding::Generic,
+                    size: 32,
+                },
+            },
+        )
+        .map_err(|error| error.to_string())?;
+    object
+        .add_relocation(
+            section,
+            Relocation {
+                offset: relocation_segment as u64,
+                symbol: function_symbol,
+                addend: 0,
+                flags: RelocationFlags::Generic {
+                    kind: RelocationKind::SectionIndex,
+                    encoding: RelocationEncoding::Generic,
+                    size: 16,
+                },
+            },
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn build_codeview(
+    code_size: usize,
+    source_map: &CompiledSourceMap,
+) -> Result<(Vec<u8>, usize, usize), String> {
+    let code_size = u32::try_from(code_size)
+        .map_err(|_| "CodeView function code size exceeds 32 bits".to_owned())?;
+    let mut rows = Vec::new();
+    let mut previous_offset = None;
+    for range in source_map.ranges() {
+        if range.start() == range.end() || previous_offset == Some(range.start()) {
+            continue;
+        }
+        let position = range.span().start();
+        if position.line() > CODEVIEW_MAX_LINE {
+            return Err(format!(
+                "CodeView source line {} exceeds 24 bits",
+                position.line()
+            ));
+        }
+        let column = u16::try_from(position.column()).map_err(|_| {
+            format!(
+                "CodeView source column {} exceeds 16 bits",
+                position.column()
+            )
+        })?;
+        let end_column = if range.span().end().line() == position.line() {
+            u16::try_from(range.span().end().column()).map_err(|_| {
+                format!(
+                    "CodeView source column {} exceeds 16 bits",
+                    range.span().end().column()
+                )
+            })?
+        } else {
+            column
+        };
+        rows.push((range.start(), position.line(), column, end_column));
+        previous_offset = Some(range.start());
+    }
+    if rows.is_empty() {
+        return Err("CodeView source map contains no emitted code ranges".to_owned());
+    }
+
+    let row_count = u32::try_from(rows.len())
+        .map_err(|_| "CodeView line table contains too many rows".to_owned())?;
+    let block_size = 12_u32
+        .checked_add(
+            row_count
+                .checked_mul(12)
+                .ok_or_else(|| "CodeView line block size overflowed".to_owned())?,
+        )
+        .ok_or_else(|| "CodeView line block size overflowed".to_owned())?;
+
+    let mut lines = Vec::new();
+    push_u32(&mut lines, 0);
+    push_u16(&mut lines, 0);
+    push_u16(&mut lines, CODEVIEW_LINES_HAVE_COLUMNS);
+    push_u32(&mut lines, code_size);
+    push_u32(&mut lines, 0);
+    push_u32(&mut lines, row_count);
+    push_u32(&mut lines, block_size);
+    for &(offset, line, _, _) in &rows {
+        push_u32(&mut lines, offset);
+        push_u32(&mut lines, line | CODEVIEW_LINE_IS_STATEMENT);
+    }
+    for &(_, _, start, end) in &rows {
+        push_u16(&mut lines, start);
+        push_u16(&mut lines, end);
+    }
+
+    let mut strings = vec![0];
+    strings.extend_from_slice(source_map.source_path().as_bytes());
+    strings.push(0);
+
+    let mut checksums = Vec::new();
+    push_u32(&mut checksums, 1);
+    checksums.push(0);
+    checksums.push(0);
+    pad_to_four(&mut checksums);
+
+    let mut section = Vec::new();
+    push_u32(&mut section, CODEVIEW_SIGNATURE_C13);
+    let lines_start = append_codeview_subsection(&mut section, DEBUG_S_LINES, &lines)?;
+    append_codeview_subsection(&mut section, DEBUG_S_STRING_TABLE, &strings)?;
+    append_codeview_subsection(&mut section, DEBUG_S_FILE_CHECKSUMS, &checksums)?;
+    Ok((section, lines_start, lines_start + 4))
+}
+
+fn append_codeview_subsection(
+    section: &mut Vec<u8>,
+    kind: u32,
+    payload: &[u8],
+) -> Result<usize, String> {
+    push_u32(section, kind);
+    push_u32(
+        section,
+        u32::try_from(payload.len())
+            .map_err(|_| "CodeView subsection exceeds 32 bits".to_owned())?,
+    );
+    let payload_start = section.len();
+    section.extend_from_slice(payload);
+    pad_to_four(section);
+    Ok(payload_start)
+}
+
+fn push_u16(data: &mut Vec<u8>, value: u16) {
+    data.extend_from_slice(&value.to_le_bytes());
+}
+
+fn push_u32(data: &mut Vec<u8>, value: u32) {
+    data.extend_from_slice(&value.to_le_bytes());
+}
+
+fn pad_to_four(data: &mut Vec<u8>) {
+    while !data.len().is_multiple_of(4) {
+        data.push(0);
+    }
 }
 
 fn build_dwarf(

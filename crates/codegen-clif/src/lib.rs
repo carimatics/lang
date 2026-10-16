@@ -219,7 +219,7 @@ fn emit_object_with_isa(
     let mut product = module.finish();
     if let Some(source_map) = &defined.source_map {
         let function_symbol = product.function_symbol(defined.function_id);
-        debug::add_macho_dwarf(
+        debug::add_native_debug(
             &mut product.object,
             function_symbol,
             function.name(),
