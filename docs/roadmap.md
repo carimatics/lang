@@ -12,11 +12,13 @@ Tasks are listed in priority order within each milestone. `P0` tasks block that 
 
 Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, `8` is very large, `13` spans several coordinated changes, and `21` is a program-sized body of work. Progress is `completed points / total points × 100`, rounded to one decimal place. Estimates and completion state must be updated when scope or evidence changes.
 
-Progress snapshot verified against this repository state on 2026-10-16 15:09 JST:
+Revalidation after the resource-handle prototype found that the remaining 5-point component task combined three independent risk classes: bounded decoding of untrusted bytes, compatibility/canonical-resource semantics, and cross-mode conformance plus measurement. RFC 0003 lists each as separate blocking evidence. They are now tracked as 5, 5, and 8-point Milestone 0 prototypes; Milestone 3 retains the broader production IDL and stable embedding implementation.
+
+Progress snapshot verified against this repository state on 2026-10-16 15:14 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 80 pt | 138 pt | **58.0%** |
+| 0 — design baseline (current) | 80 pt | 151 pt | **53.0%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 52 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 53 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 55 pt | 0.0% |
@@ -24,11 +26,11 @@ Progress snapshot verified against this repository state on 2026-10-16 15:09 JST
 | 5 — ecosystem and compatibility | 0 pt | 55 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 50 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 39 pt | 0.0% |
-| **Overall** | **80 pt** | **500 pt** | **16.0%** |
+| **Overall** | **80 pt** | **513 pt** | **15.6%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 80 / 138 pt (58.0%).**
+**Progress: 80 / 151 pt (53.0%).**
 
 ### Tasks in priority order
 
@@ -41,7 +43,9 @@ Progress snapshot verified against this repository state on 2026-10-16 15:09 JST
 - [x] **P0 — Prototype deterministic VM fuel, host-call and value-slot limits, cooperative interruption, and absolute deadlines.** — 8 pt
 - [x] **P0 — Validate versioned scalar component metadata and explicit capability-gated imports against the typed host registry.** — 5 pt
 - [x] **P0 — Prototype generation-tagged owned/borrowed resource handles and deterministic lifecycle validation.** — 3 pt
-- [ ] **P0 — Define the bounded serialized contract, compatibility negotiation, and cross-mode instantiation/conformance tests for the stable embedding/component boundary, making RFC 0003 decision-ready.** — 5 pt
+- [ ] **P0 — Prototype a bounded schema-1 component encoder/decoder with byte/count/depth/string limits, location-bearing diagnostics, malformed fixtures, and fuzz targets.** — 5 pt
+- [ ] **P0 — Specify scalar/resource canonical representation, package-version compatibility negotiation, ownership transfer, and panic/destructor failure rules in RFC 0003.** — 5 pt
+- [ ] **P0 — Drive one validated scalar import/export and resource lifecycle through VM/JIT/AOT differential conformance and boundary-cost benchmarks, making RFC 0003 decision-ready.** — 8 pt
 - [ ] **P0 — Extend resource enforcement to heap, recursion, tasks, and native/JIT execution, including callback behavior.** — 13 pt
 - [x] **P0 — Prototype strict and less-restrictive alternatives for async cancellation, cyclic graphs, and shared mutable services.** — 8 pt
 - [x] **P0 — Draft decision-ready source-level integer and structured-control-flow semantics in RFC 0002.** — 5 pt

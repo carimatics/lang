@@ -12,11 +12,13 @@
 
 Costは経過時間の約束ではなく相対的なeffort pointです。`1`はごく小さい変更、`2`は小、`3`は中、`5`は大、`8`は非常に大、`13`は複数の連携変更にまたがる規模、`21`はprogram規模の作業を表します。進捗は `完了point / 全point × 100` を小数第1位へ丸めて算出します。Scopeやevidenceが変わったときは見積りと完了状態を更新します。
 
-このrepository stateに対して2026-10-16 15:09 JSTに確認した進捗snapshot：
+Resource-handle prototype後の再検証で、残り5 ptのcomponent taskが3つの独立したrisk class、すなわちuntrusted byteのbounded decoding、compatibility／canonical-resource semantics、cross-mode conformance／measurementを混在させていることが判明しました。RFC 0003もそれぞれを別のblocking evidenceとして列挙しています。現在はMilestone 0のprototypeとして5、5、8 ptへ分割し、Milestone 3にはより広いproduction IDL／stable embedding implementationを残します。
+
+このrepository stateに対して2026-10-16 15:14 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 80 pt | 138 pt | **58.0%** |
+| 0 — design baseline（現在） | 80 pt | 151 pt | **53.0%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 52 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 53 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 55 pt | 0.0% |
@@ -24,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 55 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 50 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 39 pt | 0.0% |
-| **全体** | **80 pt** | **500 pt** | **16.0%** |
+| **全体** | **80 pt** | **513 pt** | **15.6%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：80 / 138 pt（58.0%）。**
+**進捗：80 / 151 pt（53.0%）。**
 
 ### 優先度順のタスク
 
@@ -41,7 +43,9 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Deterministic VM fuel、host-call／value-slot limit、cooperative interruption、absolute deadlineをprototypeする。** — 8 pt
 - [x] **P0 — Version付きscalar component metadataと明示的にcapability-gatedなimportをtyped host registryに対してvalidateする。** — 5 pt
 - [x] **P0 — Generation tag付きowned／borrowed resource handleとdeterministic lifecycle validationをprototypeする。** — 3 pt
-- [ ] **P0 — Stable embedding／component boundary向けのbounded serialized contract、compatibility negotiation、cross-mode instantiation／conformance testを定義し、RFC 0003をdecision-readyにする。** — 5 pt
+- [ ] **P0 — Byte／count／depth／string limit、location-bearing diagnostics、malformed fixture、fuzz targetを持つbounded schema-1 component encoder／decoderをprototypeする。** — 5 pt
+- [ ] **P0 — Scalar／resource canonical representation、package-version compatibility negotiation、ownership transfer、panic／destructor failure ruleをRFC 0003で仕様化する。** — 5 pt
+- [ ] **P0 — 1つのvalidated scalar import／exportとresource lifecycleをVM／JIT／AOT differential conformance／boundary-cost benchmarkへ通し、RFC 0003をdecision-readyにする。** — 8 pt
 - [ ] **P0 — Heap、recursion、task、native／JIT executionとcallback behaviorへresource enforcementを拡張する。** — 13 pt
 - [x] **P0 — Async cancellation、cyclic graph、shared mutable serviceについて、厳格／制限の少ない代替案をprototypeする。** — 8 pt
 - [x] **P0 — RFC 0002でsource-level integer／structured-control-flow semanticsをdecision-readyな状態まで草案化する。** — 5 pt
