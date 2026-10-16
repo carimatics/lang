@@ -6,13 +6,21 @@
 
 These measurements are design evidence for the pre-alpha prototypes. They are not language performance guarantees, release targets, or a final backend selection.
 
-## Schema 20 representative-application format
+## Current macOS AArch64 schema 20 representative-application baseline
 
-Schema 20 preserves every schema 19 field and adds a fourteenth `component_boundary_measurements` row in the `representative_application` series. `component_application_negotiate_lock_replay_instantiate_execute_cleanup` composes two independently selected provider interfaces, deterministic unlocked lock generation, exact-lock replay, fresh instance publication, scalar and nominal owned-resource VM/JIT calls, and reusable guest-trap cleanup in one operation. The checked-in application test requires two bindings and two exact lock entries and requires all scalar, resource, and cleanup paths to preserve the fixture value 42.
+The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-de248a1.json) was recorded from clean commit `de248a126e2e7b20e7be2df083b104a6c2e438df` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 23:34:00 JST. It used harness schema 20, the pinned Rust 1.99.0 toolchain, Apple Clang 21.0.0, 31 samples, 1,000 operations per component construction/lifecycle/application sample, and the retained schema-19 parameters for all other rows. The artifact reports `git_dirty: false`, fourteen component-boundary rows, and all retained schema-19 fields.
 
-This row includes package selection, fresh instance construction, bytecode lowering, JIT compilation, adapter setup, and cleanup; it is end-to-end directional evidence rather than an isolated call-overhead budget. The fixture is host-orchestrated: validated bindings gate the calls, but they do not yet materialize production generated dispatch stubs. A clean schema 20 macOS baseline has not yet been recorded. Windows CI requires schema 20 and the exact new row/series while retaining every schema 19 contract.
+Schema 20 adds one row to the existing component-boundary series:
 
-## Current macOS AArch64 schema 19 component-boundary baseline
+| Series | Measurement | Operations per sample | Median | p95 | RSD |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Representative application | Two-provider negotiation, lock generation/replay, instantiation, scalar/resource execution, and failure cleanup | 1,000 | 67.592 us | 68.459 us | 1.109% |
+
+`component_application_negotiate_lock_replay_instantiate_execute_cleanup` composes two independently selected provider interfaces, deterministic unlocked lock generation, exact-lock replay, fresh instance publication, scalar and nominal owned-resource VM/JIT calls, and reusable guest-trap cleanup in one operation. The checked-in application test requires two bindings and two exact lock entries and requires all scalar, resource, and cleanup paths to preserve the fixture value 42.
+
+The row includes package selection, fresh instance construction, bytecode lowering, JIT compilation, adapter setup, and cleanup; it is end-to-end directional evidence rather than an isolated call-overhead budget. The fixture is host-orchestrated: validated bindings gate the calls, but they do not yet materialize production generated dispatch stubs. Windows CI requires schema 20 and the exact new row/series while retaining every schema-19 contract; native Windows evidence remains open.
+
+## Previous macOS AArch64 schema 19 component-boundary baseline
 
 The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json) was recorded from clean commit `76c8f81516be5eb4cd77ab063b3ecd3935d16e58` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 22:51:15 JST. It used harness schema 19, the pinned Rust 1.99.0 toolchain, Apple Clang 21.0.0, 31 samples, 1,000 operations per component construction/lifecycle sample, and the retained schema 18 parameters for all other rows.
 
@@ -303,7 +311,7 @@ The clean pre-implementation [debug-information inspection](../benchmarks/inspec
 - Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.846 ns and 1.611 us and accumulator JIT/VM medians of 12.790 ns and 1.665 us. Alternating conditional-sum inputs `(64, 33)` and `(-7, 33)` gives JIT/VM medians of 20.011 ns and 3.046 us. These bounded microbenchmarks do not predict representative control-flow performance. Near-one-nanosecond direct add, countdown, and host-call rows remain timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record a clean schema 19 result on a native Windows x86-64 runner and interpret it against the macOS baseline. The macOS AArch64 DWARF/dSYM and Windows-target CodeView/PDB source-mapping criteria are complete; the latter is cross-target LLD/LLDB evidence and does not replace Windows CI execution. The schema 17 allocation trace retained by schema 19 is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
+Before selecting the initial native backend, record a clean schema 20 result on a native Windows x86-64 runner and interpret it against the macOS baseline. The macOS AArch64 DWARF/dSYM and Windows-target CodeView/PDB source-mapping criteria are complete; the latter is cross-target LLD/LLDB evidence and does not replace Windows CI execution. The schema 17 allocation trace retained by schema 20 is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
 
 ## Earlier baseline
 
@@ -311,7 +319,8 @@ The [schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.js
 
 ## Sources
 
-- [Current raw macOS AArch64 schema 19 result](../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json), measured 2026-10-16 22:51:15 JST.
+- [Current raw macOS AArch64 schema 20 result](../benchmarks/results/2026-10-16-macos-aarch64-de248a1.json), measured 2026-10-16 23:34:00 JST.
+- [Historical raw macOS AArch64 schema 19 result](../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json), measured 2026-10-16 22:51:15 JST.
 - [Historical raw macOS AArch64 schema 18 result](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json), measured 2026-10-16 19:17:44 JST.
 - [Historical raw macOS AArch64 schema 17 result](../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json), measured 2026-10-16 19:01:45 JST.
 - [Historical raw macOS AArch64 schema 16 result](../benchmarks/results/2026-10-16-macos-aarch64-7f2482a.json), measured 2026-10-16 18:42:15 JST.
@@ -319,6 +328,7 @@ The [schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.js
 - [Historical raw macOS AArch64 schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.json), measured 2026-10-16 14:02:20 JST.
 - `crates/vm/src/lib.rs`, deadline-enabled VM resource controls, last updated 2026-10-16 11:20 JST.
 - `src/lib.rs`, cross-mode CFG and allocation-callback prototypes, last updated 2026-10-16 19:15:05 JST.
+- `src/component_application_conformance.rs`, representative multi-component application fixture, last updated 2026-10-16 23:29 JST.
 - `src/bin/prototype-bench.rs`, schema 20 CFG/allocation/component/process-memory harness, last updated 2026-10-16 23:29 JST.
 - [macOS AArch64 generated-object inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), captured 2026-10-16 00:25 JST.
 - [macOS AArch64 signed-minimum inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), captured 2026-10-16 00:43:31 JST.

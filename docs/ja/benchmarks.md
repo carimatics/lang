@@ -6,13 +6,21 @@
 
 これらのmeasurementはpre-alpha prototypeの設計証拠です。言語のperformance guarantee、release target、最終backend選定ではありません。
 
-## Schema 20 representative-application format
+## 現在のmacOS AArch64 schema 20 representative-application baseline
 
-Schema 20はschema 19の全fieldを維持し、`representative_application` seriesの14番目の `component_boundary_measurements` rowを追加します。`component_application_negotiate_lock_replay_instantiate_execute_cleanup` は、独立して選択される2つのprovider interface、deterministicなunlocked lock生成、exact-lock replay、fresh instance publication、scalar／nominal owned-resource VM／JIT call、再利用可能なguest-trap cleanupを1 operationへcomposeします。Check-in済みapplication testは2個のbinding／2個のexact lock entryを要求し、scalar、resource、cleanupの全pathがfixture value 42を保持することを要求します。
+現在の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-de248a1.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 23:34:00 JSTにclean commit `de248a126e2e7b20e7be2df083b104a6c2e438df` から記録しました。Harness schema 20、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0、31 sample、component construction／lifecycle／application sampleごとに1,000 operation、その他のrowにはschema 19から維持したparameterを使用しました。Artifactは `git_dirty: false`、14個のcomponent-boundary row、schema 19から維持した全fieldを報告します。
 
-このrowはpackage selection、fresh instance construction、bytecode lowering、JIT compilation、adapter setup、cleanupを含み、isolated call-overhead budgetではなくend-to-endの方向的evidenceです。Fixtureはhost-orchestratedです。Validated bindingがcallをgateしますが、production generated dispatch stubはまだmaterializeしません。Cleanなschema 20 macOS baselineはまだ記録していません。Windows CIはschema 19の全contractを維持しつつ、schema 20と正確な新row／seriesを要求します。
+Schema 20は既存component-boundary seriesへ1 rowを追加します。
 
-## 現在のmacOS AArch64 schema 19 component-boundary baseline
+| Series | Measurement | Sample当たりのoperation数 | Median | p95 | RSD |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Representative application | 2-provider negotiation、lock生成／replay、instantiation、scalar／resource execution、failure cleanup | 1,000 | 67.592 us | 68.459 us | 1.109% |
+
+`component_application_negotiate_lock_replay_instantiate_execute_cleanup` は、独立して選択される2つのprovider interface、deterministicなunlocked lock生成、exact-lock replay、fresh instance publication、scalar／nominal owned-resource VM／JIT call、再利用可能なguest-trap cleanupを1 operationへcomposeします。Check-in済みapplication testは2個のbinding／2個のexact lock entryを要求し、scalar、resource、cleanupの全pathがfixture value 42を保持することを要求します。
+
+このrowはpackage selection、fresh instance construction、bytecode lowering、JIT compilation、adapter setup、cleanupを含み、isolated call-overhead budgetではなくend-to-endの方向的evidenceです。Fixtureはhost-orchestratedです。Validated bindingがcallをgateしますが、production generated dispatch stubはまだmaterializeしません。Windows CIはschema 19の全contractを維持しつつschema 20と正確な新row／seriesを要求し、native Windows evidenceは未完了です。
+
+## 過去のmacOS AArch64 schema 19 component-boundary baseline
 
 現在の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 22:51:15 JSTにclean commit `76c8f81516be5eb4cd77ab063b3ecd3935d16e58` から記録しました。Harness schema 19、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0、31 sample、component construction／lifecycle sampleごとに1,000 operation、その他のrowにはschema 18から維持したparameterを使用しました。
 
@@ -303,7 +311,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - 64-iteration back-edgeとimmediate returnを交互に実行すると、countdownのJIT／VM medianは12.846 ns／1.611 us、accumulatorは12.790 ns／1.665 usになります。Conditional-sum input `(64, 33)` と `(-7, 33)` を交互に実行すると、JIT／VM medianは20.011 ns／3.046 usになります。これらのbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。約1 nanosecondのdirect add／countdown／host-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、native Windows x86-64 runnerでclean schema 19 resultを記録し、macOS baselineと比較して解釈します。macOS AArch64 DWARF／dSYMとWindows-target CodeView／PDBのsource-mapping criterionは完了済みです。後者はcross-target LLD／LLDB evidenceであり、Windows CI executionを置き換えません。Schema 19が維持するschema 17 allocation traceもsyntheticなcompiler-like proxyであり、合算推定値はallocator metadataとfragmentationを分離できません。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
+初期native backendを選定する前に、native Windows x86-64 runnerでclean schema 20 resultを記録し、macOS baselineと比較して解釈します。macOS AArch64 DWARF／dSYMとWindows-target CodeView／PDBのsource-mapping criterionは完了済みです。後者はcross-target LLD／LLDB evidenceであり、Windows CI executionを置き換えません。Schema 20が維持するschema 17 allocation traceもsyntheticなcompiler-like proxyであり、合算推定値はallocator metadataとfragmentationを分離できません。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
 
 ## 以前のbaseline
 
@@ -311,7 +319,8 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 
 ## 情報源
 
-- [現在のraw macOS AArch64 schema 19 result](../../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json)、2026-10-16 22:51:15 JSTに計測。
+- [現在のraw macOS AArch64 schema 20 result](../../benchmarks/results/2026-10-16-macos-aarch64-de248a1.json)、2026-10-16 23:34:00 JSTに計測。
+- [過去のraw macOS AArch64 schema 19 result](../../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json)、2026-10-16 22:51:15 JSTに計測。
 - [過去のraw macOS AArch64 schema 18 result](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)、2026-10-16 19:17:44 JSTに計測。
 - [過去のraw macOS AArch64 schema 17 result](../../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json)、2026-10-16 19:01:45 JSTに計測。
 - [過去のraw macOS AArch64 schema 16 result](../../benchmarks/results/2026-10-16-macos-aarch64-7f2482a.json)、2026-10-16 18:42:15 JSTに計測。
@@ -319,6 +328,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - [過去のraw macOS AArch64 schema 14 result](../../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.json)、2026-10-16 14:02:20 JSTに計測。
 - `crates/vm/src/lib.rs`、deadline-enabled VM resource control、最終更新 2026-10-16 11:20 JST。
 - `src/lib.rs`、cross-mode CFG／allocation-callback prototype、最終更新 2026-10-16 19:15:05 JST。
+- `src/component_application_conformance.rs`、代表的multi-component application fixture、最終更新2026-10-16 23:29 JST。
 - `src/bin/prototype-bench.rs`、schema 20 CFG／allocation／component／process-memory harness、最終更新 2026-10-16 23:29 JST。
 - [macOS AArch64 generated-object inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)、2026-10-16 00:25 JSTに取得。
 - [macOS AArch64 signed-minimum inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md)、2026-10-16 00:43:31 JSTに取得。
