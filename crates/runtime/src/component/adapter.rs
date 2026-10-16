@@ -1153,11 +1153,17 @@ impl CallCompletion {
 #[cfg(test)]
 mod tests {
     use super::{
-        AdapterErrorKind, AdapterLimits, AdapterRole, AdapterTraceEvent, BoundaryResourceIndex,
-        CallOutcome, CanonicalOwnership, CanonicalResourceTable, FailureCategory, FailurePhase,
-        InstanceState, ResourceIdentity, TransferArgument, preflight_call,
+        AdapterErrorKind, AdapterLimits, AdapterRole, AdapterTraceEvent, BoundaryFailure,
+        BoundaryFailureRecord, BoundaryResourceIndex, CallOutcome, CanonicalOwnership,
+        CanonicalResourceTable, FailureCategory, FailurePhase, InstanceState, ResourceIdentity,
+        TransferArgument, preflight_call,
     };
     use crate::component::negotiation::{InterfaceKey, PackageKey, ResourceTypeKey};
+    use crate::component::serialization::{
+        BoundaryFailureSerializationError, VersionedComponentDiagnostic,
+        VersionedComponentFailureCategory, VersionedComponentFailurePhase,
+        VersionedComponentFailureReport, VersionedComponentMessagePolicy,
+    };
 
     fn resource_type(name: &str) -> ResourceTypeKey {
         ResourceTypeKey::new(
@@ -1468,5 +1474,78 @@ mod tests {
         );
         assert!(caller.is_live(owner));
         assert!(callee.is_empty());
+    }
+
+    #[test]
+    fn boundary_failures_project_with_explicit_message_policy() {
+        let failure = BoundaryFailure {
+            primary: BoundaryFailureRecord::call(
+                FailureCategory::Panic,
+                "component.boundary.panic",
+            ),
+            suppressed: vec![
+                BoundaryFailureRecord::cleanup(
+                    FailureCategory::Trap,
+                    "component.boundary.trap",
+                    "adapter cleanup invariant violated",
+                ),
+                BoundaryFailureRecord::cleanup(
+                    FailureCategory::Destructor,
+                    "component.boundary.destructor-failure",
+                    "timer drop failed",
+                ),
+            ],
+            poisoned: true,
+        };
+
+        let redacted = VersionedComponentFailureReport::from_boundary_failure_redacted(&failure)
+            .expect("known diagnostics should project");
+        assert_eq!(
+            redacted.message_policy(),
+            VersionedComponentMessagePolicy::Redacted
+        );
+        assert!(redacted.primary().message().is_none());
+        assert!(
+            redacted
+                .suppressed()
+                .iter()
+                .all(|record| record.message().is_none())
+        );
+        assert_eq!(
+            redacted.suppressed()[0].category(),
+            VersionedComponentFailureCategory::Trap
+        );
+        assert_eq!(
+            redacted.suppressed()[0].phase(),
+            VersionedComponentFailurePhase::Cleanup
+        );
+        assert_eq!(
+            redacted.suppressed()[0].diagnostic(),
+            VersionedComponentDiagnostic::BoundaryTrap
+        );
+
+        let sanitized =
+            VersionedComponentFailureReport::from_boundary_failure_sanitized(&failure, |_| {
+                "sanitized".to_owned()
+            })
+            .expect("sanitized diagnostics should project");
+        assert_eq!(
+            sanitized.message_policy(),
+            VersionedComponentMessagePolicy::Sanitized
+        );
+        assert_eq!(sanitized.suppressed()[0].message(), Some("sanitized"));
+        assert_eq!(sanitized.suppressed()[1].message(), Some("sanitized"));
+
+        let unknown = BoundaryFailure {
+            primary: BoundaryFailureRecord::call(FailureCategory::Trap, "component.unknown"),
+            suppressed: Vec::new(),
+            poisoned: false,
+        };
+        assert_eq!(
+            VersionedComponentFailureReport::from_boundary_failure_redacted(&unknown),
+            Err(BoundaryFailureSerializationError::UnknownDiagnostic(
+                "component.unknown".to_owned()
+            ))
+        );
     }
 }

@@ -8,6 +8,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::str;
 
+use super::adapter::{BoundaryFailure, BoundaryFailureRecord, FailureCategory, FailurePhase};
 use super::codec::ComponentCodecLimits;
 use super::negotiation::{
     BuildIdentifier, InterfaceKey, PackageKey, PrereleaseIdentifier, ResourceTypeKey,
@@ -378,6 +379,103 @@ impl VersionedComponentFailureReport {
     pub const fn poisoned(&self) -> bool {
         self.poisoned
     }
+
+    /// Projects a runtime boundary failure without transporting record messages.
+    pub fn from_boundary_failure_redacted(
+        failure: &BoundaryFailure,
+    ) -> Result<Self, BoundaryFailureSerializationError> {
+        Self::from_boundary_failure(failure, VersionedComponentMessagePolicy::Redacted, |_| None)
+    }
+
+    /// Projects a runtime boundary failure after applying an embedding sanitizer.
+    pub fn from_boundary_failure_sanitized<F>(
+        failure: &BoundaryFailure,
+        mut sanitize: F,
+    ) -> Result<Self, BoundaryFailureSerializationError>
+    where
+        F: FnMut(&str) -> String,
+    {
+        Self::from_boundary_failure(
+            failure,
+            VersionedComponentMessagePolicy::Sanitized,
+            |message| message.map(&mut sanitize),
+        )
+    }
+
+    fn from_boundary_failure<F>(
+        failure: &BoundaryFailure,
+        message_policy: VersionedComponentMessagePolicy,
+        mut project_message: F,
+    ) -> Result<Self, BoundaryFailureSerializationError>
+    where
+        F: FnMut(Option<&str>) -> Option<String>,
+    {
+        let primary = versioned_failure_record(failure.primary(), &mut project_message)?;
+        let suppressed = failure
+            .suppressed()
+            .iter()
+            .map(|record| versioned_failure_record(record, &mut project_message))
+            .collect::<Result<Vec<_>, _>>()?;
+        Self::new(message_policy, primary, suppressed, failure.poisoned())
+            .map_err(BoundaryFailureSerializationError::InvalidReport)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BoundaryFailureSerializationError {
+    UnknownDiagnostic(String),
+    InvalidReport(ComponentFailureReportValidationError),
+}
+
+impl Display for BoundaryFailureSerializationError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownDiagnostic(diagnostic) => {
+                write!(
+                    formatter,
+                    "unknown boundary-failure diagnostic `{diagnostic}`"
+                )
+            }
+            Self::InvalidReport(error) => Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl Error for BoundaryFailureSerializationError {}
+
+fn versioned_failure_record<F>(
+    record: &BoundaryFailureRecord,
+    project_message: &mut F,
+) -> Result<VersionedComponentFailureRecord, BoundaryFailureSerializationError>
+where
+    F: FnMut(Option<&str>) -> Option<String>,
+{
+    let category = match record.category() {
+        FailureCategory::Panic => VersionedComponentFailureCategory::Panic,
+        FailureCategory::Trap => VersionedComponentFailureCategory::Trap,
+        FailureCategory::Destructor => VersionedComponentFailureCategory::Destructor,
+    };
+    let phase = match record.phase() {
+        FailurePhase::Call => VersionedComponentFailurePhase::Call,
+        FailurePhase::Cleanup => VersionedComponentFailurePhase::Cleanup,
+    };
+    let diagnostic = match record.diagnostic() {
+        "component.boundary.panic" => VersionedComponentDiagnostic::BoundaryPanic,
+        "component.boundary.trap" => VersionedComponentDiagnostic::BoundaryTrap,
+        "component.boundary.destructor-failure" => VersionedComponentDiagnostic::DestructorFailure,
+        "component.instance-poisoned" => VersionedComponentDiagnostic::InstancePoisoned,
+        diagnostic => {
+            return Err(BoundaryFailureSerializationError::UnknownDiagnostic(
+                diagnostic.to_owned(),
+            ));
+        }
+    };
+    Ok(VersionedComponentFailureRecord::new(
+        category,
+        phase,
+        diagnostic,
+        project_message(record.message()),
+    ))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -403,7 +501,7 @@ pub enum ComponentFailureReportValidationError {
         phase: VersionedComponentFailurePhase,
         diagnostic: VersionedComponentDiagnostic,
     },
-    InvalidSuppressedRecord {
+    InvalidSuppressedPhase {
         index: usize,
     },
     MessagePresentUnderRedactedPolicy {
@@ -425,9 +523,9 @@ impl Display for ComponentFailureReportValidationError {
                 formatter,
                 "{location} has incompatible {category}/{phase} classification for `{diagnostic}`"
             ),
-            Self::InvalidSuppressedRecord { index } => write!(
+            Self::InvalidSuppressedPhase { index } => write!(
                 formatter,
-                "suppressed failure {index} is not a cleanup-phase destructor failure"
+                "suppressed failure {index} is not in the cleanup phase"
             ),
             Self::MessagePresentUnderRedactedPolicy { location } => {
                 write!(
@@ -453,11 +551,8 @@ fn validate_failure_report(
     validate_failure_record(report.primary(), FailureRecordLocation::Primary)?;
     for (index, record) in report.suppressed().iter().enumerate() {
         validate_failure_record(record, FailureRecordLocation::Suppressed(index))?;
-        if record.category() != VersionedComponentFailureCategory::Destructor
-            || record.phase() != VersionedComponentFailurePhase::Cleanup
-            || record.diagnostic() != VersionedComponentDiagnostic::DestructorFailure
-        {
-            return Err(ComponentFailureReportValidationError::InvalidSuppressedRecord { index });
+        if record.phase() != VersionedComponentFailurePhase::Cleanup {
+            return Err(ComponentFailureReportValidationError::InvalidSuppressedPhase { index });
         }
     }
 
@@ -503,22 +598,26 @@ fn validate_failure_record(
     record: &VersionedComponentFailureRecord,
     location: FailureRecordLocation,
 ) -> Result<(), ComponentFailureReportValidationError> {
-    let expected = match record.diagnostic() {
+    let (expected_category, expected_phase) = match record.diagnostic() {
         VersionedComponentDiagnostic::BoundaryPanic => (
             VersionedComponentFailureCategory::Panic,
-            VersionedComponentFailurePhase::Call,
+            Some(VersionedComponentFailurePhase::Call),
         ),
-        VersionedComponentDiagnostic::BoundaryTrap
-        | VersionedComponentDiagnostic::InstancePoisoned => (
-            VersionedComponentFailureCategory::Trap,
-            VersionedComponentFailurePhase::Call,
-        ),
+        VersionedComponentDiagnostic::BoundaryTrap => {
+            (VersionedComponentFailureCategory::Trap, None)
+        }
         VersionedComponentDiagnostic::DestructorFailure => (
             VersionedComponentFailureCategory::Destructor,
-            VersionedComponentFailurePhase::Cleanup,
+            Some(VersionedComponentFailurePhase::Cleanup),
+        ),
+        VersionedComponentDiagnostic::InstancePoisoned => (
+            VersionedComponentFailureCategory::Trap,
+            Some(VersionedComponentFailurePhase::Call),
         ),
     };
-    if (record.category(), record.phase()) == expected {
+    if record.category() == expected_category
+        && expected_phase.is_none_or(|phase| record.phase() == phase)
+    {
         Ok(())
     } else {
         Err(ComponentFailureReportValidationError::DiagnosticMismatch {
@@ -2835,8 +2934,22 @@ mod tests {
                 vec![trap],
                 false,
             ),
-            Err(ComponentFailureReportValidationError::InvalidSuppressedRecord { index: 0 })
+            Err(ComponentFailureReportValidationError::InvalidSuppressedPhase { index: 0 })
         );
+
+        let cleanup_trap = VersionedComponentFailureRecord::new(
+            VersionedComponentFailureCategory::Trap,
+            VersionedComponentFailurePhase::Cleanup,
+            VersionedComponentDiagnostic::BoundaryTrap,
+            None,
+        );
+        VersionedComponentFailureReport::new(
+            VersionedComponentMessagePolicy::Redacted,
+            panic(None),
+            vec![cleanup_trap],
+            true,
+        )
+        .expect("a cleanup invariant trap is a valid suppressed record");
 
         let destructor = VersionedComponentFailureRecord::new(
             VersionedComponentFailureCategory::Destructor,
