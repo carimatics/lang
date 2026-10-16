@@ -237,7 +237,7 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 - `crates/vm/src/lib.rs`、VM execution／resource-control prototype、最終更新 2026-10-16 11:20 JST。
 - `crates/codegen-clif/src/lib.rs`、Cranelift lowering prototype、最終更新 2026-10-16 01:36 JST。
 - `src/lib.rs`、differential prototype workload、最終更新 2026-10-16 11:42 JST。
-- `src/bin/prototype-bench.rs`、schema 13 control／allocation／heap／process-memory harness、最終更新 2026-10-16 12:50 JST。
+- `src/bin/prototype-bench.rs`、schema 14 control／allocation／heap／process-memory harness、最終更新 2026-10-16 13:26 JST。
 - `benchmarks/results/2026-10-16-macos-aarch64-11a1af7.json`、clean schema 13 macOS AArch64 evidence、2026-10-16 13:00:19 JSTに計測。
 
 このRFCは外部の事実に関する主張を追加しません。Design proposalはrepositoryの実行可能prototypeとproject decisionから導出しています。
