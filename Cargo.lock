@@ -381,6 +381,7 @@ dependencies = [
  "lang-diagnostics",
  "lang-hir",
  "lang-mir",
+ "lang-syntax",
 ]
 
 [[package]]

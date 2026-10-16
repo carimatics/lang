@@ -73,6 +73,10 @@ Parserはsyntax node、real-token参照、zero-widthなmissing-syntax leafをimm
 
 ### Incremental architecture
 
+2026-10-17実装：`lang-semantics::modules` はhost側のsource loadingとmodule namespaceを提供します。Hostがroot fileと明示的なsource-root directoryを指定し、読み込み前にcanonical pathがroot内にあることを確認します。Child pathは宣言階層（`math.lang`、次に `math/inner.lang`）に従い、processのworking directoryに依存しません。Readはfile別／全体byte budgetの残量と検出用1 byteまでに制限します。合計byte／token／node、予定module数、function／definition／import数、診断数、resolution workに上限があります。Host宣言と `use` aliasはimport数の上限を共有します。不正UTF-8はraw input範囲を保持し、有効なsource上の失敗はstructured spanを保持します。Source表示pathはUTF-8を必須とし、非可逆変換によるaliasを作りません。
+
+Module graphはparsed tree、compilation内のmodule／item ID、表示名、宣言span、canonicalなimport targetを保持します。全宣言名を収集してからimportを解決します。Item種別は同じnamespaceを共有し、aliasは最後のsegmentを名前に使い、private importを再exportできません。Resolutionは横断する各module／item境界を検証し、module自身のprivate childへの参照を許可し、enum経由でcaseを公開します。同一canonical fileの重複とancestor cycleは再読み込み前に拒否します。Alias依存は明示stackを使い、再訪問も課金します。Workは宣言、path segment、enum-case候補、alias依存の訪問、ancestor検査を課金します。17件のlocal testでforward／階層path、alias、privacy、循環、名前重複、不正input、通算budget、Unix symlink境界を検証します。Linux専用testは、macOS filesystemが作成時に拒否する非UTF-8 filenameも検証します。Namespace graphの成功はbody typingの完了を意味せず、parsed local／pattern scope、type path／public signature、typed source／HIR構築は統合の残作業です。
+
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。
 
 - Fileをparseする

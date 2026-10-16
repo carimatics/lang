@@ -18,6 +18,7 @@
 
 pub mod graph;
 pub mod lowering;
+pub mod modules;
 pub mod service;
 
 use std::collections::{BTreeMap, BTreeSet};
