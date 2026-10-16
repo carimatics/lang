@@ -45,7 +45,9 @@ pub const PROTOTYPE_DOUBLE_HOST: HostFunctionId = HostFunctionId::new(0);
 pub const PROTOTYPE_ALLOCATE_HOST: HostFunctionId = HostFunctionId::new(1);
 pub const PROTOTYPE_ALLOCATE_BURST_HOST: HostFunctionId = HostFunctionId::new(2);
 pub const PROTOTYPE_ALLOCATE_CHURN_HOST: HostFunctionId = HostFunctionId::new(3);
+pub const PROTOTYPE_ALLOCATE_VARIABLE_HOST: HostFunctionId = HostFunctionId::new(4);
 pub const PROTOTYPE_ALLOCATION_BURST_LEN: usize = 64;
+pub const PROTOTYPE_VARIABLE_ALLOCATION_COUNT: usize = 16;
 
 extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
     value.wrapping_mul(2)
@@ -91,6 +93,19 @@ extern "C" fn prototype_allocate_churn(value: i64) -> i64 {
         .fold(sum, |sum, allocation| {
             sum.wrapping_add(std::hint::black_box(*allocation))
         })
+}
+
+extern "C" fn prototype_allocate_variable(value: i64) -> i64 {
+    let allocations: [Box<[i64]>; PROTOTYPE_VARIABLE_ALLOCATION_COUNT] =
+        std::array::from_fn(|index| {
+            let mut allocation = vec![0_i64; index + 1].into_boxed_slice();
+            allocation[0] = value.wrapping_add(index as i64);
+            std::hint::black_box(allocation)
+        });
+
+    allocations.into_iter().fold(0_i64, |sum, allocation| {
+        sum.wrapping_add(std::hint::black_box(allocation[0]))
+    })
 }
 
 impl Error for PrototypeError {}
@@ -533,13 +548,51 @@ pub fn run_prototype_host_allocation_churn(value: i64) -> Result<ExecutionResult
     Ok(ExecutionResults { bytecode, native })
 }
 
+pub fn prototype_host_allocation_variable_function() -> Function {
+    Function::new(
+        "prototype_host_allocation_variable",
+        Signature::new(vec![Type::I64], Type::I64),
+        vec![Instruction::CallHostI64 {
+            result: ValueId::new(1),
+            function: PROTOTYPE_ALLOCATE_VARIABLE_HOST,
+            argument: ValueId::new(0),
+        }],
+        Terminator::Return(ValueId::new(1)),
+    )
+}
+
+pub fn run_prototype_host_allocation_variable(
+    value: i64,
+) -> Result<ExecutionResults, PrototypeError> {
+    let mut host_functions = HostFunctionRegistry::new();
+    host_functions
+        .register_i64(
+            PROTOTYPE_ALLOCATE_VARIABLE_HOST,
+            prototype_allocate_variable,
+        )
+        .map_err(PrototypeError::HostRegistration)?;
+
+    let function = prototype_host_allocation_variable_function();
+    let program = lower(&function).map_err(PrototypeError::Bytecode)?;
+    let bytecode =
+        execute_with_hosts(&program, &[value], &host_functions).map_err(PrototypeError::Vm)?;
+    let compiled = CompiledFunction::compile_with_hosts(&function, &host_functions)
+        .map_err(PrototypeError::NativeCompile)?;
+    let native = compiled
+        .invoke_i64_1(value)
+        .map_err(PrototypeError::NativeInvoke)?;
+
+    Ok(ExecutionResults { bytecode, native })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ExecutionResults, run_prototype_add, run_prototype_countdown,
         run_prototype_host_allocation, run_prototype_host_allocation_burst,
-        run_prototype_host_allocation_churn, run_prototype_host_callback, run_prototype_min,
-        run_prototype_sum_below, run_prototype_sum_to,
+        run_prototype_host_allocation_churn, run_prototype_host_allocation_variable,
+        run_prototype_host_callback, run_prototype_min, run_prototype_sum_below,
+        run_prototype_sum_to,
     };
 
     #[test]
@@ -623,6 +676,27 @@ mod tests {
         for (value, expected) in cases {
             assert_eq!(
                 run_prototype_host_allocation_churn(value).unwrap(),
+                ExecutionResults {
+                    bytecode: expected,
+                    native: expected,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn host_variable_allocation_callbacks_are_equivalent() {
+        let cases = [
+            (0_i64, 120_i64),
+            (21, 456),
+            (-7, 8),
+            (i64::MAX, 104),
+            (i64::MIN, 120),
+        ];
+
+        for (value, expected) in cases {
+            assert_eq!(
+                run_prototype_host_allocation_variable(value).unwrap(),
                 ExecutionResults {
                     bytecode: expected,
                     native: expected,

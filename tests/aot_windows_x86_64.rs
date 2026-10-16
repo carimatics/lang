@@ -1,8 +1,8 @@
 use lang::linker::LinkTarget;
 use lang::{
     prototype_add_function, prototype_host_allocation_burst_function,
-    prototype_host_allocation_churn_function, prototype_host_callback_function,
-    prototype_sum_below_function, prototype_sum_to_function,
+    prototype_host_allocation_churn_function, prototype_host_allocation_variable_function,
+    prototype_host_callback_function, prototype_sum_below_function, prototype_sum_to_function,
 };
 use lang_codegen_clif::{Triple, emit_object_for_target};
 use object::{Architecture, BinaryFormat, Object, ObjectSymbol};
@@ -23,6 +23,11 @@ fn emits_windows_x86_64_coff_with_expected_symbols() {
     let allocation_churn =
         emit_object_for_target(&prototype_host_allocation_churn_function(), target.clone())
             .expect("emits the host-allocation churn function for Windows x86-64");
+    let allocation_variable = emit_object_for_target(
+        &prototype_host_allocation_variable_function(),
+        target.clone(),
+    )
+    .expect("emits the variable host-allocation function for Windows x86-64");
     let sum_below = emit_object_for_target(&prototype_sum_below_function(), target.clone())
         .expect("emits the conditional sum function for Windows x86-64");
     let sum = emit_object_for_target(&prototype_sum_to_function(), target)
@@ -67,6 +72,22 @@ fn emits_windows_x86_64_coff_with_expected_symbols() {
     assert!(has_undefined_symbol(
         &allocation_churn_object,
         "lang_host_i64_3"
+    ));
+
+    let allocation_variable_object = object::File::parse(allocation_variable.bytes())
+        .expect("parses the variable host-allocation COFF object");
+    assert_eq!(allocation_variable_object.format(), BinaryFormat::Coff);
+    assert_eq!(
+        allocation_variable_object.architecture(),
+        Architecture::X86_64
+    );
+    assert!(has_defined_symbol(
+        &allocation_variable_object,
+        allocation_variable.function_symbol()
+    ));
+    assert!(has_undefined_symbol(
+        &allocation_variable_object,
+        "lang_host_i64_4"
     ));
 
     let sum_below_object =
