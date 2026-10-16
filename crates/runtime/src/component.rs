@@ -2,6 +2,7 @@ pub mod adapter;
 pub mod codec;
 pub mod negotiation;
 pub mod resource;
+pub mod serialization;
 
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashSet};

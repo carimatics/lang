@@ -18,5 +18,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "versioned_component_contract_decoder"
+path = "fuzz_targets/versioned_component_contract_decoder.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]
