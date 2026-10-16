@@ -50,6 +50,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 ## Development
 
+Milestone 1 now has a backend-independent `lang-diagnostics` crate. It provides immutable UTF-8 source snapshots, validated byte spans, Unicode/UTF-16 positions, RFC 0002 diagnostic identities, primary/secondary labels, notes, and atomic fix previews. Run `cargo test -p lang-diagnostics` for Unicode, stale-snapshot, cross-file, rendering, and conflicting-edit coverage. Parsing and source execution remain the next implementation stages.
+
 Requirements:
 
 - Rust `1.99.0`, pinned by `rust-toolchain.toml`

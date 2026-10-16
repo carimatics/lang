@@ -1,0 +1,7 @@
+[package]
+name = "lang-diagnostics"
+version.workspace = true
+edition.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"

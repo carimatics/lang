@@ -61,7 +61,7 @@ MIR ─────────────────────────�
 
 型付きMIRをsemantic contractとします。Backend固有のoptimizationは異なっても構いませんが、観測可能な動作、destruction order、panic／error behavior、integer semantics、concurrency ruleは異なってはいけません。
 
-受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は、最初のsource subsetとして `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐlive valueはtyped block argumentへloweringします。Parser、HIR、source diagnostics、formatter、source-to-MIR loweringは未実装です。字句規則の詳細とsubsetを超える拡張はMilestone 1の設計gateを通します。
+受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は、最初のsource subsetとして `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐlive valueはtyped block argumentへloweringします。診断data modelは実装済みですが、parser／type checkerの診断生成、parser、HIR、formatter、source-to-MIR loweringは未実装です。字句規則の詳細とsubsetを超える拡張はMilestone 1の設計gateを通します。
 
 ### Incremental architecture
 
@@ -270,6 +270,8 @@ Root crateは、初期tier-1 linker policyをbackend-neutralな `LinkTarget` dom
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。
+
+2026-10-17実装：`lang-diagnostics` はimmutableなUTF-8 snapshot、全mapを通じて異なるsnapshot ID、文字境界を検証する半開byte span、1始まりのUnicode scalar位置、IDE adapter向け0始まりのUTF-16 columnを管理します。Diagnosticはprimary labelを1つ必須とし、別fileのsecondary label、note、machine-applicable／speculativeを区別したfixを追加できます。Fix previewは全参照snapshotを検証し、重複や曖昧なeditを拒否してから変更後のtextを返し、fileは変更しません。Plain-text表示はdeterministicで、制御文字とdirectional-formatting文字をescapeします。RFC 0002の `SRC0001`–`SRC0007` を表現していますが、source側の診断生成とconformanceは未実装です。このcrateはsource grammarやserialized diagnostic formatを導入しません。
 
 LSPはcompilerのparser、resolver、type checker、source map、incremental query databaseを再利用します。不完全またはinvalidなprogramでもresponsiveである必要があります。
 

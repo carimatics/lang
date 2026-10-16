@@ -61,7 +61,7 @@ MIR ─────────────────────────�
 
 The typed MIR is the semantic contract. Backend-specific optimizations may differ, but observable behavior, destruction order, panic/error behavior, integer semantics, and concurrency rules must not.
 
-Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) defines the initial source subset: `i64` parameters/results, wrapping addition, signed comparison, mutable locals, `if`/`else`, `while`, explicit `return`, and left-to-right evaluation. Values live across joins/back-edges lower through typed block arguments. No parser, HIR, source diagnostics, formatter, or source-to-MIR lowering is implemented yet. Lexical details and extensions beyond this subset must pass the Milestone 1 design gates.
+Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) defines the initial source subset: `i64` parameters/results, wrapping addition, signed comparison, mutable locals, `if`/`else`, `while`, explicit `return`, and left-to-right evaluation. Values live across joins/back-edges lower through typed block arguments. The diagnostic data model is implemented; parser/type-checker diagnostic producers, the parser, HIR, formatter, and source-to-MIR lowering are not. Lexical details and extensions beyond this subset must pass the Milestone 1 design gates.
 
 ### Incremental architecture
 
@@ -270,6 +270,8 @@ The historical backend experiments and their original evidence gaps remain docum
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.
+
+Implemented 2026-10-17: `lang-diagnostics` owns immutable UTF-8 snapshots, globally distinct snapshot IDs, half-open byte spans validated at character boundaries, one-based Unicode scalar positions, and zero-based UTF-16 columns for IDE adapters. Diagnostics require one primary label and may include cross-file secondary labels, notes, and fixes marked machine-applicable or speculative. Fix previews validate every referenced snapshot and reject overlapping or ambiguous edits before returning changed text; they do not mutate files. Plain-text rendering is deterministic and escapes control and directional-formatting characters. RFC 0002 codes `SRC0001`–`SRC0007` are represented, but source producers and their diagnostic conformance are still pending. This crate introduces no source grammar or serialized diagnostic format.
 
 The LSP reuses the compiler’s parser, resolver, type checker, source map, and incremental query database. It must remain responsive with incomplete and invalid programs.
 

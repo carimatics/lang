@@ -50,6 +50,8 @@
 
 ## 開発
 
+Milestone 1ではbackend非依存の `lang-diagnostics` crateを追加しました。ImmutableなUTF-8 source snapshot、検証済みbyte span、Unicode／UTF-16位置、RFC 0002の診断identity、primary／secondary label、note、atomicなfix previewを提供します。`cargo test -p lang-diagnostics` でUnicode、古いsnapshot、複数file、表示、競合するeditを検証できます。Parserとsource実行は次の実装段階です。
+
 必要な環境：
 
 - `rust-toolchain.toml` で固定されたRust `1.99.0`

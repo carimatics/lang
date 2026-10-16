@@ -335,6 +335,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "lang-diagnostics"
+version = "0.1.0"
+
+[[package]]
 name = "lang-mir"
 version = "0.1.0"
 
