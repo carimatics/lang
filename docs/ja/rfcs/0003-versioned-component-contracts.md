@@ -294,7 +294,7 @@ Exact lock済みinstanceを4,096個保持する別child processは10,108,928-byt
 - Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
 - Candidate failure-record tag／redacted-sanitized message policyを変更なしでacceptするべきか。また各embeddingはどのsanitizerを適用するべきか。
 
-レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary rule、deterministicなpackage／interface compatibility negotiationは規定済みです。In-memory compatibility negotiation、exact lock selection／deterministic lockfile replay、1つのvalidated schema-1 scalar VM／JIT／macOS-AOT path、backend-neutralなcanonical-resource transfer／borrow／cleanup／poisoning trace、host-value identity／lifecycle bridge、general schema-2 instantiation、host-side VM／JIT／macOS-AOT resource／failure adapter conformance、candidate schema-2 contract／failure-report document、7-seriesのschema-19 macOS boundary-cost baselineは実行可能かつtest済みです。このRFCをstable component contractとしてacceptする前に、production package-manager I/O、candidate serializationのowner acceptance／forward-compatibility disposition、remote Windows component execution、typed backend resource lowering、代表的application evidenceがblocking workとして残ります。
+レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary rule、deterministicなpackage／interface compatibility negotiationは規定済みです。In-memory compatibility negotiation、exact lock selection／deterministic lockfile replay、1つのvalidated schema-1 scalar VM／JIT／macOS-AOT path、backend-neutralなcanonical-resource transfer／borrow／cleanup／poisoning trace、host-value identity／lifecycle bridge、general schema-2 instantiation、host-side VM／JIT／macOS-AOT resource／failure adapter conformance、candidate schema-2 contract／failure-report document、7-seriesのschema-19 macOS boundary-cost baselineは実行可能かつtest済みです。Repository-owner dispositionの前に、typed backend resource lowering、代表的multi-component application evidence、remote Windows component executionがblocking evidenceとして残ります。Candidate serializationのowner acceptance／forward-compatibility dispositionは、そのdecision自体に含まれます。Production package-manager I/Oは後続Milestone 4の作業であり、このRFCを判断するprerequisiteではありません。
 
 ## 情報源
 
@@ -309,7 +309,7 @@ Exact lock済みinstanceを4,096個保持する別child processは10,108,928-byt
 - Rust standard library `std::panic::catch_unwind`、公式living API documentation、page更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
 - The Rustonomicon「FFI and unwinding」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
 - `docs/architecture.md`、提案中のembedding／component architecture、最終更新2026-10-16。
-- `docs/roadmap.md`、Milestone 0 component-boundary taskとcurrent evidence、最終更新2026-10-16。
+- `docs/roadmap.md`、Milestone 0 component-boundary taskとcurrent evidence、最終更新2026-10-16 23:05 JST。
 - `crates/runtime/src/lib.rs`、型付きhost-function registry prototype、最終更新2026-10-16。
 - `crates/runtime/src/component.rs`、schema-1 component validation prototype、最終更新2026-10-16。
 - `crates/runtime/src/component/serialization.rs`、candidate schema-2 contract／failure-report serialization、最終更新2026-10-16。

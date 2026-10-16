@@ -18,11 +18,13 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 同日のnative evidence監査では、3 ptのWindows component項目が2つのacceptance boundary、すなわちlocalで検証可能なMSVC direct／response-file test integrationと、外部で観測するnative runner evidenceを混在させていることを確認しました。この項目を完了済み1 ptのimplementation taskと未完了2 ptのevidence taskへ分割し、総costを維持しながら、利用できないremote evidenceがlocal作業を隠さないようにします。
 
-このrepository stateに対して2026-10-16 23:02 JSTに確認した進捗snapshot：
+続くRFC consistency監査では、RFC 0003だけに記載されていた2つのdecision blocker、すなわちshared MIR／backend contractを通るtyped resource loweringと、代表的multi-component application evidenceを確認しました。これらを8 pt／5 ptのMilestone 0 prototype taskとして明示します。Milestone 3のproduction component IDL／adapter implementationを置き換えるものではありません。Production package-manager I/OはMilestone 4の作業であり、RFC 0003 designを判断するprerequisiteではありません。
+
+このrepository stateに対して2026-10-16 23:05 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 172 pt | 196 pt | **87.8%** |
+| 0 — design baseline（現在） | 172 pt | 209 pt | **82.3%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -30,11 +32,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **172 pt** | **678 pt** | **25.4%** |
+| **全体** | **172 pt** | **691 pt** | **24.9%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：172 / 196 pt（87.8%）。**
+**進捗：172 / 209 pt（82.3%）。**
 
 ### Workstream別内訳
 
@@ -45,15 +47,15 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
-| Component／resource contract | 69 pt | 71 pt | 97.2% |
+| Component／resource contract | 69 pt | 84 pt | 82.1% |
 | Platform／backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **172 pt** | **196 pt** | **87.8%** |
+| **Milestone 0** | **172 pt** | **209 pt** | **82.3%** |
 
 このsnapshot時点の実行状態：
 
-- **Unblocked local P0：** なし。残るMilestone 0 taskはすべてrepository-owner decisionまたはnative Windows evidenceを現在必要とする。
-- **外部gate：** RFC 0002、RFC 0003、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-conformance runner evidence。
+- **Unblocked local P0：** すべてのexecution contractを通るtyped canonical resource callを1つprototypeし、その後に代表的multi-component application fixtureを1つ構成・計測する。
+- **外部gate：** RFC 0002、RFC 0003、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-conformance runner evidence。RFC 0003がdecision-readyになるのは、local prototype taskとWindows evidenceの完了後である。
 - **依存gate：** Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
 ### 優先度順のタスク
@@ -95,8 +97,10 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — 同じhost-value resource／failure fixtureをVM、JIT、AOT adapterで実行し、同等のoutcomeを記録する。** — 3 pt
 - [x] **P0 — Production package managerを実装せず、in-memory resolverに対するdeterministicなlockfile／package-selection integrationをprototypeする。** — 5 pt
 - [x] **P0 — 同じscalar／resource-failure conformance fixtureをWindows MSVCのdirect／response-file AOT test pathへ接続する。** — 1 pt
-- [ ] **P0 — そのcomponent-conformance pathのnative Windows execution evidenceを記録する。** — 2 pt
 - [x] **P0 — Component-boundary cost evidenceをinstantiation、failure／destructor path、memory、code sizeへ拡張し、その解釈をRFC 0003へ記録する。** — 5 pt
+- [ ] **P0 — Production adapterを実装せず、transfer／cleanup semanticsを維持するtyped canonical `own<T>` resource callをMIR、bytecode／VM、JIT、AOT ABI contract全体で1つprototypeする。** — 8 pt
+- [ ] **P0 — Negotiation、exact-lock replay、instantiation、scalar／resource call、failure cleanupにまたがる代表的multi-component application fixtureを1つ構成・計測する。** — 5 pt
+- [ ] **P0 — Component-conformance pathのnative Windows execution evidenceを記録する。** — 2 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
 - [x] **P0 — 完了済みexperimentからdecision-readyなownership／cyclic-graph RFCを草案化する。** — 5 pt
 - [x] **P0 — 完了済みexperimentからdecision-readyなasync-cancellation／shared-service concurrency RFCを草案化する。** — 5 pt
