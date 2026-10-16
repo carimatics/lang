@@ -8,9 +8,9 @@
 
 ## 現在のmacOS AArch64 baseline
 
-現在の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-fa9a69b.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 12:24:45 JSTにclean commit `fa9a69b8650b6a2f4b15ea645ab0e18f522a8790` から記録しました。Release buildで、harness schema 12、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0を使用しました。
+現在の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-11a1af7.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 13:00:19 JSTにclean commit `11a1af7cac32625ebfad5a6bde921ac5382f320d` から記録しました。Release buildで、harness schema 13、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0を使用しました。
 
-Schema 12は44個のtiming rowをすべて維持し、決定的なhost-callback requested-payload heap profileを追加します。Single callbackは1 allocation、total／peak live 8 byte、終了後live byte 0を記録し、burstは64 allocation、total／peak live 512 byte、終了後0を記録します。これらのprofileはrequested payload lifetimeを測定するもので、allocator／process memoryではありません。
+Schema 13は44個のtiming rowと決定的なhost-callback requested-payload heap profileをすべて維持し、link済みAOT processのmacOS `ru_maxrss` を31 sample追加します。Single callback profileは `(1, 8, 8, 0)`、burstは `(64, 512, 512, 0)` のままで、process-memory sampleはすべて1,671,168 byte（1.594 MiB）です。Heap profileはlogical payload lifetimeを測定し、process metricはallocator overheadではなくprocess全体のresident envelopeです。
 
 ```bash
 ./target/release/prototype-bench \
@@ -24,64 +24,66 @@ Schema 12は44個のtiming rowをすべて維持し、決定的なhost-callback 
 
 | Measurement | Sample当たりのoperation数 | Median | p95 | RSD |
 | --- | ---: | ---: | ---: | ---: |
-| Bytecode lowering：wrapping `i64` add | 1,000 | 387.000 ns | 444.250 ns | 4.921% |
-| Bytecode lowering：signed minimum | 1,000 | 1.047 us | 1.145 us | 3.947% |
-| Bytecode lowering：countdown back-edge | 1,000 | 1.630 us | 1.730 us | 2.125% |
-| Bytecode lowering：2-value accumulator | 1,000 | 1.729 us | 1.844 us | 1.904% |
-| Bytecode lowering：conditional sum | 1,000 | 2.982 us | 3.151 us | 2.786% |
-| Cranelift JIT compilation：wrapping `i64` add | 1 | 19.166 us | 39.792 us | 78.766% |
-| Cranelift JIT compilation：signed minimum | 1 | 23.875 us | 29.792 us | 20.127% |
-| Cranelift JIT compilation：countdown back-edge | 1 | 27.042 us | 40.958 us | 15.224% |
-| Cranelift JIT compilation：2-value accumulator | 1 | 31.334 us | 41.958 us | 10.191% |
-| Cranelift JIT compilation：conditional sum | 1 | 40.833 us | 48.959 us | 8.694% |
-| Cranelift AOT object emission：wrapping `i64` add | 1 | 13.667 us | 16.375 us | 18.600% |
-| Cranelift AOT object emission：signed minimum | 1 | 18.417 us | 20.375 us | 4.883% |
-| Cranelift AOT object emission：countdown back-edge | 1 | 22.125 us | 28.083 us | 7.200% |
-| Cranelift AOT object emission：2-value accumulator | 1 | 26.166 us | 28.375 us | 3.537% |
-| Cranelift AOT object emission：conditional sum | 1 | 35.791 us | 38.792 us | 3.082% |
-| macOS system link：事前compile済みC harnessとadd／minimum／countdown／accumulator／conditional-sum object | 1 | 37.325 ms | 39.520 ms | 3.276% |
-| macOS AOT process startup：single launch | 1 | 1.527 ms | 2.446 ms | 270.642% |
-| macOS AOT process startup：10-launch batch、launch当たり | 10 | 1.678 ms | 1.890 ms | 6.180% |
-| Direct Rust wrapping `i64` add call | 100,000 | 0.930 ns | 1.026 ns | 2.830% |
-| VM wrapping `i64` add call | 100,000 | 182.222 ns | 184.347 ns | 0.609% |
-| JIT wrapping `i64` add call | 100,000 | 1.860 ns | 2.083 ns | 3.646% |
-| Direct Rust signed minimum call | 100,000 | 0.930 ns | 0.960 ns | 1.098% |
-| VM signed minimum call | 100,000 | 499.119 ns | 503.471 ns | 0.567% |
-| JIT signed minimum call | 100,000 | 2.662 ns | 2.863 ns | 2.932% |
-| Direct Rust countdown call | 100,000 | 0.930 ns | 1.010 ns | 4.932% |
-| VM countdown call | 100,000 | 1.606 us | 1.629 us | 10.380% |
-| unset interruption flag付きVM countdown call | 100,000 | 1.603 us | 1.608 us | 0.263% |
-| 期限前deadline付きVM countdown call | 100,000 | 3.314 us | 3.325 us | 0.181% |
-| JIT countdown call | 100,000 | 12.799 ns | 13.977 ns | 2.816% |
-| Direct Rust 2-value accumulator call | 100,000 | 1.705 ns | 1.926 ns | 4.815% |
-| VM 2-value accumulator call | 100,000 | 1.651 us | 1.657 us | 0.220% |
-| JIT 2-value accumulator call | 100,000 | 12.750 ns | 13.379 ns | 1.616% |
-| Direct Rust conditional-sum call | 100,000 | 5.605 ns | 6.068 ns | 3.529% |
-| VM conditional-sum call | 100,000 | 3.039 us | 3.053 us | 0.237% |
-| JIT conditional-sum call | 100,000 | 20.172 ns | 21.308 ns | 1.989% |
-| Direct Rust host callback | 100,000 | 0.930 ns | 0.979 ns | 1.345% |
-| VM host callback | 100,000 | 175.515 ns | 178.818 ns | 0.843% |
-| JIT host callback | 100,000 | 2.795 ns | 3.116 ns | 4.188% |
-| Direct Rust host-allocation callback | 100,000 | 11.857 ns | 12.503 ns | 2.064% |
-| VM host-allocation callback | 100,000 | 187.240 ns | 190.214 ns | 0.699% |
-| JIT host-allocation callback | 100,000 | 13.471 ns | 14.550 ns | 29.399% |
-| Direct Rust 64-allocation-burst callback | 100,000 | 768.283 ns | 773.525 ns | 0.290% |
-| VM 64-allocation-burst callback | 100,000 | 946.601 ns | 957.526 ns | 0.497% |
-| JIT 64-allocation-burst callback | 100,000 | 771.625 ns | 777.079 ns | 0.369% |
+| Bytecode lowering：wrapping `i64` add | 1,000 | 384.500 ns | 408.917 ns | 1.953% |
+| Bytecode lowering：signed minimum | 1,000 | 1.079 us | 1.184 us | 3.431% |
+| Bytecode lowering：countdown back-edge | 1,000 | 1.702 us | 1.880 us | 3.571% |
+| Bytecode lowering：2-value accumulator | 1,000 | 1.794 us | 1.920 us | 2.694% |
+| Bytecode lowering：conditional sum | 1,000 | 3.089 us | 3.293 us | 2.996% |
+| Cranelift JIT compilation：wrapping `i64` add | 1 | 19.000 us | 28.375 us | 74.536% |
+| Cranelift JIT compilation：signed minimum | 1 | 23.458 us | 28.333 us | 20.524% |
+| Cranelift JIT compilation：countdown back-edge | 1 | 27.125 us | 32.708 us | 14.432% |
+| Cranelift JIT compilation：2-value accumulator | 1 | 31.500 us | 43.792 us | 11.815% |
+| Cranelift JIT compilation：conditional sum | 1 | 40.875 us | 47.667 us | 7.286% |
+| Cranelift AOT object emission：wrapping `i64` add | 1 | 13.500 us | 16.500 us | 19.849% |
+| Cranelift AOT object emission：signed minimum | 1 | 18.333 us | 21.292 us | 6.819% |
+| Cranelift AOT object emission：countdown back-edge | 1 | 22.666 us | 27.958 us | 9.171% |
+| Cranelift AOT object emission：2-value accumulator | 1 | 27.000 us | 58.167 us | 93.216% |
+| Cranelift AOT object emission：conditional sum | 1 | 36.500 us | 46.375 us | 10.732% |
+| macOS system link：事前compile済みC harnessとadd／minimum／countdown／accumulator／conditional-sum object | 1 | 38.003 ms | 39.754 ms | 2.535% |
+| macOS AOT process startup：single launch | 1 | 1.620 ms | 2.351 ms | 253.007% |
+| macOS AOT process startup：10-launch batch、launch当たり | 10 | 1.556 ms | 1.746 ms | 6.813% |
+| Direct Rust wrapping `i64` add call | 100,000 | 0.941 ns | 0.988 ns | 1.910% |
+| VM wrapping `i64` add call | 100,000 | 185.060 ns | 187.286 ns | 0.714% |
+| JIT wrapping `i64` add call | 100,000 | 1.894 ns | 1.983 ns | 3.298% |
+| Direct Rust signed minimum call | 100,000 | 0.930 ns | 1.012 ns | 3.757% |
+| VM signed minimum call | 100,000 | 511.214 ns | 519.978 ns | 0.689% |
+| JIT signed minimum call | 100,000 | 2.655 ns | 2.738 ns | 1.909% |
+| Direct Rust countdown call | 100,000 | 0.930 ns | 0.988 ns | 6.579% |
+| VM countdown call | 100,000 | 1.612 us | 1.634 us | 0.416% |
+| unset interruption flag付きVM countdown call | 100,000 | 1.626 us | 1.866 us | 4.298% |
+| 期限前deadline付きVM countdown call | 100,000 | 3.345 us | 3.380 us | 0.508% |
+| JIT countdown call | 100,000 | 12.879 ns | 13.428 ns | 2.097% |
+| Direct Rust 2-value accumulator call | 100,000 | 1.756 ns | 1.816 ns | 2.792% |
+| VM 2-value accumulator call | 100,000 | 1.686 us | 1.695 us | 0.377% |
+| JIT 2-value accumulator call | 100,000 | 13.093 ns | 13.844 ns | 2.368% |
+| Direct Rust conditional-sum call | 100,000 | 5.688 ns | 6.088 ns | 2.716% |
+| VM conditional-sum call | 100,000 | 3.117 us | 3.303 us | 6.572% |
+| JIT conditional-sum call | 100,000 | 20.590 ns | 21.317 ns | 1.825% |
+| Direct Rust host callback | 100,000 | 0.958 ns | 0.982 ns | 1.025% |
+| VM host callback | 100,000 | 182.690 ns | 185.032 ns | 0.797% |
+| JIT host callback | 100,000 | 2.790 ns | 2.984 ns | 1.907% |
+| Direct Rust host-allocation callback | 100,000 | 12.151 ns | 12.726 ns | 2.536% |
+| VM host-allocation callback | 100,000 | 195.430 ns | 198.140 ns | 0.996% |
+| JIT host-allocation callback | 100,000 | 14.087 ns | 14.364 ns | 1.981% |
+| Direct Rust 64-allocation-burst callback | 100,000 | 783.238 ns | 787.139 ns | 0.448% |
+| VM 64-allocation-burst callback | 100,000 | 965.470 ns | 973.100 ns | 0.421% |
+| JIT 64-allocation-burst callback | 100,000 | 784.837 ns | 791.552 ns | 0.552% |
 
 Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、countdownが20 byte、accumulatorが36 byte、conditional sumが44 byte、host callbackが40 byte含まれました。生成されたadd、minimum、countdown、accumulator、conditional-sum objectは352、368、376、392、400 byteでした。Link済みAOT harnessは17,104 byteでした。JIT code sizeにはobject-file structure、relocation data、unwind/debug information、runtime support、linker outputは含まれません。Object sizeにはMach-O structureが含まれますが、C harnessと最終executableは含まれません。Executable sizeにはその両方とplatform linkerのdefaultが含まれますが、完全なruntime distributionは含まれません。
+
+別のlink済みAOT process-memory distributionは31 sampleで、minimum、median、p95、maximum、meanがすべて1,671,168 byte（1.594 MiB）、RSDが0.000%です。このpage粒度の一致は、このhost上の小さなallocation-free harnessについてのevidenceであり、普遍的なmemory floorではありません。
 
 ## Schema 13 formatとmigration
 
 Schema 13はschema 12のtiming、artifact、heap fieldをすべて維持し、`process_memory_measurement_scope`、`process_memory_metric`、`process_memory_measurements` を追加します。Scopeは `linked_aot_executable_process` です。唯一のrowである `aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below` は、link済みAOT executableをsampleごとに1回起動した後、`bytes/process`、`sample_count`、minimum、median、p95、maximum、mean、relative standard deviationを記録します。
 
-MetricはmacOSで `macos_rusage_ru_maxrss_bytes`、Windows MSVCで `windows_process_peak_working_set_bytes` です。前者は `/usr/bin/time -l` からparseし、後者はWindows PowerShell経由で `System.Diagnostics.Process.PeakWorkingSet64` を読み取ります。両方ともprivate／shared resident pageとloader／runtime stateを含むため、allocator-overheadや代表的applicationのmeasurementではなくplatform固有のprocess envelopeです。Consumerは `schema_version` で分岐する必要があり、schema 1〜12 JSON fileはimmutableなevidenceとして残します。Native 3-sample smoke runはmacOS pathを検証し、Windows CIは正で順序付けされた31-sample distributionを1つ要求します。Cleanなschema 13 baselineもremote Windows resultもまだcommitしていません。
+MetricはmacOSで `macos_rusage_ru_maxrss_bytes`、Windows MSVCで `windows_process_peak_working_set_bytes` です。前者は `/usr/bin/time -l` からparseし、後者はWindows PowerShell経由で `System.Diagnostics.Process.PeakWorkingSet64` を読み取ります。両方ともprivate／shared resident pageとloader／runtime stateを含むため、allocator-overheadや代表的applicationのmeasurementではなくplatform固有のprocess envelopeです。Consumerは `schema_version` で分岐する必要があり、schema 1〜12 JSON fileはimmutableなevidenceとして残します。上のclean macOS AArch64 resultは31 sampleすべてが1,671,168 byte、RSD 0.000%であることを記録します。Windows CIは正で順序付けされた31-sample distributionを1つ要求しますが、remote resultはまだ検査・commitしていません。
 
 ## Schema 12 formatとmigration
 
 Schema 12はschema 11のtiming row／artifact fieldをすべて維持しながら、`heap_measurement_scope` と `heap_measurements` を追加します。Scopeは `host_callback_requested_payload_bytes` です。各profileは `allocation_count`、`total_allocated_bytes`、`peak_live_bytes`、`live_bytes_after` を記録します。Harnessはtimed loopの外側で、安全なmeasuring heapを通じて同じgeneric single／burst callback workloadを実行します。
 
-正確なsingle profileは `(1, 8, 8, 0)`、burst profileは `(64, 512, 512, 0)` です。これらの値は要求された `i64` payloadとlogical cleanupだけを扱います。Allocator metadata／fragmentation、stack、generated code、VM／JIT内部allocation、process RSSは除外します。Consumerは `schema_version` で分岐する必要があり、schema 1〜11 JSON fileはimmutableなevidenceとして残します。上のclean macOS AArch64 schema 12 resultは両profileと44個すべての一意なtiming rowを記録します。Schema 13とWindows CIは同じheap contractを維持しますが、remote resultはまだ検査・commitしていません。
+正確なsingle profileは `(1, 8, 8, 0)`、burst profileは `(64, 512, 512, 0)` です。これらの値は要求された `i64` payloadとlogical cleanupだけを扱います。Allocator metadata／fragmentation、stack、generated code、VM／JIT内部allocation、process RSSは除外します。Consumerは `schema_version` で分岐する必要があり、schema 1〜11 JSON fileはimmutableなevidenceとして残します。過去のschema 12 resultは両profileと44個すべての一意なtiming rowを記録しました。Schema 13とWindows CIは同じheap contractを維持しますが、remote resultはまだ検査・commitしていません。
 
 ## Schema 11 formatとmigration
 
@@ -93,13 +95,13 @@ Schema 11は `rust_host_allocation_burst_call`、`vm_host_allocation_burst_call`
 
 Schema 10は `vm_countdown_deadline_call` を追加します。`vm_countdown_call` と同じalternating positive／immediate-return inputと検証済みcountdown bytecodeを実行しますが、`ExecutionControl` を介してharness準備の1時間後に設定した絶対monotonic deadlineを渡します。Harnessはwarm-up／計測前にresultの等価性を検証し、deadlineはcallごとに再計算せず全sampleで共有します。
 
-このrowは、deadlineが期限前のままdeadline checkを有効化するsteady-state costを計測します。Expiration latency、scheduler accuracy、callback overrun、callback preemption、native／JIT enforcementは計測しません。Schema 10は既存row／artifact fieldをすべて変更しません。Consumerは `schema_version` で分岐する必要があり、schema 1〜9 JSON fileはimmutableなevidenceとして残します。現在のclean schema 12 resultでは、通常のVM countdown medianが1.606 us、期限前deadline付きが3.314 usで、1.708 us、106.379%増加しました。10.380%／0.181%のRSDを持つこのpaired medianは方向性のevidenceであり、overhead budgetではありません。Schema 11はこのrowを維持し、schema 13が現在のWindows workflow contractです。
+このrowは、deadlineが期限前のままdeadline checkを有効化するsteady-state costを計測します。Expiration latency、scheduler accuracy、callback overrun、callback preemption、native／JIT enforcementは計測しません。Schema 10は既存row／artifact fieldをすべて変更しません。Consumerは `schema_version` で分岐する必要があり、schema 1〜9 JSON fileはimmutableなevidenceとして残します。現在のclean schema 13 resultでは、通常のVM countdown medianが1.612 us、期限前deadline付きが3.345 usで、1.733 us、107.460%増加しました。0.416%／0.508%のRSDを持つこのpaired medianは方向性のevidenceであり、overhead budgetではありません。Schema 11はこのrowを維持し、schema 13が現在のWindows workflow contractです。
 
 ## Schema 9 formatとmigration
 
-Schema 9は `vm_countdown_interruptible_call` を追加します。`vm_countdown_call` と同じalternating positive／immediate-return inputと同じ検証済みcountdown bytecodeを実行しますが、`ExecutionControl` を介して共有されたunset interruption flagを渡します。現在のschema 12 artifactでは両rowがVMのoptional-control branchを含み、新rowは実行した各instruction／terminatorでflagのacquire loadも行います。Harnessはwarm-up／計測前にresultの等価性を検証します。
+Schema 9は `vm_countdown_interruptible_call` を追加します。`vm_countdown_call` と同じalternating positive／immediate-return inputと同じ検証済みcountdown bytecodeを実行しますが、`ExecutionControl` を介して共有されたunset interruption flagを渡します。現在のschema 13 artifactでは両rowがVMのoptional-control branchを含み、新rowは実行した各instruction／terminatorでflagのacquire loadも行います。Harnessはwarm-up／計測前にresultの等価性を検証します。
 
-このrowは、requestが発生しないときにcooperative interruptionを有効化するsteady-state costを計測します。Interruption latency、cross-thread wake-up、set済みflag、callback preemption、native／JIT enforcementは計測しません。Schema 9はlowering、compilation、artifact-size、host-callback、link、startup fieldをすべて変更しません。Consumerは `schema_version` で分岐する必要があり、schema 1〜8 JSON fileはimmutableなevidenceとして残します。現在のclean schema 12 resultでは、通常のVM countdown medianが1.606 us、unset interruption付きが1.603 usで、3.424 ns、0.213%減少しました。これは両rowの10.380%／0.263% RSDより小さいため、この1つのpaired microbenchmarkはinterruption-check regressionを測定できず、overhead budgetも確立しません。Schema 10はこのrowを維持し、schema 13が現在のWindows workflow contractです。
+このrowは、requestが発生しないときにcooperative interruptionを有効化するsteady-state costを計測します。Interruption latency、cross-thread wake-up、set済みflag、callback preemption、native／JIT enforcementは計測しません。Schema 9はlowering、compilation、artifact-size、host-callback、link、startup fieldをすべて変更しません。Consumerは `schema_version` で分岐する必要があり、schema 1〜8 JSON fileはimmutableなevidenceとして残します。現在のclean schema 13 resultでは、通常のVM countdown medianが1.612 us、unset interruption付きが1.626 usで、14.078 ns、0.873%増加しました。これはinterruption rowの4.298% RSDより小さいため、この1つのpaired microbenchmarkはinterruption-check regressionを測定できず、overhead budgetも確立しません。Schema 10はこのrowを維持し、schema 13が現在のWindows workflow contractです。
 
 ## Schema 8 formatとmigration
 
@@ -172,30 +174,31 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 ## 解釈と制限
 
 - Harnessは計測前に、minimumの両方の結果、countdown／accumulatorのimmediate-return／loop path、conditional sumのimmediate-return／add／skip pathを含め、VM、JIT、direct Rustのresultが等価であることを確認します。
-- 2-value accumulatorはdescending counterとwrapping sumを同じback-edgeで運びます。Direct、VM、JIT medianは1.705 ns、1.651 us、12.750 nsです。このbounded MIR workloadは有用なdifferential evidenceですが、代表的なprogram benchmarkではありません。
-- Conditional-sum prototypeは両方のbranch結果とimmediate-return pathを扱います。Direct、VM、JIT medianは5.605 ns、3.039 us、20.172 nsです。これはより広いCFG evidenceですが、代表的なprogram benchmarkではありません。
-- Single-allocation host-callback medianはdirectが11.857 ns、VMが187.240 ns、JITが13.471 nsです。3 rowのRSDは2.064%／0.699%／29.399%で、JIT maximumはp95 14.550 nsを超える37.373 nsです。これは限定的なboundary-cost比較を支持しますが、1回の `Box<i64>` round tripと1つのoutlier-sensitive rowは代表的なallocator／memory workloadではありません。
-- 64-allocation-burst medianはdirectが768.283 ns、VMが946.601 ns、JITが771.625 nsです。VM minus directは178.318 ns（23.210%）、JIT minus directは3.342 ns（0.435%）です。3 rowのRSDは0.290%／0.497%／0.369%で、このrunではstableなevidenceを提供しますが、一般的なboundary-overhead budgetを確立しません。
+- 2-value accumulatorはdescending counterとwrapping sumを同じback-edgeで運びます。Direct、VM、JIT medianは1.756 ns、1.686 us、13.093 nsです。このbounded MIR workloadは有用なdifferential evidenceですが、代表的なprogram benchmarkではありません。
+- Conditional-sum prototypeは両方のbranch結果とimmediate-return pathを扱います。Direct、VM、JIT medianは5.688 ns、3.117 us、20.590 nsです。これはより広いCFG evidenceですが、代表的なprogram benchmarkではありません。
+- Single-allocation host-callback medianはdirectが12.151 ns、VMが195.430 ns、JITが14.087 nsです。VM minus directは183.279 ns（1,508.345%）、JIT minus directは1.936 ns（15.933%）です。3 rowのRSDは2.536%／0.996%／1.981%で、このrunについてstableで限定的なboundary-cost evidenceを提供しますが、1回の `Box<i64>` round tripは代表的なallocator／memory workloadではありません。
+- 64-allocation-burst medianはdirectが783.238 ns、VMが965.470 ns、JITが784.837 nsです。VM minus directは182.232 ns（23.266%）、JIT minus directは1.599 ns（0.204%）です。3 rowのRSDは0.448%／0.421%／0.552%で、このrunではstableなevidenceを提供しますが、一般的なboundary-overhead budgetを確立しません。
 - Schema 12はtimed loopの外側で同じgeneric callback workloadをprofileします。Single callbackは1 allocation、total／peak live payload 8 byte、終了後live byte 0を記録し、burstは64 allocation、total／peak live payload 512 byte、終了後0を記録します。Scopeは意図的に `host_callback_requested_payload_bytes` としており、logical payload lifetime／cleanupを確認しますが、allocator metadata／fragmentation、stack、generated code、VM／JIT内部allocation、process RSSは除外します。
+- Schema 13は31個のmemory sampleごとにallocation-freeのlink済みAOT harnessを別processで起動します。macOSは `ru_maxrss` を通じてminimum／median／p95／maximumのすべてで1,671,168 byteを報告し、RSDは0.000%です。このmetricはshared pageとloader／runtime stateを含み、page粒度です。Allocator-overheadでも代表的なallocation evidenceでもなく、Windowsの `PeakWorkingSet64` metricは独立して解釈する必要があります。
 - VM rowには、呼び出しごとのbytecode verificationとregister allocationが含まれます。Interpreter dispatchだけでなく、現在のend-to-end embedding APIを計測しています。
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
 - Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdown、schema 6はaccumulator、schema 7はconditional sumを追加します。いずれもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
 - Schema 4のprocess-startup rowには、process creation、loader処理、小さなharness workload、output collection、終了待ちが含まれます。Operating-system cacheをflushせず、loader timeも分離しません。Executable-size fieldにはplatform C harnessとdefault linker outputが含まれます。
 - Schema 5はsingle-launch rowを維持し、設定可能なbatched rowを追加します。Batched per-operation valueは、1回の遅延したlaunchがsampleへ与える影響を小さくしますが、individual startup latencyの代わりではなくamortized throughput estimateです。
-- JIT add／minimum compilationのRSDは78.766%／20.127%です。Conditional-sum JIT／AOT medianは40.833 us／35.791 us、RSDは8.694%／3.082%です。これらの値は方向性の証拠として有用ですが、compile-time variationはstable performance budgetには依然として大きすぎます。
-- Single-launch AOT startup medianは1.527 ms、p95は2.446 msですが、RSDは270.642%です。10-launch batched rowは1.678 ms median、1.890 ms p95をRSD 6.180%で報告します。Batchingはamortized estimateに対するhost-noiseの影響を大きく下げ、single rowはtail-sensitiveなlatencyを引き続き示します。
-- 64-iteration back-edgeとimmediate returnを交互に実行すると、countdownのJIT／VM medianは12.799 ns／1.606 us、accumulatorは12.750 ns／1.651 usになります。Conditional-sum input `(64, 33)` と `(-7, 33)` を交互に実行すると、JIT／VM medianは20.172 ns／3.039 usになります。これらのbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。約1 nanosecondのdirect add／countdown／host-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
+- JIT add／minimum compilationのRSDは74.536%／20.524%です。Conditional-sum JIT／AOT medianは40.875 us／36.500 us、RSDは7.286%／10.732%です。これらの値は方向性の証拠として有用ですが、compile-time variationはstable performance budgetには依然として大きすぎます。
+- Single-launch AOT startup medianは1.620 ms、p95は2.351 msですが、RSDは253.007%です。10-launch batched rowは1.556 ms median、1.746 ms p95をRSD 6.813%で報告します。Batchingはamortized estimateに対するhost-noiseの影響を大きく下げ、single rowはtail-sensitiveなlatencyを引き続き示します。
+- 64-iteration back-edgeとimmediate returnを交互に実行すると、countdownのJIT／VM medianは12.879 ns／1.612 us、accumulatorは13.093 ns／1.686 usになります。Conditional-sum input `(64, 33)` と `(-7, 33)` を交互に実行すると、JIT／VM medianは20.590 ns／3.117 usになります。これらのbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。約1 nanosecondのdirect add／countdown／host-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、macOS AArch64とWindows x86-64でclean schema 13 resultを記録し、より広いallocation／memory workloadと追加のCFG workloadを加え、allocator overheadを分離し、両tier-1 targetでnative debug metadataを実装・検証します。Link済みharnessのpeak-memory rowはallocation-workload measurementではなくprocess envelopeです。64-allocation burstは1 boxより代表性がありますが、syntheticなhost callbackのままです。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
+初期native backendを選定する前に、Windows x86-64でclean schema 13 resultを記録し、より広いallocation／memory workloadと追加のCFG workloadを加え、allocator overheadを分離し、両tier-1 targetでnative debug metadataを実装・検証します。Link済みharnessのpeak-memory rowはallocation-workload measurementではなくprocess envelopeです。64-allocation burstは1 boxより代表性がありますが、syntheticなhost callbackのままです。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
 
 ## 以前のbaseline
 
-[Schema 11 result](../../benchmarks/results/2026-10-16-macos-aarch64-664edb9.json)はcommit `664edb9d3a986614a8160d4d4adf9c1f0a8bb7bd` から2026-10-16 11:50:37 JSTに計測され、requested-payload heap profileより前のresultであるためschema 12に置き換えられます。[Schema 10 result](../../benchmarks/results/2026-10-16-macos-aarch64-133172b.json)、[Schema 9 result](../../benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json)、[Schema 8 result](../../benchmarks/results/2026-10-16-macos-aarch64-6034dc8.json)、[Schema 7 result](../../benchmarks/results/2026-10-16-macos-aarch64-0865167.json)、[Schema 6 result](../../benchmarks/results/2026-10-16-macos-aarch64-bad17cf.json)、[Schema 5 result](../../benchmarks/results/2026-10-16-macos-aarch64-180af85.json)、[Schema 4 result](../../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json)、[Schema 3 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json)、[Schema 2 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json)、[Schema 1 AOT／link result](../../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json)、[以前のJIT-only result](../../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json)はharness履歴として残します。
+[Schema 12 result](../../benchmarks/results/2026-10-16-macos-aarch64-fa9a69b.json)はcommit `fa9a69b8650b6a2f4b15ea645ab0e18f522a8790` から2026-10-16 12:24:45 JSTに計測され、process-level peak-memory distributionより前のresultであるためschema 13に置き換えられます。[Schema 11 result](../../benchmarks/results/2026-10-16-macos-aarch64-664edb9.json)、[Schema 10 result](../../benchmarks/results/2026-10-16-macos-aarch64-133172b.json)、[Schema 9 result](../../benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json)、[Schema 8 result](../../benchmarks/results/2026-10-16-macos-aarch64-6034dc8.json)、[Schema 7 result](../../benchmarks/results/2026-10-16-macos-aarch64-0865167.json)、[Schema 6 result](../../benchmarks/results/2026-10-16-macos-aarch64-bad17cf.json)、[Schema 5 result](../../benchmarks/results/2026-10-16-macos-aarch64-180af85.json)、[Schema 4 result](../../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json)、[Schema 3 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json)、[Schema 2 result](../../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json)、[Schema 1 AOT／link result](../../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json)、[以前のJIT-only result](../../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json)はharness履歴として残します。
 
 ## 情報源
 
-- [現在のraw macOS AArch64 schema 12 result](../../benchmarks/results/2026-10-16-macos-aarch64-fa9a69b.json)、2026-10-16 12:24:45 JSTに計測。
+- [現在のraw macOS AArch64 schema 13 result](../../benchmarks/results/2026-10-16-macos-aarch64-11a1af7.json)、2026-10-16 13:00:19 JSTに計測。
 - `crates/vm/src/lib.rs`、deadline-enabled VM resource control、最終更新 2026-10-16 11:20 JST。
 - `src/lib.rs`、64-allocation burst callback prototype、最終更新 2026-10-16 11:42 JST。
 - `src/bin/prototype-bench.rs`、schema 13 linked-AOT process peak-memory harness、最終更新 2026-10-16 12:50 JST。
