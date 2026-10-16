@@ -6,6 +6,9 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use lang::component_conformance::prototype_scalar_component_function;
+use lang::component_resource_conformance::{
+    run_prototype_resource_failure_adapter, run_prototype_resource_failure_component,
+};
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
     prototype_add_function, prototype_fibonacci_function, prototype_host_allocation_burst_function,
@@ -157,7 +160,7 @@ impl Drop for TestDirectory {
     }
 }
 
-fn assert_aot_executable(executable: &Path) {
+fn assert_aot_executable(executable: &Path) -> i64 {
     let execution = Command::new(executable)
         .output()
         .expect("runs the linked AOT executable");
@@ -171,6 +174,13 @@ fn assert_aot_executable(executable: &Path) {
         execution.stdout,
         b"42 6765 -9 1440 4192 -24 42 -7 528 2080 42\n"
     );
+    String::from_utf8(execution.stdout)
+        .expect("AOT fixture output is UTF-8")
+        .split_whitespace()
+        .next_back()
+        .expect("AOT fixture prints the component result")
+        .parse()
+        .expect("component result is an i64")
 }
 
 fn assert_dwarf_object(object: &Path, function: &str, expected_positions: &[(u32, u32)]) {
@@ -369,7 +379,13 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     linker
         .link(&request)
         .expect("links the AOT objects through the host C compiler driver");
-    assert_aot_executable(&executable);
+    let aot_value = assert_aot_executable(&executable);
+    let cross_mode = run_prototype_resource_failure_component()
+        .expect("VM and JIT execute the resource/failure fixture");
+    let aot_outcome = run_prototype_resource_failure_adapter(aot_value)
+        .expect("AOT result executes the resource/failure adapter");
+    assert_eq!(aot_outcome, cross_mode.vm);
+    assert_eq!(aot_outcome, cross_mode.jit);
     assert_linked_dsym(&executable, &dsym);
 
     let response_request = LinkRequest::new(&response_executable)
@@ -389,6 +405,11 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .link_with_response_file(&response_request, &response_file)
         .expect("links the AOT objects through a response file");
     assert!(response_file.is_file());
-    assert_aot_executable(&response_executable);
+    let response_aot_value = assert_aot_executable(&response_executable);
+    assert_eq!(
+        run_prototype_resource_failure_adapter(response_aot_value)
+            .expect("response-file AOT result executes the resource/failure adapter"),
+        aot_outcome
+    );
     assert_linked_dsym(&response_executable, &response_dsym);
 }
