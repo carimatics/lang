@@ -202,6 +202,8 @@ Benchmark schema 12は44個のtiming rowを維持し、scopeが `host_callback_r
 
 Benchmark schema 13はschema 12のtiming、artifact、heap fieldをすべて維持し、`process_memory_measurement_scope`、`process_memory_metric`、`process_memory_measurements` を追加します。Timing完了後、harnessはallocationを行わないlink済みAOT executableをsampleごとに1回起動し、OSのpeak process-resident metricをbytesで要約します。macOSは `/usr/bin/time -l` 経由で `ru_maxrss`、WindowsはWindows PowerShell経由で `System.Diagnostics.Process.PeakWorkingSet64` を読み取ります。両metricにはprivate／shared resident pageとloader／runtime stateが含まれるため、値はallocator-overheadや代表的applicationのmeasurementではなくplatform固有のprocess envelopeです。Unit testはdistribution renderingとmacOS parserを検証し、native smoke runはmacOS pathを検証し、Windows CIは正で順序付けされた31-sample distributionを要求します。CleanなmacOS AArch64 baselineは31 sampleすべてが1,671,168 byte、RSD 0.000%であることを記録し、remote Windows evidenceは未記録です。
 
+Schema 13の後、allocation-boundary prototypeは未計測のchurn callbackを追加します。64個のboxed `i64` valueをallocateし、1つおきのallocationをconsumeし、その32個の穴をreplacementで埋めてから、最後の64個をconsumeします。このsequenceは固定size allocationを96回行い、768 payload byteを要求し、最大512 payload byteをliveに保ちます。VM／JIT差分testはinteger extremeを含むwrapping resultを扱い、macOS AArch64 direct／response-file integrationは対応するC `malloc`／`free` importを実行し、host非依存Windows COFF validationは `lang_host_i64_3` を検証し、cfg-gated MSVC integrationは同じpathを扱います。これはvariable-sizeまたは代表的application workloadを主張せずにlifetime-interleaving evidenceを追加します。Benchmark timing、requested-payload profiling、allocator metadata／fragmentation、remote Windows executionは未完了です。
+
 ### Plugin trust tier
 
 1. **Trusted native:** AOT object／static library、specialized call、最大性能、sandboxの保証なし。

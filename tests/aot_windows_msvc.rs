@@ -9,8 +9,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
     prototype_add_function, prototype_host_allocation_burst_function,
-    prototype_host_allocation_function, prototype_host_callback_function, prototype_min_function,
-    prototype_sum_below_function, prototype_sum_to_function,
+    prototype_host_allocation_churn_function, prototype_host_allocation_function,
+    prototype_host_callback_function, prototype_min_function, prototype_sum_below_function,
+    prototype_sum_to_function,
 };
 use lang_codegen_clif::emit_host_object;
 
@@ -20,6 +21,7 @@ const C_HARNESS: &str = r#"
 
 extern int64_t prototype_add(int64_t left, int64_t right);
 extern int64_t prototype_host_allocation_burst(int64_t value);
+extern int64_t prototype_host_allocation_churn(int64_t value);
 extern int64_t prototype_host_allocation(int64_t value);
 extern int64_t prototype_host_callback(int64_t value);
 extern int64_t prototype_min(int64_t left, int64_t right);
@@ -58,15 +60,44 @@ int64_t lang_host_i64_2(int64_t value) {
     return result;
 }
 
+int64_t lang_host_i64_3(int64_t value) {
+    int64_t *allocations[64];
+    for (int64_t index = 0; index < 64; index++) {
+        allocations[index] = malloc(sizeof(*allocations[index]));
+        if (allocations[index] == NULL) {
+            abort();
+        }
+        *allocations[index] = value + index;
+    }
+    int64_t result = 0;
+    for (int64_t index = 0; index < 64; index += 2) {
+        result += *allocations[index];
+        free(allocations[index]);
+    }
+    for (int64_t index = 0; index < 64; index += 2) {
+        allocations[index] = malloc(sizeof(*allocations[index]));
+        if (allocations[index] == NULL) {
+            abort();
+        }
+        *allocations[index] = value + 64 + index;
+    }
+    for (int64_t index = 0; index < 64; index++) {
+        result += *allocations[index];
+        free(allocations[index]);
+    }
+    return result;
+}
+
 int main(void) {
     int64_t add = prototype_add(20, 22);
     int64_t allocation = prototype_host_allocation(-9);
     int64_t allocation_burst = prototype_host_allocation_burst(-9);
+    int64_t allocation_churn = prototype_host_allocation_churn(-9);
     int64_t callback = prototype_host_callback(21);
     int64_t minimum = prototype_min(-7, 3);
     int64_t sum_below = prototype_sum_below(64, 33);
     int64_t sum = prototype_sum_to(64);
-    return add == 42 && allocation == -9 && allocation_burst == 1440 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 ? 0 : 1;
+    return add == 42 && allocation == -9 && allocation_burst == 1440 && allocation_churn == 4192 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 ? 0 : 1;
 }
 "#;
 
@@ -118,6 +149,7 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
     let add_object = directory.path().join("prototype_add.obj");
     let allocation_object = directory.path().join("prototype_host_allocation.obj");
     let allocation_burst_object = directory.path().join("prototype_host_allocation_burst.obj");
+    let allocation_churn_object = directory.path().join("prototype_host_allocation_churn.obj");
     let callback_object = directory.path().join("prototype_host_callback.obj");
     let min_object = directory.path().join("prototype_min.obj");
     let sum_below_object = directory.path().join("prototype_sum_below.obj");
@@ -133,6 +165,8 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .expect("emits the host-allocation object");
     let allocation_burst = emit_host_object(&prototype_host_allocation_burst_function())
         .expect("emits the host-allocation burst object");
+    let allocation_churn = emit_host_object(&prototype_host_allocation_churn_function())
+        .expect("emits the host-allocation churn object");
     let callback = emit_host_object(&prototype_host_callback_function())
         .expect("emits the host-callback object");
     let minimum = emit_host_object(&prototype_min_function()).expect("emits the minimum object");
@@ -143,6 +177,8 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
     fs::write(&allocation_object, allocation.bytes()).expect("writes the allocation object");
     fs::write(&allocation_burst_object, allocation_burst.bytes())
         .expect("writes the allocation burst object");
+    fs::write(&allocation_churn_object, allocation_churn.bytes())
+        .expect("writes the allocation churn object");
     fs::write(&callback_object, callback.bytes()).expect("writes the callback object");
     fs::write(&min_object, minimum.bytes()).expect("writes the minimum object");
     fs::write(&sum_below_object, sum_below.bytes()).expect("writes the conditional sum object");
@@ -170,6 +206,7 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .with_object(&add_object)
         .with_object(&allocation_object)
         .with_object(&allocation_burst_object)
+        .with_object(&allocation_churn_object)
         .with_object(&callback_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)
@@ -187,6 +224,7 @@ fn msvc_linker_runs_exported_functions_and_host_callback() {
         .with_object(&add_object)
         .with_object(&allocation_object)
         .with_object(&allocation_burst_object)
+        .with_object(&allocation_churn_object)
         .with_object(&callback_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)
