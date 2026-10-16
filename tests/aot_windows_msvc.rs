@@ -116,6 +116,10 @@ int64_t lang_host_i64_4(int64_t value) {
     return result;
 }
 
+int64_t lang_host_i64_5(int64_t value) {
+    return value * 2;
+}
+
 int main(void) {
     int64_t add = prototype_add(20, 22);
     int64_t fibonacci = prototype_fibonacci(20);
