@@ -6,7 +6,53 @@
 
 このロードマップはrisk reductionの順に並んでいます。Milestoneはcalendar commitmentではなくexit criteriaです。
 
+## タスク管理
+
+各milestone内のtaskは優先度順に並べます。`P0` taskはそのmilestoneのexitをblockし、`P1` taskは必要なfollow-upですがP0 blockerより優先しません。Check済みtaskは完了です。前のmilestoneで完了したprototype groundworkだけでは、後続milestoneのより広いtaskを完了扱いにしません。
+
+Costは経過時間の約束ではなく相対的なeffort pointです。`1`はごく小さい変更、`2`は小、`3`は中、`5`は大、`8`は非常に大、`13`は複数の連携変更にまたがる規模、`21`はprogram規模の作業を表します。進捗は `完了point / 全point × 100` を小数第1位へ丸めて算出します。Scopeやevidenceが変わったときは見積りと完了状態を更新します。
+
+Commit `079e525` を基準として2026-10-16 14:34 JSTに確認した進捗snapshot：
+
+| Milestone | 完了 | 総計 | 進捗 |
+| --- | ---: | ---: | ---: |
+| 0 — design baseline（現在） | 72 pt | 138 pt | **52.2%** |
+| 1 — frontendとbytecodeのvertical slice | 0 pt | 52 pt | 0.0% |
+| 2 — ownershipとnative AOT | 0 pt | 53 pt | 0.0% |
+| 3 — concurrencyとembedding | 0 pt | 55 pt | 0.0% |
+| 4 — developer toolchain | 0 pt | 58 pt | 0.0% |
+| 5 — ecosystemとcompatibility | 0 pt | 55 pt | 0.0% |
+| 6 — セルフホスティング | 0 pt | 50 pt | 0.0% |
+| 7 — 追加frontend | 0 pt | 39 pt | 0.0% |
+| **全体** | **72 pt** | **500 pt** | **14.4%** |
+
 ## Milestone 0：設計baseline
+
+**進捗：72 / 138 pt（52.2%）。**
+
+### 優先度順のタスク
+
+- [x] **P0 — Project charter、goal／non-goal、terminology、RFC process、compatibility labelを草案化する。** — 3 pt
+- [ ] **P0 — RFC 0001／RFC 0002を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
+- [x] **P0 — Host registration／callbackを含むtyped `i64` MIR → bytecode／VM → Cranelift JIT／AOT vertical sliceを構築する。** — 13 pt
+- [x] **P0 — Typed CFG validationと、代表的なprototype branch、back-edge、loop-carried valueをVM／JIT／AOT差分coverage付きで追加する。** — 8 pt
+- [x] **P0 — 共通system-linker path、macOS AArch64 link-and-run integration、Windows MSVC workflow、host非依存COFF contractを確立する。** — 8 pt
+- [ ] **P0 — Windows x86-64 CIのlink／run成功evidenceと、macOSと比較できるclean benchmark baselineを記録する。** — 8 pt
+- [x] **P0 — Deterministic VM fuel、host-call／value-slot limit、cooperative interruption、absolute deadlineをprototypeする。** — 8 pt
+- [ ] **P0 — Stable embedding／component boundary、versioning、resource handle、capability importを設計・prototypeする。** — 13 pt
+- [ ] **P0 — Heap、recursion、task、native／JIT executionとcallback behaviorへresource enforcementを拡張する。** — 13 pt
+- [x] **P0 — Async cancellation、cyclic graph、shared mutable serviceについて、厳格／制限の少ない代替案をprototypeする。** — 8 pt
+- [x] **P0 — RFC 0002でsource-level integer／structured-control-flow semanticsをdecision-readyな状態まで草案化する。** — 5 pt
+- [x] **P0 — Version付きbenchmark harnessをschema 14まで構築し、compile、runtime、startup、code size、logical heap lifetime、process memoryを含むcleanなmacOS AArch64 baselineを記録する。** — 13 pt
+- [ ] **P0 — 完了したcross-platform performance、debug-quality、integration evidenceから初期native backendを選定し、decisionを記録する。** — 3 pt
+- [x] **P1 — Direct Rust、VM、JIT、macOS AOT、Windows object contractでvariable-size host-allocation executionを追加する。** — 3 pt
+- [ ] **P1 — Variable-size allocation callbackのtiming／正確なrequested-payload profileを追加し、次のclean baselineを記録する。** — 5 pt
+- [ ] **P1 — Allocator-overhead／fragmentation evidenceを含む代表的allocation／memory workloadと追加CFG workloadを加える。** — 8 pt
+- [x] **P1 — AArch64 generated-code inspectionと現在の負のnative debug-information baselineを記録する。** — 3 pt
+- [ ] **P1 — macOS AArch64／Windows x86-64でsource-span native debug metadataを実装・検証する。** — 8 pt
+- [ ] **P1 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
+
+### Evidenceと現在の状態
 
 現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentがtest済みcountdown back-edgeを介して `i64` を運び、bounded sum workloadはcounterとwrapping accumulatorの両方をloopで運びます。MIRとbytecodeのvalidatorはentry-block制約とedge argumentのarity／typeを強制し、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 14 benchmark baseline](benchmarks.md)は、add、minimum、loop-carried countdown、2-value accumulator、conditional-sumのlowering、JIT／AOT compilation、code／object／link済みexecutable size、direct／VM／JIT call、通常、single-allocation、64-allocation-burst、allocation-churnのhost callback、3つのrequested-payload heap profile、unset-flag interruption-check／期限前deadline比較、system linking、single-launch／batched warm-cache AOT process startup、1,654,784〜1,671,168 byteの31個のlink済みprocess peak-memory sampleを扱います。Remote Windows evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semanticsと代表的なallocation／memory workload、提案済みsource-level control-flow semanticsのacceptance／implementation、追加CFG workload、allocator-overhead measurement、native debug-metadata implementation、cross-platform debug-quality validation、backend決定は未完了です。
 
@@ -56,86 +102,94 @@ Schema 14 harnessはschema 13の全fieldを維持し、allocation-churn callback
 
 CleanなmacOS AArch64の[AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)では、commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d` からadd、minimum、host-callback objectを再生成しました。Linker-visible symbolは残りますが、3 objectすべてに `__debug_*` section、DWARF compile unit、line entry、source variable、parameter、localはありません。これはcriterionを完了するものではなく、負のdebug-quality evidenceを提供します。Source-span mapping、link済み／dSYM output、unwind metadata、Windows CodeView／PDB、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。
 
-- Goal、non-goal、terminologyを承認する。
-- RFC processとcompatibility labelを確立する。
-- Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。
-- Typed functionをbytecodeとnative loweringの両方でprototypeする。
-- 初期tier-1 architecture pairとlinker strategyを選定する。
-
 Exit：prototype subsetの意味論が文書化され、初期backend選定を支持するbenchmark evidenceがある。
 
 ## Milestone 1：frontendとbytecodeのvertical slice
 
-- Error recoveryとsource spanを持つlossless parser。
-- Name resolution、module、primitive type、function、record、variant、pattern matching。
-- Stable codeとfix-itを持つstructured diagnostics。
-- Validationを持つtyped MIR。
-- Register bytecode、verifier、VM、REPL／script runner、host function registration。
-- Formatterとparser／formatter round-trip test。
-- LSP prototypeと共有する初期incremental query graph。
+**進捗：0 / 52 pt（0.0%）。** Milestone 0のprototypeはgroundworkであり、これらのtaskには完全なsource-driven vertical sliceが必要です。
+
+- [ ] **P0 — Error recoveryとsource spanを持つlossless parserを実装する。** — 8 pt
+- [ ] **P0 — Name resolution、module、primitive type、function、record、variant、pattern matchingを実装する。** — 13 pt
+- [ ] **P0 — Stable codeとfix-itを持つstructured diagnosticsを追加する。** — 5 pt
+- [ ] **P0 — Source semanticsをvalidation付きtyped MIRへ統合する。** — 5 pt
+- [ ] **P0 — Source program向けregister bytecode、verifier、VM、REPL／script runner、host-function registrationを完成させる。** — 8 pt
+- [ ] **P1 — Formatterとparser／formatter round-trip testを実装する。** — 5 pt
+- [ ] **P1 — LSP prototypeと共有する初期incremental query graphを構築する。** — 8 pt
 
 Exit：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがある。
 
 ## Milestone 2：ownershipとnative AOT
 
-- Owned value、move、lexical borrow、deterministic destruction、狭いunsafe operation。
-- Allocator-aware standard container。
-- C ABI import／exportとgenerated header。
-- macOS AArch64とWindows x86-64向けCranelift object generation。
-- VM／native differential execution suite。
-- Breakpointとstack traceに十分なnative debug metadata。
+**進捗：0 / 53 pt（0.0%）。**
+
+- [ ] **P0 — Owned value、move、lexical borrow、deterministic destruction、狭いunsafe operationを実装する。** — 13 pt
+- [ ] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
+- [ ] **P0 — macOS AArch64／Windows x86-64向けCranelift object generationを完成させる。** — 8 pt
+- [ ] **P0 — 代表的なVM／native differential execution suiteを構築する。** — 8 pt
+- [ ] **P1 — Allocator-aware standard containerを実装する。** — 8 pt
+- [ ] **P1 — Breakpointとstack traceに十分なnative debug metadataを提供する。** — 8 pt
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。
 
 ## Milestone 3：concurrencyとembedding
 
-- Structured task、cancellation、channel、actor isolation、data-race capability rule。
-- Stable C embedding APIとgenerated binding。
-- Version付きcomponent IDL、resource handle、capability import。
-- Mixed native／VM call、callback、error、stack trace、cancellation。
-- Script resource limitとinterruption。
-- Trusted native／verified script pluginのexample。
+**進捗：0 / 55 pt（0.0%）。**
+
+- [ ] **P0 — Structured task、cancellation、channel、actor isolation、data-race capability ruleを実装する。** — 13 pt
+- [ ] **P0 — C embedding APIとgenerated bindingをstable化する。** — 8 pt
+- [ ] **P0 — Version付きcomponent IDL、resource handle、capability importを実装する。** — 13 pt
+- [ ] **P0 — Mixed native／VM call、callback、error、stack trace、cancellationをsupportする。** — 8 pt
+- [ ] **P0 — Script resource limitとinterruptionを強制する。** — 8 pt
+- [ ] **P1 — Trusted-native／verified-script plugin exampleを提供する。** — 5 pt
 
 Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをcallし、callbackを受け取り、IPCなしでcapabilityを強制できる。
 
 ## Milestone 4：developer toolchain
 
-- Navigation、completion、rename、semantic token、code actionに対応した完全なLSP機能。
-- Mixed native／VM stackを持つDAP adapter。
-- `lang` build／package／test／fmt／lint／doc command。
-- Deterministic resolution、checksum、offline mode、target conditionを持つmanifest／lockfile。
-- Compile-time／runtime profiling、allocation trace、rebuild explanation。
-- `rustup` と同じ役割を持つinstall／update／channel tool。
+**進捗：0 / 58 pt（0.0%）。**
+
+- [ ] **P0 — `lang` build／package／test／fmt／lint／doc commandを実装する。** — 8 pt
+- [ ] **P0 — Deterministic resolution、checksum、offline mode、target conditionを持つmanifest／lockfileを実装する。** — 13 pt
+- [ ] **P0 — LSPのnavigation、completion、rename、semantic token、code actionを完成させる。** — 13 pt
+- [ ] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt
+- [ ] **P1 — Compile-time／runtime profiling、allocation trace、rebuild explanationを追加する。** — 8 pt
+- [ ] **P1 — `rustup` と同じ役割を持つinstall／update／channel toolを構築する。** — 8 pt
 
 Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、editorで開発し、test／debugし、reproducible binaryを生成できる。
 
 ## Milestone 5：ecosystemとcompatibility
 
-- Edition、deprecation policy、migration／fix tool、compatibility test matrix。
-- Signed release manifestとpackage provenance。
-- Documentation hostingとpackage metadata search。
-- Upload受付前のpublic registry threat model。
-- Sandboxed portable plugin向けWebAssembly component target。
-- 公開benchmarkとdebug品質基準によるLLVM release backendの評価。
+**進捗：0 / 55 pt（0.0%）。**
+
+- [ ] **P0 — Edition／deprecation policyを定義し、migration／fix toolとcompatibility matrixを構築する。** — 13 pt
+- [ ] **P0 — Upload受付前にpublic-registry threat modelを完成させる。** — 8 pt
+- [ ] **P0 — Signed release manifestとpackage provenanceを実装する。** — 8 pt
+- [ ] **P0 — Sandboxed portable plugin向けWebAssembly component targetを追加する。** — 13 pt
+- [ ] **P1 — Documentation hostingとpackage-metadata searchを提供する。** — 5 pt
+- [ ] **P1 — 公開benchmarkとdebug-quality criteriaを使ってLLVM release backendを評価する。** — 8 pt
 
 Exit：Source、package、bytecode、component consumerを暗黙的に破壊せず言語を進化させられる。
 
 ## Milestone 6：セルフホスティング
 
-- Self-hosting subsetを定義してfreezeする。
-- 新言語でfrontendとcore compiler stageを実装する。
-- Stage 0 Rust compilerでstage 1をbuildし、stage 1でstage 2をbuildする。
-- 両tier-1 platformでreproducible outputを比較する。
-- Bootstrap trustとdisaster-recovery procedureを文書化する。
+**進捗：0 / 50 pt（0.0%）。**
+
+- [ ] **P0 — Self-hosting subsetを定義してfreezeする。** — 5 pt
+- [ ] **P0 — 新言語でfrontendとcore compiler stageを実装する。** — 21 pt
+- [ ] **P0 — Stage 0 Rust compilerでstage 1をbuildし、stage 1でstage 2をbuildできるようにする。** — 13 pt
+- [ ] **P0 — 両tier-1 platformでreproducible outputを比較する。** — 8 pt
+- [ ] **P1 — Bootstrap trustとdisaster-recovery procedureを文書化する。** — 3 pt
 
 Exit：Stage 2がstage 0と同じconformance suiteに合格し、文書化されたbootstrap chainからsupport対象toolchainをbuildできる。
 
 ## Milestone 7：追加frontend
 
-- 明確に別のhigh-level／domain-specific languageが、library、profile、syntax sugarでは満たせない要件を持つかreviewする。
-- Frontend-specific HIRを維持し、coreが忠実に表現できる意味論だけをshared MIRへloweringする。
-- Memory、effect、runtime modelが異なる場合はcomponent ABIを使用する。
-- Interoperabilityをstableと宣言する前に、cross-language debugging、package metadata、conformance testを追加する。
+**進捗：0 / 39 pt（0.0%）。**
+
+- [ ] **P0 — Library、profile、syntax sugarでは満たせない要件を、別のhigh-level／domain-specific frontendが提供することを実証する。** — 5 pt
+- [ ] **P0 — Frontend-specific HIRを実装し、coreが意味論を忠実に表現できる場合だけshared MIRへloweringする。** — 13 pt
+- [ ] **P0 — Memory、effect、runtime modelが異なる場合はcomponent ABIを使用する。** — 8 pt
+- [ ] **P0 — Interoperabilityをstableと宣言する前に、cross-language debugging、package metadata、conformance testを追加する。** — 13 pt
 
 Exit：2つ目のfrontendが明確なuser valueを追加し、最初の言語の安全性を弱めず、shared IRを無関係な意味論の保守不能な集合にしない。
 

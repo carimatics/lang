@@ -6,7 +6,53 @@
 
 The roadmap is ordered by risk reduction. Milestones are exit criteria, not calendar commitments.
 
+## Task tracking
+
+Tasks are listed in priority order within each milestone. `P0` tasks block that milestone's exit; `P1` tasks are required follow-ups that should not displace a P0 blocker. A checked task is complete; prototype groundwork completed in an earlier milestone does not complete a broader task in a later milestone.
+
+Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, `8` is very large, `13` spans several coordinated changes, and `21` is a program-sized body of work. Progress is `completed points / total points × 100`, rounded to one decimal place. Estimates and completion state must be updated when scope or evidence changes.
+
+Progress snapshot verified at commit `079e525` on 2026-10-16 14:34 JST:
+
+| Milestone | Completed | Total | Progress |
+| --- | ---: | ---: | ---: |
+| 0 — design baseline (current) | 72 pt | 138 pt | **52.2%** |
+| 1 — frontend and bytecode vertical slice | 0 pt | 52 pt | 0.0% |
+| 2 — ownership and native AOT | 0 pt | 53 pt | 0.0% |
+| 3 — concurrency and embedding | 0 pt | 55 pt | 0.0% |
+| 4 — developer toolchain | 0 pt | 58 pt | 0.0% |
+| 5 — ecosystem and compatibility | 0 pt | 55 pt | 0.0% |
+| 6 — self-hosting | 0 pt | 50 pt | 0.0% |
+| 7 — additional frontends | 0 pt | 39 pt | 0.0% |
+| **Overall** | **72 pt** | **500 pt** | **14.4%** |
+
 ## Milestone 0: design baseline
+
+**Progress: 72 / 138 pt (52.2%).**
+
+### Tasks in priority order
+
+- [x] **P0 — Draft the project charter, goals/non-goals, terminology, RFC process, and compatibility labels.** — 3 pt
+- [ ] **P0 — Decide RFC 0001 and RFC 0002, recording acceptance, requested revisions, or rejection.** — 3 pt
+- [x] **P0 — Build the typed `i64` MIR → bytecode/VM → Cranelift JIT/AOT vertical slice with host registration and callbacks.** — 13 pt
+- [x] **P0 — Add typed CFG validation and representative prototype branches, back-edges, and loop-carried values with VM/JIT/AOT differential coverage.** — 8 pt
+- [x] **P0 — Establish the shared system-linker path, macOS AArch64 link-and-run integration, Windows MSVC workflow, and host-independent COFF contracts.** — 8 pt
+- [ ] **P0 — Record successful Windows x86-64 CI link/run evidence and a clean benchmark baseline comparable with macOS.** — 8 pt
+- [x] **P0 — Prototype deterministic VM fuel, host-call and value-slot limits, cooperative interruption, and absolute deadlines.** — 8 pt
+- [ ] **P0 — Design and prototype the stable embedding/component boundary, versioning, resource handles, and capability imports.** — 13 pt
+- [ ] **P0 — Extend resource enforcement to heap, recursion, tasks, and native/JIT execution, including callback behavior.** — 13 pt
+- [x] **P0 — Prototype strict and less-restrictive alternatives for async cancellation, cyclic graphs, and shared mutable services.** — 8 pt
+- [x] **P0 — Draft decision-ready source-level integer and structured-control-flow semantics in RFC 0002.** — 5 pt
+- [x] **P0 — Build the versioned benchmark harness through schema 14 and record a clean macOS AArch64 baseline for compile, runtime, startup, code size, logical heap lifetime, and process memory.** — 13 pt
+- [ ] **P0 — Select the initial native backend from the completed cross-platform performance, debug-quality, and integration evidence, and record the decision.** — 3 pt
+- [x] **P1 — Add variable-size host-allocation execution across direct Rust, VM, JIT, macOS AOT, and Windows object contracts.** — 3 pt
+- [ ] **P1 — Add timing and exact requested-payload profiling for the variable-size allocation callback and record the next clean baseline.** — 5 pt
+- [ ] **P1 — Add representative allocation/memory and additional CFG workloads, including allocator-overhead and fragmentation evidence.** — 8 pt
+- [x] **P1 — Record AArch64 generated-code inspection and the current negative native debug-information baseline.** — 3 pt
+- [ ] **P1 — Implement and validate source-span native debug metadata on macOS AArch64 and Windows x86-64.** — 8 pt
+- [ ] **P1 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
+
+### Evidence and current state
 
 Current progress: the first typed function now runs through both verified bytecode and a Cranelift JIT prototype, and the same MIR lowering can emit a host-native object artifact. Minimal typed `i64` host-function registration, a plain script-to-host callback, and an allocation-backed callback run through both execution modes; object output represents callbacks as imports. The VM now composes opt-in deterministic instruction-fuel and host-call budgets with a pre-allocation value-slot limit, cooperative one-way interruption flag, and absolute monotonic deadline. Typed basic blocks with explicit branch, jump, and return terminators are shared across MIR, bytecode, VM, JIT, and AOT; validators enforce target existence, reachability, and SSA dominance, while a fuel-bounded back-edge test covers non-termination. Typed block parameters and edge arguments carry an `i64` through a tested countdown back-edge, and a bounded sum workload carries both a counter and wrapping accumulator through the loop. MIR and bytecode validators enforce entry-block restrictions and edge argument arity/types; VM and JIT results agree, and AOT object emission succeeds. An initial shared `SystemLinker` driver validates ordered link requests, selects the host toolchain command flavor, and reports structured failures; macOS AArch64 integration links and executes add, minimum, plain host-callback, host-allocation, accumulator, and conditional-sum objects through it. The current clean macOS AArch64 [schema 14 benchmark baseline](benchmarks.md) covers add, minimum, loop-carried countdown, two-value accumulator, and conditional-sum lowering; JIT/AOT compilation; code, object, and linked-executable size; direct/VM/JIT calls; plain, single-allocation, 64-allocation-burst, and allocation-churn host callbacks; three requested-payload heap profiles; unset-flag interruption-check and unexpired-deadline comparisons; system linking; single-launch plus batched warm-cache AOT process startup; and 31 linked-process peak-memory samples from 1,654,784 to 1,671,168 bytes. Remote Windows evidence is not yet recorded. All three memory-model stress cases now have executable strict models: no borrows across suspension with deterministic cancellation cleanup, explicit shared/weak and arena-scoped cyclic graphs, and actor-isolated shared mutable services with moved messages. Generated-code inspection confirms a two-instruction AArch64 add, compare-and-branch minimum, and position-independent GOT import for the host callback. RFC 0001 remains proposed; less restrictive alternatives, broader embedding limits and native enforcement, production linker hardening and startup/runtime packaging, Windows x86-64 linking, execution, benchmark, and CI evidence, source allocation semantics and representative allocation/memory workloads, acceptance and implementation of proposed source-level control-flow semantics, additional CFG workloads, allocator-overhead measurement, native debug-metadata implementation, and cross-platform debug-quality validation, and the backend decision remain open.
 
@@ -56,86 +102,94 @@ An unbenchmarked variable-size allocation callback now holds 16 boxed `i64` slic
 
 A clean macOS AArch64 [AOT debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) regenerates add, minimum, and host-callback objects from commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d`. Linker-visible symbols remain, but all three objects have no `__debug_*` section, DWARF compile unit, line entry, source variable, parameter, or local. This supplies negative debug-quality evidence rather than completing the criterion: source-span mapping, linked/dSYM output, unwind metadata, Windows CodeView/PDB, JIT debugger registration, optimized stepping, and representative source-program validation remain open.
 
-- Accept goals, non-goals, and terminology.
-- Establish the RFC process and compatibility labels.
-- Prototype three memory-model stress cases: cyclic graphs, async borrows/cancellation, and shared mutable services.
-- Prototype a typed function through both bytecode and native lowering.
-- Select initial tier-1 architecture pairs and linker strategy.
-
 Exit: written semantics for the prototype subset and benchmark evidence for the initial backend choice.
 
 ## Milestone 1: frontend and bytecode vertical slice
 
-- Lossless parser with error recovery and source spans.
-- Name resolution, modules, primitive types, functions, records, variants, and pattern matching.
-- Structured diagnostics with stable codes and fix-its.
-- Typed MIR with validation.
-- Register bytecode, verifier, VM, REPL/script runner, and host function registration.
-- Formatter and parser/formatter round-trip tests.
-- Initial incremental query graph shared with an LSP prototype.
+**Progress: 0 / 52 pt (0.0%).** Milestone 0 prototypes are groundwork; these tasks require the complete source-driven vertical slice.
+
+- [ ] **P0 — Implement a lossless parser with error recovery and source spans.** — 8 pt
+- [ ] **P0 — Implement name resolution, modules, primitive types, functions, records, variants, and pattern matching.** — 13 pt
+- [ ] **P0 — Add structured diagnostics with stable codes and fix-its.** — 5 pt
+- [ ] **P0 — Integrate source semantics with validated typed MIR.** — 5 pt
+- [ ] **P0 — Complete register bytecode, verifier, VM, REPL/script runner, and host-function registration for source programs.** — 8 pt
+- [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
+- [ ] **P1 — Build the initial incremental query graph shared with an LSP prototype.** — 8 pt
 
 Exit: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 
 ## Milestone 2: ownership and native AOT
 
-- Owned values, moves, lexical borrows, deterministic destruction, and narrow unsafe operations.
-- Allocator-aware standard containers.
-- C ABI import/export and generated headers.
-- Cranelift object generation for macOS AArch64 and Windows x86-64.
-- Differential VM/native execution suite.
-- Native debug metadata sufficient for breakpoints and stack traces.
+**Progress: 0 / 53 pt (0.0%).**
+
+- [ ] **P0 — Implement owned values, moves, lexical borrows, deterministic destruction, and narrow unsafe operations.** — 13 pt
+- [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
+- [ ] **P0 — Complete Cranelift object generation for macOS AArch64 and Windows x86-64.** — 8 pt
+- [ ] **P0 — Build the representative differential VM/native execution suite.** — 8 pt
+- [ ] **P1 — Implement allocator-aware standard containers.** — 8 pt
+- [ ] **P1 — Provide native debug metadata sufficient for breakpoints and stack traces.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
 
 ## Milestone 3: concurrency and embedding
 
-- Structured tasks, cancellation, channels, actor isolation, and data-race capability rules.
-- Stable C embedding API and generated bindings.
-- Versioned component IDL, resource handles, and capability imports.
-- Mixed native/VM calls, callbacks, errors, stack traces, and cancellation.
-- Script resource limits and interruption.
-- Trusted native and verified script plugin examples.
+**Progress: 0 / 55 pt (0.0%).**
+
+- [ ] **P0 — Implement structured tasks, cancellation, channels, actor isolation, and data-race capability rules.** — 13 pt
+- [ ] **P0 — Stabilize the C embedding API and generated bindings.** — 8 pt
+- [ ] **P0 — Implement the versioned component IDL, resource handles, and capability imports.** — 13 pt
+- [ ] **P0 — Support mixed native/VM calls, callbacks, errors, stack traces, and cancellation.** — 8 pt
+- [ ] **P0 — Enforce script resource limits and interruption.** — 8 pt
+- [ ] **P1 — Ship trusted-native and verified-script plugin examples.** — 5 pt
 
 Exit: a native host can load a user script, expose a typed API, call the script, receive callbacks, and enforce capabilities without IPC.
 
 ## Milestone 4: developer toolchain
 
-- Complete LSP features for navigation, completion, rename, semantic tokens, and code actions.
-- DAP adapter with mixed native/VM stacks.
-- `lang` build/package/test/fmt/lint/doc commands.
-- Manifest and lockfile with deterministic resolution, checksums, offline mode, and target conditions.
-- Compile-time and runtime profiling, allocation traces, and rebuild explanations.
-- Install/update/channel tool comparable in role to `rustup`.
+**Progress: 0 / 58 pt (0.0%).**
+
+- [ ] **P0 — Implement `lang` build/package/test/fmt/lint/doc commands.** — 8 pt
+- [ ] **P0 — Implement the manifest and lockfile with deterministic resolution, checksums, offline mode, and target conditions.** — 13 pt
+- [ ] **P0 — Complete LSP navigation, completion, rename, semantic tokens, and code actions.** — 13 pt
+- [ ] **P0 — Implement a DAP adapter with mixed native/VM stacks.** — 8 pt
+- [ ] **P1 — Add compile-time/runtime profiling, allocation traces, and rebuild explanations.** — 8 pt
+- [ ] **P1 — Build an install/update/channel tool comparable in role to `rustup`.** — 8 pt
 
 Exit: a new developer can install one tool, create a package, develop in an editor, test, debug, and produce a reproducible binary.
 
 ## Milestone 5: ecosystem and compatibility
 
-- Editions, deprecation policy, migration/fix tool, and compatibility test matrix.
-- Signed release manifests and package provenance.
-- Documentation hosting and package metadata search.
-- Public registry threat model before accepting uploads.
-- WebAssembly component target for sandboxed portable plugins.
-- Evaluate LLVM release backend using published benchmarks and debug-quality criteria.
+**Progress: 0 / 55 pt (0.0%).**
+
+- [ ] **P0 — Define editions and deprecation policy, then build the migration/fix tool and compatibility matrix.** — 13 pt
+- [ ] **P0 — Complete the public-registry threat model before accepting uploads.** — 8 pt
+- [ ] **P0 — Implement signed release manifests and package provenance.** — 8 pt
+- [ ] **P0 — Add a WebAssembly component target for sandboxed portable plugins.** — 13 pt
+- [ ] **P1 — Provide documentation hosting and package-metadata search.** — 5 pt
+- [ ] **P1 — Evaluate an LLVM release backend using published benchmarks and debug-quality criteria.** — 8 pt
 
 Exit: the language can evolve without silently breaking source, package, bytecode, or component consumers.
 
 ## Milestone 6: self-hosting
 
-- Define and freeze a self-hosting subset.
-- Implement frontend and core compiler stages in the language.
-- Stage 0 Rust compiler builds stage 1; stage 1 builds stage 2.
-- Compare reproducible outputs on both tier-1 platforms.
-- Document bootstrap trust and disaster-recovery procedures.
+**Progress: 0 / 50 pt (0.0%).**
+
+- [ ] **P0 — Define and freeze the self-hosting subset.** — 5 pt
+- [ ] **P0 — Implement the frontend and core compiler stages in the language.** — 21 pt
+- [ ] **P0 — Make the stage 0 Rust compiler build stage 1 and stage 1 build stage 2.** — 13 pt
+- [ ] **P0 — Compare reproducible outputs on both tier-1 platforms.** — 8 pt
+- [ ] **P1 — Document bootstrap trust and disaster-recovery procedures.** — 3 pt
 
 Exit: stage 2 passes the same conformance suite as stage 0 and can build the supported toolchain from a documented bootstrap chain.
 
 ## Milestone 7: additional frontends
 
-- Review whether a distinct high-level or domain-specific language has requirements that cannot be served by libraries, profiles, or syntax sugar.
-- Keep a frontend-specific HIR and lower through the shared MIR only for semantics the core can represent faithfully.
-- Use the component ABI when memory, effect, or runtime models differ.
-- Add cross-language debugging, package metadata, and conformance tests before declaring interoperability stable.
+**Progress: 0 / 39 pt (0.0%).**
+
+- [ ] **P0 — Demonstrate that a distinct high-level or domain-specific frontend provides requirements that libraries, profiles, or syntax sugar cannot serve.** — 5 pt
+- [ ] **P0 — Implement a frontend-specific HIR and lower through shared MIR only where the core represents semantics faithfully.** — 13 pt
+- [ ] **P0 — Use the component ABI where memory, effect, or runtime models differ.** — 8 pt
+- [ ] **P0 — Add cross-language debugging, package metadata, and conformance tests before declaring interoperability stable.** — 13 pt
 
 Exit: a second frontend adds clear user value without weakening the first language’s safety or making the shared IR an unmaintainable union of unrelated semantics.
 
