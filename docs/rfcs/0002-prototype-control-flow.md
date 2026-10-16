@@ -172,7 +172,7 @@ These diagnostic codes are proposals and become stable only when this RFC is acc
 
 The subset requires no language-level allocation, reference counting, dynamic dispatch, or overflow branch. Mutable locals are source abstractions and may remain in SSA values or registers; users cannot rely on a stack slot or memory address. A `while` condition executes once per attempted iteration, and each executed `+` and `<` has fixed-width integer cost before backend optimization.
 
-The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. The clean schema 13 macOS AArch64 result records ordinary, unset-interruption, and unexpired-deadline VM countdown medians of 1.612 us, 1.626 us, and 3.345 us. The interruption delta is a 14.078 ns (0.873%) increase, smaller than the interruption row's 4.298% RSD, while the deadline delta is 1.733 us (107.460%). These microbenchmarks do not establish an overhead budget or performance guarantees for a future parser, type checker, optimizer, or representative application.
+The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. The clean schema 14 macOS AArch64 result records ordinary, unset-interruption, and unexpired-deadline VM countdown medians of 1.611 us, 1.641 us, and 3.320 us. The interruption delta is a 29.868 ns (1.854%) increase, smaller than the interruption row's 15.866% RSD, while the deadline delta is 1.709 us (106.071%). These microbenchmarks do not establish an overhead budget or performance guarantees for a future parser, type checker, optimizer, or representative application.
 
 ## Security and trust boundaries
 
@@ -238,6 +238,6 @@ Review outcome: **ready for decision** for this narrow prototype subset. There a
 - `crates/codegen-clif/src/lib.rs`, Cranelift lowering prototype, last updated 2026-10-16 01:36 JST.
 - `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 11:42 JST.
 - `src/bin/prototype-bench.rs`, schema 14 control/allocation/heap/process-memory harness, last updated 2026-10-16 13:26 JST.
-- `benchmarks/results/2026-10-16-macos-aarch64-11a1af7.json`, clean schema 13 macOS AArch64 evidence, measured 2026-10-16 13:00:19 JST.
+- `benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.json`, clean schema 14 macOS AArch64 evidence, measured 2026-10-16 14:02:20 JST.
 
 No external factual claims are introduced by this RFC; the design proposal is derived from the repository's executable prototypes and project decisions.

@@ -1,0 +1,591 @@
+{
+  "schema_version": 14,
+  "timestamp_unix_seconds": 1792126940,
+  "command": "./target/release/prototype-bench --samples 31 --lowering-iterations 1000 --runtime-iterations 100000 --startup-iterations 10",
+  "git_commit": "6a2caf827de5b3a28746708cc36178c86a514a45",
+  "git_dirty": false,
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "os": "macos",
+  "os_version": "27.0.1",
+  "architecture": "aarch64",
+  "cpu": "Apple M1 Max",
+  "system_linker": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+  "samples": 31,
+  "startup_iterations": 10,
+  "generated_code_bytes": {
+    "jit_add": 8,
+    "jit_min": 20,
+    "jit_countdown": 20,
+    "jit_sum_to": 36,
+    "jit_sum_below": 44,
+    "jit_host_callback": 40
+  },
+  "object_file_bytes": {
+    "aot_add": 352,
+    "aot_min": 368,
+    "aot_countdown": 376,
+    "aot_sum_to": 392,
+    "aot_sum_below": 400
+  },
+  "executable_file_bytes": {
+    "aot_add_min_countdown_sum_to_sum_below": 17104
+  },
+  "heap_measurement_scope": "host_callback_requested_payload_bytes",
+  "heap_measurements": [
+    {
+  "name": "host_allocation_call",
+      "allocation_count": 1,
+      "total_allocated_bytes": 8,
+      "peak_live_bytes": 8,
+      "live_bytes_after": 0
+    },
+    {
+  "name": "host_allocation_burst_call",
+      "allocation_count": 64,
+      "total_allocated_bytes": 512,
+      "peak_live_bytes": 512,
+      "live_bytes_after": 0
+    },
+    {
+  "name": "host_allocation_churn_call",
+      "allocation_count": 96,
+      "total_allocated_bytes": 768,
+      "peak_live_bytes": 512,
+      "live_bytes_after": 0
+    }
+  ],
+  "process_memory_measurement_scope": "linked_aot_executable_process",
+  "process_memory_metric": "macos_rusage_ru_maxrss_bytes",
+  "process_memory_measurements": [
+    {
+  "name": "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
+  "unit": "bytes/process",
+      "sample_count": 31,
+      "minimum": 1654784,
+      "median": 1671168,
+      "p95": 1671168,
+      "maximum": 1671168,
+      "mean": 1670639.484,
+      "relative_stddev_percent": 0.173
+    }
+  ],
+  "measurements": [
+    {
+  "name": "bytecode_lower_add",
+  "unit": "ns/operation",
+      "operations_per_sample": 1000,
+      "minimum": 374.750,
+      "median": 387.583,
+      "p95": 467.875,
+      "maximum": 473.375,
+      "mean": 394.551,
+      "relative_stddev_percent": 6.639
+    },
+    {
+  "name": "bytecode_lower_min",
+  "unit": "ns/operation",
+      "operations_per_sample": 1000,
+      "minimum": 1025.416,
+      "median": 1067.167,
+      "p95": 1184.292,
+      "maximum": 1238.833,
+      "mean": 1082.716,
+      "relative_stddev_percent": 4.369
+    },
+    {
+  "name": "bytecode_lower_countdown",
+  "unit": "ns/operation",
+      "operations_per_sample": 1000,
+      "minimum": 1654.334,
+      "median": 1724.125,
+      "p95": 1979.959,
+      "maximum": 2022.625,
+      "mean": 1755.965,
+      "relative_stddev_percent": 5.461
+    },
+    {
+  "name": "bytecode_lower_sum_to",
+  "unit": "ns/operation",
+      "operations_per_sample": 1000,
+      "minimum": 1756.209,
+      "median": 1786.208,
+      "p95": 1942.083,
+      "maximum": 1983.667,
+      "mean": 1812.348,
+      "relative_stddev_percent": 3.314
+    },
+    {
+  "name": "bytecode_lower_sum_below",
+  "unit": "ns/operation",
+      "operations_per_sample": 1000,
+      "minimum": 3044.458,
+      "median": 3210.917,
+      "p95": 3473.083,
+      "maximum": 3493.500,
+      "mean": 3225.406,
+      "relative_stddev_percent": 3.893
+    },
+    {
+  "name": "jit_compile_add",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 17875.000,
+      "median": 19500.000,
+      "p95": 32584.000,
+      "maximum": 107000.000,
+      "mean": 23367.032,
+      "relative_stddev_percent": 66.655
+    },
+    {
+  "name": "jit_compile_min",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 22042.000,
+      "median": 22917.000,
+      "p95": 30000.000,
+      "maximum": 48667.000,
+      "mean": 24821.290,
+      "relative_stddev_percent": 19.507
+    },
+    {
+  "name": "jit_compile_countdown",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 25833.000,
+      "median": 26708.000,
+      "p95": 35334.000,
+      "maximum": 43708.000,
+      "mean": 28157.290,
+      "relative_stddev_percent": 12.975
+    },
+    {
+  "name": "jit_compile_sum_to",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 30250.000,
+      "median": 30791.000,
+      "p95": 36000.000,
+      "maximum": 42667.000,
+      "mean": 31760.677,
+      "relative_stddev_percent": 7.686
+    },
+    {
+  "name": "jit_compile_sum_below",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 39292.000,
+      "median": 40500.000,
+      "p95": 47916.000,
+      "maximum": 54875.000,
+      "mean": 41341.419,
+      "relative_stddev_percent": 7.178
+    },
+    {
+  "name": "aot_object_emit_add",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 13125.000,
+      "median": 13459.000,
+      "p95": 16833.000,
+      "maximum": 31000.000,
+      "mean": 14233.871,
+      "relative_stddev_percent": 22.039
+    },
+    {
+  "name": "aot_object_emit_min",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 17542.000,
+      "median": 17834.000,
+      "p95": 21042.000,
+      "maximum": 22542.000,
+      "mean": 18287.677,
+      "relative_stddev_percent": 5.882
+    },
+    {
+  "name": "aot_object_emit_countdown",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 21750.000,
+      "median": 22584.000,
+      "p95": 51541.000,
+      "maximum": 106708.000,
+      "mean": 26848.194,
+      "relative_stddev_percent": 57.765
+    },
+    {
+  "name": "aot_object_emit_sum_to",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 25667.000,
+      "median": 26583.000,
+      "p95": 35459.000,
+      "maximum": 48583.000,
+      "mean": 28009.548,
+      "relative_stddev_percent": 15.450
+    },
+    {
+  "name": "aot_object_emit_sum_below",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 35208.000,
+      "median": 36250.000,
+      "p95": 43375.000,
+      "maximum": 56417.000,
+      "mean": 37724.516,
+      "relative_stddev_percent": 10.384
+    },
+    {
+  "name": "system_link_add_min_countdown_sum_to_sum_below",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 37924042.000,
+      "median": 39705417.000,
+      "p95": 42020167.000,
+      "maximum": 44256208.000,
+      "mean": 39992030.903,
+      "relative_stddev_percent": 3.349
+    },
+    {
+  "name": "aot_process_startup_add_min_countdown_sum_to_sum_below",
+  "unit": "ns/operation",
+      "operations_per_sample": 1,
+      "minimum": 1412000.000,
+      "median": 1922916.000,
+      "p95": 3496125.000,
+      "maximum": 46836792.000,
+      "mean": 3421564.581,
+      "relative_stddev_percent": 232.018
+    },
+    {
+  "name": "aot_process_startup_batch_add_min_countdown_sum_to_sum_below",
+  "unit": "ns/operation",
+      "operations_per_sample": 10,
+      "minimum": 1537029.200,
+      "median": 1822037.500,
+      "p95": 1987591.700,
+      "maximum": 2032775.000,
+      "mean": 1821559.410,
+      "relative_stddev_percent": 5.362
+    },
+    {
+  "name": "rust_add_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 0.930,
+      "median": 0.930,
+      "p95": 1.019,
+      "maximum": 1.135,
+      "mean": 0.942,
+      "relative_stddev_percent": 4.162
+    },
+    {
+  "name": "vm_add_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 181.204,
+      "median": 183.391,
+      "p95": 186.630,
+      "maximum": 194.159,
+      "mean": 183.825,
+      "relative_stddev_percent": 1.243
+    },
+    {
+  "name": "jit_add_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1.859,
+      "median": 1.901,
+      "p95": 2.065,
+      "maximum": 2.075,
+      "mean": 1.917,
+      "relative_stddev_percent": 3.281
+    },
+    {
+  "name": "rust_min_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 0.929,
+      "median": 0.930,
+      "p95": 0.993,
+      "maximum": 0.996,
+      "mean": 0.942,
+      "relative_stddev_percent": 2.147
+    },
+    {
+  "name": "vm_min_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 498.363,
+      "median": 505.068,
+      "p95": 509.653,
+      "maximum": 510.590,
+      "mean": 504.924,
+      "relative_stddev_percent": 0.493
+    },
+    {
+  "name": "jit_min_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 2.633,
+      "median": 2.640,
+      "p95": 2.878,
+      "maximum": 2.951,
+      "mean": 2.681,
+      "relative_stddev_percent": 2.821
+    },
+    {
+  "name": "rust_countdown_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 0.930,
+      "median": 0.960,
+      "p95": 1.064,
+      "maximum": 1.072,
+      "mean": 0.974,
+      "relative_stddev_percent": 4.144
+    },
+    {
+  "name": "vm_countdown_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1600.728,
+      "median": 1611.250,
+      "p95": 1621.519,
+      "maximum": 1621.570,
+      "mean": 1611.305,
+      "relative_stddev_percent": 0.383
+    },
+    {
+  "name": "vm_countdown_interruptible_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1594.490,
+      "median": 1641.118,
+      "p95": 1946.778,
+      "maximum": 3110.811,
+      "mean": 1690.266,
+      "relative_stddev_percent": 15.866
+    },
+    {
+  "name": "vm_countdown_deadline_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 3302.527,
+      "median": 3320.325,
+      "p95": 3368.676,
+      "maximum": 3418.459,
+      "mean": 3325.025,
+      "relative_stddev_percent": 0.614
+    },
+    {
+  "name": "jit_countdown_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 12.703,
+      "median": 12.846,
+      "p95": 13.716,
+      "maximum": 14.045,
+      "mean": 12.957,
+      "relative_stddev_percent": 2.466
+    },
+    {
+  "name": "rust_sum_to_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1.703,
+      "median": 1.705,
+      "p95": 1.753,
+      "maximum": 1.756,
+      "mean": 1.712,
+      "relative_stddev_percent": 0.855
+    },
+    {
+  "name": "vm_sum_to_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1653.737,
+      "median": 1665.373,
+      "p95": 1677.760,
+      "maximum": 1677.957,
+      "mean": 1665.440,
+      "relative_stddev_percent": 0.363
+    },
+    {
+  "name": "jit_sum_to_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 12.701,
+      "median": 12.790,
+      "p95": 13.716,
+      "maximum": 13.961,
+      "mean": 12.908,
+      "relative_stddev_percent": 2.246
+    },
+    {
+  "name": "rust_sum_below_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 5.576,
+      "median": 5.605,
+      "p95": 5.738,
+      "maximum": 5.767,
+      "mean": 5.620,
+      "relative_stddev_percent": 0.997
+    },
+    {
+  "name": "vm_sum_below_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 3027.858,
+      "median": 3046.124,
+      "p95": 3072.918,
+      "maximum": 3208.748,
+      "mean": 3051.175,
+      "relative_stddev_percent": 1.002
+    },
+    {
+  "name": "jit_sum_below_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 19.827,
+      "median": 20.011,
+      "p95": 21.299,
+      "maximum": 21.553,
+      "mean": 20.246,
+      "relative_stddev_percent": 2.295
+    },
+    {
+  "name": "rust_host_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 0.929,
+      "median": 0.930,
+      "p95": 0.979,
+      "maximum": 1.008,
+      "mean": 0.939,
+      "relative_stddev_percent": 1.865
+    },
+    {
+  "name": "vm_host_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 173.833,
+      "median": 176.513,
+      "p95": 181.394,
+      "maximum": 181.602,
+      "mean": 176.774,
+      "relative_stddev_percent": 1.109
+    },
+    {
+  "name": "jit_host_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 2.788,
+      "median": 2.797,
+      "p95": 3.333,
+      "maximum": 3.603,
+      "mean": 2.860,
+      "relative_stddev_percent": 5.898
+    },
+    {
+  "name": "rust_host_allocation_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 11.799,
+      "median": 11.931,
+      "p95": 13.015,
+      "maximum": 13.758,
+      "mean": 12.161,
+      "relative_stddev_percent": 3.752
+    },
+    {
+  "name": "vm_host_allocation_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 185.469,
+      "median": 188.068,
+      "p95": 191.508,
+      "maximum": 193.042,
+      "mean": 188.443,
+      "relative_stddev_percent": 1.018
+    },
+    {
+  "name": "jit_host_allocation_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 13.322,
+      "median": 13.631,
+      "p95": 14.070,
+      "maximum": 14.242,
+      "mean": 13.627,
+      "relative_stddev_percent": 1.723
+    },
+    {
+  "name": "rust_host_allocation_burst_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 770.067,
+      "median": 775.515,
+      "p95": 1269.458,
+      "maximum": 1604.848,
+      "mean": 818.709,
+      "relative_stddev_percent": 20.514
+    },
+    {
+  "name": "vm_host_allocation_burst_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 947.141,
+      "median": 959.024,
+      "p95": 968.330,
+      "maximum": 973.110,
+      "mean": 958.810,
+      "relative_stddev_percent": 0.544
+    },
+    {
+  "name": "jit_host_allocation_burst_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 776.097,
+      "median": 789.842,
+      "p95": 825.818,
+      "maximum": 1055.582,
+      "mean": 799.302,
+      "relative_stddev_percent": 6.002
+    },
+    {
+  "name": "rust_host_allocation_churn_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1176.766,
+      "median": 1191.643,
+      "p95": 1373.320,
+      "maximum": 1474.433,
+      "mean": 1208.439,
+      "relative_stddev_percent": 4.901
+    },
+    {
+  "name": "vm_host_allocation_churn_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1337.805,
+      "median": 1348.187,
+      "p95": 1373.235,
+      "maximum": 1393.835,
+      "mean": 1352.496,
+      "relative_stddev_percent": 0.861
+    },
+    {
+  "name": "jit_host_allocation_churn_call",
+  "unit": "ns/operation",
+      "operations_per_sample": 100000,
+      "minimum": 1165.470,
+      "median": 1173.440,
+      "p95": 1184.233,
+      "maximum": 1184.412,
+      "mean": 1174.131,
+      "relative_stddev_percent": 0.388
+    }
+  ]
+}
