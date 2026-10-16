@@ -14,7 +14,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
-    PROTOTYPE_DOUBLE_HOST, prototype_add_function, prototype_countdown_function,
+    PROTOTYPE_ALLOCATE_HOST, PROTOTYPE_DOUBLE_HOST, prototype_add_function,
+    prototype_countdown_function, prototype_host_allocation_function,
     prototype_host_callback_function, prototype_min_function, prototype_sum_below_function,
     prototype_sum_to_function,
 };
@@ -111,6 +112,7 @@ struct PreparedWorkloads<'a> {
     sum_to_program: &'a lang_bytecode::Program,
     sum_below_program: &'a lang_bytecode::Program,
     host_program: &'a lang_bytecode::Program,
+    host_allocation_program: &'a lang_bytecode::Program,
     host_functions: &'a HostFunctionRegistry,
     compiled_add: &'a CompiledFunction,
     compiled_min: &'a CompiledFunction,
@@ -118,6 +120,7 @@ struct PreparedWorkloads<'a> {
     compiled_sum_to: &'a CompiledFunction,
     compiled_sum_below: &'a CompiledFunction,
     compiled_host: &'a CompiledFunction,
+    compiled_host_allocation: &'a CompiledFunction,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -204,12 +207,15 @@ fn run() -> Result<(), String> {
     let sum_to_function = prototype_sum_to_function();
     let sum_below_function = prototype_sum_below_function();
     let host_function = prototype_host_callback_function();
+    let host_allocation_function = prototype_host_allocation_function();
     let add_program = lower(&add_function).map_err(|error| error.to_string())?;
     let min_program = lower(&min_function).map_err(|error| error.to_string())?;
     let countdown_program = lower(&countdown_function).map_err(|error| error.to_string())?;
     let sum_to_program = lower(&sum_to_function).map_err(|error| error.to_string())?;
     let sum_below_program = lower(&sum_below_function).map_err(|error| error.to_string())?;
     let host_program = lower(&host_function).map_err(|error| error.to_string())?;
+    let host_allocation_program =
+        lower(&host_allocation_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let compiled_add =
         CompiledFunction::compile(&add_function).map_err(|error| error.to_string())?;
@@ -223,6 +229,9 @@ fn run() -> Result<(), String> {
         CompiledFunction::compile(&sum_below_function).map_err(|error| error.to_string())?;
     let compiled_host = CompiledFunction::compile_with_hosts(&host_function, &host_functions)
         .map_err(|error| error.to_string())?;
+    let compiled_host_allocation =
+        CompiledFunction::compile_with_hosts(&host_allocation_function, &host_functions)
+            .map_err(|error| error.to_string())?;
     let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
     let aot_min = emit_host_object(&min_function).map_err(|error| error.to_string())?;
     let aot_countdown = emit_host_object(&countdown_function).map_err(|error| error.to_string())?;
@@ -248,6 +257,7 @@ fn run() -> Result<(), String> {
         sum_to_program: &sum_to_program,
         sum_below_program: &sum_below_program,
         host_program: &host_program,
+        host_allocation_program: &host_allocation_program,
         host_functions: &host_functions,
         compiled_add: &compiled_add,
         compiled_min: &compiled_min,
@@ -255,6 +265,7 @@ fn run() -> Result<(), String> {
         compiled_sum_to: &compiled_sum_to,
         compiled_sum_below: &compiled_sum_below,
         compiled_host: &compiled_host,
+        compiled_host_allocation: &compiled_host_allocation,
     };
     check_results(&workloads)?;
     warm_up(config.runtime_iterations, &workloads);
@@ -555,6 +566,35 @@ fn run() -> Result<(), String> {
                 .expect("compiled host callback has the expected signature")
         },
     ));
+    measurements.push(measure_calls(
+        "rust_host_allocation_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| prototype_allocate_roundtrip(iteration as i64),
+    ));
+    measurements.push(measure_calls(
+        "vm_host_allocation_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            execute_with_hosts(
+                &host_allocation_program,
+                &[iteration as i64],
+                &host_functions,
+            )
+            .expect("verified host-allocation bytecode executes")
+        },
+    ));
+    measurements.push(measure_calls(
+        "jit_host_allocation_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            compiled_host_allocation
+                .invoke_i64_1(iteration as i64)
+                .expect("compiled host-allocation callback has the expected signature")
+        },
+    ));
 
     println!(
         "{}",
@@ -585,6 +625,9 @@ fn prototype_host_registry() -> Result<HostFunctionRegistry, String> {
     let mut host_functions = HostFunctionRegistry::new();
     host_functions
         .register_i64(PROTOTYPE_DOUBLE_HOST, prototype_wrapping_double)
+        .map_err(|error| error.to_string())?;
+    host_functions
+        .register_i64(PROTOTYPE_ALLOCATE_HOST, prototype_allocate_roundtrip)
         .map_err(|error| error.to_string())?;
     Ok(host_functions)
 }
@@ -651,6 +694,12 @@ extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
     value.wrapping_mul(2)
 }
 
+#[inline(never)]
+extern "C" fn prototype_allocate_roundtrip(value: i64) -> i64 {
+    let allocation = black_box(Box::new(value));
+    black_box(*allocation)
+}
+
 fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
     let expected_add = rust_wrapping_add(20, 22);
     let vm_add = execute(workloads.add_program, &[20, 22]).map_err(|error| error.to_string())?;
@@ -711,10 +760,33 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
         .compiled_host
         .invoke_i64_1(21)
         .map_err(|error| error.to_string())?;
+    let expected_host_allocation = prototype_allocate_roundtrip(-9);
+    let vm_host_allocation = execute_with_hosts(
+        workloads.host_allocation_program,
+        &[-9],
+        workloads.host_functions,
+    )
+    .map_err(|error| error.to_string())?;
+    let jit_host_allocation = workloads
+        .compiled_host_allocation
+        .invoke_i64_1(-9)
+        .map_err(|error| error.to_string())?;
 
-    if (vm_add, jit_add, vm_host, jit_host)
-        != (expected_add, expected_add, expected_host, expected_host)
-    {
+    if (
+        vm_add,
+        jit_add,
+        vm_host,
+        jit_host,
+        vm_host_allocation,
+        jit_host_allocation,
+    ) != (
+        expected_add,
+        expected_add,
+        expected_host,
+        expected_host,
+        expected_host_allocation,
+        expected_host_allocation,
+    ) {
         return Err("execution modes disagreed before measurement".to_owned());
     }
     Ok(())
@@ -794,6 +866,21 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
                 .compiled_host
                 .invoke_i64_1(value)
                 .expect("compiled host callback has the expected signature"),
+        );
+        black_box(prototype_allocate_roundtrip(value));
+        black_box(
+            execute_with_hosts(
+                workloads.host_allocation_program,
+                &[value],
+                workloads.host_functions,
+            )
+            .expect("verified host-allocation bytecode executes"),
+        );
+        black_box(
+            workloads
+                .compiled_host_allocation
+                .invoke_i64_1(value)
+                .expect("compiled host-allocation callback has the expected signature"),
         );
     }
 }
@@ -1106,7 +1193,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 7,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 8,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -1368,7 +1455,14 @@ mod tests {
     }
 
     #[test]
-    fn schema_seven_includes_conditional_loop_and_executable_artifact_sizes() {
+    fn host_allocation_roundtrip_preserves_values() {
+        for value in [0_i64, 21, -7, i64::MAX, i64::MIN] {
+            assert_eq!(super::prototype_allocate_roundtrip(value), value);
+        }
+    }
+
+    #[test]
+    fn schema_eight_retains_conditional_loop_and_executable_artifact_sizes() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1394,7 +1488,7 @@ mod tests {
             &[],
         );
 
-        assert!(output.contains("\"schema_version\": 7"));
+        assert!(output.contains("\"schema_version\": 8"));
         assert!(output.contains("\"startup_iterations\": 2"));
         assert!(output.contains("\"jit_countdown\": 3"));
         assert!(output.contains("\"jit_sum_to\": 4"));
@@ -1406,7 +1500,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_seven_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_eight_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {

@@ -34,7 +34,7 @@ Cyclic-graph実験は、defaultの `Reject` shared-cycle policyと、明示的�
 
 Shared-service実験は、defaultの `OwnerIsolated` mutation policyと、明示的な `ExclusiveCapability` 代替案を比較します。代替案では、有効なhandleを持つ任意のtaskが単一のactive capabilityを保持している間にmutationでき、handleのないtaskと同時mutatorはstructured diagnosticでrejectされ、cancellationはnon-owner mutationの境界までcleanupを待ちます。これはlock-likeな競合designをacceptせずに実行可能にします。Read／write／atomic capability、capability derivation、scheduling fairness、priority inversion、poisoning、deadlock、reentrancy、panic handling、backpressure、VM／native trace、runtime costは未完了です。
 
-Host-allocation boundary実験は、2つ目の型付き `i64` callbackの背後で1回のallocate／read／free round tripを実行します。VM／JIT差分testはRustの `Box` callbackを使用し、macOS AArch64 direct／response-file AOT integrationと構成済みWindows MSVC pathは、別objectがimportするCの `malloc`／`free` callbackを使用します。これにより確認できるのはexecution-path coverageだけです。Schema 7はこのworkloadを計測せず、source allocation semantics、ownership、allocator／collector policy、memory limit、peak memory、cross-platform costは未完了です。
+Host-allocation boundary実験は、2つ目の型付き `i64` callbackの背後で1回のallocate／read／free round tripを実行します。VM／JIT差分testはRustの `Box` callbackを使用し、macOS AArch64 direct／response-file AOT integrationと構成済みWindows MSVC pathは、別objectがimportするCの `malloc`／`free` callbackを使用します。Schema 8はAOT link／startup setを変更せず、Rust callbackのdirect Rust／VM／JIT runtime rowを追加し、Windows CIは3つの新rowを検証します。Cleanなschema 8 baselineはまだ記録していません。Source allocation semantics、ownership、allocator／collector policy、memory limit、peak memory、代表的なworkload、cross-platform costは未完了です。
 
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
