@@ -229,15 +229,15 @@ Review outcome: **ready for decision** for this narrow prototype subset. There a
 
 ## Sources
 
-- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 12:30 JST.
-- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 12:30 JST.
-- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 12:30 JST.
+- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 12:50 JST.
+- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 12:50 JST.
+- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 12:50 JST.
 - `crates/mir/src/lib.rs`, typed CFG and validation prototype, last updated 2026-10-16 01:25 JST.
 - `crates/bytecode/src/lib.rs`, verified register bytecode prototype, last updated 2026-10-16 01:25 JST.
 - `crates/vm/src/lib.rs`, VM execution and resource-control prototype, last updated 2026-10-16 11:20 JST.
 - `crates/codegen-clif/src/lib.rs`, Cranelift lowering prototype, last updated 2026-10-16 01:36 JST.
 - `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 11:42 JST.
-- `src/bin/prototype-bench.rs`, schema 12 control/allocation/heap-profile harness, last updated 2026-10-16 12:18 JST.
+- `src/bin/prototype-bench.rs`, schema 13 control/allocation/heap/process-memory harness, last updated 2026-10-16 12:50 JST.
 - `benchmarks/results/2026-10-16-macos-aarch64-fa9a69b.json`, clean schema 12 macOS AArch64 evidence, measured 2026-10-16 12:24:45 JST.
 
 No external factual claims are introduced by this RFC; the design proposal is derived from the repository's executable prototypes and project decisions.

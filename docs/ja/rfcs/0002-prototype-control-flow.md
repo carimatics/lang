@@ -229,15 +229,15 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 情報源
 
-- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 12:30 JST。
-- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 12:30 JST。
-- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 12:30 JST。
+- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 12:50 JST。
+- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 12:50 JST。
+- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 12:50 JST。
 - `crates/mir/src/lib.rs`、typed CFG／validation prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/bytecode/src/lib.rs`、verified register bytecode prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/vm/src/lib.rs`、VM execution／resource-control prototype、最終更新 2026-10-16 11:20 JST。
 - `crates/codegen-clif/src/lib.rs`、Cranelift lowering prototype、最終更新 2026-10-16 01:36 JST。
 - `src/lib.rs`、differential prototype workload、最終更新 2026-10-16 11:42 JST。
-- `src/bin/prototype-bench.rs`、schema 12 control／allocation／heap-profile harness、最終更新 2026-10-16 12:18 JST。
+- `src/bin/prototype-bench.rs`、schema 13 control／allocation／heap／process-memory harness、最終更新 2026-10-16 12:50 JST。
 - `benchmarks/results/2026-10-16-macos-aarch64-fa9a69b.json`、clean schema 12 macOS AArch64 evidence、2026-10-16 12:24:45 JSTに計測。
 
 このRFCは外部の事実に関する主張を追加しません。Design proposalはrepositoryの実行可能prototypeとproject decisionから導出しています。

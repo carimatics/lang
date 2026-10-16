@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 12 prototype benchmark
+      - name: Record the schema 13 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 12) {
-            throw "expected benchmark schema 12, got $($result.schema_version)"
+          if ($result.schema_version -ne 13) {
+            throw "expected benchmark schema 13, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -102,6 +102,16 @@ jobs:
           $burstHeap = @($result.heap_measurements | Where-Object { $_.name -eq "host_allocation_burst_call" })
           if ($burstHeap.Count -ne 1 -or $burstHeap[0].allocation_count -ne 64 -or $burstHeap[0].total_allocated_bytes -ne 512 -or $burstHeap[0].peak_live_bytes -ne 512 -or $burstHeap[0].live_bytes_after -ne 0) {
             throw "benchmark recorded unexpected allocation-burst heap measurements"
+          }
+          if ($result.process_memory_measurement_scope -ne "linked_aot_executable_process") {
+            throw "benchmark recorded unexpected process-memory scope $($result.process_memory_measurement_scope)"
+          }
+          if ($result.process_memory_metric -ne "windows_process_peak_working_set_bytes") {
+            throw "benchmark recorded unexpected process-memory metric $($result.process_memory_metric)"
+          }
+          $processMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below" })
+          if ($processMemory.Count -ne 1 -or $processMemory[0].unit -ne "bytes/process" -or $processMemory[0].sample_count -ne 31 -or $processMemory[0].minimum -le 0 -or $processMemory[0].median -lt $processMemory[0].minimum -or $processMemory[0].p95 -lt $processMemory[0].median -or $processMemory[0].maximum -lt $processMemory[0].p95) {
+            throw "benchmark recorded invalid Windows process-memory measurements"
           }
           if ($result.startup_iterations -ne 10) {
             throw "benchmark recorded unexpected startup iterations $($result.startup_iterations)"

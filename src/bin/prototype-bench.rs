@@ -117,6 +117,18 @@ struct HeapMeasurement {
     live_bytes_after: usize,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct ProcessMemoryMeasurement {
+    name: &'static str,
+    sample_count: usize,
+    minimum_bytes: u64,
+    median_bytes: u64,
+    p95_bytes: u64,
+    maximum_bytes: u64,
+    mean_bytes: f64,
+    relative_stddev_percent: f64,
+}
+
 trait I64Heap {
     type Allocation;
 
@@ -257,6 +269,42 @@ impl Measurement {
                 0.0
             } else {
                 variance.sqrt() / mean_ns * 100.0
+            },
+        }
+    }
+}
+
+impl ProcessMemoryMeasurement {
+    fn from_samples(name: &'static str, mut bytes_per_process: Vec<u64>) -> Self {
+        bytes_per_process.sort_unstable();
+        let count = bytes_per_process.len();
+        let mean_bytes = bytes_per_process
+            .iter()
+            .map(|value| *value as f64)
+            .sum::<f64>()
+            / count as f64;
+        let variance = bytes_per_process
+            .iter()
+            .map(|value| {
+                let distance = *value as f64 - mean_bytes;
+                distance * distance
+            })
+            .sum::<f64>()
+            / count as f64;
+        let p95_index = (count * 95).div_ceil(100).saturating_sub(1);
+
+        Self {
+            name,
+            sample_count: count,
+            minimum_bytes: bytes_per_process[0],
+            median_bytes: bytes_per_process[count / 2],
+            p95_bytes: bytes_per_process[p95_index],
+            maximum_bytes: bytes_per_process[count - 1],
+            mean_bytes,
+            relative_stddev_percent: if mean_bytes == 0.0 {
+                0.0
+            } else {
+                variance.sqrt() / mean_bytes * 100.0
             },
         }
     }
@@ -751,6 +799,12 @@ fn run() -> Result<(), String> {
         },
     ));
 
+    #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
+    let process_memory_measurements =
+        vec![link_benchmark.measure_peak_resident_memory(config.samples)?];
+    #[cfg(not(any(target_os = "macos", all(target_os = "windows", target_env = "msvc"))))]
+    let process_memory_measurements = Vec::new();
+
     println!(
         "{}",
         render_json(
@@ -771,6 +825,7 @@ fn run() -> Result<(), String> {
                 aot_executable: aot_executable_size,
             },
             &heap_measurements(),
+            &process_memory_measurements,
             &measurements,
         )
     );
@@ -1348,6 +1403,20 @@ impl LinkBenchmark {
         ))
     }
 
+    fn measure_peak_resident_memory(
+        &self,
+        sample_count: usize,
+    ) -> Result<ProcessMemoryMeasurement, String> {
+        let mut samples = Vec::with_capacity(sample_count);
+        for _ in 0..sample_count {
+            samples.push(peak_resident_memory_bytes(&self.executable)?);
+        }
+        Ok(ProcessMemoryMeasurement::from_samples(
+            "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
+            samples,
+        ))
+    }
+
     fn link_once(&self) -> Result<(), String> {
         let request = LinkRequest::new(&self.executable)
             .with_object(&self.harness_object)
@@ -1360,6 +1429,67 @@ impl LinkBenchmark {
             .link(&request)
             .map_err(|error| error.to_string())
     }
+}
+
+#[cfg(target_os = "macos")]
+fn peak_resident_memory_bytes(executable: &Path) -> Result<u64, String> {
+    let output = Command::new("/usr/bin/time")
+        .arg("-l")
+        .arg(executable)
+        .output()
+        .map_err(|error| format!("failed to measure linked executable memory: {error}"))?;
+    ensure_command_succeeded("linked executable memory measurement", &output)?;
+    parse_macos_peak_resident_memory(&String::from_utf8_lossy(&output.stderr))
+}
+
+#[cfg(target_os = "macos")]
+fn parse_macos_peak_resident_memory(output: &str) -> Result<u64, String> {
+    let label = " maximum resident set size";
+    let value = output
+        .lines()
+        .find_map(|line| line.trim().strip_suffix(label))
+        .map(str::trim)
+        .ok_or_else(|| "macOS time output did not contain maximum resident set size".to_owned())?;
+    parse_process_memory_bytes(value, "macOS maximum resident set size")
+}
+
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn peak_resident_memory_bytes(executable: &Path) -> Result<u64, String> {
+    const SCRIPT: &str = r#"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$process = [System.Diagnostics.Process]::Start($args[0])
+$process.WaitForExit()
+$exitCode = $process.ExitCode
+$peakWorkingSet = $process.PeakWorkingSet64
+[Console]::Out.WriteLine($peakWorkingSet)
+exit $exitCode
+"#;
+
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            SCRIPT,
+        ])
+        .arg(executable)
+        .output()
+        .map_err(|error| format!("failed to measure linked executable memory: {error}"))?;
+    ensure_command_succeeded("linked executable memory measurement", &output)?;
+    parse_process_memory_bytes(
+        &String::from_utf8_lossy(&output.stdout),
+        "PowerShell peak working set size",
+    )
+}
+
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
+fn parse_process_memory_bytes(value: &str, label: &str) -> Result<u64, String> {
+    value
+        .trim()
+        .trim_start_matches('\u{feff}')
+        .parse::<u64>()
+        .map_err(|error| format!("{label} is invalid: {error}"))
 }
 
 #[cfg(target_os = "macos")]
@@ -1449,6 +1579,7 @@ fn render_json(
     config: Config,
     sizes: ArtifactSizes,
     heap_measurements: &[HeapMeasurement],
+    process_memory_measurements: &[ProcessMemoryMeasurement],
     measurements: &[Measurement],
 ) -> String {
     let mut output = String::new();
@@ -1462,7 +1593,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 12,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 13,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -1564,6 +1695,53 @@ fn render_json(
         writeln!(output, "    }}{suffix}").expect("writing to String succeeds");
     }
     writeln!(output, "  ],").expect("writing to String succeeds");
+    write_json_string(
+        &mut output,
+        "process_memory_measurement_scope",
+        "linked_aot_executable_process",
+        true,
+    );
+    write_json_string(
+        &mut output,
+        "process_memory_metric",
+        process_memory_metric(),
+        true,
+    );
+    writeln!(output, "  \"process_memory_measurements\": [").expect("writing to String succeeds");
+    for (index, measurement) in process_memory_measurements.iter().enumerate() {
+        writeln!(output, "    {{").expect("writing to String succeeds");
+        write_json_string(&mut output, "name", measurement.name, true);
+        write_json_string(&mut output, "unit", "bytes/process", true);
+        writeln!(
+            output,
+            "      \"sample_count\": {},",
+            measurement.sample_count
+        )
+        .expect("writing to String succeeds");
+        writeln!(output, "      \"minimum\": {},", measurement.minimum_bytes)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"median\": {},", measurement.median_bytes)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"p95\": {},", measurement.p95_bytes)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"maximum\": {},", measurement.maximum_bytes)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"mean\": {:.3},", measurement.mean_bytes)
+            .expect("writing to String succeeds");
+        writeln!(
+            output,
+            "      \"relative_stddev_percent\": {:.3}",
+            measurement.relative_stddev_percent
+        )
+        .expect("writing to String succeeds");
+        let suffix = if index + 1 == process_memory_measurements.len() {
+            ""
+        } else {
+            ","
+        };
+        writeln!(output, "    }}{suffix}").expect("writing to String succeeds");
+    }
+    writeln!(output, "  ],").expect("writing to String succeeds");
     writeln!(output, "  \"measurements\": [").expect("writing to String succeeds");
     for (index, measurement) in measurements.iter().enumerate() {
         writeln!(output, "    {{").expect("writing to String succeeds");
@@ -1643,6 +1821,21 @@ fn command_output(program: &str, arguments: &[&str]) -> String {
 }
 
 #[cfg(target_os = "macos")]
+fn process_memory_metric() -> &'static str {
+    "macos_rusage_ru_maxrss_bytes"
+}
+
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn process_memory_metric() -> &'static str {
+    "windows_process_peak_working_set_bytes"
+}
+
+#[cfg(not(any(target_os = "macos", all(target_os = "windows", target_env = "msvc"))))]
+fn process_memory_metric() -> &'static str {
+    "not_measured_on_this_platform"
+}
+
+#[cfg(target_os = "macos")]
 fn system_linker() -> String {
     command_output("cc", &["--version"])
 }
@@ -1690,9 +1883,9 @@ fn os_version() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        ArtifactSizes, Config, HeapMeasurement, Measurement, alternating_countdown_input,
-        alternating_sum_below_inputs, escape_json, heap_measurements, render_json, rust_countdown,
-        rust_sum_below, rust_sum_to,
+        ArtifactSizes, Config, HeapMeasurement, Measurement, ProcessMemoryMeasurement,
+        alternating_countdown_input, alternating_sum_below_inputs, escape_json, heap_measurements,
+        render_json, rust_countdown, rust_sum_below, rust_sum_to,
     };
 
     #[test]
@@ -1787,7 +1980,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_twelve_retains_timing_rows_and_adds_heap_measurements() {
+    fn schema_thirteen_retains_existing_measurements_and_adds_process_memory() {
         let measurements = [
             Measurement::from_samples("vm_countdown_interruptible_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_countdown_deadline_call", 1, vec![1.0, 2.0, 3.0]),
@@ -1795,6 +1988,10 @@ mod tests {
             Measurement::from_samples("vm_host_allocation_burst_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("jit_host_allocation_burst_call", 1, vec![1.0, 2.0, 3.0]),
         ];
+        let process_memory_measurements = [ProcessMemoryMeasurement::from_samples(
+            "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
+            vec![1_048_576, 1_114_112, 1_179_648],
+        )];
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1818,10 +2015,11 @@ mod tests {
                 aot_executable: Some(12),
             },
             &heap_measurements(),
+            &process_memory_measurements,
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 12"));
+        assert!(output.contains("\"schema_version\": 13"));
         assert!(
             output
                 .contains("\"heap_measurement_scope\": \"host_callback_requested_payload_bytes\"")
@@ -1832,6 +2030,18 @@ mod tests {
         assert!(output.contains("\"total_allocated_bytes\": 512"));
         assert!(output.contains("\"peak_live_bytes\": 512"));
         assert!(output.contains("\"live_bytes_after\": 0"));
+        assert!(
+            output.contains(
+                "\"process_memory_measurement_scope\": \"linked_aot_executable_process\""
+            )
+        );
+        assert!(output.contains("\"process_memory_metric\":"));
+        assert!(output.contains(
+            "\"name\": \"aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below\""
+        ));
+        assert!(output.contains("\"unit\": \"bytes/process\""));
+        assert!(output.contains("\"sample_count\": 3"));
+        assert!(output.contains("\"median\": 1114112"));
         assert!(output.contains("\"name\": \"vm_countdown_interruptible_call\""));
         assert!(output.contains("\"name\": \"vm_countdown_deadline_call\""));
         assert!(output.contains("\"name\": \"rust_host_allocation_burst_call\""));
@@ -1848,7 +2058,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_twelve_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_thirteen_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1872,6 +2082,7 @@ mod tests {
                 aot_executable: None,
             },
             &heap_measurements(),
+            &[],
             &[],
         );
 
@@ -1898,6 +2109,31 @@ mod tests {
                     live_bytes_after: 0,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn process_memory_measurements_summarize_bytes_per_process() {
+        let measurement =
+            ProcessMemoryMeasurement::from_samples("process", vec![500, 100, 300, 200, 400]);
+
+        assert_eq!(measurement.sample_count, 5);
+        assert_eq!(measurement.minimum_bytes, 100);
+        assert_eq!(measurement.median_bytes, 300);
+        assert_eq!(measurement.p95_bytes, 500);
+        assert_eq!(measurement.maximum_bytes, 500);
+        assert_eq!(measurement.mean_bytes, 300.0);
+        assert!((measurement.relative_stddev_percent - 47.140_452).abs() < 0.000_001);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn parses_macos_peak_resident_memory() {
+        let output = "  0.00 real  0.00 user  0.00 sys\n  1179648  maximum resident set size\n";
+
+        assert_eq!(
+            super::parse_macos_peak_resident_memory(output),
+            Ok(1_179_648)
         );
     }
 }
