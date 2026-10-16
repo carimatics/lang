@@ -147,17 +147,18 @@ The scheduler is a replaceable runtime service. Libraries must not assume a glob
 
 ### Shared mutable service experiment
 
-The service model in `crates/semantics` tests a strict actor-isolation hypothesis:
+The service model in `crates/semantics` compares a strict actor-isolation hypothesis with one explicit shared-mutation policy:
 
-- One owner task has direct mutable access to service state. Shared handles may enqueue messages but direct mutation from another task reports `SEM0031`.
+- Under the default `OwnerIsolated` policy, one owner task has direct mutable access to service state. Shared handles may enqueue messages but direct mutation from another task reports `SEM0031`.
+- Under the experimental `ExclusiveCapability` policy, any task with a valid handle may begin a mutation when none is active. A task without a handle is rejected, and a concurrent begin reports the existing structured mutation-conflict diagnostic with the active mutation span.
 - Sending moves a payload into the mailbox. A non-sendable payload reports `SEM0028`, and reuse after a successful move reports `SEM0027`.
-- The owner processes messages in FIFO order. A cancellation request from any valid handle is deferred until an active mutation ends.
+- The owner still processes messages in FIFO order. A cancellation request from any valid handle is deferred until an active mutation ends, including a non-owner mutation under the experimental policy.
 - Cancellation discards queued messages in FIFO order, drops every queued payload and the service state exactly once, then rejects later sends with `SEM0024`.
 - Operations retain primary and related source spans under stable diagnostic codes `SEM0022` through `SEM0035`.
 
-This model does not define surface syntax, scheduler threads, atomic ordering, mailbox backpressure, fairness, panic behavior, or distributed services. The strongest competing design would expose shared mutable state through lock or atomic capabilities; a simpler alternative would provide a single-threaded event loop without shareable handles. Library-only actors cannot enforce sendability or isolation as language-level properties.
+Neither mutation policy is accepted semantics. The exclusive-capability path is executable evidence for a lock-like alternative, but it does not model read/write capabilities, atomics, lock scheduling, fairness, priority inversion, poisoning, deadlock, reentrancy, panic behavior, mailbox backpressure, or distributed services. A simpler alternative would provide a single-threaded event loop without shareable handles. Library-only actors cannot enforce sendability or isolation as language-level properties.
 
-Review outcome: **needs prototype/measurement**. Blocking questions are how send/share capabilities are derived, how cancellation interacts with backpressure and failed handlers, and whether VM/native execution preserves equivalent ordering and cost. Surface syntax and standard actor APIs are optional follow-ups.
+Review outcome: **needs prototype/measurement**. Actor isolation and one exclusive-capability alternative are now executable; blocking questions are how send/share/mutation capabilities are derived, how lock scheduling and failure compose with cancellation and backpressure, and whether VM/native execution preserves equivalent ordering and cost. Surface syntax and standard actor APIs are optional follow-ups.
 
 ## AOT and script execution
 

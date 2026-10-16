@@ -202,6 +202,8 @@ Async semantics prototypeは、厳格なdefaultの `RejectAll` suspension policy
 
 Cyclic-graph prototypeは、defaultの `Reject` shared-cycle policyと、明示的な `CollectUnreachable` 代替案を比較します。Collectorはstrong cycleを許可し、root dropごとにliveなexternal rootからstrong edgeをtraceし、weak edgeではretainせず、到達不能なcycleを逆生成順に回収します。これにより最も強い競合graph designを実行可能にしますが、accepted済みのownership／reclamation semanticsではなく、同期的なmodelにとどまります。Production collectionのtrigger／latency、incremental／concurrent collection、allocation／peak-memory cost、finalization、weak-reference ordering、destruction observabilityは未完了であり、review outcomeは引き続き **needs prototype/measurement** です。
 
+Shared-service prototypeは、defaultの `OwnerIsolated` mutation policyと、明示的な `ExclusiveCapability` 代替案を比較します。有効なhandleのholderは単一のactive mutation capabilityを取得でき、handleを持たないtaskまたは同時mutatorはstructured diagnosticでrejectされ、cancellationはnon-owner mutationが終了するまでservice stateのdropを待ちます。これにより1つのlock-likeな競合designを実行可能にしますが、accepted済みのconcurrency semanticsではありません。Read／write／atomic capability、capability derivation、scheduling fairness、priority inversion、poisoning、deadlock、reentrancy、panic handling、backpressure、VM／native trace等価性、runtime costは未完了であり、review outcomeは引き続き **needs prototype/measurement** です。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。

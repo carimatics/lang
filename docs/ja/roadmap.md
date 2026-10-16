@@ -32,6 +32,8 @@ Async semantics実験は、厳格なdefaultの `RejectAll` suspension policyと�
 
 Cyclic-graph実験は、defaultの `Reject` shared-cycle policyと、明示的な `CollectUnreachable` 代替案を比較します。Collectorはstrong cycleを許可し、root dropごとに残るlive rootからstrong edgeをtraceし、いずれかのrootから到達できる間はcycleを維持し、最後のrootが消えると逆生成順に回収します。Weak edgeはtargetをretainしません。これにより、最も強い競合designをacceptせずに実行可能にします。Production collectionのtrigger／latency、incremental／concurrent behavior、allocation／peak-memory cost、finalization、weak-reference ordering、destruction observabilityは未完了です。
 
+Shared-service実験は、defaultの `OwnerIsolated` mutation policyと、明示的な `ExclusiveCapability` 代替案を比較します。代替案では、有効なhandleを持つ任意のtaskが単一のactive capabilityを保持している間にmutationでき、handleのないtaskと同時mutatorはstructured diagnosticでrejectされ、cancellationはnon-owner mutationの境界までcleanupを待ちます。これはlock-likeな競合designをacceptせずに実行可能にします。Read／write／atomic capability、capability derivation、scheduling fairness、priority inversion、poisoning、deadlock、reentrancy、panic handling、backpressure、VM／native trace、runtime costは未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

@@ -1,11 +1,12 @@
 //! Executable ownership experiment for shared mutable services.
 //!
-//! This deliberately strict model isolates mutable service state to one owner
-//! task. Shared handles may enqueue sendable payloads, but they cannot mutate
-//! service state directly. Sending moves a payload into the mailbox. Service
-//! cancellation waits for an active mutation to end, then discards queued
-//! messages and drops their payloads exactly once. These choices are design
-//! hypotheses, not accepted language semantics.
+//! The default policy isolates mutable service state to one owner task. An
+//! experimental alternative treats begin/end mutation as acquisition/release
+//! of an exclusive capability available to any task with a shared handle.
+//! Sending moves a payload into the mailbox. Service cancellation waits for an
+//! active mutation to end, then discards queued messages and drops their
+//! payloads exactly once. These choices are design hypotheses, not accepted
+//! language semantics.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::error::Error;
@@ -84,6 +85,13 @@ pub enum ServiceStatus {
     Running,
     CancellationPending,
     Cancelled,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ServiceMutationPolicy {
+    #[default]
+    OwnerIsolated,
+    ExclusiveCapability,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -429,6 +437,7 @@ struct ServiceState {
 
 #[derive(Default)]
 pub struct ServiceModel {
+    mutation_policy: ServiceMutationPolicy,
     services: BTreeMap<ServiceId, ServiceState>,
     payloads: BTreeMap<PayloadId, PayloadState>,
     messages: BTreeMap<MessageId, MessageState>,
@@ -438,6 +447,13 @@ pub struct ServiceModel {
 impl ServiceModel {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_mutation_policy(policy: ServiceMutationPolicy) -> Self {
+        Self {
+            mutation_policy: policy,
+            ..Self::default()
+        }
     }
 
     pub const fn trace(&self) -> &ServiceTrace {
@@ -688,7 +704,7 @@ impl ServiceModel {
         span: SourceSpan,
     ) -> Result<(), ServiceDiagnostic> {
         self.require_running_service(service, span)?;
-        self.require_owner(service, task, span)?;
+        self.require_mutation_authority(service, task, span)?;
         self.require_no_mutation(service, task, span)?;
 
         self.services
@@ -711,7 +727,7 @@ impl ServiceModel {
         if service_state.status == ServiceStatus::Cancelled {
             return Err(self.unavailable_service(service, service_state, span));
         }
-        self.require_owner(service, task, span)?;
+        self.require_mutation_authority(service, task, span)?;
         let active = self
             .services
             .get(&service)
@@ -897,6 +913,18 @@ impl ServiceModel {
         Ok(())
     }
 
+    fn require_mutation_authority(
+        &self,
+        service: ServiceId,
+        task: TaskId,
+        span: SourceSpan,
+    ) -> Result<(), ServiceDiagnostic> {
+        match self.mutation_policy {
+            ServiceMutationPolicy::OwnerIsolated => self.require_owner(service, task, span),
+            ServiceMutationPolicy::ExclusiveCapability => self.require_handle(service, task, span),
+        }
+    }
+
     fn require_no_mutation(
         &self,
         service: ServiceId,
@@ -979,8 +1007,8 @@ impl ServiceModel {
 mod tests {
     use super::{
         MessageId, PayloadCapability, PayloadId, ServiceDiagnostic, ServiceDiagnosticCode,
-        ServiceDiagnosticKind, ServiceEvent, ServiceId, ServiceModel, ServiceOperation,
-        ServiceStatus, TaskId,
+        ServiceDiagnosticKind, ServiceEvent, ServiceId, ServiceModel, ServiceMutationPolicy,
+        ServiceOperation, ServiceStatus, TaskId,
     };
     use crate::SourceSpan;
 
@@ -1027,6 +1055,186 @@ mod tests {
                 },
             })
         );
+    }
+
+    #[test]
+    fn exclusive_capability_policy_allows_a_handle_holder_to_mutate() {
+        let service = ServiceId::new(0);
+        let owner = TaskId::new(0);
+        let client = TaskId::new(1);
+        let mut model =
+            ServiceModel::with_mutation_policy(ServiceMutationPolicy::ExclusiveCapability);
+        for operation in [
+            ServiceOperation::CreateService {
+                service,
+                owner,
+                span: span(0),
+            },
+            ServiceOperation::ShareHandle {
+                service,
+                from: owner,
+                to: client,
+                span: span(1),
+            },
+            ServiceOperation::BeginMutation {
+                service,
+                task: client,
+                span: span(2),
+            },
+            ServiceOperation::EndMutation {
+                service,
+                task: client,
+                span: span(3),
+            },
+        ] {
+            model.apply(operation).unwrap();
+        }
+
+        assert!(model.trace().events().ends_with(&[
+            ServiceEvent::MutationStarted {
+                service,
+                task: client,
+            },
+            ServiceEvent::MutationEnded {
+                service,
+                task: client,
+            },
+        ]));
+    }
+
+    #[test]
+    fn exclusive_capability_policy_rejects_a_task_without_a_handle() {
+        let service = ServiceId::new(0);
+        let owner = TaskId::new(0);
+        let intruder = TaskId::new(1);
+        let mut model =
+            ServiceModel::with_mutation_policy(ServiceMutationPolicy::ExclusiveCapability);
+        model
+            .apply(ServiceOperation::CreateService {
+                service,
+                owner,
+                span: span(0),
+            })
+            .unwrap();
+
+        assert_eq!(
+            model.apply(ServiceOperation::BeginMutation {
+                service,
+                task: intruder,
+                span: span(1),
+            }),
+            Err(ServiceDiagnostic {
+                code: ServiceDiagnosticCode::MissingHandle,
+                primary: span(1),
+                secondary: Some(span(0)),
+                kind: ServiceDiagnosticKind::MissingHandle {
+                    service,
+                    task: intruder,
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn exclusive_capability_policy_serializes_mutators() {
+        let service = ServiceId::new(0);
+        let owner = TaskId::new(0);
+        let client = TaskId::new(1);
+        let mut model =
+            ServiceModel::with_mutation_policy(ServiceMutationPolicy::ExclusiveCapability);
+        for operation in [
+            ServiceOperation::CreateService {
+                service,
+                owner,
+                span: span(0),
+            },
+            ServiceOperation::ShareHandle {
+                service,
+                from: owner,
+                to: client,
+                span: span(1),
+            },
+            ServiceOperation::BeginMutation {
+                service,
+                task: owner,
+                span: span(2),
+            },
+        ] {
+            model.apply(operation).unwrap();
+        }
+
+        assert_eq!(
+            model.apply(ServiceOperation::BeginMutation {
+                service,
+                task: client,
+                span: span(3),
+            }),
+            Err(ServiceDiagnostic {
+                code: ServiceDiagnosticCode::MutationConflict,
+                primary: span(3),
+                secondary: Some(span(2)),
+                kind: ServiceDiagnosticKind::MutationConflict {
+                    service,
+                    task: client,
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn cancellation_waits_for_a_non_owner_mutation_capability() {
+        let service = ServiceId::new(0);
+        let owner = TaskId::new(0);
+        let client = TaskId::new(1);
+        let mut model =
+            ServiceModel::with_mutation_policy(ServiceMutationPolicy::ExclusiveCapability);
+        for operation in [
+            ServiceOperation::CreateService {
+                service,
+                owner,
+                span: span(0),
+            },
+            ServiceOperation::ShareHandle {
+                service,
+                from: owner,
+                to: client,
+                span: span(1),
+            },
+            ServiceOperation::BeginMutation {
+                service,
+                task: client,
+                span: span(2),
+            },
+            ServiceOperation::Cancel {
+                service,
+                requester: owner,
+                span: span(3),
+            },
+        ] {
+            model.apply(operation).unwrap();
+        }
+
+        assert_eq!(
+            model.status(service),
+            Some(ServiceStatus::CancellationPending)
+        );
+        model
+            .apply(ServiceOperation::EndMutation {
+                service,
+                task: client,
+                span: span(4),
+            })
+            .unwrap();
+
+        assert_eq!(model.status(service), Some(ServiceStatus::Cancelled));
+        assert!(model.trace().events().ends_with(&[
+            ServiceEvent::MutationEnded {
+                service,
+                task: client,
+            },
+            ServiceEvent::ServiceStateDropped(service),
+            ServiceEvent::ServiceCancelled(service),
+        ]));
     }
 
     #[test]

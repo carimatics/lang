@@ -32,6 +32,8 @@ The async semantics experiment now compares the strict default `RejectAll` suspe
 
 The cyclic-graph experiment now compares the default `Reject` shared-cycle policy with an explicit `CollectUnreachable` alternative. The collector permits strong cycles, traces strong edges from remaining live roots after each root drop, preserves a cycle while any root reaches it, and reclaims it in reverse creation order after the last root disappears; weak edges never retain a target. This makes the strongest competing design executable without accepting it. Production collection triggers and latency, incremental/concurrent behavior, allocation and peak-memory cost, finalization, weak-reference ordering, and destruction observability remain open.
 
+The shared-service experiment now compares the default `OwnerIsolated` mutation policy with an explicit `ExclusiveCapability` alternative. Under the alternative, any task with a valid handle may mutate while holding the single active capability; tasks without handles and concurrent mutators are rejected with structured diagnostics, and cancellation waits for a non-owner mutation boundary before cleanup. This makes a lock-like competing design executable without accepting it. Read/write and atomic capabilities, capability derivation, scheduling fairness, priority inversion, poisoning, deadlock, reentrancy, panic handling, backpressure, VM/native traces, and runtime cost remain open.
+
 - Accept goals, non-goals, and terminology.
 - Establish the RFC process and compatibility labels.
 - Prototype three memory-model stress cases: cyclic graphs, async borrows/cancellation, and shared mutable services.

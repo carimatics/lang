@@ -84,7 +84,7 @@ cargo run --release --bin prototype-object -- host-callback /tmp/prototype-host-
 
 このcommandはadd、signed-minimum、host-callback targetについて、exported symbol、生成function-code size、object全体のsizeを報告します。Linkerは実行しません。
 
-実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelは厳格な `RejectAll` suspension policyと、exclusive-borrow rejection／deterministic cancellation cleanupを維持しながらshared task-frame borrowを許可する明示的な `AllowSharedFrameBorrows` 代替案を比較します。Graph modelはdefaultの `Reject` shared-cycle policy、実験的な `CollectUnreachable` tracing policy、arena-scoped cyclic storageを比較します。Service modelはactor-isolated mutation、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを検証します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
+実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelは厳格な `RejectAll` suspension policyと、exclusive-borrow rejection／deterministic cancellation cleanupを維持しながらshared task-frame borrowを許可する明示的な `AllowSharedFrameBorrows` 代替案を比較します。Graph modelはdefaultの `Reject` shared-cycle policy、実験的な `CollectUnreachable` tracing policy、arena-scoped cyclic storageを比較します。Service modelは `OwnerIsolated` mutationと `ExclusiveCapability` 代替案を比較しつつ、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを維持します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
 
 クリーンなrelease buildからprototype backend measurement harnessを実行します。
 
