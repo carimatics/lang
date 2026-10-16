@@ -11,6 +11,7 @@ use lang_runtime::HostFunctionRegistry;
 pub struct ExecutionLimits {
     instruction_fuel: Option<u64>,
     host_call_budget: Option<u64>,
+    value_slot_limit: Option<usize>,
 }
 
 impl ExecutionLimits {
@@ -18,6 +19,7 @@ impl ExecutionLimits {
         Self {
             instruction_fuel: None,
             host_call_budget: None,
+            value_slot_limit: None,
         }
     }
 
@@ -25,6 +27,7 @@ impl ExecutionLimits {
         Self {
             instruction_fuel: Some(instruction_fuel),
             host_call_budget: None,
+            value_slot_limit: None,
         }
     }
 
@@ -32,11 +35,25 @@ impl ExecutionLimits {
         Self {
             instruction_fuel: None,
             host_call_budget: Some(host_call_budget),
+            value_slot_limit: None,
+        }
+    }
+
+    pub const fn with_value_slot_limit(value_slot_limit: usize) -> Self {
+        Self {
+            instruction_fuel: None,
+            host_call_budget: None,
+            value_slot_limit: Some(value_slot_limit),
         }
     }
 
     pub const fn and_host_call_budget(mut self, host_call_budget: u64) -> Self {
         self.host_call_budget = Some(host_call_budget);
+        self
+    }
+
+    pub const fn and_value_slot_limit(mut self, value_slot_limit: usize) -> Self {
+        self.value_slot_limit = Some(value_slot_limit);
         self
     }
 
@@ -46,6 +63,10 @@ impl ExecutionLimits {
 
     pub const fn host_call_budget(self) -> Option<u64> {
         self.host_call_budget
+    }
+
+    pub const fn value_slot_limit(self) -> Option<usize> {
+        self.value_slot_limit
     }
 }
 
@@ -60,6 +81,7 @@ pub struct ExecutionOutcome {
     value: i64,
     instruction_fuel_consumed: u64,
     host_calls_consumed: u64,
+    value_slots_used: usize,
 }
 
 impl ExecutionOutcome {
@@ -73,6 +95,10 @@ impl ExecutionOutcome {
 
     pub const fn host_calls_consumed(self) -> u64 {
         self.host_calls_consumed
+    }
+
+    pub const fn value_slots_used(self) -> usize {
+        self.value_slots_used
     }
 }
 
@@ -115,6 +141,15 @@ pub fn execute_with_hosts_and_limits(
         return Err(VmError::Arity {
             expected: program.parameter_count(),
             actual: arguments.len(),
+        });
+    }
+
+    if let Some(limit) = limits.value_slot_limit()
+        && program.register_count() > limit
+    {
+        return Err(VmError::ValueSlotLimitExceeded {
+            limit,
+            required: program.register_count(),
         });
     }
 
@@ -166,6 +201,7 @@ pub fn execute_with_hosts_and_limits(
                     value: registers[*register],
                     instruction_fuel_consumed: meter.instruction_fuel_consumed,
                     host_calls_consumed: meter.host_calls_consumed,
+                    value_slots_used: program.register_count(),
                 });
             }
             Terminator::Jump(target) => {
@@ -257,6 +293,7 @@ pub enum VmError {
     UnknownHostFunction(HostFunctionId),
     InstructionFuelExhausted { limit: u64, consumed: u64 },
     HostCallBudgetExhausted { limit: u64, consumed: u64 },
+    ValueSlotLimitExceeded { limit: usize, required: usize },
 }
 
 impl Display for VmError {
@@ -279,6 +316,10 @@ impl Display for VmError {
             Self::HostCallBudgetExhausted { limit, consumed } => write!(
                 formatter,
                 "host-call budget exhausted after consuming {consumed} of {limit} calls"
+            ),
+            Self::ValueSlotLimitExceeded { limit, required } => write!(
+                formatter,
+                "value-slot limit of {limit} is below the required {required} slots"
             ),
         }
     }
@@ -388,6 +429,7 @@ mod tests {
                 value: 0,
                 instruction_fuel_consumed: 14,
                 host_calls_consumed: 0,
+                value_slots_used: 7,
             })
         );
         assert_eq!(
@@ -517,6 +559,7 @@ mod tests {
                 value: 42,
                 instruction_fuel_consumed: 2,
                 host_calls_consumed: 0,
+                value_slots_used: 3,
             })
         );
         assert_eq!(
@@ -589,12 +632,29 @@ mod tests {
                 &program,
                 &[],
                 &hosts,
-                ExecutionLimits::with_instruction_fuel(3).and_host_call_budget(1),
+                ExecutionLimits::with_value_slot_limit(1),
+            ),
+            Err(VmError::ValueSlotLimitExceeded {
+                limit: 1,
+                required: 2,
+            })
+        );
+        assert_eq!(COUNTED_HOST_CALLS.load(Ordering::SeqCst), 0);
+
+        assert_eq!(
+            execute_with_hosts_and_limits(
+                &program,
+                &[],
+                &hosts,
+                ExecutionLimits::with_instruction_fuel(3)
+                    .and_host_call_budget(1)
+                    .and_value_slot_limit(2),
             ),
             Ok(ExecutionOutcome {
                 value: 42,
                 instruction_fuel_consumed: 3,
                 host_calls_consumed: 1,
+                value_slots_used: 2,
             })
         );
         assert_eq!(COUNTED_HOST_CALLS.load(Ordering::SeqCst), 1);
