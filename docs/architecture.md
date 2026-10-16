@@ -240,7 +240,7 @@ A broader CFG prototype now carries two `i64` values—a descending counter and 
 
 Schema 6 adds the accumulator workload to bytecode lowering, JIT/AOT compilation, direct/VM/JIT calls, generated code and object sizes, and the tier-1 system-link/startup set. The platform series and linked-executable field are renamed because the link set now contains add, minimum, countdown, and accumulator objects. A clean macOS AArch64 result records the new rows and fields; Windows CI validates the same contract, but remote Windows comparison remains open.
 
-Schema 7 adds the conditional-sum workload across the same dimensions and adds its fifth object to the tier-1 system-link/startup set. The platform series and linked-executable field are renamed again for the expanded set, and Windows CI validates the schema 7 conditional-loop and platform contract. No clean schema 7 result has been recorded yet, so the schema 6 macOS result remains the current measured baseline.
+Schema 7 adds the conditional-sum workload across the same dimensions and adds its fifth object to the tier-1 system-link/startup set. The platform series and linked-executable field are renamed again for the expanded set, and Windows CI validates the schema 7 conditional-loop and platform contract. A clean macOS AArch64 result records all 36 rows and the 17,104-byte linked harness; remote Windows comparison remains open.
 
 ## Diagnostics, LSP, and debugging
 

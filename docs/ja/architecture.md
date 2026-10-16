@@ -240,7 +240,7 @@ Schema 5はそのsingle-launch rowを維持し、設定可能なbatched startup 
 
 Schema 6は、accumulator workloadをbytecode lowering、JIT／AOT compilation、direct／VM／JIT call、生成code／object size、tier-1 system-link／startup setへ追加します。Link setがadd、minimum、countdown、accumulator objectを含むようになったため、platform seriesとlink済みexecutable fieldをrenameします。CleanなmacOS AArch64 resultは新しいrowとfieldを記録し、Windows CIも同じcontractを検証しますが、remote Windows comparisonは未完了です。
 
-Schema 7はconditional-sum workloadを同じdimensionへ追加し、その5番目のobjectをtier-1 system-link／startup setへ加えます。拡張されたsetに合わせてplatform seriesとlink済みexecutable fieldを再度renameし、Windows CIはschema 7のconditional-loop／platform contractを検証します。Cleanなschema 7 resultはまだ記録していないため、schema 6 macOS resultが現在の測定済みbaselineです。
+Schema 7はconditional-sum workloadを同じdimensionへ追加し、その5番目のobjectをtier-1 system-link／startup setへ加えます。拡張されたsetに合わせてplatform seriesとlink済みexecutable fieldを再度renameし、Windows CIはschema 7のconditional-loop／platform contractを検証します。CleanなmacOS AArch64 resultは全36 rowと17,104-byteのlink済みharnessを記録しました。Remote Windows comparisonは未完了です。
 
 ## Diagnostics、LSP、debugging
 
