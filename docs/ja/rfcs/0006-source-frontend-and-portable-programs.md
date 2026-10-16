@@ -129,6 +129,8 @@ Exhaustivenessはarm patternの和集合がscrutinee typeの全inhabited value�
 
 Guest callはRustの再帰callではなく、VMが管理するframe vectorを使用します。各frameはcallee、register、現在のblock／instruction、return destination、call-site spanを記録します。Callee開始前にargumentをcopyします。Returnはresultをcallerへcopyしてframeを解放します。Entryのdepthは1です。Frame／register allocationやcallee／hostのeffect前に、interruption／deadline、frame-depth limit、total live value-cell limit、該当fuel／host-call budgetを確認します。既存のinterruption優先規則を維持します。Guest call instructionは1 fuel unitで、callee instructionとreturnは通常のcostです。隠れた追加call／return fuelは課金しません。Tail-call eliminationでcounterやstack traceを変えてはいけません。
 
+Metering順序はprototypeを維持します。Controlと利用可能instruction fuelを確認してからinstructionを1回課金します。Guest callは続いてcontrolを再確認し、予定frame depth、その後live cellを確認し、失敗時はallocationもcallee entryも行いませんがinstruction fuelは課金済みのままです。Host callはcontrolとhost-call budgetを再確認し、callbackへ入る直前に1 host callを課金します。拒否されたcallbackではinstruction fuelを消費しますがhost callは消費しません。初期entry frame／cell拒否のfuel消費はzeroで、一度も入っていないcalleeはstack traceへ含めません。例えばframe limit 1でmainがconstant `1` の後に `leaf(1)` をcallすると、call siteでfuel消費2、host call 0として失敗します。
+
 Scalar／owned-resource cellは各1、recordは1にfieldの再帰countを加算し、enum registerは1に最大case payload countを加算して予約します。Allocation前にoverflow-safeなcount確認を行います。Register copyはこれらの静的最大chargeを超えられません。Frame limitはentryを含み、直接／相互再帰に適用します。Failureはstable runtime reason、消費counter、fault span、最内frameから順のguest stackとcallerのcall-site spanを返します。Failureでcopy専用guest frameをすべて解放しますが、既存host side effectは取り消しません。
 
 安全なscript／REPL defaultはfuel 1,000,000 unit、host call 1,000回、live frame 256、live value cell 1,000,000です。明示的なembedding APIは別limitや既存のunbounded convenience behaviorを選べます。Execution errorはsource valueではありません。Host callbackのbyte-based accounting、production heap sandbox、native interruption、async／task limitは保証しません。
@@ -235,6 +237,7 @@ Untrusted inputには明示的なcompile／decode／verification budgetとmalfor
 | Record | Host callを伴う記述field順変更、重複／欠落field | 記述順評価、shape error |
 | Pattern | 全enum case、nested boolean product、wildcardなしinteger literal | 網羅、全product時のみ網羅、missing integer witness |
 | Call | 直接／相互再帰、arity／type不一致、厳密なframe／cell／fuel境界 | 正しい結果またはguard対象effect前のstructured error |
+| Metering | Frame limit 1でconstant後guest call、host budget 0でconstant後host call | 両方fuel 2、callee frame／callbackなし、host count 0 |
 | Stack | 3 guest frame後のhost／VM failure | 最内からのfault／call-site span、消費count維持 |
 | Bytecode | Golden byte、re-encode、未知tag／version、切断／count bomb | Stable schema byte、allocation急増なしの上限付き拒否 |
 | REPL | Valid定義、invalid定義、後続call、reset、不完全EOF | Transactional定義、fresh budget、deterministic表示 |
