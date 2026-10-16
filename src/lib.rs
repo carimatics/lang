@@ -231,6 +231,87 @@ pub fn run_prototype_countdown(value: i64) -> Result<ExecutionResults, Prototype
     Ok(ExecutionResults { bytecode, native })
 }
 
+pub fn prototype_fibonacci_function() -> Function {
+    Function::with_blocks(
+        "prototype_fibonacci",
+        Signature::new(vec![Type::I64], Type::I64),
+        vec![
+            BasicBlock::new(
+                vec![
+                    Instruction::I64Constant {
+                        result: ValueId::new(1),
+                        value: -1,
+                    },
+                    Instruction::I64Constant {
+                        result: ValueId::new(2),
+                        value: 0,
+                    },
+                    Instruction::I64Constant {
+                        result: ValueId::new(3),
+                        value: 1,
+                    },
+                ],
+                Terminator::Jump(BlockTarget::new(
+                    BlockId::new(1),
+                    vec![ValueId::new(0), ValueId::new(2), ValueId::new(3)],
+                )),
+            ),
+            BasicBlock::with_parameters(
+                vec![
+                    BlockParameter::new(ValueId::new(4), Type::I64),
+                    BlockParameter::new(ValueId::new(5), Type::I64),
+                    BlockParameter::new(ValueId::new(6), Type::I64),
+                ],
+                vec![Instruction::I64LessThanSigned {
+                    result: ValueId::new(7),
+                    left: ValueId::new(4),
+                    right: ValueId::new(3),
+                }],
+                Terminator::Branch {
+                    condition: ValueId::new(7),
+                    then_target: BlockTarget::new(BlockId::new(3), vec![ValueId::new(5)]),
+                    else_target: BlockTarget::new(BlockId::new(2), vec![]),
+                },
+            ),
+            BasicBlock::new(
+                vec![
+                    Instruction::I64AddWrapping {
+                        result: ValueId::new(8),
+                        left: ValueId::new(5),
+                        right: ValueId::new(6),
+                    },
+                    Instruction::I64AddWrapping {
+                        result: ValueId::new(9),
+                        left: ValueId::new(4),
+                        right: ValueId::new(1),
+                    },
+                ],
+                Terminator::Jump(BlockTarget::new(
+                    BlockId::new(1),
+                    vec![ValueId::new(9), ValueId::new(6), ValueId::new(8)],
+                )),
+            ),
+            BasicBlock::with_parameters(
+                vec![BlockParameter::new(ValueId::new(10), Type::I64)],
+                vec![],
+                Terminator::Return(ValueId::new(10)),
+            ),
+        ],
+    )
+}
+
+pub fn run_prototype_fibonacci(value: i64) -> Result<ExecutionResults, PrototypeError> {
+    let function = prototype_fibonacci_function();
+    let program = lower(&function).map_err(PrototypeError::Bytecode)?;
+    let bytecode = execute(&program, &[value]).map_err(PrototypeError::Vm)?;
+    let compiled = CompiledFunction::compile(&function).map_err(PrototypeError::NativeCompile)?;
+    let native = compiled
+        .invoke_i64_1(value)
+        .map_err(PrototypeError::NativeInvoke)?;
+
+    Ok(ExecutionResults { bytecode, native })
+}
+
 pub fn prototype_sum_to_function() -> Function {
     Function::with_blocks(
         "prototype_sum_to",
@@ -589,7 +670,7 @@ pub fn run_prototype_host_allocation_variable(
 #[cfg(test)]
 mod tests {
     use super::{
-        ExecutionResults, run_prototype_add, run_prototype_countdown,
+        ExecutionResults, run_prototype_add, run_prototype_countdown, run_prototype_fibonacci,
         run_prototype_host_allocation, run_prototype_host_allocation_burst,
         run_prototype_host_allocation_churn, run_prototype_host_allocation_variable,
         run_prototype_host_callback, run_prototype_min, run_prototype_sum_below,
@@ -759,6 +840,31 @@ mod tests {
         for (value, expected) in cases {
             assert_eq!(
                 run_prototype_sum_to(value).unwrap(),
+                ExecutionResults {
+                    bytecode: expected,
+                    native: expected,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn fibonacci_loop_carried_values_are_equivalent() {
+        let cases = [
+            (i64::MIN, 0),
+            (-7, 0),
+            (0, 0),
+            (1, 1),
+            (2, 1),
+            (10, 55),
+            (17, 1_597),
+            (50, 12_586_269_025),
+            (93, -6_246_583_658_587_674_878),
+        ];
+
+        for (value, expected) in cases {
+            assert_eq!(
+                run_prototype_fibonacci(value).unwrap(),
                 ExecutionResults {
                     bytecode: expected,
                     native: expected,

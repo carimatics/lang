@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 17 prototype benchmark
+      - name: Record the schema 18 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 17) {
-            throw "expected benchmark schema 17, got $($result.schema_version)"
+          if ($result.schema_version -ne 18) {
+            throw "expected benchmark schema 18, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -65,13 +65,13 @@ jobs:
           if ($result.os -ne "windows" -or $result.architecture -ne "x86_64") {
             throw "unexpected benchmark target $($result.os)/$($result.architecture)"
           }
-          if ($result.measurements.name -notcontains "system_link_add_min_countdown_sum_to_sum_below") {
+          if ($result.measurements.name -notcontains "system_link_add_min_countdown_fibonacci_sum_to_sum_below") {
             throw "benchmark did not record the Windows system-link measurement"
           }
-          if ($result.measurements.name -notcontains "aot_process_startup_add_min_countdown_sum_to_sum_below") {
+          if ($result.measurements.name -notcontains "aot_process_startup_add_min_countdown_fibonacci_sum_to_sum_below") {
             throw "benchmark did not record the Windows process-startup measurement"
           }
-          if ($result.measurements.name -notcontains "aot_process_startup_batch_add_min_countdown_sum_to_sum_below") {
+          if ($result.measurements.name -notcontains "aot_process_startup_batch_add_min_countdown_fibonacci_sum_to_sum_below") {
             throw "benchmark did not record the Windows batched process-startup measurement"
           }
           if ($result.measurements.name -notcontains "vm_sum_to_call" -or $result.measurements.name -notcontains "jit_sum_to_call") {
@@ -79,6 +79,12 @@ jobs:
           }
           if ($result.measurements.name -notcontains "vm_sum_below_call" -or $result.measurements.name -notcontains "jit_sum_below_call") {
             throw "benchmark did not record the Windows conditional-loop measurements"
+          }
+          if ($result.measurements.name -notcontains "rust_fibonacci_call" -or $result.measurements.name -notcontains "vm_fibonacci_call" -or $result.measurements.name -notcontains "jit_fibonacci_call") {
+            throw "benchmark did not record the Windows fibonacci measurements"
+          }
+          if ($result.generated_code_bytes.jit_fibonacci -le 0 -or $result.object_file_bytes.aot_fibonacci -le 0) {
+            throw "benchmark did not record the Windows fibonacci artifact sizes"
           }
           if ($result.measurements.name -notcontains "vm_countdown_interruptible_call") {
             throw "benchmark did not record the Windows interruption-check measurement"
@@ -152,7 +158,7 @@ jobs:
           if ($result.process_memory_metric -ne "windows_process_peak_working_set_bytes") {
             throw "benchmark recorded unexpected process-memory metric $($result.process_memory_metric)"
           }
-          $processMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below" })
+          $processMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "aot_process_peak_resident_memory_add_min_countdown_fibonacci_sum_to_sum_below" })
           if ($processMemory.Count -ne 1 -or $processMemory[0].unit -ne "bytes/process" -or $processMemory[0].sample_count -ne 31 -or $processMemory[0].minimum -le 0 -or $processMemory[0].median -lt $processMemory[0].minimum -or $processMemory[0].p95 -lt $processMemory[0].median -or $processMemory[0].maximum -lt $processMemory[0].p95) {
             throw "benchmark recorded invalid Windows process-memory measurements"
           }
@@ -164,7 +170,7 @@ jobs:
           if ($result.startup_iterations -ne 10) {
             throw "benchmark recorded unexpected startup iterations $($result.startup_iterations)"
           }
-          if ($result.executable_file_bytes.aot_add_min_countdown_sum_to_sum_below -le 0) {
+          if ($result.executable_file_bytes.aot_add_min_countdown_fibonacci_sum_to_sum_below -le 0) {
             throw "benchmark did not record the Windows executable size"
           }
 

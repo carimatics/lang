@@ -1,6 +1,6 @@
 use lang::linker::LinkTarget;
 use lang::{
-    prototype_add_function, prototype_host_allocation_burst_function,
+    prototype_add_function, prototype_fibonacci_function, prototype_host_allocation_burst_function,
     prototype_host_allocation_churn_function, prototype_host_allocation_variable_function,
     prototype_host_callback_function, prototype_sum_below_function, prototype_sum_to_function,
 };
@@ -15,6 +15,8 @@ fn emits_windows_x86_64_coff_with_expected_symbols() {
         .expect("the Windows x86-64 target triple is valid");
     let add = emit_object_for_target(&prototype_add_function(), target.clone())
         .expect("emits the add function for Windows x86-64");
+    let fibonacci = emit_object_for_target(&prototype_fibonacci_function(), target.clone())
+        .expect("emits the fibonacci function for Windows x86-64");
     let callback = emit_object_for_target(&prototype_host_callback_function(), target.clone())
         .expect("emits the host-callback function for Windows x86-64");
     let allocation_burst =
@@ -37,6 +39,15 @@ fn emits_windows_x86_64_coff_with_expected_symbols() {
     assert_eq!(add_object.format(), BinaryFormat::Coff);
     assert_eq!(add_object.architecture(), Architecture::X86_64);
     assert!(has_defined_symbol(&add_object, add.function_symbol()));
+
+    let fibonacci_object =
+        object::File::parse(fibonacci.bytes()).expect("parses the fibonacci COFF object");
+    assert_eq!(fibonacci_object.format(), BinaryFormat::Coff);
+    assert_eq!(fibonacci_object.architecture(), Architecture::X86_64);
+    assert!(has_defined_symbol(
+        &fibonacci_object,
+        fibonacci.function_symbol()
+    ));
 
     let callback_object =
         object::File::parse(callback.bytes()).expect("parses the callback COFF object");

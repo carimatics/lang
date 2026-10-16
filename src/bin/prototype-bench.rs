@@ -21,10 +21,10 @@ use lang::{
     PROTOTYPE_ALLOCATE_BURST_HOST, PROTOTYPE_ALLOCATE_CHURN_HOST, PROTOTYPE_ALLOCATE_HOST,
     PROTOTYPE_ALLOCATE_VARIABLE_HOST, PROTOTYPE_ALLOCATION_BURST_LEN, PROTOTYPE_DOUBLE_HOST,
     PROTOTYPE_VARIABLE_ALLOCATION_COUNT, prototype_add_function, prototype_countdown_function,
-    prototype_host_allocation_burst_function, prototype_host_allocation_churn_function,
-    prototype_host_allocation_function, prototype_host_allocation_variable_function,
-    prototype_host_callback_function, prototype_min_function, prototype_sum_below_function,
-    prototype_sum_to_function,
+    prototype_fibonacci_function, prototype_host_allocation_burst_function,
+    prototype_host_allocation_churn_function, prototype_host_allocation_function,
+    prototype_host_allocation_variable_function, prototype_host_callback_function,
+    prototype_min_function, prototype_sum_below_function, prototype_sum_to_function,
 };
 use lang_bytecode::lower;
 use lang_codegen_clif::{CompiledFunction, emit_host_object};
@@ -317,6 +317,7 @@ struct PreparedWorkloads<'a> {
     add_program: &'a lang_bytecode::Program,
     min_program: &'a lang_bytecode::Program,
     countdown_program: &'a lang_bytecode::Program,
+    fibonacci_program: &'a lang_bytecode::Program,
     sum_to_program: &'a lang_bytecode::Program,
     sum_below_program: &'a lang_bytecode::Program,
     host_program: &'a lang_bytecode::Program,
@@ -330,6 +331,7 @@ struct PreparedWorkloads<'a> {
     compiled_add: &'a CompiledFunction,
     compiled_min: &'a CompiledFunction,
     compiled_countdown: &'a CompiledFunction,
+    compiled_fibonacci: &'a CompiledFunction,
     compiled_sum_to: &'a CompiledFunction,
     compiled_sum_below: &'a CompiledFunction,
     compiled_host: &'a CompiledFunction,
@@ -356,12 +358,14 @@ struct ArtifactSizes {
     add_code: usize,
     min_code: usize,
     countdown_code: usize,
+    fibonacci_code: usize,
     sum_to_code: usize,
     sum_below_code: usize,
     host_code: usize,
     add_object: usize,
     min_object: usize,
     countdown_object: usize,
+    fibonacci_object: usize,
     sum_to_object: usize,
     sum_below_object: usize,
     aot_executable: Option<u64>,
@@ -480,6 +484,7 @@ fn run() -> Result<(), String> {
     let add_function = prototype_add_function();
     let min_function = prototype_min_function();
     let countdown_function = prototype_countdown_function();
+    let fibonacci_function = prototype_fibonacci_function();
     let sum_to_function = prototype_sum_to_function();
     let sum_below_function = prototype_sum_below_function();
     let host_function = prototype_host_callback_function();
@@ -490,6 +495,7 @@ fn run() -> Result<(), String> {
     let add_program = lower(&add_function).map_err(|error| error.to_string())?;
     let min_program = lower(&min_function).map_err(|error| error.to_string())?;
     let countdown_program = lower(&countdown_function).map_err(|error| error.to_string())?;
+    let fibonacci_program = lower(&fibonacci_function).map_err(|error| error.to_string())?;
     let sum_to_program = lower(&sum_to_function).map_err(|error| error.to_string())?;
     let sum_below_program = lower(&sum_below_function).map_err(|error| error.to_string())?;
     let host_program = lower(&host_function).map_err(|error| error.to_string())?;
@@ -511,6 +517,8 @@ fn run() -> Result<(), String> {
         CompiledFunction::compile(&min_function).map_err(|error| error.to_string())?;
     let compiled_countdown =
         CompiledFunction::compile(&countdown_function).map_err(|error| error.to_string())?;
+    let compiled_fibonacci =
+        CompiledFunction::compile(&fibonacci_function).map_err(|error| error.to_string())?;
     let compiled_sum_to =
         CompiledFunction::compile(&sum_to_function).map_err(|error| error.to_string())?;
     let compiled_sum_below =
@@ -532,6 +540,7 @@ fn run() -> Result<(), String> {
     let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
     let aot_min = emit_host_object(&min_function).map_err(|error| error.to_string())?;
     let aot_countdown = emit_host_object(&countdown_function).map_err(|error| error.to_string())?;
+    let aot_fibonacci = emit_host_object(&fibonacci_function).map_err(|error| error.to_string())?;
     let aot_sum_to = emit_host_object(&sum_to_function).map_err(|error| error.to_string())?;
     let aot_sum_below = emit_host_object(&sum_below_function).map_err(|error| error.to_string())?;
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
@@ -539,6 +548,7 @@ fn run() -> Result<(), String> {
         aot_add.bytes(),
         aot_min.bytes(),
         aot_countdown.bytes(),
+        aot_fibonacci.bytes(),
         aot_sum_to.bytes(),
         aot_sum_below.bytes(),
     )?;
@@ -551,6 +561,7 @@ fn run() -> Result<(), String> {
         add_program: &add_program,
         min_program: &min_program,
         countdown_program: &countdown_program,
+        fibonacci_program: &fibonacci_program,
         sum_to_program: &sum_to_program,
         sum_below_program: &sum_below_program,
         host_program: &host_program,
@@ -564,6 +575,7 @@ fn run() -> Result<(), String> {
         compiled_add: &compiled_add,
         compiled_min: &compiled_min,
         compiled_countdown: &compiled_countdown,
+        compiled_fibonacci: &compiled_fibonacci,
         compiled_sum_to: &compiled_sum_to,
         compiled_sum_below: &compiled_sum_below,
         compiled_host: &compiled_host,
@@ -593,6 +605,12 @@ fn run() -> Result<(), String> {
         config.samples,
         config.lowering_iterations,
         || lower(black_box(&countdown_function)).expect("validated countdown MIR lowers"),
+    ));
+    measurements.push(measure_construction(
+        "bytecode_lower_fibonacci",
+        config.samples,
+        config.lowering_iterations,
+        || lower(black_box(&fibonacci_function)).expect("validated fibonacci MIR lowers"),
     ));
     measurements.push(measure_construction(
         "bytecode_lower_sum_to",
@@ -631,6 +649,15 @@ fn run() -> Result<(), String> {
         || {
             CompiledFunction::compile(black_box(&countdown_function))
                 .expect("validated countdown MIR compiles")
+        },
+    ));
+    measurements.push(measure_construction(
+        "jit_compile_fibonacci",
+        config.samples,
+        1,
+        || {
+            CompiledFunction::compile(black_box(&fibonacci_function))
+                .expect("validated fibonacci MIR compiles")
         },
     ));
     measurements.push(measure_construction(
@@ -679,6 +706,15 @@ fn run() -> Result<(), String> {
         },
     ));
     measurements.push(measure_construction(
+        "aot_object_emit_fibonacci",
+        config.samples,
+        1,
+        || {
+            emit_host_object(black_box(&fibonacci_function))
+                .expect("validated fibonacci MIR emits an object")
+        },
+    ));
+    measurements.push(measure_construction(
         "aot_object_emit_sum_to",
         config.samples,
         1,
@@ -700,12 +736,12 @@ fn run() -> Result<(), String> {
     {
         measurements.push(link_benchmark.measure_link(config.samples)?);
         measurements.push(link_benchmark.measure_startup(
-            "aot_process_startup_add_min_countdown_sum_to_sum_below",
+            "aot_process_startup_add_min_countdown_fibonacci_sum_to_sum_below",
             config.samples,
             1,
         )?);
         measurements.push(link_benchmark.measure_startup(
-            "aot_process_startup_batch_add_min_countdown_sum_to_sum_below",
+            "aot_process_startup_batch_add_min_countdown_fibonacci_sum_to_sum_below",
             config.samples,
             config.startup_iterations,
         )?);
@@ -817,6 +853,34 @@ fn run() -> Result<(), String> {
             compiled_countdown
                 .invoke_i64_1(alternating_countdown_input(iteration))
                 .expect("compiled countdown prototype has the expected signature")
+        },
+    ));
+    measurements.push(measure_calls(
+        "rust_fibonacci_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| rust_fibonacci(alternating_fibonacci_input(iteration)),
+    ));
+    measurements.push(measure_calls(
+        "vm_fibonacci_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            execute(
+                &fibonacci_program,
+                &[alternating_fibonacci_input(iteration)],
+            )
+            .expect("verified fibonacci bytecode executes")
+        },
+    ));
+    measurements.push(measure_calls(
+        "jit_fibonacci_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            compiled_fibonacci
+                .invoke_i64_1(alternating_fibonacci_input(iteration))
+                .expect("compiled fibonacci prototype has the expected signature")
         },
     ));
     measurements.push(measure_calls(
@@ -1273,12 +1337,14 @@ fn run() -> Result<(), String> {
                 add_code: compiled_add.code_size(),
                 min_code: compiled_min.code_size(),
                 countdown_code: compiled_countdown.code_size(),
+                fibonacci_code: compiled_fibonacci.code_size(),
                 sum_to_code: compiled_sum_to.code_size(),
                 sum_below_code: compiled_sum_below.code_size(),
                 host_code: compiled_host.code_size(),
                 add_object: aot_add.bytes().len(),
                 min_object: aot_min.bytes().len(),
                 countdown_object: aot_countdown.bytes().len(),
+                fibonacci_object: aot_fibonacci.bytes().len(),
                 sum_to_object: aot_sum_to.bytes().len(),
                 sum_below_object: aot_sum_below.bytes().len(),
                 aot_executable: aot_executable_size,
@@ -1397,12 +1463,29 @@ fn alternating_countdown_input(iteration: u64) -> i64 {
     if iteration.is_multiple_of(2) { 64 } else { -7 }
 }
 
+fn alternating_fibonacci_input(iteration: u64) -> i64 {
+    if iteration.is_multiple_of(2) { 30 } else { -7 }
+}
+
 #[inline(never)]
 extern "C" fn rust_countdown(mut value: i64) -> i64 {
     while value >= 1 {
         value -= 1;
     }
     value
+}
+
+#[inline(never)]
+extern "C" fn rust_fibonacci(mut value: i64) -> i64 {
+    let mut current = 0_i64;
+    let mut next = 1_i64;
+    while value >= 1 {
+        let following = current.wrapping_add(next);
+        current = next;
+        next = following;
+        value = value.wrapping_sub(1);
+    }
+    current
 }
 
 #[inline(never)]
@@ -1680,6 +1763,16 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
         ) {
             return Err("countdown execution modes disagreed before measurement".to_owned());
         }
+        let expected_fibonacci = rust_fibonacci(value);
+        let vm_fibonacci =
+            execute(workloads.fibonacci_program, &[value]).map_err(|error| error.to_string())?;
+        let jit_fibonacci = workloads
+            .compiled_fibonacci
+            .invoke_i64_1(value)
+            .map_err(|error| error.to_string())?;
+        if (vm_fibonacci, jit_fibonacci) != (expected_fibonacci, expected_fibonacci) {
+            return Err("fibonacci execution modes disagreed before measurement".to_owned());
+        }
         let expected_sum_to = rust_sum_to(value);
         let vm_sum_to =
             execute(workloads.sum_to_program, &[value]).map_err(|error| error.to_string())?;
@@ -1843,6 +1936,18 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
                 .invoke_i64_1(countdown_input)
                 .expect("compiled countdown prototype has the expected signature"),
         );
+        let fibonacci_input = alternating_fibonacci_input(iteration);
+        black_box(rust_fibonacci(fibonacci_input));
+        black_box(
+            execute(workloads.fibonacci_program, &[fibonacci_input])
+                .expect("verified fibonacci bytecode executes"),
+        );
+        black_box(
+            workloads
+                .compiled_fibonacci
+                .invoke_i64_1(fibonacci_input)
+                .expect("compiled fibonacci prototype has the expected signature"),
+        );
         black_box(rust_sum_to(countdown_input));
         black_box(
             execute(workloads.sum_to_program, &[countdown_input])
@@ -1951,6 +2056,7 @@ const LINK_HARNESS: &str = r#"
 
 extern int64_t prototype_add(int64_t left, int64_t right);
 extern int64_t prototype_countdown(int64_t value);
+extern int64_t prototype_fibonacci(int64_t value);
 extern int64_t prototype_min(int64_t left, int64_t right);
 extern int64_t prototype_sum_below(int64_t value, int64_t cutoff);
 extern int64_t prototype_sum_to(int64_t value);
@@ -1959,6 +2065,8 @@ int main(void) {
     return prototype_add(20, 22) == 42 &&
         prototype_countdown(64) == 0 &&
         prototype_countdown(-7) == -7 &&
+        prototype_fibonacci(20) == 6765 &&
+        prototype_fibonacci(-7) == 0 &&
         prototype_min(-7, 4) == -7 &&
         prototype_sum_below(64, 33) == 528 &&
         prototype_sum_below(-7, 33) == 0 &&
@@ -2007,6 +2115,7 @@ struct LinkBenchmark {
     add_object: PathBuf,
     min_object: PathBuf,
     countdown_object: PathBuf,
+    fibonacci_object: PathBuf,
     sum_to_object: PathBuf,
     sum_below_object: PathBuf,
     executable: PathBuf,
@@ -2018,6 +2127,7 @@ impl LinkBenchmark {
         add_object_bytes: &[u8],
         min_object_bytes: &[u8],
         countdown_object_bytes: &[u8],
+        fibonacci_object_bytes: &[u8],
         sum_to_object_bytes: &[u8],
         sum_below_object_bytes: &[u8],
     ) -> Result<Self, String> {
@@ -2029,6 +2139,7 @@ impl LinkBenchmark {
             add_object,
             min_object,
             countdown_object,
+            fibonacci_object,
             sum_to_object,
             sum_below_object,
             executable,
@@ -2037,6 +2148,7 @@ impl LinkBenchmark {
             directory.path().join("prototype_add.o"),
             directory.path().join("prototype_min.o"),
             directory.path().join("prototype_countdown.o"),
+            directory.path().join("prototype_fibonacci.o"),
             directory.path().join("prototype_sum_to.o"),
             directory.path().join("prototype_sum_below.o"),
             directory.path().join("prototype-aot"),
@@ -2047,6 +2159,7 @@ impl LinkBenchmark {
             add_object,
             min_object,
             countdown_object,
+            fibonacci_object,
             sum_to_object,
             sum_below_object,
             executable,
@@ -2055,6 +2168,7 @@ impl LinkBenchmark {
             directory.path().join("prototype_add.obj"),
             directory.path().join("prototype_min.obj"),
             directory.path().join("prototype_countdown.obj"),
+            directory.path().join("prototype_fibonacci.obj"),
             directory.path().join("prototype_sum_to.obj"),
             directory.path().join("prototype_sum_below.obj"),
             directory.path().join("prototype-aot.exe"),
@@ -2063,6 +2177,7 @@ impl LinkBenchmark {
         fs::write(&add_object, add_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&min_object, min_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&countdown_object, countdown_object_bytes).map_err(|error| error.to_string())?;
+        fs::write(&fibonacci_object, fibonacci_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&sum_to_object, sum_to_object_bytes).map_err(|error| error.to_string())?;
         fs::write(&sum_below_object, sum_below_object_bytes).map_err(|error| error.to_string())?;
 
@@ -2082,6 +2197,7 @@ impl LinkBenchmark {
             add_object,
             min_object,
             countdown_object,
+            fibonacci_object,
             sum_to_object,
             sum_below_object,
             executable,
@@ -2108,7 +2224,7 @@ impl LinkBenchmark {
             samples.push(started.elapsed().as_secs_f64() * 1_000_000_000.0);
         }
         Ok(Measurement::from_samples(
-            "system_link_add_min_countdown_sum_to_sum_below",
+            "system_link_add_min_countdown_fibonacci_sum_to_sum_below",
             1,
             samples,
         ))
@@ -2145,7 +2261,7 @@ impl LinkBenchmark {
         sample_count: usize,
     ) -> Result<ProcessMemoryMeasurement, String> {
         measure_peak_resident_memory(
-            "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
+            "aot_process_peak_resident_memory_add_min_countdown_fibonacci_sum_to_sum_below",
             &self.executable,
             &[],
             sample_count,
@@ -2158,6 +2274,7 @@ impl LinkBenchmark {
             .with_object(&self.add_object)
             .with_object(&self.min_object)
             .with_object(&self.countdown_object)
+            .with_object(&self.fibonacci_object)
             .with_object(&self.sum_to_object)
             .with_object(&self.sum_below_object);
         self.linker
@@ -2379,7 +2496,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 17,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 18,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -2408,6 +2525,8 @@ fn render_json(
     writeln!(output, "    \"jit_min\": {},", sizes.min_code).expect("writing to String succeeds");
     writeln!(output, "    \"jit_countdown\": {},", sizes.countdown_code)
         .expect("writing to String succeeds");
+    writeln!(output, "    \"jit_fibonacci\": {},", sizes.fibonacci_code)
+        .expect("writing to String succeeds");
     writeln!(output, "    \"jit_sum_to\": {},", sizes.sum_to_code)
         .expect("writing to String succeeds");
     writeln!(output, "    \"jit_sum_below\": {},", sizes.sum_below_code)
@@ -2420,6 +2539,8 @@ fn render_json(
     writeln!(output, "    \"aot_min\": {},", sizes.min_object).expect("writing to String succeeds");
     writeln!(output, "    \"aot_countdown\": {},", sizes.countdown_object)
         .expect("writing to String succeeds");
+    writeln!(output, "    \"aot_fibonacci\": {},", sizes.fibonacci_object)
+        .expect("writing to String succeeds");
     writeln!(output, "    \"aot_sum_to\": {},", sizes.sum_to_object)
         .expect("writing to String succeeds");
     writeln!(output, "    \"aot_sum_below\": {}", sizes.sum_below_object)
@@ -2429,12 +2550,12 @@ fn render_json(
     match sizes.aot_executable {
         Some(size) => writeln!(
             output,
-            "    \"aot_add_min_countdown_sum_to_sum_below\": {size}"
+            "    \"aot_add_min_countdown_fibonacci_sum_to_sum_below\": {size}"
         )
         .expect("writing to String succeeds"),
         None => writeln!(
             output,
-            "    \"aot_add_min_countdown_sum_to_sum_below\": null"
+            "    \"aot_add_min_countdown_fibonacci_sum_to_sum_below\": null"
         )
         .expect("writing to String succeeds"),
     }
@@ -2821,9 +2942,9 @@ mod tests {
     use super::{
         ArtifactSizes, ComponentBoundaryMeasurement, Config, HeapMeasurement, Measurement,
         MemoryMeasurements, ProcessMemoryMeasurement, RepresentativeAllocationMeasurement,
-        alternating_countdown_input, alternating_sum_below_inputs, escape_json, heap_measurements,
-        render_json, representative_allocation_workload, rust_countdown, rust_sum_below,
-        rust_sum_to,
+        alternating_countdown_input, alternating_fibonacci_input, alternating_sum_below_inputs,
+        escape_json, heap_measurements, render_json, representative_allocation_workload,
+        rust_countdown, rust_fibonacci, rust_sum_below, rust_sum_to,
     };
 
     fn representative_allocation_measurement() -> RepresentativeAllocationMeasurement {
@@ -2899,6 +3020,10 @@ mod tests {
         assert_eq!(alternating_countdown_input(1), -7);
         assert_eq!(rust_countdown(64), 0);
         assert_eq!(rust_countdown(-7), -7);
+        assert_eq!(alternating_fibonacci_input(0), 30);
+        assert_eq!(alternating_fibonacci_input(1), -7);
+        assert_eq!(rust_fibonacci(30), 832_040);
+        assert_eq!(rust_fibonacci(-7), 0);
         assert_eq!(rust_sum_to(64), 2_080);
         assert_eq!(rust_sum_to(-7), 0);
         assert_eq!(alternating_sum_below_inputs(0), (64, 33));
@@ -2943,8 +3068,11 @@ mod tests {
     }
 
     #[test]
-    fn schema_seventeen_retains_existing_measurements_and_separates_component_series() {
+    fn schema_eighteen_retains_existing_measurements_and_separates_component_series() {
         let measurements = [
+            Measurement::from_samples("rust_fibonacci_call", 1, vec![1.0, 2.0, 3.0]),
+            Measurement::from_samples("vm_fibonacci_call", 1, vec![1.0, 2.0, 3.0]),
+            Measurement::from_samples("jit_fibonacci_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_countdown_interruptible_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_countdown_deadline_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("rust_host_allocation_burst_call", 1, vec![1.0, 2.0, 3.0]),
@@ -2959,7 +3087,7 @@ mod tests {
         ];
         let process_memory_measurements = [
             ProcessMemoryMeasurement::from_samples(
-                "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
+                "aot_process_peak_resident_memory_add_min_countdown_fibonacci_sum_to_sum_below",
                 vec![1_048_576, 1_114_112, 1_179_648],
             ),
             ProcessMemoryMeasurement::from_samples(
@@ -3017,15 +3145,17 @@ mod tests {
                 add_code: 1,
                 min_code: 2,
                 countdown_code: 3,
-                sum_to_code: 4,
-                sum_below_code: 5,
-                host_code: 6,
-                add_object: 7,
-                min_object: 8,
-                countdown_object: 9,
-                sum_to_object: 10,
-                sum_below_object: 11,
-                aot_executable: Some(12),
+                fibonacci_code: 4,
+                sum_to_code: 5,
+                sum_below_code: 6,
+                host_code: 7,
+                add_object: 8,
+                min_object: 9,
+                countdown_object: 10,
+                fibonacci_object: 11,
+                sum_to_object: 12,
+                sum_below_object: 13,
+                aot_executable: Some(14),
             },
             MemoryMeasurements {
                 heap: &heap_measurements(),
@@ -3036,7 +3166,7 @@ mod tests {
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 17"));
+        assert!(output.contains("\"schema_version\": 18"));
         assert!(output.contains("\"representative_allocation_workload\": {"));
         assert!(output.contains("\"name\": \"compiler_like_mixed_lifetime_allocation\""));
         assert!(output.contains("\"allocation_count\": 23894"));
@@ -3082,13 +3212,16 @@ mod tests {
         assert!(output.contains("\"live_bytes_after\": 0"));
         assert!(output.contains("\"process_memory_metric\":"));
         assert!(output.contains(
-            "\"name\": \"aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below\""
+            "\"name\": \"aot_process_peak_resident_memory_add_min_countdown_fibonacci_sum_to_sum_below\""
         ));
         assert!(output.contains("\"unit\": \"bytes/process\""));
         assert!(output.contains("\"sample_count\": 3"));
         assert!(output.contains("\"median\": 1114112"));
         assert!(output.contains("\"name\": \"vm_countdown_interruptible_call\""));
         assert!(output.contains("\"name\": \"vm_countdown_deadline_call\""));
+        assert!(output.contains("\"name\": \"rust_fibonacci_call\""));
+        assert!(output.contains("\"name\": \"vm_fibonacci_call\""));
+        assert!(output.contains("\"name\": \"jit_fibonacci_call\""));
         assert!(output.contains("\"name\": \"rust_host_allocation_burst_call\""));
         assert!(output.contains("\"name\": \"vm_host_allocation_burst_call\""));
         assert!(output.contains("\"name\": \"jit_host_allocation_burst_call\""));
@@ -3100,16 +3233,18 @@ mod tests {
         assert!(output.contains("\"name\": \"jit_host_allocation_variable_call\""));
         assert!(output.contains("\"startup_iterations\": 2"));
         assert!(output.contains("\"jit_countdown\": 3"));
-        assert!(output.contains("\"jit_sum_to\": 4"));
-        assert!(output.contains("\"jit_sum_below\": 5"));
-        assert!(output.contains("\"aot_countdown\": 9"));
-        assert!(output.contains("\"aot_sum_to\": 10"));
-        assert!(output.contains("\"aot_sum_below\": 11"));
-        assert!(output.contains("\"aot_add_min_countdown_sum_to_sum_below\": 12"));
+        assert!(output.contains("\"jit_fibonacci\": 4"));
+        assert!(output.contains("\"jit_sum_to\": 5"));
+        assert!(output.contains("\"jit_sum_below\": 6"));
+        assert!(output.contains("\"aot_countdown\": 10"));
+        assert!(output.contains("\"aot_fibonacci\": 11"));
+        assert!(output.contains("\"aot_sum_to\": 12"));
+        assert!(output.contains("\"aot_sum_below\": 13"));
+        assert!(output.contains("\"aot_add_min_countdown_fibonacci_sum_to_sum_below\": 14"));
     }
 
     #[test]
-    fn schema_seventeen_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_eighteen_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -3122,14 +3257,16 @@ mod tests {
                 add_code: 1,
                 min_code: 2,
                 countdown_code: 3,
-                sum_to_code: 4,
-                sum_below_code: 5,
-                host_code: 6,
-                add_object: 7,
-                min_object: 8,
-                countdown_object: 9,
-                sum_to_object: 10,
-                sum_below_object: 11,
+                fibonacci_code: 4,
+                sum_to_code: 5,
+                sum_below_code: 6,
+                host_code: 7,
+                add_object: 8,
+                min_object: 9,
+                countdown_object: 10,
+                fibonacci_object: 11,
+                sum_to_object: 12,
+                sum_below_object: 13,
                 aot_executable: None,
             },
             MemoryMeasurements {
@@ -3147,7 +3284,7 @@ mod tests {
             &[],
         );
 
-        assert!(output.contains("\"aot_add_min_countdown_sum_to_sum_below\": null"));
+        assert!(output.contains("\"aot_add_min_countdown_fibonacci_sum_to_sum_below\": null"));
         assert!(output.contains("\"control_median_peak_resident_bytes\": null"));
         assert!(output.contains("\"workload_median_peak_resident_bytes\": null"));
     }
