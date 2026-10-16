@@ -10,6 +10,7 @@ members = [
     "crates/query",
     "crates/runtime",
     "crates/semantics",
+    "crates/syntax",
     "crates/vm",
 ]
 exclude = ["fuzz"]
@@ -36,6 +37,7 @@ lang-mir = { path = "crates/mir" }
 lang-query = { path = "crates/query" }
 lang-runtime = { path = "crates/runtime" }
 lang-semantics = { path = "crates/semantics" }
+lang-syntax = { path = "crates/syntax" }
 lang-vm = { path = "crates/vm" }
 object = { version = "0.40.0", default-features = false, features = ["coff", "macho", "read_core", "std", "write"] }
 target-lexicon = "0.13.5"

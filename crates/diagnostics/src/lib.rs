@@ -209,6 +209,18 @@ pub mod codes {
     pub const EXPECTED_I64: DiagnosticCode = DiagnosticCode("SRC0005");
     pub const EXPECTED_BOOL: DiagnosticCode = DiagnosticCode("SRC0006");
     pub const MISSING_RETURN: DiagnosticCode = DiagnosticCode("SRC0007");
+    pub const INVALID_TOKEN: DiagnosticCode = DiagnosticCode("SRC0008");
+    pub const UNTERMINATED_COMMENT: DiagnosticCode = DiagnosticCode("SRC0009");
+    pub const INVALID_ENCODING: DiagnosticCode = DiagnosticCode("SRC0010");
+    pub const RESOURCE_LIMIT: DiagnosticCode = DiagnosticCode("SRC0011");
+    pub const EXPECTED_SYNTAX: DiagnosticCode = DiagnosticCode("SRC0012");
+    pub const MODULE_ERROR: DiagnosticCode = DiagnosticCode("SRC0013");
+    pub const TYPE_MISMATCH: DiagnosticCode = DiagnosticCode("SRC0014");
+    pub const INVALID_SHAPE: DiagnosticCode = DiagnosticCode("SRC0015");
+    pub const NON_EXHAUSTIVE_MATCH: DiagnosticCode = DiagnosticCode("SRC0016");
+    pub const UNREACHABLE_ARM: DiagnosticCode = DiagnosticCode("SRC0017");
+    pub const INVALID_ENTRY: DiagnosticCode = DiagnosticCode("SRC0018");
+    pub const UNREACHABLE_STATEMENT: DiagnosticCode = DiagnosticCode("SRC0019");
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -384,6 +384,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lang-syntax"
+version = "0.1.0"
+dependencies = [
+ "lang-diagnostics",
+]
+
+[[package]]
 name = "lang-vm"
 version = "0.1.0"
 dependencies = [
