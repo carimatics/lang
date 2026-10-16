@@ -14,11 +14,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Component workstreamのfollow-up監査では、in-memory compatibility negotiation、scalar execution-prototype integration、backend-neutral resource-adapter behavior、boundary-cost measurementを分離しました。従来の単一cross-mode scalar／resource taskはこれらのacceptance boundaryを混在させ、Milestone 3のproduction IDL／adapter implementationとも重複していました。Schema 18後の監査では、native debug-metadata実装とcross-platform debug-quality validationがbackend選定のprerequisiteとして本文にだけ記載されていることを発見したため、backend選定前の5 pt／3 pt taskとして明示しました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
-このrepository stateに対して2026-10-16 19:44 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 20:19 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 142 pt | 167 pt | **85.0%** |
+| 0 — design baseline（現在） | 145 pt | 167 pt | **86.8%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **142 pt** | **649 pt** | **21.9%** |
+| **全体** | **145 pt** | **649 pt** | **22.3%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：142 / 167 pt（85.0%）。**
+**進捗：145 / 167 pt（86.8%）。**
 
 ### Workstream別内訳
 
@@ -42,14 +42,14 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
 | Component／resource contract | 42 pt | 45 pt | 93.3% |
-| Platform／backend evidence | 45 pt | 59 pt | 76.3% |
+| Platform／backend evidence | 48 pt | 59 pt | 81.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **142 pt** | **167 pt** | **85.0%** |
+| **Milestone 0** | **145 pt** | **167 pt** | **86.8%** |
 
 このsnapshot時点の実行状態：
 
 - **Unblocked local P0：** なし。Milestone 0の残taskはすべてrepository-owner decisionまたはremote Windows evidenceを必要とする。
-- **外部gate：** RFC 0002〜RFC 0005のrepository-owner decisionと、remote Windows CI／benchmark／CodeView／PDB evidence。
+- **外部gate：** RFC 0002〜RFC 0005のrepository-owner decisionと、remote Windows CI／benchmark evidence。
 - **依存gate：** Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
 ### 優先度順のタスク
@@ -94,7 +94,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Allocator overhead／fragmentationを含む代表的なallocation workloadを計測する。** — 5 pt
 - [x] **P0 — Cross-mode benchmark setへ代表的なCFG workloadをもう1つ追加する。** — 3 pt
 - [x] **P0 — 代表的なAOT object／link済みartifactにsource span駆動のnative debug metadataを実装し、macOS AArch64で検証する。** — 5 pt
-- [ ] **P0 — 同じ代表artifactについて、同等のWindows x86-64 CodeView／PDB／source-mapping evidenceを記録する。** — 3 pt
+- [x] **P0 — 同じ代表artifactについて、同等のWindows x86-64 CodeView／PDB／source-mapping evidenceを記録する。** — 3 pt
 - [ ] **P0 — 完成したcross-platform performance、debug-quality、integration evidenceから初期native backendを選択し、decisionを記録する。** — 3 pt
 - [ ] **P0 — Component、resource-control、backend-evidence prerequisiteの完了後にRFC 0001を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 2 pt
 
@@ -118,7 +118,7 @@ Component runtimeは、stale copyを決してaliasしない非ゼロかつ単調
 
 Cleanなschema-18 macOS AArch64 [CFG／allocation baseline](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)は、56個の一意なtiming row、4個の正確なcallback profile、8個のcomponent-boundary row、3個のprocess-memory distributionを記録します。Iterative Fibonacciはcountdownと2個のwrapping sequence valueを型付きblock argumentで運び、direct Rust／VM／JIT medianは6.510 ns／1.231 us／7.463 ns、JIT codeは48 byte、AOT objectは400 byteです。維持されたallocation traceは18,102,042 peak live requested byte、21,020,672 byteのmedian resident delta、2,918,630 byteのallocator-overhead／fragmentation合算推定値を記録します。これらはperformance／memory budgetではなくplatform固有の方向的resultです。Remote Windows executionは未完了です。
 
-現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentはcountdownで1 value、bounded sumで2 value、iterative Fibonacciで3 valueを運び、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、Fibonacci、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 18 benchmark baseline](benchmarks.md)は、56個のgeneral timing row、4個の正確なcallback heap profile、3個の別process memory distribution、code／object／executable size、startup／link row、個別にlabel付けした4個のcomponent-boundary cost seriesを記録します。Remote Windows evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semantics、提案済みsource-level control-flow semanticsのacceptance／implementation、native debug-metadata implementation、cross-platform debug-quality validation、backend決定は未完了です。
+現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentはcountdownで1 value、bounded sumで2 value、iterative Fibonacciで3 valueを運び、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、Fibonacci、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 18 benchmark baseline](benchmarks.md)は、56個のgeneral timing row、4個の正確なcallback heap profile、3個の別process memory distribution、code／object／executable size、startup／link row、個別にlabel付けした4個のcomponent-boundary cost seriesを記録します。Remote Windows execution／benchmark evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。Source-mapped DWARF／dSYMとCodeView／PDB evidenceは、代表的な両tier-1 artifactをcoverするようになりました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semantics、提案済みsource-level control-flow semanticsのacceptance／implementation、source-language local、unwind metadata、optimized stepping、JIT debugger registration、backend決定は未完了です。
 
 CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequenceが変わらないことを確認しました。`SystemLinker` は `Cc` と `MsvcLink` のcommand flavorをmodel化して対応するhost defaultを選択し、ordered prefix argument付きの明示driverをsupportし、完全なcommandを公開してstructured execution failureへ保持します。Ordered library search pathとlogical library nameをflavor固有argumentへloweringし、validationが空のobject path、search path、nameを拒否します。明示的なresponse-file linkは、`Cc` にGNU-escaped UTF-8、`MsvcLink` にWindows-escaped BOM-prefixed UTF-16LEを使用します。Focused testがserializationとvalidationを検証し、macOS AArch64 integrationがdirect linkとresponse-file linkの両方を実行します。Toolchain discoveryとより広いtarget policyは未完了です。Target指定object emissionは明示的なtripleからISAを構築し、host非依存testが `x86_64-pc-windows-msvc` COFF outputのformat、architecture、export、importを検証します。cfg-gated MSVC direct／response-file object-link-execute testと完全SHAでpinしたWindows Server 2025 workflowを構成しましたが、このcommitにはWindows runnerの結果が記録されていないため、Windowsでのlinkとexecution evidenceは未完了です。
 
@@ -168,7 +168,7 @@ Schema 17 harnessはcompiler-likeなmixed-lifetime allocation traceと、正確�
 
 Schema 18 harnessはschema 17の全fieldを維持し、iterative Fibonacciのlowering、JIT compilation、AOT emission、direct／VM／JIT runtime、artifact-size evidenceを追加します。Workloadは既存MIR operationを使い、3個のloop-carried valueをback-edgeで入れ替えます。CleanなmacOS AArch64 resultは56個すべての一意なtiming row、Fibonacci medianのdirect 6.510 ns／VM 1.231 us／JIT 7.463 ns、48-byte JIT body、400-byte object、17,168-byte link済みharnessを記録します。VM／JIT差分test、macOS direct／response-file execution、host非依存Windows COFF validation、cfg-gated MSVC path、schema 18 Windows CIがcontractを維持します。Source semanticsをacceptせずに、計画した追加CFG evidenceを完了します。Remote Windows executionは未完了です。
 
-実装前のcleanなmacOS AArch64 [AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)は、元のnegative baselineを確立しました。Commit済みの[source-mapped DWARF inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md)は、commit `31e182ac27e324048597a5ebd0fda4d2d4934395` から代表的なadd、minimum、host-callback objectを再生成します。構造を検証したsource-file、function-span、instructionごとのspan、terminator-span dataがbackend-neutralなJIT／AOT machine-code rangeとrelocation付きDWARF v4 compile-unit、subprogram、line-table dataまで到達します。3 objectすべてが `dwarfdump --verify` をpassし、direct／response-file executableがlink／実行され、生成した両dSYMもfixture pathと3 functionを保持したままverificationをpassします。これによりmacOS source-mapping taskは完了しました。Unwind metadata、Windows CodeView／PDB、JIT debugger registration、optimized stepping、source-language integrationは個別の作業です。
+実装前のcleanなmacOS AArch64 [AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)は、元のnegative baselineを確立しました。Commit済みの[source-mapped DWARF inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md)は、commit `31e182ac27e324048597a5ebd0fda4d2d4934395` から代表的なadd、minimum、host-callback objectを再生成します。構造を検証したsource-file、function-span、instructionごとのspan、terminator-span dataがbackend-neutralなJIT／AOT machine-code rangeとrelocation付きDWARF v4 compile-unit、subprogram、line-table dataまで到達します。3 objectすべてが `dwarfdump --verify` をpassし、direct／response-file executableがlink／実行され、生成した両dSYMもfixture pathと3 functionを保持したままverificationをpassします。Commit済みの[Windows x86-64 CodeView／PDB inspection](../../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md)は、commit `465b0d66ba6ea61a0d4b26201e6ab043f2f15f9d` から同じ代表COFF objectをemitし、C13 symbol、type、line、relocationをvalidateし、LLDでcross-target linkしてPE／PDB identityを検証し、LLDBで3 functionすべてをfixtureへ解決します。これらのcaptureにより、計画済みの2つのsource-mapping taskは完了しました。Native Windows runtime／CI／benchmark evidence、source-language local、unwind metadata、JIT debugger registration、optimized steppingは個別の作業です。
 
 Exit：上記の全P0 taskがcheck済みであり、source semantics、component contract、ownership／cyclic-graph policy、async-cancellation／shared-service policyにevidence-backedなRFC dispositionがあり、macOS／Windows evidenceが記録済みの初期backend選定を支持し、RFC 0001がその結果となるarchitecture baselineを記録している。
 
