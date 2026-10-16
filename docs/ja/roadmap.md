@@ -12,13 +12,13 @@
 
 Costは経過時間の約束ではなく相対的なeffort pointです。`1`はごく小さい変更、`2`は小、`3`は中、`5`は大、`8`は非常に大です。未完了taskはそれぞれ独立して検証可能な1つの成果を持ち、それより大きなprogramはdependencyまたはacceptance boundaryで分割します。進捗は `完了point / 全point × 100` を小数第1位へ丸めて算出します。長期見積りはplanning valueであり、そのmilestoneがcurrentになったとき、またはscopeやevidenceが変わったときに再見積りします。
 
-2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
+2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Component workstreamのfollow-up監査では、in-memory compatibility negotiation、scalar execution-prototype integration、backend-neutral resource-adapter behavior、boundary-cost measurementを分離しました。従来の単一cross-mode scalar／resource taskはこれらのacceptance boundaryを混在させ、Milestone 3のproduction IDL／adapter implementationとも重複していました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
-このrepository stateに対して2026-10-16 16:15 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 16:20 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 96 pt | 149 pt | **64.4%** |
+| 0 — design baseline（現在） | 96 pt | 159 pt | **60.4%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **96 pt** | **631 pt** | **15.2%** |
+| **全体** | **96 pt** | **641 pt** | **15.0%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：96 / 149 pt（64.4%）。**
+**進捗：96 / 159 pt（60.4%）。**
 
 ### Workstream別内訳
 
@@ -41,14 +41,14 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 16 pt | 30 pt | 53.3% |
-| Component／resource contract | 24 pt | 35 pt | 68.6% |
+| Component／resource contract | 24 pt | 45 pt | 53.3% |
 | Platform／backend evidence | 27 pt | 51 pt | 52.9% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **96 pt** | **149 pt** | **64.4%** |
+| **Milestone 0** | **96 pt** | **159 pt** | **60.4%** |
 
 このsnapshot時点の実行状態：
 
-- **次のunblocked local P0：** 1つのscalar import／exportとresource lifecycleをVM／JIT／AOT differential conformanceへ通す。
+- **次のunblocked local P0：** In-memory candidate setとexact lock inputに対するdeterministicなpackage／interface negotiationをprototypeする。
 - **外部gate：** RFC 0002のrepository-owner decisionと、remote Windows CI／benchmark evidence。
 - **最終gate：** Component、resource-control、backend-evidence prerequisiteの完了後にのみRFC 0001をdecisionする。
 
@@ -81,8 +81,10 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — RFC 0003でcanonical scalar／resource representationとownership transferを規定する。** — 5 pt
 - [x] **P0 — RFC 0003でcomponent boundaryのpanic／destructor failure behaviorを規定する。** — 3 pt
 - [x] **P0 — RFC 0003でpackage／interface version compatibility negotiationを規定する。** — 3 pt
-- [ ] **P0 — 1つのscalar import／exportとresource lifecycleをVM／JIT／AOT differential conformanceに通す。** — 5 pt
-- [ ] **P0 — Component boundary costを計測し、解釈をRFC 0003へ記録する。** — 3 pt
+- [ ] **P0 — In-memory candidate setとexact lock inputに対するdeterministicなpackage／interface negotiationをprototypeする。** — 5 pt
+- [ ] **P0 — 1つのvalidated schema-1 scalar import／exportをVM／JIT／AOT prototypeへ接続し、同等のoutcomeを記録する。** — 3 pt
+- [ ] **P0 — Canonical resourceのpreflight／commit、borrow scoping、cleanup ledger、instance poisoningをbackend-neutralなadapter traceでprototypeする。** — 5 pt
+- [ ] **P0 — Metadata validation／negotiation、scalar dispatch、resource lifecycleのcostを別々のbenchmark seriesとして計測し、その解釈をRFC 0003へ記録する。** — 5 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
 - [ ] **P0 — 完了済みexperimentからdecision-readyなownership／cyclic-graph RFCを草案化する。** — 5 pt
 - [ ] **P0 — 完了済みexperimentからdecision-readyなasync-cancellation／shared-service concurrency RFCを草案化する。** — 5 pt
