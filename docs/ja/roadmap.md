@@ -8,13 +8,13 @@
 
 ## タスク管理
 
-各milestone内のtaskは優先度順に並べます。`P0` taskはそのmilestoneのexitをblockし、`P1` taskは必要なfollow-upですがP0 blockerより優先しません。Check済みtaskは完了です。前のmilestoneで完了したprototype groundworkだけでは、後続milestoneのより広いtaskを完了扱いにしません。
+各milestone内のtaskはdependencyを考慮した優先度順に並べます。すべての `P0` taskがcheck済みで、exit evidenceが記録されるまでmilestoneはexitできません。未完了の `P1` taskはexit前に移動先とcostを明示的に再設定し、暗黙に消してはいけません。Check済みtaskは完了です。前のmilestoneで完了したprototype groundworkだけでは、後続milestoneのより広いtaskを完了扱いにしません。
 
 Costは経過時間の約束ではなく相対的なeffort pointです。`1`はごく小さい変更、`2`は小、`3`は中、`5`は大、`8`は非常に大です。未完了taskはそれぞれ独立して検証可能な1つの成果を持ち、それより大きなprogramはdependencyまたはacceptance boundaryで分割します。進捗は `完了point / 全point × 100` を小数第1位へ丸めて算出します。長期見積りはplanning valueであり、そのmilestoneがcurrentになったとき、またはscopeやevidenceが変わったときに再見積りします。
 
-2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
+2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
-このrepository stateに対して2026-10-16 15:41 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 15:47 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
@@ -31,6 +31,26 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 ## Milestone 0：設計baseline
 
 **進捗：85 / 149 pt（57.0%）。**
+
+### Workstream別内訳
+
+この表はMilestone 0の全checklist itemをそれぞれ1回だけ集計したreporting viewであり、scopeを追加するものではありません。
+
+| Workstream | 完了 | 総計 | 進捗 |
+| --- | ---: | ---: | ---: |
+| Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
+| Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
+| Resource control、ownership、concurrency | 16 pt | 30 pt | 53.3% |
+| Component／resource contract | 13 pt | 35 pt | 37.1% |
+| Platform／backend evidence | 27 pt | 51 pt | 52.9% |
+| Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
+| **Milestone 0** | **85 pt** | **149 pt** | **57.0%** |
+
+このsnapshot時点の実行状態：
+
+- **Localで作業中：** RFC 0003でcanonical scalar／resource representationとownership transferを規定する。
+- **外部gate：** RFC 0002のrepository-owner decisionと、remote Windows CI／benchmark evidence。
+- **最終gate：** Component、resource-control、backend-evidence prerequisiteの完了後にのみRFC 0001をdecisionする。
 
 ### 優先度順のタスク
 
@@ -130,7 +150,7 @@ Schema 14 harnessはschema 13の全fieldを維持し、allocation-churn callback
 
 CleanなmacOS AArch64の[AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)では、commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d` からadd、minimum、host-callback objectを再生成しました。Linker-visible symbolは残りますが、3 objectすべてに `__debug_*` section、DWARF compile unit、line entry、source variable、parameter、localはありません。これはcriterionを完了するものではなく、負のdebug-quality evidenceを提供します。Source-span mapping、link済み／dSYM output、unwind metadata、Windows CodeView／PDB、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。
 
-Exit：prototype subsetの意味論が文書化され、初期backend選定を支持するbenchmark evidenceがある。
+Exit：上記の全P0 taskがcheck済みであり、source semantics、component contract、ownership／cyclic-graph policy、async-cancellation／shared-service policyにevidence-backedなRFC dispositionがあり、macOS／Windows evidenceが記録済みの初期backend選定を支持し、RFC 0001がその結果となるarchitecture baselineを記録している。
 
 ## Milestone 1：frontendとbytecodeのvertical slice
 

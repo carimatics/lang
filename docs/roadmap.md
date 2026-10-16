@@ -8,13 +8,13 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Task tracking
 
-Tasks are listed in priority order within each milestone. `P0` tasks block that milestone's exit; `P1` tasks are required follow-ups that should not displace a P0 blocker. A checked task is complete; prototype groundwork completed in an earlier milestone does not complete a broader task in a later milestone.
+Tasks are listed in dependency-aware priority order within each milestone. A milestone can exit only when every `P0` task is checked and its exit evidence is recorded. Any unfinished `P1` task must be explicitly moved and re-estimated before exit; it cannot silently disappear. A checked task is complete; prototype groundwork completed in an earlier milestone does not complete a broader task in a later milestone.
 
 Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, and `8` is very large. Each unchecked task has one independently verifiable outcome; larger programs are split at dependency or acceptance boundaries. Progress is `completed points / total points × 100`, rounded to one decimal place. Long-horizon estimates are planning values and must be re-estimated when their milestone becomes current or when scope or evidence changes.
 
-The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites; when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
+The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites. The checklist records dependency order, not a claim that an external gate is locally executable: when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
-Progress snapshot verified against this repository state on 2026-10-16 15:41 JST:
+Progress snapshot verified against this repository state on 2026-10-16 15:47 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
@@ -31,6 +31,26 @@ Progress snapshot verified against this repository state on 2026-10-16 15:41 JST
 ## Milestone 0: design baseline
 
 **Progress: 85 / 149 pt (57.0%).**
+
+### Workstream breakdown
+
+This table aggregates every Milestone 0 checklist item exactly once; it is a reporting view and does not add scope.
+
+| Workstream | Completed | Total | Progress |
+| --- | ---: | ---: | ---: |
+| Project framing and source semantics | 8 pt | 10 pt | 80.0% |
+| Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
+| Resource control, ownership, and concurrency | 16 pt | 30 pt | 53.3% |
+| Component and resource contracts | 13 pt | 35 pt | 37.1% |
+| Platform and backend evidence | 27 pt | 51 pt | 52.9% |
+| Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
+| **Milestone 0** | **85 pt** | **149 pt** | **57.0%** |
+
+Current execution state at this snapshot:
+
+- **In progress locally:** specify canonical scalar/resource representation and ownership transfer in RFC 0003.
+- **External gates:** the RFC 0002 repository-owner decision and remote Windows CI/benchmark evidence.
+- **Final gate:** decide RFC 0001 only after the component, resource-control, and backend-evidence prerequisites are complete.
 
 ### Tasks in priority order
 
@@ -130,7 +150,7 @@ An unbenchmarked variable-size allocation callback now holds 16 boxed `i64` slic
 
 A clean macOS AArch64 [AOT debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) regenerates add, minimum, and host-callback objects from commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d`. Linker-visible symbols remain, but all three objects have no `__debug_*` section, DWARF compile unit, line entry, source variable, parameter, or local. This supplies negative debug-quality evidence rather than completing the criterion: source-span mapping, linked/dSYM output, unwind metadata, Windows CodeView/PDB, JIT debugger registration, optimized stepping, and representative source-program validation remain open.
 
-Exit: written semantics for the prototype subset and benchmark evidence for the initial backend choice.
+Exit: every P0 task above is checked; source semantics, component contracts, ownership/cyclic-graph policy, and async-cancellation/shared-service policy have evidence-backed RFC dispositions; macOS and Windows evidence supports a recorded initial backend choice; and RFC 0001 records the resulting architecture baseline.
 
 ## Milestone 1: frontend and bytecode vertical slice
 
