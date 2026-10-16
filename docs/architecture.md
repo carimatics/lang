@@ -194,6 +194,8 @@ A second typed `i64` callback now exercises one host-owned allocation round trip
 
 Benchmark schema 9 adds `vm_countdown_interruptible_call`, which runs the same verified countdown program and input sequence as `vm_countdown_call` with an unset shared interruption flag. Comparing the two rows isolates the incremental acquire-load cost of enabling VM safe-point checks when no request occurs; it does not measure interruption latency or native/JIT enforcement. The clean macOS AArch64 result records 1.588 us for the ordinary VM countdown and 1.592 us with the flag, a 3.409 ns or 0.215% median increase with less than 0.4% RSD in both rows. That result predates the deadline control and does not measure deadline-check overhead. The Windows CI contract is configured, but no remote Windows result is recorded yet.
 
+Benchmark schema 10 adds `vm_countdown_deadline_call`, which runs the same bytecode and inputs with an absolute monotonic deadline set one hour after harness preparation. Comparing it with the uncontrolled row isolates the steady-state clock-check cost while the deadline remains unexpired; it does not measure expiration latency, scheduler accuracy, callback preemption, or native/JIT enforcement. A dirty three-sample smoke run produced 41 unique rows, and Windows CI requires the new schema and row, but no clean schema 10 result is recorded yet.
+
 ### Plugin trust tiers
 
 1. **Trusted native:** AOT object/static library, specialized calls, maximum performance, no sandbox claim.

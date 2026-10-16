@@ -208,7 +208,9 @@ Host-allocation boundary prototypeは、2つ目の型付き `i64` host function�
 
 VM resource-control prototypeは、optionalなhost-call budget、value-slot limit、共有one-way interruption flag、絶対monotonic deadlineをinstruction fuelと合成します。実行直前の各callbackは、そのbytecode instructionがfuelを消費した後に1 host-call unitを消費します。どちらかのcounterを使い切ると、そのcounterがguardするside effectの前にstructured errorを返します。検証済みregister countは、register fileを割り当てる前にvalue-slot limitと比較します。すでにsetされたinterruptionまたは期限切れdeadlineはallocation前に停止し、以降のconditionはinstruction、terminator、pre-callback safe pointで観測して、structured errorに両方の動的countを含め、interruptionを優先します。Callback-triggered requestまたはdeadline overrunは意図的にそのcallback完了後に観測します。成功したlimit付きexecutionは両方の動的countと静的slot footprintを報告します。Testはzero host-call budget、過小なslot limit、pre-execution interruption、callback-triggered interruption、pre-execution deadline expiration、running back-edgeを停止するdeadlineを扱います。Callback内部の処理はopaqueな1 unitであり、slotはbyte数を測定せずheapを扱いません。Heap memory、recursion、task、callback内部のpreemption、native／JIT enforcementは未完了です。これはaccepted sandbox semanticsを定義せずに、blockingなresource-control questionをさらに狭めるものです。Review outcomeは引き続き **needs prototype/measurement** です。
 
-Benchmark schema 9は、既存VM countdown rowの隣に `vm_countdown_interruptible_call` を追加します。同一bytecode／inputをunsetの共有interruption flag付きで実行し、有効化したsafe pointのacquire-load costを直接計測できるようにします。Cleanな31-sample macOS AArch64 runでは通常／interruption-enabled VM countdown medianが1.588 us／1.592 usで、3.409 nsまたは0.215%増加しました。このartifactはdeadline controlより前で、deadline-check overheadは計測していません。Windows CIは新schema／rowを要求し、remote evidenceは未完了です。
+Benchmark schema 9は、既存VM countdown rowの隣に `vm_countdown_interruptible_call` を追加します。同一bytecode／inputをunsetの共有interruption flag付きで実行し、有効化したsafe pointのacquire-load costを直接計測できるようにします。Cleanな31-sample macOS AArch64 runでは通常／interruption-enabled VM countdown medianが1.588 us／1.592 usで、3.409 nsまたは0.215%増加しました。このartifactはdeadline controlより前のものです。Schema 10はこのrowを維持し、CI contractとしてschema 9を置き換えました。Remote evidenceは未完了です。
+
+Benchmark schema 10は、harness準備の1時間後に設定した絶対monotonic deadline付きで同一bytecode／inputを実行する `vm_countdown_deadline_call` を追加します。Deadlineが期限前のままのsteady-state clock-check costを直接計測できます。Windows CIは新schema／rowを要求し、dirtyな3-sample smoke runは41行すべて一意でしたが、clean schema 10 resultはまだ記録していません。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -244,10 +246,10 @@ Benchmark schema 9は、既存VM countdown rowの隣に `vm_countdown_interrupti
 ## 情報源
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 11:20 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 11:20 JST。
+- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 11:22 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 11:22 JST。
 - `crates/vm/src/lib.rs`、deadline-enabled VM resource-control prototype、最終更新 2026-10-16 11:20 JST。
-- `src/bin/prototype-bench.rs`、schema 9 interruption-overhead harness、最終更新 2026-10-16 11:00 JST。
+- `src/bin/prototype-bench.rs`、schema 10 interruption／deadline-overhead harness、最終更新 2026-10-16 11:22 JST。
 - `benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json`、clean schema 9 macOS AArch64 evidence、2026-10-16 11:05:30 JSTに計測。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/

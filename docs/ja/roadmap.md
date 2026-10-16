@@ -40,7 +40,9 @@ VM resource-control prototypeは、optionalなinstruction-fuel／host-call budge
 
 [RFC 0002](rfcs/0002-prototype-control-flow.md)は、実装済みinteger／CFG prototypeへ提案中のsource-level interpretationを与えます。Wrapping `i64` addition、signed comparison、left-to-right evaluation、mutable local、structured `if`／`else`／`while`、明示的return、typed block argumentを介したlive valueのloweringを定義します。Focused RFCはowner decisionに向けてreadyですがproposedのままです。Parser、HIR、formatter、source diagnostics、source-to-MIR implementationは未完了です。
 
-Schema 9 harnessは、既存VM countdown rowの隣にunset-flagの `vm_countdown_interruptible_call` rowを追加し、input sequence／bytecodeを変えずにincremental safe-point acquire-load costを直接計測できるようになりました。Cleanな31-sample macOS AArch64 runは40行すべてが一意であることを記録し、通常／interruption-enabled VM countdown medianは1.588 us／1.592 us、3.409 nsまたは0.215%の増加でした。このartifactはdeadline controlより前のため、deadline-check overheadは未計測です。Windows CIは新schema／rowを要求しますが、remote Windows schema 9 resultはまだ記録していません。
+Schema 9 harnessは、既存VM countdown rowの隣にunset-flagの `vm_countdown_interruptible_call` rowを追加し、input sequence／bytecodeを変えずにincremental safe-point acquire-load costを直接計測できるようになりました。Cleanな31-sample macOS AArch64 runは40行すべてが一意であることを記録し、通常／interruption-enabled VM countdown medianは1.588 us／1.592 us、3.409 nsまたは0.215%の増加でした。このartifactはdeadline controlより前のものです。Schema 10はこのrowを維持し、CI contractとしてschema 9を置き換えました。Remote Windows resultはまだ記録していません。
+
+Schema 10 harnessは、harness準備の1時間後に設定した絶対monotonic deadline付きで同じcountdown bytecode／inputを実行する `vm_countdown_deadline_call` を追加します。Deadlineが期限前のままのsteady-state clock-check costを分離します。Windows CIは新schema／rowを要求します。Dirtyな3-sample smoke runは41行すべてが一意であることを検証しましたが、clean macOS／remote Windows schema 10 resultはまだ記録していません。
 
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。

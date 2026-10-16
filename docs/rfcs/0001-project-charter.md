@@ -208,7 +208,9 @@ The host-allocation boundary prototype now routes one allocate/read/free round t
 
 The VM resource-control prototype now composes an optional host-call budget, value-slot limit, shared one-way interruption flag, and absolute monotonic deadline with instruction fuel. Each callback that is about to run consumes one host-call unit after its bytecode instruction consumes fuel; exhausting either counter returns a structured error before that counter's guarded side effect. The verified register count is compared with the value-slot limit before the register file is allocated. An already-set interruption or expired deadline stops before allocation, while later conditions are observed at instruction, terminator, and pre-callback safe points; structured errors report both dynamic counts, and interruption takes precedence. A callback-triggered request or deadline overrun is deliberately observed after that callback completes. Successful limited execution reports both dynamic counts and the static slot footprint; tests cover zero host-call budget, an undersized slot limit, pre-execution interruption, callback-triggered interruption, pre-execution deadline expiration, and a deadline stopping a running back-edge. Callback-internal work is one opaque unit, and slots neither measure bytes nor cover the heap. Heap memory, recursion, tasks, callback-internal preemption, and native/JIT enforcement remain open. This narrows another blocking resource-control question without defining accepted sandbox semantics; the review outcome remains **needs prototype/measurement**.
 
-Benchmark schema 9 adds `vm_countdown_interruptible_call` beside the existing VM countdown row. It executes identical bytecode and inputs with an unset shared interruption flag, allowing the acquire-load cost of enabled safe points to be measured directly. A clean 31-sample macOS AArch64 run records ordinary and interruption-enabled VM countdown medians of 1.588 us and 1.592 us, a 3.409 ns or 0.215% increase. The artifact predates the deadline control and does not measure deadline-check overhead. Windows CI requires the new schema and row; remote evidence remains open.
+Benchmark schema 9 adds `vm_countdown_interruptible_call` beside the existing VM countdown row. It executes identical bytecode and inputs with an unset shared interruption flag, allowing the acquire-load cost of enabled safe points to be measured directly. A clean 31-sample macOS AArch64 run records ordinary and interruption-enabled VM countdown medians of 1.588 us and 1.592 us, a 3.409 ns or 0.215% increase. The artifact predates the deadline control. Schema 10 retains this row and supersedes schema 9 as the CI contract; remote evidence remains open.
+
+Benchmark schema 10 adds `vm_countdown_deadline_call`, which executes identical bytecode and inputs with an absolute monotonic deadline set one hour after harness preparation. This permits direct measurement of steady-state clock-check cost while the deadline remains unexpired. Windows CI requires the new schema and row; a dirty three-sample smoke run produced 41 unique rows, but no clean schema 10 result is recorded yet.
 
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
@@ -244,10 +246,10 @@ Review outcome: **needs prototype/measurement**. The blocking questions are the 
 ## Sources
 
 - `docs/research.md`, project research, last updated 2026-10-15 22:29 JST.
-- `docs/architecture.md`, proposed design baseline, last updated 2026-10-16 11:20 JST.
-- `docs/roadmap.md`, implementation milestones, last updated 2026-10-16 11:20 JST.
+- `docs/architecture.md`, proposed design baseline, last updated 2026-10-16 11:22 JST.
+- `docs/roadmap.md`, implementation milestones, last updated 2026-10-16 11:22 JST.
 - `crates/vm/src/lib.rs`, deadline-enabled VM resource-control prototype, last updated 2026-10-16 11:20 JST.
-- `src/bin/prototype-bench.rs`, schema 9 interruption-overhead harness, last updated 2026-10-16 11:00 JST.
+- `src/bin/prototype-bench.rs`, schema 10 interruption/deadline-overhead harness, last updated 2026-10-16 11:22 JST.
 - `benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json`, clean schema 9 macOS AArch64 evidence, measured 2026-10-16 11:05:30 JST.
 - Cranelift documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-jit/0.136.3/

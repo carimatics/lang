@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 9 prototype benchmark
+      - name: Record the schema 10 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 9) {
-            throw "expected benchmark schema 9, got $($result.schema_version)"
+          if ($result.schema_version -ne 10) {
+            throw "expected benchmark schema 10, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -82,6 +82,9 @@ jobs:
           }
           if ($result.measurements.name -notcontains "vm_countdown_interruptible_call") {
             throw "benchmark did not record the Windows interruption-check measurement"
+          }
+          if ($result.measurements.name -notcontains "vm_countdown_deadline_call") {
+            throw "benchmark did not record the Windows deadline-check measurement"
           }
           if ($result.measurements.name -notcontains "rust_host_allocation_call" -or $result.measurements.name -notcontains "vm_host_allocation_call" -or $result.measurements.name -notcontains "jit_host_allocation_call") {
             throw "benchmark did not record the Windows host-allocation measurements"

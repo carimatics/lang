@@ -9,7 +9,7 @@ use std::hint::black_box;
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
@@ -117,6 +117,7 @@ struct PreparedWorkloads<'a> {
     host_allocation_program: &'a lang_bytecode::Program,
     host_functions: &'a HostFunctionRegistry,
     interruption: &'a InterruptionFlag,
+    deadline: Instant,
     compiled_add: &'a CompiledFunction,
     compiled_min: &'a CompiledFunction,
     compiled_countdown: &'a CompiledFunction,
@@ -221,6 +222,7 @@ fn run() -> Result<(), String> {
         lower(&host_allocation_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let interruption = InterruptionFlag::new();
+    let deadline = Instant::now() + Duration::from_secs(60 * 60);
     let compiled_add =
         CompiledFunction::compile(&add_function).map_err(|error| error.to_string())?;
     let compiled_min =
@@ -264,6 +266,7 @@ fn run() -> Result<(), String> {
         host_allocation_program: &host_allocation_program,
         host_functions: &host_functions,
         interruption: &interruption,
+        deadline,
         compiled_add: &compiled_add,
         compiled_min: &compiled_min,
         compiled_countdown: &compiled_countdown,
@@ -492,6 +495,20 @@ fn run() -> Result<(), String> {
                 ExecutionControl::unbounded().and_interruption(&interruption),
             )
             .expect("verified countdown bytecode executes with an unset interruption flag")
+            .value()
+        },
+    ));
+    measurements.push(measure_calls(
+        "vm_countdown_deadline_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            execute_with_control(
+                &countdown_program,
+                &[alternating_countdown_input(iteration)],
+                ExecutionControl::unbounded().and_deadline(deadline),
+            )
+            .expect("verified countdown bytecode executes before a future deadline")
             .value()
         },
     ));
@@ -749,13 +766,28 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?
         .value();
+        let vm_countdown_deadline = execute_with_control(
+            workloads.countdown_program,
+            &[value],
+            ExecutionControl::unbounded().and_deadline(workloads.deadline),
+        )
+        .map_err(|error| error.to_string())?
+        .value();
         let jit_countdown = workloads
             .compiled_countdown
             .invoke_i64_1(value)
             .map_err(|error| error.to_string())?;
-        if (vm_countdown, vm_countdown_interruptible, jit_countdown)
-            != (expected_countdown, expected_countdown, expected_countdown)
-        {
+        if (
+            vm_countdown,
+            vm_countdown_interruptible,
+            vm_countdown_deadline,
+            jit_countdown,
+        ) != (
+            expected_countdown,
+            expected_countdown,
+            expected_countdown,
+            expected_countdown,
+        ) {
             return Err("countdown execution modes disagreed before measurement".to_owned());
         }
         let expected_sum_to = rust_sum_to(value);
@@ -859,6 +891,15 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
                 ExecutionControl::unbounded().and_interruption(workloads.interruption),
             )
             .expect("verified countdown bytecode executes with an unset interruption flag")
+            .value(),
+        );
+        black_box(
+            execute_with_control(
+                workloads.countdown_program,
+                &[countdown_input],
+                ExecutionControl::unbounded().and_deadline(workloads.deadline),
+            )
+            .expect("verified countdown bytecode executes before a future deadline")
             .value(),
         );
         black_box(
@@ -1230,7 +1271,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 9,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 10,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -1499,12 +1540,11 @@ mod tests {
     }
 
     #[test]
-    fn schema_nine_retains_interruptible_loop_and_executable_artifact_sizes() {
-        let measurements = [Measurement::from_samples(
-            "vm_countdown_interruptible_call",
-            1,
-            vec![1.0, 2.0, 3.0],
-        )];
+    fn schema_ten_retains_controlled_loops_and_executable_artifact_sizes() {
+        let measurements = [
+            Measurement::from_samples("vm_countdown_interruptible_call", 1, vec![1.0, 2.0, 3.0]),
+            Measurement::from_samples("vm_countdown_deadline_call", 1, vec![1.0, 2.0, 3.0]),
+        ];
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1530,8 +1570,9 @@ mod tests {
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 9"));
+        assert!(output.contains("\"schema_version\": 10"));
         assert!(output.contains("\"name\": \"vm_countdown_interruptible_call\""));
+        assert!(output.contains("\"name\": \"vm_countdown_deadline_call\""));
         assert!(output.contains("\"startup_iterations\": 2"));
         assert!(output.contains("\"jit_countdown\": 3"));
         assert!(output.contains("\"jit_sum_to\": 4"));
@@ -1543,7 +1584,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_nine_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_ten_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {

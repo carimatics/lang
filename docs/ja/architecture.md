@@ -194,6 +194,8 @@ VM prototypeは、合成可能な3つのopt-in limitであるinstruction fuel、
 
 Benchmark schema 9は `vm_countdown_interruptible_call` を追加します。`vm_countdown_call` と同じ検証済みcountdown program／input sequenceを、unsetの共有interruption flag付きで実行します。2つのrowの比較は、requestがないときにVM safe-point checkを有効化するincremental acquire-load costを分離します。Interruption latencyやnative／JIT enforcementは計測しません。CleanなmacOS AArch64 resultでは通常のVM countdownが1.588 us、flag付きが1.592 usで、両rowのRSDが0.4%未満のときmedianは3.409 ns、0.215%増加しました。このresultはdeadline controlより前のもので、deadline-check overheadは計測していません。Windows CI contractは構成済みですが、remote Windows resultはまだ記録していません。
 
+Benchmark schema 10は `vm_countdown_deadline_call` を追加し、harness準備の1時間後に設定した絶対monotonic deadline付きで同じbytecode／inputを実行します。Controlなしrowとの比較は、deadlineが期限前のままのsteady-state clock-check costを分離します。Expiration latency、scheduler accuracy、callback preemption、native／JIT enforcementは計測しません。Dirtyな3-sample smoke runは41行すべてが一意で、Windows CIは新schema／rowを要求しますが、clean schema 10 resultはまだ記録していません。
+
 ### Plugin trust tier
 
 1. **Trusted native:** AOT object／static library、specialized call、最大性能、sandboxの保証なし。
