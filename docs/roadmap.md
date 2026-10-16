@@ -16,11 +16,11 @@ The 2026-10-16 whole-roadmap audit corrected three structural problems. Producti
 
 An RFC-readiness audit on the same date corrected another planning gap: RFC 0003 was queued for an owner decision even though its review outcome then named stable serialization, host-value and cross-mode adapter conformance, lock integration, native Windows component execution, and broader cost evidence as blockers. Those outcomes became explicit prototype tasks before the RFC 0003 decision; Milestones 3 and 4 still own the production IDL, adapters, and package manager.
 
-Progress snapshot verified against this repository state on 2026-10-16 22:14 JST:
+Progress snapshot verified against this repository state on 2026-10-16 22:21 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 155 pt | 196 pt | **79.1%** |
+| 0 — design baseline (current) | 158 pt | 196 pt | **80.6%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -28,11 +28,11 @@ Progress snapshot verified against this repository state on 2026-10-16 22:14 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **155 pt** | **678 pt** | **22.9%** |
+| **Overall** | **158 pt** | **678 pt** | **23.3%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 155 / 196 pt (79.1%).**
+**Progress: 158 / 196 pt (80.6%).**
 
 ### Workstream breakdown
 
@@ -43,14 +43,14 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
-| Component and resource contracts | 52 pt | 71 pt | 73.2% |
+| Component and resource contracts | 55 pt | 71 pt | 77.5% |
 | Platform and backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **155 pt** | **196 pt** | **79.1%** |
+| **Milestone 0** | **158 pt** | **196 pt** | **80.6%** |
 
 Current execution state at this snapshot:
 
-- **Unblocked local P0:** general component instantiation followed by cross-mode resource/failure adapter conformance, a lockfile/package-selection prototype, and expanded boundary-cost evidence for RFC 0003.
+- **Unblocked local P0:** cross-mode resource/failure adapter conformance, a lockfile/package-selection prototype, and expanded boundary-cost evidence for RFC 0003.
 - **External gates:** the RFC 0002, RFC 0004, and RFC 0005 repository-owner decisions plus remote Windows object-link-run, benchmark, and component-execution evidence.
 - **Dependent gates:** decide RFC 0003 after its added evidence prerequisites, select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
 
@@ -89,7 +89,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Measure metadata validation/negotiation, scalar dispatch, and resource lifecycle costs as separate benchmark series and document their interpretation in RFC 0003.** — 5 pt
 - [x] **P0 — Prototype and specify a stable versioned component serialization for normalized requirements, digests, resource identities, and failure records.** — 8 pt
 - [x] **P0 — Connect opaque canonical resource identities to generation-checked host values with atomic publication, borrow resolution, rollback, and exactly-once cleanup.** — 2 pt
-- [ ] **P0 — Prototype general component instantiation from validated contracts, negotiated bindings, and per-instance adapter state.** — 3 pt
+- [x] **P0 — Prototype general component instantiation from validated contracts, negotiated bindings, and per-instance adapter state.** — 3 pt
 - [ ] **P0 — Execute the same host-value resource/failure fixture through VM, JIT, and AOT adapters and record equivalent outcomes.** — 3 pt
 - [ ] **P0 — Prototype deterministic lockfile/package-selection integration over the in-memory resolver without implementing the production package manager.** — 5 pt
 - [ ] **P0 — Record native Windows component execution for the same conformance fixture.** — 3 pt
@@ -117,7 +117,9 @@ The completed schema-2 serialization prototype defines separate contract and fai
 
 The component runtime now also prototypes generation-tagged owned handles and explicit shared/exclusive borrow tokens. Released slots advance their generation and the lowest free slot is reused deterministically; stale owners cannot alias replacements, and generation exhaustion retires a slot instead of wrapping. Shared borrows coexist, exclusive borrows and mutable access enforce exclusivity, active borrows block release, and repeated borrow ends/releases fail structurally. Six focused tests cover slot reuse, stale owners and borrows, double release/end, conflicts, mutation, deterministic reuse, generation retirement, and borrow-ID exhaustion.
 
-The host-value bridge now allocates non-zero, monotonically increasing opaque `ResourceIdentity` values and maps them to generation-checked `ResourceTable<T>` owners without exposing slots or generations to canonical adapters. Publishing a host value and its canonical owner is atomic from the caller's perspective: adapter rejection releases the value and permanently consumes the failed identity. Shared/exclusive borrow operations resolve through the identity, and cleanup removes and returns the actual host value exactly once. Three focused tests cover successful canonical owner transfer and destructor cleanup, publication rollback without identity reuse, and mutation plus in-use release rejection through the mapped runtime handle. This completes the identity/lifecycle bridge only; general component instantiation and VM/JIT/AOT resource/failure execution remain open.
+The host-value bridge now allocates non-zero, monotonically increasing opaque `ResourceIdentity` values and maps them to generation-checked `ResourceTable<T>` owners without exposing slots or generations to canonical adapters. Publishing a host value and its canonical owner is atomic from the caller's perspective: adapter rejection releases the value and permanently consumes the failed identity. Shared/exclusive borrow operations resolve through the identity, and cleanup removes and returns the actual host value exactly once. Three focused tests cover successful canonical owner transfer and destructor cleanup, publication rollback without identity reuse, and mutation plus in-use release rejection through the mapped runtime handle. This completes the independently tested identity/lifecycle bridge; VM/JIT/AOT resource/failure execution remains open.
+
+General component instantiation now consumes a validated schema-2 contract, negotiates every canonically ordered interface requirement against provider inventory and optional exact locks under explicit capability grants, and publishes no partial instance when any requirement fails. Success owns the immutable validated bindings, original contract, and a fresh bounded canonical-resource table. Three focused tests cover mixed locked/unlocked selection in canonical order, requirement-keyed capability failure, and independent adapter state and limits across instances. Resource/failure execution through VM, JIT, and AOT remains open.
 
 [RFC 0003](rfcs/0003-versioned-component-contracts.md) now specifies the first normal-path canonical call subset: 64-bit `i64`, 32-bit normalized `bool`, and `own<T>`/`borrow<T>` resources represented by per-instance unsigned 32-bit adapter indices. Index zero is invalid and boundary indices never repeat within an instance, preventing stale numeric copies from aliasing later resources even when internal generation-tagged slots are reused. Whole-list preflight rejects stale, wrong-type, duplicate-owned, owned/borrowed-alias, active-lend, capacity, reservation, and index-exhaustion failures before ownership mutation. A successful owner-transfer commit performs no allocation, callback, or observable intermediate step; it installs a fresh destination owner while making the source index permanently stale. Borrows remain call-scoped and borrowed results are excluded. The proposal separates these project decisions from WIT/Canonical ABI source facts and keeps the RFC proposed.
 

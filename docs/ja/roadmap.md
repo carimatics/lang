@@ -16,11 +16,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 同日のRFC readiness監査では、別のplanning gapも修正しました。RFC 0003はowner decision待ちとして並んでいましたが、review outcomeは当時stable serialization、host-value／cross-mode adapter conformance、lock integration、native Windows component execution、より広いcost evidenceをblockerとして明記していました。これらの成果はRFC 0003 decision前の明示的なprototype taskとなり、production IDL、adapter、package managerは引き続きMilestone 3／4の責務とします。
 
-このrepository stateに対して2026-10-16 22:14 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 22:21 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 155 pt | 196 pt | **79.1%** |
+| 0 — design baseline（現在） | 158 pt | 196 pt | **80.6%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -28,11 +28,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **155 pt** | **678 pt** | **22.9%** |
+| **全体** | **158 pt** | **678 pt** | **23.3%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：155 / 196 pt（79.1%）。**
+**進捗：158 / 196 pt（80.6%）。**
 
 ### Workstream別内訳
 
@@ -43,14 +43,14 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
-| Component／resource contract | 52 pt | 71 pt | 73.2% |
+| Component／resource contract | 55 pt | 71 pt | 77.5% |
 | Platform／backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **155 pt** | **196 pt** | **79.1%** |
+| **Milestone 0** | **158 pt** | **196 pt** | **80.6%** |
 
 このsnapshot時点の実行状態：
 
-- **Unblocked local P0：** General component instantiationと、それに続くcross-mode resource／failure adapter conformance、lockfile／package-selection prototype、RFC 0003の拡張boundary-cost evidence。
+- **Unblocked local P0：** Cross-mode resource／failure adapter conformance、lockfile／package-selection prototype、RFC 0003の拡張boundary-cost evidence。
 - **外部gate：** RFC 0002、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-execution evidence。
 - **依存gate：** 追加したevidence prerequisiteの完了後にRFC 0003をdecisionし、Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
@@ -89,7 +89,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Metadata validation／negotiation、scalar dispatch、resource lifecycleのcostを別々のbenchmark seriesとして計測し、その解釈をRFC 0003へ記録する。** — 5 pt
 - [x] **P0 — Normalized requirement、digest、resource identity、failure recordを対象とするstable versioned component serializationをprototypeし、規定する。** — 8 pt
 - [x] **P0 — Opaqueなcanonical resource identityをgeneration-check済みhost valueへ接続し、atomic publication、borrow resolution、rollback、exactly-once cleanupを実装する。** — 2 pt
-- [ ] **P0 — Validated contract、negotiated binding、instanceごとのadapter stateからgeneral component instantiationをprototypeする。** — 3 pt
+- [x] **P0 — Validated contract、negotiated binding、instanceごとのadapter stateからgeneral component instantiationをprototypeする。** — 3 pt
 - [ ] **P0 — 同じhost-value resource／failure fixtureをVM、JIT、AOT adapterで実行し、同等のoutcomeを記録する。** — 3 pt
 - [ ] **P0 — Production package managerを実装せず、in-memory resolverに対するdeterministicなlockfile／package-selection integrationをprototypeする。** — 5 pt
 - [ ] **P0 — 同じconformance fixtureのnative Windows component executionを記録する。** — 3 pt
@@ -117,7 +117,9 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 Component runtimeはgeneration tag付きowned handleと明示的なshared／exclusive borrow tokenもprototypeしました。Released slotはgenerationを進め、最小のfree slotをdeterministically再利用するため、stale ownerはreplacementをaliasできず、generation exhaustionではwrapせずslotをretireします。Shared borrowは共存し、exclusive borrow／mutable accessはexclusivityを強制し、active borrowはreleaseをblockし、borrow end／releaseのrepeatはstructuredに失敗します。6件のfocused testがslot reuse、stale owner／borrow、double release／end、conflict、mutation、deterministic reuse、generation retirement、borrow-ID exhaustionをcoverします。
 
-Host-value bridgeは非ゼロかつ単調増加のopaqueな `ResourceIdentity` valueをallocateし、slot／generationをcanonical adapterへ公開せずgeneration-check済み `ResourceTable<T>` ownerへmapします。Host valueとcanonical ownerのpublishはcallerから見てatomicです。Adapterが拒否した場合はvalueをreleaseし、失敗したidentityを永続的に消費します。Shared／exclusive borrow operationはidentity経由でresolveし、cleanupはactual host valueをexactly onceでremove／returnします。3件のfocused testがcanonical owner transfer成功とdestructor cleanup、identityを再利用しないpublication rollback、mapped runtime handleによるmutationとin-use release rejectionをcoverします。これはidentity／lifecycle bridgeだけを完了するものであり、general component instantiationとVM／JIT／AOT resource／failure executionは未完了です。
+Host-value bridgeは非ゼロかつ単調増加のopaqueな `ResourceIdentity` valueをallocateし、slot／generationをcanonical adapterへ公開せずgeneration-check済み `ResourceTable<T>` ownerへmapします。Host valueとcanonical ownerのpublishはcallerから見てatomicです。Adapterが拒否した場合はvalueをreleaseし、失敗したidentityを永続的に消費します。Shared／exclusive borrow operationはidentity経由でresolveし、cleanupはactual host valueをexactly onceでremove／returnします。3件のfocused testがcanonical owner transfer成功とdestructor cleanup、identityを再利用しないpublication rollback、mapped runtime handleによるmutationとin-use release rejectionをcoverします。これにより独立してtest可能なidentity／lifecycle bridgeは完了し、VM／JIT／AOT resource／failure executionは未完了です。
+
+General component instantiationはvalidated schema-2 contractをconsumeし、明示的capability grantの下で、canonical順の全interface requirementをprovider inventoryおよびoptional exact lockに対してnegotiateし、いずれかのrequirementが失敗した場合はpartial instanceを公開しません。成功時はimmutableなvalidated binding、元contract、freshでboundedなcanonical-resource tableをownします。3件のfocused testがcanonical順のlocked／unlocked selection混在、requirement key付きcapability failure、instance間で独立したadapter state／limitをcoverします。VM／JIT／AOTによるresource／failure executionは未完了です。
 
 [RFC 0003](rfcs/0003-versioned-component-contracts.md)は最初のnormal-path canonical call subsetを規定しました。64-bit `i64`、32-bit normalized `bool`、per-instance unsigned 32-bit adapter indexで表す `own<T>`／`borrow<T>` resourceです。Index zeroはinvalidで、boundary indexをinstance内で再利用しないため、internal generation tag付きslotを再利用してもstale numeric copyが後続resourceをaliasしません。Whole-list preflightはownership mutationより前に、stale、wrong-type、duplicate-owned、owned／borrowed alias、active-lend、capacity、reservation、index-exhaustion failureを拒否します。成功するowner-transfer commitはallocation、callback、観測可能な中間stepを一切行わず、freshなdestination ownerをinstallしてsource indexを永続的にstaleにします。Borrowはcall-scopedのままで、borrowed resultは除外します。このproposalはproject decisionとWIT／Canonical ABI source factを分離し、RFC statusをproposedのまま維持します。
 

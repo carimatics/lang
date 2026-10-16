@@ -1,6 +1,7 @@
 pub mod adapter;
 pub mod codec;
 pub mod host_value;
+pub mod instantiation;
 pub mod negotiation;
 pub mod resource;
 pub mod serialization;
