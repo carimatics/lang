@@ -192,7 +192,7 @@ VM prototypeは、合成可能な3つのopt-in limitであるinstruction fuel、
 
 2つ目の型付き `i64` callbackは、hostが所有する1回のallocation round tripを検証します。VM／JITはRustの `Box` allocate／read／drop callbackへdispatchし、link済みAOT objectはCの `malloc`／read／`free` 実装をimportします。macOSのdirect／response-file integrationは同じwrapperを実行します。Benchmark schema 8はRust callbackのdirect Rust／VM／JIT latencyを計測しますが、1回のallocationはprocess creation／loadingに埋もれるため、process-startup rowは意図的に変更しません。これにより、3つすべてのexecution pathがallocation-backed operationのために型付きboundaryを越えられることを確認し、限定的なVM／JIT boundary-cost evidenceを得られます。これはlanguage heap、allocator ABI、ownership rule、garbage collector、memory limiter、peak-memory measurement、代表的なallocation workloadではないため、それらのdesign／costに関する論点は未解決です。
 
-Benchmark schema 9は `vm_countdown_interruptible_call` を追加します。`vm_countdown_call` と同じ検証済みcountdown program／input sequenceを、unsetの共有interruption flag付きで実行します。2つのrowの比較は、requestがないときにVM safe-point checkを有効化するincremental acquire-load costを分離します。Interruption latencyやnative／JIT enforcementは計測しません。Schema contractとWindows CI validationは構成済みですが、clean schema 9 resultはまだ記録していません。
+Benchmark schema 9は `vm_countdown_interruptible_call` を追加します。`vm_countdown_call` と同じ検証済みcountdown program／input sequenceを、unsetの共有interruption flag付きで実行します。2つのrowの比較は、requestがないときにVM safe-point checkを有効化するincremental acquire-load costを分離します。Interruption latencyやnative／JIT enforcementは計測しません。CleanなmacOS AArch64 resultでは通常のVM countdownが1.588 us、flag付きが1.592 usで、両rowのRSDが0.4%未満のときmedianは3.409 ns、0.215%増加しました。Windows CI contractは構成済みですが、remote Windows resultはまだ記録していません。
 
 ### Plugin trust tier
 
