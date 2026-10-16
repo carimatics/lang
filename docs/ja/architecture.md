@@ -61,6 +61,8 @@ MIR ─────────────────────────�
 
 型付きMIRをsemantic contractとします。Backend固有のoptimizationは異なっても構いませんが、観測可能な動作、destruction order、panic／error behavior、integer semantics、concurrency ruleは異なってはいけません。
 
+[RFC 0002](rfcs/0002-prototype-control-flow.md)は、実装済みMIR subsetの最初のsource interpretationとして、`i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return` を提案します。Left-to-right evaluationを仕様化し、join／back-edgeをまたいでliveなvalueをtyped block argumentでloweringします。このRFCはrepository ownerのdecisionに向けてreadyですがproposedのままです。Parser、HIR、source diagnostics、formatter、source-to-MIR loweringはまだ実装されていません。
+
 ### Incremental architecture
 
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。

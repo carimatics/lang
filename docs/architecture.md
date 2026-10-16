@@ -61,6 +61,8 @@ MIR ─────────────────────────�
 
 The typed MIR is the semantic contract. Backend-specific optimizations may differ, but observable behavior, destruction order, panic/error behavior, integer semantics, and concurrency rules must not.
 
+[RFC 0002](rfcs/0002-prototype-control-flow.md) proposes the first source interpretation of the implemented MIR subset: `i64` parameters/results, wrapping addition, signed comparison, mutable locals, `if`/`else`, `while`, and explicit `return`. It specifies left-to-right evaluation and lowers values live across joins/back-edges through typed block arguments. The RFC is ready for a repository-owner decision but remains proposed; no parser, HIR, source diagnostics, formatter, or source-to-MIR lowering is implemented yet.
+
 ### Incremental architecture
 
 Use a dependency-tracked query system from the first non-trivial frontend. Queries should be deterministic and separately measurable:

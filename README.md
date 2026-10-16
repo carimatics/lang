@@ -42,6 +42,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture propo
 - [Implementation roadmap](docs/roadmap.md)
 - [RFC process and template](docs/rfcs/0000-template.md)
 - [RFC 0001: Project charter and compatibility policy](docs/rfcs/0001-project-charter.md)
+- [RFC 0002: Prototype integer and structured control-flow semantics](docs/rfcs/0002-prototype-control-flow.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
