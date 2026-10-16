@@ -1,3 +1,4 @@
+pub mod adapter;
 pub mod codec;
 pub mod negotiation;
 pub mod resource;
