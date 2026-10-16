@@ -14,11 +14,11 @@ Cost uses relative effort points rather than elapsed-time promises: `1` is a ver
 
 The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites. The checklist records dependency order, not a claim that an external gate is locally executable: when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
-Progress snapshot verified against this repository state on 2026-10-16 15:47 JST:
+Progress snapshot verified against this repository state on 2026-10-16 15:57 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 85 pt | 149 pt | **57.0%** |
+| 0 — design baseline (current) | 90 pt | 149 pt | **60.4%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Progress snapshot verified against this repository state on 2026-10-16 15:47 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **85 pt** | **631 pt** | **13.5%** |
+| **Overall** | **90 pt** | **631 pt** | **14.3%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 85 / 149 pt (57.0%).**
+**Progress: 90 / 149 pt (60.4%).**
 
 ### Workstream breakdown
 
@@ -41,14 +41,14 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 16 pt | 30 pt | 53.3% |
-| Component and resource contracts | 13 pt | 35 pt | 37.1% |
+| Component and resource contracts | 18 pt | 35 pt | 51.4% |
 | Platform and backend evidence | 27 pt | 51 pt | 52.9% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **85 pt** | **149 pt** | **57.0%** |
+| **Milestone 0** | **90 pt** | **149 pt** | **60.4%** |
 
 Current execution state at this snapshot:
 
-- **In progress locally:** specify canonical scalar/resource representation and ownership transfer in RFC 0003.
+- **Next unblocked local P0:** specify panic and destructor-failure behavior at component boundaries in RFC 0003.
 - **External gates:** the RFC 0002 repository-owner decision and remote Windows CI/benchmark evidence.
 - **Final gate:** decide RFC 0001 only after the component, resource-control, and backend-evidence prerequisites are complete.
 
@@ -78,7 +78,7 @@ Current execution state at this snapshot:
 - [ ] **P0 — Record successful Windows x86-64 CI object-link-run evidence.** — 3 pt
 - [ ] **P0 — Record and interpret a clean Windows benchmark baseline against the macOS baseline.** — 5 pt
 - [x] **P0 — Prototype a bounded schema-1 component encoder/decoder with byte/count/depth/string limits, location-bearing diagnostics, malformed fixtures, and a fuzz target.** — 5 pt
-- [ ] **P0 — Specify canonical scalar/resource representation and ownership transfer in RFC 0003.** — 5 pt
+- [x] **P0 — Specify canonical scalar/resource representation and ownership transfer in RFC 0003.** — 5 pt
 - [ ] **P0 — Specify panic and destructor failure behavior at component boundaries in RFC 0003.** — 3 pt
 - [ ] **P0 — Specify package/interface version compatibility negotiation in RFC 0003.** — 3 pt
 - [ ] **P0 — Drive one scalar import/export and resource lifecycle through VM/JIT/AOT differential conformance.** — 5 pt
@@ -98,9 +98,11 @@ Current execution state at this snapshot:
 
 The first component-contract slice now separates portable declarations from embedding-local bindings. Schema-1 in-memory metadata records package identity and version plus named scalar imports/exports; each import declares a capability, while a separate binding table maps its logical name to a process-local `HostFunctionId`. Validation rejects unknown schemas, invalid or duplicate names, import/export collisions, unsupported import types, undeclared or missing bindings, absent grants, and unregistered host functions. Capability checks precede registry lookup so an unauthorized component cannot probe host inventory, and successful validation returns a distinct wrapper with resolved bindings. Seven runtime tests cover the accepted path and key rejection/order contracts.
 
-The experimental schema-1 `LCMP` codec now deterministically encodes the scalar declaration subset and decodes untrusted bytes under configurable total-byte, declaration-count, structural-depth, and string-length limits. It rejects malformed magic, unsupported schemas before their payload, truncation, invalid UTF-8, unknown scalar tags, trailing bytes, and exceeded bounds with structured byte-offset errors. Round-trip, encoder/decoder limit, malformed-fixture, deterministic arbitrary-byte corpus, locked fuzz-target build, and a 1,000-run libFuzzer smoke execution pass. The format remains an unstable fixture; stable serialization, resource representation, and compatibility negotiation are still open in RFC 0003.
+The experimental schema-1 `LCMP` codec now deterministically encodes the scalar declaration subset and decodes untrusted bytes under configurable total-byte, declaration-count, structural-depth, and string-length limits. It rejects malformed magic, unsupported schemas before their payload, truncation, invalid UTF-8, unknown scalar tags, trailing bytes, and exceeded bounds with structured byte-offset errors. Round-trip, encoder/decoder limit, malformed-fixture, deterministic arbitrary-byte corpus, locked fuzz-target build, and a 1,000-run libFuzzer smoke execution pass. The format remains an unstable fixture; stable contract serialization and compatibility negotiation are still open in RFC 0003.
 
-The component runtime now also prototypes generation-tagged owned handles and explicit shared/exclusive borrow tokens. Released slots advance their generation and the lowest free slot is reused deterministically; stale owners cannot alias replacements, and generation exhaustion retires a slot instead of wrapping. Shared borrows coexist, exclusive borrows and mutable access enforce exclusivity, active borrows block release, and repeated borrow ends/releases fail structurally. Six focused tests cover slot reuse, stale owners and borrows, double release/end, conflicts, mutation, deterministic reuse, generation retirement, and borrow-ID exhaustion. [RFC 0003](rfcs/0003-versioned-component-contracts.md) remains proposed and explicitly leaves serialized resource representation, cross-component ownership transfer, compatibility negotiation, canonical lowering, component execution, and boundary-cost evidence open.
+The component runtime now also prototypes generation-tagged owned handles and explicit shared/exclusive borrow tokens. Released slots advance their generation and the lowest free slot is reused deterministically; stale owners cannot alias replacements, and generation exhaustion retires a slot instead of wrapping. Shared borrows coexist, exclusive borrows and mutable access enforce exclusivity, active borrows block release, and repeated borrow ends/releases fail structurally. Six focused tests cover slot reuse, stale owners and borrows, double release/end, conflicts, mutation, deterministic reuse, generation retirement, and borrow-ID exhaustion.
+
+[RFC 0003](rfcs/0003-versioned-component-contracts.md) now specifies the first normal-path canonical call subset: 64-bit `i64`, 32-bit normalized `bool`, and `own<T>`/`borrow<T>` resources represented by per-instance unsigned 32-bit adapter indices. Index zero is invalid and boundary indices never repeat within an instance, preventing stale numeric copies from aliasing later resources even when internal generation-tagged slots are reused. Whole-list preflight rejects stale, wrong-type, duplicate-owned, owned/borrowed-alias, active-lend, capacity, reservation, and index-exhaustion failures before ownership mutation. A successful owner transfer is non-allocating, non-reentrant, and atomically publishes the destination before the source index becomes permanently stale; borrows remain call-scoped and borrowed results are excluded. The proposal separates these project decisions from WIT/Canonical ABI source facts and keeps the RFC proposed. Panic/destructor behavior, compatibility negotiation, adapter implementation and VM/JIT/AOT conformance, stable serialization, and boundary-cost evidence remain open.
 
 Current progress: the first typed function now runs through both verified bytecode and a Cranelift JIT prototype, and the same MIR lowering can emit a host-native object artifact. Minimal typed `i64` host-function registration, a plain script-to-host callback, and an allocation-backed callback run through both execution modes; object output represents callbacks as imports. The VM now composes opt-in deterministic instruction-fuel and host-call budgets with a pre-allocation value-slot limit, cooperative one-way interruption flag, and absolute monotonic deadline. Typed basic blocks with explicit branch, jump, and return terminators are shared across MIR, bytecode, VM, JIT, and AOT; validators enforce target existence, reachability, and SSA dominance, while a fuel-bounded back-edge test covers non-termination. Typed block parameters and edge arguments carry an `i64` through a tested countdown back-edge, and a bounded sum workload carries both a counter and wrapping accumulator through the loop. MIR and bytecode validators enforce entry-block restrictions and edge argument arity/types; VM and JIT results agree, and AOT object emission succeeds. An initial shared `SystemLinker` driver validates ordered link requests, selects the host toolchain command flavor, and reports structured failures; macOS AArch64 integration links and executes add, minimum, plain host-callback, host-allocation, accumulator, and conditional-sum objects through it. The current clean macOS AArch64 [schema 14 benchmark baseline](benchmarks.md) covers add, minimum, loop-carried countdown, two-value accumulator, and conditional-sum lowering; JIT/AOT compilation; code, object, and linked-executable size; direct/VM/JIT calls; plain, single-allocation, 64-allocation-burst, and allocation-churn host callbacks; three requested-payload heap profiles; unset-flag interruption-check and unexpired-deadline comparisons; system linking; single-launch plus batched warm-cache AOT process startup; and 31 linked-process peak-memory samples from 1,654,784 to 1,671,168 bytes. Remote Windows evidence is not yet recorded. All three memory-model stress cases now have executable strict models: no borrows across suspension with deterministic cancellation cleanup, explicit shared/weak and arena-scoped cyclic graphs, and actor-isolated shared mutable services with moved messages. Generated-code inspection confirms a two-instruction AArch64 add, compare-and-branch minimum, and position-independent GOT import for the host callback. RFC 0001 remains proposed; less restrictive alternatives, broader embedding limits and native enforcement, production linker hardening and startup/runtime packaging, Windows x86-64 linking, execution, benchmark, and CI evidence, source allocation semantics and representative allocation/memory workloads, acceptance and implementation of proposed source-level control-flow semantics, additional CFG workloads, allocator-overhead measurement, native debug-metadata implementation, and cross-platform debug-quality validation, and the backend decision remain open.
 
