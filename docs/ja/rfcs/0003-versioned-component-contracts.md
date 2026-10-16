@@ -16,7 +16,7 @@
 
 Package identity、scalar function import／export、各importが要求するcapabilityを記述する、backend非依存でversion付きのcomponent contractを定義します。Embedding固有のhost-function identifierはportable metadataの外に置きます。実行前にcontractを明示的なcapability grant、論理import binding、型付きhost-function registryに対して検証し、検証済みwrapperまたはstructured errorを生成します。
 
-実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録し、明示的なshared／exclusive borrow tokenを持つgeneration tag付きowned-resource tableを提供します。これはin-memoryのdesign probeであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
+実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録し、boundedな実験的schema-1 scalar-metadata codecと、明示的なshared／exclusive borrow tokenを持つgeneration tag付きowned-resource tableを提供します。このcodecはdesign evidenceであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
 
 ## 動機
 
@@ -65,7 +65,7 @@ bind read-clock = host-function 7
 
 Schema 1を理解でき、declarationが構造的にvalidで、すべてのbindingが宣言済みimportを指し、要求されたcapabilityがすべてgrantされ、すべてのimportにbindingがあり、bound host functionがsupport済みの型付きregistrationとして存在する場合にのみvalidationが成功します。得られるvalidated valueはportable declarationとresolved local IDを保持します。
 
-Text例は説明専用です。このRFCはfile syntaxまたはserializationを選択しません。
+Text例は説明専用です。以下で説明するrepository-local binary codecは実験用fixture formatであり、最終的なstable component serializationを選択するものではありません。
 
 Component resourceは別のin-memory tableを使います。Owned handleはslot／generationを含み、untrusted codeが複製するinteger handleをmodel化するため意図的にCopy可能です。Componentはsharedまたはexclusive borrowed handleを要求できます。Shared borrowは共存でき、exclusive borrowには他のlive borrowがないことを要求し、mutationを許可するborrowed handleはexclusiveだけです。Ownerがresourceをreleaseする前にすべてのborrowを終了する必要があります。Releaseはhost valueを返し、slot generationを進め、再利用可能な最小slotを利用可能にします。Copyされたold ownerの再利用、borrowの二重終了、二重release、終了後borrowの使用はstructured stale-handle errorになります。
 
@@ -86,6 +86,8 @@ Validationはdeterministicで、次の順序で行います。
 
 Schema 1が検証できるimportは `i64 -> i64` のみです。これはcurrent host registryが持つshapeがそれだけだからです。Contract type systemをregistry method nameで定義しないためmetadata typeは `bool` を記録しますが、同じ型のregistry entryとexecution pathが存在するまで `bool -> bool` importは拒否します。この段階のexportはdeclarationのみです。
 
+実験的scalar-metadata encodingは `LCMP` で始まり、little-endian `u32` schema version `1`、length-prefixed UTF-8 package namespace／name、3つのlittle-endian `u32` package-version part、length-prefixed import／export sectionが続きます。各functionは1-byte scalar tag（`i64` は `0`、`bool` は `1`）を格納し、importはさらにlength-prefixed capabilityを格納します。Encodingはdeclaration orderを保持します。`ComponentCodecLimits` はallocation前にtotal byte、sectionごとのdeclaration数、structural depth、stringごとのbyte数を制限します。Decoderはpayloadより先にunsupported schemaを拒否し、invalid magic／UTF-8、unknown scalar tag、truncation、trailing byte、すべてのlimit超過をbyte offset付きstructured errorで拒否します。Decode結果は未validateの `ComponentMetadata` であり、semantic／capability validationは別の必須stepです。
+
 `ResourceTable<T>` はhost valueを所有します。`OwnedResourceHandle` は `(slot: u32, generation: u64)` です。`BorrowedResourceHandle` はさらにmonotonicに割り当てられたborrow identifierと `Shared`／`Exclusive` kindを持ちます。Released slotは再利用前にgenerationをincrementします。Generationを進められないslotはretireします。Free slotはslot昇順で選び、reuseをdeterministicにします。Borrow identifierは再利用せず、exhaustionはerrorです。
 
 Resource operationは最初にslot occupancy／generationをvalidateします。Shared-borrow creationはactive exclusive borrowを拒否します。Exclusive-borrow creationはすべてのactive borrowを拒否します。Mutable accessはsharedまたはinactive tokenを拒否します。Borrow終了はそのtokenだけをremoveし、repeated endはstaleです。Releaseはactive borrowを拒否し、valueをexactly onceでremove／returnし、copy済みownerをすべてstaleにします。したがってCopy可能representationはcopy可能ownershipを意味しません。
@@ -98,13 +100,13 @@ Contract／resource-table validationはbackend非依存で、VM、JIT、AOT exec
 
 Metadata schema versionとpackage versionは別の意味を持ちます。Schema versionはcontractのshapeとvalidation ruleを選択します。Package versionは宣言されたcomponent revisionを識別します。Schema 1は正確なsupported schema valueを要求し、package versionを記録しますが解釈しません。
 
-`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。Resource slot、generation、borrow identifierはruntime-local validation dataであり、選択済みwire representationではありません。このprototypeのRust layout、enum discriminant、in-memory map order、symbol name、handle bit layout、説明用text syntaxはいずれもstable formatではありません。Boundaryをstableと呼ぶ前に、後続RFCでvalidated serialization、compatibility negotiation、canonical lowering rule、serialized resource-handle representationを選択する必要があります。
+`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。Resource slot、generation、borrow identifierはruntime-local validation dataであり、選択済みwire representationではありません。このprototypeの `LCMP` scalar fixture、Rust layout、enum discriminant、in-memory map order、symbol name、handle bit layout、説明用text syntaxはいずれもunstableです。Boundaryをstableと呼ぶ前に、後続RFCでstable serialization、compatibility negotiation、canonical lowering rule、serialized resource-handle representationを選択する必要があります。
 
 ## Diagnosticsとtooling
 
-Contract validationはunsupported schema、invalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Resource operationはstale owned／borrowed handle、borrow conflict、in-use release、shared-borrow mutation、table capacity、borrow-identifier exhaustionを区別します。Human-readable messageは論理nameまたはhandle identityを含み、callerはtextをparseせずvariantをmatchできます。
+Codecはbyte、declaration-count、nesting-depth、string-length limit、malformed header／length／UTF-8／scalar tag、unsupported schema、trailing byteについてstructured errorを返します。すべてのcodec errorがbyte offsetを含みます。Contract validationは別にinvalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Resource operationはstale owned／borrowed handle、borrow conflict、in-use release、shared-borrow mutation、table capacity、borrow-identifier exhaustionを区別します。Human-readable messageはlocation、論理name、handle identityを含み、callerはtextをparseせずvariantをmatchできます。
 
-将来のdecoderは同じsemantic failureへbyte offsetまたはsource spanを付与するべきです。Toolingはembedding configurationを診断する場合を除き、local numeric host IDではなくportable import nameを表示するべきです。
+Toolingはembedding configurationを診断する場合を除き、local numeric host IDではなくportable import nameを表示するべきです。Decode後のsemantic failureをbyte rangeへmapする作業は将来課題です。
 
 ## Performanceとcost model
 
@@ -114,7 +116,7 @@ Contract validationはduplicate／lookup checkにhash set／ordered mapを使い
 
 Component metadata、capability declaration、binding configurationは、それぞれのboundaryでuntrusted inputです。Executionまたはlinker／JIT patchingより前にvalidationを完了しなければなりません。Authorityはembedderが供給するgrantから生じ、componentがcapabilityを宣言するだけでは得られません。Unauthorized componentへhost inventoryを露出しないよう、capability failureをhost-registry lookupより先に評価します。
 
-Validated wrapper／resource tableが証明するのは実装済みcheckだけです。Copy可能handleをuntrusted tokenとして扱い、すべてのoperationでgeneration／active-borrow stateを再validateします。Stale numeric valueの所持からauthorityを導出しません。このprototypeはnative callbackをsandbox化せず、callback workをpreemptせず、heap limitをenforceせず、serialized byte streamをvalidateせず、failureをまたいでdestructorを実行せず、native pluginを安全にしません。Panic／unwind behaviorは最終的なcomponent boundaryで表現・封じ込める必要があります。
+Scalar codecはallocation前に設定済みlimitをcheckし、malformed inputをdeterministically拒否し、semantic validationとは独立してfuzz targetを持ちます。Validated wrapper／resource tableが証明するのは実装済みcheckだけです。Copy可能handleをuntrusted tokenとして扱い、すべてのoperationでgeneration／active-borrow stateを再validateします。Stale numeric valueの所持からauthorityを導出しません。このprototypeはresourceをserializeせず、native callbackをsandbox化せず、callback workをpreemptせず、heap limitをenforceせず、failureをまたいでdestructorを実行せず、native pluginを安全にしません。Panic／unwind behaviorは最終的なcomponent boundaryで表現・封じ込める必要があります。
 
 ## 代替案
 
@@ -142,7 +144,7 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 
 1. Schema-1 in-memory scalar metadata、明示的capability grant、分離されたimport binding、host-registry resolution、structured validation errorを実装・test済み。
 2. Generation tag付きowned／borrowed resource handleを実装・testし、stale handle、repeated release、repeated borrow end、borrow conflictをdeterministically拒否済み。
-3. Size／depth limit、source location、forward-compatibility ruleを持つbounded serialized component format／decoderを定義する。
+3. Deterministicな実験的schema-1 scalar-metadata encoder／decoderを実装・test済み。Byte／count／depth／string limit、byte-offset diagnostics、malformed fixture、libFuzzer targetを備える。Unsupported schema versionはpayloadより先に拒否し、stable serialization／forward-compatibility policyは未決定のまま残す。
 4. 1つのvalidated contractをVM、JIT、AOT instantiationへ接続し、import／export差分testを追加する。
 5. Canonical rich-value lowering、C embedding handle、panic／error containment、compatibility negotiationを仕様化する。
 6. Stable boundaryをacceptする前にvalidation、instantiation、adapter conversion、steady-state call overheadをbenchmarkする。
@@ -153,7 +155,8 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 - Unknown schema、invalid name、duplicate declaration、import／export collision、unsupported signatureのnegative test。
 - Missing capabilityがunknown host registrationより先に報告されることを証明するtest。
 - Missing、duplicate、undeclared embedding bindingのtest。
-- 将来のdecoder fuzzingと明示的なbyte、declaration-count、nesting-depth、string-length limit。
+- Deterministic scalar-metadata encoding、明示的なbyte／declaration-count／nesting-depth／string-length limit、byte-offset diagnosticsのround-trip／malformed-fixture test。
+- Bounded decoder向けlibFuzzer targetとdeterministic arbitrary-byte smoke corpus。
 - 同じvalidated contractを使う将来のVM／JIT／AOT差分test。
 - Generation-safe reuse、stale owner／borrow、repeated release／end、shared／exclusive conflict、mutation、deterministic reuse、identifier exhaustionのresource-handle test。
 - 将来のcross-mode resource lifecycle／capability-denial conformance test。
@@ -167,7 +170,7 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 - Capability namespace、delegation、attenuation、ambient host policyをどうcomposeするべきか。
 - Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
 
-レビュー結果：**needs prototype/measurement**。Scalar metadata、capability-gated binding、table-localなowned／borrowed resource lifecycleは実行可能になりましたが、このRFCをstable component contractとしてacceptする前に、serialized resource representation／transfer、bounded decoding、VM／JIT／AOT instantiation、canonical lowering、compatibility negotiation、destructor／failure behavior、boundary-cost evidenceがblocking workとして残ります。
+レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-localなowned／borrowed resource lifecycleは実行可能になりましたが、このRFCをstable component contractとしてacceptする前に、stable serializationの選定、serialized resource representation／transfer、VM／JIT／AOT instantiation、canonical lowering、compatibility negotiation、destructor／failure behavior、boundary-cost evidenceがblocking workとして残ります。
 
 ## 情報源
 

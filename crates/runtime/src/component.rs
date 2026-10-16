@@ -1,3 +1,4 @@
+pub mod codec;
 pub mod resource;
 
 use std::collections::btree_map::Entry;

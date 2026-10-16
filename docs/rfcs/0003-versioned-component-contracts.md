@@ -16,7 +16,7 @@
 
 Define a backend-neutral, versioned component contract that describes package identity, scalar function imports and exports, and the capability required by each import. Keep embedding-local host-function identifiers outside the portable metadata. Before execution, validate the contract against explicit capability grants, logical import bindings, and the typed host-function registry, producing a validated wrapper or a structured error.
 
-The executable prototype supports `i64 -> i64` host imports, records `i64` and `bool` scalar function types, and provides a generation-tagged table for owned resources with explicit shared and exclusive borrow tokens. It is an in-memory design probe, not a stable serialized format or a WebAssembly Interface Types (WIT) implementation.
+The executable prototype supports `i64 -> i64` host imports, records `i64` and `bool` scalar function types, provides a bounded experimental schema-1 scalar-metadata codec, and provides a generation-tagged table for owned resources with explicit shared and exclusive borrow tokens. The codec is design evidence, not a stable serialized format or a WebAssembly Interface Types (WIT) implementation.
 
 ## Motivation
 
@@ -65,7 +65,7 @@ bind read-clock = host-function 7
 
 Validation succeeds only when schema 1 is understood, declarations are structurally valid, every binding names a declared import, every required capability is granted, every import has a binding, and the bound host function exists with a supported typed registration. The resulting validated value retains the portable declaration and resolved local IDs.
 
-The textual examples are explanatory only. This RFC does not select a file syntax or serialization.
+The textual examples are explanatory only. The repository-local binary codec described below is an experimental fixture format and does not select the eventual stable component serialization.
 
 Component resources use a separate in-memory table. An owned handle contains a slot and generation and is intentionally copyable to model an integer handle duplicated by untrusted code. A component may request shared or exclusive borrowed handles. Shared borrows may coexist; an exclusive borrow requires no other live borrow and is the only borrowed handle that permits mutation. Every borrow must be ended before the owner can release the resource. Release returns the host value, advances the slot generation, and makes the lowest reusable slot available. Reusing a copied old owner, ending a borrow twice, releasing twice, or using a borrow after its end returns a structured stale-handle error.
 
@@ -86,6 +86,8 @@ Validation is deterministic and occurs in this order:
 
 Schema 1 can validate only `i64 -> i64` imports because that is the only current host-registry shape. The metadata type records `bool` so the contract type system is not defined in terms of the registry method name, but a `bool -> bool` import is rejected until an equally typed registry entry and execution path exist. Exports are declarations only in this stage.
 
+The experimental scalar-metadata encoding begins with `LCMP`, followed by little-endian `u32` schema version `1`, length-prefixed UTF-8 package namespace and name, three little-endian `u32` package-version parts, and length-prefixed import and export sections. Each function stores one-byte scalar tags (`0` for `i64`, `1` for `bool`); imports additionally store a length-prefixed capability. Encoding preserves declaration order. `ComponentCodecLimits` bounds total bytes, declarations per section, structural depth, and bytes per string before allocation. The decoder rejects unsupported schemas before the payload, invalid magic or UTF-8, unknown scalar tags, truncation, trailing bytes, and every exceeded bound with a structured error carrying the byte offset. Decoding constructs unvalidated `ComponentMetadata`; semantic and capability validation remains a separate required step.
+
 `ResourceTable<T>` owns host values. `OwnedResourceHandle` is `(slot: u32, generation: u64)`. `BorrowedResourceHandle` additionally carries a monotonically allocated borrow identifier and `Shared` or `Exclusive` kind. A released slot increments its generation before reuse; a slot whose generation cannot advance is retired. Free slots are selected in ascending slot order, making reuse deterministic. Borrow identifiers are never reused, and exhaustion is an error.
 
 Resource operations first validate slot occupancy and generation. Shared-borrow creation rejects an active exclusive borrow. Exclusive-borrow creation rejects any active borrow. Mutable access rejects shared or inactive tokens. Ending a borrow removes exactly that token; a repeated end is stale. Release rejects any active borrow, removes and returns the value exactly once, and makes all copied owners stale. The copyable representation therefore does not imply copyable ownership.
@@ -98,13 +100,13 @@ Contract and resource-table validation are backend-neutral and run before select
 
 The metadata schema version and package version have separate meanings. The schema version selects the shape and validation rules of the contract. The package version identifies the declared component revision. Schema 1 requires an exact supported schema value and records, but does not interpret, the package version.
 
-`HostFunctionId` is an embedding-local binding and is deliberately excluded from portable metadata. Resource slot, generation, and borrow identifiers are runtime-local validation data, not a selected wire representation. No Rust layout, enum discriminant, in-memory map order, symbol name, handle bit layout, or explanatory text syntax in this prototype is a stable format. A later RFC must choose a validated serialization, compatibility negotiation, canonical lowering rules, and serialized resource-handle representation before the boundary can be called stable.
+`HostFunctionId` is an embedding-local binding and is deliberately excluded from portable metadata. Resource slot, generation, and borrow identifiers are runtime-local validation data, not a selected wire representation. The `LCMP` scalar fixture, Rust layout, enum discriminants, in-memory map order, symbol names, handle bit layout, and explanatory text syntax in this prototype are all unstable. A later RFC must choose the stable serialization, compatibility negotiation, canonical lowering rules, and serialized resource-handle representation before the boundary can be called stable.
 
 ## Diagnostics and tooling
 
-Contract validation returns structured error variants for unsupported schemas, invalid identifiers, duplicate names, namespace collisions, unsupported function types, extra or missing bindings, missing capabilities, and unknown host functions. Resource operations distinguish stale owned and borrowed handles, conflicting borrows, release while in use, shared-borrow mutation, table capacity, and borrow-identifier exhaustion. Human-readable messages include logical names or handle identity, while callers can match the variant without parsing text.
+The codec returns structured errors for byte, declaration-count, nesting-depth, and string-length limits; malformed headers, lengths, UTF-8, and scalar tags; unsupported schemas; and trailing bytes. Every codec error includes a byte offset. Contract validation separately returns structured error variants for invalid identifiers, duplicate names, namespace collisions, unsupported function types, extra or missing bindings, missing capabilities, and unknown host functions. Resource operations distinguish stale owned and borrowed handles, conflicting borrows, release while in use, shared-borrow mutation, table capacity, and borrow-identifier exhaustion. Human-readable messages include locations, logical names, or handle identity, while callers can match the variant without parsing text.
 
-A future decoder should attach byte offsets or source spans to the same semantic failures. Tooling should display portable import names rather than local numeric host IDs except when diagnosing embedding configuration.
+Tooling should display portable import names rather than local numeric host IDs except when diagnosing embedding configuration. Mapping post-decode semantic failures back to byte ranges remains future work.
 
 ## Performance and cost model
 
@@ -114,7 +116,7 @@ Contract validation is linear in the number of declarations and bindings on aver
 
 Component metadata, capability declarations, and binding configuration are untrusted inputs at their respective boundaries. Validation must complete before execution or linker/JIT patching. Authority comes from embedder-supplied grants, never from a component merely declaring a capability. Capability failure precedes host-registry lookup to avoid exposing host inventory to unauthorized components.
 
-The validated wrapper and resource table prove only their implemented checks. Copyable handles are treated as untrusted tokens: generation and active-borrow state are revalidated on every operation, and authority is not derived from possession of a stale numeric value. The prototype does not sandbox native callbacks, preempt callback work, enforce heap limits, validate a serialized byte stream, run destructors across failures, or make native plugins safe. Panic or unwind behavior must remain represented and contained at the eventual component boundary.
+The scalar codec checks its configured bounds before allocation, rejects malformed input deterministically, and is fuzz-targeted independently from semantic validation. The validated wrapper and resource table prove only their implemented checks. Copyable handles are treated as untrusted tokens: generation and active-borrow state are revalidated on every operation, and authority is not derived from possession of a stale numeric value. The prototype does not serialize resources, sandbox native callbacks, preempt callback work, enforce heap limits, run destructors across failures, or make native plugins safe. Panic or unwind behavior must remain represented and contained at the eventual component boundary.
 
 ## Alternatives
 
@@ -142,7 +144,7 @@ A raw index is smaller, but after slot reuse an old copy can silently name a dif
 
 1. Implemented and tested schema-1 in-memory scalar metadata, explicit capability grants, separate import bindings, host-registry resolution, and structured validation errors.
 2. Implemented and tested generation-tagged owned and borrowed resource handles with deterministic stale-handle, repeated-release, repeated-borrow-end, and borrow-conflict rejection.
-3. Define a bounded serialized component format and decoder with size/depth limits, source locations, and forward-compatibility rules.
+3. Implemented and tested a deterministic experimental schema-1 scalar-metadata encoder/decoder with byte/count/depth/string limits, byte-offset diagnostics, malformed fixtures, and a libFuzzer target. Unsupported schema versions are rejected before their payload; the stable serialization and forward-compatibility policy remain open.
 4. Connect one validated contract to VM, JIT, and AOT instantiation and add differential import/export tests.
 5. Specify canonical rich-value lowering, C embedding handles, panic/error containment, and compatibility negotiation.
 6. Benchmark validation, instantiation, adapter conversion, and steady-state call overhead before accepting the stable boundary.
@@ -153,7 +155,8 @@ A raw index is smaller, but after slot reuse an old copy can silently name a dif
 - Negative tests for unknown schemas, invalid names, duplicate declarations, import/export collisions, and unsupported signatures.
 - Tests proving missing capabilities are reported before unknown host registrations.
 - Tests for missing, duplicate, and undeclared embedding bindings.
-- Future decoder fuzzing and explicit byte, declaration-count, nesting-depth, and string-length limits.
+- Round-trip and malformed-fixture tests for deterministic scalar metadata encoding, explicit byte/declaration-count/nesting-depth/string-length limits, and byte-offset diagnostics.
+- A libFuzzer target plus a deterministic arbitrary-byte smoke corpus for the bounded decoder.
 - Future VM/JIT/AOT differential tests using the same validated contract.
 - Resource-handle tests for generation-safe reuse, stale owners/borrows, repeated release/end, shared/exclusive conflicts, mutation, deterministic reuse, and identifier exhaustion.
 - Future cross-mode resource lifecycle and capability-denial conformance tests.
@@ -167,7 +170,7 @@ A raw index is smaller, but after slot reuse an old copy can silently name a dif
 - How should capability namespaces, delegation, attenuation, and ambient host policy compose?
 - Should validated contracts retain direct function pointers, immutable registry references, or generation-checked registry handles?
 
-Review outcome: **needs prototype/measurement**. Scalar metadata, capability-gated binding, and table-local owned/borrowed resource lifecycles are executable, but serialized resource representation and transfer, bounded decoding, VM/JIT/AOT instantiation, canonical lowering, compatibility negotiation, destructor/failure behavior, and boundary-cost evidence remain blocking work before this RFC can be accepted as the stable component contract.
+Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decoding, capability-gated binding, and table-local owned/borrowed resource lifecycles are executable, but selection of the stable serialization, serialized resource representation and transfer, VM/JIT/AOT instantiation, canonical lowering, compatibility negotiation, destructor/failure behavior, and boundary-cost evidence remain blocking work before this RFC can be accepted as the stable component contract.
 
 ## Sources
 

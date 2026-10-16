@@ -1,0 +1,22 @@
+[package]
+name = "lang-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+lang-runtime = { path = "../crates/runtime" }
+
+[[bin]]
+name = "component_metadata_decoder"
+path = "fuzz_targets/component_metadata_decoder.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = ["."]
