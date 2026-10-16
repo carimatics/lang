@@ -18,7 +18,7 @@ Package identity、scalar function import／export、各importが要求するcap
 
 実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録し、boundedな実験的schema-1 scalar-metadata codecと、明示的なshared／exclusive borrow tokenを持つgeneration tag付きowned-resource tableを提供します。このcodecはdesign evidenceであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
 
-本proposalはnormal-path scalar／resource transferに加え、panic、trap、destructor-failure behaviorも規定します。これらのadapter、cleanup、failure ruleは規定済みですが、まだ実装されておらずstable ABIとしてacceptされていません。
+本proposalはnormal-path scalar／resource transfer、panic／trap／destructor-failure behavior、deterministicなpackage／interface compatibility negotiationも規定します。これらのadapter、cleanup、failure、negotiation ruleは規定済みですが、まだ実装されておらずstable ABIとしてacceptされていません。
 
 ## 動機
 
@@ -36,6 +36,7 @@ Resource handle、canonical lowering、stable C embedding APIを固定する前�
 - Rust referenceがboundaryを越えることに依存せず、stale、repeatedly released、illegal borrowed resource handleを拒否する。
 - Runtime handle layoutを公開せず、canonical scalar／resource call representationとnormal-path ownership transferを規定する。
 - Ownership transfer後のbackend-neutralなpanic／trap containmentと、deterministicかつat-most-onceなdestructor-failure behaviorを規定する。
+- SemVer claimをstructural compatibilityの証明として扱わず、deterministicなpackage／interface version negotiationを規定する。
 - Trust boundaryでstructuredかつdeterministicなfailureを返す。
 
 ## 非目標
@@ -47,7 +48,7 @@ Resource handle、canonical lowering、stable C embedding APIを固定する前�
 - Process abortからrecoverすること、native unwind／foreign exceptionがcomponent boundaryを越えることを許すこと、またはasync cancellationを定義すること。
 - C embedding ABI、native calling convention、symbol namingをstable化すること。
 - この段階でVM、JIT、AOT pathを通してcomponent exportを実行すること。
-- Semantic-version compatibility rangeまたはdependency resolutionを定義すること。
+- Network越しにdependencyをresolveすること、registryを選ぶこと、source-package dependency graphをsolveすること、または最初のcontractで1 package内のinterfaceを独立versioningすること。
 
 ## Guide-level design
 
@@ -70,6 +71,16 @@ export adopt: (own<timer>) -> i64
 ```
 
 `inspect` はcall-scoped loanを受け取り、`adopt` はtransfer commit成功時にcallerのownerをconsumeします。その後 `adopt` がpanicしても、callerはownerを取り戻しません。Callee codeが別の場所へmove済みでなければ、callee cleanup ledgerがdestroyします。Destructor failureは1回だけreportし、残るcleanupを続行してaffected instanceをpoisonします。このnotationは説明用であり、最終的なIDL syntaxを選択するものではありません。
+
+Interface importは概念上、package／interfaceとnormalized version requirementの両方を指定します。
+
+```text
+import clocks from example:time/clocks
+  version >=1.2.0,<2.0.0
+  requires members { now: () -> i64 requires clock.read }
+```
+
+Serialized contractはこの説明用range syntaxではなく、exact requirementまたは明示的lower／upper boundを格納します。Instantiation時にembedderはversion boundとすべてのrequired memberを満たすauthorized providerのうち、最も高いversionを選びます。Exact content digestへのlock bindingがある場合はそのsearchより優先します。SemVerがmatchしてもsignature、ownership mode、resource identity、capabilityが変わっていればfailureです。
 
 Declarationは `HostFunctionId` を含みません。Embedderは次を別に構成します。
 
@@ -142,29 +153,53 @@ Owned resourceのdropは、user destructor codeをinvokeする前にboundary own
 
 **未解決hypothesis。** 明示的cleanup ledgerとdestructorごとのcontainmentによりhost processを維持しながらleak／double destructionを避けられるはずですが、code-size、steady-state、failure-path、native landing-pad costにはimplementation／cross-mode measurementが必要です。
 
+### Package／interface compatibility negotiation
+
+**Source fact。** WIT package nameはnamespace、package name、optionalなfull SemVer versionを含み、qualified `use` pathはそのpackage内のinterfaceを指定します。SemVer 2.0.0はrelease済みversionのcontentを変更しないよう要求し、incompatibleなpublic-API changeにmajor-version incrementを割り当て、`0.y.z` をunstableなinitial developmentとして扱い、prereleaseのprecedenceを対応するnormal versionより低くし、precedence比較ではbuild metadataを無視します。Version number／rangeだけでは、2つの具体的interface declarationがstructurally compatibleであることを証明しません。
+
+**Project decision。** Metadata schema negotiation、package selection、interface compatibilityを別々にcheckします。
+
+- Metadata schemaは引き続きexactなsupported integerです。Schema 1はexact package versionを記録し続けますがinterface requirementを表現できません。下記fieldの追加にはnew schemaが必要で、既存 `LCMP` byteを再解釈しません。
+- `PackageKey` はexactかつcase-sensitiveな `(namespace, package)` pairです。`InterfaceKey` はexact interface nameを追加します。Nominalな `ResourceTypeKey` はexact resource nameを追加しますが、package versionを意図的に除外します。Providerがversion requirementを通過した後だけ比較することで、別のpackage／interface／resource nameを同一視せず、compatible release間で1つのresource lineageを維持します。初期modelではすべてのinterfaceがpackageのSemVer versionを継承し、interfaceの独立versioningは後続へ送ります。
+- Provider declarationはexact SemVer version、immutable package-content digest、exportするinterface declarationを持ちます。Consumerは `Exact(version)` requirement、またはrequired member projectionとともにnormalized `Interval { min_inclusive, max_exclusive, allow_prerelease }` を持ちます。`Exact` はprerelease／build metadataを含む完全なSemVer valueを比較し、`Interval` はbuild metadataがcandidateをorderしないSemVer precedenceを使います。Serialized formはこれらのfieldを直接格納し、textual range grammarの解釈差をruntime間に生じさせません。
+- Toolingはstableな `1.0.0` 以降のdependencyを同じmajor内のintervalへdefault loweringし、`0.y.z` dependencyを `Exact` へdefault loweringします。より広いzero-major／prerelease intervalにはauthorの明示的opt-inが必要です。Prerelease candidateは、`Exact` がそのprereleaseを指定するかintervalがprereleaseを明示的に許可しない限りrequirementを満たしません。Build metadataはprecedenceでは無視しますが、selected identityには保持します。
+
+Instantiationはprovider inventoryを公開したりVM／JIT／AOT call siteをpatchしたりする前に、次のdeterministic algorithmを実行します。
+
+1. Consumer contractとすべてのcapability grantをvalidateします。Required grantを持たないcomponentはcandidate lookupより先に既存capability errorを受け取ります。
+2. Embedding／lock dataがexact content digestを指定する場合、exact package／interface identity、version、digestを要求します。Mismatchはterminalであり、negotiationは暗黙にfallbackしません。
+3. それ以外ではregistered providerをexact `PackageKey`／`InterfaceKey`、次にnormalized SemVer requirement／prerelease policyでfilterします。
+4. Consumerのrequired projectionを各candidateに対してstructurally validateします。すべてのrequired member name、parameter／result order、scalar type、resource type identity、`own`／`borrow` mode、capabilityがexactにmatchする必要があります。Unknown schema constructはfail closedです。Providerはvalidated projectionから到達できない追加memberを公開できます。
+5. 残るcandidateからSemVer precedenceが最も高いものを選びます。そのprecedenceで異なるcandidateのbuild metadata／content digestが異なる場合、registration／map orderで選ばずambiguityを返します。
+6. Selected exact version、digest、required-member mapping、capability、adapter ruleを持つimmutableな `ValidatedInterfaceBinding` を生成します。すべてのexecution modeがこのbindingをconsumeします。Registry mutation／rebindingにはfresh validationが必要で、running instanceはfailure後に別providerへfall throughしません。
+
+したがってcompatibility promiseは2層です。SemVer boundはconsumerが検討を許すreleaseを表し、structural projectionはselected releaseが期待するobservable contractを引き続き提供することを証明します。Unrequested exportの追加は既存consumerとcompatibleです。Required memberのremove／rename、parameter／result orderまたはtypeの変更、resource identity／ownership modeの変更、matched memberのcapability変更はversion labelにかかわらずincompatibleです。Package-manager resolutionは利用可能なartifact／lock digestを決めます。Runtime negotiationはnetwork／registry accessを行いません。
+
+**未解決hypothesis。** Projection matchingはsafetyを弱めずadditive provider evolutionを許すはずですが、declaration size、digest／fingerprint strategy、candidate-set scaling、明示的zero-major／prerelease requirementのergonomicsにはprototype／registry／tooling measurementが必要です。
+
 ## Execution mode
 
-Contract／resource-table validationはbackend非依存で、VM、JIT、AOT executionを選ぶ前に実行します。Canonical callはすべてのmodeで同じpreflight、adapter-table transfer、dynamic-scope borrow、cleanup-ledger order、failure precedence、instance-poisoning ruleを使います。Prototypeはimportを `HostFunctionRegistry` に対してresolveし、runtime crate内でresource lifecycleを直接実行します。VM moduleのinstantiate、JIT call-site patch、adapter table／cleanup ledgerの実装、AOT import／resource lowering、export callはまだ行いません。将来のexecution pathはunchecked metadataを独立に再解釈せず、同じvalidated contract／resource ruleをconsumeしなければなりません。
+Contract／resource-table validationとpackage／interface negotiationはbackend非依存で、VM、JIT、AOT executionを選ぶ前に実行します。すべてのmodeが同じimmutable `ValidatedInterfaceBinding` をconsumeし、同じpreflight、adapter-table transfer、dynamic-scope borrow、cleanup-ledger order、failure precedence、instance-poisoning ruleを適用します。Prototypeはscalar importを `HostFunctionRegistry` に対してresolveし、runtime crate内でresource lifecycleを直接実行します。Version requirementの表現、provider selection、VM moduleのinstantiate、JIT call-site patch、adapter table／cleanup ledgerの実装、AOT import／resource lowering、export callはまだ行いません。将来のexecution pathはunchecked metadataを独立に再解釈したり、code patching後に再negotiationしたりしてはいけません。
 
 ## ABIと互換性
 
 Metadata schema versionとpackage versionは別の意味を持ちます。Schema versionはcontractのshapeとvalidation ruleを選択します。Package versionは宣言されたcomponent revisionを識別します。Schema 1は正確なsupported schema valueを要求し、package versionを記録しますが解釈しません。
 
-`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。Resource slot、generation、borrow identifierはruntime-local validation dataであり、portable representationではありません。提案するunsigned 32-bit canonical resource indexはadapter-table keyであり、runtime handle layoutでもserializable identityでもありません。Rust panic payload、native exception object、backend unwind metadataもportableではありません。このprototypeの `LCMP` scalar fixture、Rust layout、enum discriminant、in-memory map order、symbol name、説明用text syntaxはいずれもunstableです。Boundaryをstableと呼ぶ前に、accepted revisionでstable serialization、compatibility negotiation、resource-type identity encoding、versioned failure-record encodingを選択する必要があります。
+`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。Resource slot、generation、borrow identifierはruntime-local validation dataであり、portable representationではありません。提案するunsigned 32-bit canonical resource indexはadapter-table keyであり、runtime handle layoutでもserializable identityでもありません。Rust panic payload、native exception object、backend unwind metadataもportableではありません。Schema 1とその `LCMP` fixtureはexact package versionだけをencodeし続けます。Normalized requirement、interface key／projection、content-digest algorithm identifier、selected digest、failure recordにはnew versioned schemaが必要です。Rust layout、enum discriminant、in-memory map order、symbol name、説明用text syntaxはいずれもunstableです。Boundaryをstableと呼ぶ前に、accepted revisionでstable serialization、resource-type identity encoding、normalized-requirement／digest encoding、versioned failure-record encodingを選択する必要があります。
 
 ## Diagnosticsとtooling
 
-Codecはbyte、declaration-count、nesting-depth、string-length limit、malformed header／length／UTF-8／scalar tag、unsupported schema、trailing byteについてstructured errorを返します。すべてのcodec errorがbyte offsetを含みます。Contract validationは別にinvalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Resource operationはstale owned／borrowed handle、borrow conflict、in-use release、shared-borrow mutation、table capacity、boundary-index exhaustion、destination-reservation failure、borrow-identifier exhaustionを区別します。Boundary failureはRust panic payload／native exception objectを公開せず、stable category、phase、diagnostic identity、ordered suppressed failure、poisoned stateを公開します。Human-readable messageはlocation、論理name、handle identityを含み、callerはtextをparseせずvariantをmatchできます。
+Codecはbyte、declaration-count、nesting-depth、string-length limit、malformed header／length／UTF-8／scalar tag、unsupported schema、trailing byteについてstructured errorを返します。すべてのcodec errorがbyte offsetを含みます。Contract validationは別にinvalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Negotiationはunsupported schema、unresolved import、invalid requirement、compatible versionなし、prerelease拒否、structural member mismatch、lock-digest mismatch、ambiguous providerを区別します。Authorized embedding diagnosticsはpackage／interface、candidate version、member、mismatch dimensionを識別し、untrusted componentにはcapability validation前にprovider-inventory detailを返しません。Resource operationはstale owned／borrowed handle、borrow conflict、in-use release、shared-borrow mutation、table capacity、boundary-index exhaustion、destination-reservation failure、borrow-identifier exhaustionを区別します。Boundary failureはRust panic payload／native exception objectを公開せず、stable category、phase、diagnostic identity、ordered suppressed failure、poisoned stateを公開します。Human-readable messageはlocation、論理name、handle identityを含み、callerはtextをparseせずvariantをmatchできます。
 
-Toolingはembedding configurationを診断する場合を除き、local numeric host IDではなくportable import nameを表示するべきです。Decode後のsemantic failureをbyte rangeへmapする作業は将来課題です。
+Toolingはembedding configurationを診断する場合を除き、local numeric host IDではなくportable import nameを表示するべきです。Resolution outputはnormalized requirement、selected exact version／digest、lockがselectionを強制したか、各rejected candidateの最初のstructural incompatibilityを表示するべきです。Decode後のsemantic failureをbyte rangeへmapする作業は将来課題です。
 
 ## Performanceとcost model
 
-Contract validationはduplicate／lookup checkにhash set／ordered mapを使い、平均してdeclaration／binding数に対してlinearです。Owned stringとresolved-binding mapを成功したvalidationごとに1回allocateします。Resource lookupはslotによりconstant timeで、shared-borrow tracking／deterministic free-slot selectionはordered setを使い、それぞれのset sizeに対してlogarithmicです。Call-site thunk generation、canonical representation conversion、cross-boundary resource dispatch、cleanup-ledger maintenance、panic-containment barrier、landing pad、destructor cleanupはこのprototypeの範囲外であり、stable化前のbenchmark／code-size requirementとして残ります。
+Contract validationはduplicate／lookup checkにhash set／ordered mapを使い、平均してdeclaration／binding数に対してlinearです。Owned stringとresolved-binding mapを成功したvalidationごとに1回allocateします。Indexed identity lookup後のnegotiationは各candidate／required projectionを調べ、registry orderに依存せずmaximumを選びます。Candidate count、projection size、digest verificationをboundする必要があります。Resource lookupはslotによりconstant timeで、shared-borrow tracking／deterministic free-slot selectionはordered setを使い、それぞれのset sizeに対してlogarithmicです。Candidate filtering、structural projection、digest verification、call-site thunk generation、canonical conversion、cross-boundary resource dispatch、cleanup-ledger maintenance、panic-containment barrier、landing pad、destructor cleanupはstable化前のbenchmark／memory／code-size requirementとして残ります。
 
 ## Securityとtrust boundary
 
-Component metadata、capability declaration、binding configurationは、それぞれのboundaryでuntrusted inputです。Executionまたはlinker／JIT patchingより前にvalidationを完了しなければなりません。Authorityはembedderが供給するgrantから生じ、componentがcapabilityを宣言するだけでは得られません。Unauthorized componentへhost inventoryを露出しないよう、capability failureをhost-registry lookupより先に評価します。
+Component metadata、capability declaration、version requirement、content digest、provider registration、binding configurationは、それぞれのboundaryでuntrusted inputです。Executionまたはlinker／JIT patchingより前にvalidation／negotiationを完了しなければなりません。Authorityはembedderが供給するgrantから生じ、componentがcapabilityを宣言するだけでは得られません。Unauthorized componentへinventoryを露出しないよう、capability failureをprovider／host-registry lookupより先に評価します。Package／interface nameはfallbackなしでcanonicalかつcase-sensitiveに比較し、prerelease admissionは明示的とし、digest algorithm／lengthを比較前にvalidateし、lock mismatchまたはsame-precedence ambiguityではdowngradeせずfail closedにします。
 
 Scalar codecはallocation前に設定済みlimitをcheckし、malformed inputをdeterministically拒否し、semantic validationとは独立してfuzz targetを持ちます。Validated wrapper／resource tableが証明するのは実装済みcheckだけです。Copy可能handleをuntrusted tokenとして扱い、すべてのoperationでgeneration／active-borrow stateを再validateし、instance内でboundary indexを再利用しません。Stale numeric valueの所持からauthorityを導出しません。Preflightはmutation前にowned aliasを拒否し、transfer commit内ではuser codeを実行しません。Panic payload／native exception objectはuntrustedであり、boundaryを越えてverbatimに反映しません。Message exposureはembedder policyです。Poisoningにより、external stateをpartialにした可能性があるdestructor、host-callback、invariant failure後のreentryを防ぎます。このprototypeはresourceをserializeせず、native callbackをsandbox化せず、callback workをpreemptせず、heap limitをenforceせず、cleanup ledgerを実装せず、native pluginを安全にしません。Aborting panic／foreign exceptionはrecoverable in-process contractの範囲外です。
 
@@ -194,6 +229,10 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 
 Panic後にtransferred ownerをcallerへrollbackする方法は便利に見えますが、callee codeがresourceをmutate、store、moveした後にはunsoundです。すべてのpanicでprocessをabortする方法は単純で、native `panic=abort` では不可避ですが、embedded-script isolation goalに反します。最初のdestructor failureでcleanupを止める方法はsecondary failureを避けますが、後続frame-owned resourceをleakします。本提案はcommit済みownershipを維持し、deterministicなbest-effort cleanupを実行し、suppressed destructor failureを記録してaffected instanceをpoisonします。
 
+### SemVerだけをtrustするかexact versionだけを要求する
+
+In-range SemVer labelをdeclaration checkなしでtrustする方法は高速ですが、mislabelされたreleaseがsignature、ownership、capabilityを暗黙に変更できます。Exact-version-only matchingはより安全ですが、compatible patchごとにlockstep churnが起きます。Version intentなしのstructural matchingはauthorがsupportすると選んでいないshapeを受け入れます。本提案は明示的normalized SemVer requirementとstructural projectionの両方を要求し、optionalなexact lock digestを組み合わせます。
+
 ## 実装計画
 
 1. Schema-1 in-memory scalar metadata、明示的capability grant、分離されたimport binding、host-registry resolution、structured validation errorを実装・test済み。
@@ -202,8 +241,9 @@ Panic後にtransferred ownerをcallerへrollbackする方法は便利に見え�
 4. 1つのvalidated contractをVM、JIT、AOT instantiationへ接続し、import／export差分testを追加する。
 5. 最初のcanonical call subsetを提案済み。64-bit `i64`、32-bit `bool`、preflight済みnormal-path ownership transferを持つadapter-table `own<T>`／`borrow<T>` resource indexを規定する。Implementation／cross-mode conformanceは未完了。
 6. Backend-neutral panic／trap containment、commit後ownershipの非rollback、deterministic cleanup ledger、at-most-once destructor、ordered suppressed failure、conservative instance poisoningを提案済み。Implementation／cross-mode conformanceは未完了。
-7. Package／interface compatibility negotiationとversioned failure-record encodingを規定する。
-8. Stable boundaryをacceptする前にvalidation、instantiation、adapter conversion、cleanup、failure path、code size、steady-state call overheadをbenchmarkする。
+7. Exact package／interface key、normalized SemVer requirement、prerelease／zero-major policy、structural required-member projection、exact lock digest、deterministicなhighest-version selection、ambiguity拒否を提案済み。New metadata schema、package-manager integration、runtime implementation、conformanceは未完了。
+8. Stable serialization、normalized-requirement、digest、resource-identity、failure-record encodingを選定する。
+9. Stable boundaryをacceptする前にvalidation、negotiation、instantiation、adapter conversion、cleanup、failure path、memory、code size、steady-state call overheadをbenchmarkする。
 
 ## テスト計画
 
@@ -217,19 +257,21 @@ Panic後にtransferred ownerをcallerへrollbackする方法は便利に見え�
 - Generation-safe reuse、stale owner／borrow、repeated release／end、shared／exclusive conflict、mutation、deterministic reuse、identifier exhaustionのresource-handle test。
 - Exact scalar lane、boolean normalization、wrong-type／stale／duplicate／borrow-aliased owner拒否、boundary indexの非再利用／exhaustion、ownership不変のreservation failure、atomicかつnon-reentrantなnormal-path owner transfer、call-scoped／nested borrow、borrowed result禁止、VM／JIT／AOT同一結果に関する将来のcanonical-call test。
 - Pre-commit preservation、post-commit非rollback、borrow closure後のreverse-order cleanup、moved-owner ledger update、uncommitted-result cleanup、at-most-once failing destructor、primary／suppressed ordering、reentrancy拒否、reusable／poisoned instance、contained unwind／panic-payload disposal、foreign unwind拒否、VM／JIT／AOT同一結果に関する将来のfailure-boundary test。
+- Exact／bounded requirement、zero-major default、prerelease opt-in、build-metadata precedence tie、locked digest成功／mismatch、registration order非依存のhighest compatible selection、same-precedence ambiguity、additive export、compatible-version resource lineage、resource rename／identity mismatch、その他すべてのstructural incompatibility dimension、capability-before-inventory ordering、lock／instantiation後fallback禁止、VM／JIT／AOT同一bindingに関する将来のnegotiation test。
 - 将来のcross-mode resource lifecycle／capability-denial conformance test。
 - Validation、instantiation、conversion、repeated callの将来benchmark。
 
 ## 未解決事項
 
 - Serialized contractはWITを直接採用するか、compatible subsetをembedするか、WIT adapter付きproject-specific encodingを使うべきか。
-- Embedderはどのpackage-version compatibility rule／negotiation algorithmを適用するべきか。
+- Toolingはどのsource-level range syntaxをnormalized exact／interval representationへloweringするべきか。
+- Interfaceの独立versioningは、いつpackage-inherited versionを置き換えるべきか。
 - 初期scalar／resource subsetの次にどのrich valueを追加し、どれを後続schemaへ送るべきか。
 - Capability namespace、delegation、attenuation、ambient host policyをどうcomposeするべきか。
 - Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
 - Embedding ABIはどのstable failure-record encoding／message-redaction policyを公開するべきか。
 
-レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary ruleは規定済みです。このRFCをstable component contractとしてacceptする前に、stable serialization、adapter transfer／cleanupのimplementation／VM／JIT／AOT conformance、compatibility negotiation／failure-record encoding、boundary-cost evidenceがblocking workとして残ります。
+レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary rule、deterministicなpackage／interface compatibility negotiationは規定済みです。このRFCをstable component contractとしてacceptする前に、new metadata schema／stable serialization、negotiation／adapter transfer／cleanupのimplementation／VM／JIT／AOT conformance、package-manager／lock integration、stable digest／resource／failure-record encoding、boundary-cost evidenceがblocking workとして残ります。
 
 ## 情報源
 
@@ -239,6 +281,7 @@ Panic後にtransferred ownerをcallerへrollbackする方法は便利に見え�
 - WebAssembly Component Model「Canonical ABI」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://component-model.bytecodealliance.org/advanced/canonical-abi.html>
 - WebAssembly Component Model `design/mvp/WIT.md`、公式specification source、commit `d6a17ea9f828f44c4659d70c35822ab53d2a8a1d` で2026-09-15最終変更、2026-10-16確認。<https://github.com/WebAssembly/component-model/blob/d6a17ea9f828f44c4659d70c35822ab53d2a8a1d/design/mvp/WIT.md>
 - WebAssembly Component Model `design/mvp/CanonicalABI.md`、公式specification source、commit `2e7895c76905cd3fb7e6be4ac632258972b1f688` で2026-10-13最終変更、2026-10-16確認。<https://github.com/WebAssembly/component-model/blob/2e7895c76905cd3fb7e6be4ac632258972b1f688/design/mvp/CanonicalABI.md>
+- Semantic Versioning 2.0.0、公式versioned specification、公開日・page更新日の記載なし、2026-10-16確認。<https://semver.org/spec/v2.0.0.html>
 - The Rust Reference「Panic」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/reference/panic.html>
 - Rust standard library `std::panic::catch_unwind`、公式living API documentation、page更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
 - The Rustonomicon「FFI and unwinding」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>

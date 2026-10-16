@@ -18,7 +18,7 @@ Define a backend-neutral, versioned component contract that describes package id
 
 The executable prototype supports `i64 -> i64` host imports, records `i64` and `bool` scalar function types, provides a bounded experimental schema-1 scalar-metadata codec, and provides a generation-tagged table for owned resources with explicit shared and exclusive borrow tokens. The codec is design evidence, not a stable serialized format or a WebAssembly Interface Types (WIT) implementation.
 
-The proposal additionally defines normal-path scalar/resource transfer plus panic, trap, and destructor-failure behavior. These adapter, cleanup, and failure rules are specified but not yet implemented or accepted as a stable ABI.
+The proposal additionally defines normal-path scalar/resource transfer, panic/trap/destructor-failure behavior, and deterministic package/interface compatibility negotiation. These adapter, cleanup, failure, and negotiation rules are specified but not yet implemented or accepted as a stable ABI.
 
 ## Motivation
 
@@ -36,6 +36,7 @@ The component boundary needs a narrow executable model before resource handles, 
 - Reject stale, repeatedly released, or illegally borrowed resource handles without relying on Rust references crossing the boundary.
 - Specify canonical scalar/resource call representation and normal-path ownership transfer without exposing runtime handle layout.
 - Define backend-neutral panic/trap containment and deterministic, at-most-once destructor-failure behavior after ownership transfer.
+- Define deterministic package/interface version negotiation without treating a SemVer claim as proof of structural compatibility.
 - Return structured, deterministic failures at the trust boundary.
 
 ## Non-goals
@@ -47,7 +48,7 @@ The component boundary needs a narrow executable model before resource handles, 
 - Recovering from a process abort, permitting a native unwind or foreign exception to cross the component boundary, or defining asynchronous cancellation.
 - Stabilizing the C embedding ABI, native calling convention, or symbol naming.
 - Executing component exports through the VM, JIT, or AOT paths in this stage.
-- Defining semantic-version compatibility ranges or dependency resolution.
+- Resolving dependencies over the network, selecting a registry, solving source-package dependency graphs, or independently versioning interfaces within one package in the first contract.
 
 ## Guide-level design
 
@@ -70,6 +71,16 @@ export adopt: (own<timer>) -> i64
 ```
 
 `inspect` receives a call-scoped loan; `adopt` consumes the caller's owner on a successful transfer commit. If `adopt` then panics, the caller does not regain that owner: the callee cleanup ledger destroys it unless callee code already moved it elsewhere. A failing destructor is reported once, remaining cleanup continues, and the affected instance becomes poisoned. This notation is explanatory and does not select the eventual IDL syntax.
+
+An interface import conceptually names both a package/interface and a normalized version requirement:
+
+```text
+import clocks from example:time/clocks
+  version >=1.2.0,<2.0.0
+  requires members { now: () -> i64 requires clock.read }
+```
+
+The serialized contract stores an exact requirement or explicit lower/upper bounds, not this explanatory range syntax. At instantiation, the embedder chooses the highest authorized provider that satisfies the version bounds and every required member. A lock binding to an exact content digest overrides that search. A SemVer match with a changed signature, ownership mode, resource identity, or capability still fails.
 
 The declaration does not contain a `HostFunctionId`. The embedder separately configures:
 
@@ -142,29 +153,53 @@ Dropping an owned resource marks its boundary owner consumed and removes it from
 
 **Open hypothesis.** Explicit cleanup ledgers and per-destructor containment should avoid leaks and double destruction while preserving the host process, but their code-size, steady-state, failure-path, and native landing-pad costs require implementation and cross-mode measurement.
 
+### Package and interface compatibility negotiation
+
+**Source facts.** WIT package names contain a namespace, package name, and optional full SemVer version; qualified `use` paths name an interface in such a package. SemVer 2.0.0 requires released version contents not to be modified, assigns incompatible public-API changes to a major-version increment, treats `0.y.z` as unstable initial development, gives prereleases lower precedence than the associated normal version, and ignores build metadata when comparing precedence. Neither a version number nor a range proves that two concrete interface declarations are structurally compatible.
+
+**Project decision.** Metadata schema negotiation, package selection, and interface compatibility are separate checks:
+
+- The metadata schema remains an exact supported integer. Schema 1 continues to record an exact package version but cannot express an interface requirement; adding the fields below requires a new schema and does not reinterpret existing `LCMP` bytes.
+- A `PackageKey` is the exact, case-sensitive `(namespace, package)` pair. An `InterfaceKey` adds the exact interface name. A nominal `ResourceTypeKey` adds the exact resource name but deliberately excludes the package version; it is compared only after the provider passes the version requirement, preserving one resource lineage across compatible releases without equating different package/interface/resource names. Every interface in the initial model inherits its package's SemVer version; independently versioned interfaces are deferred.
+- A provider declaration carries an exact SemVer version, an immutable package-content digest, and its exported interface declarations. A consumer carries an `Exact(version)` requirement or a normalized `Interval { min_inclusive, max_exclusive, allow_prerelease }` plus the required member projection. `Exact` compares the complete SemVer value including prerelease and build metadata; `Interval` uses SemVer precedence, where build metadata does not order candidates. The serialized form contains these fields directly, so runtimes do not disagree over textual range grammar.
+- Tooling defaults a stable `1.0.0` or later dependency to the containing-major interval and defaults any `0.y.z` dependency to `Exact`; authors must opt in explicitly to broader zero-major or prerelease intervals. A prerelease candidate never satisfies a requirement unless `Exact` names that prerelease or the interval explicitly allows prereleases. Build metadata is ignored for precedence but retained in the selected identity.
+
+Instantiation performs this deterministic algorithm before exposing provider inventory or patching VM/JIT/AOT call sites:
+
+1. Validate the consumer contract and all capability grants. A component without the required grants receives the existing capability error before candidate lookup.
+2. If the embedding or lock data names an exact content digest, require the exact package/interface identity, version, and digest. A mismatch is terminal; negotiation does not silently fall back.
+3. Otherwise filter registered providers by exact `PackageKey` and `InterfaceKey`, then by the normalized SemVer requirement and prerelease policy.
+4. Structurally validate the consumer's required projection against each candidate. Every required member name, parameter/result order, scalar type, resource type identity, `own`/`borrow` mode, and capability must match exactly. Unknown schema constructs fail closed. A provider may expose additional members because they are not reachable through the validated projection.
+5. Select the remaining candidate with highest SemVer precedence. If distinct candidates at that precedence differ by build metadata or content digest, return ambiguity instead of choosing by registration or map order.
+6. Produce an immutable `ValidatedInterfaceBinding` containing the selected exact version, digest, required-member mappings, capabilities, and adapter rules. All execution modes consume this binding. Registry mutation or rebinding requires fresh validation; a running instance never falls through to another provider after failure.
+
+The compatibility promise is therefore two-layered. SemVer bounds express which releases the consumer is willing to consider, while structural projection proves that the selected release still supplies the expected observable contract. Adding an unrequested export is compatible with an existing consumer. Removing or renaming a required member, changing parameter/result order or type, changing resource identity or ownership mode, or changing a matched member's capability is incompatible regardless of the version label. Package-manager resolution determines which artifacts and lock digests are available; runtime negotiation performs no network or registry access.
+
+**Open hypothesis.** Projection matching should permit additive provider evolution without weakening safety, but declaration size, digest/fingerprint strategy, candidate-set scaling, and the ergonomics of explicit zero-major and prerelease requirements require prototype and registry/tooling measurement.
+
 ## Execution modes
 
-Contract and resource-table validation are backend-neutral and run before selecting VM, JIT, or AOT execution. Canonical calls use the same preflight, adapter-table transfer, dynamic-scope borrow, cleanup-ledger order, failure precedence, and instance-poisoning rules in every mode. The prototype resolves imports against `HostFunctionRegistry` and exercises resource lifecycles directly in the runtime crate; it does not yet instantiate a VM module, patch JIT call sites, implement the adapter table or cleanup ledger, lower AOT imports/resources, or call exports. Later execution paths must consume the same validated contract and resource rules rather than independently reinterpreting unchecked metadata.
+Contract/resource-table validation and package/interface negotiation are backend-neutral and run before selecting VM, JIT, or AOT execution. Every mode consumes the same immutable `ValidatedInterfaceBinding`, then applies the same preflight, adapter-table transfer, dynamic-scope borrow, cleanup-ledger order, failure precedence, and instance-poisoning rules. The prototype resolves scalar imports against `HostFunctionRegistry` and exercises resource lifecycles directly in the runtime crate; it does not yet represent version requirements, select providers, instantiate a VM module, patch JIT call sites, implement the adapter table or cleanup ledger, lower AOT imports/resources, or call exports. Later execution paths must not independently reinterpret unchecked metadata or renegotiate after code patching.
 
 ## ABI and compatibility
 
 The metadata schema version and package version have separate meanings. The schema version selects the shape and validation rules of the contract. The package version identifies the declared component revision. Schema 1 requires an exact supported schema value and records, but does not interpret, the package version.
 
-`HostFunctionId` is an embedding-local binding and is deliberately excluded from portable metadata. Resource slot, generation, and borrow identifiers are runtime-local validation data, not a portable representation. The proposed unsigned 32-bit canonical resource index is an adapter-table key, not the runtime handle layout and not a serializable identity. Rust panic payloads, native exception objects, and backend unwind metadata are likewise non-portable. The `LCMP` scalar fixture, Rust layout, enum discriminants, in-memory map order, symbol names, and explanatory text syntax in this prototype are all unstable. An accepted revision must still choose the stable serialization, compatibility negotiation, resource-type identity encoding, and versioned failure-record encoding before the boundary can be called stable.
+`HostFunctionId` is an embedding-local binding and is deliberately excluded from portable metadata. Resource slot, generation, and borrow identifiers are runtime-local validation data, not a portable representation. The proposed unsigned 32-bit canonical resource index is an adapter-table key, not the runtime handle layout and not a serializable identity. Rust panic payloads, native exception objects, and backend unwind metadata are likewise non-portable. Schema 1 and its `LCMP` fixture continue to encode only an exact package version; normalized requirements, interface keys/projections, content-digest algorithm identifiers, selected digests, and failure records require a new versioned schema. Rust layout, enum discriminants, in-memory map order, symbol names, and explanatory text syntax are all unstable. An accepted revision must still choose the stable serialization, resource-type identity encoding, normalized-requirement/digest encoding, and versioned failure-record encoding before the boundary can be called stable.
 
 ## Diagnostics and tooling
 
-The codec returns structured errors for byte, declaration-count, nesting-depth, and string-length limits; malformed headers, lengths, UTF-8, and scalar tags; unsupported schemas; and trailing bytes. Every codec error includes a byte offset. Contract validation separately returns structured error variants for invalid identifiers, duplicate names, namespace collisions, unsupported function types, extra or missing bindings, missing capabilities, and unknown host functions. Resource operations distinguish stale owned and borrowed handles, conflicting borrows, release while in use, shared-borrow mutation, table capacity, boundary-index exhaustion, destination-reservation failure, and borrow-identifier exhaustion. Boundary failures expose the stable category, phase, diagnostic identity, ordered suppressed failures, and poisoned state without exposing a Rust panic payload or native exception object. Human-readable messages include locations, logical names, or handle identity, while callers can match the variant without parsing text.
+The codec returns structured errors for byte, declaration-count, nesting-depth, and string-length limits; malformed headers, lengths, UTF-8, and scalar tags; unsupported schemas; and trailing bytes. Every codec error includes a byte offset. Contract validation separately returns structured error variants for invalid identifiers, duplicate names, namespace collisions, unsupported function types, extra or missing bindings, missing capabilities, and unknown host functions. Negotiation distinguishes unsupported schema, unresolved import, invalid requirement, no compatible version, prerelease rejection, structural member mismatch, lock-digest mismatch, and ambiguous provider. Authorized embedding diagnostics identify the package/interface, candidate version, member, and mismatch dimension; untrusted components receive no provider-inventory detail before capability validation. Resource operations distinguish stale owned and borrowed handles, conflicting borrows, release while in use, shared-borrow mutation, table capacity, boundary-index exhaustion, destination-reservation failure, and borrow-identifier exhaustion. Boundary failures expose the stable category, phase, diagnostic identity, ordered suppressed failures, and poisoned state without exposing a Rust panic payload or native exception object. Human-readable messages include locations, logical names, or handle identity, while callers can match the variant without parsing text.
 
-Tooling should display portable import names rather than local numeric host IDs except when diagnosing embedding configuration. Mapping post-decode semantic failures back to byte ranges remains future work.
+Tooling should display portable import names rather than local numeric host IDs except when diagnosing embedding configuration. Resolution output should show the normalized requirement, selected exact version and digest, whether a lock forced the choice, and the first structural incompatibility for each rejected candidate. Mapping post-decode semantic failures back to byte ranges remains future work.
 
 ## Performance and cost model
 
-Contract validation is linear in the number of declarations and bindings on average, using hash sets and ordered maps for duplicate and lookup checks. It allocates owned strings and a resolved-binding map once per successful validation. Resource lookup is constant time by slot; shared-borrow tracking and deterministic free-slot selection use ordered sets and are logarithmic in their respective set sizes. Call-site thunk generation, canonical representation conversion, cross-boundary resource dispatch, cleanup-ledger maintenance, panic-containment barriers, landing pads, and destructor cleanup are outside this prototype and remain benchmark and code-size requirements before stabilization.
+Contract validation is linear in the number of declarations and bindings on average, using hash sets and ordered maps for duplicate and lookup checks. It allocates owned strings and a resolved-binding map once per successful validation. After indexed identity lookup, negotiation examines each candidate and its required projection, then selects a maximum without depending on registry order; candidate count, projection size, and digest verification must be bounded. Resource lookup is constant time by slot; shared-borrow tracking and deterministic free-slot selection use ordered sets and are logarithmic in their respective set sizes. Candidate filtering, structural projection, digest verification, call-site thunk generation, canonical conversion, cross-boundary resource dispatch, cleanup-ledger maintenance, panic-containment barriers, landing pads, and destructor cleanup remain benchmark, memory, and code-size requirements before stabilization.
 
 ## Security and trust boundaries
 
-Component metadata, capability declarations, and binding configuration are untrusted inputs at their respective boundaries. Validation must complete before execution or linker/JIT patching. Authority comes from embedder-supplied grants, never from a component merely declaring a capability. Capability failure precedes host-registry lookup to avoid exposing host inventory to unauthorized components.
+Component metadata, capability declarations, version requirements, content digests, provider registrations, and binding configuration are untrusted inputs at their respective boundaries. Validation and negotiation must complete before execution or linker/JIT patching. Authority comes from embedder-supplied grants, never from a component merely declaring a capability. Capability failure precedes provider or host-registry lookup to avoid exposing inventory to unauthorized components. Package/interface names compare canonically and case-sensitively with no fallback, prerelease admission is explicit, digest algorithm/length is validated before comparison, and lock mismatch or same-precedence ambiguity fails closed rather than downgrading.
 
 The scalar codec checks its configured bounds before allocation, rejects malformed input deterministically, and is fuzz-targeted independently from semantic validation. The validated wrapper and resource table prove only their implemented checks. Copyable handles are treated as untrusted tokens: generation and active-borrow state are revalidated on every operation, boundary indices are never reused within an instance, and authority is not derived from possession of a stale numeric value. Preflight rejects owned aliases before mutation, and no user code runs inside a transfer commit. Panic payloads and native exception objects are untrusted and are never reflected verbatim across the boundary; message exposure is an embedder policy. Poisoning prevents reentry after destructor, host-callback, or invariant failures that may have left external state partial. The prototype does not serialize resources, sandbox native callbacks, preempt callback work, enforce heap limits, implement cleanup ledgers, or make native plugins safe. Aborting panics and foreign exceptions remain outside the recoverable in-process contract.
 
@@ -194,6 +229,10 @@ A raw index is smaller, but after slot reuse an old copy can silently name a dif
 
 Rolling transferred owners back to the caller after panic appears convenient, but is unsound once callee code may have mutated, stored, or moved the resource. Aborting the process on every panic is simpler and matches an unavoidable native `panic=abort`, but violates the embedded-script isolation goal. Stopping cleanup at the first destructor failure avoids secondary failures but leaks later frame-owned resources. The proposal instead keeps committed ownership, runs deterministic best-effort cleanup, records suppressed destructor failures, and poisons the affected instance.
 
+### Trust SemVer alone or require exact versions only
+
+Trusting an in-range SemVer label without checking declarations is fast but allows a mislabeled release to change signatures, ownership, or capabilities silently. Exact-version-only matching is safer but turns every compatible patch into lockstep churn. Structural matching without version intent accepts shapes the author did not choose to support. The proposal requires both an explicit normalized SemVer requirement and structural projection, with an optional exact lock digest.
+
 ## Implementation plan
 
 1. Implemented and tested schema-1 in-memory scalar metadata, explicit capability grants, separate import bindings, host-registry resolution, and structured validation errors.
@@ -202,8 +241,9 @@ Rolling transferred owners back to the caller after panic appears convenient, bu
 4. Connect one validated contract to VM, JIT, and AOT instantiation and add differential import/export tests.
 5. Proposed the first canonical call subset: 64-bit `i64`, 32-bit `bool`, and adapter-table `own<T>`/`borrow<T>` resource indexes with preflighted normal-path ownership transfer. Implementation and cross-mode conformance remain open.
 6. Proposed backend-neutral panic/trap containment, non-rollback ownership after commit, deterministic cleanup ledgers, at-most-once destructors, ordered suppressed failures, and conservative instance poisoning. Implementation and cross-mode conformance remain open.
-7. Specify package/interface compatibility negotiation and the versioned failure-record encoding.
-8. Benchmark validation, instantiation, adapter conversion, cleanup, failure paths, code size, and steady-state call overhead before accepting the stable boundary.
+7. Proposed exact package/interface keys, normalized SemVer requirements, prerelease/zero-major policy, structural required-member projection, exact lock digests, deterministic highest-version selection, and ambiguity rejection. A new metadata schema, package-manager integration, runtime implementation, and conformance remain open.
+8. Select the stable serialization plus normalized-requirement, digest, resource-identity, and failure-record encodings.
+9. Benchmark validation, negotiation, instantiation, adapter conversion, cleanup, failure paths, memory, code size, and steady-state call overhead before accepting the stable boundary.
 
 ## Test plan
 
@@ -217,19 +257,21 @@ Rolling transferred owners back to the caller after panic appears convenient, bu
 - Resource-handle tests for generation-safe reuse, stale owners/borrows, repeated release/end, shared/exclusive conflicts, mutation, deterministic reuse, and identifier exhaustion.
 - Future canonical-call tests for exact scalar lanes, boolean normalization, wrong-type/stale/duplicate/borrow-aliased owner rejection, non-reusing boundary indices and exhaustion, reservation failure without ownership change, atomic non-reentrant normal-path owner transfer, call-scoped and nested borrows, forbidden borrowed results, and identical VM/JIT/AOT outcomes.
 - Future failure-boundary tests for pre-commit preservation, post-commit non-rollback, reverse-order cleanup after borrow closure, moved-owner ledger updates, uncommitted-result cleanup, at-most-once failing destructors, primary/suppressed ordering, reentrancy rejection, reusable versus poisoned instances, contained unwind and panic-payload disposal, rejected foreign unwind, and identical VM/JIT/AOT outcomes.
+- Future negotiation tests for exact and bounded requirements, zero-major defaults, prerelease opt-in, build-metadata precedence ties, locked digest success/mismatch, highest compatible selection independent of registration order, same-precedence ambiguity, additive exports, compatible-version resource lineage, resource rename/identity mismatch, every other structural incompatibility dimension, capability-before-inventory ordering, no fallback after lock or instantiation, and identical VM/JIT/AOT bindings.
 - Future cross-mode resource lifecycle and capability-denial conformance tests.
 - Future benchmarks for validation, instantiation, conversion, and repeated calls.
 
 ## Open questions
 
 - Should the serialized contract adopt WIT directly, embed a compatible subset, or use a project-specific encoding with a WIT adapter?
-- What package-version compatibility rules and negotiation algorithm should an embedder apply?
+- Which source-level range syntax should tooling lower into the normalized exact/interval representation?
+- When, if ever, should independently versioned interfaces replace package-inherited versions?
 - Which rich values should follow the initial scalar/resource subset, and which require a later schema?
 - How should capability namespaces, delegation, attenuation, and ambient host policy compose?
 - Should validated contracts retain direct function pointers, immutable registry references, or generation-checked registry handles?
 - Which stable failure-record encoding and message-redaction policy should the embedding ABI expose?
 
-Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decoding, capability-gated binding, table-local resource lifecycles, normal-path canonical scalar/resource transfer, and panic/destructor failure-boundary rules are specified. Stable serialization, implementation and VM/JIT/AOT conformance of adapter transfer and cleanup, compatibility negotiation and failure-record encoding, and boundary-cost evidence remain blocking work before this RFC can be accepted as the stable component contract.
+Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decoding, capability-gated binding, table-local resource lifecycles, normal-path canonical scalar/resource transfer, panic/destructor failure-boundary rules, and deterministic package/interface compatibility negotiation are specified. A new metadata schema and stable serialization, implementation and VM/JIT/AOT conformance of negotiation/adapter transfer/cleanup, package-manager and lock integration, stable digest/resource/failure-record encodings, and boundary-cost evidence remain blocking work before this RFC can be accepted as the stable component contract.
 
 ## Sources
 
@@ -239,6 +281,7 @@ Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decodin
 - WebAssembly Component Model, “Canonical ABI”, official living documentation; no publication or update date stated; verified 2026-10-16. <https://component-model.bytecodealliance.org/advanced/canonical-abi.html>
 - WebAssembly Component Model, `design/mvp/WIT.md`, official specification source; last changed 2026-09-15 in commit `d6a17ea9f828f44c4659d70c35822ab53d2a8a1d`; verified 2026-10-16. <https://github.com/WebAssembly/component-model/blob/d6a17ea9f828f44c4659d70c35822ab53d2a8a1d/design/mvp/WIT.md>
 - WebAssembly Component Model, `design/mvp/CanonicalABI.md`, official specification source; last changed 2026-10-13 in commit `2e7895c76905cd3fb7e6be4ac632258972b1f688`; verified 2026-10-16. <https://github.com/WebAssembly/component-model/blob/2e7895c76905cd3fb7e6be4ac632258972b1f688/design/mvp/CanonicalABI.md>
+- Semantic Versioning 2.0.0, official versioned specification; no publication or page-update date stated; verified 2026-10-16. <https://semver.org/spec/v2.0.0.html>
 - The Rust Reference, “Panic,” official living documentation; no publication or update date stated; verified 2026-10-16. <https://doc.rust-lang.org/reference/panic.html>
 - Rust standard library, `std::panic::catch_unwind`, official living API documentation; no page update date stated; verified 2026-10-16. <https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
 - The Rustonomicon, “FFI and unwinding,” official living documentation; no publication or update date stated; verified 2026-10-16. <https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
