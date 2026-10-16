@@ -43,6 +43,7 @@
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
 - [RFC 0001：プロジェクト憲章と互換性ポリシー](docs/ja/rfcs/0001-project-charter.md)
 - [RFC 0002：Prototype integer／structured control-flow semantics](docs/ja/rfcs/0002-prototype-control-flow.md)
+- [RFC 0003：Version付きcomponent contractとcapability import](docs/ja/rfcs/0003-versioned-component-contracts.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
@@ -112,7 +113,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-現在のworkspaceには、prototypeで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif`、型付きhost-function registryを持つ `lang-runtime`、実行可能な設計modelを持つ `lang-semantics` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
+現在のworkspaceには、prototypeで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif`、型付きhost-function registryとversion付きscalar component-contract validatorを持つ `lang-runtime`、実行可能な設計modelを持つ `lang-semantics` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
 
 ## 設計プロセス
 

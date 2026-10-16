@@ -43,6 +43,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture propo
 - [RFC process and template](docs/rfcs/0000-template.md)
 - [RFC 0001: Project charter and compatibility policy](docs/rfcs/0001-project-charter.md)
 - [RFC 0002: Prototype integer and structured control-flow semantics](docs/rfcs/0002-prototype-control-flow.md)
+- [RFC 0003: Versioned component contracts and capability imports](docs/rfcs/0003-versioned-component-contracts.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
@@ -112,7 +113,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-The workspace currently contains only the components exercised by the prototypes: `lang-mir`, `lang-bytecode`, `lang-vm`, `lang-codegen-clif`, the typed host-function registry in `lang-runtime`, and executable design models in `lang-semantics`. Additional boundaries from `docs/architecture.md` should appear only with their implementation.
+The workspace currently contains only the components exercised by the prototypes: `lang-mir`, `lang-bytecode`, `lang-vm`, `lang-codegen-clif`, the typed host-function registry and versioned scalar component-contract validator in `lang-runtime`, and executable design models in `lang-semantics`. Additional boundaries from `docs/architecture.md` should appear only with their implementation.
 
 ## Design process
 
