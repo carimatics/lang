@@ -326,8 +326,10 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "cranelift-object",
+ "gimli",
  "lang-mir",
  "lang-runtime",
+ "object",
  "target-lexicon",
 ]
 

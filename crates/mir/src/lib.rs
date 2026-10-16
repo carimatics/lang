@@ -95,6 +95,9 @@ impl FunctionSourceMap {
         if source_path.is_empty() {
             return Err(SourceMapError::EmptySourcePath);
         }
+        if source_path.as_bytes().contains(&0) {
+            return Err(SourceMapError::NulSourcePath);
+        }
         Ok(Self {
             source_path,
             function_span,
@@ -614,6 +617,7 @@ pub enum SourceMapError {
     ZeroPosition,
     ReversedSpan,
     EmptySourcePath,
+    NulSourcePath,
     BlockCountMismatch {
         expected: usize,
         actual: usize,
@@ -631,6 +635,7 @@ impl Display for SourceMapError {
             Self::ZeroPosition => formatter.write_str("source line and column must be non-zero"),
             Self::ReversedSpan => formatter.write_str("source span end precedes its start"),
             Self::EmptySourcePath => formatter.write_str("source path must not be empty"),
+            Self::NulSourcePath => formatter.write_str("source path must not contain NUL"),
             Self::BlockCountMismatch { expected, actual } => write!(
                 formatter,
                 "source map contains {actual} blocks, expected {expected}"
@@ -794,6 +799,10 @@ mod tests {
         assert_eq!(
             SourceSpan::new(position(2, 1), position(1, 1)),
             Err(SourceMapError::ReversedSpan)
+        );
+        assert_eq!(
+            FunctionSourceMap::new("bad\0path", span(1, 1, 1, 2), vec![]),
+            Err(SourceMapError::NulSourcePath)
         );
 
         let function = Function::new(

@@ -15,6 +15,8 @@ use lang_mir::{
 use lang_runtime::HostFunctionRegistry;
 pub use target_lexicon::Triple;
 
+mod debug;
+
 pub struct CompiledFunction {
     _module: JITModule,
     code: *const u8,
@@ -214,7 +216,19 @@ fn emit_object_with_isa(
     let mut module = ObjectModule::new(object_builder);
     let host_symbols = collect_host_symbols(function);
     let defined = define_function(&mut module, function, Linkage::Export, &host_symbols)?;
-    let bytes = module.finish().emit().map_err(CompileError::backend)?;
+    let mut product = module.finish();
+    if let Some(source_map) = &defined.source_map {
+        let function_symbol = product.function_symbol(defined.function_id);
+        debug::add_macho_dwarf(
+            &mut product.object,
+            function_symbol,
+            function.name(),
+            defined.code_size,
+            source_map,
+        )
+        .map_err(CompileError::backend)?;
+    }
+    let bytes = product.emit().map_err(CompileError::backend)?;
 
     Ok(ObjectArtifact {
         bytes,
@@ -567,6 +581,8 @@ mod tests {
 
         let artifact = emit_host_object(&function).unwrap();
         assert_source_map(artifact.source_map().unwrap(), function_span, return_span);
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        assert_macho_dwarf_sections(&artifact);
     }
 
     fn assert_source_map(
@@ -601,6 +617,19 @@ mod tests {
             position(end_line, end_column),
         )
         .unwrap()
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn assert_macho_dwarf_sections(artifact: &super::ObjectArtifact) {
+        use object::{Object as _, ObjectSection as _};
+
+        let object = object::File::parse(artifact.bytes()).unwrap();
+        for name in ["__debug_abbrev", "__debug_info", "__debug_line"] {
+            let section = object
+                .section_by_name(name)
+                .unwrap_or_else(|| panic!("missing {name}"));
+            assert!(!section.data().unwrap().is_empty(), "empty {name}");
+        }
     }
 
     #[test]
