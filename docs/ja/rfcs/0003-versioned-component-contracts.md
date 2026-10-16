@@ -309,7 +309,7 @@ Exact lock済みinstanceを4,096個保持する別child processは10,108,928-byt
 - Rust standard library `std::panic::catch_unwind`、公式living API documentation、page更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
 - The Rustonomicon「FFI and unwinding」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
 - `docs/architecture.md`、提案中のembedding／component architecture、最終更新2026-10-16。
-- `docs/roadmap.md`、Milestone 0 component-boundary taskとcurrent evidence、最終更新2026-10-16 23:34 JST。
+- `docs/roadmap.md`、Milestone 0 component-boundary taskとcurrent evidence、最終更新2026-10-16 23:37 JST。
 - `crates/runtime/src/lib.rs`、型付きhost-function registry prototype、最終更新2026-10-16。
 - `crates/runtime/src/component.rs`、schema-1 component validation prototype、最終更新2026-10-16。
 - `crates/runtime/src/component/serialization.rs`、candidate schema-2 contract／failure-report serialization、最終更新2026-10-16。

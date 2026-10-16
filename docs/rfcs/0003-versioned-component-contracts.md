@@ -309,7 +309,7 @@ Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decodin
 - Rust standard library, `std::panic::catch_unwind`, official living API documentation; no page update date stated; verified 2026-10-16. <https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
 - The Rustonomicon, “FFI and unwinding,” official living documentation; no publication or update date stated; verified 2026-10-16. <https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
 - `docs/architecture.md`, proposed embedding and component architecture, last updated 2026-10-16.
-- `docs/roadmap.md`, Milestone 0 component-boundary tasks and current evidence, last updated 2026-10-16 23:34 JST.
+- `docs/roadmap.md`, Milestone 0 component-boundary tasks and current evidence, last updated 2026-10-16 23:37 JST.
 - `crates/runtime/src/lib.rs`, typed host-function registry prototype, last updated 2026-10-16.
 - `crates/runtime/src/component.rs`, schema-1 component validation prototype, last updated 2026-10-16.
 - `crates/runtime/src/component/serialization.rs`, candidate schema-2 contract and failure-report serialization, last updated 2026-10-16.
