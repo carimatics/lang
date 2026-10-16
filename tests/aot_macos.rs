@@ -7,16 +7,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
-    prototype_add_function, prototype_host_callback_function, prototype_min_function,
-    prototype_sum_below_function, prototype_sum_to_function,
+    prototype_add_function, prototype_host_allocation_function, prototype_host_callback_function,
+    prototype_min_function, prototype_sum_below_function, prototype_sum_to_function,
 };
 use lang_codegen_clif::emit_host_object;
 
 const C_HARNESS: &str = r#"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 extern int64_t prototype_add(int64_t left, int64_t right);
+extern int64_t prototype_host_allocation(int64_t value);
 extern int64_t prototype_host_callback(int64_t value);
 extern int64_t prototype_min(int64_t left, int64_t right);
 extern int64_t prototype_sum_below(int64_t value, int64_t cutoff);
@@ -26,14 +28,26 @@ int64_t lang_host_i64_0(int64_t value) {
     return value * 2;
 }
 
+int64_t lang_host_i64_1(int64_t value) {
+    int64_t *allocation = malloc(sizeof(*allocation));
+    if (allocation == NULL) {
+        abort();
+    }
+    *allocation = value;
+    int64_t result = *allocation;
+    free(allocation);
+    return result;
+}
+
 int main(void) {
     int64_t add = prototype_add(20, 22);
+    int64_t allocation = prototype_host_allocation(-9);
     int64_t callback = prototype_host_callback(21);
     int64_t minimum = prototype_min(-7, 4);
     int64_t sum_below = prototype_sum_below(64, 33);
     int64_t sum = prototype_sum_to(64);
-    printf("%lld %lld %lld %lld %lld\n", (long long)add, (long long)callback, (long long)minimum, (long long)sum_below, (long long)sum);
-    return add == 42 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 ? 0 : 1;
+    printf("%lld %lld %lld %lld %lld %lld\n", (long long)add, (long long)allocation, (long long)callback, (long long)minimum, (long long)sum_below, (long long)sum);
+    return add == 42 && allocation == -9 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 ? 0 : 1;
 }
 "#;
 
@@ -74,13 +88,14 @@ fn assert_aot_executable(executable: &Path) {
         execution.status,
         String::from_utf8_lossy(&execution.stderr)
     );
-    assert_eq!(execution.stdout, b"42 42 -7 528 2080\n");
+    assert_eq!(execution.stdout, b"42 -9 42 -7 528 2080\n");
 }
 
 #[test]
 fn system_linker_runs_exported_functions_and_host_callback() {
     let directory = TestDirectory::create();
     let add_object = directory.path().join("prototype_add.o");
+    let allocation_object = directory.path().join("prototype_host_allocation.o");
     let callback_object = directory.path().join("prototype_host_callback.o");
     let min_object = directory.path().join("prototype_min.o");
     let sum_below_object = directory.path().join("prototype_sum_below.o");
@@ -92,6 +107,8 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     let response_file = directory.path().join("link arguments.rsp");
 
     let add = emit_host_object(&prototype_add_function()).expect("emits the add object");
+    let allocation = emit_host_object(&prototype_host_allocation_function())
+        .expect("emits the host-allocation object");
     let callback = emit_host_object(&prototype_host_callback_function())
         .expect("emits the host-callback object");
     let minimum = emit_host_object(&prototype_min_function()).expect("emits the minimum object");
@@ -99,6 +116,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .expect("emits the conditional sum object");
     let sum = emit_host_object(&prototype_sum_to_function()).expect("emits the sum object");
     fs::write(&add_object, add.bytes()).expect("writes the add object");
+    fs::write(&allocation_object, allocation.bytes()).expect("writes the allocation object");
     fs::write(&callback_object, callback.bytes()).expect("writes the callback object");
     fs::write(&min_object, minimum.bytes()).expect("writes the minimum object");
     fs::write(&sum_below_object, sum_below.bytes()).expect("writes the conditional sum object");
@@ -122,6 +140,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     let request = LinkRequest::new(&executable)
         .with_object(&harness_object)
         .with_object(&add_object)
+        .with_object(&allocation_object)
         .with_object(&callback_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)
@@ -136,6 +155,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     let response_request = LinkRequest::new(&response_executable)
         .with_object(&harness_object)
         .with_object(&add_object)
+        .with_object(&allocation_object)
         .with_object(&callback_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)

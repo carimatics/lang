@@ -188,6 +188,8 @@ Cache call-site validation and generated thunks. Calls remain in-process and avo
 
 The VM prototype implements one narrow resource-control layer: an opt-in instruction-fuel budget. Each bytecode instruction and terminator consumes one unit; validation and arity checks occur before metering, and host callbacks run only after their instruction's fuel is consumed. The limited API returns both the value and consumed fuel, while existing convenience APIs remain unbounded. A non-terminating back-edge test and a finite loop-carried countdown test demonstrate that the budget covers bytecode loops. It does not yet cover memory, recursion, tasks, wall-clock time, external interruption, or native/JIT execution, so it is evidence for the embedding interface rather than a complete sandbox.
 
+A second typed `i64` callback now exercises one host-owned allocation round trip. VM and JIT dispatch to a Rust `Box` allocate/read/drop callback, while linked AOT objects import a C `malloc`/read/`free` implementation; macOS direct and response-file integration execute the same wrapper. This proves that all three execution paths can cross the typed boundary for an allocation-backed operation. It is not a language heap, allocator ABI, ownership rule, garbage collector, memory limiter, or allocation benchmark, so those design and cost questions remain unresolved.
+
 ### Plugin trust tiers
 
 1. **Trusted native:** AOT object/static library, specialized calls, maximum performance, no sandbox claim.

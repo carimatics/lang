@@ -98,6 +98,8 @@ cargo run --release --bin prototype-bench -- \
 
 Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT code／AOT object size、link済みexecutable size、lowering、JIT／AOT compilation、direct／VM／JIT call、host callback、control flow、linking、process startupのdistribution statisticsを含むversion付きJSONを出力します。Schema 7はconditional-sum loop、schema 6は2-value accumulator、schema 5はbatched startup、schema 4はsingle-launch startupとexecutable size、schema 3はcountdownを追加しました。Platform seriesはlink済みworkload setが増えるとrenameします。Consumerは `schema_version` で分岐する必要があり、以前のJSON fileはimmutableなevidenceとして残します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
 
+Allocation boundary prototypeは、2つ目の型付きhost callbackを追加し、VM／JITのhost registryで1回の `Box<i64>` allocate／read／drop round tripを実行します。Link済みC harnessはAOTで対応する `malloc`／read／`free` operationを行います。macOS AArch64ではdirect linkとresponse-file linkの両方で実行し、cfg-gated Windows MSVC pathも同じ動作を行うよう構成しています。これは既存host-call boundaryを越えるallocation plumbingだけを分離して検証するものです。Source-languageのallocation／ownershipを定義せず、runtime allocator／collectorを選定せず、memory limitを課さず、allocation costも計測しません。これらの論点は未完了です。
+
 共通チェック：
 
 ```bash

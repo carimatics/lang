@@ -188,6 +188,8 @@ Call-site validationとgenerated thunkをcacheします。Callはin-processの�
 
 VM prototypeは、狭いresource-control layerとしてopt-inのinstruction-fuel budgetを実装します。各bytecode instructionとterminatorが1 unitを消費します。Validationとarity checkはmetering前に行い、host callbackはそのinstructionのfuel消費後にだけ実行します。Limit付きAPIはvalueと消費fuelの両方を返し、既存のconvenience APIはunboundedのままです。非停止back-edge testと有限loop-carried countdown testにより、このbudgetがbytecode loopを扱うことを確認しています。Memory、recursion、task、wall-clock time、外部interruption、native／JIT executionは未対応であるため、これは完全なsandboxではなくembedding interfaceの証拠です。
 
+2つ目の型付き `i64` callbackは、hostが所有する1回のallocation round tripを検証します。VM／JITはRustの `Box` allocate／read／drop callbackへdispatchし、link済みAOT objectはCの `malloc`／read／`free` 実装をimportします。macOSのdirect／response-file integrationは同じwrapperを実行します。これにより、3つすべてのexecution pathがallocation-backed operationのために型付きboundaryを越えられることを確認できます。これはlanguage heap、allocator ABI、ownership rule、garbage collector、memory limiter、allocation benchmarkではないため、それらのdesign／costに関する論点は未解決です。
+
 ### Plugin trust tier
 
 1. **Trusted native:** AOT object／static library、specialized call、最大性能、sandboxの保証なし。

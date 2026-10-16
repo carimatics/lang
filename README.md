@@ -98,6 +98,8 @@ cargo run --release --bin prototype-bench -- \
 
 The harness emits versioned JSON containing the commit and dirty state, toolchain, host, and system-linker metadata, generated JIT code and AOT object sizes, linked executable size, and distribution statistics for lowering, JIT/AOT compilation, direct/VM/JIT calls, host callbacks, control flow, linking, and process startup. Schema 7 adds the conditional-sum loop, schema 6 adds the two-value accumulator, schema 5 adds batched startup, schema 4 adds single-launch startup and executable size, and schema 3 adds countdown. Platform series are renamed when their linked workload set grows. Consumers must branch on `schema_version`, and prior JSON files remain immutable evidence. These measurements are prototype evidence rather than accepted performance guarantees. Record results only from a quiet machine and retain the exact command and raw JSON.
 
+An allocation-boundary prototype adds a second typed host callback that performs one `Box<i64>` allocate/read/drop round trip in the VM and JIT host registry. The linked C harness performs the corresponding `malloc`/read/`free` operation for AOT; macOS AArch64 executes it through direct and response-file links, and the cfg-gated Windows MSVC path is configured to do the same. This isolates allocation plumbing across the existing host-call boundary. It does not define source-language allocation or ownership, choose a runtime allocator or collector, impose memory limits, or measure allocation cost; those questions remain open.
+
 Common checks:
 
 ```bash
