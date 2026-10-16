@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use lang::component_conformance::prototype_scalar_component_function;
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
     prototype_add_function, prototype_host_allocation_burst_function,
@@ -28,6 +29,7 @@ extern int64_t prototype_host_callback(int64_t value);
 extern int64_t prototype_min(int64_t left, int64_t right);
 extern int64_t prototype_sum_below(int64_t value, int64_t cutoff);
 extern int64_t prototype_sum_to(int64_t value);
+extern int64_t run(int64_t value);
 
 int64_t lang_host_i64_0(int64_t value) {
     return value * 2;
@@ -106,6 +108,10 @@ int64_t lang_host_i64_4(int64_t value) {
     return result;
 }
 
+int64_t lang_host_i64_5(int64_t value) {
+    return value * 2;
+}
+
 int main(void) {
     int64_t add = prototype_add(20, 22);
     int64_t allocation = prototype_host_allocation(-9);
@@ -116,8 +122,9 @@ int main(void) {
     int64_t minimum = prototype_min(-7, 4);
     int64_t sum_below = prototype_sum_below(64, 33);
     int64_t sum = prototype_sum_to(64);
-    printf("%lld %lld %lld %lld %lld %lld %lld %lld %lld\n", (long long)add, (long long)allocation, (long long)allocation_burst, (long long)allocation_churn, (long long)allocation_variable, (long long)callback, (long long)minimum, (long long)sum_below, (long long)sum);
-    return add == 42 && allocation == -9 && allocation_burst == 1440 && allocation_churn == 4192 && allocation_variable == -24 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 ? 0 : 1;
+    int64_t component = run(21);
+    printf("%lld %lld %lld %lld %lld %lld %lld %lld %lld %lld\n", (long long)add, (long long)allocation, (long long)allocation_burst, (long long)allocation_churn, (long long)allocation_variable, (long long)callback, (long long)minimum, (long long)sum_below, (long long)sum, (long long)component);
+    return add == 42 && allocation == -9 && allocation_burst == 1440 && allocation_churn == 4192 && allocation_variable == -24 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 && component == 42 ? 0 : 1;
 }
 "#;
 
@@ -158,7 +165,7 @@ fn assert_aot_executable(executable: &Path) {
         execution.status,
         String::from_utf8_lossy(&execution.stderr)
     );
-    assert_eq!(execution.stdout, b"42 -9 1440 4192 -24 42 -7 528 2080\n");
+    assert_eq!(execution.stdout, b"42 -9 1440 4192 -24 42 -7 528 2080 42\n");
 }
 
 #[test]
@@ -172,6 +179,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .path()
         .join("prototype_host_allocation_variable.o");
     let callback_object = directory.path().join("prototype_host_callback.o");
+    let component_object = directory.path().join("component_scalar.o");
     let min_object = directory.path().join("prototype_min.o");
     let sum_below_object = directory.path().join("prototype_sum_below.o");
     let sum_object = directory.path().join("prototype_sum_to.o");
@@ -192,6 +200,10 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .expect("emits the variable host-allocation object");
     let callback = emit_host_object(&prototype_host_callback_function())
         .expect("emits the host-callback object");
+    let component = emit_host_object(
+        &prototype_scalar_component_function().expect("validates the scalar component contract"),
+    )
+    .expect("emits the scalar component object");
     let minimum = emit_host_object(&prototype_min_function()).expect("emits the minimum object");
     let sum_below = emit_host_object(&prototype_sum_below_function())
         .expect("emits the conditional sum object");
@@ -205,6 +217,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     fs::write(&allocation_variable_object, allocation_variable.bytes())
         .expect("writes the variable allocation object");
     fs::write(&callback_object, callback.bytes()).expect("writes the callback object");
+    fs::write(&component_object, component.bytes()).expect("writes the component object");
     fs::write(&min_object, minimum.bytes()).expect("writes the minimum object");
     fs::write(&sum_below_object, sum_below.bytes()).expect("writes the conditional sum object");
     fs::write(&sum_object, sum.bytes()).expect("writes the sum object");
@@ -232,6 +245,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .with_object(&allocation_churn_object)
         .with_object(&allocation_variable_object)
         .with_object(&callback_object)
+        .with_object(&component_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)
         .with_object(&sum_object);
@@ -250,6 +264,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .with_object(&allocation_churn_object)
         .with_object(&allocation_variable_object)
         .with_object(&callback_object)
+        .with_object(&component_object)
         .with_object(&min_object)
         .with_object(&sum_below_object)
         .with_object(&sum_object);

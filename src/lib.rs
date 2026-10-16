@@ -10,6 +10,7 @@ use lang_mir::{
 use lang_runtime::{HostFunctionRegistry, RegistrationError};
 use lang_vm::{VmError, execute, execute_with_hosts};
 
+pub mod component_conformance;
 pub mod linker;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
