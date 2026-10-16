@@ -22,7 +22,9 @@ use lang::{
 use lang_bytecode::lower;
 use lang_codegen_clif::{CompiledFunction, emit_host_object};
 use lang_runtime::HostFunctionRegistry;
-use lang_vm::{execute, execute_with_hosts};
+use lang_vm::{
+    ExecutionControl, InterruptionFlag, execute, execute_with_control, execute_with_hosts,
+};
 
 const DEFAULT_SAMPLES: usize = 31;
 const DEFAULT_LOWERING_ITERATIONS: u64 = 1_000;
@@ -114,6 +116,7 @@ struct PreparedWorkloads<'a> {
     host_program: &'a lang_bytecode::Program,
     host_allocation_program: &'a lang_bytecode::Program,
     host_functions: &'a HostFunctionRegistry,
+    interruption: &'a InterruptionFlag,
     compiled_add: &'a CompiledFunction,
     compiled_min: &'a CompiledFunction,
     compiled_countdown: &'a CompiledFunction,
@@ -217,6 +220,7 @@ fn run() -> Result<(), String> {
     let host_allocation_program =
         lower(&host_allocation_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
+    let interruption = InterruptionFlag::new();
     let compiled_add =
         CompiledFunction::compile(&add_function).map_err(|error| error.to_string())?;
     let compiled_min =
@@ -259,6 +263,7 @@ fn run() -> Result<(), String> {
         host_program: &host_program,
         host_allocation_program: &host_allocation_program,
         host_functions: &host_functions,
+        interruption: &interruption,
         compiled_add: &compiled_add,
         compiled_min: &compiled_min,
         compiled_countdown: &compiled_countdown,
@@ -474,6 +479,20 @@ fn run() -> Result<(), String> {
                 &[alternating_countdown_input(iteration)],
             )
             .expect("verified countdown bytecode executes")
+        },
+    ));
+    measurements.push(measure_calls(
+        "vm_countdown_interruptible_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            execute_with_control(
+                &countdown_program,
+                &[alternating_countdown_input(iteration)],
+                ExecutionControl::unbounded().and_interruption(&interruption),
+            )
+            .expect("verified countdown bytecode executes with an unset interruption flag")
+            .value()
         },
     ));
     measurements.push(measure_calls(
@@ -723,11 +742,20 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
         let expected_countdown = rust_countdown(value);
         let vm_countdown =
             execute(workloads.countdown_program, &[value]).map_err(|error| error.to_string())?;
+        let vm_countdown_interruptible = execute_with_control(
+            workloads.countdown_program,
+            &[value],
+            ExecutionControl::unbounded().and_interruption(workloads.interruption),
+        )
+        .map_err(|error| error.to_string())?
+        .value();
         let jit_countdown = workloads
             .compiled_countdown
             .invoke_i64_1(value)
             .map_err(|error| error.to_string())?;
-        if (vm_countdown, jit_countdown) != (expected_countdown, expected_countdown) {
+        if (vm_countdown, vm_countdown_interruptible, jit_countdown)
+            != (expected_countdown, expected_countdown, expected_countdown)
+        {
             return Err("countdown execution modes disagreed before measurement".to_owned());
         }
         let expected_sum_to = rust_sum_to(value);
@@ -823,6 +851,15 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
         black_box(
             execute(workloads.countdown_program, &[countdown_input])
                 .expect("verified countdown bytecode executes"),
+        );
+        black_box(
+            execute_with_control(
+                workloads.countdown_program,
+                &[countdown_input],
+                ExecutionControl::unbounded().and_interruption(workloads.interruption),
+            )
+            .expect("verified countdown bytecode executes with an unset interruption flag")
+            .value(),
         );
         black_box(
             workloads
@@ -1193,7 +1230,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 8,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 9,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -1462,7 +1499,12 @@ mod tests {
     }
 
     #[test]
-    fn schema_eight_retains_conditional_loop_and_executable_artifact_sizes() {
+    fn schema_nine_retains_interruptible_loop_and_executable_artifact_sizes() {
+        let measurements = [Measurement::from_samples(
+            "vm_countdown_interruptible_call",
+            1,
+            vec![1.0, 2.0, 3.0],
+        )];
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1485,10 +1527,11 @@ mod tests {
                 sum_below_object: 11,
                 aot_executable: Some(12),
             },
-            &[],
+            &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 8"));
+        assert!(output.contains("\"schema_version\": 9"));
+        assert!(output.contains("\"name\": \"vm_countdown_interruptible_call\""));
         assert!(output.contains("\"startup_iterations\": 2"));
         assert!(output.contains("\"jit_countdown\": 3"));
         assert!(output.contains("\"jit_sum_to\": 4"));
@@ -1500,7 +1543,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_eight_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_nine_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {

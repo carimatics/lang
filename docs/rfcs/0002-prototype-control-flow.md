@@ -172,7 +172,7 @@ These diagnostic codes are proposals and become stable only when this RFC is acc
 
 The subset requires no language-level allocation, reference counting, dynamic dispatch, or overflow branch. Mutable locals are source abstractions and may remain in SSA values or registers; users cannot rely on a stack slot or memory address. A `while` condition executes once per attempted iteration, and each executed `+` and `<` has fixed-width integer cost before backend optimization.
 
-The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. They do not establish performance guarantees for a future parser, type checker, optimizer, or representative application.
+The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. Schema 9 adds the unset-flag VM countdown row to measure cooperative-interruption safe-point overhead; no clean result is recorded yet. These benchmarks do not establish performance guarantees for a future parser, type checker, optimizer, or representative application.
 
 ## Security and trust boundaries
 
@@ -229,13 +229,14 @@ Review outcome: **ready for decision** for this narrow prototype subset. There a
 
 ## Sources
 
-- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 10:54 JST.
-- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 10:54 JST.
-- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 10:54 JST.
+- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 11:00 JST.
+- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 11:00 JST.
+- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 11:00 JST.
 - `crates/mir/src/lib.rs`, typed CFG and validation prototype, last updated 2026-10-16 01:25 JST.
 - `crates/bytecode/src/lib.rs`, verified register bytecode prototype, last updated 2026-10-16 01:25 JST.
-- `crates/vm/src/lib.rs`, VM execution and resource-control prototype, last updated 2026-10-16 10:54 JST.
+- `crates/vm/src/lib.rs`, VM execution and resource-control prototype, last updated 2026-10-16 10:55 JST.
 - `crates/codegen-clif/src/lib.rs`, Cranelift lowering prototype, last updated 2026-10-16 01:36 JST.
 - `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 10:17 JST.
+- `src/bin/prototype-bench.rs`, schema 9 interruption-overhead harness, last updated 2026-10-16 11:00 JST.
 
 No external factual claims are introduced by this RFC; the design proposal is derived from the repository's executable prototypes and project decisions.

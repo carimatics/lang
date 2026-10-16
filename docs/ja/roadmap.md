@@ -40,6 +40,8 @@ VM resource-control prototypeは、optionalなinstruction-fuel／host-call budge
 
 [RFC 0002](rfcs/0002-prototype-control-flow.md)は、実装済みinteger／CFG prototypeへ提案中のsource-level interpretationを与えます。Wrapping `i64` addition、signed comparison、left-to-right evaluation、mutable local、structured `if`／`else`／`while`、明示的return、typed block argumentを介したlive valueのloweringを定義します。Focused RFCはowner decisionに向けてreadyですがproposedのままです。Parser、HIR、formatter、source diagnostics、source-to-MIR implementationは未完了です。
 
+Schema 9 harnessは、既存VM countdown rowの隣にunset-flagの `vm_countdown_interruptible_call` rowを追加し、input sequence／bytecodeを変えずにincremental safe-point acquire-load costを直接計測できるようになりました。Windows CIは新schema／rowを要求します。Dirtyな3-sample smoke runで40行すべてが一意であることを検証しましたが、clean macOS／remote Windows schema 9 resultはまだ記録していません。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

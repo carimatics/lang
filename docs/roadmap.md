@@ -40,6 +40,8 @@ The VM resource-control prototype now composes optional instruction-fuel and hos
 
 [RFC 0002](rfcs/0002-prototype-control-flow.md) now gives the implemented integer/CFG prototype a proposed source-level interpretation. It defines wrapping `i64` addition, signed comparison, left-to-right evaluation, mutable locals, structured `if`/`else` and `while`, explicit returns, and lowering of live values through typed block arguments. The focused RFC is ready for an owner decision but remains proposed; parser, HIR, formatter, source diagnostics, and source-to-MIR implementation remain open.
 
+The schema 9 harness now adds an unset-flag `vm_countdown_interruptible_call` row beside the existing VM countdown row, allowing direct measurement of the incremental safe-point acquire-load cost without changing the input sequence or bytecode. Windows CI requires the new schema and row. A dirty three-sample smoke run validated all 40 unique rows, but no clean macOS or remote Windows schema 9 result is recorded yet.
+
 - Accept goals, non-goals, and terminology.
 - Establish the RFC process and compatibility labels.
 - Prototype three memory-model stress cases: cyclic graphs, async borrows/cancellation, and shared mutable services.

@@ -208,6 +208,8 @@ Host-allocation boundary prototypeは、2つ目の型付き `i64` host function�
 
 VM resource-control prototypeは、optionalなhost-call budget、value-slot limit、共有one-way interruption flagをinstruction fuelと合成します。実行直前の各callbackは、そのbytecode instructionがfuelを消費した後に1 host-call unitを消費します。どちらかのcounterを使い切ると、そのcounterがguardするside effectの前にstructured errorを返します。検証済みregister countは、register fileを割り当てる前にvalue-slot limitと比較します。すでにsetされたinterruptionはallocation前に停止し、以降のrequestはinstruction、terminator、pre-callback safe pointで観測して、structured errorに両方の動的countを含めます。Callback-triggered requestは意図的にそのcallback完了後に観測します。成功したlimit付きexecutionは両方の動的countと静的slot footprintを報告します。Testはzero host-call budget、過小なslot limit、pre-execution interruption、callback-triggered interruptionを扱います。Callback内部の処理はopaqueな1 unitであり、slotはbyte数を測定せずheapを扱いません。Heap memory、recursion、task、wall-clock deadline、callback内部のpreemption、native／JIT enforcementは未完了です。これはaccepted sandbox semanticsを定義せずに、blockingなresource-control questionをさらに狭めるものです。Review outcomeは引き続き **needs prototype/measurement** です。
 
+Benchmark schema 9は、既存VM countdown rowの隣に `vm_countdown_interruptible_call` を追加します。同一bytecode／inputをunsetの共有interruption flag付きで実行し、有効化したsafe pointのacquire-load costを直接計測できるようにします。Windows CIは新schema／rowを要求し、dirtyな3-sample smoke runは40行すべて一意でしたが、clean schema 9 resultはまだ記録していません。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。
@@ -242,7 +244,8 @@ VM resource-control prototypeは、optionalなhost-call budget、value-slot limi
 ## 情報源
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 10:54 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 10:54 JST。
+- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 11:00 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 11:00 JST。
+- `src/bin/prototype-bench.rs`、schema 9 interruption-overhead harness、最終更新 2026-10-16 11:00 JST。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/
