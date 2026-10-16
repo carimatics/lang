@@ -11,6 +11,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use lang::component_conformance::{
+    PROTOTYPE_SCALAR_CAPABILITY, PROTOTYPE_SCALAR_HOST, PROTOTYPE_SCALAR_IMPORT,
+    prototype_scalar_component_metadata,
+};
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
@@ -24,6 +28,20 @@ use lang::{
 use lang_bytecode::lower;
 use lang_codegen_clif::{CompiledFunction, emit_host_object};
 use lang_runtime::HostFunctionRegistry;
+use lang_runtime::component::adapter::{
+    AdapterLimits, CallOutcome, CanonicalOwnership, CanonicalResourceTable, ResourceIdentity,
+    TransferArgument, preflight_call,
+};
+use lang_runtime::component::negotiation::{
+    ContentDigest, InterfaceConsumer, InterfaceFunctionType, InterfaceKey, InterfaceMember,
+    InterfaceProvider, InterfaceValueType, PackageKey, ResourceTypeKey, SemanticVersion,
+    VersionRequirement, negotiate_interface,
+};
+use lang_runtime::component::resource::ResourceTable;
+use lang_runtime::component::{
+    CapabilityGrants, ComponentImportBindings, ComponentMetadata, ValidatedComponentMetadata,
+    validate_component_metadata,
+};
 use lang_vm::{
     ExecutionControl, InterruptionFlag, execute, execute_with_control, execute_with_hosts,
 };
@@ -107,6 +125,21 @@ struct Measurement {
     maximum_ns: f64,
     mean_ns: f64,
     relative_stddev_percent: f64,
+}
+
+#[derive(Clone, Debug)]
+struct ComponentBoundaryMeasurement {
+    series: &'static str,
+    measurement: Measurement,
+}
+
+impl ComponentBoundaryMeasurement {
+    fn new(series: &'static str, measurement: Measurement) -> Self {
+        Self {
+            series,
+            measurement,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -222,6 +255,18 @@ struct PreparedWorkloads<'a> {
     compiled_host_allocation: &'a CompiledFunction,
     compiled_host_allocation_burst: &'a CompiledFunction,
     compiled_host_allocation_churn: &'a CompiledFunction,
+}
+
+struct ComponentBenchmarkFixture {
+    metadata: ComponentMetadata,
+    bindings: ComponentImportBindings,
+    capabilities: CapabilityGrants,
+    host_functions: HostFunctionRegistry,
+    validated: ValidatedComponentMetadata,
+    consumer: InterfaceConsumer,
+    providers: Vec<InterfaceProvider>,
+    negotiation_grants: CapabilityGrants,
+    resource_type: ResourceTypeKey,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -360,6 +405,7 @@ fn run() -> Result<(), String> {
     let host_allocation_churn_program =
         lower(&host_allocation_churn_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
+    let component_fixture = component_benchmark_fixture()?;
     let interruption = InterruptionFlag::new();
     let deadline = Instant::now() + Duration::from_secs(60 * 60);
     let compiled_add =
@@ -839,6 +885,205 @@ fn run() -> Result<(), String> {
         },
     ));
 
+    let mut component_boundary_measurements = Vec::new();
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "metadata_validation",
+        measure_construction(
+            "component_metadata_validate_scalar",
+            config.samples,
+            config.lowering_iterations,
+            || {
+                validate_component_metadata(
+                    black_box(component_fixture.metadata.clone()),
+                    black_box(&component_fixture.bindings),
+                    black_box(&component_fixture.host_functions),
+                    black_box(&component_fixture.capabilities),
+                )
+                .expect("the benchmark component contract is valid")
+            },
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "interface_negotiation",
+        measure_construction(
+            "component_interface_negotiate_three_candidates",
+            config.samples,
+            config.lowering_iterations,
+            || {
+                negotiate_interface(
+                    black_box(&component_fixture.consumer),
+                    black_box(&component_fixture.providers),
+                    black_box(&component_fixture.negotiation_grants),
+                    None,
+                )
+                .expect("the benchmark provider set has a compatible candidate")
+            },
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "scalar_dispatch",
+        measure_calls(
+            "component_scalar_dispatch_direct",
+            config.samples,
+            config.runtime_iterations,
+            |iteration| prototype_wrapping_double(iteration as i64),
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "scalar_dispatch",
+        measure_calls(
+            "component_scalar_dispatch_validated",
+            config.samples,
+            config.runtime_iterations,
+            |iteration| {
+                let host_id = component_fixture
+                    .validated
+                    .host_function(PROTOTYPE_SCALAR_IMPORT)
+                    .expect("the validated benchmark import is resolved");
+                let callback = component_fixture
+                    .host_functions
+                    .resolve_i64(host_id)
+                    .expect("the validated benchmark callback remains registered");
+                callback(iteration as i64)
+            },
+        ),
+    ));
+
+    let mut owned_resource_table = ResourceTable::new();
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "resource_lifecycle",
+        measure_calls(
+            "resource_table_owner_insert_release",
+            config.samples,
+            config.runtime_iterations,
+            |iteration| {
+                let owner = owned_resource_table
+                    .insert(iteration as i64)
+                    .expect("the benchmark resource table has capacity");
+                owned_resource_table
+                    .release(owner)
+                    .expect("the fresh benchmark owner can be released")
+            },
+        ),
+    ));
+    let mut borrowed_resource_table = ResourceTable::new();
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "resource_lifecycle",
+        measure_calls(
+            "resource_table_shared_borrow_end_release",
+            config.samples,
+            config.runtime_iterations,
+            |iteration| {
+                let owner = borrowed_resource_table
+                    .insert(iteration as i64)
+                    .expect("the benchmark resource table has capacity");
+                let borrowed = borrowed_resource_table
+                    .borrow_shared(owner)
+                    .expect("the fresh benchmark owner can be borrowed");
+                let value = *borrowed_resource_table
+                    .get_borrowed(borrowed)
+                    .expect("the benchmark borrow remains live");
+                borrowed_resource_table
+                    .end_borrow(borrowed)
+                    .expect("the benchmark borrow ends once");
+                let released = borrowed_resource_table
+                    .release(owner)
+                    .expect("the benchmark owner releases after its borrow");
+                debug_assert_eq!(value, released);
+                released
+            },
+        ),
+    ));
+
+    let adapter_limits = AdapterLimits::default();
+    let mut adapter_left = CanonicalResourceTable::new(adapter_limits);
+    let mut adapter_right = CanonicalResourceTable::new(adapter_limits);
+    let mut adapter_owner = adapter_left
+        .insert_owned(
+            component_fixture.resource_type.clone(),
+            ResourceIdentity::new(1),
+        )
+        .map_err(|error| error.to_string())?;
+    let mut adapter_owner_on_left = true;
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "resource_lifecycle",
+        measure_calls(
+            "canonical_resource_owner_transfer_persist",
+            config.samples,
+            config.lowering_iterations,
+            |_| {
+                let arguments = [TransferArgument::new(
+                    adapter_owner,
+                    component_fixture.resource_type.clone(),
+                    CanonicalOwnership::Own,
+                )];
+                let (next_owner, identity) = if adapter_owner_on_left {
+                    let mut call =
+                        preflight_call(&mut adapter_left, &mut adapter_right, &arguments)
+                            .expect("the benchmark owner transfer preflights")
+                            .commit();
+                    let argument = call.arguments()[0];
+                    call.persist_owner(argument.destination())
+                        .expect("the benchmark destination persists the owner");
+                    let completion =
+                        call.finish(CallOutcome::Returned, |_| Ok::<(), &'static str>(()));
+                    debug_assert!(completion.failure().is_none());
+                    (argument.destination(), argument.resource())
+                } else {
+                    let mut call =
+                        preflight_call(&mut adapter_right, &mut adapter_left, &arguments)
+                            .expect("the benchmark owner return preflights")
+                            .commit();
+                    let argument = call.arguments()[0];
+                    call.persist_owner(argument.destination())
+                        .expect("the benchmark return destination persists the owner");
+                    let completion =
+                        call.finish(CallOutcome::Returned, |_| Ok::<(), &'static str>(()));
+                    debug_assert!(completion.failure().is_none());
+                    (argument.destination(), argument.resource())
+                };
+                adapter_owner = next_owner;
+                adapter_owner_on_left = !adapter_owner_on_left;
+                identity.get() as i64
+            },
+        ),
+    ));
+
+    let mut borrow_owner_table = CanonicalResourceTable::new(adapter_limits);
+    let mut borrow_destination_table = CanonicalResourceTable::new(adapter_limits);
+    let borrow_owner = borrow_owner_table
+        .insert_owned(
+            component_fixture.resource_type.clone(),
+            ResourceIdentity::new(2),
+        )
+        .map_err(|error| error.to_string())?;
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "resource_lifecycle",
+        measure_calls(
+            "canonical_resource_borrow_scope_cleanup",
+            config.samples,
+            config.lowering_iterations,
+            |_| {
+                let arguments = [TransferArgument::new(
+                    borrow_owner,
+                    component_fixture.resource_type.clone(),
+                    CanonicalOwnership::Borrow,
+                )];
+                let call = preflight_call(
+                    &mut borrow_owner_table,
+                    &mut borrow_destination_table,
+                    &arguments,
+                )
+                .expect("the benchmark borrow preflights")
+                .commit();
+                let identity = call.arguments()[0].resource();
+                let completion = call.finish(CallOutcome::Returned, |_| Ok::<(), &'static str>(()));
+                debug_assert!(completion.failure().is_none());
+                identity.get() as i64
+            },
+        ),
+    ));
+
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     let process_memory_measurements =
         vec![link_benchmark.measure_peak_resident_memory(config.samples)?];
@@ -866,6 +1111,7 @@ fn run() -> Result<(), String> {
             },
             &heap_measurements(),
             &process_memory_measurements,
+            &component_boundary_measurements,
             &measurements,
         )
     );
@@ -887,6 +1133,66 @@ fn prototype_host_registry() -> Result<HostFunctionRegistry, String> {
         .register_i64(PROTOTYPE_ALLOCATE_CHURN_HOST, prototype_allocate_churn)
         .map_err(|error| error.to_string())?;
     Ok(host_functions)
+}
+
+fn component_benchmark_fixture() -> Result<ComponentBenchmarkFixture, String> {
+    let metadata = prototype_scalar_component_metadata();
+    let mut bindings = ComponentImportBindings::new();
+    bindings
+        .bind(PROTOTYPE_SCALAR_IMPORT, PROTOTYPE_SCALAR_HOST)
+        .map_err(|error| error.to_string())?;
+    let mut capabilities = CapabilityGrants::new();
+    capabilities.grant(PROTOTYPE_SCALAR_CAPABILITY);
+    let mut host_functions = HostFunctionRegistry::new();
+    host_functions
+        .register_i64(PROTOTYPE_SCALAR_HOST, prototype_wrapping_double)
+        .map_err(|error| error.to_string())?;
+    let validated =
+        validate_component_metadata(metadata.clone(), &bindings, &host_functions, &capabilities)
+            .map_err(|error| error.to_string())?;
+
+    let interface_key = InterfaceKey::new(PackageKey::new("example", "storage"), "objects");
+    let scalar_type =
+        InterfaceFunctionType::new(vec![InterfaceValueType::I64], vec![InterfaceValueType::I64]);
+    let member = InterfaceMember::new("transform", scalar_type, Some("storage.read".to_owned()));
+    let providers = [
+        (SemanticVersion::new(1, 0, 0), 1_u8),
+        (SemanticVersion::new(1, 1, 0), 2_u8),
+        (SemanticVersion::new(1, 2, 0), 3_u8),
+    ]
+    .into_iter()
+    .map(|(version, digest)| {
+        Ok(InterfaceProvider::new(
+            interface_key.clone(),
+            version,
+            ContentDigest::new(vec![digest; 32]).map_err(|error| error.to_string())?,
+            vec![member.clone()],
+        ))
+    })
+    .collect::<Result<Vec<_>, String>>()?;
+    let consumer = InterfaceConsumer::new(
+        interface_key.clone(),
+        VersionRequirement::Interval {
+            min_inclusive: SemanticVersion::new(1, 0, 0),
+            max_exclusive: SemanticVersion::new(2, 0, 0),
+            allow_prerelease: false,
+        },
+        vec![member],
+    );
+    let mut negotiation_grants = CapabilityGrants::new();
+    negotiation_grants.grant("storage.read");
+
+    Ok(ComponentBenchmarkFixture {
+        metadata,
+        bindings,
+        capabilities,
+        host_functions,
+        validated,
+        consumer,
+        providers,
+        negotiation_grants,
+        resource_type: ResourceTypeKey::new(interface_key, "timer"),
+    })
 }
 
 #[inline(never)]
@@ -1687,6 +1993,7 @@ fn render_json(
     sizes: ArtifactSizes,
     heap_measurements: &[HeapMeasurement],
     process_memory_measurements: &[ProcessMemoryMeasurement],
+    component_boundary_measurements: &[ComponentBoundaryMeasurement],
     measurements: &[Measurement],
 ) -> String {
     let mut output = String::new();
@@ -1700,7 +2007,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 14,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 15,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -1849,6 +2156,44 @@ fn render_json(
         writeln!(output, "    }}{suffix}").expect("writing to String succeeds");
     }
     writeln!(output, "  ],").expect("writing to String succeeds");
+    writeln!(output, "  \"component_boundary_measurements\": [")
+        .expect("writing to String succeeds");
+    for (index, component_measurement) in component_boundary_measurements.iter().enumerate() {
+        let measurement = &component_measurement.measurement;
+        writeln!(output, "    {{").expect("writing to String succeeds");
+        write_json_string(&mut output, "series", component_measurement.series, true);
+        write_json_string(&mut output, "name", measurement.name, true);
+        write_json_string(&mut output, "unit", "ns/operation", true);
+        writeln!(
+            output,
+            "      \"operations_per_sample\": {},",
+            measurement.operations_per_sample
+        )
+        .expect("writing to String succeeds");
+        writeln!(output, "      \"minimum\": {:.3},", measurement.minimum_ns)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"median\": {:.3},", measurement.median_ns)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"p95\": {:.3},", measurement.p95_ns)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"maximum\": {:.3},", measurement.maximum_ns)
+            .expect("writing to String succeeds");
+        writeln!(output, "      \"mean\": {:.3},", measurement.mean_ns)
+            .expect("writing to String succeeds");
+        writeln!(
+            output,
+            "      \"relative_stddev_percent\": {:.3}",
+            measurement.relative_stddev_percent
+        )
+        .expect("writing to String succeeds");
+        let suffix = if index + 1 == component_boundary_measurements.len() {
+            ""
+        } else {
+            ","
+        };
+        writeln!(output, "    }}{suffix}").expect("writing to String succeeds");
+    }
+    writeln!(output, "  ],").expect("writing to String succeeds");
     writeln!(output, "  \"measurements\": [").expect("writing to String succeeds");
     for (index, measurement) in measurements.iter().enumerate() {
         writeln!(output, "    {{").expect("writing to String succeeds");
@@ -1990,9 +2335,9 @@ fn os_version() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        ArtifactSizes, Config, HeapMeasurement, Measurement, ProcessMemoryMeasurement,
-        alternating_countdown_input, alternating_sum_below_inputs, escape_json, heap_measurements,
-        render_json, rust_countdown, rust_sum_below, rust_sum_to,
+        ArtifactSizes, ComponentBoundaryMeasurement, Config, HeapMeasurement, Measurement,
+        ProcessMemoryMeasurement, alternating_countdown_input, alternating_sum_below_inputs,
+        escape_json, heap_measurements, render_json, rust_countdown, rust_sum_below, rust_sum_to,
     };
 
     #[test]
@@ -2101,7 +2446,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_fourteen_retains_existing_measurements_and_adds_allocation_churn() {
+    fn schema_fifteen_retains_existing_measurements_and_separates_component_series() {
         let measurements = [
             Measurement::from_samples("vm_countdown_interruptible_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_countdown_deadline_call", 1, vec![1.0, 2.0, 3.0]),
@@ -2116,6 +2461,40 @@ mod tests {
             "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
             vec![1_048_576, 1_114_112, 1_179_648],
         )];
+        let component_boundary_measurements = [
+            ComponentBoundaryMeasurement::new(
+                "metadata_validation",
+                Measurement::from_samples(
+                    "component_metadata_validate_scalar",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
+            ComponentBoundaryMeasurement::new(
+                "interface_negotiation",
+                Measurement::from_samples(
+                    "component_interface_negotiate_three_candidates",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
+            ComponentBoundaryMeasurement::new(
+                "scalar_dispatch",
+                Measurement::from_samples(
+                    "component_scalar_dispatch_validated",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
+            ComponentBoundaryMeasurement::new(
+                "resource_lifecycle",
+                Measurement::from_samples(
+                    "canonical_resource_borrow_scope_cleanup",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
+        ];
         let output = render_json(
             "prototype-bench",
             Config {
@@ -2140,10 +2519,20 @@ mod tests {
             },
             &heap_measurements(),
             &process_memory_measurements,
+            &component_boundary_measurements,
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 14"));
+        assert!(output.contains("\"schema_version\": 15"));
+        assert!(output.contains("\"component_boundary_measurements\": ["));
+        assert!(output.contains("\"series\": \"metadata_validation\""));
+        assert!(output.contains("\"series\": \"interface_negotiation\""));
+        assert!(output.contains("\"series\": \"scalar_dispatch\""));
+        assert!(output.contains("\"series\": \"resource_lifecycle\""));
+        assert!(output.contains("\"name\": \"component_metadata_validate_scalar\""));
+        assert!(output.contains("\"name\": \"component_interface_negotiate_three_candidates\""));
+        assert!(output.contains("\"name\": \"component_scalar_dispatch_validated\""));
+        assert!(output.contains("\"name\": \"canonical_resource_borrow_scope_cleanup\""));
         assert!(
             output
                 .contains("\"heap_measurement_scope\": \"host_callback_requested_payload_bytes\"")
@@ -2188,7 +2577,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_fourteen_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_fifteen_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -2212,6 +2601,7 @@ mod tests {
                 aot_executable: None,
             },
             &heap_measurements(),
+            &[],
             &[],
             &[],
         );
