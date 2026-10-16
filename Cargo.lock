@@ -303,8 +303,11 @@ version = "0.1.0"
 dependencies = [
  "lang-bytecode",
  "lang-codegen-clif",
+ "lang-diagnostics",
+ "lang-hir",
  "lang-mir",
  "lang-runtime",
+ "lang-semantics",
  "lang-vm",
  "object",
  "windows-sys 0.61.2",
@@ -359,6 +362,11 @@ dependencies = [
 [[package]]
 name = "lang-semantics"
 version = "0.1.0"
+dependencies = [
+ "lang-diagnostics",
+ "lang-hir",
+ "lang-mir",
+]
 
 [[package]]
 name = "lang-vm"

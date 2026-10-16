@@ -4,3 +4,6 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+lang-diagnostics.workspace = true
+lang-hir.workspace = true
+lang-mir.workspace = true

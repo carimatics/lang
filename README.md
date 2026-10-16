@@ -53,6 +53,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 Milestone 1 now has backend-independent `lang-diagnostics` and `lang-hir` crates. Diagnostics provide immutable UTF-8 source snapshots, validated byte spans, Unicode/UTF-16 positions, RFC 0002 identities, labels, notes, and atomic fix previews. HIR analysis resolves and type-checks structured RFC 0002 function input: lexical local scopes, function-wide name uniqueness, immutable parameters, `i64`/internal `bool`, mutation, condition types, and explicit-return paths. It preserves spans and rejects cyclic or over-budget analysis input. Run `cargo test -p lang-diagnostics -p lang-hir` for focused coverage. This is not a text parser; source parsing, parser integration, and source execution remain pending the lexical design gate and implementation.
 
+`lang-semantics::lowering` converts that successful primitive HIR to validated typed MIR. Branch assignments merge through typed block parameters; loops carry mutable values over back-edges; early returns and unreachable statements preserve their accepted behavior. Instruction/terminator spans map into the existing bytecode and native debug metadata. Run `cargo test --test hir_lowering` for structured-input VM/JIT differential execution, host-object debug mapping, and lowering-budget checks. These tests establish the HIR-to-MIR path, not end-to-end source compilation.
+
 Requirements:
 
 - Rust `1.99.0`, pinned by `rust-toolchain.toml`

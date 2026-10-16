@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
-//! Executable models for language-semantics experiments.
+//! Compiler semantics and executable language-semantics experiments.
+//!
+//! `lowering` converts successful RFC 0002 HIR to validated typed MIR.
 //!
 //! RFCs 0004/0005 accept the strict policies; this crate models only selected
 //! traces, not a production ownership checker or structured-task runtime.
@@ -15,6 +17,7 @@
 //! cycles are released in bulk.
 
 pub mod graph;
+pub mod lowering;
 pub mod service;
 
 use std::collections::{BTreeMap, BTreeSet};

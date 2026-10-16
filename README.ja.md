@@ -53,6 +53,8 @@
 
 Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-hir` crateを追加しました。DiagnosticsはimmutableなUTF-8 source snapshot、検証済みbyte span、Unicode／UTF-16位置、RFC 0002 identity、label、note、atomic fix previewを提供します。HIR analysisは構造化したRFC 0002 function inputを解決／type-checkし、lexical local scope、function全体での名前一意性、immutable parameter、`i64`／内部 `bool`、mutation、condition type、明示return経路を検証します。Spanを保持し、循環／budget超過inputを拒否します。`cargo test -p lang-diagnostics -p lang-hir` で集中検証できます。Text parserではなく、source parsing、parser統合、source実行は字句設計gateと実装を待っています。
 
+`lang-semantics::lowering` は成功したprimitive HIRを検証済みtyped MIRへ変換します。Branch assignmentはtyped block parameterでmergeし、loopはback-edgeを越えてmutable valueを運び、early returnと到達不能statementは受理済みbehaviorを保持します。Instruction／terminator spanを既存bytecodeとnative debug metadataへ対応付けます。`cargo test --test hir_lowering` で構造化inputのVM／JIT differential execution、host-object debug mapping、lowering budgetを検証できます。これらはHIR-to-MIR経路のevidenceであり、end-to-end source compilationではありません。
+
 必要な環境：
 
 - `rust-toolchain.toml` で固定されたRust `1.99.0`
