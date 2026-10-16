@@ -17,7 +17,9 @@
   - `docs/research.md` と `docs/ja/research.md`
   - `docs/architecture.md` と `docs/ja/architecture.md`
   - `docs/roadmap.md` と `docs/ja/roadmap.md`
+  - `docs/benchmarks.md` と `docs/ja/benchmarks.md`
   - `docs/rfcs/0000-template.md` と `docs/ja/rfcs/0000-template.md`
+  - `docs/rfcs/` の各番号付きRFCと `docs/ja/rfcs/` の同名ミラー
   - `.agents/skills/language-design-rfc/SKILL.md` と `docs/ja/codex/language-design-rfc.md`
 
 ## 最初に読むもの
@@ -69,7 +71,7 @@ cargo doc --workspace --no-deps
 
 - 動作またはアーキテクチャの変更と同じ変更でドキュメントを更新してください。
 - ユーザーまたは長期互換性に影響する変更では `docs/rfcs/0000-template.md` を使用してください。
-- 提案にはproposed、accepted、superseded、rejectedのいずれかを明記してください。未承認の設計を実装済み動作として示してはいけません。
+- RFC 0001のlifecycle label（proposed、accepted、implemented、stabilized、withdrawn、superseded）を使用してください。受理は実装・安定化を意味しません。拒否された提案はdecision rationaleを添えてwithdrawnと記録してください。
 - 構文、ABI、package metadata、serialized artifactの変更には移行と互換性への影響を含めてください。
 
 ## セキュリティ

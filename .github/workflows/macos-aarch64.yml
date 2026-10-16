@@ -1,0 +1,46 @@
+name: macOS AArch64 CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macos-aarch64:
+    name: macOS 15 / AArch64
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify native test target and pinned toolchain
+        run: |
+          test "$(uname -m)" = arm64
+          rustup show active-toolchain
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Lint
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+      - name: Test including AOT and repository consistency
+        run: cargo test --locked --workspace --all-targets --all-features
+
+      - name: Build documentation
+        run: cargo doc --locked --workspace --no-deps
+
+      - name: Check decoder fuzz targets
+        run: cargo check --locked --manifest-path fuzz/Cargo.toml --bins

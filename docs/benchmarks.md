@@ -6,6 +6,14 @@
 
 These measurements are design evidence for the pre-alpha prototypes. They are not language performance guarantees, release targets, or a final backend selection.
 
+## Interpretation after the 2026-10-17 review
+
+`representative_application` is synthetic host orchestration: it executes separate fixed scalar/resource fixtures, not dispatch through the published instance's negotiated bindings. Selecting and invoking actual provider implementations and measuring generated adapters end to end remain follow-up conformance/measurement work.
+
+All checked-in captures predate the JIT executable-memory reclamation fix: dropping a compiled function previously leaked its finalized mappings. Construction samples and the representative application could therefore accumulate mappings across iterations. Their timings are historical evidence for the recorded commits, not measurements of the corrected implementation. The harness excludes output destruction from construction timing, but releasing mappings between samples changes process state. Recapture clean macOS and Windows results before claiming current compile/application performance or memory budgets; preserve these raw files unchanged. Separate-process memory rows measure their documented child workloads, not the parent JIT leak.
+
+Source: `crates/codegen-clif/src/lib.rs` and its release-on-success/early-exit regression tests, updated 2026-10-17; locked Cranelift JIT 0.136.3 `JITModule::free_memory` and `SystemMemoryProvider::drop`, verified in installed upstream source 2026-10-17 (publication/update date not stated). The accepted initial backend choice is recorded in RFC 0001, not inferred from these timing values alone.
+
 ## Current Windows x86-64 schema 20 baseline
 
 The current [Windows baseline](../benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json) was recorded by [GitHub Actions run 38932964398](https://github.com/carimatics/lang/actions/runs/38932964398) from clean commit `7c37d5d1a8d7ac7da5653e9d6931d4759a3a5fa7` at 2026-10-17 01:45:50 JST. The Windows Server 2025 runner reported Microsoft Windows 10.0.26100.33438 on an AMD64 Family 25 Model 1 CPU. It used harness schema 20, the pinned Rust 1.99.0 MSVC toolchain, 31 samples, 1,000 lowering/component operations, 100,000 runtime operations, and ten launches per startup batch. The artifact reports `git_dirty: false`; the same run passed formatting, lint, the full test suite, documentation, direct and response-file MSVC object-link-run tests, typed component-resource cleanup conformance, benchmark validation, and artifact upload.

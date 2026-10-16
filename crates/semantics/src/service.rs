@@ -5,8 +5,9 @@
 //! of an exclusive capability available to any task with a shared handle.
 //! Sending moves a payload into the mailbox. Service cancellation waits for an
 //! active mutation to end, then discards queued messages and drops their
-//! payloads exactly once. These choices are design hypotheses, not accepted
-//! language semantics.
+//! payloads exactly once. RFC 0005 accepts owner isolation, not the exclusive
+//! capability alternative. This model does not implement task trees, bounded
+//! backpressure, or the runtime's idempotent cancellation-request API.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::error::Error;

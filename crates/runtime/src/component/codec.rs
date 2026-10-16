@@ -570,6 +570,20 @@ impl<'a> ComponentReader<'a> {
                 },
             ));
         }
+        // Even permissive caller limits must not let a tiny payload reserve an
+        // attacker-controlled capacity before its entries have been decoded.
+        let minimum_entry_bytes = match section {
+            ComponentMetadataSection::Imports => 10, // two strings and two type tags
+            ComponentMetadataSection::Exports => 6,  // one string and two type tags
+        };
+        let needed = count.saturating_mul(minimum_entry_bytes);
+        let remaining = self.bytes.len() - self.offset;
+        if needed > remaining {
+            return Err(ComponentCodecError::new(
+                offset,
+                ComponentCodecErrorKind::UnexpectedEnd { needed, remaining },
+            ));
+        }
         Ok(count)
     }
 
@@ -661,6 +675,19 @@ mod tests {
         max_string_bytes: usize,
     ) -> ComponentCodecLimits {
         ComponentCodecLimits::new(max_bytes, max_items, max_depth, max_string_bytes)
+    }
+
+    #[test]
+    fn rejects_impossible_counts_before_reserving_entries() {
+        let mut encoded =
+            encode_component_metadata(&metadata(), ComponentCodecLimits::default()).unwrap();
+        encoded[42..46].copy_from_slice(&u32::MAX.to_le_bytes());
+        let error = decode_component_metadata(&encoded, limits(encoded.len(), usize::MAX, 3, 64))
+            .unwrap_err();
+        assert!(matches!(
+            error.kind(),
+            ComponentCodecErrorKind::UnexpectedEnd { .. }
+        ));
     }
 
     #[test]

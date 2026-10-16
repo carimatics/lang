@@ -17,7 +17,9 @@ These instructions apply to the entire repository.
   - `docs/research.md` and `docs/ja/research.md`
   - `docs/architecture.md` and `docs/ja/architecture.md`
   - `docs/roadmap.md` and `docs/ja/roadmap.md`
+  - `docs/benchmarks.md` and `docs/ja/benchmarks.md`
   - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
+  - Every numbered RFC in `docs/rfcs/` and its same-named mirror in `docs/ja/rfcs/`
   - `.agents/skills/language-design-rfc/SKILL.md` and `docs/ja/codex/language-design-rfc.md`
 
 ## Start here
@@ -69,7 +71,7 @@ Add focused tests for behavior changes. Compiler work should use the appropriate
 
 - Update documentation in the same change as behavior or architecture.
 - Use `docs/rfcs/0000-template.md` for changes that affect users or long-lived compatibility.
-- Mark proposals as proposed, accepted, superseded, or rejected; do not present unaccepted designs as implemented behavior.
+- Use the RFC 0001 lifecycle labels: proposed, accepted, implemented, stabilized, withdrawn, or superseded. Acceptance does not imply implementation or stabilization; record a rejected proposal as withdrawn with its decision rationale.
 - Include migration and compatibility consequences for changes to syntax, ABI, package metadata, or serialized artifacts.
 
 ## Security

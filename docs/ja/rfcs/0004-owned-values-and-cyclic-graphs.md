@@ -157,7 +157,7 @@ Typed MIRが共通semantic contractです。Implementation planはmove、borrow 
 
 VMはこれらのoperationを直接、またはshared runtime経由で実装します。JIT／AOTは証明済みretain／release／cycle checkをinlineできますが、optimizationはobservable destruction order、weak-upgrade result、cycle rejection、diagnostic identity、failure atomicityを変更できません。Native unwindはsemantic mechanismではありません。
 
-Embedding APIはhost addressではなくopaqueなgeneration-checked valueを公開します。RFC 0003の `own<T>`／`borrow<T>` component resourceがstableなcross-component ownership mechanismのままであり、sourceの `shared`、`weak`、arena referenceをserializeしたり直接component boundaryへ渡したりしません。WebAssembly implementationは同じlogical outcomeを持つadapterを使います。
+Embedding APIはhost addressではなくopaqueなgeneration-checked valueを公開します。RFC 0003の `own<T>`／`borrow<T>` component resourceが受理済みだが公開安定化前のcross-component ownership baselineであり、sourceの `shared`、`weak`、arena referenceをserializeしたり直接component boundaryへ渡したりしません。WebAssembly implementationは同じlogical outcomeを持つadapterを使います。
 
 ## ABIとcompatibility
 

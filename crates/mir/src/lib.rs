@@ -466,6 +466,9 @@ impl Function {
         if self.name.is_empty() {
             return Err(ValidationError::EmptyName);
         }
+        if self.name.as_bytes().contains(&0) {
+            return Err(ValidationError::NulName);
+        }
         if self.blocks.is_empty() {
             return Err(ValidationError::EmptyBody);
         }
@@ -698,6 +701,7 @@ impl Error for SourceMapError {}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValidationError {
     EmptyName,
+    NulName,
     EmptyBody,
     EntryBlockHasParameters,
     UndefinedValue(ValueId),
@@ -738,6 +742,7 @@ impl Display for ValidationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::EmptyName => formatter.write_str("function name must not be empty"),
+            Self::NulName => formatter.write_str("function name must not contain NUL"),
             Self::EmptyBody => formatter.write_str("function must contain an entry block"),
             Self::EntryBlockHasParameters => {
                 formatter.write_str("entry block must not declare block parameters")
@@ -823,6 +828,17 @@ mod tests {
         FunctionSourceMap, Instruction, ResourceTypeId, Signature, SourceMapError, SourcePosition,
         SourceSpan, Terminator, Type, ValidationError, ValueId,
     };
+
+    #[test]
+    fn rejects_nul_in_function_names() {
+        let function = Function::new(
+            "name\0suffix",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![],
+            Terminator::Return(ValueId::new(0)),
+        );
+        assert_eq!(function.validate(), Err(ValidationError::NulName));
+    }
 
     #[test]
     fn attaches_structurally_valid_source_maps() {

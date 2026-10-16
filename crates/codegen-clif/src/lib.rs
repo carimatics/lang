@@ -19,11 +19,26 @@ pub use target_lexicon::Triple;
 mod debug;
 
 pub struct CompiledFunction {
-    _module: JITModule,
+    _module: OwnedJitModule,
     code: *const u8,
     code_size: usize,
     signature: Signature,
     source_map: Option<CompiledSourceMap>,
+}
+
+// Cranelift deliberately leaves JIT allocations live on ordinary module drop.
+// This guard also covers compilation/finalization errors before publication.
+struct OwnedJitModule(Option<JITModule>);
+
+impl Drop for OwnedJitModule {
+    fn drop(&mut self) {
+        if let Some(module) = self.0.take() {
+            // SAFETY: module code pointers never escape this crate. Invocation
+            // borrows CompiledFunction, so no invocation can outlive this owner.
+            // Before publication, no compiled code has been called at all.
+            unsafe { module.free_memory() };
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,15 +134,16 @@ impl CompiledFunction {
             jit_builder.symbol(symbol.clone(), callback as *const u8);
         }
 
-        let mut module = JITModule::new(jit_builder);
-        let defined = define_function(&mut module, function, Linkage::Local, &host_symbols)?;
+        let mut owner = OwnedJitModule(Some(JITModule::new(jit_builder)));
+        let module = owner.0.as_mut().expect("new JIT owner contains its module");
+        let defined = define_function(module, function, Linkage::Local, &host_symbols)?;
         module
             .finalize_definitions()
             .map_err(CompileError::backend)?;
         let code = module.get_finalized_function(defined.function_id);
 
         Ok(Self {
-            _module: module,
+            _module: owner,
             code,
             code_size: defined.code_size,
             signature: function.signature().clone(),
@@ -255,7 +271,7 @@ fn emit_object_with_isa(
             &mut product.object,
             function_symbol,
             function.name(),
-            function.signature().parameters().len(),
+            function.signature(),
             defined.code_size,
             source_map,
         )
@@ -497,6 +513,12 @@ fn record_source_span(source_spans: &mut Vec<SourceSpan>, span: SourceSpan) -> S
 
 fn validate_function(function: &Function) -> Result<(), CompileError> {
     function.validate().map_err(CompileError::InvalidMir)?;
+    if let Some((host, _)) = collect_host_symbols(function)
+        .into_iter()
+        .find(|(_, symbol)| symbol == function.name())
+    {
+        return Err(CompileError::HostSymbolCollision(host));
+    }
     if function.signature().parameters().contains(&Type::Bool)
         || function.signature().result() == Type::Bool
     {
@@ -540,6 +562,7 @@ pub enum CompileError {
     InvalidMir(ValidationError),
     UnsupportedSignature,
     UnknownHostFunction(HostFunctionId),
+    HostSymbolCollision(HostFunctionId),
     Backend(String),
 }
 
@@ -557,6 +580,10 @@ impl Display for CompileError {
             Self::UnknownHostFunction(id) => {
                 write!(formatter, "host function {id} is not registered")
             }
+            Self::HostSymbolCollision(id) => write!(
+                formatter,
+                "function name collides with the imported host function {id}"
+            ),
             Self::Backend(error) => write!(formatter, "Cranelift backend error: {error}"),
         }
     }
@@ -608,6 +635,100 @@ mod tests {
 
     fn target(block: BlockId) -> BlockTarget {
         BlockTarget::new(block, vec![])
+    }
+
+    #[test]
+    fn rejects_export_names_that_alias_a_host_import() {
+        let host = HostFunctionId::new(7);
+        let function = Function::new(
+            "lang_host_i64_7",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![Instruction::CallHostI64 {
+                result: ValueId::new(1),
+                function: host,
+                argument: ValueId::new(0),
+            }],
+            Terminator::Return(ValueId::new(1)),
+        );
+        assert!(
+            matches!(CompiledFunction::compile(&function), Err(CompileError::HostSymbolCollision(id)) if id == host)
+        );
+        assert_eq!(
+            emit_host_object(&function),
+            Err(CompileError::HostSymbolCollision(host))
+        );
+    }
+
+    #[test]
+    fn jit_owner_releases_memory_on_success_and_early_exit() {
+        use cranelift_jit::{
+            BranchProtection, JITBuilder, JITMemoryKind, JITMemoryProvider, JITModule,
+            SystemMemoryProvider,
+        };
+        use cranelift_module::{Linkage, ModuleResult, default_libcall_names};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        struct TrackedMemory {
+            inner: SystemMemoryProvider,
+            releases: Arc<AtomicUsize>,
+        }
+        impl JITMemoryProvider for TrackedMemory {
+            fn allocate(
+                &mut self,
+                size: usize,
+                align: u64,
+                kind: JITMemoryKind,
+            ) -> std::io::Result<*mut u8> {
+                self.inner.allocate(size, align, kind)
+            }
+            unsafe fn free_memory(&mut self) {
+                // SAFETY: the owning module guard guarantees no active or
+                // future invocation, and this provider exposes no pointers.
+                unsafe { self.inner.free_memory() };
+                self.releases.fetch_add(1, Ordering::SeqCst);
+            }
+            fn finalize(&mut self, protection: BranchProtection) -> ModuleResult<()> {
+                self.inner.finalize(protection)
+            }
+        }
+
+        let function = Function::new(
+            "owned_code",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![],
+            Terminator::Return(ValueId::new(0)),
+        );
+        for publish in [false, true] {
+            let releases = Arc::new(AtomicUsize::new(0));
+            let mut builder = JITBuilder::new(default_libcall_names()).unwrap();
+            builder.memory_provider(Box::new(TrackedMemory {
+                inner: SystemMemoryProvider::new(),
+                releases: releases.clone(),
+            }));
+            let mut owner = super::OwnedJitModule(Some(JITModule::new(builder)));
+            let module = owner.0.as_mut().unwrap();
+            let defined = super::define_function(module, &function, Linkage::Local, &[]).unwrap();
+            if publish {
+                module.finalize_definitions().unwrap();
+                let compiled = CompiledFunction {
+                    code: module.get_finalized_function(defined.function_id),
+                    code_size: defined.code_size,
+                    signature: function.signature().clone(),
+                    source_map: defined.source_map,
+                    _module: owner,
+                };
+                assert_eq!(compiled.invoke_i64_1(42), Ok(42));
+                assert_eq!(releases.load(Ordering::SeqCst), 0);
+                drop(compiled);
+            } else {
+                // The same guard is dropped by ? if definition/finalization fails.
+                drop(owner);
+            }
+            assert_eq!(releases.load(Ordering::SeqCst), 1);
+        }
     }
 
     #[test]

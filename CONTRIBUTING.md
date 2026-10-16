@@ -47,6 +47,12 @@ An RFC must distinguish accepted requirements from hypotheses and must include a
 
 ## Testing strategy
 
+`cargo test --test repository_consistency` checks roadmap totals, mirrored task states, and RFC status/update dates. Run it after planning changes. Both tier-1 CI workflows run the full baseline; the macOS workflow also compiles the separate decoder fuzz workspace. Compiling fuzz targets is not a fuzz campaign; longer fuzzing remains explicit validation work.
+
+The tier-1 AOT integrations share `tests/fixtures/aot_harness.c`. Its optimized C callbacks use unsigned arithmetic and bit-preserving conversion to match Rust wrapping behavior, and exercise `i64` extremes, allocation sums, and overflowing Fibonacci as well as ordinary inputs.
+
+The macOS workflow uses the `macos-15` ARM64 label and asserts the actual architecture so cfg-gated native tests cannot silently be skipped on an Intel runner. Source: [GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), living documentation without a publication/update date, verified 2026-10-17. New workflow execution is not evidence until a remote run succeeds.
+
 Prefer observable and cross-backend tests:
 
 - Parser and formatter round-trip tests

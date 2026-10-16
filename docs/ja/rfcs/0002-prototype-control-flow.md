@@ -200,6 +200,8 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 実装計画
 
+2026-10-17レビュー：受理済みproduction ruleは維持しますが、`IDENT`、comment、whitespace、source encoding、signed-literal tokenizationはまだ完全には規定されていません。Frontend実装はMilestone 1の字句仕様受理gateを通し、これらの選択をimplicitなparser behaviorにしないでください。Module、call、aggregateは本RFCの範囲外です。
+
 1. 正確なgrammarのためのlossless parserとsyntax nodeを追加し、valid、incomplete、recovered inputのsnapshotを用意する。
 2. Nameをresolveし、source spanとaccepted diagnostic identityを保持しながら、`i64`、内部 `bool`、mutation、condition、明示的returnをtype-checkする。
 3. Function、`if`、`while` を既存typed MIRへloweringする。Joinとback-edgeをまたぐassigned valueをblock argument／parameterで表現する。

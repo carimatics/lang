@@ -22,7 +22,7 @@ The language should combine:
 
 ## Initial direction
 
-The current design hypothesis is deliberately narrower than the full vision:
+The accepted architecture baseline is deliberately narrower than the full vision; unimplemented extensions still require focused RFCs:
 
 1. Build one language first. Offer safe high-level code and explicit low-level facilities in the same semantic model instead of starting with two languages.
 2. Share parsing, type checking, ownership analysis, and a typed mid-level IR between all execution modes.
@@ -32,13 +32,13 @@ The current design hypothesis is deliberately narrower than the full vision:
 6. Keep trusted native plugins and capability-restricted script/WebAssembly plugins as separate deployment tiers.
 7. Treat self-hosting as a reproducible bootstrap milestone, not as an early implementation constraint.
 
-The rationale and unresolved tradeoffs are documented in [the architecture proposal](docs/architecture.md).
+The rationale and unresolved tradeoffs are documented in [the architecture baseline](docs/architecture.md).
 
 ## Documents
 
 - [Language and ecosystem research](docs/research.md)
 - [Prototype benchmark evidence](docs/benchmarks.md)
-- [Architecture proposal](docs/architecture.md)
+- [Architecture baseline](docs/architecture.md)
 - [Implementation roadmap](docs/roadmap.md)
 - [RFC process and template](docs/rfcs/0000-template.md)
 - [RFC 0001: Project charter and compatibility policy](docs/rfcs/0001-project-charter.md)
@@ -62,7 +62,7 @@ Run the current VM/native equivalence prototype:
 cargo run -- 20 22
 ```
 
-The command constructs a validated typed MIR function, lowers it to verified register bytecode, executes it in the VM, compiles the same MIR with Cranelift JIT, and compares the results. Its wrapping `i64` addition is a prototype behavior, not accepted language semantics. Cranelift 0.136.3 is the selected initial native JIT/AOT backend; the decision and reevaluation triggers are recorded in the [architecture](docs/architecture.md#backend-strategy).
+The command constructs a validated typed MIR function, lowers it to verified register bytecode, executes it in the VM, compiles the same MIR with Cranelift JIT, and compares the results. Its wrapping `i64` addition matches accepted RFC 0002; the source frontend is not implemented. Cranelift 0.136.3 is the selected initial native JIT/AOT backend; the decision and reevaluation triggers are recorded in the [architecture](docs/architecture.md#backend-strategy).
 
 Workspace tests also exercise a minimal embedding path: a backend-neutral host-function ID resolves a typed `extern "C" fn(i64) -> i64` registration, and the same MIR host call runs through both the VM and Cranelift JIT. The VM exposes composable opt-in instruction-fuel and host-call budgets plus a value-slot limit, optional shared one-way interruption flag, and absolute monotonic deadline. Successful limited execution reports both consumed counts and the static register-slot footprint. Every bytecode instruction and terminator costs one fuel unit; each entered callback costs one host-call unit, and both dynamic limits are checked before the corresponding side effect. After validation and arity checking, the VM rejects a program whose register count exceeds the slot limit before allocating its register file. Interruption and deadline checks run before register-file allocation and at instruction, terminator, and callback boundaries; structured errors report both consumed counts, and interruption takes precedence when both conditions hold at one safe point. A callback may request interruption or overrun the deadline, which is observed after that callback at the next safe point. Existing convenience functions remain unbounded, non-interruptible, and without a deadline. The slot count is not a byte-based heap limit and does not include callback allocations. This prototype does not define a stable ABI and does not yet provide aggregate values, error transport, panic containment, capabilities, heap/recursion/task limits, preemptive callback interruption, or native/JIT resource enforcement.
 
@@ -90,7 +90,7 @@ cargo run --release --bin prototype-object -- host-callback /tmp/prototype-host-
 
 The command reports the exported symbol, generated function-code size, and complete object size for the add, signed-minimum, or host-callback target. It does not invoke a linker.
 
-Run the executable ownership experiments separately with `cargo test -p lang-semantics`. The async model compares the strict `RejectAll` suspension policy with an explicit `AllowSharedFrameBorrows` alternative that permits shared task-frame borrows while retaining exclusive-borrow rejection and deterministic cancellation cleanup. The graph model compares the default `Reject` shared-cycle policy, an experimental `CollectUnreachable` tracing policy, and arena-scoped cyclic storage. The service model compares `OwnerIsolated` mutation with an `ExclusiveCapability` alternative while retaining sendable payload moves, FIFO mailboxes, and deferred cancellation cleanup. These models record design evidence only; they are not accepted language semantics.
+Run the executable ownership experiments separately with `cargo test -p lang-semantics`. The async model compares the strict `RejectAll` suspension policy with an explicit `AllowSharedFrameBorrows` alternative that permits shared task-frame borrows while retaining exclusive-borrow rejection and deterministic cancellation cleanup. The graph model compares the default `Reject` shared-cycle policy, an experimental `CollectUnreachable` tracing policy, and arena-scoped cyclic storage. The service model compares `OwnerIsolated` mutation with an `ExclusiveCapability` alternative while retaining sendable payload moves, FIFO mailboxes, and deferred cancellation cleanup. RFCs 0004 and 0005 accept the strict policies; the models remain incomplete evidence, not production ownership/concurrency implementations, and the permissive alternatives are unaccepted.
 
 Run the prototype backend measurement harness from a clean release build:
 
@@ -122,6 +122,12 @@ The workspace currently contains only the components exercised by the prototypes
 Changes to syntax, type semantics, memory safety, concurrency, ABI, package compatibility, or the plugin boundary require an RFC. Use the repository skill `$language-design-rfc` or start from `docs/rfcs/0000-template.md`.
 
 Implementation work must preserve equivalent observable behavior between the bytecode and native backends unless an RFC explicitly documents a mode-specific restriction.
+
+## Review scope and current limits
+
+The 2026-10-17 review hardened JIT memory reclamation, bytecode span preservation, CodeView machine types, bounded decoding, semantic-version validation, whole-request capability preflight, and Rust adapter cleanup. Linker response files now require a new path; existing files and symlinks are rejected without truncation. Repeated callers must choose a fresh response-file path or explicitly remove their own old file.
+
+Historical benchmark captures remain immutable and predate the JIT reclamation fix. See [benchmark evidence](docs/benchmarks.md) before interpreting current performance. Direct native host callbacks remain trusted and must not unwind; this is not a sandbox.
 
 ## Project status
 

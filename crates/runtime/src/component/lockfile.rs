@@ -12,7 +12,7 @@ use super::adapter::AdapterLimits;
 use super::instantiation::{ComponentInstance, exact_interface_lock, interface_consumer};
 use super::negotiation::{
     ContentDigest, ExactInterfaceLock, InterfaceKey, InterfaceProvider, NegotiationError,
-    PackageKey, SemanticVersion, ValidatedInterfaceBinding, negotiate_interface,
+    PackageKey, SemanticVersion, ValidatedInterfaceBinding, negotiate_interface, validate_consumer,
 };
 use super::serialization::{
     ComponentContractLock, DigestAlgorithm, VersionedComponentContract, VersionedDigest,
@@ -126,6 +126,14 @@ pub fn select_component_packages(
     grants: &CapabilityGrants,
     lockfile: Option<&ComponentLockfile>,
 ) -> Result<LockedComponentSelection, ComponentPackageSelectionError> {
+    for requirement in contract.requirements() {
+        validate_consumer(&interface_consumer(requirement), grants).map_err(|error| {
+            ComponentPackageSelectionError::Negotiation {
+                interface: Box::new(requirement.key().clone()),
+                error: Box::new(error),
+            }
+        })?;
+    }
     if let Some(lockfile) = lockfile {
         validate_lockfile_identity(&contract, lockfile)?;
         validate_lockfile_coverage(&contract, lockfile)?;
@@ -434,6 +442,16 @@ mod tests {
         member: InterfaceMember,
     ) -> InterfaceProvider {
         InterfaceProvider::new(key, version, digest(digest_byte), vec![member])
+    }
+
+    #[test]
+    fn package_selection_checks_all_capabilities_before_inventory() {
+        let mut grants = CapabilityGrants::new();
+        grants.grant("clock.tick");
+        let error = select_component_packages(contract(false), &[], &grants, None).unwrap_err();
+        assert!(
+            matches!(error, ComponentPackageSelectionError::Negotiation { interface: key, error } if *key == interface("zeta") && matches!(*error, NegotiationError::MissingCapability { .. }))
+        );
     }
 
     fn contract(embedded_lock: bool) -> VersionedComponentContract {

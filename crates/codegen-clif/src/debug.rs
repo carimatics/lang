@@ -5,6 +5,7 @@ use gimli::write::{
     Relocation as DwarfRelocation, RelocationTarget, Sections,
 };
 use gimli::{Encoding, Format, LineEncoding, LittleEndian, SectionId as DwarfSectionId, constants};
+use lang_mir::{Signature, Type};
 use object::write::{Object, Relocation, SymbolId};
 use object::{BinaryFormat, RelocationEncoding, RelocationFlags, RelocationKind, SectionKind};
 
@@ -27,6 +28,8 @@ const LF_BUILDINFO: u16 = 0x1603;
 const LF_FUNC_ID: u16 = 0x1601;
 const LF_STRING_ID: u16 = 0x1605;
 const TYPE_INDEX_I64: u32 = 0x13;
+const TYPE_INDEX_U32: u32 = 0x75;
+const TYPE_INDEX_BOOL8: u32 = 0x30;
 const FIRST_NON_SIMPLE_TYPE_INDEX: u32 = 0x1000;
 const CPU_TYPE_X64: u16 = 0xd0;
 const CODEVIEW_LINES_HAVE_COLUMNS: u16 = 1;
@@ -82,7 +85,7 @@ pub(super) fn add_native_debug(
     object: &mut Object<'_>,
     function_symbol: SymbolId,
     function_name: &str,
-    parameter_count: usize,
+    signature: &Signature,
     code_size: usize,
     source_map: &CompiledSourceMap,
 ) -> Result<(), String> {
@@ -98,7 +101,7 @@ pub(super) fn add_native_debug(
             object,
             function_symbol,
             function_name,
-            parameter_count,
+            signature,
             code_size,
             source_map,
         ),
@@ -181,7 +184,7 @@ fn add_coff_codeview(
     object: &mut Object<'_>,
     function_symbol: SymbolId,
     function_name: &str,
-    parameter_count: usize,
+    signature: &Signature,
     code_size: usize,
     source_map: &CompiledSourceMap,
 ) -> Result<(), String> {
@@ -189,7 +192,10 @@ fn add_coff_codeview(
         return Ok(());
     }
 
-    let codeview = build_codeview(function_name, parameter_count, code_size, source_map)?;
+    if object.architecture() != object::Architecture::X86_64 {
+        return Err("CodeView emission currently supports only x86-64 COFF".to_owned());
+    }
+    let codeview = build_codeview(function_name, signature, code_size, source_map)?;
     let section = object.add_section(Vec::new(), b".debug$S".to_vec(), SectionKind::Debug);
     object.append_section_data(section, &codeview.symbols, 4);
     for &(offset, kind, size) in &[
@@ -230,13 +236,13 @@ struct CodeViewData {
 
 fn build_codeview(
     function_name: &str,
-    parameter_count: usize,
+    signature: &Signature,
     code_size: usize,
     source_map: &CompiledSourceMap,
 ) -> Result<CodeViewData, String> {
     let code_size = u32::try_from(code_size)
         .map_err(|_| "CodeView function code size exceeds 32 bits".to_owned())?;
-    let parameter_count = u16::try_from(parameter_count)
+    let parameter_count = u16::try_from(signature.parameters().len())
         .map_err(|_| "CodeView function parameter count exceeds 16 bits".to_owned())?;
     let mut rows = Vec::new();
     let mut previous_offset = None;
@@ -366,12 +372,12 @@ fn build_codeview(
     push_u32(&mut types, CODEVIEW_SIGNATURE_C13);
     let mut arguments = Vec::new();
     push_u32(&mut arguments, u32::from(parameter_count));
-    for _ in 0..parameter_count {
-        push_u32(&mut arguments, TYPE_INDEX_I64);
+    for &parameter in signature.parameters() {
+        push_u32(&mut arguments, codeview_type(parameter));
     }
     append_codeview_type(&mut types, LF_ARGLIST, &arguments)?;
     let mut procedure_type = Vec::new();
-    push_u32(&mut procedure_type, TYPE_INDEX_I64);
+    push_u32(&mut procedure_type, codeview_type(signature.result()));
     procedure_type.push(0);
     procedure_type.push(0);
     push_u16(&mut procedure_type, parameter_count);
@@ -411,6 +417,14 @@ fn build_codeview(
         lines_offset: lines_start,
         lines_segment: lines_start + 4,
     })
+}
+
+fn codeview_type(value_type: Type) -> u32 {
+    match value_type {
+        Type::I64 => TYPE_INDEX_I64,
+        Type::Bool => TYPE_INDEX_BOOL8,
+        Type::Own(_) => TYPE_INDEX_U32,
+    }
 }
 
 fn append_codeview_symbol(
@@ -615,4 +629,58 @@ fn macho_section_name(section: DwarfSectionId) -> Vec<u8> {
         .strip_prefix('.')
         .expect("DWARF section names start with a dot");
     format!("__{name}").into_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lang_mir::{
+        BlockSourceMap, Function, FunctionSourceMap, ResourceTypeId, SourcePosition, SourceSpan,
+        Terminator, ValueId,
+    };
+    use object::{Object as _, ObjectSection as _};
+
+    #[test]
+    fn codeview_records_the_actual_machine_signature() {
+        let span = SourceSpan::new(
+            SourcePosition::new(1, 1).unwrap(),
+            SourcePosition::new(1, 9).unwrap(),
+        )
+        .unwrap();
+        let signature = Signature::new(
+            vec![Type::I64, Type::Own(ResourceTypeId::new(7))],
+            Type::Own(ResourceTypeId::new(7)),
+        );
+        let function = Function::new(
+            "typed_owner",
+            signature,
+            vec![],
+            Terminator::Return(ValueId::new(1)),
+        )
+        .with_source_map(
+            FunctionSourceMap::new(
+                "resource.lang",
+                span,
+                vec![BlockSourceMap::new(vec![], span)],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let artifact =
+            crate::emit_object_for_target(&function, "x86_64-pc-windows-msvc".parse().unwrap())
+                .unwrap();
+        let object = object::File::parse(artifact.bytes()).unwrap();
+        let types = object.section_by_name(".debug$T").unwrap().data().unwrap();
+        let u16_at = |offset| u16::from_le_bytes(types[offset..offset + 2].try_into().unwrap());
+        let u32_at = |offset| u32::from_le_bytes(types[offset..offset + 4].try_into().unwrap());
+        // Decode the public CodeView record layout independently of the writer.
+        assert_eq!(u16_at(6), 0x1201); // LF_ARGLIST
+        assert_eq!(u32_at(8), 2);
+        assert_eq!(u32_at(12), 0x13); // signed 64-bit
+        assert_eq!(u32_at(16), 0x75); // unsigned 32-bit
+        let procedure = 4 + 2 + usize::from(u16_at(4));
+        assert_eq!(u16_at(procedure + 2), 0x1008); // LF_PROCEDURE
+        assert_eq!(u32_at(procedure + 4), 0x75);
+        assert_eq!(u16_at(procedure + 10), 2);
+    }
 }

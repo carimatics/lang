@@ -528,7 +528,7 @@ fn finish_process_memory_child() -> ExitCode {
 
 fn print_usage() {
     println!(
-        "usage: cargo run --release --bin prototype-bench -- \\\n         [--samples <count>] [--lowering-iterations <count>] \\\n         [--runtime-iterations <count>]"
+        "usage: cargo run --release --bin prototype-bench -- \\\n         [--samples <count>] [--lowering-iterations <count>] \\\n         [--runtime-iterations <count>] [--startup-iterations <count>]"
     );
 }
 

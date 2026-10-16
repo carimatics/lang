@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{Display, Formatter};
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::{env, fs, io};
@@ -361,8 +362,9 @@ impl SystemLinker {
         Self::execute(request, command)
     }
 
-    /// Writes or replaces `response_file`, retains it after the linker exits,
-    /// and invokes the linker with the generated `@file` argument.
+    /// Exclusively creates `response_file`, retains it after the linker exits,
+    /// and invokes the linker with the generated `@file` argument. An existing
+    /// path (including a symlink) is rejected without modifying its contents.
     pub fn link_with_response_file(
         &self,
         request: &LinkRequest,
@@ -371,10 +373,17 @@ impl SystemLinker {
         let response_file = response_file.as_ref();
         let command = self.command_with_response_file(request, response_file)?;
         let contents = self.response_file_contents(request)?;
-        fs::write(response_file, contents).map_err(|source| LinkError::WriteResponseFile {
-            path: response_file.to_path_buf(),
-            source,
-        })?;
+        // Exclusive creation also rejects symlinks and differently spelled
+        // aliases of an existing input. Never truncate a caller's file.
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(response_file)
+            .and_then(|mut file| file.write_all(&contents))
+            .map_err(|source| LinkError::WriteResponseFile {
+                path: response_file.to_path_buf(),
+                source,
+            })?;
         Self::execute(request, command)
     }
 
@@ -1019,6 +1028,47 @@ mod tests {
             linker.response_file_contents(&request),
             Err(LinkError::NulInResponseFileArgument { index: 0 })
         ));
+    }
+
+    #[test]
+    fn preserves_existing_response_files_and_aliased_inputs() {
+        let directory = TestDirectory::create();
+        let input = directory.path().join("input.o");
+        fs::write(&input, b"object contents").unwrap();
+        let request = LinkRequest::new(directory.path().join("program")).with_object(&input);
+        let alias = directory.path().join(".").join("input.o");
+        let error = SystemLinker::new(MISSING_LINKER)
+            .link_with_response_file(&request, alias)
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            LinkError::WriteResponseFile { .. } | LinkError::ResponseFileConflictsWithObject { .. }
+        ));
+        assert_eq!(fs::read(&input).unwrap(), b"object contents");
+
+        let response = directory.path().join("existing.rsp");
+        fs::write(&response, b"keep response").unwrap();
+        assert!(matches!(
+            SystemLinker::new(MISSING_LINKER).link_with_response_file(&request, &response),
+            Err(LinkError::WriteResponseFile { .. })
+        ));
+        assert_eq!(fs::read(response).unwrap(), b"keep response");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_response_file_symlinks() {
+        let directory = TestDirectory::create();
+        let input = directory.path().join("input.o");
+        fs::write(&input, b"object contents").unwrap();
+        let response = directory.path().join("alias.rsp");
+        std::os::unix::fs::symlink(&input, &response).unwrap();
+        let request = LinkRequest::new(directory.path().join("program")).with_object(&input);
+        assert!(matches!(
+            SystemLinker::new(MISSING_LINKER).link_with_response_file(&request, response),
+            Err(LinkError::WriteResponseFile { .. })
+        ));
+        assert_eq!(fs::read(input).unwrap(), b"object contents");
     }
 
     #[test]

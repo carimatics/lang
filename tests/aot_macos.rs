@@ -20,122 +20,7 @@ use lang::{
 };
 use lang_codegen_clif::emit_host_object;
 
-const C_HARNESS: &str = r#"
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-extern int64_t prototype_add(int64_t left, int64_t right);
-extern int64_t prototype_fibonacci(int64_t value);
-extern int64_t prototype_host_allocation_burst(int64_t value);
-extern int64_t prototype_host_allocation_churn(int64_t value);
-extern int64_t prototype_host_allocation(int64_t value);
-extern int64_t prototype_host_allocation_variable(int64_t value);
-extern int64_t prototype_host_callback(int64_t value);
-extern int64_t prototype_min(int64_t left, int64_t right);
-extern int64_t prototype_sum_below(int64_t value, int64_t cutoff);
-extern int64_t prototype_sum_to(int64_t value);
-extern int64_t run(int64_t value);
-extern uint32_t component_transfer_owned_resource(uint32_t value);
-
-int64_t lang_host_i64_0(int64_t value) {
-    return value * 2;
-}
-
-int64_t lang_host_i64_1(int64_t value) {
-    int64_t *allocation = malloc(sizeof(*allocation));
-    if (allocation == NULL) {
-        abort();
-    }
-    *allocation = value;
-    int64_t result = *allocation;
-    free(allocation);
-    return result;
-}
-
-int64_t lang_host_i64_2(int64_t value) {
-    int64_t *allocations[64];
-    for (int64_t index = 0; index < 64; index++) {
-        allocations[index] = malloc(sizeof(*allocations[index]));
-        if (allocations[index] == NULL) {
-            abort();
-        }
-        *allocations[index] = value + index;
-    }
-    int64_t result = 0;
-    for (int64_t index = 0; index < 64; index++) {
-        result += *allocations[index];
-        free(allocations[index]);
-    }
-    return result;
-}
-
-int64_t lang_host_i64_3(int64_t value) {
-    int64_t *allocations[64];
-    for (int64_t index = 0; index < 64; index++) {
-        allocations[index] = malloc(sizeof(*allocations[index]));
-        if (allocations[index] == NULL) {
-            abort();
-        }
-        *allocations[index] = value + index;
-    }
-    int64_t result = 0;
-    for (int64_t index = 0; index < 64; index += 2) {
-        result += *allocations[index];
-        free(allocations[index]);
-    }
-    for (int64_t index = 0; index < 64; index += 2) {
-        allocations[index] = malloc(sizeof(*allocations[index]));
-        if (allocations[index] == NULL) {
-            abort();
-        }
-        *allocations[index] = value + 64 + index;
-    }
-    for (int64_t index = 0; index < 64; index++) {
-        result += *allocations[index];
-        free(allocations[index]);
-    }
-    return result;
-}
-
-int64_t lang_host_i64_4(int64_t value) {
-    int64_t *allocations[16];
-    for (int64_t index = 0; index < 16; index++) {
-        allocations[index] = malloc((size_t)(index + 1) * sizeof(*allocations[index]));
-        if (allocations[index] == NULL) {
-            abort();
-        }
-        allocations[index][0] = value + index;
-    }
-    int64_t result = 0;
-    for (int64_t index = 0; index < 16; index++) {
-        result += allocations[index][0];
-        free(allocations[index]);
-    }
-    return result;
-}
-
-int64_t lang_host_i64_5(int64_t value) {
-    return value * 2;
-}
-
-int main(void) {
-    int64_t add = prototype_add(20, 22);
-    int64_t fibonacci = prototype_fibonacci(20);
-    int64_t allocation = prototype_host_allocation(-9);
-    int64_t allocation_burst = prototype_host_allocation_burst(-9);
-    int64_t allocation_churn = prototype_host_allocation_churn(-9);
-    int64_t allocation_variable = prototype_host_allocation_variable(-9);
-    int64_t callback = prototype_host_callback(21);
-    int64_t minimum = prototype_min(-7, 4);
-    int64_t sum_below = prototype_sum_below(64, 33);
-    int64_t sum = prototype_sum_to(64);
-    int64_t component = run(21);
-    uint32_t resource = component_transfer_owned_resource(1);
-    printf("%lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %u\n", (long long)add, (long long)fibonacci, (long long)allocation, (long long)allocation_burst, (long long)allocation_churn, (long long)allocation_variable, (long long)callback, (long long)minimum, (long long)sum_below, (long long)sum, (long long)component, resource);
-    return add == 42 && fibonacci == 6765 && allocation == -9 && allocation_burst == 1440 && allocation_churn == 4192 && allocation_variable == -24 && callback == 42 && minimum == -7 && sum_below == 528 && sum == 2080 && component == 42 && resource == 1 ? 0 : 1;
-}
-"#;
+const C_HARNESS: &str = include_str!("fixtures/aot_harness.c");
 
 struct TestDirectory {
     path: PathBuf,
@@ -359,6 +244,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     );
 
     let compilation = Command::new("cc")
+        .arg("-O2")
         .arg("-c")
         .arg(&harness_source)
         .arg("-o")

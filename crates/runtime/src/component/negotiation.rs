@@ -173,6 +173,21 @@ impl SemanticVersion {
         !self.prerelease.is_empty()
     }
 
+    pub(super) fn validate(&self) -> Result<(), VersionIdentifierError> {
+        // Public enum variants can bypass the convenience constructors.
+        for identifier in &self.prerelease {
+            match identifier {
+                PrereleaseIdentifier::Numeric(value) => {
+                    PrereleaseIdentifier::numeric(value.clone())?;
+                }
+                PrereleaseIdentifier::AlphaNumeric(value) => {
+                    PrereleaseIdentifier::alphanumeric(value.clone())?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn precedence_cmp(&self, other: &Self) -> Ordering {
         self.major
             .cmp(&other.major)
@@ -251,6 +266,8 @@ pub enum VersionRequirement {
 
 impl VersionRequirement {
     fn validate(&self) -> Result<(), NegotiationError> {
+        self.validate_versions()
+            .map_err(NegotiationError::InvalidVersion)?;
         if let Self::Interval {
             min_inclusive,
             max_exclusive,
@@ -264,6 +281,20 @@ impl VersionRequirement {
             });
         }
         Ok(())
+    }
+
+    pub(super) fn validate_versions(&self) -> Result<(), VersionIdentifierError> {
+        match self {
+            Self::Exact(version) => version.validate(),
+            Self::Interval {
+                min_inclusive,
+                max_exclusive,
+                ..
+            } => {
+                min_inclusive.validate()?;
+                max_exclusive.validate()
+            }
+        }
     }
 
     fn matches(&self, version: &SemanticVersion) -> bool {
@@ -691,6 +722,10 @@ impl CandidateRejection {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum NegotiationError {
+    InvalidVersion(VersionIdentifierError),
+    BorrowedResultUnsupported {
+        member: String,
+    },
     InvalidIdentifier {
         field: &'static str,
         value: String,
@@ -750,6 +785,11 @@ pub enum NegotiationError {
 impl Display for NegotiationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidVersion(error) => write!(formatter, "invalid semantic version: {error}"),
+            Self::BorrowedResultUnsupported { member } => write!(
+                formatter,
+                "member `{member}` returns a borrow beyond its call scope"
+            ),
             Self::InvalidIdentifier { field, value } => {
                 write!(formatter, "invalid {field} identifier `{value}`")
             }
@@ -847,7 +887,7 @@ pub fn negotiate_interface(
     negotiate_unlocked(consumer, providers)
 }
 
-fn validate_consumer(
+pub(super) fn validate_consumer(
     consumer: &InterfaceConsumer,
     grants: &CapabilityGrants,
 ) -> Result<(), NegotiationError> {
@@ -876,6 +916,10 @@ fn validate_consumer(
 
 fn validate_provider(provider: &InterfaceProvider) -> Result<(), NegotiationError> {
     validate_interface_key(&provider.key)?;
+    provider
+        .version
+        .validate()
+        .map_err(NegotiationError::InvalidVersion)?;
     let mut names = HashSet::new();
     for member in &provider.members {
         validate_member(member)?;
@@ -897,6 +941,16 @@ fn validate_interface_key(key: &InterfaceKey) -> Result<(), NegotiationError> {
 
 fn validate_member(member: &InterfaceMember) -> Result<(), NegotiationError> {
     validate_identifier("member name", member.name())?;
+    if member
+        .function_type
+        .results
+        .iter()
+        .any(|value| matches!(value, InterfaceValueType::Borrow(_)))
+    {
+        return Err(NegotiationError::BorrowedResultUnsupported {
+            member: member.name.clone(),
+        });
+    }
     if let Some(capability) = member.capability()
         && !is_capability_identifier(capability)
     {
@@ -936,6 +990,10 @@ fn negotiate_locked(
     providers: &[InterfaceProvider],
     exact_lock: &ExactInterfaceLock,
 ) -> Result<ValidatedInterfaceBinding, NegotiationError> {
+    exact_lock
+        .version
+        .validate()
+        .map_err(NegotiationError::InvalidVersion)?;
     if exact_lock.key != consumer.key {
         return Err(NegotiationError::LockIdentityMismatch {
             expected: Box::new(consumer.key.clone()),
@@ -1230,6 +1288,64 @@ mod tests {
         let mut grants = CapabilityGrants::new();
         grants.grant("storage.read");
         grants
+    }
+
+    #[test]
+    fn rejects_unchecked_prerelease_variants_at_every_negotiation_input() {
+        for identifier in [
+            PrereleaseIdentifier::Numeric("01".to_owned()),
+            PrereleaseIdentifier::Numeric("alpha".to_owned()),
+            PrereleaseIdentifier::AlphaNumeric("1".to_owned()),
+            PrereleaseIdentifier::AlphaNumeric("".to_owned()),
+        ] {
+            let invalid = SemanticVersion::new(1, 1, 0).with_prerelease(vec![identifier]);
+            let valid = provider(SemanticVersion::new(1, 1, 0), 7, vec![scalar_member()]);
+            assert!(matches!(
+                negotiate_interface(
+                    &consumer(VersionRequirement::Exact(invalid.clone())),
+                    std::slice::from_ref(&valid),
+                    &grants(),
+                    None
+                ),
+                Err(NegotiationError::InvalidVersion(_))
+            ));
+            let bad_provider = provider(invalid.clone(), 8, vec![scalar_member()]);
+            assert!(matches!(
+                negotiate_interface(&consumer(interval(true)), &[bad_provider], &grants(), None),
+                Err(NegotiationError::InvalidVersion(_))
+            ));
+            let lock = ExactInterfaceLock::new(key(), invalid, digest(7));
+            assert!(matches!(
+                negotiate_interface(&consumer(interval(true)), &[valid], &grants(), Some(&lock)),
+                Err(NegotiationError::InvalidVersion(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn rejects_borrowed_results_in_consumers_and_providers() {
+        let borrowed_result = member(
+            "transform",
+            InterfaceFunctionType::new(
+                vec![InterfaceValueType::I64],
+                vec![InterfaceValueType::Borrow(ResourceTypeKey::new(
+                    key(),
+                    "object",
+                ))],
+            ),
+            Some("storage.read"),
+        );
+        let bad_consumer =
+            InterfaceConsumer::new(key(), interval(false), vec![borrowed_result.clone()]);
+        assert!(matches!(
+            negotiate_interface(&bad_consumer, &[], &grants(), None),
+            Err(NegotiationError::BorrowedResultUnsupported { .. })
+        ));
+        let bad_provider = provider(SemanticVersion::new(1, 1, 0), 7, vec![borrowed_result]);
+        assert!(matches!(
+            negotiate_interface(&consumer(interval(false)), &[bad_provider], &grants(), None),
+            Err(NegotiationError::BorrowedResultUnsupported { .. })
+        ));
     }
 
     #[test]

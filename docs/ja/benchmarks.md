@@ -6,6 +6,14 @@
 
 これらのmeasurementはpre-alpha prototypeの設計証拠です。言語のperformance guarantee、release target、最終backend選定ではありません。
 
+## 2026-10-17レビュー後の解釈
+
+`representative_application` はsyntheticなhost orchestrationです。公開instanceの交渉済みbindingからdispatchせず、別の固定scalar／resource fixtureを実行します。実際のprovider実装の選択と呼び出し、生成adapterのend-to-end costは後続conformance／measurement課題です。
+
+保存済みcaptureはすべてJIT executable-memory回収修正前です。従来はcompiled functionを破棄してもfinalized mappingがleakしていました。このためconstruction sampleと代表的applicationでは反復中にmappingが蓄積しえます。Timingは記録commitの過去evidenceであり、修正済み実装の計測ではありません。Harnessはconstruction timingからoutput破棄を除外しますが、sample間のmapping解放によってprocess状態が変わります。現在のcompile／application性能・memory budgetを主張する前にmacOS／Windowsのclean結果を再収録し、過去raw fileは改変しないでください。Separate-process memory rowは記載されたchild workloadを計測し、parentのJIT leakを計測しません。
+
+情報源：`crates/codegen-clif/src/lib.rs` とsuccess／early-exit時解放の回帰test（2026-10-17更新）、lock済みCranelift JIT 0.136.3の `JITModule::free_memory`／`SystemMemoryProvider::drop`（installed upstream sourceを2026-10-17確認、公開／更新日記載なし）。受理済みinitial backend選定はRFC 0001へ記録しており、timing値だけから推論するものではありません。
+
 ## 現在のWindows x86-64 schema 20 baseline
 
 現在の[Windows baseline](../../benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json)は、[GitHub Actions run 38932964398](https://github.com/carimatics/lang/actions/runs/38932964398)がclean commit `7c37d5d1a8d7ac7da5653e9d6931d4759a3a5fa7` から2026-10-17 01:45:50 JSTに記録しました。Windows Server 2025 runnerは、AMD64 Family 25 Model 1 CPU上のMicrosoft Windows 10.0.26100.33438を報告しました。Harness schema 20、固定されたRust 1.99.0 MSVC toolchain、31 sample、1,000 lowering／component operation、100,000 runtime operation、startup batch当たり10 launchを使用しました。Artifactは `git_dirty: false` を報告します。同じrunでformat、lint、全test suite、documentation、MSVC direct／response-file object-link-run test、typed component-resource cleanup conformance、benchmark validation、artifact uploadがすべてpassしました。

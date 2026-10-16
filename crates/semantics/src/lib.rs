@@ -2,7 +2,9 @@
 
 //! Executable models for language-semantics experiments.
 //!
-//! This crate is evidence for proposed designs, not accepted language behavior.
+//! RFCs 0004/0005 accept the strict policies; this crate models only selected
+//! traces, not a production ownership checker or structured-task runtime.
+//! The permissive alternatives remain unaccepted experiments.
 //! The first model compares a deliberately strict async baseline with an
 //! alternative that permits shared task-frame borrows across suspension.
 //! Exclusive borrows never cross suspension, and cancellation ends permitted

@@ -157,7 +157,7 @@ Typed MIR is the common semantic contract. The implementation plan adds backend-
 
 The VM implements these operations directly or through the shared runtime. JIT and AOT may inline proven-safe retain/release or cycle checks, but optimization cannot change observable destruction order, weak-upgrade result, cycle rejection, diagnostic identity, or failure atomicity. Native unwinding is not the semantic mechanism.
 
-Embedding APIs expose opaque generation-checked values rather than host addresses. RFC 0003 `own<T>`/`borrow<T>` component resources remain the stable cross-component ownership mechanism; source `shared`, `weak`, and arena references are neither serialized nor passed directly across component boundaries. WebAssembly implementations use adapters with the same logical outcomes.
+Embedding APIs expose opaque generation-checked values rather than host addresses. RFC 0003 `own<T>`/`borrow<T>` component resources are the accepted, not publicly stabilized, cross-component ownership baseline; source `shared`, `weak`, and arena references are neither serialized nor passed directly across component boundaries. WebAssembly implementations use adapters with the same logical outcomes.
 
 ## ABI and compatibility
 

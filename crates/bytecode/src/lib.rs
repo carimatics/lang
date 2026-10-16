@@ -4,8 +4,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use lang_mir::{
-    Function, HostFunctionId, Instruction as MirInstruction, Terminator as MirTerminator, Type,
-    ValidationError,
+    Function, FunctionSourceMap, HostFunctionId, Instruction as MirInstruction,
+    Terminator as MirTerminator, Type, ValidationError,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -200,6 +200,7 @@ pub struct Program {
     result_type: Type,
     register_count: usize,
     blocks: Vec<Block>,
+    source_map: Option<FunctionSourceMap>,
 }
 
 impl Program {
@@ -254,6 +255,7 @@ impl Program {
             result_type,
             register_count,
             blocks,
+            source_map: None,
         };
         program.verify()?;
         Ok(program)
@@ -277,6 +279,11 @@ impl Program {
 
     pub fn blocks(&self) -> &[Block] {
         &self.blocks
+    }
+
+    /// Source locations retained by the one-to-one MIR instruction/block lowering.
+    pub const fn source_map(&self) -> Option<&FunctionSourceMap> {
+        self.source_map.as_ref()
     }
 
     pub fn verify(&self) -> Result<(), VerificationError> {
@@ -563,13 +570,15 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
         })
         .collect();
 
-    Program::with_typed_blocks(
+    let mut program = Program::with_typed_blocks(
         function.signature().parameters().to_vec(),
         function.signature().result(),
         function.value_count(),
         blocks,
     )
-    .map_err(LowerError::InvalidBytecode)
+    .map_err(LowerError::InvalidBytecode)?;
+    program.source_map = function.source_map().cloned();
+    Ok(program)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -704,9 +713,50 @@ impl Error for LowerError {}
 #[cfg(test)]
 mod tests {
     use lang_mir::{
-        Function, HostFunctionId, ResourceTypeId, Signature, Terminator as MirTerminator, Type,
-        ValueId,
+        BlockSourceMap, Function, FunctionSourceMap, HostFunctionId, ResourceTypeId, Signature,
+        SourcePosition, SourceSpan, Terminator as MirTerminator, Type, ValueId,
     };
+
+    #[test]
+    fn lowering_preserves_instruction_and_terminator_spans() {
+        let span = |line| {
+            SourceSpan::new(
+                SourcePosition::new(line, 1).unwrap(),
+                SourcePosition::new(line, 9).unwrap(),
+            )
+            .unwrap()
+        };
+        let function = Function::with_blocks(
+            "located",
+            Signature::new(vec![], Type::I64),
+            vec![
+                lang_mir::BasicBlock::new(
+                    vec![lang_mir::Instruction::I64Constant {
+                        result: ValueId::new(0),
+                        value: 42,
+                    }],
+                    MirTerminator::Jump(lang_mir::BlockTarget::new(
+                        lang_mir::BlockId::new(1),
+                        vec![],
+                    )),
+                ),
+                lang_mir::BasicBlock::new(vec![], MirTerminator::Return(ValueId::new(0))),
+            ],
+        );
+        assert!(lower(&function).unwrap().source_map().is_none());
+        let source_map = FunctionSourceMap::new(
+            "fixture.lang",
+            span(1),
+            vec![
+                BlockSourceMap::new(vec![span(2)], span(3)),
+                BlockSourceMap::new(vec![], span(4)),
+            ],
+        )
+        .unwrap();
+        let program = lower(&function.with_source_map(source_map.clone()).unwrap()).unwrap();
+        assert_eq!(program.source_map(), Some(&source_map));
+        assert_eq!(program.verify(), Ok(()));
+    }
 
     use super::{
         Block, BlockId, BlockParameter, BlockTarget, Instruction, Program, Terminator,

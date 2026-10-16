@@ -676,6 +676,9 @@ impl VersionedComponentContract {
         mut resources: Vec<ResourceTypeKey>,
     ) -> Result<Self, ComponentContractValidationError> {
         validate_package_key(&package)?;
+        version
+            .validate()
+            .map_err(ComponentContractValidationError::InvalidVersion)?;
 
         for requirement in &mut requirements {
             validate_interface_key(requirement.key())?;
@@ -687,6 +690,9 @@ impl VersionedComponentContract {
 
         for lock in &locks {
             validate_interface_key(lock.key())?;
+            lock.version()
+                .validate()
+                .map_err(ComponentContractValidationError::InvalidVersion)?;
         }
         locks.sort_by(|left, right| left.key().cmp(right.key()));
         reject_duplicate_locks(&locks)?;
@@ -752,6 +758,7 @@ impl Display for ComponentContractIdentifierField {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ComponentContractValidationError {
+    InvalidVersion(super::negotiation::VersionIdentifierError),
     InvalidIdentifier {
         field: ComponentContractIdentifierField,
         value: String,
@@ -793,6 +800,7 @@ pub enum ComponentContractValidationError {
 impl Display for ComponentContractValidationError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidVersion(error) => write!(formatter, "invalid semantic version: {error}"),
             Self::InvalidIdentifier { field, value } => {
                 write!(formatter, "invalid {field} `{value}`")
             }
@@ -905,6 +913,10 @@ fn validate_identifier(
 fn validate_requirement(
     requirement: &ComponentContractRequirement,
 ) -> Result<(), ComponentContractValidationError> {
+    requirement
+        .requirement()
+        .validate_versions()
+        .map_err(ComponentContractValidationError::InvalidVersion)?;
     if let VersionRequirement::Interval {
         min_inclusive,
         max_exclusive,
@@ -2292,6 +2304,48 @@ mod tests {
             true,
         )
         .expect("failure-report fixture should validate")
+    }
+
+    #[test]
+    fn rejects_unchecked_versions_before_encoding_contracts() {
+        let invalid =
+            version(1, 1, 0).with_prerelease(vec![PrereleaseIdentifier::Numeric("01".to_owned())]);
+        let base = contract();
+        for input in [
+            VersionedComponentContract::new(
+                base.package().clone(),
+                invalid.clone(),
+                vec![],
+                vec![],
+                vec![],
+            ),
+            VersionedComponentContract::new(
+                base.package().clone(),
+                version(1, 0, 0),
+                vec![ComponentContractRequirement::new(
+                    interface("clocks"),
+                    VersionRequirement::Exact(invalid.clone()),
+                )],
+                vec![],
+                vec![],
+            ),
+            VersionedComponentContract::new(
+                base.package().clone(),
+                version(1, 0, 0),
+                base.requirements().to_vec(),
+                vec![ComponentContractLock::new(
+                    interface("clocks"),
+                    invalid,
+                    VersionedDigest::new(DigestAlgorithm::Sha256, vec![7; 32]).unwrap(),
+                )],
+                base.resources().to_vec(),
+            ),
+        ] {
+            assert!(matches!(
+                input,
+                Err(ComponentContractValidationError::InvalidVersion(_))
+            ));
+        }
     }
 
     fn contract() -> VersionedComponentContract {

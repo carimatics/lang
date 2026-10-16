@@ -200,6 +200,8 @@ Support `if` and `return` but omit `while` and assignment. This is smaller, but 
 
 ## Implementation plan
 
+Review clarification (2026-10-17): the accepted production rules remain unchanged, but `IDENT`, comments, whitespace, source encoding, and signed-literal tokenization are not fully specified. Frontend implementation must pass the Milestone 1 lexical-specification acceptance gate rather than silently making these choices in the parser. Modules, calls, and aggregates remain outside this RFC.
+
 1. Add a lossless parser and syntax nodes for the exact grammar, with snapshots for valid, incomplete, and recovered input.
 2. Resolve names and type-check `i64`, internal `bool`, mutation, conditions, and explicit returns while preserving source spans and the accepted diagnostic identities.
 3. Lower functions, `if`, and `while` to the existing typed MIR. Represent assigned values across joins and back-edges with block arguments and parameters.

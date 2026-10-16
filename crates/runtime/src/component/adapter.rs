@@ -8,6 +8,7 @@
 use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::mem::ManuallyDrop;
 use std::num::NonZeroU32;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -661,6 +662,7 @@ impl<'a> PreparedCall<'a> {
             owners: self.owners,
             trace: self.trace,
             current_scope_depth: 0,
+            finished: false,
         }
     }
 }
@@ -796,6 +798,7 @@ pub struct ActiveCall<'a> {
     owners: Vec<OwnerLedgerEntry>,
     trace: Vec<AdapterTraceEvent>,
     current_scope_depth: u32,
+    finished: bool,
 }
 
 impl ActiveCall<'_> {
@@ -1010,12 +1013,13 @@ impl ActiveCall<'_> {
                         BoundaryFailureRecord::cleanup(
                             FailureCategory::Destructor,
                             "component.boundary.destructor-failure",
-                            error.to_string(),
+                            contained_error_message(error),
                         ),
                     );
                     poisoned = true;
                 }
-                Err(_) => {
+                Err(payload) => {
+                    dispose_panic_payload(payload);
                     self.trace.push(AdapterTraceEvent::DestructorFailed {
                         resource: entry.resource,
                     });
@@ -1046,10 +1050,11 @@ impl ActiveCall<'_> {
             suppressed,
             poisoned,
         });
+        self.finished = true;
         CallCompletion {
             failure,
             state: self.callee.state,
-            trace: self.trace,
+            trace: std::mem::take(&mut self.trace),
         }
     }
 
@@ -1100,6 +1105,48 @@ impl ActiveCall<'_> {
         }
         valid
     }
+}
+
+impl Drop for ActiveCall<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            // An abandoned or unwinding frame has no destructor callback with
+            // which to complete cleanup. Quarantine both tables: the caller
+            // may still own active lends and the callee may still own values.
+            // Do not allocate or run user code while handling this failure.
+            self.caller.state = InstanceState::Poisoned;
+            self.callee.state = InstanceState::Poisoned;
+        }
+    }
+}
+
+fn dispose_panic_payload(payload: Box<dyn std::any::Any + Send>) {
+    if let Err(secondary) = catch_unwind(AssertUnwindSafe(|| drop(payload))) {
+        // A panic payload may itself panic on drop. There is no finite general
+        // recursive disposal strategy; retain this secondary payload instead
+        // of letting another unwind escape the component cleanup boundary.
+        std::mem::forget(secondary);
+    }
+}
+
+fn contained_error_message<E: Display>(error: E) -> String {
+    // Format and dispose separately so a panicking Display cannot trigger a
+    // second panic from E::drop during the same unwind.
+    let error = ManuallyDrop::new(error);
+    let message = catch_unwind(AssertUnwindSafe(|| error.to_string()));
+    let disposal = catch_unwind(AssertUnwindSafe(|| drop(ManuallyDrop::into_inner(error))));
+    let message = match message {
+        Ok(message) => message,
+        Err(payload) => {
+            dispose_panic_payload(payload);
+            "resource destructor error formatting panicked".to_owned()
+        }
+    };
+    if let Err(payload) = disposal {
+        dispose_panic_payload(payload);
+        return "resource destructor error disposal panicked".to_owned();
+    }
+    message
 }
 
 fn record_failure(
@@ -1182,6 +1229,102 @@ mod tests {
         ownership: CanonicalOwnership,
     ) -> [TransferArgument; 1] {
         [TransferArgument::new(source, resource_type, ownership)]
+    }
+
+    #[test]
+    fn abandoned_calls_poison_both_tables() {
+        for ownership in [CanonicalOwnership::Own, CanonicalOwnership::Borrow] {
+            let mut caller = unlimited_table();
+            let mut callee = unlimited_table();
+            let timer = resource_type("timer");
+            let source = caller
+                .insert_owned(timer.clone(), ResourceIdentity::new(1))
+                .unwrap();
+            let call = preflight_call(
+                &mut caller,
+                &mut callee,
+                &one_argument(source, timer.clone(), ownership),
+            )
+            .unwrap()
+            .commit();
+            drop(call);
+            assert_eq!(caller.state(), InstanceState::Poisoned);
+            assert_eq!(callee.state(), InstanceState::Poisoned);
+            assert!(
+                caller
+                    .insert_owned(timer.clone(), ResourceIdentity::new(2))
+                    .is_err()
+            );
+            assert!(
+                callee
+                    .insert_owned(timer, ResourceIdentity::new(3))
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn cleanup_contains_panicking_payloads_and_error_formatting_and_drop() {
+        struct PanicPayload;
+        impl Drop for PanicPayload {
+            fn drop(&mut self) {
+                panic!("panic payload destructor");
+            }
+        }
+        struct PanickingError;
+        impl std::fmt::Display for PanickingError {
+            fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                panic!("error formatting");
+            }
+        }
+        impl Drop for PanickingError {
+            fn drop(&mut self) {
+                panic!("error destructor");
+            }
+        }
+        for panic_payload in [false, true] {
+            let mut caller = unlimited_table();
+            let mut callee = unlimited_table();
+            let timer = resource_type("timer");
+            let first = caller
+                .insert_owned(timer.clone(), ResourceIdentity::new(1))
+                .unwrap();
+            let second = caller
+                .insert_owned(timer.clone(), ResourceIdentity::new(2))
+                .unwrap();
+            let call = preflight_call(
+                &mut caller,
+                &mut callee,
+                &[
+                    TransferArgument::new(first, timer.clone(), CanonicalOwnership::Own),
+                    TransferArgument::new(second, timer, CanonicalOwnership::Own),
+                ],
+            )
+            .unwrap()
+            .commit();
+            let mut destroyed = Vec::new();
+            let completion = call.finish(CallOutcome::GuestTrap, |identity| {
+                destroyed.push(identity.get());
+                if identity.get() == 2 {
+                    if panic_payload {
+                        std::panic::panic_any(PanicPayload);
+                    }
+                    return Err(PanickingError);
+                }
+                Ok(())
+            });
+            assert_eq!(destroyed, [2, 1]);
+            assert!(caller.is_empty());
+            assert!(callee.is_empty());
+            assert_eq!(completion.state(), InstanceState::Poisoned);
+            let failure = completion.failure().unwrap();
+            assert_eq!(failure.primary().category(), FailureCategory::Trap);
+            assert_eq!(failure.suppressed().len(), 1);
+            assert_eq!(
+                failure.suppressed()[0].category(),
+                FailureCategory::Destructor
+            );
+        }
     }
 
     #[test]

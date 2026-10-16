@@ -22,7 +22,7 @@
 
 ## 初期方針
 
-現在の設計仮説は、完全なビジョンより意図的に範囲を絞っています。
+受理済みarchitecture baselineは、完全なビジョンより意図的に範囲を絞っています。未実装の拡張には引き続き個別RFCが必要です。
 
 1. まず1つの言語を作ります。最初から2つの言語を作るのではなく、安全な高レベルコードと明示的な低レベル機能を同じ意味モデルで提供します。
 2. すべての実行モードで、構文解析、型検査、所有権解析、型付き中間表現を共有します。
@@ -32,13 +32,13 @@
 6. 信頼済みネイティブプラグインと、capabilityで制限されたスクリプト／WebAssemblyプラグインを別のデプロイ層として扱います。
 7. セルフホスティングは、初期実装を制約する条件ではなく、再現可能なブートストラップのマイルストーンとして扱います。
 
-根拠と未解決のトレードオフは、[アーキテクチャ提案](docs/ja/architecture.md)に記載しています。
+根拠と未解決のトレードオフは、[アーキテクチャbaseline](docs/ja/architecture.md)に記載しています。
 
 ## ドキュメント
 
 - [言語・エコシステム調査](docs/ja/research.md)
 - [Prototype benchmark evidence](docs/ja/benchmarks.md)
-- [アーキテクチャ提案](docs/ja/architecture.md)
+- [アーキテクチャbaseline](docs/ja/architecture.md)
 - [実装ロードマップ](docs/ja/roadmap.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
 - [RFC 0001：プロジェクト憲章と互換性ポリシー](docs/ja/rfcs/0001-project-charter.md)
@@ -62,7 +62,7 @@
 cargo run -- 20 22
 ```
 
-このcommandは、検証済みの型付きMIR関数を構築し、検証済みregister bytecodeへloweringしてVMで実行し、同じMIRをCranelift JITでcompileして結果を比較します。wrapping `i64` 加算はプロトタイプ動作であり、承認済み言語意味論ではありません。Cranelift 0.136.3をinitial native JIT／AOT backendとして選定し、decisionと再評価triggerを[architecture](docs/ja/architecture.md#backend戦略)へ記録しました。
+このcommandは、検証済みの型付きMIR関数を構築し、検証済みregister bytecodeへloweringしてVMで実行し、同じMIRをCranelift JITでcompileして結果を比較します。wrapping `i64` 加算は受理済みRFC 0002と一致しますが、source frontendは未実装です。Cranelift 0.136.3をinitial native JIT／AOT backendとして選定し、decisionと再評価triggerを[architecture](docs/ja/architecture.md#backend戦略)へ記録しました。
 
 Workspace testでは、最小のembedding経路も検証します。backend非依存のhost-function IDから型付き `extern "C" fn(i64) -> i64` 登録を解決し、同じMIR host callをVMとCranelift JITの両方で実行します。VMは合成可能なopt-in instruction-fuel／host-call budgetに加えて、value-slot limit、optionalな共有one-way interruption flag、絶対monotonic deadlineを公開します。成功したlimit付きexecutionは、両方の消費countと静的なregister-slot footprintを報告します。各bytecode instructionとterminatorは1 fuel unit、実行に入る各callbackは1 host-call unitを消費し、どちらの動的limitも対応するside effectの前に確認します。Validationとarity checkの後、VMはregister fileを割り当てる前に、register countがslot limitを超えるprogramを拒否します。Interruption／deadline checkはregister-file allocation前とinstruction、terminator、callback boundaryで行い、structured errorが両方の消費countを報告します。同じsafe pointで両方のconditionが成立する場合はinterruptionを優先します。Callbackはinterruptionをrequestしたりdeadlineを超過したりでき、そのcallback後の次のsafe pointで観測します。既存convenience functionはunbounded、non-interruptible、deadlineなしのままです。Slot countはbyte単位のheap limitではなく、callbackのallocationを含みません。このprototypeはstable ABIを定義せず、aggregate value、error transport、panic containment、capability、heap／recursion／task limit、callbackのpreemptive interruption、native／JIT resource enforcementはまだ提供しません。
 
@@ -90,7 +90,7 @@ cargo run --release --bin prototype-object -- host-callback /tmp/prototype-host-
 
 このcommandはadd、signed-minimum、host-callback targetについて、exported symbol、生成function-code size、object全体のsizeを報告します。Linkerは実行しません。
 
-実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelは厳格な `RejectAll` suspension policyと、exclusive-borrow rejection／deterministic cancellation cleanupを維持しながらshared task-frame borrowを許可する明示的な `AllowSharedFrameBorrows` 代替案を比較します。Graph modelはdefaultの `Reject` shared-cycle policy、実験的な `CollectUnreachable` tracing policy、arena-scoped cyclic storageを比較します。Service modelは `OwnerIsolated` mutationと `ExclusiveCapability` 代替案を比較しつつ、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを維持します。これらのmodelは設計証拠を記録するだけで、承認済み言語意味論ではありません。
+実行可能なownership実験は、`cargo test -p lang-semantics` で個別に実行できます。Async modelは厳格な `RejectAll` suspension policyと、exclusive-borrow rejection／deterministic cancellation cleanupを維持しながらshared task-frame borrowを許可する明示的な `AllowSharedFrameBorrows` 代替案を比較します。Graph modelはdefaultの `Reject` shared-cycle policy、実験的な `CollectUnreachable` tracing policy、arena-scoped cyclic storageを比較します。Service modelは `OwnerIsolated` mutationと `ExclusiveCapability` 代替案を比較しつつ、sendable payloadのmove、FIFO mailbox、deferred cancellation cleanupを維持します。RFC 0004／0005はstrict policyを受理しています。Modelは未完成のevidenceでありproduction ownership／concurrency実装ではなく、制限を緩めた代替案は未受理です。
 
 クリーンなrelease buildからprototype backend measurement harnessを実行します。
 
@@ -122,6 +122,12 @@ cargo doc --workspace --no-deps
 構文、型意味論、メモリ安全性、並行処理、ABI、パッケージ互換性、プラグイン境界を変更する場合はRFCが必要です。リポジトリSkillの `$language-design-rfc` を使用するか、`docs/ja/rfcs/0000-template.md` から開始してください。
 
 RFCがモード固有の制限を明示的に定めない限り、実装ではバイトコードbackendとネイティブbackendの観測可能な動作を等価に保つ必要があります。
+
+## レビュー範囲と現在の制限
+
+2026-10-17レビューではJIT memory回収、bytecode span保持、CodeView machine type、bounded decoding、semantic-version validation、要求全体のcapability preflight、Rust adapter cleanupを強化しました。Linker response fileは新しいpathを必要とし、既存fileとsymlinkを切り詰めず拒否します。反復呼び出しでは新しいresponse-file pathを選ぶか、自分の古いfileを明示的に削除してください。
+
+過去のbenchmark captureは改変せず保持し、JIT memory回収修正前のものです。現在の性能を解釈する際は[benchmark evidence](docs/ja/benchmarks.md)を参照してください。直接のnative host callbackはtrustedでありunwindは禁止です。Sandboxではありません。
 
 ## プロジェクト状態
 

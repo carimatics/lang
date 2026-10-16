@@ -4,8 +4,9 @@
 //! Shared nodes reject strong cycles by default. An experimental alternative
 //! permits strong cycles and traces from live external roots before collecting
 //! unreachable components. Arena-local cycles are permitted because the arena,
-//! rather than individual edges, owns every node. These choices are design
-//! hypotheses, not accepted language semantics.
+//! rather than individual edges, owns every node. RFC 0004 accepts the strict
+//! policy and arenas, not the tracing alternative. Weak upgrade here only
+//! checks liveness; it does not create a retained owner as a real runtime must.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;

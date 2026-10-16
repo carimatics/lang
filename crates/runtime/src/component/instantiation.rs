@@ -12,7 +12,7 @@ use super::adapter::{AdapterLimits, CanonicalResourceTable};
 use super::negotiation::{
     ContentDigest, ExactInterfaceLock, InterfaceConsumer, InterfaceFunctionType, InterfaceKey,
     InterfaceMember, InterfaceProvider, InterfaceValueType, NegotiationError,
-    ValidatedInterfaceBinding, negotiate_interface,
+    ValidatedInterfaceBinding, negotiate_interface, validate_consumer,
 };
 use super::serialization::{
     ComponentContractLock, ComponentContractRequiredMember, ComponentContractRequirement,
@@ -66,6 +66,15 @@ pub fn instantiate_component(
     grants: &CapabilityGrants,
     adapter_limits: AdapterLimits,
 ) -> Result<ComponentInstance, ComponentInstantiationError> {
+    // Check every requirement before any provider inventory can be observed.
+    for requirement in contract.requirements() {
+        validate_consumer(&interface_consumer(requirement), grants).map_err(|error| {
+            ComponentInstantiationError::Negotiation {
+                interface: Box::new(requirement.key().clone()),
+                error: Box::new(error),
+            }
+        })?;
+    }
     let mut bindings = Vec::new();
     bindings
         .try_reserve_exact(contract.requirements().len())
@@ -288,6 +297,20 @@ mod tests {
         assert!(grants.grant("clock.tick"));
         assert!(grants.grant("counter.read"));
         grants
+    }
+
+    #[test]
+    fn checks_later_capabilities_before_observing_any_provider() {
+        let mut grants = CapabilityGrants::new();
+        grants.grant("clock.tick");
+        for providers in [vec![], providers()] {
+            let error =
+                instantiate_component(contract(), &providers, &grants, AdapterLimits::default())
+                    .unwrap_err();
+            assert!(
+                matches!(error, ComponentInstantiationError::Negotiation { interface: key, error } if *key == interface("zeta") && matches!(*error, NegotiationError::MissingCapability { .. }))
+            );
+        }
     }
 
     #[test]
