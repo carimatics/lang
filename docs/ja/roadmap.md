@@ -12,11 +12,11 @@
 
 Costは経過時間の約束ではなく相対的なeffort pointです。`1`はごく小さい変更、`2`は小、`3`は中、`5`は大、`8`は非常に大、`13`は複数の連携変更にまたがる規模、`21`はprogram規模の作業を表します。進捗は `完了point / 全point × 100` を小数第1位へ丸めて算出します。Scopeやevidenceが変わったときは見積りと完了状態を更新します。
 
-このrepository stateに対して2026-10-16 15:02 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 15:09 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 77 pt | 138 pt | **55.8%** |
+| 0 — design baseline（現在） | 80 pt | 138 pt | **58.0%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 52 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 53 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 55 pt | 0.0% |
@@ -24,11 +24,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 55 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 50 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 39 pt | 0.0% |
-| **全体** | **77 pt** | **500 pt** | **15.4%** |
+| **全体** | **80 pt** | **500 pt** | **16.0%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：77 / 138 pt（55.8%）。**
+**進捗：80 / 138 pt（58.0%）。**
 
 ### 優先度順のタスク
 
@@ -40,7 +40,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [ ] **P0 — Windows x86-64 CIのlink／run成功evidenceと、macOSと比較できるclean benchmark baselineを記録する。** — 8 pt
 - [x] **P0 — Deterministic VM fuel、host-call／value-slot limit、cooperative interruption、absolute deadlineをprototypeする。** — 8 pt
 - [x] **P0 — Version付きscalar component metadataと明示的にcapability-gatedなimportをtyped host registryに対してvalidateする。** — 5 pt
-- [ ] **P0 — Generation tag付きowned／borrowed resource handleとdeterministic lifecycle validationをprototypeする。** — 3 pt
+- [x] **P0 — Generation tag付きowned／borrowed resource handleとdeterministic lifecycle validationをprototypeする。** — 3 pt
 - [ ] **P0 — Stable embedding／component boundary向けのbounded serialized contract、compatibility negotiation、cross-mode instantiation／conformance testを定義し、RFC 0003をdecision-readyにする。** — 5 pt
 - [ ] **P0 — Heap、recursion、task、native／JIT executionとcallback behaviorへresource enforcementを拡張する。** — 13 pt
 - [x] **P0 — Async cancellation、cyclic graph、shared mutable serviceについて、厳格／制限の少ない代替案をprototypeする。** — 8 pt
@@ -56,7 +56,9 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 ### Evidenceと現在の状態
 
-最初のcomponent-contract sliceはportable declarationをembedding-local bindingから分離しました。Schema-1 in-memory metadataはpackage identity／versionと名前付きscalar import／exportを記録します。各importがcapabilityを宣言し、別のbinding tableが論理nameをprocess-localな `HostFunctionId` へmapします。Validationはunknown schema、invalid／duplicate name、import／export collision、unsupported import type、undeclared／missing binding、grant不足、unregistered host functionを拒否します。Unauthorized componentがhost inventoryをprobeできないようcapability checkをregistry lookupより前に行い、成功時にはresolved bindingを持つ別のwrapperを返します。7件のruntime testがaccepted pathと主要なrejection／ordering contractをcoverします。[RFC 0003](rfcs/0003-versioned-component-contracts.md)はproposedのままで、serialization、resource handle、compatibility negotiation、canonical lowering、component execution、boundary-cost evidenceを明示的に未完了としています。
+最初のcomponent-contract sliceはportable declarationをembedding-local bindingから分離しました。Schema-1 in-memory metadataはpackage identity／versionと名前付きscalar import／exportを記録します。各importがcapabilityを宣言し、別のbinding tableが論理nameをprocess-localな `HostFunctionId` へmapします。Validationはunknown schema、invalid／duplicate name、import／export collision、unsupported import type、undeclared／missing binding、grant不足、unregistered host functionを拒否します。Unauthorized componentがhost inventoryをprobeできないようcapability checkをregistry lookupより前に行い、成功時にはresolved bindingを持つ別のwrapperを返します。7件のruntime testがaccepted pathと主要なrejection／ordering contractをcoverします。
+
+Component runtimeはgeneration tag付きowned handleと明示的なshared／exclusive borrow tokenもprototypeしました。Released slotはgenerationを進め、最小のfree slotをdeterministically再利用するため、stale ownerはreplacementをaliasできず、generation exhaustionではwrapせずslotをretireします。Shared borrowは共存し、exclusive borrow／mutable accessはexclusivityを強制し、active borrowはreleaseをblockし、borrow end／releaseのrepeatはstructuredに失敗します。6件のfocused testがslot reuse、stale owner／borrow、double release／end、conflict、mutation、deterministic reuse、generation retirement、borrow-ID exhaustionをcoverします。[RFC 0003](rfcs/0003-versioned-component-contracts.md)はproposedのままで、serialized resource representation、cross-component ownership transfer、compatibility negotiation、canonical lowering、component execution、boundary-cost evidenceを明示的に未完了としています。
 
 現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentがtest済みcountdown back-edgeを介して `i64` を運び、bounded sum workloadはcounterとwrapping accumulatorの両方をloopで運びます。MIRとbytecodeのvalidatorはentry-block制約とedge argumentのarity／typeを強制し、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 14 benchmark baseline](benchmarks.md)は、add、minimum、loop-carried countdown、2-value accumulator、conditional-sumのlowering、JIT／AOT compilation、code／object／link済みexecutable size、direct／VM／JIT call、通常、single-allocation、64-allocation-burst、allocation-churnのhost callback、3つのrequested-payload heap profile、unset-flag interruption-check／期限前deadline比較、system linking、single-launch／batched warm-cache AOT process startup、1,654,784〜1,671,168 byteの31個のlink済みprocess peak-memory sampleを扱います。Remote Windows evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semanticsと代表的なallocation／memory workload、提案済みsource-level control-flow semanticsのacceptance／implementation、追加CFG workload、allocator-overhead measurement、native debug-metadata implementation、cross-platform debug-quality validation、backend決定は未完了です。
 

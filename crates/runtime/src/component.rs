@@ -1,3 +1,5 @@
+pub mod resource;
+
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashSet};
 use std::error::Error;

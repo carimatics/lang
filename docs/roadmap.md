@@ -12,11 +12,11 @@ Tasks are listed in priority order within each milestone. `P0` tasks block that 
 
 Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, `8` is very large, `13` spans several coordinated changes, and `21` is a program-sized body of work. Progress is `completed points / total points × 100`, rounded to one decimal place. Estimates and completion state must be updated when scope or evidence changes.
 
-Progress snapshot verified against this repository state on 2026-10-16 15:02 JST:
+Progress snapshot verified against this repository state on 2026-10-16 15:09 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 77 pt | 138 pt | **55.8%** |
+| 0 — design baseline (current) | 80 pt | 138 pt | **58.0%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 52 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 53 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 55 pt | 0.0% |
@@ -24,11 +24,11 @@ Progress snapshot verified against this repository state on 2026-10-16 15:02 JST
 | 5 — ecosystem and compatibility | 0 pt | 55 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 50 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 39 pt | 0.0% |
-| **Overall** | **77 pt** | **500 pt** | **15.4%** |
+| **Overall** | **80 pt** | **500 pt** | **16.0%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 77 / 138 pt (55.8%).**
+**Progress: 80 / 138 pt (58.0%).**
 
 ### Tasks in priority order
 
@@ -40,7 +40,7 @@ Progress snapshot verified against this repository state on 2026-10-16 15:02 JST
 - [ ] **P0 — Record successful Windows x86-64 CI link/run evidence and a clean benchmark baseline comparable with macOS.** — 8 pt
 - [x] **P0 — Prototype deterministic VM fuel, host-call and value-slot limits, cooperative interruption, and absolute deadlines.** — 8 pt
 - [x] **P0 — Validate versioned scalar component metadata and explicit capability-gated imports against the typed host registry.** — 5 pt
-- [ ] **P0 — Prototype generation-tagged owned/borrowed resource handles and deterministic lifecycle validation.** — 3 pt
+- [x] **P0 — Prototype generation-tagged owned/borrowed resource handles and deterministic lifecycle validation.** — 3 pt
 - [ ] **P0 — Define the bounded serialized contract, compatibility negotiation, and cross-mode instantiation/conformance tests for the stable embedding/component boundary, making RFC 0003 decision-ready.** — 5 pt
 - [ ] **P0 — Extend resource enforcement to heap, recursion, tasks, and native/JIT execution, including callback behavior.** — 13 pt
 - [x] **P0 — Prototype strict and less-restrictive alternatives for async cancellation, cyclic graphs, and shared mutable services.** — 8 pt
@@ -56,7 +56,9 @@ Progress snapshot verified against this repository state on 2026-10-16 15:02 JST
 
 ### Evidence and current state
 
-The first component-contract slice now separates portable declarations from embedding-local bindings. Schema-1 in-memory metadata records package identity and version plus named scalar imports/exports; each import declares a capability, while a separate binding table maps its logical name to a process-local `HostFunctionId`. Validation rejects unknown schemas, invalid or duplicate names, import/export collisions, unsupported import types, undeclared or missing bindings, absent grants, and unregistered host functions. Capability checks precede registry lookup so an unauthorized component cannot probe host inventory, and successful validation returns a distinct wrapper with resolved bindings. Seven runtime tests cover the accepted path and key rejection/order contracts. [RFC 0003](rfcs/0003-versioned-component-contracts.md) remains proposed and explicitly leaves serialization, resource handles, compatibility negotiation, canonical lowering, component execution, and boundary-cost evidence open.
+The first component-contract slice now separates portable declarations from embedding-local bindings. Schema-1 in-memory metadata records package identity and version plus named scalar imports/exports; each import declares a capability, while a separate binding table maps its logical name to a process-local `HostFunctionId`. Validation rejects unknown schemas, invalid or duplicate names, import/export collisions, unsupported import types, undeclared or missing bindings, absent grants, and unregistered host functions. Capability checks precede registry lookup so an unauthorized component cannot probe host inventory, and successful validation returns a distinct wrapper with resolved bindings. Seven runtime tests cover the accepted path and key rejection/order contracts.
+
+The component runtime now also prototypes generation-tagged owned handles and explicit shared/exclusive borrow tokens. Released slots advance their generation and the lowest free slot is reused deterministically; stale owners cannot alias replacements, and generation exhaustion retires a slot instead of wrapping. Shared borrows coexist, exclusive borrows and mutable access enforce exclusivity, active borrows block release, and repeated borrow ends/releases fail structurally. Six focused tests cover slot reuse, stale owners and borrows, double release/end, conflicts, mutation, deterministic reuse, generation retirement, and borrow-ID exhaustion. [RFC 0003](rfcs/0003-versioned-component-contracts.md) remains proposed and explicitly leaves serialized resource representation, cross-component ownership transfer, compatibility negotiation, canonical lowering, component execution, and boundary-cost evidence open.
 
 Current progress: the first typed function now runs through both verified bytecode and a Cranelift JIT prototype, and the same MIR lowering can emit a host-native object artifact. Minimal typed `i64` host-function registration, a plain script-to-host callback, and an allocation-backed callback run through both execution modes; object output represents callbacks as imports. The VM now composes opt-in deterministic instruction-fuel and host-call budgets with a pre-allocation value-slot limit, cooperative one-way interruption flag, and absolute monotonic deadline. Typed basic blocks with explicit branch, jump, and return terminators are shared across MIR, bytecode, VM, JIT, and AOT; validators enforce target existence, reachability, and SSA dominance, while a fuel-bounded back-edge test covers non-termination. Typed block parameters and edge arguments carry an `i64` through a tested countdown back-edge, and a bounded sum workload carries both a counter and wrapping accumulator through the loop. MIR and bytecode validators enforce entry-block restrictions and edge argument arity/types; VM and JIT results agree, and AOT object emission succeeds. An initial shared `SystemLinker` driver validates ordered link requests, selects the host toolchain command flavor, and reports structured failures; macOS AArch64 integration links and executes add, minimum, plain host-callback, host-allocation, accumulator, and conditional-sum objects through it. The current clean macOS AArch64 [schema 14 benchmark baseline](benchmarks.md) covers add, minimum, loop-carried countdown, two-value accumulator, and conditional-sum lowering; JIT/AOT compilation; code, object, and linked-executable size; direct/VM/JIT calls; plain, single-allocation, 64-allocation-burst, and allocation-churn host callbacks; three requested-payload heap profiles; unset-flag interruption-check and unexpired-deadline comparisons; system linking; single-launch plus batched warm-cache AOT process startup; and 31 linked-process peak-memory samples from 1,654,784 to 1,671,168 bytes. Remote Windows evidence is not yet recorded. All three memory-model stress cases now have executable strict models: no borrows across suspension with deterministic cancellation cleanup, explicit shared/weak and arena-scoped cyclic graphs, and actor-isolated shared mutable services with moved messages. Generated-code inspection confirms a two-instruction AArch64 add, compare-and-branch minimum, and position-independent GOT import for the host callback. RFC 0001 remains proposed; less restrictive alternatives, broader embedding limits and native enforcement, production linker hardening and startup/runtime packaging, Windows x86-64 linking, execution, benchmark, and CI evidence, source allocation semantics and representative allocation/memory workloads, acceptance and implementation of proposed source-level control-flow semantics, additional CFG workloads, allocator-overhead measurement, native debug-metadata implementation, and cross-platform debug-quality validation, and the backend decision remain open.
 

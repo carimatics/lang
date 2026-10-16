@@ -16,7 +16,7 @@
 
 Package identity、scalar function import／export、各importが要求するcapabilityを記述する、backend非依存でversion付きのcomponent contractを定義します。Embedding固有のhost-function identifierはportable metadataの外に置きます。実行前にcontractを明示的なcapability grant、論理import binding、型付きhost-function registryに対して検証し、検証済みwrapperまたはstructured errorを生成します。
 
-最初の実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録します。これはin-memoryのdesign probeであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
+実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録し、明示的なshared／exclusive borrow tokenを持つgeneration tag付きowned-resource tableを提供します。これはin-memoryのdesign probeであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
 
 ## 動機
 
@@ -31,6 +31,7 @@ Resource handle、canonical lowering、stable C embedding APIを固定する前�
 - すべてのhost importに明示的なcapabilityを要求する。
 - 実行前にname、duplicate declaration、supported signature、grant、binding、registrationを検証する。
 - 成功したvalidationをresolved local bindingを持つ別typeとして保持する。
+- Rust referenceがboundaryを越えることに依存せず、stale、repeatedly released、illegal borrowed resource handleを拒否する。
 - Trust boundaryでstructuredかつdeterministicなfailureを返す。
 
 ## 非目標
@@ -38,7 +39,7 @@ Resource handle、canonical lowering、stable C embedding APIを固定する前�
 - Serialized IDLまたはwire encodingをstable化すること。
 - WIT source／binary compatibilityを主張すること。
 - String、list、record、variant、option、result、async functionを定義すること。
-- Owned／borrowed resource handle、generation、destructor、cross-component lifetimeを定義すること。
+- Serialized resource-handle layout、cross-component ownership transfer、destructor、lifetimeをstable化すること。
 - C embedding ABI、native calling convention、symbol namingをstable化すること。
 - この段階でVM、JIT、AOT pathを通してcomponent exportを実行すること。
 - Semantic-version compatibility rangeまたはdependency resolutionを定義すること。
@@ -66,6 +67,8 @@ Schema 1を理解でき、declarationが構造的にvalidで、すべてのbindi
 
 Text例は説明専用です。このRFCはfile syntaxまたはserializationを選択しません。
 
+Component resourceは別のin-memory tableを使います。Owned handleはslot／generationを含み、untrusted codeが複製するinteger handleをmodel化するため意図的にCopy可能です。Componentはsharedまたはexclusive borrowed handleを要求できます。Shared borrowは共存でき、exclusive borrowには他のlive borrowがないことを要求し、mutationを許可するborrowed handleはexclusiveだけです。Ownerがresourceをreleaseする前にすべてのborrowを終了する必要があります。Releaseはhost valueを返し、slot generationを進め、再利用可能な最小slotを利用可能にします。Copyされたold ownerの再利用、borrowの二重終了、二重release、終了後borrowの使用はstructured stale-handle errorになります。
+
 ## Reference semantics
 
 `ComponentMetadata` はschema version、package namespace、package name、3-part component version、import、exportを含みます。各function declarationはMIR／backend typeではなくcomponent固有のscalar typeを使います。各importはさらに1つのcapabilityを命名します。`ComponentImportBindings` は論理import nameをprocess-localな `HostFunctionId` valueへmapし、`CapabilityGrants` はこのinstanceへ供給されたauthorityを保持します。
@@ -83,31 +86,35 @@ Validationはdeterministicで、次の順序で行います。
 
 Schema 1が検証できるimportは `i64 -> i64` のみです。これはcurrent host registryが持つshapeがそれだけだからです。Contract type systemをregistry method nameで定義しないためmetadata typeは `bool` を記録しますが、同じ型のregistry entryとexecution pathが存在するまで `bool -> bool` importは拒否します。この段階のexportはdeclarationのみです。
 
+`ResourceTable<T>` はhost valueを所有します。`OwnedResourceHandle` は `(slot: u32, generation: u64)` です。`BorrowedResourceHandle` はさらにmonotonicに割り当てられたborrow identifierと `Shared`／`Exclusive` kindを持ちます。Released slotは再利用前にgenerationをincrementします。Generationを進められないslotはretireします。Free slotはslot昇順で選び、reuseをdeterministicにします。Borrow identifierは再利用せず、exhaustionはerrorです。
+
+Resource operationは最初にslot occupancy／generationをvalidateします。Shared-borrow creationはactive exclusive borrowを拒否します。Exclusive-borrow creationはすべてのactive borrowを拒否します。Mutable accessはsharedまたはinactive tokenを拒否します。Borrow終了はそのtokenだけをremoveし、repeated endはstaleです。Releaseはactive borrowを拒否し、valueをexactly onceでremove／returnし、copy済みownerをすべてstaleにします。したがってCopy可能representationはcopy可能ownershipを意味しません。
+
 ## Execution mode
 
-Contract validationはbackend非依存で、VM、JIT、AOT executionを選ぶ前に実行します。Prototypeは `HostFunctionRegistry` に対してのみresolveし、VM moduleのinstantiate、JIT call-site patch、AOT import lowering、export callはまだ行いません。将来のexecution pathはunchecked metadataを独立に再解釈せず、同じvalidated contractをconsumeしなければなりません。
+Contract／resource-table validationはbackend非依存で、VM、JIT、AOT executionを選ぶ前に実行します。Prototypeはimportを `HostFunctionRegistry` に対してresolveし、runtime crate内でresource lifecycleを直接実行します。VM moduleのinstantiate、JIT call-site patch、AOT import／resource lowering、export callはまだ行いません。将来のexecution pathはunchecked metadataを独立に再解釈せず、同じvalidated contract／resource ruleをconsumeしなければなりません。
 
 ## ABIと互換性
 
 Metadata schema versionとpackage versionは別の意味を持ちます。Schema versionはcontractのshapeとvalidation ruleを選択します。Package versionは宣言されたcomponent revisionを識別します。Schema 1は正確なsupported schema valueを要求し、package versionを記録しますが解釈しません。
 
-`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。このprototypeのRust layout、enum discriminant、in-memory map order、symbol name、説明用text syntaxはいずれもstable formatではありません。Boundaryをstableと呼ぶ前に、後続RFCでvalidated serialization、compatibility negotiation、canonical lowering rule、resource-handle representationを選択する必要があります。
+`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。Resource slot、generation、borrow identifierはruntime-local validation dataであり、選択済みwire representationではありません。このprototypeのRust layout、enum discriminant、in-memory map order、symbol name、handle bit layout、説明用text syntaxはいずれもstable formatではありません。Boundaryをstableと呼ぶ前に、後続RFCでvalidated serialization、compatibility negotiation、canonical lowering rule、serialized resource-handle representationを選択する必要があります。
 
 ## Diagnosticsとtooling
 
-Validationはunsupported schema、invalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Human-readable messageは論理import／capability nameを含み、callerはtextをparseせずvariantをmatchできます。
+Contract validationはunsupported schema、invalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Resource operationはstale owned／borrowed handle、borrow conflict、in-use release、shared-borrow mutation、table capacity、borrow-identifier exhaustionを区別します。Human-readable messageは論理nameまたはhandle identityを含み、callerはtextをparseせずvariantをmatchできます。
 
 将来のdecoderは同じsemantic failureへbyte offsetまたはsource spanを付与するべきです。Toolingはembedding configurationを診断する場合を除き、local numeric host IDではなくportable import nameを表示するべきです。
 
 ## Performanceとcost model
 
-Validationはduplicate／lookup checkにhash set／ordered mapを使い、平均してdeclaration／binding数に対してlinearです。Owned stringとresolved-binding mapを成功したvalidationごとに1回allocateします。Call-site thunk generation、canonical representation conversion、runtime dispatch overheadはこのprototypeの範囲外であり、stable化前のbenchmark requirementとして残ります。
+Contract validationはduplicate／lookup checkにhash set／ordered mapを使い、平均してdeclaration／binding数に対してlinearです。Owned stringとresolved-binding mapを成功したvalidationごとに1回allocateします。Resource lookupはslotによりconstant timeで、shared-borrow tracking／deterministic free-slot selectionはordered setを使い、それぞれのset sizeに対してlogarithmicです。Call-site thunk generation、canonical representation conversion、cross-boundary resource dispatch、destructor overheadはこのprototypeの範囲外であり、stable化前のbenchmark requirementとして残ります。
 
 ## Securityとtrust boundary
 
 Component metadata、capability declaration、binding configurationは、それぞれのboundaryでuntrusted inputです。Executionまたはlinker／JIT patchingより前にvalidationを完了しなければなりません。Authorityはembedderが供給するgrantから生じ、componentがcapabilityを宣言するだけでは得られません。Unauthorized componentへhost inventoryを露出しないよう、capability failureをhost-registry lookupより先に評価します。
 
-Validated wrapperが証明するのは、このschema／registryが実装したcheckだけです。Native callbackをsandbox化せず、callback workをpreemptせず、heap limitをenforceせず、serialized byte streamをvalidateせず、native pluginを安全にしません。Panic／unwind behaviorは最終的なcomponent boundaryで表現・封じ込める必要があります。
+Validated wrapper／resource tableが証明するのは実装済みcheckだけです。Copy可能handleをuntrusted tokenとして扱い、すべてのoperationでgeneration／active-borrow stateを再validateします。Stale numeric valueの所持からauthorityを導出しません。このprototypeはnative callbackをsandbox化せず、callback workをpreemptせず、heap limitをenforceせず、serialized byte streamをvalidateせず、failureをまたいでdestructorを実行せず、native pluginを安全にしません。Panic／unwind behaviorは最終的なcomponent boundaryで表現・封じ込める必要があります。
 
 ## 代替案
 
@@ -127,10 +134,14 @@ WIT package、world、resource、Canonical ABIを最初の実装として使い�
 
 C-compatibleなscalar callとsymbol nameだけを公開します。Current AOT objectにはより単純ですが、package-level versioning、capability requirement、rich value、resource ownership、共有VM／native component modelを提供しません。
 
+### Raw slot indexまたはhost referenceを使う
+
+Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗黙に指せます。Rust referenceはlocal borrowをencodeしますが、component dataから再構築された場合やABI callをまたいで保持された場合にtrustできません。Table-checked borrow tokenを持つgeneration tag付きinteger handleはhost addressを公開せず明示的なvalidationを維持します。
+
 ## 実装計画
 
-1. Schema-1 in-memory scalar metadata、明示的capability grant、分離されたimport binding、host-registry resolution、structured validation errorを実装・testする。
-2. Generation tag付きowned／borrowed resource handleを追加し、stale handle、double drop、borrow conflictをdeterministically拒否する。
+1. Schema-1 in-memory scalar metadata、明示的capability grant、分離されたimport binding、host-registry resolution、structured validation errorを実装・test済み。
+2. Generation tag付きowned／borrowed resource handleを実装・testし、stale handle、repeated release、repeated borrow end、borrow conflictをdeterministically拒否済み。
 3. Size／depth limit、source location、forward-compatibility ruleを持つbounded serialized component format／decoderを定義する。
 4. 1つのvalidated contractをVM、JIT、AOT instantiationへ接続し、import／export差分testを追加する。
 5. Canonical rich-value lowering、C embedding handle、panic／error containment、compatibility negotiationを仕様化する。
@@ -144,7 +155,8 @@ C-compatibleなscalar callとsymbol nameだけを公開します。Current AOT o
 - Missing、duplicate、undeclared embedding bindingのtest。
 - 将来のdecoder fuzzingと明示的なbyte、declaration-count、nesting-depth、string-length limit。
 - 同じvalidated contractを使う将来のVM／JIT／AOT差分test。
-- 将来のresource-handle lifecycle／capability-denial conformance test。
+- Generation-safe reuse、stale owner／borrow、repeated release／end、shared／exclusive conflict、mutation、deterministic reuse、identifier exhaustionのresource-handle test。
+- 将来のcross-mode resource lifecycle／capability-denial conformance test。
 - Validation、instantiation、conversion、repeated callの将来benchmark。
 
 ## 未解決事項
@@ -155,7 +167,7 @@ C-compatibleなscalar callとsymbol nameだけを公開します。Current AOT o
 - Capability namespace、delegation、attenuation、ambient host policyをどうcomposeするべきか。
 - Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
 
-レビュー結果：**needs prototype/measurement**。Scalar metadataとcapability-gated bindingの分離は実行可能になりましたが、このRFCをstable component contractとしてacceptする前に、resource ownership、bounded serialization、VM／JIT／AOT instantiation、canonical lowering、compatibility negotiation、boundary-cost evidenceがblocking workとして残ります。
+レビュー結果：**needs prototype/measurement**。Scalar metadata、capability-gated binding、table-localなowned／borrowed resource lifecycleは実行可能になりましたが、このRFCをstable component contractとしてacceptする前に、serialized resource representation／transfer、bounded decoding、VM／JIT／AOT instantiation、canonical lowering、compatibility negotiation、destructor／failure behavior、boundary-cost evidenceがblocking workとして残ります。
 
 ## 情報源
 
@@ -167,3 +179,4 @@ C-compatibleなscalar callとsymbol nameだけを公開します。Current AOT o
 - `docs/roadmap.md`、Milestone 0 component-boundary taskとcurrent evidence、最終更新2026-10-16。
 - `crates/runtime/src/lib.rs`、型付きhost-function registry prototype、最終更新2026-10-16。
 - `crates/runtime/src/component.rs`、schema-1 component validation prototype、最終更新2026-10-16。
+- `crates/runtime/src/component/resource.rs`、generation tag付きresource-table prototype、最終更新2026-10-16。
