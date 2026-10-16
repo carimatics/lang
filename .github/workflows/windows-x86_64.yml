@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 18 prototype benchmark
+      - name: Record the schema 19 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 18) {
-            throw "expected benchmark schema 18, got $($result.schema_version)"
+          if ($result.schema_version -ne 19) {
+            throw "expected benchmark schema 19, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -86,6 +86,9 @@ jobs:
           if ($result.generated_code_bytes.jit_fibonacci -le 0 -or $result.object_file_bytes.aot_fibonacci -le 0) {
             throw "benchmark did not record the Windows fibonacci artifact sizes"
           }
+          if ($result.generated_code_bytes.jit_component_scalar -le 0 -or $result.object_file_bytes.aot_component_scalar -le 0 -or $result.component_document_bytes.schema2_contract -le 0 -or $result.component_document_bytes.schema2_redacted_failure_report -le 0) {
+            throw "benchmark did not record the component artifact sizes"
+          }
           if ($result.measurements.name -notcontains "vm_countdown_interruptible_call") {
             throw "benchmark did not record the Windows interruption-check measurement"
           }
@@ -113,14 +116,19 @@ jobs:
             "resource_table_owner_insert_release",
             "resource_table_shared_borrow_end_release",
             "canonical_resource_owner_transfer_persist",
-            "canonical_resource_borrow_scope_cleanup"
+            "canonical_resource_borrow_scope_cleanup",
+            "component_instantiate_schema2_unlocked",
+            "component_lockfile_replay_instantiate",
+            "host_value_publish_transfer_release",
+            "component_guest_trap_cleanup_failure_report",
+            "component_destructor_failure_cleanup_report"
           )
           foreach ($row in $requiredComponentRows) {
             if ($componentRows.name -notcontains $row) {
               throw "benchmark did not record component-boundary row $row"
             }
           }
-          $requiredComponentSeries = @("metadata_validation", "interface_negotiation", "scalar_dispatch", "resource_lifecycle")
+          $requiredComponentSeries = @("metadata_validation", "interface_negotiation", "scalar_dispatch", "resource_lifecycle", "instantiation", "host_value_lifecycle", "failure_cleanup")
           foreach ($series in $requiredComponentSeries) {
             if ($componentRows.series -notcontains $series) {
               throw "benchmark did not record component-boundary series $series"
@@ -166,6 +174,10 @@ jobs:
           $workloadMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "benchmark_process_representative_allocation_peak_resident_memory" })
           if ($controlMemory.Count -ne 1 -or $workloadMemory.Count -ne 1 -or $controlMemory[0].sample_count -ne 31 -or $workloadMemory[0].sample_count -ne 31 -or $controlMemory[0].median -le 0 -or $workloadMemory[0].median -le $controlMemory[0].median) {
             throw "benchmark recorded invalid representative allocation process-memory rows"
+          }
+          $componentMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "benchmark_process_component_instances_peak_resident_memory" })
+          if ($result.component_instance_memory_profile.retained_instance_count -ne 4096 -or $result.component_instance_memory_profile.process_measurement -ne "benchmark_process_component_instances_peak_resident_memory" -or $componentMemory.Count -ne 1 -or $componentMemory[0].sample_count -ne 31 -or $componentMemory[0].median -le $controlMemory[0].median) {
+            throw "benchmark recorded invalid component-instance process-memory evidence"
           }
           if ($result.startup_iterations -ne 10) {
             throw "benchmark recorded unexpected startup iterations $($result.startup_iterations)"

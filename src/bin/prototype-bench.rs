@@ -13,8 +13,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use lang::component_conformance::{
     PROTOTYPE_SCALAR_CAPABILITY, PROTOTYPE_SCALAR_HOST, PROTOTYPE_SCALAR_IMPORT,
-    prototype_scalar_component_metadata,
+    prototype_scalar_component_function, prototype_scalar_component_metadata,
 };
+use lang::component_resource_conformance::run_prototype_resource_failure_adapter;
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
@@ -33,12 +34,21 @@ use lang_runtime::component::adapter::{
     AdapterLimits, CallOutcome, CanonicalOwnership, CanonicalResourceTable, ResourceIdentity,
     TransferArgument, preflight_call,
 };
+use lang_runtime::component::codec::ComponentCodecLimits;
+use lang_runtime::component::host_value::HostResourceValues;
+use lang_runtime::component::instantiation::instantiate_component;
+use lang_runtime::component::lockfile::{ComponentLockfile, select_component_packages};
 use lang_runtime::component::negotiation::{
     ContentDigest, InterfaceConsumer, InterfaceFunctionType, InterfaceKey, InterfaceMember,
     InterfaceProvider, InterfaceValueType, PackageKey, ResourceTypeKey, SemanticVersion,
     VersionRequirement, negotiate_interface,
 };
 use lang_runtime::component::resource::ResourceTable;
+use lang_runtime::component::serialization::{
+    ComponentContractRequiredMember, ComponentContractRequirement, ComponentContractValueType,
+    VersionedComponentContract, VersionedComponentFailureReport,
+    encode_versioned_component_contract, encode_versioned_component_failure_report,
+};
 use lang_runtime::component::{
     CapabilityGrants, ComponentImportBindings, ComponentMetadata, ValidatedComponentMetadata,
     validate_component_metadata,
@@ -53,6 +63,8 @@ const DEFAULT_RUNTIME_ITERATIONS: u64 = 100_000;
 const DEFAULT_STARTUP_ITERATIONS: u64 = 10;
 const PROCESS_MEMORY_CONTROL_CHILD: &str = "--process-memory-control-child";
 const REPRESENTATIVE_ALLOCATION_CHILD: &str = "--representative-allocation-child";
+const COMPONENT_INSTANCE_MEMORY_CHILD: &str = "--component-instance-memory-child";
+const COMPONENT_INSTANCE_MEMORY_COUNT: usize = 4_096;
 const REPRESENTATIVE_ALLOCATION_NAME: &str = "compiler_like_mixed_lifetime_allocation";
 const REPRESENTATIVE_RETAINED_ALLOCATION_COUNT: usize = 16_384;
 const REPRESENTATIVE_TRANSIENT_ALLOCATION_COUNT: usize = 2_048;
@@ -351,6 +363,8 @@ struct ComponentBenchmarkFixture {
     providers: Vec<InterfaceProvider>,
     negotiation_grants: CapabilityGrants,
     resource_type: ResourceTypeKey,
+    contract: VersionedComponentContract,
+    lockfile: ComponentLockfile,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -362,12 +376,16 @@ struct ArtifactSizes {
     sum_to_code: usize,
     sum_below_code: usize,
     host_code: usize,
+    component_scalar_code: usize,
     add_object: usize,
     min_object: usize,
     countdown_object: usize,
     fibonacci_object: usize,
     sum_to_object: usize,
     sum_below_object: usize,
+    component_scalar_object: usize,
+    component_contract: usize,
+    component_failure_report: usize,
     aot_executable: Option<u64>,
 }
 
@@ -455,6 +473,18 @@ fn main() -> ExitCode {
             black_box((profile, checksum));
             return ExitCode::SUCCESS;
         }
+        if mode == COMPONENT_INSTANCE_MEMORY_CHILD {
+            return match component_instance_memory_workload() {
+                Ok(checksum) => {
+                    black_box(checksum);
+                    ExitCode::SUCCESS
+                }
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
     }
 
     if env::args().any(|argument| argument == "-h" || argument == "--help") {
@@ -492,6 +522,8 @@ fn run() -> Result<(), String> {
     let host_allocation_burst_function = prototype_host_allocation_burst_function();
     let host_allocation_churn_function = prototype_host_allocation_churn_function();
     let host_allocation_variable_function = prototype_host_allocation_variable_function();
+    let component_scalar_function =
+        prototype_scalar_component_function().map_err(|error| error.to_string())?;
     let add_program = lower(&add_function).map_err(|error| error.to_string())?;
     let min_program = lower(&min_function).map_err(|error| error.to_string())?;
     let countdown_program = lower(&countdown_function).map_err(|error| error.to_string())?;
@@ -509,6 +541,19 @@ fn run() -> Result<(), String> {
         lower(&host_allocation_variable_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let component_fixture = component_benchmark_fixture()?;
+    let component_contract_bytes = encode_versioned_component_contract(
+        &component_fixture.contract,
+        ComponentCodecLimits::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    let component_failure_report = run_prototype_resource_failure_adapter(42)
+        .map_err(|error| error.to_string())?
+        .report;
+    let component_failure_report_bytes = encode_versioned_component_failure_report(
+        &component_failure_report,
+        ComponentCodecLimits::default(),
+    )
+    .map_err(|error| error.to_string())?;
     let interruption = InterruptionFlag::new();
     let deadline = Instant::now() + Duration::from_secs(60 * 60);
     let compiled_add =
@@ -525,6 +570,11 @@ fn run() -> Result<(), String> {
         CompiledFunction::compile(&sum_below_function).map_err(|error| error.to_string())?;
     let compiled_host = CompiledFunction::compile_with_hosts(&host_function, &host_functions)
         .map_err(|error| error.to_string())?;
+    let compiled_component_scalar = CompiledFunction::compile_with_hosts(
+        &component_scalar_function,
+        &component_fixture.host_functions,
+    )
+    .map_err(|error| error.to_string())?;
     let compiled_host_allocation =
         CompiledFunction::compile_with_hosts(&host_allocation_function, &host_functions)
             .map_err(|error| error.to_string())?;
@@ -543,6 +593,8 @@ fn run() -> Result<(), String> {
     let aot_fibonacci = emit_host_object(&fibonacci_function).map_err(|error| error.to_string())?;
     let aot_sum_to = emit_host_object(&sum_to_function).map_err(|error| error.to_string())?;
     let aot_sum_below = emit_host_object(&sum_below_function).map_err(|error| error.to_string())?;
+    let aot_component_scalar =
+        emit_host_object(&component_scalar_function).map_err(|error| error.to_string())?;
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
     let link_benchmark = LinkBenchmark::prepare(
         aot_add.bytes(),
@@ -1281,6 +1333,84 @@ fn run() -> Result<(), String> {
         ),
     ));
 
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "instantiation",
+        measure_construction(
+            "component_instantiate_schema2_unlocked",
+            config.samples,
+            config.lowering_iterations,
+            || {
+                instantiate_component(
+                    black_box(component_fixture.contract.clone()),
+                    black_box(&component_fixture.providers),
+                    black_box(&component_fixture.negotiation_grants),
+                    AdapterLimits::default(),
+                )
+                .expect("the benchmark schema-2 component instantiates")
+            },
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "instantiation",
+        measure_construction(
+            "component_lockfile_replay_instantiate",
+            config.samples,
+            config.lowering_iterations,
+            || {
+                select_component_packages(
+                    black_box(component_fixture.contract.clone()),
+                    black_box(&component_fixture.providers),
+                    black_box(&component_fixture.negotiation_grants),
+                    Some(black_box(&component_fixture.lockfile)),
+                )
+                .expect("the benchmark lockfile replays exactly")
+                .into_instance(AdapterLimits::default())
+            },
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "host_value_lifecycle",
+        measure_calls(
+            "host_value_publish_transfer_release",
+            config.samples,
+            config.lowering_iterations,
+            |iteration| {
+                host_value_publish_transfer_release(
+                    component_fixture.resource_type.clone(),
+                    iteration as i64,
+                )
+            },
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "failure_cleanup",
+        measure_calls(
+            "component_guest_trap_cleanup_failure_report",
+            config.samples,
+            config.lowering_iterations,
+            |iteration| {
+                let outcome = run_prototype_resource_failure_adapter(iteration as i64)
+                    .expect("guest-trap cleanup should produce a report");
+                debug_assert!(!outcome.report.poisoned());
+                outcome.host_value
+            },
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "failure_cleanup",
+        measure_calls(
+            "component_destructor_failure_cleanup_report",
+            config.samples,
+            config.lowering_iterations,
+            |iteration| {
+                destructor_failure_cleanup_report(
+                    component_fixture.resource_type.clone(),
+                    iteration as i64,
+                )
+            },
+        ),
+    ));
+
     let (representative_allocation_profile, representative_checksum) =
         representative_allocation_workload();
     black_box(representative_checksum);
@@ -1289,7 +1419,7 @@ fn run() -> Result<(), String> {
         let current_executable =
             env::current_exe().map_err(|error| format!("failed to locate benchmark: {error}"))?;
         let aot_process_memory = link_benchmark.measure_peak_resident_memory(config.samples)?;
-        let (control_process_memory, workload_process_memory) =
+        let (control_process_memory, workload_process_memory, component_process_memory) =
             measure_representative_allocation_process_memory(&current_executable, config.samples)?;
         let median_peak_resident_delta_bytes = workload_process_memory
             .median_bytes
@@ -1304,6 +1434,7 @@ fn run() -> Result<(), String> {
                 aot_process_memory,
                 control_process_memory.clone(),
                 workload_process_memory.clone(),
+                component_process_memory,
             ],
             RepresentativeAllocationMeasurement {
                 profile: representative_allocation_profile,
@@ -1341,12 +1472,16 @@ fn run() -> Result<(), String> {
                 sum_to_code: compiled_sum_to.code_size(),
                 sum_below_code: compiled_sum_below.code_size(),
                 host_code: compiled_host.code_size(),
+                component_scalar_code: compiled_component_scalar.code_size(),
                 add_object: aot_add.bytes().len(),
                 min_object: aot_min.bytes().len(),
                 countdown_object: aot_countdown.bytes().len(),
                 fibonacci_object: aot_fibonacci.bytes().len(),
                 sum_to_object: aot_sum_to.bytes().len(),
                 sum_below_object: aot_sum_below.bytes().len(),
+                component_scalar_object: aot_component_scalar.bytes().len(),
+                component_contract: component_contract_bytes.len(),
+                component_failure_report: component_failure_report_bytes.len(),
                 aot_executable: aot_executable_size,
             },
             MemoryMeasurements {
@@ -1430,6 +1565,35 @@ fn component_benchmark_fixture() -> Result<ComponentBenchmarkFixture, String> {
     );
     let mut negotiation_grants = CapabilityGrants::new();
     negotiation_grants.grant("storage.read");
+    let resource_type = ResourceTypeKey::new(interface_key.clone(), "timer");
+    let contract = VersionedComponentContract::new(
+        PackageKey::new("example", "component-benchmark"),
+        SemanticVersion::new(1, 0, 0),
+        vec![
+            ComponentContractRequirement::new(
+                interface_key,
+                VersionRequirement::Interval {
+                    min_inclusive: SemanticVersion::new(1, 0, 0),
+                    max_exclusive: SemanticVersion::new(2, 0, 0),
+                    allow_prerelease: false,
+                },
+            )
+            .with_required_members(vec![ComponentContractRequiredMember::new(
+                "transform",
+                vec![ComponentContractValueType::I64],
+                vec![ComponentContractValueType::I64],
+                "storage.read",
+            )]),
+        ],
+        Vec::new(),
+        vec![resource_type.clone()],
+    )
+    .map_err(|error| error.to_string())?;
+    let lockfile =
+        select_component_packages(contract.clone(), &providers, &negotiation_grants, None)
+            .map_err(|error| error.to_string())?
+            .lockfile()
+            .clone();
 
     Ok(ComponentBenchmarkFixture {
         metadata,
@@ -1440,8 +1604,96 @@ fn component_benchmark_fixture() -> Result<ComponentBenchmarkFixture, String> {
         consumer,
         providers,
         negotiation_grants,
-        resource_type: ResourceTypeKey::new(interface_key, "timer"),
+        resource_type,
+        contract,
+        lockfile,
     })
+}
+
+fn host_value_publish_transfer_release(resource_type: ResourceTypeKey, value: i64) -> i64 {
+    let mut host_values = HostResourceValues::new();
+    let mut caller = CanonicalResourceTable::new(AdapterLimits::default());
+    let mut callee = CanonicalResourceTable::new(AdapterLimits::default());
+    let source = host_values
+        .publish_owned(&mut caller, resource_type.clone(), value)
+        .expect("the benchmark host value publishes");
+    let call = preflight_call(
+        &mut caller,
+        &mut callee,
+        &[TransferArgument::new(
+            source,
+            resource_type,
+            CanonicalOwnership::Own,
+        )],
+    )
+    .expect("the benchmark host value transfer preflights")
+    .commit();
+    let mut released = None;
+    let completion = call.finish(CallOutcome::Returned, |identity| {
+        let value = host_values.release(identity)?;
+        released = Some(value);
+        Ok::<(), lang_runtime::component::host_value::HostResourceError>(())
+    });
+    debug_assert!(completion.failure().is_none());
+    debug_assert!(host_values.is_empty());
+    released.expect("the benchmark host value releases exactly once")
+}
+
+fn destructor_failure_cleanup_report(resource_type: ResourceTypeKey, value: i64) -> i64 {
+    let mut host_values = HostResourceValues::new();
+    let mut caller = CanonicalResourceTable::new(AdapterLimits::default());
+    let mut callee = CanonicalResourceTable::new(AdapterLimits::default());
+    let source = host_values
+        .publish_owned(&mut caller, resource_type.clone(), value)
+        .expect("the destructor benchmark host value publishes");
+    let call = preflight_call(
+        &mut caller,
+        &mut callee,
+        &[TransferArgument::new(
+            source,
+            resource_type,
+            CanonicalOwnership::Own,
+        )],
+    )
+    .expect("the destructor benchmark transfer preflights")
+    .commit();
+    let mut released = None;
+    let completion = call.finish(CallOutcome::Returned, |identity| {
+        released = Some(
+            host_values
+                .release(identity)
+                .expect("the destructor benchmark host value releases"),
+        );
+        Err::<(), _>("benchmark destructor failure")
+    });
+    let failure = completion
+        .failure()
+        .expect("the destructor error becomes a boundary failure");
+    let report = VersionedComponentFailureReport::from_boundary_failure_redacted(failure)
+        .expect("the destructor failure projects to schema 2");
+    debug_assert!(report.poisoned());
+    debug_assert!(host_values.is_empty());
+    released.expect("the destructor benchmark value releases exactly once")
+}
+
+fn component_instance_memory_workload() -> Result<u64, String> {
+    let fixture = component_benchmark_fixture()?;
+    let mut instances = Vec::with_capacity(COMPONENT_INSTANCE_MEMORY_COUNT);
+    let mut checksum = 0_u64;
+    for _ in 0..COMPONENT_INSTANCE_MEMORY_COUNT {
+        let instance = select_component_packages(
+            fixture.contract.clone(),
+            &fixture.providers,
+            &fixture.negotiation_grants,
+            Some(&fixture.lockfile),
+        )
+        .map_err(|error| error.to_string())?
+        .into_instance(AdapterLimits::default());
+        checksum = checksum.wrapping_add(instance.bindings().len() as u64);
+        instances.push(instance);
+    }
+    black_box(&instances);
+    Ok(checksum.wrapping_add(instances.len() as u64))
 }
 
 #[inline(never)]
@@ -2301,9 +2553,17 @@ fn measure_peak_resident_memory(
 fn measure_representative_allocation_process_memory(
     executable: &Path,
     sample_count: usize,
-) -> Result<(ProcessMemoryMeasurement, ProcessMemoryMeasurement), String> {
+) -> Result<
+    (
+        ProcessMemoryMeasurement,
+        ProcessMemoryMeasurement,
+        ProcessMemoryMeasurement,
+    ),
+    String,
+> {
     let mut control_samples = Vec::with_capacity(sample_count);
     let mut workload_samples = Vec::with_capacity(sample_count);
+    let mut component_samples = Vec::with_capacity(sample_count);
     for _ in 0..sample_count {
         control_samples.push(peak_resident_memory_bytes(
             executable,
@@ -2312,6 +2572,10 @@ fn measure_representative_allocation_process_memory(
         workload_samples.push(peak_resident_memory_bytes(
             executable,
             &[REPRESENTATIVE_ALLOCATION_CHILD],
+        )?);
+        component_samples.push(peak_resident_memory_bytes(
+            executable,
+            &[COMPONENT_INSTANCE_MEMORY_CHILD],
         )?);
     }
     Ok((
@@ -2322,6 +2586,10 @@ fn measure_representative_allocation_process_memory(
         ProcessMemoryMeasurement::from_samples(
             "benchmark_process_representative_allocation_peak_resident_memory",
             workload_samples,
+        ),
+        ProcessMemoryMeasurement::from_samples(
+            "benchmark_process_component_instances_peak_resident_memory",
+            component_samples,
         ),
     ))
 }
@@ -2496,7 +2764,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 18,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 19,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -2531,8 +2799,14 @@ fn render_json(
         .expect("writing to String succeeds");
     writeln!(output, "    \"jit_sum_below\": {},", sizes.sum_below_code)
         .expect("writing to String succeeds");
-    writeln!(output, "    \"jit_host_callback\": {}", sizes.host_code)
+    writeln!(output, "    \"jit_host_callback\": {},", sizes.host_code)
         .expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"jit_component_scalar\": {}",
+        sizes.component_scalar_code
+    )
+    .expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"object_file_bytes\": {{").expect("writing to String succeeds");
     writeln!(output, "    \"aot_add\": {},", sizes.add_object).expect("writing to String succeeds");
@@ -2543,8 +2817,28 @@ fn render_json(
         .expect("writing to String succeeds");
     writeln!(output, "    \"aot_sum_to\": {},", sizes.sum_to_object)
         .expect("writing to String succeeds");
-    writeln!(output, "    \"aot_sum_below\": {}", sizes.sum_below_object)
+    writeln!(output, "    \"aot_sum_below\": {},", sizes.sum_below_object)
         .expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"aot_component_scalar\": {}",
+        sizes.component_scalar_object
+    )
+    .expect("writing to String succeeds");
+    writeln!(output, "  }},").expect("writing to String succeeds");
+    writeln!(output, "  \"component_document_bytes\": {{").expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"schema2_contract\": {},",
+        sizes.component_contract
+    )
+    .expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"schema2_redacted_failure_report\": {}",
+        sizes.component_failure_report
+    )
+    .expect("writing to String succeeds");
     writeln!(output, "  }},").expect("writing to String succeeds");
     writeln!(output, "  \"executable_file_bytes\": {{").expect("writing to String succeeds");
     match sizes.aot_executable {
@@ -2691,6 +2985,21 @@ fn render_json(
         memory_measurements
             .representative_allocation
             .estimated_allocator_overhead_and_fragmentation_bytes,
+        false,
+    );
+    writeln!(output, "  }},").expect("writing to String succeeds");
+    writeln!(output, "  \"component_instance_memory_profile\": {{")
+        .expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"retained_instance_count\": {COMPONENT_INSTANCE_MEMORY_COUNT},"
+    )
+    .expect("writing to String succeeds");
+    write_json_string_indented(
+        &mut output,
+        4,
+        "process_measurement",
+        "benchmark_process_component_instances_peak_resident_memory",
         false,
     );
     writeln!(output, "  }},").expect("writing to String succeeds");
@@ -3068,7 +3377,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_eighteen_retains_existing_measurements_and_separates_component_series() {
+    fn schema_nineteen_retains_existing_measurements_and_extends_component_evidence() {
         let measurements = [
             Measurement::from_samples("rust_fibonacci_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_fibonacci_call", 1, vec![1.0, 2.0, 3.0]),
@@ -3097,6 +3406,10 @@ mod tests {
             ProcessMemoryMeasurement::from_samples(
                 "benchmark_process_representative_allocation_peak_resident_memory",
                 vec![20_900_000, 21_000_000, 21_100_000],
+            ),
+            ProcessMemoryMeasurement::from_samples(
+                "benchmark_process_component_instances_peak_resident_memory",
+                vec![7_900_000, 8_000_000, 8_100_000],
             ),
         ];
         let component_boundary_measurements = [
@@ -3132,6 +3445,30 @@ mod tests {
                     vec![1.0, 2.0, 3.0],
                 ),
             ),
+            ComponentBoundaryMeasurement::new(
+                "instantiation",
+                Measurement::from_samples(
+                    "component_lockfile_replay_instantiate",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
+            ComponentBoundaryMeasurement::new(
+                "host_value_lifecycle",
+                Measurement::from_samples(
+                    "host_value_publish_transfer_release",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
+            ComponentBoundaryMeasurement::new(
+                "failure_cleanup",
+                Measurement::from_samples(
+                    "component_destructor_failure_cleanup_report",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
         ];
         let output = render_json(
             "prototype-bench",
@@ -3149,12 +3486,16 @@ mod tests {
                 sum_to_code: 5,
                 sum_below_code: 6,
                 host_code: 7,
+                component_scalar_code: 15,
                 add_object: 8,
                 min_object: 9,
                 countdown_object: 10,
                 fibonacci_object: 11,
                 sum_to_object: 12,
                 sum_below_object: 13,
+                component_scalar_object: 16,
+                component_contract: 17,
+                component_failure_report: 18,
                 aot_executable: Some(14),
             },
             MemoryMeasurements {
@@ -3166,7 +3507,7 @@ mod tests {
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 18"));
+        assert!(output.contains("\"schema_version\": 19"));
         assert!(output.contains("\"representative_allocation_workload\": {"));
         assert!(output.contains("\"name\": \"compiler_like_mixed_lifetime_allocation\""));
         assert!(output.contains("\"allocation_count\": 23894"));
@@ -3184,15 +3525,28 @@ mod tests {
         assert!(output.contains(
             "\"name\": \"benchmark_process_representative_allocation_peak_resident_memory\""
         ));
+        assert!(output.contains("\"component_instance_memory_profile\": {"));
+        assert!(output.contains("\"retained_instance_count\": 4096"));
+        assert!(
+            output.contains(
+                "\"name\": \"benchmark_process_component_instances_peak_resident_memory\""
+            )
+        );
         assert!(output.contains("\"component_boundary_measurements\": ["));
         assert!(output.contains("\"series\": \"metadata_validation\""));
         assert!(output.contains("\"series\": \"interface_negotiation\""));
         assert!(output.contains("\"series\": \"scalar_dispatch\""));
         assert!(output.contains("\"series\": \"resource_lifecycle\""));
+        assert!(output.contains("\"series\": \"instantiation\""));
+        assert!(output.contains("\"series\": \"host_value_lifecycle\""));
+        assert!(output.contains("\"series\": \"failure_cleanup\""));
         assert!(output.contains("\"name\": \"component_metadata_validate_scalar\""));
         assert!(output.contains("\"name\": \"component_interface_negotiate_three_candidates\""));
         assert!(output.contains("\"name\": \"component_scalar_dispatch_validated\""));
         assert!(output.contains("\"name\": \"canonical_resource_borrow_scope_cleanup\""));
+        assert!(output.contains("\"name\": \"component_lockfile_replay_instantiate\""));
+        assert!(output.contains("\"name\": \"host_value_publish_transfer_release\""));
+        assert!(output.contains("\"name\": \"component_destructor_failure_cleanup_report\""));
         assert!(
             output
                 .contains("\"heap_measurement_scope\": \"host_callback_requested_payload_bytes\"")
@@ -3236,15 +3590,19 @@ mod tests {
         assert!(output.contains("\"jit_fibonacci\": 4"));
         assert!(output.contains("\"jit_sum_to\": 5"));
         assert!(output.contains("\"jit_sum_below\": 6"));
+        assert!(output.contains("\"jit_component_scalar\": 15"));
         assert!(output.contains("\"aot_countdown\": 10"));
         assert!(output.contains("\"aot_fibonacci\": 11"));
         assert!(output.contains("\"aot_sum_to\": 12"));
         assert!(output.contains("\"aot_sum_below\": 13"));
+        assert!(output.contains("\"aot_component_scalar\": 16"));
+        assert!(output.contains("\"schema2_contract\": 17"));
+        assert!(output.contains("\"schema2_redacted_failure_report\": 18"));
         assert!(output.contains("\"aot_add_min_countdown_fibonacci_sum_to_sum_below\": 14"));
     }
 
     #[test]
-    fn schema_eighteen_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_nineteen_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -3261,12 +3619,16 @@ mod tests {
                 sum_to_code: 5,
                 sum_below_code: 6,
                 host_code: 7,
+                component_scalar_code: 15,
                 add_object: 8,
                 min_object: 9,
                 countdown_object: 10,
                 fibonacci_object: 11,
                 sum_to_object: 12,
                 sum_below_object: 13,
+                component_scalar_object: 16,
+                component_contract: 17,
+                component_failure_report: 18,
                 aot_executable: None,
             },
             MemoryMeasurements {
