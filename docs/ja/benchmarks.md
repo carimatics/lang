@@ -6,6 +6,31 @@
 
 これらのmeasurementはpre-alpha prototypeの設計証拠です。言語のperformance guarantee、release target、最終backend選定ではありません。
 
+## 現在のWindows x86-64 schema 20 baseline
+
+現在の[Windows baseline](../../benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json)は、[GitHub Actions run 38932964398](https://github.com/carimatics/lang/actions/runs/38932964398)がclean commit `7c37d5d1a8d7ac7da5653e9d6931d4759a3a5fa7` から2026-10-17 01:45:50 JSTに記録しました。Windows Server 2025 runnerは、AMD64 Family 25 Model 1 CPU上のMicrosoft Windows 10.0.26100.33438を報告しました。Harness schema 20、固定されたRust 1.99.0 MSVC toolchain、31 sample、1,000 lowering／component operation、100,000 runtime operation、startup batch当たり10 launchを使用しました。Artifactは `git_dirty: false` を報告します。同じrunでformat、lint、全test suite、documentation、MSVC direct／response-file object-link-run test、typed component-resource cleanup conformance、benchmark validation、artifact uploadがすべてpassしました。
+
+選択したcross-platform rowは次のとおりです。
+
+| Measurement | Windows median | Windows p95 | Windows RSD | Windows／macOS median比 |
+| --- | ---: | ---: | ---: | ---: |
+| 6-object system link | 74.068 ms | 121.479 ms | 20.896% | 2.026× |
+| 10-launch batched AOT startup | 7.444 ms | 8.986 ms | 6.832% | 4.972× |
+| VM Fibonacci call | 3.526 us | 3.621 us | 3.565% | 2.845× |
+| JIT Fibonacci call | 13.240 ns | 15.684 ns | 5.459% | 1.469× |
+| 代表的component application | 236.804 us | 266.366 us | 6.201% | 3.503× |
+
+Windowsのpeak-process-memory rowはすべて正で順序付けされ、31個の別processに基づきます。
+
+| Process row | Median | p95 | RSD |
+| --- | ---: | ---: | ---: |
+| Allocation-free link済みAOT harness | 3,207,168 byte | 3,211,264 byte | 0.050% |
+| Benchmark control | 6,242,304 byte | 6,246,400 byte | 0.124% |
+| 代表的allocation workload | 26,189,824 byte | 26,198,016 byte | 0.032% |
+| 4,096個のretained component instance | 14,241,792 byte | 14,245,888 byte | 0.025% |
+
+代表的workloadはmacOSと同じ正確なlogical profile、すなわち23,894 allocation、19,183,210 total requested byte、18,102,042 peak live requested byte、終了後live byte 0を維持します。Windowsのcontrol-adjusted median resident deltaは19,947,520 byte、macOSでは21,053,440 byte（0.947×）で、対応するallocator-overhead／fragmentation合算推定値は1,845,478 byte／2,951,398 byteです。これらの比率はbackendだけの比較ではなく、system-levelの方向的evidenceです。Run間でCPU、OS、object format、linker、process loader、OS固有のpeak-working-set metricが異なります。また、linkのRSD 20.896%と代表的applicationのRSD 6.201%により、これらのmedianを安定したbudgetとして扱うことはできません。
+
 ## 現在のmacOS AArch64 schema 20 representative-application baseline
 
 現在の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-de248a1.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 23:34:00 JSTにclean commit `de248a126e2e7b20e7be2df083b104a6c2e438df` から記録しました。Harness schema 20、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0、31 sample、component construction／lifecycle／application sampleごとに1,000 operation、その他のrowにはschema 19から維持したparameterを使用しました。Artifactは `git_dirty: false`、14個のcomponent-boundary row、schema 19から維持した全fieldを報告します。
@@ -18,7 +43,7 @@ Schema 20は既存component-boundary seriesへ1 rowを追加します。
 
 `component_application_negotiate_lock_replay_instantiate_execute_cleanup` は、独立して選択される2つのprovider interface、deterministicなunlocked lock生成、exact-lock replay、fresh instance publication、scalar／nominal owned-resource VM／JIT call、再利用可能なguest-trap cleanupを1 operationへcomposeします。Check-in済みapplication testは2個のbinding／2個のexact lock entryを要求し、scalar、resource、cleanupの全pathがfixture value 42を保持することを要求します。
 
-このrowはpackage selection、fresh instance construction、bytecode lowering、JIT compilation、adapter setup、cleanupを含み、isolated call-overhead budgetではなくend-to-endの方向的evidenceです。Fixtureはhost-orchestratedです。Validated bindingがcallをgateしますが、production generated dispatch stubはまだmaterializeしません。Windows CIはschema 19の全contractを維持しつつschema 20と正確な新row／seriesを要求し、native Windows evidenceは未完了です。
+このrowはpackage selection、fresh instance construction、bytecode lowering、JIT compilation、adapter setup、cleanupを含み、isolated call-overhead budgetではなくend-to-endの方向的evidenceです。Fixtureはhost-orchestratedです。Validated bindingがcallをgateしますが、production generated dispatch stubはまだmaterializeしません。上記Windows baselineは、同じschema-20 rowと維持されたschema-19 contractすべてをnative MSVC runnerでvalidateします。
 
 ## 過去のmacOS AArch64 schema 19 component-boundary baseline
 
@@ -38,7 +63,7 @@ Unlocked／locked rowはいずれもrequired projectionをvalidateします。Lo
 
 別child processはexact lock済みinstanceを4,096個保持します。Peak-resident medianは10,108,928 byte、変更のないcontrolは2,064,384 byteで、process全体の差は8,044,544 byteです。p95は10,174,464 byte、RSDは0.268%です。このenvelopeはloader state、allocator behavior、複製されたowned contract／binding、adapter container、measurement-process overheadを含みます。Instanceごとのlanguage memory guaranteeではなく、単純な除算による正規化も行いません。
 
-Scalar `i64 -> i64` component functionのJIT bodyは40 byte、AOT objectは416 byteです。Encode済みschema-2 benchmark contractは271 byte、redacted failure reportは19 byteです。Machine-code sizeはhost registry、adapter／resource implementation、runtime support、final linkを除外します。Document sizeはserialization evidenceであり、executable code sizeではありません。Remote Windows component execution／measurementは未完了です。
+Scalar `i64 -> i64` component functionのJIT bodyは40 byte、AOT objectは416 byteです。Encode済みschema-2 benchmark contractは271 byte、redacted failure reportは19 byteです。Machine-code sizeはhost registry、adapter／resource implementation、runtime support、final linkを除外します。Document sizeはserialization evidenceであり、executable code sizeではありません。後続のWindows schema-20 baselineはnative component executionを記録し、これらのmeasurement contractを維持します。
 
 ## 過去のschema 18 macOS AArch64 CFG／representative-allocation baseline
 
@@ -272,7 +297,7 @@ Schema 3は `jit_countdown` と `aot_countdown` size field、6つのcountdown me
 
 Schema 7 harnessは、Windows x86-64 MSVCでconditional-sum lowering／compilation／runtime row、rename済みsystem-link／process-startup row、`executable_file_bytes.aot_add_min_countdown_sum_to_sum_below` を記録します。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証します。Schema 8はそれらのplatform fieldと31／1,000／100,000／10 parameterを維持し、3つのsingle-allocation runtime rowを追加します。Schema 9は `vm_countdown_interruptible_call`、schema 10は `vm_countdown_deadline_call`、schema 11は3つのallocation-burst row、schema 12は正確な2つのheap profile、schema 13はlink済みprocess peak-memory distribution、schema 14はallocation-churn evidence、schema 15はcomponent-boundary series、schema 16はvariable-size allocation timing／profile evidence、schema 17はrepresentative allocation／process-memory evidence、schema 18はFibonacci CFG timing／artifact evidence、schema 19はcomponent lifecycle／artifact／process-memory evidence、schema 20はrepresentative-application evidenceを追加し、現在Windows Server 2025 workflowはschema 20を要求します。Workflowはclean-checkout metadata、`windows`／`x86_64` identity、interruption、deadline、conditional-sum、Fibonacci、single-allocation、allocation-burst、allocation-churn、variable-size allocation、正確なrepresentative-workload accounting、4個すべてのprocess-memory row、14個すべてのcomponent-boundary row、startup batch size、正のFibonacci／component／executable sizeを検証してから、そのJSONを30日間uploadします。
 
-これはevidenceを生成するpathであり、記録済みWindows evidenceではありません。この変更によるremote runner結果はまだ検査もcommitもされていません。したがって、上のmacOS tableが現在唯一の測定済みbaselineです。
+上記のcommit済みschema-20 Windows baselineが、このpathの記録済みoutputです。GitHub Actions run 38932964398は11分55秒で全workflow stepを完了し、artifactをuploadしました。そのartifactはこのrepositoryに保持しています。Platform metricは交換可能ではないため、Windows resultはmacOS baselineを置き換えず補完します。
 
 ## 生成コード検査
 
@@ -300,7 +325,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - 64-allocation-burst medianはdirectが775.515 ns、VMが959.024 ns、JITが789.842 nsです。VM minus directは183.509 ns（23.663%）、JIT minus directは14.327 ns（1.847%）です。Direct／VM／JIT rowのRSDは20.514%／0.544%／6.002%であるため、resultは一般的なboundary-overhead budgetではなく方向的evidenceです。
 - 96-allocation churn medianはdirectが1.192 us、VMが1.348 us、JITが1.173 usです。VM minus directは156.544 ns（13.137%）、JIT minus directは-18.203 ns（-1.528%）です。各rowのRSDは4.901%／0.861%／0.388%です。負のJIT deltaはnoise-sensitiveなmicrobenchmark evidenceであり、boundaryがallocation costを除去するという主張ではありません。
 - Schema 12はtimed loopの外側で同じgeneric callback workloadをprofileします。Single callbackは1 allocation、total／peak live payload 8 byte、終了後live byte 0を記録し、burstは64 allocation、total／peak live payload 512 byte、終了後0を記録します。Scopeは意図的に `host_callback_requested_payload_bytes` としており、logical payload lifetime／cleanupを確認しますが、allocator metadata／fragmentation、stack、generated code、VM／JIT内部allocation、process RSSは除外します。
-- Schema 13はallocation-freeのlink済みAOT harnessに対する別processのpeak-memory samplingを導入しました。過去のschema 14 macOS runは `ru_maxrss` を通じてminimum 1,654,784 byte、median／p95／maximum 1,671,168 byte、RSD 0.173%を報告します。Fibonacciをlink setに維持した現在のschema 19 runはminimum／median／p95／maximumのすべてで1,671,168 byteを報告します。Schema 19の個別rowはrepresentative allocation推定値を維持し、component-instance evidenceを追加します。AOT rowはallocation-free process envelopeのままであり、Windowsの `PeakWorkingSetSize` metricは独立して解釈する必要があります。
+- Schema 13はallocation-freeのlink済みAOT harnessに対する別processのpeak-memory samplingを導入しました。過去のschema 14 macOS runは `ru_maxrss` を通じてminimum 1,654,784 byte、median／p95／maximum 1,671,168 byte、RSD 0.173%を報告します。現在のmacOS schema-20 runはFibonacciをlink setに維持してmedian 1,671,168 byteを報告し、Windows schema-20 runは `PeakWorkingSetSize` でmedian 3,207,168 byteを報告します。個別rowは代表的allocation推定値とcomponent-instance evidenceを維持します。AOT rowはallocation-free process envelopeのままであり、2つのOS metricは独立して解釈する必要があります。
 - VM rowには、呼び出しごとのbytecode verificationとregister allocationが含まれます。Interpreter dispatchだけでなく、現在のend-to-end embedding APIを計測しています。
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
 - Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdown、schema 6はaccumulator、schema 7はconditional sumを追加します。いずれもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
@@ -311,7 +336,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - 64-iteration back-edgeとimmediate returnを交互に実行すると、countdownのJIT／VM medianは12.846 ns／1.611 us、accumulatorは12.790 ns／1.665 usになります。Conditional-sum input `(64, 33)` と `(-7, 33)` を交互に実行すると、JIT／VM medianは20.011 ns／3.046 usになります。これらのbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。約1 nanosecondのdirect add／countdown／host-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、native Windows x86-64 runnerでclean schema 20 resultを記録し、macOS baselineと比較して解釈します。macOS AArch64 DWARF／dSYMとWindows-target CodeView／PDBのsource-mapping criterionは完了済みです。後者はcross-target LLD／LLDB evidenceであり、Windows CI executionを置き換えません。Schema 20が維持するschema 17 allocation traceもsyntheticなcompiler-like proxyであり、合算推定値はallocator metadataとfragmentationを分離できません。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
+Cleanなnative Windows x86-64 schema-20 resultとmacOSとの比較は記録済みです。完了済みのmacOS AArch64 DWARF／dSYMおよびWindows-target CodeView／PDB source-mapping criterionと合わせ、初期native-backend decisionに計画したcross-platform evidence prerequisiteを完了しました。Schema 20が維持するschema 17 allocation traceもsyntheticなcompiler-like proxyであり、合算推定値はallocator metadataとfragmentationを分離できません。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
 
 ## 以前のbaseline
 
