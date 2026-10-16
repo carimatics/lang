@@ -9,6 +9,112 @@ pub enum Type {
     Bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SourcePosition {
+    line: u32,
+    column: u32,
+}
+
+impl SourcePosition {
+    pub fn new(line: u32, column: u32) -> Result<Self, SourceMapError> {
+        if line == 0 || column == 0 {
+            return Err(SourceMapError::ZeroPosition);
+        }
+        Ok(Self { line, column })
+    }
+
+    pub const fn line(self) -> u32 {
+        self.line
+    }
+
+    pub const fn column(self) -> u32 {
+        self.column
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SourceSpan {
+    start: SourcePosition,
+    end: SourcePosition,
+}
+
+impl SourceSpan {
+    pub fn new(start: SourcePosition, end: SourcePosition) -> Result<Self, SourceMapError> {
+        if (end.line, end.column) < (start.line, start.column) {
+            return Err(SourceMapError::ReversedSpan);
+        }
+        Ok(Self { start, end })
+    }
+
+    pub const fn start(self) -> SourcePosition {
+        self.start
+    }
+
+    pub const fn end(self) -> SourcePosition {
+        self.end
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BlockSourceMap {
+    instruction_spans: Vec<SourceSpan>,
+    terminator_span: SourceSpan,
+}
+
+impl BlockSourceMap {
+    pub fn new(instruction_spans: Vec<SourceSpan>, terminator_span: SourceSpan) -> Self {
+        Self {
+            instruction_spans,
+            terminator_span,
+        }
+    }
+
+    pub fn instruction_spans(&self) -> &[SourceSpan] {
+        &self.instruction_spans
+    }
+
+    pub const fn terminator_span(&self) -> SourceSpan {
+        self.terminator_span
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FunctionSourceMap {
+    source_path: String,
+    function_span: SourceSpan,
+    blocks: Vec<BlockSourceMap>,
+}
+
+impl FunctionSourceMap {
+    pub fn new(
+        source_path: impl Into<String>,
+        function_span: SourceSpan,
+        blocks: Vec<BlockSourceMap>,
+    ) -> Result<Self, SourceMapError> {
+        let source_path = source_path.into();
+        if source_path.is_empty() {
+            return Err(SourceMapError::EmptySourcePath);
+        }
+        Ok(Self {
+            source_path,
+            function_span,
+            blocks,
+        })
+    }
+
+    pub fn source_path(&self) -> &str {
+        &self.source_path
+    }
+
+    pub const fn function_span(&self) -> SourceSpan {
+        self.function_span
+    }
+
+    pub fn blocks(&self) -> &[BlockSourceMap] {
+        &self.blocks
+    }
+}
+
 impl Display for Type {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -258,6 +364,7 @@ pub struct Function {
     name: String,
     signature: Signature,
     blocks: Vec<BasicBlock>,
+    source_map: Option<FunctionSourceMap>,
 }
 
 impl Function {
@@ -283,7 +390,33 @@ impl Function {
             name: name.into(),
             signature,
             blocks,
+            source_map: None,
         }
+    }
+
+    pub fn with_source_map(
+        mut self,
+        source_map: FunctionSourceMap,
+    ) -> Result<Self, SourceMapError> {
+        if source_map.blocks.len() != self.blocks.len() {
+            return Err(SourceMapError::BlockCountMismatch {
+                expected: self.blocks.len(),
+                actual: source_map.blocks.len(),
+            });
+        }
+        for (block, (source_block, mir_block)) in
+            source_map.blocks.iter().zip(&self.blocks).enumerate()
+        {
+            if source_block.instruction_spans.len() != mir_block.instructions.len() {
+                return Err(SourceMapError::InstructionCountMismatch {
+                    block,
+                    expected: mir_block.instructions.len(),
+                    actual: source_block.instruction_spans.len(),
+                });
+            }
+        }
+        self.source_map = Some(source_map);
+        Ok(self)
     }
 
     pub fn name(&self) -> &str {
@@ -296,6 +429,10 @@ impl Function {
 
     pub fn blocks(&self) -> &[BasicBlock] {
         &self.blocks
+    }
+
+    pub const fn source_map(&self) -> Option<&FunctionSourceMap> {
+        self.source_map.as_ref()
     }
 
     pub fn value_count(&self) -> usize {
@@ -473,6 +610,46 @@ fn compute_dominators(blocks: &[BasicBlock]) -> Vec<Vec<bool>> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceMapError {
+    ZeroPosition,
+    ReversedSpan,
+    EmptySourcePath,
+    BlockCountMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    InstructionCountMismatch {
+        block: usize,
+        expected: usize,
+        actual: usize,
+    },
+}
+
+impl Display for SourceMapError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ZeroPosition => formatter.write_str("source line and column must be non-zero"),
+            Self::ReversedSpan => formatter.write_str("source span end precedes its start"),
+            Self::EmptySourcePath => formatter.write_str("source path must not be empty"),
+            Self::BlockCountMismatch { expected, actual } => write!(
+                formatter,
+                "source map contains {actual} blocks, expected {expected}"
+            ),
+            Self::InstructionCountMismatch {
+                block,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "source map block {block} contains {actual} instruction spans, expected {expected}"
+            ),
+        }
+    }
+}
+
+impl Error for SourceMapError {}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValidationError {
     EmptyName,
     EmptyBody,
@@ -581,9 +758,81 @@ impl Error for ValidationError {}
 #[cfg(test)]
 mod tests {
     use super::{
-        BasicBlock, BlockId, BlockParameter, BlockTarget, Function, Instruction, Signature,
+        BasicBlock, BlockId, BlockParameter, BlockSourceMap, BlockTarget, Function,
+        FunctionSourceMap, Instruction, Signature, SourceMapError, SourcePosition, SourceSpan,
         Terminator, Type, ValidationError, ValueId,
     };
+
+    #[test]
+    fn attaches_structurally_valid_source_maps() {
+        let function_span = span(1, 1, 3, 2);
+        let return_span = span(2, 5, 2, 14);
+        let source_map = FunctionSourceMap::new(
+            "tests/identity.lang",
+            function_span,
+            vec![BlockSourceMap::new(vec![], return_span)],
+        )
+        .unwrap();
+        let function = Function::new(
+            "identity",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![],
+            Terminator::Return(ValueId::new(0)),
+        )
+        .with_source_map(source_map)
+        .unwrap();
+
+        let source_map = function.source_map().unwrap();
+        assert_eq!(source_map.source_path(), "tests/identity.lang");
+        assert_eq!(source_map.function_span(), function_span);
+        assert_eq!(source_map.blocks()[0].terminator_span(), return_span);
+    }
+
+    #[test]
+    fn rejects_invalid_source_maps() {
+        assert_eq!(SourcePosition::new(0, 1), Err(SourceMapError::ZeroPosition));
+        assert_eq!(
+            SourceSpan::new(position(2, 1), position(1, 1)),
+            Err(SourceMapError::ReversedSpan)
+        );
+
+        let function = Function::new(
+            "constant",
+            Signature::new(vec![], Type::I64),
+            vec![Instruction::I64Constant {
+                result: ValueId::new(0),
+                value: 42,
+            }],
+            Terminator::Return(ValueId::new(0)),
+        );
+        let source_map = FunctionSourceMap::new(
+            "tests/constant.lang",
+            span(1, 1, 3, 2),
+            vec![BlockSourceMap::new(vec![], span(2, 5, 2, 14))],
+        )
+        .unwrap();
+
+        assert_eq!(
+            function.with_source_map(source_map),
+            Err(SourceMapError::InstructionCountMismatch {
+                block: 0,
+                expected: 1,
+                actual: 0,
+            })
+        );
+    }
+
+    fn position(line: u32, column: u32) -> SourcePosition {
+        SourcePosition::new(line, column).unwrap()
+    }
+
+    fn span(start_line: u32, start_column: u32, end_line: u32, end_column: u32) -> SourceSpan {
+        SourceSpan::new(
+            position(start_line, start_column),
+            position(end_line, end_column),
+        )
+        .unwrap()
+    }
 
     #[test]
     fn rejects_use_before_definition() {

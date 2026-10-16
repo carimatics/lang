@@ -2,14 +2,16 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-use cranelift_codegen::ir::{AbiParam, BlockArg, InstBuilder, condcodes::IntCC, types};
+use cranelift_codegen::ir::{AbiParam, BlockArg, InstBuilder, SourceLoc, condcodes::IntCC, types};
 use cranelift_codegen::isa::{self, OwnedTargetIsa};
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use lang_mir::{Function, HostFunctionId, Instruction, Terminator, Type, ValidationError};
+use lang_mir::{
+    Function, HostFunctionId, Instruction, SourceSpan, Terminator, Type, ValidationError,
+};
 use lang_runtime::HostFunctionRegistry;
 pub use target_lexicon::Triple;
 
@@ -18,6 +20,7 @@ pub struct CompiledFunction {
     code: *const u8,
     code_size: usize,
     parameter_count: usize,
+    source_map: Option<CompiledSourceMap>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -25,6 +28,49 @@ pub struct ObjectArtifact {
     bytes: Vec<u8>,
     function_symbol: String,
     code_size: usize,
+    source_map: Option<CompiledSourceMap>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CompiledSourceMap {
+    source_path: String,
+    function_span: SourceSpan,
+    ranges: Vec<CompiledSourceRange>,
+}
+
+impl CompiledSourceMap {
+    pub fn source_path(&self) -> &str {
+        &self.source_path
+    }
+
+    pub const fn function_span(&self) -> SourceSpan {
+        self.function_span
+    }
+
+    pub fn ranges(&self) -> &[CompiledSourceRange] {
+        &self.ranges
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CompiledSourceRange {
+    start: u32,
+    end: u32,
+    span: SourceSpan,
+}
+
+impl CompiledSourceRange {
+    pub const fn start(&self) -> u32 {
+        self.start
+    }
+
+    pub const fn end(&self) -> u32 {
+        self.end
+    }
+
+    pub const fn span(&self) -> SourceSpan {
+        self.span
+    }
 }
 
 impl ObjectArtifact {
@@ -42,6 +88,10 @@ impl ObjectArtifact {
 
     pub const fn code_size(&self) -> usize {
         self.code_size
+    }
+
+    pub const fn source_map(&self) -> Option<&CompiledSourceMap> {
+        self.source_map.as_ref()
     }
 }
 
@@ -78,11 +128,16 @@ impl CompiledFunction {
             code,
             code_size: defined.code_size,
             parameter_count: function.signature().parameters().len(),
+            source_map: defined.source_map,
         })
     }
 
     pub const fn code_size(&self) -> usize {
         self.code_size
+    }
+
+    pub const fn source_map(&self) -> Option<&CompiledSourceMap> {
+        self.source_map.as_ref()
     }
 
     pub fn invoke_i64_2(&self, left: i64, right: i64) -> Result<i64, InvokeError> {
@@ -165,12 +220,14 @@ fn emit_object_with_isa(
         bytes,
         function_symbol: function.name().to_owned(),
         code_size: defined.code_size,
+        source_map: defined.source_map,
     })
 }
 
 struct DefinedFunction {
     function_id: cranelift_module::FuncId,
     code_size: usize,
+    source_map: Option<CompiledSourceMap>,
 }
 
 fn define_function<M: Module>(
@@ -210,6 +267,7 @@ fn define_function<M: Module>(
 
     let mut builder_context = FunctionBuilderContext::new();
     let frontend_config = module.target_config();
+    let mut source_spans = Vec::new();
     {
         let mut builder = FunctionBuilder::new(&mut context.func, &mut builder_context);
         let blocks: Vec<_> = function
@@ -244,7 +302,13 @@ fn define_function<M: Module>(
 
         for (block_index, block) in function.blocks().iter().enumerate() {
             builder.switch_to_block(blocks[block_index]);
-            for instruction in block.instructions() {
+            for (instruction_index, instruction) in block.instructions().iter().enumerate() {
+                if let Some(source_map) = function.source_map() {
+                    builder.set_srcloc(record_source_span(
+                        &mut source_spans,
+                        source_map.blocks()[block_index].instruction_spans()[instruction_index],
+                    ));
+                }
                 let value = match *instruction {
                     Instruction::I64Constant { value, .. } => {
                         builder.ins().iconst(types::I64, value)
@@ -275,6 +339,12 @@ fn define_function<M: Module>(
                 values[instruction.result().index()] = Some(value);
             }
 
+            if let Some(source_map) = function.source_map() {
+                builder.set_srcloc(record_source_span(
+                    &mut source_spans,
+                    source_map.blocks()[block_index].terminator_span(),
+                ));
+            }
             match block.terminator() {
                 Terminator::Return(return_value) => {
                     builder.ins().return_(&[values[return_value.index()]
@@ -338,17 +408,43 @@ fn define_function<M: Module>(
     module
         .define_function(function_id, &mut context)
         .map_err(CompileError::backend)?;
-    let code_size = context
+    let compiled_code = context
         .compiled_code()
-        .expect("a successfully defined function has compiled code")
-        .code_buffer()
-        .len();
+        .expect("a successfully defined function has compiled code");
+    let code_size = compiled_code.code_buffer().len();
+    let source_map = function.source_map().map(|source_map| CompiledSourceMap {
+        source_path: source_map.source_path().to_owned(),
+        function_span: source_map.function_span(),
+        ranges: compiled_code
+            .buffer
+            .get_srclocs_sorted()
+            .iter()
+            .filter_map(|range| {
+                if range.loc.is_default() {
+                    return None;
+                }
+                Some(CompiledSourceRange {
+                    start: range.start,
+                    end: range.end,
+                    span: source_spans[range.loc.bits() as usize],
+                })
+            })
+            .collect(),
+    });
     module.clear_context(&mut context);
 
     Ok(DefinedFunction {
         function_id,
         code_size,
+        source_map,
     })
+}
+
+fn record_source_span(source_spans: &mut Vec<SourceSpan>, span: SourceSpan) -> SourceLoc {
+    let location = u32::try_from(source_spans.len())
+        .expect("validated MIR value and block identifiers fit in u32");
+    source_spans.push(span);
+    SourceLoc::new(location)
 }
 
 fn validate_function(function: &Function) -> Result<(), CompileError> {
@@ -435,14 +531,76 @@ impl Error for InvokeError {}
 #[cfg(test)]
 mod tests {
     use lang_mir::{
-        BasicBlock, BlockId, BlockParameter, BlockTarget, Function, HostFunctionId, Instruction,
-        Signature, Terminator, Type, ValueId,
+        BasicBlock, BlockId, BlockParameter, BlockSourceMap, BlockTarget, Function,
+        FunctionSourceMap, HostFunctionId, Instruction, Signature, SourcePosition, SourceSpan,
+        Terminator, Type, ValueId,
     };
 
-    use super::{CompileError, CompiledFunction, emit_host_object};
+    use super::{CompileError, CompiledFunction, CompiledSourceMap, emit_host_object};
 
     fn target(block: BlockId) -> BlockTarget {
         BlockTarget::new(block, vec![])
+    }
+
+    #[test]
+    fn preserves_mir_spans_as_native_code_ranges() {
+        let function_span = span(1, 1, 3, 2);
+        let return_span = span(2, 5, 2, 14);
+        let source_map = FunctionSourceMap::new(
+            "tests/identity.lang",
+            function_span,
+            vec![BlockSourceMap::new(vec![], return_span)],
+        )
+        .unwrap();
+        let function = Function::new(
+            "located_identity",
+            Signature::new(vec![Type::I64], Type::I64),
+            vec![],
+            Terminator::Return(ValueId::new(0)),
+        )
+        .with_source_map(source_map)
+        .unwrap();
+
+        let compiled = CompiledFunction::compile(&function).unwrap();
+        assert_eq!(compiled.invoke_i64_1(42), Ok(42));
+        assert_source_map(compiled.source_map().unwrap(), function_span, return_span);
+
+        let artifact = emit_host_object(&function).unwrap();
+        assert_source_map(artifact.source_map().unwrap(), function_span, return_span);
+    }
+
+    fn assert_source_map(
+        source_map: &CompiledSourceMap,
+        function_span: SourceSpan,
+        operation_span: SourceSpan,
+    ) {
+        assert_eq!(source_map.source_path(), "tests/identity.lang");
+        assert_eq!(source_map.function_span(), function_span);
+        assert!(!source_map.ranges().is_empty());
+        assert!(
+            source_map
+                .ranges()
+                .iter()
+                .all(|range| range.start() < range.end())
+        );
+        assert!(
+            source_map
+                .ranges()
+                .iter()
+                .any(|range| range.span() == operation_span)
+        );
+    }
+
+    fn position(line: u32, column: u32) -> SourcePosition {
+        SourcePosition::new(line, column).unwrap()
+    }
+
+    fn span(start_line: u32, start_column: u32, end_line: u32, end_column: u32) -> SourceSpan {
+        SourceSpan::new(
+            position(start_line, start_column),
+            position(end_line, end_column),
+        )
+        .unwrap()
     }
 
     #[test]
