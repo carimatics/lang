@@ -1,4 +1,5 @@
 pub mod codec;
+pub mod negotiation;
 pub mod resource;
 
 use std::collections::btree_map::Entry;
@@ -387,7 +388,7 @@ fn validate_structure(metadata: &ComponentMetadata) -> Result<(), ComponentValid
     Ok(())
 }
 
-fn is_component_identifier(value: &str) -> bool {
+pub(super) fn is_component_identifier(value: &str) -> bool {
     value.split('-').all(|part| {
         let mut characters = part.chars();
         characters
@@ -398,7 +399,7 @@ fn is_component_identifier(value: &str) -> bool {
     })
 }
 
-fn is_capability_identifier(value: &str) -> bool {
+pub(super) fn is_capability_identifier(value: &str) -> bool {
     value.split('.').all(is_component_identifier)
 }
 
