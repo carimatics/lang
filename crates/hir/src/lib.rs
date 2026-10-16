@@ -5,6 +5,7 @@
 //! acceptance/implementation boundaries. Failed analysis never yields a typed
 //! function. Successful HIR has resolved locals, explicit types and flow facts.
 
+pub mod resolved;
 pub mod source;
 
 use std::collections::{BTreeMap, BTreeSet};

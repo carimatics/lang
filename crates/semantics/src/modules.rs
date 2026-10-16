@@ -198,11 +198,24 @@ impl ModuleGraph {
         path: NodeId,
         work: usize,
     ) -> Result<ResolvedName, ResolutionError> {
+        let mut remaining = work;
+        self.resolve_charged(module, path, &mut remaining)
+    }
+
+    pub(crate) fn resolve_charged(
+        &self,
+        module: ModuleId,
+        path: NodeId,
+        remaining: &mut usize,
+    ) -> Result<ResolvedName, ResolutionError> {
         let source_path = self
             .module(module)
             .and_then(|m| m.paths.get(&path.index()))
             .ok_or(ResolutionError::InvalidInput)?;
-        match self.resolve_path(module, source_path, &mut Work { left: work })? {
+        let mut work = Work { left: *remaining };
+        let result = self.resolve_path(module, source_path, &mut work);
+        *remaining = work.left;
+        match result? {
             Step::Found(name) => Ok(name),
             Step::Alias(_) => Err(ResolutionError::InvalidInput),
         }

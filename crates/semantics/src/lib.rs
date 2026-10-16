@@ -16,6 +16,7 @@
 //! storage: shared strong-reference cycles are rejected, while arena-local
 //! cycles are released in bulk.
 
+pub mod binding;
 pub mod graph;
 pub mod lowering;
 pub mod modules;

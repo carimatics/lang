@@ -1,8 +1,8 @@
 //! Syntax-independent input for the accepted RFC 0002 subset.
 //!
-//! A future parser supplies these nodes after lexical/syntactic validation.
+//! A parser adapter may supply these nodes after lexical/syntactic validation.
 //! This module does not tokenize text, choose identifier rules, infer omitted
-//! type annotations, or admit the proposed RFC 0006 extensions. Parameters,
+//! type annotations, or admit the accepted RFC 0006 extensions. Parameters,
 //! mutable declarations, and results are explicitly `i64` in this profile.
 //! Arenas avoid recursive ownership/drop even for maliciously linked inputs.
 

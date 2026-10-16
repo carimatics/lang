@@ -198,7 +198,7 @@ impl DiagnosticCode {
     }
 }
 
-/// Accepted identities from RFC 0002. Behavior stabilizes when implemented.
+/// Accepted identities from RFCs 0002/0006. Implementation and stabilization are separate.
 pub mod codes {
     use super::DiagnosticCode;
 

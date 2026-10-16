@@ -61,7 +61,7 @@ MIR ─────────────────────────�
 
 型付きMIRをsemantic contractとします。Backend固有のoptimizationは異なっても構いませんが、観測可能な動作、destruction order、panic／error behavior、integer semantics、concurrency ruleは異なってはいけません。
 
-受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は、最初のsource subsetとして `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐlive valueはtyped block argumentへloweringします。受理済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)は、字句規則とmodule／call、aggregate／pattern、portable bytecode、script／REPLの拡張を定義します。Diagnostics、lossless tokenization／parsing、構造化inputのprimitive HIR analysis、primitive HIR-to-MIR loweringは実装済みですが、parser-to-HIR統合とformatterは未実装です。
+受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は、最初のsource subsetとして `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐlive valueはtyped block argumentへloweringします。受理済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)は、字句規則とmodule／call、aggregate／pattern、portable bytecode、script／REPLの拡張を定義します。Diagnostics、lossless tokenization／parsing、構造化inputのprimitive HIR analysis、primitive HIR-to-MIR loweringは実装済みですが、source-to-typed-HIR統合とformatterは未実装です。
 
 2026-10-17実装：`lang-syntax` はUTF-8 inputを検証し、不正encodingや先頭BOMにはsnapshotを作成しません。Input errorはraw byte範囲を保持します。Lexerは受け入れた各snapshotを、空白、comment、不正token、不正Unicode scalarも含む、連続した完全なtoken列として保持します。符号付きdecimalのoverflow、不正token、comment内も含むNUL、閉じていないblock comment、直接作成したsnapshotのBOM違反を報告します。Source byte、token、nested-comment depth、診断数の上限を超えると `SRC0011` でanalysisを終了します。Commentは反復処理で走査します。13件のlexer testが正確な範囲、復元、決定的な混合Unicode input、resource境界を検証します。
 
@@ -71,11 +71,17 @@ Parserはsyntax node、real-token参照、zero-widthなmissing-syntax leafをimm
 
 同じく2026-10-17実装：`lang-semantics::lowering` はこのHIRを既存typed scalar MIRへ変換し、明示work／value／block limitと最終MIR validationを適用します。Expressionを左から右へloweringし、変化したbranch valueをtyped block argumentでjoinし、可視mutable valueをloop-header parameterで運びます。Early returnで到達不能joinを作らず、到達不能statementからinstructionを生成しません。CFG構築後にsymbolic IDをMIRが要求する連続definition順へremapします。合成jumpを含む全生成instruction／terminatorで、snapshot byte spanを既存の1始まりMIR line／Unicode-scalar columnへ変換します。構造化inputのintegration testはVM／JIT arithmetic、両branch path、nested branch／loop state、early return、fuel超過、bytecode span保持、native JIT／AOT-object source mappingを扱います。Parser接続済みsource loweringと新call／aggregateは別gateです。Untrusted deployment前にはprototype MIR validator自体のwork／allocation hardeningも必要です。
 
-### Incremental architecture
+### Source name resolution
 
 2026-10-17実装：`lang-semantics::modules` はhost側のsource loadingとmodule namespaceを提供します。Hostがroot fileと明示的なsource-root directoryを指定し、読み込み前にcanonical pathがroot内にあることを確認します。Child pathは宣言階層（`math.lang`、次に `math/inner.lang`）に従い、processのworking directoryに依存しません。Readはfile別／全体byte budgetの残量と検出用1 byteまでに制限します。合計byte／token／node、予定module数、function／definition／import数、診断数、resolution workに上限があります。Host宣言と `use` aliasはimport数の上限を共有します。不正UTF-8はraw input範囲を保持し、有効なsource上の失敗はstructured spanを保持します。Source表示pathはUTF-8を必須とし、非可逆変換によるaliasを作りません。
 
-Module graphはparsed tree、compilation内のmodule／item ID、表示名、宣言span、canonicalなimport targetを保持します。全宣言名を収集してからimportを解決します。Item種別は同じnamespaceを共有し、aliasは最後のsegmentを名前に使い、private importを再exportできません。Resolutionは横断する各module／item境界を検証し、module自身のprivate childへの参照を許可し、enum経由でcaseを公開します。同一canonical fileの重複とancestor cycleは再読み込み前に拒否します。Alias依存は明示stackを使い、再訪問も課金します。Workは宣言、path segment、enum-case候補、alias依存の訪問、ancestor検査を課金します。17件のlocal testでforward／階層path、alias、privacy、循環、名前重複、不正input、通算budget、Unix symlink境界を検証します。Linux専用testは、macOS filesystemが作成時に拒否する非UTF-8 filenameも検証します。Namespace graphの成功はbody typingの完了を意味せず、parsed local／pattern scope、type path／public signature、typed source／HIR構築は統合の残作業です。
+Module graphはparsed tree、compilation内のmodule／item ID、表示名、宣言span、canonicalなimport targetを保持します。全宣言名を収集してからimportを解決します。Item種別は同じnamespaceを共有し、aliasは最後のsegmentを名前に使い、private importを再exportできません。Resolutionは横断する各module／item境界を検証し、module自身のprivate childへの参照を許可し、enum経由でcaseを公開します。同一canonical fileの重複とancestor cycleは再読み込み前に拒否します。Alias依存は明示stackを使い、再訪問も課金します。Workは宣言、path segment、enum-case候補、alias依存の訪問、ancestor検査を課金します。17件のlocal testでforward／階層path、alias、privacy、循環、名前重複、不正input、通算budget、Unix symlink境界を検証します。Linux専用testは、macOS filesystemが作成時に拒否する非UTF-8 filenameも検証します。Namespace graphの成功はbody typingの完了を意味しません。
+
+2026-10-17実装：`lang-semantics::binding` はこのgraphと元のsnapshotをbackend非依存の `lang-hir::resolved` arenaへ変換します。Bodyより前に宣言IDを割り当て、forward／mutual guest callとnominal参照を可能にします。Primitive／nominalな型注釈、host call、enum case、record／field構文、全arm bodyを解決します。Local valueはmodule valueを隠し、宣言はinitializerの後からblock内でのみ可視です。Parameterとpattern bindingはimmutableで、別branch／armを含むfunction全体でlocal／parameter／binding名を一意とします。公開aggregateのfield／payloadを含むpublic signatureでprivate type宣言を拒否します。型使用箇所のspan、field／argumentの記述順、call site、block closer、enum-case構文の括弧有無をresolved IRへ保持します。これはtyping向けの名前解決済みinputであり、実行可能／serialized artifactではありません。
+
+Bindingの既定上限はunit全体でlocal／expression／pattern／blockが各1,000,000、診断数4,096、depth 256（内部上限も兼ねる）、work 10,000,000です。訪問する宣言、型使用、block、statement、expression、pattern、arm、local宣言、namespace要求を課金します。Namespace解決は、実際に訪問したpath segmentとenum候補も同じbudgetへ課金します。Small-budget testは命令生成を伴わない例の5／7 stepの境界を検証します。15件のtestでfixture全体の変換、注釈／source span、名前／scope、mutability、public signature、forward call、enum構文の保持、resource上限、foreign snapshotを検証します。名前の失敗が1つでもあればresolved programを返しません。Expression／patternの型、aggregate layout／循環、exhaustiveness、return経路の完全性は後続検証です。Loweringや実行の前にresolved programをこれらの検証へ通す必要があります。
+
+### Incremental architecture
 
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。
 
