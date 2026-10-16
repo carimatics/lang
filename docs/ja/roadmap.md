@@ -24,11 +24,13 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 2番目のtyped-resource sliceは、規定したprototype boundaryで完了しました。Typed VM valueとadapter統合済みVM／JIT executionは、macOS AOT direct／response-file native link／run testとnominal owner laneを共有し、対応するWindows testも構成・cross-compile済みです。Native Windows runner evidenceは下記の独立した2 pt taskのままであり、完了として集計しません。
 
-このrepository stateに対して2026-10-16 23:23 JSTに確認した進捗snapshot：
+Representative-application taskも規定したprototype boundaryで完了しました。Host-orchestrated fixtureは2-provider negotiation、deterministic lock生成、exact-lock replay、instance publication、scalar／typed-resource VM／JIT call、guest-trap cleanupをcomposeします。Cleanなschema-20 macOS baselineは1,000 operationを31 sample実行し、median 67.592 us、p95 68.459 us、RSD 1.109%を記録しました。Production generated dispatch stubとnative Windows evidenceは別作業のままです。
+
+このrepository stateに対して2026-10-16 23:34 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 180 pt | 209 pt | **86.1%** |
+| 0 — design baseline（現在） | 185 pt | 209 pt | **88.5%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -36,11 +38,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **180 pt** | **691 pt** | **26.0%** |
+| **全体** | **185 pt** | **691 pt** | **26.8%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：180 / 209 pt（86.1%）。**
+**進捗：185 / 209 pt（88.5%）。**
 
 ### Workstream別内訳
 
@@ -51,15 +53,15 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
-| Component／resource contract | 77 pt | 84 pt | 91.7% |
+| Component／resource contract | 82 pt | 84 pt | 97.6% |
 | Platform／backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **180 pt** | **209 pt** | **86.1%** |
+| **Milestone 0** | **185 pt** | **209 pt** | **88.5%** |
 
 このsnapshot時点の実行状態：
 
-- **Unblocked local P0：** 代表的multi-component application fixtureを1つ構成・計測する。
-- **外部gate：** RFC 0002、RFC 0003、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-conformance runner evidence。RFC 0003がdecision-readyになるのは、local prototype taskとWindows evidenceの完了後である。
+- **Unblocked local P0：** なし。残るMilestone 0 taskはすべてrepository-owner decisionまたはnative Windows evidenceを必要とする。
+- **外部gate：** RFC 0002、RFC 0003、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-conformance runner evidence。RFC 0003のlocal prototype taskは完了し、owner decision前にnative Windows component evidenceだけを待つ。
 - **依存gate：** Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
 ### 優先度順のタスク
@@ -104,7 +106,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Component-boundary cost evidenceをinstantiation、failure／destructor path、memory、code sizeへ拡張し、その解釈をRFC 0003へ記録する。** — 5 pt
 - [x] **P0 — Nominal canonical `own<T>` typeを定義し、linear-use／zero-index checkを伴うstraight-line ownerをMIR、bytecode、Cranelift JIT、AOT object contract全体で運ぶ。** — 3 pt
 - [x] **P0 — そのtyped ownerをtyped VM valueとadapter統合済みVM／JIT、およびmacOS AOT direct／response-file native link／runのownership-transfer／guest-trap cleanup conformanceで実行し、対応するWindows pathを構成する。** — 5 pt
-- [ ] **P0 — Negotiation、exact-lock replay、instantiation、scalar／resource call、failure cleanupにまたがる代表的multi-component application fixtureを1つ構成・計測する。** — 5 pt
+- [x] **P0 — Negotiation、exact-lock replay、instantiation、scalar／resource call、failure cleanupにまたがる代表的multi-component application fixtureを1つ構成・計測する。** — 5 pt
 - [ ] **P0 — Component-conformance pathのnative Windows execution evidenceを記録する。** — 2 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
 - [x] **P0 — 完了済みexperimentからdecision-readyなownership／cyclic-graph RFCを草案化する。** — 5 pt

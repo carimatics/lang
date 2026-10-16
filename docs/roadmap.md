@@ -24,11 +24,13 @@ After the first typed-resource slice, the 8-point lowering task was split at its
 
 The second typed-resource slice is now complete at its stated prototype boundary: typed VM values and adapter-integrated VM/JIT execution share the nominal owner lane with macOS AOT direct/response-file native link/run tests, and the matching Windows test is configured and cross-compiled. Native Windows runner evidence remains the separate 2-point task below, so it is not counted as complete.
 
-Progress snapshot verified against this repository state on 2026-10-16 23:23 JST:
+The representative-application task is also complete at its prototype boundary. A host-orchestrated fixture composes two-provider negotiation, deterministic lock generation, exact-lock replay, instance publication, scalar and typed-resource VM/JIT calls, and guest-trap cleanup. Its clean schema-20 macOS baseline records a 67.592 us median, 68.459 us p95, and 1.109% RSD across 31 samples of 1,000 operations; production generated dispatch stubs and native Windows evidence remain separate work.
+
+Progress snapshot verified against this repository state on 2026-10-16 23:34 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 180 pt | 209 pt | **86.1%** |
+| 0 — design baseline (current) | 185 pt | 209 pt | **88.5%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -36,11 +38,11 @@ Progress snapshot verified against this repository state on 2026-10-16 23:23 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **180 pt** | **691 pt** | **26.0%** |
+| **Overall** | **185 pt** | **691 pt** | **26.8%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 180 / 209 pt (86.1%).**
+**Progress: 185 / 209 pt (88.5%).**
 
 ### Workstream breakdown
 
@@ -51,15 +53,15 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
-| Component and resource contracts | 77 pt | 84 pt | 91.7% |
+| Component and resource contracts | 82 pt | 84 pt | 97.6% |
 | Platform and backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **180 pt** | **209 pt** | **86.1%** |
+| **Milestone 0** | **185 pt** | **209 pt** | **88.5%** |
 
 Current execution state at this snapshot:
 
-- **Unblocked local P0:** compose and measure one representative multi-component application fixture.
-- **External gates:** the RFC 0002, RFC 0003, RFC 0004, and RFC 0005 repository-owner decisions plus remote Windows object-link-run, benchmark, and component-conformance runner evidence; RFC 0003 becomes decision-ready only after its local prototype tasks and Windows evidence are complete.
+- **Unblocked local P0:** none; every remaining Milestone 0 task requires a repository-owner decision or native Windows evidence.
+- **External gates:** the RFC 0002, RFC 0003, RFC 0004, and RFC 0005 repository-owner decisions plus remote Windows object-link-run, benchmark, and component-conformance runner evidence; RFC 0003's local prototype tasks are complete and it now waits on native Windows component evidence before the owner decision.
 - **Dependent gates:** select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
 
 ### Tasks in priority order
@@ -104,7 +106,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Extend component-boundary cost evidence to instantiation, failure/destructor paths, memory, and code size, and document the interpretation in RFC 0003.** — 5 pt
 - [x] **P0 — Define a nominal canonical `own<T>` type and carry one straight-line owner through MIR, bytecode, Cranelift JIT, and AOT object contracts with linear-use and zero-index checks.** — 3 pt
 - [x] **P0 — Execute that typed owner through typed VM values and adapter-integrated VM/JIT plus macOS AOT direct/response-file native link/run ownership-transfer and guest-trap cleanup conformance, and configure the matching Windows path.** — 5 pt
-- [ ] **P0 — Compose and measure one representative multi-component application fixture across negotiation, exact-lock replay, instantiation, scalar/resource calls, and failure cleanup.** — 5 pt
+- [x] **P0 — Compose and measure one representative multi-component application fixture across negotiation, exact-lock replay, instantiation, scalar/resource calls, and failure cleanup.** — 5 pt
 - [ ] **P0 — Record native Windows execution evidence for the component-conformance paths.** — 2 pt
 - [ ] **P0 — Decide RFC 0003, recording acceptance, requested revisions, or rejection.** — 3 pt
 - [x] **P0 — Draft a decision-ready ownership and cyclic-graph RFC from the completed experiments.** — 5 pt
