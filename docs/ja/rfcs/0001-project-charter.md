@@ -194,6 +194,8 @@ Schema 5はsingle-launch startup rowを維持し、sampleが連続launch当た�
 
 Schema 6は、2-value accumulatorをbytecode lowering、JIT／AOT compilation、direct／VM／JIT call、生成code／object size、system linking、link済みexecutable size、両startup rowへ追加します。4-object link setに合わせてplatform seriesをrenameし、Windows CIは新しいaccumulator／platform fieldを検証します。CleanなmacOS AArch64 resultは全30 rowと17,056-byteのlink済みharnessを記録しましたが、remote Windows evidenceは未完了です。このimplementation evidenceによってRFCのproposed statusは変わりません。
 
+Schema 6後のconditional-sum prototypeは、bounded loop内でbranchし、add／skip pathをblock parameterでmergeしてから共有back-edgeを取ります。VM／JIT differential test、macOS AArch64 direct／response-file link-and-run integration、host非依存Windows x86-64 COFF symbol validation、cfg-gated MSVC pathが新しいfunctionを扱います。そのbenchmark coverage、source-level semantics、allocationは未完了であり、RFCはproposedのままです。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。

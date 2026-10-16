@@ -249,6 +249,116 @@ pub fn run_prototype_sum_to(value: i64) -> Result<ExecutionResults, PrototypeErr
     Ok(ExecutionResults { bytecode, native })
 }
 
+pub fn prototype_sum_below_function() -> Function {
+    Function::with_blocks(
+        "prototype_sum_below",
+        Signature::new(vec![Type::I64, Type::I64], Type::I64),
+        vec![
+            BasicBlock::new(
+                vec![
+                    Instruction::I64Constant {
+                        result: ValueId::new(2),
+                        value: -1,
+                    },
+                    Instruction::I64Constant {
+                        result: ValueId::new(3),
+                        value: 0,
+                    },
+                    Instruction::I64Constant {
+                        result: ValueId::new(4),
+                        value: 1,
+                    },
+                ],
+                Terminator::Jump(BlockTarget::new(
+                    BlockId::new(1),
+                    vec![ValueId::new(0), ValueId::new(3)],
+                )),
+            ),
+            BasicBlock::with_parameters(
+                vec![
+                    BlockParameter::new(ValueId::new(5), Type::I64),
+                    BlockParameter::new(ValueId::new(6), Type::I64),
+                ],
+                vec![Instruction::I64LessThanSigned {
+                    result: ValueId::new(7),
+                    left: ValueId::new(5),
+                    right: ValueId::new(4),
+                }],
+                Terminator::Branch {
+                    condition: ValueId::new(7),
+                    then_target: BlockTarget::new(BlockId::new(6), vec![ValueId::new(6)]),
+                    else_target: BlockTarget::new(BlockId::new(2), vec![]),
+                },
+            ),
+            BasicBlock::new(
+                vec![Instruction::I64LessThanSigned {
+                    result: ValueId::new(8),
+                    left: ValueId::new(5),
+                    right: ValueId::new(1),
+                }],
+                Terminator::Branch {
+                    condition: ValueId::new(8),
+                    then_target: BlockTarget::new(BlockId::new(3), vec![]),
+                    else_target: BlockTarget::new(BlockId::new(4), vec![]),
+                },
+            ),
+            BasicBlock::new(
+                vec![Instruction::I64AddWrapping {
+                    result: ValueId::new(9),
+                    left: ValueId::new(6),
+                    right: ValueId::new(5),
+                }],
+                Terminator::Jump(BlockTarget::new(
+                    BlockId::new(5),
+                    vec![ValueId::new(5), ValueId::new(9)],
+                )),
+            ),
+            BasicBlock::new(
+                vec![],
+                Terminator::Jump(BlockTarget::new(
+                    BlockId::new(5),
+                    vec![ValueId::new(5), ValueId::new(6)],
+                )),
+            ),
+            BasicBlock::with_parameters(
+                vec![
+                    BlockParameter::new(ValueId::new(10), Type::I64),
+                    BlockParameter::new(ValueId::new(11), Type::I64),
+                ],
+                vec![Instruction::I64AddWrapping {
+                    result: ValueId::new(12),
+                    left: ValueId::new(10),
+                    right: ValueId::new(2),
+                }],
+                Terminator::Jump(BlockTarget::new(
+                    BlockId::new(1),
+                    vec![ValueId::new(12), ValueId::new(11)],
+                )),
+            ),
+            BasicBlock::with_parameters(
+                vec![BlockParameter::new(ValueId::new(13), Type::I64)],
+                vec![],
+                Terminator::Return(ValueId::new(13)),
+            ),
+        ],
+    )
+}
+
+pub fn run_prototype_sum_below(
+    value: i64,
+    cutoff: i64,
+) -> Result<ExecutionResults, PrototypeError> {
+    let function = prototype_sum_below_function();
+    let program = lower(&function).map_err(PrototypeError::Bytecode)?;
+    let bytecode = execute(&program, &[value, cutoff]).map_err(PrototypeError::Vm)?;
+    let compiled = CompiledFunction::compile(&function).map_err(PrototypeError::NativeCompile)?;
+    let native = compiled
+        .invoke_i64_2(value, cutoff)
+        .map_err(PrototypeError::NativeInvoke)?;
+
+    Ok(ExecutionResults { bytecode, native })
+}
+
 pub fn prototype_host_callback_function() -> Function {
     Function::new(
         "prototype_host_callback",
@@ -285,7 +395,7 @@ pub fn run_prototype_host_callback(value: i64) -> Result<ExecutionResults, Proto
 mod tests {
     use super::{
         ExecutionResults, run_prototype_add, run_prototype_countdown, run_prototype_host_callback,
-        run_prototype_min, run_prototype_sum_to,
+        run_prototype_min, run_prototype_sum_below, run_prototype_sum_to,
     };
 
     #[test]
@@ -373,6 +483,31 @@ mod tests {
         for (value, expected) in cases {
             assert_eq!(
                 run_prototype_sum_to(value).unwrap(),
+                ExecutionResults {
+                    bytecode: expected,
+                    native: expected,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_loop_paths_are_equivalent() {
+        let cases = [
+            (-7, 10, 0),
+            (0, 10, 0),
+            (1, 1, 0),
+            (1, 2, 1),
+            (5, -3, 0),
+            (5, 3, 3),
+            (5, 10, 15),
+            (10, 5, 10),
+            (64, 33, 528),
+        ];
+
+        for (value, cutoff, expected) in cases {
+            assert_eq!(
+                run_prototype_sum_below(value, cutoff).unwrap(),
                 ExecutionResults {
                     bytecode: expected,
                     native: expected,

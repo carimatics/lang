@@ -109,6 +109,7 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 
 - The harness checks VM, JIT, and direct Rust results for equivalence before timing, including both outcomes of minimum and the immediate-return/loop paths of countdown and the accumulator.
 - The two-value accumulator carries a descending counter and wrapping sum around the same back-edge. Its direct, VM, and JIT medians are 1.704 ns, 1.631 us, and 12.782 ns. This bounded MIR workload is useful differential evidence, not a representative program benchmark.
+- A post-schema-6 conditional-sum prototype adds a branch and add/skip merge inside the same bounded loop. It is covered by differential and AOT integration tests but is not present in this schema 6 baseline; benchmark claims for it remain open.
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
 - The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown and schema 6 adds the accumulator. All precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).

@@ -1,5 +1,8 @@
 use lang::linker::LinkTarget;
-use lang::{prototype_add_function, prototype_host_callback_function, prototype_sum_to_function};
+use lang::{
+    prototype_add_function, prototype_host_callback_function, prototype_sum_below_function,
+    prototype_sum_to_function,
+};
 use lang_codegen_clif::{Triple, emit_object_for_target};
 use object::{Architecture, BinaryFormat, Object, ObjectSymbol};
 
@@ -13,6 +16,8 @@ fn emits_windows_x86_64_coff_with_expected_symbols() {
         .expect("emits the add function for Windows x86-64");
     let callback = emit_object_for_target(&prototype_host_callback_function(), target.clone())
         .expect("emits the host-callback function for Windows x86-64");
+    let sum_below = emit_object_for_target(&prototype_sum_below_function(), target.clone())
+        .expect("emits the conditional sum function for Windows x86-64");
     let sum = emit_object_for_target(&prototype_sum_to_function(), target)
         .expect("emits the sum function for Windows x86-64");
 
@@ -30,6 +35,15 @@ fn emits_windows_x86_64_coff_with_expected_symbols() {
         callback.function_symbol()
     ));
     assert!(has_undefined_symbol(&callback_object, "lang_host_i64_0"));
+
+    let sum_below_object =
+        object::File::parse(sum_below.bytes()).expect("parses the conditional sum COFF object");
+    assert_eq!(sum_below_object.format(), BinaryFormat::Coff);
+    assert_eq!(sum_below_object.architecture(), Architecture::X86_64);
+    assert!(has_defined_symbol(
+        &sum_below_object,
+        sum_below.function_symbol()
+    ));
 
     let sum_object = object::File::parse(sum.bytes()).expect("parses the sum COFF object");
     assert_eq!(sum_object.format(), BinaryFormat::Coff);
