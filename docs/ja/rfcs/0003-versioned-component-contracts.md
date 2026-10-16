@@ -4,7 +4,7 @@
 
 [English](../../../docs/rfcs/0003-versioned-component-contracts.md)
 
-- Status：proposed
+- Status：accepted
 - Authors：Project contributors
 - Created：2026-10-16
 - Last updated：2026-10-17
@@ -18,7 +18,7 @@ Package identity、scalar function import／export、各importが要求するcap
 
 実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録し、boundedな実験的schema-1 scalar-metadata codecと、明示的なshared／exclusive borrow tokenを持つgeneration tag付きowned-resource tableを提供します。このcodecはdesign evidenceであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
 
-本proposalはnormal-path scalar／resource transfer、panic／trap／destructor-failure behavior、deterministicなpackage／interface compatibility negotiationも規定します。In-memory negotiation、exact lock replay、general instantiation、host-value integration、VM／JIT／macOS AOT／Windows MSVC AOT executionを通るstraight-line nominal owned-resource pathは実行可能です。より広いproduction adapter ABIは後続作業です。このproposed RFCはevidence-completeであり、repository-owner dispositionを待っています。
+本RFCはnormal-path scalar／resource transfer、panic／trap／destructor-failure behavior、deterministicなpackage／interface compatibility negotiationも規定します。In-memory negotiation、exact lock replay、general instantiation、host-value integration、VM／JIT／macOS AOT／Windows MSVC AOT executionを通るstraight-line nominal owned-resource pathは実行可能です。より広いproduction adapter ABIは後続作業です。Repository ownerは2026-10-17に本RFCをacceptし、candidate schema-2 serialization／forward-compatibility policyをimplementation baselineに含めました。このacceptanceはstable public formatまたはWIT compatibilityを宣言するものではありません。
 
 ## 動機
 
@@ -292,12 +292,13 @@ Exact lock済みinstanceを4,096個保持する別child processは10,108,928-byt
 - 初期scalar／resource subsetの次にどのrich valueを追加し、どれを後続schemaへ送るべきか。
 - Capability namespace、delegation、attenuation、ambient host policyをどうcomposeするべきか。
 - Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
-- Candidate failure-record tag／redacted-sanitized message policyを変更なしでacceptするべきか。また各embeddingはどのsanitizerを適用するべきか。
+- 各embeddingはどのsanitizerを適用するべきか。またpublic stabilization前にaccepted candidate failure-record tag／redacted-sanitized message policyをrevisionするには、どのevidenceが必要か。
 
-レビュー結果：**ready for owner decision**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary rule、deterministicなpackage／interface compatibility negotiationは規定済みです。In-memory compatibility negotiation、exact lock selection／deterministic lockfile replay、1つのvalidated schema-1 scalar VM／JIT／native-AOT path、backend-neutralなcanonical-resource transfer／borrow／cleanup／poisoning trace、host-value identity／lifecycle bridge、general schema-2 instantiation、host-side cross-mode resource／failure adapter conformance、1つのstraight-line typed owned-resource VM／JIT／native-AOT path、代表的multi-component application fixture、cleanなschema-20 macOS／Windows measurement、native Windows component conformance、candidate schema-2 contract／failure-report documentは実行可能かつtest済みです。Repository-owner dispositionを妨げるprototype／measurement blockerは残っていません。Candidate serializationとforward-compatibility policyをacceptするかreviseするかは、そのdecision自体に含まれます。Production package-manager I/Oは後続Milestone 4の作業であり、このRFCを判断するprerequisiteではありません。
+Decision：Repository ownerが**2026-10-17にaccept**しました。このacceptanceは、ここで規定するcandidate schema-2 contract／failure-report serializationとforward-compatibility policyをimplementation baselineに含みます。Public serialized formatのstabilize、WIT compatibilityの主張、production package-manager I/Oの完了は含まず、これらは明示的にversion管理する後続作業です。上記の未解決事項は任意のfollow-upであり、accept済みbaselineをblockしません。
 
 ## 情報源
 
+- Repository-owner acceptance、2026-10-17 02:25 JSTに記録。
 - [GitHub Actions run 38932964398](https://github.com/carimatics/lang/actions/runs/38932964398)、2026-10-17完了。Native Windows object-link-run、component conformance、schema-20 benchmark、artifact uploadのevidenceです。保持したresultは [`2026-10-17-windows-x86_64-7c37d5d.json`](../../../benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json) で、2026-10-17 01:45:50 JST記録です。
 - WebAssembly Component Model「Why the Component Model?」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://component-model.bytecodealliance.org/design/why-component-model.html>
 - WebAssembly Component Model「WIT」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://component-model.bytecodealliance.org/design/wit.html>
@@ -309,8 +310,8 @@ Exact lock済みinstanceを4,096個保持する別child processは10,108,928-byt
 - The Rust Reference「Panic」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/reference/panic.html>
 - Rust standard library `std::panic::catch_unwind`、公式living API documentation、page更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
 - The Rustonomicon「FFI and unwinding」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
-- `docs/architecture.md`、提案中のembedding／component architecture、最終更新2026-10-16。
-- `docs/roadmap.md`、Milestone 0 component-boundary taskとcurrent evidence、最終更新2026-10-16 23:37 JST。
+- `docs/architecture.md`、embedding／component architectureとinitial-backend decision、最終更新2026-10-17 02:25 JST。
+- `docs/roadmap.md`、Milestone 0 component-boundary task、acceptance disposition、current evidence、最終更新2026-10-17 02:25 JST。
 - `crates/runtime/src/lib.rs`、型付きhost-function registry prototype、最終更新2026-10-16。
 - `crates/runtime/src/component.rs`、schema-1 component validation prototype、最終更新2026-10-16。
 - `crates/runtime/src/component/serialization.rs`、candidate schema-2 contract／failure-report serialization、最終更新2026-10-16。

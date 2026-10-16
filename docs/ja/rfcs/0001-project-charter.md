@@ -4,7 +4,7 @@
 
 [English](../../../docs/rfcs/0001-project-charter.md)
 
-- ステータス：proposed
+- ステータス：accepted
 - 著者：プロジェクトコントリビューター
 - 作成日：2026-10-15
 - 最終更新日：2026-10-17
@@ -178,6 +178,8 @@ VM-only実装はscriptingを早く提供できます。より単純ですが、1
 
 ## 実装計画
 
+このsectionの各段落は、時系列のprototype snapshotです。RFCがproposedだった、owner decision待ちだった、またはWindows evidenceが未完了だったという記述は、記録したrevision時点の状態であり、このsection終盤に要約するaccepted decision／完了済みschema-20 evidenceによって更新されています。
+
 2026-10-16時点のprototype状況：step 1〜3は、local `i64` vertical sliceについて完了しています。Step 3では型付き登録、VM／native差分実行、重複登録の拒否、未知関数の拒否、deterministic VM instruction fuel、host-call budget、allocation前のvalue-slot cap、cooperative interruption、絶対monotonic deadlineを扱いますが、stable embedding boundaryまたはcomponent boundaryは完成していません。Typed MIRとbytecodeは、branch、jump、return terminatorを持つ明示的basic blockを使用し、validationがtarget、reachability、SSA dominanceを検証し、VM fuelがtest済みback-edge loopを停止します。型付きblock parameterとedge argumentがphiに相当するmergeをmodel化し、test済みcountdown back-edgeを介して `i64` を運びます。Bounded sum workloadはdescending counterとwrapping accumulatorの両方をloopで運び、conditional-sum workloadは共有back-edgeの前でbranchしてadd／skip pathをmergeします。Validationはentry-block parameter、edge argumentのarity／type mismatch、dominateしないvalueを拒否し、VMとJITの結果が一致し、AOT pathも3つすべてのloop functionをemitします。Source allocationは未完了です。[RFC 0002](0002-prototype-control-flow.md)はdecision-readyな提案中のsource-level integer／structured-control-flow semanticsを提供しますが、parser、HIR、formatter、source diagnostics、source-to-MIR loweringは未実装です。Cranelift backendは、native hostまたは明示的なtarget triple向けに、exportされたMIR functionとimportされたhost callbackを持つobject artifactを生成できます。Host非依存testは `x86_64-pc-windows-msvc` のx86-64 COFF formatと、`lang_host_i64_4` を含む期待するadd、accumulator、conditional-sum、callback export／import symbolを検証しますが、Windowsでのlinkとexecutionは未完了です。初期の共通 `SystemLinker` driverが順序付きrequestを検証し、非MSVC hostでは `cc -o`、MSVC hostでは `link.exe /OUT:` を選択し、明示的なdriver／flavor設定を許可してstructured failureを報告します。macOS AArch64 integration testはadd、minimum CFG、通常のcallback、4つすべてのhost-allocation callback、accumulator、conditional-sum objectをこのdriver経由でlinkして、生成されたC harnessを実行します。Production driver hardeningとstable native ABIは未完了です。Step 4には、async borrowing／cancellation、cyclic graph、shared mutable serviceという3つすべてのstress caseについて実行可能な厳格modelがあります。Step 5には、add、minimum、loop-carried countdown、2-value accumulator、conditional-sumのbytecode lowering、Cranelift JIT／AOT compilation、生成code、object、link済みexecutable size、VM／native call、通常、single-allocation、64-allocation-burst、allocation-churnのhost callback、3つのrequested-payload heap profile、unset-flag interruption-check／期限前deadline比較、system linking、single-launchとbatched warm-cache AOT process startup、link済みprocess peak-memory samplingに関するcleanなmacOS AArch64 [schema 14 benchmark baseline](../benchmarks.md)があります。記録したAArch64 generated-code inspectionでは、意図した2-instruction add、compare-and-branch minimum、position-independentなhost importを確認しました。Windows x86-64でのlink、execution、benchmark、CI evidence、variable-size timing／profile evidence、追加のcontrol-flowと代表的なallocation／memory workload、より広いembedding limit、native enforcement、より制限の少ないmemory-model代替案は未完了です。
 
 CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequenceが変わらないことを確認しました。`SystemLinker` は `Cc` と `MsvcLink` のcommand flavorをmodel化して対応するhost defaultを選択し、ordered prefix argument付きの明示driverをsupportし、完全なcommandを公開してstructured execution failureへ保持します。Ordered library search pathとlogical library nameをflavor固有argumentへloweringし、validationが空のobject path、search path、nameを拒否します。明示的なresponse-file linkは、`Cc` にGNU-escaped UTF-8、`MsvcLink` にWindows-escaped BOM-prefixed UTF-16LEを使用し、focused serialization testとmacOS direct／response-file executionが成功しています。Toolchain discoveryとより広いtarget policyは未完了です。cfg-gated Windows x86-64 MSVC direct／response-file object-link-execute testと完全SHAでpinしたWindows Server 2025 CI workflowを構成しましたが、このcommitにはrunner結果が記録されていません。
@@ -258,13 +260,14 @@ Benchmark schema 13はschema 12 fieldをすべて維持し、link済みAOT proce
 - canonical ABI実験の出発点として、どのcomponent modelを利用するか。
 - Byte単位のheap、recursion、task budgetをprototype instruction-fuel／host-call-budget／value-slot-limit／cooperative-interruption／absolute-deadline interfaceとどう合成するか。
 
-レビュー結果：**awaiting RFC 0003 owner disposition**。Component、resource-control、concurrency、debug-quality、cross-platform execution、benchmark、backend-selection evidenceは完了しました。RFC 0003はcomponent serialization／compatibility policyのowner acceptanceまたはrevisionを待っています。そのdisposition後、このcharterを判断するprototype／measurement blockerは残りません。命名とWindows AArch64の時期は任意のfollow-upです。
+Decision：RFC 0003のacceptance後、repository ownerが**2026-10-17にaccept**しました。このacceptanceはproject charter、compatibility policy、evidence requirement、Craneliftをinitial JIT／AOT backendとする結果的なarchitecture baselineを承認します。未実装のsource、ABI、package、serialized-format detailをstabilizeするものではありません。命名とWindows AArch64の時期は任意のfollow-upです。
 
 ## 情報源
 
+- Repository-owner acceptance、2026-10-17 02:25 JSTに記録。
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、initial-backend decision／設計baseline、最終更新 2026-10-17 01:57 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-17 01:47 JST。
+- `docs/architecture.md`、initial-backend decision／accepted設計baseline、最終更新 2026-10-17 02:25 JST。
+- `docs/roadmap.md`、実装milestoneとMilestone 0完了、最終更新 2026-10-17 02:25 JST。
 - `crates/vm/src/lib.rs`、deadline-enabled VM resource-control prototype、最終更新 2026-10-16 11:20 JST。
 - `src/lib.rs`、allocation burst／churn／variable-size boundary prototype、最終更新 2026-10-16 14:12 JST。
 - `src/bin/prototype-bench.rs`、schema-20 cross-platform benchmark harness、最終更新 2026-10-17。

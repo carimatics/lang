@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0003-versioned-component-contracts.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
 - Last updated: 2026-10-17
@@ -18,7 +18,7 @@ Define a backend-neutral, versioned component contract that describes package id
 
 The executable prototype supports `i64 -> i64` host imports, records `i64` and `bool` scalar function types, provides a bounded experimental schema-1 scalar-metadata codec, provides a generation-tagged table for owned resources with explicit shared and exclusive borrow tokens, and traces backend-neutral canonical ownership transfer and failure cleanup. These are design evidence, not a stable serialized format or a WebAssembly Interface Types (WIT) implementation.
 
-The proposal additionally defines normal-path scalar/resource transfer, panic/trap/destructor-failure behavior, and deterministic package/interface compatibility negotiation. In-memory negotiation, exact lock replay, general instantiation, host-value integration, and a straight-line nominal owned-resource path through VM, JIT, macOS AOT, and Windows MSVC AOT execution are executable. The broader production adapter ABI remains downstream work; this proposed RFC is evidence-complete and awaits repository-owner disposition.
+The RFC additionally defines normal-path scalar/resource transfer, panic/trap/destructor-failure behavior, and deterministic package/interface compatibility negotiation. In-memory negotiation, exact lock replay, general instantiation, host-value integration, and a straight-line nominal owned-resource path through VM, JIT, macOS AOT, and Windows MSVC AOT execution are executable. The broader production adapter ABI remains downstream work. The repository owner accepted this RFC on 2026-10-17, including its candidate schema-2 serialization and forward-compatibility policy as the implementation baseline; acceptance does not declare a stable public format or WIT compatibility.
 
 ## Motivation
 
@@ -292,12 +292,13 @@ A separate child process retaining 4,096 exactly locked instances has a 10,108,9
 - Which rich values should follow the initial scalar/resource subset, and which require a later schema?
 - How should capability namespaces, delegation, attenuation, and ambient host policy compose?
 - Should validated contracts retain direct function pointers, immutable registry references, or generation-checked registry handles?
-- Should the candidate failure-record tags and redacted/sanitized message policy be accepted unchanged, and which sanitizer should each embedding apply?
+- Which sanitizer should each embedding apply, and what evidence would justify revising the accepted candidate failure-record tags or redacted/sanitized message policy before public stabilization?
 
-Review outcome: **ready for owner decision**. Bounded scalar-metadata decoding, capability-gated binding, table-local resource lifecycles, normal-path canonical scalar/resource transfer, panic/destructor failure-boundary rules, and deterministic package/interface compatibility negotiation are specified. In-memory compatibility negotiation, exact lock selection and deterministic lockfile replay, one validated schema-1 scalar VM/JIT/native-AOT path, a backend-neutral canonical-resource transfer/borrow/cleanup/poisoning trace, the host-value identity/lifecycle bridge, general schema-2 instantiation, host-side cross-mode resource/failure adapter conformance, one straight-line typed owned-resource VM/JIT/native-AOT path, the representative multi-component application fixture, clean schema-20 macOS and Windows measurements, native Windows component conformance, and candidate schema-2 contract and failure-report documents are executable and tested. No prototype or measurement blocker remains for repository-owner disposition. Owner acceptance or revision of the candidate serialization and its forward-compatibility policy is part of that decision itself. Production package-manager I/O remains downstream Milestone 4 work and is not a prerequisite for deciding this RFC.
+Decision: **accepted on 2026-10-17** by the repository owner. Acceptance includes the candidate schema-2 contract/failure-report serialization and forward-compatibility policy specified here as the implementation baseline. It does not stabilize a public serialized format, claim WIT compatibility, or complete production package-manager I/O; those remain explicitly versioned downstream work. The open questions above are optional follow-ups and do not block the accepted baseline.
 
 ## Sources
 
+- Repository-owner acceptance, recorded 2026-10-17 02:25 JST.
 - [GitHub Actions run 38932964398](https://github.com/carimatics/lang/actions/runs/38932964398), completed 2026-10-17; native Windows object-link-run, component conformance, schema-20 benchmark, and artifact-upload evidence. The retained result is [`2026-10-17-windows-x86_64-7c37d5d.json`](../../benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json), recorded 2026-10-17 01:45:50 JST.
 - WebAssembly Component Model, “Why the Component Model?”, official living documentation; no publication or update date stated; verified 2026-10-16. <https://component-model.bytecodealliance.org/design/why-component-model.html>
 - WebAssembly Component Model, “WIT”, official living documentation; no publication or update date stated; verified 2026-10-16. <https://component-model.bytecodealliance.org/design/wit.html>
@@ -309,8 +310,8 @@ Review outcome: **ready for owner decision**. Bounded scalar-metadata decoding, 
 - The Rust Reference, “Panic,” official living documentation; no publication or update date stated; verified 2026-10-16. <https://doc.rust-lang.org/reference/panic.html>
 - Rust standard library, `std::panic::catch_unwind`, official living API documentation; no page update date stated; verified 2026-10-16. <https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
 - The Rustonomicon, “FFI and unwinding,” official living documentation; no publication or update date stated; verified 2026-10-16. <https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
-- `docs/architecture.md`, proposed embedding and component architecture, last updated 2026-10-16.
-- `docs/roadmap.md`, Milestone 0 component-boundary tasks and current evidence, last updated 2026-10-16 23:37 JST.
+- `docs/architecture.md`, embedding and component architecture plus the initial-backend decision, last updated 2026-10-17 02:25 JST.
+- `docs/roadmap.md`, Milestone 0 component-boundary tasks, acceptance dispositions, and current evidence, last updated 2026-10-17 02:25 JST.
 - `crates/runtime/src/lib.rs`, typed host-function registry prototype, last updated 2026-10-16.
 - `crates/runtime/src/component.rs`, schema-1 component validation prototype, last updated 2026-10-16.
 - `crates/runtime/src/component/serialization.rs`, candidate schema-2 contract and failure-report serialization, last updated 2026-10-16.
