@@ -14,11 +14,11 @@ Cost uses relative effort points rather than elapsed-time promises: `1` is a ver
 
 The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. A follow-up component-workstream audit separated in-memory compatibility negotiation, scalar execution-prototype integration, backend-neutral resource-adapter behavior, and boundary-cost measurement. The previous single cross-mode scalar/resource task mixed those acceptance boundaries and overlapped Milestone 3's production IDL and adapter implementation. A post-schema-18 audit found that native debug-metadata implementation and cross-platform debug-quality validation were named as backend-selection prerequisites only in prose; they are now explicit 5-point and 3-point tasks before backend selection. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites. The checklist records dependency order, not a claim that an external gate is locally executable: when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
-Progress snapshot verified against this repository state on 2026-10-16 19:19 JST:
+Progress snapshot verified against this repository state on 2026-10-16 19:44 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 137 pt | 167 pt | **82.0%** |
+| 0 — design baseline (current) | 142 pt | 167 pt | **85.0%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Progress snapshot verified against this repository state on 2026-10-16 19:19 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **137 pt** | **649 pt** | **21.1%** |
+| **Overall** | **142 pt** | **649 pt** | **21.9%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 137 / 167 pt (82.0%).**
+**Progress: 142 / 167 pt (85.0%).**
 
 ### Workstream breakdown
 
@@ -42,15 +42,15 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
 | Component and resource contracts | 42 pt | 45 pt | 93.3% |
-| Platform and backend evidence | 40 pt | 59 pt | 67.8% |
+| Platform and backend evidence | 45 pt | 59 pt | 76.3% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **137 pt** | **167 pt** | **82.0%** |
+| **Milestone 0** | **142 pt** | **167 pt** | **85.0%** |
 
 Current execution state at this snapshot:
 
-- **Next unblocked local P0:** implement source-span-driven native debug metadata and validate representative linked artifacts on macOS AArch64.
-- **External gates:** the RFC 0002 through RFC 0005 repository-owner decisions plus remote Windows CI/benchmark evidence.
-- **Final gate:** decide RFC 0001 only after the component, resource-control, and backend-evidence prerequisites are complete.
+- **Unblocked local P0:** none; all remaining Milestone 0 tasks require repository-owner decisions or remote Windows evidence.
+- **External gates:** the RFC 0002 through RFC 0005 repository-owner decisions plus remote Windows CI, benchmark, and CodeView/PDB evidence.
+- **Dependent gates:** select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
 
 ### Tasks in priority order
 
@@ -93,7 +93,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Time and profile the variable-size allocation callback, including exact requested payload.** — 5 pt
 - [x] **P0 — Measure a representative allocation workload, including allocator overhead and fragmentation.** — 5 pt
 - [x] **P0 — Add one additional representative CFG workload to the cross-mode benchmark set.** — 3 pt
-- [ ] **P0 — Implement source-span-driven native debug metadata for representative AOT objects and linked artifacts on macOS AArch64.** — 5 pt
+- [x] **P0 — Implement source-span-driven native debug metadata for representative AOT objects and linked artifacts on macOS AArch64.** — 5 pt
 - [ ] **P0 — Record equivalent Windows x86-64 CodeView/PDB and source-mapping evidence for the same representative artifacts.** — 3 pt
 - [ ] **P0 — Select the initial native backend from the completed cross-platform performance, debug-quality, and integration evidence, and record the decision.** — 3 pt
 - [ ] **P0 — Decide RFC 0001 after its component, resource-control, and backend-evidence prerequisites, recording acceptance, requested revisions, or rejection.** — 2 pt
@@ -168,7 +168,7 @@ The schema 17 harness adds a compiler-like mixed-lifetime allocation trace with 
 
 The schema 18 harness retains every schema 17 field and adds iterative Fibonacci lowering, JIT compilation, AOT emission, direct/VM/JIT runtime, and artifact-size evidence. The workload rotates three loop-carried values over a back-edge using existing MIR operations. The clean macOS AArch64 result records all 56 unique timing rows, Fibonacci medians of 6.510 ns direct, 1.231 us through the VM, and 7.463 ns through JIT, a 48-byte JIT body, a 400-byte object, and a 17,168-byte linked harness. VM/JIT differential tests, macOS direct/response-file execution, host-independent Windows COFF validation, the cfg-gated MSVC path, and schema 18 Windows CI retain the contract. This completes the planned additional CFG evidence without accepting source semantics; remote Windows execution remains open.
 
-A clean macOS AArch64 [AOT debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) regenerates add, minimum, and host-callback objects from commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d`. Linker-visible symbols remain, but all three objects have no `__debug_*` section, DWARF compile unit, line entry, source variable, parameter, or local. The first implementation slice adds structurally validated source-file, function-span, per-instruction-span, and terminator-span data to typed MIR and proves that Cranelift preserves it as backend-neutral JIT/AOT machine-code ranges. The second slice emits a relocated DWARF v4 compile unit, subprogram entry, and line table into source-mapped Mach-O objects. The third slice maps an explicit MIR fixture into the representative add, minimum, and host-callback objects; the macOS AArch64 integration test verifies their line tables, executes direct and response-file links, creates both dSYMs, and verifies the linked debug information. A clean committed inspection remains before this task is checked. Unwind metadata, Windows CodeView/PDB, JIT debugger registration, optimized stepping, and source-language integration remain separate work.
+A clean pre-implementation macOS AArch64 [AOT debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) established the original negative baseline. The committed [source-mapped DWARF inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md) regenerates the representative add, minimum, and host-callback objects from commit `31e182ac27e324048597a5ebd0fda4d2d4934395`. Structurally validated source-file, function-span, per-instruction-span, and terminator-span data reaches backend-neutral JIT/AOT machine-code ranges and relocated DWARF v4 compile-unit, subprogram, and line-table data. All three objects pass `dwarfdump --verify`; direct and response-file executables link and run; and both generated dSYMs pass verification while retaining the fixture path and all three functions. This closes the macOS source-mapping task. Unwind metadata, Windows CodeView/PDB, JIT debugger registration, optimized stepping, and source-language integration remain separate work.
 
 Exit: every P0 task above is checked; source semantics, component contracts, ownership/cyclic-graph policy, and async-cancellation/shared-service policy have evidence-backed RFC dispositions; macOS and Windows evidence supports a recorded initial backend choice; and RFC 0001 records the resulting architecture baseline.
 

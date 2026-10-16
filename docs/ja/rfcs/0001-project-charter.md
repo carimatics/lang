@@ -222,7 +222,7 @@ Schema 14の後に追加した4つ目のcallbackは、8〜128 byteのpayloadを�
 
 Benchmark schema 13はschema 12 fieldをすべて維持し、link済みAOT processのOS報告peak resident memory distributionを1つ追加します。macOSはbytes単位の `ru_maxrss`、Windowsはbytes単位の `Process.PeakWorkingSet64` を使います。両方ともshared pageとloader／runtime stateを含むため、allocator-overheadやallocation-workload evidenceではなくprocess envelopeです。Test、native macOS smoke run、schema 15 Windows CI contractがmechanismを検証します。過去のclean schema 13 macOS AArch64 resultは31 sampleすべてが1,671,168 byte、RSD 0.000%であることを記録し、Windows baselineは未記録です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
 
-CleanなmacOS AArch64の[AOT debug-information inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)では、commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d` からadd、minimum、host-callback objectを再生成しました。すべてexternal symbolを保持しますが、`__debug_*` section、DWARF compile unit、line entry、source variable、parameter、localはいずれも含みません。これはbackendをacceptせずに現在のdebug-quality floorを確立します。Source-span mapping、link済み／dSYM output、unwind metadata、Windows CodeView／PDB、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
+実装前のcleanなmacOS AArch64 [AOT debug-information inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)は、元のnegative baselineを確立しました。Commit済みの[source-mapped DWARF inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md)は、commit `31e182ac27e324048597a5ebd0fda4d2d4934395` から代表的なadd、minimum、host-callback objectを再生成します。3 objectすべてがrelocation付きDWARF v4 compile-unit、subprogram、source-line dataを持った状態で `dwarfdump --verify` をpassし、direct／response-file executableがlink／実行され、生成した両dSYMもfixture pathと3 functionを保持したままverificationをpassします。計画済みのmacOS source-mapping criterionは完了しましたが、unwind metadata、Windows CodeView／PDB、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -265,5 +265,6 @@ CleanなmacOS AArch64の[AOT debug-information inspection](../../../benchmarks/i
 - `src/bin/prototype-bench.rs`、schema 14 allocation-churn／heap／process-memory harness、最終更新 2026-10-16 13:26 JST。
 - `benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.json`、clean schema 14 macOS AArch64 evidence、2026-10-16 14:02:20 JSTに計測。
 - `benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md`、macOS AArch64 AOT debug-information inspection、2026-10-16 12:06:01 JSTに取得。
+- `benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md`、macOS AArch64 source-mapped DWARF inspection、2026-10-16 19:41:57 JSTに取得。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/

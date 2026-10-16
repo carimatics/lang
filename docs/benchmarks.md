@@ -250,7 +250,7 @@ All three files are 64-bit ARM64 Mach-O objects. The add prototype lowers to an 
 
 The complete commands and captured `file`, `nm`, and `otool` output are preserved in the [add/callback transcript](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), [pre-CFG minimum transcript](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), and [explicit-CFG minimum transcript](../benchmarks/inspection/2026-10-16-macos-aarch64-f6eb016-cfg-min.md).
 
-A later clean [debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) regenerates the add, minimum, and host-callback objects from commit `013da31f9f0fb752aad5ec887f8cf5a5ecf1650d`. All retain external symbols, but none contains a `__debug_*` section, DWARF compile unit, line entry, source variable, parameter, or local. This records the current debug-quality floor rather than satisfying the backend criterion: source-span mapping, linked/dSYM output, unwind metadata, Windows CodeView/PDB, JIT debugger registration, and optimized stepping remain unimplemented or unmeasured.
+The clean pre-implementation [debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) records the original negative baseline. The committed [source-mapped DWARF inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md) regenerates the representative add, minimum, and host-callback objects from commit `31e182ac27e324048597a5ebd0fda4d2d4934395`. All three objects pass `dwarfdump --verify` with relocated DWARF v4 compile-unit, subprogram, and source-line data; direct and response-file executables link and run; and both generated dSYMs pass verification while retaining the fixture path and all three functions. This satisfies the planned macOS source-mapping criterion without claiming unwind metadata, Windows CodeView/PDB, JIT debugger registration, optimized stepping, or source-language integration.
 
 ## Interpretation and limits
 
@@ -273,7 +273,7 @@ A later clean [debug-information inspection](../benchmarks/inspection/2026-10-16
 - Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.846 ns and 1.611 us and accumulator JIT/VM medians of 12.790 ns and 1.665 us. Alternating conditional-sum inputs `(64, 33)` and `(-7, 33)` gives JIT/VM medians of 20.011 ns and 3.046 us. These bounded microbenchmarks do not predict representative control-flow performance. Near-one-nanosecond direct add, countdown, and host-call rows remain timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record a clean schema 18 result on Windows x86-64 and implement and validate native debug metadata across both tier-1 targets. The schema 17 allocation trace retained by schema 18 is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
+Before selecting the initial native backend, record a clean schema 18 result and equivalent CodeView/PDB source-mapping evidence on Windows x86-64. The macOS AArch64 source-mapped DWARF and dSYM criterion is complete. The schema 17 allocation trace retained by schema 18 is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
 
 ## Earlier baseline
 
@@ -292,6 +292,7 @@ The [schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.js
 - [macOS AArch64 generated-object inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), captured 2026-10-16 00:25 JST.
 - [macOS AArch64 signed-minimum inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), captured 2026-10-16 00:43:31 JST.
 - [macOS AArch64 AOT debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md), captured 2026-10-16 12:06:01 JST.
+- [macOS AArch64 source-mapped DWARF inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md), captured 2026-10-16 19:41:57 JST.
 - Repository commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0`, committed 2026-10-16.
 - Repository commit `aac146dad79cc02518c809d0bb203559799f72db`, committed 2026-10-16.
 - Repository commit `7f2482a52c11354d29c61e68608f85a1f7c9611c`, committed 2026-10-16.
