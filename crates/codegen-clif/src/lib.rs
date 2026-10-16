@@ -10,7 +10,8 @@ use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use lang_mir::{
-    Function, HostFunctionId, Instruction, SourceSpan, Terminator, Type, ValidationError,
+    Function, HostFunctionId, Instruction, ResourceTypeId, Signature, SourceSpan, Terminator, Type,
+    ValidationError,
 };
 use lang_runtime::HostFunctionRegistry;
 pub use target_lexicon::Triple;
@@ -21,7 +22,7 @@ pub struct CompiledFunction {
     _module: JITModule,
     code: *const u8,
     code_size: usize,
-    parameter_count: usize,
+    signature: Signature,
     source_map: Option<CompiledSourceMap>,
 }
 
@@ -129,7 +130,7 @@ impl CompiledFunction {
             _module: module,
             code,
             code_size: defined.code_size,
-            parameter_count: function.signature().parameters().len(),
+            signature: function.signature().clone(),
             source_map: defined.source_map,
         })
     }
@@ -143,12 +144,7 @@ impl CompiledFunction {
     }
 
     pub fn invoke_i64_2(&self, left: i64, right: i64) -> Result<i64, InvokeError> {
-        if self.parameter_count != 2 {
-            return Err(InvokeError::Arity {
-                expected: self.parameter_count,
-                actual: 2,
-            });
-        }
+        self.validate_invocation(&[Type::I64, Type::I64], Type::I64)?;
 
         // SAFETY: compilation records the validated MIR arity, and this branch
         // accepts only the exact two-i64 signature used for this function.
@@ -160,12 +156,7 @@ impl CompiledFunction {
     }
 
     pub fn invoke_i64_1(&self, argument: i64) -> Result<i64, InvokeError> {
-        if self.parameter_count != 1 {
-            return Err(InvokeError::Arity {
-                expected: self.parameter_count,
-                actual: 1,
-            });
-        }
+        self.validate_invocation(&[Type::I64], Type::I64)?;
 
         // SAFETY: compilation records the validated MIR arity, and this branch
         // accepts only the exact one-i64 signature used for this function.
@@ -173,6 +164,47 @@ impl CompiledFunction {
         // SAFETY: JIT code remains alive with `self._module`, and the signature
         // checked above matches the generated function's native signature.
         Ok(unsafe { function(argument) })
+    }
+
+    pub fn invoke_own_resource_1(
+        &self,
+        resource_type: ResourceTypeId,
+        argument: u32,
+    ) -> Result<u32, InvokeError> {
+        self.validate_invocation(&[Type::Own(resource_type)], Type::Own(resource_type))?;
+        if argument == 0 {
+            return Err(InvokeError::InvalidOwnedResourceIndex(argument));
+        }
+
+        // SAFETY: compilation records the exact one-owned-resource signature,
+        // owned resource indices use one canonical u32 lane, and the check
+        // above rejects the reserved zero index.
+        let function: unsafe extern "C" fn(u32) -> u32 = unsafe { std::mem::transmute(self.code) };
+        // SAFETY: JIT code remains alive with `self._module`, and the signature
+        // checked above matches the generated function's native signature.
+        let result = unsafe { function(argument) };
+        if result == 0 {
+            return Err(InvokeError::InvalidOwnedResourceIndex(result));
+        }
+        Ok(result)
+    }
+
+    fn validate_invocation(
+        &self,
+        expected_parameters: &[Type],
+        expected_result: Type,
+    ) -> Result<(), InvokeError> {
+        if self.signature.parameters() == expected_parameters
+            && self.signature.result() == expected_result
+        {
+            return Ok(());
+        }
+        Err(InvokeError::SignatureMismatch {
+            expected_parameters: expected_parameters.to_vec(),
+            expected_result,
+            actual_parameters: self.signature.parameters().to_vec(),
+            actual_result: self.signature.result(),
+        })
     }
 }
 
@@ -257,13 +289,13 @@ fn define_function<M: Module>(
             .signature()
             .parameters()
             .iter()
-            .map(|_| AbiParam::new(types::I64)),
+            .map(|&value_type| AbiParam::new(backend_type(value_type))),
     );
     context
         .func
         .signature
         .returns
-        .push(AbiParam::new(types::I64));
+        .push(AbiParam::new(backend_type(function.signature().result())));
 
     let function_id = module
         .declare_function(function.name(), linkage, &context.func.signature)
@@ -297,6 +329,7 @@ fn define_function<M: Module>(
                 let parameter_type = match parameter.value_type() {
                     Type::I64 => types::I64,
                     Type::Bool => types::I8,
+                    Type::Own(_) => types::I32,
                 };
                 builder.append_block_param(blocks[block_index], parameter_type);
             }
@@ -465,11 +498,19 @@ fn record_source_span(source_spans: &mut Vec<SourceSpan>, span: SourceSpan) -> S
 fn validate_function(function: &Function) -> Result<(), CompileError> {
     function.validate().map_err(CompileError::InvalidMir)?;
     if function.signature().parameters().contains(&Type::Bool)
-        || function.signature().result() != Type::I64
+        || function.signature().result() == Type::Bool
     {
         return Err(CompileError::UnsupportedSignature);
     }
     Ok(())
+}
+
+fn backend_type(value_type: Type) -> cranelift_codegen::ir::Type {
+    match value_type {
+        Type::I64 => types::I64,
+        Type::Bool => types::I8,
+        Type::Own(_) => types::I32,
+    }
 }
 
 fn collect_host_symbols(function: &Function) -> Vec<(HostFunctionId, String)> {
@@ -523,19 +564,31 @@ impl Display for CompileError {
 
 impl Error for CompileError {}
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InvokeError {
-    Arity { expected: usize, actual: usize },
+    SignatureMismatch {
+        expected_parameters: Vec<Type>,
+        expected_result: Type,
+        actual_parameters: Vec<Type>,
+        actual_result: Type,
+    },
+    InvalidOwnedResourceIndex(u32),
 }
 
 impl Display for InvokeError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Arity { expected, actual } => {
-                write!(
-                    formatter,
-                    "expected {expected} arguments, received {actual}"
-                )
+            Self::SignatureMismatch {
+                expected_parameters,
+                expected_result,
+                actual_parameters,
+                actual_result,
+            } => write!(
+                formatter,
+                "requested invocation signature {expected_parameters:?} -> {expected_result} does not match compiled signature {actual_parameters:?} -> {actual_result}"
+            ),
+            Self::InvalidOwnedResourceIndex(index) => {
+                write!(formatter, "owned resource index {index} is invalid")
             }
         }
     }
@@ -547,8 +600,8 @@ impl Error for InvokeError {}
 mod tests {
     use lang_mir::{
         BasicBlock, BlockId, BlockParameter, BlockSourceMap, BlockTarget, Function,
-        FunctionSourceMap, HostFunctionId, Instruction, Signature, SourcePosition, SourceSpan,
-        Terminator, Type, ValueId,
+        FunctionSourceMap, HostFunctionId, Instruction, ResourceTypeId, Signature, SourcePosition,
+        SourceSpan, Terminator, Type, ValueId,
     };
 
     use super::{CompileError, CompiledFunction, CompiledSourceMap, emit_host_object};
@@ -646,6 +699,26 @@ mod tests {
 
         assert!(compiled.code_size() > 0);
         assert_eq!(compiled.invoke_i64_1(42), Ok(42));
+    }
+
+    #[test]
+    fn compiles_a_nominal_owned_resource_lane() {
+        let resource = ResourceTypeId::new(7);
+        let function = Function::new(
+            "transfer_resource",
+            Signature::new(vec![Type::Own(resource)], Type::Own(resource)),
+            vec![],
+            Terminator::Return(ValueId::new(0)),
+        );
+
+        let compiled = CompiledFunction::compile(&function).unwrap();
+
+        assert_eq!(compiled.invoke_own_resource_1(resource, 17), Ok(17));
+        assert_eq!(
+            compiled.invoke_own_resource_1(resource, 0),
+            Err(super::InvokeError::InvalidOwnedResourceIndex(0))
+        );
+        assert!(emit_host_object(&function).unwrap().code_size() > 0);
     }
 
     #[test]

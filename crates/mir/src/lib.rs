@@ -3,10 +3,24 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ResourceTypeId(u32);
+
+impl ResourceTypeId {
+    pub const fn new(index: u32) -> Self {
+        Self(index)
+    }
+
+    pub const fn as_u32(self) -> u32 {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Type {
     I64,
     Bool,
+    Own(ResourceTypeId),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -123,6 +137,7 @@ impl Display for Type {
         match self {
             Self::I64 => formatter.write_str("i64"),
             Self::Bool => formatter.write_str("bool"),
+            Self::Own(resource) => write!(formatter, "own<resource#{}>", resource.as_u32()),
         }
     }
 }
@@ -457,6 +472,21 @@ impl Function {
         if !self.blocks[BlockId::ENTRY.index()].parameters().is_empty() {
             return Err(ValidationError::EntryBlockHasParameters);
         }
+        let has_owned_resources = self
+            .signature
+            .parameters
+            .iter()
+            .chain(std::iter::once(&self.signature.result))
+            .any(|value_type| matches!(value_type, Type::Own(_)))
+            || self.blocks.iter().any(|block| {
+                block
+                    .parameters()
+                    .iter()
+                    .any(|parameter| matches!(parameter.value_type(), Type::Own(_)))
+            });
+        if has_owned_resources && self.blocks.len() != 1 {
+            return Err(ValidationError::OwnedResourceControlFlowUnsupported);
+        }
 
         let mut value_types = self.signature.parameters.clone();
         let mut definition_blocks = vec![None; value_types.len()];
@@ -530,6 +560,17 @@ impl Function {
         }
 
         let dominators = compute_dominators(&self.blocks);
+        for (index, value_type) in value_types.iter().enumerate() {
+            if !matches!(value_type, Type::Own(_)) {
+                continue;
+            }
+            let value = ValueId::new(index as u32);
+            match uses.iter().filter(|(used, _)| *used == value).count() {
+                0 => return Err(ValidationError::OwnedResourceNotConsumed(value)),
+                1 => {}
+                _ => return Err(ValidationError::OwnedResourceUsedMoreThanOnce(value)),
+            }
+        }
         for (value, use_block) in uses {
             if let Some(definition_block) = definition_blocks[value.index()]
                 && !dominators[use_block.index()][definition_block.index()]
@@ -688,6 +729,9 @@ pub enum ValidationError {
         value: ValueId,
         block: BlockId,
     },
+    OwnedResourceNotConsumed(ValueId),
+    OwnedResourceUsedMoreThanOnce(ValueId),
+    OwnedResourceControlFlowUnsupported,
 }
 
 impl Display for ValidationError {
@@ -754,6 +798,18 @@ impl Display for ValidationError {
                 value.index(),
                 block.index()
             ),
+            Self::OwnedResourceNotConsumed(value) => write!(
+                formatter,
+                "owned resource value {} is not consumed",
+                value.index()
+            ),
+            Self::OwnedResourceUsedMoreThanOnce(value) => write!(
+                formatter,
+                "owned resource value {} is consumed more than once",
+                value.index()
+            ),
+            Self::OwnedResourceControlFlowUnsupported => formatter
+                .write_str("the owned-resource prototype currently supports only one basic block"),
         }
     }
 }
@@ -764,8 +820,8 @@ impl Error for ValidationError {}
 mod tests {
     use super::{
         BasicBlock, BlockId, BlockParameter, BlockSourceMap, BlockTarget, Function,
-        FunctionSourceMap, Instruction, Signature, SourceMapError, SourcePosition, SourceSpan,
-        Terminator, Type, ValidationError, ValueId,
+        FunctionSourceMap, Instruction, ResourceTypeId, Signature, SourceMapError, SourcePosition,
+        SourceSpan, Terminator, Type, ValidationError, ValueId,
     };
 
     #[test]
@@ -880,6 +936,56 @@ mod tests {
                 expected: ValueId::new(0),
                 actual: ValueId::new(1),
             })
+        );
+    }
+
+    #[test]
+    fn validates_a_nominal_owned_resource_transfer() {
+        let resource = ResourceTypeId::new(7);
+        let function = Function::new(
+            "transfer_resource",
+            Signature::new(vec![Type::Own(resource)], Type::Own(resource)),
+            vec![],
+            Terminator::Return(ValueId::new(0)),
+        );
+
+        assert_eq!(function.validate(), Ok(()));
+        assert_eq!(Type::Own(resource).to_string(), "own<resource#7>");
+    }
+
+    #[test]
+    fn rejects_dropped_or_control_flow_owned_resources() {
+        let resource = ResourceTypeId::new(7);
+        let dropped = Function::new(
+            "drop_resource",
+            Signature::new(vec![Type::Own(resource), Type::I64], Type::I64),
+            vec![],
+            Terminator::Return(ValueId::new(1)),
+        );
+        assert_eq!(
+            dropped.validate(),
+            Err(ValidationError::OwnedResourceNotConsumed(ValueId::new(0)))
+        );
+
+        let control_flow = Function::with_blocks(
+            "branch_resource",
+            Signature::new(vec![Type::Own(resource), Type::Bool], Type::Own(resource)),
+            vec![
+                BasicBlock::new(
+                    vec![],
+                    Terminator::Branch {
+                        condition: ValueId::new(1),
+                        then_target: target(BlockId::new(1)),
+                        else_target: target(BlockId::new(2)),
+                    },
+                ),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+                BasicBlock::new(vec![], Terminator::Return(ValueId::new(0))),
+            ],
+        );
+        assert_eq!(
+            control_flow.validate(),
+            Err(ValidationError::OwnedResourceControlFlowUnsupported)
         );
     }
 

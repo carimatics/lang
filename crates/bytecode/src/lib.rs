@@ -125,9 +125,9 @@ impl Terminator {
         self.targets().into_iter().map(BlockTarget::block).collect()
     }
 
-    fn sources(&self) -> Vec<(usize, Type)> {
+    fn sources(&self, result_type: Type) -> Vec<(usize, Type)> {
         match self {
-            Self::Return(register) => vec![(*register, Type::I64)],
+            Self::Return(register) => vec![(*register, result_type)],
             Self::Jump(_) => Vec::new(),
             Self::Branch { condition, .. } => vec![(*condition, Type::Bool)],
         }
@@ -196,7 +196,8 @@ impl Block {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Program {
-    parameter_count: usize,
+    parameter_types: Vec<Type>,
+    result_type: Type,
     register_count: usize,
     blocks: Vec<Block>,
 }
@@ -234,8 +235,23 @@ impl Program {
         register_count: usize,
         blocks: Vec<Block>,
     ) -> Result<Self, VerificationError> {
+        Self::with_typed_blocks(
+            vec![Type::I64; parameter_count],
+            Type::I64,
+            register_count,
+            blocks,
+        )
+    }
+
+    pub fn with_typed_blocks(
+        parameter_types: Vec<Type>,
+        result_type: Type,
+        register_count: usize,
+        blocks: Vec<Block>,
+    ) -> Result<Self, VerificationError> {
         let program = Self {
-            parameter_count,
+            parameter_types,
+            result_type,
             register_count,
             blocks,
         };
@@ -244,7 +260,15 @@ impl Program {
     }
 
     pub const fn parameter_count(&self) -> usize {
-        self.parameter_count
+        self.parameter_types.len()
+    }
+
+    pub fn parameter_types(&self) -> &[Type] {
+        &self.parameter_types
+    }
+
+    pub const fn result_type(&self) -> Type {
+        self.result_type
     }
 
     pub const fn register_count(&self) -> usize {
@@ -256,7 +280,7 @@ impl Program {
     }
 
     pub fn verify(&self) -> Result<(), VerificationError> {
-        if self.parameter_count > self.register_count {
+        if self.parameter_types.len() > self.register_count {
             return Err(VerificationError::InvalidParameterCount);
         }
         if self.blocks.is_empty() {
@@ -265,9 +289,25 @@ impl Program {
         if !self.blocks[BlockId::ENTRY.index()].parameters().is_empty() {
             return Err(VerificationError::EntryBlockHasParameters);
         }
+        let has_owned_resources = self
+            .parameter_types
+            .iter()
+            .chain(std::iter::once(&self.result_type))
+            .any(|value_type| matches!(value_type, Type::Own(_)))
+            || self.blocks.iter().any(|block| {
+                block
+                    .parameters()
+                    .iter()
+                    .any(|parameter| matches!(parameter.register_type(), Type::Own(_)))
+            });
+        if has_owned_resources && self.blocks.len() != 1 {
+            return Err(VerificationError::OwnedResourceControlFlowUnsupported);
+        }
 
         let mut register_types = vec![None; self.register_count];
-        register_types[..self.parameter_count].fill(Some(Type::I64));
+        for (register, value_type) in register_types.iter_mut().zip(&self.parameter_types) {
+            *register = Some(*value_type);
+        }
         let mut definition_blocks = vec![None; self.register_count];
         let mut uses = Vec::new();
 
@@ -290,7 +330,7 @@ impl Program {
                 definition_blocks[destination] = Some(block_id);
             }
 
-            for (source, expected) in block.terminator().sources() {
+            for (source, expected) in block.terminator().sources(self.result_type) {
                 verify_source(source, expected, &register_types)?;
                 uses.push((source, block_id));
             }
@@ -323,6 +363,17 @@ impl Program {
         let reachable = reachable_blocks(&self.blocks);
         if let Some(block) = reachable.iter().position(|is_reachable| !is_reachable) {
             return Err(VerificationError::UnreachableBlock(BlockId::new(block)));
+        }
+
+        for (register, value_type) in register_types.iter().enumerate() {
+            if !matches!(value_type, Some(Type::Own(_))) {
+                continue;
+            }
+            match uses.iter().filter(|(used, _)| *used == register).count() {
+                0 => return Err(VerificationError::OwnedResourceNotConsumed(register)),
+                1 => {}
+                _ => return Err(VerificationError::OwnedResourceUsedMoreThanOnce(register)),
+            }
         }
 
         let dominators = compute_dominators(&self.blocks);
@@ -421,7 +472,7 @@ fn compute_dominators(blocks: &[Block]) -> Vec<Vec<bool>> {
 pub fn lower(function: &Function) -> Result<Program, LowerError> {
     function.validate().map_err(LowerError::InvalidMir)?;
     if function.signature().parameters().contains(&Type::Bool)
-        || function.signature().result() != Type::I64
+        || function.signature().result() == Type::Bool
     {
         return Err(LowerError::UnsupportedSignature);
     }
@@ -512,8 +563,9 @@ pub fn lower(function: &Function) -> Result<Program, LowerError> {
         })
         .collect();
 
-    Program::with_blocks(
-        function.signature().parameters().len(),
+    Program::with_typed_blocks(
+        function.signature().parameters().to_vec(),
+        function.signature().result(),
         function.value_count(),
         blocks,
     )
@@ -548,6 +600,9 @@ pub enum VerificationError {
         register: usize,
         block: BlockId,
     },
+    OwnedResourceNotConsumed(usize),
+    OwnedResourceUsedMoreThanOnce(usize),
+    OwnedResourceControlFlowUnsupported,
 }
 
 impl Display for VerificationError {
@@ -607,6 +662,18 @@ impl Display for VerificationError {
                 "register {register} does not dominate its use in block {}",
                 block.index()
             ),
+            Self::OwnedResourceNotConsumed(register) => {
+                write!(
+                    formatter,
+                    "owned resource register {register} is not consumed"
+                )
+            }
+            Self::OwnedResourceUsedMoreThanOnce(register) => write!(
+                formatter,
+                "owned resource register {register} is consumed more than once"
+            ),
+            Self::OwnedResourceControlFlowUnsupported => formatter
+                .write_str("the owned-resource prototype currently supports only one basic block"),
         }
     }
 }
@@ -625,9 +692,9 @@ impl Display for LowerError {
         match self {
             Self::InvalidMir(error) => write!(formatter, "invalid MIR: {error}"),
             Self::InvalidBytecode(error) => write!(formatter, "invalid bytecode: {error}"),
-            Self::UnsupportedSignature => {
-                formatter.write_str("bytecode prototype supports only i64 parameters and results")
-            }
+            Self::UnsupportedSignature => formatter.write_str(
+                "bytecode prototype supports only i64 or owned-resource parameters and results",
+            ),
         }
     }
 }
@@ -636,12 +703,52 @@ impl Error for LowerError {}
 
 #[cfg(test)]
 mod tests {
-    use lang_mir::{HostFunctionId, Type};
+    use lang_mir::{
+        Function, HostFunctionId, ResourceTypeId, Signature, Terminator as MirTerminator, Type,
+        ValueId,
+    };
 
     use super::{
         Block, BlockId, BlockParameter, BlockTarget, Instruction, Program, Terminator,
-        VerificationError,
+        VerificationError, lower,
     };
+
+    #[test]
+    fn lowers_a_nominal_owned_resource_signature() {
+        let resource = ResourceTypeId::new(7);
+        let function = Function::new(
+            "transfer_resource",
+            Signature::new(vec![Type::Own(resource)], Type::Own(resource)),
+            vec![],
+            MirTerminator::Return(ValueId::new(0)),
+        );
+
+        let program = lower(&function).expect("lowers the owned resource identity");
+
+        assert_eq!(program.parameter_types(), &[Type::Own(resource)]);
+        assert_eq!(program.result_type(), Type::Own(resource));
+        assert_eq!(program.verify(), Ok(()));
+    }
+
+    #[test]
+    fn rejects_a_mismatched_owned_resource_result() {
+        let source = ResourceTypeId::new(7);
+        let destination = ResourceTypeId::new(8);
+
+        assert_eq!(
+            Program::with_typed_blocks(
+                vec![Type::Own(source)],
+                Type::Own(destination),
+                1,
+                vec![Block::new(vec![], Terminator::Return(0))],
+            ),
+            Err(VerificationError::TypeMismatch {
+                register: 0,
+                expected: Type::Own(destination),
+                actual: Type::Own(source),
+            })
+        );
+    }
 
     #[test]
     fn rejects_reads_from_uninitialized_registers() {
