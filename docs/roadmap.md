@@ -16,11 +16,11 @@ The 2026-10-16 whole-roadmap audit corrected three structural problems. Producti
 
 An RFC-readiness audit on the same date corrected another planning gap: RFC 0003 was queued for an owner decision even though its review outcome then named stable serialization, host-value and cross-mode adapter conformance, lock integration, native Windows component execution, and broader cost evidence as blockers. Those outcomes became explicit prototype tasks before the RFC 0003 decision; Milestones 3 and 4 still own the production IDL, adapters, and package manager.
 
-Progress snapshot verified against this repository state on 2026-10-16 22:25 JST:
+Progress snapshot verified against this repository state on 2026-10-16 22:29 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 161 pt | 196 pt | **82.1%** |
+| 0 — design baseline (current) | 166 pt | 196 pt | **84.7%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -28,11 +28,11 @@ Progress snapshot verified against this repository state on 2026-10-16 22:25 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **161 pt** | **678 pt** | **23.7%** |
+| **Overall** | **166 pt** | **678 pt** | **24.5%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 161 / 196 pt (82.1%).**
+**Progress: 166 / 196 pt (84.7%).**
 
 ### Workstream breakdown
 
@@ -43,14 +43,14 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
-| Component and resource contracts | 58 pt | 71 pt | 81.7% |
+| Component and resource contracts | 63 pt | 71 pt | 88.7% |
 | Platform and backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **161 pt** | **196 pt** | **82.1%** |
+| **Milestone 0** | **166 pt** | **196 pt** | **84.7%** |
 
 Current execution state at this snapshot:
 
-- **Unblocked local P0:** a lockfile/package-selection prototype and expanded boundary-cost evidence for RFC 0003.
+- **Unblocked local P0:** expanded boundary-cost evidence for RFC 0003.
 - **External gates:** the RFC 0002, RFC 0004, and RFC 0005 repository-owner decisions plus remote Windows object-link-run, benchmark, and component-execution evidence.
 - **Dependent gates:** decide RFC 0003 after its added evidence prerequisites, select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
 
@@ -91,7 +91,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Connect opaque canonical resource identities to generation-checked host values with atomic publication, borrow resolution, rollback, and exactly-once cleanup.** — 2 pt
 - [x] **P0 — Prototype general component instantiation from validated contracts, negotiated bindings, and per-instance adapter state.** — 3 pt
 - [x] **P0 — Execute the same host-value resource/failure fixture through VM, JIT, and AOT adapters and record equivalent outcomes.** — 3 pt
-- [ ] **P0 — Prototype deterministic lockfile/package-selection integration over the in-memory resolver without implementing the production package manager.** — 5 pt
+- [x] **P0 — Prototype deterministic lockfile/package-selection integration over the in-memory resolver without implementing the production package manager.** — 5 pt
 - [ ] **P0 — Record native Windows component execution for the same conformance fixture.** — 3 pt
 - [ ] **P0 — Extend component-boundary cost evidence to instantiation, failure/destructor paths, memory, and code size, and document the interpretation in RFC 0003.** — 5 pt
 - [ ] **P0 — Decide RFC 0003, recording acceptance, requested revisions, or rejection.** — 3 pt
@@ -128,6 +128,8 @@ One cross-mode resource/failure fixture now starts from general schema-2 instant
 The same RFC now defines post-commit failure behavior without exposing Rust or native unwinding. Panic and ordinary traps never roll ownership back; an explicit cleanup ledger closes nested borrows before destroying remaining frame-owned resources in reverse acquisition order. Destructors consume their owner before user code, run at most once, continue deterministic best-effort cleanup after failure, and preserve an earlier panic/trap as primary while appending destructor failures in suppressed order. Clean component failures may leave a revalidated instance reusable, while destructor, contained host-callback, invariant, or incomplete-cleanup failures poison it. The design records stable logical diagnostic identities, forbids cleanup reentrancy, treats process abort and foreign unwind as trusted-native limitations, and requires identical VM/JIT/AOT outcomes. The WebAssembly Canonical ABI source last changed 2026-10-13; the official Rust panic, `catch_unwind`, and FFI-unwinding documentation publish no update date and were verified 2026-10-16. Schema-2 failure-report serialization now records these categories and ordering, and a policy-explicit projection from runtime failures preserves cleanup traps and destructor failures while redacting or sanitizing messages. Canonical identities now resolve to actual host values for borrow and cleanup, but general instantiation and cross-mode resource/failure execution remain open.
 
 Package/interface negotiation is specified separately from metadata-schema selection and package-manager resolution. The runtime now prototypes that model entirely in memory: normalized full-SemVer values preserve prerelease and build identifiers, exact requirements include build metadata, bounded intervals compare SemVer precedence, and prereleases require explicit opt-in. Capability grants are checked before provider inventory validation; exact locks require the named identity, version, and opaque digest without fallback; unlocked candidates pass exact package/interface identity, version, and structural projection checks before deterministic highest-precedence selection. Projection checks cover ordered scalar and nominal `own`/`borrow` resource types plus exact capabilities, permit additive provider members, and report deterministically ordered rejections. Same-precedence build/digest ties are ambiguity errors, and the result is an immutable validated binding. Fourteen focused tests cover ordering, exact locks, non-fallback, structural fallback and rejection, capability ordering, resource ownership mode, ambiguity, and malformed declarations. This remains an in-memory prototype rather than a new metadata schema, stable digest encoding, package-manager integration, or VM/JIT/AOT instantiation path.
+
+The resolver now integrates a canonical in-memory lockfile artifact without defining an on-disk compatibility format. Unlocked selection records one sorted exact SHA-256 version/digest entry for every requirement; replay requires the same consumer package/version and complete requirement coverage, reconciles embedded contract locks, and never falls back when the exact provider is absent. Provider registration order does not affect the generated lockfile. A successful locked selection owns the contract and immutable bindings and moves directly into fresh bounded instance state without renegotiation. Four focused tests cover canonical generation, exact no-fallback replay, missing/conflicting locks, and selection-to-instance handoff. Production registry access, artifact download, file I/O, and publication remain Milestone 4 work.
 
 One executable scalar conformance fixture now starts from schema-1 metadata, capability grants, and a logical import binding, validates them against the typed host registry, and derives its MIR host call and exported symbol from the resulting immutable contract. The same function executes wrapping-double cases, including integer extremes, with equivalent VM and Cranelift JIT outcomes. The validated fixture also emits a host-native object whose `run` export and resolved host import are linked and executed on macOS AArch64 through both direct and response-file linker paths, producing the same result. This proves one scalar import/export connection; it does not implement general component instantiation, non-scalar host values, resource/failure adapter execution, accepted production serialization, or remote Windows execution.
 

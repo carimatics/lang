@@ -16,11 +16,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 同日のRFC readiness監査では、別のplanning gapも修正しました。RFC 0003はowner decision待ちとして並んでいましたが、review outcomeは当時stable serialization、host-value／cross-mode adapter conformance、lock integration、native Windows component execution、より広いcost evidenceをblockerとして明記していました。これらの成果はRFC 0003 decision前の明示的なprototype taskとなり、production IDL、adapter、package managerは引き続きMilestone 3／4の責務とします。
 
-このrepository stateに対して2026-10-16 22:25 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 22:29 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 161 pt | 196 pt | **82.1%** |
+| 0 — design baseline（現在） | 166 pt | 196 pt | **84.7%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -28,11 +28,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **161 pt** | **678 pt** | **23.7%** |
+| **全体** | **166 pt** | **678 pt** | **24.5%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：161 / 196 pt（82.1%）。**
+**進捗：166 / 196 pt（84.7%）。**
 
 ### Workstream別内訳
 
@@ -43,14 +43,14 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
-| Component／resource contract | 58 pt | 71 pt | 81.7% |
+| Component／resource contract | 63 pt | 71 pt | 88.7% |
 | Platform／backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **161 pt** | **196 pt** | **82.1%** |
+| **Milestone 0** | **166 pt** | **196 pt** | **84.7%** |
 
 このsnapshot時点の実行状態：
 
-- **Unblocked local P0：** Lockfile／package-selection prototypeと、RFC 0003の拡張boundary-cost evidence。
+- **Unblocked local P0：** RFC 0003の拡張boundary-cost evidence。
 - **外部gate：** RFC 0002、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-execution evidence。
 - **依存gate：** 追加したevidence prerequisiteの完了後にRFC 0003をdecisionし、Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
@@ -91,7 +91,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Opaqueなcanonical resource identityをgeneration-check済みhost valueへ接続し、atomic publication、borrow resolution、rollback、exactly-once cleanupを実装する。** — 2 pt
 - [x] **P0 — Validated contract、negotiated binding、instanceごとのadapter stateからgeneral component instantiationをprototypeする。** — 3 pt
 - [x] **P0 — 同じhost-value resource／failure fixtureをVM、JIT、AOT adapterで実行し、同等のoutcomeを記録する。** — 3 pt
-- [ ] **P0 — Production package managerを実装せず、in-memory resolverに対するdeterministicなlockfile／package-selection integrationをprototypeする。** — 5 pt
+- [x] **P0 — Production package managerを実装せず、in-memory resolverに対するdeterministicなlockfile／package-selection integrationをprototypeする。** — 5 pt
 - [ ] **P0 — 同じconformance fixtureのnative Windows component executionを記録する。** — 3 pt
 - [ ] **P0 — Component-boundary cost evidenceをinstantiation、failure／destructor path、memory、code sizeへ拡張し、その解釈をRFC 0003へ記録する。** — 5 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
@@ -128,6 +128,8 @@ General component instantiationはvalidated schema-2 contractをconsumeし、明
 同じRFCはRust／native unwindを公開せず、post-commit failure behaviorも規定しました。Panic／通常trapはownershipをrollbackしません。明示的cleanup ledgerはnested borrowをcloseしてから、残るframe-owned resourceをacquisitionと逆順でdestroyします。Destructorはuser codeより前にownerをconsumeし、at most onceで実行し、failure後もdeterministicなbest-effort cleanupを続けます。先行panic／trapをprimaryに保ち、destructor failureをsuppressed順で追加します。Cleanなcomponent failureではrevalidate済みinstanceをreuseできますが、destructor、contain済みhost-callback、invariant、incomplete-cleanup failureはinstanceをpoisonします。Designはstableなlogical diagnostic identityを記録し、cleanup reentrancyを禁止し、process abort／foreign unwindをtrusted-native limitationとして扱い、VM／JIT／AOTの同一outcomeを要求します。WebAssembly Canonical ABI sourceは2026-10-13最終変更です。Rust公式のpanic、`catch_unwind`、FFI-unwinding documentationは更新日の記載がなく、2026-10-16に確認しました。Schema-2 failure-report serializationはこれらのcategory／orderingを記録し、runtime failureからのpolicy明示projectionはmessageをredactまたはsanitizeしながらcleanup trap／destructor failureを保持するようになりました。Canonical identityはborrow／cleanup用のactual host valueへresolveするようになりましたが、general instantiationとcross-mode resource／failure executionは未完了です。
 
 Package／interface negotiationはmetadata-schema selection／package-manager resolutionから分離して規定しています。Runtimeは現在、そのmodel全体をin-memoryでprototypeします。Normalized full-SemVer valueはprerelease／build identifierを保持し、exact requirementはbuild metadataを含み、bounded intervalはSemVer precedenceで比較し、prereleaseには明示的opt-inを要求します。Capability grantをprovider inventory validationより先にcheckし、exact lockは指定されたidentity、version、opaque digestをfallbackなしで要求します。Unlocked candidateはexact package／interface identity、version、structural projection checkを通過してからdeterministicにhighest-precedenceを選択します。Projection checkは順序付きscalar type、nominalな `own`／`borrow` resource type、exact capabilityを扱い、providerのadditive memberを許可し、rejectionをdeterministicな順序で報告します。Same-precedenceのbuild／digest tieはambiguity errorで、結果はimmutable validated bindingです。14個のfocused testがordering、exact lock、non-fallback、structural fallback／rejection、capability ordering、resource ownership mode、ambiguity、malformed declarationを検証します。これは新metadata schema、stable digest encoding、package-manager integration、VM／JIT／AOT instantiation pathではなく、引き続きin-memory prototypeです。
+
+Resolverはon-disk compatibility formatを定義せず、canonicalなin-memory lockfile artifactを統合するようになりました。Unlocked selectionは全requirementについてsort済みのexact SHA-256 version／digest entryを1つずつ記録します。Replayは同じconsumer package／versionと完全なrequirement coverageを要求し、embedded contract lockとreconcileし、exact providerが存在しない場合は決してfallbackしません。Provider登録順は生成lockfileへ影響しません。成功したlocked selectionはcontract／immutable bindingをownし、再negotiationせずfreshでboundedなinstance stateへ直接moveします。4件のfocused testがcanonical generation、exact non-fallback replay、missing／conflicting lock、selection-to-instance handoffをcoverします。Production registry access、artifact download、file I/O、publicationはMilestone 4の作業です。
 
 1つの実行可能なscalar conformance fixtureは、schema-1 metadata、capability grant、logical import bindingから開始し、typed host registryに対してvalidateし、得られたimmutable contractからMIR host callとexport symbolを導出します。同じfunctionはinteger extremeを含むwrapping-double caseを実行し、VMとCranelift JITで同等のoutcomeになります。Validated fixtureはhost-native objectもemitし、その `run` exportとresolved host importをmacOS AArch64でdirect／response-file linker pathの両方からlink／実行して同じ結果を生成します。これは1つのscalar import／export接続を実証しますが、general component instantiation、non-scalar host value、resource／failure adapter execution、accepted production serialization、remote Windows executionを実装するものではありません。
 

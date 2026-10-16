@@ -27,6 +27,18 @@ pub struct ComponentInstance {
 }
 
 impl ComponentInstance {
+    pub(super) fn from_validated_parts(
+        contract: VersionedComponentContract,
+        bindings: Vec<ValidatedInterfaceBinding>,
+        adapter_limits: AdapterLimits,
+    ) -> Self {
+        Self {
+            contract,
+            bindings,
+            resources: CanonicalResourceTable::new(adapter_limits),
+        }
+    }
+
     pub const fn contract(&self) -> &VersionedComponentContract {
         &self.contract
     }
@@ -74,14 +86,14 @@ pub fn instantiate_component(
         bindings.push(binding);
     }
 
-    Ok(ComponentInstance {
+    Ok(ComponentInstance::from_validated_parts(
         contract,
         bindings,
-        resources: CanonicalResourceTable::new(adapter_limits),
-    })
+        adapter_limits,
+    ))
 }
 
-fn interface_consumer(requirement: &ComponentContractRequirement) -> InterfaceConsumer {
+pub(super) fn interface_consumer(requirement: &ComponentContractRequirement) -> InterfaceConsumer {
     InterfaceConsumer::new(
         requirement.key().clone(),
         requirement.requirement().clone(),
@@ -115,7 +127,7 @@ fn interface_value(value: &ComponentContractValueType) -> InterfaceValueType {
     }
 }
 
-fn exact_interface_lock(lock: &ComponentContractLock) -> ExactInterfaceLock {
+pub(super) fn exact_interface_lock(lock: &ComponentContractLock) -> ExactInterfaceLock {
     let digest = ContentDigest::new(lock.digest().as_bytes().to_vec())
         .expect("validated versioned digests are non-empty");
     ExactInterfaceLock::new(lock.key().clone(), lock.version().clone(), digest)
