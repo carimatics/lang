@@ -10,53 +10,69 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 Tasks are listed in priority order within each milestone. `P0` tasks block that milestone's exit; `P1` tasks are required follow-ups that should not displace a P0 blocker. A checked task is complete; prototype groundwork completed in an earlier milestone does not complete a broader task in a later milestone.
 
-Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, `8` is very large, `13` spans several coordinated changes, and `21` is a program-sized body of work. Progress is `completed points / total points × 100`, rounded to one decimal place. Estimates and completion state must be updated when scope or evidence changes.
+Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, and `8` is very large. Each unchecked task has one independently verifiable outcome; larger programs are split at dependency or acceptance boundaries. Progress is `completed points / total points × 100`, rounded to one decimal place. Long-horizon estimates are planning values and must be re-estimated when their milestone becomes current or when scope or evidence changes.
 
-Revalidation after the resource-handle prototype found that the remaining 5-point component task combined three independent risk classes: bounded decoding of untrusted bytes, compatibility/canonical-resource semantics, and cross-mode conformance plus measurement. RFC 0003 lists each as separate blocking evidence. They are now tracked as 5, 5, and 8-point Milestone 0 prototypes; Milestone 3 retains the broader production IDL and stable embedding implementation.
+The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserves the 80 points of completed evidence, moves production hardening to its dependent milestone, and exposes previously hidden work rather than treating a large compound item as one task.
 
-Progress snapshot verified against this repository state on 2026-10-16 15:14 JST:
+Progress snapshot verified against this repository state on 2026-10-16 15:27 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 80 pt | 151 pt | **53.0%** |
-| 1 — frontend and bytecode vertical slice | 0 pt | 52 pt | 0.0% |
-| 2 — ownership and native AOT | 0 pt | 53 pt | 0.0% |
-| 3 — concurrency and embedding | 0 pt | 55 pt | 0.0% |
-| 4 — developer toolchain | 0 pt | 58 pt | 0.0% |
-| 5 — ecosystem and compatibility | 0 pt | 55 pt | 0.0% |
-| 6 — self-hosting | 0 pt | 50 pt | 0.0% |
-| 7 — additional frontends | 0 pt | 39 pt | 0.0% |
-| **Overall** | **80 pt** | **513 pt** | **15.6%** |
+| 0 — design baseline (current) | 80 pt | 149 pt | **53.7%** |
+| 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
+| 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
+| 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
+| 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
+| 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
+| 6 — self-hosting | 0 pt | 74 pt | 0.0% |
+| 7 — additional frontends | 0 pt | 55 pt | 0.0% |
+| **Overall** | **80 pt** | **631 pt** | **12.7%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 80 / 151 pt (53.0%).**
+**Progress: 80 / 149 pt (53.7%).**
 
 ### Tasks in priority order
 
 - [x] **P0 — Draft the project charter, goals/non-goals, terminology, RFC process, and compatibility labels.** — 3 pt
-- [ ] **P0 — Decide RFC 0001 and RFC 0002, recording acceptance, requested revisions, or rejection.** — 3 pt
-- [x] **P0 — Build the typed `i64` MIR → bytecode/VM → Cranelift JIT/AOT vertical slice with host registration and callbacks.** — 13 pt
-- [x] **P0 — Add typed CFG validation and representative prototype branches, back-edges, and loop-carried values with VM/JIT/AOT differential coverage.** — 8 pt
-- [x] **P0 — Establish the shared system-linker path, macOS AArch64 link-and-run integration, Windows MSVC workflow, and host-independent COFF contracts.** — 8 pt
-- [ ] **P0 — Record successful Windows x86-64 CI link/run evidence and a clean benchmark baseline comparable with macOS.** — 8 pt
-- [x] **P0 — Prototype deterministic VM fuel, host-call and value-slot limits, cooperative interruption, and absolute deadlines.** — 8 pt
+- [x] **P0 — Build and verify the typed `i64` MIR → bytecode/VM vertical slice.** — 5 pt
+- [x] **P0 — Lower the same typed MIR through Cranelift JIT and host-native object emission.** — 5 pt
+- [x] **P0 — Validate typed host registration and callbacks across VM, JIT, and AOT object contracts.** — 3 pt
+- [x] **P0 — Validate typed CFG reachability, dominance, branches, and back-edges across execution modes.** — 5 pt
+- [x] **P0 — Carry typed block arguments and loop values consistently through MIR, bytecode, VM, JIT, and AOT.** — 3 pt
+- [x] **P0 — Establish shared linker requests, tier-1 target policy, Windows MSVC workflow, and host-independent COFF contracts.** — 5 pt
+- [x] **P0 — Record macOS AArch64 link/run evidence and exercise direct and response-file paths.** — 3 pt
+- [x] **P0 — Prototype deterministic VM instruction, host-call, and value-slot limits.** — 5 pt
+- [x] **P0 — Prototype cooperative interruption and absolute execution deadlines.** — 3 pt
 - [x] **P0 — Validate versioned scalar component metadata and explicit capability-gated imports against the typed host registry.** — 5 pt
 - [x] **P0 — Prototype generation-tagged owned/borrowed resource handles and deterministic lifecycle validation.** — 3 pt
-- [ ] **P0 — Prototype a bounded schema-1 component encoder/decoder with byte/count/depth/string limits, location-bearing diagnostics, malformed fixtures, and fuzz targets.** — 5 pt
-- [ ] **P0 — Specify scalar/resource canonical representation, package-version compatibility negotiation, ownership transfer, and panic/destructor failure rules in RFC 0003.** — 5 pt
-- [ ] **P0 — Drive one validated scalar import/export and resource lifecycle through VM/JIT/AOT differential conformance and boundary-cost benchmarks, making RFC 0003 decision-ready.** — 8 pt
-- [ ] **P0 — Extend resource enforcement to heap, recursion, tasks, and native/JIT execution, including callback behavior.** — 13 pt
-- [x] **P0 — Prototype strict and less-restrictive alternatives for async cancellation, cyclic graphs, and shared mutable services.** — 8 pt
+- [x] **P0 — Prototype strict and less-restrictive async-borrow and cancellation policies.** — 3 pt
+- [x] **P0 — Prototype strict and tracing alternatives for cyclic graph ownership.** — 3 pt
+- [x] **P0 — Prototype owner-isolated and exclusive-capability shared-service policies.** — 2 pt
 - [x] **P0 — Draft decision-ready source-level integer and structured-control-flow semantics in RFC 0002.** — 5 pt
-- [x] **P0 — Build the versioned benchmark harness through schema 14 and record a clean macOS AArch64 baseline for compile, runtime, startup, code size, logical heap lifetime, and process memory.** — 13 pt
+- [x] **P0 — Build the versioned benchmark harness and record compile, runtime, startup, and artifact-size baselines.** — 8 pt
+- [x] **P0 — Record deterministic logical-heap profiles and linked-process memory baselines.** — 5 pt
+- [x] **P0 — Exercise variable-size host allocation across direct Rust, VM, JIT, macOS AOT, and Windows object contracts.** — 3 pt
+- [x] **P0 — Record AArch64 generated-code inspection and the current negative native debug-information baseline.** — 3 pt
+- [ ] **P0 — Decide RFC 0001, recording acceptance, requested revisions, or rejection.** — 2 pt
+- [ ] **P0 — Decide RFC 0002, recording acceptance, requested revisions, or rejection.** — 2 pt
+- [ ] **P0 — Record successful Windows x86-64 CI object-link-run evidence.** — 3 pt
+- [ ] **P0 — Record and interpret a clean Windows benchmark baseline against the macOS baseline.** — 5 pt
+- [ ] **P0 — Prototype a bounded schema-1 component encoder/decoder with byte/count/depth/string limits, location-bearing diagnostics, malformed fixtures, and fuzz targets.** — 5 pt
+- [ ] **P0 — Specify canonical scalar/resource representation and ownership transfer in RFC 0003.** — 5 pt
+- [ ] **P0 — Specify panic and destructor failure behavior at component boundaries in RFC 0003.** — 3 pt
+- [ ] **P0 — Specify package/interface version compatibility negotiation in RFC 0003.** — 3 pt
+- [ ] **P0 — Drive one scalar import/export and resource lifecycle through VM/JIT/AOT differential conformance.** — 5 pt
+- [ ] **P0 — Measure component-boundary costs and document the interpretation in RFC 0003.** — 3 pt
+- [ ] **P0 — Decide RFC 0003, recording acceptance, requested revisions, or rejection.** — 3 pt
+- [ ] **P0 — Draft a decision-ready ownership and cyclic-graph RFC from the completed experiments.** — 5 pt
+- [ ] **P0 — Draft a decision-ready async-cancellation and shared-service concurrency RFC from the completed experiments.** — 5 pt
+- [ ] **P0 — Decide the ownership and cyclic-graph RFC.** — 2 pt
+- [ ] **P0 — Decide the async-cancellation and shared-service concurrency RFC.** — 2 pt
+- [ ] **P0 — Time and profile the variable-size allocation callback, including exact requested payload.** — 5 pt
+- [ ] **P0 — Measure a representative allocation workload, including allocator overhead and fragmentation.** — 5 pt
+- [ ] **P0 — Add one additional representative CFG workload to the cross-mode benchmark set.** — 3 pt
 - [ ] **P0 — Select the initial native backend from the completed cross-platform performance, debug-quality, and integration evidence, and record the decision.** — 3 pt
-- [x] **P1 — Add variable-size host-allocation execution across direct Rust, VM, JIT, macOS AOT, and Windows object contracts.** — 3 pt
-- [ ] **P1 — Add timing and exact requested-payload profiling for the variable-size allocation callback and record the next clean baseline.** — 5 pt
-- [ ] **P1 — Add representative allocation/memory and additional CFG workloads, including allocator-overhead and fragmentation evidence.** — 8 pt
-- [x] **P1 — Record AArch64 generated-code inspection and the current negative native debug-information baseline.** — 3 pt
-- [ ] **P1 — Implement and validate source-span native debug metadata on macOS AArch64 and Windows x86-64.** — 8 pt
-- [ ] **P1 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
 
 ### Evidence and current state
 
@@ -116,13 +132,17 @@ Exit: written semantics for the prototype subset and benchmark evidence for the 
 
 ## Milestone 1: frontend and bytecode vertical slice
 
-**Progress: 0 / 52 pt (0.0%).** Milestone 0 prototypes are groundwork; these tasks require the complete source-driven vertical slice.
+**Progress: 0 / 65 pt (0.0%).** Milestone 0 prototypes are groundwork; these tasks require the complete source-driven vertical slice.
 
+- [ ] **P0 — Establish structured source diagnostics with stable codes, labels, and fix-its.** — 5 pt
 - [ ] **P0 — Implement a lossless parser with error recovery and source spans.** — 8 pt
-- [ ] **P0 — Implement name resolution, modules, primitive types, functions, records, variants, and pattern matching.** — 13 pt
-- [ ] **P0 — Add structured diagnostics with stable codes and fix-its.** — 5 pt
-- [ ] **P0 — Integrate source semantics with validated typed MIR.** — 5 pt
-- [ ] **P0 — Complete register bytecode, verifier, VM, REPL/script runner, and host-function registration for source programs.** — 8 pt
+- [ ] **P0 — Implement scopes, name resolution, and module loading.** — 5 pt
+- [ ] **P0 — Type-check primitive expressions, functions, and structured control flow.** — 8 pt
+- [ ] **P0 — Type-check records, variants, patterns, and exhaustiveness.** — 8 pt
+- [ ] **P0 — Lower resolved and typed source through HIR into validated typed MIR while preserving spans.** — 5 pt
+- [ ] **P0 — Promote the prototype into versioned register bytecode with encoding, decoding, and verification.** — 5 pt
+- [ ] **P0 — Execute the source-language subset in the VM with typed host registration.** — 5 pt
+- [ ] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
 - [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
 - [ ] **P1 — Build the initial incremental query graph shared with an LSP prototype.** — 8 pt
 
@@ -130,37 +150,51 @@ Exit: small programs run as scripts with deterministic behavior and useful IDE d
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 0 / 53 pt (0.0%).**
+**Progress: 0 / 74 pt (0.0%).**
 
-- [ ] **P0 — Implement owned values, moves, lexical borrows, deterministic destruction, and narrow unsafe operations.** — 13 pt
+- [ ] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
+- [ ] **P0 — Elaborate deterministic drops and define destruction behavior on return, error, and panic paths.** — 8 pt
+- [ ] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
 - [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
-- [ ] **P0 — Complete Cranelift object generation for macOS AArch64 and Windows x86-64.** — 8 pt
-- [ ] **P0 — Build the representative differential VM/native execution suite.** — 8 pt
+- [ ] **P0 — Complete source-program object generation for macOS AArch64 and Windows x86-64.** — 8 pt
+- [ ] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
+- [ ] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
+- [ ] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
 - [ ] **P1 — Implement allocator-aware standard containers.** — 8 pt
-- [ ] **P1 — Provide native debug metadata sufficient for breakpoints and stack traces.** — 8 pt
+- [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
 
 ## Milestone 3: concurrency and embedding
 
-**Progress: 0 / 55 pt (0.0%).**
+**Progress: 0 / 86 pt (0.0%).**
 
-- [ ] **P0 — Implement structured tasks, cancellation, channels, actor isolation, and data-race capability rules.** — 13 pt
+- [ ] **P0 — Implement structured task lifetimes and deterministic cancellation cleanup.** — 8 pt
+- [ ] **P0 — Implement channels with bounded backpressure and cancellation behavior.** — 5 pt
+- [ ] **P0 — Enforce actor isolation and accepted data-race capability rules.** — 8 pt
 - [ ] **P0 — Stabilize the C embedding API and generated bindings.** — 8 pt
-- [ ] **P0 — Implement the versioned component IDL, resource handles, and capability imports.** — 13 pt
-- [ ] **P0 — Support mixed native/VM calls, callbacks, errors, stack traces, and cancellation.** — 8 pt
-- [ ] **P0 — Enforce script resource limits and interruption.** — 8 pt
+- [ ] **P0 — Implement the versioned component IDL and bounded serialization.** — 8 pt
+- [ ] **P0 — Implement canonical owned/borrowed resource adapters.** — 8 pt
+- [ ] **P0 — Enforce capability-gated component imports.** — 5 pt
+- [ ] **P0 — Support mixed native/VM calls and callbacks with typed errors.** — 8 pt
+- [ ] **P0 — Preserve stack traces and cancellation across native/VM boundaries.** — 5 pt
+- [ ] **P0 — Enforce heap/allocation limits, including host-callback accounting.** — 5 pt
+- [ ] **P0 — Enforce recursion-depth and live-task limits.** — 5 pt
+- [ ] **P0 — Enforce cooperative interruption across VM, JIT, AOT, and callback boundaries.** — 8 pt
 - [ ] **P1 — Ship trusted-native and verified-script plugin examples.** — 5 pt
 
 Exit: a native host can load a user script, expose a typed API, call the script, receive callbacks, and enforce capabilities without IPC.
 
 ## Milestone 4: developer toolchain
 
-**Progress: 0 / 58 pt (0.0%).**
+**Progress: 0 / 63 pt (0.0%).**
 
-- [ ] **P0 — Implement `lang` build/package/test/fmt/lint/doc commands.** — 8 pt
-- [ ] **P0 — Implement the manifest and lockfile with deterministic resolution, checksums, offline mode, and target conditions.** — 13 pt
-- [ ] **P0 — Complete LSP navigation, completion, rename, semantic tokens, and code actions.** — 13 pt
+- [ ] **P0 — Implement `lang` build, run, and test orchestration.** — 5 pt
+- [ ] **P0 — Define package/workspace manifests and target conditions.** — 5 pt
+- [ ] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt
+- [ ] **P0 — Integrate package, fmt, lint, and doc commands into the CLI.** — 5 pt
+- [ ] **P0 — Implement LSP navigation, completion, and semantic tokens.** — 8 pt
+- [ ] **P0 — Implement safe rename and code actions.** — 8 pt
 - [ ] **P0 — Implement a DAP adapter with mixed native/VM stacks.** — 8 pt
 - [ ] **P1 — Add compile-time/runtime profiling, allocation traces, and rebuild explanations.** — 8 pt
 - [ ] **P1 — Build an install/update/channel tool comparable in role to `rustup`.** — 8 pt
@@ -169,12 +203,16 @@ Exit: a new developer can install one tool, create a package, develop in an edit
 
 ## Milestone 5: ecosystem and compatibility
 
-**Progress: 0 / 55 pt (0.0%).**
+**Progress: 0 / 65 pt (0.0%).**
 
-- [ ] **P0 — Define editions and deprecation policy, then build the migration/fix tool and compatibility matrix.** — 13 pt
+- [ ] **P0 — Define editions, deprecation policy, and the compatibility matrix.** — 5 pt
+- [ ] **P0 — Build the edition migration and machine-applicable fix tool.** — 8 pt
 - [ ] **P0 — Complete the public-registry threat model before accepting uploads.** — 8 pt
+- [ ] **P0 — Implement registry package storage, indexing, download, and immutable-version rules.** — 5 pt
+- [ ] **P0 — Implement authenticated publish/yank/owner operations and an audit trail.** — 5 pt
 - [ ] **P0 — Implement signed release manifests and package provenance.** — 8 pt
-- [ ] **P0 — Add a WebAssembly component target for sandboxed portable plugins.** — 13 pt
+- [ ] **P0 — Add a WebAssembly component target for portable plugins.** — 8 pt
+- [ ] **P0 — Validate WebAssembly plugin sandbox and capability conformance.** — 5 pt
 - [ ] **P1 — Provide documentation hosting and package-metadata search.** — 5 pt
 - [ ] **P1 — Evaluate an LLVM release backend using published benchmarks and debug-quality criteria.** — 8 pt
 
@@ -182,11 +220,17 @@ Exit: the language can evolve without silently breaking source, package, bytecod
 
 ## Milestone 6: self-hosting
 
-**Progress: 0 / 50 pt (0.0%).**
+**Progress: 0 / 74 pt (0.0%).**
 
 - [ ] **P0 — Define and freeze the self-hosting subset.** — 5 pt
-- [ ] **P0 — Implement the frontend and core compiler stages in the language.** — 21 pt
-- [ ] **P0 — Make the stage 0 Rust compiler build stage 1 and stage 1 build stage 2.** — 13 pt
+- [ ] **P0 — Implement lossless syntax, parsing, and diagnostics in the language.** — 8 pt
+- [ ] **P0 — Implement resolution, type checking, and typed HIR in the language.** — 8 pt
+- [ ] **P0 — Implement MIR lowering and verification in the language.** — 8 pt
+- [ ] **P0 — Implement the required bytecode and native code-generation paths in the language.** — 8 pt
+- [ ] **P0 — Implement the minimal package and compiler driver needed for bootstrap.** — 5 pt
+- [ ] **P0 — Make the stage 0 Rust compiler build stage 1.** — 8 pt
+- [ ] **P0 — Make stage 1 build stage 2 without using untracked stage 0 behavior.** — 8 pt
+- [ ] **P0 — Run the same conformance suite against stages 0, 1, and 2.** — 5 pt
 - [ ] **P0 — Compare reproducible outputs on both tier-1 platforms.** — 8 pt
 - [ ] **P1 — Document bootstrap trust and disaster-recovery procedures.** — 3 pt
 
@@ -194,12 +238,16 @@ Exit: stage 2 passes the same conformance suite as stage 0 and can build the sup
 
 ## Milestone 7: additional frontends
 
-**Progress: 0 / 39 pt (0.0%).**
+**Progress: 0 / 55 pt (0.0%).**
 
-- [ ] **P0 — Demonstrate that a distinct high-level or domain-specific frontend provides requirements that libraries, profiles, or syntax sugar cannot serve.** — 5 pt
-- [ ] **P0 — Implement a frontend-specific HIR and lower through shared MIR only where the core represents semantics faithfully.** — 13 pt
-- [ ] **P0 — Use the component ABI where memory, effect, or runtime models differ.** — 8 pt
-- [ ] **P0 — Add cross-language debugging, package metadata, and conformance tests before declaring interoperability stable.** — 13 pt
+- [ ] **P0 — Demonstrate that a distinct frontend provides requirements that libraries, profiles, or syntax sugar cannot serve.** — 5 pt
+- [ ] **P0 — Specify the frontend semantics and its shared-MIR/component boundary.** — 5 pt
+- [ ] **P0 — Implement frontend-specific parsing, HIR, and semantic analysis.** — 8 pt
+- [ ] **P0 — Lower only faithfully represented semantics through the shared typed MIR.** — 8 pt
+- [ ] **P0 — Implement component adapters where memory, effect, or runtime models differ.** — 8 pt
+- [ ] **P0 — Add cross-language package metadata and version resolution.** — 5 pt
+- [ ] **P0 — Add differential cross-language conformance tests.** — 8 pt
+- [ ] **P0 — Add cross-language stack traces, source mapping, and debugger integration.** — 8 pt
 
 Exit: a second frontend adds clear user value without weakening the first language’s safety or making the shared IR an unmaintainable union of unrelated semantics.
 
