@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 14 prototype benchmark
+      - name: Record the schema 15 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 14) {
-            throw "expected benchmark schema 14, got $($result.schema_version)"
+          if ($result.schema_version -ne 15) {
+            throw "expected benchmark schema 15, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -94,6 +94,28 @@ jobs:
           }
           if ($result.measurements.name -notcontains "rust_host_allocation_churn_call" -or $result.measurements.name -notcontains "vm_host_allocation_churn_call" -or $result.measurements.name -notcontains "jit_host_allocation_churn_call") {
             throw "benchmark did not record the Windows host-allocation churn measurements"
+          }
+          $componentRows = @($result.component_boundary_measurements)
+          $requiredComponentRows = @(
+            "component_metadata_validate_scalar",
+            "component_interface_negotiate_three_candidates",
+            "component_scalar_dispatch_direct",
+            "component_scalar_dispatch_validated",
+            "resource_table_owner_insert_release",
+            "resource_table_shared_borrow_end_release",
+            "canonical_resource_owner_transfer_persist",
+            "canonical_resource_borrow_scope_cleanup"
+          )
+          foreach ($row in $requiredComponentRows) {
+            if ($componentRows.name -notcontains $row) {
+              throw "benchmark did not record component-boundary row $row"
+            }
+          }
+          $requiredComponentSeries = @("metadata_validation", "interface_negotiation", "scalar_dispatch", "resource_lifecycle")
+          foreach ($series in $requiredComponentSeries) {
+            if ($componentRows.series -notcontains $series) {
+              throw "benchmark did not record component-boundary series $series"
+            }
           }
           if ($result.heap_measurement_scope -ne "host_callback_requested_payload_bytes") {
             throw "benchmark recorded unexpected heap measurement scope $($result.heap_measurement_scope)"
