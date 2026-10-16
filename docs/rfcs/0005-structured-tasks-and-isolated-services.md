@@ -4,10 +4,10 @@
 
 [日本語版](../ja/rfcs/0005-structured-tasks-and-isolated-services.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-16
+- Last updated: 2026-10-17
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -24,7 +24,7 @@ Define the initial concurrency and cancellation baseline:
 - Accepted messages are processed in mailbox-enqueue order. Cancellation waits for an active handler boundary, then discards queued payloads in order, destroys service state once, and rejects later sends.
 - The base model exposes neither general shared mutable state nor an implicit global executor.
 
-Exact task/service API spelling and scheduler policy remain provisional. The lifetime, isolation, ordering, cancellation, cleanup, and cross-mode rules are the proposed semantic commitments.
+Exact task/service API spelling and scheduler policy remain provisional. The lifetime, isolation, ordering, cancellation, cleanup, and cross-mode rules are accepted semantic commitments.
 
 ## Motivation
 
@@ -226,11 +226,11 @@ Unscoped futures simplify spawning but permit children to outlive borrowed/owned
 
 ## Open questions
 
-There are no blocking semantic questions for choosing the strict initial policy. Repository-owner disposition may accept it, request revision, or reject it.
+There are no blocking semantic questions for the accepted strict initial policy. The repository owner accepted it on 2026-10-17.
 
 Optional follow-ups include exact surface APIs, detached-task requirements, mailbox backpressure, supervision/restart, static executor specialization, and whether pinned shared-frame borrows or explicit mutation capabilities deserve separate RFCs.
 
-Review outcome: **ready for decision**.
+Decision: **accepted on 2026-10-17** by the repository owner.
 
 ## Sources
 

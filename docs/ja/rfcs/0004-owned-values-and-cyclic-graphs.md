@@ -4,10 +4,10 @@
 
 [English version](../../../docs/rfcs/0004-owned-values-and-cyclic-graphs.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-16
+- Last updated: 2026-10-17
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -24,7 +24,7 @@
 - Lexicalな `arena` が、任意のcycleを形成できるgraph nodeを所有します。Arena referenceはarena regionからescape／crossできず、arena exitはlive nodeを逆allocation順で正確に1回destroyします。
 - Base runtimeはtracing garbage collectorを必須にしません。将来のopt-in traced heapには別RFCと別typeが必要です。
 
-正確なconstructor／parameter-modifier spellingは暫定ですが、ownership category、cycle policy、failure atomicity、execution-mode equivalenceをsemantic commitmentとして提案します。
+正確なconstructor／parameter-modifier spellingは暫定ですが、ownership category、cycle policy、failure atomicity、execution-mode equivalenceはaccepted semantic commitmentです。
 
 ## 動機
 
@@ -222,7 +222,7 @@ Rust `Rc`／Swift ARCが示す馴染みのあるdesignです。Dynamic cycle-pre
 5. Source heap layout／raw handleを公開せず、source ownershipをRFC 0003 adapterへ統合します。
 6. Malformed MIR／bytecode operationとrandomized graph sequenceをfuzzし、generation／count exhaustion、failed-publication atomicityを扱います。
 7. Stabilization前に、上記runtime／memory benchmarkをmacOS AArch64／Windows x86-64で記録します。
-8. Guide、formatter、linter、LSP、DAP、migration toolingを更新し、RFCを `proposed` のままowner dispositionを要求します。
+8. Accepted policyを実装するようguide、formatter、linter、LSP、DAP、migration toolingを更新します。将来のsemantic changeには新しいRFC dispositionが必要です。
 
 ## Test plan
 
@@ -236,11 +236,11 @@ Rust `Rc`／Swift ARCが示す馴染みのあるdesignです。Dynamic cycle-pre
 
 ## 未解決事項
 
-提案policyを選択するためのblocking semantic questionはありません。Repository ownerはaccept、revision要求、rejectのいずれかを記録できます。
+Accepted policyにblocking semantic questionはありません。Repository ownerは2026-10-17にacceptしました。
 
 Optional follow-upは、最終constructor／parameter／API spelling、checkを除去できるstatic acyclicity annotation、allocator選定、将来concurrency model下のweak-upgrade ordering、後で別名traced heapを提案するかどうかです。
 
-Review outcome：**ready for decision**。
+Decision：Repository ownerにより **2026-10-17にaccepted**。
 
 ## 情報源
 

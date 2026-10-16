@@ -4,10 +4,10 @@
 
 [日本語版](../ja/rfcs/0002-prototype-control-flow.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-16
+- Last updated: 2026-10-17
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -146,7 +146,7 @@ Backend optimizations may restructure blocks or remove redundant work only when 
 
 ## ABI and compatibility
 
-The syntax and semantics remain proposed and carry no compatibility guarantee until this RFC is explicitly accepted. After acceptance, changes to wrapping arithmetic, condition typing, evaluation order, or loop/assignment behavior require the repository's language-compatibility process and, once editions exist, an edition or migration plan where source meaning changes.
+The syntax and semantics are accepted by this RFC. Changes to wrapping arithmetic, condition typing, evaluation order, or loop/assignment behavior require the repository's language-compatibility process and, once editions exist, an edition or migration plan where source meaning changes.
 
 MIR IDs, block layouts, bytecode registers, native calling conventions, object symbols, and debug encodings remain implementation details or separately versioned formats. This RFC does not make any of them a stable interface.
 
@@ -154,7 +154,7 @@ MIR IDs, block layouts, bytecode registers, native calling conventions, object s
 
 The first implementation assigns stable diagnostic identities to these conditions:
 
-| Proposed code | Condition | Required primary span |
+| Accepted code | Condition | Required primary span |
 | --- | --- | --- |
 | `SRC0001` | Decimal literal is outside the `i64` range | Literal |
 | `SRC0002` | Name is unknown or used before its declaration | Offending name |
@@ -166,7 +166,7 @@ The first implementation assigns stable diagnostic identities to these condition
 
 The lossless parser retains comments, whitespace, delimiters, and erroneous tokens. Recovery synchronizes at semicolons and closing braces without discarding the remainder of the function. The formatter emits the brace and semicolon style shown above and is idempotent. LSP diagnostics reuse parser/type-checker results and remain available for incomplete blocks. The debugger should present source local names even when assignments lower to different SSA values; unavailable optimized values must be labeled honestly.
 
-These diagnostic codes are proposals and become stable only when this RFC is accepted and the corresponding behavior is implemented.
+These diagnostic identities are accepted by this RFC but become stable only when the corresponding behavior is implemented.
 
 ## Performance and cost model
 
@@ -201,7 +201,7 @@ Support `if` and `return` but omit `while` and assignment. This is smaller, but 
 ## Implementation plan
 
 1. Add a lossless parser and syntax nodes for the exact grammar, with snapshots for valid, incomplete, and recovered input.
-2. Resolve names and type-check `i64`, internal `bool`, mutation, conditions, and explicit returns while preserving source spans and proposed diagnostic identities.
+2. Resolve names and type-check `i64`, internal `bool`, mutation, conditions, and explicit returns while preserving source spans and the accepted diagnostic identities.
 3. Lower functions, `if`, and `while` to the existing typed MIR. Represent assigned values across joins and back-edges with block arguments and parameters.
 4. Reuse the existing MIR-to-bytecode and MIR-to-Cranelift paths; do not add source-specific behavior to either backend.
 5. Add formatter round-trip/idempotence tests, LSP diagnostics for incomplete programs, and source maps for VM/native debugging.
@@ -211,7 +211,7 @@ Support `if` and `return` but omit `while` and assignment. This is smaller, but 
 
 - Parser snapshots for precedence, negative literals, nested blocks, missing semicolons/braces, and recovery into following statements.
 - Compile-pass tests for add, minimum, countdown, two-value accumulation, conditional sum, zero iterations, nested `if`, and assignments retained across joins.
-- Compile-fail tests for every proposed diagnostic code, with primary/secondary spans and stable machine-readable fields.
+- Compile-fail tests for every accepted diagnostic code, with primary/secondary spans and stable machine-readable fields.
 - MIR snapshots proving signed comparison, wrapping addition, branch targets, back-edges, and typed block parameters.
 - VM/JIT differential tables containing zero, negative values, `i64::MIN`, `i64::MAX`, wrapping overflow, both conditional paths, and bounded loops.
 - AOT link-and-run coverage on macOS AArch64 and Windows x86-64 for representative source-generated objects.
@@ -225,7 +225,7 @@ Support `if` and `return` but omit `while` and assignment. This is smaller, but 
 - Which checked-arithmetic syntax should a later edition add while retaining wrapping `+`?
 - Should `break`, `continue`, and value-producing loop expressions be designed together in a later control-flow RFC?
 
-Review outcome: **ready for decision** for this narrow prototype subset. There are no additional prototype blockers because the corresponding MIR shapes already have VM/JIT differential, AOT, and benchmark evidence. Repository-owner acceptance is still required; immutable bindings, user-visible boolean storage, checked-arithmetic spelling, and loop expressions are optional follow-ups.
+Decision: **accepted on 2026-10-17** by the repository owner for this narrow prototype subset. There are no additional prototype blockers because the corresponding MIR shapes already have VM/JIT differential, AOT, and benchmark evidence. Immutable bindings, user-visible boolean storage, checked-arithmetic spelling, and loop expressions remain optional follow-ups.
 
 ## Sources
 

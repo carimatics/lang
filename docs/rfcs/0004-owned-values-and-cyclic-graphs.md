@@ -4,10 +4,10 @@
 
 [日本語版](../ja/rfcs/0004-owned-values-and-cyclic-graphs.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-16
+- Last updated: 2026-10-17
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -24,7 +24,7 @@ Define the initial source-language ownership and cyclic-graph policy:
 - A lexical `arena` owns graph nodes that may form arbitrary cycles. Arena references cannot escape or cross arena regions, and arena exit destroys live nodes exactly once in reverse allocation order.
 - The base runtime does not require a tracing garbage collector. A future opt-in traced heap would require a separate RFC and type.
 
-The exact constructor and parameter-modifier spellings remain provisional, but the ownership categories, cycle policy, failure atomicity, and execution-mode equivalence in this RFC are proposed as semantic commitments.
+The exact constructor and parameter-modifier spellings remain provisional, but the ownership categories, cycle policy, failure atomicity, and execution-mode equivalence in this RFC are accepted semantic commitments.
 
 ## Motivation
 
@@ -222,7 +222,7 @@ Rust `Rc` and Swift ARC show this familiar design. It avoids dynamic cycle-prefl
 5. Integrate source ownership with RFC 0003 adapters without exposing source heap layout or raw handles.
 6. Add fuzzing for malformed MIR/bytecode operations and randomized graph sequences, including generation/count exhaustion and failed-publication atomicity.
 7. Record the separate runtime and memory benchmarks listed above on macOS AArch64 and Windows x86-64 before stabilization.
-8. Update the guide, formatter, linter, LSP, DAP, and migration tooling, then request owner disposition while the RFC remains `proposed`.
+8. Update the guide, formatter, linter, LSP, DAP, and migration tooling to implement the accepted policy; future semantic changes require a new RFC disposition.
 
 ## Test plan
 
@@ -236,11 +236,11 @@ Rust `Rc` and Swift ARC show this familiar design. It avoids dynamic cycle-prefl
 
 ## Open questions
 
-There are no blocking semantic questions for choosing the proposed policy. Repository-owner disposition may accept it, request revision, or reject it.
+There are no blocking semantic questions for the accepted policy. The repository owner accepted it on 2026-10-17.
 
 Optional follow-ups are the final constructor/parameter/API spellings, static acyclicity annotations that can remove checks, allocator selection, weak-upgrade ordering under the future concurrency model, and whether a separately named traced heap should be proposed later.
 
-Review outcome: **ready for decision**.
+Decision: **accepted on 2026-10-17** by the repository owner.
 
 ## Sources
 

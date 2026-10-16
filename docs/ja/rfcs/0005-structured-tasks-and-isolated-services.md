@@ -4,10 +4,10 @@
 
 [English version](../../../docs/rfcs/0005-structured-tasks-and-isolated-services.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-16
+- Last updated: 2026-10-17
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -24,7 +24,7 @@
 - Accepted messageはmailbox enqueue順で処理します。Cancellationはactive handler boundaryまで待ち、queued payloadを順番にdiscardし、service stateを1回destroyして、後続sendを拒否します。
 - Base modelはgeneral shared mutable stateもimplicit global executorも公開しません。
 
-正確なtask／service API spellingとscheduler policyは暫定です。Lifetime、isolation、ordering、cancellation、cleanup、cross-mode ruleが提案するsemantic commitmentです。
+正確なtask／service API spellingとscheduler policyは暫定です。Lifetime、isolation、ordering、cancellation、cleanup、cross-mode ruleはaccepted semantic commitmentです。
 
 ## 動機
 
@@ -226,11 +226,11 @@ Unscoped futureはspawnを簡単にしますが、childがborrowed／owned paren
 
 ## 未解決事項
 
-Strict initial policyを選択するためのblocking semantic questionはありません。Repository ownerはaccept、revision要求、rejectのいずれかを記録できます。
+Accepted strict initial policyにblocking semantic questionはありません。Repository ownerは2026-10-17にacceptしました。
 
 Optional follow-upはexact surface API、detached-task requirement、mailbox backpressure、supervision／restart、static executor specialization、pinned shared-frame borrow／explicit mutation capabilityを別RFCにするかどうかです。
 
-Review outcome：**ready for decision**。
+Decision：Repository ownerにより **2026-10-17にaccepted**。
 
 ## 情報源
 

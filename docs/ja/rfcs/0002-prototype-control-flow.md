@@ -4,10 +4,10 @@
 
 [English](../../../docs/rfcs/0002-prototype-control-flow.md)
 
-- Status：proposed
+- Status：accepted
 - Authors：Project contributors
 - Created：2026-10-16
-- Last updated：2026-10-16
+- Last updated：2026-10-17
 - Tracking issue：
 - Supersedes：
 - Superseded by：
@@ -146,7 +146,7 @@ Backend optimizationは、effect導入後のstatement order、wrapping result、
 
 ## ABIとcompatibility
 
-Syntaxとsemanticsはproposedのままであり、このRFCが明示的にacceptされるまでcompatibility guaranteeを持ちません。Accept後にwrapping arithmetic、condition typing、evaluation order、loop／assignment behaviorを変更する場合は、repositoryのlanguage-compatibility processが必要です。Edition導入後にsourceの意味を変える場合は、editionまたはmigration planも必要です。
+SyntaxとsemanticsはこのRFCによりacceptedです。Wrapping arithmetic、condition typing、evaluation order、loop／assignment behaviorを変更する場合は、repositoryのlanguage-compatibility processが必要です。Edition導入後にsourceの意味を変える場合は、editionまたはmigration planも必要です。
 
 MIR ID、block layout、bytecode register、native calling convention、object symbol、debug encodingは、implementation detailまたは個別にversion管理されるformatのままです。このRFCはそれらをstable interfaceにしません。
 
@@ -154,7 +154,7 @@ MIR ID、block layout、bytecode register、native calling convention、object s
 
 最初の実装は、次のconditionにstable diagnostic identityを割り当てます。
 
-| Proposed code | Condition | 必須primary span |
+| Accepted code | Condition | 必須primary span |
 | --- | --- | --- |
 | `SRC0001` | Decimal literalが `i64` range外 | Literal |
 | `SRC0002` | Nameがunknownまたはdeclaration前にuseされた | Offending name |
@@ -166,7 +166,7 @@ MIR ID、block layout、bytecode register、native calling convention、object s
 
 Lossless parserはcomment、whitespace、delimiter、error tokenを保持します。Recoveryはsemicolonとclosing braceでsynchronizeし、functionの残りを破棄しません。Formatterは上記のbrace／semicolon styleを出力し、idempotentです。LSP diagnosticsはparser／type-checker resultを再利用し、不完全なblockでも利用可能なままにします。Debuggerは、assignmentが異なるSSA valueへloweringされてもsource local nameを表示すべきです。利用できないoptimized valueは正直にlabelします。
 
-これらのdiagnostic codeはproposalであり、このRFCがacceptされ、対応behaviorが実装されて初めてstableになります。
+これらのdiagnostic identityはこのRFCによりacceptedですが、対応behaviorが実装されて初めてstableになります。
 
 ## Performanceとcost model
 
@@ -201,7 +201,7 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 ## 実装計画
 
 1. 正確なgrammarのためのlossless parserとsyntax nodeを追加し、valid、incomplete、recovered inputのsnapshotを用意する。
-2. Nameをresolveし、source spanとproposed diagnostic identityを保持しながら、`i64`、内部 `bool`、mutation、condition、明示的returnをtype-checkする。
+2. Nameをresolveし、source spanとaccepted diagnostic identityを保持しながら、`i64`、内部 `bool`、mutation、condition、明示的returnをtype-checkする。
 3. Function、`if`、`while` を既存typed MIRへloweringする。Joinとback-edgeをまたぐassigned valueをblock argument／parameterで表現する。
 4. 既存MIR-to-bytecode／MIR-to-Cranelift pathを再利用し、どちらのbackendにもsource固有behaviorを追加しない。
 5. Formatter round-trip／idempotence test、不完全program向けLSP diagnostics、VM／native debugging向けsource mapを追加する。
@@ -211,7 +211,7 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 - Precedence、negative literal、nested block、missing semicolon／brace、後続statementへのrecoveryを扱うparser snapshot。
 - Add、minimum、countdown、2-value accumulation、conditional sum、zero iteration、nested `if`、joinをまたいで保持されるassignmentのcompile-pass test。
-- Proposed diagnostic codeごとのcompile-fail test。Primary／secondary spanとstable machine-readable fieldを検証する。
+- Accepted diagnostic codeごとのcompile-fail test。Primary／secondary spanとstable machine-readable fieldを検証する。
 - Signed comparison、wrapping addition、branch target、back-edge、typed block parameterを証明するMIR snapshot。
 - Zero、negative value、`i64::MIN`、`i64::MAX`、wrapping overflow、両conditional path、bounded loopを含むVM／JIT differential table。
 - Representativeなsource-generated objectについて、macOS AArch64とWindows x86-64のAOT link-and-run coverage。
@@ -225,7 +225,7 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 - Wrapping `+` を維持しながら、後続editionでどのchecked-arithmetic syntaxを追加すべきか。
 - `break`、`continue`、value-producing loop expressionを後続control-flow RFCでまとめてdesignすべきか。
 
-レビュー結果：この狭いprototype subsetについて **ready for decision**。対応するMIR shapeにはVM／JIT differential、AOT、benchmark evidenceがすでにあるため、追加のprototype blockerはありません。Repository ownerによるacceptanceは引き続き必要です。Immutable binding、user-visible boolean storage、checked-arithmetic spelling、loop expressionはoptional follow-upです。
+Decision：この狭いprototype subsetはrepository ownerにより **2026-10-17にaccepted**。対応するMIR shapeにはVM／JIT differential、AOT、benchmark evidenceがすでにあるため、追加のprototype blockerはありません。Immutable binding、user-visible boolean storage、checked-arithmetic spelling、loop expressionはoptional follow-upのままです。
 
 ## 情報源
 
