@@ -19,9 +19,10 @@ use lang::component_conformance::{
 use lang::linker::{LinkRequest, LinkTarget, SystemLinker};
 use lang::{
     PROTOTYPE_ALLOCATE_BURST_HOST, PROTOTYPE_ALLOCATE_CHURN_HOST, PROTOTYPE_ALLOCATE_HOST,
-    PROTOTYPE_ALLOCATION_BURST_LEN, PROTOTYPE_DOUBLE_HOST, prototype_add_function,
-    prototype_countdown_function, prototype_host_allocation_burst_function,
-    prototype_host_allocation_churn_function, prototype_host_allocation_function,
+    PROTOTYPE_ALLOCATE_VARIABLE_HOST, PROTOTYPE_ALLOCATION_BURST_LEN, PROTOTYPE_DOUBLE_HOST,
+    PROTOTYPE_VARIABLE_ALLOCATION_COUNT, prototype_add_function, prototype_countdown_function,
+    prototype_host_allocation_burst_function, prototype_host_allocation_churn_function,
+    prototype_host_allocation_function, prototype_host_allocation_variable_function,
     prototype_host_callback_function, prototype_min_function, prototype_sum_below_function,
     prototype_sum_to_function,
 };
@@ -170,6 +171,13 @@ trait I64Heap {
     fn consume(&mut self, allocation: Self::Allocation) -> i64;
 }
 
+trait I64SliceHeap {
+    type Allocation;
+
+    fn allocate(&mut self, value: i64, len: usize) -> Self::Allocation;
+    fn consume(&mut self, allocation: Self::Allocation) -> i64;
+}
+
 struct SystemHeap;
 
 impl I64Heap for SystemHeap {
@@ -184,6 +192,20 @@ impl I64Heap for SystemHeap {
     }
 }
 
+impl I64SliceHeap for SystemHeap {
+    type Allocation = Box<[i64]>;
+
+    fn allocate(&mut self, value: i64, len: usize) -> Self::Allocation {
+        let mut allocation = vec![0_i64; len].into_boxed_slice();
+        allocation[0] = value;
+        allocation
+    }
+
+    fn consume(&mut self, allocation: Self::Allocation) -> i64 {
+        allocation[0]
+    }
+}
+
 #[derive(Default)]
 struct MeasuringHeap {
     allocation_count: usize,
@@ -194,6 +216,11 @@ struct MeasuringHeap {
 
 struct MeasuredI64 {
     allocation: Box<i64>,
+    bytes: usize,
+}
+
+struct MeasuredI64Slice {
+    allocation: Box<[i64]>,
     bytes: usize,
 }
 
@@ -233,6 +260,29 @@ impl I64Heap for MeasuringHeap {
     }
 }
 
+impl I64SliceHeap for MeasuringHeap {
+    type Allocation = MeasuredI64Slice;
+
+    fn allocate(&mut self, value: i64, len: usize) -> Self::Allocation {
+        let bytes = std::mem::size_of::<i64>() * len;
+        let mut allocation = vec![0_i64; len].into_boxed_slice();
+        allocation[0] = value;
+        self.allocation_count += 1;
+        self.total_allocated_bytes += bytes;
+        self.live_bytes += bytes;
+        self.peak_live_bytes = self.peak_live_bytes.max(self.live_bytes);
+        MeasuredI64Slice { allocation, bytes }
+    }
+
+    fn consume(&mut self, allocation: Self::Allocation) -> i64 {
+        let MeasuredI64Slice { allocation, bytes } = allocation;
+        let value = allocation[0];
+        drop(allocation);
+        self.live_bytes -= bytes;
+        value
+    }
+}
+
 struct PreparedWorkloads<'a> {
     add_program: &'a lang_bytecode::Program,
     min_program: &'a lang_bytecode::Program,
@@ -243,6 +293,7 @@ struct PreparedWorkloads<'a> {
     host_allocation_program: &'a lang_bytecode::Program,
     host_allocation_burst_program: &'a lang_bytecode::Program,
     host_allocation_churn_program: &'a lang_bytecode::Program,
+    host_allocation_variable_program: &'a lang_bytecode::Program,
     host_functions: &'a HostFunctionRegistry,
     interruption: &'a InterruptionFlag,
     deadline: Instant,
@@ -255,6 +306,7 @@ struct PreparedWorkloads<'a> {
     compiled_host_allocation: &'a CompiledFunction,
     compiled_host_allocation_burst: &'a CompiledFunction,
     compiled_host_allocation_churn: &'a CompiledFunction,
+    compiled_host_allocation_variable: &'a CompiledFunction,
 }
 
 struct ComponentBenchmarkFixture {
@@ -392,6 +444,7 @@ fn run() -> Result<(), String> {
     let host_allocation_function = prototype_host_allocation_function();
     let host_allocation_burst_function = prototype_host_allocation_burst_function();
     let host_allocation_churn_function = prototype_host_allocation_churn_function();
+    let host_allocation_variable_function = prototype_host_allocation_variable_function();
     let add_program = lower(&add_function).map_err(|error| error.to_string())?;
     let min_program = lower(&min_function).map_err(|error| error.to_string())?;
     let countdown_program = lower(&countdown_function).map_err(|error| error.to_string())?;
@@ -404,6 +457,8 @@ fn run() -> Result<(), String> {
         lower(&host_allocation_burst_function).map_err(|error| error.to_string())?;
     let host_allocation_churn_program =
         lower(&host_allocation_churn_function).map_err(|error| error.to_string())?;
+    let host_allocation_variable_program =
+        lower(&host_allocation_variable_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let component_fixture = component_benchmark_fixture()?;
     let interruption = InterruptionFlag::new();
@@ -428,6 +483,9 @@ fn run() -> Result<(), String> {
             .map_err(|error| error.to_string())?;
     let compiled_host_allocation_churn =
         CompiledFunction::compile_with_hosts(&host_allocation_churn_function, &host_functions)
+            .map_err(|error| error.to_string())?;
+    let compiled_host_allocation_variable =
+        CompiledFunction::compile_with_hosts(&host_allocation_variable_function, &host_functions)
             .map_err(|error| error.to_string())?;
     let aot_add = emit_host_object(&add_function).map_err(|error| error.to_string())?;
     let aot_min = emit_host_object(&min_function).map_err(|error| error.to_string())?;
@@ -457,6 +515,7 @@ fn run() -> Result<(), String> {
         host_allocation_program: &host_allocation_program,
         host_allocation_burst_program: &host_allocation_burst_program,
         host_allocation_churn_program: &host_allocation_churn_program,
+        host_allocation_variable_program: &host_allocation_variable_program,
         host_functions: &host_functions,
         interruption: &interruption,
         deadline,
@@ -469,6 +528,7 @@ fn run() -> Result<(), String> {
         compiled_host_allocation: &compiled_host_allocation,
         compiled_host_allocation_burst: &compiled_host_allocation_burst,
         compiled_host_allocation_churn: &compiled_host_allocation_churn,
+        compiled_host_allocation_variable: &compiled_host_allocation_variable,
     };
     check_results(&workloads)?;
     warm_up(config.runtime_iterations, &workloads);
@@ -884,6 +944,37 @@ fn run() -> Result<(), String> {
                 .expect("compiled host-allocation churn callback has the expected signature")
         },
     ));
+    measurements.push(measure_calls(
+        "rust_host_allocation_variable_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| prototype_allocate_variable(iteration as i64),
+    ));
+    measurements.push(measure_calls(
+        "vm_host_allocation_variable_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            execute_with_hosts(
+                &host_allocation_variable_program,
+                &[iteration as i64],
+                &host_functions,
+            )
+            .expect("verified host-allocation variable-size bytecode executes")
+        },
+    ));
+    measurements.push(measure_calls(
+        "jit_host_allocation_variable_call",
+        config.samples,
+        config.runtime_iterations,
+        |iteration| {
+            compiled_host_allocation_variable
+                .invoke_i64_1(iteration as i64)
+                .expect(
+                    "compiled host-allocation variable-size callback has the expected signature",
+                )
+        },
+    ));
 
     let mut component_boundary_measurements = Vec::new();
     component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
@@ -1132,6 +1223,12 @@ fn prototype_host_registry() -> Result<HostFunctionRegistry, String> {
     host_functions
         .register_i64(PROTOTYPE_ALLOCATE_CHURN_HOST, prototype_allocate_churn)
         .map_err(|error| error.to_string())?;
+    host_functions
+        .register_i64(
+            PROTOTYPE_ALLOCATE_VARIABLE_HOST,
+            prototype_allocate_variable,
+        )
+        .map_err(|error| error.to_string())?;
     Ok(host_functions)
 }
 
@@ -1272,6 +1369,11 @@ extern "C" fn prototype_allocate_churn(value: i64) -> i64 {
     allocation_churn(value, &mut SystemHeap)
 }
 
+#[inline(never)]
+extern "C" fn prototype_allocate_variable(value: i64) -> i64 {
+    allocation_variable(value, &mut SystemHeap)
+}
+
 fn allocation_roundtrip<H: I64Heap>(value: i64, heap: &mut H) -> i64 {
     let allocation = black_box(heap.allocate(value));
     black_box(heap.consume(allocation))
@@ -1311,7 +1413,17 @@ fn allocation_churn<H: I64Heap>(value: i64, heap: &mut H) -> i64 {
         })
 }
 
-fn heap_measurements() -> [HeapMeasurement; 3] {
+fn allocation_variable<H: I64SliceHeap>(value: i64, heap: &mut H) -> i64 {
+    let allocations: [H::Allocation; PROTOTYPE_VARIABLE_ALLOCATION_COUNT] =
+        std::array::from_fn(|index| {
+            black_box(heap.allocate(value.wrapping_add(index as i64), index + 1))
+        });
+    allocations.into_iter().fold(0_i64, |sum, allocation| {
+        sum.wrapping_add(black_box(heap.consume(allocation)))
+    })
+}
+
+fn heap_measurements() -> [HeapMeasurement; 4] {
     [
         measure_heap_workload("host_allocation_call", |heap| {
             allocation_roundtrip(-9, heap)
@@ -1321,6 +1433,9 @@ fn heap_measurements() -> [HeapMeasurement; 3] {
         }),
         measure_heap_workload("host_allocation_churn_call", |heap| {
             allocation_churn(-9, heap)
+        }),
+        measure_heap_workload("host_allocation_variable_call", |heap| {
+            allocation_variable(-9, heap)
         }),
     ]
 }
@@ -1451,6 +1566,17 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
         .compiled_host_allocation_churn
         .invoke_i64_1(-9)
         .map_err(|error| error.to_string())?;
+    let expected_host_allocation_variable = prototype_allocate_variable(-9);
+    let vm_host_allocation_variable = execute_with_hosts(
+        workloads.host_allocation_variable_program,
+        &[-9],
+        workloads.host_functions,
+    )
+    .map_err(|error| error.to_string())?;
+    let jit_host_allocation_variable = workloads
+        .compiled_host_allocation_variable
+        .invoke_i64_1(-9)
+        .map_err(|error| error.to_string())?;
 
     if (
         vm_add,
@@ -1463,6 +1589,8 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
         jit_host_allocation_burst,
         vm_host_allocation_churn,
         jit_host_allocation_churn,
+        vm_host_allocation_variable,
+        jit_host_allocation_variable,
     ) != (
         expected_add,
         expected_add,
@@ -1474,6 +1602,8 @@ fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
         expected_host_allocation_burst,
         expected_host_allocation_churn,
         expected_host_allocation_churn,
+        expected_host_allocation_variable,
+        expected_host_allocation_variable,
     ) {
         return Err("execution modes disagreed before measurement".to_owned());
     }
@@ -1617,6 +1747,23 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
                 .compiled_host_allocation_churn
                 .invoke_i64_1(value)
                 .expect("compiled host-allocation churn callback has the expected signature"),
+        );
+        black_box(prototype_allocate_variable(value));
+        black_box(
+            execute_with_hosts(
+                workloads.host_allocation_variable_program,
+                &[value],
+                workloads.host_functions,
+            )
+            .expect("verified host-allocation variable-size bytecode executes"),
+        );
+        black_box(
+            workloads
+                .compiled_host_allocation_variable
+                .invoke_i64_1(value)
+                .expect(
+                    "compiled host-allocation variable-size callback has the expected signature",
+                ),
         );
     }
 }
@@ -2007,7 +2154,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 15,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 16,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -2446,7 +2593,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_fifteen_retains_existing_measurements_and_separates_component_series() {
+    fn schema_sixteen_retains_existing_measurements_and_separates_component_series() {
         let measurements = [
             Measurement::from_samples("vm_countdown_interruptible_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_countdown_deadline_call", 1, vec![1.0, 2.0, 3.0]),
@@ -2456,6 +2603,9 @@ mod tests {
             Measurement::from_samples("rust_host_allocation_churn_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_host_allocation_churn_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("jit_host_allocation_churn_call", 1, vec![1.0, 2.0, 3.0]),
+            Measurement::from_samples("rust_host_allocation_variable_call", 1, vec![1.0, 2.0, 3.0]),
+            Measurement::from_samples("vm_host_allocation_variable_call", 1, vec![1.0, 2.0, 3.0]),
+            Measurement::from_samples("jit_host_allocation_variable_call", 1, vec![1.0, 2.0, 3.0]),
         ];
         let process_memory_measurements = [ProcessMemoryMeasurement::from_samples(
             "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
@@ -2523,7 +2673,7 @@ mod tests {
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 15"));
+        assert!(output.contains("\"schema_version\": 16"));
         assert!(output.contains("\"component_boundary_measurements\": ["));
         assert!(output.contains("\"series\": \"metadata_validation\""));
         assert!(output.contains("\"series\": \"interface_negotiation\""));
@@ -2540,6 +2690,10 @@ mod tests {
         assert!(output.contains("\"name\": \"host_allocation_call\""));
         assert!(output.contains("\"name\": \"host_allocation_burst_call\""));
         assert!(output.contains("\"name\": \"host_allocation_churn_call\""));
+        assert!(output.contains("\"name\": \"host_allocation_variable_call\""));
+        assert!(output.contains("\"allocation_count\": 16"));
+        assert!(output.contains("\"total_allocated_bytes\": 1088"));
+        assert!(output.contains("\"peak_live_bytes\": 1088"));
         assert!(output.contains("\"allocation_count\": 96"));
         assert!(output.contains("\"total_allocated_bytes\": 768"));
         assert!(output.contains("\"allocation_count\": 64"));
@@ -2566,6 +2720,9 @@ mod tests {
         assert!(output.contains("\"name\": \"rust_host_allocation_churn_call\""));
         assert!(output.contains("\"name\": \"vm_host_allocation_churn_call\""));
         assert!(output.contains("\"name\": \"jit_host_allocation_churn_call\""));
+        assert!(output.contains("\"name\": \"rust_host_allocation_variable_call\""));
+        assert!(output.contains("\"name\": \"vm_host_allocation_variable_call\""));
+        assert!(output.contains("\"name\": \"jit_host_allocation_variable_call\""));
         assert!(output.contains("\"startup_iterations\": 2"));
         assert!(output.contains("\"jit_countdown\": 3"));
         assert!(output.contains("\"jit_sum_to\": 4"));
@@ -2577,7 +2734,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_fifteen_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_sixteen_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -2633,6 +2790,13 @@ mod tests {
                     allocation_count: 96,
                     total_allocated_bytes: 768,
                     peak_live_bytes: 512,
+                    live_bytes_after: 0,
+                },
+                HeapMeasurement {
+                    name: "host_allocation_variable_call",
+                    allocation_count: 16,
+                    total_allocated_bytes: 1_088,
+                    peak_live_bytes: 1_088,
                     live_bytes_after: 0,
                 },
             ]

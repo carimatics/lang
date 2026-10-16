@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 15 prototype benchmark
+      - name: Record the schema 16 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 15) {
-            throw "expected benchmark schema 15, got $($result.schema_version)"
+          if ($result.schema_version -ne 16) {
+            throw "expected benchmark schema 16, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -95,6 +95,9 @@ jobs:
           if ($result.measurements.name -notcontains "rust_host_allocation_churn_call" -or $result.measurements.name -notcontains "vm_host_allocation_churn_call" -or $result.measurements.name -notcontains "jit_host_allocation_churn_call") {
             throw "benchmark did not record the Windows host-allocation churn measurements"
           }
+          if ($result.measurements.name -notcontains "rust_host_allocation_variable_call" -or $result.measurements.name -notcontains "vm_host_allocation_variable_call" -or $result.measurements.name -notcontains "jit_host_allocation_variable_call") {
+            throw "benchmark did not record the Windows variable-size host-allocation measurements"
+          }
           $componentRows = @($result.component_boundary_measurements)
           $requiredComponentRows = @(
             "component_metadata_validate_scalar",
@@ -131,6 +134,10 @@ jobs:
           $churnHeap = @($result.heap_measurements | Where-Object { $_.name -eq "host_allocation_churn_call" })
           if ($churnHeap.Count -ne 1 -or $churnHeap[0].allocation_count -ne 96 -or $churnHeap[0].total_allocated_bytes -ne 768 -or $churnHeap[0].peak_live_bytes -ne 512 -or $churnHeap[0].live_bytes_after -ne 0) {
             throw "benchmark recorded unexpected allocation-churn heap measurements"
+          }
+          $variableHeap = @($result.heap_measurements | Where-Object { $_.name -eq "host_allocation_variable_call" })
+          if ($variableHeap.Count -ne 1 -or $variableHeap[0].allocation_count -ne 16 -or $variableHeap[0].total_allocated_bytes -ne 1088 -or $variableHeap[0].peak_live_bytes -ne 1088 -or $variableHeap[0].live_bytes_after -ne 0) {
+            throw "benchmark recorded unexpected variable-size allocation heap measurements"
           }
           if ($result.process_memory_measurement_scope -ne "linked_aot_executable_process") {
             throw "benchmark recorded unexpected process-memory scope $($result.process_memory_measurement_scope)"
