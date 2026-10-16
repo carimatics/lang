@@ -138,6 +138,8 @@ Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用�
 | [Hylo introduction](https://hylo-lang.org/introduction/) | pageに記載なし | 2026-10-15確認 |
 | [Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/) | Living documentation、日付は非公開 | 2026-10-15確認 |
 | [Swift Book：Automatic Reference Counting](https://github.com/swiftlang/swift-book/blob/main/TSPL.docc/LanguageGuide/AutomaticReferenceCounting.md) | Source最終変更2026-01-09 | 2026-10-16確認 |
+| [Swift Evolution SE-0304：Structured Concurrency](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0304-structured-concurrency.md) | Source最終変更2026-07-29 | 2026-10-16確認 |
+| [Pony Tutorial：Reference Capability Guarantees](https://tutorial.ponylang.org/capabilities/guarantees.html) | Living documentation、日付は非公開 | 2026-10-16確認 |
 | [MLIR language reference](https://mlir.llvm.org/docs/LangRef/) | Living documentation、日付は非公開 | 2026-10-15確認 |
 | [LLVM ORC design](https://llvm.org/docs/ORCv2.html) | Living documentation、日付は非公開 | 2026-10-15確認 |
 | [Wasmtime platform support](https://docs.wasmtime.dev/stability-platform-support.html) | Living documentation、日付は非公開 | 2026-10-15確認 |

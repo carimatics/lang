@@ -138,6 +138,8 @@ The original requirements should be extended with the following:
 | [Hylo introduction](https://hylo-lang.org/introduction/) | Not published on page | Verified 2026-10-15 |
 | [Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/) | Living documentation; date not published | Verified 2026-10-15 |
 | [Swift Book: Automatic Reference Counting](https://github.com/swiftlang/swift-book/blob/main/TSPL.docc/LanguageGuide/AutomaticReferenceCounting.md) | Source last changed 2026-01-09 | Verified 2026-10-16 |
+| [Swift Evolution SE-0304: Structured Concurrency](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0304-structured-concurrency.md) | Source last changed 2026-07-29 | Verified 2026-10-16 |
+| [Pony Tutorial: Reference Capability Guarantees](https://tutorial.ponylang.org/capabilities/guarantees.html) | Living documentation; date not published | Verified 2026-10-16 |
 | [MLIR language reference](https://mlir.llvm.org/docs/LangRef/) | Living documentation; date not published | Verified 2026-10-15 |
 | [LLVM ORC design](https://llvm.org/docs/ORCv2.html) | Living documentation; date not published | Verified 2026-10-15 |
 | [Wasmtime platform support](https://docs.wasmtime.dev/stability-platform-support.html) | Living documentation; date not published | Verified 2026-10-15 |

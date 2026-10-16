@@ -14,11 +14,11 @@ Cost uses relative effort points rather than elapsed-time promises: `1` is a ver
 
 The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. A follow-up component-workstream audit separated in-memory compatibility negotiation, scalar execution-prototype integration, backend-neutral resource-adapter behavior, and boundary-cost measurement. The previous single cross-mode scalar/resource task mixed those acceptance boundaries and overlapped Milestone 3's production IDL and adapter implementation. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites. The checklist records dependency order, not a claim that an external gate is locally executable: when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
-Progress snapshot verified against this repository state on 2026-10-16 18:21 JST:
+Progress snapshot verified against this repository state on 2026-10-16 18:23 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 119 pt | 159 pt | **74.8%** |
+| 0 — design baseline (current) | 124 pt | 159 pt | **78.0%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Progress snapshot verified against this repository state on 2026-10-16 18:21 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **119 pt** | **641 pt** | **18.6%** |
+| **Overall** | **124 pt** | **641 pt** | **19.3%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 119 / 159 pt (74.8%).**
+**Progress: 124 / 159 pt (78.0%).**
 
 ### Workstream breakdown
 
@@ -40,16 +40,16 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | --- | ---: | ---: | ---: |
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
-| Resource control, ownership, and concurrency | 21 pt | 30 pt | 70.0% |
+| Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
 | Component and resource contracts | 42 pt | 45 pt | 93.3% |
 | Platform and backend evidence | 27 pt | 51 pt | 52.9% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **119 pt** | **159 pt** | **74.8%** |
+| **Milestone 0** | **124 pt** | **159 pt** | **78.0%** |
 
 Current execution state at this snapshot:
 
-- **Next unblocked local P0:** draft a decision-ready async-cancellation and shared-service concurrency RFC from the completed experiments.
-- **External gates:** the RFC 0002, RFC 0003, and RFC 0004 repository-owner decisions plus remote Windows CI/benchmark evidence.
+- **Next unblocked local P0:** time and profile the variable-size allocation callback, including its exact requested payload.
+- **External gates:** the RFC 0002 through RFC 0005 repository-owner decisions plus remote Windows CI/benchmark evidence.
 - **Final gate:** decide RFC 0001 only after the component, resource-control, and backend-evidence prerequisites are complete.
 
 ### Tasks in priority order
@@ -87,7 +87,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Measure metadata validation/negotiation, scalar dispatch, and resource lifecycle costs as separate benchmark series and document their interpretation in RFC 0003.** — 5 pt
 - [ ] **P0 — Decide RFC 0003, recording acceptance, requested revisions, or rejection.** — 3 pt
 - [x] **P0 — Draft a decision-ready ownership and cyclic-graph RFC from the completed experiments.** — 5 pt
-- [ ] **P0 — Draft a decision-ready async-cancellation and shared-service concurrency RFC from the completed experiments.** — 5 pt
+- [x] **P0 — Draft a decision-ready async-cancellation and shared-service concurrency RFC from the completed experiments.** — 5 pt
 - [ ] **P0 — Decide the ownership and cyclic-graph RFC.** — 2 pt
 - [ ] **P0 — Decide the async-cancellation and shared-service concurrency RFC.** — 2 pt
 - [ ] **P0 — Time and profile the variable-size allocation callback, including exact requested payload.** — 5 pt

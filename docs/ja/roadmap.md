@@ -14,11 +14,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Component workstreamのfollow-up監査では、in-memory compatibility negotiation、scalar execution-prototype integration、backend-neutral resource-adapter behavior、boundary-cost measurementを分離しました。従来の単一cross-mode scalar／resource taskはこれらのacceptance boundaryを混在させ、Milestone 3のproduction IDL／adapter implementationとも重複していました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
-このrepository stateに対して2026-10-16 18:21 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 18:23 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 119 pt | 159 pt | **74.8%** |
+| 0 — design baseline（現在） | 124 pt | 159 pt | **78.0%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **119 pt** | **641 pt** | **18.6%** |
+| **全体** | **124 pt** | **641 pt** | **19.3%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：119 / 159 pt（74.8%）。**
+**進捗：124 / 159 pt（78.0%）。**
 
 ### Workstream別内訳
 
@@ -40,16 +40,16 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | --- | ---: | ---: | ---: |
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
-| Resource control、ownership、concurrency | 21 pt | 30 pt | 70.0% |
+| Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
 | Component／resource contract | 42 pt | 45 pt | 93.3% |
 | Platform／backend evidence | 27 pt | 51 pt | 52.9% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **119 pt** | **159 pt** | **74.8%** |
+| **Milestone 0** | **124 pt** | **159 pt** | **78.0%** |
 
 このsnapshot時点の実行状態：
 
-- **次のunblocked local P0：** 完了済みexperimentからdecision-readyなasync-cancellation／shared-service concurrency RFCを草案化する。
-- **外部gate：** RFC 0002／RFC 0003／RFC 0004のrepository-owner decisionと、remote Windows CI／benchmark evidence。
+- **次のunblocked local P0：** Variable-size allocation callbackを正確なrequested payloadとともにtime／profileする。
+- **外部gate：** RFC 0002〜RFC 0005のrepository-owner decisionと、remote Windows CI／benchmark evidence。
 - **最終gate：** Component、resource-control、backend-evidence prerequisiteの完了後にのみRFC 0001をdecisionする。
 
 ### 優先度順のタスク
@@ -87,7 +87,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Metadata validation／negotiation、scalar dispatch、resource lifecycleのcostを別々のbenchmark seriesとして計測し、その解釈をRFC 0003へ記録する。** — 5 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
 - [x] **P0 — 完了済みexperimentからdecision-readyなownership／cyclic-graph RFCを草案化する。** — 5 pt
-- [ ] **P0 — 完了済みexperimentからdecision-readyなasync-cancellation／shared-service concurrency RFCを草案化する。** — 5 pt
+- [x] **P0 — 完了済みexperimentからdecision-readyなasync-cancellation／shared-service concurrency RFCを草案化する。** — 5 pt
 - [ ] **P0 — Ownership／cyclic-graph RFCを判断する。** — 2 pt
 - [ ] **P0 — Async-cancellation／shared-service concurrency RFCを判断する。** — 2 pt
 - [ ] **P0 — Exact requested payloadを含め、variable-size allocation callbackを計時／profileする。** — 5 pt
