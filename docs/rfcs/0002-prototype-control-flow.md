@@ -130,13 +130,13 @@ Lowering creates a new SSA value for each assignment. Values that remain live ac
 
 `i64` and the internal `bool` are copy values. They allocate no language heap storage, have no destructor, carry no borrow, and introduce no aliasing or concurrency behavior. This RFC adds no `unsafe`, FFI, capability, panic, unwinding, cancellation, or recoverable-error boundary.
 
-An unbounded loop may not terminate. The bytecode VM may stop it through the separately specified instruction-fuel interface or cooperative interruption flag; native and JIT execution currently have no equivalent enforcement. Fuel exhaustion and interruption are embedding/runtime outcomes, not values produced by source `return`.
+An unbounded loop may not terminate. The bytecode VM may stop it through the separately specified instruction-fuel interface, cooperative interruption flag, or absolute monotonic deadline; native and JIT execution currently have no equivalent enforcement. Fuel exhaustion, interruption, and deadline expiration are embedding/runtime outcomes, not values produced by source `return`.
 
 The initial frontend performs no source-level constant evaluation. If constant evaluation is added, it must use the same wrapping addition, signed comparison, and control-flow semantics and must apply a deterministic resource limit.
 
 ## Execution modes
 
-- **Bytecode VM:** structured control flow lowers to verified register bytecode. Every instruction and terminator keeps the existing fuel cost, the register count remains subject to the optional value-slot limit, and an optional shared interruption flag is observed at VM safe points.
+- **Bytecode VM:** structured control flow lowers to verified register bytecode. Every instruction and terminator keeps the existing fuel cost, the register count remains subject to the optional value-slot limit, and an optional shared interruption flag or absolute monotonic deadline is observed at VM safe points.
 - **Native AOT:** the same validated MIR lowers to native object code. Wrapping addition and signed comparison must match the VM for every `i64` input.
 - **Optional JIT:** uses the same native lowering contract as AOT and must pass the same differential input tables.
 - **Embedding:** arguments and the result use the current typed `i64` prototype boundary. This RFC adds no host calls or stable ABI.
@@ -178,7 +178,7 @@ The existing countdown, two-value accumulator, and conditional-sum benchmarks pr
 
 Wrapping addition has defined behavior for every input and cannot trigger native signed-overflow undefined behavior. Source is still untrusted: the parser, resolver, type checker, MIR validator, and bytecode verifier must reject malformed structure without panicking. Deeply nested source and very large functions need explicit implementation limits before public exposure.
 
-`while` permits denial of service through non-termination. The VM's opt-in fuel, value-slot, and cooperative-interruption controls provide partial containment; they do not cover heap use, wall-clock deadlines, preemption inside callbacks, native/JIT execution, or compiler resource exhaustion. This RFC does not widen plugin, filesystem, network, process, FFI, or host capabilities.
+`while` permits denial of service through non-termination. The VM's opt-in fuel, value-slot, cooperative-interruption, and absolute-deadline controls provide partial containment; they do not cover heap use, preemption inside callbacks, native/JIT execution, or compiler resource exhaustion. This RFC does not widen plugin, filesystem, network, process, FFI, or host capabilities.
 
 ## Alternatives
 
@@ -215,7 +215,7 @@ Support `if` and `return` but omit `while` and assignment. This is smaller, but 
 - MIR snapshots proving signed comparison, wrapping addition, branch targets, back-edges, and typed block parameters.
 - VM/JIT differential tables containing zero, negative values, `i64::MIN`, `i64::MAX`, wrapping overflow, both conditional paths, and bounded loops.
 - AOT link-and-run coverage on macOS AArch64 and Windows x86-64 for representative source-generated objects.
-- Fuel and interruption tests proving that a non-terminating source loop stops at the expected VM safe point before the next guarded side effect.
+- Fuel, interruption, and deadline tests proving that a non-terminating source loop stops at a VM safe point before the next guarded side effect.
 - Formatter parse/format/parse equivalence and idempotence tests.
 - Parser and verifier fuzzing plus explicit size/depth-limit tests before accepting untrusted source.
 
@@ -229,12 +229,12 @@ Review outcome: **ready for decision** for this narrow prototype subset. There a
 
 ## Sources
 
-- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 11:07 JST.
-- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 11:07 JST.
-- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 11:07 JST.
+- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 11:20 JST.
+- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 11:20 JST.
+- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 11:20 JST.
 - `crates/mir/src/lib.rs`, typed CFG and validation prototype, last updated 2026-10-16 01:25 JST.
 - `crates/bytecode/src/lib.rs`, verified register bytecode prototype, last updated 2026-10-16 01:25 JST.
-- `crates/vm/src/lib.rs`, VM execution and resource-control prototype, last updated 2026-10-16 10:55 JST.
+- `crates/vm/src/lib.rs`, VM execution and resource-control prototype, last updated 2026-10-16 11:20 JST.
 - `crates/codegen-clif/src/lib.rs`, Cranelift lowering prototype, last updated 2026-10-16 01:36 JST.
 - `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 10:17 JST.
 - `src/bin/prototype-bench.rs`, schema 9 interruption-overhead harness, last updated 2026-10-16 11:00 JST.

@@ -3,6 +3,7 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use lang_bytecode::{BlockId, BlockTarget, Instruction, Program, Terminator, VerificationError};
 use lang_mir::HostFunctionId;
@@ -102,6 +103,7 @@ impl InterruptionFlag {
 pub struct ExecutionControl<'a> {
     limits: ExecutionLimits,
     interruption: Option<&'a InterruptionFlag>,
+    deadline: Option<Instant>,
 }
 
 impl ExecutionControl<'_> {
@@ -109,6 +111,7 @@ impl ExecutionControl<'_> {
         Self {
             limits: ExecutionLimits::unbounded(),
             interruption: None,
+            deadline: None,
         }
     }
 
@@ -116,6 +119,7 @@ impl ExecutionControl<'_> {
         Self {
             limits,
             interruption: None,
+            deadline: None,
         }
     }
 
@@ -132,6 +136,15 @@ impl<'a> ExecutionControl<'a> {
 
     pub const fn interruption(self) -> Option<&'a InterruptionFlag> {
         self.interruption
+    }
+
+    pub fn and_deadline(mut self, deadline: Instant) -> Self {
+        self.deadline = Some(deadline);
+        self
+    }
+
+    pub fn deadline(self) -> Option<Instant> {
+        self.deadline
     }
 }
 
@@ -241,7 +254,7 @@ pub fn execute_with_hosts_and_control(
     }
 
     let mut meter = ExecutionMeter::new(control);
-    meter.check_interruption()?;
+    meter.check_control()?;
     let mut registers = vec![0; program.register_count()];
     registers[..arguments.len()].copy_from_slice(arguments);
 
@@ -326,6 +339,7 @@ fn transfer(target: &BlockTarget, program: &Program, registers: &mut [i64]) -> B
 
 struct ExecutionMeter<'a> {
     interruption: Option<&'a InterruptionFlag>,
+    deadline: Option<Instant>,
     instruction_fuel_limit: Option<u64>,
     instruction_fuel_consumed: u64,
     host_call_limit: Option<u64>,
@@ -333,9 +347,10 @@ struct ExecutionMeter<'a> {
 }
 
 impl<'a> ExecutionMeter<'a> {
-    const fn new(control: ExecutionControl<'a>) -> Self {
+    fn new(control: ExecutionControl<'a>) -> Self {
         Self {
             interruption: control.interruption(),
+            deadline: control.deadline(),
             instruction_fuel_limit: control.limits().instruction_fuel(),
             instruction_fuel_consumed: 0,
             host_call_limit: control.limits().host_call_budget(),
@@ -343,7 +358,7 @@ impl<'a> ExecutionMeter<'a> {
         }
     }
 
-    fn check_interruption(&self) -> Result<(), VmError> {
+    fn check_control(&self) -> Result<(), VmError> {
         if self
             .interruption
             .is_some_and(InterruptionFlag::is_interrupted)
@@ -353,11 +368,20 @@ impl<'a> ExecutionMeter<'a> {
                 host_calls_consumed: self.host_calls_consumed,
             });
         }
+        if self
+            .deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            return Err(VmError::DeadlineExceeded {
+                instruction_fuel_consumed: self.instruction_fuel_consumed,
+                host_calls_consumed: self.host_calls_consumed,
+            });
+        }
         Ok(())
     }
 
     fn consume_instruction(&mut self) -> Result<(), VmError> {
-        self.check_interruption()?;
+        self.check_control()?;
         if self
             .instruction_fuel_limit
             .is_some_and(|limit| self.instruction_fuel_consumed >= limit)
@@ -374,7 +398,7 @@ impl<'a> ExecutionMeter<'a> {
     }
 
     fn consume_host_call(&mut self) -> Result<(), VmError> {
-        self.check_interruption()?;
+        self.check_control()?;
         if self
             .host_call_limit
             .is_some_and(|limit| self.host_calls_consumed >= limit)
@@ -415,6 +439,10 @@ pub enum VmError {
         instruction_fuel_consumed: u64,
         host_calls_consumed: u64,
     },
+    DeadlineExceeded {
+        instruction_fuel_consumed: u64,
+        host_calls_consumed: u64,
+    },
 }
 
 impl Display for VmError {
@@ -449,6 +477,13 @@ impl Display for VmError {
                 formatter,
                 "execution interrupted after consuming {instruction_fuel_consumed} instruction-fuel units and {host_calls_consumed} host calls"
             ),
+            Self::DeadlineExceeded {
+                instruction_fuel_consumed,
+                host_calls_consumed,
+            } => write!(
+                formatter,
+                "execution deadline exceeded after consuming {instruction_fuel_consumed} instruction-fuel units and {host_calls_consumed} host calls"
+            ),
         }
     }
 }
@@ -458,6 +493,7 @@ impl Error for VmError {}
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
 
     use lang_bytecode::{Block, BlockId, BlockParameter, BlockTarget, Instruction, Program};
     use lang_mir::{HostFunctionId, Type};
@@ -465,8 +501,8 @@ mod tests {
 
     use super::{
         ExecutionControl, ExecutionLimits, ExecutionOutcome, InterruptionFlag, VmError, execute,
-        execute_with_hosts, execute_with_hosts_and_control, execute_with_hosts_and_limits,
-        execute_with_limits,
+        execute_with_control, execute_with_hosts, execute_with_hosts_and_control,
+        execute_with_hosts_and_limits, execute_with_limits,
     };
     use lang_bytecode::Terminator;
 
@@ -862,5 +898,62 @@ mod tests {
             })
         );
         assert_eq!(INTERRUPTING_HOST_CALLS.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn observes_deadline_at_vm_safe_points() {
+        let program = Program::with_blocks(
+            0,
+            0,
+            vec![
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+                Block::new(vec![], Terminator::Jump(target(BlockId::new(1)))),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            execute_with_control(
+                &program,
+                &[],
+                ExecutionControl::unbounded().and_deadline(Instant::now()),
+            ),
+            Err(VmError::DeadlineExceeded {
+                instruction_fuel_consumed: 0,
+                host_calls_consumed: 0,
+            })
+        );
+
+        let interrupted = InterruptionFlag::new();
+        interrupted.interrupt();
+        assert_eq!(
+            execute_with_control(
+                &program,
+                &[],
+                ExecutionControl::unbounded()
+                    .and_interruption(&interrupted)
+                    .and_deadline(Instant::now()),
+            ),
+            Err(VmError::Interrupted {
+                instruction_fuel_consumed: 0,
+                host_calls_consumed: 0,
+            })
+        );
+
+        let error = execute_with_control(
+            &program,
+            &[],
+            ExecutionControl::unbounded().and_deadline(Instant::now() + Duration::from_millis(2)),
+        )
+        .expect_err("the deadline stops a back-edge loop");
+        let VmError::DeadlineExceeded {
+            instruction_fuel_consumed,
+            host_calls_consumed,
+        } = error
+        else {
+            panic!("expected deadline exhaustion, received {error}");
+        };
+        assert!(instruction_fuel_consumed > 0);
+        assert_eq!(host_calls_consumed, 0);
     }
 }

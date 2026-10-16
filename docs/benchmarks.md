@@ -67,9 +67,9 @@ Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum
 
 ## Schema 9 format and migration
 
-Schema 9 adds `vm_countdown_interruptible_call`. It executes the same alternating positive/immediate-return inputs and the same verified countdown bytecode as `vm_countdown_call`, but supplies a shared, unset interruption flag through `ExecutionControl`. Both rows include the VM's existing optional-safe-point branch; the new row additionally performs the flag's acquire load at each executed instruction and terminator. The harness verifies equivalent results before warm-up and timing.
+Schema 9 adds `vm_countdown_interruptible_call`. It executes the same alternating positive/immediate-return inputs and the same verified countdown bytecode as `vm_countdown_call`, but supplies a shared, unset interruption flag through `ExecutionControl`. In the recorded `e390a5d` artifact, both rows include the VM's optional-interruption branch; the new row additionally performs the flag's acquire load at each executed instruction and terminator. The harness verifies equivalent results before warm-up and timing.
 
-This row measures the steady-state cost of enabling cooperative interruption when no request occurs. It does not measure interruption latency, cross-thread wake-up, a set flag, callback preemption, or native/JIT enforcement. Schema 9 leaves all lowering, compilation, artifact-size, host-callback, link, and startup fields unchanged. Consumers must branch on `schema_version`; schema 1–8 JSON files remain immutable evidence. The clean macOS result records 1.588 us for the ordinary VM countdown and 1.592 us with an unset interruption flag: a 3.409 ns, 0.215% median increase. Both rows have less than 0.4% RSD, but this single paired microbenchmark is directional evidence rather than an overhead budget. The Windows Server 2025 workflow requires schema 9 and the new row in addition to the existing platform and allocation measurements.
+This row measures the steady-state cost of enabling cooperative interruption when no request occurs. It does not measure interruption latency, cross-thread wake-up, a set flag, callback preemption, or native/JIT enforcement. Schema 9 leaves all lowering, compilation, artifact-size, host-callback, link, and startup fields unchanged. Consumers must branch on `schema_version`; schema 1–8 JSON files remain immutable evidence. The clean macOS result records 1.588 us for the ordinary VM countdown and 1.592 us with an unset interruption flag: a 3.409 ns, 0.215% median increase. Both rows have less than 0.4% RSD, but this single paired microbenchmark is directional evidence rather than an overhead budget. The artifact predates the optional deadline check and therefore provides no deadline-check overhead evidence. The Windows Server 2025 workflow requires schema 9 and the new row in addition to the existing platform and allocation measurements.
 
 ## Schema 8 format and migration
 
@@ -162,6 +162,7 @@ The [schema 8 result](../benchmarks/results/2026-10-16-macos-aarch64-6034dc8.jso
 ## Sources
 
 - [Current raw macOS AArch64 schema 9 result](../benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json), measured 2026-10-16 11:05:30 JST.
+- `crates/vm/src/lib.rs`, deadline-enabled VM resource controls, last updated 2026-10-16 11:20 JST.
 - [macOS AArch64 generated-object inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), captured 2026-10-16 00:25 JST.
 - [macOS AArch64 signed-minimum inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), captured 2026-10-16 00:43:31 JST.
 - Repository commit `0865167bfe75331a29e2d4ee9e509c9d17b4b4f1`, committed 2026-10-16.

@@ -67,9 +67,9 @@ Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、countdo
 
 ## Schema 9 formatとmigration
 
-Schema 9は `vm_countdown_interruptible_call` を追加します。`vm_countdown_call` と同じalternating positive／immediate-return inputと同じ検証済みcountdown bytecodeを実行しますが、`ExecutionControl` を介して共有されたunset interruption flagを渡します。両rowはVMの既存optional-safe-point branchを含み、新rowは実行した各instruction／terminatorでflagのacquire loadも行います。Harnessはwarm-up／計測前にresultの等価性を検証します。
+Schema 9は `vm_countdown_interruptible_call` を追加します。`vm_countdown_call` と同じalternating positive／immediate-return inputと同じ検証済みcountdown bytecodeを実行しますが、`ExecutionControl` を介して共有されたunset interruption flagを渡します。記録済み `e390a5d` artifactでは両rowがVMのoptional-interruption branchを含み、新rowは実行した各instruction／terminatorでflagのacquire loadも行います。Harnessはwarm-up／計測前にresultの等価性を検証します。
 
-このrowは、requestが発生しないときにcooperative interruptionを有効化するsteady-state costを計測します。Interruption latency、cross-thread wake-up、set済みflag、callback preemption、native／JIT enforcementは計測しません。Schema 9はlowering、compilation、artifact-size、host-callback、link、startup fieldをすべて変更しません。Consumerは `schema_version` で分岐する必要があり、schema 1〜8 JSON fileはimmutableなevidenceとして残します。Clean macOS resultでは通常のVM countdownが1.588 us、unset interruption flag付きが1.592 usで、medianは3.409 ns、0.215%増加しました。両rowのRSDは0.4%未満ですが、この1つのpaired microbenchmarkは方向性のevidenceでありoverhead budgetではありません。Windows Server 2025 workflowは、既存platform／allocation measurementに加えてschema 9と新rowを要求します。
+このrowは、requestが発生しないときにcooperative interruptionを有効化するsteady-state costを計測します。Interruption latency、cross-thread wake-up、set済みflag、callback preemption、native／JIT enforcementは計測しません。Schema 9はlowering、compilation、artifact-size、host-callback、link、startup fieldをすべて変更しません。Consumerは `schema_version` で分岐する必要があり、schema 1〜8 JSON fileはimmutableなevidenceとして残します。Clean macOS resultでは通常のVM countdownが1.588 us、unset interruption flag付きが1.592 usで、medianは3.409 ns、0.215%増加しました。両rowのRSDは0.4%未満ですが、この1つのpaired microbenchmarkは方向性のevidenceでありoverhead budgetではありません。このartifactはoptional deadline checkより前のもので、deadline-check overheadのevidenceを提供しません。Windows Server 2025 workflowは、既存platform／allocation measurementに加えてschema 9と新rowを要求します。
 
 ## Schema 8 formatとmigration
 
@@ -162,6 +162,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 ## 情報源
 
 - [現在のraw macOS AArch64 schema 9 result](../../benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json)、2026-10-16 11:05:30 JSTに計測。
+- `crates/vm/src/lib.rs`、deadline-enabled VM resource control、最終更新 2026-10-16 11:20 JST。
 - [macOS AArch64 generated-object inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md)、2026-10-16 00:25 JSTに取得。
 - [macOS AArch64 signed-minimum inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md)、2026-10-16 00:43:31 JSTに取得。
 - Repository commit `0865167bfe75331a29e2d4ee9e509c9d17b4b4f1`、2026-10-16にcommit。
