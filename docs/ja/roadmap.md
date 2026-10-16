@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 13 pt | 89 pt | 14.6% |
+| 1 — frontendとbytecodeのvertical slice（現在） | 14 pt | 89 pt | 15.7% |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **222 pt** | **738 pt** | **30.1%** |
+| **全体** | **223 pt** | **738 pt** | **30.2%** |
 
 ## Milestone 0：設計baseline
 
@@ -137,11 +137,11 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 
 ## Milestone 1：frontendとbytecodeのvertical slice（現在）
 
-**進捗：13 / 89 pt（14.6%）。**
+**進捗：14 / 89 pt（15.7%）。**
 
 2026-10-17レビューで不足していた設計gateとcall-frame実装を追加して再見積りしました。RFC 0002だけではmodule、call、aggregate、REPL state、serialized bytecodeを規定しません。各拡張の受理前は、その影響を受ける実装を進めません。[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)作成中の追加reviewで、portable bytecodeとscript／REPL stateの受理gateが本文にしかないことを確認しました。2 ptと1 ptの独立taskとして明示し、実装scopeを削らず3 pt追加しました。RFC 0006はproposedであり、まだacceptedではありません。互換性fixtureと段階的backend制約をownerがreviewできる状態です。依存reviewで8 ptのprimitive typingを、受理済みRFC 0002の構造化input HIR analysis 3 ptと、parser接続後のsource／call conformance 5 ptへ分割しました。同様に5 ptのloweringをprimitive HIR／MIR実装2 ptとparser接続／拡張source conformance 3 ptへ分割しました。どちらも総costを維持し、未受理の字句規則から独立して進められる作業を明示しています。広いsource frontend全体を完了したものではありません。
 
-同様に8 ptのincremental-tooling taskを、shared graph／cache基盤3 ptとparser／module query・LSP-prototype統合5 ptへ分割しました。前者は字句決定を待つ間も受理済みの構造化input HIRで検証できます。残る統合taskに含まれる自動dependency検出、不完全source診断、document-close publication、LSP transportを置き換えるものではありません。
+同様に8 ptのincremental-tooling taskを、shared graph／cache基盤3 pt、protocol診断／位置変換1 pt、parser／module query・LSP-prototype統合4 ptへ分割しました。前2つは字句決定を待つ間も既存structured diagnosticと受理済みの構造化input HIRで検証できます。残る統合taskに含まれる自動dependency検出、不完全source診断、document-close publication、encoding／capability negotiation、LSP transportを置き換えるものではありません。
 
 - [x] **P0 — Stable code、label、fix-itを持つstructured source diagnosticsを確立する。** — 5 pt
 - [ ] **P0 — Identifier／keyword、空白／comment、signed-literal tokenization、source encoding、不正token診断をfixture付きで定めるRFC 0002の字句仕様を受理する。** — 3 pt
@@ -162,7 +162,8 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 - [ ] **P0 — Deterministicなscript／REPL entry pointを提供する。** — 3 pt
 - [ ] **P1 — Formatterとparser／formatter round-trip testを実装する。** — 5 pt
 - [x] **P1 — 推移的invalidation、古い結果の拒否、構造化HIR診断cache testを持つ上限付きrevisioned query graph／cacheを実装する。** — 3 pt
-- [ ] **P1 — 不完全source診断とrevision-safe publicationを含め、parser／module queryをLSP prototypeへ統合する。** — 5 pt
+- [x] **P1 — Protocolの改行、related label、位置testを備え、structured diagnosticを上限付きUTF-16 LSP dataへ変換する。** — 1 pt
+- [ ] **P1 — 不完全source診断、protocol transport／capability、revision-safe publicationを含め、parser／module queryをLSP prototypeへ統合する。** — 4 pt
 
 2026-10-17（JST）検証済みevidence：commit `a4f135c` は `lang-diagnostics` にimmutableなsource snapshot、UTF-8検証済みspan、Unicode／UTF-16位置、受理済み `SRC0001`–`SRC0007` identity、primary／secondary label、note、atomic fix previewを追加しました。5つの集中testが位置、古い／別mapのsnapshot、code identity、複数fileの表示、edit競合、制御文字のescapeを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Sourceの診断生成はparser／resolution／type-checkingの各taskに含まれます。Commit `40a56cb` は英日RFC 0006提案と互換性fixture表を追加しました。Example、grammar、link、RFC metadata、roadmap算術を確認しています。Ownerの受理記録まで設計受理checkboxは完了にしません。Roadmap review：実装taskの削除や延期はなく、修正した89 ptの計画はrecord／variant／call／toolingの全scopeを維持します。次の依存は字句仕様の受理gateです。
 
@@ -171,6 +172,8 @@ Commit `da778cc` は受理済みsubsetの `lang-hir` analysisと13件の構造�
 Commit `a198518` は受理済みprimitive HIR-to-MIR sliceとしてbranch join、loop-carried mutable state、early return、連続SSA renumbering、source map、構築limit、最終MIR validationを完成させました。8件の構造化input integration testでscalar極値、branch path、nested loop state、VM／JIT等価性、VM fuel超過、bytecode span、JIT／AOT-object debug mappingを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Parser接続済みexecution、parsed sourceのnative link／run evidence、guest call、aggregateを提供するものではなく、それらのtaskは未完了です。Roadmap reviewは89 ptの全scopeと全設計gateを維持し、RFC 0006は引き続きproposedです。
 
 Commit `8dafdeb` は `lang-query` に10件のgraph testと1件の実際の構造化input HIR-cache integration testを追加しました。Dependency置換、diamond invalidation、無関係なcacheの再利用、古い／別graphの結果の拒否、close／reopen、cycle、node／edge／work limit、部分的bookkeeping変更を伴わないrevision overflowを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Graphは宣言されたdependencyとhost提供のimmutable valueのみを扱い、compiler recipeの自動実行とLSP接続済みsource経路は未完了です。Roadmap reviewは89 ptの全計画を維持し、core／integration境界を明示します。
+
+Commit `b4a6f24` は `lang-lsp` の診断data変換と4件の集中testを追加しました。UTF-16／surrogate幅、LF／CRLF／単独CR改行、CRLF途中の境界、EOF range、related location、severity／code保持、欠けたsnapshot／URI、source／label／note／output limitを検証します。[Architecture](architecture.md#diagnosticslspdebugging)に公式LSP 3.18の情報源と2026-10-17の確認日を記録しました。Living documentに公開／更新日は掲載されていません。全体のfmt／Clippy／test／doc baselineは成功しています。これはdata adapterであり、serverやwire codecではありません。残る4 ptの統合taskはparser／module query、capability、transport、document lifecycle、revision-safe publicationを維持します。Roadmap reviewで総scope／costを維持し、RFC 0006はproposedのままです。
 
 Exit：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがある。
 
