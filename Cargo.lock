@@ -339,6 +339,13 @@ name = "lang-diagnostics"
 version = "0.1.0"
 
 [[package]]
+name = "lang-hir"
+version = "0.1.0"
+dependencies = [
+ "lang-diagnostics",
+]
+
+[[package]]
 name = "lang-mir"
 version = "0.1.0"
 

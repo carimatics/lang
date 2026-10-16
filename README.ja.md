@@ -51,7 +51,7 @@
 
 ## 開発
 
-Milestone 1ではbackend非依存の `lang-diagnostics` crateを追加しました。ImmutableなUTF-8 source snapshot、検証済みbyte span、Unicode／UTF-16位置、RFC 0002の診断identity、primary／secondary label、note、atomicなfix previewを提供します。`cargo test -p lang-diagnostics` でUnicode、古いsnapshot、複数file、表示、競合するeditを検証できます。Parserとsource実行は次の実装段階です。
+Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-hir` crateを追加しました。DiagnosticsはimmutableなUTF-8 source snapshot、検証済みbyte span、Unicode／UTF-16位置、RFC 0002 identity、label、note、atomic fix previewを提供します。HIR analysisは構造化したRFC 0002 function inputを解決／type-checkし、lexical local scope、function全体での名前一意性、immutable parameter、`i64`／内部 `bool`、mutation、condition type、明示return経路を検証します。Spanを保持し、循環／budget超過inputを拒否します。`cargo test -p lang-diagnostics -p lang-hir` で集中検証できます。Text parserではなく、source parsing、parser統合、source実行は字句設計gateと実装を待っています。
 
 必要な環境：
 

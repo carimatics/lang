@@ -4,6 +4,7 @@ members = [
     "crates/bytecode",
     "crates/codegen-clif",
     "crates/diagnostics",
+    "crates/hir",
     "crates/mir",
     "crates/runtime",
     "crates/semantics",
@@ -27,6 +28,7 @@ gimli = { version = "0.33.0", default-features = false, features = ["std", "writ
 lang-bytecode = { path = "crates/bytecode" }
 lang-codegen-clif = { path = "crates/codegen-clif" }
 lang-diagnostics = { path = "crates/diagnostics" }
+lang-hir = { path = "crates/hir" }
 lang-mir = { path = "crates/mir" }
 lang-runtime = { path = "crates/runtime" }
 lang-semantics = { path = "crates/semantics" }

@@ -1,0 +1,10 @@
+[package]
+name = "lang-hir"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lang-diagnostics.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"

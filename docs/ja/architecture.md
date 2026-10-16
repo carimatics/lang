@@ -61,7 +61,9 @@ MIR ─────────────────────────�
 
 型付きMIRをsemantic contractとします。Backend固有のoptimizationは異なっても構いませんが、観測可能な動作、destruction order、panic／error behavior、integer semantics、concurrency ruleは異なってはいけません。
 
-受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は、最初のsource subsetとして `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐlive valueはtyped block argumentへloweringします。診断data modelは実装済みですが、parser／type checkerの診断生成、parser、HIR、formatter、source-to-MIR loweringは未実装です。字句規則の詳細とsubsetを超える拡張はMilestone 1の設計gateを通します。
+受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は、最初のsource subsetとして `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐlive valueはtyped block argumentへloweringします。Diagnosticsと構造化inputのprimitive HIR analysisは実装済みですが、text parsing、parser統合、formatter、HIR-to-MIR loweringは未実装です。字句規則の詳細とsubsetを超える拡張はMilestone 1の設計gateを通します。
+
+2026-10-17実装：`lang-hir` はsyntax非依存のRFC 0002 function arenaを受け取り、local nameを解決し、analysisにerrorがない場合だけread-onlyなtyped HIRを返します。Parameterはimmutableで、宣言はinitializerの後からlexical block内だけで可視です。別branchを含むfunction全体での名前再利用を拒否します。Type checkingはinteger operand／value、boolean condition、到達可能な全exitの明示returnを強制します。`SRC0002`–`SRC0007` をprimary／related span付きで生成し、signed comparisonにも `i64` operand checkを適用します。到達不能statementもanalysisし、structured warningを返します。Warningのstable source codeは字句／tooling拡張の決定を待ちます。全nodeにsource-snapshot byte span、localには表示名／宣言spanを保持します。Caller指定のwork／local／depth／diagnostic limit、内部再帰上限、arena参照検査、cycle検出、source／name-span検証でanalysis boundaryを保護します。この段階ではliteral decode／range診断、字句規則、module loading、source call、aggregate、serialized HIR契約を導入しません。
 
 ### Incremental architecture
 
