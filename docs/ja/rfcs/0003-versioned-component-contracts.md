@@ -238,12 +238,18 @@ In-range SemVer labelをdeclaration checkなしでtrustする方法は高速で�
 1. Schema-1 in-memory scalar metadata、明示的capability grant、分離されたimport binding、host-registry resolution、structured validation errorを実装・test済み。
 2. Generation tag付きowned／borrowed resource handleを実装・testし、stale handle、repeated release、repeated borrow end、borrow conflictをdeterministically拒否済み。
 3. Deterministicな実験的schema-1 scalar-metadata encoder／decoderを実装・test済み。Byte／count／depth／string limit、byte-offset diagnostics、malformed fixture、libFuzzer targetを備える。Unsupported schema versionはpayloadより先に拒否し、stable serialization／forward-compatibility policyは未決定のまま残す。
-4. 1つのvalidated contractをVM、JIT、AOT instantiationへ接続し、import／export差分testを追加する。
-5. 最初のcanonical call subsetを提案済み。64-bit `i64`、32-bit `bool`、preflight済みnormal-path ownership transferを持つadapter-table `own<T>`／`borrow<T>` resource indexを規定する。Implementation／cross-mode conformanceは未完了。
-6. Backend-neutral panic／trap containment、commit後ownershipの非rollback、deterministic cleanup ledger、at-most-once destructor、ordered suppressed failure、conservative instance poisoningを提案済み。Implementation／cross-mode conformanceは未完了。
-7. Exact package／interface key、normalized SemVer requirement、prerelease／zero-major policy、structural required-member projection、exact lock digest、deterministicなhighest-version selection、ambiguity拒否を提案済み。New metadata schema、package-manager integration、runtime implementation、conformanceは未完了。
+4. 1つのvalidated schema-1 scalar contractをVM／JIT execution、macOS AArch64 AOT object emission、direct／response-file link、process executionへ接続して実装・test済み。General instantiation／non-scalar contractは未完了。
+5. Adapter-table `own<T>`／`borrow<T>` resource index、call全体のpreflight／reservation、allocation／callbackなしのcommit、再利用しないboundary index、nested call-scoped borrowのbackend-neutral traceを実装・test済み。Exact scalar／boolean canonical conversion、host-value integration、cross-mode conformanceは未完了。
+6. Backend-neutralなcommit後非rollback、deterministic borrow／owner cleanup ledger、callback前removeとat-most-once destructor、ordered primary／suppressed failure、再利用可能なguest panic／trap exit、host-callback／invariant／destructor failure後のconservative poisoningを実装・test済み。Backend landing pad、foreign-exception policy enforcement、panic-payload disposal、asynchronous cancellation、cross-mode conformanceは未完了。
+7. Exact package／interface keyとversion-free resource key、normalized full-SemVer exact／interval requirement、明示的prerelease policy、structural required-member projection、fallbackなしのexact lock digest、deterministicなhighest-version selection、same-precedence ambiguity rejectionのin-memory prototypeを実装・test済み。New metadata schema、package-manager integration、VM／JIT／AOT instantiation、cross-mode conformanceは未完了。
 8. Stable serialization、normalized-requirement、digest、resource-identity、failure-record encodingを選定する。
-9. Stable boundaryをacceptする前にvalidation、negotiation、instantiation、adapter conversion、cleanup、failure path、memory、code size、steady-state call overheadをbenchmarkする。
+9. Scalar metadata validation、3-candidate negotiation、direct／validated scalar dispatch、generation tag付きtable lifecycle、canonical owner／borrow traceについて、最初の4-series boundary-cost harnessとcleanなmacOS AArch64 baselineを実装済み。General instantiation、failure／destructor path、component memory／code size、host-value／cross-mode adapter、remote Windows evidenceは未完了。
+
+## 初期boundary-cost evidence
+
+Cleanなschema-15 macOS AArch64 [baseline](../../../benchmarks/results/2026-10-16-macos-aarch64-f163409.json)は、commit `f163409c00d94e08cd636357e58143134e02f568` から31 sampleを記録します。Median／p95 costは、1-import／1-export scalar metadataのclone／validationが286.833／316.292 ns、3 providerのvalidation／selectionが842.584／926.250 ns、direct scalar callbackが0.958／1.031 ns、logical-import lookup＋host-registry lookup＋callbackが11.451／11.695 ns、generation tag付きowner insert／releaseが10.661／12.452 ns、insert／shared-borrow／read／end／releaseが22.731／24.259 ns、canonical owner preflight／commit／persistが412.334／442.417 ns、canonical borrow preflight／commit／scope cleanupが347.250／396.250 nsです。
+
+比率より比較boundaryが重要です。現在のAPIはmetadataをconsumeしてowned immutable bindingを生成するため、metadata validationはcloneを含みます。Negotiationはconsumerと全providerをvalidateし、選択したprojectionをcloneします。Validated dispatch rowは操作ごとに2つのmap lookupを行い、cached direct-call specializationではありません。Canonical rowはpreflight allocation／reservation、trace／cleanup-ledger construction、単調増加するboundary-index vectorを含みますが、table rowはinternal generation tag付きslotを再利用します。したがって、これらの値は正確なprototype pathについてのevidenceであり、stable ABI budgetやoptimized VM／JIT／AOT adapterに関する主張ではありません。General instantiation、host-value integration、failure／destructor path、component memory／code size、asynchronous cancellation、remote Windows executionは対象外です。
 
 ## テスト計画
 
@@ -253,13 +259,13 @@ In-range SemVer labelをdeclaration checkなしでtrustする方法は高速で�
 - Missing、duplicate、undeclared embedding bindingのtest。
 - Deterministic scalar-metadata encoding、明示的なbyte／declaration-count／nesting-depth／string-length limit、byte-offset diagnosticsのround-trip／malformed-fixture test。
 - Bounded decoder向けlibFuzzer targetとdeterministic arbitrary-byte smoke corpus。
-- 同じvalidated contractを使う将来のVM／JIT／AOT差分test。
+- VM／JIT差分testとmacOS AArch64 AOT link／run integrationは同じvalidated schema-1 scalar contractを使う。将来のtestでgeneral instantiation、non-scalar contract、remote Windows executionへ拡張する。
 - Generation-safe reuse、stale owner／borrow、repeated release／end、shared／exclusive conflict、mutation、deterministic reuse、identifier exhaustionのresource-handle test。
-- Exact scalar lane、boolean normalization、wrong-type／stale／duplicate／borrow-aliased owner拒否、boundary indexの非再利用／exhaustion、ownership不変のreservation failure、atomicかつnon-reentrantなnormal-path owner transfer、call-scoped／nested borrow、borrowed result禁止、VM／JIT／AOT同一結果に関する将来のcanonical-call test。
-- Pre-commit preservation、post-commit非rollback、borrow closure後のreverse-order cleanup、moved-owner ledger update、uncommitted-result cleanup、at-most-once failing destructor、primary／suppressed ordering、reentrancy拒否、reusable／poisoned instance、contained unwind／panic-payload disposal、foreign unwind拒否、VM／JIT／AOT同一結果に関する将来のfailure-boundary test。
-- Exact／bounded requirement、zero-major default、prerelease opt-in、build-metadata precedence tie、locked digest成功／mismatch、registration order非依存のhighest compatible selection、same-precedence ambiguity、additive export、compatible-version resource lineage、resource rename／identity mismatch、その他すべてのstructural incompatibility dimension、capability-before-inventory ordering、lock／instantiation後fallback禁止、VM／JIT／AOT同一bindingに関する将来のnegotiation test。
+- Backend-neutral adapter testはwrong-type／duplicate／borrow-aliased owner拒否、再利用しないboundary index、ownershipを変えないdestination-limit failure、allocation／callbackなしのcommit、owner transfer／return、call-scoped／nested borrow、deterministic traceをcoverする。将来のtestはexact scalar lane、boolean normalization、stale／active-lend／total-index exhaustion injection、borrowed result禁止、host-value integration、VM／JIT／AOT同一outcomeをcoverする。
+- Backend-neutral failure testはpre-commit preservation、post-commit非rollback、inner-to-outer borrow closure後のreverse-order cleanup、moved-owner ledger update、callback前remove destructor、ordered suppressed failureを伴うcleanup継続、再利用可能なguest panic／trap exit、poisoned host-callback／destructor exit、later entry拒否をcoverする。将来のtestはuncommitted result、callback reentrancy、incomplete-cleanup injection、panic-payload disposal、foreign unwind拒否、asynchronous cancellation、VM／JIT／AOT同一outcomeをcoverする。
+- In-memory negotiation testはbuild-sensitive exact／bounded requirement、prerelease opt-in、arbitrary-precision numeric prerelease precedence、locked digest成功／mismatch、registration order非依存のhighest compatible selection、same-precedence ambiguity、additive provider member、function／resource-ownership／capability mismatch、capability-before-inventory ordering、lockからのfallback禁止をcoverする。将来のtooling／integration testはzero-major default、compatible-version resource lineage／rename／identity mismatch、残るstructural dimension、instantiation後fallback禁止、VM／JIT／AOT同一bindingをcoverする。
 - 将来のcross-mode resource lifecycle／capability-denial conformance test。
-- Validation、instantiation、conversion、repeated callの将来benchmark。
+- Schema-15 benchmark testはmetadata-validation、interface-negotiation、scalar-dispatch、resource-lifecycle seriesの分離を強制する。将来のbenchmarkはgeneral instantiation、cached／specialized dispatch、host-value／VM／JIT／AOT conversion、failure／destructor path、component memory／code size、remote Windows executionをcoverする。
 
 ## 未解決事項
 
@@ -271,7 +277,7 @@ In-range SemVer labelをdeclaration checkなしでtrustする方法は高速で�
 - Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
 - Embedding ABIはどのstable failure-record encoding／message-redaction policyを公開するべきか。
 
-レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary rule、deterministicなpackage／interface compatibility negotiationは規定済みです。このRFCをstable component contractとしてacceptする前に、new metadata schema／stable serialization、negotiation／adapter transfer／cleanupのimplementation／VM／JIT／AOT conformance、package-manager／lock integration、stable digest／resource／failure-record encoding、boundary-cost evidenceがblocking workとして残ります。
+レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary rule、deterministicなpackage／interface compatibility negotiationは規定済みです。In-memory compatibility negotiation、exact lock selection、1つのvalidated schema-1 scalar VM／JIT／macOS-AOT path、backend-neutralなcanonical-resource transfer／borrow／cleanup／poisoning trace、最初の4-series macOS boundary-cost baselineは実行可能かつtest済みです。このRFCをstable component contractとしてacceptする前に、new metadata schema／stable serialization、general VM／JIT／AOT instantiation＋host-value／cross-mode adapter conformance、package-manager／lockfile integration、stable digest／resource／failure-record encoding、remote Windows component execution、より広いinstantiation／failure-path／memory／code-size cost evidenceがblocking workとして残ります。
 
 ## 情報源
 
