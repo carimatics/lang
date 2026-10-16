@@ -26,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 Representative-application taskも規定したprototype boundaryで完了しました。Host-orchestrated fixtureは2-provider negotiation、deterministic lock生成、exact-lock replay、instance publication、scalar／typed-resource VM／JIT call、guest-trap cleanupをcomposeします。Cleanなschema-20 macOS baselineは1,000 operationを31 sample実行し、median 67.592 us、p95 68.459 us、RSD 1.109%を記録しました。CleanなWindows baselineは同じrowでmedian 236.804 us、p95 266.366 us、RSD 6.201%を記録し、production generated dispatch stubだけが別作業として残ります。
 
-このrepository stateに対して2026-10-17 01:47 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-17 01:57 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 201 pt | 209 pt | **96.2%** |
+| 0 — design baseline（現在） | 204 pt | 209 pt | **97.6%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -38,11 +38,11 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **201 pt** | **691 pt** | **29.1%** |
+| **全体** | **204 pt** | **691 pt** | **29.5%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：201 / 209 pt（96.2%）。**
+**進捗：204 / 209 pt（97.6%）。**
 
 ### Workstream別内訳
 
@@ -54,15 +54,15 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 30 pt | 30 pt | 100.0% |
 | Component／resource contract | 84 pt | 84 pt | 100.0% |
-| Platform／backend evidence | 56 pt | 62 pt | 90.3% |
+| Platform／backend evidence | 59 pt | 62 pt | 95.2% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **201 pt** | **209 pt** | **96.2%** |
+| **Milestone 0** | **204 pt** | **209 pt** | **97.6%** |
 
 このsnapshot時点の実行状態：
 
-- **進行中P0：** 完了したcross-platform integration、debug-quality、benchmark evidenceから初期native backendを選定し、decisionを記録する。
-- **外部gate：** RFC 0003はevidence-completeであり、repository-owner decisionを待っています。RFC 0002、RFC 0004、RFC 0005は2026-10-17にrepository ownerがacceptしました。
-- **依存gate：** RFC 0003 dispositionと初期backend decisionを記録した後にRFC 0001をdecisionする。
+- **進行中P0／外部gate：** RFC 0003はevidence-completeであり、repository-owner decisionを待っています。RFC 0002、RFC 0004、RFC 0005は2026-10-17にrepository ownerがacceptしました。
+- **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
+- **依存gate：** RFC 0003 dispositionの記録後にRFC 0001をdecisionする。
 
 ### 優先度順のタスク
 
@@ -118,7 +118,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 - [x] **P0 — Cross-mode benchmark setへ代表的なCFG workloadをもう1つ追加する。** — 3 pt
 - [x] **P0 — 代表的なAOT object／link済みartifactにsource span駆動のnative debug metadataを実装し、macOS AArch64で検証する。** — 5 pt
 - [x] **P0 — 同じ代表artifactについて、同等のWindows x86-64 CodeView／PDB／source-mapping evidenceを記録する。** — 3 pt
-- [ ] **P0 — 完成したcross-platform performance、debug-quality、integration evidenceから初期native backendを選択し、decisionを記録する。** — 3 pt
+- [x] **P0 — 完成したcross-platform performance、debug-quality、integration evidenceから初期native backendを選択し、decisionを記録する。** — 3 pt
 - [ ] **P0 — Component、resource-control、backend-evidence prerequisiteの完了後にRFC 0001を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 2 pt
 
 ### Evidenceと現在の状態
@@ -151,7 +151,7 @@ Component runtimeは、stale copyを決してaliasしない非ゼロかつ単調
 
 Cleanなschema-18 macOS AArch64 [CFG／allocation baseline](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)は、56個の一意なtiming row、4個の正確なcallback profile、8個のcomponent-boundary row、3個のprocess-memory distributionを記録します。Iterative Fibonacciはcountdownと2個のwrapping sequence valueを型付きblock argumentで運び、direct Rust／VM／JIT medianは6.510 ns／1.231 us／7.463 ns、JIT codeは48 byte、AOT objectは400 byteです。維持されたallocation traceは18,102,042 peak live requested byte、21,020,672 byteのmedian resident delta、2,918,630 byteのallocator-overhead／fragmentation合算推定値を記録します。これらはperformance／memory budgetではなくplatform固有の方向的resultです。後続のschema-20 Windows baselineがこれらのcontractを維持し、nativeにvalidateしました。
 
-現在の進捗：Typed MIR、bytecode、VM、Cranelift JIT、AOTは、検証済みinteger、CFG、host-callback、1つのstraight-line owned-resource contractを共有します。VMはdeterministic resource controlを持ち、3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。macOS AArch64／Windows x86-64の両方でnative direct／response-file object-link-run evidenceが揃い、cleanなschema-20 [benchmark baseline](benchmarks.md)は両tier-1 platformで維持されたtiming、artifact、logical-heap、process-memory、component-boundary、代表的application contractを記録します。Source-mapped DWARF／dSYMとCodeView／PDB evidenceも代表artifactをcoverします。Milestone 0で残るoutcomeは、RFC 0003 owner disposition、初期backend decision、依存するRFC 0001 owner dispositionだけです。Production linker discovery／packaging、source-frontend implementation、より広い生成adapter、source-language local、unwind metadata、optimized stepping、JIT debugger registrationは、このbaselineへ隠さず後続milestoneへ割り当てたままです。
+現在の進捗：Typed MIR、bytecode、VM、Cranelift JIT、AOTは、検証済みinteger、CFG、host-callback、1つのstraight-line owned-resource contractを共有します。VMはdeterministic resource controlを持ち、3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。macOS AArch64／Windows x86-64の両方でnative direct／response-file object-link-run evidenceが揃い、cleanなschema-20 [benchmark baseline](benchmarks.md)は両tier-1 platformで維持されたtiming、artifact、logical-heap、process-memory、component-boundary、代表的application contractを記録します。Source-mapped DWARF／dSYMとCodeView／PDB evidenceも代表artifactをcoverし、Craneliftをinitial native backendとして記録しました。Milestone 0で残るoutcomeは、RFC 0003 owner dispositionと、依存するRFC 0001 owner dispositionだけです。Production linker discovery／packaging、source-frontend implementation、より広い生成adapter、source-language local、unwind metadata、optimized stepping、JIT debugger registrationは、このbaselineへ隠さず後続milestoneへ割り当てたままです。
 
 CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequenceが変わらないことを確認しました。`SystemLinker` は `Cc` と `MsvcLink` のcommand flavorをmodel化して対応するhost defaultを選択し、ordered prefix argument付きの明示driverをsupportし、完全なcommandを公開してstructured execution failureへ保持します。Ordered library search pathとlogical library nameをflavor固有argumentへloweringし、validationが空のobject path、search path、nameを拒否します。明示的なresponse-file linkは、`Cc` にGNU-escaped UTF-8、`MsvcLink` にWindows-escaped BOM-prefixed UTF-16LEを使用します。Focused testがserializationとvalidationを検証し、両tier-1 integrationがdirect／response-file linkを実行します。Toolchain discoveryとより広いtarget policyは未完了です。Target指定object emissionは明示的なtripleからISAを構築し、host非依存testが `x86_64-pc-windows-msvc` COFF outputのformat、architecture、export、importを検証します。GitHub Actions run 38932964398がWindows Server 2025上でnative MSVC object link／execution成功を記録しました。
 

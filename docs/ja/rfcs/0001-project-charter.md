@@ -222,7 +222,7 @@ Schema 14の後に追加した4つ目のcallbackは、8〜128 byteのpayloadを�
 
 Benchmark schema 13はschema 12 fieldをすべて維持し、link済みAOT processのOS報告peak resident memory distributionを1つ追加します。macOSはbytes単位の `ru_maxrss` を使い、Windowsでは各計測対象processが終了前に `K32GetProcessMemoryInfo` でbytes単位の `PROCESS_MEMORY_COUNTERS.PeakWorkingSetSize` をself-reportします。両方ともshared pageとloader／runtime stateを含むため、allocator-overheadやallocation-workload evidenceではなくprocess envelopeです。Test、native macOS smoke run、schema 20 Windows CI contractがmechanismを検証します。過去のclean schema 13 macOS AArch64 resultは31 sampleすべてが1,671,168 byte、RSD 0.000%であることを記録し、Windows baselineは未記録です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
 
-実装前のcleanなmacOS AArch64 [AOT debug-information inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)は、元のnegative baselineを確立しました。Commit済みの[source-mapped DWARF inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md)は、commit `31e182ac27e324048597a5ebd0fda4d2d4934395` から代表的なadd、minimum、host-callback objectを再生成します。3 objectすべてがrelocation付きDWARF v4 compile-unit、subprogram、source-line dataを持った状態で `dwarfdump --verify` をpassし、direct／response-file executableがlink／実行され、生成した両dSYMもfixture pathと3 functionを保持したままverificationをpassします。Commit済みの[Windows x86-64 CodeView／PDB inspection](../../../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md)は、commit `465b0d66ba6ea61a0d4b26201e6ab043f2f15f9d` の同等なC13 COFF record／relocationをvalidateし、LLDでPE／PDB artifactへlinkし、LLDBでlink済みfunction-to-source resolutionを検証します。計画済みsource-mapping criterionは完了しましたが、native Windows execution／performance、source-language local、unwind metadata、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
+実装前のcleanなmacOS AArch64 [AOT debug-information inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)は、元のnegative baselineを確立しました。Commit済みの[source-mapped DWARF inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md)は、commit `31e182ac27e324048597a5ebd0fda4d2d4934395` から代表的なadd、minimum、host-callback objectを再生成します。3 objectすべてがrelocation付きDWARF v4 compile-unit、subprogram、source-line dataを持った状態で `dwarfdump --verify` をpassし、direct／response-file executableがlink／実行され、生成した両dSYMもfixture pathと3 functionを保持したままverificationをpassします。Commit済みの[Windows x86-64 CodeView／PDB inspection](../../../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md)は、commit `465b0d66ba6ea61a0d4b26201e6ab043f2f15f9d` の同等なC13 COFF record／relocationをvalidateし、LLDでPE／PDB artifactへlinkし、LLDBでlink済みfunction-to-source resolutionを検証します。Native Windows run 38932964398はdirect／response-file execution、component conformance、cleanなschema-20 performance／memory baselineを追加します。計画済みbackend-selection evidenceは完了しました。Source-language local、unwind metadata、JIT debugger registration、optimized stepping、代表的source programでのvalidationは、このcharterのinitial backend choiceを妨げるblockerではなく後続implementation criterionです。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -231,6 +231,12 @@ Benchmark schema 13はschema 12 fieldをすべて維持し、link済みAOT proce
 5. macOS AArch64とWindows x86-64でbackend、call overhead、code size、compile timeを記録する。
 6. プロトタイプ証拠に基づき、arithmetic、ownership、effects/errors、concurrency、embedding、component ABIの焦点を絞ったRFCを作成する。
 7. blocking question解決後に、この憲章をacceptまたは改訂する。
+
+## Initial native backend decision
+
+**Project decision（2026-10-17）：initial JIT／AOT backendとしてCraneliftを選定します。** 完了したmacOS AArch64／Windows x86-64 evidenceは、共有MIRについてVM／JIT equivalence、native object emission、direct／response-file system link、process execution、host callback、typed component／resource cleanup、source-mapped DWARF／dSYMおよびCodeView／PDB artifact、schema-20 performance／memory measurementを実行します。最初のfrontend／ABIがstableになる前に第2backendを追加すべきblockerは確認されませんでした。
+
+既存backendは両execution modeをすでに提供し、backend-neutralなMIR、artifact、source-map、linker interfaceの背後に隔離されているため、このdecisionは現在の実装／保守riskを最小化します。Cranelift固有ABIをstableと約束せず、現在のbenchmark値を保証せず、LLVMを恒久的にrejectしません。代表的release workloadで、Cranelift pathでは合理的に解決できないoptimization、target support、debug quality、integration要件が判明した場合にLLVMまたは別backendを再評価します。
 
 ## テスト計画
 
@@ -251,21 +257,22 @@ Benchmark schema 13はschema 12 fieldをすべて維持し、link済みAOT proce
 - Windows AArch64を最初のnative backend milestoneの前と後のどちらでTier 1に加えるか。
 - canonical ABI実験の出発点として、どのcomponent modelを利用するか。
 - Byte単位のheap、recursion、task budgetをprototype instruction-fuel／host-call-budget／value-slot-limit／cooperative-interruption／absolute-deadline interfaceとどう合成するか。
-- Craneliftをprototype backendにとどめずinitial backendとして選定するために、どの測定をblockingとするか。
 
-レビュー結果：**needs prototype/measurement**。blocking questionはcomponent boundary、現在のVM counter、register-slot cap、cooperative interruption、absolute deadlineを超えるresource control、cross-platform／backend measurementです。命名とWindows AArch64の時期は、このRFCに対する任意のfollow-upです。
+レビュー結果：**awaiting RFC 0003 owner disposition**。Component、resource-control、concurrency、debug-quality、cross-platform execution、benchmark、backend-selection evidenceは完了しました。RFC 0003はcomponent serialization／compatibility policyのowner acceptanceまたはrevisionを待っています。そのdisposition後、このcharterを判断するprototype／measurement blockerは残りません。命名とWindows AArch64の時期は任意のfollow-upです。
 
 ## 情報源
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 12:50 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 12:50 JST。
+- `docs/architecture.md`、initial-backend decision／設計baseline、最終更新 2026-10-17 01:57 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-17 01:47 JST。
 - `crates/vm/src/lib.rs`、deadline-enabled VM resource-control prototype、最終更新 2026-10-16 11:20 JST。
 - `src/lib.rs`、allocation burst／churn／variable-size boundary prototype、最終更新 2026-10-16 14:12 JST。
-- `src/bin/prototype-bench.rs`、schema 14 allocation-churn／heap／process-memory harness、最終更新 2026-10-16 13:26 JST。
+- `src/bin/prototype-bench.rs`、schema-20 cross-platform benchmark harness、最終更新 2026-10-17。
 - `benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.json`、clean schema 14 macOS AArch64 evidence、2026-10-16 14:02:20 JSTに計測。
 - `benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md`、macOS AArch64 AOT debug-information inspection、2026-10-16 12:06:01 JSTに取得。
 - `benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md`、macOS AArch64 source-mapped DWARF inspection、2026-10-16 19:41:57 JSTに取得。
 - `benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md`、Windows x86-64 source-mapped CodeView／PDB inspection、2026-10-16 20:19:36 JSTに取得。
-- Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
+- `benchmarks/results/2026-10-16-macos-aarch64-de248a1.json`、clean schema-20 macOS AArch64 evidence、2026-10-16 23:34:00 JSTに計測。
+- `benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json`、[GitHub Actions run 38932964398](https://github.com/carimatics/lang/actions/runs/38932964398)によるclean schema-20 Windows x86-64 evidence、2026-10-17 01:45:50 JSTに計測、runは2026-10-17完了。
+- Cranelift 0.136.3 documentation、公式package documentation／公開更新日のないliving documentation、2026-10-17確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/

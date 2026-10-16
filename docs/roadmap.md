@@ -26,11 +26,11 @@ The second typed-resource slice is now complete at its stated prototype boundary
 
 The representative-application task is also complete at its prototype boundary. A host-orchestrated fixture composes two-provider negotiation, deterministic lock generation, exact-lock replay, instance publication, scalar and typed-resource VM/JIT calls, and guest-trap cleanup. Its clean schema-20 macOS baseline records a 67.592 us median, 68.459 us p95, and 1.109% RSD across 31 samples of 1,000 operations. The clean Windows baseline records a 236.804 us median, 266.366 us p95, and 6.201% RSD for the same row; production generated dispatch stubs remain separate work.
 
-Progress snapshot verified against this repository state on 2026-10-17 01:47 JST:
+Progress snapshot verified against this repository state on 2026-10-17 01:57 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 201 pt | 209 pt | **96.2%** |
+| 0 — design baseline (current) | 204 pt | 209 pt | **97.6%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -38,11 +38,11 @@ Progress snapshot verified against this repository state on 2026-10-17 01:47 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **201 pt** | **691 pt** | **29.1%** |
+| **Overall** | **204 pt** | **691 pt** | **29.5%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 201 / 209 pt (96.2%).**
+**Progress: 204 / 209 pt (97.6%).**
 
 ### Workstream breakdown
 
@@ -54,15 +54,15 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 30 pt | 30 pt | 100.0% |
 | Component and resource contracts | 84 pt | 84 pt | 100.0% |
-| Platform and backend evidence | 56 pt | 62 pt | 90.3% |
+| Platform and backend evidence | 59 pt | 62 pt | 95.2% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **201 pt** | **209 pt** | **96.2%** |
+| **Milestone 0** | **204 pt** | **209 pt** | **97.6%** |
 
 Current execution state at this snapshot:
 
-- **Active P0:** select and record the initial native backend from the now-complete cross-platform integration, debug-quality, and benchmark evidence.
-- **External gates:** RFC 0003 is evidence-complete and awaits the repository-owner decision. RFC 0002, RFC 0004, and RFC 0005 were accepted by the repository owner on 2026-10-17.
-- **Dependent gates:** decide RFC 0001 after the RFC 0003 disposition and initial backend decision are recorded.
+- **Active P0 / external gate:** RFC 0003 is evidence-complete and awaits the repository-owner decision. RFC 0002, RFC 0004, and RFC 0005 were accepted by the repository owner on 2026-10-17.
+- **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
+- **Dependent gate:** decide RFC 0001 after the RFC 0003 disposition is recorded.
 
 ### Tasks in priority order
 
@@ -118,7 +118,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Add one additional representative CFG workload to the cross-mode benchmark set.** — 3 pt
 - [x] **P0 — Implement source-span-driven native debug metadata for representative AOT objects and linked artifacts on macOS AArch64.** — 5 pt
 - [x] **P0 — Record equivalent Windows x86-64 CodeView/PDB and source-mapping evidence for the same representative artifacts.** — 3 pt
-- [ ] **P0 — Select the initial native backend from the completed cross-platform performance, debug-quality, and integration evidence, and record the decision.** — 3 pt
+- [x] **P0 — Select the initial native backend from the completed cross-platform performance, debug-quality, and integration evidence, and record the decision.** — 3 pt
 - [ ] **P0 — Decide RFC 0001 after its component, resource-control, and backend-evidence prerequisites, recording acceptance, requested revisions, or rejection.** — 2 pt
 
 ### Evidence and current state
@@ -151,7 +151,7 @@ The component runtime now also exposes a backend-neutral canonical-resource adap
 
 The clean schema-18 macOS AArch64 [CFG/allocation baseline](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json) records 56 unique timing rows, four exact callback profiles, eight component-boundary rows, and three process-memory distributions. Iterative Fibonacci carries a countdown and two wrapping sequence values through typed block arguments; direct Rust, VM, and JIT medians are 6.510 ns, 1.231 us, and 7.463 ns, with 48 bytes of JIT code and a 400-byte AOT object. The retained allocation trace records 18,102,042 peak live requested bytes, a 21,020,672-byte median resident delta, and a 2,918,630-byte combined allocator-overhead/fragmentation estimate. These are platform-specific directional results rather than performance or memory budgets. The later schema-20 Windows baseline retains and validates these contracts natively.
 
-Current progress: typed MIR, bytecode, VM, Cranelift JIT, and AOT share validated integer, CFG, host-callback, and one straight-line owned-resource contracts. The VM has deterministic resource controls, and all three memory-model stress cases have executable strict models. macOS AArch64 and Windows x86-64 now both have native direct/response-file object-link-run evidence; the clean schema-20 [benchmark baselines](benchmarks.md) record the retained timing, artifact, logical-heap, process-memory, component-boundary, and representative-application contracts on both tier-1 platforms. Source-mapped DWARF/dSYM and CodeView/PDB evidence covers the representative artifacts. The only remaining Milestone 0 outcomes are the RFC 0003 owner disposition, the initial backend decision, and the dependent RFC 0001 owner disposition. Production linker discovery/packaging, source-frontend implementation, broader generated adapters, source-language locals, unwind metadata, optimized stepping, and JIT debugger registration remain assigned to later milestones rather than hidden in this baseline.
+Current progress: typed MIR, bytecode, VM, Cranelift JIT, and AOT share validated integer, CFG, host-callback, and one straight-line owned-resource contracts. The VM has deterministic resource controls, and all three memory-model stress cases have executable strict models. macOS AArch64 and Windows x86-64 now both have native direct/response-file object-link-run evidence; the clean schema-20 [benchmark baselines](benchmarks.md) record the retained timing, artifact, logical-heap, process-memory, component-boundary, and representative-application contracts on both tier-1 platforms. Source-mapped DWARF/dSYM and CodeView/PDB evidence covers the representative artifacts, and Cranelift is recorded as the initial native backend. The only remaining Milestone 0 outcomes are the RFC 0003 owner disposition and the dependent RFC 0001 owner disposition. Production linker discovery/packaging, source-frontend implementation, broader generated adapters, source-language locals, unwind metadata, optimized stepping, and JIT debugger registration remain assigned to later milestones rather than hidden in this baseline.
 
 A post-CFG reinspection confirms unchanged minimum code and object sizes and instruction sequence. `SystemLinker` now models `Cc` and `MsvcLink` command flavors, selects the matching host default, supports an explicit driver with ordered prefix arguments, exposes the complete command, and retains it in structured execution failures. Ordered library search paths and logical library names lower to flavor-specific arguments, and validation rejects empty object paths, search paths, and names. Explicit response-file linking uses GNU-escaped UTF-8 for `Cc` and Windows-escaped, BOM-prefixed UTF-16LE for `MsvcLink`; focused tests cover serialization and validation, and both tier-1 integrations execute direct and response-file links. Toolchain discovery and broader target policy remain open. Targeted object emission constructs an ISA from an explicit triple, and host-independent tests validate the format, architecture, export, and import of `x86_64-pc-windows-msvc` COFF output. GitHub Actions run 38932964398 records successful native MSVC object linking and execution on Windows Server 2025.
 

@@ -222,7 +222,7 @@ After schema 14, a fourth callback exercises variable-size allocation by keeping
 
 Benchmark schema 13 preserves all schema 12 fields and adds one distribution for the linked AOT process's OS-reported peak resident memory. macOS uses byte-valued `ru_maxrss`; on Windows, each measured process self-reports byte-valued `PROCESS_MEMORY_COUNTERS.PeakWorkingSetSize` through `K32GetProcessMemoryInfo` before exit. Both include shared pages and loader/runtime state, so this is a process envelope rather than allocator-overhead or allocation-workload evidence. Tests, a native macOS smoke run, and the schema 20 Windows CI contract validate the mechanism. The historical clean schema 13 macOS AArch64 result records all 31 samples as 1,671,168 bytes with 0.000% RSD; the Windows baseline remains open. The review outcome therefore stays **needs prototype/measurement**.
 
-A clean pre-implementation macOS AArch64 [AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) establishes the original negative baseline. The committed [source-mapped DWARF inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md) regenerates the representative add, minimum, and host-callback objects from commit `31e182ac27e324048597a5ebd0fda4d2d4934395`. All three pass `dwarfdump --verify` with relocated DWARF v4 compile-unit, subprogram, and source-line data; direct and response-file executables link and run; and both generated dSYMs pass verification while retaining the fixture path and all three functions. The committed [Windows x86-64 CodeView/PDB inspection](../../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md) validates equivalent C13 COFF records and relocations from commit `465b0d66ba6ea61a0d4b26201e6ab043f2f15f9d`, links them into PE/PDB artifacts with LLD, and verifies linked function-to-source resolution with LLDB. The planned source-mapping criteria are complete, but native Windows execution and performance, source-language locals, unwind metadata, JIT debugger registration, optimized stepping, and representative source-program validation remain open. The review outcome therefore remains **needs prototype/measurement**.
+A clean pre-implementation macOS AArch64 [AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md) establishes the original negative baseline. The committed [source-mapped DWARF inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md) regenerates the representative add, minimum, and host-callback objects from commit `31e182ac27e324048597a5ebd0fda4d2d4934395`. All three pass `dwarfdump --verify` with relocated DWARF v4 compile-unit, subprogram, and source-line data; direct and response-file executables link and run; and both generated dSYMs pass verification while retaining the fixture path and all three functions. The committed [Windows x86-64 CodeView/PDB inspection](../../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md) validates equivalent C13 COFF records and relocations from commit `465b0d66ba6ea61a0d4b26201e6ab043f2f15f9d`, links them into PE/PDB artifacts with LLD, and verifies linked function-to-source resolution with LLDB. Native Windows run 38932964398 adds direct/response-file execution, component conformance, and a clean schema-20 performance/memory baseline. The planned backend-selection evidence is complete. Source-language locals, unwind metadata, JIT debugger registration, optimized stepping, and representative source-program validation remain later implementation criteria rather than blockers for this charter's initial backend choice.
 
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
@@ -231,6 +231,12 @@ A clean pre-implementation macOS AArch64 [AOT debug-information inspection](../.
 5. Record backend, call-overhead, code-size, and compile-time measurements on macOS AArch64 and Windows x86-64.
 6. Draft focused RFCs for arithmetic, ownership, effects/errors, concurrency, embedding, and component ABI based on prototype evidence.
 7. Accept or revise this charter only after its blocking questions are resolved.
+
+## Initial native backend decision
+
+**Project decision (2026-10-17): select Cranelift as the initial JIT and AOT backend.** The completed macOS AArch64 and Windows x86-64 evidence exercises the shared MIR across VM/JIT equivalence, native object emission, direct and response-file system linking, process execution, host callbacks, typed component/resource cleanup, source-mapped DWARF/dSYM and CodeView/PDB artifacts, and schema-20 performance/memory measurements. No result reveals a blocker that justifies adding a second backend before the first frontend and ABI are stable.
+
+This decision minimizes current implementation and maintenance risk because the existing backend already serves both execution modes and remains isolated behind backend-neutral MIR, artifact, source-map, and linker interfaces. It does not promise a stable Cranelift-specific ABI, guarantee current benchmark values, or reject LLVM permanently. Re-evaluate LLVM or another backend when representative release workloads identify an unmet optimization, target-support, debug-quality, or integration requirement that cannot be addressed reasonably in the Cranelift path.
 
 ## Test plan
 
@@ -251,21 +257,22 @@ A clean pre-implementation macOS AArch64 [AOT debug-information inspection](../.
 - Should Windows AArch64 join Tier 1 before or after the first native backend milestone?
 - Which component model provides the starting point for canonical ABI experiments?
 - How should byte-based heap, recursion, and task budgets compose with the prototype instruction-fuel, host-call-budget, value-slot-limit, cooperative-interruption, and absolute-deadline interface?
-- Which measurements are blocking for selecting Cranelift as the initial backend rather than only a prototype backend?
 
-Review outcome: **needs prototype/measurement**. The blocking questions are the component boundary, resource controls beyond the current VM counters, register-slot cap, cooperative interruption, and absolute deadline, and cross-platform/backend measurements. Naming and Windows AArch64 timing are optional follow-ups for this RFC.
+Review outcome: **awaiting RFC 0003 owner disposition**. The component, resource-control, concurrency, debug-quality, cross-platform execution, benchmark, and backend-selection evidence is complete. RFC 0003 now awaits owner acceptance or revision of its component serialization and compatibility policy; after that disposition, no prototype or measurement blocker remains for deciding this charter. Naming and Windows AArch64 timing are optional follow-ups.
 
 ## Sources
 
 - `docs/research.md`, project research, last updated 2026-10-15 22:29 JST.
-- `docs/architecture.md`, proposed design baseline, last updated 2026-10-16 12:50 JST.
-- `docs/roadmap.md`, implementation milestones, last updated 2026-10-16 12:50 JST.
+- `docs/architecture.md`, initial-backend decision and design baseline, last updated 2026-10-17 01:57 JST.
+- `docs/roadmap.md`, implementation milestones, last updated 2026-10-17 01:47 JST.
 - `crates/vm/src/lib.rs`, deadline-enabled VM resource-control prototype, last updated 2026-10-16 11:20 JST.
 - `src/lib.rs`, allocation burst/churn/variable-size boundary prototypes, last updated 2026-10-16 14:12 JST.
-- `src/bin/prototype-bench.rs`, schema 14 allocation-churn/heap/process-memory harness, last updated 2026-10-16 13:26 JST.
+- `src/bin/prototype-bench.rs`, schema-20 cross-platform benchmark harness, last updated 2026-10-17.
 - `benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.json`, clean schema 14 macOS AArch64 evidence, measured 2026-10-16 14:02:20 JST.
 - `benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md`, macOS AArch64 AOT debug-information inspection, captured 2026-10-16 12:06:01 JST.
 - `benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md`, macOS AArch64 source-mapped DWARF inspection, captured 2026-10-16 19:41:57 JST.
 - `benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md`, Windows x86-64 source-mapped CodeView/PDB inspection, captured 2026-10-16 20:19:36 JST.
-- Cranelift documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-codegen/0.136.3/
+- `benchmarks/results/2026-10-16-macos-aarch64-de248a1.json`, clean schema-20 macOS AArch64 evidence, measured 2026-10-16 23:34:00 JST.
+- `benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json`, clean schema-20 Windows x86-64 evidence from [GitHub Actions run 38932964398](https://github.com/carimatics/lang/actions/runs/38932964398), measured 2026-10-17 01:45:50 JST; the run completed 2026-10-17.
+- Cranelift 0.136.3 documentation, official package documentation and living documentation without a published update date, verified 2026-10-17: https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation, living documentation without a published update date, verified 2026-10-15: https://docs.rs/cranelift-jit/0.136.3/
