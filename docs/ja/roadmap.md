@@ -175,6 +175,22 @@ Commit `8dafdeb` は `lang-query` に10件のgraph testと1件の実際の構造
 
 Commit `b4a6f24` は `lang-lsp` の診断data変換と4件の集中testを追加しました。UTF-16／surrogate幅、LF／CRLF／単独CR改行、CRLF途中の境界、EOF range、related location、severity／code保持、欠けたsnapshot／URI、source／label／note／output limitを検証します。[Architecture](architecture.md#diagnosticslspdebugging)に公式LSP 3.18の情報源と2026-10-17の確認日を記録しました。Living documentに公開／更新日は掲載されていません。全体のfmt／Clippy／test／doc baselineは成功しています。これはdata adapterであり、serverやwire codecではありません。残る4 ptの統合taskはparser／module query、capability、transport、document lifecycle、revision-safe publicationを維持します。Roadmap reviewで総scope／costを維持し、RFC 0006はproposedのままです。
 
+### 残る依存関係の監査（2026-10-17）
+
+現在のchecklistには未完了16項目、合計75 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
+
+| 必要なowner判断 | 残る依存先の成果 |
+| --- | --- |
+| 字句仕様 | Lossless parser／recovery、parser接続済みtyping、formatter round trip、不完全sourceのLSP診断 |
+| Module／function-call意味論 | Module loading／resolution、guest frame／recursion、typed host execution、parser接続済みsource／HIR／MIR conformance |
+| Record／variant／pattern意味論と表現 | Aggregate typing／exhaustiveness、aggregateのsource／HIR／MIR／VM conformance |
+| Portable bytecode契約 | Version付きencoding／decodingと上限付きverification |
+| Script／REPL契約 | Deterministicなscript entry／outputとtransactional REPL execution |
+
+5つの判断領域はすべてproposedのRFC 0006が扱っています。受理済み範囲の構造化input HIR、MIR lowering、graph／cache core、protocol診断変換は、これらの判断やsource駆動exitを満たしません。[`src/main.rs`](../../src/main.rs)の確認では、実行fileは依然として整数2つを受け取りprototype MIRを構築しており、source fileを実行しません。汎用transportの足場や手動HIR fixtureを追加しても、欠けているparser接続済み成果の証明にはなりません。
+
+次に必要なのはRFC 0006に対する明示的なowner disposition（受理、修正要求、withdrawal／再計画）です。受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)はfrontend実装前の字句仕様受理を明記しています（最終更新2026-10-17 JST）。[RFC skill](codex/language-design-rfc.md)はownerの明示受理までproposalを `proposed` に保つことを要求しています（最終更新2026-10-15 JST）。確認日：2026-10-17 JST。この監査から受理、実装checkboxの完了、scope縮小、Milestone 1 exitを推定しません。Milestone 1の最終capability guideは、実際のsource駆動milestoneが完了した後の成果物として残ります。
+
 Exit：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがある。
 
 ## Milestone 2：ownershipとnative AOT

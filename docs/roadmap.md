@@ -175,6 +175,22 @@ Commit `8dafdeb` adds `lang-query` with 10 graph tests and one real structured-i
 
 Commit `b4a6f24` adds `lang-lsp` diagnostic data conversion with four focused tests covering UTF-16/surrogate widths, LF/CRLF/lone-CR line endings, CRLF interior boundaries, EOF ranges, related locations, severity/code preservation, missing snapshots/URIs, and source/label/note/output limits. The [architecture](architecture.md#diagnostics-lsp-and-debugging) records official LSP 3.18 sources and their 2026-10-17 verification dates; publication/update dates are not provided in those living documents. The full fmt/Clippy/test/doc baseline passes. This is a data adapter, not a server or a wire codec. The remaining 4-point integration task retains parser/module queries, capabilities, transport, document lifecycle, and revision-safe publication. Roadmap review preserves total scope/cost; RFC 0006 remains proposed.
 
+### Remaining dependency audit (2026-10-17)
+
+The current checklist has 16 unchecked items totaling 75 points. This table is a dependency view, not additional scope or completion credit.
+
+| Required owner decision | Remaining dependent outcomes |
+| --- | --- |
+| Lexical specification | Lossless parser/recovery, parser-connected typing, formatter round trips, and incomplete-source LSP diagnostics |
+| Module/function-call semantics | Module loading/resolution, guest frames/recursion, typed host execution, and parser-connected source/HIR/MIR conformance |
+| Record/variant/pattern semantics and representation | Aggregate typing/exhaustiveness and aggregate source/HIR/MIR/VM conformance |
+| Portable bytecode contract | Versioned encoding/decoding and bounded verification |
+| Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
+
+All five decision areas are covered by proposed RFC 0006. The accepted structured-input HIR, MIR lowering, graph/cache core, and protocol diagnostic conversion do not satisfy these decisions or the source-driven exit. Inspection of [`src/main.rs`](../src/main.rs) confirms the executable still accepts two integers and constructs prototype MIR; it does not run source files. Generic transport scaffolding or further hand-built HIR fixtures would not establish the missing parser-connected outcomes.
+
+The next required input is an explicit owner disposition on RFC 0006: acceptance, requested revision, or withdrawal/replanning. Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) explicitly requires lexical acceptance before frontend implementation (last updated 2026-10-17 JST); the [RFC skill](../.agents/skills/language-design-rfc/SKILL.md) requires keeping proposals `proposed` until explicit owner acceptance (last updated 2026-10-15 JST). Verification date: 2026-10-17 JST. No acceptance, implementation checkbox, scope reduction, or Milestone 1 exit is inferred from this audit. The final Milestone 1 capability guide remains due after the actual source-driven milestone is complete.
+
 Exit: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 
 ## Milestone 2: ownership and native AOT
