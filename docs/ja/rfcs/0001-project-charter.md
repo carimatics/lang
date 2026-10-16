@@ -7,7 +7,7 @@
 - ステータス：proposed
 - 著者：プロジェクトコントリビューター
 - 作成日：2026-10-15
-- 最終更新日：2026-10-16
+- 最終更新日：2026-10-17
 - トラッキングIssue：
 - 置き換えるRFC：
 - 後継RFC：
@@ -220,7 +220,7 @@ Benchmark schema 14はschema 13の全fieldを維持し、3つのallocation-churn
 
 Schema 14の後に追加した4つ目のcallbackは、8〜128 byteのpayloadを持つ16個のboxed `i64` slice、合計1,088 requested payload byteを同時にliveにしてから、決定的なwrapping foldを返すvariable-size allocationを検証します。VM／JIT差分testはinteger extremeを扱い、macOS direct／response-file integrationは対応するC importを実行し、host非依存Windows COFF validationは `lang_host_i64_4` を検証し、cfg-gated MSVC pathも同じlink-and-run coverageを再現します。このcallbackのtimingと正確なrequested-payload profilingは、代表的workload、allocator metadata／fragmentation、remote Windows executionとともに未完了であるため、review outcomeは引き続き **needs prototype/measurement** です。
 
-Benchmark schema 13はschema 12 fieldをすべて維持し、link済みAOT processのOS報告peak resident memory distributionを1つ追加します。macOSはbytes単位の `ru_maxrss`、Windowsはbytes単位の `Process.PeakWorkingSet64` を使います。両方ともshared pageとloader／runtime stateを含むため、allocator-overheadやallocation-workload evidenceではなくprocess envelopeです。Test、native macOS smoke run、schema 15 Windows CI contractがmechanismを検証します。過去のclean schema 13 macOS AArch64 resultは31 sampleすべてが1,671,168 byte、RSD 0.000%であることを記録し、Windows baselineは未記録です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
+Benchmark schema 13はschema 12 fieldをすべて維持し、link済みAOT processのOS報告peak resident memory distributionを1つ追加します。macOSはbytes単位の `ru_maxrss` を使い、Windowsでは各計測対象processが終了前に `K32GetProcessMemoryInfo` でbytes単位の `PROCESS_MEMORY_COUNTERS.PeakWorkingSetSize` をself-reportします。両方ともshared pageとloader／runtime stateを含むため、allocator-overheadやallocation-workload evidenceではなくprocess envelopeです。Test、native macOS smoke run、schema 20 Windows CI contractがmechanismを検証します。過去のclean schema 13 macOS AArch64 resultは31 sampleすべてが1,671,168 byte、RSD 0.000%であることを記録し、Windows baselineは未記録です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
 
 実装前のcleanなmacOS AArch64 [AOT debug-information inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)は、元のnegative baselineを確立しました。Commit済みの[source-mapped DWARF inspection](../../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md)は、commit `31e182ac27e324048597a5ebd0fda4d2d4934395` から代表的なadd、minimum、host-callback objectを再生成します。3 objectすべてがrelocation付きDWARF v4 compile-unit、subprogram、source-line dataを持った状態で `dwarfdump --verify` をpassし、direct／response-file executableがlink／実行され、生成した両dSYMもfixture pathと3 functionを保持したままverificationをpassします。Commit済みの[Windows x86-64 CodeView／PDB inspection](../../../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md)は、commit `465b0d66ba6ea61a0d4b26201e6ab043f2f15f9d` の同等なC13 COFF record／relocationをvalidateし、LLDでPE／PDB artifactへlinkし、LLDBでlink済みfunction-to-source resolutionを検証します。計画済みsource-mapping criterionは完了しましたが、native Windows execution／performance、source-language local、unwind metadata、JIT debugger registration、optimized stepping、代表的source programでのvalidationは未完了です。したがってreview outcomeは引き続き **needs prototype/measurement** です。
 

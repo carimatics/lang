@@ -57,6 +57,10 @@ use lang_runtime::component::{
 use lang_vm::{
     ExecutionControl, InterruptionFlag, execute, execute_with_control, execute_with_hosts,
 };
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 const DEFAULT_SAMPLES: usize = 31;
 const DEFAULT_LOWERING_ITERATIONS: u64 = 1_000;
@@ -65,6 +69,8 @@ const DEFAULT_STARTUP_ITERATIONS: u64 = 10;
 const PROCESS_MEMORY_CONTROL_CHILD: &str = "--process-memory-control-child";
 const REPRESENTATIVE_ALLOCATION_CHILD: &str = "--representative-allocation-child";
 const COMPONENT_INSTANCE_MEMORY_CHILD: &str = "--component-instance-memory-child";
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+const REPORT_PEAK_WORKING_SET_ENV: &str = "LANG_BENCH_REPORT_PEAK_WORKING_SET";
 const COMPONENT_INSTANCE_MEMORY_COUNT: usize = 4_096;
 const REPRESENTATIVE_ALLOCATION_NAME: &str = "compiler_like_mixed_lifetime_allocation";
 const REPRESENTATIVE_RETAINED_ALLOCATION_COUNT: usize = 16_384;
@@ -467,18 +473,18 @@ fn main() -> ExitCode {
     if let Some(mode) = env::args().nth(1) {
         if mode == PROCESS_MEMORY_CONTROL_CHILD {
             black_box(0_u8);
-            return ExitCode::SUCCESS;
+            return finish_process_memory_child();
         }
         if mode == REPRESENTATIVE_ALLOCATION_CHILD {
             let (profile, checksum) = representative_allocation_workload();
             black_box((profile, checksum));
-            return ExitCode::SUCCESS;
+            return finish_process_memory_child();
         }
         if mode == COMPONENT_INSTANCE_MEMORY_CHILD {
             return match component_instance_memory_workload() {
                 Ok(checksum) => {
                     black_box(checksum);
-                    ExitCode::SUCCESS
+                    finish_process_memory_child()
                 }
                 Err(error) => {
                     eprintln!("error: {error}");
@@ -500,6 +506,24 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn finish_process_memory_child() -> ExitCode {
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    if env::var_os(REPORT_PEAK_WORKING_SET_ENV).is_some() {
+        return match current_process_peak_working_set_bytes() {
+            Ok(bytes) => {
+                println!("{bytes}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+
+    ExitCode::SUCCESS
 }
 
 fn print_usage() {
@@ -2322,6 +2346,13 @@ fn warm_up(runtime_iterations: u64, workloads: &PreparedWorkloads<'_>) {
 const LINK_HARNESS: &str = r#"
 #include <stdint.h>
 
+#ifdef _WIN32
+#include <stdio.h>
+#include <stdlib.h>
+#include <windows.h>
+#include <psapi.h>
+#endif
+
 extern int64_t prototype_add(int64_t left, int64_t right);
 extern int64_t prototype_countdown(int64_t value);
 extern int64_t prototype_fibonacci(int64_t value);
@@ -2330,7 +2361,7 @@ extern int64_t prototype_sum_below(int64_t value, int64_t cutoff);
 extern int64_t prototype_sum_to(int64_t value);
 
 int main(void) {
-    return prototype_add(20, 22) == 42 &&
+    int succeeded = prototype_add(20, 22) == 42 &&
         prototype_countdown(64) == 0 &&
         prototype_countdown(-7) == -7 &&
         prototype_fibonacci(20) == 6765 &&
@@ -2339,7 +2370,21 @@ int main(void) {
         prototype_sum_below(64, 33) == 528 &&
         prototype_sum_below(-7, 33) == 0 &&
         prototype_sum_to(64) == 2080 &&
-        prototype_sum_to(-7) == 0 ? 0 : 1;
+        prototype_sum_to(-7) == 0;
+    if (!succeeded) {
+        return 1;
+    }
+#ifdef _WIN32
+    if (getenv("LANG_BENCH_REPORT_PEAK_WORKING_SET") != NULL) {
+        PROCESS_MEMORY_COUNTERS counters = {0};
+        counters.cb = sizeof(counters);
+        if (!K32GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters))) {
+            return 1;
+        }
+        printf("%llu\n", (unsigned long long)counters.PeakWorkingSetSize);
+    }
+#endif
+    return 0;
 }
 "#;
 
@@ -2635,39 +2680,38 @@ fn parse_macos_peak_resident_memory(output: &str) -> Result<u64, String> {
 
 #[cfg(all(target_os = "windows", target_env = "msvc"))]
 fn peak_resident_memory_bytes(executable: &Path, arguments: &[&str]) -> Result<u64, String> {
-    const SCRIPT: &str = r#"
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-$startInfo.FileName = $args[0]
-$startInfo.UseShellExecute = $false
-if ($args.Count -gt 1) {
-    $startInfo.Arguments = $args[1]
-}
-$process = [System.Diagnostics.Process]::Start($startInfo)
-$process.WaitForExit()
-$exitCode = $process.ExitCode
-$peakWorkingSet = $process.PeakWorkingSet64
-[Console]::Out.WriteLine($peakWorkingSet)
-exit $exitCode
-"#;
-
-    let output = Command::new("powershell.exe")
-        .args([
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            SCRIPT,
-        ])
-        .arg(executable)
+    let output = Command::new(executable)
         .args(arguments)
+        .env(REPORT_PEAK_WORKING_SET_ENV, "1")
         .output()
         .map_err(|error| format!("failed to measure linked executable memory: {error}"))?;
     ensure_command_succeeded("linked executable memory measurement", &output)?;
     parse_process_memory_bytes(
         &String::from_utf8_lossy(&output.stdout),
-        "PowerShell peak working set size",
+        "Windows peak working set size",
     )
+}
+
+#[cfg(all(target_os = "windows", target_env = "msvc"))]
+fn current_process_peak_working_set_bytes() -> Result<u64, String> {
+    let mut counters = PROCESS_MEMORY_COUNTERS {
+        cb: u32::try_from(std::mem::size_of::<PROCESS_MEMORY_COUNTERS>())
+            .map_err(|_| "Windows process-memory counter size exceeds u32".to_owned())?,
+        ..PROCESS_MEMORY_COUNTERS::default()
+    };
+    // SAFETY: GetCurrentProcess returns a valid pseudo-handle for this process, and `counters`
+    // is writable for exactly the byte count recorded in its `cb` field for the duration of the
+    // call. No reference escapes the call.
+    let succeeded =
+        unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) };
+    if succeeded == 0 {
+        return Err(format!(
+            "failed to read the current Windows process memory counters: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    u64::try_from(counters.PeakWorkingSetSize)
+        .map_err(|_| "Windows peak working set size exceeds u64".to_owned())
 }
 
 #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
@@ -3745,6 +3789,12 @@ mod tests {
         assert_eq!(measurement.maximum_bytes, 500);
         assert_eq!(measurement.mean_bytes, 300.0);
         assert!((measurement.relative_stddev_percent - 47.140_452).abs() < 0.000_001);
+    }
+
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    #[test]
+    fn reads_the_current_windows_process_peak_working_set() {
+        assert!(super::current_process_peak_working_set_bytes().unwrap() > 0);
     }
 
     #[cfg(target_os = "macos")]

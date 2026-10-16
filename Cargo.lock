@@ -307,6 +307,7 @@ dependencies = [
  "lang-runtime",
  "lang-vm",
  "object",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

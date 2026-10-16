@@ -44,5 +44,8 @@ lang-mir.workspace = true
 lang-runtime.workspace = true
 lang-vm.workspace = true
 
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }
+
 [dev-dependencies]
 object.workspace = true
