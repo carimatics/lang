@@ -16,11 +16,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 同日のRFC readiness監査では、別のplanning gapも修正しました。RFC 0003はowner decision待ちとして並んでいましたが、review outcomeは当時stable serialization、host-value／cross-mode adapter conformance、lock integration、native Windows component execution、より広いcost evidenceをblockerとして明記していました。これらの成果はRFC 0003 decision前の明示的なprototype taskとなり、production IDL、adapter、package managerは引き続きMilestone 3／4の責務とします。
 
-このrepository stateに対して2026-10-16 22:29 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 22:54 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 166 pt | 196 pt | **84.7%** |
+| 0 — design baseline（現在） | 171 pt | 196 pt | **87.2%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -28,11 +28,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **166 pt** | **678 pt** | **24.5%** |
+| **全体** | **171 pt** | **678 pt** | **25.2%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：166 / 196 pt（84.7%）。**
+**進捗：171 / 196 pt（87.2%）。**
 
 ### Workstream別内訳
 
@@ -43,16 +43,16 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
-| Component／resource contract | 63 pt | 71 pt | 88.7% |
+| Component／resource contract | 68 pt | 71 pt | 95.8% |
 | Platform／backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **166 pt** | **196 pt** | **84.7%** |
+| **Milestone 0** | **171 pt** | **196 pt** | **87.2%** |
 
 このsnapshot時点の実行状態：
 
-- **Unblocked local P0：** RFC 0003の拡張boundary-cost evidence。
-- **外部gate：** RFC 0002、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-execution evidence。
-- **依存gate：** 追加したevidence prerequisiteの完了後にRFC 0003をdecisionし、Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
+- **Unblocked local P0：** なし。残るMilestone 0 taskはすべてrepository-owner decisionまたはnative Windows evidenceを現在必要とする。
+- **外部gate：** RFC 0002、RFC 0003、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-execution evidence。
+- **依存gate：** Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
 ### 優先度順のタスク
 
@@ -93,7 +93,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — 同じhost-value resource／failure fixtureをVM、JIT、AOT adapterで実行し、同等のoutcomeを記録する。** — 3 pt
 - [x] **P0 — Production package managerを実装せず、in-memory resolverに対するdeterministicなlockfile／package-selection integrationをprototypeする。** — 5 pt
 - [ ] **P0 — 同じconformance fixtureのnative Windows component executionを記録する。** — 3 pt
-- [ ] **P0 — Component-boundary cost evidenceをinstantiation、failure／destructor path、memory、code sizeへ拡張し、その解釈をRFC 0003へ記録する。** — 5 pt
+- [x] **P0 — Component-boundary cost evidenceをinstantiation、failure／destructor path、memory、code sizeへ拡張し、その解釈をRFC 0003へ記録する。** — 5 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
 - [x] **P0 — 完了済みexperimentからdecision-readyなownership／cyclic-graph RFCを草案化する。** — 5 pt
 - [x] **P0 — 完了済みexperimentからdecision-readyなasync-cancellation／shared-service concurrency RFCを草案化する。** — 5 pt
@@ -125,9 +125,9 @@ General component instantiationはvalidated schema-2 contractをconsumeし、明
 
 [RFC 0003](rfcs/0003-versioned-component-contracts.md)は最初のnormal-path canonical call subsetを規定しました。64-bit `i64`、32-bit normalized `bool`、per-instance unsigned 32-bit adapter indexで表す `own<T>`／`borrow<T>` resourceです。Index zeroはinvalidで、boundary indexをinstance内で再利用しないため、internal generation tag付きslotを再利用してもstale numeric copyが後続resourceをaliasしません。Whole-list preflightはownership mutationより前に、stale、wrong-type、duplicate-owned、owned／borrowed alias、active-lend、capacity、reservation、index-exhaustion failureを拒否します。成功するowner-transfer commitはallocation、callback、観測可能な中間stepを一切行わず、freshなdestination ownerをinstallしてsource indexを永続的にstaleにします。Borrowはcall-scopedのままで、borrowed resultは除外します。このproposalはproject decisionとWIT／Canonical ABI source factを分離し、RFC statusをproposedのまま維持します。
 
-同じRFCはRust／native unwindを公開せず、post-commit failure behaviorも規定しました。Panic／通常trapはownershipをrollbackしません。明示的cleanup ledgerはnested borrowをcloseしてから、残るframe-owned resourceをacquisitionと逆順でdestroyします。Destructorはuser codeより前にownerをconsumeし、at most onceで実行し、failure後もdeterministicなbest-effort cleanupを続けます。先行panic／trapをprimaryに保ち、destructor failureをsuppressed順で追加します。Cleanなcomponent failureではrevalidate済みinstanceをreuseできますが、destructor、contain済みhost-callback、invariant、incomplete-cleanup failureはinstanceをpoisonします。Designはstableなlogical diagnostic identityを記録し、cleanup reentrancyを禁止し、process abort／foreign unwindをtrusted-native limitationとして扱い、VM／JIT／AOTの同一outcomeを要求します。WebAssembly Canonical ABI sourceは2026-10-13最終変更です。Rust公式のpanic、`catch_unwind`、FFI-unwinding documentationは更新日の記載がなく、2026-10-16に確認しました。Schema-2 failure-report serializationはこれらのcategory／orderingを記録し、runtime failureからのpolicy明示projectionはmessageをredactまたはsanitizeしながらcleanup trap／destructor failureを保持するようになりました。Canonical identityはborrow／cleanup用のactual host valueへresolveするようになりましたが、general instantiationとcross-mode resource／failure executionは未完了です。
+同じRFCはRust／native unwindを公開せず、post-commit failure behaviorも規定しました。Panic／通常trapはownershipをrollbackしません。明示的cleanup ledgerはnested borrowをcloseしてから、残るframe-owned resourceをacquisitionと逆順でdestroyします。Destructorはuser codeより前にownerをconsumeし、at most onceで実行し、failure後もdeterministicなbest-effort cleanupを続けます。先行panic／trapをprimaryに保ち、destructor failureをsuppressed順で追加します。Cleanなcomponent failureではrevalidate済みinstanceをreuseできますが、destructor、contain済みhost-callback、invariant、incomplete-cleanup failureはinstanceをpoisonします。Designはstableなlogical diagnostic identityを記録し、cleanup reentrancyを禁止し、process abort／foreign unwindをtrusted-native limitationとして扱い、VM／JIT／AOTの同一outcomeを要求します。WebAssembly Canonical ABI sourceは2026-10-13最終変更です。Rust公式のpanic、`catch_unwind`、FFI-unwinding documentationは更新日の記載がなく、2026-10-16に確認しました。Schema-2 failure-report serializationはこれらのcategory／orderingを記録し、runtime failureからのpolicy明示projectionはmessageをredactまたはsanitizeしながらcleanup trap／destructor failureを保持します。Canonical identityはborrow／cleanup用のactual host valueへresolveし、general instantiation／host-side cross-mode resource／failure executionも実行可能です。Backend ABIを通るtyped resource loweringとnative Windows conformanceは未完了です。
 
-Package／interface negotiationはmetadata-schema selection／package-manager resolutionから分離して規定しています。Runtimeは現在、そのmodel全体をin-memoryでprototypeします。Normalized full-SemVer valueはprerelease／build identifierを保持し、exact requirementはbuild metadataを含み、bounded intervalはSemVer precedenceで比較し、prereleaseには明示的opt-inを要求します。Capability grantをprovider inventory validationより先にcheckし、exact lockは指定されたidentity、version、opaque digestをfallbackなしで要求します。Unlocked candidateはexact package／interface identity、version、structural projection checkを通過してからdeterministicにhighest-precedenceを選択します。Projection checkは順序付きscalar type、nominalな `own`／`borrow` resource type、exact capabilityを扱い、providerのadditive memberを許可し、rejectionをdeterministicな順序で報告します。Same-precedenceのbuild／digest tieはambiguity errorで、結果はimmutable validated bindingです。14個のfocused testがordering、exact lock、non-fallback、structural fallback／rejection、capability ordering、resource ownership mode、ambiguity、malformed declarationを検証します。これは新metadata schema、stable digest encoding、package-manager integration、VM／JIT／AOT instantiation pathではなく、引き続きin-memory prototypeです。
+Package／interface negotiationはmetadata-schema selection／package-manager resolutionから分離して規定しています。Runtimeは現在、そのmodel全体をin-memoryでprototypeします。Normalized full-SemVer valueはprerelease／build identifierを保持し、exact requirementはbuild metadataを含み、bounded intervalはSemVer precedenceで比較し、prereleaseには明示的opt-inを要求します。Capability grantをprovider inventory validationより先にcheckし、exact lockは指定されたidentity、version、opaque digestをfallbackなしで要求します。Unlocked candidateはexact package／interface identity、version、structural projection checkを通過してからdeterministicにhighest-precedenceを選択します。Projection checkは順序付きscalar type、nominalな `own`／`borrow` resource type、exact capabilityを扱い、providerのadditive memberを許可し、rejectionをdeterministicな順序で報告します。Same-precedenceのbuild／digest tieはambiguity errorで、結果はimmutable validated bindingです。14個のfocused testがordering、exact lock、non-fallback、structural fallback／rejection、capability ordering、resource ownership mode、ambiguity、malformed declarationを検証します。Canonicalなin-memory lockfileはcomplete selectionを記録し、general instantiationへexact replayします。Stable on-disk syntax、package-manager I/O、typed backend resource callは未完了です。
 
 Resolverはon-disk compatibility formatを定義せず、canonicalなin-memory lockfile artifactを統合するようになりました。Unlocked selectionは全requirementについてsort済みのexact SHA-256 version／digest entryを1つずつ記録します。Replayは同じconsumer package／versionと完全なrequirement coverageを要求し、embedded contract lockとreconcileし、exact providerが存在しない場合は決してfallbackしません。Provider登録順は生成lockfileへ影響しません。成功したlocked selectionはcontract／immutable bindingをownし、再negotiationせずfreshでboundedなinstance stateへ直接moveします。4件のfocused testがcanonical generation、exact non-fallback replay、missing／conflicting lock、selection-to-instance handoffをcoverします。Production registry access、artifact download、file I/O、publicationはMilestone 4の作業です。
 
@@ -137,7 +137,7 @@ Component runtimeは、stale copyを決してaliasしない非ゼロかつ単調
 
 Cleanなschema-18 macOS AArch64 [CFG／allocation baseline](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)は、56個の一意なtiming row、4個の正確なcallback profile、8個のcomponent-boundary row、3個のprocess-memory distributionを記録します。Iterative Fibonacciはcountdownと2個のwrapping sequence valueを型付きblock argumentで運び、direct Rust／VM／JIT medianは6.510 ns／1.231 us／7.463 ns、JIT codeは48 byte、AOT objectは400 byteです。維持されたallocation traceは18,102,042 peak live requested byte、21,020,672 byteのmedian resident delta、2,918,630 byteのallocator-overhead／fragmentation合算推定値を記録します。これらはperformance／memory budgetではなくplatform固有の方向的resultです。Remote Windows executionは未完了です。
 
-現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentはcountdownで1 value、bounded sumで2 value、iterative Fibonacciで3 valueを運び、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、Fibonacci、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 18 benchmark baseline](benchmarks.md)は、56個のgeneral timing row、4個の正確なcallback heap profile、3個の別process memory distribution、code／object／executable size、startup／link row、個別にlabel付けした4個のcomponent-boundary cost seriesを記録します。Remote Windows execution／benchmark evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。Source-mapped DWARF／dSYMとCodeView／PDB evidenceは、代表的な両tier-1 artifactをcoverするようになりました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semantics、提案済みsource-level control-flow semanticsのacceptance／implementation、source-language local、unwind metadata、optimized stepping、JIT debugger registration、backend決定は未完了です。
+現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentはcountdownで1 value、bounded sumで2 value、iterative Fibonacciで3 valueを運び、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、Fibonacci、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 19 benchmark baseline](benchmarks.md)は、56個のgeneral timing row、4個の正確なcallback heap profile、4個の別process memory distribution、component code／object／document size、startup／link row、instantiation、exact-lock replay、host-value lifecycle、failure／destructor cleanupを含む7 series／13個のcomponent-boundary rowを記録します。Remote Windows execution／benchmark evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。Source-mapped DWARF／dSYMとCodeView／PDB evidenceは、代表的な両tier-1 artifactをcoverするようになりました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semantics、提案済みsource-level control-flow semanticsのacceptance／implementation、source-language local、unwind metadata、optimized stepping、JIT debugger registration、backend決定は未完了です。
 
 CFG移行後の再検査では、minimumのcode／object sizeとinstruction sequenceが変わらないことを確認しました。`SystemLinker` は `Cc` と `MsvcLink` のcommand flavorをmodel化して対応するhost defaultを選択し、ordered prefix argument付きの明示driverをsupportし、完全なcommandを公開してstructured execution failureへ保持します。Ordered library search pathとlogical library nameをflavor固有argumentへloweringし、validationが空のobject path、search path、nameを拒否します。明示的なresponse-file linkは、`Cc` にGNU-escaped UTF-8、`MsvcLink` にWindows-escaped BOM-prefixed UTF-16LEを使用します。Focused testがserializationとvalidationを検証し、macOS AArch64 integrationがdirect linkとresponse-file linkの両方を実行します。Toolchain discoveryとより広いtarget policyは未完了です。Target指定object emissionは明示的なtripleからISAを構築し、host非依存testが `x86_64-pc-windows-msvc` COFF outputのformat、architecture、export、importを検証します。cfg-gated MSVC direct／response-file object-link-execute testと完全SHAでpinしたWindows Server 2025 workflowを構成しましたが、このcommitにはWindows runnerの結果が記録されていないため、Windowsでのlinkとexecution evidenceは未完了です。
 

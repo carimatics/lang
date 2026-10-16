@@ -6,15 +6,29 @@
 
 These measurements are design evidence for the pre-alpha prototypes. They are not language performance guarantees, release targets, or a final backend selection.
 
-## Schema 19 component-boundary harness
+## Current macOS AArch64 schema 19 component-boundary baseline
 
-Schema 19 is implemented, while its clean macOS baseline is pending. It preserves the 56 general timing rows and adds five component-boundary rows: schema-2 instantiation without a lockfile, exact lockfile replay through instance creation, host-value publication/transfer/release, guest-trap cleanup with redacted failure projection, and destructor-failure cleanup with poisoning and redacted projection. A separate child process retains 4,096 exactly locked instances so its peak-resident distribution can be compared with the unchanged control process. The harness also records the scalar component's JIT body and AOT object sizes plus the encoded schema-2 contract and redacted failure-report byte lengths.
+The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json) was recorded from clean commit `76c8f81516be5eb4cd77ab063b3ecd3935d16e58` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 22:51:15 JST. It used harness schema 19, the pinned Rust 1.99.0 toolchain, Apple Clang 21.0.0, 31 samples, 1,000 operations per component construction/lifecycle sample, and the retained schema 18 parameters for all other rows.
 
-These measurements isolate specific in-memory prototypes. The instance-memory row is a whole-process envelope and includes loader, allocator, duplicated contract/binding data, and runtime containers. The scalar machine-code sizes cover the existing `i64 -> i64` host-call component function, not typed resource lowering. Contract/report byte lengths are serialized document sizes, not executable code. A clean schema 19 run must be recorded before interpreting magnitudes.
+Schema 19 preserves the 56 general timing rows and adds five component-boundary rows:
 
-## Current macOS AArch64 CFG and representative-allocation baseline
+| Series | Measurement | Operations per sample | Median | p95 | RSD |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Instantiation | Negotiate and instantiate one unlocked schema-2 contract | 1,000 | 1.226 us | 1.352 us | 3.802% |
+| Instantiation | Replay a complete exact lockfile and create an instance | 1,000 | 1.358 us | 1.384 us | 0.934% |
+| Host-value lifecycle | Publish, transfer, and release one owned host value | 1,000 | 507.875 ns | 559.375 ns | 3.630% |
+| Failure cleanup | Instantiate, transfer, clean a guest trap, and project a redacted report | 1,000 | 3.529 us | 3.619 us | 1.675% |
+| Failure cleanup | Release the host value, record destructor failure/poisoning, and project a redacted report | 1,000 | 524.959 ns | 545.417 ns | 2.084% |
 
-The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json) was recorded from clean commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 19:17:44 JST. It used harness schema 18, the pinned Rust 1.99.0 toolchain, Apple Clang 21.0.0, 31 samples, 1,000 lowering/validation/negotiation/adapter operations per sample, and 100,000 runtime, callback, scalar-dispatch, and table-lifecycle operations per sample.
+The unlocked and locked rows both validate the required projection; lock replay additionally validates complete exact package/version/digest coverage and constructs the canonical lock artifact before creating fresh adapter state. The guest-trap row also performs two general instantiations and therefore must not be read as cleanup cost alone. The destructor row starts from already constructed adapter tables and isolates publication, transfer, cleanup failure, poisoning, and projection more narrowly. Neither row lowers typed resources through MIR, bytecode, JIT, or native ABI.
+
+A separate child process retains 4,096 exact-lock instances. Its peak-resident median is 10,108,928 bytes versus 2,064,384 bytes for the unchanged control, an 8,044,544-byte whole-process delta; p95 is 10,174,464 bytes and RSD is 0.268%. This envelope includes loader state, allocator behavior, duplicated owned contracts/bindings, adapter containers, and measurement-process overhead. It is not a per-instance language memory guarantee and is not normalized by simple division.
+
+The scalar `i64 -> i64` component function has a 40-byte JIT body and a 416-byte AOT object. The encoded schema-2 benchmark contract is 271 bytes and the redacted failure report is 19 bytes. Machine-code sizes exclude the host registry, adapter/resource implementation, runtime support, and final linking; document sizes are serialization evidence, not executable code size. Remote Windows component execution and measurements remain open.
+
+## Previous schema 18 macOS AArch64 CFG and representative-allocation baseline
+
+The previous [baseline](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json) was recorded from clean commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 19:17:44 JST. It used harness schema 18, the pinned Rust 1.99.0 toolchain, Apple Clang 21.0.0, 31 samples, 1,000 lowering/validation/negotiation/adapter operations per sample, and 100,000 runtime, callback, scalar-dispatch, and table-lifecycle operations per sample.
 
 Schema 18 preserves every schema 17 field and adds iterative Fibonacci as a representative CFG workload. The loop carries a countdown and two wrapping sequence values through typed block arguments. Its retained cross-mode rows are:
 
@@ -272,7 +286,7 @@ The clean pre-implementation [debug-information inspection](../benchmarks/inspec
 - The 64-allocation-burst medians are 775.515 ns direct, 959.024 ns through the VM, and 789.842 ns through JIT. VM minus direct is 183.509 ns (23.663%), while JIT minus direct is 14.327 ns (1.847%). The direct, VM, and JIT rows have 20.514%, 0.544%, and 6.002% RSD, so the result is directional rather than a general boundary-overhead budget.
 - The 96-allocation churn medians are 1.192 us direct, 1.348 us through the VM, and 1.173 us through JIT. VM minus direct is 156.544 ns (13.137%), while JIT minus direct is -18.203 ns (-1.528%). The rows have 4.901%, 0.861%, and 0.388% RSD; the negative JIT delta is noise-sensitive microbenchmark evidence, not a claim that the boundary removes allocation cost.
 - Schema 12 profiles the same generic callback workloads outside the timed loops. The single callback records one allocation, 8 total and peak live payload bytes, and zero live bytes afterward; the burst records 64 allocations, 512 total and peak live payload bytes, and zero afterward. The scope is deliberately `host_callback_requested_payload_bytes`: it confirms logical payload lifetime and cleanup, but excludes allocator metadata and fragmentation, stacks, generated code, VM/JIT internal allocations, and process RSS.
-- Schema 13 introduced separate-process peak-memory sampling for the allocation-free linked AOT harness. The historical schema 14 macOS run reports a 1,654,784-byte minimum; a 1,671,168-byte median, p95, and maximum; and 0.173% RSD through `ru_maxrss`. The current schema 18 run reports a 1,671,168-byte minimum; a 1,687,552-byte median, p95, and maximum; and 0.287% RSD after adding Fibonacci to the linked set. Schema 18's separate paired rows retain the representative allocation estimate; the AOT row remains an allocation-free process envelope, and the Windows `PeakWorkingSet64` metric must be interpreted independently.
+- Schema 13 introduced separate-process peak-memory sampling for the allocation-free linked AOT harness. The historical schema 14 macOS run reports a 1,654,784-byte minimum; a 1,671,168-byte median, p95, and maximum; and 0.173% RSD through `ru_maxrss`. The current schema 19 run reports 1,671,168 bytes for minimum, median, p95, and maximum after retaining Fibonacci in the linked set. Schema 19's separate rows retain the representative allocation estimate and add component-instance evidence; the AOT row remains an allocation-free process envelope, and the Windows `PeakWorkingSet64` metric must be interpreted independently.
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
 - The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown, schema 6 adds the accumulator, and schema 7 adds conditional sum. All precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).
@@ -283,7 +297,7 @@ The clean pre-implementation [debug-information inspection](../benchmarks/inspec
 - Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.846 ns and 1.611 us and accumulator JIT/VM medians of 12.790 ns and 1.665 us. Alternating conditional-sum inputs `(64, 33)` and `(-7, 33)` gives JIT/VM medians of 20.011 ns and 3.046 us. These bounded microbenchmarks do not predict representative control-flow performance. Near-one-nanosecond direct add, countdown, and host-call rows remain timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record a clean schema 18 result on a native Windows x86-64 runner and interpret it against the macOS baseline. The macOS AArch64 DWARF/dSYM and Windows-target CodeView/PDB source-mapping criteria are complete; the latter is cross-target LLD/LLDB evidence and does not replace Windows CI execution. The schema 17 allocation trace retained by schema 18 is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
+Before selecting the initial native backend, record a clean schema 19 result on a native Windows x86-64 runner and interpret it against the macOS baseline. The macOS AArch64 DWARF/dSYM and Windows-target CodeView/PDB source-mapping criteria are complete; the latter is cross-target LLD/LLDB evidence and does not replace Windows CI execution. The schema 17 allocation trace retained by schema 19 is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
 
 ## Earlier baseline
 
@@ -291,7 +305,8 @@ The [schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.js
 
 ## Sources
 
-- [Current raw macOS AArch64 schema 18 result](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json), measured 2026-10-16 19:17:44 JST.
+- [Current raw macOS AArch64 schema 19 result](../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json), measured 2026-10-16 22:51:15 JST.
+- [Historical raw macOS AArch64 schema 18 result](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json), measured 2026-10-16 19:17:44 JST.
 - [Historical raw macOS AArch64 schema 17 result](../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json), measured 2026-10-16 19:01:45 JST.
 - [Historical raw macOS AArch64 schema 16 result](../benchmarks/results/2026-10-16-macos-aarch64-7f2482a.json), measured 2026-10-16 18:42:15 JST.
 - [Historical raw macOS AArch64 schema 15 result](../benchmarks/results/2026-10-16-macos-aarch64-f163409.json), measured 2026-10-16 18:00:07 JST.
@@ -304,6 +319,7 @@ The [schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.js
 - [macOS AArch64 AOT debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md), captured 2026-10-16 12:06:01 JST.
 - [macOS AArch64 source-mapped DWARF inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md), captured 2026-10-16 19:41:57 JST.
 - [Windows x86-64 source-mapped CodeView/PDB inspection](../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md), captured 2026-10-16 20:19:36 JST.
+- Repository commit `76c8f81516be5eb4cd77ab063b3ecd3935d16e58`, committed 2026-10-16.
 - Repository commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0`, committed 2026-10-16.
 - Repository commit `aac146dad79cc02518c809d0bb203559799f72db`, committed 2026-10-16.
 - Repository commit `7f2482a52c11354d29c61e68608f85a1f7c9611c`, committed 2026-10-16.

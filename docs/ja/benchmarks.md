@@ -6,15 +6,29 @@
 
 これらのmeasurementはpre-alpha prototypeの設計証拠です。言語のperformance guarantee、release target、最終backend選定ではありません。
 
-## Schema 19 component-boundary harness
+## 現在のmacOS AArch64 schema 19 component-boundary baseline
 
-Schema 19は実装済みですが、cleanなmacOS baselineは未記録です。56個のgeneral timing rowを維持し、lockfileなしのschema-2 instantiation、instance作成まで含むexact lockfile replay、host-value publication／transfer／release、redacted failure projectionを伴うguest-trap cleanup、poisoningとredacted projectionを伴うdestructor-failure cleanupという5個のcomponent-boundary rowを追加します。別child processがexact lock済みinstanceを4,096個保持し、そのpeak-resident distributionを変更のないcontrol processと比較できるようにします。Harnessはscalar componentのJIT body／AOT object sizeと、encode済みschema-2 contract／redacted failure reportのbyte長も記録します。
+現在の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 22:51:15 JSTにclean commit `76c8f81516be5eb4cd77ab063b3ecd3935d16e58` から記録しました。Harness schema 19、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0、31 sample、component construction／lifecycle sampleごとに1,000 operation、その他のrowにはschema 18から維持したparameterを使用しました。
 
-これらのmeasurementは特定のin-memory prototypeを分離します。Instance-memory rowはprocess全体のenvelopeであり、loader、allocator、複製されたcontract／binding data、runtime containerを含みます。Scalar machine-code sizeは既存の `i64 -> i64` host-call component functionを対象とし、型付きresource loweringは対象外です。Contract／reportのbyte長はserialized document sizeであり、executable codeではありません。Magnitudeを解釈する前にcleanなschema 19 runを記録する必要があります。
+Schema 19は56個のgeneral timing rowを維持し、5個のcomponent-boundary rowを追加します。
 
-## 現在のmacOS AArch64 CFG／representative-allocation baseline
+| Series | Measurement | Sample当たりのoperation数 | Median | p95 | RSD |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Instantiation | Lockなしschema-2 contractをnegotiateしてinstantiate | 1,000 | 1.226 us | 1.352 us | 3.802% |
+| Instantiation | Complete exact lockfileをreplayしてinstanceを作成 | 1,000 | 1.358 us | 1.384 us | 0.934% |
+| Host-value lifecycle | Owned host valueを1つpublish／transfer／release | 1,000 | 507.875 ns | 559.375 ns | 3.630% |
+| Failure cleanup | Instantiate、transfer、guest trap cleanup、redacted report projection | 1,000 | 3.529 us | 3.619 us | 1.675% |
+| Failure cleanup | Host valueをreleaseし、destructor failure／poisoningを記録してredacted reportへproject | 1,000 | 524.959 ns | 545.417 ns | 2.084% |
 
-現在の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 19:17:44 JSTにclean commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0` から記録しました。Harness schema 18、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0、31 sample、sampleごとに1,000回のlowering／validation／negotiation／adapter operationと100,000回のruntime／callback／scalar-dispatch／table-lifecycle operationを使用しました。
+Unlocked／locked rowはいずれもrequired projectionをvalidateします。Lock replayはさらにcompleteなexact package／version／digest coverageをvalidateし、freshなadapter stateを作る前にcanonical lock artifactを構築します。Guest-trap rowはgeneral instantiationを2回実行するため、cleanup costだけとして読んではいけません。Destructor rowは構築済みadapter tableから始まり、publication、transfer、cleanup failure、poisoning、projectionをより狭く分離します。どちらもtyped resourceをMIR、bytecode、JIT、native ABIへloweringしません。
+
+別child processはexact lock済みinstanceを4,096個保持します。Peak-resident medianは10,108,928 byte、変更のないcontrolは2,064,384 byteで、process全体の差は8,044,544 byteです。p95は10,174,464 byte、RSDは0.268%です。このenvelopeはloader state、allocator behavior、複製されたowned contract／binding、adapter container、measurement-process overheadを含みます。Instanceごとのlanguage memory guaranteeではなく、単純な除算による正規化も行いません。
+
+Scalar `i64 -> i64` component functionのJIT bodyは40 byte、AOT objectは416 byteです。Encode済みschema-2 benchmark contractは271 byte、redacted failure reportは19 byteです。Machine-code sizeはhost registry、adapter／resource implementation、runtime support、final linkを除外します。Document sizeはserialization evidenceであり、executable code sizeではありません。Remote Windows component execution／measurementは未完了です。
+
+## 過去のschema 18 macOS AArch64 CFG／representative-allocation baseline
+
+以前の[baseline](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)は、macOS 27.0.1を実行するApple M1 Max上で、2026-10-16 19:17:44 JSTにclean commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0` から記録しました。Harness schema 18、固定されたRust 1.99.0 toolchain、Apple Clang 21.0.0、31 sample、sampleごとに1,000回のlowering／validation／negotiation／adapter operationと100,000回のruntime／callback／scalar-dispatch／table-lifecycle operationを使用しました。
 
 Schema 18はschema 17の全fieldを維持し、代表的CFG workloadとしてiterative Fibonacciを追加します。このloopはcountdownと2個のwrapping sequence valueを型付きblock argumentで運びます。維持したcross-mode rowは次のとおりです。
 
@@ -272,7 +286,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - 64-allocation-burst medianはdirectが775.515 ns、VMが959.024 ns、JITが789.842 nsです。VM minus directは183.509 ns（23.663%）、JIT minus directは14.327 ns（1.847%）です。Direct／VM／JIT rowのRSDは20.514%／0.544%／6.002%であるため、resultは一般的なboundary-overhead budgetではなく方向的evidenceです。
 - 96-allocation churn medianはdirectが1.192 us、VMが1.348 us、JITが1.173 usです。VM minus directは156.544 ns（13.137%）、JIT minus directは-18.203 ns（-1.528%）です。各rowのRSDは4.901%／0.861%／0.388%です。負のJIT deltaはnoise-sensitiveなmicrobenchmark evidenceであり、boundaryがallocation costを除去するという主張ではありません。
 - Schema 12はtimed loopの外側で同じgeneric callback workloadをprofileします。Single callbackは1 allocation、total／peak live payload 8 byte、終了後live byte 0を記録し、burstは64 allocation、total／peak live payload 512 byte、終了後0を記録します。Scopeは意図的に `host_callback_requested_payload_bytes` としており、logical payload lifetime／cleanupを確認しますが、allocator metadata／fragmentation、stack、generated code、VM／JIT内部allocation、process RSSは除外します。
-- Schema 13はallocation-freeのlink済みAOT harnessに対する別processのpeak-memory samplingを導入しました。過去のschema 14 macOS runは `ru_maxrss` を通じてminimum 1,654,784 byte、median／p95／maximum 1,671,168 byte、RSD 0.173%を報告します。Fibonacciをlink setへ追加した現在のschema 18 runはminimum 1,671,168 byte、median／p95／maximum 1,687,552 byte、RSD 0.287%を報告します。Schema 18の個別paired rowがrepresentative allocation推定値を維持します。AOT rowはallocation-free process envelopeのままであり、Windowsの `PeakWorkingSet64` metricは独立して解釈する必要があります。
+- Schema 13はallocation-freeのlink済みAOT harnessに対する別processのpeak-memory samplingを導入しました。過去のschema 14 macOS runは `ru_maxrss` を通じてminimum 1,654,784 byte、median／p95／maximum 1,671,168 byte、RSD 0.173%を報告します。Fibonacciをlink setに維持した現在のschema 19 runはminimum／median／p95／maximumのすべてで1,671,168 byteを報告します。Schema 19の個別rowはrepresentative allocation推定値を維持し、component-instance evidenceを追加します。AOT rowはallocation-free process envelopeのままであり、Windowsの `PeakWorkingSet64` metricは独立して解釈する必要があります。
 - VM rowには、呼び出しごとのbytecode verificationとregister allocationが含まれます。Interpreter dispatchだけでなく、現在のend-to-end embedding APIを計測しています。
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
 - Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdown、schema 6はaccumulator、schema 7はconditional sumを追加します。いずれもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
@@ -283,7 +297,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - 64-iteration back-edgeとimmediate returnを交互に実行すると、countdownのJIT／VM medianは12.846 ns／1.611 us、accumulatorは12.790 ns／1.665 usになります。Conditional-sum input `(64, 33)` と `(-7, 33)` を交互に実行すると、JIT／VM medianは20.011 ns／3.046 usになります。これらのbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。約1 nanosecondのdirect add／countdown／host-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、native Windows x86-64 runnerでclean schema 18 resultを記録し、macOS baselineと比較して解釈します。macOS AArch64 DWARF／dSYMとWindows-target CodeView／PDBのsource-mapping criterionは完了済みです。後者はcross-target LLD／LLDB evidenceであり、Windows CI executionを置き換えません。Schema 18が維持するschema 17 allocation traceもsyntheticなcompiler-like proxyであり、合算推定値はallocator metadataとfragmentationを分離できません。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
+初期native backendを選定する前に、native Windows x86-64 runnerでclean schema 19 resultを記録し、macOS baselineと比較して解釈します。macOS AArch64 DWARF／dSYMとWindows-target CodeView／PDBのsource-mapping criterionは完了済みです。後者はcross-target LLD／LLDB evidenceであり、Windows CI executionを置き換えません。Schema 19が維持するschema 17 allocation traceもsyntheticなcompiler-like proxyであり、合算推定値はallocator metadataとfragmentationを分離できません。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
 
 ## 以前のbaseline
 
@@ -291,7 +305,8 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 
 ## 情報源
 
-- [現在のraw macOS AArch64 schema 18 result](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)、2026-10-16 19:17:44 JSTに計測。
+- [現在のraw macOS AArch64 schema 19 result](../../benchmarks/results/2026-10-16-macos-aarch64-76c8f81.json)、2026-10-16 22:51:15 JSTに計測。
+- [過去のraw macOS AArch64 schema 18 result](../../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json)、2026-10-16 19:17:44 JSTに計測。
 - [過去のraw macOS AArch64 schema 17 result](../../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json)、2026-10-16 19:01:45 JSTに計測。
 - [過去のraw macOS AArch64 schema 16 result](../../benchmarks/results/2026-10-16-macos-aarch64-7f2482a.json)、2026-10-16 18:42:15 JSTに計測。
 - [過去のraw macOS AArch64 schema 15 result](../../benchmarks/results/2026-10-16-macos-aarch64-f163409.json)、2026-10-16 18:00:07 JSTに計測。
@@ -304,6 +319,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - [macOS AArch64 AOT debug-information inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md)、2026-10-16 12:06:01 JSTに取得。
 - [macOS AArch64 source-mapped DWARF inspection](../../benchmarks/inspection/2026-10-16-macos-aarch64-31e182a-debug.md)、2026-10-16 19:41:57 JSTに取得。
 - [Windows x86-64 source-mapped CodeView／PDB inspection](../../benchmarks/inspection/2026-10-16-windows-x86_64-465b0d6-debug.md)、2026-10-16 20:19:36 JSTに取得。
+- Repository commit `76c8f81516be5eb4cd77ab063b3ecd3935d16e58`、2026-10-16にcommit。
 - Repository commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0`、2026-10-16にcommit。
 - Repository commit `aac146dad79cc02518c809d0bb203559799f72db`、2026-10-16にcommit。
 - Repository commit `7f2482a52c11354d29c61e68608f85a1f7c9611c`、2026-10-16にcommit。
