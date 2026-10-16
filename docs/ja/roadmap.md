@@ -14,11 +14,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
-このrepository stateに対して2026-10-16 16:07 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 16:15 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 93 pt | 149 pt | **62.4%** |
+| 0 — design baseline（現在） | 96 pt | 149 pt | **64.4%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **93 pt** | **631 pt** | **14.7%** |
+| **全体** | **96 pt** | **631 pt** | **15.2%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：93 / 149 pt（62.4%）。**
+**進捗：96 / 149 pt（64.4%）。**
 
 ### Workstream別内訳
 
@@ -41,14 +41,14 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 16 pt | 30 pt | 53.3% |
-| Component／resource contract | 21 pt | 35 pt | 60.0% |
+| Component／resource contract | 24 pt | 35 pt | 68.6% |
 | Platform／backend evidence | 27 pt | 51 pt | 52.9% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **93 pt** | **149 pt** | **62.4%** |
+| **Milestone 0** | **96 pt** | **149 pt** | **64.4%** |
 
 このsnapshot時点の実行状態：
 
-- **次のunblocked local P0：** RFC 0003でpackage／interface version compatibility negotiationを規定する。
+- **次のunblocked local P0：** 1つのscalar import／exportとresource lifecycleをVM／JIT／AOT differential conformanceへ通す。
 - **外部gate：** RFC 0002のrepository-owner decisionと、remote Windows CI／benchmark evidence。
 - **最終gate：** Component、resource-control、backend-evidence prerequisiteの完了後にのみRFC 0001をdecisionする。
 
@@ -80,7 +80,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Byte／count／depth／string limit、location-bearing diagnostics、malformed fixture、fuzz targetを持つbounded schema-1 component encoder／decoderをprototypeする。** — 5 pt
 - [x] **P0 — RFC 0003でcanonical scalar／resource representationとownership transferを規定する。** — 5 pt
 - [x] **P0 — RFC 0003でcomponent boundaryのpanic／destructor failure behaviorを規定する。** — 3 pt
-- [ ] **P0 — RFC 0003でpackage／interface version compatibility negotiationを規定する。** — 3 pt
+- [x] **P0 — RFC 0003でpackage／interface version compatibility negotiationを規定する。** — 3 pt
 - [ ] **P0 — 1つのscalar import／exportとresource lifecycleをVM／JIT／AOT differential conformanceに通す。** — 5 pt
 - [ ] **P0 — Component boundary costを計測し、解釈をRFC 0003へ記録する。** — 3 pt
 - [ ] **P0 — RFC 0003を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 3 pt
@@ -104,7 +104,9 @@ Component runtimeはgeneration tag付きowned handleと明示的なshared／excl
 
 [RFC 0003](rfcs/0003-versioned-component-contracts.md)は最初のnormal-path canonical call subsetを規定しました。64-bit `i64`、32-bit normalized `bool`、per-instance unsigned 32-bit adapter indexで表す `own<T>`／`borrow<T>` resourceです。Index zeroはinvalidで、boundary indexをinstance内で再利用しないため、internal generation tag付きslotを再利用してもstale numeric copyが後続resourceをaliasしません。Whole-list preflightはownership mutationより前に、stale、wrong-type、duplicate-owned、owned／borrowed alias、active-lend、capacity、reservation、index-exhaustion failureを拒否します。成功するowner transferはnon-allocating／non-reentrantで、destinationをatomicにpublishしてからsource indexを永続的にstaleにします。Borrowはcall-scopedのままで、borrowed resultは除外します。このproposalはproject decisionとWIT／Canonical ABI source factを分離し、RFC statusをproposedのまま維持します。
 
-同じRFCはRust／native unwindを公開せず、post-commit failure behaviorも規定しました。Panic／通常trapはownershipをrollbackしません。明示的cleanup ledgerはnested borrowをcloseしてから、残るframe-owned resourceをacquisitionと逆順でdestroyします。Destructorはuser codeより前にownerをconsumeし、at most onceで実行し、failure後もdeterministicなbest-effort cleanupを続けます。先行panic／trapをprimaryに保ち、destructor failureをsuppressed順で追加します。Cleanなcomponent failureではrevalidate済みinstanceをreuseできますが、destructor、contain済みhost-callback、invariant、incomplete-cleanup failureはinstanceをpoisonします。Designはstableなlogical diagnostic identityを記録し、cleanup reentrancyを禁止し、process abort／foreign unwindをtrusted-native limitationとして扱い、VM／JIT／AOTの同一outcomeを要求します。WebAssembly Canonical ABI sourceは2026-10-13最終変更です。Rust公式のpanic、`catch_unwind`、FFI-unwinding documentationは更新日の記載がなく、2026-10-16に確認しました。Compatibility negotiation、failure-record encoding、adapter／cleanup implementation／conformance、stable serialization、boundary-cost evidenceは未完了です。
+同じRFCはRust／native unwindを公開せず、post-commit failure behaviorも規定しました。Panic／通常trapはownershipをrollbackしません。明示的cleanup ledgerはnested borrowをcloseしてから、残るframe-owned resourceをacquisitionと逆順でdestroyします。Destructorはuser codeより前にownerをconsumeし、at most onceで実行し、failure後もdeterministicなbest-effort cleanupを続けます。先行panic／trapをprimaryに保ち、destructor failureをsuppressed順で追加します。Cleanなcomponent failureではrevalidate済みinstanceをreuseできますが、destructor、contain済みhost-callback、invariant、incomplete-cleanup failureはinstanceをpoisonします。Designはstableなlogical diagnostic identityを記録し、cleanup reentrancyを禁止し、process abort／foreign unwindをtrusted-native limitationとして扱い、VM／JIT／AOTの同一outcomeを要求します。WebAssembly Canonical ABI sourceは2026-10-13最終変更です。Rust公式のpanic、`catch_unwind`、FFI-unwinding documentationは更新日の記載がなく、2026-10-16に確認しました。Failure-record encoding、adapter／cleanup implementation／conformance、stable serialization、boundary-cost evidenceは未完了です。
+
+Package／interface negotiationはmetadata-schema selection／package-manager resolutionから分離して規定しました。将来schemaはschema-1 byteを再解釈せず、exact package／interface key、version-free nominal resource key、exactまたはnormalized bounded SemVer requirement、immutable content digest、required-member projectionを保持します。Capability grantをprovider lookupより先にcheckし、exact lockはfallbackしません。それ以外ではcandidateをidentity、prerelease policy、version bound、exact structural／capability compatibilityでfilterし、deterministicにhighest-precedenceを選びます。Same-precedenceのdigest／build tieはambiguity errorで、running instanceはfailure後にrebindせず、すべてのexecution modeが1つのimmutable validated bindingをconsumeします。DesignはWITのnamespace／package／interface namingとfull SemVer package version、SemVer 2.0.0 precedenceに従い、version labelだけではcompatibilityを証明できないためstructural proofを追加します。New-schema serialization、digest／resource／failure-record encoding、package-manager integration、runtime／VM／JIT／AOT implementation／conformance、negotiation cost evidenceは未完了です。
 
 現在の進捗：最初の型付き関数は、検証済みbytecodeとCranelift JIT prototypeの両方で実行でき、同じMIR loweringからhost-native object artifactを生成できます。最小の型付き `i64` host-function registration、通常のscript-to-host callback、allocation-backed callbackは両方のexecution modeで実行でき、object outputはcallbackをimportとして表現します。VMはopt-inのdeterministic instruction-fuel／host-call budget、allocation前のvalue-slot limit、cooperativeなone-way interruption flag、絶対monotonic deadlineを合成できるようになりました。明示的なbranch、jump、return terminatorを持つ型付きbasic blockをMIR、bytecode、VM、JIT、AOTで共有し、validatorがtargetの存在、reachability、SSA dominanceを強制し、fuel-bounded back-edge testがnon-terminationを検証します。型付きblock parameterとedge argumentがtest済みcountdown back-edgeを介して `i64` を運び、bounded sum workloadはcounterとwrapping accumulatorの両方をloopで運びます。MIRとbytecodeのvalidatorはentry-block制約とedge argumentのarity／typeを強制し、VMとJITの結果が一致し、AOT object emissionも成功します。初期の共通 `SystemLinker` driverが順序付きlink requestを検証し、host toolchainのcommand flavorを選択してstructured failureを報告し、macOS AArch64 integrationはadd、minimum、通常のhost-callback、host-allocation、accumulator、conditional-sum objectをこのdriver経由でlinkして実行します。現在のcleanなmacOS AArch64 [schema 14 benchmark baseline](benchmarks.md)は、add、minimum、loop-carried countdown、2-value accumulator、conditional-sumのlowering、JIT／AOT compilation、code／object／link済みexecutable size、direct／VM／JIT call、通常、single-allocation、64-allocation-burst、allocation-churnのhost callback、3つのrequested-payload heap profile、unset-flag interruption-check／期限前deadline比較、system linking、single-launch／batched warm-cache AOT process startup、1,654,784〜1,671,168 byteの31個のlink済みprocess peak-memory sampleを扱います。Remote Windows evidenceはまだ記録していません。3つすべてのmemory-model stress caseに実行可能な厳格modelがあります。すなわち、no-borrow-across-suspension ruleとdeterministic cancellation cleanup、明示的なshared／weak graphとarena-scoped cyclic graph、moved messageを使うactor-isolated shared mutable serviceです。Generated-code inspectionでは、2 instructionのAArch64 add、compare-and-branch minimum、host callback用のposition-independentなGOT importを確認しました。RFC 0001はproposedのままであり、より制限の少ない代替案、より広いembedding limitとnative enforcement、production linker hardeningとstartup／runtime packaging、Windows x86-64でのlink、execution、benchmark、CI evidence、source allocation semanticsと代表的なallocation／memory workload、提案済みsource-level control-flow semanticsのacceptance／implementation、追加CFG workload、allocator-overhead measurement、native debug-metadata implementation、cross-platform debug-quality validation、backend決定は未完了です。
 
