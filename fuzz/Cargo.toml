@@ -25,5 +25,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "versioned_component_failure_report_decoder"
+path = "fuzz_targets/versioned_component_failure_report_decoder.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]

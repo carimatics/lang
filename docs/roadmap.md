@@ -16,11 +16,11 @@ The 2026-10-16 whole-roadmap audit corrected three structural problems. Producti
 
 An RFC-readiness audit on the same date corrected another planning gap: RFC 0003 was queued for an owner decision even though its review outcome still names stable serialization, host-value and cross-mode adapter conformance, lock integration, native Windows component execution, and broader cost evidence as blockers. Those outcomes are now explicit prototype tasks before the RFC 0003 decision; Milestones 3 and 4 still own the production IDL, adapters, and package manager.
 
-Progress snapshot verified against this repository state on 2026-10-16 21:36 JST:
+Progress snapshot verified against this repository state on 2026-10-16 21:50 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 145 pt | 196 pt | **74.0%** |
+| 0 — design baseline (current) | 153 pt | 196 pt | **78.1%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -28,11 +28,11 @@ Progress snapshot verified against this repository state on 2026-10-16 21:36 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **145 pt** | **678 pt** | **21.4%** |
+| **Overall** | **153 pt** | **678 pt** | **22.6%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 145 / 196 pt (74.0%).**
+**Progress: 153 / 196 pt (78.1%).**
 
 ### Workstream breakdown
 
@@ -43,14 +43,14 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control, ownership, and concurrency | 26 pt | 30 pt | 86.7% |
-| Component and resource contracts | 42 pt | 71 pt | 59.2% |
+| Component and resource contracts | 50 pt | 71 pt | 70.4% |
 | Platform and backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **145 pt** | **196 pt** | **74.0%** |
+| **Milestone 0** | **153 pt** | **196 pt** | **78.1%** |
 
 Current execution state at this snapshot:
 
-- **Unblocked local P0:** stable versioned component serialization, cross-mode host-value adapter conformance, a lockfile/package-selection prototype, and expanded boundary-cost evidence for RFC 0003.
+- **Unblocked local P0:** cross-mode host-value adapter conformance, a lockfile/package-selection prototype, and expanded boundary-cost evidence for RFC 0003.
 - **External gates:** the RFC 0002, RFC 0004, and RFC 0005 repository-owner decisions plus remote Windows object-link-run, benchmark, and component-execution evidence.
 - **Dependent gates:** decide RFC 0003 after its added evidence prerequisites, select the initial native backend after the Windows evidence is recorded, then decide RFC 0001 after all other prerequisites are complete.
 
@@ -87,7 +87,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Connect one validated schema-1 scalar import/export through the VM, JIT, and AOT prototypes and record equivalent outcomes.** — 3 pt
 - [x] **P0 — Prototype canonical resource preflight/commit, borrow scoping, cleanup ledgers, and instance poisoning in a backend-neutral adapter trace.** — 5 pt
 - [x] **P0 — Measure metadata validation/negotiation, scalar dispatch, and resource lifecycle costs as separate benchmark series and document their interpretation in RFC 0003.** — 5 pt
-- [ ] **P0 — Prototype and specify a stable versioned component serialization for normalized requirements, digests, resource identities, and failure records.** — 8 pt
+- [x] **P0 — Prototype and specify a stable versioned component serialization for normalized requirements, digests, resource identities, and failure records.** — 8 pt
 - [ ] **P0 — Prototype general component instantiation and connect canonical host-value resource/failure adapters through VM, JIT, and AOT, recording equivalent outcomes.** — 8 pt
 - [ ] **P0 — Prototype deterministic lockfile/package-selection integration over the in-memory resolver without implementing the production package manager.** — 5 pt
 - [ ] **P0 — Record native Windows component execution for the same conformance fixture.** — 3 pt
@@ -111,7 +111,7 @@ The first component-contract slice now separates portable declarations from embe
 
 The experimental schema-1 `LCMP` codec now deterministically encodes the scalar declaration subset and decodes untrusted bytes under configurable total-byte, declaration-count, structural-depth, and string-length limits. It rejects malformed magic, unsupported schemas before their payload, truncation, invalid UTF-8, unknown scalar tags, trailing bytes, and exceeded bounds with structured byte-offset errors. Round-trip, encoder/decoder limit, malformed-fixture, deterministic arbitrary-byte corpus, locked fuzz-target build, and a 1,000-run libFuzzer smoke execution pass. The format remains an unstable fixture; stable contract serialization and compatibility negotiation are still open in RFC 0003.
 
-The schema-2 serialization prototype now includes a candidate contract envelope for package/full-SemVer identity, canonically sorted normalized interface requirements and required-member projections, SHA-256-tagged exact locks, and canonical resource-type identities. Required members preserve parameter/result order, exact capabilities, and scalar or nominal `own<T>`/`borrow<T>` types; validation rejects duplicate member names, invalid capabilities, undeclared resources, and borrowed results. Construction and bounded decoding also reject invalid identifiers, intervals, duplicates, orphan or mismatched locks, malformed headers/tags/booleans/UTF-8, truncation, trailing bytes, and exceeded byte/item/depth/string limits with structured offsets. A checked-in golden encoding, canonical-order round trip, projection validation, arbitrary-byte corpus, and dedicated fuzz target cover the layout. Versioned failure reports remain open, so the 8-point stable-serialization task remains unchecked.
+The completed schema-2 serialization prototype defines separate contract and failure-report documents under one versioned `LCMP` envelope. Contract documents encode package/full-SemVer identity, canonically sorted normalized interface requirements and required-member projections, SHA-256-tagged exact locks, and canonical resource-type identities. Required members preserve parameter/result order, exact capabilities, and scalar or nominal `own<T>`/`borrow<T>` types; validation rejects duplicate member names, invalid capabilities, undeclared resources, and borrowed results. Failure-report documents encode a primary record, ordered cleanup-only suppressed destructor records, poisoned state, fixed category/phase/diagnostic tags, and an explicit redacted-or-sanitized message policy. Construction and bounded decoding reject invalid semantics, malformed headers/tags/booleans/UTF-8, truncation, trailing bytes, and exceeded byte/item/depth/string limits with structured offsets. Checked-in golden encodings, canonical round trips, semantic and malformed-input tests, an arbitrary-byte corpus, and dedicated fuzz targets cover both document kinds. RFC 0003 remains proposed, so this completes the 8-point prototype task without claiming owner acceptance or a production IDL.
 
 The component runtime now also prototypes generation-tagged owned handles and explicit shared/exclusive borrow tokens. Released slots advance their generation and the lowest free slot is reused deterministically; stale owners cannot alias replacements, and generation exhaustion retires a slot instead of wrapping. Shared borrows coexist, exclusive borrows and mutable access enforce exclusivity, active borrows block release, and repeated borrow ends/releases fail structurally. Six focused tests cover slot reuse, stale owners and borrows, double release/end, conflicts, mutation, deterministic reuse, generation retirement, and borrow-ID exhaustion.
 

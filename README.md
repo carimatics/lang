@@ -115,7 +115,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-The workspace currently contains only the components exercised by the prototypes: `lang-mir`, `lang-bytecode`, `lang-vm`, `lang-codegen-clif`, the typed host-function registry, bounded experimental schema-1 scalar codec, candidate schema-2 versioned-contract codec, scalar component-contract validator, and generation-tagged resource table in `lang-runtime`, and executable design models in `lang-semantics`. Additional boundaries from `docs/architecture.md` should appear only with their implementation.
+The workspace currently contains only the components exercised by the prototypes: `lang-mir`, `lang-bytecode`, `lang-vm`, `lang-codegen-clif`, the typed host-function registry, bounded experimental schema-1 scalar codec, candidate schema-2 contract/failure-report codec, scalar component-contract validator, and generation-tagged resource table in `lang-runtime`, and executable design models in `lang-semantics`. Additional boundaries from `docs/architecture.md` should appear only with their implementation.
 
 ## Design process
 

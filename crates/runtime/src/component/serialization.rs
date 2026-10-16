@@ -22,6 +22,7 @@ pub const VERSIONED_COMPONENT_MAGIC: [u8; 4] = *b"LCMP";
 pub const VERSIONED_COMPONENT_SCHEMA_VERSION: u32 = 2;
 
 const CONTRACT_DOCUMENT_KIND: u8 = 0;
+const FAILURE_REPORT_DOCUMENT_KIND: u8 = 1;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DigestAlgorithm {
@@ -193,6 +194,340 @@ pub enum ComponentContractValueType {
     Bool,
     Own(ResourceTypeKey),
     Borrow(ResourceTypeKey),
+}
+
+/// Stable failure categories admitted by the schema-2 report prototype.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionedComponentFailureCategory {
+    Panic,
+    Trap,
+    Destructor,
+}
+
+impl VersionedComponentFailureCategory {
+    const fn tag(self) -> u8 {
+        match self {
+            Self::Panic => 0,
+            Self::Trap => 1,
+            Self::Destructor => 2,
+        }
+    }
+}
+
+impl Display for VersionedComponentFailureCategory {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Panic => formatter.write_str("panic"),
+            Self::Trap => formatter.write_str("trap"),
+            Self::Destructor => formatter.write_str("destructor"),
+        }
+    }
+}
+
+/// Stable failure phases admitted by the schema-2 report prototype.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionedComponentFailurePhase {
+    Call,
+    Cleanup,
+}
+
+impl VersionedComponentFailurePhase {
+    const fn tag(self) -> u8 {
+        match self {
+            Self::Call => 0,
+            Self::Cleanup => 1,
+        }
+    }
+}
+
+impl Display for VersionedComponentFailurePhase {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Call => formatter.write_str("call"),
+            Self::Cleanup => formatter.write_str("cleanup"),
+        }
+    }
+}
+
+/// Versioned logical diagnostic identities; display strings are not wire data.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionedComponentDiagnostic {
+    BoundaryPanic,
+    BoundaryTrap,
+    DestructorFailure,
+    InstancePoisoned,
+}
+
+impl VersionedComponentDiagnostic {
+    const fn tag(self) -> u8 {
+        match self {
+            Self::BoundaryPanic => 0,
+            Self::BoundaryTrap => 1,
+            Self::DestructorFailure => 2,
+            Self::InstancePoisoned => 3,
+        }
+    }
+}
+
+impl Display for VersionedComponentDiagnostic {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::BoundaryPanic => "component.boundary.panic",
+            Self::BoundaryTrap => "component.boundary.trap",
+            Self::DestructorFailure => "component.boundary.destructor-failure",
+            Self::InstancePoisoned => "component.instance-poisoned",
+        })
+    }
+}
+
+/// Report-level policy for optional diagnostic messages.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VersionedComponentMessagePolicy {
+    /// No record may carry a message.
+    Redacted,
+    /// Present messages were sanitized by the embedding policy before construction.
+    Sanitized,
+}
+
+impl VersionedComponentMessagePolicy {
+    const fn tag(self) -> u8 {
+        match self {
+            Self::Redacted => 0,
+            Self::Sanitized => 1,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionedComponentFailureRecord {
+    category: VersionedComponentFailureCategory,
+    phase: VersionedComponentFailurePhase,
+    diagnostic: VersionedComponentDiagnostic,
+    message: Option<String>,
+}
+
+impl VersionedComponentFailureRecord {
+    pub fn new(
+        category: VersionedComponentFailureCategory,
+        phase: VersionedComponentFailurePhase,
+        diagnostic: VersionedComponentDiagnostic,
+        message: Option<String>,
+    ) -> Self {
+        Self {
+            category,
+            phase,
+            diagnostic,
+            message,
+        }
+    }
+
+    pub const fn category(&self) -> VersionedComponentFailureCategory {
+        self.category
+    }
+
+    pub const fn phase(&self) -> VersionedComponentFailurePhase {
+        self.phase
+    }
+
+    pub const fn diagnostic(&self) -> VersionedComponentDiagnostic {
+        self.diagnostic
+    }
+
+    pub fn message(&self) -> Option<&str> {
+        self.message.as_deref()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VersionedComponentFailureReport {
+    message_policy: VersionedComponentMessagePolicy,
+    primary: VersionedComponentFailureRecord,
+    suppressed: Vec<VersionedComponentFailureRecord>,
+    poisoned: bool,
+}
+
+impl VersionedComponentFailureReport {
+    pub fn new(
+        message_policy: VersionedComponentMessagePolicy,
+        primary: VersionedComponentFailureRecord,
+        suppressed: Vec<VersionedComponentFailureRecord>,
+        poisoned: bool,
+    ) -> Result<Self, ComponentFailureReportValidationError> {
+        let report = Self {
+            message_policy,
+            primary,
+            suppressed,
+            poisoned,
+        };
+        validate_failure_report(&report)?;
+        Ok(report)
+    }
+
+    pub const fn message_policy(&self) -> VersionedComponentMessagePolicy {
+        self.message_policy
+    }
+
+    pub const fn primary(&self) -> &VersionedComponentFailureRecord {
+        &self.primary
+    }
+
+    pub fn suppressed(&self) -> &[VersionedComponentFailureRecord] {
+        &self.suppressed
+    }
+
+    pub const fn poisoned(&self) -> bool {
+        self.poisoned
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FailureRecordLocation {
+    Primary,
+    Suppressed(usize),
+}
+
+impl Display for FailureRecordLocation {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Primary => formatter.write_str("primary failure"),
+            Self::Suppressed(index) => write!(formatter, "suppressed failure {index}"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ComponentFailureReportValidationError {
+    DiagnosticMismatch {
+        location: FailureRecordLocation,
+        category: VersionedComponentFailureCategory,
+        phase: VersionedComponentFailurePhase,
+        diagnostic: VersionedComponentDiagnostic,
+    },
+    InvalidSuppressedRecord {
+        index: usize,
+    },
+    MessagePresentUnderRedactedPolicy {
+        location: FailureRecordLocation,
+    },
+    DestructorFailureWithoutPoisoning,
+    PoisonedDiagnosticWithoutPoisoning,
+}
+
+impl Display for ComponentFailureReportValidationError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DiagnosticMismatch {
+                location,
+                category,
+                phase,
+                diagnostic,
+            } => write!(
+                formatter,
+                "{location} has incompatible {category}/{phase} classification for `{diagnostic}`"
+            ),
+            Self::InvalidSuppressedRecord { index } => write!(
+                formatter,
+                "suppressed failure {index} is not a cleanup-phase destructor failure"
+            ),
+            Self::MessagePresentUnderRedactedPolicy { location } => {
+                write!(
+                    formatter,
+                    "{location} carries a message under redacted policy"
+                )
+            }
+            Self::DestructorFailureWithoutPoisoning => {
+                formatter.write_str("a destructor failure requires a poisoned instance")
+            }
+            Self::PoisonedDiagnosticWithoutPoisoning => {
+                formatter.write_str("component.instance-poisoned requires the report poisoned flag")
+            }
+        }
+    }
+}
+
+impl Error for ComponentFailureReportValidationError {}
+
+fn validate_failure_report(
+    report: &VersionedComponentFailureReport,
+) -> Result<(), ComponentFailureReportValidationError> {
+    validate_failure_record(report.primary(), FailureRecordLocation::Primary)?;
+    for (index, record) in report.suppressed().iter().enumerate() {
+        validate_failure_record(record, FailureRecordLocation::Suppressed(index))?;
+        if record.category() != VersionedComponentFailureCategory::Destructor
+            || record.phase() != VersionedComponentFailurePhase::Cleanup
+            || record.diagnostic() != VersionedComponentDiagnostic::DestructorFailure
+        {
+            return Err(ComponentFailureReportValidationError::InvalidSuppressedRecord { index });
+        }
+    }
+
+    if report.message_policy() == VersionedComponentMessagePolicy::Redacted {
+        for (location, record) in
+            std::iter::once((FailureRecordLocation::Primary, report.primary())).chain(
+                report
+                    .suppressed()
+                    .iter()
+                    .enumerate()
+                    .map(|(index, record)| (FailureRecordLocation::Suppressed(index), record)),
+            )
+        {
+            if record.message().is_some() {
+                return Err(
+                    ComponentFailureReportValidationError::MessagePresentUnderRedactedPolicy {
+                        location,
+                    },
+                );
+            }
+        }
+    }
+
+    let records = std::iter::once(report.primary()).chain(report.suppressed());
+    if records
+        .clone()
+        .any(|record| record.diagnostic() == VersionedComponentDiagnostic::DestructorFailure)
+        && !report.poisoned()
+    {
+        return Err(ComponentFailureReportValidationError::DestructorFailureWithoutPoisoning);
+    }
+    if records
+        .clone()
+        .any(|record| record.diagnostic() == VersionedComponentDiagnostic::InstancePoisoned)
+        && !report.poisoned()
+    {
+        return Err(ComponentFailureReportValidationError::PoisonedDiagnosticWithoutPoisoning);
+    }
+    Ok(())
+}
+
+fn validate_failure_record(
+    record: &VersionedComponentFailureRecord,
+    location: FailureRecordLocation,
+) -> Result<(), ComponentFailureReportValidationError> {
+    let expected = match record.diagnostic() {
+        VersionedComponentDiagnostic::BoundaryPanic => (
+            VersionedComponentFailureCategory::Panic,
+            VersionedComponentFailurePhase::Call,
+        ),
+        VersionedComponentDiagnostic::BoundaryTrap
+        | VersionedComponentDiagnostic::InstancePoisoned => (
+            VersionedComponentFailureCategory::Trap,
+            VersionedComponentFailurePhase::Call,
+        ),
+        VersionedComponentDiagnostic::DestructorFailure => (
+            VersionedComponentFailureCategory::Destructor,
+            VersionedComponentFailurePhase::Cleanup,
+        ),
+    };
+    if (record.category(), record.phase()) == expected {
+        Ok(())
+    } else {
+        Err(ComponentFailureReportValidationError::DiagnosticMismatch {
+            location,
+            category: record.category(),
+            phase: record.phase(),
+            diagnostic: record.diagnostic(),
+        })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -654,6 +989,7 @@ pub enum VersionedComponentSection {
     Results,
     Locks,
     Resources,
+    SuppressedFailures,
 }
 
 impl Display for VersionedComponentSection {
@@ -667,6 +1003,7 @@ impl Display for VersionedComponentSection {
             Self::Results => formatter.write_str("required-member results"),
             Self::Locks => formatter.write_str("interface locks"),
             Self::Resources => formatter.write_str("resource identities"),
+            Self::SuppressedFailures => formatter.write_str("suppressed failures"),
         }
     }
 }
@@ -681,6 +1018,7 @@ pub enum VersionedComponentStringField {
     RequiredMemberCapability,
     PrereleaseIdentifier,
     BuildIdentifier,
+    FailureMessage,
 }
 
 impl Display for VersionedComponentStringField {
@@ -694,6 +1032,7 @@ impl Display for VersionedComponentStringField {
             Self::RequiredMemberCapability => formatter.write_str("required member capability"),
             Self::PrereleaseIdentifier => formatter.write_str("prerelease identifier"),
             Self::BuildIdentifier => formatter.write_str("build identifier"),
+            Self::FailureMessage => formatter.write_str("failure message"),
         }
     }
 }
@@ -748,6 +1087,18 @@ pub enum VersionedComponentCodecErrorKind {
     UnknownValueTypeTag {
         tag: u8,
     },
+    UnknownFailureCategoryTag {
+        tag: u8,
+    },
+    UnknownFailurePhaseTag {
+        tag: u8,
+    },
+    UnknownDiagnosticTag {
+        tag: u8,
+    },
+    UnknownMessagePolicyTag {
+        tag: u8,
+    },
     InvalidBoolean {
         value: u8,
     },
@@ -757,6 +1108,7 @@ pub enum VersionedComponentCodecErrorKind {
     InvalidVersionIdentifier(VersionIdentifierError),
     InvalidDigest(VersionedDigestError),
     InvalidContract(ComponentContractValidationError),
+    InvalidFailureReport(ComponentFailureReportValidationError),
     TrailingBytes {
         remaining: usize,
     },
@@ -816,6 +1168,18 @@ impl Display for VersionedComponentCodecErrorKind {
             Self::UnknownValueTypeTag { tag } => {
                 write!(formatter, "unknown component value-type tag {tag}")
             }
+            Self::UnknownFailureCategoryTag { tag } => {
+                write!(formatter, "unknown failure-category tag {tag}")
+            }
+            Self::UnknownFailurePhaseTag { tag } => {
+                write!(formatter, "unknown failure-phase tag {tag}")
+            }
+            Self::UnknownDiagnosticTag { tag } => {
+                write!(formatter, "unknown diagnostic-identity tag {tag}")
+            }
+            Self::UnknownMessagePolicyTag { tag } => {
+                write!(formatter, "unknown failure-message-policy tag {tag}")
+            }
             Self::InvalidBoolean { value } => {
                 write!(formatter, "invalid canonical boolean value {value}")
             }
@@ -825,6 +1189,7 @@ impl Display for VersionedComponentCodecErrorKind {
             Self::InvalidVersionIdentifier(error) => Display::fmt(error, formatter),
             Self::InvalidDigest(error) => Display::fmt(error, formatter),
             Self::InvalidContract(error) => Display::fmt(error, formatter),
+            Self::InvalidFailureReport(error) => Display::fmt(error, formatter),
             Self::TrailingBytes { remaining } => {
                 write!(formatter, "{remaining} trailing bytes remain")
             }
@@ -1011,6 +1376,131 @@ pub fn decode_versioned_component_contract(
             VersionedComponentCodecError::new(
                 contract_offset,
                 VersionedComponentCodecErrorKind::InvalidContract(error),
+            )
+        },
+    )
+}
+
+/// Encodes a candidate schema-2 boundary-failure report deterministically.
+pub fn encode_versioned_component_failure_report(
+    report: &VersionedComponentFailureReport,
+    limits: ComponentCodecLimits,
+) -> Result<Vec<u8>, VersionedComponentCodecError> {
+    validate_failure_report(report).map_err(|error| {
+        VersionedComponentCodecError::new(
+            9,
+            VersionedComponentCodecErrorKind::InvalidFailureReport(error),
+        )
+    })?;
+
+    let mut writer = Writer::new(limits);
+    writer.require_depth(1)?;
+    writer.write_bytes(&VERSIONED_COMPONENT_MAGIC)?;
+    writer.write_u32(VERSIONED_COMPONENT_SCHEMA_VERSION)?;
+    writer.write_u8(FAILURE_REPORT_DOCUMENT_KIND)?;
+
+    writer.require_depth(2)?;
+    writer.write_u8(report.message_policy().tag())?;
+    writer.require_depth(3)?;
+    writer.write_failure_record(report.primary())?;
+    writer.write_count(
+        VersionedComponentSection::SuppressedFailures,
+        report.suppressed().len(),
+    )?;
+    for record in report.suppressed() {
+        writer.require_depth(3)?;
+        writer.write_failure_record(record)?;
+    }
+    writer.write_u8(u8::from(report.poisoned()))?;
+    Ok(writer.finish())
+}
+
+/// Decodes untrusted candidate schema-2 boundary-failure bytes under bounds.
+pub fn decode_versioned_component_failure_report(
+    bytes: &[u8],
+    limits: ComponentCodecLimits,
+) -> Result<VersionedComponentFailureReport, VersionedComponentCodecError> {
+    if bytes.len() > limits.max_bytes() {
+        return Err(VersionedComponentCodecError::new(
+            0,
+            VersionedComponentCodecErrorKind::ByteLimitExceeded {
+                limit: limits.max_bytes(),
+                actual: bytes.len(),
+            },
+        ));
+    }
+
+    let mut reader = Reader::new(bytes, limits);
+    reader.require_depth(1)?;
+    let magic_offset = reader.offset();
+    let magic = reader.read_array::<4>()?;
+    if magic != VERSIONED_COMPONENT_MAGIC {
+        return Err(VersionedComponentCodecError::new(
+            magic_offset,
+            VersionedComponentCodecErrorKind::InvalidMagic { found: magic },
+        ));
+    }
+    let schema_offset = reader.offset();
+    let schema = reader.read_u32()?;
+    if schema != VERSIONED_COMPONENT_SCHEMA_VERSION {
+        return Err(VersionedComponentCodecError::new(
+            schema_offset,
+            VersionedComponentCodecErrorKind::UnsupportedSchemaVersion {
+                expected: VERSIONED_COMPONENT_SCHEMA_VERSION,
+                actual: schema,
+            },
+        ));
+    }
+    let kind_offset = reader.offset();
+    let kind = reader.read_u8()?;
+    if kind != FAILURE_REPORT_DOCUMENT_KIND {
+        return Err(VersionedComponentCodecError::new(
+            kind_offset,
+            VersionedComponentCodecErrorKind::UnexpectedDocumentKind {
+                expected: FAILURE_REPORT_DOCUMENT_KIND,
+                actual: kind,
+            },
+        ));
+    }
+
+    reader.require_depth(2)?;
+    let report_offset = reader.offset();
+    let policy_offset = reader.offset();
+    let message_policy = match reader.read_u8()? {
+        0 => VersionedComponentMessagePolicy::Redacted,
+        1 => VersionedComponentMessagePolicy::Sanitized,
+        tag => {
+            return Err(VersionedComponentCodecError::new(
+                policy_offset,
+                VersionedComponentCodecErrorKind::UnknownMessagePolicyTag { tag },
+            ));
+        }
+    };
+    reader.require_depth(3)?;
+    let primary = reader.read_failure_record()?;
+    let suppressed_count = reader.read_count(VersionedComponentSection::SuppressedFailures, 4)?;
+    let mut suppressed = Vec::with_capacity(suppressed_count);
+    for _ in 0..suppressed_count {
+        reader.require_depth(3)?;
+        suppressed.push(reader.read_failure_record()?);
+    }
+    let poisoned_offset = reader.offset();
+    let poisoned = match reader.read_u8()? {
+        0 => false,
+        1 => true,
+        value => {
+            return Err(VersionedComponentCodecError::new(
+                poisoned_offset,
+                VersionedComponentCodecErrorKind::InvalidBoolean { value },
+            ));
+        }
+    };
+    reader.finish()?;
+    VersionedComponentFailureReport::new(message_policy, primary, suppressed, poisoned).map_err(
+        |error| {
+            VersionedComponentCodecError::new(
+                report_offset,
+                VersionedComponentCodecErrorKind::InvalidFailureReport(error),
             )
         },
     )
@@ -1258,6 +1748,21 @@ impl Writer {
                 self.write_u8(3)?;
                 self.write_resource_type_key(resource)
             }
+        }
+    }
+
+    fn write_failure_record(
+        &mut self,
+        record: &VersionedComponentFailureRecord,
+    ) -> Result<(), VersionedComponentCodecError> {
+        self.write_u8(record.category().tag())?;
+        self.write_u8(record.phase().tag())?;
+        self.write_u8(record.diagnostic().tag())?;
+        if let Some(message) = record.message() {
+            self.write_u8(1)?;
+            self.write_string(VersionedComponentStringField::FailureMessage, message)
+        } else {
+            self.write_u8(0)
         }
     }
 
@@ -1542,6 +2047,61 @@ impl<'a> Reader<'a> {
         }
     }
 
+    fn read_failure_record(
+        &mut self,
+    ) -> Result<VersionedComponentFailureRecord, VersionedComponentCodecError> {
+        let category_offset = self.offset();
+        let category = match self.read_u8()? {
+            0 => VersionedComponentFailureCategory::Panic,
+            1 => VersionedComponentFailureCategory::Trap,
+            2 => VersionedComponentFailureCategory::Destructor,
+            tag => {
+                return Err(VersionedComponentCodecError::new(
+                    category_offset,
+                    VersionedComponentCodecErrorKind::UnknownFailureCategoryTag { tag },
+                ));
+            }
+        };
+        let phase_offset = self.offset();
+        let phase = match self.read_u8()? {
+            0 => VersionedComponentFailurePhase::Call,
+            1 => VersionedComponentFailurePhase::Cleanup,
+            tag => {
+                return Err(VersionedComponentCodecError::new(
+                    phase_offset,
+                    VersionedComponentCodecErrorKind::UnknownFailurePhaseTag { tag },
+                ));
+            }
+        };
+        let diagnostic_offset = self.offset();
+        let diagnostic = match self.read_u8()? {
+            0 => VersionedComponentDiagnostic::BoundaryPanic,
+            1 => VersionedComponentDiagnostic::BoundaryTrap,
+            2 => VersionedComponentDiagnostic::DestructorFailure,
+            3 => VersionedComponentDiagnostic::InstancePoisoned,
+            tag => {
+                return Err(VersionedComponentCodecError::new(
+                    diagnostic_offset,
+                    VersionedComponentCodecErrorKind::UnknownDiagnosticTag { tag },
+                ));
+            }
+        };
+        let message_offset = self.offset();
+        let message = match self.read_u8()? {
+            0 => None,
+            1 => Some(self.read_string(VersionedComponentStringField::FailureMessage)?),
+            value => {
+                return Err(VersionedComponentCodecError::new(
+                    message_offset,
+                    VersionedComponentCodecErrorKind::InvalidBoolean { value },
+                ));
+            }
+        };
+        Ok(VersionedComponentFailureRecord::new(
+            category, phase, diagnostic, message,
+        ))
+    }
+
     fn read_digest(&mut self) -> Result<VersionedDigest, VersionedComponentCodecError> {
         let algorithm_offset = self.offset();
         let algorithm = match self.read_u8()? {
@@ -1579,11 +2139,16 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::{
         ComponentContractLock, ComponentContractRequiredMember, ComponentContractRequirement,
-        ComponentContractValidationError, ComponentContractValueType, DigestAlgorithm,
+        ComponentContractValidationError, ComponentContractValueType,
+        ComponentFailureReportValidationError, DigestAlgorithm, FailureRecordLocation,
         VERSIONED_COMPONENT_MAGIC, VERSIONED_COMPONENT_SCHEMA_VERSION,
-        VersionedComponentCodecErrorKind, VersionedComponentContract, VersionedComponentSection,
-        VersionedComponentStringField, VersionedDigest, VersionedDigestError,
-        decode_versioned_component_contract, encode_versioned_component_contract,
+        VersionedComponentCodecErrorKind, VersionedComponentContract, VersionedComponentDiagnostic,
+        VersionedComponentFailureCategory, VersionedComponentFailurePhase,
+        VersionedComponentFailureRecord, VersionedComponentFailureReport,
+        VersionedComponentMessagePolicy, VersionedComponentSection, VersionedComponentStringField,
+        VersionedDigest, VersionedDigestError, decode_versioned_component_contract,
+        decode_versioned_component_failure_report, encode_versioned_component_contract,
+        encode_versioned_component_failure_report,
     };
     use crate::component::codec::{
         ComponentCodecErrorKind as LegacyComponentCodecErrorKind, ComponentCodecLimits,
@@ -1600,6 +2165,34 @@ mod tests {
 
     fn version(major: u64, minor: u64, patch: u64) -> SemanticVersion {
         SemanticVersion::new(major, minor, patch)
+    }
+
+    fn failure_report() -> VersionedComponentFailureReport {
+        VersionedComponentFailureReport::new(
+            VersionedComponentMessagePolicy::Sanitized,
+            VersionedComponentFailureRecord::new(
+                VersionedComponentFailureCategory::Panic,
+                VersionedComponentFailurePhase::Call,
+                VersionedComponentDiagnostic::BoundaryPanic,
+                Some("guest panic".to_owned()),
+            ),
+            vec![
+                VersionedComponentFailureRecord::new(
+                    VersionedComponentFailureCategory::Destructor,
+                    VersionedComponentFailurePhase::Cleanup,
+                    VersionedComponentDiagnostic::DestructorFailure,
+                    Some("timer drop failed".to_owned()),
+                ),
+                VersionedComponentFailureRecord::new(
+                    VersionedComponentFailureCategory::Destructor,
+                    VersionedComponentFailurePhase::Cleanup,
+                    VersionedComponentDiagnostic::DestructorFailure,
+                    None,
+                ),
+            ],
+            true,
+        )
+        .expect("failure-report fixture should validate")
     }
 
     fn contract() -> VersionedComponentContract {
@@ -2152,6 +2745,244 @@ mod tests {
     }
 
     #[test]
+    fn failure_report_round_trip_preserves_suppressed_order() {
+        let report = failure_report();
+        let encoded =
+            encode_versioned_component_failure_report(&report, ComponentCodecLimits::default())
+                .expect("failure report should encode");
+        assert_eq!(&encoded[..4], &VERSIONED_COMPONENT_MAGIC);
+        assert_eq!(encoded[8], 1);
+        assert_eq!(
+            hex(&encoded),
+            include_str!("fixtures/schema2_failure_report.hex").trim()
+        );
+
+        let decoded =
+            decode_versioned_component_failure_report(&encoded, ComponentCodecLimits::default())
+                .expect("failure report should decode");
+        assert_eq!(decoded, report);
+        assert_eq!(decoded.suppressed()[0].message(), Some("timer drop failed"));
+        assert_eq!(decoded.suppressed()[1].message(), None);
+        assert_eq!(
+            encode_versioned_component_failure_report(&decoded, ComponentCodecLimits::default())
+                .expect("decoded report should re-encode"),
+            encoded
+        );
+
+        let contract_error =
+            decode_versioned_component_contract(&encoded, ComponentCodecLimits::default())
+                .expect_err("contract decoder must not reinterpret a failure report");
+        assert!(matches!(
+            contract_error.kind(),
+            VersionedComponentCodecErrorKind::UnexpectedDocumentKind {
+                expected: 0,
+                actual: 1,
+            }
+        ));
+    }
+
+    #[test]
+    fn failure_report_validation_enforces_classification_and_redaction() {
+        let message = Some("secret".to_owned());
+        let panic = |message| {
+            VersionedComponentFailureRecord::new(
+                VersionedComponentFailureCategory::Panic,
+                VersionedComponentFailurePhase::Call,
+                VersionedComponentDiagnostic::BoundaryPanic,
+                message,
+            )
+        };
+        assert_eq!(
+            VersionedComponentFailureReport::new(
+                VersionedComponentMessagePolicy::Redacted,
+                panic(message),
+                Vec::new(),
+                false,
+            ),
+            Err(
+                ComponentFailureReportValidationError::MessagePresentUnderRedactedPolicy {
+                    location: FailureRecordLocation::Primary,
+                }
+            )
+        );
+
+        let mismatch = VersionedComponentFailureRecord::new(
+            VersionedComponentFailureCategory::Trap,
+            VersionedComponentFailurePhase::Call,
+            VersionedComponentDiagnostic::BoundaryPanic,
+            None,
+        );
+        assert!(matches!(
+            VersionedComponentFailureReport::new(
+                VersionedComponentMessagePolicy::Redacted,
+                mismatch,
+                Vec::new(),
+                false,
+            ),
+            Err(ComponentFailureReportValidationError::DiagnosticMismatch { .. })
+        ));
+
+        let trap = VersionedComponentFailureRecord::new(
+            VersionedComponentFailureCategory::Trap,
+            VersionedComponentFailurePhase::Call,
+            VersionedComponentDiagnostic::BoundaryTrap,
+            None,
+        );
+        assert_eq!(
+            VersionedComponentFailureReport::new(
+                VersionedComponentMessagePolicy::Redacted,
+                panic(None),
+                vec![trap],
+                false,
+            ),
+            Err(ComponentFailureReportValidationError::InvalidSuppressedRecord { index: 0 })
+        );
+
+        let destructor = VersionedComponentFailureRecord::new(
+            VersionedComponentFailureCategory::Destructor,
+            VersionedComponentFailurePhase::Cleanup,
+            VersionedComponentDiagnostic::DestructorFailure,
+            None,
+        );
+        assert_eq!(
+            VersionedComponentFailureReport::new(
+                VersionedComponentMessagePolicy::Redacted,
+                destructor,
+                Vec::new(),
+                false,
+            ),
+            Err(ComponentFailureReportValidationError::DestructorFailureWithoutPoisoning)
+        );
+
+        let poisoned = VersionedComponentFailureRecord::new(
+            VersionedComponentFailureCategory::Trap,
+            VersionedComponentFailurePhase::Call,
+            VersionedComponentDiagnostic::InstancePoisoned,
+            None,
+        );
+        assert_eq!(
+            VersionedComponentFailureReport::new(
+                VersionedComponentMessagePolicy::Redacted,
+                poisoned,
+                Vec::new(),
+                false,
+            ),
+            Err(ComponentFailureReportValidationError::PoisonedDiagnosticWithoutPoisoning)
+        );
+    }
+
+    #[test]
+    fn failure_report_decoder_rejects_malformed_tags_counts_and_booleans() {
+        let encoded = encode_versioned_component_failure_report(
+            &failure_report(),
+            ComponentCodecLimits::default(),
+        )
+        .expect("failure report should encode");
+
+        for (offset, expected) in [
+            (9, "policy"),
+            (10, "category"),
+            (11, "phase"),
+            (12, "diagnostic"),
+        ] {
+            let mut malformed = encoded.clone();
+            malformed[offset] = 9;
+            let error = decode_versioned_component_failure_report(
+                &malformed,
+                ComponentCodecLimits::default(),
+            )
+            .expect_err(expected);
+            assert_eq!(error.offset(), offset);
+            assert!(matches!(
+                (offset, error.kind()),
+                (
+                    9,
+                    VersionedComponentCodecErrorKind::UnknownMessagePolicyTag { tag: 9 }
+                ) | (
+                    10,
+                    VersionedComponentCodecErrorKind::UnknownFailureCategoryTag { tag: 9 }
+                ) | (
+                    11,
+                    VersionedComponentCodecErrorKind::UnknownFailurePhaseTag { tag: 9 }
+                ) | (
+                    12,
+                    VersionedComponentCodecErrorKind::UnknownDiagnosticTag { tag: 9 }
+                )
+            ));
+        }
+
+        let mut invalid_presence = encoded.clone();
+        invalid_presence[13] = 2;
+        let presence_error = decode_versioned_component_failure_report(
+            &invalid_presence,
+            ComponentCodecLimits::default(),
+        )
+        .expect_err("message presence must be canonical");
+        assert_eq!(presence_error.offset(), 13);
+        assert!(matches!(
+            presence_error.kind(),
+            VersionedComponentCodecErrorKind::InvalidBoolean { value: 2 }
+        ));
+
+        let mut mismatched_classification = encoded.clone();
+        mismatched_classification[10] = 1;
+        let classification_error = decode_versioned_component_failure_report(
+            &mismatched_classification,
+            ComponentCodecLimits::default(),
+        )
+        .expect_err("diagnostic classification mismatch must fail");
+        assert_eq!(classification_error.offset(), 9);
+        assert!(matches!(
+            classification_error.kind(),
+            VersionedComponentCodecErrorKind::InvalidFailureReport(
+                ComponentFailureReportValidationError::DiagnosticMismatch { .. }
+            )
+        ));
+
+        let mut unsafe_redaction = encoded.clone();
+        unsafe_redaction[9] = 0;
+        let redaction_error = decode_versioned_component_failure_report(
+            &unsafe_redaction,
+            ComponentCodecLimits::default(),
+        )
+        .expect_err("redacted report must not retain messages");
+        assert_eq!(redaction_error.offset(), 9);
+        assert!(matches!(
+            redaction_error.kind(),
+            VersionedComponentCodecErrorKind::InvalidFailureReport(
+                ComponentFailureReportValidationError::MessagePresentUnderRedactedPolicy { .. }
+            )
+        ));
+
+        let mut impossible_count = encoded.clone();
+        impossible_count[29..33].copy_from_slice(&u32::MAX.to_le_bytes());
+        let count_error = decode_versioned_component_failure_report(
+            &impossible_count,
+            limits(impossible_count.len(), usize::MAX, 5, 64),
+        )
+        .expect_err("impossible suppressed count must fail before allocation");
+        assert_eq!(count_error.offset(), 29);
+        assert!(matches!(
+            count_error.kind(),
+            VersionedComponentCodecErrorKind::UnexpectedEnd { needed, remaining }
+                if needed > remaining
+        ));
+
+        let mut invalid_poisoned = encoded;
+        invalid_poisoned[62] = 2;
+        let poisoned_error = decode_versioned_component_failure_report(
+            &invalid_poisoned,
+            ComponentCodecLimits::default(),
+        )
+        .expect_err("poisoned flag must be canonical");
+        assert_eq!(poisoned_error.offset(), 62);
+        assert!(matches!(
+            poisoned_error.kind(),
+            VersionedComponentCodecErrorKind::InvalidBoolean { value: 2 }
+        ));
+    }
+
+    #[test]
     fn arbitrary_byte_corpus_never_panics_or_exceeds_input_bounds() {
         let limits = limits(512, 16, 5, 64);
         let mut state = 0x517c_c1b7_u32;
@@ -2162,6 +2993,7 @@ mod tests {
                 *byte = state.to_le_bytes()[3];
             }
             let _ = decode_versioned_component_contract(&bytes, limits);
+            let _ = decode_versioned_component_failure_report(&bytes, limits);
         }
     }
 }

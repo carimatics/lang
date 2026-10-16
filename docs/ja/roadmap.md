@@ -16,11 +16,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 同日のRFC readiness監査では、別のplanning gapも修正しました。RFC 0003はowner decision待ちとして並んでいましたが、review outcomeはstable serialization、host-value／cross-mode adapter conformance、lock integration、native Windows component execution、より広いcost evidenceをblockerとして明記しています。これらの成果をRFC 0003 decision前の明示的なprototype taskとして追加し、production IDL、adapter、package managerは引き続きMilestone 3／4の責務とします。
 
-このrepository stateに対して2026-10-16 21:36 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 21:50 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 145 pt | 196 pt | **74.0%** |
+| 0 — design baseline（現在） | 153 pt | 196 pt | **78.1%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -28,11 +28,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **145 pt** | **678 pt** | **21.4%** |
+| **全体** | **153 pt** | **678 pt** | **22.6%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：145 / 196 pt（74.0%）。**
+**進捗：153 / 196 pt（78.1%）。**
 
 ### Workstream別内訳
 
@@ -43,14 +43,14 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | Project framingとsource semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler／runtime semantics | 21 pt | 21 pt | 100.0% |
 | Resource control、ownership、concurrency | 26 pt | 30 pt | 86.7% |
-| Component／resource contract | 42 pt | 71 pt | 59.2% |
+| Component／resource contract | 50 pt | 71 pt | 70.4% |
 | Platform／backend evidence | 48 pt | 62 pt | 77.4% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **145 pt** | **196 pt** | **74.0%** |
+| **Milestone 0** | **153 pt** | **196 pt** | **78.1%** |
 
 このsnapshot時点の実行状態：
 
-- **Unblocked local P0：** RFC 0003のstable versioned component serialization、cross-mode host-value adapter conformance、lockfile／package-selection prototype、拡張boundary-cost evidence。
+- **Unblocked local P0：** RFC 0003のcross-mode host-value adapter conformance、lockfile／package-selection prototype、拡張boundary-cost evidence。
 - **外部gate：** RFC 0002、RFC 0004、RFC 0005のrepository-owner decisionと、remote Windows object-link-run、benchmark、component-execution evidence。
 - **依存gate：** 追加したevidence prerequisiteの完了後にRFC 0003をdecisionし、Windows evidenceの記録後に初期native backendを選定し、その他すべてのprerequisite完了後にRFC 0001をdecisionする。
 
@@ -87,7 +87,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — 1つのvalidated schema-1 scalar import／exportをVM／JIT／AOT prototypeへ接続し、同等のoutcomeを記録する。** — 3 pt
 - [x] **P0 — Canonical resourceのpreflight／commit、borrow scoping、cleanup ledger、instance poisoningをbackend-neutralなadapter traceでprototypeする。** — 5 pt
 - [x] **P0 — Metadata validation／negotiation、scalar dispatch、resource lifecycleのcostを別々のbenchmark seriesとして計測し、その解釈をRFC 0003へ記録する。** — 5 pt
-- [ ] **P0 — Normalized requirement、digest、resource identity、failure recordを対象とするstable versioned component serializationをprototypeし、規定する。** — 8 pt
+- [x] **P0 — Normalized requirement、digest、resource identity、failure recordを対象とするstable versioned component serializationをprototypeし、規定する。** — 8 pt
 - [ ] **P0 — General component instantiationをprototypeし、canonical host-value resource／failure adapterをVM、JIT、AOTへ接続して同等のoutcomeを記録する。** — 8 pt
 - [ ] **P0 — Production package managerを実装せず、in-memory resolverに対するdeterministicなlockfile／package-selection integrationをprototypeする。** — 5 pt
 - [ ] **P0 — 同じconformance fixtureのnative Windows component executionを記録する。** — 3 pt
@@ -111,7 +111,7 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 
 実験的schema-1 `LCMP` codecはscalar declaration subsetをdeterministically encodeし、設定可能なtotal-byte、declaration-count、structural-depth、string-length limitの下でuntrusted byteをdecodeします。Malformed magic、payload前のunsupported schema、truncation、invalid UTF-8、unknown scalar tag、trailing byte、limit超過をstructured byte-offset errorで拒否します。Round-trip、encoder／decoder limit、malformed fixture、deterministic arbitrary-byte corpus、locked fuzz-target build、1,000-run libFuzzer smoke executionがpassしました。このformatはunstableなfixtureのままであり、stable contract serialization／compatibility negotiationはRFC 0003の未解決事項です。
 
-Schema-2 serialization prototypeは、package／full-SemVer identity、canonicalにsortしたnormalized interface requirement／required-member projection、SHA-256 tag付きexact lock、canonical resource-type identity向けのcontract envelope候補を含むようになりました。Required memberはparameter／result順序、exact capability、scalarまたはnominalな `own<T>`／`borrow<T>` typeを保持し、validationはduplicate member name、invalid capability、未宣言resource、borrowed resultを拒否します。Construction／bounded decodingはさらにinvalid identifier、interval、duplicate、orphan／mismatched lock、malformed header／tag／boolean／UTF-8、truncation、trailing byte、byte／item／depth／string limit超過をstructured offset付きで拒否します。Check-in済みgolden encoding、canonical-order round trip、projection validation、arbitrary-byte corpus、専用fuzz targetがlayoutをcoverします。Versioned failure reportは未完了であるため、8 ptのstable-serialization taskは未checkのままです。
+完了したschema-2 serialization prototypeは、1つのversioned `LCMP` envelopeの下にcontract／failure-report documentを別々に定義します。Contract documentはpackage／full-SemVer identity、canonicalにsortしたnormalized interface requirement／required-member projection、SHA-256 tag付きexact lock、canonical resource-type identityをencodeします。Required memberはparameter／result順序、exact capability、scalarまたはnominalな `own<T>`／`borrow<T>` typeを保持し、validationはduplicate member name、invalid capability、未宣言resource、borrowed resultを拒否します。Failure-report documentはprimary record、順序付きcleanup-only suppressed destructor record、poisoned state、固定category／phase／diagnostic tag、明示的なredacted-or-sanitized message policyをencodeします。Construction／bounded decodingはinvalid semantics、malformed header／tag／boolean／UTF-8、truncation、trailing byte、byte／item／depth／string limit超過をstructured offset付きで拒否します。Check-in済みgolden encoding、canonical round trip、semantic／malformed-input test、arbitrary-byte corpus、専用fuzz targetが両document kindをcoverします。RFC 0003はproposedのままであり、owner acceptance／production IDLを主張せずに8 ptのprototype taskを完了します。
 
 Component runtimeはgeneration tag付きowned handleと明示的なshared／exclusive borrow tokenもprototypeしました。Released slotはgenerationを進め、最小のfree slotをdeterministically再利用するため、stale ownerはreplacementをaliasできず、generation exhaustionではwrapせずslotをretireします。Shared borrowは共存し、exclusive borrow／mutable accessはexclusivityを強制し、active borrowはreleaseをblockし、borrow end／releaseのrepeatはstructuredに失敗します。6件のfocused testがslot reuse、stale owner／borrow、double release／end、conflict、mutation、deterministic reuse、generation retirement、borrow-ID exhaustionをcoverします。
 

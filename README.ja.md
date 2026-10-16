@@ -115,7 +115,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-現在のworkspaceには、prototypeで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif`、型付きhost-function registry、boundedな実験的schema-1 scalar codec、schema-2候補のversioned-contract codec、scalar component-contract validator、generation tag付きresource tableを持つ `lang-runtime`、実行可能な設計modelを持つ `lang-semantics` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
+現在のworkspaceには、prototypeで実際に使う `lang-mir`、`lang-bytecode`、`lang-vm`、`lang-codegen-clif`、型付きhost-function registry、boundedな実験的schema-1 scalar codec、schema-2候補のcontract／failure-report codec、scalar component-contract validator、generation tag付きresource tableを持つ `lang-runtime`、実行可能な設計modelを持つ `lang-semantics` だけが含まれます。`docs/ja/architecture.md` に示す追加の境界は、対応する実装とともに導入します。
 
 ## 設計プロセス
 
