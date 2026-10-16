@@ -6,45 +6,53 @@
 
 These measurements are design evidence for the pre-alpha prototypes. They are not language performance guarantees, release targets, or a final backend selection.
 
-## Current macOS AArch64 representative-allocation baseline
+## Current macOS AArch64 CFG and representative-allocation baseline
 
-The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json) was recorded from clean commit `aac146dad79cc02518c809d0bb203559799f72db` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 19:01:45 JST. It used harness schema 17, the pinned Rust 1.99.0 toolchain, Apple Clang 21.0.0, 31 samples, 1,000 validation/negotiation/adapter operations per sample, and 100,000 callback, scalar-dispatch, and table-lifecycle operations per sample.
+The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json) was recorded from clean commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 19:17:44 JST. It used harness schema 18, the pinned Rust 1.99.0 toolchain, Apple Clang 21.0.0, 31 samples, 1,000 lowering/validation/negotiation/adapter operations per sample, and 100,000 runtime, callback, scalar-dispatch, and table-lifecycle operations per sample.
 
-Schema 17 preserves every schema 16 field and adds a compiler-like mixed-lifetime allocation workload. It allocates 16,384 retained payloads over 12 size classes, releases every third allocation, fills those holes with differently sized replacements, and overlaps the retained graph with 2,048 larger transient buffers. Every payload byte is touched. The exact logical profile is `(23,894 allocations, 19,183,210 total requested bytes, 18,102,042 peak live requested bytes, 0 live bytes afterward)`.
+Schema 18 preserves every schema 17 field and adds iterative Fibonacci as a representative CFG workload. The loop carries a countdown and two wrapping sequence values through typed block arguments. Its retained cross-mode rows are:
+
+| Execution path | Operations per sample | Median | p95 | RSD |
+| --- | ---: | ---: | ---: | ---: |
+| Direct Rust Fibonacci | 100,000 | 6.510 ns | 6.747 ns | 1.442% |
+| VM Fibonacci | 100,000 | 1.231 us | 1.238 us | 0.349% |
+| JIT Fibonacci | 100,000 | 7.463 ns | 8.593 ns | 4.483% |
+
+The JIT body is 48 bytes, the AOT object is 400 bytes, and the linked six-workload harness is 17,168 bytes. The schema also retains the compiler-like mixed-lifetime allocation workload: 16,384 retained payloads over 12 size classes, every-third release, differently sized replacement, and 2,048 overlapping transient buffers. Every payload byte is touched, and the exact logical profile remains `(23,894 allocations, 19,183,210 total requested bytes, 18,102,042 peak live requested bytes, 0 live bytes afterward)`.
 
 The same benchmark executable is launched in interleaved control/workload pairs so loader and binary structure are shared between the two distributions:
 
 | Process measurement | Minimum | Median | p95 | Maximum | RSD |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Benchmark control | 2,031,616 B | 2,048,000 B | 2,048,000 B | 2,048,000 B | 0.237% |
-| Representative allocation workload | 23,068,672 B | 23,085,056 B | 23,085,056 B | 23,085,056 B | 0.030% |
+| Benchmark control | 2,048,000 B | 2,064,384 B | 2,064,384 B | 2,064,384 B | 0.140% |
+| Representative allocation workload | 23,068,672 B | 23,085,056 B | 23,085,056 B | 23,085,056 B | 0.035% |
 
-The median workload-minus-control resident delta is 21,037,056 bytes. Subtracting peak live requested payload yields a 2,935,014-byte combined allocator-overhead/fragmentation estimate. The calculation saturates at zero and cannot separate allocator metadata, size-class slack, retained pages, page rounding, or true external fragmentation. It is evidence for this trace, allocator, OS, and binary only—not a language memory budget.
+The median workload-minus-control resident delta is 21,020,672 bytes. Subtracting peak live requested payload yields a 2,918,630-byte combined allocator-overhead/fragmentation estimate. The calculation saturates at zero and cannot separate allocator metadata, size-class slack, retained pages, page rounding, or true external fragmentation. It is evidence for this trace, allocator, OS, and binary only—not a language memory budget.
 
 The retained variable-size callback rows are:
 
 | Execution path | Operations per sample | Median | p95 | RSD |
 | --- | ---: | ---: | ---: | ---: |
-| Direct Rust variable-size allocation callback | 100,000 | 216.718 ns | 218.686 ns | 0.549% |
-| VM variable-size allocation callback | 100,000 | 400.153 ns | 403.595 ns | 0.518% |
-| JIT variable-size allocation callback | 100,000 | 218.679 ns | 220.798 ns | 0.426% |
+| Direct Rust variable-size allocation callback | 100,000 | 216.019 ns | 219.115 ns | 0.714% |
+| VM variable-size allocation callback | 100,000 | 397.814 ns | 402.769 ns | 0.635% |
+| JIT variable-size allocation callback | 100,000 | 218.037 ns | 221.265 ns | 0.590% |
 
-The exact callback profile remains `(16 allocations, 1,088 total bytes, 1,088 peak live bytes, 0 live bytes afterward)`. Together with the retained single, burst, and churn profiles, schema 17 contains 50 general timing rows and four callback requested-payload profiles.
+The exact callback profile remains `(16 allocations, 1,088 total bytes, 1,088 peak live bytes, 0 live bytes afterward)`. Together with the retained single, burst, and churn profiles, schema 18 contains 56 general timing rows and four callback requested-payload profiles.
 
 The retained component-boundary rows in this run are:
 
 | Series | Measurement | Operations per sample | Median | p95 | RSD |
 | --- | --- | ---: | ---: | ---: | ---: |
-| Metadata validation | Clone and validate the one-import/one-export schema-1 scalar contract | 1,000 | 278.250 ns | 289.750 ns | 3.460% |
-| Interface negotiation | Validate and select the highest compatible member from three providers | 1,000 | 813.458 ns | 889.125 ns | 2.676% |
-| Scalar dispatch | Direct wrapping callback | 100,000 | 0.931 ns | 0.990 ns | 2.490% |
-| Scalar dispatch | Validated logical-import lookup, host-registry lookup, and callback | 100,000 | 11.157 ns | 11.360 ns | 0.769% |
-| Resource lifecycle | Generation-tagged owner insert and release | 100,000 | 13.832 ns | 14.381 ns | 3.471% |
-| Resource lifecycle | Owner insert, shared borrow/read/end, and release | 100,000 | 26.921 ns | 27.885 ns | 1.401% |
-| Resource lifecycle | Canonical owner preflight/commit/persist while alternating between two adapters | 1,000 | 384.041 ns | 504.708 ns | 9.159% |
-| Resource lifecycle | Canonical borrow preflight/commit and call-scope cleanup | 1,000 | 338.542 ns | 438.292 ns | 11.654% |
+| Metadata validation | Clone and validate the one-import/one-export schema-1 scalar contract | 1,000 | 277.916 ns | 304.083 ns | 4.407% |
+| Interface negotiation | Validate and select the highest compatible member from three providers | 1,000 | 824.958 ns | 866.750 ns | 2.276% |
+| Scalar dispatch | Direct wrapping callback | 100,000 | 0.930 ns | 0.932 ns | 0.521% |
+| Scalar dispatch | Validated logical-import lookup, host-registry lookup, and callback | 100,000 | 11.322 ns | 11.536 ns | 1.443% |
+| Resource lifecycle | Generation-tagged owner insert and release | 100,000 | 14.209 ns | 14.781 ns | 1.795% |
+| Resource lifecycle | Owner insert, shared borrow/read/end, and release | 100,000 | 26.504 ns | 27.220 ns | 1.426% |
+| Resource lifecycle | Canonical owner preflight/commit/persist while alternating between two adapters | 1,000 | 367.666 ns | 454.000 ns | 7.847% |
+| Resource lifecycle | Canonical borrow preflight/commit and call-scope cleanup | 1,000 | 341.542 ns | 435.834 ns | 11.015% |
 
-These rows deliberately answer different questions. Metadata validation includes cloning the consumed metadata and constructing the immutable resolved binding. Negotiation validates the consumer and all three providers, performs version and structural filtering, and constructs the selected binding. The validated scalar row performs a logical-name lookup and host-registry lookup on every operation; its 10.226 ns median delta from the direct row is evidence for this exact in-memory path, not a stable dispatch budget. The `ResourceTable` rows exercise reusable generation-tagged storage, while the canonical rows also include preflight allocations/reservations, trace and cleanup-ledger construction, and monotonically growing boundary-index vectors. They do not measure VM/JIT/AOT resource lowering, host-value integration, failure/destructor paths, component code size or memory, remote Windows behavior, or a representative application.
+These rows deliberately answer different questions. Metadata validation includes cloning the consumed metadata and constructing the immutable resolved binding. Negotiation validates the consumer and all three providers, performs version and structural filtering, and constructs the selected binding. The validated scalar row performs a logical-name lookup and host-registry lookup on every operation; its 10.392 ns median delta from the direct row is evidence for this exact in-memory path, not a stable dispatch budget. The `ResourceTable` rows exercise reusable generation-tagged storage, while the canonical rows also include preflight allocations/reservations, trace and cleanup-ledger construction, and monotonically growing boundary-index vectors. They do not measure VM/JIT/AOT resource lowering, host-value integration, failure/destructor paths, component code size or memory, remote Windows behavior, or a representative application.
 
 ## Previous schema 14 macOS AArch64 baseline
 
@@ -116,6 +124,12 @@ The separate linked-AOT process-memory distribution has a 1,654,784-byte (1.578 
 
 Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, 20 bytes for countdown, 36 bytes for the accumulator, 44 bytes for conditional sum, and 40 bytes for the host callback. The emitted add, minimum, countdown, accumulator, and conditional-sum objects were 352, 368, 376, 392, and 400 bytes. The linked AOT harness was 17,104 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable; the executable size includes both plus the platform linker's defaults, but not a complete runtime distribution.
 
+## Schema 18 format and migration
+
+Schema 18 preserves every schema 17 field and adds six Fibonacci rows: bytecode lowering, JIT compilation, AOT object emission, and direct Rust/VM/JIT runtime. It also adds `jit_fibonacci` and `aot_fibonacci` artifact sizes. Because the linked workload set grows, the system-link, single-process startup, batched-startup, linked-process memory, and executable-size names insert `fibonacci` after `countdown`. The clean macOS AArch64 result contains all 56 unique timing rows, four exact callback profiles, eight component rows, and three process-memory rows. Consumers must branch on `schema_version`; schema 1–17 JSON files remain immutable evidence.
+
+The workload computes iterative wrapping Fibonacci with a signed countdown and two sequence values carried through typed block arguments. It exercises three-value loop state and back-edge argument rotation using the existing MIR operations; it does not add or accept source-language semantics. VM/JIT differential tests include wrapping overflow, macOS direct/response-file integration executes its AOT object, host-independent Windows COFF validation checks the export, and the cfg-gated MSVC path plus Windows workflow retain the contract.
+
 ## Schema 17 format and migration
 
 Schema 17 preserves every schema 16 timing, artifact, callback-heap, component-boundary, and linked-AOT process-memory field. It adds `representative_allocation_workload` with exact requested-payload counts, references to paired control/workload process rows, their median resident delta, and `estimated_allocator_overhead_and_fragmentation_bytes_at_median`. The estimate is `max(0, workload median - control median - peak live requested payload)`. `process_memory_measurement_scope` becomes `separate_process_peak_resident_memory`, and the process array contains the retained linked-AOT row plus `benchmark_process_control_peak_resident_memory` and `benchmark_process_representative_allocation_peak_resident_memory`.
@@ -138,13 +152,13 @@ The initial clean macOS AArch64 result remains the historical component-boundary
 
 Schema 14 preserves every schema 13 timing, artifact, heap, and process-memory field and adds `rust_host_allocation_churn_call`, `vm_host_allocation_churn_call`, and `jit_host_allocation_churn_call`. Each operation allocates 64 boxed `i64` values, consumes every other allocation, allocates 32 replacements into the released slots, then consumes the final 64. The same generic heap path adds `host_allocation_churn_call` with `(allocation_count, total_allocated_bytes, peak_live_bytes, live_bytes_after)` equal to `(96, 768, 512, 0)`.
 
-The rows measure a fixed-size synthetic host-callback sequence with free/reallocate interleaving. They do not isolate allocator metadata, fragmentation, or reuse policy and are not representative-application evidence. VM/JIT differential tests, macOS direct/response-file AOT integration, host-independent Windows COFF validation, and the cfg-gated MSVC path cover the callback/import contract. The clean 31-sample macOS AArch64 run records 47 unique timing rows, all three exact heap profiles, direct Rust/VM/JIT churn medians of 1.192 us, 1.348 us, and 1.173 us, and linked-process peak memory from 1,654,784 to 1,671,168 bytes. Current Windows CI requires schema 17 while retaining the exact churn rows/profile. Consumers must branch on `schema_version`; schema 1–13 JSON files remain immutable evidence.
+The rows measure a fixed-size synthetic host-callback sequence with free/reallocate interleaving. They do not isolate allocator metadata, fragmentation, or reuse policy and are not representative-application evidence. VM/JIT differential tests, macOS direct/response-file AOT integration, host-independent Windows COFF validation, and the cfg-gated MSVC path cover the callback/import contract. The clean 31-sample macOS AArch64 run records 47 unique timing rows, all three exact heap profiles, direct Rust/VM/JIT churn medians of 1.192 us, 1.348 us, and 1.173 us, and linked-process peak memory from 1,654,784 to 1,671,168 bytes. Current Windows CI requires schema 18 while retaining the exact churn rows/profile. Consumers must branch on `schema_version`; schema 1–13 JSON files remain immutable evidence.
 
 ## Schema 13 format and migration
 
 Schema 13 preserves every schema 12 timing, artifact, and heap field and adds `process_memory_measurement_scope`, `process_memory_metric`, and `process_memory_measurements`. The scope is `linked_aot_executable_process`. The single row, `aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below`, records `bytes/process`, `sample_count`, minimum, median, p95, maximum, mean, and relative standard deviation after launching the linked AOT executable once per sample.
 
-The metric is `macos_rusage_ru_maxrss_bytes` on macOS and `windows_process_peak_working_set_bytes` on Windows MSVC. The former is parsed from `/usr/bin/time -l`; the latter is read from `System.Diagnostics.Process.PeakWorkingSet64` through Windows PowerShell. Both include private and shared resident pages plus loader/runtime state and therefore are platform-specific process envelopes. Consumers must branch on `schema_version`; schema 1–12 JSON files remain immutable evidence. The historical clean schema 13 macOS AArch64 result records all 31 samples as 1,671,168 bytes with 0.000% RSD. Current schema 17 Windows CI requires this retained row plus positive, ordered control/workload distributions, but no remote result has been inspected or committed.
+The metric is `macos_rusage_ru_maxrss_bytes` on macOS and `windows_process_peak_working_set_bytes` on Windows MSVC. The former is parsed from `/usr/bin/time -l`; the latter is read from `System.Diagnostics.Process.PeakWorkingSet64` through Windows PowerShell. Both include private and shared resident pages plus loader/runtime state and therefore are platform-specific process envelopes. Consumers must branch on `schema_version`; schema 1–12 JSON files remain immutable evidence. The historical clean schema 13 macOS AArch64 result records all 31 samples as 1,671,168 bytes with 0.000% RSD. Current schema 18 Windows CI requires this retained row plus positive, ordered control/workload distributions, but no remote result has been inspected or committed.
 
 ## Schema 12 format and migration
 
@@ -156,19 +170,19 @@ The exact single profile is `(1, 8, 8, 0)` and the burst profile is `(64, 512, 5
 
 Schema 11 adds `rust_host_allocation_burst_call`, `vm_host_allocation_burst_call`, and `jit_host_allocation_burst_call`. Each operation creates 64 distinct `Box<i64>` values, keeps all 512 payload bytes live in a fixed array, computes their wrapping sum, and then drops them. `black_box` keeps each box and loaded value opaque to optimization. The VM and JIT rows include the same typed host-call dispatch around the registered callback, while the direct Rust row provides the host-side baseline. The harness verifies all three results before warm-up and timing.
 
-The existing AOT link/startup series remains unchanged, while macOS and configured Windows integration tests execute a corresponding C callback that holds 64 `malloc` allocations live before reading and freeing them. The rows do not measure allocator metadata, the stack-resident pointer array, process peak RSS, failure behavior, a language heap, or a representative application. Schema 11 leaves all schema 10 rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–10 JSON files remain immutable evidence. The clean historical schema 11 result records all 44 unique rows and direct Rust, VM, and JIT burst medians of 782.624 ns, 962.329 ns, and 786.270 ns. Their RSD values are 0.331%, 11.822%, and 0.378%; the VM maximum of 1.620 us raises its RSD despite a 967.234 ns p95, so those values remain directional evidence rather than a performance budget. The Windows Server 2025 workflow now requires schema 17 while retaining all three burst rows.
+The existing AOT link/startup series remains unchanged, while macOS and configured Windows integration tests execute a corresponding C callback that holds 64 `malloc` allocations live before reading and freeing them. The rows do not measure allocator metadata, the stack-resident pointer array, process peak RSS, failure behavior, a language heap, or a representative application. Schema 11 leaves all schema 10 rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–10 JSON files remain immutable evidence. The clean historical schema 11 result records all 44 unique rows and direct Rust, VM, and JIT burst medians of 782.624 ns, 962.329 ns, and 786.270 ns. Their RSD values are 0.331%, 11.822%, and 0.378%; the VM maximum of 1.620 us raises its RSD despite a 967.234 ns p95, so those values remain directional evidence rather than a performance budget. The Windows Server 2025 workflow now requires schema 18 while retaining all three burst rows.
 
 ## Schema 10 format and migration
 
 Schema 10 adds `vm_countdown_deadline_call`. It executes the same alternating positive/immediate-return inputs and verified countdown bytecode as `vm_countdown_call`, but supplies an absolute monotonic deadline set one hour after harness preparation through `ExecutionControl`. The harness verifies equivalent results before warm-up and timing, and the deadline remains shared across all samples rather than being recomputed per call.
 
-This row measures the steady-state cost of enabling deadline checks while the deadline remains unexpired. It does not measure expiration latency, scheduler accuracy, callback overrun, callback preemption, or native/JIT enforcement. Schema 10 leaves all existing rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–9 JSON files remain immutable evidence. The historical clean schema 14 result records a 1.611 us ordinary VM countdown median and a 3.320 us unexpired-deadline median: a 1.709 us, 106.071% increase. The 0.383% and 0.614% RSD values make the paired medians stable for this run but do not establish an overhead budget. Schema 17 retains this row and is the current Windows workflow contract.
+This row measures the steady-state cost of enabling deadline checks while the deadline remains unexpired. It does not measure expiration latency, scheduler accuracy, callback overrun, callback preemption, or native/JIT enforcement. Schema 10 leaves all existing rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–9 JSON files remain immutable evidence. The historical clean schema 14 result records a 1.611 us ordinary VM countdown median and a 3.320 us unexpired-deadline median: a 1.709 us, 106.071% increase. The 0.383% and 0.614% RSD values make the paired medians stable for this run but do not establish an overhead budget. Schema 18 retains this row and is the current Windows workflow contract.
 
 ## Schema 9 format and migration
 
 Schema 9 adds `vm_countdown_interruptible_call`. It executes the same alternating positive/immediate-return inputs and the same verified countdown bytecode as `vm_countdown_call`, but supplies a shared, unset interruption flag through `ExecutionControl`. In the current schema 13 artifact, both rows include the VM's optional-control branch; the new row additionally performs the flag's acquire load at each executed instruction and terminator. The harness verifies equivalent results before warm-up and timing.
 
-This row measures the steady-state cost of enabling cooperative interruption when no request occurs. It does not measure interruption latency, cross-thread wake-up, a set flag, callback preemption, or native/JIT enforcement. Schema 9 leaves all lowering, compilation, artifact-size, host-callback, link, and startup fields unchanged. Consumers must branch on `schema_version`; schema 1–8 JSON files remain immutable evidence. In the historical clean schema 14 result, the ordinary VM countdown median is 1.611 us and the unset-interruption median is 1.641 us, a 29.868 ns or 1.854% increase. The interruption row's 15.866% RSD exceeds that delta, so this paired microbenchmark shows no measurable interruption-check regression and does not establish an overhead budget. Schema 17 retains this row and is the current Windows workflow contract.
+This row measures the steady-state cost of enabling cooperative interruption when no request occurs. It does not measure interruption latency, cross-thread wake-up, a set flag, callback preemption, or native/JIT enforcement. Schema 9 leaves all lowering, compilation, artifact-size, host-callback, link, and startup fields unchanged. Consumers must branch on `schema_version`; schema 1–8 JSON files remain immutable evidence. In the historical clean schema 14 result, the ordinary VM countdown median is 1.611 us and the unset-interruption median is 1.641 us, a 29.868 ns or 1.854% increase. The interruption row's 15.866% RSD exceeds that delta, so this paired microbenchmark shows no measurable interruption-check regression and does not establish an overhead budget. Schema 18 retains this row and is the current Windows workflow contract.
 
 ## Schema 8 format and migration
 
@@ -176,7 +190,7 @@ Schema 8 adds `rust_host_allocation_call`, `vm_host_allocation_call`, and `jit_h
 
 The existing AOT system-link, executable-size, and process-startup series do not change: a single allocation inside a launched harness would be dominated by process creation and loader work. Separate platform integration tests execute the corresponding C `malloc`/read/`free` callback through linked AOT objects. The new rows therefore measure a narrow host-owned allocation plus VM/JIT boundary cost; they do not measure a language heap, allocator policy, peak memory, allocation failure, collection, or representative application behavior. Consumers must branch on `schema_version`; schema 1–7 JSON files remain immutable evidence. The clean macOS AArch64 schema 8 result is recorded above.
 
-The Windows Server 2025 workflow first required schema 8 and all three single-allocation rows in addition to the unchanged platform measurements. No remote schema 8 result has been inspected or committed; the workflow now requires schema 17 as described above.
+The Windows Server 2025 workflow first required schema 8 and all three single-allocation rows in addition to the unchanged platform measurements. No remote schema 8 result has been inspected or committed; the workflow now requires schema 18 as described above.
 
 ## Schema 7 format and migration
 
@@ -218,7 +232,7 @@ Schema 3 adds `jit_countdown` and `aot_countdown` size fields plus six countdown
 
 ## Windows x86-64 evidence path
 
-The schema 7 harness records the conditional-sum lowering/compilation/runtime rows, the renamed system-link and process-startup rows, and `executable_file_bytes.aot_add_min_countdown_sum_to_sum_below` on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, and validates one link and execution before timing. Schema 8 retains those platform fields and the 31/1,000/100,000/10 parameters and adds the three single-allocation runtime rows. Schema 9 adds `vm_countdown_interruptible_call`, schema 10 adds `vm_countdown_deadline_call`, schema 11 adds three allocation-burst rows, schema 12 adds the two exact heap profiles, schema 13 adds the linked-process peak-memory distribution, schema 14 adds allocation-churn evidence, schema 15 adds component-boundary series, schema 16 adds variable-size allocation timing/profile evidence, and schema 17 adds representative allocation/process-memory evidence; schema 17 is now required by the Windows Server 2025 workflow. The workflow also validates clean-checkout metadata, the `windows`/`x86_64` identity, interruption, deadline, conditional-sum, single-allocation, allocation-burst, allocation-churn, variable-size allocation, exact representative-workload accounting, all three process-memory rows, component-boundary and platform measurements, the startup batch size, and a positive executable size before uploading the JSON for 30 days.
+The schema 7 harness records the conditional-sum lowering/compilation/runtime rows, the renamed system-link and process-startup rows, and `executable_file_bytes.aot_add_min_countdown_sum_to_sum_below` on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, and validates one link and execution before timing. Schema 8 retains those platform fields and the 31/1,000/100,000/10 parameters and adds the three single-allocation runtime rows. Schema 9 adds `vm_countdown_interruptible_call`, schema 10 adds `vm_countdown_deadline_call`, schema 11 adds three allocation-burst rows, schema 12 adds the two exact heap profiles, schema 13 adds the linked-process peak-memory distribution, schema 14 adds allocation-churn evidence, schema 15 adds component-boundary series, schema 16 adds variable-size allocation timing/profile evidence, schema 17 adds representative allocation/process-memory evidence, and schema 18 adds Fibonacci CFG timing/artifact evidence; schema 18 is now required by the Windows Server 2025 workflow. The workflow also validates clean-checkout metadata, the `windows`/`x86_64` identity, interruption, deadline, conditional-sum, Fibonacci, single-allocation, allocation-burst, allocation-churn, variable-size allocation, exact representative-workload accounting, all three process-memory rows, component-boundary and platform measurements, the startup batch size, and positive Fibonacci/executable sizes before uploading the JSON for 30 days.
 
 This is an evidence-producing path, not recorded Windows evidence: no remote runner result from this change has been inspected or committed. The macOS table above therefore remains the only current measured baseline.
 
@@ -243,11 +257,12 @@ A later clean [debug-information inspection](../benchmarks/inspection/2026-10-16
 - The harness checks VM, JIT, and direct Rust results for equivalence before timing, including both outcomes of minimum, the immediate-return/loop paths of countdown and the accumulator, and the immediate-return/add/skip paths of conditional sum.
 - The two-value accumulator carries a descending counter and wrapping sum around the same back-edge. Its direct, VM, and JIT medians are 1.705 ns, 1.665 us, and 12.790 ns. This bounded MIR workload is useful differential evidence, not a representative program benchmark.
 - The conditional-sum prototype includes both branch outcomes and the immediate-return path. Its direct, VM, and JIT medians are 5.605 ns, 3.046 us, and 20.011 ns. This is broader CFG evidence, not a representative program benchmark.
+- The schema 18 Fibonacci workload alternates 30 loop iterations with an immediate non-positive return while rotating three loop-carried values. Direct, VM, and JIT medians are 6.510 ns, 1.231 us, and 7.463 ns. It adds a recognizable stateful loop to the cross-mode set, but remains a bounded microbenchmark rather than representative application performance.
 - The single-allocation host-callback medians are 11.931 ns direct, 188.068 ns through the VM, and 13.631 ns through JIT. VM minus direct is 176.137 ns (1,476.297%), while JIT minus direct is 1.700 ns (14.249%). The three rows have 3.752%, 1.018%, and 1.723% RSD, providing stable narrow boundary-cost evidence for this run; one `Box<i64>` round trip is still not a representative allocator or memory workload.
 - The 64-allocation-burst medians are 775.515 ns direct, 959.024 ns through the VM, and 789.842 ns through JIT. VM minus direct is 183.509 ns (23.663%), while JIT minus direct is 14.327 ns (1.847%). The direct, VM, and JIT rows have 20.514%, 0.544%, and 6.002% RSD, so the result is directional rather than a general boundary-overhead budget.
 - The 96-allocation churn medians are 1.192 us direct, 1.348 us through the VM, and 1.173 us through JIT. VM minus direct is 156.544 ns (13.137%), while JIT minus direct is -18.203 ns (-1.528%). The rows have 4.901%, 0.861%, and 0.388% RSD; the negative JIT delta is noise-sensitive microbenchmark evidence, not a claim that the boundary removes allocation cost.
 - Schema 12 profiles the same generic callback workloads outside the timed loops. The single callback records one allocation, 8 total and peak live payload bytes, and zero live bytes afterward; the burst records 64 allocations, 512 total and peak live payload bytes, and zero afterward. The scope is deliberately `host_callback_requested_payload_bytes`: it confirms logical payload lifetime and cleanup, but excludes allocator metadata and fragmentation, stacks, generated code, VM/JIT internal allocations, and process RSS.
-- Schema 13 introduced separate-process peak-memory sampling for the allocation-free linked AOT harness. The historical schema 14 macOS run reports a 1,654,784-byte minimum; a 1,671,168-byte median, p95, and maximum; and 0.173% RSD through `ru_maxrss`; the current schema 17 run reports 1,671,168 bytes for all 31 retained AOT samples. Schema 17's separate paired rows provide the representative allocation estimate; the AOT row remains an allocation-free process envelope, and the Windows `PeakWorkingSet64` metric must be interpreted independently.
+- Schema 13 introduced separate-process peak-memory sampling for the allocation-free linked AOT harness. The historical schema 14 macOS run reports a 1,654,784-byte minimum; a 1,671,168-byte median, p95, and maximum; and 0.173% RSD through `ru_maxrss`. The current schema 18 run reports a 1,671,168-byte minimum; a 1,687,552-byte median, p95, and maximum; and 0.287% RSD after adding Fibonacci to the linked set. Schema 18's separate paired rows retain the representative allocation estimate; the AOT row remains an allocation-free process envelope, and the Windows `PeakWorkingSet64` metric must be interpreted independently.
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
 - The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown, schema 6 adds the accumulator, and schema 7 adds conditional sum. All precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).
@@ -258,7 +273,7 @@ A later clean [debug-information inspection](../benchmarks/inspection/2026-10-16
 - Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.846 ns and 1.611 us and accumulator JIT/VM medians of 12.790 ns and 1.665 us. Alternating conditional-sum inputs `(64, 33)` and `(-7, 33)` gives JIT/VM medians of 20.011 ns and 3.046 us. These bounded microbenchmarks do not predict representative control-flow performance. Near-one-nanosecond direct add, countdown, and host-call rows remain timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record a clean schema 17 result on Windows x86-64, add the remaining representative CFG workload, and implement and validate native debug metadata across both tier-1 targets. The schema 17 allocation trace is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
+Before selecting the initial native backend, record a clean schema 18 result on Windows x86-64 and implement and validate native debug metadata across both tier-1 targets. The schema 17 allocation trace retained by schema 18 is still a synthetic compiler-like proxy, and its combined estimate cannot separate allocator metadata from fragmentation. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
 
 ## Earlier baseline
 
@@ -266,16 +281,18 @@ The [schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.js
 
 ## Sources
 
-- [Current raw macOS AArch64 schema 17 result](../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json), measured 2026-10-16 19:01:45 JST.
+- [Current raw macOS AArch64 schema 18 result](../benchmarks/results/2026-10-16-macos-aarch64-b5ddb9b.json), measured 2026-10-16 19:17:44 JST.
+- [Historical raw macOS AArch64 schema 17 result](../benchmarks/results/2026-10-16-macos-aarch64-aac146d.json), measured 2026-10-16 19:01:45 JST.
 - [Historical raw macOS AArch64 schema 16 result](../benchmarks/results/2026-10-16-macos-aarch64-7f2482a.json), measured 2026-10-16 18:42:15 JST.
 - [Historical raw macOS AArch64 schema 15 result](../benchmarks/results/2026-10-16-macos-aarch64-f163409.json), measured 2026-10-16 18:00:07 JST.
 - [Historical raw macOS AArch64 schema 14 result](../benchmarks/results/2026-10-16-macos-aarch64-6a2caf8.json), measured 2026-10-16 14:02:20 JST.
 - `crates/vm/src/lib.rs`, deadline-enabled VM resource controls, last updated 2026-10-16 11:20 JST.
-- `src/lib.rs`, allocation burst/churn/variable-size callback prototypes, last updated 2026-10-16 14:12 JST.
-- `src/bin/prototype-bench.rs`, schema 17 representative-allocation/process-memory harness, last updated 2026-10-16 19:00:27 JST.
+- `src/lib.rs`, cross-mode CFG and allocation-callback prototypes, last updated 2026-10-16 19:15:05 JST.
+- `src/bin/prototype-bench.rs`, schema 18 CFG/allocation/process-memory harness, last updated 2026-10-16 19:15:05 JST.
 - [macOS AArch64 generated-object inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), captured 2026-10-16 00:25 JST.
 - [macOS AArch64 signed-minimum inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), captured 2026-10-16 00:43:31 JST.
 - [macOS AArch64 AOT debug-information inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-013da31-debug.md), captured 2026-10-16 12:06:01 JST.
+- Repository commit `b5ddb9b6ed0e8339935c55df2a138233209f13d0`, committed 2026-10-16.
 - Repository commit `aac146dad79cc02518c809d0bb203559799f72db`, committed 2026-10-16.
 - Repository commit `7f2482a52c11354d29c61e68608f85a1f7c9611c`, committed 2026-10-16.
 - Repository commit `0865167bfe75331a29e2d4ee9e509c9d17b4b4f1`, committed 2026-10-16.

@@ -220,6 +220,8 @@ Benchmark schema 16はschema 15の全fieldを維持し、4つ目のallocation-bo
 
 Benchmark schema 17はschema 16を維持し、受け入れ済みsource semanticsを導入せずにallocator size classとlifetime fragmentationを実行する、別processのcompiler-like allocation traceを追加します。24〜4,096 byteの12 size classにまたがる16,384個のretained payloadをallocateし、3個ごとに1個を解放して異sizeのreplacementで穴を埋め、retained graphと2,048〜5,632 byteの2,048個のtransient bufferを重ねます。全payload byteをtouchします。Harnessは正確なrequested-payload accountingと、同じexecutableのinterleaved control／workload peak-resident sampleを記録します。Median workload-minus-control deltaからpeak live requested payloadを引いたsaturating valueをallocator-overhead／fragmentation合算推定値として報告します。CleanなmacOS AArch64 runは23,894 allocations、19,183,210 total requested byte、18,102,042 peak live requested byte、21,037,056 byteのmedian resident delta、2,935,014 byteの推定値を記録します。Page rounding、allocator retention、loader state、OS working-set policyは分離できず、この推定値は方向的かつplatform固有であり、memory budgetやallocator選定ではありません。
 
+Benchmark schema 18はschema 17の全fieldを維持し、追加の代表的CFG workloadとしてiterative Fibonacciを追加します。このloopはsigned countdownと2個のwrapping sequence valueを3個の型付きblock argumentで運び、back-edgeでsequence valueを入れ替え、非正inputにはzeroを返します。差分testはwrapping overflowを含むVM／JIT equivalenceを扱い、macOS AArch64 direct／response-file integrationはAOT objectを実行し、host非依存Windows COFF validationはそのexportを検証し、cfg-gated MSVC integrationとWindows workflowも同じcontractを維持します。Cleanな31-sample macOS AArch64 runは56個の一意なtiming rowを記録し、direct Rust／VM／JIT medianは6.510 ns／1.231 us／7.463 ns、生成artifactは48 byteのJIT codeと400-byte objectです。これは新しいMIR operationを追加せず、受け入れ済みsource-level semanticsを主張せずにloop-carried CFG evidenceを拡張します。Remote Windows executionは未完了です。
+
 ### Plugin trust tier
 
 1. **Trusted native:** AOT object／static library、specialized call、最大性能、sandboxの保証なし。
