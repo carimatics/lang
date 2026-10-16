@@ -5,6 +5,7 @@ members = [
     "crates/codegen-clif",
     "crates/diagnostics",
     "crates/hir",
+    "crates/lsp",
     "crates/mir",
     "crates/query",
     "crates/runtime",
@@ -30,6 +31,7 @@ lang-bytecode = { path = "crates/bytecode" }
 lang-codegen-clif = { path = "crates/codegen-clif" }
 lang-diagnostics = { path = "crates/diagnostics" }
 lang-hir = { path = "crates/hir" }
+lang-lsp = { path = "crates/lsp" }
 lang-mir = { path = "crates/mir" }
 lang-query = { path = "crates/query" }
 lang-runtime = { path = "crates/runtime" }

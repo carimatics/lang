@@ -57,6 +57,8 @@ Milestone 1 now has backend-independent `lang-diagnostics` and `lang-hir` crates
 
 `lang-query` provides the shared incremental graph/cache core: immutable input revisions, explicit query dependencies, transitive invalidation, and publication tickets that reject obsolete analysis results after edits or close/reopen. It bounds graph nodes, edges, and bookkeeping work and preflights failures before state changes. `cargo test -p lang-query` covers cache isolation, stale/foreign results, dependency replacement, cycles, limits, and real structured-input HIR diagnostic caching. Adapters must declare every observed dependency; automatic compiler queries, parser/module dependency discovery, and LSP transport remain pending.
 
+`lang-lsp` maps existing structured diagnostics into the LSP 3.18 diagnostic data model for UTF-16 positions. It handles protocol LF/CRLF/CR line endings, surrogate-pair widths, EOF ranges, stable codes/severities, and cross-file related locations using host-supplied URIs. Run `cargo test -p lang-lsp` for conversion and resource-limit tests. This data adapter does not yet provide a server, position-encoding negotiation, JSON-RPC transport, revisioned publication, or code actions; those remain integration work. Official specification sources and verification dates are recorded in the [architecture](docs/architecture.md#diagnostics-lsp-and-debugging).
+
 Requirements:
 
 - Rust `1.99.0`, pinned by `rust-toolchain.toml`

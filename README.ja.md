@@ -57,6 +57,8 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-hir` crateを追
 
 `lang-query` はincremental graph／cacheの共有coreとして、immutable input revision、明示query dependency、推移的invalidation、editやclose／reopen後の古いanalysis結果を拒否するpublication ticketを提供します。Graphのnode、edge、bookkeeping workに上限を設け、失敗をstate変更前に検証します。`cargo test -p lang-query` はcache分離、古い／別graphの結果、dependency置換、cycle、limit、実際の構造化input HIR診断cacheを検証します。Adapterは参照する全dependencyの宣言が必要です。Compiler queryの自動実行、parser／module dependency検出、LSP transportは未実装です。
 
+`lang-lsp` は既存のstructured diagnosticをUTF-16位置のLSP 3.18 diagnostic data modelへ変換します。ProtocolのLF／CRLF／CR改行、surrogate-pair幅、EOF range、stable code／severity、host提供URIを使う複数fileのrelated locationを扱います。`cargo test -p lang-lsp` で変換とresource limitを検証できます。このdata adapterにはserver、position-encoding negotiation、JSON-RPC transport、revision付きpublication、code actionはまだなく、統合作業として残ります。公式specificationの情報源と確認日を[architecture](docs/ja/architecture.md#diagnosticslspdebugging)へ記録しています。
+
 必要な環境：
 
 - `rust-toolchain.toml` で固定されたRust `1.99.0`

@@ -65,7 +65,7 @@ fn main() -> i64 {
 
 - InputはBOMなしUTF-8です。Unicodeも改行も正規化しません。不正UTF-8は該当するraw byte範囲を持つinput error `SRC0010` とし、架空のvalid-source spanへ変換しません。Comment内を含めNULは不正です。Valid sourceはimmutableな `lang-diagnostics` snapshotへ保存します。
 - Identifierは `[A-Za-z_][A-Za-z0-9_]*` です。ただし単独の `_` はwildcard patternに予約します。非ASCII textはcomment内のみ許可し、identifierには許可しません。Keywordはcase-sensitiveな完全一致の `fn let mut i64 bool if else while return mod use pub root extern struct enum match true false` です。他のwordはidentifierで、暗黙の将来予約語はありません。
-- 空白はspace、tab、LF、CRです。Line counterを進めるのはLFだけで、CRLFは1回進みます。単独CRは同じ診断行内の空白です。Byte spanは半開区間、human columnはUnicode scalar数、IDE columnはUTF-16 code unit数です。
+- 空白はspace、tab、LF、CRです。Compilerのline counterを進めるのはLFだけで、CRLFは1回進みます。単独CRは同じcompiler診断行内の空白です。Byte spanは半開区間、human columnはUnicode scalar数、IDE columnはUTF-16 code unit数です。LSP adapterは単独CRを含むprotocolの改行規則でbyte spanを独立変換するため、editorの行番号はcompilerの行番号のcopyではなくLSPに従います。
 - `//` commentはLFまたはEOFの直前で終わります。`/* ... */` commentは最大depth 256までnestできます。両方ともtriviaです。閉じていないblock commentは開始delimiterからEOFまでのspanで `SRC0009` を報告します。Depth超過は `SRC0011` とし、panicせずanalysisを終了します。
 - Punctuationは `(` `)` `{` `}` `:` `;` `,` `.` `=` `+` `<` `->` `::` `=>` です。一致する2文字tokenを優先します。Minusの直後にASCII digitがある場合はsigned decimal tokenの一部です。単独の減算／unary negation operatorはありません。
 - Decimal tokenは `-?[0-9]+` です。先頭のzeroは許可しますがoctalの意味はありません。`-0` はzeroです。直後がidentifier characterの場合、digit／identifierの連続全体を1つの不正token（`SRC0008`）にします。Separatorや他の整数基数は対象外です。Range checkはsigned token全体へ `SRC0001` を報告し、wrapしません。
@@ -263,4 +263,6 @@ Review outcome：**ready for decision**。受理後も実装evidenceが必要で
 - `crates/vm/src/lib.rs`、現行typed VM。最終更新2026-10-16 23:23 JST、commit `b2ccdaf`。確認2026-10-17 JST。
 - `crates/runtime/src/lib.rs`、typed host registry。最終更新2026-10-16 15:05 JST、commit `a3e07f6`。確認2026-10-17 JST。
 
-外部の事実や比較性能の主張は使用していません。数値limit、grammar、wire tag、段階的backend supportは提案するproject decisionであり、計測済みbest-practice保証ではありません。
+- Microsoft LSP 3.18の[text-document位置／改行規則](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.18/types/textDocuments.md)。更新日非掲載のliving specification。確認2026-10-17 JST。
+
+LSP位置mappingは外部protocol要件に従います。数値limit、grammar、wire tag、段階的backend supportは提案するproject decisionであり、計測済みbest-practice保証ではありません。比較性能の主張は導入しません。
