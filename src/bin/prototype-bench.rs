@@ -108,6 +108,85 @@ struct Measurement {
     relative_stddev_percent: f64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct HeapMeasurement {
+    name: &'static str,
+    allocation_count: usize,
+    total_allocated_bytes: usize,
+    peak_live_bytes: usize,
+    live_bytes_after: usize,
+}
+
+trait I64Heap {
+    type Allocation;
+
+    fn allocate(&mut self, value: i64) -> Self::Allocation;
+    fn consume(&mut self, allocation: Self::Allocation) -> i64;
+}
+
+struct SystemHeap;
+
+impl I64Heap for SystemHeap {
+    type Allocation = Box<i64>;
+
+    fn allocate(&mut self, value: i64) -> Self::Allocation {
+        Box::new(value)
+    }
+
+    fn consume(&mut self, allocation: Self::Allocation) -> i64 {
+        *allocation
+    }
+}
+
+#[derive(Default)]
+struct MeasuringHeap {
+    allocation_count: usize,
+    total_allocated_bytes: usize,
+    live_bytes: usize,
+    peak_live_bytes: usize,
+}
+
+struct MeasuredI64 {
+    allocation: Box<i64>,
+    bytes: usize,
+}
+
+impl MeasuringHeap {
+    fn finish(self, name: &'static str) -> HeapMeasurement {
+        HeapMeasurement {
+            name,
+            allocation_count: self.allocation_count,
+            total_allocated_bytes: self.total_allocated_bytes,
+            peak_live_bytes: self.peak_live_bytes,
+            live_bytes_after: self.live_bytes,
+        }
+    }
+}
+
+impl I64Heap for MeasuringHeap {
+    type Allocation = MeasuredI64;
+
+    fn allocate(&mut self, value: i64) -> Self::Allocation {
+        let bytes = std::mem::size_of::<i64>();
+        self.allocation_count += 1;
+        self.total_allocated_bytes += bytes;
+        self.live_bytes += bytes;
+        self.peak_live_bytes = self.peak_live_bytes.max(self.live_bytes);
+        MeasuredI64 {
+            allocation: Box::new(value),
+            bytes,
+        }
+    }
+
+    fn consume(&mut self, allocation: Self::Allocation) -> i64 {
+        let MeasuredI64 { allocation, bytes } = allocation;
+        let value = *allocation;
+        drop(allocation);
+        self.live_bytes -= bytes;
+        value
+    }
+}
+
 struct PreparedWorkloads<'a> {
     add_program: &'a lang_bytecode::Program,
     min_program: &'a lang_bytecode::Program,
@@ -691,6 +770,7 @@ fn run() -> Result<(), String> {
                 sum_below_object: aot_sum_below.bytes().len(),
                 aot_executable: aot_executable_size,
             },
+            &heap_measurements(),
             &measurements,
         )
     );
@@ -775,17 +855,45 @@ extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
 
 #[inline(never)]
 extern "C" fn prototype_allocate_roundtrip(value: i64) -> i64 {
-    let allocation = black_box(Box::new(value));
-    black_box(*allocation)
+    allocation_roundtrip(value, &mut SystemHeap)
 }
 
 #[inline(never)]
 extern "C" fn prototype_allocate_burst(value: i64) -> i64 {
-    let allocations: [Box<i64>; PROTOTYPE_ALLOCATION_BURST_LEN] =
-        std::array::from_fn(|index| black_box(Box::new(value.wrapping_add(index as i64))));
+    allocation_burst(value, &mut SystemHeap)
+}
+
+fn allocation_roundtrip<H: I64Heap>(value: i64, heap: &mut H) -> i64 {
+    let allocation = black_box(heap.allocate(value));
+    black_box(heap.consume(allocation))
+}
+
+fn allocation_burst<H: I64Heap>(value: i64, heap: &mut H) -> i64 {
+    let allocations: [H::Allocation; PROTOTYPE_ALLOCATION_BURST_LEN] =
+        std::array::from_fn(|index| black_box(heap.allocate(value.wrapping_add(index as i64))));
     allocations.into_iter().fold(0_i64, |sum, allocation| {
-        sum.wrapping_add(black_box(*allocation))
+        sum.wrapping_add(black_box(heap.consume(allocation)))
     })
+}
+
+fn heap_measurements() -> [HeapMeasurement; 2] {
+    [
+        measure_heap_workload("host_allocation_call", |heap| {
+            allocation_roundtrip(-9, heap)
+        }),
+        measure_heap_workload("host_allocation_burst_call", |heap| {
+            allocation_burst(-9, heap)
+        }),
+    ]
+}
+
+fn measure_heap_workload(
+    name: &'static str,
+    operation: impl FnOnce(&mut MeasuringHeap) -> i64,
+) -> HeapMeasurement {
+    let mut heap = MeasuringHeap::default();
+    black_box(operation(&mut heap));
+    heap.finish(name)
 }
 
 fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
@@ -1340,6 +1448,7 @@ fn render_json(
     command_line: &str,
     config: Config,
     sizes: ArtifactSizes,
+    heap_measurements: &[HeapMeasurement],
     measurements: &[Measurement],
 ) -> String {
     let mut output = String::new();
@@ -1353,7 +1462,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 11,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 12,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -1413,6 +1522,48 @@ fn render_json(
         .expect("writing to String succeeds"),
     }
     writeln!(output, "  }},").expect("writing to String succeeds");
+    write_json_string(
+        &mut output,
+        "heap_measurement_scope",
+        "host_callback_requested_payload_bytes",
+        true,
+    );
+    writeln!(output, "  \"heap_measurements\": [").expect("writing to String succeeds");
+    for (index, measurement) in heap_measurements.iter().enumerate() {
+        writeln!(output, "    {{").expect("writing to String succeeds");
+        write_json_string(&mut output, "name", measurement.name, true);
+        writeln!(
+            output,
+            "      \"allocation_count\": {},",
+            measurement.allocation_count
+        )
+        .expect("writing to String succeeds");
+        writeln!(
+            output,
+            "      \"total_allocated_bytes\": {},",
+            measurement.total_allocated_bytes
+        )
+        .expect("writing to String succeeds");
+        writeln!(
+            output,
+            "      \"peak_live_bytes\": {},",
+            measurement.peak_live_bytes
+        )
+        .expect("writing to String succeeds");
+        writeln!(
+            output,
+            "      \"live_bytes_after\": {}",
+            measurement.live_bytes_after
+        )
+        .expect("writing to String succeeds");
+        let suffix = if index + 1 == heap_measurements.len() {
+            ""
+        } else {
+            ","
+        };
+        writeln!(output, "    }}{suffix}").expect("writing to String succeeds");
+    }
+    writeln!(output, "  ],").expect("writing to String succeeds");
     writeln!(output, "  \"measurements\": [").expect("writing to String succeeds");
     for (index, measurement) in measurements.iter().enumerate() {
         writeln!(output, "    {{").expect("writing to String succeeds");
@@ -1539,9 +1690,9 @@ fn os_version() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        ArtifactSizes, Config, Measurement, alternating_countdown_input,
-        alternating_sum_below_inputs, escape_json, render_json, rust_countdown, rust_sum_below,
-        rust_sum_to,
+        ArtifactSizes, Config, HeapMeasurement, Measurement, alternating_countdown_input,
+        alternating_sum_below_inputs, escape_json, heap_measurements, render_json, rust_countdown,
+        rust_sum_below, rust_sum_to,
     };
 
     #[test]
@@ -1636,7 +1787,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_eleven_retains_allocation_burst_and_controlled_loops() {
+    fn schema_twelve_retains_timing_rows_and_adds_heap_measurements() {
         let measurements = [
             Measurement::from_samples("vm_countdown_interruptible_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_countdown_deadline_call", 1, vec![1.0, 2.0, 3.0]),
@@ -1666,10 +1817,21 @@ mod tests {
                 sum_below_object: 11,
                 aot_executable: Some(12),
             },
+            &heap_measurements(),
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 11"));
+        assert!(output.contains("\"schema_version\": 12"));
+        assert!(
+            output
+                .contains("\"heap_measurement_scope\": \"host_callback_requested_payload_bytes\"")
+        );
+        assert!(output.contains("\"name\": \"host_allocation_call\""));
+        assert!(output.contains("\"name\": \"host_allocation_burst_call\""));
+        assert!(output.contains("\"allocation_count\": 64"));
+        assert!(output.contains("\"total_allocated_bytes\": 512"));
+        assert!(output.contains("\"peak_live_bytes\": 512"));
+        assert!(output.contains("\"live_bytes_after\": 0"));
         assert!(output.contains("\"name\": \"vm_countdown_interruptible_call\""));
         assert!(output.contains("\"name\": \"vm_countdown_deadline_call\""));
         assert!(output.contains("\"name\": \"rust_host_allocation_burst_call\""));
@@ -1686,7 +1848,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_eleven_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_twelve_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -1709,9 +1871,33 @@ mod tests {
                 sum_below_object: 11,
                 aot_executable: None,
             },
+            &heap_measurements(),
             &[],
         );
 
         assert!(output.contains("\"aot_add_min_countdown_sum_to_sum_below\": null"));
+    }
+
+    #[test]
+    fn heap_measurements_record_requested_payload_lifetimes() {
+        assert_eq!(
+            heap_measurements(),
+            [
+                HeapMeasurement {
+                    name: "host_allocation_call",
+                    allocation_count: 1,
+                    total_allocated_bytes: 8,
+                    peak_live_bytes: 8,
+                    live_bytes_after: 0,
+                },
+                HeapMeasurement {
+                    name: "host_allocation_burst_call",
+                    allocation_count: 64,
+                    total_allocated_bytes: 512,
+                    peak_live_bytes: 512,
+                    live_bytes_after: 0,
+                },
+            ]
+        );
     }
 }

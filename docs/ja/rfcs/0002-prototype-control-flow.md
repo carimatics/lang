@@ -229,9 +229,9 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 情報源
 
-- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 12:09 JST。
-- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 12:09 JST。
-- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 12:09 JST。
+- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 12:18 JST。
+- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 12:18 JST。
+- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 12:18 JST。
 - `crates/mir/src/lib.rs`、typed CFG／validation prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/bytecode/src/lib.rs`、verified register bytecode prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/vm/src/lib.rs`、VM execution／resource-control prototype、最終更新 2026-10-16 11:20 JST。
