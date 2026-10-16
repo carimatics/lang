@@ -8,7 +8,7 @@ These measurements are design evidence for the pre-alpha prototypes. They are no
 
 ## Current macOS AArch64 baseline
 
-The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-133172b.json) was recorded from clean commit `133172b383b80b05f5cf2d576d2eba5f2fbc2851` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 11:28:39 JST. It used harness schema 10, the pinned Rust 1.99.0 toolchain, and Apple Clang 21.0.0 in a release build.
+The current [baseline](../benchmarks/results/2026-10-16-macos-aarch64-664edb9.json) was recorded from clean commit `664edb9d3a986614a8160d4d4adf9c1f0a8bb7bd` on an Apple M1 Max running macOS 27.0.1 at 2026-10-16 11:50:37 JST. It used harness schema 11, the pinned Rust 1.99.0 toolchain, and Apple Clang 21.0.0 in a release build.
 
 ```bash
 ./target/release/prototype-bench \
@@ -22,47 +22,50 @@ Each row reports nanoseconds per operation. RSD is the relative population stand
 
 | Measurement | Operations per sample | Median | p95 | RSD |
 | --- | ---: | ---: | ---: | ---: |
-| Bytecode lowering: wrapping `i64` add | 1,000 | 381.417 ns | 439.542 ns | 5.249% |
-| Bytecode lowering: signed minimum | 1,000 | 1.077 us | 1.221 us | 5.764% |
-| Bytecode lowering: countdown back-edge | 1,000 | 1.709 us | 2.009 us | 7.095% |
-| Bytecode lowering: two-value accumulator | 1,000 | 1.810 us | 2.073 us | 5.761% |
-| Bytecode lowering: conditional sum | 1,000 | 2.990 us | 3.355 us | 3.993% |
-| Cranelift JIT compilation: wrapping `i64` add | 1 | 19.625 us | 28.000 us | 74.928% |
-| Cranelift JIT compilation: signed minimum | 1 | 23.917 us | 30.542 us | 17.441% |
-| Cranelift JIT compilation: countdown back-edge | 1 | 26.875 us | 33.750 us | 11.756% |
-| Cranelift JIT compilation: two-value accumulator | 1 | 31.334 us | 36.166 us | 10.967% |
-| Cranelift JIT compilation: conditional sum | 1 | 40.375 us | 46.500 us | 7.187% |
-| Cranelift AOT object emission: wrapping `i64` add | 1 | 13.583 us | 16.708 us | 19.264% |
-| Cranelift AOT object emission: signed minimum | 1 | 18.041 us | 20.291 us | 4.808% |
-| Cranelift AOT object emission: countdown back-edge | 1 | 21.750 us | 24.708 us | 5.335% |
-| Cranelift AOT object emission: two-value accumulator | 1 | 28.125 us | 48.750 us | 74.733% |
-| Cranelift AOT object emission: conditional sum | 1 | 38.709 us | 113.875 us | 51.104% |
-| macOS system link: precompiled C harness plus add, minimum, countdown, accumulator, and conditional-sum objects | 1 | 40.625 ms | 43.305 ms | 4.389% |
-| macOS AOT process startup: single launch | 1 | 1.921 ms | 2.632 ms | 246.554% |
-| macOS AOT process startup: ten-launch batch, per launch | 10 | 1.964 ms | 2.205 ms | 9.008% |
-| Direct Rust wrapping `i64` add call | 100,000 | 0.931 ns | 0.959 ns | 0.930% |
-| VM wrapping `i64` add call | 100,000 | 182.930 ns | 218.895 ns | 17.939% |
-| JIT wrapping `i64` add call | 100,000 | 2.275 ns | 5.463 ns | 39.102% |
-| Direct Rust signed minimum call | 100,000 | 0.993 ns | 3.807 ns | 60.404% |
-| VM signed minimum call | 100,000 | 499.111 ns | 515.310 ns | 1.157% |
-| JIT signed minimum call | 100,000 | 2.970 ns | 3.185 ns | 2.739% |
-| Direct Rust countdown call | 100,000 | 0.930 ns | 0.984 ns | 1.799% |
-| VM countdown call | 100,000 | 1.617 us | 1.866 us | 4.433% |
-| VM countdown call with unset interruption flag | 100,000 | 1.607 us | 1.634 us | 0.584% |
-| VM countdown call with unexpired deadline | 100,000 | 3.315 us | 3.331 us | 0.376% |
-| JIT countdown call | 100,000 | 12.978 ns | 49.492 ns | 64.506% |
-| Direct Rust two-value accumulator call | 100,000 | 1.730 ns | 1.853 ns | 4.367% |
-| VM two-value accumulator call | 100,000 | 1.663 us | 1.813 us | 3.778% |
-| JIT two-value accumulator call | 100,000 | 12.816 ns | 13.915 ns | 2.936% |
-| Direct Rust conditional-sum call | 100,000 | 5.605 ns | 5.920 ns | 2.200% |
-| VM conditional-sum call | 100,000 | 3.030 us | 3.117 us | 5.104% |
-| JIT conditional-sum call | 100,000 | 20.433 ns | 21.262 ns | 1.828% |
-| Direct Rust host callback | 100,000 | 0.988 ns | 1.266 ns | 22.481% |
-| VM host callback | 100,000 | 175.182 ns | 177.317 ns | 0.599% |
-| JIT host callback | 100,000 | 2.790 ns | 2.958 ns | 6.444% |
-| Direct Rust host-allocation callback | 100,000 | 12.027 ns | 12.545 ns | 1.941% |
-| VM host-allocation callback | 100,000 | 187.631 ns | 190.417 ns | 0.606% |
-| JIT host-allocation callback | 100,000 | 13.726 ns | 14.463 ns | 2.351% |
+| Bytecode lowering: wrapping `i64` add | 1,000 | 380.917 ns | 407.833 ns | 2.792% |
+| Bytecode lowering: signed minimum | 1,000 | 1.091 us | 1.194 us | 4.704% |
+| Bytecode lowering: countdown back-edge | 1,000 | 1.746 us | 1.943 us | 5.151% |
+| Bytecode lowering: two-value accumulator | 1,000 | 1.825 us | 1.935 us | 3.177% |
+| Bytecode lowering: conditional sum | 1,000 | 3.152 us | 3.402 us | 4.184% |
+| Cranelift JIT compilation: wrapping `i64` add | 1 | 19.792 us | 27.917 us | 68.530% |
+| Cranelift JIT compilation: signed minimum | 1 | 23.833 us | 29.542 us | 22.188% |
+| Cranelift JIT compilation: countdown back-edge | 1 | 26.958 us | 32.541 us | 11.813% |
+| Cranelift JIT compilation: two-value accumulator | 1 | 31.125 us | 36.833 us | 8.553% |
+| Cranelift JIT compilation: conditional sum | 1 | 42.375 us | 55.583 us | 8.894% |
+| Cranelift AOT object emission: wrapping `i64` add | 1 | 13.584 us | 18.542 us | 19.345% |
+| Cranelift AOT object emission: signed minimum | 1 | 18.375 us | 20.375 us | 4.883% |
+| Cranelift AOT object emission: countdown back-edge | 1 | 22.375 us | 28.375 us | 8.024% |
+| Cranelift AOT object emission: two-value accumulator | 1 | 26.417 us | 30.791 us | 5.967% |
+| Cranelift AOT object emission: conditional sum | 1 | 38.000 us | 117.584 us | 48.520% |
+| macOS system link: precompiled C harness plus add, minimum, countdown, accumulator, and conditional-sum objects | 1 | 40.253 ms | 44.621 ms | 5.156% |
+| macOS AOT process startup: single launch | 1 | 1.823 ms | 4.079 ms | 239.902% |
+| macOS AOT process startup: ten-launch batch, per launch | 10 | 1.631 ms | 1.917 ms | 7.055% |
+| Direct Rust wrapping `i64` add call | 100,000 | 0.930 ns | 0.955 ns | 0.733% |
+| VM wrapping `i64` add call | 100,000 | 181.037 ns | 184.516 ns | 0.794% |
+| JIT wrapping `i64` add call | 100,000 | 1.859 ns | 2.465 ns | 13.750% |
+| Direct Rust signed minimum call | 100,000 | 0.930 ns | 1.001 ns | 2.676% |
+| VM signed minimum call | 100,000 | 496.268 ns | 500.607 ns | 0.519% |
+| JIT signed minimum call | 100,000 | 2.634 ns | 2.665 ns | 0.827% |
+| Direct Rust countdown call | 100,000 | 0.930 ns | 0.968 ns | 1.619% |
+| VM countdown call | 100,000 | 1.602 us | 1.807 us | 4.793% |
+| VM countdown call with unset interruption flag | 100,000 | 1.616 us | 2.721 us | 22.662% |
+| VM countdown call with unexpired deadline | 100,000 | 3.324 us | 3.376 us | 0.618% |
+| JIT countdown call | 100,000 | 12.844 ns | 13.335 ns | 1.583% |
+| Direct Rust two-value accumulator call | 100,000 | 1.705 ns | 1.896 ns | 6.577% |
+| VM two-value accumulator call | 100,000 | 1.678 us | 1.691 us | 0.747% |
+| JIT two-value accumulator call | 100,000 | 13.095 ns | 13.492 ns | 1.729% |
+| Direct Rust conditional-sum call | 100,000 | 5.777 ns | 6.076 ns | 1.861% |
+| VM conditional-sum call | 100,000 | 3.081 us | 3.097 us | 6.143% |
+| JIT conditional-sum call | 100,000 | 20.469 ns | 20.963 ns | 1.665% |
+| Direct Rust host callback | 100,000 | 0.958 ns | 0.959 ns | 0.038% |
+| VM host callback | 100,000 | 178.337 ns | 180.564 ns | 0.828% |
+| JIT host callback | 100,000 | 2.874 ns | 2.962 ns | 1.192% |
+| Direct Rust host-allocation callback | 100,000 | 12.272 ns | 12.796 ns | 2.059% |
+| VM host-allocation callback | 100,000 | 190.573 ns | 192.175 ns | 0.777% |
+| JIT host-allocation callback | 100,000 | 14.123 ns | 14.572 ns | 1.775% |
+| Direct Rust 64-allocation-burst callback | 100,000 | 782.624 ns | 787.409 ns | 0.331% |
+| VM 64-allocation-burst callback | 100,000 | 962.329 ns | 967.234 ns | 11.822% |
+| JIT 64-allocation-burst callback | 100,000 | 786.270 ns | 790.598 ns | 0.378% |
 
 Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, 20 bytes for countdown, 36 bytes for the accumulator, 44 bytes for conditional sum, and 40 bytes for the host callback. The emitted add, minimum, countdown, accumulator, and conditional-sum objects were 352, 368, 376, 392, and 400 bytes. The linked AOT harness was 17,104 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable; the executable size includes both plus the platform linker's defaults, but not a complete runtime distribution.
 
@@ -70,19 +73,19 @@ Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum
 
 Schema 11 adds `rust_host_allocation_burst_call`, `vm_host_allocation_burst_call`, and `jit_host_allocation_burst_call`. Each operation creates 64 distinct `Box<i64>` values, keeps all 512 payload bytes live in a fixed array, computes their wrapping sum, and then drops them. `black_box` keeps each box and loaded value opaque to optimization. The VM and JIT rows include the same typed host-call dispatch around the registered callback, while the direct Rust row provides the host-side baseline. The harness verifies all three results before warm-up and timing.
 
-The existing AOT link/startup series remains unchanged, while macOS and configured Windows integration tests execute a corresponding C callback that holds 64 `malloc` allocations live before reading and freeing them. The rows do not measure allocator metadata, the stack-resident pointer array, process peak RSS, failure behavior, a language heap, or a representative application. Schema 11 leaves all schema 10 rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–10 JSON files remain immutable evidence. A dirty three-sample smoke run validates all 44 unique rows, but no clean schema 11 result is recorded yet. The Windows Server 2025 workflow requires schema 11 and all three burst rows.
+The existing AOT link/startup series remains unchanged, while macOS and configured Windows integration tests execute a corresponding C callback that holds 64 `malloc` allocations live before reading and freeing them. The rows do not measure allocator metadata, the stack-resident pointer array, process peak RSS, failure behavior, a language heap, or a representative application. Schema 11 leaves all schema 10 rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–10 JSON files remain immutable evidence. The clean macOS result above records all 44 unique rows and direct Rust, VM, and JIT burst medians of 782.624 ns, 962.329 ns, and 786.270 ns. Their RSD values are 0.331%, 11.822%, and 0.378%; the VM maximum of 1.620 us raises its RSD despite a 967.234 ns p95, so these values remain directional evidence rather than a performance budget. The Windows Server 2025 workflow requires schema 11 and all three burst rows.
 
 ## Schema 10 format and migration
 
 Schema 10 adds `vm_countdown_deadline_call`. It executes the same alternating positive/immediate-return inputs and verified countdown bytecode as `vm_countdown_call`, but supplies an absolute monotonic deadline set one hour after harness preparation through `ExecutionControl`. The harness verifies equivalent results before warm-up and timing, and the deadline remains shared across all samples rather than being recomputed per call.
 
-This row measures the steady-state cost of enabling deadline checks while the deadline remains unexpired. It does not measure expiration latency, scheduler accuracy, callback overrun, callback preemption, or native/JIT enforcement. Schema 10 leaves all existing rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–9 JSON files remain immutable evidence. The clean macOS result records a 1.617 us ordinary VM countdown median and a 3.315 us unexpired-deadline median: a 1.698 us, 104.997% increase. The 4.433% and 0.376% RSD values show that the paired medians are directional evidence, not an overhead budget. Schema 11 retains this row and supersedes schema 10 as the Windows workflow contract.
+This row measures the steady-state cost of enabling deadline checks while the deadline remains unexpired. It does not measure expiration latency, scheduler accuracy, callback overrun, callback preemption, or native/JIT enforcement. Schema 10 leaves all existing rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–9 JSON files remain immutable evidence. The current clean schema 11 result records a 1.602 us ordinary VM countdown median and a 3.324 us unexpired-deadline median: a 1.723 us, 107.558% increase. The 4.793% and 0.618% RSD values show that the paired medians are directional evidence, not an overhead budget. Schema 11 retains this row and supersedes schema 10 as the Windows workflow contract.
 
 ## Schema 9 format and migration
 
-Schema 9 adds `vm_countdown_interruptible_call`. It executes the same alternating positive/immediate-return inputs and the same verified countdown bytecode as `vm_countdown_call`, but supplies a shared, unset interruption flag through `ExecutionControl`. In the current schema 10 artifact, both rows include the VM's optional-control branch; the new row additionally performs the flag's acquire load at each executed instruction and terminator. The harness verifies equivalent results before warm-up and timing.
+Schema 9 adds `vm_countdown_interruptible_call`. It executes the same alternating positive/immediate-return inputs and the same verified countdown bytecode as `vm_countdown_call`, but supplies a shared, unset interruption flag through `ExecutionControl`. In the current schema 11 artifact, both rows include the VM's optional-control branch; the new row additionally performs the flag's acquire load at each executed instruction and terminator. The harness verifies equivalent results before warm-up and timing.
 
-This row measures the steady-state cost of enabling cooperative interruption when no request occurs. It does not measure interruption latency, cross-thread wake-up, a set flag, callback preemption, or native/JIT enforcement. Schema 9 leaves all lowering, compilation, artifact-size, host-callback, link, and startup fields unchanged. Consumers must branch on `schema_version`; schema 1–8 JSON files remain immutable evidence. In the current clean schema 10 result, the ordinary VM countdown median is 1.617 us and the unset-interruption median is 1.607 us, a 10.228 ns or 0.633% decrease that is smaller than the ordinary row's 4.433% RSD. This single paired microbenchmark therefore shows no measurable interruption-check regression and does not establish an overhead budget. Schema 10 retains this row and supersedes schema 9 as the Windows workflow contract.
+This row measures the steady-state cost of enabling cooperative interruption when no request occurs. It does not measure interruption latency, cross-thread wake-up, a set flag, callback preemption, or native/JIT enforcement. Schema 9 leaves all lowering, compilation, artifact-size, host-callback, link, and startup fields unchanged. Consumers must branch on `schema_version`; schema 1–8 JSON files remain immutable evidence. In the current clean schema 11 result, the ordinary VM countdown median is 1.602 us and the unset-interruption median is 1.616 us, a 14.056 ns or 0.878% increase that is smaller than the rows' 4.793% and 22.662% RSD values. This single paired microbenchmark therefore shows no measurable interruption-check regression and does not establish an overhead budget. Schema 10 retains this row, and schema 11 is the current Windows workflow contract.
 
 ## Schema 8 format and migration
 
@@ -153,28 +156,29 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 ## Interpretation and limits
 
 - The harness checks VM, JIT, and direct Rust results for equivalence before timing, including both outcomes of minimum, the immediate-return/loop paths of countdown and the accumulator, and the immediate-return/add/skip paths of conditional sum.
-- The two-value accumulator carries a descending counter and wrapping sum around the same back-edge. Its direct, VM, and JIT medians are 1.730 ns, 1.663 us, and 12.816 ns. This bounded MIR workload is useful differential evidence, not a representative program benchmark.
-- The conditional-sum prototype includes both branch outcomes and the immediate-return path. Its direct, VM, and JIT medians are 5.605 ns, 3.030 us, and 20.433 ns. This is broader CFG evidence, not a representative program benchmark.
-- The host-allocation medians are 12.027 ns direct, 187.631 ns through the VM, and 13.726 ns through JIT. The three rows have 1.941%, 0.606%, and 2.351% RSD. This supports a narrow boundary-cost comparison, but one `Box<i64>` round trip is not a representative allocator or memory workload.
+- The two-value accumulator carries a descending counter and wrapping sum around the same back-edge. Its direct, VM, and JIT medians are 1.705 ns, 1.678 us, and 13.095 ns. This bounded MIR workload is useful differential evidence, not a representative program benchmark.
+- The conditional-sum prototype includes both branch outcomes and the immediate-return path. Its direct, VM, and JIT medians are 5.777 ns, 3.081 us, and 20.469 ns. This is broader CFG evidence, not a representative program benchmark.
+- The single-allocation host-callback medians are 12.272 ns direct, 190.573 ns through the VM, and 14.123 ns through JIT. The three rows have 2.059%, 0.777%, and 1.775% RSD. This supports a narrow boundary-cost comparison, but one `Box<i64>` round trip is not a representative allocator or memory workload.
+- The 64-allocation-burst medians are 782.624 ns direct, 962.329 ns through the VM, and 786.270 ns through JIT. VM minus direct is 179.705 ns (22.962%), while JIT minus direct is 3.646 ns (0.466%). The VM row's 11.822% RSD is driven by a 1.620 us maximum beyond its 967.234 ns p95, so this single run does not establish a stable boundary-overhead budget.
 - The VM rows include bytecode verification and register allocation on every invocation. They measure the current end-to-end embedding API, not only interpreter dispatch.
 - The JIT rows include the checked Rust invocation wrapper. The direct Rust rows are narrow baselines, not predictions for representative programs.
 - The object-emission rows include host ISA construction, MIR lowering, compilation, and object serialization. Schema 2's system-link row covers the harness, add, and minimum objects; schema 3 adds countdown, schema 6 adds the accumulator, and schema 7 adds conditional sum. All precompile the C harness, then time the platform driver and system linker (`cc` on macOS or `link.exe` on Windows MSVC).
 - Schema 4's process-startup row includes process creation, loader work, the tiny harness workload, output collection, and waiting for termination. It neither flushes operating-system caches nor isolates loader time, and the executable-size field includes the platform C harness and default linker output.
 - Schema 5 retains the single-launch row and adds a configurable batched row. The batched per-operation value reduces the leverage of one delayed launch on a sample, but it is an amortized throughput estimate rather than a replacement for individual startup latency.
-- JIT add and minimum compilation have 74.928% and 17.441% RSD, and two-value-accumulator AOT emission has 74.733% RSD. Conditional-sum JIT/AOT medians are 40.375 us and 38.709 us with 7.187% and 51.104% RSD. These values are useful as directional evidence, but compile-time variation remains too high for a stable performance budget.
-- The single-launch AOT startup median is 1.921 ms and p95 is 2.632 ms, but RSD is 246.554%. The ten-launch batched row reports a 1.964 ms median with 2.205 ms p95 and 9.008% RSD. Batching materially reduces host-noise leverage for an amortized estimate, while the single row still exposes tail-sensitive latency.
-- Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.978 ns and 1.617 us and accumulator JIT/VM medians of 12.816 ns and 1.663 us. Alternating conditional-sum inputs `(64, 33)` and `(-7, 33)` gives JIT/VM medians of 20.433 ns and 3.030 us. These bounded microbenchmarks do not predict representative control-flow performance. Near-one-nanosecond direct add, countdown, and host-call rows remain timer-resolution baselines, not credible throughput claims.
+- JIT add and minimum compilation have 68.530% and 22.188% RSD. Conditional-sum JIT/AOT medians are 42.375 us and 38.000 us with 8.894% and 48.520% RSD. These values are useful as directional evidence, but compile-time variation remains too high for a stable performance budget.
+- The single-launch AOT startup median is 1.823 ms and p95 is 4.079 ms, but RSD is 239.902%. The ten-launch batched row reports a 1.631 ms median with 1.917 ms p95 and 7.055% RSD. Batching materially reduces host-noise leverage for an amortized estimate, while the single row still exposes tail-sensitive latency.
+- Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.844 ns and 1.602 us and accumulator JIT/VM medians of 13.095 ns and 1.678 us. Alternating conditional-sum inputs `(64, 33)` and `(-7, 33)` gives JIT/VM medians of 20.469 ns and 3.081 us. These bounded microbenchmarks do not predict representative control-flow performance. Near-one-nanosecond direct add, countdown, and host-call rows remain timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record clean schema 11 results on macOS AArch64 and Windows x86-64, add broader allocation/memory and additional CFG workloads, and measure peak memory and debug quality. The 64-allocation burst is more representative than one box but remains a synthetic host callback. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
+Before selecting the initial native backend, record a clean schema 11 result on Windows x86-64, add broader allocation/memory and additional CFG workloads, and measure peak memory and debug quality. The 64-allocation burst is more representative than one box but remains a synthetic host callback. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
 
 ## Earlier baseline
 
-The [schema 9 result](../benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json), measured 2026-10-16 11:05:30 JST from commit `e390a5d66fefc8595ff88acb0d771978755a2ef7`, predates the deadline row and is superseded by schema 10. The [schema 8 result](../benchmarks/results/2026-10-16-macos-aarch64-6034dc8.json), [schema 7 result](../benchmarks/results/2026-10-16-macos-aarch64-0865167.json), [schema 6 result](../benchmarks/results/2026-10-16-macos-aarch64-bad17cf.json), [schema 5 result](../benchmarks/results/2026-10-16-macos-aarch64-180af85.json), [schema 4 result](../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json), [schema 3 result](../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json), [schema 2 result](../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json), [schema 1 AOT/link result](../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json), and [earlier JIT-only result](../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json) remain available for harness history.
+The [schema 10 result](../benchmarks/results/2026-10-16-macos-aarch64-133172b.json), measured 2026-10-16 11:28:39 JST from commit `133172b383b80b05f5cf2d576d2eba5f2fbc2851`, predates the allocation-burst rows and is superseded by schema 11. The [schema 9 result](../benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json), [schema 8 result](../benchmarks/results/2026-10-16-macos-aarch64-6034dc8.json), [schema 7 result](../benchmarks/results/2026-10-16-macos-aarch64-0865167.json), [schema 6 result](../benchmarks/results/2026-10-16-macos-aarch64-bad17cf.json), [schema 5 result](../benchmarks/results/2026-10-16-macos-aarch64-180af85.json), [schema 4 result](../benchmarks/results/2026-10-16-macos-aarch64-78fd3ed.json), [schema 3 result](../benchmarks/results/2026-10-16-macos-aarch64-fc216b2.json), [schema 2 result](../benchmarks/results/2026-10-16-macos-aarch64-fc86889.json), [schema 1 AOT/link result](../benchmarks/results/2026-10-16-macos-aarch64-0808ce7.json), and [earlier JIT-only result](../benchmarks/results/2026-10-16-macos-aarch64-b55848c.json) remain available for harness history.
 
 ## Sources
 
-- [Current raw macOS AArch64 schema 10 result](../benchmarks/results/2026-10-16-macos-aarch64-133172b.json), measured 2026-10-16 11:28:39 JST.
+- [Current raw macOS AArch64 schema 11 result](../benchmarks/results/2026-10-16-macos-aarch64-664edb9.json), measured 2026-10-16 11:50:37 JST.
 - `crates/vm/src/lib.rs`, deadline-enabled VM resource controls, last updated 2026-10-16 11:20 JST.
 - `src/lib.rs`, 64-allocation burst callback prototype, last updated 2026-10-16 11:42 JST.
 - `src/bin/prototype-bench.rs`, schema 11 allocation-burst harness, last updated 2026-10-16 11:42 JST.

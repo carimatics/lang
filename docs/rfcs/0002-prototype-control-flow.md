@@ -172,7 +172,7 @@ These diagnostic codes are proposals and become stable only when this RFC is acc
 
 The subset requires no language-level allocation, reference counting, dynamic dispatch, or overflow branch. Mutable locals are source abstractions and may remain in SSA values or registers; users cannot rely on a stack slot or memory address. A `while` condition executes once per attempted iteration, and each executed `+` and `<` has fixed-width integer cost before backend optimization.
 
-The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. The clean schema 10 macOS AArch64 result records ordinary, unset-interruption, and unexpired-deadline VM countdown medians of 1.617 us, 1.607 us, and 3.315 us. The interruption delta is -10.228 ns (-0.633%), smaller than the ordinary row's 4.433% RSD, while the deadline delta is 1.698 us (104.997%). These microbenchmarks do not establish an overhead budget or performance guarantees for a future parser, type checker, optimizer, or representative application.
+The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. The clean schema 11 macOS AArch64 result records ordinary, unset-interruption, and unexpired-deadline VM countdown medians of 1.602 us, 1.616 us, and 3.324 us. The interruption delta is 14.056 ns (0.878%), smaller than the rows' 4.793% and 22.662% RSD values, while the deadline delta is 1.723 us (107.558%). These microbenchmarks do not establish an overhead budget or performance guarantees for a future parser, type checker, optimizer, or representative application.
 
 ## Security and trust boundaries
 
@@ -229,15 +229,15 @@ Review outcome: **ready for decision** for this narrow prototype subset. There a
 
 ## Sources
 
-- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 11:42 JST.
-- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 11:42 JST.
-- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 11:42 JST.
+- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 12:01 JST.
+- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 12:01 JST.
+- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 12:01 JST.
 - `crates/mir/src/lib.rs`, typed CFG and validation prototype, last updated 2026-10-16 01:25 JST.
 - `crates/bytecode/src/lib.rs`, verified register bytecode prototype, last updated 2026-10-16 01:25 JST.
 - `crates/vm/src/lib.rs`, VM execution and resource-control prototype, last updated 2026-10-16 11:20 JST.
 - `crates/codegen-clif/src/lib.rs`, Cranelift lowering prototype, last updated 2026-10-16 01:36 JST.
 - `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 11:42 JST.
 - `src/bin/prototype-bench.rs`, schema 11 control/allocation-burst harness, last updated 2026-10-16 11:42 JST.
-- `benchmarks/results/2026-10-16-macos-aarch64-133172b.json`, clean schema 10 macOS AArch64 evidence, measured 2026-10-16 11:28:39 JST.
+- `benchmarks/results/2026-10-16-macos-aarch64-664edb9.json`, clean schema 11 macOS AArch64 evidence, measured 2026-10-16 11:50:37 JST.
 
 No external factual claims are introduced by this RFC; the design proposal is derived from the repository's executable prototypes and project decisions.
