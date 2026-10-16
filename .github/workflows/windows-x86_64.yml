@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 16 prototype benchmark
+      - name: Record the schema 17 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 16) {
-            throw "expected benchmark schema 16, got $($result.schema_version)"
+          if ($result.schema_version -ne 17) {
+            throw "expected benchmark schema 17, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -139,7 +139,14 @@ jobs:
           if ($variableHeap.Count -ne 1 -or $variableHeap[0].allocation_count -ne 16 -or $variableHeap[0].total_allocated_bytes -ne 1088 -or $variableHeap[0].peak_live_bytes -ne 1088 -or $variableHeap[0].live_bytes_after -ne 0) {
             throw "benchmark recorded unexpected variable-size allocation heap measurements"
           }
-          if ($result.process_memory_measurement_scope -ne "linked_aot_executable_process") {
+          $representative = $result.representative_allocation_workload
+          if ($representative.name -ne "compiler_like_mixed_lifetime_allocation" -or $representative.allocation_count -ne 23894 -or $representative.total_requested_bytes -ne 19183210 -or $representative.peak_live_requested_bytes -ne 18102042 -or $representative.live_requested_bytes_after -ne 0) {
+            throw "benchmark recorded unexpected representative allocation workload profile"
+          }
+          if ($representative.control_median_peak_resident_bytes -le 0 -or $representative.workload_median_peak_resident_bytes -le $representative.control_median_peak_resident_bytes -or $representative.median_peak_resident_delta_bytes -ne ($representative.workload_median_peak_resident_bytes - $representative.control_median_peak_resident_bytes) -or $representative.estimated_allocator_overhead_and_fragmentation_bytes_at_median -lt 0) {
+            throw "benchmark recorded invalid representative allocation process-memory evidence"
+          }
+          if ($result.process_memory_measurement_scope -ne "separate_process_peak_resident_memory") {
             throw "benchmark recorded unexpected process-memory scope $($result.process_memory_measurement_scope)"
           }
           if ($result.process_memory_metric -ne "windows_process_peak_working_set_bytes") {
@@ -148,6 +155,11 @@ jobs:
           $processMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below" })
           if ($processMemory.Count -ne 1 -or $processMemory[0].unit -ne "bytes/process" -or $processMemory[0].sample_count -ne 31 -or $processMemory[0].minimum -le 0 -or $processMemory[0].median -lt $processMemory[0].minimum -or $processMemory[0].p95 -lt $processMemory[0].median -or $processMemory[0].maximum -lt $processMemory[0].p95) {
             throw "benchmark recorded invalid Windows process-memory measurements"
+          }
+          $controlMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "benchmark_process_control_peak_resident_memory" })
+          $workloadMemory = @($result.process_memory_measurements | Where-Object { $_.name -eq "benchmark_process_representative_allocation_peak_resident_memory" })
+          if ($controlMemory.Count -ne 1 -or $workloadMemory.Count -ne 1 -or $controlMemory[0].sample_count -ne 31 -or $workloadMemory[0].sample_count -ne 31 -or $controlMemory[0].median -le 0 -or $workloadMemory[0].median -le $controlMemory[0].median) {
+            throw "benchmark recorded invalid representative allocation process-memory rows"
           }
           if ($result.startup_iterations -ne 10) {
             throw "benchmark recorded unexpected startup iterations $($result.startup_iterations)"

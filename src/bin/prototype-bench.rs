@@ -51,6 +51,13 @@ const DEFAULT_SAMPLES: usize = 31;
 const DEFAULT_LOWERING_ITERATIONS: u64 = 1_000;
 const DEFAULT_RUNTIME_ITERATIONS: u64 = 100_000;
 const DEFAULT_STARTUP_ITERATIONS: u64 = 10;
+const PROCESS_MEMORY_CONTROL_CHILD: &str = "--process-memory-control-child";
+const REPRESENTATIVE_ALLOCATION_CHILD: &str = "--representative-allocation-child";
+const REPRESENTATIVE_ALLOCATION_NAME: &str = "compiler_like_mixed_lifetime_allocation";
+const REPRESENTATIVE_RETAINED_ALLOCATION_COUNT: usize = 16_384;
+const REPRESENTATIVE_TRANSIENT_ALLOCATION_COUNT: usize = 2_048;
+const REPRESENTATIVE_SIZE_CLASSES: [usize; 12] =
+    [24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 1_024, 4_096];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Config {
@@ -162,6 +169,29 @@ struct ProcessMemoryMeasurement {
     maximum_bytes: u64,
     mean_bytes: f64,
     relative_stddev_percent: f64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct RepresentativeAllocationMeasurement {
+    profile: HeapMeasurement,
+    control_median_bytes: Option<u64>,
+    workload_median_bytes: Option<u64>,
+    median_peak_resident_delta_bytes: Option<u64>,
+    estimated_allocator_overhead_and_fragmentation_bytes: Option<u64>,
+}
+
+struct MemoryMeasurements<'a> {
+    heap: &'a [HeapMeasurement],
+    representative_allocation: &'a RepresentativeAllocationMeasurement,
+    process: &'a [ProcessMemoryMeasurement],
+}
+
+#[derive(Default)]
+struct RequestedPayloadTracker {
+    allocation_count: usize,
+    total_allocated_bytes: usize,
+    live_bytes: usize,
+    peak_live_bytes: usize,
 }
 
 trait I64Heap {
@@ -411,6 +441,18 @@ impl ProcessMemoryMeasurement {
 }
 
 fn main() -> ExitCode {
+    if let Some(mode) = env::args().nth(1) {
+        if mode == PROCESS_MEMORY_CONTROL_CHILD {
+            black_box(0_u8);
+            return ExitCode::SUCCESS;
+        }
+        if mode == REPRESENTATIVE_ALLOCATION_CHILD {
+            let (profile, checksum) = representative_allocation_workload();
+            black_box((profile, checksum));
+            return ExitCode::SUCCESS;
+        }
+    }
+
     if env::args().any(|argument| argument == "-h" || argument == "--help") {
         print_usage();
         return ExitCode::SUCCESS;
@@ -1175,11 +1217,52 @@ fn run() -> Result<(), String> {
         ),
     ));
 
+    let (representative_allocation_profile, representative_checksum) =
+        representative_allocation_workload();
+    black_box(representative_checksum);
     #[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
-    let process_memory_measurements =
-        vec![link_benchmark.measure_peak_resident_memory(config.samples)?];
+    let (process_memory_measurements, representative_allocation_measurement) = {
+        let current_executable =
+            env::current_exe().map_err(|error| format!("failed to locate benchmark: {error}"))?;
+        let aot_process_memory = link_benchmark.measure_peak_resident_memory(config.samples)?;
+        let (control_process_memory, workload_process_memory) =
+            measure_representative_allocation_process_memory(&current_executable, config.samples)?;
+        let median_peak_resident_delta_bytes = workload_process_memory
+            .median_bytes
+            .saturating_sub(control_process_memory.median_bytes);
+        let peak_live_requested_bytes =
+            u64::try_from(representative_allocation_profile.peak_live_bytes)
+                .map_err(|_| "representative allocation payload exceeds u64".to_owned())?;
+        let estimated_allocator_overhead_and_fragmentation_bytes =
+            median_peak_resident_delta_bytes.saturating_sub(peak_live_requested_bytes);
+        (
+            vec![
+                aot_process_memory,
+                control_process_memory.clone(),
+                workload_process_memory.clone(),
+            ],
+            RepresentativeAllocationMeasurement {
+                profile: representative_allocation_profile,
+                control_median_bytes: Some(control_process_memory.median_bytes),
+                workload_median_bytes: Some(workload_process_memory.median_bytes),
+                median_peak_resident_delta_bytes: Some(median_peak_resident_delta_bytes),
+                estimated_allocator_overhead_and_fragmentation_bytes: Some(
+                    estimated_allocator_overhead_and_fragmentation_bytes,
+                ),
+            },
+        )
+    };
     #[cfg(not(any(target_os = "macos", all(target_os = "windows", target_env = "msvc"))))]
-    let process_memory_measurements = Vec::new();
+    let (process_memory_measurements, representative_allocation_measurement) = (
+        Vec::new(),
+        RepresentativeAllocationMeasurement {
+            profile: representative_allocation_profile,
+            control_median_bytes: None,
+            workload_median_bytes: None,
+            median_peak_resident_delta_bytes: None,
+            estimated_allocator_overhead_and_fragmentation_bytes: None,
+        },
+    );
 
     println!(
         "{}",
@@ -1200,8 +1283,11 @@ fn run() -> Result<(), String> {
                 sum_below_object: aot_sum_below.bytes().len(),
                 aot_executable: aot_executable_size,
             },
-            &heap_measurements(),
-            &process_memory_measurements,
+            MemoryMeasurements {
+                heap: &heap_measurements(),
+                representative_allocation: &representative_allocation_measurement,
+                process: &process_memory_measurements,
+            },
             &component_boundary_measurements,
             &measurements,
         )
@@ -1447,6 +1533,97 @@ fn measure_heap_workload(
     let mut heap = MeasuringHeap::default();
     black_box(operation(&mut heap));
     heap.finish(name)
+}
+
+impl RequestedPayloadTracker {
+    fn allocate(&mut self, bytes: usize) {
+        self.allocation_count += 1;
+        self.total_allocated_bytes += bytes;
+        self.live_bytes += bytes;
+        self.peak_live_bytes = self.peak_live_bytes.max(self.live_bytes);
+    }
+
+    fn release(&mut self, bytes: usize) {
+        self.live_bytes -= bytes;
+    }
+
+    fn finish(self) -> HeapMeasurement {
+        HeapMeasurement {
+            name: REPRESENTATIVE_ALLOCATION_NAME,
+            allocation_count: self.allocation_count,
+            total_allocated_bytes: self.total_allocated_bytes,
+            peak_live_bytes: self.peak_live_bytes,
+            live_bytes_after: self.live_bytes,
+        }
+    }
+}
+
+fn representative_allocation_workload() -> (HeapMeasurement, u64) {
+    let mut tracker = RequestedPayloadTracker::default();
+    let mut checksum = 0_u64;
+    let mut retained = (0..REPRESENTATIVE_RETAINED_ALLOCATION_COUNT)
+        .map(|index| {
+            let bytes = REPRESENTATIVE_SIZE_CLASSES[index % REPRESENTATIVE_SIZE_CLASSES.len()];
+            Some(allocate_representative_payload(
+                bytes,
+                index as u8,
+                &mut tracker,
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    for index in (0..retained.len()).step_by(3) {
+        if let Some(allocation) = retained[index].take() {
+            checksum =
+                checksum.wrapping_add(consume_representative_payload(allocation, &mut tracker));
+        }
+    }
+    for index in (0..retained.len()).step_by(3) {
+        let bytes =
+            REPRESENTATIVE_SIZE_CLASSES[(index * 5 + 1) % REPRESENTATIVE_SIZE_CLASSES.len()] + 7;
+        retained[index] = Some(allocate_representative_payload(
+            bytes,
+            (index as u8).wrapping_add(17),
+            &mut tracker,
+        ));
+    }
+
+    let transient = (0..REPRESENTATIVE_TRANSIENT_ALLOCATION_COUNT)
+        .map(|index| {
+            let bytes = 2_048 + (index % 8) * 512;
+            allocate_representative_payload(bytes, (index as u8).wrapping_add(29), &mut tracker)
+        })
+        .collect::<Vec<_>>();
+    for allocation in transient {
+        checksum = checksum.wrapping_add(consume_representative_payload(allocation, &mut tracker));
+    }
+    for allocation in retained.into_iter().flatten() {
+        checksum = checksum.wrapping_add(consume_representative_payload(allocation, &mut tracker));
+    }
+
+    (tracker.finish(), checksum)
+}
+
+fn allocate_representative_payload(
+    bytes: usize,
+    fill: u8,
+    tracker: &mut RequestedPayloadTracker,
+) -> Box<[u8]> {
+    tracker.allocate(bytes);
+    black_box(vec![fill; bytes].into_boxed_slice())
+}
+
+fn consume_representative_payload(
+    allocation: Box<[u8]>,
+    tracker: &mut RequestedPayloadTracker,
+) -> u64 {
+    let bytes = allocation.len();
+    let checksum = u64::from(allocation[0])
+        .wrapping_add(u64::from(allocation[bytes / 2]))
+        .wrapping_add(u64::from(allocation[bytes - 1]));
+    tracker.release(bytes);
+    drop(allocation);
+    black_box(checksum)
 }
 
 fn check_results(workloads: &PreparedWorkloads<'_>) -> Result<(), String> {
@@ -1967,14 +2144,12 @@ impl LinkBenchmark {
         &self,
         sample_count: usize,
     ) -> Result<ProcessMemoryMeasurement, String> {
-        let mut samples = Vec::with_capacity(sample_count);
-        for _ in 0..sample_count {
-            samples.push(peak_resident_memory_bytes(&self.executable)?);
-        }
-        Ok(ProcessMemoryMeasurement::from_samples(
+        measure_peak_resident_memory(
             "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
-            samples,
-        ))
+            &self.executable,
+            &[],
+            sample_count,
+        )
     }
 
     fn link_once(&self) -> Result<(), String> {
@@ -1991,11 +2166,55 @@ impl LinkBenchmark {
     }
 }
 
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
+fn measure_peak_resident_memory(
+    name: &'static str,
+    executable: &Path,
+    arguments: &[&str],
+    sample_count: usize,
+) -> Result<ProcessMemoryMeasurement, String> {
+    let mut samples = Vec::with_capacity(sample_count);
+    for _ in 0..sample_count {
+        samples.push(peak_resident_memory_bytes(executable, arguments)?);
+    }
+    Ok(ProcessMemoryMeasurement::from_samples(name, samples))
+}
+
+#[cfg(any(target_os = "macos", all(target_os = "windows", target_env = "msvc")))]
+fn measure_representative_allocation_process_memory(
+    executable: &Path,
+    sample_count: usize,
+) -> Result<(ProcessMemoryMeasurement, ProcessMemoryMeasurement), String> {
+    let mut control_samples = Vec::with_capacity(sample_count);
+    let mut workload_samples = Vec::with_capacity(sample_count);
+    for _ in 0..sample_count {
+        control_samples.push(peak_resident_memory_bytes(
+            executable,
+            &[PROCESS_MEMORY_CONTROL_CHILD],
+        )?);
+        workload_samples.push(peak_resident_memory_bytes(
+            executable,
+            &[REPRESENTATIVE_ALLOCATION_CHILD],
+        )?);
+    }
+    Ok((
+        ProcessMemoryMeasurement::from_samples(
+            "benchmark_process_control_peak_resident_memory",
+            control_samples,
+        ),
+        ProcessMemoryMeasurement::from_samples(
+            "benchmark_process_representative_allocation_peak_resident_memory",
+            workload_samples,
+        ),
+    ))
+}
+
 #[cfg(target_os = "macos")]
-fn peak_resident_memory_bytes(executable: &Path) -> Result<u64, String> {
+fn peak_resident_memory_bytes(executable: &Path, arguments: &[&str]) -> Result<u64, String> {
     let output = Command::new("/usr/bin/time")
         .arg("-l")
         .arg(executable)
+        .args(arguments)
         .output()
         .map_err(|error| format!("failed to measure linked executable memory: {error}"))?;
     ensure_command_succeeded("linked executable memory measurement", &output)?;
@@ -2014,10 +2233,16 @@ fn parse_macos_peak_resident_memory(output: &str) -> Result<u64, String> {
 }
 
 #[cfg(all(target_os = "windows", target_env = "msvc"))]
-fn peak_resident_memory_bytes(executable: &Path) -> Result<u64, String> {
+fn peak_resident_memory_bytes(executable: &Path, arguments: &[&str]) -> Result<u64, String> {
     const SCRIPT: &str = r#"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$process = [System.Diagnostics.Process]::Start($args[0])
+$startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+$startInfo.FileName = $args[0]
+$startInfo.UseShellExecute = $false
+if ($args.Count -gt 1) {
+    $startInfo.Arguments = $args[1]
+}
+$process = [System.Diagnostics.Process]::Start($startInfo)
 $process.WaitForExit()
 $exitCode = $process.ExitCode
 $peakWorkingSet = $process.PeakWorkingSet64
@@ -2034,6 +2259,7 @@ exit $exitCode
             SCRIPT,
         ])
         .arg(executable)
+        .args(arguments)
         .output()
         .map_err(|error| format!("failed to measure linked executable memory: {error}"))?;
     ensure_command_succeeded("linked executable memory measurement", &output)?;
@@ -2138,8 +2364,7 @@ fn render_json(
     command_line: &str,
     config: Config,
     sizes: ArtifactSizes,
-    heap_measurements: &[HeapMeasurement],
-    process_memory_measurements: &[ProcessMemoryMeasurement],
+    memory_measurements: MemoryMeasurements<'_>,
     component_boundary_measurements: &[ComponentBoundaryMeasurement],
     measurements: &[Measurement],
 ) -> String {
@@ -2154,7 +2379,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 16,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 17,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -2221,7 +2446,7 @@ fn render_json(
         true,
     );
     writeln!(output, "  \"heap_measurements\": [").expect("writing to String succeeds");
-    for (index, measurement) in heap_measurements.iter().enumerate() {
+    for (index, measurement) in memory_measurements.heap.iter().enumerate() {
         writeln!(output, "    {{").expect("writing to String succeeds");
         write_json_string(&mut output, "name", measurement.name, true);
         writeln!(
@@ -2248,7 +2473,7 @@ fn render_json(
             measurement.live_bytes_after
         )
         .expect("writing to String succeeds");
-        let suffix = if index + 1 == heap_measurements.len() {
+        let suffix = if index + 1 == memory_measurements.heap.len() {
             ""
         } else {
             ","
@@ -2256,10 +2481,102 @@ fn render_json(
         writeln!(output, "    }}{suffix}").expect("writing to String succeeds");
     }
     writeln!(output, "  ],").expect("writing to String succeeds");
+    writeln!(output, "  \"representative_allocation_workload\": {{")
+        .expect("writing to String succeeds");
+    write_json_string_indented(
+        &mut output,
+        4,
+        "name",
+        memory_measurements.representative_allocation.profile.name,
+        true,
+    );
+    writeln!(
+        output,
+        "    \"allocation_count\": {},",
+        memory_measurements
+            .representative_allocation
+            .profile
+            .allocation_count
+    )
+    .expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"total_requested_bytes\": {},",
+        memory_measurements
+            .representative_allocation
+            .profile
+            .total_allocated_bytes
+    )
+    .expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"peak_live_requested_bytes\": {},",
+        memory_measurements
+            .representative_allocation
+            .profile
+            .peak_live_bytes
+    )
+    .expect("writing to String succeeds");
+    writeln!(
+        output,
+        "    \"live_requested_bytes_after\": {},",
+        memory_measurements
+            .representative_allocation
+            .profile
+            .live_bytes_after
+    )
+    .expect("writing to String succeeds");
+    write_json_string_indented(
+        &mut output,
+        4,
+        "control_process_measurement",
+        "benchmark_process_control_peak_resident_memory",
+        true,
+    );
+    write_json_string_indented(
+        &mut output,
+        4,
+        "workload_process_measurement",
+        "benchmark_process_representative_allocation_peak_resident_memory",
+        true,
+    );
+    write_json_optional_u64(
+        &mut output,
+        "control_median_peak_resident_bytes",
+        memory_measurements
+            .representative_allocation
+            .control_median_bytes,
+        true,
+    );
+    write_json_optional_u64(
+        &mut output,
+        "workload_median_peak_resident_bytes",
+        memory_measurements
+            .representative_allocation
+            .workload_median_bytes,
+        true,
+    );
+    write_json_optional_u64(
+        &mut output,
+        "median_peak_resident_delta_bytes",
+        memory_measurements
+            .representative_allocation
+            .median_peak_resident_delta_bytes,
+        true,
+    );
+    write_json_optional_u64(
+        &mut output,
+        "estimated_allocator_overhead_and_fragmentation_bytes_at_median",
+        memory_measurements
+            .representative_allocation
+            .estimated_allocator_overhead_and_fragmentation_bytes,
+        false,
+    );
+    writeln!(output, "  }},").expect("writing to String succeeds");
     write_json_string(
         &mut output,
         "process_memory_measurement_scope",
-        "linked_aot_executable_process",
+        "separate_process_peak_resident_memory",
         true,
     );
     write_json_string(
@@ -2269,7 +2586,7 @@ fn render_json(
         true,
     );
     writeln!(output, "  \"process_memory_measurements\": [").expect("writing to String succeeds");
-    for (index, measurement) in process_memory_measurements.iter().enumerate() {
+    for (index, measurement) in memory_measurements.process.iter().enumerate() {
         writeln!(output, "    {{").expect("writing to String succeeds");
         write_json_string(&mut output, "name", measurement.name, true);
         write_json_string(&mut output, "unit", "bytes/process", true);
@@ -2295,7 +2612,7 @@ fn render_json(
             measurement.relative_stddev_percent
         )
         .expect("writing to String succeeds");
-        let suffix = if index + 1 == process_memory_measurements.len() {
+        let suffix = if index + 1 == memory_measurements.process.len() {
             ""
         } else {
             ","
@@ -2381,13 +2698,33 @@ fn render_json(
 }
 
 fn write_json_string(output: &mut String, name: &str, value: &str, comma: bool) {
+    write_json_string_indented(output, 2, name, value, comma);
+}
+
+fn write_json_string_indented(
+    output: &mut String,
+    indentation: usize,
+    name: &str,
+    value: &str,
+    comma: bool,
+) {
     let suffix = if comma { "," } else { "" };
     writeln!(
         output,
-        "  \"{}\": \"{}\"{suffix}",
+        "{}\"{}\": \"{}\"{suffix}",
+        " ".repeat(indentation),
         escape_json(name),
         escape_json(value)
     )
+    .expect("writing to String succeeds");
+}
+
+fn write_json_optional_u64(output: &mut String, name: &str, value: Option<u64>, comma: bool) {
+    let suffix = if comma { "," } else { "" };
+    match value {
+        Some(value) => writeln!(output, "    \"{}\": {value}{suffix}", escape_json(name)),
+        None => writeln!(output, "    \"{}\": null{suffix}", escape_json(name)),
+    }
     .expect("writing to String succeeds");
 }
 
@@ -2483,9 +2820,22 @@ fn os_version() -> String {
 mod tests {
     use super::{
         ArtifactSizes, ComponentBoundaryMeasurement, Config, HeapMeasurement, Measurement,
-        ProcessMemoryMeasurement, alternating_countdown_input, alternating_sum_below_inputs,
-        escape_json, heap_measurements, render_json, rust_countdown, rust_sum_below, rust_sum_to,
+        MemoryMeasurements, ProcessMemoryMeasurement, RepresentativeAllocationMeasurement,
+        alternating_countdown_input, alternating_sum_below_inputs, escape_json, heap_measurements,
+        render_json, representative_allocation_workload, rust_countdown, rust_sum_below,
+        rust_sum_to,
     };
+
+    fn representative_allocation_measurement() -> RepresentativeAllocationMeasurement {
+        let (profile, _) = representative_allocation_workload();
+        RepresentativeAllocationMeasurement {
+            profile,
+            control_median_bytes: Some(2_000_000),
+            workload_median_bytes: Some(21_000_000),
+            median_peak_resident_delta_bytes: Some(19_000_000),
+            estimated_allocator_overhead_and_fragmentation_bytes: Some(897_958),
+        }
+    }
 
     #[test]
     fn parses_explicit_configuration() {
@@ -2593,7 +2943,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_sixteen_retains_existing_measurements_and_separates_component_series() {
+    fn schema_seventeen_retains_existing_measurements_and_separates_component_series() {
         let measurements = [
             Measurement::from_samples("vm_countdown_interruptible_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_countdown_deadline_call", 1, vec![1.0, 2.0, 3.0]),
@@ -2607,10 +2957,20 @@ mod tests {
             Measurement::from_samples("vm_host_allocation_variable_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("jit_host_allocation_variable_call", 1, vec![1.0, 2.0, 3.0]),
         ];
-        let process_memory_measurements = [ProcessMemoryMeasurement::from_samples(
-            "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
-            vec![1_048_576, 1_114_112, 1_179_648],
-        )];
+        let process_memory_measurements = [
+            ProcessMemoryMeasurement::from_samples(
+                "aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below",
+                vec![1_048_576, 1_114_112, 1_179_648],
+            ),
+            ProcessMemoryMeasurement::from_samples(
+                "benchmark_process_control_peak_resident_memory",
+                vec![1_900_000, 2_000_000, 2_100_000],
+            ),
+            ProcessMemoryMeasurement::from_samples(
+                "benchmark_process_representative_allocation_peak_resident_memory",
+                vec![20_900_000, 21_000_000, 21_100_000],
+            ),
+        ];
         let component_boundary_measurements = [
             ComponentBoundaryMeasurement::new(
                 "metadata_validation",
@@ -2667,13 +3027,33 @@ mod tests {
                 sum_below_object: 11,
                 aot_executable: Some(12),
             },
-            &heap_measurements(),
-            &process_memory_measurements,
+            MemoryMeasurements {
+                heap: &heap_measurements(),
+                representative_allocation: &representative_allocation_measurement(),
+                process: &process_memory_measurements,
+            },
             &component_boundary_measurements,
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 16"));
+        assert!(output.contains("\"schema_version\": 17"));
+        assert!(output.contains("\"representative_allocation_workload\": {"));
+        assert!(output.contains("\"name\": \"compiler_like_mixed_lifetime_allocation\""));
+        assert!(output.contains("\"allocation_count\": 23894"));
+        assert!(output.contains("\"total_requested_bytes\": 19183210"));
+        assert!(output.contains("\"peak_live_requested_bytes\": 18102042"));
+        assert!(output.contains("\"live_requested_bytes_after\": 0"));
+        assert!(output.contains("\"median_peak_resident_delta_bytes\": 19000000"));
+        assert!(output.contains(
+            "\"estimated_allocator_overhead_and_fragmentation_bytes_at_median\": 897958"
+        ));
+        assert!(output.contains(
+            "\"process_memory_measurement_scope\": \"separate_process_peak_resident_memory\""
+        ));
+        assert!(output.contains("\"name\": \"benchmark_process_control_peak_resident_memory\""));
+        assert!(output.contains(
+            "\"name\": \"benchmark_process_representative_allocation_peak_resident_memory\""
+        ));
         assert!(output.contains("\"component_boundary_measurements\": ["));
         assert!(output.contains("\"series\": \"metadata_validation\""));
         assert!(output.contains("\"series\": \"interface_negotiation\""));
@@ -2700,11 +3080,6 @@ mod tests {
         assert!(output.contains("\"total_allocated_bytes\": 512"));
         assert!(output.contains("\"peak_live_bytes\": 512"));
         assert!(output.contains("\"live_bytes_after\": 0"));
-        assert!(
-            output.contains(
-                "\"process_memory_measurement_scope\": \"linked_aot_executable_process\""
-            )
-        );
         assert!(output.contains("\"process_memory_metric\":"));
         assert!(output.contains(
             "\"name\": \"aot_process_peak_resident_memory_add_min_countdown_sum_to_sum_below\""
@@ -2734,7 +3109,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_sixteen_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_seventeen_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
@@ -2757,13 +3132,24 @@ mod tests {
                 sum_below_object: 11,
                 aot_executable: None,
             },
-            &heap_measurements(),
-            &[],
+            MemoryMeasurements {
+                heap: &heap_measurements(),
+                representative_allocation: &RepresentativeAllocationMeasurement {
+                    profile: representative_allocation_workload().0,
+                    control_median_bytes: None,
+                    workload_median_bytes: None,
+                    median_peak_resident_delta_bytes: None,
+                    estimated_allocator_overhead_and_fragmentation_bytes: None,
+                },
+                process: &[],
+            },
             &[],
             &[],
         );
 
         assert!(output.contains("\"aot_add_min_countdown_sum_to_sum_below\": null"));
+        assert!(output.contains("\"control_median_peak_resident_bytes\": null"));
+        assert!(output.contains("\"workload_median_peak_resident_bytes\": null"));
     }
 
     #[test]
@@ -2801,6 +3187,23 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn representative_allocation_workload_records_mixed_lifetime_payload() {
+        let (profile, checksum) = representative_allocation_workload();
+
+        assert_eq!(
+            profile,
+            HeapMeasurement {
+                name: "compiler_like_mixed_lifetime_allocation",
+                allocation_count: 23_894,
+                total_allocated_bytes: 19_183_210,
+                peak_live_bytes: 18_102_042,
+                live_bytes_after: 0,
+            }
+        );
+        assert_ne!(checksum, 0);
     }
 
     #[test]
