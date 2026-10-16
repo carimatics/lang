@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use lang::component_application_conformance::RepresentativeComponentApplication;
 use lang::component_conformance::{
     PROTOTYPE_SCALAR_CAPABILITY, PROTOTYPE_SCALAR_HOST, PROTOTYPE_SCALAR_IMPORT,
     prototype_scalar_component_function, prototype_scalar_component_metadata,
@@ -541,6 +542,8 @@ fn run() -> Result<(), String> {
         lower(&host_allocation_variable_function).map_err(|error| error.to_string())?;
     let host_functions = prototype_host_registry()?;
     let component_fixture = component_benchmark_fixture()?;
+    let representative_component_application =
+        RepresentativeComponentApplication::new().map_err(|error| error.to_string())?;
     let component_contract_bytes = encode_versioned_component_contract(
         &component_fixture.contract,
         ComponentCodecLimits::default(),
@@ -1393,6 +1396,19 @@ fn run() -> Result<(), String> {
                     .expect("guest-trap cleanup should produce a report");
                 debug_assert!(!outcome.report.poisoned());
                 outcome.host_value
+            },
+        ),
+    ));
+    component_boundary_measurements.push(ComponentBoundaryMeasurement::new(
+        "representative_application",
+        measure_construction(
+            "component_application_negotiate_lock_replay_instantiate_execute_cleanup",
+            config.samples,
+            config.lowering_iterations,
+            || {
+                black_box(&representative_component_application)
+                    .run()
+                    .expect("the representative component application runs")
             },
         ),
     ));
@@ -2764,7 +2780,7 @@ fn render_json(
         .is_ok_and(|result| !result.stdout.is_empty());
 
     writeln!(output, "{{").expect("writing to String succeeds");
-    writeln!(output, "  \"schema_version\": 19,").expect("writing to String succeeds");
+    writeln!(output, "  \"schema_version\": 20,").expect("writing to String succeeds");
     writeln!(output, "  \"timestamp_unix_seconds\": {unix_time},")
         .expect("writing to String succeeds");
     write_json_string(&mut output, "command", command_line, true);
@@ -3377,7 +3393,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_nineteen_retains_existing_measurements_and_extends_component_evidence() {
+    fn schema_twenty_retains_existing_measurements_and_adds_representative_application() {
         let measurements = [
             Measurement::from_samples("rust_fibonacci_call", 1, vec![1.0, 2.0, 3.0]),
             Measurement::from_samples("vm_fibonacci_call", 1, vec![1.0, 2.0, 3.0]),
@@ -3469,6 +3485,14 @@ mod tests {
                     vec![1.0, 2.0, 3.0],
                 ),
             ),
+            ComponentBoundaryMeasurement::new(
+                "representative_application",
+                Measurement::from_samples(
+                    "component_application_negotiate_lock_replay_instantiate_execute_cleanup",
+                    1,
+                    vec![1.0, 2.0, 3.0],
+                ),
+            ),
         ];
         let output = render_json(
             "prototype-bench",
@@ -3507,7 +3531,7 @@ mod tests {
             &measurements,
         );
 
-        assert!(output.contains("\"schema_version\": 19"));
+        assert!(output.contains("\"schema_version\": 20"));
         assert!(output.contains("\"representative_allocation_workload\": {"));
         assert!(output.contains("\"name\": \"compiler_like_mixed_lifetime_allocation\""));
         assert!(output.contains("\"allocation_count\": 23894"));
@@ -3540,6 +3564,7 @@ mod tests {
         assert!(output.contains("\"series\": \"instantiation\""));
         assert!(output.contains("\"series\": \"host_value_lifecycle\""));
         assert!(output.contains("\"series\": \"failure_cleanup\""));
+        assert!(output.contains("\"series\": \"representative_application\""));
         assert!(output.contains("\"name\": \"component_metadata_validate_scalar\""));
         assert!(output.contains("\"name\": \"component_interface_negotiate_three_candidates\""));
         assert!(output.contains("\"name\": \"component_scalar_dispatch_validated\""));
@@ -3547,6 +3572,9 @@ mod tests {
         assert!(output.contains("\"name\": \"component_lockfile_replay_instantiate\""));
         assert!(output.contains("\"name\": \"host_value_publish_transfer_release\""));
         assert!(output.contains("\"name\": \"component_destructor_failure_cleanup_report\""));
+        assert!(output.contains(
+            "\"name\": \"component_application_negotiate_lock_replay_instantiate_execute_cleanup\""
+        ));
         assert!(
             output
                 .contains("\"heap_measurement_scope\": \"host_callback_requested_payload_bytes\"")
@@ -3602,7 +3630,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_nineteen_uses_null_when_no_tier_one_executable_is_available() {
+    fn schema_twenty_uses_null_when_no_tier_one_executable_is_available() {
         let output = render_json(
             "prototype-bench",
             Config {
