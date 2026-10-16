@@ -30,6 +30,8 @@ Rustは、検証済みの参照先として最も近い言語です。[2025 Stat
 
 ### Rust
 
+[Rust Bookのreference-cycle章](https://doc.rust-lang.org/book/ch15-06-reference-cycles.html)は、`Rc<T>` cycleが到達不能valueをretainし得ることと、`Weak<T>` がtargetのlivenessに寄与しないことを説明します。これはreference countingをleak-freeなgraph managementとして扱わず、shared ownershipとweak back-edgeを明示する根拠です。
+
 採用するもの：
 
 - Affine ownership、決定的destruction、明示的なunsafe境界、強力なdata-race prevention。
@@ -44,13 +46,13 @@ Rustは、検証済みの参照先として最も近い言語です。[2025 Stat
 
 ### KotlinとKotlin/Native
 
-[Kotlin/Native](https://kotlinlang.org/docs/native-overview.html)は、表現力の高い言語がLLVMを利用し、VMなしでbinaryを生成できることを示しています。一方でtracing garbage collectorを使用するため、そのruntime modelはmandatory GCなしというcore objectiveを満たしません。
+[Kotlin/Native](https://kotlinlang.org/docs/native-overview.html)は、表現力の高い言語がLLVMを利用し、VMなしでbinaryを生成できることを示しています。[Memory-manager documentation](https://kotlinlang.org/docs/native-memory-manager.html)はshared heapとrootからのtracing collectionを規定するため、そのruntime modelはmandatory GCなしというcore objectiveを満たしません。
 
 Null safety、expression-oriented syntax、extension function、exhaustive matching、coroutine、親しみやすいgenerics、IDE品質を採用します。JVM風のobject allocationを普遍的な抽象としては採用しません。
 
 ### Swift
 
-[Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/)とownershipに関する取り組みは、exclusivity checkingとvalue-oriented APIの価値を示しています。ARCは明示的borrowingより習得しやすい一方、retain／release trafficが増え、cycleへの規則が必要で、性能コストを隠す可能性があります。
+[Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/)とownershipに関する取り組みは、exclusivity checkingとvalue-oriented APIの価値を示しています。[Swift ARC guide](https://github.com/swiftlang/swift-book/blob/main/TSPL.docc/LanguageGuide/AutomaticReferenceCounting.md)はstrong-reference cycleとweak／unowned relationshipを説明します。ARCは明示的borrowingより習得しやすい一方、retain／release trafficが増え、cycleへの規則が必要で、性能コストを隠す可能性があります。
 
 Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用します。Reference countingは、コストとcycle動作が型から分かる明示的なshared-reference typeを通じてのみ使用します。
 
@@ -128,11 +130,14 @@ Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用�
 | [Stack Overflow Developer Survey 2026 usage data](https://survey.stackoverflow.co/2026/technology/data/languages) | Dataset year 2026、pageの正確なtimestampは非公開 | 2026-10-15確認 |
 | [2025 State of Rust Survey Results](https://blog.rust-lang.org/2026/03/02/2025-State-Of-Rust-Survey-results/) | 2026-03-02 | 2026-10-15確認 |
 | [Rust compiler performance survey 2025](https://blog.rust-lang.org/2025/09/10/rust-compiler-performance-survey-2025-results/) | 2025-09-10 | 2026-10-15確認 |
+| [Rust Book：Reference Cycles Can Leak Memory](https://doc.rust-lang.org/book/ch15-06-reference-cycles.html) | Source最終変更2025-10-03 | 2026-10-16確認 |
 | [Kotlin/Native overview](https://kotlinlang.org/docs/native-overview.html) | 2026-09-01 | 2026-10-15確認 |
+| [Kotlin/Native memory management](https://kotlinlang.org/docs/native-memory-manager.html) | Living documentation、日付は非公開 | 2026-10-16確認 |
 | [Zig overview](https://ziglang.org/learn/overview/) | pageに記載なし | 2026-10-15確認 |
 | [Mojo ownership](https://docs.modular.com/mojo/manual/values/ownership/) | pageに記載なし | 2026-10-15確認 |
 | [Hylo introduction](https://hylo-lang.org/introduction/) | pageに記載なし | 2026-10-15確認 |
 | [Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/) | Living documentation、日付は非公開 | 2026-10-15確認 |
+| [Swift Book：Automatic Reference Counting](https://github.com/swiftlang/swift-book/blob/main/TSPL.docc/LanguageGuide/AutomaticReferenceCounting.md) | Source最終変更2026-01-09 | 2026-10-16確認 |
 | [MLIR language reference](https://mlir.llvm.org/docs/LangRef/) | Living documentation、日付は非公開 | 2026-10-15確認 |
 | [LLVM ORC design](https://llvm.org/docs/ORCv2.html) | Living documentation、日付は非公開 | 2026-10-15確認 |
 | [Wasmtime platform support](https://docs.wasmtime.dev/stability-platform-support.html) | Living documentation、日付は非公開 | 2026-10-15確認 |

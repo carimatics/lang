@@ -30,6 +30,8 @@ Rust remains the closest validated reference point. The [2025 State of Rust Surv
 
 ### Rust
 
+The [Rust Book reference-cycle chapter](https://doc.rust-lang.org/book/ch15-06-reference-cycles.html) documents that `Rc<T>` cycles can retain unreachable values and that `Weak<T>` does not contribute to target liveness. This is evidence for making shared ownership and weak back-edges explicit rather than treating reference counting as leak-free graph management.
+
 What to adopt:
 
 - Affine ownership, deterministic destruction, explicit unsafe boundaries, and strong data-race prevention.
@@ -44,13 +46,13 @@ What to improve:
 
 ### Kotlin and Kotlin/Native
 
-[Kotlin/Native](https://kotlinlang.org/docs/native-overview.html) demonstrates that an expressive language can use LLVM and produce binaries without a VM. It also uses a tracing garbage collector, so its runtime model does not satisfy the core no-mandatory-GC objective.
+[Kotlin/Native](https://kotlinlang.org/docs/native-overview.html) demonstrates that an expressive language can use LLVM and produce binaries without a VM. Its [memory-manager documentation](https://kotlinlang.org/docs/native-memory-manager.html) specifies a shared heap and tracing collection from roots, so its runtime model does not satisfy the core no-mandatory-GC objective.
 
 Adopt null safety, expression-oriented syntax, extension functions, exhaustive matching, coroutines, approachable generics, and IDE quality. Do not copy JVM-style object allocation as the universal abstraction.
 
 ### Swift
 
-[Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/) and ownership work show the value of exclusivity checking and value-oriented APIs. ARC is easier to approach than explicit borrowing, but it adds retain/release traffic, requires rules for cycles, and can hide performance costs.
+[Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/) and ownership work show the value of exclusivity checking and value-oriented APIs. The [Swift ARC guide](https://github.com/swiftlang/swift-book/blob/main/TSPL.docc/LanguageGuide/AutomaticReferenceCounting.md) documents strong-reference cycles and weak/unowned relationships. ARC is easier to approach than explicit borrowing, but it adds retain/release traffic, requires rules for cycles, and can hide performance costs.
 
 Use Swift as evidence for value semantics and ergonomic access rules. Use reference counting only through an explicit shared-reference type whose cost and cycle behavior are visible.
 
@@ -128,11 +130,14 @@ The original requirements should be extended with the following:
 | [Stack Overflow Developer Survey 2026 usage data](https://survey.stackoverflow.co/2026/technology/data/languages) | Dataset year 2026; exact page timestamp not published | Verified 2026-10-15 |
 | [2025 State of Rust Survey Results](https://blog.rust-lang.org/2026/03/02/2025-State-Of-Rust-Survey-results/) | 2026-03-02 | Verified 2026-10-15 |
 | [Rust compiler performance survey 2025](https://blog.rust-lang.org/2025/09/10/rust-compiler-performance-survey-2025-results/) | 2025-09-10 | Verified 2026-10-15 |
+| [Rust Book: Reference Cycles Can Leak Memory](https://doc.rust-lang.org/book/ch15-06-reference-cycles.html) | Source last changed 2025-10-03 | Verified 2026-10-16 |
 | [Kotlin/Native overview](https://kotlinlang.org/docs/native-overview.html) | 2026-09-01 | Verified 2026-10-15 |
+| [Kotlin/Native memory management](https://kotlinlang.org/docs/native-memory-manager.html) | Living documentation; date not published | Verified 2026-10-16 |
 | [Zig overview](https://ziglang.org/learn/overview/) | Not published on page | Verified 2026-10-15 |
 | [Mojo ownership](https://docs.modular.com/mojo/manual/values/ownership/) | Not published on page | Verified 2026-10-15 |
 | [Hylo introduction](https://hylo-lang.org/introduction/) | Not published on page | Verified 2026-10-15 |
 | [Swift memory safety](https://docs.swift.org/latest/documentation/the-swift-programming-language/memorysafety/) | Living documentation; date not published | Verified 2026-10-15 |
+| [Swift Book: Automatic Reference Counting](https://github.com/swiftlang/swift-book/blob/main/TSPL.docc/LanguageGuide/AutomaticReferenceCounting.md) | Source last changed 2026-01-09 | Verified 2026-10-16 |
 | [MLIR language reference](https://mlir.llvm.org/docs/LangRef/) | Living documentation; date not published | Verified 2026-10-15 |
 | [LLVM ORC design](https://llvm.org/docs/ORCv2.html) | Living documentation; date not published | Verified 2026-10-15 |
 | [Wasmtime platform support](https://docs.wasmtime.dev/stability-platform-support.html) | Living documentation; date not published | Verified 2026-10-15 |

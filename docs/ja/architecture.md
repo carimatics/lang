@@ -95,7 +95,9 @@ Hashとtiming explanationを永続化し、build toolがunitを再buildした理
 - Raw pointer、union、unchecked indexing、layout cast、foreign ownershipは狭い `unsafe` boundaryの背後に置く。
 - Standard libraryはallocator-aware containerを公開し、後にno-runtime／freestanding subsetを許可する。
 
-Prototypeが必要な未解決問題には、cyclic graphのergonomics、borrowを伴うasync suspension／cancellation、self-referential value、cancellation中のdestruction、atomic `shared` referenceのcost modelがあります。
+[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)は、完了済みgraph-policy比較をdecision-readyなproposalへまとめます。Plain valueは単一ownerを持ち、`shared`／`weak` がreference countingを可視化し、cycleを閉じるstrong shared edgeはmutation前に失敗し、lexical arenaがtracing collectionを必須にせず意図的なcycleを所有します。Repository ownerがdispositionを記録するまではproposedのままです。
+
+Prototypeが必要な未解決問題には、borrowを伴うasync suspension／cancellation、self-referential value、cancellation中のdestruction、atomic `shared` reference、cycle preflight、arena storageのruntime／memory costがあります。
 
 ### Cyclic graph実験
 
@@ -108,9 +110,9 @@ Prototypeが必要な未解決問題には、cyclic graphのergonomics、borrow�
 - Arenaをdropするとnodeを逆生成順に正確に1回releaseする。その後にstale node handleを使うと `SEM0012` を報告する。
 - すべてのoperationがsource spanを持ち、関連するallocationまたはedge spanが存在する場合はdiagnosticに保持する。
 
-どちらのshared-cycle policyも承認済みsemanticsではありません。厳格policyは暗黙のreference-counted cycleを避け、collector policyはrootから到達可能な間はcycleがliveのままで、最後のrootが消えると回収されることの実行可能evidenceを提供します。Collectorは意図的に同期的で、root dropごとにstrong edgeを全traceします。Incremental／concurrent collection、finalization、atomic、thread safety、destructor failure、weak-reference orderingはmodel化していません。より単純な代替案はarena-only graph storageです。Library規約だけではstale-handle rejectionを保証できず、loweringを通じて同じdiagnostic contractを維持できません。
+どちらのshared-cycle policyも承認済みsemanticsではありません。RFC 0004はstrict policy、weak back-edge、lexical arenaを提案し、別名のtraced heapを将来RFC用に保留します。Collector policyはrootから到達可能な間はcycleがliveのままで、最後のrootが消えると回収されることの実行可能evidenceのままです。Collectorは意図的に同期的で、root dropごとにstrong edgeを全traceします。Incremental／concurrent collection、finalization、atomic、thread safety、destructor failure、weak-reference orderingはmodel化していません。Library規約だけではstale-handle rejectionを保証できず、loweringを通じて同じdiagnostic contractを維持できません。
 
-レビュー結果：**needs prototype/measurement**。Reject-and-weakとtrace-and-collectの両方が実行可能になりました。Blocking questionはproduction collectionのtrigger／latency model、generation-tagged arena handleが必要か、各policyがallocation cost、peak memory、destruction observabilityへどう影響するかです。Surface syntaxとgraph-container APIは任意のfollow-upです。
+レビュー結果：**RFC 0004でready for decision**。Reject-and-weak、trace-and-collect、arena teardown behaviorが実行可能であり、RFCがsemantic／cost tradeoffを記録します。Production benchmark、最終surface spelling、optimization、allocator policy、将来のopt-in traced heapは、未規定semanticsではなくimplementation／follow-up workです。
 
 ### Async borrow／cancellation実験
 

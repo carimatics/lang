@@ -14,11 +14,11 @@ Cost uses relative effort points rather than elapsed-time promises: `1` is a ver
 
 The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. A follow-up component-workstream audit separated in-memory compatibility negotiation, scalar execution-prototype integration, backend-neutral resource-adapter behavior, and boundary-cost measurement. The previous single cross-mode scalar/resource task mixed those acceptance boundaries and overlapped Milestone 3's production IDL and adapter implementation. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites. The checklist records dependency order, not a claim that an external gate is locally executable: when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
-Progress snapshot verified against this repository state on 2026-10-16 18:03 JST:
+Progress snapshot verified against this repository state on 2026-10-16 18:21 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 114 pt | 159 pt | **71.7%** |
+| 0 — design baseline (current) | 119 pt | 159 pt | **74.8%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Progress snapshot verified against this repository state on 2026-10-16 18:03 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **114 pt** | **641 pt** | **17.8%** |
+| **Overall** | **119 pt** | **641 pt** | **18.6%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 114 / 159 pt (71.7%).**
+**Progress: 119 / 159 pt (74.8%).**
 
 ### Workstream breakdown
 
@@ -40,16 +40,16 @@ This table aggregates every Milestone 0 checklist item exactly once; it is a rep
 | --- | ---: | ---: | ---: |
 | Project framing and source semantics | 8 pt | 10 pt | 80.0% |
 | Cross-mode compiler/runtime semantics | 21 pt | 21 pt | 100.0% |
-| Resource control, ownership, and concurrency | 16 pt | 30 pt | 53.3% |
+| Resource control, ownership, and concurrency | 21 pt | 30 pt | 70.0% |
 | Component and resource contracts | 42 pt | 45 pt | 93.3% |
 | Platform and backend evidence | 27 pt | 51 pt | 52.9% |
 | Architecture-baseline disposition | 0 pt | 2 pt | 0.0% |
-| **Milestone 0** | **114 pt** | **159 pt** | **71.7%** |
+| **Milestone 0** | **119 pt** | **159 pt** | **74.8%** |
 
 Current execution state at this snapshot:
 
-- **Next unblocked local P0:** draft a decision-ready ownership and cyclic-graph RFC from the completed experiments.
-- **External gates:** the RFC 0002 and RFC 0003 repository-owner decisions plus remote Windows CI/benchmark evidence.
+- **Next unblocked local P0:** draft a decision-ready async-cancellation and shared-service concurrency RFC from the completed experiments.
+- **External gates:** the RFC 0002, RFC 0003, and RFC 0004 repository-owner decisions plus remote Windows CI/benchmark evidence.
 - **Final gate:** decide RFC 0001 only after the component, resource-control, and backend-evidence prerequisites are complete.
 
 ### Tasks in priority order
@@ -86,7 +86,7 @@ Current execution state at this snapshot:
 - [x] **P0 — Prototype canonical resource preflight/commit, borrow scoping, cleanup ledgers, and instance poisoning in a backend-neutral adapter trace.** — 5 pt
 - [x] **P0 — Measure metadata validation/negotiation, scalar dispatch, and resource lifecycle costs as separate benchmark series and document their interpretation in RFC 0003.** — 5 pt
 - [ ] **P0 — Decide RFC 0003, recording acceptance, requested revisions, or rejection.** — 3 pt
-- [ ] **P0 — Draft a decision-ready ownership and cyclic-graph RFC from the completed experiments.** — 5 pt
+- [x] **P0 — Draft a decision-ready ownership and cyclic-graph RFC from the completed experiments.** — 5 pt
 - [ ] **P0 — Draft a decision-ready async-cancellation and shared-service concurrency RFC from the completed experiments.** — 5 pt
 - [ ] **P0 — Decide the ownership and cyclic-graph RFC.** — 2 pt
 - [ ] **P0 — Decide the async-cancellation and shared-service concurrency RFC.** — 2 pt
@@ -138,7 +138,7 @@ The schema 7 harness now measures the conditional-sum workload across lowering, 
 
 The async semantics experiment now compares the strict default `RejectAll` suspension policy with an explicit `AllowSharedFrameBorrows` alternative. The alternative preserves a shared task-frame borrow across suspend/resume, still rejects an exclusive borrow with `SEM0007`, and ends active shared borrows before cancellation drops owned values. This narrows the less-restrictive-design question without accepting semantics; pinned or exclusive borrows, source-level frame-residency proofs, destructor failure, VM/native traces, and runtime cost remain open.
 
-The cyclic-graph experiment now compares the default `Reject` shared-cycle policy with an explicit `CollectUnreachable` alternative. The collector permits strong cycles, traces strong edges from remaining live roots after each root drop, preserves a cycle while any root reaches it, and reclaims it in reverse creation order after the last root disappears; weak edges never retain a target. This makes the strongest competing design executable without accepting it. Production collection triggers and latency, incremental/concurrent behavior, allocation and peak-memory cost, finalization, weak-reference ordering, and destruction observability remain open.
+The cyclic-graph experiment now compares the default `Reject` shared-cycle policy with an explicit `CollectUnreachable` alternative. The collector permits strong cycles, traces strong edges from remaining live roots after each root drop, preserves a cycle while any root reaches it, and reclaims it in reverse creation order after the last root disappears; weak edges never retain a target. [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md) turns that comparison into a decision-ready proposal: singly owned plain values, explicit atomic `shared`/non-retaining `weak` references, pre-mutation rejection of cycle-closing strong edges, lexical arenas for intentional cycles, and no mandatory tracing collector. It specifies failure atomicity, deterministic arena teardown, cross-mode equivalence, compatibility, diagnostics, trust boundaries, alternatives, staged implementation, and observable tests while keeping exact convenience syntax provisional. The RFC remains proposed and records **ready for decision**; production cost benchmarks and any future separately named traced heap remain follow-up work rather than accepted behavior.
 
 The shared-service experiment now compares the default `OwnerIsolated` mutation policy with an explicit `ExclusiveCapability` alternative. Under the alternative, any task with a valid handle may mutate while holding the single active capability; tasks without handles and concurrent mutators are rejected with structured diagnostics, and cancellation waits for a non-owner mutation boundary before cleanup. This makes a lock-like competing design executable without accepting it. Read/write and atomic capabilities, capability derivation, scheduling fairness, priority inversion, poisoning, deadlock, reentrancy, panic handling, backpressure, VM/native traces, and runtime cost remain open.
 

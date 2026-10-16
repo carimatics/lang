@@ -44,6 +44,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture propo
 - [RFC 0001: Project charter and compatibility policy](docs/rfcs/0001-project-charter.md)
 - [RFC 0002: Prototype integer and structured control-flow semantics](docs/rfcs/0002-prototype-control-flow.md)
 - [RFC 0003: Versioned component contracts and capability imports](docs/rfcs/0003-versioned-component-contracts.md)
+- [RFC 0004: Owned values, explicit sharing, and cyclic graph storage](docs/rfcs/0004-owned-values-and-cyclic-graphs.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

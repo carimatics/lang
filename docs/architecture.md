@@ -95,7 +95,9 @@ Prototype this model:
 - Raw pointers, unions, unchecked indexing, layout casts, and foreign ownership live behind narrow `unsafe` boundaries.
 - The standard library exposes allocator-aware containers and permits no-runtime/freestanding subsets later.
 
-Open questions requiring prototypes include cyclic graph ergonomics, async suspension with borrows, self-referential values, destruction during cancellation, and the cost model of atomic `shared` references.
+[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md) now turns the completed graph-policy comparison into a decision-ready proposal: plain values are singly owned, `shared`/`weak` make reference counting visible, cycle-closing strong shared edges fail before mutation, and lexical arenas own intentional cycles without making tracing collection mandatory. It remains proposed until the repository owner records a disposition.
+
+Open questions requiring prototypes include async suspension with borrows, self-referential values, destruction during cancellation, and the runtime/memory cost of atomic `shared` references, cycle preflight, and arena storage.
 
 ### Cyclic graph experiment
 
@@ -108,9 +110,9 @@ The graph model in `crates/semantics` compares explicit shared/weak ownership an
 - Dropping an arena releases its nodes exactly once in reverse creation order. Later use of a stale node handle reports `SEM0012`.
 - Every operation carries a source span, and diagnostics retain a related allocation or edge span where one exists.
 
-Neither shared-cycle policy is accepted semantics. The strict policy avoids silent reference-counted cycles, while the collector policy provides executable evidence that a cycle stays live while any root reaches it and is reclaimed after the last root disappears. The collector is intentionally synchronous and performs a full strong-edge trace on each root drop; it does not model incremental or concurrent collection, finalization, atomics, thread safety, destructor failure, or weak-reference ordering. A simpler alternative would support arena-only graph storage. Library-only conventions cannot guarantee stale-handle rejection or preserve the same diagnostic contract through lowering.
+Neither shared-cycle policy is accepted semantics. RFC 0004 proposes the strict policy plus weak back-edges and lexical arenas, while reserving a separately named traced heap for a future RFC. The collector policy remains executable evidence that a cycle stays live while any root reaches it and is reclaimed after the last root disappears. It is intentionally synchronous and performs a full strong-edge trace on each root drop; it does not model incremental or concurrent collection, finalization, atomics, thread safety, destructor failure, or weak-reference ordering. Library-only conventions cannot guarantee stale-handle rejection or preserve the same diagnostic contract through lowering.
 
-Review outcome: **needs prototype/measurement**. Both reject-and-weak and trace-and-collect behaviors are now executable; blocking questions are the production collection trigger and latency model, whether generation-tagged arena handles are required, and how the policies affect allocation cost, peak memory, and destruction observability. Surface syntax and graph-container APIs are optional follow-ups.
+Review outcome: **ready for decision in RFC 0004**. Reject-and-weak, trace-and-collect, and arena teardown behaviors are executable, and the RFC records their semantic and cost tradeoffs. Production benchmarks, final surface spelling, optimization, allocator policy, and any future opt-in traced heap are implementation or follow-up work rather than unstated semantics.
 
 ### Async borrow and cancellation experiment
 
