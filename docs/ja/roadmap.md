@@ -12,13 +12,13 @@
 
 Costは経過時間の約束ではなく相対的なeffort pointです。`1`はごく小さい変更、`2`は小、`3`は中、`5`は大、`8`は非常に大です。未完了taskはそれぞれ独立して検証可能な1つの成果を持ち、それより大きなprogramはdependencyまたはacceptance boundaryで分割します。進捗は `完了point / 全point × 100` を小数第1位へ丸めて算出します。長期見積りはplanning valueであり、そのmilestoneがcurrentになったとき、またはscopeやevidenceが変わったときに再見積りします。
 
-2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは完了済みevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示します。
+2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Repository ownerのacceptanceを必要とするdecision taskは未完了のままevidence prerequisiteの後ろへ配置します。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
-このrepository stateに対して2026-10-16 15:27 JSTに確認した進捗snapshot：
+このrepository stateに対して2026-10-16 15:41 JSTに確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline（現在） | 80 pt | 149 pt | **53.7%** |
+| 0 — design baseline（現在） | 85 pt | 149 pt | **57.0%** |
 | 1 — frontendとbytecodeのvertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownershipとnative AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **80 pt** | **631 pt** | **12.7%** |
+| **全体** | **85 pt** | **631 pt** | **13.5%** |
 
 ## Milestone 0：設計baseline
 
-**進捗：80 / 149 pt（53.7%）。**
+**進捗：85 / 149 pt（57.0%）。**
 
 ### 優先度順のタスク
 
@@ -54,11 +54,10 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [x] **P0 — Deterministic logical-heap profileとlinked-process memory baselineを記録する。** — 5 pt
 - [x] **P0 — Variable-size host allocationをdirect Rust、VM、JIT、macOS AOT、Windows object contractで実行する。** — 3 pt
 - [x] **P0 — AArch64 generated-code inspectionと、現在のnegative native debug-information baselineを記録する。** — 3 pt
-- [ ] **P0 — RFC 0001を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 2 pt
 - [ ] **P0 — RFC 0002を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 2 pt
 - [ ] **P0 — Windows x86-64 CIでobject-link-run成功evidenceを記録する。** — 3 pt
 - [ ] **P0 — Clean Windows benchmark baselineを記録し、macOS baselineと比較して解釈する。** — 5 pt
-- [ ] **P0 — Byte／count／depth／string limit、location-bearing diagnostics、malformed fixture、fuzz targetを持つbounded schema-1 component encoder／decoderをprototypeする。** — 5 pt
+- [x] **P0 — Byte／count／depth／string limit、location-bearing diagnostics、malformed fixture、fuzz targetを持つbounded schema-1 component encoder／decoderをprototypeする。** — 5 pt
 - [ ] **P0 — RFC 0003でcanonical scalar／resource representationとownership transferを規定する。** — 5 pt
 - [ ] **P0 — RFC 0003でcomponent boundaryのpanic／destructor failure behaviorを規定する。** — 3 pt
 - [ ] **P0 — RFC 0003でpackage／interface version compatibility negotiationを規定する。** — 3 pt
@@ -73,10 +72,13 @@ Costは経過時間の約束ではなく相対的なeffort pointです。`1`は�
 - [ ] **P0 — Allocator overhead／fragmentationを含む代表的なallocation workloadを計測する。** — 5 pt
 - [ ] **P0 — Cross-mode benchmark setへ代表的なCFG workloadをもう1つ追加する。** — 3 pt
 - [ ] **P0 — 完成したcross-platform performance、debug-quality、integration evidenceから初期native backendを選択し、decisionを記録する。** — 3 pt
+- [ ] **P0 — Component、resource-control、backend-evidence prerequisiteの完了後にRFC 0001を判断し、acceptance、修正要求、rejectionのいずれかを記録する。** — 2 pt
 
 ### Evidenceと現在の状態
 
 最初のcomponent-contract sliceはportable declarationをembedding-local bindingから分離しました。Schema-1 in-memory metadataはpackage identity／versionと名前付きscalar import／exportを記録します。各importがcapabilityを宣言し、別のbinding tableが論理nameをprocess-localな `HostFunctionId` へmapします。Validationはunknown schema、invalid／duplicate name、import／export collision、unsupported import type、undeclared／missing binding、grant不足、unregistered host functionを拒否します。Unauthorized componentがhost inventoryをprobeできないようcapability checkをregistry lookupより前に行い、成功時にはresolved bindingを持つ別のwrapperを返します。7件のruntime testがaccepted pathと主要なrejection／ordering contractをcoverします。
+
+実験的schema-1 `LCMP` codecはscalar declaration subsetをdeterministically encodeし、設定可能なtotal-byte、declaration-count、structural-depth、string-length limitの下でuntrusted byteをdecodeします。Malformed magic、payload前のunsupported schema、truncation、invalid UTF-8、unknown scalar tag、trailing byte、limit超過をstructured byte-offset errorで拒否します。Round-trip、encoder／decoder limit、malformed fixture、deterministic arbitrary-byte corpus、locked fuzz-target build、1,000-run libFuzzer smoke executionがpassしました。このformatはunstableなfixtureのままであり、stable serialization、resource representation、compatibility negotiationはRFC 0003の未解決事項です。
 
 Component runtimeはgeneration tag付きowned handleと明示的なshared／exclusive borrow tokenもprototypeしました。Released slotはgenerationを進め、最小のfree slotをdeterministically再利用するため、stale ownerはreplacementをaliasできず、generation exhaustionではwrapせずslotをretireします。Shared borrowは共存し、exclusive borrow／mutable accessはexclusivityを強制し、active borrowはreleaseをblockし、borrow end／releaseのrepeatはstructuredに失敗します。6件のfocused testがslot reuse、stale owner／borrow、double release／end、conflict、mutation、deterministic reuse、generation retirement、borrow-ID exhaustionをcoverします。[RFC 0003](rfcs/0003-versioned-component-contracts.md)はproposedのままで、serialized resource representation、cross-component ownership transfer、compatibility negotiation、canonical lowering、component execution、boundary-cost evidenceを明示的に未完了としています。
 

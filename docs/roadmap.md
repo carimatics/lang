@@ -12,13 +12,13 @@ Tasks are listed in priority order within each milestone. `P0` tasks block that 
 
 Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, and `8` is very large. Each unchecked task has one independently verifiable outcome; larger programs are split at dependency or acceptance boundaries. Progress is `completed points / total points × 100`, rounded to one decimal place. Long-horizon estimates are planning values and must be re-estimated when their milestone becomes current or when scope or evidence changes.
 
-The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserves the 80 points of completed evidence, moves production hardening to its dependent milestone, and exposes previously hidden work rather than treating a large compound item as one task.
+The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. Decision tasks that require repository-owner acceptance remain unchecked and are ordered after their evidence prerequisites; when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
-Progress snapshot verified against this repository state on 2026-10-16 15:27 JST:
+Progress snapshot verified against this repository state on 2026-10-16 15:41 JST:
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
-| 0 — design baseline (current) | 80 pt | 149 pt | **53.7%** |
+| 0 — design baseline (current) | 85 pt | 149 pt | **57.0%** |
 | 1 — frontend and bytecode vertical slice | 0 pt | 65 pt | 0.0% |
 | 2 — ownership and native AOT | 0 pt | 74 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 86 pt | 0.0% |
@@ -26,11 +26,11 @@ Progress snapshot verified against this repository state on 2026-10-16 15:27 JST
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **80 pt** | **631 pt** | **12.7%** |
+| **Overall** | **85 pt** | **631 pt** | **13.5%** |
 
 ## Milestone 0: design baseline
 
-**Progress: 80 / 149 pt (53.7%).**
+**Progress: 85 / 149 pt (57.0%).**
 
 ### Tasks in priority order
 
@@ -54,11 +54,10 @@ Progress snapshot verified against this repository state on 2026-10-16 15:27 JST
 - [x] **P0 — Record deterministic logical-heap profiles and linked-process memory baselines.** — 5 pt
 - [x] **P0 — Exercise variable-size host allocation across direct Rust, VM, JIT, macOS AOT, and Windows object contracts.** — 3 pt
 - [x] **P0 — Record AArch64 generated-code inspection and the current negative native debug-information baseline.** — 3 pt
-- [ ] **P0 — Decide RFC 0001, recording acceptance, requested revisions, or rejection.** — 2 pt
 - [ ] **P0 — Decide RFC 0002, recording acceptance, requested revisions, or rejection.** — 2 pt
 - [ ] **P0 — Record successful Windows x86-64 CI object-link-run evidence.** — 3 pt
 - [ ] **P0 — Record and interpret a clean Windows benchmark baseline against the macOS baseline.** — 5 pt
-- [ ] **P0 — Prototype a bounded schema-1 component encoder/decoder with byte/count/depth/string limits, location-bearing diagnostics, malformed fixtures, and fuzz targets.** — 5 pt
+- [x] **P0 — Prototype a bounded schema-1 component encoder/decoder with byte/count/depth/string limits, location-bearing diagnostics, malformed fixtures, and a fuzz target.** — 5 pt
 - [ ] **P0 — Specify canonical scalar/resource representation and ownership transfer in RFC 0003.** — 5 pt
 - [ ] **P0 — Specify panic and destructor failure behavior at component boundaries in RFC 0003.** — 3 pt
 - [ ] **P0 — Specify package/interface version compatibility negotiation in RFC 0003.** — 3 pt
@@ -73,10 +72,13 @@ Progress snapshot verified against this repository state on 2026-10-16 15:27 JST
 - [ ] **P0 — Measure a representative allocation workload, including allocator overhead and fragmentation.** — 5 pt
 - [ ] **P0 — Add one additional representative CFG workload to the cross-mode benchmark set.** — 3 pt
 - [ ] **P0 — Select the initial native backend from the completed cross-platform performance, debug-quality, and integration evidence, and record the decision.** — 3 pt
+- [ ] **P0 — Decide RFC 0001 after its component, resource-control, and backend-evidence prerequisites, recording acceptance, requested revisions, or rejection.** — 2 pt
 
 ### Evidence and current state
 
 The first component-contract slice now separates portable declarations from embedding-local bindings. Schema-1 in-memory metadata records package identity and version plus named scalar imports/exports; each import declares a capability, while a separate binding table maps its logical name to a process-local `HostFunctionId`. Validation rejects unknown schemas, invalid or duplicate names, import/export collisions, unsupported import types, undeclared or missing bindings, absent grants, and unregistered host functions. Capability checks precede registry lookup so an unauthorized component cannot probe host inventory, and successful validation returns a distinct wrapper with resolved bindings. Seven runtime tests cover the accepted path and key rejection/order contracts.
+
+The experimental schema-1 `LCMP` codec now deterministically encodes the scalar declaration subset and decodes untrusted bytes under configurable total-byte, declaration-count, structural-depth, and string-length limits. It rejects malformed magic, unsupported schemas before their payload, truncation, invalid UTF-8, unknown scalar tags, trailing bytes, and exceeded bounds with structured byte-offset errors. Round-trip, encoder/decoder limit, malformed-fixture, deterministic arbitrary-byte corpus, locked fuzz-target build, and a 1,000-run libFuzzer smoke execution pass. The format remains an unstable fixture; stable serialization, resource representation, and compatibility negotiation are still open in RFC 0003.
 
 The component runtime now also prototypes generation-tagged owned handles and explicit shared/exclusive borrow tokens. Released slots advance their generation and the lowest free slot is reused deterministically; stale owners cannot alias replacements, and generation exhaustion retires a slot instead of wrapping. Shared borrows coexist, exclusive borrows and mutable access enforce exclusivity, active borrows block release, and repeated borrow ends/releases fail structurally. Six focused tests cover slot reuse, stale owners and borrows, double release/end, conflicts, mutation, deterministic reuse, generation retirement, and borrow-ID exhaustion. [RFC 0003](rfcs/0003-versioned-component-contracts.md) remains proposed and explicitly leaves serialized resource representation, cross-component ownership transfer, compatibility negotiation, canonical lowering, component execution, and boundary-cost evidence open.
 
