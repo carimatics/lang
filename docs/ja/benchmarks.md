@@ -55,6 +55,14 @@ target/release/prototype-bench \
 
 Craneliftのcompiled code bufferにはaddが8 byte、minimumが20 byte、countdownが20 byte、accumulatorが36 byte、host callbackが40 byte含まれました。生成されたadd、minimum、countdown、accumulator objectは352、368、376、392 byteでした。Link済みAOT harnessは17,056 byteでした。JIT code sizeにはobject-file structure、relocation data、unwind/debug information、runtime support、linker outputは含まれません。Object sizeにはMach-O structureが含まれますが、C harnessと最終executableは含まれません。Executable sizeにはその両方とplatform linkerのdefaultが含まれますが、完全なruntime distributionは含まれません。
 
+## Schema 7 formatとmigration
+
+Schema 7は `sum_below` conditional-sum workloadをbytecode lowering、JIT compilation、AOT object emission、direct／VM／JIT call、generated-code size、object sizeへ追加します。Runtime sampleは、skipとaddの両pathを実行して `528` を返す `(64, 33)` と、immediate-return pathで `0` を返す `(-7, 33)` を交互に使用します。Harnessは計測前に `(-7, 33)`、`(0, 33)`、`(1, 1)`、`(1, 2)`、`(64, 33)` についてdirect／VM／JITの等価性を確認します。
+
+Tier-1 link／process-startup setにも5番目のconditional-sum objectを追加します。そのためschema 7は3つのplatform rowを `system_link_add_min_countdown_sum_to_sum_below`、`aot_process_startup_add_min_countdown_sum_to_sum_below`、`aot_process_startup_batch_add_min_countdown_sum_to_sum_below` へrenameし、executable-size fieldを `aot_add_min_countdown_sum_to_sum_below` へrenameします。また、`jit_sum_below`／`aot_sum_below` size fieldと6つのconditional-sum measurement rowを追加します。Consumerは `schema_version` で分岐する必要があり、既存のschema 1〜6 JSON fileはimmutableなevidenceとして残します。
+
+Schema 7 implementationとWindows evidence pathは存在しますが、cleanなmacOS AArch64 schema 7 resultもremote Windows resultもまだ検査してcommitしていません。したがって、上のschema 6 tableが現在の測定済みbaselineです。
+
 ## Schema 6 formatとmigration
 
 Schema 6は2-value `sum_to` accumulator workloadをbytecode lowering、JIT compilation、AOT object emission、direct／VM／JIT call、generated-code size、object sizeへ追加します。Runtime sampleはinput `64` と `-7` を再利用し、64-iteration loop後に `2080`、immediate-return pathで `0` を返します。Harnessは計測前に `-7`、`0`、`1`、`64` についてdirect／VM／JITの等価性を確認します。
@@ -87,7 +95,7 @@ Schema 3は `jit_countdown` と `aot_countdown` size field、6つのcountdown me
 
 ## Windows x86-64 evidence path
 
-Schema 6 harnessは、Windows x86-64 MSVCでaccumulator lowering／compilation／runtime row、rename済みsystem-link／process-startup row、`executable_file_bytes.aot_add_min_countdown_sum_to` を記録します。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証します。Windows Server 2025 workflowは31／1,000／100,000／10 parameterで実行し、schema 6、clean-checkout metadata、`windows`／`x86_64` identity、accumulator／platform measurement、startup batch size、正のexecutable sizeを検証し、そのJSONを30日間uploadします。
+Schema 7 harnessは、Windows x86-64 MSVCでconditional-sum lowering／compilation／runtime row、rename済みsystem-link／process-startup row、`executable_file_bytes.aot_add_min_countdown_sum_to_sum_below` を記録します。C harnessを `cl.exe` でcompileし、tier-1の `link.exe` を `LinkTarget` 経由で発見し、計測前にlinkとexecutionを1回検証します。Windows Server 2025 workflowは31／1,000／100,000／10 parameterで実行し、schema 7、clean-checkout metadata、`windows`／`x86_64` identity、conditional-sum／platform measurement、startup batch size、正のexecutable sizeを検証し、そのJSONを30日間uploadします。
 
 これはevidenceを生成するpathであり、記録済みWindows evidenceではありません。この変更によるremote runner結果はまだ検査もcommitもされていません。したがって、上のmacOS tableが現在唯一の測定済みbaselineです。
 
@@ -109,10 +117,10 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 
 - Harnessは計測前に、minimumの両方の結果とcountdown／accumulatorのimmediate-return／loop pathを含め、VM、JIT、direct Rustのresultが等価であることを確認します。
 - 2-value accumulatorはdescending counterとwrapping sumを同じback-edgeで運びます。Direct、VM、JIT medianは1.704 ns、1.631 us、12.782 nsです。このbounded MIR workloadは有用なdifferential evidenceですが、代表的なprogram benchmarkではありません。
-- Schema 6後のconditional-sum prototypeは、同じbounded loop内へbranchとadd／skip mergeを追加します。Differential testとAOT integration testで扱いますが、このschema 6 baselineには含まれず、benchmark claimは未完了です。
+- Schema 7はschema 6後のconditional-sum prototypeをharnessへ追加し、両方のbranch結果とimmediate-return pathを扱います。このschema 6 baselineには含まれず、cleanなschema 7 resultはまだ記録していません。
 - VM rowには、呼び出しごとのbytecode verificationとregister allocationが含まれます。Interpreter dispatchだけでなく、現在のend-to-end embedding APIを計測しています。
 - JIT rowにはchecked Rust invocation wrapperが含まれます。Direct Rust rowは限定的なbaselineであり、代表的なprogramの予測ではありません。
-- Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdown、schema 6はaccumulatorを追加します。いずれもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
+- Object-emission rowにはhost ISA構築、MIR lowering、compilation、object serializationが含まれます。Schema 2のsystem-link rowはharness、add、minimum objectを扱い、schema 3はcountdown、schema 6はaccumulator、schema 7はconditional sumを追加します。いずれもC harnessを事前compileし、platform driverとsystem linker（macOSでは `cc`、Windows MSVCでは `link.exe`）を計測します。
 - Schema 4のprocess-startup rowには、process creation、loader処理、小さなharness workload、output collection、終了待ちが含まれます。Operating-system cacheをflushせず、loader timeも分離しません。Executable-size fieldにはplatform C harnessとdefault linker outputが含まれます。
 - Schema 5はsingle-launch rowを維持し、設定可能なbatched rowを追加します。Batched per-operation valueは、1回の遅延したlaunchがsampleへ与える影響を小さくしますが、individual startup latencyの代わりではなくamortized throughput estimateです。
 - JIT add compilationのRSDは85.387%、AOT add emissionのRSDは31.397%です。Countdown JIT／AOT medianは28.167 us／22.208 us、accumulator JIT／AOT medianは31.292 us／26.334 usです。これらの値は方向性の証拠として有用ですが、compile-time variationはstable performance budgetには依然として大きすぎます。
@@ -120,7 +128,7 @@ Addとhost-callback objectをclean commit `f2559b8046d4533907f34e93fe53c12bdb5b3
 - 64-iteration back-edgeとimmediate returnを交互に実行すると、countdownのJIT／VM medianは12.730 ns／1.562 us、accumulatorは12.782 ns／1.631 usになります。これらのbounded microbenchmarkは代表的なcontrol-flow performanceを予測しません。Sub-nanosecond direct-call rowはtimer-resolution baselineであり、信頼できるthroughput claimではありません。
 - このbaselineは、より広い証拠を収集する間、prototypeでCraneliftを継続使用することを支持します。Milestone 0のbackend決定を完了するものではありません。
 
-初期native backendを選定する前に、Windows x86-64でschema 6を記録し、allocationと追加のCFG workloadを加え、memoryとdebug qualityを計測します。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
+初期native backendを選定する前に、両tier-1 hostでschema 7を記録し、allocationと追加のCFG workloadを加え、memoryとdebug qualityを計測します。Batched startup rowは方向的なamortized evidenceには適しますがtail-latency guaranteeではなく、executable-size resultもrelease packaging budgetではなくharness artifactです。
 
 ## 以前のbaseline
 

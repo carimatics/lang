@@ -46,7 +46,7 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Record the schema 6 prototype benchmark
+      - name: Record the schema 7 prototype benchmark
         shell: pwsh
         run: |
           $benchmark = Join-Path $env:RUNNER_TEMP "prototype-benchmark-windows-x86_64-msvc.json"
@@ -56,8 +56,8 @@ jobs:
           }
 
           $result = Get-Content $benchmark -Raw | ConvertFrom-Json
-          if ($result.schema_version -ne 6) {
-            throw "expected benchmark schema 6, got $($result.schema_version)"
+          if ($result.schema_version -ne 7) {
+            throw "expected benchmark schema 7, got $($result.schema_version)"
           }
           if ($result.git_dirty) {
             throw "benchmark must run from a clean checkout"
@@ -65,22 +65,25 @@ jobs:
           if ($result.os -ne "windows" -or $result.architecture -ne "x86_64") {
             throw "unexpected benchmark target $($result.os)/$($result.architecture)"
           }
-          if ($result.measurements.name -notcontains "system_link_add_min_countdown_sum_to") {
+          if ($result.measurements.name -notcontains "system_link_add_min_countdown_sum_to_sum_below") {
             throw "benchmark did not record the Windows system-link measurement"
           }
-          if ($result.measurements.name -notcontains "aot_process_startup_add_min_countdown_sum_to") {
+          if ($result.measurements.name -notcontains "aot_process_startup_add_min_countdown_sum_to_sum_below") {
             throw "benchmark did not record the Windows process-startup measurement"
           }
-          if ($result.measurements.name -notcontains "aot_process_startup_batch_add_min_countdown_sum_to") {
+          if ($result.measurements.name -notcontains "aot_process_startup_batch_add_min_countdown_sum_to_sum_below") {
             throw "benchmark did not record the Windows batched process-startup measurement"
           }
           if ($result.measurements.name -notcontains "vm_sum_to_call" -or $result.measurements.name -notcontains "jit_sum_to_call") {
             throw "benchmark did not record the Windows accumulator measurements"
           }
+          if ($result.measurements.name -notcontains "vm_sum_below_call" -or $result.measurements.name -notcontains "jit_sum_below_call") {
+            throw "benchmark did not record the Windows conditional-loop measurements"
+          }
           if ($result.startup_iterations -ne 10) {
             throw "benchmark recorded unexpected startup iterations $($result.startup_iterations)"
           }
-          if ($result.executable_file_bytes.aot_add_min_countdown_sum_to -le 0) {
+          if ($result.executable_file_bytes.aot_add_min_countdown_sum_to_sum_below -le 0) {
             throw "benchmark did not record the Windows executable size"
           }
 

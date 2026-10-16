@@ -70,7 +70,7 @@ Workspace testでは、最小のembedding経路も検証します。backend非�
 
 `LinkTarget` は、`aarch64-apple-darwin` と `x86_64-pc-windows-msvc` に対する初期tier-1 linker policyを一元化します。各exact tripleをlinker flavor、default program、ordered discovery candidateへ対応付け、未supportのtripleをstructuredに拒否し、`SystemLinker` による明示targetの構築とdiscoveryを駆動します。Object-format testとcfg-gatedの両platform integrationは、この共有policyを使用します。追加targetのpolicyは未完了です。
 
-Schema 6 benchmark harnessは、add、minimum、host-callback workloadに加えて、block parameterとback-edgeを持つbounded countdown／2-value accumulator loopを計測します。また、macOSの `cc` とWindows MSVCの `link.exe` という両tier-1 hostでsystem linking、linked executable size、single-launch process startup、設定可能なbatched startupを計測します。CleanなmacOS AArch64 schema 6 baselineを記録済みですが、remote Windows resultはまだ記録していません。Windows CIは文書化済みparameterでschema 6を実行し、clean-checkout metadata、target identity、accumulator／platform row、batch size、正のexecutable sizeを検証して、JSONを30日間workflow artifactとして保持します。
+Schema 7 benchmark harnessは、add、minimum、host-callback workloadに加えて、block parameter、内部branch、merge、back-edgeを持つbounded countdown／2-value accumulator／conditional-sum loopを計測します。また、macOSの `cc` とWindows MSVCの `link.exe` という両tier-1 hostでsystem linking、linked executable size、single-launch process startup、設定可能なbatched startupを計測します。CleanなmacOS AArch64 schema 6 baselineを記録済みですが、cleanなschema 7 resultとremote Windows resultはまだ記録していません。Windows CIは文書化済みparameterでschema 7を実行し、clean-checkout metadata、target identity、conditional-loop／platform row、batch size、正のexecutable sizeを検証して、JSONを30日間workflow artifactとして保持します。
 
 Typed MIR、bytecode verifier、VM、JIT、object pathは、signed `i64` comparisonと明示的control-flow graphも共有します。2引数minimum functionはentry blockから個別のreturn blockへ分岐し、焦点化されたjump testが明示的edgeを検証します。型付きblock parameterとedge argumentは、専用phi instructionなしでphiに相当するmergeを表現します。MIRとbytecodeのvalidationは、invalid target、unreachable block、entry-block predecessorまたはparameter、edge argumentのarity／type mismatch、useをdominateしないvalueを拒否します。Countdown workloadはback-edgeを介して `i64` を運び、VMとJITで同じ結果を生成し、object pathもこれをemitします。Bytecode back-edge testは、instruction fuelが非停止loopを停止することを証明します。Allocationとsource-level control-flow semanticsは未実装です。
 
@@ -96,7 +96,7 @@ cargo run --release --bin prototype-bench -- \
   --startup-iterations 10
 ```
 
-Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT code／AOT object size、link済みexecutable size、lowering、JIT／AOT compilation、direct／VM／JIT call、host callback、control flow、linking、process startupのdistribution statisticsを含むversion付きJSONを出力します。Schema 6は2-value accumulatorを追加し、link setの拡張に合わせてplatform seriesをrenameします。Schema 5はbatched startup、schema 4はsingle-launch startupとexecutable size、schema 3はcountdownを追加しました。Consumerは `schema_version` で分岐する必要があり、以前のJSON fileはimmutableなevidenceとして残します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
+Harnessは、commitとdirty state、toolchain、host、system-linker metadata、生成されたJIT code／AOT object size、link済みexecutable size、lowering、JIT／AOT compilation、direct／VM／JIT call、host callback、control flow、linking、process startupのdistribution statisticsを含むversion付きJSONを出力します。Schema 7はconditional-sum loop、schema 6は2-value accumulator、schema 5はbatched startup、schema 4はsingle-launch startupとexecutable size、schema 3はcountdownを追加しました。Platform seriesはlink済みworkload setが増えるとrenameします。Consumerは `schema_version` で分岐する必要があり、以前のJSON fileはimmutableなevidenceとして残します。これらのmeasurementは承認済みperformance guaranteeではなく、prototype evidenceです。静かなmachineでのみresultを記録し、正確なcommandとraw JSONを保持します。
 
 共通チェック：
 

@@ -194,7 +194,9 @@ Schema 5 retains the single-launch startup row and adds a configurable batched r
 
 Schema 6 adds the two-value accumulator to bytecode lowering, JIT/AOT compilation, direct/VM/JIT calls, generated code and object sizes, system linking, linked-executable size, and both startup rows. Platform series are renamed for the four-object link set, and Windows CI validates the new accumulator and platform fields. A clean macOS AArch64 result records all 30 rows and a 17,056-byte linked harness; remote Windows evidence remains open. This implementation evidence does not change the RFC's proposed status.
 
-A post-schema-6 conditional-sum prototype branches inside the bounded loop and merges add/skip paths through block parameters before the shared back-edge. VM/JIT differential tests, macOS AArch64 direct/response-file link-and-run integration, host-independent Windows x86-64 COFF symbol validation, and the cfg-gated MSVC path cover the new function. Its benchmark coverage, source-level semantics, and allocation remain open; the RFC stays proposed.
+A post-schema-6 conditional-sum prototype branches inside the bounded loop and merges add/skip paths through block parameters before the shared back-edge. VM/JIT differential tests, macOS AArch64 direct/response-file link-and-run integration, host-independent Windows x86-64 COFF symbol validation, and the cfg-gated MSVC path cover the new function. Its clean benchmark evidence, source-level semantics, and allocation remain open; the RFC stays proposed.
+
+The schema 7 harness now covers the conditional-sum workload in lowering, JIT/AOT compilation, direct/VM/JIT calls, artifact sizes, and the five-object tier-1 system-link/startup set. Windows CI validates the corresponding schema contract. No clean schema 7 host result has been recorded, and this prototype evidence does not change the RFC's proposed status.
 
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
