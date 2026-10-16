@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 14 pt | 89 pt | 15.7% |
+| 1 — frontend and bytecode vertical slice (current) | 30 pt | 89 pt | 33.7% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **223 pt** | **738 pt** | **30.2%** |
+| **Overall** | **239 pt** | **738 pt** | **32.4%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** decide the Milestone 1 lexical specification before implementing source tokenization and parsing; the structured source-diagnostic foundation is complete.
+- **Next active P0:** implement source tokenization and lossless parsing under accepted RFC 0006; the structured diagnostic/HIR/MIR foundations are complete.
 
 ### Tasks in priority order
 
@@ -137,49 +137,51 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 14 / 89 pt (15.7%).**
+**Progress: 30 / 89 pt (33.7%).**
 
-Re-estimated in the 2026-10-17 review to include missing design gates and call-frame implementation. RFC 0002 alone does not specify modules, calls, aggregates, REPL state, or serialized bytecode. Implementation of each extension waits for its accepted contract. A follow-up review while preparing [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) exposed two acceptance gates that had only been mentioned in prose: portable bytecode and script/REPL state. They are now explicit 2-point and 1-point tasks, adding 3 points without removing any implementation scope. RFC 0006 is proposed, not accepted; its compatibility fixtures and staged backend restrictions are ready for owner review. A dependency review separated the 8-point primitive-typing item into 3 points of accepted RFC 0002 structured-input HIR analysis and 5 points of parser-connected source/call conformance. The same review split the 5-point lowering item into 2 points of primitive HIR/MIR implementation and 3 points of parser-connected and extended-source conformance. Both splits preserve total cost and expose useful work independent of unaccepted lexical rules; neither completes the broader source frontend.
+The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five design gates account for 16 completed points. The accepted contract now governs lexical rules, modules/calls, copy-only aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Implementation and conformance remain separate unchecked outcomes. The next active work is lossless tokenization and parsing.
+
+The 2026-10-17 estimate remains 89 points: it exposed bytecode/REPL acceptance as 2-point/1-point tasks without dropping implementation scope. Primitive typing was split into 3 points of structured-input HIR and 5 points of parser-connected source/call conformance; lowering into 2 points of primitive HIR/MIR and 3 points of parser-connected/extended-source conformance. These completed foundations do not complete the broader frontend.
 
 The 8-point incremental-tooling task is likewise split into 3 points of shared graph/cache infrastructure, 1 point of protocol diagnostic/position conversion, and 4 points of parser/module-query and LSP-prototype integration. The first two outcomes can be tested using existing structured diagnostics and accepted structured-input HIR while lexical decisions remain pending. They do not replace automatic dependency discovery, incomplete-source diagnostics, document-close publication, encoding/capability negotiation, or LSP transport in the remaining integration task.
 
 - [x] **P0 — Establish structured source diagnostics with stable codes, labels, and fix-its.** — 5 pt
-- [ ] **P0 — Accept the RFC 0002 lexical specification: identifier/keyword rules, whitespace/comments, signed-literal tokenization, source encoding, and malformed-token diagnostics, with fixtures.** — 3 pt
+- [x] **P0 — Accept the RFC 0002 lexical specification: identifier/keyword rules, whitespace/comments, signed-literal tokenization, source encoding, and malformed-token diagnostics, with fixtures.** — 3 pt
 - [ ] **P0 — Implement a lossless parser with error recovery and source spans.** — 8 pt
-- [ ] **P0 — Accept source module and function-call semantics, including visibility, cycles, entry points, host calls, call frames, and recursion limits beyond RFC 0002.** — 5 pt
+- [x] **P0 — Accept source module and function-call semantics, including visibility, cycles, entry points, host calls, call frames, and recursion limits beyond RFC 0002.** — 5 pt
 - [ ] **P0 — Implement scopes, name resolution, and module loading.** — 5 pt
 - [x] **P0 — Resolve and type-check structured RFC 0002 function input into span-preserving HIR with bounded analysis and diagnostic tests.** — 3 pt
 - [ ] **P0 — Connect parsed source to HIR and type-check source functions/control flow, including accepted call signatures, with compile-pass/fail fixtures.** — 5 pt
-- [ ] **P0 — Accept records, variants, patterns, and exhaustiveness semantics plus their typed MIR/value representation and compatibility fixtures.** — 5 pt
+- [x] **P0 — Accept records, variants, patterns, and exhaustiveness semantics plus their typed MIR/value representation and compatibility fixtures.** — 5 pt
 - [ ] **P0 — Type-check records, variants, patterns, and exhaustiveness.** — 8 pt
 - [x] **P0 — Lower accepted primitive HIR into validated typed MIR with CFG block arguments, source maps, and VM/JIT differential tests.** — 2 pt
 - [ ] **P0 — Complete parser-connected HIR-to-MIR lowering, including accepted calls/aggregates and source-span conformance.** — 3 pt
-- [ ] **P0 — Accept the portable bytecode schema and bounded decoding/verification contract.** — 2 pt
+- [x] **P0 — Accept the portable bytecode schema and bounded decoding/verification contract.** — 2 pt
 - [ ] **P0 — Promote the prototype into versioned register bytecode with encoding, decoding, and verification.** — 5 pt
 - [ ] **P0 — Implement accepted source calls, call frames, returns, and bounded recursion in MIR, bytecode, and VM with failure/stack tests.** — 8 pt
 - [ ] **P0 — Execute the source-language subset in the VM with typed host registration.** — 5 pt
-- [ ] **P0 — Accept script entry/output and transactional REPL state/error contracts.** — 1 pt
+- [x] **P0 — Accept script entry/output and transactional REPL state/error contracts.** — 1 pt
 - [ ] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
 - [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
 - [x] **P1 — Implement a bounded revisioned query graph/cache with transitive invalidation, stale-result guards, and structured HIR diagnostic-cache tests.** — 3 pt
 - [x] **P1 — Map structured diagnostics to bounded UTF-16 LSP data with protocol line endings, related labels, and position tests.** — 1 pt
 - [ ] **P1 — Integrate parser/module queries with an LSP prototype, including incomplete-source diagnostics, protocol transport/capabilities, and revision-safe publication.** — 4 pt
 
-Evidence verified 2026-10-17 (JST): commit `a4f135c` adds `lang-diagnostics` with immutable source snapshots, UTF-8-validated spans, Unicode/UTF-16 positions, accepted `SRC0001`–`SRC0007` identities, primary/secondary labels, notes, and atomic fix previews. Five focused tests cover positions, stale/foreign snapshots, code identities, cross-file rendering, edit conflicts, and control-character escaping. The full fmt/Clippy/test/doc baseline passes. Source diagnostic producers remain part of their parser/resolution/type-checking tasks. Commit `40a56cb` supplies the English/Japanese RFC 0006 proposal and compatibility-fixture tables; examples, grammar, links, RFC metadata, and roadmap arithmetic were checked. No design-acceptance checkbox is complete until the owner records acceptance. Roadmap review: no implementation task was removed or deferred; the corrected 89-point plan retains the complete records/variants/calls/tooling scope. The next dependency is the lexical acceptance gate.
+Evidence verified 2026-10-17 (JST): commit `a4f135c` adds `lang-diagnostics` with immutable source snapshots, UTF-8-validated spans, Unicode/UTF-16 positions, accepted `SRC0001`–`SRC0007` identities, primary/secondary labels, notes, and atomic fix previews. Five focused tests cover positions, stale/foreign snapshots, code identities, cross-file rendering, edit conflicts, and control-character escaping. The full fmt/Clippy/test/doc baseline passes. Parser-connected diagnostic conformance remains implementation work. Commit `40a56cb` supplied the English/Japanese RFC 0006 proposal and compatibility-fixture tables; commit `031575e` records subsequent explicit owner acceptance. The complete records/variants/calls/tooling scope remains in this 89-point plan.
 
 Commit `da778cc` adds accepted-subset `lang-hir` analysis with 13 structured-input conformance/limit tests. It resolves lexical locals, rejects function-wide reuse and parameter assignment, enforces primitive types/conditions/returns, and preserves diagnostic spans without choosing lexical rules. The full fmt/Clippy/test/doc baseline passes. Parser/literal diagnostics and text-to-HIR compile-pass/fail coverage remain unchecked.
 
-Commit `a198518` completes the accepted primitive HIR-to-MIR slice with branch joins, loop-carried mutable state, early returns, sequential SSA renumbering, source maps, construction limits, and final MIR validation. Eight structured-input integration tests verify scalar extrema, branch paths, nested loop state, VM/JIT equivalence, VM fuel exhaustion, bytecode spans, and JIT/AOT-object debug mapping. The full fmt/Clippy/test/doc baseline passes. This does not supply parser-connected execution, native link/run evidence for parsed source, guest calls, or aggregates; those tasks remain unchecked. Roadmap review keeps the complete 89-point scope and all design gates; RFC 0006 is still proposed.
+Commit `a198518` completes the accepted primitive HIR-to-MIR slice with branch joins, loop-carried mutable state, early returns, sequential SSA renumbering, source maps, construction limits, and final MIR validation. Eight structured-input integration tests verify scalar extrema, branch paths, nested loop state, VM/JIT equivalence, VM fuel exhaustion, bytecode spans, and JIT/AOT-object debug mapping. The full fmt/Clippy/test/doc baseline passes. This does not supply parser-connected execution, native link/run evidence for parsed source, guest calls, or aggregates; those tasks remain unchecked after RFC 0006 acceptance.
 
 Commit `8dafdeb` adds `lang-query` with 10 graph tests and one real structured-input HIR-cache integration test. Evidence covers dependency replacement, diamond invalidation, unaffected cache reuse, stale/foreign result rejection, close/reopen, cycles, node/edge/work limits, and revision overflow without partial bookkeeping updates. The full fmt/Clippy/test/doc baseline passes. The graph operates only on declared dependencies and host-supplied immutable values; automatic compiler recipes and the LSP-connected source path remain unchecked. Roadmap review preserves the full 89-point plan and records the core/integration boundary explicitly.
 
-Commit `b4a6f24` adds `lang-lsp` diagnostic data conversion with four focused tests covering UTF-16/surrogate widths, LF/CRLF/lone-CR line endings, CRLF interior boundaries, EOF ranges, related locations, severity/code preservation, missing snapshots/URIs, and source/label/note/output limits. The [architecture](architecture.md#diagnostics-lsp-and-debugging) records official LSP 3.18 sources and their 2026-10-17 verification dates; publication/update dates are not provided in those living documents. The full fmt/Clippy/test/doc baseline passes. This is a data adapter, not a server or a wire codec. The remaining 4-point integration task retains parser/module queries, capabilities, transport, document lifecycle, and revision-safe publication. Roadmap review preserves total scope/cost; RFC 0006 remains proposed.
+Commit `b4a6f24` adds `lang-lsp` diagnostic data conversion with four focused tests covering UTF-16/surrogate widths, LF/CRLF/lone-CR line endings, CRLF interior boundaries, EOF ranges, related locations, severity/code preservation, missing snapshots/URIs, and source/label/note/output limits. The [architecture](architecture.md#diagnostics-lsp-and-debugging) records official LSP 3.18 sources and their 2026-10-17 verification dates; publication/update dates are not provided in those living documents. The full fmt/Clippy/test/doc baseline passes. This is a data adapter, not a server or a wire codec. The remaining 4-point integration task retains parser/module queries, capabilities, transport, document lifecycle, and revision-safe publication after RFC 0006 acceptance.
 
 ### Remaining dependency audit (2026-10-17)
 
-The current checklist has 16 unchecked items totaling 75 points. This table is a dependency view, not additional scope or completion credit.
+After owner acceptance, the current checklist has 11 unchecked implementation items totaling 59 points. This table is a dependency view, not additional scope or completion credit.
 
-| Required owner decision | Remaining dependent outcomes |
+| Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Lossless parser/recovery, parser-connected typing, formatter round trips, and incomplete-source LSP diagnostics |
 | Module/function-call semantics | Module loading/resolution, guest frames/recursion, typed host execution, and parser-connected source/HIR/MIR conformance |
@@ -187,9 +189,9 @@ The current checklist has 16 unchecked items totaling 75 points. This table is a
 | Portable bytecode contract | Versioned encoding/decoding and bounded verification |
 | Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
 
-All five decision areas are covered by proposed RFC 0006. The accepted structured-input HIR, MIR lowering, graph/cache core, and protocol diagnostic conversion do not satisfy these decisions or the source-driven exit. Inspection of [`src/main.rs`](../src/main.rs) confirms the executable still accepts two integers and constructs prototype MIR; it does not run source files. Generic transport scaffolding or further hand-built HIR fixtures would not establish the missing parser-connected outcomes.
+All five decision areas are accepted in RFC 0006. The structured-input HIR, MIR lowering, graph/cache core, and protocol diagnostic conversion still do not establish the source-driven exit. Inspection of [`src/main.rs`](../src/main.rs) confirms the executable still accepts two integers and constructs prototype MIR; it does not yet run source files. Work now proceeds through the accepted parser-connected implementation rather than requesting another disposition.
 
-The next required input is an explicit owner disposition on RFC 0006: acceptance, requested revision, or withdrawal/replanning. Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) explicitly requires lexical acceptance before frontend implementation (last updated 2026-10-17 JST); the [RFC skill](../.agents/skills/language-design-rfc/SKILL.md) requires keeping proposals `proposed` until explicit owner acceptance (last updated 2026-10-15 JST). Verification date: 2026-10-17 JST. No acceptance, implementation checkbox, scope reduction, or Milestone 1 exit is inferred from this audit. The final Milestone 1 capability guide remains due after the actual source-driven milestone is complete.
+The previous owner-decision blocker is resolved by the explicit 2026-10-17 acceptance, recorded in `031575e`. Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) and [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) now provide the implementation contract (last updated 2026-10-17 JST). Acceptance completes only the five decision checkboxes. No implementation completion, scope reduction, or Milestone 1 exit is inferred. The final Milestone 1 capability guide remains due after the actual source-driven milestone is complete.
 
 Exit: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 
