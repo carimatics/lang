@@ -97,17 +97,18 @@ Open questions requiring prototypes include cyclic graph ergonomics, async suspe
 
 ### Cyclic graph experiment
 
-The graph model in `crates/semantics` compares two deliberately explicit ownership strategies:
+The graph model in `crates/semantics` compares explicit shared/weak ownership and arena-scoped storage under two shared-cycle policies:
 
 - Shared nodes begin with an external root. Strong edges retain their targets, while weak edges do not.
-- A strong edge that would close a shared-reference cycle is rejected with structured diagnostic `SEM0018`; a weak edge may close the same cycle, and upgrading an expired weak edge reports `SEM0021`.
+- The default `Reject` policy rejects a strong edge that would close a shared-reference cycle with structured diagnostic `SEM0018`; a weak edge may close the same cycle, and upgrading an expired weak edge reports `SEM0021`.
+- The experimental `CollectUnreachable` policy permits strong cycles. After an external root is dropped, it traces strong edges from every remaining live root and releases unreachable shared nodes in reverse creation order; weak edges do not keep a target live.
 - Nodes in one arena may form arbitrary cycles because the arena owns their lifetime. Edges across arenas or between arena and shared storage report `SEM0017`.
 - Dropping an arena releases its nodes exactly once in reverse creation order. Later use of a stale node handle reports `SEM0012`.
 - Every operation carries a source span, and diagnostics retain a related allocation or edge span where one exists.
 
-This strict model avoids silent reference-counted cycles and makes region boundaries visible, but it does not define surface syntax, atomics, thread safety, destructor failure, or a production reclamation algorithm. The strongest competing design would permit strong cycles and add tracing or cycle collection; a simpler alternative would support arena-only graph storage. Library-only conventions cannot guarantee stale-handle rejection or preserve the same diagnostic contract through lowering.
+Neither shared-cycle policy is accepted semantics. The strict policy avoids silent reference-counted cycles, while the collector policy provides executable evidence that a cycle stays live while any root reaches it and is reclaimed after the last root disappears. The collector is intentionally synchronous and performs a full strong-edge trace on each root drop; it does not model incremental or concurrent collection, finalization, atomics, thread safety, destructor failure, or weak-reference ordering. A simpler alternative would support arena-only graph storage. Library-only conventions cannot guarantee stale-handle rejection or preserve the same diagnostic contract through lowering.
 
-Review outcome: **needs prototype/measurement**. Blocking questions are whether shared cycles should be rejected statically or dynamically, whether generation-tagged arena handles are required, and how both strategies affect allocation cost and destruction observability. Surface syntax and graph-container APIs are optional follow-ups.
+Review outcome: **needs prototype/measurement**. Both reject-and-weak and trace-and-collect behaviors are now executable; blocking questions are the production collection trigger and latency model, whether generation-tagged arena handles are required, and how the policies affect allocation cost, peak memory, and destruction observability. Surface syntax and graph-container APIs are optional follow-ups.
 
 ### Async borrow and cancellation experiment
 

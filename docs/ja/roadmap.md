@@ -30,6 +30,8 @@ Schema 7 harnessはconditional-sum workloadをlowering、JIT／AOT compilation�
 
 Async semantics実験は、厳格なdefaultの `RejectAll` suspension policyと、明示的な `AllowSharedFrameBorrows` 代替案を比較します。代替案はshared task-frame borrowをsuspend／resume越しに維持し、exclusive borrowは引き続き `SEM0007` でrejectし、cancellationがowned valueをdropする前にactiveなshared borrowを終了します。これはsemanticsをacceptせずに、より制限の少ないdesignの論点を狭めます。Pinned／exclusive borrow、source-level frame-residency proof、destructor failure、VM／native trace、runtime costは未完了です。
 
+Cyclic-graph実験は、defaultの `Reject` shared-cycle policyと、明示的な `CollectUnreachable` 代替案を比較します。Collectorはstrong cycleを許可し、root dropごとに残るlive rootからstrong edgeをtraceし、いずれかのrootから到達できる間はcycleを維持し、最後のrootが消えると逆生成順に回収します。Weak edgeはtargetをretainしません。これにより、最も強い競合designをacceptせずに実行可能にします。Production collectionのtrigger／latency、incremental／concurrent behavior、allocation／peak-memory cost、finalization、weak-reference ordering、destruction observabilityは未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

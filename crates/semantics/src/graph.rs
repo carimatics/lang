@@ -1,11 +1,11 @@
 //! Executable ownership experiment for cyclic object graphs.
 //!
-//! This intentionally strict model compares two explicit representations:
-//! shared nodes use strong and weak edges, while arena nodes use region-scoped
-//! handles. A strong edge may not close a cycle between shared nodes; callers
-//! must use a weak edge instead. Arena-local cycles are permitted because the
-//! arena, rather than individual edges, owns every node. These choices are
-//! design hypotheses, not accepted language semantics.
+//! This model compares explicit shared/weak ownership and arena-scoped handles.
+//! Shared nodes reject strong cycles by default. An experimental alternative
+//! permits strong cycles and traces from live external roots before collecting
+//! unreachable components. Arena-local cycles are permitted because the arena,
+//! rather than individual edges, owns every node. These choices are design
+//! hypotheses, not accepted language semantics.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
@@ -47,6 +47,13 @@ impl Display for ArenaId {
 pub enum EdgeKind {
     Strong,
     Weak,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum SharedCyclePolicy {
+    #[default]
+    Reject,
+    CollectUnreachable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -291,6 +298,7 @@ struct EdgeState {
 
 #[derive(Default)]
 pub struct GraphModel {
+    shared_cycle_policy: SharedCyclePolicy,
     nodes: BTreeMap<NodeId, NodeState>,
     arenas: BTreeMap<ArenaId, ArenaState>,
     edges: BTreeMap<(NodeId, NodeId), EdgeState>,
@@ -301,6 +309,13 @@ pub struct GraphModel {
 impl GraphModel {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_shared_cycle_policy(policy: SharedCyclePolicy) -> Self {
+        Self {
+            shared_cycle_policy: policy,
+            ..Self::default()
+        }
     }
 
     pub const fn trace(&self) -> &GraphTrace {
@@ -438,7 +453,8 @@ impl GraphModel {
             });
         }
 
-        if from_state.storage == NodeStorage::Shared
+        if self.shared_cycle_policy == SharedCyclePolicy::Reject
+            && from_state.storage == NodeStorage::Shared
             && kind == EdgeKind::Strong
             && let Some(cycle_span) = self.strong_path_span(to, from)
         {
@@ -621,6 +637,13 @@ impl GraphModel {
     }
 
     fn collect_shared_nodes(&mut self) {
+        match self.shared_cycle_policy {
+            SharedCyclePolicy::Reject => self.collect_acyclic_shared_nodes(),
+            SharedCyclePolicy::CollectUnreachable => self.collect_unreachable_shared_nodes(),
+        }
+    }
+
+    fn collect_acyclic_shared_nodes(&mut self) {
         loop {
             let candidate = self.creation_order.iter().rev().copied().find(|node| {
                 let Some(state) = self.nodes.get(node) else {
@@ -634,6 +657,51 @@ impl GraphModel {
             let Some(node) = candidate else {
                 break;
             };
+            self.drop_node(node);
+        }
+    }
+
+    fn collect_unreachable_shared_nodes(&mut self) {
+        let mut reachable = BTreeSet::new();
+        let mut pending = self
+            .nodes
+            .iter()
+            .filter_map(|(node, state)| {
+                (state.live && state.root_live && state.storage == NodeStorage::Shared)
+                    .then_some(*node)
+            })
+            .collect::<Vec<_>>();
+
+        while let Some(node) = pending.pop() {
+            if !reachable.insert(node) {
+                continue;
+            }
+            for ((from, to), edge) in &self.edges {
+                if *from == node
+                    && edge.kind == EdgeKind::Strong
+                    && self.is_live(*to)
+                    && self
+                        .nodes
+                        .get(to)
+                        .is_some_and(|state| state.storage == NodeStorage::Shared)
+                {
+                    pending.push(*to);
+                }
+            }
+        }
+
+        let unreachable = self
+            .creation_order
+            .iter()
+            .rev()
+            .copied()
+            .filter(|node| {
+                self.nodes.get(node).is_some_and(|state| {
+                    state.live && state.storage == NodeStorage::Shared && !reachable.contains(node)
+                })
+            })
+            .collect::<Vec<_>>();
+        for node in unreachable {
             self.drop_node(node);
         }
     }
@@ -666,7 +734,7 @@ impl GraphModel {
 mod tests {
     use super::{
         ArenaId, EdgeKind, GraphDiagnostic, GraphDiagnosticCode, GraphDiagnosticKind, GraphEvent,
-        GraphModel, GraphOperation, NodeId,
+        GraphModel, GraphOperation, NodeId, SharedCyclePolicy,
     };
     use crate::SourceSpan;
 
@@ -717,6 +785,94 @@ mod tests {
                 },
             })
         );
+    }
+
+    #[test]
+    fn collection_policy_reclaims_an_unreachable_strong_cycle() {
+        let left = NodeId::new(0);
+        let right = NodeId::new(1);
+        let mut model = GraphModel::with_shared_cycle_policy(SharedCyclePolicy::CollectUnreachable);
+        for operation in [
+            GraphOperation::CreateShared {
+                node: left,
+                span: span(0),
+            },
+            GraphOperation::CreateShared {
+                node: right,
+                span: span(1),
+            },
+            GraphOperation::AddEdge {
+                from: left,
+                to: right,
+                kind: EdgeKind::Strong,
+                span: span(2),
+            },
+            GraphOperation::AddEdge {
+                from: right,
+                to: left,
+                kind: EdgeKind::Strong,
+                span: span(3),
+            },
+            GraphOperation::DropRoot {
+                node: left,
+                span: span(4),
+            },
+        ] {
+            model.apply(operation).unwrap();
+        }
+
+        assert!(model.is_live(left));
+        assert!(model.is_live(right));
+        model
+            .apply(GraphOperation::DropRoot {
+                node: right,
+                span: span(5),
+            })
+            .unwrap();
+
+        assert!(!model.is_live(left));
+        assert!(!model.is_live(right));
+        assert!(model.trace().events().ends_with(&[
+            GraphEvent::RootDropped(right),
+            GraphEvent::NodeDropped(right),
+            GraphEvent::NodeDropped(left),
+        ]));
+    }
+
+    #[test]
+    fn collection_policy_does_not_trace_through_weak_edges() {
+        let observer = NodeId::new(0);
+        let target = NodeId::new(1);
+        let mut model = GraphModel::with_shared_cycle_policy(SharedCyclePolicy::CollectUnreachable);
+        for operation in [
+            GraphOperation::CreateShared {
+                node: observer,
+                span: span(0),
+            },
+            GraphOperation::CreateShared {
+                node: target,
+                span: span(1),
+            },
+            GraphOperation::AddEdge {
+                from: observer,
+                to: target,
+                kind: EdgeKind::Weak,
+                span: span(2),
+            },
+            GraphOperation::DropRoot {
+                node: target,
+                span: span(3),
+            },
+        ] {
+            model.apply(operation).unwrap();
+        }
+
+        assert!(model.is_live(observer));
+        assert!(!model.is_live(target));
+        assert!(model.trace().events().ends_with(&[
+            GraphEvent::RootDropped(target),
+            GraphEvent::NodeDropped(target),
+        ]));
     }
 
     #[test]

@@ -200,6 +200,8 @@ Schema 7 harnessはconditional-sum workloadをlowering、JIT／AOT compilation�
 
 Async semantics prototypeは、厳格なdefaultの `RejectAll` suspension policyと、明示的な `AllowSharedFrameBorrows` 代替案を比較します。代替案はshared task-frame borrowをsuspend／resume越しに運び、exclusive borrowに対する `SEM0007` rejectionを維持し、cancellationがowned valueを破棄する前にactiveなshared borrowを終了します。これはより制限の少ない1つのdesignに関するevidenceであり、accept済みのownership／cancellation semanticsではありません。Pinning、suspensionを越えるexclusive borrow、source-level frame-residency proof、destructor failure、VM／native trace等価性、runtime costは未完了であり、review outcomeは引き続き **needs prototype/measurement** です。
 
+Cyclic-graph prototypeは、defaultの `Reject` shared-cycle policyと、明示的な `CollectUnreachable` 代替案を比較します。Collectorはstrong cycleを許可し、root dropごとにliveなexternal rootからstrong edgeをtraceし、weak edgeではretainせず、到達不能なcycleを逆生成順に回収します。これにより最も強い競合graph designを実行可能にしますが、accepted済みのownership／reclamation semanticsではなく、同期的なmodelにとどまります。Production collectionのtrigger／latency、incremental／concurrent collection、allocation／peak-memory cost、finalization、weak-reference ordering、destruction observabilityは未完了であり、review outcomeは引き続き **needs prototype/measurement** です。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。
