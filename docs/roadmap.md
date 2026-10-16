@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 10 pt | 89 pt | 11.2% |
+| 1 — frontend and bytecode vertical slice (current) | 13 pt | 89 pt | 14.6% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **219 pt** | **738 pt** | **29.7%** |
+| **Overall** | **222 pt** | **738 pt** | **30.1%** |
 
 ## Milestone 0: design baseline
 
@@ -137,7 +137,11 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 10 / 89 pt (11.2%).** Re-estimated in the 2026-10-17 review to include missing design gates and call-frame implementation. RFC 0002 alone does not specify modules, calls, aggregates, REPL state, or serialized bytecode. Implementation of each extension waits for its accepted contract. A follow-up review while preparing [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) exposed two acceptance gates that had only been mentioned in prose: portable bytecode and script/REPL state. They are now explicit 2-point and 1-point tasks, adding 3 points without removing any implementation scope. RFC 0006 is proposed, not accepted; its compatibility fixtures and staged backend restrictions are ready for owner review. A dependency review separated the 8-point primitive-typing item into 3 points of accepted RFC 0002 structured-input HIR analysis and 5 points of parser-connected source/call conformance. The same review split the 5-point lowering item into 2 points of primitive HIR/MIR implementation and 3 points of parser-connected and extended-source conformance. Both splits preserve total cost and expose useful work independent of unaccepted lexical rules; neither completes the broader source frontend.
+**Progress: 13 / 89 pt (14.6%).**
+
+Re-estimated in the 2026-10-17 review to include missing design gates and call-frame implementation. RFC 0002 alone does not specify modules, calls, aggregates, REPL state, or serialized bytecode. Implementation of each extension waits for its accepted contract. A follow-up review while preparing [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) exposed two acceptance gates that had only been mentioned in prose: portable bytecode and script/REPL state. They are now explicit 2-point and 1-point tasks, adding 3 points without removing any implementation scope. RFC 0006 is proposed, not accepted; its compatibility fixtures and staged backend restrictions are ready for owner review. A dependency review separated the 8-point primitive-typing item into 3 points of accepted RFC 0002 structured-input HIR analysis and 5 points of parser-connected source/call conformance. The same review split the 5-point lowering item into 2 points of primitive HIR/MIR implementation and 3 points of parser-connected and extended-source conformance. Both splits preserve total cost and expose useful work independent of unaccepted lexical rules; neither completes the broader source frontend.
+
+The 8-point incremental-tooling task is likewise split into 3 points of shared graph/cache infrastructure and 5 points of parser/module-query and LSP-prototype integration. The first outcome can be tested using accepted structured-input HIR while lexical decisions remain pending. It does not replace automatic dependency discovery, incomplete-source diagnostics, document-close publication, or LSP transport in the remaining integration task.
 
 - [x] **P0 — Establish structured source diagnostics with stable codes, labels, and fix-its.** — 5 pt
 - [ ] **P0 — Accept the RFC 0002 lexical specification: identifier/keyword rules, whitespace/comments, signed-literal tokenization, source encoding, and malformed-token diagnostics, with fixtures.** — 3 pt
@@ -157,13 +161,16 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 - [ ] **P0 — Accept script entry/output and transactional REPL state/error contracts.** — 1 pt
 - [ ] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
 - [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
-- [ ] **P1 — Build the initial incremental query graph shared with an LSP prototype.** — 8 pt
+- [x] **P1 — Implement a bounded revisioned query graph/cache with transitive invalidation, stale-result guards, and structured HIR diagnostic-cache tests.** — 3 pt
+- [ ] **P1 — Integrate parser/module queries with an LSP prototype, including incomplete-source diagnostics and revision-safe publication.** — 5 pt
 
 Evidence verified 2026-10-17 (JST): commit `a4f135c` adds `lang-diagnostics` with immutable source snapshots, UTF-8-validated spans, Unicode/UTF-16 positions, accepted `SRC0001`–`SRC0007` identities, primary/secondary labels, notes, and atomic fix previews. Five focused tests cover positions, stale/foreign snapshots, code identities, cross-file rendering, edit conflicts, and control-character escaping. The full fmt/Clippy/test/doc baseline passes. Source diagnostic producers remain part of their parser/resolution/type-checking tasks. Commit `40a56cb` supplies the English/Japanese RFC 0006 proposal and compatibility-fixture tables; examples, grammar, links, RFC metadata, and roadmap arithmetic were checked. No design-acceptance checkbox is complete until the owner records acceptance. Roadmap review: no implementation task was removed or deferred; the corrected 89-point plan retains the complete records/variants/calls/tooling scope. The next dependency is the lexical acceptance gate.
 
 Commit `da778cc` adds accepted-subset `lang-hir` analysis with 13 structured-input conformance/limit tests. It resolves lexical locals, rejects function-wide reuse and parameter assignment, enforces primitive types/conditions/returns, and preserves diagnostic spans without choosing lexical rules. The full fmt/Clippy/test/doc baseline passes. Parser/literal diagnostics and text-to-HIR compile-pass/fail coverage remain unchecked.
 
 Commit `a198518` completes the accepted primitive HIR-to-MIR slice with branch joins, loop-carried mutable state, early returns, sequential SSA renumbering, source maps, construction limits, and final MIR validation. Eight structured-input integration tests verify scalar extrema, branch paths, nested loop state, VM/JIT equivalence, VM fuel exhaustion, bytecode spans, and JIT/AOT-object debug mapping. The full fmt/Clippy/test/doc baseline passes. This does not supply parser-connected execution, native link/run evidence for parsed source, guest calls, or aggregates; those tasks remain unchecked. Roadmap review keeps the complete 89-point scope and all design gates; RFC 0006 is still proposed.
+
+Commit `8dafdeb` adds `lang-query` with 10 graph tests and one real structured-input HIR-cache integration test. Evidence covers dependency replacement, diamond invalidation, unaffected cache reuse, stale/foreign result rejection, close/reopen, cycles, node/edge/work limits, and revision overflow without partial bookkeeping updates. The full fmt/Clippy/test/doc baseline passes. The graph operates only on declared dependencies and host-supplied immutable values; automatic compiler recipes and the LSP-connected source path remain unchecked. Roadmap review preserves the full 89-point plan and records the core/integration boundary explicitly.
 
 Exit: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 
