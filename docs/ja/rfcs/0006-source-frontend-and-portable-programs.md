@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0006-source-frontend-and-portable-programs.md)
 
-- ステータス: proposed
+- ステータス: accepted
 - Authors: Codex（repository ownerのreview向け）
 - 作成日: 2026-10-17
 - 最終更新日: 2026-10-17
@@ -14,9 +14,9 @@
 
 ## 概要
 
-実装前にMilestone 1で不足している契約を定めます。字句規則、module／call、copy専用record／variantと網羅的pattern、portable register-bytecode encoding、上限付きVM frame、transactional REPL sessionです。RFC 0002のwrapping addition、signed comparison、statementの順序、明示的returnは維持します。このRFCの受理は既存の3つのsource設計gateとbytecode／REPLの前提を満たしますが、それらの実装taskを完了するものではありません。
+Milestone 1の契約を定めます。字句規則、module／call、copy専用record／variantと網羅的pattern、portable register-bytecode encoding、上限付きVM frame、transactional REPL sessionです。RFC 0002のwrapping addition、signed comparison、statementの順序、明示的returnは維持します。Repository ownerは2026-10-17にこのRFCを受理し、3つのsource設計gateとbytecode／REPLの前提を満たしました。受理は実装taskの完了ではありません。
 
-これはprojectの設計提案であり、実装済みbehaviorの説明や他言語に関する事実の主張ではありません。以下の新しいexampleと互換性fixtureは、repository ownerがRFCを受理するまで提案のままです。
+これは受理済みのproject設計契約であり、実装済みbehaviorの説明や他言語に関する事実の主張ではありません。以下のexampleと互換性fixtureは実装を規定します。受理は実装やstabilizationではありません。
 
 ## 動機
 
@@ -211,7 +211,7 @@ Untrusted inputには明示的なcompile／decode／verification budgetとmalfor
 
 ## 実装計画
 
-1. このRFCを明示的に決定します。Repository ownerが受理するまで `proposed` を維持し、新しいsource／wire behaviorを実装しません。
+1. Repository ownerの明示受理を記録します。2026-10-17に完了しました。新しいsource／wire behaviorをこの受理済み契約に沿って実装します。
 2. Diagnostic crateとinput limitを使いlossless tokenization／parser recoveryを実装し、字句／syntax snapshotを追加します。
 3. Module loading／resolved HIR、primitive typing、nominal layout、pattern checking、exhaustivenessを独立してtest可能なsliceで追加します。
 4. Typed HIRを検証済みcompilation-unit MIRへloweringします。合成joinとcall siteのspanを保持し、scalar VM／JIT source differential testを維持します。
@@ -247,11 +247,11 @@ Compiler／parserとbytecodeのseed corpus付きfuzz target、明示depth／coun
 
 ## 未決事項
 
-Blocking decision：ASCII identifier、copy専用の非循環aggregate、statement match、明示VM limit、schema 1、transactional REPL stateを含む、この完全なMilestone 1 source／execution profileをrepository ownerは受理しますか。
+Decision：repository ownerは「RFC 0006 を受理します」と明示し、**2026-10-17に受理**しました。ASCII identifier、copy専用の非循環aggregate、statement match、明示VM limit、schema 1、transactional REPL stateを含む完全なMilestone 1 source／execution profileを受理したものです。このprofileにblocking design decisionは残っていません。
 
 Optional follow-up：Unicode identifier、通常のimmutable binding、import alias、型推論、expression match、generic／再帰data、豊富なhost signature、全新操作のnative supportです。実装中にprofileを黙って変更してはいけません。
 
-Review outcome：**ready for decision**。受理後も実装evidenceが必要です。この提案では受理を記録しません。
+受理前のreview outcomeは **ready for decision** でした。受理後も実装、互換性fixture、resource-limit evidence、Milestone 1 exit auditが必要です。
 
 ## 情報源
 
@@ -265,4 +265,4 @@ Review outcome：**ready for decision**。受理後も実装evidenceが必要で
 
 - Microsoft LSP 3.18の[text-document位置／改行規則](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.18/types/textDocuments.md)。更新日非掲載のliving specification。確認2026-10-17 JST。
 
-LSP位置mappingは外部protocol要件に従います。数値limit、grammar、wire tag、段階的backend supportは提案するproject decisionであり、計測済みbest-practice保証ではありません。比較性能の主張は導入しません。
+LSP位置mappingは外部protocol要件に従います。数値limit、grammar、wire tag、段階的backend supportは受理済みproject decisionであり、計測済みbest-practice保証ではありません。比較性能の主張は導入しません。

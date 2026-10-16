@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0006-source-frontend-and-portable-programs.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Codex (for repository-owner review)
 - Created: 2026-10-17
 - Last updated: 2026-10-17
@@ -14,9 +14,9 @@
 
 ## Summary
 
-Specify the missing Milestone 1 contracts before implementation: lexical rules, modules and calls, copy-only records/variants and exhaustive patterns, portable register-bytecode encoding, bounded VM frames, and transactional REPL sessions. RFC 0002 wrapping addition, signed comparison, statement ordering, and explicit returns remain in force. Acceptance of this RFC would satisfy the three existing source-design gates and the bytecode/REPL prerequisites; it would not complete their implementation tasks.
+Specify the Milestone 1 contracts: lexical rules, modules and calls, copy-only records/variants and exhaustive patterns, portable register-bytecode encoding, bounded VM frames, and transactional REPL sessions. RFC 0002 wrapping addition, signed comparison, statement ordering, and explicit returns remain in force. The repository owner accepted this RFC on 2026-10-17, satisfying the three source-design gates and the bytecode/REPL prerequisites. Acceptance does not complete their implementation tasks.
 
-This is a project design proposal, not an account of implemented behavior or a claim about another language. All new examples and compatibility fixtures below remain proposed until the repository owner accepts the RFC.
+This is an accepted project design contract, not an account of implemented behavior or a claim about another language. The examples and compatibility fixtures below govern implementation; acceptance is not implementation or stabilization.
 
 ## Motivation
 
@@ -211,7 +211,7 @@ Untrusted inputs have explicit compile/decode/verification budgets and malformed
 
 ## Implementation plan
 
-1. Decide this RFC explicitly. Keep status `proposed` until repository-owner acceptance; do not implement its new source/wire behavior before then.
+1. Record explicit repository-owner acceptance: completed on 2026-10-17. Implement the new source/wire behavior against this accepted contract.
 2. Implement lossless tokenization/parser recovery using the diagnostic crate and bounded input limits. Add lexical and syntax snapshots.
 3. Add module loading/resolved HIR, primitive typing, nominal layouts, pattern checking, and exhaustiveness in independently tested slices.
 4. Lower typed HIR to validated compilation-unit MIR. Preserve spans on synthesized joins and call sites; keep scalar VM/JIT source differential tests.
@@ -247,11 +247,11 @@ Add compiler/parser and bytecode fuzz targets with seed corpora, explicit depth/
 
 ## Open questions
 
-Blocking decision: does the repository owner accept this complete Milestone 1 source/execution profile, including ASCII identifiers, copy-only acyclic aggregates, statement match, explicit VM limits, schema 1, and transactional REPL state?
+Decision: **accepted on 2026-10-17** by the repository owner, explicitly stating “RFC 0006 を受理します”. This accepts the complete Milestone 1 source/execution profile, including ASCII identifiers, copy-only acyclic aggregates, statement match, explicit VM limits, schema 1, and transactional REPL state. No blocking design decision remains for this profile.
 
 Optional follow-ups: Unicode identifiers, immutable ordinary bindings, import aliases, inferred types, expression match, generic/recursive data, richer host signatures, and native support for all new operations. None may silently change this profile during implementation.
 
-Review outcome: **ready for decision**. Implementation evidence remains required after acceptance. No acceptance is recorded by this proposal.
+The pre-decision review outcome was **ready for decision**. Implementation, compatibility fixtures, resource-limit evidence, and the Milestone 1 exit audit remain required after acceptance.
 
 ## Sources
 
@@ -265,4 +265,4 @@ Review outcome: **ready for decision**. Implementation evidence remains required
 
 - Microsoft LSP 3.18 [text-document position/line-ending rules](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.18/types/textDocuments.md), living specification without a published update date; verified 2026-10-17 JST.
 
-LSP position mapping follows the external protocol requirement. Numeric limits, grammar, wire tags, and staged backend support are proposed project decisions, not measured best-practice guarantees. No comparative performance claim is introduced.
+LSP position mapping follows the external protocol requirement. Numeric limits, grammar, wire tags, and staged backend support are accepted project decisions, not measured best-practice guarantees. No comparative performance claim is introduced.
