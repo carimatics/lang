@@ -18,6 +18,8 @@ Package identity、scalar function import／export、各importが要求するcap
 
 実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録し、boundedな実験的schema-1 scalar-metadata codecと、明示的なshared／exclusive borrow tokenを持つgeneration tag付きowned-resource tableを提供します。このcodecはdesign evidenceであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
 
+本proposalはnormal-path scalar／resource transferに加え、panic、trap、destructor-failure behaviorも規定します。これらのadapter、cleanup、failure ruleは規定済みですが、まだ実装されておらずstable ABIとしてacceptされていません。
+
 ## 動機
 
 数値 `HostFunctionId` registryは型付きcallbackを実証しますが、portable component identity、名前付きimport／export、compatibility version、authority requirementを表現しません。またprocess-localな数値IDをcomponent metadataへ入れると、portableであるべきcontractが1つのembedding instanceへ結合されます。
@@ -33,6 +35,7 @@ Resource handle、canonical lowering、stable C embedding APIを固定する前�
 - 成功したvalidationをresolved local bindingを持つ別typeとして保持する。
 - Rust referenceがboundaryを越えることに依存せず、stale、repeatedly released、illegal borrowed resource handleを拒否する。
 - Runtime handle layoutを公開せず、canonical scalar／resource call representationとnormal-path ownership transferを規定する。
+- Ownership transfer後のbackend-neutralなpanic／trap containmentと、deterministicかつat-most-onceなdestructor-failure behaviorを規定する。
 - Trust boundaryでstructuredかつdeterministicなfailureを返す。
 
 ## 非目標
@@ -41,7 +44,7 @@ Resource handle、canonical lowering、stable C embedding APIを固定する前�
 - WIT source／binary compatibilityを主張すること。
 - String、list、record、variant、option、result、async functionを定義すること。
 - Live resource handleをpackage metadataへserializeすること、またはruntime handle bit layoutをstable化すること。
-- Ownershipがcomponent boundaryを越えた後のpanic、unwind、cancellation、destructor-failure behaviorを定義すること。
+- Process abortからrecoverすること、native unwind／foreign exceptionがcomponent boundaryを越えることを許すこと、またはasync cancellationを定義すること。
 - C embedding ABI、native calling convention、symbol namingをstable化すること。
 - この段階でVM、JIT、AOT pathを通してcomponent exportを実行すること。
 - Semantic-version compatibility rangeまたはdependency resolutionを定義すること。
@@ -66,7 +69,7 @@ import inspect: (borrow<timer>) -> i64 requires clock.read
 export adopt: (own<timer>) -> i64
 ```
 
-`inspect` はcall-scoped loanを受け取り、`adopt` はtransfer commit成功時にcallerのownerをconsumeします。このnotationは説明用であり、最終的なIDL syntaxを選択するものではありません。
+`inspect` はcall-scoped loanを受け取り、`adopt` はtransfer commit成功時にcallerのownerをconsumeします。その後 `adopt` がpanicしても、callerはownerを取り戻しません。Callee codeが別の場所へmove済みでなければ、callee cleanup ledgerがdestroyします。Destructor failureは1回だけreportし、残るcleanupを続行してaffected instanceをpoisonします。このnotationは説明用であり、最終的なIDL syntaxを選択するものではありません。
 
 Declarationは `HostFunctionId` を含みません。Embedderは次を別に構成します。
 
@@ -111,9 +114,9 @@ Schema 1が検証できるimportは `i64 -> i64` のみです。これはcurrent
 1. `own<T>` parameterのloweringは、caller adapterからlive ownerをexactly onceでremoveし、1つのtransfer commitの下でcallee adapterへfresh ownerをinsertします。Commitはreserved destination entryを使い、allocation、user code、callback、destructor invocationを行わず、failureになりません。Component-boundary operationはintermediate stateを観測できません。Boundary indexを再利用しないため、callerのold numeric indexのcopyは永続的にstaleです。Borrowed、wrong-type、already moved、actively lent、duplicate、borrow-aliased ownerはcommit前に拒否します。
 2. `borrow<T>` parameterのloweringはownershipをcallerに残し、dynamic call scopeへ紐づくtokenを作成します。Calleeはそのtokenをrelease／transfer／returnできず、scope後まで保持できません。Nested callはchild scope内だけでreborrowでき、すべてのborrowはparent scope終了前に終わります。
 3. `own<T>` resultのliftingはcalleeからcallerへ対称なpreflight／commitを行います。Destination ownerのinstall成功時だけcalleeのnumeric indexがstaleになります。
-4. Borrowed resultはloanを証明するcall scopeより長く生存するため、最初のcanonical subsetから除外します。Owned boundary handleのdropはownerをexactly onceでconsumeします。Destructor invocation／failure behaviorは別のpanic／destructor taskで規定します。
+4. Borrowed resultはloanを証明するcall scopeより長く生存するため、最初のcanonical subsetから除外します。Owned boundary handleのdropはownerをexactly onceでconsumeし、destructor invocation／failureは下記boundary ruleに従います。
 
-Transfer commit前のfailureではownershipを変更しません。Adapterはpreflight reservation／transfer commitがactiveな間、callback reentrancyを防止する必要があります。Commit後のpanic、trap、cancellation、callback reentrancy、destructor failureには後続failure-boundary ruleが必要であり、ここでは推測しません。VM、JIT、AOT adapterは同じpreflight／table operationを呼び出す必要があります。Whole-program direct-call specializationはそれらのcheckとのobservational equivalenceを証明した場合だけ有効です。
+Transfer commit前のfailureではownershipを変更しません。Adapterはpreflight reservation／transfer commitがactiveな間、callback reentrancyを防止する必要があります。Commit後のpanic、trap、callback reentrancy、destructor failureは下記boundary ruleに従い、async cancellationは未解決のままです。VM、JIT、AOT adapterは同じpreflight／table operationを呼び出す必要があります。Whole-program direct-call specializationはそれらのcheckとのobservational equivalenceを証明した場合だけ有効です。
 
 **未解決hypothesis。** Per-instance adapter tableはVM／native behaviorをdeterministicにし、internal handle layoutのleakを防ぐはずですが、validation、reservation、monotonicに消費するindex namespace、table mutation、callback costはsource factではなくmeasurement対象です。
 
@@ -121,31 +124,49 @@ Transfer commit前のfailureではownershipを変更しません。Adapterはpre
 
 Resource operationは最初にslot occupancy／generationをvalidateします。Shared-borrow creationはactive exclusive borrowを拒否します。Exclusive-borrow creationはすべてのactive borrowを拒否します。Mutable accessはsharedまたはinactive tokenを拒否します。Borrow終了はそのtokenだけをremoveし、repeated endはstaleです。Releaseはactive borrowを拒否し、valueをexactly onceでremove／returnし、copy済みownerをすべてstaleにします。したがってCopy可能representationはcopy可能ownershipを意味しません。
 
+### Boundary panicとdestructor failure
+
+**Source fact。** WebAssembly Component Model Canonical ABIはresource handleをtableからremoveし、active lendを拒否してからowned handleのdestructorをinvokeします。Rustはrecover可能なunwindとrecover不能なabort panic strategyをsupportします。`std::panic::catch_unwind` がcatchするのはunwindするRust panicだけで、aborting panicはcatchせず、RustのFFI ruleは任意のforeign exceptionをportableにcatchする方法を提供しません。これらはimplementation constraintであり、component contractではありません。
+
+**Project decision。** Rust panic payload、native exception、backend unwindがstable component boundaryを越えることはありません。Result typeを追加した後も、declared error resultは通常valueでありboundary panicではありません。Backend-neutral failure modelは概念上、1つのprimary record、0個以上のordered suppressed record、reusable／poisoned instance stateを持ちます。各recordはstable category（`panic`、`trap`、`destructor`）、phase（`call`／`cleanup`）、logical diagnostic identity（`component.boundary.panic`、`component.boundary.trap`、`component.boundary.destructor-failure`）、policyでsanitizeしたoptional messageを持ちます。Poison済みinstanceへのreentryは `component.instance-poisoned` を使います。Numeric encoding／message transportはversioned ABIの未完了作業です。
+
+Ownership／cleanupは次のruleに従います。
+
+1. Transfer commit前のfailureはcaller ownershipを保持します。成功したcommit後のfailureはownershipをrollbackしません。Calleeがresourceをすでにobserve、mutate、store、moveした可能性があるため、caller indexはstaleのままです。
+2. User codeを実行する前に、adapterはすべてのtransferred owner、temporary owner、dynamic borrow scopeについてcleanup ledgerを作成します。後続moveのpublish時には両方のledgerをatomically更新します。Persistent component stateへ正常にstoreしたowner、またはcallerへ正常にreturnしたownerはcurrent frame ledgerから外れます。
+3. Normal／failed exitのどちらでも、owned cleanup開始前にchild borrow scopeをinnermostからoutermostの順でcloseします。残るframe-owned resourceはacquisitionと逆順でdestroyします。作成済みでもcallerへcommitしていないowned resultはcallee-ownedのままcleanupします。
+4. Compiler-generated language panic／guest trapは明示的なbackend-neutral failure pathへloweringします。VM bytecodeは明示的なtrap／cleanup control flowを使います。JIT／AOTはinternal landing padまたはstatus returnを使えますが、Rust／C++／platform unwindはadapterからescapeできません。`catch_unwind` はunwind用にcompileされた既知のRust host callbackをcontainするために使えますが、semantic mechanismではなく、aborting panicをrecoverできません。Opaqueなcaught panic payloadはdestructorがpanicする可能性があるため、そのdispose自体もcontainします。Native callback registrationはforeign exceptionをadapter entryより前にcatchするよう要求し、containmentを保証できないcallbackはtrusted-native tierだけに属します。
+5. Component panic／通常のguest trap後にinstanceをreuseできるのは、cleanup ledgerが空で、dynamic borrowが残らず、adapter invariantを再validateできた場合だけです。Adapter invariant violation、incomplete cleanup、contain済みhost-callback panic、destructor failureはinstanceをpoisonし、以降のentryは `instance-poisoned` で失敗しますがhost processは生存します。Process abortはこのrecoverable contractの範囲外であり、trusted-native limitationとして残ります。
+
+Owned resourceのdropは、user destructor codeをinvokeする前にboundary ownerをconsumedとmarkしてlookupからremoveします。Destructorをattemptするのはat most onceです。Panic／trapでもhandleをresurrectせず、自動retryせず、external side effectをrollbackしません。Cleanup中はcomponent-boundary reentrancyを禁止し、reentry attemptはdestructor failureとしてrecordします。Destructorが失敗した場合、cleanupはfailureをrecordし、残る独立ledger entryを同じdeterministic orderで処理し続けます。先行failureがなければ最初のdestructor failureがprimaryになります。先行するpanic／trapがあれば元のfailureをprimaryに保ち、destructor failureをsuppressed recordとして追加します。追加destructor failureもcleanup順でsuppressedにします。完了後にinstanceをpoisonします。
+
+**未解決hypothesis。** 明示的cleanup ledgerとdestructorごとのcontainmentによりhost processを維持しながらleak／double destructionを避けられるはずですが、code-size、steady-state、failure-path、native landing-pad costにはimplementation／cross-mode measurementが必要です。
+
 ## Execution mode
 
-Contract／resource-table validationはbackend非依存で、VM、JIT、AOT executionを選ぶ前に実行します。Canonical callはすべてのmodeで同じpreflight、adapter-table transfer、dynamic-scope borrow ruleを使います。Prototypeはimportを `HostFunctionRegistry` に対してresolveし、runtime crate内でresource lifecycleを直接実行します。VM moduleのinstantiate、JIT call-site patch、adapter tableの実装、AOT import／resource lowering、export callはまだ行いません。将来のexecution pathはunchecked metadataを独立に再解釈せず、同じvalidated contract／resource ruleをconsumeしなければなりません。
+Contract／resource-table validationはbackend非依存で、VM、JIT、AOT executionを選ぶ前に実行します。Canonical callはすべてのmodeで同じpreflight、adapter-table transfer、dynamic-scope borrow、cleanup-ledger order、failure precedence、instance-poisoning ruleを使います。Prototypeはimportを `HostFunctionRegistry` に対してresolveし、runtime crate内でresource lifecycleを直接実行します。VM moduleのinstantiate、JIT call-site patch、adapter table／cleanup ledgerの実装、AOT import／resource lowering、export callはまだ行いません。将来のexecution pathはunchecked metadataを独立に再解釈せず、同じvalidated contract／resource ruleをconsumeしなければなりません。
 
 ## ABIと互換性
 
 Metadata schema versionとpackage versionは別の意味を持ちます。Schema versionはcontractのshapeとvalidation ruleを選択します。Package versionは宣言されたcomponent revisionを識別します。Schema 1は正確なsupported schema valueを要求し、package versionを記録しますが解釈しません。
 
-`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。Resource slot、generation、borrow identifierはruntime-local validation dataであり、portable representationではありません。提案するunsigned 32-bit canonical resource indexはadapter-table keyであり、runtime handle layoutでもserializable identityでもありません。このprototypeの `LCMP` scalar fixture、Rust layout、enum discriminant、in-memory map order、symbol name、説明用text syntaxはいずれもunstableです。Boundaryをstableと呼ぶ前に、accepted revisionでstable serialization、compatibility negotiation、resource-type identity encoding、failure-boundary ruleを選択する必要があります。
+`HostFunctionId` はembedding-local bindingであり、portable metadataから意図的に除外します。Resource slot、generation、borrow identifierはruntime-local validation dataであり、portable representationではありません。提案するunsigned 32-bit canonical resource indexはadapter-table keyであり、runtime handle layoutでもserializable identityでもありません。Rust panic payload、native exception object、backend unwind metadataもportableではありません。このprototypeの `LCMP` scalar fixture、Rust layout、enum discriminant、in-memory map order、symbol name、説明用text syntaxはいずれもunstableです。Boundaryをstableと呼ぶ前に、accepted revisionでstable serialization、compatibility negotiation、resource-type identity encoding、versioned failure-record encodingを選択する必要があります。
 
 ## Diagnosticsとtooling
 
-Codecはbyte、declaration-count、nesting-depth、string-length limit、malformed header／length／UTF-8／scalar tag、unsupported schema、trailing byteについてstructured errorを返します。すべてのcodec errorがbyte offsetを含みます。Contract validationは別にinvalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Resource operationはstale owned／borrowed handle、borrow conflict、in-use release、shared-borrow mutation、table capacity、boundary-index exhaustion、destination-reservation failure、borrow-identifier exhaustionを区別します。Human-readable messageはlocation、論理name、handle identityを含み、callerはtextをparseせずvariantをmatchできます。
+Codecはbyte、declaration-count、nesting-depth、string-length limit、malformed header／length／UTF-8／scalar tag、unsupported schema、trailing byteについてstructured errorを返します。すべてのcodec errorがbyte offsetを含みます。Contract validationは別にinvalid identifier、duplicate name、namespace collision、unsupported function type、過剰／不足binding、missing capability、unknown host functionについてstructured error variantを返します。Resource operationはstale owned／borrowed handle、borrow conflict、in-use release、shared-borrow mutation、table capacity、boundary-index exhaustion、destination-reservation failure、borrow-identifier exhaustionを区別します。Boundary failureはRust panic payload／native exception objectを公開せず、stable category、phase、diagnostic identity、ordered suppressed failure、poisoned stateを公開します。Human-readable messageはlocation、論理name、handle identityを含み、callerはtextをparseせずvariantをmatchできます。
 
 Toolingはembedding configurationを診断する場合を除き、local numeric host IDではなくportable import nameを表示するべきです。Decode後のsemantic failureをbyte rangeへmapする作業は将来課題です。
 
 ## Performanceとcost model
 
-Contract validationはduplicate／lookup checkにhash set／ordered mapを使い、平均してdeclaration／binding数に対してlinearです。Owned stringとresolved-binding mapを成功したvalidationごとに1回allocateします。Resource lookupはslotによりconstant timeで、shared-borrow tracking／deterministic free-slot selectionはordered setを使い、それぞれのset sizeに対してlogarithmicです。Call-site thunk generation、canonical representation conversion、cross-boundary resource dispatch、destructor overheadはこのprototypeの範囲外であり、stable化前のbenchmark requirementとして残ります。
+Contract validationはduplicate／lookup checkにhash set／ordered mapを使い、平均してdeclaration／binding数に対してlinearです。Owned stringとresolved-binding mapを成功したvalidationごとに1回allocateします。Resource lookupはslotによりconstant timeで、shared-borrow tracking／deterministic free-slot selectionはordered setを使い、それぞれのset sizeに対してlogarithmicです。Call-site thunk generation、canonical representation conversion、cross-boundary resource dispatch、cleanup-ledger maintenance、panic-containment barrier、landing pad、destructor cleanupはこのprototypeの範囲外であり、stable化前のbenchmark／code-size requirementとして残ります。
 
 ## Securityとtrust boundary
 
 Component metadata、capability declaration、binding configurationは、それぞれのboundaryでuntrusted inputです。Executionまたはlinker／JIT patchingより前にvalidationを完了しなければなりません。Authorityはembedderが供給するgrantから生じ、componentがcapabilityを宣言するだけでは得られません。Unauthorized componentへhost inventoryを露出しないよう、capability failureをhost-registry lookupより先に評価します。
 
-Scalar codecはallocation前に設定済みlimitをcheckし、malformed inputをdeterministically拒否し、semantic validationとは独立してfuzz targetを持ちます。Validated wrapper／resource tableが証明するのは実装済みcheckだけです。Copy可能handleをuntrusted tokenとして扱い、すべてのoperationでgeneration／active-borrow stateを再validateし、instance内でboundary indexを再利用しません。Stale numeric valueの所持からauthorityを導出しません。Preflightはmutation前にowned aliasを拒否し、transfer commit内ではuser codeを実行しません。このprototypeはresourceをserializeせず、native callbackをsandbox化せず、callback workをpreemptせず、heap limitをenforceせず、failureをまたいでdestructorを実行せず、native pluginを安全にしません。Panic／unwind behaviorは最終的なcomponent boundaryで表現・封じ込める必要があります。
+Scalar codecはallocation前に設定済みlimitをcheckし、malformed inputをdeterministically拒否し、semantic validationとは独立してfuzz targetを持ちます。Validated wrapper／resource tableが証明するのは実装済みcheckだけです。Copy可能handleをuntrusted tokenとして扱い、すべてのoperationでgeneration／active-borrow stateを再validateし、instance内でboundary indexを再利用しません。Stale numeric valueの所持からauthorityを導出しません。Preflightはmutation前にowned aliasを拒否し、transfer commit内ではuser codeを実行しません。Panic payload／native exception objectはuntrustedであり、boundaryを越えてverbatimに反映しません。Message exposureはembedder policyです。Poisoningにより、external stateをpartialにした可能性があるdestructor、host-callback、invariant failure後のreentryを防ぎます。このprototypeはresourceをserializeせず、native callbackをsandbox化せず、callback workをpreemptせず、heap limitをenforceせず、cleanup ledgerを実装せず、native pluginを安全にしません。Aborting panic／foreign exceptionはrecoverable in-process contractの範囲外です。
 
 ## 代替案
 
@@ -169,6 +190,10 @@ C-compatibleなscalar callとsymbol nameだけを公開します。Current AOT o
 
 Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗黙に指せます。Rust referenceはlocal borrowをencodeしますが、component dataから再構築された場合やABI callをまたいで保持された場合にtrustできません。Table-checked borrow tokenを持つgeneration tag付きinteger handleはhost addressを公開せず明示的なvalidationを維持します。
 
+### Failure時にownershipをrollbackするかprocessをabortする
+
+Panic後にtransferred ownerをcallerへrollbackする方法は便利に見えますが、callee codeがresourceをmutate、store、moveした後にはunsoundです。すべてのpanicでprocessをabortする方法は単純で、native `panic=abort` では不可避ですが、embedded-script isolation goalに反します。最初のdestructor failureでcleanupを止める方法はsecondary failureを避けますが、後続frame-owned resourceをleakします。本提案はcommit済みownershipを維持し、deterministicなbest-effort cleanupを実行し、suppressed destructor failureを記録してaffected instanceをpoisonします。
+
 ## 実装計画
 
 1. Schema-1 in-memory scalar metadata、明示的capability grant、分離されたimport binding、host-registry resolution、structured validation errorを実装・test済み。
@@ -176,8 +201,9 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 3. Deterministicな実験的schema-1 scalar-metadata encoder／decoderを実装・test済み。Byte／count／depth／string limit、byte-offset diagnostics、malformed fixture、libFuzzer targetを備える。Unsupported schema versionはpayloadより先に拒否し、stable serialization／forward-compatibility policyは未決定のまま残す。
 4. 1つのvalidated contractをVM、JIT、AOT instantiationへ接続し、import／export差分testを追加する。
 5. 最初のcanonical call subsetを提案済み。64-bit `i64`、32-bit `bool`、preflight済みnormal-path ownership transferを持つadapter-table `own<T>`／`borrow<T>` resource indexを規定する。Implementation／cross-mode conformanceは未完了。
-6. Panic／error／destructor containmentとpackage／interface compatibility negotiationを規定する。
-7. Stable boundaryをacceptする前にvalidation、instantiation、adapter conversion、steady-state call overheadをbenchmarkする。
+6. Backend-neutral panic／trap containment、commit後ownershipの非rollback、deterministic cleanup ledger、at-most-once destructor、ordered suppressed failure、conservative instance poisoningを提案済み。Implementation／cross-mode conformanceは未完了。
+7. Package／interface compatibility negotiationとversioned failure-record encodingを規定する。
+8. Stable boundaryをacceptする前にvalidation、instantiation、adapter conversion、cleanup、failure path、code size、steady-state call overheadをbenchmarkする。
 
 ## テスト計画
 
@@ -190,6 +216,7 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 - 同じvalidated contractを使う将来のVM／JIT／AOT差分test。
 - Generation-safe reuse、stale owner／borrow、repeated release／end、shared／exclusive conflict、mutation、deterministic reuse、identifier exhaustionのresource-handle test。
 - Exact scalar lane、boolean normalization、wrong-type／stale／duplicate／borrow-aliased owner拒否、boundary indexの非再利用／exhaustion、ownership不変のreservation failure、atomicかつnon-reentrantなnormal-path owner transfer、call-scoped／nested borrow、borrowed result禁止、VM／JIT／AOT同一結果に関する将来のcanonical-call test。
+- Pre-commit preservation、post-commit非rollback、borrow closure後のreverse-order cleanup、moved-owner ledger update、uncommitted-result cleanup、at-most-once failing destructor、primary／suppressed ordering、reentrancy拒否、reusable／poisoned instance、contained unwind／panic-payload disposal、foreign unwind拒否、VM／JIT／AOT同一結果に関する将来のfailure-boundary test。
 - 将来のcross-mode resource lifecycle／capability-denial conformance test。
 - Validation、instantiation、conversion、repeated callの将来benchmark。
 
@@ -200,8 +227,9 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 - 初期scalar／resource subsetの次にどのrich valueを追加し、どれを後続schemaへ送るべきか。
 - Capability namespace、delegation、attenuation、ambient host policyをどうcomposeするべきか。
 - Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
+- Embedding ABIはどのstable failure-record encoding／message-redaction policyを公開するべきか。
 
-レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer ruleは規定済みですが、このRFCをstable component contractとしてacceptする前に、stable serializationの選定、指定済みadapter-table loweringのimplementation／VM／JIT／AOT conformance、compatibility negotiation、panic／destructor behavior、boundary-cost evidenceがblocking workとして残ります。
+レビュー結果：**needs prototype/measurement**。Bounded scalar-metadata decoding、capability-gated binding、table-local resource lifecycle、normal-path canonical scalar／resource transfer、panic／destructor failure-boundary ruleは規定済みです。このRFCをstable component contractとしてacceptする前に、stable serialization、adapter transfer／cleanupのimplementation／VM／JIT／AOT conformance、compatibility negotiation／failure-record encoding、boundary-cost evidenceがblocking workとして残ります。
 
 ## 情報源
 
@@ -211,6 +239,9 @@ Raw indexはより小さい一方、slot reuse後にold copyが別resourceを暗
 - WebAssembly Component Model「Canonical ABI」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://component-model.bytecodealliance.org/advanced/canonical-abi.html>
 - WebAssembly Component Model `design/mvp/WIT.md`、公式specification source、commit `d6a17ea9f828f44c4659d70c35822ab53d2a8a1d` で2026-09-15最終変更、2026-10-16確認。<https://github.com/WebAssembly/component-model/blob/d6a17ea9f828f44c4659d70c35822ab53d2a8a1d/design/mvp/WIT.md>
 - WebAssembly Component Model `design/mvp/CanonicalABI.md`、公式specification source、commit `2e7895c76905cd3fb7e6be4ac632258972b1f688` で2026-10-13最終変更、2026-10-16確認。<https://github.com/WebAssembly/component-model/blob/2e7895c76905cd3fb7e6be4ac632258972b1f688/design/mvp/CanonicalABI.md>
+- The Rust Reference「Panic」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/reference/panic.html>
+- Rust standard library `std::panic::catch_unwind`、公式living API documentation、page更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
+- The Rustonomicon「FFI and unwinding」、公式living documentation、公開日・更新日の記載なし、2026-10-16確認。<https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
 - `docs/architecture.md`、提案中のembedding／component architecture、最終更新2026-10-16。
 - `docs/roadmap.md`、Milestone 0 component-boundary taskとcurrent evidence、最終更新2026-10-16。
 - `crates/runtime/src/lib.rs`、型付きhost-function registry prototype、最終更新2026-10-16。

@@ -18,6 +18,8 @@ Define a backend-neutral, versioned component contract that describes package id
 
 The executable prototype supports `i64 -> i64` host imports, records `i64` and `bool` scalar function types, provides a bounded experimental schema-1 scalar-metadata codec, and provides a generation-tagged table for owned resources with explicit shared and exclusive borrow tokens. The codec is design evidence, not a stable serialized format or a WebAssembly Interface Types (WIT) implementation.
 
+The proposal additionally defines normal-path scalar/resource transfer plus panic, trap, and destructor-failure behavior. These adapter, cleanup, and failure rules are specified but not yet implemented or accepted as a stable ABI.
+
 ## Motivation
 
 The numeric `HostFunctionId` registry proves typed callbacks but does not express a portable component identity, named imports and exports, compatibility version, or authority requirements. Putting process-local numeric IDs into component metadata would also couple a supposedly portable contract to one embedding instance.
@@ -33,6 +35,7 @@ The component boundary needs a narrow executable model before resource handles, 
 - Preserve successful validation as a distinct type carrying resolved local bindings.
 - Reject stale, repeatedly released, or illegally borrowed resource handles without relying on Rust references crossing the boundary.
 - Specify canonical scalar/resource call representation and normal-path ownership transfer without exposing runtime handle layout.
+- Define backend-neutral panic/trap containment and deterministic, at-most-once destructor-failure behavior after ownership transfer.
 - Return structured, deterministic failures at the trust boundary.
 
 ## Non-goals
@@ -41,7 +44,7 @@ The component boundary needs a narrow executable model before resource handles, 
 - Claiming WIT source or binary compatibility.
 - Defining strings, lists, records, variants, options, results, or asynchronous functions.
 - Serializing live resource handles into package metadata or stabilizing a runtime handle bit layout.
-- Defining panic, unwind, cancellation, or destructor-failure behavior after ownership has crossed a component boundary.
+- Recovering from a process abort, permitting a native unwind or foreign exception to cross the component boundary, or defining asynchronous cancellation.
 - Stabilizing the C embedding ABI, native calling convention, or symbol naming.
 - Executing component exports through the VM, JIT, or AOT paths in this stage.
 - Defining semantic-version compatibility ranges or dependency resolution.
@@ -66,7 +69,7 @@ import inspect: (borrow<timer>) -> i64 requires clock.read
 export adopt: (own<timer>) -> i64
 ```
 
-`inspect` receives a call-scoped loan; `adopt` consumes the caller's owner on a successful transfer commit. This notation is explanatory and does not select the eventual IDL syntax.
+`inspect` receives a call-scoped loan; `adopt` consumes the caller's owner on a successful transfer commit. If `adopt` then panics, the caller does not regain that owner: the callee cleanup ledger destroys it unless callee code already moved it elsewhere. A failing destructor is reported once, remaining cleanup continues, and the affected instance becomes poisoned. This notation is explanatory and does not select the eventual IDL syntax.
 
 The declaration does not contain a `HostFunctionId`. The embedder separately configures:
 
@@ -111,9 +114,9 @@ Every call performs a preflight over the complete argument list before changing 
 1. Lowering an `own<T>` parameter removes exactly one live owner from the caller adapter and inserts a fresh owner under a single transfer commit. The commit uses the reserved destination entry, performs no allocation, invokes no user code, callback, or destructor, and cannot fail. No component-boundary operation can observe an intermediate state. Copies of the caller's old numeric index remain stale permanently because boundary indices are never reused. A borrowed, wrong-type, already moved, actively lent, duplicated, or borrow-aliased owner is rejected before the commit.
 2. Lowering a `borrow<T>` parameter leaves ownership with the caller and creates a token tied to the dynamic call scope. The callee cannot release, transfer, return, or retain that token after the scope. Nested calls may reborrow it only within a child scope, and all such borrows end before the parent scope ends.
 3. Lifting an `own<T>` result performs the symmetric preflight and commit from callee to caller. The callee's numeric index becomes stale only when the destination owner has been installed successfully.
-4. Borrowed results are excluded from the first canonical subset because they would outlive the call scope that proves the loan. Dropping an owned boundary handle consumes that owner exactly once; destructor invocation and failure behavior are specified by the separate panic/destructor task.
+4. Borrowed results are excluded from the first canonical subset because they would outlive the call scope that proves the loan. Dropping an owned boundary handle consumes that owner exactly once; destructor invocation and failure follow the boundary rules below.
 
-A failure before a transfer commit leaves ownership unchanged. The adapter must prevent callback reentrancy while preflight reservations and a transfer commit are active. Panic, trap, cancellation, callback reentrancy after commit, and destructor failure require the later failure-boundary rules and are not inferred here. VM, JIT, and AOT adapters must invoke the same preflight and table operations; a whole-program direct-call specialization is valid only when it proves observational equivalence to those checks.
+A failure before a transfer commit leaves ownership unchanged. The adapter must prevent callback reentrancy while preflight reservations and a transfer commit are active. Panic, trap, callback reentrancy after commit, and destructor failure follow the boundary rules below; asynchronous cancellation remains open. VM, JIT, and AOT adapters must invoke the same preflight and table operations; a whole-program direct-call specialization is valid only when it proves observational equivalence to those checks.
 
 **Open hypothesis.** The per-instance adapter table should make VM/native behavior deterministic and prevent internal handle-layout leakage, but its validation, reservation, monotonically consumed index namespace, table mutation, and callback costs remain measurement questions rather than sourced performance claims.
 
@@ -121,31 +124,49 @@ A failure before a transfer commit leaves ownership unchanged. The adapter must 
 
 Resource operations first validate slot occupancy and generation. Shared-borrow creation rejects an active exclusive borrow. Exclusive-borrow creation rejects any active borrow. Mutable access rejects shared or inactive tokens. Ending a borrow removes exactly that token; a repeated end is stale. Release rejects any active borrow, removes and returns the value exactly once, and makes all copied owners stale. The copyable representation therefore does not imply copyable ownership.
 
+### Boundary panic and destructor failure
+
+**Source facts.** The WebAssembly Component Model Canonical ABI removes a resource handle from its table, rejects active lends, and only then invokes the destructor for an owned handle. Rust supports recoverable unwinding and non-recoverable abort panic strategies. `std::panic::catch_unwind` catches only unwinding Rust panics, not aborting panics, and Rust's FFI rules do not provide a portable way to catch arbitrary foreign exceptions. These are implementation constraints, not the component contract.
+
+**Project decision.** A Rust panic payload, native exception, or backend unwind never crosses the stable component boundary. A declared error result is an ordinary value once result types exist; it is not a boundary panic. The backend-neutral failure model conceptually contains a primary record, zero or more ordered suppressed records, and a reusable-or-poisoned instance state. Each record has a stable category (`panic`, `trap`, or `destructor`), a phase (`call` or `cleanup`), a logical diagnostic identity (`component.boundary.panic`, `component.boundary.trap`, or `component.boundary.destructor-failure`), and an optional policy-sanitized message. Reentry of a poisoned instance uses `component.instance-poisoned`. The numeric encoding and message transport remain versioned ABI work.
+
+Ownership and cleanup follow these rules:
+
+1. Failure before a transfer commit preserves the caller's ownership. Failure after a successful commit never rolls ownership back: the caller index remains stale, because the callee may already have observed, mutated, stored, or moved the resource.
+2. Before user code runs, the adapter creates a cleanup ledger for every transferred owner, temporary owner, and dynamic borrow scope. Publishing a later move updates both ledgers atomically. An owner successfully stored in persistent component state or returned to the caller leaves the current frame's ledger.
+3. On every normal or failed exit, child borrow scopes close from innermost to outermost before owned cleanup begins. Remaining frame-owned resources are destroyed in reverse acquisition order. An owned result that was created but not committed to the caller remains callee-owned and is cleaned up.
+4. Compiler-generated language panic and guest traps lower to an explicit backend-neutral failure path. VM bytecode uses explicit trap/cleanup control flow; JIT and AOT may use internal landing pads or status returns, but no Rust/C++/platform unwind may escape the adapter. `catch_unwind` may contain a known Rust host callback compiled for unwinding, but it is not the semantic mechanism and cannot recover an aborting panic. Disposal of an opaque caught panic payload is itself contained because its destructor may panic. Native callback registration must require foreign exceptions to be caught before adapter entry; callbacks that cannot guarantee containment belong only to the trusted-native tier.
+5. A component panic or ordinary guest trap leaves the instance reusable only after the cleanup ledger is empty, no dynamic borrow remains, and adapter invariants revalidate. An adapter invariant violation, incomplete cleanup, contained host-callback panic, or destructor failure poisons the instance; later entry fails with `instance-poisoned`, while the host process remains alive. A process abort is outside this recoverable contract and remains a trusted-native limitation.
+
+Dropping an owned resource marks its boundary owner consumed and removes it from lookup before invoking user destructor code. The destructor is attempted at most once: panic or trap cannot resurrect the handle or trigger an automatic retry, and external side effects are not rolled back. Cleanup forbids component-boundary reentrancy; an attempted reentry is recorded as a destructor failure. If a destructor fails, cleanup records the failure and continues with the remaining independent ledger entries in the same deterministic order. With no earlier failure, the first destructor failure becomes primary; otherwise the original panic or trap remains primary and destructor failures are appended as suppressed records. Additional destructor failures are also suppressed in cleanup order. Completion then poisons the instance.
+
+**Open hypothesis.** Explicit cleanup ledgers and per-destructor containment should avoid leaks and double destruction while preserving the host process, but their code-size, steady-state, failure-path, and native landing-pad costs require implementation and cross-mode measurement.
+
 ## Execution modes
 
-Contract and resource-table validation are backend-neutral and run before selecting VM, JIT, or AOT execution. Canonical calls use the same preflight, adapter-table transfer, and dynamic-scope borrow rules in every mode. The prototype resolves imports against `HostFunctionRegistry` and exercises resource lifecycles directly in the runtime crate; it does not yet instantiate a VM module, patch JIT call sites, implement the adapter table, lower AOT imports/resources, or call exports. Later execution paths must consume the same validated contract and resource rules rather than independently reinterpreting unchecked metadata.
+Contract and resource-table validation are backend-neutral and run before selecting VM, JIT, or AOT execution. Canonical calls use the same preflight, adapter-table transfer, dynamic-scope borrow, cleanup-ledger order, failure precedence, and instance-poisoning rules in every mode. The prototype resolves imports against `HostFunctionRegistry` and exercises resource lifecycles directly in the runtime crate; it does not yet instantiate a VM module, patch JIT call sites, implement the adapter table or cleanup ledger, lower AOT imports/resources, or call exports. Later execution paths must consume the same validated contract and resource rules rather than independently reinterpreting unchecked metadata.
 
 ## ABI and compatibility
 
 The metadata schema version and package version have separate meanings. The schema version selects the shape and validation rules of the contract. The package version identifies the declared component revision. Schema 1 requires an exact supported schema value and records, but does not interpret, the package version.
 
-`HostFunctionId` is an embedding-local binding and is deliberately excluded from portable metadata. Resource slot, generation, and borrow identifiers are runtime-local validation data, not a portable representation. The proposed unsigned 32-bit canonical resource index is an adapter-table key, not the runtime handle layout and not a serializable identity. The `LCMP` scalar fixture, Rust layout, enum discriminants, in-memory map order, symbol names, and explanatory text syntax in this prototype are all unstable. An accepted revision must still choose the stable serialization, compatibility negotiation, resource-type identity encoding, and failure-boundary rules before the boundary can be called stable.
+`HostFunctionId` is an embedding-local binding and is deliberately excluded from portable metadata. Resource slot, generation, and borrow identifiers are runtime-local validation data, not a portable representation. The proposed unsigned 32-bit canonical resource index is an adapter-table key, not the runtime handle layout and not a serializable identity. Rust panic payloads, native exception objects, and backend unwind metadata are likewise non-portable. The `LCMP` scalar fixture, Rust layout, enum discriminants, in-memory map order, symbol names, and explanatory text syntax in this prototype are all unstable. An accepted revision must still choose the stable serialization, compatibility negotiation, resource-type identity encoding, and versioned failure-record encoding before the boundary can be called stable.
 
 ## Diagnostics and tooling
 
-The codec returns structured errors for byte, declaration-count, nesting-depth, and string-length limits; malformed headers, lengths, UTF-8, and scalar tags; unsupported schemas; and trailing bytes. Every codec error includes a byte offset. Contract validation separately returns structured error variants for invalid identifiers, duplicate names, namespace collisions, unsupported function types, extra or missing bindings, missing capabilities, and unknown host functions. Resource operations distinguish stale owned and borrowed handles, conflicting borrows, release while in use, shared-borrow mutation, table capacity, boundary-index exhaustion, destination-reservation failure, and borrow-identifier exhaustion. Human-readable messages include locations, logical names, or handle identity, while callers can match the variant without parsing text.
+The codec returns structured errors for byte, declaration-count, nesting-depth, and string-length limits; malformed headers, lengths, UTF-8, and scalar tags; unsupported schemas; and trailing bytes. Every codec error includes a byte offset. Contract validation separately returns structured error variants for invalid identifiers, duplicate names, namespace collisions, unsupported function types, extra or missing bindings, missing capabilities, and unknown host functions. Resource operations distinguish stale owned and borrowed handles, conflicting borrows, release while in use, shared-borrow mutation, table capacity, boundary-index exhaustion, destination-reservation failure, and borrow-identifier exhaustion. Boundary failures expose the stable category, phase, diagnostic identity, ordered suppressed failures, and poisoned state without exposing a Rust panic payload or native exception object. Human-readable messages include locations, logical names, or handle identity, while callers can match the variant without parsing text.
 
 Tooling should display portable import names rather than local numeric host IDs except when diagnosing embedding configuration. Mapping post-decode semantic failures back to byte ranges remains future work.
 
 ## Performance and cost model
 
-Contract validation is linear in the number of declarations and bindings on average, using hash sets and ordered maps for duplicate and lookup checks. It allocates owned strings and a resolved-binding map once per successful validation. Resource lookup is constant time by slot; shared-borrow tracking and deterministic free-slot selection use ordered sets and are logarithmic in their respective set sizes. Call-site thunk generation, canonical representation conversion, cross-boundary resource dispatch, and destructor overhead are outside this prototype and remain benchmark requirements before stabilization.
+Contract validation is linear in the number of declarations and bindings on average, using hash sets and ordered maps for duplicate and lookup checks. It allocates owned strings and a resolved-binding map once per successful validation. Resource lookup is constant time by slot; shared-borrow tracking and deterministic free-slot selection use ordered sets and are logarithmic in their respective set sizes. Call-site thunk generation, canonical representation conversion, cross-boundary resource dispatch, cleanup-ledger maintenance, panic-containment barriers, landing pads, and destructor cleanup are outside this prototype and remain benchmark and code-size requirements before stabilization.
 
 ## Security and trust boundaries
 
 Component metadata, capability declarations, and binding configuration are untrusted inputs at their respective boundaries. Validation must complete before execution or linker/JIT patching. Authority comes from embedder-supplied grants, never from a component merely declaring a capability. Capability failure precedes host-registry lookup to avoid exposing host inventory to unauthorized components.
 
-The scalar codec checks its configured bounds before allocation, rejects malformed input deterministically, and is fuzz-targeted independently from semantic validation. The validated wrapper and resource table prove only their implemented checks. Copyable handles are treated as untrusted tokens: generation and active-borrow state are revalidated on every operation, boundary indices are never reused within an instance, and authority is not derived from possession of a stale numeric value. Preflight rejects owned aliases before mutation, and no user code runs inside a transfer commit. The prototype does not serialize resources, sandbox native callbacks, preempt callback work, enforce heap limits, run destructors across failures, or make native plugins safe. Panic or unwind behavior must remain represented and contained at the eventual component boundary.
+The scalar codec checks its configured bounds before allocation, rejects malformed input deterministically, and is fuzz-targeted independently from semantic validation. The validated wrapper and resource table prove only their implemented checks. Copyable handles are treated as untrusted tokens: generation and active-borrow state are revalidated on every operation, boundary indices are never reused within an instance, and authority is not derived from possession of a stale numeric value. Preflight rejects owned aliases before mutation, and no user code runs inside a transfer commit. Panic payloads and native exception objects are untrusted and are never reflected verbatim across the boundary; message exposure is an embedder policy. Poisoning prevents reentry after destructor, host-callback, or invariant failures that may have left external state partial. The prototype does not serialize resources, sandbox native callbacks, preempt callback work, enforce heap limits, implement cleanup ledgers, or make native plugins safe. Aborting panics and foreign exceptions remain outside the recoverable in-process contract.
 
 ## Alternatives
 
@@ -169,6 +190,10 @@ Expose only C-compatible scalar calls and symbol names. This is simpler for curr
 
 A raw index is smaller, but after slot reuse an old copy can silently name a different resource. A Rust reference encodes borrowing locally, but cannot be trusted when reconstructed from component data or retained across an ABI call. Generation-tagged integer handles with table-checked borrow tokens preserve explicit validation without exposing host addresses.
 
+### Roll back ownership or abort on failure
+
+Rolling transferred owners back to the caller after panic appears convenient, but is unsound once callee code may have mutated, stored, or moved the resource. Aborting the process on every panic is simpler and matches an unavoidable native `panic=abort`, but violates the embedded-script isolation goal. Stopping cleanup at the first destructor failure avoids secondary failures but leaks later frame-owned resources. The proposal instead keeps committed ownership, runs deterministic best-effort cleanup, records suppressed destructor failures, and poisons the affected instance.
+
 ## Implementation plan
 
 1. Implemented and tested schema-1 in-memory scalar metadata, explicit capability grants, separate import bindings, host-registry resolution, and structured validation errors.
@@ -176,8 +201,9 @@ A raw index is smaller, but after slot reuse an old copy can silently name a dif
 3. Implemented and tested a deterministic experimental schema-1 scalar-metadata encoder/decoder with byte/count/depth/string limits, byte-offset diagnostics, malformed fixtures, and a libFuzzer target. Unsupported schema versions are rejected before their payload; the stable serialization and forward-compatibility policy remain open.
 4. Connect one validated contract to VM, JIT, and AOT instantiation and add differential import/export tests.
 5. Proposed the first canonical call subset: 64-bit `i64`, 32-bit `bool`, and adapter-table `own<T>`/`borrow<T>` resource indexes with preflighted normal-path ownership transfer. Implementation and cross-mode conformance remain open.
-6. Specify panic/error/destructor containment and package/interface compatibility negotiation.
-7. Benchmark validation, instantiation, adapter conversion, and steady-state call overhead before accepting the stable boundary.
+6. Proposed backend-neutral panic/trap containment, non-rollback ownership after commit, deterministic cleanup ledgers, at-most-once destructors, ordered suppressed failures, and conservative instance poisoning. Implementation and cross-mode conformance remain open.
+7. Specify package/interface compatibility negotiation and the versioned failure-record encoding.
+8. Benchmark validation, instantiation, adapter conversion, cleanup, failure paths, code size, and steady-state call overhead before accepting the stable boundary.
 
 ## Test plan
 
@@ -190,6 +216,7 @@ A raw index is smaller, but after slot reuse an old copy can silently name a dif
 - Future VM/JIT/AOT differential tests using the same validated contract.
 - Resource-handle tests for generation-safe reuse, stale owners/borrows, repeated release/end, shared/exclusive conflicts, mutation, deterministic reuse, and identifier exhaustion.
 - Future canonical-call tests for exact scalar lanes, boolean normalization, wrong-type/stale/duplicate/borrow-aliased owner rejection, non-reusing boundary indices and exhaustion, reservation failure without ownership change, atomic non-reentrant normal-path owner transfer, call-scoped and nested borrows, forbidden borrowed results, and identical VM/JIT/AOT outcomes.
+- Future failure-boundary tests for pre-commit preservation, post-commit non-rollback, reverse-order cleanup after borrow closure, moved-owner ledger updates, uncommitted-result cleanup, at-most-once failing destructors, primary/suppressed ordering, reentrancy rejection, reusable versus poisoned instances, contained unwind and panic-payload disposal, rejected foreign unwind, and identical VM/JIT/AOT outcomes.
 - Future cross-mode resource lifecycle and capability-denial conformance tests.
 - Future benchmarks for validation, instantiation, conversion, and repeated calls.
 
@@ -200,8 +227,9 @@ A raw index is smaller, but after slot reuse an old copy can silently name a dif
 - Which rich values should follow the initial scalar/resource subset, and which require a later schema?
 - How should capability namespaces, delegation, attenuation, and ambient host policy compose?
 - Should validated contracts retain direct function pointers, immutable registry references, or generation-checked registry handles?
+- Which stable failure-record encoding and message-redaction policy should the embedding ABI expose?
 
-Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decoding, capability-gated binding, table-local resource lifecycles, and the normal-path canonical scalar/resource transfer rules are specified, but selection of the stable serialization, implementation and VM/JIT/AOT conformance of the adapter-table lowering, compatibility negotiation, panic/destructor behavior, and boundary-cost evidence remain blocking work before this RFC can be accepted as the stable component contract.
+Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decoding, capability-gated binding, table-local resource lifecycles, normal-path canonical scalar/resource transfer, and panic/destructor failure-boundary rules are specified. Stable serialization, implementation and VM/JIT/AOT conformance of adapter transfer and cleanup, compatibility negotiation and failure-record encoding, and boundary-cost evidence remain blocking work before this RFC can be accepted as the stable component contract.
 
 ## Sources
 
@@ -211,6 +239,9 @@ Review outcome: **needs prototype/measurement**. Bounded scalar-metadata decodin
 - WebAssembly Component Model, “Canonical ABI”, official living documentation; no publication or update date stated; verified 2026-10-16. <https://component-model.bytecodealliance.org/advanced/canonical-abi.html>
 - WebAssembly Component Model, `design/mvp/WIT.md`, official specification source; last changed 2026-09-15 in commit `d6a17ea9f828f44c4659d70c35822ab53d2a8a1d`; verified 2026-10-16. <https://github.com/WebAssembly/component-model/blob/d6a17ea9f828f44c4659d70c35822ab53d2a8a1d/design/mvp/WIT.md>
 - WebAssembly Component Model, `design/mvp/CanonicalABI.md`, official specification source; last changed 2026-10-13 in commit `2e7895c76905cd3fb7e6be4ac632258972b1f688`; verified 2026-10-16. <https://github.com/WebAssembly/component-model/blob/2e7895c76905cd3fb7e6be4ac632258972b1f688/design/mvp/CanonicalABI.md>
+- The Rust Reference, “Panic,” official living documentation; no publication or update date stated; verified 2026-10-16. <https://doc.rust-lang.org/reference/panic.html>
+- Rust standard library, `std::panic::catch_unwind`, official living API documentation; no page update date stated; verified 2026-10-16. <https://doc.rust-lang.org/std/panic/fn.catch_unwind.html>
+- The Rustonomicon, “FFI and unwinding,” official living documentation; no publication or update date stated; verified 2026-10-16. <https://doc.rust-lang.org/nomicon/ffi.html#ffi-and-unwinding>
 - `docs/architecture.md`, proposed embedding and component architecture, last updated 2026-10-16.
 - `docs/roadmap.md`, Milestone 0 component-boundary task and current evidence, last updated 2026-10-16.
 - `crates/runtime/src/lib.rs`, typed host-function registry prototype, last updated 2026-10-16.
