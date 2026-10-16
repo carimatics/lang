@@ -130,13 +130,13 @@ Loweringは各assignmentに新しいSSA valueを作成します。`if` joinま�
 
 `i64` と内部 `bool` はcopy valueです。Language heap storageをallocateせず、destructorもborrowもなく、aliasing／concurrency behaviorを導入しません。このRFCは `unsafe`、FFI、capability、panic、unwinding、cancellation、recoverable-error boundaryを追加しません。
 
-Unbounded loopは停止しない可能性があります。Bytecode VMは別途仕様化されたinstruction-fuel interfaceで停止できますが、native／JIT executionには現在同等のenforcementがありません。Fuel exhaustionはembedding／runtime outcomeであり、source `return` が生成するvalueではありません。
+Unbounded loopは停止しない可能性があります。Bytecode VMは別途仕様化されたinstruction-fuel interfaceまたはcooperative interruption flagで停止できますが、native／JIT executionには現在同等のenforcementがありません。Fuel exhaustionとinterruptionはembedding／runtime outcomeであり、source `return` が生成するvalueではありません。
 
 初期frontendはsource-level constant evaluationを行いません。Constant evaluationを追加する場合は、同じwrapping addition、signed comparison、control-flow semanticsを使用し、deterministicなresource limitを適用しなければなりません。
 
 ## 実行モード
 
-- **Bytecode VM：** Structured control flowは検証済みregister bytecodeへloweringする。すべてのinstruction／terminatorは既存のfuel costを維持し、register countにはoptional value-slot limitを引き続き適用する。
+- **Bytecode VM：** Structured control flowは検証済みregister bytecodeへloweringする。すべてのinstruction／terminatorは既存のfuel costを維持し、register countにはoptional value-slot limitを引き続き適用し、optionalな共有interruption flagをVM safe pointで観測する。
 - **Native AOT：** 同じ検証済みMIRをnative object codeへloweringする。Wrapping additionとsigned comparisonは、すべての `i64` inputについてVMと一致しなければならない。
 - **Optional JIT：** AOTと同じnative lowering contractを使用し、同じdifferential input tableを通過しなければならない。
 - **Embedding：** Argumentとresultは現在の型付き `i64` prototype boundaryを使用する。このRFCはhost callまたはstable ABIを追加しない。
@@ -178,7 +178,7 @@ Lossless parserはcomment、whitespace、delimiter、error tokenを保持しま�
 
 Wrapping additionはすべてのinputにdefined behaviorを持ち、native signed-overflow undefined behaviorを発生させません。Sourceは引き続きuntrustedです。Parser、resolver、type checker、MIR validator、bytecode verifierはpanicせずmalformed structureを拒否しなければなりません。非常に深くnestしたsourceや巨大functionには、public exposure前に明示的なimplementation limitが必要です。
 
-`while` はnon-terminationによるdenial of serviceを可能にします。VMのopt-in fuel／value-slot controlは部分的なcontainmentを提供しますが、heap use、wall-clock time、callback、native／JIT execution、compiler resource exhaustionを扱いません。このRFCはplugin、filesystem、network、process、FFI、host capabilityを拡張しません。
+`while` はnon-terminationによるdenial of serviceを可能にします。VMのopt-in fuel／value-slot／cooperative-interruption controlは部分的なcontainmentを提供しますが、heap use、wall-clock deadline、callback内部のpreemption、native／JIT execution、compiler resource exhaustionを扱いません。このRFCはplugin、filesystem、network、process、FFI、host capabilityを拡張しません。
 
 ## 代替案
 
@@ -215,7 +215,7 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 - Signed comparison、wrapping addition、branch target、back-edge、typed block parameterを証明するMIR snapshot。
 - Zero、negative value、`i64::MIN`、`i64::MAX`、wrapping overflow、両conditional path、bounded loopを含むVM／JIT differential table。
 - Representativeなsource-generated objectについて、macOS AArch64とWindows x86-64のAOT link-and-run coverage。
-- Non-terminating source loopが次のguard対象VM side effect前に停止することを証明するfuel test。
+- Non-terminating source loopが、次のguard対象side effect前の想定VM safe pointで停止することを証明するfuel／interruption test。
 - Formatterのparse／format／parse equivalenceとidempotence test。
 - Untrusted sourceをacceptする前のparser／verifier fuzzingと明示的なsize／depth-limit test。
 
@@ -229,12 +229,12 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 情報源
 
-- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 10:48 JST。
-- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 10:48 JST。
-- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 10:48 JST。
+- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 10:54 JST。
+- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 10:54 JST。
+- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 10:54 JST。
 - `crates/mir/src/lib.rs`、typed CFG／validation prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/bytecode/src/lib.rs`、verified register bytecode prototype、最終更新 2026-10-16 01:25 JST。
-- `crates/vm/src/lib.rs`、VM execution／resource-limit prototype、最終更新 2026-10-16 10:39 JST。
+- `crates/vm/src/lib.rs`、VM execution／resource-control prototype、最終更新 2026-10-16 10:54 JST。
 - `crates/codegen-clif/src/lib.rs`、Cranelift lowering prototype、最終更新 2026-10-16 01:36 JST。
 - `src/lib.rs`、differential prototype workload、最終更新 2026-10-16 10:17 JST。
 

@@ -2,6 +2,7 @@
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use lang_bytecode::{BlockId, BlockTarget, Instruction, Program, Terminator, VerificationError};
 use lang_mir::HostFunctionId;
@@ -76,6 +77,70 @@ impl Default for ExecutionLimits {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct InterruptionFlag {
+    interrupted: AtomicBool,
+}
+
+impl InterruptionFlag {
+    pub const fn new() -> Self {
+        Self {
+            interrupted: AtomicBool::new(false),
+        }
+    }
+
+    pub fn interrupt(&self) {
+        self.interrupted.store(true, Ordering::Release);
+    }
+
+    pub fn is_interrupted(&self) -> bool {
+        self.interrupted.load(Ordering::Acquire)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ExecutionControl<'a> {
+    limits: ExecutionLimits,
+    interruption: Option<&'a InterruptionFlag>,
+}
+
+impl ExecutionControl<'_> {
+    pub const fn unbounded() -> Self {
+        Self {
+            limits: ExecutionLimits::unbounded(),
+            interruption: None,
+        }
+    }
+
+    pub const fn with_limits(limits: ExecutionLimits) -> Self {
+        Self {
+            limits,
+            interruption: None,
+        }
+    }
+
+    pub const fn limits(self) -> ExecutionLimits {
+        self.limits
+    }
+}
+
+impl<'a> ExecutionControl<'a> {
+    pub const fn and_interruption(mut self, interruption: &'a InterruptionFlag) -> Self {
+        self.interruption = Some(interruption);
+        self
+    }
+
+    pub const fn interruption(self) -> Option<&'a InterruptionFlag> {
+        self.interruption
+    }
+}
+
+impl Default for ExecutionControl<'_> {
+    fn default() -> Self {
+        Self::unbounded()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionOutcome {
     value: i64,
@@ -103,7 +168,7 @@ impl ExecutionOutcome {
 }
 
 pub fn execute(program: &Program, arguments: &[i64]) -> Result<i64, VmError> {
-    execute_with_limits(program, arguments, ExecutionLimits::unbounded())
+    execute_with_control(program, arguments, ExecutionControl::unbounded())
         .map(ExecutionOutcome::value)
 }
 
@@ -112,7 +177,15 @@ pub fn execute_with_limits(
     arguments: &[i64],
     limits: ExecutionLimits,
 ) -> Result<ExecutionOutcome, VmError> {
-    execute_with_hosts_and_limits(program, arguments, &HostFunctionRegistry::new(), limits)
+    execute_with_control(program, arguments, ExecutionControl::with_limits(limits))
+}
+
+pub fn execute_with_control(
+    program: &Program,
+    arguments: &[i64],
+    control: ExecutionControl<'_>,
+) -> Result<ExecutionOutcome, VmError> {
+    execute_with_hosts_and_control(program, arguments, &HostFunctionRegistry::new(), control)
 }
 
 pub fn execute_with_hosts(
@@ -120,11 +193,11 @@ pub fn execute_with_hosts(
     arguments: &[i64],
     host_functions: &HostFunctionRegistry,
 ) -> Result<i64, VmError> {
-    execute_with_hosts_and_limits(
+    execute_with_hosts_and_control(
         program,
         arguments,
         host_functions,
-        ExecutionLimits::unbounded(),
+        ExecutionControl::unbounded(),
     )
     .map(ExecutionOutcome::value)
 }
@@ -135,6 +208,20 @@ pub fn execute_with_hosts_and_limits(
     host_functions: &HostFunctionRegistry,
     limits: ExecutionLimits,
 ) -> Result<ExecutionOutcome, VmError> {
+    execute_with_hosts_and_control(
+        program,
+        arguments,
+        host_functions,
+        ExecutionControl::with_limits(limits),
+    )
+}
+
+pub fn execute_with_hosts_and_control(
+    program: &Program,
+    arguments: &[i64],
+    host_functions: &HostFunctionRegistry,
+    control: ExecutionControl<'_>,
+) -> Result<ExecutionOutcome, VmError> {
     program.verify().map_err(VmError::InvalidBytecode)?;
 
     if arguments.len() != program.parameter_count() {
@@ -144,7 +231,7 @@ pub fn execute_with_hosts_and_limits(
         });
     }
 
-    if let Some(limit) = limits.value_slot_limit()
+    if let Some(limit) = control.limits().value_slot_limit()
         && program.register_count() > limit
     {
         return Err(VmError::ValueSlotLimitExceeded {
@@ -153,9 +240,10 @@ pub fn execute_with_hosts_and_limits(
         });
     }
 
+    let mut meter = ExecutionMeter::new(control);
+    meter.check_interruption()?;
     let mut registers = vec![0; program.register_count()];
     registers[..arguments.len()].copy_from_slice(arguments);
-    let mut meter = ExecutionMeter::new(limits);
 
     let mut current_block = BlockId::ENTRY;
     loop {
@@ -236,24 +324,40 @@ fn transfer(target: &BlockTarget, program: &Program, registers: &mut [i64]) -> B
     target.block()
 }
 
-struct ExecutionMeter {
+struct ExecutionMeter<'a> {
+    interruption: Option<&'a InterruptionFlag>,
     instruction_fuel_limit: Option<u64>,
     instruction_fuel_consumed: u64,
     host_call_limit: Option<u64>,
     host_calls_consumed: u64,
 }
 
-impl ExecutionMeter {
-    const fn new(limits: ExecutionLimits) -> Self {
+impl<'a> ExecutionMeter<'a> {
+    const fn new(control: ExecutionControl<'a>) -> Self {
         Self {
-            instruction_fuel_limit: limits.instruction_fuel(),
+            interruption: control.interruption(),
+            instruction_fuel_limit: control.limits().instruction_fuel(),
             instruction_fuel_consumed: 0,
-            host_call_limit: limits.host_call_budget(),
+            host_call_limit: control.limits().host_call_budget(),
             host_calls_consumed: 0,
         }
     }
 
+    fn check_interruption(&self) -> Result<(), VmError> {
+        if self
+            .interruption
+            .is_some_and(InterruptionFlag::is_interrupted)
+        {
+            return Err(VmError::Interrupted {
+                instruction_fuel_consumed: self.instruction_fuel_consumed,
+                host_calls_consumed: self.host_calls_consumed,
+            });
+        }
+        Ok(())
+    }
+
     fn consume_instruction(&mut self) -> Result<(), VmError> {
+        self.check_interruption()?;
         if self
             .instruction_fuel_limit
             .is_some_and(|limit| self.instruction_fuel_consumed >= limit)
@@ -270,6 +374,7 @@ impl ExecutionMeter {
     }
 
     fn consume_host_call(&mut self) -> Result<(), VmError> {
+        self.check_interruption()?;
         if self
             .host_call_limit
             .is_some_and(|limit| self.host_calls_consumed >= limit)
@@ -289,11 +394,27 @@ impl ExecutionMeter {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VmError {
     InvalidBytecode(VerificationError),
-    Arity { expected: usize, actual: usize },
+    Arity {
+        expected: usize,
+        actual: usize,
+    },
     UnknownHostFunction(HostFunctionId),
-    InstructionFuelExhausted { limit: u64, consumed: u64 },
-    HostCallBudgetExhausted { limit: u64, consumed: u64 },
-    ValueSlotLimitExceeded { limit: usize, required: usize },
+    InstructionFuelExhausted {
+        limit: u64,
+        consumed: u64,
+    },
+    HostCallBudgetExhausted {
+        limit: u64,
+        consumed: u64,
+    },
+    ValueSlotLimitExceeded {
+        limit: usize,
+        required: usize,
+    },
+    Interrupted {
+        instruction_fuel_consumed: u64,
+        host_calls_consumed: u64,
+    },
 }
 
 impl Display for VmError {
@@ -321,6 +442,13 @@ impl Display for VmError {
                 formatter,
                 "value-slot limit of {limit} is below the required {required} slots"
             ),
+            Self::Interrupted {
+                instruction_fuel_consumed,
+                host_calls_consumed,
+            } => write!(
+                formatter,
+                "execution interrupted after consuming {instruction_fuel_consumed} instruction-fuel units and {host_calls_consumed} host calls"
+            ),
         }
     }
 }
@@ -336,8 +464,9 @@ mod tests {
     use lang_runtime::HostFunctionRegistry;
 
     use super::{
-        ExecutionLimits, ExecutionOutcome, VmError, execute, execute_with_hosts,
-        execute_with_hosts_and_limits, execute_with_limits,
+        ExecutionControl, ExecutionLimits, ExecutionOutcome, InterruptionFlag, VmError, execute,
+        execute_with_hosts, execute_with_hosts_and_control, execute_with_hosts_and_limits,
+        execute_with_limits,
     };
     use lang_bytecode::Terminator;
 
@@ -353,6 +482,15 @@ mod tests {
 
     extern "C" fn counted_double(value: i64) -> i64 {
         COUNTED_HOST_CALLS.fetch_add(1, Ordering::SeqCst);
+        value.wrapping_mul(2)
+    }
+
+    static INTERRUPTING_HOST_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static CALLBACK_INTERRUPT: InterruptionFlag = InterruptionFlag::new();
+
+    extern "C" fn interrupting_double(value: i64) -> i64 {
+        INTERRUPTING_HOST_CALLS.fetch_add(1, Ordering::SeqCst);
+        CALLBACK_INTERRUPT.interrupt();
         value.wrapping_mul(2)
     }
 
@@ -658,5 +796,71 @@ mod tests {
             })
         );
         assert_eq!(COUNTED_HOST_CALLS.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn observes_interruption_at_vm_safe_points() {
+        let function = HostFunctionId::new(5);
+        let program = Program::new(
+            0,
+            2,
+            vec![
+                Instruction::I64Constant {
+                    destination: 0,
+                    value: 21,
+                },
+                Instruction::CallHostI64 {
+                    destination: 1,
+                    function,
+                    argument: 0,
+                },
+            ],
+            1,
+        )
+        .unwrap();
+        let mut hosts = HostFunctionRegistry::new();
+        hosts.register_i64(function, interrupting_double).unwrap();
+        INTERRUPTING_HOST_CALLS.store(0, Ordering::SeqCst);
+
+        let interrupted_before_execution = InterruptionFlag::new();
+        interrupted_before_execution.interrupt();
+        assert_eq!(
+            execute_with_hosts_and_control(
+                &program,
+                &[],
+                &hosts,
+                ExecutionControl::with_limits(
+                    ExecutionLimits::with_instruction_fuel(3)
+                        .and_host_call_budget(1)
+                        .and_value_slot_limit(2),
+                )
+                .and_interruption(&interrupted_before_execution),
+            ),
+            Err(VmError::Interrupted {
+                instruction_fuel_consumed: 0,
+                host_calls_consumed: 0,
+            })
+        );
+        assert_eq!(INTERRUPTING_HOST_CALLS.load(Ordering::SeqCst), 0);
+
+        assert!(!CALLBACK_INTERRUPT.is_interrupted());
+        assert_eq!(
+            execute_with_hosts_and_control(
+                &program,
+                &[],
+                &hosts,
+                ExecutionControl::with_limits(
+                    ExecutionLimits::with_instruction_fuel(3)
+                        .and_host_call_budget(1)
+                        .and_value_slot_limit(2),
+                )
+                .and_interruption(&CALLBACK_INTERRUPT),
+            ),
+            Err(VmError::Interrupted {
+                instruction_fuel_consumed: 2,
+                host_calls_consumed: 1,
+            })
+        );
+        assert_eq!(INTERRUPTING_HOST_CALLS.load(Ordering::SeqCst), 1);
     }
 }

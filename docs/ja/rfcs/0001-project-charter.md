@@ -106,7 +106,7 @@ RFCは以下の状態を使用します。
 - 埋め込みhost callとcallbackは、最終的に型なしraw pointerではなく、型付き登録と生成adapterを利用する。
 - WebAssembly/component実行は将来のsandbox tierであり、最初のプロトタイプには必須でない。
 
-現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。VMは合成可能なopt-in instruction-fuel／host-call budgetとvalue-slot limitも試作します。各instruction／terminatorと実行に入るcallbackは、それぞれのcounterで1 unitを消費し、各動的limitは対応するside effectの前に確認します。Validationとarity checkの後、検証済みregister countをregister-file allocation前に確認します。成功したlimit付きexecutionは両方のcountと静的slot footprintを報告します。既存convenience APIはunboundedのままで、native／JIT executionに同等のenforcementはありません。Slotはbyte単位のheap chargeではなくVM register entryであり、host callbackのallocationはlimit外です。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、heap／recursion／task／wall-clock limit、interruption、serialized interfaceは未指定かつ未実装のままです。
+現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。VMは合成可能なopt-in instruction-fuel／host-call budget、value-slot limit、共有one-way interruption flagも試作します。各instruction／terminatorと実行に入るcallbackは、それぞれのcounterで1 unitを消費し、各動的limitは対応するside effectの前に確認します。Validationとarity checkの後、検証済みregister countをregister-file allocation前に確認します。すでにsetされたinterruptionはそのallocation前に停止し、以降のrequestはinstruction、terminator、pre-callback safe pointで観測して、structured errorに両方の消費counterを含めます。Callback-triggered interruptionはcooperativeであり、そのcallback完了後にのみ観測します。成功したlimit付きexecutionは両方のcountと静的slot footprintを報告します。既存convenience APIはunboundedかつnon-interruptibleのままで、native／JIT executionに同等のenforcementはありません。Slotはbyte単位のheap chargeではなくVM register entryであり、host callbackのallocationはlimit外です。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、heap／recursion／task／wall-clock limit、callbackのpreemptive interruption、serialized interfaceは未指定かつ未実装のままです。
 
 実行モード間に意図的な差を設ける場合、RFC、必要に応じた診断、その境界を示すテストが必要です。
 
@@ -151,7 +151,7 @@ benchmarkにはtoolchain version、commit identifier、hardware、OS、command l
 ソーステキスト、package metadata、bytecode、component description、debug data、plugin inputは、明示的に信頼が確立されない限りuntrustedです。
 
 - MIRとbytecodeは、実行またはnative loweringの前に検証する。
-- VMはbytecodeを検証し、side effect前にprototype instruction-fuel／host-call budgetを強制し、allocation前にregister-slot capを強制できる。より広いboundsとresource limitは段階的作業として残る。
+- VMはbytecodeを検証し、side effect前にprototype instruction-fuel／host-call budget、allocation前にregister-slot cap、明示的safe pointでcooperative interruptionを強制できる。より広いboundsとresource limitは段階的作業として残る。
 - native pluginはtrusted codeであり、明示的なopt-inを要求する。
 - untrusted pluginはcapability制限付きscriptまたはWebAssembly tierを使用する。
 - 承認済み表現がない限り、panicとunwindingはFFIまたはcomponent boundaryを越えない。
@@ -206,7 +206,7 @@ Shared-service prototypeは、defaultの `OwnerIsolated` mutation policyと、�
 
 Host-allocation boundary prototypeは、2つ目の型付き `i64` host functionを通して1回のallocate／read／free round tripを実行します。VM／JIT差分testはRustの `Box` callbackをregisterし、macOS AArch64 direct／response-file AOT integrationと構成済みWindows MSVC pathは、別のC `malloc`／`free` importを提供します。Schema 8はAOT process-startup setを変更せず、Rust callbackのdirect Rust／VM／JIT latency rowを追加します。CleanなmacOS AArch64 resultはそれぞれ12.038 ns、185.759 ns、13.662 nsのmedianを記録しました。これは既存execution boundaryを越えて戻り値が等価になることを示し、限定的なboundary-cost measurementを可能にしますが、source-languageのallocation／ownership semanticsではありません。Allocator／collector policy、failure／resource-limit behavior、peak-memory accounting、代表的なworkload、remote Windows evidenceは未完了です。RFCはproposedのままであり、review outcomeは引き続き **needs prototype/measurement** です。
 
-VM limit prototypeは、optionalなhost-call budgetとvalue-slot limitをinstruction fuelと合成します。実行直前の各callbackは、そのbytecode instructionがfuelを消費した後に1 host-call unitを消費します。どちらかのcounterを使い切ると、そのcounterがguardするside effectの前にstructured errorを返します。検証済みregister countは、register fileを割り当てる前にvalue-slot limitと比較します。成功したlimit付きexecutionは両方の動的countと静的slot footprintを報告します。Zero host-call budgetでcallback stateが変化しないことと、過小なslot limitでcallback side effect前にexecutionを拒否することをtestします。Callback内部の処理はopaqueな1 unitであり、slotはbyte数を測定せずheapを扱いません。Heap memory、recursion、task、wall-clock time、interruption、native／JIT enforcementは未完了です。これはaccepted sandbox semanticsを定義せずに、blockingなresource-control questionをさらに狭めるものです。Review outcomeは引き続き **needs prototype/measurement** です。
+VM resource-control prototypeは、optionalなhost-call budget、value-slot limit、共有one-way interruption flagをinstruction fuelと合成します。実行直前の各callbackは、そのbytecode instructionがfuelを消費した後に1 host-call unitを消費します。どちらかのcounterを使い切ると、そのcounterがguardするside effectの前にstructured errorを返します。検証済みregister countは、register fileを割り当てる前にvalue-slot limitと比較します。すでにsetされたinterruptionはallocation前に停止し、以降のrequestはinstruction、terminator、pre-callback safe pointで観測して、structured errorに両方の動的countを含めます。Callback-triggered requestは意図的にそのcallback完了後に観測します。成功したlimit付きexecutionは両方の動的countと静的slot footprintを報告します。Testはzero host-call budget、過小なslot limit、pre-execution interruption、callback-triggered interruptionを扱います。Callback内部の処理はopaqueな1 unitであり、slotはbyte数を測定せずheapを扱いません。Heap memory、recursion、task、wall-clock deadline、callback内部のpreemption、native／JIT enforcementは未完了です。これはaccepted sandbox semanticsを定義せずに、blockingなresource-control questionをさらに狭めるものです。Review outcomeは引き続き **needs prototype/measurement** です。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -234,15 +234,15 @@ VM limit prototypeは、optionalなhost-call budgetとvalue-slot limitをinstruc
 - 最初の公開pre-1.0 releaseで、どの互換性保証を開始するか。
 - Windows AArch64を最初のnative backend milestoneの前と後のどちらでTier 1に加えるか。
 - canonical ABI実験の出発点として、どのcomponent modelを利用するか。
-- Byte単位のheap、recursion、task、wall-clock budget、interruptionをprototype instruction-fuel／host-call-budget／value-slot-limit interfaceとどう合成するか。
+- Byte単位のheap、recursion、task、wall-clock budgetをprototype instruction-fuel／host-call-budget／value-slot-limit／cooperative-interruption interfaceとどう合成するか。
 - Craneliftをprototype backendにとどめずinitial backendとして選定するために、どの測定をblockingとするか。
 
-レビュー結果：**needs prototype/measurement**。blocking questionはcomponent boundary、deterministicなVM instruction／host-call counterとregister-slot capを超えるresource control、cross-platform／backend measurementです。命名とWindows AArch64の時期は、このRFCに対する任意のfollow-upです。
+レビュー結果：**needs prototype/measurement**。blocking questionはcomponent boundary、deterministicなVM instruction／host-call counter、register-slot cap、cooperative interruptionを超えるresource control、cross-platform／backend measurementです。命名とWindows AArch64の時期は、このRFCに対する任意のfollow-upです。
 
 ## 情報源
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 10:48 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 10:48 JST。
+- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 10:54 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 10:54 JST。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/
