@@ -106,7 +106,7 @@ RFCは以下の状態を使用します。
 - 埋め込みhost callとcallbackは、最終的に型なしraw pointerではなく、型付き登録と生成adapterを利用する。
 - WebAssembly/component実行は将来のsandbox tierであり、最初のプロトタイプには必須でない。
 
-現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。VMはopt-in instruction fuelも試作します。各instructionとterminatorが1 unitを消費し、callbackはfuel消費後にだけ実行します。既存APIはunboundedのままで、native／JIT executionに同等のenforcementはありません。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、より広いresource limit、serialized interfaceは未指定かつ未実装のままです。
+現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。VMは合成可能なopt-in instruction-fuel／host-call budgetも試作します。各instruction／terminatorと実行に入るcallbackは、それぞれのcounterで1 unitを消費し、各limitは対応するside effectの前に確認します。成功したlimit付きexecutionは両方のcountを報告します。既存convenience APIはunboundedのままで、native／JIT executionに同等のenforcementはありません。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、memory／recursion／task／wall-clock limit、interruption、serialized interfaceは未指定かつ未実装のままです。
 
 実行モード間に意図的な差を設ける場合、RFC、必要に応じた診断、その境界を示すテストが必要です。
 
@@ -151,7 +151,7 @@ benchmarkにはtoolchain version、commit identifier、hardware、OS、command l
 ソーステキスト、package metadata、bytecode、component description、debug data、plugin inputは、明示的に信頼が確立されない限りuntrustedです。
 
 - MIRとbytecodeは、実行またはnative loweringの前に検証する。
-- VMはbytecodeを検証し、prototype instruction-fuel limitを強制できる。より広いboundsとresource limitは段階的作業として残る。
+- VMはbytecodeを検証し、side effect前にprototype instruction-fuel／host-call budgetを強制できる。より広いboundsとresource limitは段階的作業として残る。
 - native pluginはtrusted codeであり、明示的なopt-inを要求する。
 - untrusted pluginはcapability制限付きscriptまたはWebAssembly tierを使用する。
 - 承認済み表現がない限り、panicとunwindingはFFIまたはcomponent boundaryを越えない。
@@ -206,6 +206,8 @@ Shared-service prototypeは、defaultの `OwnerIsolated` mutation policyと、�
 
 Host-allocation boundary prototypeは、2つ目の型付き `i64` host functionを通して1回のallocate／read／free round tripを実行します。VM／JIT差分testはRustの `Box` callbackをregisterし、macOS AArch64 direct／response-file AOT integrationと構成済みWindows MSVC pathは、別のC `malloc`／`free` importを提供します。Schema 8はAOT process-startup setを変更せず、Rust callbackのdirect Rust／VM／JIT latency rowを追加します。CleanなmacOS AArch64 resultはそれぞれ12.038 ns、185.759 ns、13.662 nsのmedianを記録しました。これは既存execution boundaryを越えて戻り値が等価になることを示し、限定的なboundary-cost measurementを可能にしますが、source-languageのallocation／ownership semanticsではありません。Allocator／collector policy、failure／resource-limit behavior、peak-memory accounting、代表的なworkload、remote Windows evidenceは未完了です。RFCはproposedのままであり、review outcomeは引き続き **needs prototype/measurement** です。
 
+VM limit prototypeは、optionalなhost-call budgetとinstruction fuelを合成します。実行直前の各callbackは、そのbytecode instructionがfuelを消費した後に1 host-call unitを消費します。どちらかのcounterを使い切ると、そのcounterがguardするside effectの前にstructured errorを返します。成功したlimit付きexecutionはinstruction／host-call usageの両方を報告し、zero host-call budgetでcallback stateが変化しないことをtestします。Callback内部の処理はopaqueな1 unitであり、memory、recursion、task、wall-clock、interruption、native／JIT enforcementは未完了です。これはaccepted sandbox semanticsを定義せずに、blockingなresource-control questionを1つ狭めるものです。Review outcomeは引き続き **needs prototype/measurement** です。
+
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
 3. 型付きhost-function registrationとscript-to-host callbackを追加し、embedded runtimeからcompiled functionを呼び出す。
@@ -232,10 +234,10 @@ Host-allocation boundary prototypeは、2つ目の型付き `i64` host function�
 - 最初の公開pre-1.0 releaseで、どの互換性保証を開始するか。
 - Windows AArch64を最初のnative backend milestoneの前と後のどちらでTier 1に加えるか。
 - canonical ABI実験の出発点として、どのcomponent modelを利用するか。
-- Memory、recursion、task、wall-clock budget、interruptionをprototype instruction-fuel interfaceとどう合成するか。
+- Memory、recursion、task、wall-clock budget、interruptionをprototype instruction-fuel／host-call-budget interfaceとどう合成するか。
 - Craneliftをprototype backendにとどめずinitial backendとして選定するために、どの測定をblockingとするか。
 
-レビュー結果：**needs prototype/measurement**。blocking questionはcomponent boundary、VM instruction fuelを超えるresource control、cross-platform／backend measurementです。命名とWindows AArch64の時期は、このRFCに対する任意のfollow-upです。
+レビュー結果：**needs prototype/measurement**。blocking questionはcomponent boundary、deterministicなVM instruction／host-call counterを超えるresource control、cross-platform／backend measurementです。命名とWindows AArch64の時期は、このRFCに対する任意のfollow-upです。
 
 ## 情報源
 

@@ -106,7 +106,7 @@ The initial execution model has one semantic input and multiple lowerings:
 - Embedded host calls and callbacks must eventually use typed registration and generated adapters rather than untyped raw pointers.
 - WebAssembly/component execution remains a future sandbox tier and is not required by the first prototype.
 
-The current embedding experiment assigns each host function a backend-neutral MIR identifier and resolves a typed `extern "C" fn(i64) -> i64` from a per-runtime registry. The VM dispatches through that registry, while Cranelift imports the same registered function into the JIT module. The VM also prototypes opt-in instruction fuel: each instruction and terminator costs one unit, and callbacks run only after fuel is consumed. Existing APIs remain unbounded, and native/JIT execution has no equivalent enforcement. This is test scaffolding rather than a stable ABI: aggregate values, error transport, panic containment, capabilities, broader resource limits, and serialized interfaces remain unspecified and unimplemented.
+The current embedding experiment assigns each host function a backend-neutral MIR identifier and resolves a typed `extern "C" fn(i64) -> i64` from a per-runtime registry. The VM dispatches through that registry, while Cranelift imports the same registered function into the JIT module. The VM also prototypes composable opt-in instruction-fuel and host-call budgets: each instruction/terminator and entered callback costs one unit in its respective counter, and each limit is checked before the corresponding side effect. Successful limited execution reports both counts. Existing convenience APIs remain unbounded, and native/JIT execution has no equivalent enforcement. This is test scaffolding rather than a stable ABI: aggregate values, error transport, panic containment, capabilities, memory/recursion/task/wall-clock limits, interruption, and serialized interfaces remain unspecified and unimplemented.
 
 Any intentional difference between execution modes requires an RFC, a diagnostic where relevant, and tests that demonstrate the boundary.
 
@@ -151,7 +151,7 @@ Benchmarks record toolchain versions, commit identifiers, hardware, operating sy
 Source text, package metadata, bytecode, component descriptions, debug data, and plugin inputs are untrusted unless explicitly established otherwise.
 
 - MIR and bytecode are validated before execution or native lowering.
-- The VM validates bytecode and can enforce the prototype instruction-fuel limit; broader bounds and resource limits remain incremental work.
+- The VM validates bytecode and can enforce prototype instruction-fuel and host-call budgets before side effects; broader bounds and resource limits remain incremental work.
 - Native plugins are trusted code and require an explicit opt-in.
 - Untrusted plugins use capability-restricted script or WebAssembly tiers.
 - Panic and unwinding do not cross FFI or component boundaries without an accepted representation.
@@ -206,6 +206,8 @@ The shared-service prototype now compares the default `OwnerIsolated` mutation p
 
 The host-allocation boundary prototype now routes one allocate/read/free round trip through a second typed `i64` host function. VM and JIT differential tests register a Rust `Box` callback; the macOS AArch64 direct/response-file AOT integration and configured Windows MSVC path provide a distinct C `malloc`/`free` import. Schema 8 adds direct Rust, VM, and JIT latency rows for the Rust callback without changing the AOT process-startup set. A clean macOS AArch64 result records medians of 12.038 ns, 185.759 ns, and 13.662 ns respectively. This demonstrates equivalent return values and permits narrow boundary-cost measurement, not source-language allocation or ownership semantics. Allocator and collector policy, failure and resource-limit behavior, peak-memory accounting, representative workloads, and remote Windows evidence remain open; the RFC stays proposed and the review outcome remains **needs prototype/measurement**.
 
+The VM limit prototype now composes an optional host-call budget with instruction fuel. Each callback that is about to run consumes one host-call unit after its bytecode instruction consumes fuel; exhausting either counter returns a structured error before that counter's guarded side effect. Successful limited execution reports both instruction and host-call usage, and zero host-call budget is tested to leave callback state unchanged. Callback-internal work is one opaque unit, and memory, recursion, task, wall-clock, interruption, and native/JIT enforcement remain open. This narrows one blocking resource-control question without defining accepted sandbox semantics; the review outcome remains **needs prototype/measurement**.
+
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
 3. Add typed host-function registration and a script-to-host callback; then call a compiled function from the embedded runtime.
@@ -232,10 +234,10 @@ The host-allocation boundary prototype now routes one allocate/read/free round t
 - Which exact compatibility guarantees begin at the first public pre-1.0 release?
 - Should Windows AArch64 join Tier 1 before or after the first native backend milestone?
 - Which component model provides the starting point for canonical ABI experiments?
-- How should memory, recursion, task, and wall-clock budgets and interruption compose with the prototype instruction-fuel interface?
+- How should memory, recursion, task, and wall-clock budgets and interruption compose with the prototype instruction-fuel and host-call-budget interface?
 - Which measurements are blocking for selecting Cranelift as the initial backend rather than only a prototype backend?
 
-Review outcome: **needs prototype/measurement**. The blocking questions are the component boundary, resource controls beyond VM instruction fuel, and cross-platform/backend measurements. Naming and Windows AArch64 timing are optional follow-ups for this RFC.
+Review outcome: **needs prototype/measurement**. The blocking questions are the component boundary, resource controls beyond deterministic VM instruction/host-call counters, and cross-platform/backend measurements. Naming and Windows AArch64 timing are optional follow-ups for this RFC.
 
 ## Sources
 

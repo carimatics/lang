@@ -36,6 +36,8 @@ Shared-service実験は、defaultの `OwnerIsolated` mutation policyと、明示
 
 Host-allocation boundary実験は、2つ目の型付き `i64` callbackの背後で1回のallocate／read／free round tripを実行します。VM／JIT差分testはRustの `Box` callbackを使用し、macOS AArch64 direct／response-file AOT integrationと構成済みWindows MSVC pathは、別objectがimportするCの `malloc`／`free` callbackを使用します。Schema 8はAOT link／startup setを変更せず、Rust callbackのdirect Rust／VM／JIT runtime rowを追加し、Windows CIは3つの新rowを検証します。CleanなmacOS AArch64 baselineは全39 rowと、direct 12.038 ns、VM 185.759 ns、JIT 13.662 nsのallocation medianを記録しました。Source allocation semantics、ownership、allocator／collector policy、memory limit、peak memory、代表的なworkload、remote Windows evidence、cross-platform costは未完了です。
 
+VM resource-limit prototypeは、optionalなinstruction-fuel／host-call budgetを合成できるようになりました。Instruction／terminatorと実行に入るcallbackはそれぞれのcounterを消費し、対応するside effectの前にlimitを確認し、成功したlimit付きexecutionは両方のcountを報告します。Zero host-call budgetはstructured errorでcallbackを抑止し、既存convenience APIはunboundedのままです。Memory、recursion、task、wall-clock time、interruption、callback内部の処理、native／JIT enforcementは未完了です。
+
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。
 - Cyclic graph、async borrow／cancellation、shared mutable serviceという3つのmemory-model stress caseをprototypeする。

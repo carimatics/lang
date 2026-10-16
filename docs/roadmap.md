@@ -36,6 +36,8 @@ The shared-service experiment now compares the default `OwnerIsolated` mutation 
 
 The host-allocation boundary experiment now performs one allocate/read/free round trip behind a second typed `i64` callback. VM and JIT differential tests use a Rust `Box` callback, while macOS AArch64 direct/response-file AOT integration and the configured Windows MSVC path use a C `malloc`/`free` callback imported by a distinct object. Schema 8 adds direct Rust, VM, and JIT runtime rows for the Rust callback without changing the AOT link/startup set; Windows CI validates the three new rows. A clean macOS AArch64 baseline records all 39 rows and allocation medians of 12.038 ns direct, 185.759 ns through the VM, and 13.662 ns through JIT. Source allocation semantics, ownership, allocator/collector policy, memory limits, peak memory, representative workloads, remote Windows evidence, and cross-platform cost remain open.
 
+The VM resource-limit prototype now composes optional instruction-fuel and host-call budgets. Instructions/terminators and entered callbacks consume their respective counters, checks happen before the corresponding side effect, and successful limited execution reports both counts. A zero host-call budget suppresses the callback with a structured error; existing convenience APIs remain unbounded. Memory, recursion, tasks, wall-clock time, interruption, callback-internal work, and native/JIT enforcement remain open.
+
 - Accept goals, non-goals, and terminology.
 - Establish the RFC process and compatibility labels.
 - Prototype three memory-model stress cases: cyclic graphs, async borrows/cancellation, and shared mutable services.

@@ -10,23 +10,42 @@ use lang_runtime::HostFunctionRegistry;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionLimits {
     instruction_fuel: Option<u64>,
+    host_call_budget: Option<u64>,
 }
 
 impl ExecutionLimits {
     pub const fn unbounded() -> Self {
         Self {
             instruction_fuel: None,
+            host_call_budget: None,
         }
     }
 
     pub const fn with_instruction_fuel(instruction_fuel: u64) -> Self {
         Self {
             instruction_fuel: Some(instruction_fuel),
+            host_call_budget: None,
         }
+    }
+
+    pub const fn with_host_call_budget(host_call_budget: u64) -> Self {
+        Self {
+            instruction_fuel: None,
+            host_call_budget: Some(host_call_budget),
+        }
+    }
+
+    pub const fn and_host_call_budget(mut self, host_call_budget: u64) -> Self {
+        self.host_call_budget = Some(host_call_budget);
+        self
     }
 
     pub const fn instruction_fuel(self) -> Option<u64> {
         self.instruction_fuel
+    }
+
+    pub const fn host_call_budget(self) -> Option<u64> {
+        self.host_call_budget
     }
 }
 
@@ -40,6 +59,7 @@ impl Default for ExecutionLimits {
 pub struct ExecutionOutcome {
     value: i64,
     instruction_fuel_consumed: u64,
+    host_calls_consumed: u64,
 }
 
 impl ExecutionOutcome {
@@ -49,6 +69,10 @@ impl ExecutionOutcome {
 
     pub const fn instruction_fuel_consumed(self) -> u64 {
         self.instruction_fuel_consumed
+    }
+
+    pub const fn host_calls_consumed(self) -> u64 {
+        self.host_calls_consumed
     }
 }
 
@@ -96,13 +120,13 @@ pub fn execute_with_hosts_and_limits(
 
     let mut registers = vec![0; program.register_count()];
     registers[..arguments.len()].copy_from_slice(arguments);
-    let mut fuel = FuelMeter::new(limits);
+    let mut meter = ExecutionMeter::new(limits);
 
     let mut current_block = BlockId::ENTRY;
     loop {
         let block = &program.blocks()[current_block.index()];
         for instruction in block.instructions() {
-            fuel.consume()?;
+            meter.consume_instruction()?;
             match *instruction {
                 Instruction::I64Constant { destination, value } => {
                     registers[destination] = value;
@@ -129,17 +153,19 @@ pub fn execute_with_hosts_and_limits(
                     let callback = host_functions
                         .resolve_i64(function)
                         .ok_or(VmError::UnknownHostFunction(function))?;
+                    meter.consume_host_call()?;
                     registers[destination] = callback(registers[argument]);
                 }
             }
         }
 
-        fuel.consume()?;
+        meter.consume_instruction()?;
         match block.terminator() {
             Terminator::Return(register) => {
                 return Ok(ExecutionOutcome {
                     value: registers[*register],
-                    instruction_fuel_consumed: fuel.consumed,
+                    instruction_fuel_consumed: meter.instruction_fuel_consumed,
+                    host_calls_consumed: meter.host_calls_consumed,
                 });
             }
             Terminator::Jump(target) => {
@@ -174,27 +200,52 @@ fn transfer(target: &BlockTarget, program: &Program, registers: &mut [i64]) -> B
     target.block()
 }
 
-struct FuelMeter {
-    limit: Option<u64>,
-    consumed: u64,
+struct ExecutionMeter {
+    instruction_fuel_limit: Option<u64>,
+    instruction_fuel_consumed: u64,
+    host_call_limit: Option<u64>,
+    host_calls_consumed: u64,
 }
 
-impl FuelMeter {
+impl ExecutionMeter {
     const fn new(limits: ExecutionLimits) -> Self {
         Self {
-            limit: limits.instruction_fuel(),
-            consumed: 0,
+            instruction_fuel_limit: limits.instruction_fuel(),
+            instruction_fuel_consumed: 0,
+            host_call_limit: limits.host_call_budget(),
+            host_calls_consumed: 0,
         }
     }
 
-    fn consume(&mut self) -> Result<(), VmError> {
-        if self.limit.is_some_and(|limit| self.consumed >= limit) {
+    fn consume_instruction(&mut self) -> Result<(), VmError> {
+        if self
+            .instruction_fuel_limit
+            .is_some_and(|limit| self.instruction_fuel_consumed >= limit)
+        {
             return Err(VmError::InstructionFuelExhausted {
-                limit: self.limit.expect("fuel exhaustion requires a limit"),
-                consumed: self.consumed,
+                limit: self
+                    .instruction_fuel_limit
+                    .expect("fuel exhaustion requires a limit"),
+                consumed: self.instruction_fuel_consumed,
             });
         }
-        self.consumed += 1;
+        self.instruction_fuel_consumed += 1;
+        Ok(())
+    }
+
+    fn consume_host_call(&mut self) -> Result<(), VmError> {
+        if self
+            .host_call_limit
+            .is_some_and(|limit| self.host_calls_consumed >= limit)
+        {
+            return Err(VmError::HostCallBudgetExhausted {
+                limit: self
+                    .host_call_limit
+                    .expect("host-call exhaustion requires a limit"),
+                consumed: self.host_calls_consumed,
+            });
+        }
+        self.host_calls_consumed += 1;
         Ok(())
     }
 }
@@ -205,6 +256,7 @@ pub enum VmError {
     Arity { expected: usize, actual: usize },
     UnknownHostFunction(HostFunctionId),
     InstructionFuelExhausted { limit: u64, consumed: u64 },
+    HostCallBudgetExhausted { limit: u64, consumed: u64 },
 }
 
 impl Display for VmError {
@@ -223,6 +275,10 @@ impl Display for VmError {
             Self::InstructionFuelExhausted { limit, consumed } => write!(
                 formatter,
                 "instruction fuel exhausted after consuming {consumed} of {limit} units"
+            ),
+            Self::HostCallBudgetExhausted { limit, consumed } => write!(
+                formatter,
+                "host-call budget exhausted after consuming {consumed} of {limit} calls"
             ),
         }
     }
@@ -331,6 +387,7 @@ mod tests {
             Ok(ExecutionOutcome {
                 value: 0,
                 instruction_fuel_consumed: 14,
+                host_calls_consumed: 0,
             })
         );
         assert_eq!(
@@ -459,6 +516,7 @@ mod tests {
             Ok(ExecutionOutcome {
                 value: 42,
                 instruction_fuel_consumed: 2,
+                host_calls_consumed: 0,
             })
         );
         assert_eq!(
@@ -475,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn exhausts_fuel_before_host_side_effects() {
+    fn exhausts_limits_before_host_side_effects() {
         let function = HostFunctionId::new(4);
         let program = Program::new(
             0,
@@ -517,11 +575,26 @@ mod tests {
                 &program,
                 &[],
                 &hosts,
-                ExecutionLimits::with_instruction_fuel(3),
+                ExecutionLimits::with_host_call_budget(0),
+            ),
+            Err(VmError::HostCallBudgetExhausted {
+                limit: 0,
+                consumed: 0,
+            })
+        );
+        assert_eq!(COUNTED_HOST_CALLS.load(Ordering::SeqCst), 0);
+
+        assert_eq!(
+            execute_with_hosts_and_limits(
+                &program,
+                &[],
+                &hosts,
+                ExecutionLimits::with_instruction_fuel(3).and_host_call_budget(1),
             ),
             Ok(ExecutionOutcome {
                 value: 42,
                 instruction_fuel_consumed: 3,
+                host_calls_consumed: 1,
             })
         );
         assert_eq!(COUNTED_HOST_CALLS.load(Ordering::SeqCst), 1);
