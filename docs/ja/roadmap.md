@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 33 pt | 89 pt | 37.1% |
+| 1 — frontendとbytecodeのvertical slice（現在） | 38 pt | 89 pt | 42.7% |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **242 pt** | **738 pt** | **32.8%** |
+| **全体** | **247 pt** | **738 pt** | **33.5%** |
 
 ## Milestone 0：設計baseline
 
@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P0：** 受理済みRFC 0006に沿ってlossless syntax treeとparser recoveryを実装します。Source tokenizationとstructured diagnostic／HIR／MIRの基盤は完了しました。
+- **次の進行中P0：** 受理済みRFC 0006に沿ってlosslessなparsed sourceをmodule loading、scope／name resolution、HIRへ接続します。
 
 ### 優先度順のタスク
 
@@ -137,9 +137,9 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 
 ## Milestone 1：frontendとbytecodeのvertical slice（現在）
 
-**進捗：33 / 89 pt（37.1%）。**
+**進捗：38 / 89 pt（42.7%）。**
 
-Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。5つの設計gateが16 ptの完了分です。受理済み契約が字句規則、module／call、copy専用aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを規定します。実装とconformanceは別の成果です。Lossless tokenizationを実装し、次の作業はsyntax treeとparser recoveryです。
+Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。5つの設計gateが16 ptの完了分です。受理済み契約が字句規則、module／call、copy専用aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを規定します。実装とconformanceは別の成果です。Lossless tokenizationとparsing／recoveryを実装し、次の作業はsource接続済みのmodule loading、resolution、HIRです。
 
 2026-10-17の見積り89 ptを維持します。Bytecode／REPL受理を2 pt／1 ptのtaskとして明示し、実装scopeを削っていません。Primitive typingを構造化input HIR 3 ptとparser接続済みsource／call conformance 5 pt、loweringをprimitive HIR／MIR 2 ptとparser接続／拡張source conformance 3 ptへ分割しました。これらの完了した基盤は広いfrontend全体の完了ではありません。
 
@@ -148,7 +148,7 @@ Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.
 - [x] **P0 — Stable code、label、fix-itを持つstructured source diagnosticsを確立する。** — 5 pt
 - [x] **P0 — Identifier／keyword、空白／comment、signed-literal tokenization、source encoding、不正token診断をfixture付きで定めるRFC 0002の字句仕様を受理する。** — 3 pt
 - [x] **P0 — 上限付きUTF-8 ingestion、lossless tokenization、literal／comment診断、source spanを実装する。** — 3 pt
-- [ ] **P0 — Lossless syntax treeを構築し、error recoveryとsource spanを保持して受理済み文法をparseする。** — 5 pt
+- [x] **P0 — Lossless syntax treeを構築し、error recoveryとsource spanを保持して受理済み文法をparseする。** — 5 pt
 - [x] **P0 — RFC 0002を超えるsource module／function callのvisibility、cycle、entry point、host call、call frame、recursion limitの意味論を受理する。** — 5 pt
 - [ ] **P0 — Scope、name resolution、module loadingを実装する。** — 5 pt
 - [x] **P0 — 構造化したRFC 0002 function inputをspan保持HIRへ解決／type-checkし、上限付きanalysisと診断testを追加する。** — 3 pt
@@ -170,7 +170,9 @@ Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.
 
 2026-10-17（JST）検証済みevidence：commit `a4f135c` は `lang-diagnostics` にimmutableなsource snapshot、UTF-8検証済みspan、Unicode／UTF-16位置、受理済み `SRC0001`–`SRC0007` identity、primary／secondary label、note、atomic fix previewを追加しました。5つの集中testが位置、古い／別mapのsnapshot、code identity、複数fileの表示、edit競合、制御文字のescapeを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Parser接続済み診断conformanceは実装作業として残ります。Commit `40a56cb` は英日RFC 0006提案と互換性fixture表を追加し、commit `031575e` はその後のownerの明示受理を記録しました。89 ptの計画はrecord／variant／call／toolingの全scopeを維持します。
 
-Commit `f8d7370` は `lang-syntax` のUTF-8 ingestion、lossless tokenization、13件のconformance／limit testを実装しました。整数境界、不正token、comment、Unicode、NUL、正確なsource範囲、決定的な復元、resource上限を検証しています。全体のfmt／Clippy／test／doc baselineは成功しています。Syntax tree、文法、recovery、text-to-HIR統合は未完了です。
+Commit `f8d7370` は `lang-syntax` のUTF-8 ingestion、lossless tokenization、13件のconformance／limit testを実装しました。整数境界、不正token、comment、Unicode、NUL、正確なsource範囲、決定的な復元、resource上限を検証しています。全体のfmt／Clippy／test／doc baselineは成功しています。
+
+Commit `c301665` は受理済み文法のarena方式lossless parsingを完了しました。File／expression別のentry point、missing-syntax node、delimiterを考慮したrecovery、保守的なfix-it、node／depth／list／診断数／workの上限を実装しました。18件のparser testでsyntax shape snapshot、fixtureの全prefix、決定的な不正input、resource境界、brace保持、後続itemへの復帰を検証します。Source-parser fuzz targetはlocked fuzz workspaceでcompileでき、instrumentationなしの10,000-run smokeも完了しました。Instrumentedなcoverage-guided evidenceは主張しません。全体のfmt／Clippy／test／doc baselineは成功しています。Semantic resolution／typing、formatter、LSP統合、source実行は別の未完了成果です。
 
 Commit `da778cc` は受理済みsubsetの `lang-hir` analysisと13件の構造化input conformance／limit testを追加しました。Lexical localの解決、function全体での名前再利用／parameter assignmentの拒否、primitive type／condition／returnの強制、診断spanの保持を、字句規則を選ばず実装しています。全体のfmt／Clippy／test／doc baselineは成功しています。Parser診断とtext-to-HIR compile-pass／fail coverageは未完了です。
 
@@ -182,11 +184,11 @@ Commit `b4a6f24` は `lang-lsp` の診断data変換と4件の集中testを追加
 
 ### 残る依存関係の監査（2026-10-17）
 
-Owner受理とtokenization実装後のchecklistには未完了の実装11項目、合計56 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
+Owner受理とlossless parsing実装後のchecklistには未完了の実装10項目、合計51 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
 | --- | --- |
-| 字句仕様 | Lossless parser／recovery、parser接続済みtyping、formatter round trip、不完全sourceのLSP診断 |
+| 字句仕様 | Parser接続済みtyping、formatter round trip、不完全sourceのLSP診断 |
 | Module／function-call意味論 | Module loading／resolution、guest frame／recursion、typed host execution、parser接続済みsource／HIR／MIR conformance |
 | Record／variant／pattern意味論と表現 | Aggregate typing／exhaustiveness、aggregateのsource／HIR／MIR／VM conformance |
 | Portable bytecode契約 | Version付きencoding／decodingと上限付きverification |
