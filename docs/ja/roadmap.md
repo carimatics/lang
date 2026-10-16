@@ -24,9 +24,11 @@ Schema 5 harnessはsingle-launch startup rowを維持し、連続launch全体の
 
 Schema 6 harnessは、2-value accumulatorをlowering、JIT／AOT compilation、direct／VM／JIT call、生成code／object size、system linking、link済みexecutable size、両startup rowへ追加します。4-object link setを反映するためplatform seriesをrenameし、Windows CIは新しいaccumulator／platform fieldを検証します。CleanなmacOS AArch64 resultは全30 rowと17,056-byteのlink済みharnessを記録しました。Remote Windows evidenceは、allocation、追加のsource-level control flow、memory、debug quality、backend decisionの作業とともに未完了です。
 
-Schema 6後のconditional-sum CFG prototypeは、bounded accumulator loopへ内部branchを追加し、add／skip pathをblock parameterでmergeしてから共有back-edgeを取ります。VM／JIT differential testは両pathを扱い、macOS AArch64 direct／response-file integrationは5番目のAOT objectを実行し、host非依存Windows x86-64 COFF validationはそのexportを検証します。cfg-gated MSVC integrationも同じlink-and-run pathを反映します。Cleanなbenchmark evidence、source-level control-flow semantics、追加CFG／allocation workloadは未完了です。
+Schema 6後のconditional-sum CFG prototypeは、bounded accumulator loopへ内部branchを追加し、add／skip pathをblock parameterでmergeしてから共有back-edgeを取ります。VM／JIT differential testは両pathを扱い、macOS AArch64 direct／response-file integrationは5番目のAOT objectを実行し、host非依存Windows x86-64 COFF validationはそのexportを検証します。cfg-gated MSVC integrationも同じlink-and-run pathを反映します。Source-level control-flow semanticsと追加CFG／allocation workloadは未完了です。
 
 Schema 7 harnessはconditional-sum workloadをlowering、JIT／AOT compilation、direct／VM／JIT call、generated-code／object size、拡張された5-object system-link／startup setで計測します。6つのconditional-sum rowを追加し、そのsetに合わせてplatform seriesとlink済みexecutable fieldをrenameします。Windows CIはschema 7 contractを検証します。CleanなmacOS AArch64 resultは全36 row、44-byteのJIT body、400-byteのobject、17,104-byteのlink済みharnessを記録しました。Source-level semantics、allocation／memory workload、debug-quality evidence、追加CFG coverage、remote Windows execution／benchmark evidenceは未完了です。
+
+Async semantics実験は、厳格なdefaultの `RejectAll` suspension policyと、明示的な `AllowSharedFrameBorrows` 代替案を比較します。代替案はshared task-frame borrowをsuspend／resume越しに維持し、exclusive borrowは引き続き `SEM0007` でrejectし、cancellationがowned valueをdropする前にactiveなshared borrowを終了します。これはsemanticsをacceptせずに、より制限の少ないdesignの論点を狭めます。Pinned／exclusive borrow、source-level frame-residency proof、destructor failure、VM／native trace、runtime costは未完了です。
 
 - Goal、non-goal、terminologyを承認する。
 - RFC processとcompatibility labelを確立する。

@@ -194,9 +194,11 @@ Schema 5 retains the single-launch startup row and adds a configurable batched r
 
 Schema 6 adds the two-value accumulator to bytecode lowering, JIT/AOT compilation, direct/VM/JIT calls, generated code and object sizes, system linking, linked-executable size, and both startup rows. Platform series are renamed for the four-object link set, and Windows CI validates the new accumulator and platform fields. A clean macOS AArch64 result records all 30 rows and a 17,056-byte linked harness; remote Windows evidence remains open. This implementation evidence does not change the RFC's proposed status.
 
-A post-schema-6 conditional-sum prototype branches inside the bounded loop and merges add/skip paths through block parameters before the shared back-edge. VM/JIT differential tests, macOS AArch64 direct/response-file link-and-run integration, host-independent Windows x86-64 COFF symbol validation, and the cfg-gated MSVC path cover the new function. Its clean benchmark evidence, source-level semantics, and allocation remain open; the RFC stays proposed.
+A post-schema-6 conditional-sum prototype branches inside the bounded loop and merges add/skip paths through block parameters before the shared back-edge. VM/JIT differential tests, macOS AArch64 direct/response-file link-and-run integration, host-independent Windows x86-64 COFF symbol validation, and the cfg-gated MSVC path cover the new function. Its source-level semantics and allocation remain open; the RFC stays proposed.
 
 The schema 7 harness now covers the conditional-sum workload in lowering, JIT/AOT compilation, direct/VM/JIT calls, artifact sizes, and the five-object tier-1 system-link/startup set. Windows CI validates the corresponding schema contract. A clean macOS AArch64 result records all 36 rows and the 17,104-byte linked harness; remote Windows evidence remains open, and this prototype evidence does not change the RFC's proposed status.
+
+The async semantics prototype now compares the strict default `RejectAll` suspension policy with an explicit `AllowSharedFrameBorrows` alternative. The alternative carries a shared task-frame borrow across suspend/resume, preserves the `SEM0007` rejection for exclusive borrows, and ends active shared borrows before cancellation destroys owned values. This is evidence for one less restrictive design, not accepted ownership or cancellation semantics. Pinning, exclusive borrows across suspension, source-level frame-residency proofs, destructor failure, VM/native trace equivalence, and runtime cost remain open; the review outcome remains **needs prototype/measurement**.
 
 1. Add the minimal typed MIR, bytecode lowering, verifier, VM, and Cranelift JIT prototype.
 2. Differentially test a small typed function through VM and native execution on the development host.
@@ -213,7 +215,7 @@ The schema 7 harness now covers the conditional-sum workload in lowering, JIT/AO
 - Add malformed MIR and bytecode tests before deserialization is introduced.
 - Add property and fuzz tests as instruction and type counts grow.
 - Test the implemented `i64` host call and callback for VM/native equivalence, duplicate registration rejection, and unknown-function rejection. Add panic containment and capability rejection when those mechanisms are introduced.
-- Test semantics experiments with stable diagnostic codes, primary/secondary source spans, deterministic event traces, and exact destruction counts.
+- Test semantics experiments with stable diagnostic codes, primary/secondary source spans, deterministic event traces, and exact destruction counts. Compare strict and less restrictive policy traces without presenting either as accepted behavior.
 - Run formatting, Clippy with warnings denied, all workspace tests, and documentation builds in CI.
 - Add macOS AArch64 and Windows x86-64 CI before declaring the vertical slice portable.
 - Store benchmark inputs and raw metadata with summarized results.

@@ -194,9 +194,11 @@ Schema 5はsingle-launch startup rowを維持し、sampleが連続launch当た�
 
 Schema 6は、2-value accumulatorをbytecode lowering、JIT／AOT compilation、direct／VM／JIT call、生成code／object size、system linking、link済みexecutable size、両startup rowへ追加します。4-object link setに合わせてplatform seriesをrenameし、Windows CIは新しいaccumulator／platform fieldを検証します。CleanなmacOS AArch64 resultは全30 rowと17,056-byteのlink済みharnessを記録しましたが、remote Windows evidenceは未完了です。このimplementation evidenceによってRFCのproposed statusは変わりません。
 
-Schema 6後のconditional-sum prototypeは、bounded loop内でbranchし、add／skip pathをblock parameterでmergeしてから共有back-edgeを取ります。VM／JIT differential test、macOS AArch64 direct／response-file link-and-run integration、host非依存Windows x86-64 COFF symbol validation、cfg-gated MSVC pathが新しいfunctionを扱います。そのcleanなbenchmark evidence、source-level semantics、allocationは未完了であり、RFCはproposedのままです。
+Schema 6後のconditional-sum prototypeは、bounded loop内でbranchし、add／skip pathをblock parameterでmergeしてから共有back-edgeを取ります。VM／JIT differential test、macOS AArch64 direct／response-file link-and-run integration、host非依存Windows x86-64 COFF symbol validation、cfg-gated MSVC pathが新しいfunctionを扱います。そのsource-level semanticsとallocationは未完了であり、RFCはproposedのままです。
 
 Schema 7 harnessはconditional-sum workloadをlowering、JIT／AOT compilation、direct／VM／JIT call、artifact size、5-object tier-1 system-link／startup setで扱います。Windows CIは対応するschema contractを検証します。CleanなmacOS AArch64 resultは全36 rowと17,104-byteのlink済みharnessを記録しました。Remote Windows evidenceは未完了であり、このprototype evidenceによってRFCのproposed statusは変わりません。
+
+Async semantics prototypeは、厳格なdefaultの `RejectAll` suspension policyと、明示的な `AllowSharedFrameBorrows` 代替案を比較します。代替案はshared task-frame borrowをsuspend／resume越しに運び、exclusive borrowに対する `SEM0007` rejectionを維持し、cancellationがowned valueを破棄する前にactiveなshared borrowを終了します。これはより制限の少ない1つのdesignに関するevidenceであり、accept済みのownership／cancellation semanticsではありません。Pinning、suspensionを越えるexclusive borrow、source-level frame-residency proof、destructor failure、VM／native trace等価性、runtime costは未完了であり、review outcomeは引き続き **needs prototype/measurement** です。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -213,7 +215,7 @@ Schema 7 harnessはconditional-sum workloadをlowering、JIT／AOT compilation�
 - deserialize導入前に、不正なMIRとbytecodeのテストを追加する。
 - instruction数とtype数の増加に合わせてproperty testとfuzz testを追加する。
 - 実装済み `i64` host callとcallbackについて、VM／native等価性、重複登録の拒否、未知関数の拒否をテストする。Panic containmentとcapability rejectionは、それらのmechanism導入時に追加する。
-- Semantics実験では、stable diagnostic code、primary／secondary source span、deterministic event trace、正確なdestruction回数をテストする。
+- Semantics実験では、stable diagnostic code、primary／secondary source span、deterministic event trace、正確なdestruction回数をテストする。どちらもaccepted behaviorとして提示せず、厳格policyとより制限の少ないpolicyのtraceを比較する。
 - CIでformatting、警告を拒否するClippy、workspace全test、documentation buildを実行する。
 - 縦断スライスをportableと宣言する前に、macOS AArch64とWindows x86-64 CIを追加する。
 - benchmark入力とraw metadataを要約結果とともに保存する。

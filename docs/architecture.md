@@ -111,17 +111,18 @@ Review outcome: **needs prototype/measurement**. Blocking questions are whether 
 
 ### Async borrow and cancellation experiment
 
-The executable model in `crates/semantics` tests a deliberately strict baseline hypothesis:
+The executable model in `crates/semantics` compares a deliberately strict baseline hypothesis with one explicit, less restrictive policy:
 
 - Task-owned values remain live in the task frame across suspension.
-- An active shared or exclusive borrow at a suspension point is rejected with structured diagnostic `SEM0007`; a borrow that ends before suspension is accepted.
+- The default `RejectAll` policy rejects an active shared or exclusive borrow at a suspension point with structured diagnostic `SEM0007`; a borrow that ends before suspension is accepted.
+- The experimental `AllowSharedFrameBorrows` policy permits active shared borrows of task-owned values across suspension but still rejects exclusive borrows with `SEM0007`.
 - Cancellation is observed only while the task is suspended.
-- Completion and cancellation drop task-owned values exactly once in reverse creation order.
+- Under the experimental policy, resumption preserves the shared borrow, while cancellation ends active borrows before dropping task-owned values exactly once in reverse creation order.
 - Every operation carries a source span so failures identify both the boundary and the borrow that crossed it.
 
-This is the simpler alternative, not accepted semantics. The strongest competing design would permit selected frame-resident or pinned borrows across suspension. A library-only convention cannot enforce compiler borrow rules, while deferring the decision would move unresolved cancellation and self-reference constraints into MIR lowering. Later prototypes must compare those alternatives and cover nested scopes, partial initialization, destructor failure, panic containment, self-referential task frames, and VM/native traces.
+Neither policy is accepted semantics. The new comparison is evidence that a frame-resident shared borrow can survive suspend/resume and can be revoked before cancellation cleanup without weakening exclusive access. It does not model address stability, pinning, an exclusive borrow across suspension, or a borrow escaping its task frame. A library-only convention cannot enforce compiler borrow rules, while deferring the decision would move unresolved cancellation and self-reference constraints into MIR lowering. Later prototypes must cover nested scopes, partial initialization, destructor failure, panic containment, self-referential task frames, VM/native traces, and the runtime cost of retaining frame borrows.
 
-Review outcome: **needs prototype/measurement**. Blocking questions are whether any borrow may cross suspension, how task-frame ownership and pinning interact, and how cleanup behaves when destructors fail. Surface syntax and scheduler APIs are optional follow-ups.
+Review outcome: **needs prototype/measurement**. The shared frame-resident case is now executable; blocking questions are whether pinned or exclusive borrows may cross suspension, how source semantics prove frame residency and address stability, and how cleanup behaves when destructors fail. Surface syntax and scheduler APIs are optional follow-ups.
 
 ## Error and effect model
 

@@ -84,7 +84,7 @@ cargo run --release --bin prototype-object -- host-callback /tmp/prototype-host-
 
 The command reports the exported symbol, generated function-code size, and complete object size for the add, signed-minimum, or host-callback target. It does not invoke a linker.
 
-Run the executable ownership experiments separately with `cargo test -p lang-semantics`. The async model covers source spans, structured diagnostics, borrow exclusivity, suspension, cancellation, and deterministic destruction. The graph model compares explicit shared/weak edges with arena-scoped cyclic storage. The service model tests actor-isolated mutation, sendable payload moves, FIFO mailboxes, and deferred cancellation cleanup. These models record design evidence only; they are not accepted language semantics.
+Run the executable ownership experiments separately with `cargo test -p lang-semantics`. The async model compares the strict `RejectAll` suspension policy with an explicit `AllowSharedFrameBorrows` alternative that permits shared task-frame borrows while retaining exclusive-borrow rejection and deterministic cancellation cleanup. The graph model compares explicit shared/weak edges with arena-scoped cyclic storage. The service model tests actor-isolated mutation, sendable payload moves, FIFO mailboxes, and deferred cancellation cleanup. These models record design evidence only; they are not accepted language semantics.
 
 Run the prototype backend measurement harness from a clean release build:
 

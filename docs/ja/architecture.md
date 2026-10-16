@@ -111,17 +111,18 @@ Prototypeが必要な未解決問題には、cyclic graphのergonomics、borrow�
 
 ### Async borrow／cancellation実験
 
-`crates/semantics` の実行可能modelでは、意図的に厳格なbaseline仮説を検証します。
+`crates/semantics` の実行可能modelでは、意図的に厳格なbaseline仮説と、明示的な1つのより制限の少ないpolicyを比較します。
 
 - Task-owned valueはsuspensionを越えてtask frame内でliveのままにする。
-- Suspension pointでactiveなshared／exclusive borrowはstructured diagnostic `SEM0007` でrejectし、suspension前に終了したborrowはacceptする。
+- Defaultの `RejectAll` policyは、suspension pointでactiveなshared／exclusive borrowをstructured diagnostic `SEM0007` でrejectし、suspension前に終了したborrowをacceptする。
+- 実験的な `AllowSharedFrameBorrows` policyはtask-owned valueのactiveなshared borrowがsuspensionを越えることを許可する一方、exclusive borrowは引き続き `SEM0007` でrejectする。
 - Cancellationはtaskがsuspendedである間だけ観測する。
-- Completionとcancellationでは、task-owned valueを逆生成順に正確に1回dropする。
+- 実験的policyでは、resume後もshared borrowを維持し、cancellation時はactive borrowを終了してからtask-owned valueを逆生成順に正確に1回dropする。
 - すべてのoperationがsource spanを持ち、failureではboundaryとそれを越えたborrowの両方を示す。
 
-これはより単純な代替案であり、承認済み意味論ではありません。最も強い競合designは、選択されたframe-resident borrowまたはpinned borrowがsuspensionを越えることを許可します。Library規約だけではcompilerのborrow ruleを強制できず、決定を先送りすると未解決のcancellation／self-reference制約がMIR loweringへ流入します。後続prototypeではこれらの代替案を比較し、nested scope、partial initialization、destructor failure、panic containment、self-referential task frame、VM／native traceを扱う必要があります。
+どちらのpolicyも承認済み意味論ではありません。新しい比較は、frame-residentなshared borrowがsuspend／resumeを越えて存続し、exclusive accessを弱めずにcancellation cleanup前にrevokeできることのevidenceです。Address stability、pinning、suspensionを越えるexclusive borrow、task frame外へescapeするborrowはmodel化していません。Library規約だけではcompilerのborrow ruleを強制できず、決定を先送りすると未解決のcancellation／self-reference制約がMIR loweringへ流入します。後続prototypeではnested scope、partial initialization、destructor failure、panic containment、self-referential task frame、VM／native trace、frame borrow維持のruntime costを扱う必要があります。
 
-レビュー結果：**needs prototype/measurement**。blocking questionは、borrowがsuspensionを越えられるか、task-frame ownershipとpinningがどう相互作用するか、destructor failure時にcleanupがどう動作するかです。Surface syntaxとscheduler APIは任意のfollow-upです。
+レビュー結果：**needs prototype/measurement**。Shared frame-resident caseは実行可能になりました。blocking questionは、pinned／exclusive borrowがsuspensionを越えられるか、source semanticsがframe residencyとaddress stabilityをどう証明するか、destructor failure時にcleanupがどう動作するかです。Surface syntaxとscheduler APIは任意のfollow-upです。
 
 ## Error／effect model
 

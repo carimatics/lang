@@ -3,10 +3,11 @@
 //! Executable models for language-semantics experiments.
 //!
 //! This crate is evidence for proposed designs, not accepted language behavior.
-//! The first model tests a deliberately strict async baseline: owned values may
-//! live in a task frame across suspension, active borrows may not cross a
-//! suspension point, and cancellation drops task-owned values exactly once in
-//! reverse creation order.
+//! The first model compares a deliberately strict async baseline with an
+//! alternative that permits shared task-frame borrows across suspension.
+//! Exclusive borrows never cross suspension, and cancellation ends permitted
+//! borrows before dropping task-owned values exactly once in reverse creation
+//! order.
 //! The graph model compares explicit shared/weak ownership with arena-scoped
 //! storage: shared strong-reference cycles are rejected, while arena-local
 //! cycles are released in bulk.
@@ -64,6 +65,12 @@ impl Display for BorrowId {
 pub enum BorrowKind {
     Shared,
     Exclusive,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SuspensionBorrowPolicy {
+    RejectAll,
+    AllowSharedFrameBorrows,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -296,6 +303,7 @@ struct ValueState {
 
 pub struct AsyncTaskModel {
     state: TaskState,
+    suspension_borrow_policy: SuspensionBorrowPolicy,
     values: BTreeMap<ValueId, ValueState>,
     borrows: BTreeMap<BorrowId, BorrowState>,
     creation_order: Vec<ValueId>,
@@ -306,6 +314,7 @@ impl Default for AsyncTaskModel {
     fn default() -> Self {
         Self {
             state: TaskState::Running,
+            suspension_borrow_policy: SuspensionBorrowPolicy::RejectAll,
             values: BTreeMap::new(),
             borrows: BTreeMap::new(),
             creation_order: Vec::new(),
@@ -317,6 +326,13 @@ impl Default for AsyncTaskModel {
 impl AsyncTaskModel {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_suspension_borrow_policy(policy: SuspensionBorrowPolicy) -> Self {
+        Self {
+            suspension_borrow_policy: policy,
+            ..Self::default()
+        }
     }
 
     pub const fn state(&self) -> TaskState {
@@ -497,7 +513,7 @@ impl AsyncTaskModel {
 
     fn suspend(&mut self, span: SourceSpan) -> Result<(), Diagnostic> {
         self.require_state(OperationKind::Suspend, span, TaskState::Running)?;
-        if let Some((borrow, borrow_state)) = self.active_borrow() {
+        if let Some((borrow, borrow_state)) = self.borrow_blocking_suspension() {
             return Err(Diagnostic {
                 code: DiagnosticCode::BorrowAcrossSuspension,
                 primary: span,
@@ -524,6 +540,7 @@ impl AsyncTaskModel {
     fn cancel(&mut self, span: SourceSpan) -> Result<(), Diagnostic> {
         self.require_state(OperationKind::Cancel, span, TaskState::Suspended)?;
         self.trace.events.push(Event::CancellationRequested);
+        self.end_active_borrows_for_cancellation();
         self.drop_owned_values();
         self.state = TaskState::Cancelled;
         self.trace.events.push(Event::Cancelled);
@@ -556,6 +573,45 @@ impl AsyncTaskModel {
             .find_map(|(borrow, state)| state.active.then_some((*borrow, *state)))
     }
 
+    fn borrow_blocking_suspension(&self) -> Option<(BorrowId, BorrowState)> {
+        self.borrows.iter().find_map(|(borrow, state)| {
+            let blocks = state.active
+                && match self.suspension_borrow_policy {
+                    SuspensionBorrowPolicy::RejectAll => true,
+                    SuspensionBorrowPolicy::AllowSharedFrameBorrows => {
+                        state.kind == BorrowKind::Exclusive
+                    }
+                };
+            blocks.then_some((*borrow, *state))
+        })
+    }
+
+    fn end_active_borrows_for_cancellation(&mut self) {
+        let active_borrows = self
+            .borrows
+            .iter()
+            .filter_map(|(borrow, state)| state.active.then_some((*borrow, *state)))
+            .collect::<Vec<_>>();
+
+        for (borrow, borrow_state) in active_borrows {
+            let value_state = self
+                .values
+                .get_mut(&borrow_state.value)
+                .expect("active borrows always reference an existing value");
+            match borrow_state.kind {
+                BorrowKind::Shared => {
+                    value_state.shared_borrows.remove(&borrow);
+                }
+                BorrowKind::Exclusive => value_state.exclusive_borrow = None,
+            }
+            self.borrows
+                .get_mut(&borrow)
+                .expect("active borrow existence was checked above")
+                .active = false;
+            self.trace.events.push(Event::BorrowEnded(borrow));
+        }
+    }
+
     fn drop_owned_values(&mut self) {
         for value in self.creation_order.iter().rev().copied() {
             let value_state = self
@@ -574,7 +630,7 @@ impl AsyncTaskModel {
 mod tests {
     use super::{
         AsyncTaskModel, BorrowId, BorrowKind, Diagnostic, DiagnosticCode, DiagnosticKind, Event,
-        Operation, SourceSpan, TaskState, ValueId,
+        Operation, SourceSpan, SuspensionBorrowPolicy, TaskState, ValueId,
     };
 
     const fn span(start: u32) -> SourceSpan {
@@ -660,6 +716,129 @@ mod tests {
             })
         );
         assert_eq!(DiagnosticCode::BorrowAcrossSuspension.as_str(), "SEM0007");
+    }
+
+    #[test]
+    fn alternative_policy_allows_shared_frame_borrows_across_suspension() {
+        let value = ValueId::new(0);
+        let borrow = BorrowId::new(0);
+        let mut model = AsyncTaskModel::with_suspension_borrow_policy(
+            SuspensionBorrowPolicy::AllowSharedFrameBorrows,
+        );
+        for operation in [
+            Operation::CreateOwned {
+                value,
+                span: span(0),
+            },
+            Operation::Borrow {
+                borrow,
+                value,
+                kind: BorrowKind::Shared,
+                span: span(1),
+            },
+            Operation::Suspend { span: span(2) },
+            Operation::Resume { span: span(3) },
+            Operation::EndBorrow {
+                borrow,
+                span: span(4),
+            },
+            Operation::Complete { span: span(5) },
+        ] {
+            model.apply(operation).unwrap();
+        }
+
+        assert_eq!(
+            model.trace().events(),
+            &[
+                Event::ValueCreated(value),
+                Event::BorrowStarted {
+                    borrow,
+                    value,
+                    kind: BorrowKind::Shared,
+                },
+                Event::Suspended,
+                Event::Resumed,
+                Event::BorrowEnded(borrow),
+                Event::ValueDropped(value),
+                Event::Completed,
+            ]
+        );
+    }
+
+    #[test]
+    fn alternative_policy_still_rejects_exclusive_borrows_across_suspension() {
+        let value = ValueId::new(0);
+        let borrow = BorrowId::new(0);
+        let mut model = AsyncTaskModel::with_suspension_borrow_policy(
+            SuspensionBorrowPolicy::AllowSharedFrameBorrows,
+        );
+        model
+            .apply(Operation::CreateOwned {
+                value,
+                span: span(0),
+            })
+            .unwrap();
+        model
+            .apply(Operation::Borrow {
+                borrow,
+                value,
+                kind: BorrowKind::Exclusive,
+                span: span(1),
+            })
+            .unwrap();
+
+        assert_eq!(
+            model.apply(Operation::Suspend { span: span(2) }),
+            Err(Diagnostic {
+                code: DiagnosticCode::BorrowAcrossSuspension,
+                primary: span(2),
+                secondary: Some(span(1)),
+                kind: DiagnosticKind::BorrowAcrossSuspension { borrow, value },
+            })
+        );
+        assert_eq!(model.state(), TaskState::Running);
+    }
+
+    #[test]
+    fn cancellation_ends_shared_frame_borrows_before_dropping_values() {
+        let value = ValueId::new(0);
+        let borrow = BorrowId::new(0);
+        let mut model = AsyncTaskModel::with_suspension_borrow_policy(
+            SuspensionBorrowPolicy::AllowSharedFrameBorrows,
+        );
+        for operation in [
+            Operation::CreateOwned {
+                value,
+                span: span(0),
+            },
+            Operation::Borrow {
+                borrow,
+                value,
+                kind: BorrowKind::Shared,
+                span: span(1),
+            },
+            Operation::Suspend { span: span(2) },
+            Operation::Cancel { span: span(3) },
+        ] {
+            model.apply(operation).unwrap();
+        }
+
+        assert_eq!(
+            model.trace().events(),
+            &[
+                Event::ValueCreated(value),
+                Event::BorrowStarted {
+                    borrow,
+                    value,
+                    kind: BorrowKind::Shared,
+                },
+                Event::Suspended,
+                Event::CancellationRequested,
+                Event::BorrowEnded(borrow),
+                Event::ValueDropped(value),
+                Event::Cancelled,
+            ]
+        );
     }
 
     #[test]
