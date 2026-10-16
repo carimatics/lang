@@ -172,7 +172,7 @@ These diagnostic codes are proposals and become stable only when this RFC is acc
 
 The subset requires no language-level allocation, reference counting, dynamic dispatch, or overflow branch. Mutable locals are source abstractions and may remain in SSA values or registers; users cannot rely on a stack slot or memory address. A `while` condition executes once per attempted iteration, and each executed `+` and `<` has fixed-width integer cost before backend optimization.
 
-The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. The clean schema 9 macOS AArch64 result measures the unset-flag cooperative-interruption safe-point overhead at a 3.409 ns or 0.215% median increase over the ordinary VM countdown. Schema 10 adds an unexpired-deadline row, but only a dirty smoke run is recorded so far. These microbenchmarks do not establish an overhead budget or performance guarantees for a future parser, type checker, optimizer, or representative application.
+The existing countdown, two-value accumulator, and conditional-sum benchmarks provide lowering, compilation, code-size, VM, JIT, and AOT evidence for the corresponding MIR shapes. The clean schema 10 macOS AArch64 result records ordinary, unset-interruption, and unexpired-deadline VM countdown medians of 1.617 us, 1.607 us, and 3.315 us. The interruption delta is -10.228 ns (-0.633%), smaller than the ordinary row's 4.433% RSD, while the deadline delta is 1.698 us (104.997%). These microbenchmarks do not establish an overhead budget or performance guarantees for a future parser, type checker, optimizer, or representative application.
 
 ## Security and trust boundaries
 
@@ -238,6 +238,6 @@ Review outcome: **ready for decision** for this narrow prototype subset. There a
 - `crates/codegen-clif/src/lib.rs`, Cranelift lowering prototype, last updated 2026-10-16 01:36 JST.
 - `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 10:17 JST.
 - `src/bin/prototype-bench.rs`, schema 10 interruption/deadline-overhead harness, last updated 2026-10-16 11:22 JST.
-- `benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json`, clean schema 9 macOS AArch64 evidence, measured 2026-10-16 11:05:30 JST.
+- `benchmarks/results/2026-10-16-macos-aarch64-133172b.json`, clean schema 10 macOS AArch64 evidence, measured 2026-10-16 11:28:39 JST.
 
 No external factual claims are introduced by this RFC; the design proposal is derived from the repository's executable prototypes and project decisions.

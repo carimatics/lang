@@ -172,7 +172,7 @@ Lossless parserはcomment、whitespace、delimiter、error tokenを保持しま�
 
 このsubsetはlanguage-level allocation、reference counting、dynamic dispatch、overflow branchを必要としません。Mutable localはsource abstractionであり、SSA valueまたはregisterに残せます。Userはstack slotやmemory addressへ依存できません。`while` conditionは各iteration試行ごとに1回実行され、実行された `+` と `<` はbackend optimization前にfixed-width integer costを持ちます。
 
-既存countdown、2-value accumulator、conditional-sum benchmarkは、対応するMIR shapeについてlowering、compilation、code size、VM、JIT、AOTのevidenceを提供します。Cleanなschema 9 macOS AArch64 resultでは、unset-flagのcooperative-interruption safe-point overheadを通常のVM countdownに対する3.409 ns、0.215%のmedian増加として計測しました。Schema 10は期限前deadline rowを追加しましたが、現時点で記録済みなのはdirty smoke runだけです。これらのmicrobenchmarkはoverhead budgetや、将来のparser、type checker、optimizer、代表的applicationのperformance guaranteeを確立するものではありません。
+既存countdown、2-value accumulator、conditional-sum benchmarkは、対応するMIR shapeについてlowering、compilation、code size、VM、JIT、AOTのevidenceを提供します。Cleanなschema 10 macOS AArch64 resultでは、通常／unset interruption／期限前deadline付きVM countdown medianが1.617 us／1.607 us／3.315 usでした。Interruption deltaは-10.228 ns（-0.633%）で通常rowの4.433% RSDより小さく、deadline deltaは1.698 us（104.997%）です。これらのmicrobenchmarkはoverhead budgetや、将来のparser、type checker、optimizer、代表的applicationのperformance guaranteeを確立するものではありません。
 
 ## Securityとtrust boundary
 
@@ -238,6 +238,6 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 - `crates/codegen-clif/src/lib.rs`、Cranelift lowering prototype、最終更新 2026-10-16 01:36 JST。
 - `src/lib.rs`、differential prototype workload、最終更新 2026-10-16 10:17 JST。
 - `src/bin/prototype-bench.rs`、schema 10 interruption／deadline-overhead harness、最終更新 2026-10-16 11:22 JST。
-- `benchmarks/results/2026-10-16-macos-aarch64-e390a5d.json`、clean schema 9 macOS AArch64 evidence、2026-10-16 11:05:30 JSTに計測。
+- `benchmarks/results/2026-10-16-macos-aarch64-133172b.json`、clean schema 10 macOS AArch64 evidence、2026-10-16 11:28:39 JSTに計測。
 
 このRFCは外部の事実に関する主張を追加しません。Design proposalはrepositoryの実行可能prototypeとproject decisionから導出しています。
