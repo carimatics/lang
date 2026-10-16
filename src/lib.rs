@@ -43,6 +43,8 @@ impl Display for PrototypeError {
 
 pub const PROTOTYPE_DOUBLE_HOST: HostFunctionId = HostFunctionId::new(0);
 pub const PROTOTYPE_ALLOCATE_HOST: HostFunctionId = HostFunctionId::new(1);
+pub const PROTOTYPE_ALLOCATE_BURST_HOST: HostFunctionId = HostFunctionId::new(2);
+pub const PROTOTYPE_ALLOCATION_BURST_LEN: usize = 64;
 
 extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
     value.wrapping_mul(2)
@@ -51,6 +53,15 @@ extern "C" fn prototype_wrapping_double(value: i64) -> i64 {
 extern "C" fn prototype_allocate_roundtrip(value: i64) -> i64 {
     let allocation = std::hint::black_box(Box::new(value));
     std::hint::black_box(*allocation)
+}
+
+extern "C" fn prototype_allocate_burst(value: i64) -> i64 {
+    let allocations: [Box<i64>; PROTOTYPE_ALLOCATION_BURST_LEN] = std::array::from_fn(|index| {
+        std::hint::black_box(Box::new(value.wrapping_add(index as i64)))
+    });
+    allocations.into_iter().fold(0_i64, |sum, allocation| {
+        sum.wrapping_add(std::hint::black_box(*allocation))
+    })
 }
 
 impl Error for PrototypeError {}
@@ -429,12 +440,45 @@ pub fn run_prototype_host_allocation(value: i64) -> Result<ExecutionResults, Pro
     Ok(ExecutionResults { bytecode, native })
 }
 
+pub fn prototype_host_allocation_burst_function() -> Function {
+    Function::new(
+        "prototype_host_allocation_burst",
+        Signature::new(vec![Type::I64], Type::I64),
+        vec![Instruction::CallHostI64 {
+            result: ValueId::new(1),
+            function: PROTOTYPE_ALLOCATE_BURST_HOST,
+            argument: ValueId::new(0),
+        }],
+        Terminator::Return(ValueId::new(1)),
+    )
+}
+
+pub fn run_prototype_host_allocation_burst(value: i64) -> Result<ExecutionResults, PrototypeError> {
+    let mut host_functions = HostFunctionRegistry::new();
+    host_functions
+        .register_i64(PROTOTYPE_ALLOCATE_BURST_HOST, prototype_allocate_burst)
+        .map_err(PrototypeError::HostRegistration)?;
+
+    let function = prototype_host_allocation_burst_function();
+    let program = lower(&function).map_err(PrototypeError::Bytecode)?;
+    let bytecode =
+        execute_with_hosts(&program, &[value], &host_functions).map_err(PrototypeError::Vm)?;
+    let compiled = CompiledFunction::compile_with_hosts(&function, &host_functions)
+        .map_err(PrototypeError::NativeCompile)?;
+    let native = compiled
+        .invoke_i64_1(value)
+        .map_err(PrototypeError::NativeInvoke)?;
+
+    Ok(ExecutionResults { bytecode, native })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ExecutionResults, run_prototype_add, run_prototype_countdown,
-        run_prototype_host_allocation, run_prototype_host_callback, run_prototype_min,
-        run_prototype_sum_below, run_prototype_sum_to,
+        run_prototype_host_allocation, run_prototype_host_allocation_burst,
+        run_prototype_host_callback, run_prototype_min, run_prototype_sum_below,
+        run_prototype_sum_to,
     };
 
     #[test]
@@ -479,6 +523,27 @@ mod tests {
                 ExecutionResults {
                     bytecode: value,
                     native: value,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn host_allocation_burst_callbacks_are_equivalent() {
+        let cases = [
+            (0_i64, 2_016_i64),
+            (21, 3_360),
+            (-7, 1_568),
+            (i64::MAX, 1_952),
+            (i64::MIN, 2_016),
+        ];
+
+        for (value, expected) in cases {
+            assert_eq!(
+                run_prototype_host_allocation_burst(value).unwrap(),
+                ExecutionResults {
+                    bytecode: expected,
+                    native: expected,
                 }
             );
         }

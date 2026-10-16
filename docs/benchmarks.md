@@ -66,11 +66,17 @@ Each row reports nanoseconds per operation. RSD is the relative population stand
 
 Cranelift's compiled code buffer contained 8 bytes for add, 20 bytes for minimum, 20 bytes for countdown, 36 bytes for the accumulator, 44 bytes for conditional sum, and 40 bytes for the host callback. The emitted add, minimum, countdown, accumulator, and conditional-sum objects were 352, 368, 376, 392, and 400 bytes. The linked AOT harness was 17,104 bytes. JIT code sizes exclude object-file structure, relocation data, unwind/debug information, runtime support, and linker output. Object sizes include Mach-O structure but not the C harness or final executable; the executable size includes both plus the platform linker's defaults, but not a complete runtime distribution.
 
+## Schema 11 format and migration
+
+Schema 11 adds `rust_host_allocation_burst_call`, `vm_host_allocation_burst_call`, and `jit_host_allocation_burst_call`. Each operation creates 64 distinct `Box<i64>` values, keeps all 512 payload bytes live in a fixed array, computes their wrapping sum, and then drops them. `black_box` keeps each box and loaded value opaque to optimization. The VM and JIT rows include the same typed host-call dispatch around the registered callback, while the direct Rust row provides the host-side baseline. The harness verifies all three results before warm-up and timing.
+
+The existing AOT link/startup series remains unchanged, while macOS and configured Windows integration tests execute a corresponding C callback that holds 64 `malloc` allocations live before reading and freeing them. The rows do not measure allocator metadata, the stack-resident pointer array, process peak RSS, failure behavior, a language heap, or a representative application. Schema 11 leaves all schema 10 rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–10 JSON files remain immutable evidence. A dirty three-sample smoke run validates all 44 unique rows, but no clean schema 11 result is recorded yet. The Windows Server 2025 workflow requires schema 11 and all three burst rows.
+
 ## Schema 10 format and migration
 
 Schema 10 adds `vm_countdown_deadline_call`. It executes the same alternating positive/immediate-return inputs and verified countdown bytecode as `vm_countdown_call`, but supplies an absolute monotonic deadline set one hour after harness preparation through `ExecutionControl`. The harness verifies equivalent results before warm-up and timing, and the deadline remains shared across all samples rather than being recomputed per call.
 
-This row measures the steady-state cost of enabling deadline checks while the deadline remains unexpired. It does not measure expiration latency, scheduler accuracy, callback overrun, callback preemption, or native/JIT enforcement. Schema 10 leaves all existing rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–9 JSON files remain immutable evidence. The clean macOS result records a 1.617 us ordinary VM countdown median and a 3.315 us unexpired-deadline median: a 1.698 us, 104.997% increase. The 4.433% and 0.376% RSD values show that the paired medians are directional evidence, not an overhead budget. The Windows Server 2025 workflow requires schema 10 and the new deadline row in addition to the schema 9 contract.
+This row measures the steady-state cost of enabling deadline checks while the deadline remains unexpired. It does not measure expiration latency, scheduler accuracy, callback overrun, callback preemption, or native/JIT enforcement. Schema 10 leaves all existing rows and artifact fields unchanged. Consumers must branch on `schema_version`; schema 1–9 JSON files remain immutable evidence. The clean macOS result records a 1.617 us ordinary VM countdown median and a 3.315 us unexpired-deadline median: a 1.698 us, 104.997% increase. The 4.433% and 0.376% RSD values show that the paired medians are directional evidence, not an overhead budget. Schema 11 retains this row and supersedes schema 10 as the Windows workflow contract.
 
 ## Schema 9 format and migration
 
@@ -84,7 +90,7 @@ Schema 8 adds `rust_host_allocation_call`, `vm_host_allocation_call`, and `jit_h
 
 The existing AOT system-link, executable-size, and process-startup series do not change: a single allocation inside a launched harness would be dominated by process creation and loader work. Separate platform integration tests execute the corresponding C `malloc`/read/`free` callback through linked AOT objects. The new rows therefore measure a narrow host-owned allocation plus VM/JIT boundary cost; they do not measure a language heap, allocator policy, peak memory, allocation failure, collection, or representative application behavior. Consumers must branch on `schema_version`; schema 1–7 JSON files remain immutable evidence. The clean macOS AArch64 schema 8 result is recorded above.
 
-The Windows Server 2025 workflow first required schema 8 and all three host-allocation rows in addition to the unchanged platform measurements. No remote schema 8 result has been inspected or committed; the workflow now requires schema 10 as described above.
+The Windows Server 2025 workflow first required schema 8 and all three single-allocation rows in addition to the unchanged platform measurements. No remote schema 8 result has been inspected or committed; the workflow now requires schema 11 as described above.
 
 ## Schema 7 format and migration
 
@@ -126,7 +132,7 @@ Schema 3 adds `jit_countdown` and `aot_countdown` size fields plus six countdown
 
 ## Windows x86-64 evidence path
 
-The schema 7 harness records the conditional-sum lowering/compilation/runtime rows, the renamed system-link and process-startup rows, and `executable_file_bytes.aot_add_min_countdown_sum_to_sum_below` on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, and validates one link and execution before timing. Schema 8 retains those platform fields and the 31/1,000/100,000/10 parameters and adds the three host-allocation runtime rows. Schema 9 adds `vm_countdown_interruptible_call`, and schema 10 adds `vm_countdown_deadline_call`; schema 10 is now required by the Windows Server 2025 workflow. The workflow also validates clean-checkout metadata, the `windows`/`x86_64` identity, interruption, deadline, conditional-sum, allocation, and platform measurements, the startup batch size, and a positive executable size before uploading the JSON for 30 days.
+The schema 7 harness records the conditional-sum lowering/compilation/runtime rows, the renamed system-link and process-startup rows, and `executable_file_bytes.aot_add_min_countdown_sum_to_sum_below` on Windows x86-64 MSVC. It compiles the C harness with `cl.exe`, discovers the tier-1 `link.exe` through `LinkTarget`, and validates one link and execution before timing. Schema 8 retains those platform fields and the 31/1,000/100,000/10 parameters and adds the three single-allocation runtime rows. Schema 9 adds `vm_countdown_interruptible_call`, schema 10 adds `vm_countdown_deadline_call`, and schema 11 adds three allocation-burst rows; schema 11 is now required by the Windows Server 2025 workflow. The workflow also validates clean-checkout metadata, the `windows`/`x86_64` identity, interruption, deadline, conditional-sum, single-allocation, allocation-burst, and platform measurements, the startup batch size, and a positive executable size before uploading the JSON for 30 days.
 
 This is an evidence-producing path, not recorded Windows evidence: no remote runner result from this change has been inspected or committed. The macOS table above therefore remains the only current measured baseline.
 
@@ -160,7 +166,7 @@ The complete commands and captured `file`, `nm`, and `otool` output are preserve
 - Alternating between a 64-iteration back-edge and immediate return gives countdown JIT/VM medians of 12.978 ns and 1.617 us and accumulator JIT/VM medians of 12.816 ns and 1.663 us. Alternating conditional-sum inputs `(64, 33)` and `(-7, 33)` gives JIT/VM medians of 20.433 ns and 3.030 us. These bounded microbenchmarks do not predict representative control-flow performance. Near-one-nanosecond direct add, countdown, and host-call rows remain timer-resolution baselines, not credible throughput claims.
 - This baseline supports continuing to use Cranelift for the prototype while broader evidence is collected. It does not complete Milestone 0's backend decision.
 
-Before selecting the initial native backend, record a clean schema 10 result on Windows x86-64, add representative allocation/memory and additional CFG workloads, and measure memory and debug quality. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
+Before selecting the initial native backend, record clean schema 11 results on macOS AArch64 and Windows x86-64, add broader allocation/memory and additional CFG workloads, and measure peak memory and debug quality. The 64-allocation burst is more representative than one box but remains a synthetic host callback. The batched startup row is suitable for directional amortized evidence, not a tail-latency guarantee, and executable-size results are harness artifacts rather than release packaging budgets.
 
 ## Earlier baseline
 
@@ -170,7 +176,8 @@ The [schema 9 result](../benchmarks/results/2026-10-16-macos-aarch64-e390a5d.jso
 
 - [Current raw macOS AArch64 schema 10 result](../benchmarks/results/2026-10-16-macos-aarch64-133172b.json), measured 2026-10-16 11:28:39 JST.
 - `crates/vm/src/lib.rs`, deadline-enabled VM resource controls, last updated 2026-10-16 11:20 JST.
-- `src/bin/prototype-bench.rs`, schema 10 deadline-overhead harness, last updated 2026-10-16 11:22 JST.
+- `src/lib.rs`, 64-allocation burst callback prototype, last updated 2026-10-16 11:42 JST.
+- `src/bin/prototype-bench.rs`, schema 11 allocation-burst harness, last updated 2026-10-16 11:42 JST.
 - [macOS AArch64 generated-object inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-f2559b8.md), captured 2026-10-16 00:25 JST.
 - [macOS AArch64 signed-minimum inspection](../benchmarks/inspection/2026-10-16-macos-aarch64-dfc65f5-min.md), captured 2026-10-16 00:43:31 JST.
 - Repository commit `0865167bfe75331a29e2d4ee9e509c9d17b4b4f1`, committed 2026-10-16.

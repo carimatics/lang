@@ -229,15 +229,15 @@ Review outcome: **ready for decision** for this narrow prototype subset. There a
 
 ## Sources
 
-- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 11:22 JST.
-- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 11:22 JST.
-- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 11:22 JST.
+- `docs/rfcs/0001-project-charter.md`, project charter and compatibility policy, last updated 2026-10-16 11:42 JST.
+- `docs/architecture.md`, proposed compiler and execution architecture, last updated 2026-10-16 11:42 JST.
+- `docs/roadmap.md`, Milestone 0 exit criteria and current evidence, last updated 2026-10-16 11:42 JST.
 - `crates/mir/src/lib.rs`, typed CFG and validation prototype, last updated 2026-10-16 01:25 JST.
 - `crates/bytecode/src/lib.rs`, verified register bytecode prototype, last updated 2026-10-16 01:25 JST.
 - `crates/vm/src/lib.rs`, VM execution and resource-control prototype, last updated 2026-10-16 11:20 JST.
 - `crates/codegen-clif/src/lib.rs`, Cranelift lowering prototype, last updated 2026-10-16 01:36 JST.
-- `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 10:17 JST.
-- `src/bin/prototype-bench.rs`, schema 10 interruption/deadline-overhead harness, last updated 2026-10-16 11:22 JST.
+- `src/lib.rs`, differential prototype workloads, last updated 2026-10-16 11:42 JST.
+- `src/bin/prototype-bench.rs`, schema 11 control/allocation-burst harness, last updated 2026-10-16 11:42 JST.
 - `benchmarks/results/2026-10-16-macos-aarch64-133172b.json`, clean schema 10 macOS AArch64 evidence, measured 2026-10-16 11:28:39 JST.
 
 No external factual claims are introduced by this RFC; the design proposal is derived from the repository's executable prototypes and project decisions.

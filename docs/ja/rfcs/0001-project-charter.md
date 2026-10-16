@@ -204,13 +204,15 @@ Cyclic-graph prototypeは、defaultの `Reject` shared-cycle policyと、明示�
 
 Shared-service prototypeは、defaultの `OwnerIsolated` mutation policyと、明示的な `ExclusiveCapability` 代替案を比較します。有効なhandleのholderは単一のactive mutation capabilityを取得でき、handleを持たないtaskまたは同時mutatorはstructured diagnosticでrejectされ、cancellationはnon-owner mutationが終了するまでservice stateのdropを待ちます。これにより1つのlock-likeな競合designを実行可能にしますが、accepted済みのconcurrency semanticsではありません。Read／write／atomic capability、capability derivation、scheduling fairness、priority inversion、poisoning、deadlock、reentrancy、panic handling、backpressure、VM／native trace等価性、runtime costは未完了であり、review outcomeは引き続き **needs prototype/measurement** です。
 
-Host-allocation boundary prototypeは、2つ目の型付き `i64` host functionを通して1回のallocate／read／free round tripを実行します。VM／JIT差分testはRustの `Box` callbackをregisterし、macOS AArch64 direct／response-file AOT integrationと構成済みWindows MSVC pathは、別のC `malloc`／`free` importを提供します。Schema 8はAOT process-startup setを変更せず、Rust callbackのdirect Rust／VM／JIT latency rowを追加します。CleanなmacOS AArch64 resultはそれぞれ12.038 ns、185.759 ns、13.662 nsのmedianを記録しました。これは既存execution boundaryを越えて戻り値が等価になることを示し、限定的なboundary-cost measurementを可能にしますが、source-languageのallocation／ownership semanticsではありません。Allocator／collector policy、failure／resource-limit behavior、peak-memory accounting、代表的なworkload、remote Windows evidenceは未完了です。RFCはproposedのままであり、review outcomeは引き続き **needs prototype/measurement** です。
+Host-allocation boundary prototypeは、single-allocation host functionと、64個のbox／512 payload byteを同時に保持してから合計・dropする2つ目のallocation functionを持つようになりました。VM／JIT差分testはRustの `Box` callbackをregisterし、macOS AArch64 direct／response-file AOT integrationと構成済みWindows MSVC pathは、別々のC `malloc`／`free` importを提供します。Schema 8はsingle-allocation callbackのdirect Rust／VM／JIT latency rowを追加し、schema 11はAOT process-startup setを変えずにburst用の同じ3 rowを追加します。Clean schema 10 macOS AArch64 resultのsingle-allocation medianはそれぞれ12.027 ns、187.631 ns、13.726 nsです。これは既存execution boundaryを越えて戻り値が等価になることを示し、より単純でないboundary-cost workloadを可能にしますが、source-languageのallocation／ownership semanticsではありません。Allocator／collector policy、failure／resource-limit behavior、allocator-overhead／peak-memory accounting、より広い代表的workload、remote Windows evidenceは未完了です。RFCはproposedのままであり、review outcomeは引き続き **needs prototype/measurement** です。
 
 VM resource-control prototypeは、optionalなhost-call budget、value-slot limit、共有one-way interruption flag、絶対monotonic deadlineをinstruction fuelと合成します。実行直前の各callbackは、そのbytecode instructionがfuelを消費した後に1 host-call unitを消費します。どちらかのcounterを使い切ると、そのcounterがguardするside effectの前にstructured errorを返します。検証済みregister countは、register fileを割り当てる前にvalue-slot limitと比較します。すでにsetされたinterruptionまたは期限切れdeadlineはallocation前に停止し、以降のconditionはinstruction、terminator、pre-callback safe pointで観測して、structured errorに両方の動的countを含め、interruptionを優先します。Callback-triggered requestまたはdeadline overrunは意図的にそのcallback完了後に観測します。成功したlimit付きexecutionは両方の動的countと静的slot footprintを報告します。Testはzero host-call budget、過小なslot limit、pre-execution interruption、callback-triggered interruption、pre-execution deadline expiration、running back-edgeを停止するdeadlineを扱います。Callback内部の処理はopaqueな1 unitであり、slotはbyte数を測定せずheapを扱いません。Heap memory、recursion、task、callback内部のpreemption、native／JIT enforcementは未完了です。これはaccepted sandbox semanticsを定義せずに、blockingなresource-control questionをさらに狭めるものです。Review outcomeは引き続き **needs prototype/measurement** です。
 
 Benchmark schema 9は、既存VM countdown rowの隣に `vm_countdown_interruptible_call` を追加します。同一bytecode／inputをunsetの共有interruption flag付きで実行し、有効化したsafe pointのacquire-load costを直接計測できるようにします。現在のclean schema 10 macOS AArch64 runでは通常／interruption-enabled VM countdown medianが1.617 us／1.607 usでした。-10.228 ns（-0.633%）の差は通常rowの4.433% RSDより小さいため、測定可能なregressionを示さず、overhead budgetも確立しません。Schema 10はこのrowを維持し、CI contractとしてschema 9を置き換えました。Remote evidenceは未完了です。
 
 Benchmark schema 10は、harness準備の1時間後に設定した絶対monotonic deadline付きで同一bytecode／inputを実行する `vm_countdown_deadline_call` を追加します。Deadlineが期限前のままのsteady-state clock-check costを直接計測できます。Cleanな31-sample macOS AArch64 runは41行すべてが一意で、通常／期限前deadline付きVM countdown medianは1.617 us／3.315 us、1.698 usまたは104.997%の増加でした。Windows CIは新schema／rowを要求しますが、remote evidenceは未完了です。
+
+Benchmark schema 11はschema 10 fieldをすべて維持しながら、64-allocation burst用のdirect Rust／VM／JIT rowを追加します。Dirtyな3-sample smoke runは44行すべてが一意であることを検証し、macOS AOT integrationはimport済みcallbackを実行し、host非依存testはそのWindows COFF importを検証します。Windows CIは新しい3 rowを要求しますが、clean schema 11／remote Windows evidenceは未完了です。
 
 1. 最小の型付きMIR、bytecode lowering、verifier、VM、Cranelift JIT prototypeを追加する。
 2. 開発host上で、小さな型付き関数をVMとnative executionに通して差分テストする。
@@ -246,10 +248,11 @@ Benchmark schema 10は、harness準備の1時間後に設定した絶対monotoni
 ## 情報源
 
 - `docs/research.md`、プロジェクト調査、最終更新 2026-10-15 22:29 JST。
-- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 11:22 JST。
-- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 11:22 JST。
+- `docs/architecture.md`、設計baseline案、最終更新 2026-10-16 11:42 JST。
+- `docs/roadmap.md`、実装milestone、最終更新 2026-10-16 11:42 JST。
 - `crates/vm/src/lib.rs`、deadline-enabled VM resource-control prototype、最終更新 2026-10-16 11:20 JST。
-- `src/bin/prototype-bench.rs`、schema 10 interruption／deadline-overhead harness、最終更新 2026-10-16 11:22 JST。
+- `src/lib.rs`、64-allocation burst boundary prototype、最終更新 2026-10-16 11:42 JST。
+- `src/bin/prototype-bench.rs`、schema 11 allocation-burst harness、最終更新 2026-10-16 11:42 JST。
 - `benchmarks/results/2026-10-16-macos-aarch64-133172b.json`、clean schema 10 macOS AArch64 evidence、2026-10-16 11:28:39 JSTに計測。
 - Cranelift documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-codegen/0.136.3/
 - Cranelift JIT documentation、公開更新日のないliving documentation、2026-10-15確認：https://docs.rs/cranelift-jit/0.136.3/

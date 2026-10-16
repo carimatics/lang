@@ -229,15 +229,15 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 情報源
 
-- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 11:22 JST。
-- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 11:22 JST。
-- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 11:22 JST。
+- `docs/rfcs/0001-project-charter.md`、project charter／compatibility policy、最終更新 2026-10-16 11:42 JST。
+- `docs/architecture.md`、compiler／execution architecture proposal、最終更新 2026-10-16 11:42 JST。
+- `docs/roadmap.md`、Milestone 0 exit criteria／current evidence、最終更新 2026-10-16 11:42 JST。
 - `crates/mir/src/lib.rs`、typed CFG／validation prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/bytecode/src/lib.rs`、verified register bytecode prototype、最終更新 2026-10-16 01:25 JST。
 - `crates/vm/src/lib.rs`、VM execution／resource-control prototype、最終更新 2026-10-16 11:20 JST。
 - `crates/codegen-clif/src/lib.rs`、Cranelift lowering prototype、最終更新 2026-10-16 01:36 JST。
-- `src/lib.rs`、differential prototype workload、最終更新 2026-10-16 10:17 JST。
-- `src/bin/prototype-bench.rs`、schema 10 interruption／deadline-overhead harness、最終更新 2026-10-16 11:22 JST。
+- `src/lib.rs`、differential prototype workload、最終更新 2026-10-16 11:42 JST。
+- `src/bin/prototype-bench.rs`、schema 11 control／allocation-burst harness、最終更新 2026-10-16 11:42 JST。
 - `benchmarks/results/2026-10-16-macos-aarch64-133172b.json`、clean schema 10 macOS AArch64 evidence、2026-10-16 11:28:39 JSTに計測。
 
 このRFCは外部の事実に関する主張を追加しません。Design proposalはrepositoryの実行可能prototypeとproject decisionから導出しています。
