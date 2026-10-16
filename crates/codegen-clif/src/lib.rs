@@ -223,6 +223,7 @@ fn emit_object_with_isa(
             &mut product.object,
             function_symbol,
             function.name(),
+            function.signature().parameters().len(),
             defined.code_size,
             source_map,
         )

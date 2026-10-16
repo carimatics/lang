@@ -11,9 +11,24 @@ use object::{BinaryFormat, RelocationEncoding, RelocationFlags, RelocationKind, 
 use super::CompiledSourceMap;
 
 const CODEVIEW_SIGNATURE_C13: u32 = 4;
+const DEBUG_S_SYMBOLS: u32 = 0xf1;
 const DEBUG_S_LINES: u32 = 0xf2;
 const DEBUG_S_STRING_TABLE: u32 = 0xf3;
 const DEBUG_S_FILE_CHECKSUMS: u32 = 0xf4;
+const S_OBJNAME: u16 = 0x1101;
+const S_FRAMEPROC: u16 = 0x1012;
+const S_COMPILE3: u16 = 0x113c;
+const S_GPROC32_ID: u16 = 0x1147;
+const S_BUILDINFO: u16 = 0x114c;
+const S_PROC_ID_END: u16 = 0x114f;
+const LF_PROCEDURE: u16 = 0x1008;
+const LF_ARGLIST: u16 = 0x1201;
+const LF_BUILDINFO: u16 = 0x1603;
+const LF_FUNC_ID: u16 = 0x1601;
+const LF_STRING_ID: u16 = 0x1605;
+const TYPE_INDEX_I64: u32 = 0x13;
+const FIRST_NON_SIMPLE_TYPE_INDEX: u32 = 0x1000;
+const CPU_TYPE_X64: u16 = 0xd0;
 const CODEVIEW_LINES_HAVE_COLUMNS: u16 = 1;
 const CODEVIEW_LINE_IS_STATEMENT: u32 = 1 << 31;
 const CODEVIEW_MAX_LINE: u32 = (1 << 24) - 1;
@@ -67,6 +82,7 @@ pub(super) fn add_native_debug(
     object: &mut Object<'_>,
     function_symbol: SymbolId,
     function_name: &str,
+    parameter_count: usize,
     code_size: usize,
     source_map: &CompiledSourceMap,
 ) -> Result<(), String> {
@@ -78,7 +94,14 @@ pub(super) fn add_native_debug(
             code_size,
             source_map,
         ),
-        BinaryFormat::Coff => add_coff_codeview(object, function_symbol, code_size, source_map),
+        BinaryFormat::Coff => add_coff_codeview(
+            object,
+            function_symbol,
+            function_name,
+            parameter_count,
+            code_size,
+            source_map,
+        ),
         _ => Ok(()),
     }
 }
@@ -157,6 +180,8 @@ fn add_macho_dwarf(
 fn add_coff_codeview(
     object: &mut Object<'_>,
     function_symbol: SymbolId,
+    function_name: &str,
+    parameter_count: usize,
     code_size: usize,
     source_map: &CompiledSourceMap,
 ) -> Result<(), String> {
@@ -164,49 +189,55 @@ fn add_coff_codeview(
         return Ok(());
     }
 
-    let (section_data, relocation_offset, relocation_segment) =
-        build_codeview(code_size, source_map)?;
+    let codeview = build_codeview(function_name, parameter_count, code_size, source_map)?;
     let section = object.add_section(Vec::new(), b".debug$S".to_vec(), SectionKind::Debug);
-    object.append_section_data(section, &section_data, 4);
-    object
-        .add_relocation(
-            section,
-            Relocation {
-                offset: relocation_offset as u64,
-                symbol: function_symbol,
-                addend: 0,
-                flags: RelocationFlags::Generic {
-                    kind: RelocationKind::SectionOffset,
-                    encoding: RelocationEncoding::Generic,
-                    size: 32,
+    object.append_section_data(section, &codeview.symbols, 4);
+    for &(offset, kind, size) in &[
+        (codeview.procedure_offset, RelocationKind::SectionOffset, 32),
+        (codeview.procedure_segment, RelocationKind::SectionIndex, 16),
+        (codeview.lines_offset, RelocationKind::SectionOffset, 32),
+        (codeview.lines_segment, RelocationKind::SectionIndex, 16),
+    ] {
+        object
+            .add_relocation(
+                section,
+                Relocation {
+                    offset: offset as u64,
+                    symbol: function_symbol,
+                    addend: 0,
+                    flags: RelocationFlags::Generic {
+                        kind,
+                        encoding: RelocationEncoding::Generic,
+                        size,
+                    },
                 },
-            },
-        )
-        .map_err(|error| error.to_string())?;
-    object
-        .add_relocation(
-            section,
-            Relocation {
-                offset: relocation_segment as u64,
-                symbol: function_symbol,
-                addend: 0,
-                flags: RelocationFlags::Generic {
-                    kind: RelocationKind::SectionIndex,
-                    encoding: RelocationEncoding::Generic,
-                    size: 16,
-                },
-            },
-        )
-        .map_err(|error| error.to_string())?;
+            )
+            .map_err(|error| error.to_string())?;
+    }
+    let types = object.add_section(Vec::new(), b".debug$T".to_vec(), SectionKind::Debug);
+    object.append_section_data(types, &codeview.types, 4);
     Ok(())
 }
 
+struct CodeViewData {
+    symbols: Vec<u8>,
+    types: Vec<u8>,
+    procedure_offset: usize,
+    procedure_segment: usize,
+    lines_offset: usize,
+    lines_segment: usize,
+}
+
 fn build_codeview(
+    function_name: &str,
+    parameter_count: usize,
     code_size: usize,
     source_map: &CompiledSourceMap,
-) -> Result<(Vec<u8>, usize, usize), String> {
+) -> Result<CodeViewData, String> {
     let code_size = u32::try_from(code_size)
         .map_err(|_| "CodeView function code size exceeds 32 bits".to_owned())?;
+    let parameter_count = u16::try_from(parameter_count)
+        .map_err(|_| "CodeView function parameter count exceeds 16 bits".to_owned())?;
     let mut rows = Vec::new();
     let mut previous_offset = None;
     for range in source_map.ranges() {
@@ -236,7 +267,8 @@ fn build_codeview(
         } else {
             column
         };
-        rows.push((range.start(), position.line(), column, end_column));
+        let offset = if rows.is_empty() { 0 } else { range.start() };
+        rows.push((offset, position.line(), column, end_column));
         previous_offset = Some(range.start());
     }
     if rows.is_empty() {
@@ -280,12 +312,149 @@ fn build_codeview(
     checksums.push(0);
     pad_to_four(&mut checksums);
 
-    let mut section = Vec::new();
-    push_u32(&mut section, CODEVIEW_SIGNATURE_C13);
-    let lines_start = append_codeview_subsection(&mut section, DEBUG_S_LINES, &lines)?;
-    append_codeview_subsection(&mut section, DEBUG_S_STRING_TABLE, &strings)?;
-    append_codeview_subsection(&mut section, DEBUG_S_FILE_CHECKSUMS, &checksums)?;
-    Ok((section, lines_start, lines_start + 4))
+    let mut procedure = Vec::new();
+    push_u32(&mut procedure, 0);
+    push_u32(&mut procedure, 0);
+    push_u32(&mut procedure, 0);
+    push_u32(&mut procedure, code_size);
+    push_u32(&mut procedure, 0);
+    push_u32(&mut procedure, 0);
+    push_u32(&mut procedure, FIRST_NON_SIMPLE_TYPE_INDEX + 2);
+    let procedure_offset = procedure.len();
+    push_u32(&mut procedure, 0);
+    let procedure_segment = procedure.len();
+    push_u16(&mut procedure, 0);
+    procedure.push(0);
+    procedure.extend_from_slice(function_name.as_bytes());
+    procedure.push(0);
+
+    let mut symbol_records = Vec::new();
+    let mut object_name = Vec::new();
+    push_u32(&mut object_name, 0);
+    object_name.extend_from_slice(function_name.as_bytes());
+    object_name.extend_from_slice(b".obj\0");
+    append_codeview_symbol(&mut symbol_records, S_OBJNAME, &mut object_name)?;
+
+    let mut compile = Vec::new();
+    push_u32(&mut compile, 0);
+    push_u16(&mut compile, CPU_TYPE_X64);
+    for _ in 0..8 {
+        push_u16(&mut compile, 0);
+    }
+    compile.extend_from_slice(b"lang prototype compiler\0");
+    append_codeview_symbol(&mut symbol_records, S_COMPILE3, &mut compile)?;
+
+    let procedure_record_start =
+        append_codeview_symbol(&mut symbol_records, S_GPROC32_ID, &mut procedure)?;
+    let mut frame_procedure = vec![0; 26];
+    append_codeview_symbol(&mut symbol_records, S_FRAMEPROC, &mut frame_procedure)?;
+    let mut procedure_end = Vec::new();
+    append_codeview_symbol(&mut symbol_records, S_PROC_ID_END, &mut procedure_end)?;
+    let mut build_information = Vec::new();
+    push_u32(&mut build_information, FIRST_NON_SIMPLE_TYPE_INDEX + 8);
+    append_codeview_symbol(&mut symbol_records, S_BUILDINFO, &mut build_information)?;
+
+    let mut symbols = Vec::new();
+    push_u32(&mut symbols, CODEVIEW_SIGNATURE_C13);
+    let symbol_payload =
+        append_codeview_subsection(&mut symbols, DEBUG_S_SYMBOLS, &symbol_records)?;
+    let lines_start = append_codeview_subsection(&mut symbols, DEBUG_S_LINES, &lines)?;
+    append_codeview_subsection(&mut symbols, DEBUG_S_FILE_CHECKSUMS, &checksums)?;
+    append_codeview_subsection(&mut symbols, DEBUG_S_STRING_TABLE, &strings)?;
+
+    let mut types = Vec::new();
+    push_u32(&mut types, CODEVIEW_SIGNATURE_C13);
+    let mut arguments = Vec::new();
+    push_u32(&mut arguments, u32::from(parameter_count));
+    for _ in 0..parameter_count {
+        push_u32(&mut arguments, TYPE_INDEX_I64);
+    }
+    append_codeview_type(&mut types, LF_ARGLIST, &arguments)?;
+    let mut procedure_type = Vec::new();
+    push_u32(&mut procedure_type, TYPE_INDEX_I64);
+    procedure_type.push(0);
+    procedure_type.push(0);
+    push_u16(&mut procedure_type, parameter_count);
+    push_u32(&mut procedure_type, FIRST_NON_SIMPLE_TYPE_INDEX);
+    append_codeview_type(&mut types, LF_PROCEDURE, &procedure_type)?;
+    let mut function_id = Vec::new();
+    push_u32(&mut function_id, 0);
+    push_u32(&mut function_id, FIRST_NON_SIMPLE_TYPE_INDEX + 1);
+    function_id.extend_from_slice(function_name.as_bytes());
+    function_id.push(0);
+    append_codeview_type(&mut types, LF_FUNC_ID, &function_id)?;
+    for value in [
+        ".",
+        source_map.source_path(),
+        "",
+        "lang prototype compiler",
+        "",
+    ] {
+        let mut string_id = Vec::new();
+        push_u32(&mut string_id, 0);
+        string_id.extend_from_slice(value.as_bytes());
+        string_id.push(0);
+        append_codeview_type(&mut types, LF_STRING_ID, &string_id)?;
+    }
+    let mut build_information = Vec::new();
+    push_u16(&mut build_information, 5);
+    for index in [3, 6, 4, 5, 7] {
+        push_u32(&mut build_information, FIRST_NON_SIMPLE_TYPE_INDEX + index);
+    }
+    append_codeview_type(&mut types, LF_BUILDINFO, &build_information)?;
+
+    Ok(CodeViewData {
+        symbols,
+        types,
+        procedure_offset: symbol_payload + procedure_record_start + 4 + procedure_offset,
+        procedure_segment: symbol_payload + procedure_record_start + 4 + procedure_segment,
+        lines_offset: lines_start,
+        lines_segment: lines_start + 4,
+    })
+}
+
+fn append_codeview_symbol(
+    records: &mut Vec<u8>,
+    kind: u16,
+    body: &mut Vec<u8>,
+) -> Result<usize, String> {
+    while !(body.len() + 4).is_multiple_of(4) {
+        body.push(0);
+    }
+    let record_start = records.len();
+    let record_length = body
+        .len()
+        .checked_add(2)
+        .ok_or_else(|| "CodeView symbol record size overflowed".to_owned())?;
+    push_u16(
+        records,
+        u16::try_from(record_length)
+            .map_err(|_| "CodeView symbol record exceeds 16 bits".to_owned())?,
+    );
+    push_u16(records, kind);
+    records.extend_from_slice(body);
+    Ok(record_start)
+}
+
+fn append_codeview_type(records: &mut Vec<u8>, kind: u16, body: &[u8]) -> Result<(), String> {
+    let record_start = records.len();
+    push_u16(records, 0);
+    push_u16(records, kind);
+    records.extend_from_slice(body);
+    let padding = (4 - (records.len() - record_start) % 4) % 4;
+    for value in (1..=padding).rev() {
+        records.push(0xf0 + value as u8);
+    }
+    let record_length = records
+        .len()
+        .checked_sub(record_start + 2)
+        .ok_or_else(|| "CodeView type record size overflowed".to_owned())?;
+    records[record_start..record_start + 2].copy_from_slice(
+        &u16::try_from(record_length)
+            .map_err(|_| "CodeView type record exceeds 16 bits".to_owned())?
+            .to_le_bytes(),
+    );
+    Ok(())
 }
 
 fn append_codeview_subsection(
