@@ -1,0 +1,19 @@
+fn prototype_add(%0: i64, %1: i64) -> i64 {
+  %2 = i64.add.wrap %0, %1
+  return %2
+}
+
+fn prototype_min(%0: i64, %1: i64) -> i64 {
+entry:
+  %2 = i64.lt.s %0, %1
+  branch %2, less, greater_equal
+less:
+  return %0
+greater_equal:
+  return %1
+}
+
+fn prototype_host_callback(%0: i64) -> i64 {
+  %1 = call @lang_host_i64_0(%0)
+  return %1
+}

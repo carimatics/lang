@@ -173,6 +173,102 @@ fn assert_aot_executable(executable: &Path) {
     );
 }
 
+fn assert_dwarf_object(object: &Path, function: &str, expected_positions: &[(u32, u32)]) {
+    let verification = Command::new("xcrun")
+        .arg("dwarfdump")
+        .arg("--verify")
+        .arg(object)
+        .output()
+        .expect("runs dwarfdump verification");
+    assert!(
+        verification.status.success(),
+        "DWARF verification failed for {}:\nstdout:\n{}\nstderr:\n{}",
+        object.display(),
+        String::from_utf8_lossy(&verification.stdout),
+        String::from_utf8_lossy(&verification.stderr)
+    );
+
+    let info = Command::new("xcrun")
+        .arg("dwarfdump")
+        .arg("--debug-info")
+        .arg(object)
+        .output()
+        .expect("reads DWARF debug information");
+    assert!(info.status.success());
+    let info = String::from_utf8(info.stdout).expect("dwarfdump emits UTF-8");
+    assert!(info.contains("benchmarks/fixtures/native-debug.mir"));
+    assert!(info.contains(function));
+
+    let lines = Command::new("xcrun")
+        .arg("dwarfdump")
+        .arg("--debug-line")
+        .arg(object)
+        .output()
+        .expect("reads the DWARF line table");
+    assert!(lines.status.success());
+    let lines = String::from_utf8(lines.stdout).expect("dwarfdump emits UTF-8");
+    let positions = lines
+        .lines()
+        .filter(|line| line.trim_start().starts_with("0x"))
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            fields.next()?;
+            Some((fields.next()?.parse().ok()?, fields.next()?.parse().ok()?))
+        })
+        .collect::<Vec<_>>();
+    for expected in expected_positions {
+        assert!(
+            positions.contains(expected),
+            "missing line/column {expected:?} in {}: {positions:?}",
+            object.display()
+        );
+    }
+}
+
+fn assert_linked_dsym(executable: &Path, dsym: &Path) {
+    let generation = Command::new("xcrun")
+        .arg("dsymutil")
+        .arg(executable)
+        .arg("-o")
+        .arg(dsym)
+        .output()
+        .expect("runs dsymutil");
+    assert!(
+        generation.status.success(),
+        "dSYM generation failed for {}:\nstdout:\n{}\nstderr:\n{}",
+        executable.display(),
+        String::from_utf8_lossy(&generation.stdout),
+        String::from_utf8_lossy(&generation.stderr)
+    );
+
+    let verification = Command::new("xcrun")
+        .arg("dwarfdump")
+        .arg("--verify")
+        .arg(dsym)
+        .output()
+        .expect("verifies the linked dSYM");
+    assert!(
+        verification.status.success(),
+        "linked dSYM verification failed for {}:\nstdout:\n{}\nstderr:\n{}",
+        dsym.display(),
+        String::from_utf8_lossy(&verification.stdout),
+        String::from_utf8_lossy(&verification.stderr)
+    );
+
+    let info = Command::new("xcrun")
+        .arg("dwarfdump")
+        .arg("--debug-info")
+        .arg(dsym)
+        .output()
+        .expect("reads the linked dSYM");
+    assert!(info.status.success());
+    let info = String::from_utf8(info.stdout).expect("dwarfdump emits UTF-8");
+    assert!(info.contains("benchmarks/fixtures/native-debug.mir"));
+    for function in ["prototype_add", "prototype_min", "prototype_host_callback"] {
+        assert!(info.contains(function), "missing {function} in linked dSYM");
+    }
+}
+
 #[test]
 fn system_linker_runs_exported_functions_and_host_callback() {
     let directory = TestDirectory::create();
@@ -193,6 +289,8 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     let harness_object = directory.path().join("harness.o");
     let executable = directory.path().join("prototype-aot");
     let response_executable = directory.path().join("prototype-aot-response");
+    let dsym = directory.path().join("prototype-aot.dSYM");
+    let response_dsym = directory.path().join("prototype-aot-response.dSYM");
     let response_file = directory.path().join("link arguments.rsp");
 
     let add = emit_host_object(&prototype_add_function()).expect("emits the add object");
@@ -231,6 +329,13 @@ fn system_linker_runs_exported_functions_and_host_callback() {
     fs::write(&sum_below_object, sum_below.bytes()).expect("writes the conditional sum object");
     fs::write(&sum_object, sum.bytes()).expect("writes the sum object");
     fs::write(&harness_source, C_HARNESS).expect("writes the C harness");
+    assert_dwarf_object(&add_object, "prototype_add", &[(2, 3), (3, 3)]);
+    assert_dwarf_object(&min_object, "prototype_min", &[(9, 3), (11, 3), (13, 3)]);
+    assert_dwarf_object(
+        &callback_object,
+        "prototype_host_callback",
+        &[(17, 3), (18, 3)],
+    );
 
     let compilation = Command::new("cc")
         .arg("-c")
@@ -265,6 +370,7 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .link(&request)
         .expect("links the AOT objects through the host C compiler driver");
     assert_aot_executable(&executable);
+    assert_linked_dsym(&executable, &dsym);
 
     let response_request = LinkRequest::new(&response_executable)
         .with_object(&harness_object)
@@ -284,4 +390,5 @@ fn system_linker_runs_exported_functions_and_host_callback() {
         .expect("links the AOT objects through a response file");
     assert!(response_file.is_file());
     assert_aot_executable(&response_executable);
+    assert_linked_dsym(&response_executable, &response_dsym);
 }

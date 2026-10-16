@@ -4,8 +4,8 @@ use std::fmt::{Display, Formatter};
 use lang_bytecode::{LowerError, lower};
 use lang_codegen_clif::{CompileError, CompiledFunction, InvokeError};
 use lang_mir::{
-    BasicBlock, BlockId, BlockParameter, BlockTarget, Function, HostFunctionId, Instruction,
-    Signature, Terminator, Type, ValueId,
+    BasicBlock, BlockId, BlockParameter, BlockSourceMap, BlockTarget, Function, FunctionSourceMap,
+    HostFunctionId, Instruction, Signature, SourcePosition, SourceSpan, Terminator, Type, ValueId,
 };
 use lang_runtime::{HostFunctionRegistry, RegistrationError};
 use lang_vm::{VmError, execute, execute_with_hosts};
@@ -43,6 +43,27 @@ impl Display for PrototypeError {
 }
 
 pub const PROTOTYPE_DOUBLE_HOST: HostFunctionId = HostFunctionId::new(0);
+const PROTOTYPE_DEBUG_SOURCE_PATH: &str = "benchmarks/fixtures/native-debug.mir";
+
+fn source_position(line: u32, column: u32) -> SourcePosition {
+    SourcePosition::new(line, column).expect("prototype source positions are non-zero")
+}
+
+fn source_span(start_line: u32, start_column: u32, end_line: u32, end_column: u32) -> SourceSpan {
+    SourceSpan::new(
+        source_position(start_line, start_column),
+        source_position(end_line, end_column),
+    )
+    .expect("prototype source spans are ordered")
+}
+
+fn prototype_source_map(
+    function_span: SourceSpan,
+    blocks: Vec<BlockSourceMap>,
+) -> FunctionSourceMap {
+    FunctionSourceMap::new(PROTOTYPE_DEBUG_SOURCE_PATH, function_span, blocks)
+        .expect("prototype source maps use a valid fixture path")
+}
 pub const PROTOTYPE_ALLOCATE_HOST: HostFunctionId = HostFunctionId::new(1);
 pub const PROTOTYPE_ALLOCATE_BURST_HOST: HostFunctionId = HostFunctionId::new(2);
 pub const PROTOTYPE_ALLOCATE_CHURN_HOST: HostFunctionId = HostFunctionId::new(3);
@@ -122,6 +143,14 @@ pub fn prototype_add_function() -> Function {
         }],
         Terminator::Return(ValueId::new(2)),
     )
+    .with_source_map(prototype_source_map(
+        source_span(1, 1, 4, 2),
+        vec![BlockSourceMap::new(
+            vec![source_span(2, 3, 2, 27)],
+            source_span(3, 3, 3, 12),
+        )],
+    ))
+    .expect("the add source map matches its MIR")
 }
 
 pub fn run_prototype_add(left: i64, right: i64) -> Result<ExecutionResults, PrototypeError> {
@@ -157,6 +186,15 @@ pub fn prototype_min_function() -> Function {
             BasicBlock::new(vec![], Terminator::Return(ValueId::new(1))),
         ],
     )
+    .with_source_map(prototype_source_map(
+        source_span(6, 1, 14, 2),
+        vec![
+            BlockSourceMap::new(vec![source_span(8, 3, 8, 23)], source_span(9, 3, 9, 33)),
+            BlockSourceMap::new(vec![], source_span(11, 3, 11, 12)),
+            BlockSourceMap::new(vec![], source_span(13, 3, 13, 12)),
+        ],
+    ))
+    .expect("the minimum source map matches its MIR")
 }
 
 pub fn run_prototype_min(left: i64, right: i64) -> Result<ExecutionResults, PrototypeError> {
@@ -513,6 +551,14 @@ pub fn prototype_host_callback_function() -> Function {
         }],
         Terminator::Return(ValueId::new(1)),
     )
+    .with_source_map(prototype_source_map(
+        source_span(16, 1, 19, 2),
+        vec![BlockSourceMap::new(
+            vec![source_span(17, 3, 17, 33)],
+            source_span(18, 3, 18, 12),
+        )],
+    ))
+    .expect("the host-callback source map matches its MIR")
 }
 
 pub fn run_prototype_host_callback(value: i64) -> Result<ExecutionResults, PrototypeError> {
