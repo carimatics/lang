@@ -42,5 +42,5 @@ jobs:
       - name: Build documentation
         run: cargo doc --locked --workspace --no-deps
 
-      - name: Check decoder fuzz targets
+      - name: Check fuzz targets
         run: cargo check --locked --manifest-path fuzz/Cargo.toml --bins

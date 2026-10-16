@@ -54,10 +54,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lang-diagnostics"
+version = "0.1.0"
+
+[[package]]
 name = "lang-fuzz"
 version = "0.0.0"
 dependencies = [
+ "lang-diagnostics",
  "lang-runtime",
+ "lang-syntax",
  "libfuzzer-sys",
 ]
 
@@ -70,6 +76,13 @@ name = "lang-runtime"
 version = "0.1.0"
 dependencies = [
  "lang-mir",
+]
+
+[[package]]
+name = "lang-syntax"
+version = "0.1.0"
+dependencies = [
+ "lang-diagnostics",
 ]
 
 [[package]]

@@ -10,6 +10,15 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 lang-runtime = { path = "../crates/runtime" }
+lang-diagnostics = { path = "../crates/diagnostics" }
+lang-syntax = { path = "../crates/syntax" }
+
+[[bin]]
+name = "source_parser"
+path = "fuzz_targets/source_parser.rs"
+test = false
+doc = false
+bench = false
 
 [[bin]]
 name = "component_metadata_decoder"

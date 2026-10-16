@@ -1,0 +1,24 @@
+// Complete RFC 0006 syntax; semantic validation is a later stage.
+pub mod math;
+use root::math::increment;
+extern fn next(value: i64) -> i64;
+pub struct Empty {}
+pub struct Pair { left: i64, right: bool, }
+pub enum Maybe { None, Some(Pair,), }
+fn forward(value: Pair, flag: bool,) -> Maybe {
+    let mut count: i64 = -0 + 001;
+    let mut result: Maybe = Maybe::None;
+    if flag { count = next(count); } else { count = count + -1; }
+    while count < 10 { count = increment(count); }
+    if (Pair { right: true, left: 3, }).right { count = 4; }
+    match value {
+        Pair { left: -1, right: false } => { return Maybe::None; },
+        Pair { right: _, left: binding } => { return Maybe::Some(Pair { left: binding, right: true }); },
+    }
+    match result {
+        Maybe::Some(Pair { left: 0, right: true }) => { return result; },
+        Maybe::None => { return result; },
+        rest => { return rest; },
+    }
+}
+fn main() -> i64 { return forward(Pair { left: 1, right: true }, false).left; }

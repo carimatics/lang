@@ -5,7 +5,12 @@
 //! and malformed text as validated ranges into immutable source snapshots.
 
 mod lexer;
+mod parser;
 
 pub use lexer::{
     InputError, InputErrorKind, LexError, LexLimits, Lexed, Token, TokenKind, add_source, lex,
+};
+pub use parser::{
+    ExpectedSyntax, NodeId, ParseError, ParseLimits, SyntaxElement, SyntaxKind, SyntaxNode,
+    SyntaxTree, parse, parse_expression,
 };
