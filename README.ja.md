@@ -51,6 +51,8 @@
 - [RFC 0006：Source frontendとportable VM program（implemented）](docs/ja/rfcs/0006-source-frontend-and-portable-programs.md)
 - [RFC 0007：Sourceのownershipとcore value（accepted）](docs/ja/rfcs/0007-source-ownership-and-core-values.md)
 - [RFC 0008：Cleanup、allocator authority、C boundary（accepted）](docs/ja/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
+- [RFC 0009：Option／Result全体のownership取り出し（accepted）](docs/ja/rfcs/0009-whole-sum-ownership-extraction.md)
+- [RFC 0010：所有値を返すREPL結果のpreview（accepted・実装未完了）](docs/ja/rfcs/0010-owned-repl-previews.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

@@ -1,0 +1,12 @@
+// Source contract for RFC 0010. Check accepts this library without a main.
+// Named owned-result execution/preview is M2-V16; REPL integration is M2-V10.
+struct PreviewMessage { bytes: core::Bytes, text: core::Text, count: i64 }
+fn fresh_bytes() -> core::Bytes {
+    return core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+}
+fn fresh_text() -> core::Text {
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(fresh_bytes()));
+}
+fn preview_message() -> core::Result<PreviewMessage, core::AllocError> {
+    return core::Result::Ok(PreviewMessage { count: 7, text: fresh_text(), bytes: fresh_bytes() });
+}
