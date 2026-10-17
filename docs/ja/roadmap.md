@@ -321,6 +321,10 @@ Cleanup runtime統合の基盤（2026-10-18 JST）：commit `c437dc1` は`lang_r
 
 見直し：source生成のcleanup rangeがruntime engineへ接続されましたが、検証を限定したtest interpreterによってownership VM実行やdeterministic dropのconformanceが完了したとはしません。M2は34 / 113 pt（30.1%）、全18成果中5成果、全体332 / 764 pt（43.5%）を維持し、scope、依存関係、113 pt見積もりは引き続き妥当です。次はownership MIRにaggregate field／temporaryの実構築順を保持し、生成runtime failure exitをelaborateして、続いてowned layout／fallible allocationとproduction VM／native adapterを実装します。独立arena effect、version付きownership artifactと、残るunsafe／C、packaging、conformance、platform／debug、performanceのgateは未完了です。
 
+Record構築順の保持（2026-10-18 JST）：commit `a984e5e` は、ownershipの`Op::Record`へ検証済み初期化permutationを追加し、物理operandは宣言順を維持します。Source loweringは記述順を記録し、不正な長さ／重複／ordinalはverifierの厳密な累積上限の下で失敗します。Runtimeの`RecordOrder`は検査済みconstructor metadataを借り、initializer spanと確保なしの逆順field drainを提供します。消費済みfieldは再試行できず、iterationを止めても未訪問fieldの所有は残ります。`Frame::take_owner`は検証／予約済みaggregate storageへの転送を支援し、registrationのexportを拒否します。追加6 testは、source生成MIRのrecord／transferに限定したinterpreterで実際のshared resourceを使います。3 fieldの記述順全6通り、入れ子／Copy field、同じnominal typeでconstructor順が異なる2つの値、aggregate返却／caller cleanup、部分drain、空record、不正metadata、span、厳密な予算境界、export guardを検証しました。Workspace全874 test、fmt／Clippy／doc、fuzz format／全bin locked Clippyと、拡張record／body targetの非instrumented smoke 10,000回が成功しました。Evidence：[record cleanup architecture](architecture.md#record構築とfield-cleanup順)とリンク先実装／testの更新／検証日：2026-10-18 JST。RFC 0008の最終更新日：2026-10-17。
+
+見直し：recordのfield順序がnominal layoutとは独立して構築／move／返却を通して保持されました。このmetadata統合部分は完了しましたが、deterministic dropやownership実行の成果は未完了です。生成failure exit、production cleanupでの順序付きfield failure報告、owned layout／fallible guest allocation、VM／native adapterが残ります。M2は34 / 113 pt（30.1%）、全18成果中5成果、全体332 / 764 pt（43.5%）を維持し、scope、依存関係、113 pt見積もりは引き続き妥当です。次は入れ子fieldのfailure後も処理／報告を続けるfailure pathとcleanup contextを実装し、続いてfallible allocationとowned実行を接続します。独立arena、ownership artifact、unsafe／C、packaging、differential／platform／debug、performanceのgateも引き続き必要です。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
