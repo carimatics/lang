@@ -409,6 +409,22 @@ Runtimeの`Frame`には対応する段階的exit操作を追加します。`stag
 
 出典：[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Failure elaboration](../../crates/mir/src/unit/ownership/failure.rs)、[共通解析](../../crates/semantics/src/analysis.rs)、[runtime exit](../../crates/runtime/src/cleanup.rs)、[CFG統合test](../../tests/failure_flow.rs)、[runtime test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
 
+### Fallibleなinstance allocator基盤
+
+実装／検証日：2026-10-18 JST。`lang_runtime::allocation::Allocator<P>`は、明示的なtrusted providerを一意なallocator identityへ結び付けます。Entry adapterはguest実行やcallback前に権限の欠落／失効を拒否できます。各live handleはallocator identity、wrapしないgeneration、元の正確なsize／alignmentを保持し、別allocator、解放済み、再利用済みhandleを拒否します。Live allocationがある間の権限取り消しは`InUse`を返して権限を維持します。Teardownはproviderを破棄する前に残存storageを解放します。
+
+`Request`はcallback前にi64／host sizeへの表現可能性、要素sizeの乗算、最大4096の2の冪alignmentを検査します。Limitは個別request、live／cumulative requested bytes、live allocation数、alignmentを別々に制限します。既定値は個別request／liveが64 MiB、cumulativeが256 MiB、live allocationが65,536件です。Locator slotとfree listはtrustedなinstance setup中にfallibleに事前確保し、guestのallocation／releaseは表を拡張せず定数時間でslotを管理します。Layout adapterには引き続きtype／regionの検証と、guest制御のdata／header／retirement allocationすべての明示requestが必要です。`check`はdata／metadataを合わせたplanを課金せずpreflightし、後続request失敗時のrollbackはadapterが担当します。
+
+認可済みrequestはprovider呼び出し前にlive／count予算を予約します。OOMはlive／countを返金しますが、cumulative requested bytesと試行数は維持します。Quota拒否ではcallbackも課金も行いません。Zero-size requestもproviderを呼ばずにidentity、generation、allocation数のaccountingを保持します。確保成功時はpeak requested storage／countを更新します。統計が示すのはrequested storageであり、hostのpadding、fragmentation、process RSSではありません。短すぎる／alignment不正のprovider regionは一度だけ返却して公開前に拒否し、foreign pointerのvalidity、uniqueness、lifetimeは引き続きtrusted preconditionです。
+
+`resize`は元のproviderでreplacement storageを確保／copyし、旧値と新値が同時に生存する予算を要求して、新handleを公開してから元の正確なrequestで旧storageを解放します。失敗時は元のhandle／dataを保持します。別allocatorへのcopyは明示操作です。Safe Rustの`System` providerは余裕を加えたbyte vectorをfallibleに確保し、連続したaligned viewを公開します。Unsafe blockやguest経路でのinfallibleなmetadata確保は追加しません。汎用region／provider interfaceは内部runtime基盤であり、生成するraw C allocator bridgeやserialized handle formatではありません。
+
+追加16 testは、alignment 4096までのaligned／disjoint storage、zero-sizeの権限、全quotaとarithmetic／counter／generation overflow、別allocator／古いhandle、決定的OOMと不正provider storage、metadataを合わせたpreflight／rollback、失敗時に元の値を維持するgrow、明示的allocator clone、元のpointer／size／alignmentによる正確な解放、provider lifetimeを検証します。独立したledgerは、OOM注入とslot再利用を含む256 stepのallocation／release生成列を100件照合します。Production owned payload layout、source core operation adapter、shared／arenaのallocation変換、retirement予約、VM／native実行、C callbackは引き続き未完了です。
+
+検証：workspace全907 testと必須fmt／Clippy／doc baselineが成功しました。Fuzz targetのformatと全bin locked Clippyも成功しました。
+
+出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Allocator基盤](../../crates/runtime/src/allocation.rs)と[allocator test](../../crates/runtime/tests/allocation.rs)の更新／検証日：2026-10-18 JST。
+
 ### Source analysis profileとdriver境界
 
 実装／検証日：2026-10-18 JST。`lang_hir::program::analyze_program`は検査済みCopy program、またはprivateなregion検査済みHIR bodyを保持するownership programを返します。互換entry pointの`check_program`と`check_expression_function`は引き続きCopy execution profileを要求します。成功したownership解析は保持され、再実行したり未対応の言語機能として報告したりしません。
