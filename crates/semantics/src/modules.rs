@@ -421,6 +421,56 @@ pub fn load_modules(
     if !file.starts_with(&root) {
         return Err(ModuleLoadError::OutsideRoot { path: file });
     }
+    load_at(sources, root, file, None, true, limits)
+}
+
+/// Analyze a host-supplied root snapshot without creating a temporary file.
+/// Its display path is relative and conveys no read authority. File modules
+/// are rejected unless a canonical source-root directory is explicitly given.
+pub fn load_virtual(
+    sources: &mut SourceMap,
+    display: &Path,
+    bytes: &[u8],
+    source_root: Option<&Path>,
+    limits: ModuleLimits,
+) -> Result<ModuleAnalysis, ModuleLoadError> {
+    if limits.modules == 0
+        || display.as_os_str().is_empty()
+        || !display
+            .components()
+            .all(|part| matches!(part, std::path::Component::Normal(_)))
+    {
+        return Err(ModuleLoadError::InvalidConfiguration);
+    }
+    let root = match source_root {
+        Some(root) => {
+            let root = canonicalize(root)?;
+            if !root.is_dir() {
+                return Err(ModuleLoadError::InvalidConfiguration);
+            }
+            root
+        }
+        None => PathBuf::new(),
+    };
+    let file = root.join(display);
+    load_at(
+        sources,
+        root,
+        file,
+        Some(bytes),
+        source_root.is_some(),
+        limits,
+    )
+}
+
+fn load_at(
+    sources: &mut SourceMap,
+    root: PathBuf,
+    file: PathBuf,
+    root_bytes: Option<&[u8]>,
+    allow_files: bool,
+    limits: ModuleLimits,
+) -> Result<ModuleAnalysis, ModuleLoadError> {
     let mut loader = Loader {
         sources,
         root,
@@ -440,9 +490,21 @@ pub fn load_modules(
         definitions: 0,
         imports: 0,
     };
-    loader.load_file(file, None, Vec::new())?;
+    if let Some(bytes) = root_bytes {
+        loader.load_bytes(file, bytes, None, Vec::new())?;
+    } else {
+        loader.load_file(file, None, Vec::new())?;
+    }
     let mut jobs = loader.collect_items(ModuleId(0))?;
     while let Some(job) = jobs.pop() {
+        if !allow_files {
+            loader.report_module(
+                job.span,
+                "file modules require an explicit source root",
+                None,
+            )?;
+            continue;
+        }
         let requested = loader
             .root
             .join(job.hierarchy.iter().collect::<PathBuf>())
@@ -596,13 +658,6 @@ impl Loader<'_> {
         parent: Option<ModuleId>,
         hierarchy: Vec<String>,
     ) -> Result<ModuleId, ModuleLoadError> {
-        let relative = file
-            .strip_prefix(&self.root)
-            .expect("canonical root checked before reads");
-        let display = relative
-            .to_str()
-            .ok_or_else(|| ModuleLoadError::NonUtf8Path { path: file.clone() })?
-            .replace(std::path::MAIN_SEPARATOR, "/");
         let capacity = self
             .limits
             .parse
@@ -620,12 +675,35 @@ impl Loader<'_> {
                 path: file.clone(),
                 error,
             })?;
+        self.load_bytes(file, &bytes, parent, hierarchy)
+    }
+
+    fn load_bytes(
+        &mut self,
+        file: PathBuf,
+        bytes: &[u8],
+        parent: Option<ModuleId>,
+        hierarchy: Vec<String>,
+    ) -> Result<ModuleId, ModuleLoadError> {
+        let relative = file
+            .strip_prefix(&self.root)
+            .expect("source root checked before loading");
+        let display = relative
+            .to_str()
+            .ok_or_else(|| ModuleLoadError::NonUtf8Path { path: file.clone() })?
+            .replace(std::path::MAIN_SEPARATOR, "/");
+        let capacity = self
+            .limits
+            .parse
+            .lex
+            .source_bytes
+            .min(self.limits.total_source_bytes.saturating_sub(self.bytes));
         let mut parse_limits = self.limits.parse;
         parse_limits.lex.source_bytes = capacity;
         parse_limits.lex.tokens = parse_limits.lex.tokens.saturating_sub(self.tokens);
         parse_limits.nodes = parse_limits.nodes.saturating_sub(self.nodes);
         let source =
-            add_source(self.sources, display, &bytes, parse_limits.lex).map_err(|error| {
+            add_source(self.sources, display, bytes, parse_limits.lex).map_err(|error| {
                 ModuleLoadError::Input {
                     path: file.clone(),
                     error,

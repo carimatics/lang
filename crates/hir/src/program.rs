@@ -74,6 +74,7 @@ pub enum CheckInputErrorKind {
     DuplicateQualifiedName,
     InvalidLocalMetadata,
     InvalidSignature,
+    InvalidExpressionFunction,
     InvisibleLocal(usize),
     Cycle(ArenaKind),
     SharedNode(ArenaKind),
@@ -169,6 +170,29 @@ pub fn check_program(
     sources: &SourceMap,
     limits: CheckLimits,
 ) -> Result<ProgramAnalysis, CheckError> {
+    check_program_internal(source, sources, limits, None)
+}
+
+/// Infer only a host-generated REPL expression wrapper's result. Ordinary
+/// declarations keep explicit result types. The wrapper must be a private
+/// root function with no locals/parameters and exactly one return expression;
+/// no expression anywhere may call it, so provisional signatures cannot leak
+/// into recursive calls or other function facts.
+pub fn check_expression_function(
+    source: r::Program,
+    sources: &SourceMap,
+    limits: CheckLimits,
+    wrapper: r::FunctionId,
+) -> Result<ProgramAnalysis, CheckError> {
+    check_program_internal(source, sources, limits, Some(wrapper))
+}
+
+fn check_program_internal(
+    mut source: r::Program,
+    sources: &SourceMap,
+    limits: CheckLimits,
+    infer: Option<r::FunctionId>,
+) -> Result<ProgramAnalysis, CheckError> {
     let mut context = Context {
         source: &source,
         sources,
@@ -179,6 +203,43 @@ pub fn check_program(
         errors: 0,
     };
     context.metadata()?;
+    let expression = if let Some(id) = infer {
+        let invalid = || input(CheckInputErrorKind::InvalidExpressionFunction, None);
+        let function = source.functions.get(id.0).ok_or_else(invalid)?;
+        if function.module != r::ModuleId(0)
+            || function.public
+            || !function.name.text.starts_with("__repl_eval_")
+            || !function.parameters.is_empty()
+            || !function.locals.is_empty()
+            || !function.patterns.is_empty()
+            || function.blocks.len() != 1
+            || function.body != r::BlockId(0)
+            || function.result.value_type != r::Type::I64
+        {
+            return Err(invalid());
+        }
+        let [
+            r::Statement {
+                kind: r::StatementKind::Return(expression),
+                ..
+            },
+        ] = function.blocks[0].statements.as_slice()
+        else {
+            return Err(invalid());
+        };
+        for f in &source.functions {
+            for e in &f.expressions {
+                context.charge(e.span)?;
+                if matches!(e.kind,r::ExpressionKind::Call {callee:r::Callable::Guest(target),..} if target==id)
+                {
+                    return Err(invalid());
+                }
+            }
+        }
+        Some(*expression)
+    } else {
+        None
+    };
     let layout =
         analyze_layouts(&source.definitions, sources, limits.layout).map_err(CheckError::Layout)?;
     for diagnostic in layout.diagnostics {
@@ -191,8 +252,11 @@ pub fn check_program(
         });
     };
     let mut facts = Vec::new();
-    for function in &source.functions {
-        facts.push(FunctionChecker::new(&mut context, function).check()?);
+    for (index, function) in source.functions.iter().enumerate() {
+        facts.push(
+            FunctionChecker::new(&mut context, function, infer == Some(r::FunctionId(index)))
+                .check()?,
+        );
     }
     let successful = context.errors == 0;
     let diagnostics = context.diagnostics;
@@ -206,6 +270,10 @@ pub fn check_program(
         .into_iter()
         .collect::<Option<Vec<_>>>()
         .ok_or_else(|| input(CheckInputErrorKind::IncompleteTyping, None))?;
+    if let (Some(wrapper), Some(expression)) = (infer, expression) {
+        source.functions[wrapper.0].result.value_type =
+            functions[wrapper.0].expressions[expression.0];
+    }
     Ok(ProgramAnalysis {
         program: Some(TypedProgram {
             source,
@@ -569,6 +637,7 @@ enum Visit {
 struct FunctionChecker<'a, 'b> {
     context: &'b mut Context<'a>,
     function: &'a r::Function,
+    infer_result: bool,
     locals: Vec<Option<r::Type>>,
     expressions: Vec<Option<r::Type>>,
     patterns: Vec<Option<r::Type>>,
@@ -584,10 +653,11 @@ struct FunctionChecker<'a, 'b> {
     pattern_fields: BTreeMap<r::PatternId, Vec<r::PatternId>>,
 }
 impl<'a, 'b> FunctionChecker<'a, 'b> {
-    fn new(context: &'b mut Context<'a>, function: &'a r::Function) -> Self {
+    fn new(context: &'b mut Context<'a>, function: &'a r::Function, infer_result: bool) -> Self {
         Self {
             context,
             function,
+            infer_result,
             locals: function
                 .locals
                 .iter()
@@ -830,13 +900,15 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             }
             r::StatementKind::Return(value) => {
                 let ty = self.expression(*value, depth + 1)?;
-                self.context.expect(
-                    ty,
-                    self.function.result.value_type,
-                    primitive_context(self.function.result.value_type),
-                    self.function.expressions[value.0].span,
-                    Some(self.function.result.span),
-                )?;
+                if !self.infer_result {
+                    self.context.expect(
+                        ty,
+                        self.function.result.value_type,
+                        primitive_context(self.function.result.value_type),
+                        self.function.expressions[value.0].span,
+                        Some(self.function.result.span),
+                    )?;
+                }
                 return Ok(Flow::Returns);
             }
             r::StatementKind::If {

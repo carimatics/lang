@@ -130,6 +130,25 @@ pub fn lower(
     sources: &SourceMap,
     limits: m::Limits,
 ) -> Result<m::VerifiedUnit> {
+    lower_unit(program, sources, limits, true)
+}
+
+/// Library/REPL analysis does not select a script entry, even if an ordinary
+/// function is named main. Explicit embedding invocation still checks its type.
+pub fn lower_library(
+    program: &TypedProgram,
+    sources: &SourceMap,
+    limits: m::Limits,
+) -> Result<m::VerifiedUnit> {
+    lower_unit(program, sources, limits, false)
+}
+
+fn lower_unit(
+    program: &TypedProgram,
+    sources: &SourceMap,
+    limits: m::Limits,
+    select_entry: bool,
+) -> Result<m::VerifiedUnit> {
     let input = program.source();
     let mut c = Context {
         input,
@@ -243,7 +262,7 @@ pub fn lower(
         });
     }
     for (i, function) in input.functions.iter().enumerate() {
-        if function.qualified_name == "main" {
+        if select_entry && function.qualified_name == "main" {
             unit.entry = Some(m::FunctionId(id(i)?));
         }
         unit.functions

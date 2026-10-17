@@ -67,6 +67,8 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang_vm::unit` は全受理済みMilestone 1 operationを明示guest frame stackとflatなcopy-value storageで実行します。既定値はfuel 1,000,000、host call 1,000、frame 256、live cell 1,000,000で、interruption／deadline検査とsource stack traceを提供します。Guest実行前に全宣言qualified host importの明示typed registry bindingを要求します。`cargo test --test source_vm` でsource→wire→VM実行、`cargo test -p lang-vm --test units` でparallel copy、value検証、checked projection境界を検証できます。これらはlibrary経路であり、script／REPL CLI、formatter、LSP transportはまだ提供しません。
 
+REPL向けの基盤は `modules::load_virtual` でvirtual root snapshotを受け取り、`check_expression_function` で制約したhost生成expression wrapperの結果型を推論し、script entryを選ばずlibraryをloweringします。File moduleには引き続き明示source rootを要求します。`cargo test -p lang-semantics --test virtual_programs` で検証できます。Transactional session stateとCLIは統合作業として残ります。
+
 `lang_codegen_clif::unit` は検証済みunitを初期native scalar／CFG・straight-line owned profileへ変換し、register再配置とbyte spanからdebug mapへの変換を行います。拡張call／aggregate／operationはcode公開前に拒否します。`cargo test --test source_conformance` でparsed-source scalar VM／JIT比較、引数なし呼出し、metadata／budget failure、tier-1 nativeのdirect／response-file link／runを検証できます（macOS AArch64でlocal実行済み、Windows実行はCI側のevidenceです）。
 
 `lang-semantics::lowering` は成功したprimitive HIRを検証済みtyped MIRへ変換します。Branch assignmentはtyped block parameterでmergeし、loopはback-edgeを越えてmutable valueを運び、early returnと到達不能statementは受理済みbehaviorを保持します。Instruction／terminator spanを既存bytecodeとnative debug metadataへ対応付けます。`cargo test --test hir_lowering` で構造化inputのVM／JIT differential execution、host-object debug mapping、lowering budgetを検証できます。これらはHIR-to-MIR経路のevidenceであり、end-to-end source compilationではありません。
