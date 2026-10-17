@@ -1,10 +1,12 @@
-//! Local resolution and primitive typing for accepted RFC 0002 semantics.
+//! Backend-independent source HIR for accepted RFCs 0002/0006.
 //!
-//! Input is structured semantic syntax, not source text. Lexing, parsing,
-//! modules, calls, aggregates, and RFC 0006 behavior are intentionally separate
-//! acceptance/implementation boundaries. Failed analysis never yields a typed
-//! function. Successful HIR has resolved locals, explicit types and flow facts.
+//! The original RFC 0002 analyzer accepts structured semantic syntax and yields
+//! a typed primitive function only after successful checking. `resolved` holds
+//! name-resolved RFC 0006 program input; `layout` checks bounded copy-only nominal
+//! layouts. Source parsing/module binding live outside this crate. Program-wide
+//! expression/pattern typing and exhaustiveness remain a separate boundary.
 
+pub mod layout;
 pub mod resolved;
 pub mod source;
 

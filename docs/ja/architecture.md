@@ -81,6 +81,8 @@ Module graphはparsed tree、compilation内のmodule／item ID、表示名、宣
 
 Bindingの既定上限はunit全体でlocal／expression／pattern／blockが各1,000,000、診断数4,096、depth 256（内部上限も兼ねる）、work 10,000,000です。訪問する宣言、型使用、block、statement、expression、pattern、arm、local宣言、namespace要求を課金します。Namespace解決は、実際に訪問したpath segmentとenum候補も同じbudgetへ課金します。Small-budget testは命令生成を伴わない例の5／7 stepの境界を検証します。15件のtestでfixture全体の変換、注釈／source span、名前／scope、mutability、public signature、forward call、enum構文の保持、resource上限、foreign snapshotを検証します。名前の失敗が1つでもあればresolved programを返しません。Expression／patternの型、aggregate layout／循環、exhaustiveness、return経路の完全性は後続検証です。Loweringや実行の前にresolved programをこれらの検証へ通す必要があります。
 
+2026-10-17実装：`lang-hir::layout` はguest valueの割り当て前にresolvedなcopy専用nominal定義を検証します。ID、元source／name span、member名の一意性、enumが空でないこと、参照を検査します。反復処理の依存stackでrecordやenum payloadを通る循環を拒否し、Rustの再帰を使いません。Scalarは1 cell、recordは1＋全field、enumは1＋最大payloadのcell数です。Scalarと空recordのdepthは1です。Checked arithmeticで、既定の定義数4,096、field／case／payload member数256、type depth 64、valueあたり4,096 cell、診断数4,096、work 10,000,000を強制します。Workは定義、名前、参照、依存訪問、case訪問、再訪問を含むfield／payload集計を課金します。10件のHIR testと2件のparsed-source統合testで、depth 64／65とcell 4096／4097の境界、明示的な深いstack、overflow、循環、不正metadata、small budgetを検証します。Shape失敗ではlayoutなしの診断を返し、input／limit失敗ではstructured errorを返します。Layout成功はexpression／pattern typing、exhaustiveness、実行可能programの成立を意味しません。
+
 ### Incremental architecture
 
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。

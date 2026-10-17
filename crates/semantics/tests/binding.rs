@@ -535,3 +535,66 @@ fn full_syntax_fixture_resolves_and_retains_exact_type_annotation_spans() {
     assert_eq!(program.imports.len(), 1);
     assert_eq!(program.functions.len(), 3);
 }
+
+#[test]
+fn parsed_nominal_cycles_and_duplicate_record_fields_fail_layout_validation() {
+    for text in [
+        "pub struct A { next: A }",
+        "pub struct A { next: B } pub enum B { Next(A) }",
+        "pub struct R { same: i64, same: bool }",
+    ] {
+        let (sources, program) = Files::new(text).program();
+        let analysis = lang_hir::layout::analyze_layouts(
+            &program.definitions,
+            &sources,
+            lang_hir::layout::LayoutLimits::default(),
+        )
+        .unwrap();
+        assert!(analysis.layouts.is_none());
+        assert!(
+            analysis
+                .diagnostics
+                .iter()
+                .all(|d| d.code == codes::INVALID_SHAPE)
+        );
+        for d in &analysis.diagnostics {
+            d.validate(&sources).unwrap();
+        }
+    }
+}
+
+#[test]
+fn parsed_type_layouts_enforce_the_4096_cell_boundary() {
+    let mut text = "pub struct R0 {}".to_owned();
+    for i in 1..=10 {
+        text.push_str(&format!(
+            " pub struct R{i} {{ a: R{}, b: R{} }}",
+            i - 1,
+            i - 1
+        ));
+    }
+    text.push_str(" pub struct Limit { a: R10, b: R10, scalar: i64 }");
+    let (sources, program) = Files::new(&text).program();
+    let layouts = lang_hir::layout::analyze_layouts(
+        &program.definitions,
+        &sources,
+        lang_hir::layout::LayoutLimits::default(),
+    )
+    .unwrap()
+    .layouts
+    .unwrap();
+    assert_eq!(layouts.last().unwrap().cells(), 4096);
+    text.push_str(" pub struct TooLarge { limit: Limit }");
+    let (sources, program) = Files::new(&text).program();
+    let error = lang_hir::layout::analyze_layouts(
+        &program.definitions,
+        &sources,
+        lang_hir::layout::LayoutLimits::default(),
+    )
+    .unwrap_err();
+    let lang_hir::layout::LayoutError::Limit(diagnostic) = error else {
+        panic!("expected cell limit")
+    };
+    diagnostic.validate(&sources).unwrap();
+    assert!(diagnostic.message.contains("cell limit"));
+}
