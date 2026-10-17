@@ -301,6 +301,10 @@ MIR core callのfollow-up（2026-10-17 JST）：commit `4619937` はRFC 0007の�
 
 このscope後のroadmap確認：M2は26 / 113 pt、全18成果中4成果完了のままです。次の実装対象は、既存type／place／move／loan契約を使うchecked sourceからMIR bodyへの自動変換とsourceの統合evidenceです。Arena brand／effect検証、cleanupとfallible allocation、owned layout、serialization、実行可能なcore operation、残るplatform／conformance／performance gateを明示的に維持します。113 ptの見積もりと受け入れ境界は妥当です。実験段階の委任で通常のRFC承認待ちをなくし、実装要件は維持します。
 
+自動ownership bodyのfollow-up（2026-10-17 JST）：commit `39bb20e` は、owned local／return、nominal／core constructor、明示／暗黙／reborrow引数、guest／host／core call、prepare付きassignment、if／while flow、arena開始／終了について、手作業の命令組み立てをchecked sourceからtyped MIRへの自動変換に置き換えました。条件付きlocal／SSA discardはactive loan検証を維持して移動済み／maybe-live storageを正規化し、返却するSSA ownerを保持します。追加9件のsource testが独立したmove／activity／provenance解析を通り、構築／検証の正確な累積上限も確認します。Fmt／Clippy／test／docのfull baselineは831 testすべてpassし、fuzzのformat／全bin locked Clippyと非instrumented body smoke 10,000回もpassしました。
+
+このscope後のroadmap確認：26 / 113 pt、全18成果中4成果完了を維持します。次のbody統合対象はmatch patternのloweringとprovisional core readの成功／失敗armごとのlifetime処理です。現在、到達可能なmatchは明示的に拒否します。実初期化順の破棄とexceptional cleanupはRFC 0008の独立したdrop成果であり、独立arena brand／effect検証、実行用ownership layout、allocation、serialization、backend／platform作業も未完了です。既存gateと113 pt見積もりは引き続き妥当です。正常flowの自動変換は具体的な統合進捗であり、これらの広い成果を完了扱いにはしません。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
