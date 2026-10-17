@@ -255,6 +255,8 @@ Source grammarのfollow-up（2026-10-17 JST）：lossless parser／formatterで�
 
 Decision gateの準備（2026-10-17 JST）：提案[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)と日本語対訳はcleanup／failure優先順位とreturn escrow、recoverable budget付きguest allocation、unsafe／capability規則、有限generated C status／header／descriptor契約を定義します。提案layout assertionはApple Clang 21で両tier-1 target tripleにpassし、4つのscalar descriptor／SHA-256 vectorを独立検証しました。提案／cross-target fixtureでありsource実装やnative Windows実行ではありません。第2の5 pt gateは明示owner dispositionまで未完了です。Ownership wire encodingは別途必要な判断で、grammar／source解析はRFC 0007に従って独立に進められます。Reviewでは総113 ptと元のownership／core／platform／conformance／performanceの全deliverableを維持します。
 
+Source typeのfollow-up（2026-10-17 JST）：commit `81fab15` はRFC 0007のtype constructorをspan保持・構造的interning付きHIRへ解決し、再帰する間接型の上限付きCopy／drop／storage／privacy解析を追加しました。11件のsource testで受理済み型群、不正storage／return／specialization、source identity、不正HIR、正確な上限、反復depth、独立した生成型oracleを検証し、2件のCLI／query integration testでsource診断と復帰を保持します。解決済みHIRのfuzz targetがcompileし、instrumentationなしの10,000-run smokeが完了しました。全554 testとfmt／Clippy／docのfull baselineがpassしました。両program-check entry pointは拡張profileの実行用typing前に意図的に停止し、move／loan／region flow、core operation typing、ownership MIR／lowering／実行、cleanup、wire encodingは未完了です。Reviewでは21/113 pt、元の総113 pt、残る全gateを維持します。型の性質は未完了HIR／MIR ownership outcome内の前提進捗です。RFC 0008の明示owner判断を待つ間、RFC 0007に従ってsource body／placeとownership flowの実装を進めます。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
