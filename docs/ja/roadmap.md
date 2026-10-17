@@ -329,6 +329,10 @@ Record構築順の保持（2026-10-18 JST）：commit `a984e5e` は、ownership�
 
 見直し：runtimeの報告境界は入れ子failureに対応しましたが、生成guest failure edgeとproduction ownership実行は未実装です。Deterministic drop成果は未完了とし、M2は34 / 113 pt（30.1%）、全18成果中5成果、全体332 / 764 pt（43.5%）を維持します。現在のscope／依存関係と113 pt見積もりは引き続き妥当です。次はownership MIRのruntime failure cleanup経路を生成し、続いてowned layoutとnormal allocation時のretirement予約をfallible guest allocationおよびVM／native実行へ接続します。予約はguest effect前に完了する必要があり、failure後にcleanup用traversal storageを代替確保してはいけません。独立arena effect、version付きownership artifact、unsafe／C、packaging、differential／platform／debug、performanceのgateも引き続き必要です。
 
+Ownership failure CFGのelaboration（2026-10-18 JST）：commit `3c3131f` はloan検査済みMIRの後にprivateなstatus CFGを追加し、共通source解析へ保持します。Entryのpreflightはparameter受け入れより前に行い、guest命令／terminatorには厳密なfuel guardを置き、生成cleanupには課金しません。Returnは末尾cleanupより前にresultを保留します。明示failure経路は原因の保持／記録、prepare済みdestinationのdiscard、activationの処理、未公開resultのdiscard、failure伝播を行います。到達不能経路はcleanupより先にinvariant failureを記録します。Runtimeの段階的exitはcaller／calleeの所有を維持し、再試行を避け、entry全体のabort時はpending callee resultをcaller ownerより先に処理します。型付きErrは通常の成功resultとし、元source spanとCopy検査の互換性を維持します。追加11 testで実際のshared ownerと生成経路を使い、厳密なfuel、置換失敗、entry拒否、branch／loop、invariant優先、入れ子伝播／中断、replay、厳密なresource上限を検証しました。Workspace全891 test、fmt／Clippy／doc、fuzz format／全bin locked Clippyと、拡張bodyの非instrumented smoke 10,000回が成功しました。Evidence：[failure architecture](architecture.md#ownership-mirのfailure経路)とリンク先実装／testの更新／検証日：2026-10-18 JST。RFC 0006／0008の最終更新日：2026-10-17。
+
+見直し：compilerがfailure／return制御フローを生成し、runtimeが対応するcleanup遷移を提供するようになりました。実行用owned layout、normal allocation時のretirement予約、全value／operationをつなぐproduction実行を完成させるまで、deterministic drop成果は未完了とします。M2は34 / 113 pt（30.1%）、全18成果中5成果、全体332 / 764 pt（43.5%）を維持し、scope／依存関係と113 pt見積もりは引き続き妥当です。次はowned value layout／drop descriptorと、retirement metadata予約を伴うfallible instance allocationを実装し、続いてcore operationとVM／native実行を接続します。独立arena effect、version付きownership artifact、unsafe／C、packaging、differential／platform／debug、performanceのgateも引き続き必要です。検証を限定したtest backendによってownership VMや両platformのnative conformanceが完了したとはしません。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
