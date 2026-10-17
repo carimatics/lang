@@ -496,6 +496,22 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         &mut self,
         allocator: &mut Allocator<P>,
         context: &mut crate::cleanup::Context<'_>,
+        cleaner: impl FnMut(
+            &mut Token,
+            &mut Allocator<P>,
+            crate::cleanup::Reason,
+            &mut crate::cleanup::Context<'_>,
+        ) -> Result<(), u32>,
+    ) -> Result<(), Error> {
+        self.retire(allocator, context, cleaner)?;
+        self.release_storage(allocator)
+    }
+    /// Retire active owners while keeping both regions for an admitted frame.
+    /// `recycle` is allowed only after every yielded obligation was acknowledged.
+    pub fn retire<P: Provider>(
+        &mut self,
+        allocator: &mut Allocator<P>,
+        context: &mut crate::cleanup::Context<'_>,
         mut cleaner: impl FnMut(
             &mut Token,
             &mut Allocator<P>,
@@ -521,14 +537,22 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             context.field(token, leaf.span, &mut callback);
             self.complete_leaf()?;
         }
-        self.release_storage(allocator)
+        Ok(())
     }
-    /// Cancel unpublished storage (operands still belong to temporaries), or
-    /// release a fully drained value. Never release storage before child cleanup.
-    pub fn release_storage<P: Provider>(
-        &mut self,
-        allocator: &mut Allocator<P>,
-    ) -> Result<(), Error> {
+    /// Reset an exhausted retirement without a provider callback/allocation.
+    /// Old structural Locations confer no initialization or loan authority.
+    pub fn recycle<P: Provider>(&mut self, allocator: &mut Allocator<P>) -> Result<(), Error> {
+        if self.state != State::Draining || self.outstanding || self.top != 0 {
+            return Err(Error::State);
+        }
+        allocator.request(self.data)?;
+        allocator.request(self.metadata)?;
+        allocator.bytes_mut(self.data)?.fill(0);
+        allocator.bytes_mut(self.metadata)?.fill(0);
+        self.state = State::Prepared;
+        Ok(())
+    }
+    pub(super) fn check_release<P: Provider>(&self, allocator: &Allocator<P>) -> Result<(), Error> {
         if self.state == State::Released
             || self.outstanding
             || (self.state == State::Draining && self.top != 0)
@@ -537,6 +561,15 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         }
         allocator.request(self.data)?;
         allocator.request(self.metadata)?;
+        Ok(())
+    }
+    /// Cancel unpublished storage (operands still belong to temporaries), or
+    /// release a fully drained value. Never release storage before child cleanup.
+    pub fn release_storage<P: Provider>(
+        &mut self,
+        allocator: &mut Allocator<P>,
+    ) -> Result<(), Error> {
+        self.check_release(allocator)?;
         allocator.release(self.data)?;
         allocator.release(self.metadata)?;
         self.state = State::Released;

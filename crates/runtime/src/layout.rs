@@ -7,6 +7,8 @@ use std::fmt::{Display, Formatter};
 
 mod storage;
 pub use storage::{ArenaError, Immediate, Leaf, Location, OwnershipError, Reservation, Token};
+mod frame;
+pub use frame::{FramePlan, FrameStorage};
 
 const ORDER_HEADER: u64 = 8;
 const ORDER_ENTRY: u64 = 24;
@@ -21,6 +23,12 @@ pub enum Error {
     Allocation(allocation::Error),
     Overflow,
     InvalidType(o::Type),
+    InvalidFunction(m::FunctionId),
+    InvalidCell(usize),
+    CellLimit {
+        cells: usize,
+        limit: usize,
+    },
     InvalidCase(u32),
     InvalidValue,
     InvalidField(u32),

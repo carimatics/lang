@@ -445,6 +445,16 @@ Fixtureのtokenはhost test registryで実際のshared ownerへ解決します�
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Layout compiler](../../crates/runtime/src/layout.rs)、[storage予約／retirement](../../crates/runtime/src/layout/storage.rs)、[source／runtime統合test](../../tests/owned_layout.rs)、[ownership type fuzz target](../../fuzz/fuzz_targets/ownership_mir_types.rs)の更新／検証日：2026-10-18 JST。
 
+### Owned frame storageの受け入れ
+
+実装／検証日：2026-10-18 JST。`layout::FramePlan` は検査済みownership MIRとlayoutと同一の検証済み型graphから、1関数のlocal、SSA value、return escrowの予約を作ります。明示的loan registrationはcell上限とcleanup-slot mappingに含め、別のpayload copyは作りません。TypeUseはsource spanを保持します。計画compileはtyped bodyとlayoutのwork／allocation／element使用量を合算し、共通type graphは1回だけ数えます。上限付きhost wrapper vectorはentry前に累積plan／pool予算の下でfallibleに予約します。このtrusted host poolはguest allocatorのrequested byteとは別に報告し、process memoryの計測とはしません。
+
+`reserve` は最初のallocator callback前にguestのpayload／order／retirement request一覧全体をpreflightし、parameterやguest effectを受け入れる前に全cellをprepareします。Host wrapper poolは最外側のguest entry前に構築し、guest callでは実行中にhost poolを拡張せず、受け入れ済みのcall storageを使います。Guestの設定上限とhost pool予算の拒否はcallback前に返し、provider OOMでは完了済み予約をすべて逆順に解放してcumulativeの試行課金を維持します。既存のcaller-owned allocationは保持します。返すstorageは未公開で、move、初期化、loan、region、実行の権限を与えません。
+
+`Reservation::retire` は既存のcontext付きcleanup drainを共有し、regionを保持します。`recycle` は全drain終了かつ未処理leafなしの場合だけ受け付け、data／metadataをclearし、allocationやprovider callbackなしで再利用可能にします。`FrameStorage::release` は解放開始前に全cellとhandleを検査し、retirement途中や異なるallocatorによって有効なprefixだけが解放されることを防ぎます。再利用／解放前に実行ledgerでlive ownerをretireする必要があり、構造上のLocationがloan権限になることはありません。Frame stack／call会計、failure CFG実行、本番VM dispatchは引き続き明示的な実装taskです。
+
+Source／runtimeの6 testで、local／value／cleanup mappingとrequested storageの厳密上限、全5種類のguest複合上限によるcallback前拒否、host poolのwork／allocation／element厳密上限、全provider allocation箇所のOOMと逆順rollbackおよび既存owner保持、別の型graph／不正function／cell上限、Resultをその場で128回retire／再利用する処理、実際のBytesの逆順cleanupと早すぎるrecycle／frame解放の拒否を検証します。出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Frame受け入れ](../../crates/runtime/src/layout/frame.rs)、[retirement／再利用](../../crates/runtime/src/layout/storage.rs)、[test](../../tests/owned_frame.rs)の更新／検証日：2026-10-18 JST。
+
 ### Managedな有限core value
 
 実装／検証日：2026-10-18 JST。Managed reservationに、i64、Bool、Unit、有限core error全6系統を追加確保なしで型検査して読み書きする `read_immediate`／`write_immediate` を追加しました。Errorのcase順はsource MIRに一致し、allocationを含むerrorは入れ子のAllocErrorを、Utf8Errorはi64 payload全体を保持します。読み出しではBoolの非canonical byte、不正な外側error tag、不正な入れ子allocation tagを拒否します。書き込みは変更前に型とbyte範囲全体を検証し、paddingと非active error payloadを初期化し、型不一致時はstorageを保持します。Record末尾ちょうどにあるsize 0のUnit fieldも扱えます。
