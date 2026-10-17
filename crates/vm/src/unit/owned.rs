@@ -12,9 +12,12 @@ use std::{
     rc::Rc,
 };
 
+mod calls;
 mod profile;
 mod state;
+mod storage;
 use state::{State, Step, Target, invariant};
+use storage::StackStorage;
 #[derive(Debug)]
 pub enum Reason {
     Entry,
@@ -36,6 +39,8 @@ pub struct Failure {
     pub report: Option<c::Report>,
     /// Original RFC 0009 guest-panic code, preserved through failure cleanup.
     pub panic_code: Option<i64>,
+    /// Innermost-first entered guest frames, reserved before execution.
+    pub stack: Vec<super::StackFrame>,
 }
 impl Display for Failure {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -57,6 +62,26 @@ enum Ticket {
     Cell(usize),
     Loan(usize),
 }
+#[derive(Clone, Copy)]
+struct Address {
+    function: m::FunctionId,
+    cell: usize,
+    slot: usize,
+    loan: usize,
+}
+impl Address {
+    fn entry(function: m::FunctionId) -> Self {
+        Self {
+            function,
+            cell: 0,
+            slot: 0,
+            loan: 0,
+        }
+    }
+    fn slot(self, cell: usize) -> c::Slot {
+        c::Slot(self.slot + (cell - self.cell))
+    }
+}
 fn rejected(reason: Reason, function: Option<m::FunctionId>, fault: Option<m::Span>) -> Failure {
     Failure {
         reason,
@@ -65,6 +90,7 @@ fn rejected(reason: Reason, function: Option<m::FunctionId>, fault: Option<m::Sp
         usage: Usage::default(),
         report: None,
         panic_code: None,
+        stack: Vec::new(),
     }
 }
 fn supported(op: &b::Op, payloads: &profile::Payloads, result: Option<o::Type>) -> bool {
@@ -136,13 +162,43 @@ fn budget_usage(budget: &m::Budget) -> m::Usage {
     }
 }
 
-/// Single zero-argument i64 script entry. This does not serialize ownership MIR,
-/// implement guest calls, or grant filesystem/network/FFI host capabilities.
+/// Zero-argument i64 script entry with bounded guest activations. Ownership MIR
+/// remains in-memory; filesystem/network/FFI host capabilities are not granted.
 #[allow(
     clippy::result_large_err,
     reason = "Return the completed cleanup report inline; boxing it after OOM could allocate during failure handling."
 )]
 pub fn execute_entry<P: a::Provider>(
+    flow: &f::Elaborated,
+    instance: &mut c::Instance,
+    allocator: Option<&mut a::Allocator<P>>,
+    control: Control<'_>,
+) -> Result<Outcome, Failure> {
+    let typed = flow.source().activity().moved().typed();
+    let entry = typed
+        .places()
+        .declarations()
+        .functions()
+        .iter()
+        .position(|f| f.name == "main");
+    let has_calls = entry.is_some_and(|i| {
+        typed.functions()[i].blocks.iter().any(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.op, b::Op::Call { .. }))
+        })
+    });
+    if has_calls {
+        calls::execute(flow, instance, allocator, control)
+    } else {
+        execute_single(flow, instance, allocator, control)
+    }
+}
+#[allow(
+    clippy::result_large_err,
+    reason = "Preserve inline failure reporting after allocation failure."
+)]
+fn execute_single<P: a::Provider>(
     flow: &f::Elaborated,
     instance: &mut c::Instance,
     allocator: Option<&mut a::Allocator<P>>,
@@ -238,6 +294,15 @@ pub fn execute_entry<P: a::Provider>(
     let mut loans = budget
         .vector(body.loans)
         .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    let mut trace = budget
+        .vector(1)
+        .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    let mut storages = budget
+        .vector(1)
+        .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    let mut active = budget
+        .vector(1)
+        .map_err(|e| fail(Reason::Preparation(e.into())))?;
     for i in 0..plan.cell_count() {
         cells.push(state::Cell {
             physical: i,
@@ -260,6 +325,7 @@ pub fn execute_entry<P: a::Provider>(
         inverse,
         loans,
         panic_code: None,
+        current: Address::entry(function),
     }));
     let cleaner_state = Rc::clone(&shared);
     let mut frame = instance
@@ -331,7 +397,13 @@ pub fn execute_entry<P: a::Provider>(
             return Err(error);
         }
     };
-    shared.borrow_mut().storage = Some(storage);
+    storages.push(storage);
+    active.push(true);
+    shared.borrow_mut().storage = Some(StackStorage {
+        frames: storages,
+        active,
+        stride: plan.cell_count(),
+    });
     let mapping = c::MirLayout::new(typed, function, 0).expect("verified frame");
     let mut usage = Usage {
         peak_frames: 1,
@@ -492,9 +564,14 @@ pub fn execute_entry<P: a::Provider>(
             fault,
             report: Some(completion.report),
             panic_code,
+            stack: Vec::new(),
         });
     }
     if let Some(primary) = completion.report.primary() {
+        trace.push(super::StackFrame {
+            function,
+            span: primary.span.or(fault),
+        });
         return Err(Failure {
             reason: Reason::Execution(primary.kind),
             usage,
@@ -502,6 +579,7 @@ pub fn execute_entry<P: a::Provider>(
             fault: primary.span.or(fault),
             report: Some(completion.report),
             panic_code,
+            stack: trace,
         });
     }
     let value = result.ok_or_else(|| {
@@ -522,7 +600,15 @@ fn transfer<P: a::Provider, C: c::Cleaner<Ticket>>(
     from: usize,
     to: usize,
 ) -> Step<()> {
-    transfer_between(shared, frame, from, to, c::Slot(from), c::Slot(to))
+    let address = shared.borrow().current;
+    transfer_between(
+        shared,
+        frame,
+        from,
+        to,
+        address.slot(from),
+        address.slot(to),
+    )
 }
 fn transfer_between<P: a::Provider, C: c::Cleaner<Ticket>>(
     shared: &Rc<RefCell<State<'_, '_, '_, P>>>,
@@ -557,6 +643,7 @@ fn transfer_edge<P: a::Provider, C: c::Cleaner<Ticket>>(
     frame: &mut c::Frame<'_, Ticket, C>,
 ) -> Step<()> {
     let body = &typed.functions()[function.0 as usize];
+    let address = shared.borrow().current;
     let target = body.blocks[block.0 as usize]
         .terminator
         .kind
@@ -564,28 +651,30 @@ fn transfer_edge<P: a::Provider, C: c::Cleaner<Ticket>>(
         .nth(arm as usize)
         .ok_or(c::ExecutionFailure::Invariant)?;
     let parameters = &body.blocks[target.block.0 as usize].parameters;
-    let values = typed.places().declarations().functions()[function.0 as usize]
-        .locals
-        .len();
+    let values = address.cell
+        + typed.places().declarations().functions()[function.0 as usize]
+            .locals
+            .len();
     // Capture every input before publishing any output. Affine inputs are
     // unique by the independent move proof; Copy inputs may be repeated.
     for (argument, parameter) in target.arguments.iter().zip(parameters) {
         let from = values + argument.0 as usize;
-        let scratch = plan
-            .scratch_cell(*parameter)
-            .ok_or(c::ExecutionFailure::Invariant)?;
+        let scratch = address.cell
+            + plan
+                .scratch_cell(*parameter)
+                .ok_or(c::ExecutionFailure::Invariant)?;
         transfer_between(
             shared,
             frame,
             from,
             scratch,
-            c::Slot(from),
-            c::Slot(plan.scratch_slot(*parameter).unwrap()),
+            address.slot(from),
+            c::Slot(address.slot + plan.scratch_slot(*parameter).unwrap()),
         )?;
     }
     for parameter in parameters {
         let to = values + parameter.0 as usize;
-        let scratch = plan.scratch_cell(*parameter).unwrap();
+        let scratch = address.cell + plan.scratch_cell(*parameter).unwrap();
         let old_nondropping_affine = {
             let state = shared.borrow();
             let properties = state.types.properties(state.cells[to].ty).unwrap();
@@ -599,8 +688,8 @@ fn transfer_edge<P: a::Provider, C: c::Cleaner<Ticket>>(
             frame,
             scratch,
             to,
-            c::Slot(plan.scratch_slot(*parameter).unwrap()),
-            c::Slot(to),
+            c::Slot(address.slot + plan.scratch_slot(*parameter).unwrap()),
+            address.slot(to),
         )?;
     }
     Ok(())
@@ -614,15 +703,16 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
     mapping: &c::MirLayout<'_>,
 ) -> Step<()> {
     let index = function.0 as usize;
+    let address = shared.borrow().current;
     let values = typed.places().declarations().functions()[index]
         .locals
         .len();
-    let loans = values + typed.places().functions()[index].values.len();
+    let loans = address.slot + values + typed.places().functions()[index].values.len();
     let instruction =
         &typed.functions()[index].blocks[site.block.0 as usize].instructions[site.order - 1];
     let span = instruction.span;
     let places = &typed.places().functions()[index].places;
-    let value = |v: m::Register| values + v.0 as usize;
+    let value = |v: m::Register| address.cell + values + v.0 as usize;
     let result = || {
         instruction
             .results
@@ -632,7 +722,11 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
     };
     let register_loan = |frame: &mut c::Frame<'_, Ticket, C>, id: usize| {
         frame
-            .initialize(c::Slot(loans + id), Ticket::Loan(id), Some(span))
+            .initialize(
+                c::Slot(loans + id),
+                Ticket::Loan(address.loan + id),
+                Some(span),
+            )
             .map_err(invariant)
     };
     for register in &instruction.results {
@@ -642,8 +736,8 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             let properties = state.types.properties(state.cells[index].ty).unwrap();
             !properties.is_copy && !properties.requires_drop
         };
-        if nondropping_affine && frame.value(c::Slot(index)).is_ok() {
-            frame.drop_value(c::Slot(index)).map_err(invariant)?;
+        if nondropping_affine && frame.value(address.slot(index)).is_ok() {
+            frame.drop_value(address.slot(index)).map_err(invariant)?;
         }
     }
     match &instruction.op {
@@ -675,7 +769,12 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
         b::Op::Initialize {
             local,
             value: source,
-        } => transfer(shared, frame, value(*source), local.0 as usize)?,
+        } => transfer(
+            shared,
+            frame,
+            value(*source),
+            address.cell + local.0 as usize,
+        )?,
         b::Op::CopyPlace(place) | b::Op::MovePlace(place) => {
             let place = &places[place.0 as usize];
             let target = shared.borrow().place(place, values)?;
@@ -684,7 +783,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                     return Err(c::ExecutionFailure::Invariant);
                 }
                 let from = match place.root {
-                    o::places::Root::Local(id) => id.0 as usize,
+                    o::places::Root::Local(id) => address.cell + id.0 as usize,
                     o::places::Root::Value(id) => value(id),
                 };
                 transfer(shared, frame, from, result()?)?;
@@ -760,7 +859,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
         } => {
             for from in fields.iter().map(|r| value(*r)) {
                 if !shared.borrow().is_copy(from) {
-                    frame.value(c::Slot(from)).map_err(invariant)?;
+                    frame.value(address.slot(from)).map_err(invariant)?;
                 }
             }
             let field_span = |field: u32| {
@@ -789,7 +888,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             }
             for from in fields.iter().map(|r| value(*r)) {
                 if !shared.borrow().is_copy(from) {
-                    let _ = frame.take_owner(c::Slot(from)).map_err(invariant)?;
+                    let _ = frame.take_owner(address.slot(from)).map_err(invariant)?;
                 }
             }
         }
@@ -797,13 +896,13 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             let source = value(call.arguments[0]);
             let moved = !shared.borrow().is_copy(source);
             if moved {
-                frame.value(c::Slot(source)).map_err(invariant)?;
+                frame.value(address.slot(source)).map_err(invariant)?;
             }
             shared
                 .borrow_mut()
                 .extract(source, result()?, call.operation.extraction().unwrap())?;
             if moved {
-                let _ = frame.take_owner(c::Slot(source)).map_err(invariant)?;
+                let _ = frame.take_owner(address.slot(source)).map_err(invariant)?;
             }
         }
         b::Op::CoreCall(call) => match call.operation {
@@ -822,7 +921,11 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 shared.borrow_mut().bytes_new(destination, span)?;
                 let physical = shared.borrow().cells[destination].physical;
                 frame
-                    .initialize(c::Slot(destination), Ticket::Cell(physical), Some(span))
+                    .initialize(
+                        address.slot(destination),
+                        Ticket::Cell(physical),
+                        Some(span),
+                    )
                     .map_err(invariant)?;
             }
             o::core::Operation::BytesLen => {
@@ -888,11 +991,11 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             }
             o::core::Operation::TextFromUtf8 => {
                 let source = value(call.arguments[0]);
-                frame.value(c::Slot(source)).map_err(invariant)?;
+                frame.value(address.slot(source)).map_err(invariant)?;
                 shared
                     .borrow_mut()
                     .text_from_utf8(source, result()?, span)?;
-                let _ = frame.take_owner(c::Slot(source)).map_err(invariant)?;
+                let _ = frame.take_owner(address.slot(source)).map_err(invariant)?;
             }
             _ => return Err(c::ExecutionFailure::Invariant),
         },
@@ -901,7 +1004,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             let mut state = shared.borrow_mut();
             for step in &cleanup.steps {
                 let target = match step.target {
-                    b::CleanupTarget::Local(id) => Some(id.0 as usize),
+                    b::CleanupTarget::Local(id) => Some(address.cell + id.0 as usize),
                     b::CleanupTarget::Value(id) => Some(value(id)),
                     _ => None,
                 };
@@ -919,7 +1022,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
         }
         b::Op::EndBorrow { loan, mode } => {
             let id = loan.0 as usize;
-            if shared.borrow().loans[id].target.is_some() {
+            if shared.borrow().loans[address.loan + id].target.is_some() {
                 frame.drop_value(c::Slot(loans + id)).map_err(invariant)?;
             } else if *mode == b::EndMode::Required {
                 return Err(c::ExecutionFailure::Invariant);
@@ -927,7 +1030,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
         }
         b::Op::DropLocal(id) | b::Op::DropLocalIfInitialized(id) => {
             let required = matches!(instruction.op, b::Op::DropLocal(_));
-            drop_cell(shared, frame, id.0 as usize, required)?;
+            drop_cell(shared, frame, address.cell + id.0 as usize, required)?;
         }
         b::Op::DropValue(id) | b::Op::DropValueIfAvailable(id) => {
             let required = matches!(instruction.op, b::Op::DropValue(_));
@@ -949,10 +1052,10 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             )
         };
         if affine {
-            match frame.value(c::Slot(index)) {
+            match frame.value(address.slot(index)) {
                 Ok(_) => {}
                 Err(c::StateError::Uninitialized) => frame
-                    .initialize(c::Slot(index), Ticket::Cell(physical), Some(span))
+                    .initialize(address.slot(index), Ticket::Cell(physical), Some(span))
                     .map_err(invariant)?,
                 Err(_) => return Err(c::ExecutionFailure::Invariant),
             }
@@ -985,7 +1088,8 @@ fn drop_cell<P: a::Provider, C: c::Cleaner<Ticket>>(
         };
     }
     if owning {
-        frame.drop_value(c::Slot(index)).map_err(invariant)?;
+        let slot = shared.borrow().current.slot(index);
+        frame.drop_value(slot).map_err(invariant)?;
     } else {
         shared.borrow_mut().cells[index].live = false;
     }

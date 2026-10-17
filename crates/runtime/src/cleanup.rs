@@ -342,6 +342,16 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     pub fn open_scope(&mut self) -> Result<(), StateError> {
         self.push_scope(false)
     }
+    /// Trusted execution adapters may retarget private owner bookkeeping after
+    /// checked storage relocation, without changing its cleanup obligation/span.
+    pub fn value_mut(&mut self, slot: Slot) -> Result<&mut T, StateError> {
+        self.running()?;
+        self.declared(slot)?;
+        self.slots[slot.0]
+            .payload
+            .as_deref_mut()
+            .ok_or(StateError::Uninitialized)
+    }
     /// Open a nested guest activation's parameter scope in this instance.
     /// Slot numbers identify cells across the bounded activation stack.
     pub fn open_call(&mut self) -> Result<(), StateError> {
@@ -749,6 +759,16 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
             self.insert(target.expect("validated caller result cell"), payload, span);
         }
         Ok(())
+    }
+    /// Retarget an unpublished owning result only after successful cleanup.
+    /// The adapter must preserve ownership before attempting publication.
+    pub fn staged_value_mut(&mut self) -> Result<Option<&mut T>, StateError> {
+        self.running()?;
+        let pending = self.pending.as_mut().ok_or(StateError::ExitNotStaged)?;
+        if !pending.retired {
+            return Err(StateError::ExitPending);
+        }
+        Ok(pending.returned.as_mut().map(|(_, value, _)| &mut **value))
     }
     /// Return failure to the caller without publishing a result or replacing
     /// the shared report. The caller follows its own generated failure edge.

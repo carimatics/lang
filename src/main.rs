@@ -369,22 +369,45 @@ fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8
                     error.usage.fuel, error.usage.host_calls
                 )
                 .map_err(failure)?;
-                if let Some(span) = error.fault {
-                    let types = program
+                {
+                    let declarations = program
                         .mir()
                         .activity()
                         .moved()
                         .typed()
                         .places()
-                        .declarations()
-                        .types();
-                    if let Some(source) = types.table().sources.get(span.source.0 as usize)
-                        && let Some(prefix) = source.text.get(..span.start as usize)
-                    {
-                        let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
-                        let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
-                        writeln!(stderr, "  at main ({:?}:{line}:{column})", source.path)
-                            .map_err(failure)?;
+                        .declarations();
+                    let frames = error.stack.iter().copied().chain(
+                        error
+                            .function
+                            .filter(|_| error.stack.is_empty())
+                            .map(|function| vm::StackFrame {
+                                function,
+                                span: error.fault,
+                            }),
+                    );
+                    for frame in frames {
+                        let name = declarations
+                            .functions()
+                            .get(frame.function.0 as usize)
+                            .map_or("<invalid>", |f| f.name.as_str());
+                        let Some(span) = frame.span else {
+                            writeln!(stderr, "  at {name}").map_err(failure)?;
+                            continue;
+                        };
+                        if let Some(source) = declarations
+                            .types()
+                            .table()
+                            .sources
+                            .get(span.source.0 as usize)
+                            && let Some(prefix) = source.text.get(..span.start as usize)
+                        {
+                            let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
+                            let column =
+                                prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                            writeln!(stderr, "  at {name} ({:?}:{line}:{column})", source.path)
+                                .map_err(failure)?;
+                        }
                     }
                 }
                 Ok(1)

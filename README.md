@@ -68,12 +68,15 @@ cargo run -- run examples/scripts/owned_bytes.lang
 cargo run -- run examples/analysis/extraction.lang
 cargo run -- run examples/scripts/utf8.lang
 cargo run -- run examples/scripts/text.lang
+cargo run -- run examples/scripts/owned_calls.lang
 cargo run -- run examples/scripts/owned_aggregate.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
 `check` validates Copy or RFC 0007/0009 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile with allocator authority, Bytes new/len/get/set/push/clone, consuming UTF-8 conversion, Text byte length/clone/concat/to-bytes/equality, nested Bytes/Text/Copy records/enums and Option/Result construction/extraction, lexical loans and cleanup. The answer script prints `42`; `bytes.lang` and `owned_bytes.lang` print `0`, the extraction/mutation example prints `1`, `utf8.lang` prints the byte length `3`, and `text.lang` prints `2` after checking independent clones and conversions. `owned_aggregate.lang` prints `9` after moving nested owners and reading projected references. Storage is released before printing the result. Extraction checks its case and reports a source-located guest panic on mismatch. Unsupported operations/payloads fail preflight.
+
+The ownership profile also executes guest functions with Copy/owned parameters and results and borrowed parameters, including self/mutual recursion. `owned_calls.lang` prints `1` after recursive Bytes transfer and a borrowed call. Return values stay protected until callee cleanup succeeds; failures include the entered source call stack. Verified 2026-10-18 JST; see [implementation and test sources](docs/architecture.md#owned-guest-calls-and-returns).
 
 Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`; the REPL remains Copy-only. The CLI registers no host imports and explicitly supplies the owned execution instance's budgeted allocator. Verified 2026-10-18 JST.
 

@@ -82,6 +82,23 @@ fn nested_owned_aggregates_and_reference_projections_run_from_source() {
 }
 
 #[test]
+fn owned_guest_calls_and_recursion_execute_from_source() {
+    let files = Files::new(include_str!("../examples/scripts/owned_calls.lang"));
+    let output = run(&files, &[]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(output.stdout, b"1\n");
+    assert!(output.stderr.is_empty());
+    let refused = run(&files, &["--frames", "2"]);
+    assert_eq!(refused.status.code(), Some(1));
+    let message = stderr(&refused);
+    assert!(message.contains("FrameLimit"), "{message}");
+    assert!(
+        message.find("at carry").unwrap() < message.find("at main").unwrap(),
+        "{message}"
+    );
+}
+
+#[test]
 fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
     let text = b"fn f(x: &i64) -> i64 { return 0; }";
     let mut limits = CompileLimits::default();

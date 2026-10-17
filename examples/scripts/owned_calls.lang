@@ -1,5 +1,5 @@
-// Check with: cargo run -- check examples/scripts/owned_calls.lang
-// Runtime fixture for M2-V07; guest calls remain gated until that delivery.
+// Run with: cargo run -- run examples/scripts/owned_calls.lang
+// Prints 1 after recursive owner transfer and a borrowed guest call.
 // Owned arguments and results must cross each recursive activation once.
 fn carry(value: core::Bytes, depth: i64) -> core::Bytes {
     if depth < 1 { return value; }

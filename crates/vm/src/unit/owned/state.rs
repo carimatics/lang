@@ -19,12 +19,13 @@ pub(super) struct Loan {
 }
 pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub allocator: &'a mut a::Allocator<P>,
-    pub storage: Option<l::FrameStorage<'layouts, 'types>>,
+    pub storage: Option<StackStorage<'layouts, 'types>>,
     pub types: &'types o::VerifiedTypes,
     pub cells: Vec<Cell>,
     pub inverse: Vec<usize>,
     pub loans: Vec<Loan>,
     pub panic_code: Option<i64>,
+    pub current: Address,
 }
 pub(super) type Step<T> = Result<T, c::ExecutionFailure>;
 pub(super) fn invariant<T>(_: T) -> c::ExecutionFailure {
@@ -147,10 +148,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         }
     }
     pub fn place(&self, place: &Place, locals: usize) -> Step<Target> {
-        let mut target = self.root(match place.root {
-            Root::Local(id) => id.0 as usize,
-            Root::Value(value) => locals + value.0 as usize,
-        })?;
+        let mut target = self.root(
+            self.current.cell
+                + match place.root {
+                    Root::Local(id) => id.0 as usize,
+                    Root::Value(value) => locals + value.0 as usize,
+                },
+        )?;
         for projection in &place.projections {
             target = match projection.kind {
                 ProjectionKind::Dereference => self.reference(target)?,
@@ -186,6 +190,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             .map_err(invariant)
     }
     pub fn borrow(&mut self, destination: usize, id: usize, target: Target) -> Step<()> {
+        let id = self.current.loan + id;
         let loan = &mut self.loans[id];
         if loan.target.is_some() {
             return Err(c::ExecutionFailure::Invariant);
@@ -247,6 +252,32 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         self.cells[to].physical = a;
         self.inverse[a] = to;
         self.inverse[b] = from;
+        self.cells[from].live = false;
+        self.cells[to].live = true;
+        Ok(())
+    }
+    /// Relocate into another activation/return escrow, keeping physical frame
+    /// regions in their original pool. The caller retargets the ledger ticket.
+    pub fn relocate(&mut self, from: usize, to: usize) -> Step<()> {
+        self.root(from)?;
+        if self.cells[to].live
+            || self
+                .types
+                .equivalent(self.cells[from].ty, self.cells[to].ty)
+                != Some(true)
+        {
+            return Err(c::ExecutionFailure::Invariant);
+        }
+        let (input, output) = self
+            .storage
+            .as_mut()
+            .ok_or(c::ExecutionFailure::Invariant)?
+            .two_cells_mut(self.cells[from].physical, self.cells[to].physical)
+            .map_err(invariant)?;
+        input
+            .move_root_into(output, output.root(), self.allocator)
+            .map_err(invariant)?;
+        input.recycle(self.allocator).map_err(invariant)?;
         self.cells[from].live = false;
         self.cells[to].live = true;
         Ok(())

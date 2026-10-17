@@ -9,6 +9,8 @@ use lang_vm::{
 };
 use std::{cell::RefCell, path::Path, rc::Rc, time::Instant};
 
+#[path = "support/owned_calls.rs"]
+mod calls;
 #[path = "support/owned_edges.rs"]
 mod edges;
 

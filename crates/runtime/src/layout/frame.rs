@@ -53,6 +53,28 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         limits: m::Limits,
         cell_limit: usize,
     ) -> Result<Self, Error> {
+        Self::compile_inner(layouts, typed, function, limits, cell_limit, None)
+    }
+    /// Add this function's plan to cumulative program preparation, whose
+    /// verified type/layout/body graph has already been counted once.
+    pub fn compile_after(
+        layouts: &'layouts Layouts<'types>,
+        typed: &TypedBodies,
+        function: m::FunctionId,
+        limits: m::Limits,
+        cell_limit: usize,
+        initial: m::Usage,
+    ) -> Result<Self, Error> {
+        Self::compile_inner(layouts, typed, function, limits, cell_limit, Some(initial))
+    }
+    fn compile_inner(
+        layouts: &'layouts Layouts<'types>,
+        typed: &TypedBodies,
+        function: m::FunctionId,
+        limits: m::Limits,
+        cell_limit: usize,
+        prefix: Option<m::Usage>,
+    ) -> Result<Self, Error> {
         let types = typed.places().declarations().types();
         if !std::ptr::eq(layouts.types, types) {
             return Err(Error::ForeignLocation);
@@ -98,6 +120,14 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
                 types.requested_bytes(),
             )?,
             elements: combined(base.elements, typed.elements_used(), types.elements_used())?,
+        };
+        let initial = if let Some(prefix) = prefix {
+            if !covers(prefix, initial) {
+                return Err(Error::State);
+            }
+            prefix
+        } else {
+            initial
         };
         let mut budget = m::Budget::with_usage(limits, initial)?;
         let mut cells = budget.vector(count)?;

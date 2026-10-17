@@ -459,7 +459,7 @@ Fixtureのtokenはhost test registryで実際のshared ownerへ解決します�
 
 実装／検証日：2026-10-18 JST。`lang_vm::unit::owned::execute_entry` は独立にloan検査済みownership MIRから作られた既存failure CFGを実行します。CLIは `fn main() -> i64` を持つownership programにこの経路を選び、明示的なbudget付きinstance allocatorを供給します。[Bytes script](../../examples/scripts/bytes.lang) はBytesを生成してResultをmatchし、shared loanで長さを読み、ownerをcleanupして `0` を表示します。従来のownership解析exampleも実行できます。REPLとnative compileはCopy境界を維持し、ownership bytecode encodingは未実装のままです。
 
-V03の初期対応命令はscalar定数／算術／比較、Copy／whole-value moveとlocal初期化、shared ordinary loan、Result case検査／view、生成cleanup、allocator／Bytes-new／Bytes-lenのcore callでした。後述の拡張で有限sum、byte／Text操作、入れ子aggregate、block argumentの同時転送を追加しました。Entryの到達可能CFG内にある未対応命令は、allocationの後に書かれていてもprovider callback前に拒否します。Guest call、事前評価した代入先、残りcore命令は後続taskです。実行は選択したentry functionだけで行い、source解析はprogram全体を検査します。
+V03の初期対応命令はscalar定数／算術／比較、Copy／whole-value moveとlocal初期化、shared ordinary loan、Result case検査／view、生成cleanup、allocator／Bytes-new／Bytes-lenのcore callでした。後述の拡張で有限sum、byte／Text操作、入れ子aggregate、block argumentの同時転送、guest callを追加しました。Entryの到達可能call graph内にある未対応命令は、allocationの後に書かれていてもprovider callback前に拒否します。事前評価した代入先と残りcore命令は後続taskです。Source解析はprogram全体を検査します。
 
 Host slot／逆map、loan generation、cleanup／report poolは上限付きでguest entry前に予約します。`FramePlan::reserve_after` でそれらの累積準備使用量を再開します。Drop不要のloan valueも含む全非Copy cellを初期化ledgerで扱い、moveはownerを複製せず同等型のphysical storageを交換します。Private loan tokenでactive generation、liveな参照先、pointee型を検査し、raw address権限は与えません。Copy layout transferはCopy分類、型、範囲を追加確保なしで検証します。Buffer readは元のownerをcellへ保持したままservice tokenを検証します。
 
@@ -515,7 +515,7 @@ V06時点の実行suiteは33 test、CLI suiteは26 testでした。新しい検�
 
 `FramePlan` はblock parameterごとにreturn escrowの後ろへsnapshotを予約し、そのpayload／order／work regionとcleanup slotを課金します。従来のlocal／SSA／loan slot mappingは維持します。Snapshot mappingとwrapperは累積のfallible host準備budgetを使います。全cell／quota上限をprovider callback前に確認し、admission OOMでは完了済みsnapshotも他のframe regionとともに解放します。Edge転送で新regionの確保、payload cleanup／provider callback、内部guest safe pointは発生しません。予期しない転送失敗でもaffine obligationをentry ledgerへ保持し、failure cleanupへ渡します。公開 `Reason::BlockArguments` variantはRust API互換性のため残しますが、検証済みargumentでは返しません。
 
-VM testを7件追加し、実行suiteは40件です。Source由来MIRをtyping／move／activity／loanで独立に再検証してからfailure elaborationへ渡します。独立snapshot oracleはCopyのcycle／fan-out 243 case、Copy enumのtag／payload 9 case、入れ子ownerのpermutation 24 caseを扱い、解放IDとbuffer capacityで逆順dropと重複解放がないことを確認します。古いloan tokenの再束縛、厳密snapshot／cell admission、loop回数でallocation requestが増えないこと、全admission／guest OOM箇所、callback前のquota拒否、Copy／owner／loan CFGの全fuel prefixも検証します。既存frame test 6件とsource実行回帰も成功しています。現在のownership source loweringはこれらのblock parameterを生成せず、次はsource guest callの実行です。Native／serialized ownership実行とG08／G14／G16全体は未完了です。
+V11でVM testを7件追加し、実行suiteは40件になりました。Source由来MIRをtyping／move／activity／loanで独立に再検証してからfailure elaborationへ渡します。独立snapshot oracleはCopyのcycle／fan-out 243 case、Copy enumのtag／payload 9 case、入れ子ownerのpermutation 24 caseを扱い、解放IDとbuffer capacityで逆順dropと重複解放がないことを確認します。古いloan tokenの再束縛、厳密snapshot／cell admission、loop回数でallocation requestが増えないこと、全admission／guest OOM箇所、callback前のquota拒否、Copy／owner／loan CFGの全fuel prefixも検証します。既存frame test 6件とsource実行回帰も成功しています。現在のownership source loweringはこれらのblock parameterを生成しません。Source guest callを実行するV07は後述します。Native／serialized ownership実行とG08／G14／G16全体は未完了です。
 
 出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[failure CFG contract](../../crates/mir/src/unit/ownership/failure.rs)、[VM転送](../../crates/vm/src/unit/owned.rs)、[frame plan](../../crates/runtime/src/layout/frame.rs)、[edge test](../../tests/support/owned_edges.rs)、[実行／frame test](../../tests/owned_execution.rs)。2026-10-18 JST更新／確認。既存のin-memory MIR contractの実装であり、source構文、loan規則、wire bytes、C ABIは変更しません。
 
@@ -535,9 +535,21 @@ VM testを7件追加し、実行suiteは40件です。Source由来MIRをtyping�
 
 解放に成功すると、host vectorのallocationと課金済み使用量を保持して再admissionできます。Admission失敗時は確保済みguest regionを逆順解放し、cumulativeの試行allocation課金を保持し、poolを再利用可能にします。Activeなstorageへ別admissionで上書きできません。Parameter受け入れ、loan lifetime、payloadの1回限りretirementは引き続きcallerの責任で、pool準備は所有権を与えません。Storage再利用の実装であり、guest call実行やactivation stack全体の完成ではありません。
 
-Frame suiteは6件から11件になりました。追加5 testで、main／calleeの異なるshapeの反復と固定capacity／会計、size 0課金を含む厳密request、全provider OOM箇所からの再試行成功、逆順rollback、cumulative試行request、callback前のquota／capacity／active状態拒否、別layouts、host work／allocation／elementの厳密budgetを確認します。既存VM suite 40 testも成功しています。[Source call fixture](../../examples/scripts/owned_calls.lang) のcheckは成功しますが、実行はeffect前に `Call` を拒否します。V11／V12の前提2件の後は、基盤を追加する前にV07でこのsourceを実行する成果を必須にします。
+V12でframe suiteは6件から11件になりました。追加5 testで、main／calleeの異なるshapeの反復と固定capacity／会計、size 0課金を含む厳密request、全provider OOM箇所からの再試行成功、逆順rollback、cumulative試行request、callback前のquota／capacity／active状態拒否、別layouts、host work／allocation／elementの厳密budgetを確認します。当時のVM suite 40 testも成功しました。V11／V12の前提2件の後に必須としたsource call fixtureを、後述のV07で実行します。
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[frame plan／pool](../../crates/runtime/src/layout/frame.rs)、[capacity error](../../crates/runtime/src/layout.rs)、[pool test](../../tests/support/owned_pools.rs)、[frame test](../../tests/owned_frame.rs)、[call fixture](../../examples/scripts/owned_calls.lang)。2026-10-18 JST更新／確認。Source構文、受理済み意味論、serialized format、C ABIは変更しません。
+
+### Owned guest callとreturn
+
+2026-10-18 JST実装／確認：V07で現在のBytes／Text／Copy／aggregate profileのguest callを、Copy／owning argumentとresult、borrowed argument付きで実行します。[Source fixture](../../examples/scripts/owned_calls.lang) はBytesを再帰的に移譲し、borrowed length関数を呼び、`1` を表示して全frameとownerを解放します。明示的なactivation stackでRustの再帰を使わず自己再帰／相互再帰を扱い、callのないprogramは従来の実行経路を維持します。
+
+Provider callback前に全到達可能関数のfeatureを検査します。`FramePlan::compile_after` は共通type／layout workを1回だけ数え、関数別の準備を累積します。Hostのactivation／cell／loan／trace／wrapper配列はentry前に予約します。Pool深さは設定frame数、非循環callの深さ、厳密host準備budgetに収め、frame counterを無効にしても固定の再帰上限を追加しません。受け入れ済みhost poolの枯渇はallocation limitです。実際のcallごとにprospective live frame／cellを確認し、argument所有権を取る前にguest regionをadmitします。入らない大きなcalleeはlive-cell allowanceを消費しません。
+
+Activationごとにphysical cell、ledger slot、loan registrationを分離します。Frame間moveはdataと初期化metadataを受け入れ済みstorageへ移し、既存obligationの参照先を変更します。Clone、cleanup、移譲用の追加allocationは行いません。Borrowed argumentはcallerの安定したtargetとgenerationを保持し、投影したmutable referenceで拡張したbuffer handleも元のownerへ戻します。Owning returnはcallee escrowへ移し、callee cleanup成功後にcallerへ移譲／公開します。失敗時はresultを未公開のままcalleeをdrainし、callerの生成failure pathを再開します。元のprimary reason、panic code／span、実際に入った内側からのsource stackを保持します。
+
+VM testを12件追加し、厳密request／release、自己再帰／相互再帰／frame counterあり・なしの1024段再帰、混在Copy interface、入れ子owning Result return、allocator loan、投影先変更とgrowth後interruption、frame／cell拒否、全provider OOM／fuel prefix、instance再利用、到達featureのpreflightを確認します。VM suiteは52件、CLI suiteはsource成功とcallee／main failure stackを含む27件です。広いcleanup failure注入のconformanceはV08、他service、事前評価した代入先への置換、REPL、native、ownership artifactは個別taskに残します。G06／G08／G14／G16はこの成果だけでは完了しません。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[call driver](../../crates/vm/src/unit/owned/calls.rs)、[activation storage](../../crates/vm/src/unit/owned/storage.rs)、[frame plan](../../crates/runtime/src/layout/frame.rs)、[cleanup ledger](../../crates/runtime/src/cleanup.rs)、[call test](../../tests/support/owned_calls.rs)、[CLI test](../../tests/cli.rs)。2026-10-18 JST更新／確認。受理済みsource／MIR意味論、wire format、C ABIは変更しません。
 
 ### Managedな有限core value
 
