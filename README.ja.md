@@ -57,7 +57,7 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang-hir::layout` はguest割り当て前にnominal循環とmember shapeを検証し、copy valueのcell数／depthを上限付きで計算します。既定値はtype depth 64、valueあたり4,096 cellで、enum storageは最大payloadを予約します。`cargo test -p lang-hir --test nominal_layouts` でlayout境界と不正inputを検証できます。
 
-`lang-hir::program` はresolved sourceのfunction、call、aggregate操作、pattern、上限付きexhaustivenessを検証してread-onlyなtyped programを生成します。Missing witnessとunreachable arm／statementを報告し、到達不能bodyも検証します。`cargo test -p lang-semantics --test program_typing` でsourceのcompile-pass／fail、有限domain oracle、不正IRを検証できます。Source CLI entry pointは未実装です。
+`lang-hir::program` はresolved sourceのfunction、call、aggregate操作、pattern、上限付きexhaustivenessを検証してread-onlyなtyped programを生成します。Missing witnessとunreachable arm／statementを報告し、到達不能bodyも検証します。`cargo test -p lang-semantics --test program_typing` でsourceのcompile-pass／fail、有限domain oracle、不正IRを検証できます。
 
 `lang_mir::unit` はsource byte／span、call、nominal value、SSA dominance、上限付きallocation／work計数を含むcompilation unitを定義／検証します。`cargo test -p lang-mir --test units` で検証できます。Unitのdata structureはserialized formatではありません。
 
@@ -65,7 +65,7 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang_bytecode::unit` は明示的なversion／opcode、ID再配置、UTF-8／span検証、decoder／verifier共通のresource budgetを持つcanonical schema 1 artifactをencode／decodeします。`cargo test -p lang-bytecode --test unit_codec` で検証できます。固定golden fixtureと不正input／fuzz検証を含みます。
 
-`lang_vm::unit` は全受理済みMilestone 1 operationを明示guest frame stackとflatなcopy-value storageで実行します。既定値はfuel 1,000,000、host call 1,000、frame 256、live cell 1,000,000で、interruption／deadline検査とsource stack traceを提供します。Guest実行前に全宣言qualified host importの明示typed registry bindingを要求します。`cargo test --test source_vm` でsource→wire→VM実行、`cargo test -p lang-vm --test units` でparallel copy、value検証、checked projection境界を検証できます。これらはlibrary経路であり、script／REPL CLI、formatter、LSP transportはまだ提供しません。
+`lang_vm::unit` は全受理済みMilestone 1 operationを明示guest frame stackとflatなcopy-value storageで実行します。既定値はfuel 1,000,000、host call 1,000、frame 256、live cell 1,000,000で、interruption／deadline検査とsource stack traceを提供します。Guest実行前に全宣言qualified host importの明示typed registry bindingを要求します。`cargo test --test source_vm` でsource→wire→VM実行、`cargo test -p lang-vm --test units` でparallel copy、value検証、checked projection境界を検証できます。REPL CLI、formatter、LSP transportは未完了です。
 
 REPL向けの基盤は `modules::load_virtual` でvirtual root snapshotを受け取り、`check_expression_function` で制約したhost生成expression wrapperの結果型を推論し、script entryを選ばずlibraryをloweringします。File moduleには引き続き明示source rootを要求します。`cargo test -p lang-semantics --test virtual_programs` で検証できます。Transactional session stateとCLIは統合作業として残ります。
 
@@ -82,6 +82,14 @@ REPL向けの基盤は `modules::load_virtual` でvirtual root snapshotを受け
 - `rust-toolchain.toml` で固定されたRust `1.99.0`
 - 固定ツールチェーンから導入される `rustfmt` とClippy
 - リポジトリの補助ツールバージョンを利用する場合は `mise`
+
+複数fileのscriptを実行します（`42` を出力）。
+
+```bash
+cargo run -- run examples/scripts/answer.lang
+```
+
+`lang run FILE` はfileの親をcompiler source rootに選び、`--source-root DIR` で明示指定もできます。成功時は符号付き結果1つを出力してexit 0、compile／runtime失敗はstderr診断とexit 1、不正usageはexit 2です。Scriptの結果をexit codeにはしません。`--fuel`、`--host-calls`、`--frames`、`--cells` でVM limitを明示設定できます。CLIはhost importを登録しません。Embeddingでは `lang::frontend::CompileLimits` で同じcompiler pipelineを設定できます。`cargo test --test cli` でscript／usage契約を検証します。Transactional REPLは未完了です。
 
 現在のVM/native等価性プロトタイプを実行します。
 

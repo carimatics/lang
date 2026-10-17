@@ -57,7 +57,7 @@ Milestone 1 now has backend-independent `lang-diagnostics`, `lang-syntax`, and `
 
 `lang-hir::layout` checks nominal cycles and member shapes and computes bounded copy-value cells/depth before guest allocation. Defaults are type depth 64 and 4,096 cells per value; enum storage reserves its largest payload. Run `cargo test -p lang-hir --test nominal_layouts` for layout boundaries and malformed-input coverage.
 
-`lang-hir::program` checks complete resolved source functions, calls, aggregate operations, patterns, and bounded exhaustiveness into a read-only typed program. It reports missing witnesses and unreachable arms/statements while still checking their bodies. Run `cargo test -p lang-semantics --test program_typing` for source compile-pass/fail, finite-domain oracle, and malformed-IR coverage. Source CLI entry points remain unimplemented.
+`lang-hir::program` checks complete resolved source functions, calls, aggregate operations, patterns, and bounded exhaustiveness into a read-only typed program. It reports missing witnesses and unreachable arms/statements while still checking their bodies. Run `cargo test -p lang-semantics --test program_typing` for source compile-pass/fail, finite-domain oracle, and malformed-IR coverage.
 
 `lang_mir::unit` now defines and validates complete compilation units with source bytes/spans, calls, nominal values, SSA dominance, and bounded allocation/work accounting. Run `cargo test -p lang-mir --test units`. The unit data structures are not a serialized format.
 
@@ -65,7 +65,7 @@ Milestone 1 now has backend-independent `lang-diagnostics`, `lang-syntax`, and `
 
 `lang_bytecode::unit` encodes/decodes canonical schema-1 artifacts with explicit versions/opcodes, ID remapping, UTF-8/span validation, and shared decoder/verifier resource budgets. Run `cargo test -p lang-bytecode --test unit_codec`. The codec includes a fixed golden fixture and malformed-input/fuzz coverage.
 
-`lang_vm::unit` executes every accepted Milestone 1 operation through an explicit guest frame stack and flat copy-value storage. Defaults are 1,000,000 fuel, 1,000 host calls, 256 frames, and 1,000,000 live cells, with interruption/deadline checks and source stack traces. All declared qualified host imports require explicit typed registry bindings before guest execution. Run `cargo test --test source_vm` for source-to-wire-to-VM execution and `cargo test -p lang-vm --test units` for parallel-copy, value-validation, and checked-projection boundaries. These library paths do not yet provide script/REPL CLI, formatter, or LSP transport.
+`lang_vm::unit` executes every accepted Milestone 1 operation through an explicit guest frame stack and flat copy-value storage. Defaults are 1,000,000 fuel, 1,000 host calls, 256 frames, and 1,000,000 live cells, with interruption/deadline checks and source stack traces. All declared qualified host imports require explicit typed registry bindings before guest execution. Run `cargo test --test source_vm` for source-to-wire-to-VM execution and `cargo test -p lang-vm --test units` for parallel-copy, value-validation, and checked-projection boundaries. REPL CLI, formatter, and LSP transport remain work.
 
 The REPL foundations accept a virtual root snapshot through `modules::load_virtual`, infer the result of a restricted host-generated expression wrapper through `check_expression_function`, and lower libraries without selecting a script entry. File modules still require an explicit source root. Run `cargo test -p lang-semantics --test virtual_programs`. Transactional session state and CLI remain integration work.
 
@@ -82,6 +82,14 @@ Requirements:
 - Rust `1.99.0`, pinned by `rust-toolchain.toml`
 - `rustfmt` and Clippy, installed by the pinned toolchain
 - `mise` when using the repository's auxiliary tool versions
+
+Run a multi-file script (prints `42`):
+
+```bash
+cargo run -- run examples/scripts/answer.lang
+```
+
+`lang run FILE` selects the file's parent as the compiler source root, or accepts `--source-root DIR`. Success prints one signed result and exits 0; compile/runtime failures exit 1 with stderr diagnostics, and invalid usage exits 2. The script result is not an exit code. `--fuel`, `--host-calls`, `--frames`, and `--cells` explicitly configure VM limits. The CLI supplies no host imports. `lang::frontend::CompileLimits` configures the same compiler pipeline for embedding. Run `cargo test --test cli` for the script/usage contracts. Transactional REPL remains pending.
 
 Run the current VM/native equivalence prototype:
 

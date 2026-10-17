@@ -308,6 +308,7 @@ dependencies = [
  "lang-mir",
  "lang-runtime",
  "lang-semantics",
+ "lang-syntax",
  "lang-vm",
  "object",
  "windows-sys 0.61.2",

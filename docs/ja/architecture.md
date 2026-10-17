@@ -115,6 +115,10 @@ Source生成unitは `lang_codegen_clif::unit` により既存native profileへ�
 
 Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと残入力の最小量を検証し、source／register／block／instructionの合計を通算します。Raw stringとoutput byteは共有128 MiBの要求byte budgetへ、structured vectorはさらに8,000,000要素のbudgetへ課金します。Decodeとverificationは1つの `Budget` を使います。Encodeは要求limitでcallerのprogramを再検証し、失敗可能なbudget付き比較でsortし、正確な出力長を割り当て前に計算し、2回目のpassで明示fieldを書き込みます。Verifier workに加え、readerのword／tag、最大1 KiBごとのUTF-8検証chunk、両passのwriter field、sort／index memberを課金します。11件のtestは固定88-byte golden、全opcode、global ID再配置、非連番register／CFG round trip、全切断、不正input、canonical reencode、通算budgetを含みます。`portable_bytecode_decoder` はraw byteとheader以降を変異させた有効payloadをfuzzし、compileとinstrumentationなしの10,000-run smokeが完了しました。Portable artifactの成立であり、source実行やinstrumented fuzz coverageは主張しません。
 
+### Script CLI
+
+2026-10-17実装のscript CLI：`lang run FILE` は共通 `lang::frontend` analysis pipelineと既定compile limitを使い、厳密に `main() -> i64` を選択・検証してverified unitへloweringし、空のtyped host registryで上限付きVMを実行します。Hostは `--source-root` 指定がなければfileの親をsource rootに選びます。Compiler errorはresource診断を含めsnapshotを保持し、rawな不正encodingはspanを捏造せずstable codeとbyte rangeを報告します。成功時は符号付き10進数と改行を1つ出力しexit 0、compile／runtime失敗はstderrとexit 1、usage errorはexit 2です。Runtime errorはcounterとentry済みguest source frameを保持します。明示VM-limit flagと従来の整数2つのprototypeも利用できます。10件のCLI／frontend testでこれらの契約、複数fileのaggregate、空／不正entry、encoding／source不正、typed-import拒否、設定可能limitを検証します。実行可能REPLは別の統合作業です。
+
 ### Incremental architecture
 
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。

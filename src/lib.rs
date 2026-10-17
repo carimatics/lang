@@ -13,6 +13,7 @@ use lang_vm::{VmError, execute, execute_with_hosts};
 pub mod component_application_conformance;
 pub mod component_conformance;
 pub mod component_resource_conformance;
+pub mod frontend;
 pub mod linker;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

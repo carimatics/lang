@@ -1,0 +1,15 @@
+mod math;
+
+struct Pair { left: i64, right: i64 }
+enum Answer { Missing, Found(Pair) }
+
+fn total(answer: Answer) -> i64 {
+    match answer {
+        Answer::Missing => { return 0; },
+        Answer::Found(Pair { left: a, right: b }) => { return a + b; },
+    }
+}
+
+fn main() -> i64 {
+    return total(Answer::Found(Pair { left: math::increment(20), right: 21 }));
+}

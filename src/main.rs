@@ -1,41 +1,208 @@
+use lang::{
+    frontend::{self, AnalysisError, CompileLimits, ScriptError},
+    run_prototype_add,
+};
+use lang_runtime::HostFunctionRegistry;
+use lang_vm::unit::{self as vm, Control, HostBindings, Limits};
+use std::ffi::{OsStr, OsString};
+use std::io::{self, Write};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-use lang::run_prototype_add;
-
+const USAGE: &str = "usage: lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang <left> <right>\n";
+enum Command {
+    Run {
+        file: PathBuf,
+        root: Option<PathBuf>,
+        limits: Limits,
+    },
+    Prototype(i64, i64),
+    Help,
+}
+enum CliError {
+    Usage(String),
+    Failure(String),
+}
 fn main() -> ExitCode {
-    match run() {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("error: {error}");
-            ExitCode::FAILURE
+    ExitCode::from(match run() {
+        Ok(status) => status,
+        Err(CliError::Usage(message)) => {
+            eprintln!("error: {message}\n{USAGE}");
+            2
+        }
+        Err(CliError::Failure(message)) => {
+            eprintln!("error: {message}");
+            1
+        }
+    })
+}
+fn usage(message: impl Into<String>) -> CliError {
+    CliError::Usage(message.into())
+}
+fn failure(error: impl std::fmt::Display) -> CliError {
+    CliError::Failure(error.to_string())
+}
+fn number<T: std::str::FromStr>(value: &OsStr, name: &str) -> Result<T, CliError> {
+    value
+        .to_str()
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| usage(format!("invalid {name}")))
+}
+fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
+    let Some(first) = arguments.first() else {
+        return Err(usage("missing command"));
+    };
+    if first == "--help" || first == "-h" {
+        return Ok(Command::Help);
+    }
+    if first != "run" {
+        if arguments.len() != 2 {
+            return Err(usage("expected a command or two integers"));
+        }
+        return Ok(Command::Prototype(
+            number(&arguments[0], "left integer")?,
+            number(&arguments[1], "right integer")?,
+        ));
+    }
+    let mut file = None;
+    let mut root = None;
+    let mut limits = Limits::default();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut arguments = arguments.into_iter().skip(1);
+    while let Some(argument) = arguments.next() {
+        if argument == "--help" || argument == "-h" {
+            return Ok(Command::Help);
+        }
+        if let Some(flag) = argument.to_str().filter(|s| s.starts_with("--")) {
+            if !matches!(
+                flag,
+                "--source-root" | "--fuel" | "--host-calls" | "--frames" | "--cells"
+            ) {
+                return Err(usage(format!("unknown option {flag}")));
+            }
+            if !seen.insert(flag.to_owned()) {
+                return Err(usage(format!("duplicate option {flag}")));
+            }
+            let value = arguments
+                .next()
+                .ok_or_else(|| usage(format!("missing value for {flag}")))?;
+            match flag {
+                "--source-root" => root = Some(PathBuf::from(value)),
+                "--fuel" => limits.fuel = Some(number(&value, flag)?),
+                "--host-calls" => limits.host_calls = Some(number(&value, flag)?),
+                "--frames" => limits.frames = Some(number(&value, flag)?),
+                "--cells" => limits.live_cells = Some(number(&value, flag)?),
+                _ => unreachable!(),
+            }
+        } else if file.replace(PathBuf::from(argument)).is_some() {
+            return Err(usage("only one root file is allowed"));
         }
     }
+    Ok(Command::Run {
+        file: file.ok_or_else(|| usage("missing root file"))?,
+        root,
+        limits,
+    })
 }
-
-fn run() -> Result<(), String> {
-    let mut arguments = std::env::args().skip(1);
-    let left = parse_argument(arguments.next(), "left")?;
-    let right = parse_argument(arguments.next(), "right")?;
-
-    if arguments.next().is_some() {
-        return Err("usage: cargo run -- <left> <right>".to_owned());
+fn run() -> Result<u8, CliError> {
+    match parse(std::env::args_os().skip(1).collect())? {
+        Command::Help => {
+            print!("{USAGE}");
+            Ok(0)
+        }
+        Command::Prototype(left, right) => {
+            let results = run_prototype_add(left, right).map_err(failure)?;
+            println!(
+                "bytecode: {}\nnative:   {}",
+                results.bytecode, results.native
+            );
+            if results.bytecode != results.native {
+                return Err(failure("execution modes produced different results"));
+            }
+            Ok(0)
+        }
+        Command::Run { file, root, limits } => run_script(file, root, limits),
     }
-
-    let results = run_prototype_add(left, right).map_err(|error| error.to_string())?;
-    println!("bytecode: {}", results.bytecode);
-    println!("native:   {}", results.native);
-
-    if results.bytecode != results.native {
-        return Err("execution modes produced different results".to_owned());
-    }
-
-    Ok(())
 }
-
-fn parse_argument(value: Option<String>, name: &str) -> Result<i64, String> {
-    let value =
-        value.ok_or_else(|| format!("missing {name}; usage: cargo run -- <left> <right>"))?;
-    value
-        .parse()
-        .map_err(|error| format!("invalid {name} value {value:?}: {error}"))
+fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
+    // CLI is the host choosing compiler inputs. Child modules use this
+    // source root; source execution itself acquires no file authority.
+    let root = root.unwrap_or_else(|| {
+        file.parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."))
+            .to_path_buf()
+    });
+    let compile = CompileLimits::default();
+    let analysis = frontend::analyze_file(&file, &root, compile);
+    let mut stderr = io::stderr().lock();
+    for diagnostic in &analysis.diagnostics {
+        stderr
+            .write_all(
+                diagnostic
+                    .render(&analysis.sources)
+                    .map_err(failure)?
+                    .as_bytes(),
+            )
+            .map_err(failure)?;
+    }
+    let typed = match analysis.result {
+        Ok(typed) => typed,
+        Err(AnalysisError::Diagnostics) => return Ok(1),
+        Err(error) => return Err(failure(error)),
+    };
+    let program = match frontend::compile_script(&typed, &analysis.sources, compile) {
+        Ok(program) => program,
+        Err(ScriptError::Entry(diagnostic)) => {
+            stderr
+                .write_all(
+                    diagnostic
+                        .render(&analysis.sources)
+                        .map_err(failure)?
+                        .as_bytes(),
+                )
+                .map_err(failure)?;
+            return Ok(1);
+        }
+        Err(error) => return Err(failure(error)),
+    };
+    match vm::execute_entry(
+        &program,
+        &HostFunctionRegistry::new(),
+        &HostBindings::new(),
+        Control::with_limits(limits),
+    ) {
+        Ok(outcome) => {
+            writeln!(
+                io::stdout().lock(),
+                "{}",
+                outcome.value.as_i64().expect("verified script result")
+            )
+            .map_err(failure)?;
+            Ok(0)
+        }
+        Err(error) => {
+            writeln!(
+                stderr,
+                "error[runtime]: {:?} (fuel {}, host calls {})",
+                error.reason, error.usage.fuel, error.usage.host_calls
+            )
+            .map_err(failure)?;
+            for frame in &error.stack {
+                let unit = program.verified();
+                let name = &unit.unit().functions[frame.function.0 as usize].name;
+                if let Some(span) = frame.span {
+                    let source = &unit.unit().sources[span.source.0 as usize];
+                    let (line, column) = unit.facts().sources()[span.source.0 as usize]
+                        .position(source, span.start)
+                        .expect("verified span");
+                    writeln!(stderr, "  at {name} ({:?}:{line}:{column})", source.path)
+                        .map_err(failure)?;
+                } else {
+                    writeln!(stderr, "  at {name}").map_err(failure)?;
+                }
+            }
+            Ok(1)
+        }
+    }
 }

@@ -44,21 +44,23 @@ target-lexicon = "0.13.5"
 
 [package]
 name = "lang"
+default-run = "lang"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 lang-bytecode.workspace = true
 lang-codegen-clif.workspace = true
+lang-diagnostics.workspace = true
+lang-hir.workspace = true
 lang-mir.workspace = true
 lang-runtime.workspace = true
+lang-semantics.workspace = true
+lang-syntax.workspace = true
 lang-vm.workspace = true
 
 [target.'cfg(all(target_os = "windows", target_env = "msvc"))'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }
 
 [dev-dependencies]
-lang-diagnostics.workspace = true
-lang-hir.workspace = true
-lang-semantics.workspace = true
 object.workspace = true
