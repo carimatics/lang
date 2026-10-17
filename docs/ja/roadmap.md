@@ -202,6 +202,8 @@ Commit `cb3312d` はtyped source HIRを共有verified MIR unitへ接続し、cal
 
 Owner受理、source全体のtyping、portable artifact後のchecklistには未完了の実装6項目、合計28 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
+Native scalar adapterと9件のparsed-source conformance testにより、source駆動scalar VM／JIT一致とmacOS AArch64のdirect／response-file AOT link／run、引数なし呼出し、span、owned identity、typed-import preflight、structuredな未対応／metadata／budget failureを確認しました。全体のbaseline（398 test）は成功しています。Call／aggregate valueを扱う共有compilation-unit VMが次のscopeであり、そのsource実行経路の検証までsource-lowering統合task 3 ptを未完了に保ちます。
+
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
 | --- | --- |
 | 字句仕様 | Formatter round trip、不完全sourceのLSP診断 |

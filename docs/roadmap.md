@@ -202,6 +202,8 @@ Commit `cb3312d` connects typed source HIR to the shared verified MIR unit, with
 
 After owner acceptance, source-wide typing, and portable artifacts, the current checklist has 6 unchecked implementation items totaling 28 points. This table is a dependency view, not additional scope or completion credit.
 
+The native scalar adapter and nine parsed-source conformance tests now establish source-driven scalar VM/JIT equivalence and macOS AArch64 direct/response-file AOT link/run, plus zero-arity invocation, spans, owned identity, typed-import preflight, and structured unsupported/metadata/budget failures. The full baseline passes (398 tests). The shared compilation-unit VM with calls/aggregate values remains the next scope; the 3-point source-lowering integration task stays unchecked until that source execution path is verified.
+
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Formatter round trips and incomplete-source LSP diagnostics |
