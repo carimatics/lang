@@ -74,9 +74,9 @@ impl SourceFile {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct SourceMap {
-    files: BTreeMap<SourceId, SourceFile>,
+    files: BTreeMap<SourceId, std::sync::Arc<SourceFile>>,
 }
 
 impl SourceMap {
@@ -94,8 +94,9 @@ impl SourceMap {
             return Err(SourceError::InvalidName);
         }
         let text = text.into();
-        // IDs are unique across maps as well as revisions. Relaxed ordering is
-        // enough: only uniqueness, not publication of source data, is required.
+        // New snapshots have globally unique IDs. Map clones/includes share
+        // existing immutable identities. Relaxed ordering provides uniqueness;
+        // this counter does not publish source data.
         let source = SourceId(
             NEXT_SOURCE
                 .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
@@ -106,23 +107,33 @@ impl SourceMap {
             .collect();
         self.files.insert(
             source,
-            SourceFile {
+            std::sync::Arc::new(SourceFile {
                 name,
                 text,
                 line_starts,
-            },
+            }),
         );
         Ok(source)
     }
 
     pub fn file(&self, source: SourceId) -> Result<&SourceFile, SourceError> {
-        self.files.get(&source).ok_or(SourceError::UnknownSource)
+        self.files
+            .get(&source)
+            .map(std::sync::Arc::as_ref)
+            .ok_or(SourceError::UnknownSource)
     }
 
     /// Immutable snapshots in source-identity order; display names grant no IO
     /// authority and need not be unique across revisions.
     pub fn iter(&self) -> impl Iterator<Item = (SourceId, &SourceFile)> {
-        self.files.iter().map(|(id, file)| (*id, file))
+        self.files.iter().map(|(id, file)| (*id, file.as_ref()))
+    }
+
+    /// Share existing immutable snapshots and their identities. New `add`
+    /// operations still allocate globally unique IDs, including on clones.
+    pub fn include(&mut self, other: &Self) {
+        self.files
+            .extend(other.files.iter().map(|(id, file)| (*id, file.clone())));
     }
 
     pub fn span(&self, source: SourceId, range: Range<usize>) -> Result<Span, SourceError> {

@@ -65,6 +65,8 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang_syntax::format::format` はparse済みCSTを4-space indentation、operator間のspace、1行1宣言／statementでformatします。Comment／tokenの正確なbyteを保持し、不正fileはそのまま返します。既定limitはwork 10,000,000とoutput 16 MiBです。`cargo test -p lang-syntax --test formatting` と `cargo test --test formatter` でsemantic CST round trip、冪等性、comment保持、VM／native実行一致を検証できます。CLI formatter commandの統合はMilestone 4に残ります。
 
+`modules::load_preparsed` はcompiler／editor hostがimmutableなparser treeとsource snapshotを実際のmodule resolverで再利用するためのAPIです。Cacheのpolicyと通算source／token／node上限を再検証し、同じcanonical fileは2回目のparse要求前に拒否します。`cargo test -p lang-semantics --test preparsed_modules` で検証できます。残るincremental／LSP統合への接続です。
+
 `lang_bytecode::unit` は明示的なversion／opcode、ID再配置、UTF-8／span検証、decoder／verifier共通のresource budgetを持つcanonical schema 1 artifactをencode／decodeします。`cargo test -p lang-bytecode --test unit_codec` で検証できます。固定golden fixtureと不正input／fuzz検証を含みます。
 
 `lang_vm::unit` は全受理済みMilestone 1 operationを明示guest frame stackとflatなcopy-value storageで実行します。既定値はfuel 1,000,000、host call 1,000、frame 256、live cell 1,000,000で、interruption／deadline検査とsource stack traceを提供します。Guest実行前に全宣言qualified host importの明示typed registry bindingを要求します。`cargo test --test source_vm` でsource→wire→VM実行、`cargo test -p lang-vm --test units` でparallel copy、value検証、checked projection境界を検証できます。FormatterとLSP transportは未完了です。

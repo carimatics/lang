@@ -131,6 +131,8 @@ Original submissions are separate immutable snapshots. A segment map redirects p
 
 ### Incremental architecture
 
+Implemented 2026-10-17: immutable `SourceMap` clones/includes share `Arc<SourceFile>` snapshots and existing identities; new edits still get globally unique IDs. Modules retain `Arc<SyntaxTree>`. `load_preparsed` accepts a host `ModuleProvider` that resolves canonical identities under explicit read authority and supplies those parser results. It validates identical parse policy and cumulative source/token/node budgets before module installation, preserves parser-limit snapshots, and checks canonical duplicates before requesting their parse again. Module indexing now charges node/path-child visits as well as existing declaration/alias work. Six tests verify pointer-identical tree/source reuse, duplicate preflight, cumulative budgets, malformed/foreign inputs, policy mismatch, and retained diagnostic snapshots. Automatic query recipes and transport remain the final integration scope.
+
 Use a dependency-tracked query system from the first non-trivial frontend. Queries should be deterministic and separately measurable:
 
 - Parse file

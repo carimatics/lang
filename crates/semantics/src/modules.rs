@@ -8,6 +8,7 @@ use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use lang_diagnostics::{Diagnostic, Label, Severity, SourceId, SourceMap, Span, codes};
 use lang_syntax::{
@@ -137,7 +138,7 @@ pub struct Module {
     parent: Option<ModuleId>,
     hierarchy: Vec<String>,
     source: SourceId,
-    tree: SyntaxTree,
+    tree: Arc<SyntaxTree>,
     items: Vec<ItemId>,
     names: BTreeMap<String, ItemId>,
     paths: BTreeMap<usize, SourcePath>,
@@ -421,7 +422,7 @@ pub fn load_modules(
     if !file.starts_with(&root) {
         return Err(ModuleLoadError::OutsideRoot { path: file });
     }
-    load_at(sources, root, file, None, true, limits)
+    load_at(sources, root, file, None, true, limits, None)
 }
 
 /// Analyze a host-supplied root snapshot without creating a temporary file.
@@ -460,6 +461,65 @@ pub fn load_virtual(
         Some(bytes),
         source_root.is_some(),
         limits,
+        None,
+    )
+}
+
+#[derive(Clone, Debug)]
+pub enum ParseFailure {
+    Input(InputError),
+    Parse(ParseError),
+}
+#[derive(Clone, Debug)]
+pub struct ProvidedParse {
+    pub sources: SourceMap,
+    pub result: Result<Arc<SyntaxTree>, ParseFailure>,
+    pub limits: ParseLimits,
+}
+/// Compiler hosts resolve canonical identities before reads and supply parsed
+/// immutable snapshots. A provider must enforce the explicit source root before
+/// filesystem IO; supplied virtual text itself grants no filesystem authority.
+pub trait ModuleProvider {
+    fn resolve(
+        &mut self,
+        requested: &Path,
+        source_root: Option<&Path>,
+    ) -> Result<PathBuf, ModuleLoadError>;
+    fn parsed(
+        &mut self,
+        path: &Path,
+        limits: ParseLimits,
+    ) -> Result<ProvidedParse, ModuleLoadError>;
+}
+pub fn load_preparsed(
+    sources: &mut SourceMap,
+    root_file: &Path,
+    source_root: Option<&Path>,
+    limits: ModuleLimits,
+    provider: &mut dyn ModuleProvider,
+) -> Result<ModuleAnalysis, ModuleLoadError> {
+    if limits.modules == 0 {
+        return Err(ModuleLoadError::InvalidConfiguration);
+    }
+    let root = source_root
+        .map(canonicalize)
+        .transpose()?
+        .unwrap_or_default();
+    if source_root.is_some() && !root.is_dir() {
+        return Err(ModuleLoadError::InvalidConfiguration);
+    }
+    let file = provider.resolve(root_file, source_root.map(|_| root.as_path()))?;
+    if source_root.is_some() && !file.starts_with(&root) {
+        return Err(ModuleLoadError::OutsideRoot { path: file });
+    }
+    load_at(
+        sources,
+        root,
+        file,
+        None,
+        source_root.is_some(),
+        limits,
+        Some(provider),
     )
 }
 
@@ -470,6 +530,7 @@ fn load_at(
     root_bytes: Option<&[u8]>,
     allow_files: bool,
     limits: ModuleLimits,
+    provider: Option<&mut dyn ModuleProvider>,
 ) -> Result<ModuleAnalysis, ModuleLoadError> {
     let mut loader = Loader {
         sources,
@@ -489,8 +550,11 @@ fn load_at(
         planned_modules: 1,
         definitions: 0,
         imports: 0,
+        provider,
     };
-    if let Some(bytes) = root_bytes {
+    if loader.provider.is_some() {
+        loader.load_cached(file, None, Vec::new())?;
+    } else if let Some(bytes) = root_bytes {
         loader.load_bytes(file, bytes, None, Vec::new())?;
     } else {
         loader.load_file(file, None, Vec::new())?;
@@ -509,7 +573,12 @@ fn load_at(
             .root
             .join(job.hierarchy.iter().collect::<PathBuf>())
             .with_extension("lang");
-        let path = match canonicalize(&requested) {
+        let resolved = if let Some(provider) = loader.provider.as_mut() {
+            provider.resolve(&requested, Some(&loader.root))
+        } else {
+            canonicalize(&requested)
+        };
+        let path = match resolved {
             Ok(path) => path,
             Err(error) => {
                 loader.report_module(job.span, format!("cannot load module: {error}"), None)?;
@@ -551,7 +620,12 @@ fn load_at(
             )?;
             continue;
         }
-        let id = match loader.load_file(path, Some(job.parent), job.hierarchy) {
+        let loaded = if loader.provider.is_some() {
+            loader.load_cached(path, Some(job.parent), job.hierarchy)
+        } else {
+            loader.load_file(path, Some(job.parent), job.hierarchy)
+        };
+        let id = match loaded {
             Ok(id) => id,
             Err(ModuleLoadError::Io { path, error }) => {
                 loader.report_module(
@@ -597,7 +671,7 @@ struct Job {
     span: Span,
 }
 
-struct Loader<'a> {
+struct Loader<'a, 'p> {
     sources: &'a mut SourceMap,
     root: PathBuf,
     limits: ModuleLimits,
@@ -612,9 +686,10 @@ struct Loader<'a> {
     planned_modules: usize,
     definitions: usize,
     imports: usize,
+    provider: Option<&'p mut dyn ModuleProvider>,
 }
 
-impl Loader<'_> {
+impl Loader<'_, '_> {
     fn charge(&mut self, span: Span) -> Result<(), ModuleLoadError> {
         self.work.charge(span).map_err(|error| match error {
             ResolutionError::Limit(d) => ModuleLoadError::Limit(d),
@@ -678,6 +753,31 @@ impl Loader<'_> {
         self.load_bytes(file, &bytes, parent, hierarchy)
     }
 
+    fn load_cached(
+        &mut self,
+        file: PathBuf,
+        parent: Option<ModuleId>,
+        hierarchy: Vec<String>,
+    ) -> Result<ModuleId, ModuleLoadError> {
+        let provided = self
+            .provider
+            .as_mut()
+            .expect("provider configured")
+            .parsed(&file, self.limits.parse)?;
+        if provided.limits != self.limits.parse {
+            return Err(ModuleLoadError::InvalidConfiguration);
+        }
+        self.sources.include(&provided.sources);
+        let tree = provided.result.map_err(|error| match error {
+            ParseFailure::Input(error) => ModuleLoadError::Input {
+                path: file.clone(),
+                error,
+            },
+            ParseFailure::Parse(error) => ModuleLoadError::Parse(error),
+        })?;
+        self.install_tree(file, tree, parent, hierarchy)
+    }
+
     fn load_bytes(
         &mut self,
         file: PathBuf,
@@ -710,7 +810,32 @@ impl Loader<'_> {
                 }
             })?;
         let tree = parse(self.sources, source, parse_limits).map_err(ModuleLoadError::Parse)?;
-        self.bytes += bytes.len();
+        self.install_tree(file, Arc::new(tree), parent, hierarchy)
+    }
+
+    fn install_tree(
+        &mut self,
+        file: PathBuf,
+        tree: Arc<SyntaxTree>,
+        parent: Option<ModuleId>,
+        hierarchy: Vec<String>,
+    ) -> Result<ModuleId, ModuleLoadError> {
+        let source = tree.source();
+        let bytes = self
+            .sources
+            .file(source)
+            .map_err(|e| ModuleLoadError::Parse(ParseError::Lex(lang_syntax::LexError::Source(e))))?
+            .text()
+            .len();
+        let span = tree.node(tree.root()).unwrap().span();
+        if bytes > self.limits.parse.lex.source_bytes
+            || bytes > self.limits.total_source_bytes.saturating_sub(self.bytes)
+            || tree.tokens().len() > self.limits.parse.lex.tokens.saturating_sub(self.tokens)
+            || tree.nodes().len() > self.limits.parse.nodes.saturating_sub(self.nodes)
+        {
+            return Err(self.limit(span, "cumulative parsed module limit exceeded"));
+        }
+        self.bytes += bytes;
         self.tokens += tree.tokens().len();
         self.nodes += tree.nodes().len();
         for diagnostic in tree.diagnostics() {
@@ -718,10 +843,12 @@ impl Loader<'_> {
         }
         let mut paths = BTreeMap::new();
         for (index, node) in tree.nodes().iter().enumerate() {
+            self.charge(node.span())?;
             if node.kind() == S::Path {
                 let mut segments = Vec::new();
                 let mut root = false;
                 for element in node.children() {
+                    self.charge(node.span())?;
                     if let SyntaxElement::Token(index) = element {
                         let token = tree.tokens()[*index];
                         match token.kind {

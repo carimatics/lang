@@ -131,6 +131,8 @@ Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと
 
 ### Incremental architecture
 
+2026-10-17実装：immutableな `SourceMap` のclone／includeは `Arc<SourceFile>` snapshotと既存identityを共有し、新editには引き続きglobal unique IDを割り当てます。Moduleは `Arc<SyntaxTree>` を保持します。`load_preparsed` は明示read権限の下でcanonical identityを解決し、そのparser結果を渡すhost `ModuleProvider` を受け取ります。Module格納前に同じparse policyと通算source／token／node budgetを検証し、parser-limit snapshotを保持し、同じcanonical fileは2回目のparse要求前に検出します。Module index化では従来の宣言／alias workに加えてnode／path-child訪問を課金します。6件のtestは同じpointerのtree／source再利用、duplicate preflight、通算budget、不正／foreign input、policy不一致、診断snapshot保持を検証します。Query recipeの自動実行とtransportは最後の統合scopeです。
+
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。
 
 - Fileをparseする
