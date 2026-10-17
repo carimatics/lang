@@ -1,0 +1,31 @@
+{
+  "profile": 1,
+  "source_function": "increment(i64) -> i64",
+  "verified_date": "2026-10-17",
+  "vectors": [
+    {
+      "target": 1,
+      "direction": 0,
+      "descriptor_hex": "4c414e4743414249000100010009000000696e6372656d656e74010000000000",
+      "sha256": "0f1564efd41e2ee3c16f58cf8830545dc4a5ada576f8979666e7446ebc6c18dc"
+    },
+    {
+      "target": 1,
+      "direction": 1,
+      "descriptor_hex": "4c414e4743414249000100010109000000696e6372656d656e74010000000000",
+      "sha256": "24c6ed9d4ab45f57f01568ad17fe8fe7eebc11f4cc62bcc3985dac2666ba6aaf"
+    },
+    {
+      "target": 2,
+      "direction": 0,
+      "descriptor_hex": "4c414e4743414249000100020009000000696e6372656d656e74010000000000",
+      "sha256": "bfe609976d0cec89358198a9b562e2379d6b5b4729996ca22949af79af576965"
+    },
+    {
+      "target": 2,
+      "direction": 1,
+      "descriptor_hex": "4c414e4743414249000100020109000000696e6372656d656e74010000000000",
+      "sha256": "4321e884af602b9b7b1b7ca0fe92f6313413eddb2e93ae42053e82bbdf090b90"
+    }
+  ]
+}

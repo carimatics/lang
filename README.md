@@ -50,6 +50,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0005: Structured tasks, cancellation, and isolated services](docs/rfcs/0005-structured-tasks-and-isolated-services.md)
 - [RFC 0006: Source frontend and portable VM programs (implemented)](docs/rfcs/0006-source-frontend-and-portable-programs.md)
 - [RFC 0007: Source ownership and core values (accepted)](docs/rfcs/0007-source-ownership-and-core-values.md)
+- [RFC 0008: Cleanup, allocator authority, and C boundaries (proposed)](docs/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

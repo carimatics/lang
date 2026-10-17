@@ -1,0 +1,207 @@
+<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0008-cleanup-allocators-and-c-boundaries.md -->
+
+# RFC 0008: Cleanup, allocator authority, and C boundaries
+
+[日本語版](../ja/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
+
+- Status: proposed
+- Authors: Project contributors
+- Created: 2026-10-17
+- Last updated: 2026-10-17
+- Tracking issue:
+- Supersedes:
+- Superseded by:
+
+## Summary
+
+Resolve Milestone 2's remaining cleanup/allocator/unsafe/FFI decision gate on top of accepted RFCs 0004/0007. These are proposed project choices, not implementation or stabilization claims.
+
+Use explicit typed Result values for recoverable errors, compiler-elaborated deterministic cleanup on every normal/failure edge, fallible budgeted guest allocation, and a generated C status/out-parameter boundary. Unsafe source marks trusted foreign calls; it never disables move, loan, region, or artifact validation. The first C profile supports scalars and finite Copy aggregates through adapters, preserving the source's private native layout. Arbitrary C APIs can use a C shim implementing the generated contract.
+
+## Motivation
+
+Owned Text/Bytes/containers cannot execute safely across all modes while return-value ownership, panic cleanup, allocator lifetime, foreign memory validity, and callback containment remain unspecified. The current shared engine provides real ownership transitions but uses host Rust Arc allocation, which may abort; it does not yet satisfy a recoverable guest-allocation contract. Existing C harnesses demonstrate native object linking, not a public source C ABI.
+
+A runtime library alone cannot decide compiler drop flags, source unsafe authority, or whether a partially returned value becomes visible after cleanup fails. This proposal fixes those outcomes before their public interfaces are implemented. Ownership bytecode encoding and general VM/component embedding remain separately versioned work.
+
+## Goals
+
+- Define exactly-once cleanup and failure precedence without native unwinding as language semantics.
+- Give each guest allocation an explicit authority, lifetime, budget, and recoverable failure path.
+- Specify a narrow C import/export profile and generated header/validation obligations on both tier-1 targets.
+- Preserve RFC 0006 Copy programs and RFC 0007's ownership/type surface, including explicit Result matching.
+- Keep native unsafe code behind typed, validated adapters, with equivalent guest values/drop traces in VM and native modes.
+
+## Non-goals
+
+- User-defined destructor declarations, exceptions, catch/throw, `?`, closures, async cancellation implementation, raw source pointers, pointer arithmetic, variadics, C++ exceptions, or general user-selected C layouts.
+- Passing Text/Bytes/Vec/Map/shared/weak/arena tokens directly as C values or stabilizing source native layout.
+- General bytecode loading/VM lifecycle APIs, production component IDL/adapter generation, package metadata formats, or sandbox claims for native code.
+- A complete ownership bytecode schema. New ownership operations still require an accepted versioned encoding before serialization; schema 1 remains unchanged.
+
+## Guide-level design
+
+Recoverable errors are ordinary `core::Result<T, E>` values. Return an Err explicitly; do not insert hidden propagation. `core::drop::<T>(value) -> core::Unit` consumes an owner at a deliberate point, and `core::panic::<T>(code: i64) -> T` is a compiler-known diverging operation. These two finite generic intrinsics extend RFC 0007's list; they introduce no user generics or arbitrary panic payload.
+
+```text
+fn forward(value: core::Text) -> core::Text {
+    return value; // Transfer the result, then clean other initialized locals.
+}
+
+fn fail() -> i64 {
+    return core::panic::<i64>(7);
+}
+```
+
+The C spelling is deliberately explicit. The lexer recognizes the exact quoted marker `"C"` after `extern`; this does not introduce general string literals. Imports are `extern "C" fn name(parameters) -> type;`. Exports are root-module `pub extern "C" fn name(parameters) -> type { ... }`. A C import call must occur inside `unsafe { statements }`, and the execution host must separately grant that declared foreign binding. The block is a statement scope with normal lexical cleanup; no unsafe expression, raw pointer, or unsafe declaration is introduced.
+
+Generated C declarations return `uint32_t` status and write the source result to a final out-parameter. For example, a source export `increment(value: i64) -> i64` produces a declaration shaped as:
+
+```c
+uint32_t lang_increment_<signature_hash>(lang_context *context,
+                                       int64_t value, int64_t *out);
+```
+
+The actual generated identifier contains hexadecimal digits, not angle brackets. The header supplies that identifier and a readable alias. Status zero means the complete return and cleanup succeeded. Every nonzero status leaves the result buffer unchanged. A caller may query the context's copied error summary; no panic or language value unwinds across C.
+
+## Reference semantics
+
+### Cleanup and failure precedence
+
+1. Every successfully initialized owning place has one runtime drop obligation. Moves transfer it; no drop is emitted at the moved-from place. Copy values introduce no owning obligation. Partial moves/initialization remain rejected by RFC 0007.
+2. Within a lexical scope, locals are cleaned in reverse successful initialization order. Fully initialized function parameters form the outer scope in declaration order and clean in reverse order. Conditional initialization records only the path that actually initialized a value. Reinitialization creates a new obligation at that initialization point.
+3. Aggregate fields/payloads are cleaned in reverse actual initialization order, including a record constructed in a written order different from declaration order. The implementation must preserve the needed order metadata rather than infer it from physical layout. Constructing an aggregate transfers temporary field obligations into it; construction failure cleans only completed temporaries, in reverse order. Arenas revoke access before reverse-allocation-order node cleanup as already required by RFC 0004.
+4. Assignment evaluates its destination, then RHS, validates replacement, commits the new obligation, then cleans the old value. Failed validation retains the old destination; incoming moved owners clean outside the atomic publication boundary. No user callback runs during shared edge preflight/publication.
+5. A return expression is evaluated first. A non-copy result moves into an unpublished return slot, then all exiting scopes clean. Only complete cleanup success publishes the result to the caller. If cleanup fails, clean the unpublished result too and return failure; the caller never receives ownership of it.
+6. Typed Err return is a normal return of a value. Explicit panic, verifier-protected runtime faults, fuel/frame/cell/allocation limits, and contained host-call failures take failure cleanup edges. Earlier host effects are not rolled back. Compiler-known borrow registrations end before their owners clean. Ordinary safe code cannot move an owner while a loan is live.
+7. Cleanup never invokes another guest body through an implicit user destructor in this profile. Compiler-generated owning-type cleanup and explicitly registered trusted host-resource cleanup may report failure. Mark each obligation consumed before invoking its cleanup; continue independent obligations even when one fails. No retry or resurrection occurs.
+8. The original execution failure is primary; otherwise the first cleanup failure is primary. Further cleanup failures are ordered secondary records. Reserve a bounded report buffer before guest entry (default 256 records); on overflow retain a truncation flag/count and still run all cleanup. Report-buffer allocation failure prevents entry rather than skipping cleanup.
+9. A normal guest panic with successful cleanup does not poison the instance. Any cleanup failure or contained host panic poisons that execution instance; later guest entry fails before effects until host teardown. Host aborts, invalid foreign unwinding, and host memory corruption are outside containment. A destructor/panic-payload containment failure must not recurse without bound; quarantine or deliberately leak the failed host object while continuing independent bookkeeping, recording the limitation.
+10. Native backends lower failure/status/cleanup flow explicitly; platform stack unwinding is not the source semantic mechanism. Cleanup's bookkeeping cannot consume the fuel needed to finish existing obligations or allocate new guest storage. The runtime must reserve bounded iterative retirement/drop metadata during normal allocation/frame construction. Externally killing the process provides no cleanup guarantee.
+
+`core::drop` on a non-copy value moves it and runs the same cleanup path; a later use is `SRC0020`. Dropping a Copy argument drops its copy and does not invalidate the original. Dropping a loan token does not shorten RFC 0007's lexical lifetime and is rejected as unsupported specialization. `core::panic` preserves its i64 code, original span, and guest call stack in the structured failure; there is no source panic catcher. Flow checking recognizes that the intrinsic never returns.
+
+### Allocator authority and accounting
+
+An execution instance receives an explicit allocator authority and allocation limits before guest entry. `core::allocator()` is the compiler-known read loan to that authority. It has no ambient access to another allocator. Missing authority fails entry preflight before guest code, foreign symbol lookup, or callbacks.
+
+Each owning allocation records its allocator identity, requested size/alignment, and a live generation. Growth uses the allocation's original allocator. Text-from-Bytes transfers the same storage/allocator; cross-allocator clone/conversion is explicit. Allocator authority and callback context outlive all allocations and cleanup. Guest values cannot store or forge Allocator authority. A host trying to revoke it while allocations remain receives a structured in-use error and retains responsibility for teardown.
+
+Before requesting memory, validate checked size arithmetic, i64 length representability, power-of-two alignment, per-request/live/cumulative byte bounds, allocation count, type/region validity, and required metadata capacity. Current core types require alignment at most 4096; larger/invalid requirements are rejected before a callback. Size/count arithmetic overflow returns `AllocError::Overflow`; configured limits return `Limit`; allocation/reservation failure returns `OutOfMemory`. All guest-controlled data and ownership/frame/collection metadata needed for that operation use fallible allocation or a pre-reserved bounded pool. A trusted host/compiler context allocation before guest entry may still abort on host OOM; that is not permission to hide infallible allocation inside guest core operations.
+
+The host allocator primitive is `allocate(context, size: u64, alignment: u64) -> pointer-or-null`, with matching `deallocate(context, pointer, size, alignment)`. A successful nonzero request returns writable, uniquely owned, aligned storage of at least the requested size. Null means recoverable OOM. Zero-sized guest allocations need no callback and still retain identity/accounting. Deallocation uses the original exact request and occurs exactly once; it must not fail, unwind, retain a guest pointer, or reenter the same guest instance. Violating these trusted foreign preconditions is not made safe by a checkable integer handle.
+
+Live bytes count successful currently owned requested storage, including required guest-controlled metadata; cumulative requested bytes count authorized nonzero requests even when the allocator returns null. Check and reserve live/count budgets transactionally before the callback; failed allocation refunds the live reservation but not cumulative-request accounting. Release refunds live bytes/count only. Record peak live bytes and request/allocation/deallocation counts without claiming process RSS or allocator fragmentation. Default execution limits are 64 MiB live requested bytes, 256 MiB cumulative requests, and 65,536 live allocations; hosts may explicitly supply tighter/larger checked limits. These are project defaults, not performance guarantees.
+
+Container growth allocates/reserves and initializes replacement storage before publication. Allocation/copy/validation failure leaves the original collection unchanged; evaluated owning arguments are still consumed and cleaned as RFC 0007 specifies. Failed shared publication releases prepared storage after leaving the topology lock. Allocator and resource callbacks run outside graph/instance locks: reserve outside the lock, revalidate topology/liveness and charge repeated work after reacquiring it, then publish atomically or reject. A topology change never authorizes a stale preflight result.
+
+### Unsafe authority and C-valid types
+
+`unsafe` is a newly reserved source keyword, with `SRC0024` migration for old names. A block marks the foreign-call obligation; it does not disable ownership, borrowing, region, capability, integer, or artifact validation. Untrusted script/plugin defaults reject foreign/unsafe authority. A trusted host explicitly grants a normalized binding/signature/contract digest; granting source-root or ordinary host-API access does not grant native FFI. No automatic dynamic-library search/path/symbol loading follows from an import. In the initial profile foreign calls cannot suspend, throw/unwind across the adapter, or reenter the same guest instance.
+
+C-valid source types are `i64`, `bool`, `core::Unit`, and finite nonrecursive inline Copy records/enums, including Copy Option/Result specializations. Ordinary loans, arena brands, shared/weak owners, Allocator, Text/Bytes/Vec/Map, and records containing them are rejected in a C signature. An ordinary function may use them internally. No raw source pointer conversion or ownership-handle C representation is introduced; general resource/value embedding remains Milestone 3 work. This boundary intentionally requires a C shim for APIs outside its finite profile rather than guessing platform layouts or invalidating source safety.
+
+### Generated C ABI profile 1
+
+The profile is for macOS AArch64 and Windows x86-64, with 64-bit native pointers and C11 headers. The C compiler/platform ABI controls C struct alignment; adapters translate fields individually and never memcpy source/VM/Rust layouts. The header emits target-specific size/alignment/offset assertions derived from its own descriptor and validates them with a real C compiler on each tier-1 host.
+
+| Source type | C representation |
+| --- | --- |
+| `i64` | `int64_t` |
+| `bool` | `uint8_t`, exactly 0 or 1 |
+| Unit/empty record | A one-byte generated struct with one reserved zero byte; Unit result has no out-parameter |
+| Copy record | Generated struct of recursively C-valid fields, prefixed field names to avoid C keyword collisions |
+| Copy enum | Generated struct with `uint32_t tag` and a generated payload union, cases in source declaration order; unused union bytes/explicit reserved fields are zero |
+
+Scalar parameters pass by value. Aggregate parameters pass as pointers to const generated C structs. Results use a final writable pointer to the generated result type; Unit has no result pointer. All guest functions begin with `lang_context *context` and return `uint32_t` status. Import callbacks add a `void *user` parameter immediately after context; export wrappers do not. Incoming buffers must be correctly aligned, valid for their full declared object extent, and readable/writable as appropriate for the entire call. Result storage must not overlap inputs/context. Unknown tags, noncanonical bool/unit/reserved bytes, wrong context provenance/version, and count/size overflow are checked before guest effects or output writes. Normal C padding is not interpreted as a source field or required to be initialized; adapters zero their own outgoing buffers before writing fields. Enum tag zero is valid when it names the first declared case; unknown tags are rejected.
+
+Unused enum union bytes mean storage beyond the active case payload struct's full `sizeof`, not ordinary padding within that struct. A zero-payload case uses the one-byte zero reserved representation. The caller is responsible for supplying valid actual C object addresses and exclusive writable output storage. The runtime can check null/alignment/type/tag/context identity once a valid address is supplied; it cannot prove arbitrary native address validity. Native callers/callbacks are trusted. Native code must never fabricate safe source ownership from a borrowed buffer. Generated import adapters copy C-valid inputs into call-local C storage and validate/copy successful outputs back into source values. Import failure status becomes a structured runtime foreign failure followed by ordinary cleanup; a recoverable foreign domain error should instead be a valid Copy Result value with status zero. Unknown foreign status codes are `ffi.invalid-value`, never source enum discriminants.
+
+Symbols are `lang_<root_name>_<signature_digest>`, using the complete 32-byte SHA-256 digest as 64 lowercase hexadecimal digits. Public root names are at most 128 ASCII identifier bytes. Hash input is the exact nine bytes `LANGCABI\0`, little-endian u16 profile 1, u8 target (1 macOS AArch64, 2 Windows x86-64), u8 direction (0 import callback, 1 export wrapper), then qualified function name, parameter vector, and result type. Strings are little-endian u32 byte length plus exact UTF-8; vectors are little-endian u32 count plus elements. Type tags are u8: 0 i64, 1 bool, 2 Unit, 3 record, 4 enum. A record encodes qualified name then a vector of (field-name string, type); an enum encodes qualified name then a vector of (case-name string, payload type vector). Copy Option/Result use their qualified core names and full specialized case payloads. Inline types are finite; descriptor bytes are bounded at 4 MiB, type depth 64, and parameters/fields/cases/payloads 256 each before reservation/hash. This descriptor is an ABI fingerprint input, not a source-value/artifact format. Generated type identifiers use a type digest over `LANGCTYPE\0`, the same profile/target, and the type encoding, avoiding unrelated headers' type-name collisions.
+
+Generated headers define the concrete symbols and optional readable aliases. Duplicate aliases, source/runtime symbol collisions, conflicting imported signatures, or digest collisions fail before object publication. A stale incompatible header references a different symbol and fails linking/binding. The artifact digest is SHA-256 over `LANGCART\0`, profile/target, then the lexicographically sorted vector of its full function descriptor byte strings. Per-artifact support symbols include this complete artifact digest; readable support aliases may be disabled when including multiple generated headers. These digests are independent of the component ABI and source native layout and do not authenticate arbitrary artifact bytes.
+
+The generated per-artifact support surface contains only context create/destroy and copied error-summary queries, not arbitrary source/bytecode loading or plugin registration. Context creation receives an explicit allocator descriptor, checked limits, and only the artifact's declared import bindings/capability grants; it preflights the complete request before publication. A published context is tied to one artifact digest and allocator instance and rejects guest reentry/poison before guest effects. Destroy consumes its pointer; subsequent native use is a caller lifetime-contract violation, not a promise that dangling arbitrary addresses can be validated. Its serialized numeric representation is not a supported format. Descriptor fields are in exactly this order; every configuration structure starts with u32 `version=1, size=sizeof(struct)` and rejects unknown versions/sizes/flags:
+
+| Descriptor | Fields after version/size | Size/alignment on both targets |
+| --- | --- | --- |
+| Allocator | `void *user; void *(*allocate)(void *, uint64_t, uint64_t); void (*deallocate)(void *, void *, uint64_t, uint64_t);` | 32 / 8 |
+| Limits | u64 `live_bytes, cumulative_bytes, live_allocations, frames, cells, host_calls, fuel`; u32 `cleanup_records, reserved` | 72 / 8 |
+| Import binding | `const char *name; uint64_t name_bytes; uint8_t signature_digest[32]; void (*function)(void); void *user; uint64_t flags;` | 80 / 8 |
+| Program config | pointers to const allocator, limits, and import-binding descriptors; u64 `import_count`; u8 `artifact_digest[32]`; u64 `flags` | 80 / 8 |
+
+Allocator/limits pointers and both allocator callbacks are non-null. The import pointer may be null only at count zero. Import name bytes are nonempty exact UTF-8 qualified names (no embedded NUL), not necessarily NUL-terminated. Import `function` is non-null; this erased function-pointer type must be restored only to the matching generated callback type, never converted through a data pointer. Import flag bit 0 explicitly grants native FFI; other bits and all config flags/limits reserved fields are zero. Config/import descriptors are validated completely, including duplicates, exact declared signatures/digests and all grants, before symbol/callback use. Import count is at most 4096 and cumulative name bytes at most 4 MiB. Host descriptor buffers must be valid actual C objects of the stated extents; adapters copy validated data and never retain caller-owned descriptor pointers. The allocator's user context and function implementations retain their stated lifetime obligations.
+
+Limits use the allocation defaults above plus RFC 0006's 256 frames, 1,000,000 cells/fuel, 1,000 host calls, and 256 cleanup records. Zero budgets are valid and deny the corresponding operation; `UINT64_MAX` for fuel/host_calls alone denotes explicitly unbounded execution. Frames/cells/live-allocation limits must fit the implementation's checked native address/metadata capacities, and cleanup records are at most 4096; unsupported capacities reject context creation. The support shapes are `u32 create(const config *, context **out)`, `u32 destroy(context *)`, and `u32 last_error(context *, error_summary *out)`, with the artifact digest in each concrete symbol. Failed create leaves `out` unchanged; descriptor validation precedes allocator callbacks. These are per-artifact contracts, not a stable general embedding API.
+
+Status codes are `0 success`, `1 invalid argument/context/ABI`, `2 guest panic`, `3 runtime failure`, `4 cleanup failure`, `5 capability denied`, and `6 poisoned instance`. These are u32 values, not a Rust enum layout. Error summary is copied into the caller's validated output object and contains, in this order: `int64_t panic_code; uint32_t status, source, start, end, cleanup_count, flags;`. It is 32 bytes with alignment 8 on both targets. `source` is an artifact source-table index, `start/end` are half-open byte offsets, and `UINT32_MAX` with zero offsets means no source span. Flag bit 0 means cleanup-report truncation; other bits are zero. `panic_code` is zero unless the primary failure is a guest panic. Full guest stack/secondary records stay in the host's structured diagnostic interface; copying this summary does not allocate guest storage. Successful guest entry clears the previous error, failure records its primary error, and rejected reentry/poison does not overwrite an existing primary error. Error query failure does not overwrite its output. Destroy always revokes a valid context before best-effort teardown; its status reports cleanup failure without making the consumed context reusable.
+
+## Execution modes
+
+Typed HIR/MIR carries initialization order, loan/region identity, drop obligations, failure edges, allocator identity, and source spans independently of any backend. Bytecode VM, JIT, and AOT must agree on values, initialized/moved state, cleanup order, failure precedence, publication atomicity, and allocator outcomes for the same inputs/grants/limits. Native ABI profile 1 does not change the private unit call convention. Pure guest semantic fixtures run in every mode; C header/symbol/pointer-validation fixtures run through native adapters, with VM equivalence checked through typed host bindings. This does not claim a general VM-to-C export API is implemented.
+
+Existing script defaults for fuel, calls, frames and cells remain RFC 0006's. Native interruption is not implied: hosts must declare any uninstrumented native execution restriction; it cannot be presented as a guest allocation/capability sandbox. Ownership operations cannot be serialized under bytecode schema 1. The exact versioned ownership encoding remains an explicit decision before encoder/decoder changes. Constant execution, async cancellation, Wasm mapping, and component resource layout are unchanged/deferred.
+
+## ABI and compatibility
+
+Affected domains are source, tooling, native-abi, bootstrap, and future ownership bytecode. Existing RFC 0006 Copy meanings/golden bytes remain unchanged, except `unsafe` name migrations; existing `extern fn name(i64) -> i64` typed host declarations retain their original behavior and are distinct from the quoted C marker. Foreign declarations cannot silently bind as ordinary host imports or vice versa.
+
+C profile 1 is a new independently numbered adapter contract, not stabilization of every API. Changing its scalar width, bool/tag validity, ownership rules, status convention, descriptor version, symbol digest input, or failure-output policy requires a new profile/version and migration fixtures. Generated headers record toolchain version, target, full interface digest, and supported profile; there is no manually edited Cargo.lock or Rust-layout serialization. Component schema negotiation and package manifests retain their own accepted rules. No independent package compatibility promise follows from linking two source modules together.
+
+## Diagnostics and tooling
+
+Reuse `SRC0020`–`SRC0024` for accepted ownership/loan/type/reserved-name categories. Reserve `SRC0025` for missing unsafe/foreign authority and invalid C signatures. Resource bounds keep `SRC0011`. Runtime logical identities include `runtime.panic`, `runtime.cleanup-failed`, `allocation.limit`, `allocation.out-of-memory`, `allocation.overflow`, `ffi.invalid-value`, and `ffi.failure`; they retain original fault/call/cleanup spans. FFI errors must distinguish unavailable capability, malformed value, symbol/signature mismatch, and contained callback failure without relying on strings.
+
+Lossless parser/formatter preserve the exact C marker, unsafe scopes, and intrinsic type arguments. LSP validates/publishes against the current revision and displays foreign/unsafe requirements and allocator/ownership annotations. No automatic fix inserts unsafe, changes allocator, weakens ownership, or swallows a cleanup failure. Native debug metadata retains explicit cleanup/failure ranges without inventing a source declaration for a hidden adapter. General DAP/linter tooling remains in its roadmap milestone.
+
+## Performance and cost model
+
+This RFC supplies choices/test obligations, not measured results. Drop flags/order metadata, status checks, allocator bookkeeping, context preflight, and C conversion have visible costs. Whole-program analysis may remove proven-redundant bookkeeping but cannot change failure/destruction behavior. Metadata preallocation moves cost to entry/allocation, and fallible growth may temporarily hold old plus new storage; live accounting includes both until commit/release. C aggregate pointer adapters may copy even when the source type is Copy. Generated signature digests/header assertions add build work, not a runtime performance guarantee.
+
+Measure compile latency/object/header size, successful and failing allocation/growth, normal/error/panic cleanup, retained graph teardown, scalar/aggregate C calls, peak live bytes, and representative source workloads against equivalent Rust/C on both tier-1 hosts. Report allocator/request/RSS accounting scopes separately. The existing shared engine and copy-native tests are prerequisites, not performance evidence for this full profile.
+
+## Security and trust boundaries
+
+Source/IR/artifacts/handles remain untrusted at their validation boundaries. Allocator callbacks, native C code, and raw C caller addresses are explicitly trusted inputs with lifetime/no-unwind/nonreentry obligations. Capability preflight precedes native lookup/callbacks; names/paths/digests do not authenticate arbitrary artifact bytes. Counter/size/generation exhaustion fails closed, and stale handles never alias reuse. Cleanup does not grant new authority or invoke user callbacks while topology publication is locked. Unsafe source cannot override the verifier. Native process isolation remains the host's responsibility.
+
+## Alternatives
+
+- **No change:** continue host Rust cleanup/global allocation and ad hoc C harnesses. This leaves the second decision gate and ownership-aware production exit incomplete.
+- **Library/tooling only:** wrappers can expose allocation/C functions, but cannot define return-slot publication, compiler drop flags, unsafe scope checking, or failure cleanup on every MIR edge.
+- **Strongest competing design:** native exceptions/unwinding, unrestricted raw pointers/C layouts/variadics, and implicit global allocation. It offers broader interoperability but adds platform unwind, pointer validity, effect, and resource-authority contracts before a safe first owning profile. A future explicit profile can extend this one.
+- **Simpler boundary:** abort on every panic/allocation failure and expose only integer functions. It reduces cleanup/adaptation work but does not deliver the accepted fallible core/container and complete Copy aggregate/native goals; it may be an internal intermediate build, not milestone completion.
+
+## Implementation plan
+
+1. Obtain explicit owner disposition; keep proposed until acceptance. Keep the second roadmap gate unchecked until the owner accepts the cleanup/allocator/unsafe/C-validity contract.
+2. Implement ownership HIR/MIR initialization/drop/failure flow, checked allocator authority and metadata reservation, and backend-neutral cleanup/error state. Preserve all spans and accepted Copy behavior.
+3. Adapt the shared runtime's host Arc/storage strategy to the fallible guest allocator contract before exposing these source operations. Add arena/core/container lifetime and failure paths; no guest callback runs under graph locks.
+4. Implement unsafe/C grammar, exact generated descriptor/header fixtures, typed import/export adapters and context validation. Verify the specified C size/alignment/offset/symbol behavior with actual compilers on macOS AArch64 and Windows x86-64. Until complete, reject unsupported boundary shapes before effects/publication.
+5. Decide/version ownership bytecode encoding before serialization changes, then implement differential VM/native ownership/cleanup/allocator/call fixtures, link/run, source debug, representative Rust/C measurements, and bilingual capabilities documentation.
+
+## Test plan
+
+| Area | Required evidence |
+| --- | --- |
+| Cleanup | Reverse actual initialization order, branch/loop flags, moved owner exclusion, aggregate temporaries, return escrow, explicit drop, typed Err, panic and all runtime-limit edges |
+| Failure | Primary/secondary ordering, bounded report overflow with continued cleanup, failed result cleanup, host panic/destructor containment, instance poison/reentry/teardown, no native unwinding |
+| Allocation | Missing authority, exact live/cumulative/count/alignment boundaries, zero requests, original allocator identity, checked i64/size overflow, injected OOM at data and metadata reservations, transactional growth/publication |
+| C validity | Every allowed scalar/record/enum/Copy Option/Result, empty records, unknown tags/bools/reserved bytes, null/misaligned/overlapping pointers under valid-object host fixtures, forbidden ownership/borrow signatures |
+| Header/platform | Real C compiler static assertions and calls, stable fixture/digest/symbol names, direct/response-file link/run on both tier-1 hosts, stale header and signature collision rejection |
+| Authority | Unsafe scope cannot grant a binding, missing grant prevents lookup/callback, complete import preflight, no host/foreign import substitution or source-root-to-FFI authority escalation |
+| Cross-mode/trust | Identical values/cleanup/fault spans and allocator traces in VM/JIT/AOT; malformed ownership IR/artifact/handle tests, deterministic fault injection, fuzzing and representative costs without overstated campaign claims |
+
+## Open questions
+
+Blocking owner choice: adopt explicit cleanup/status flow, recoverable budgeted guest allocation, and this finite generated C boundary. The specified descriptor/layout/digest contracts require real implementation fixtures before implemented status; a general embedding API and exact ownership bytecode still require their own accepted/versioned contracts. They may not be silently inferred from this decision. There is no user-defined destructor or raw-pointer source escape hatch in this profile.
+
+Review outcome: **ready for decision on cleanup/allocator/unsafe/C-validity semantics**. Exact generated descriptor fixtures, implementation, platform conformance, measurements and stabilization are not claimed.
+
+Prototype evidence verified 2026-10-17 JST: [layout fixture](../../benchmarks/fixtures/c-abi-profile-1-layout.c) passes `clang --target=arm64-apple-macos -std=c11 -Wall -Wextra -Werror -fsyntax-only` and the corresponding `--target=x86_64-pc-windows-msvc` command under Apple Clang 21.0.0 (`clang-2100.3.34.2`). [Fingerprint vectors](../../benchmarks/fixtures/c-abi-profile-1-fingerprints.json) record exact scalar descriptor bytes/SHA-256 for both directions/targets. These are proposal fixtures, not compiler-generated headers, native Windows/MSVC execution, or source C interoperability. Full implementation gates above remain required.
+
+## Sources
+
+- [RFC 0004](0004-owned-values-and-cyclic-graphs.md), accepted lifetime/cycle/arena invariants; [RFC 0007](0007-source-ownership-and-core-values.md), accepted source/core/allocator type surface. Both last updated 2026-10-17 JST, verified 2026-10-17 JST.
+- [RFC 0003](0003-versioned-component-contracts.md), component failure/ownership boundary; [RFC 0006](0006-source-frontend-and-portable-programs.md), Copy semantics, resource limits and schema 1. Both last updated 2026-10-17 JST, verified 2026-10-17 JST.
+- [Architecture](../architecture.md), [roadmap](../roadmap.md), `crates/runtime/src/shared.rs` and its tests (`ec16f8a`), native copy backend/tests (`926fb3b`), ownership grammar (`eb3b16f`): implementation/remaining-work evidence updated 2026-10-17 JST, verified the same day.
+- `benchmarks/fixtures/c-abi-profile-1-layout.c` and `c-abi-profile-1-fingerprints.json`, proposal evidence updated/verified 2026-10-17 JST. The layout claims have the Clang cross-target evidence above, with native Windows/MSVC evidence still pending. Other semantics are project proposals, not new external-language or performance findings.
