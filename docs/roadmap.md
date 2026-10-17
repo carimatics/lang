@@ -202,6 +202,8 @@ Commit `cb3312d` connects typed source HIR to shared verified MIR; `b1964e7` add
 
 The current checklist has 3 unchecked implementation items totaling 12 points. This table is a dependency view, not additional scope or completion credit.
 
+Commit `e62b33b` adds virtual root analysis with explicit file authority, isolated expression-result typing, and library lowering without automatic main selection. Eight tests and the full 430-test baseline pass. These are REPL prerequisites; transactional submissions, original-submission diagnostics, deterministic display, and CLI integration remain in the unchecked 3-point task. No additional completion credit is claimed.
+
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Formatter round trips and incomplete-source LSP diagnostics |

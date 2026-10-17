@@ -202,6 +202,8 @@ Commit `cb3312d` はtyped source HIRを共有verified MIRへ接続し、`b1964e7
 
 現在のchecklistには未完了の実装3項目、合計12 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
+Commit `e62b33b` は明示file権限付きvirtual root analysis、分離したexpression結果typing、mainを自動選択しないlibrary loweringを追加しました。8件のtestと全体の430-test baselineが成功しています。REPLのprerequisiteであり、transactional submission、元submissionの診断、deterministic display、CLI統合は未完了の3 pt taskへ保持します。追加完了点は付けません。
+
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
 | --- | --- |
 | 字句仕様 | Formatter round trip、不完全sourceのLSP診断 |
