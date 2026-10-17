@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み45件 · 進行中1件 · 残り46件（暫定120 pt）。**
+**検証済み46件 · 進行中0件 · 残り46件（暫定118 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む19件の成果を検証しました。V11（`1dcf260`）でadmission済みsnapshotによるCopy／affine CFG argument同時転送を実行し、scalar／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを確認しました。V11で2 ptを減らし、残作業は120 → 118 ptです。現在のownership source loweringはそのparameterを生成せず、次はV07のowned source guest-call fixtureです。G06／G08の広い実行／service成果、G07のV09代入とN03 native evidence、G14／G16のnative／cross-mode conformanceは残します。新たなexit gateは完了扱いにしていません。997 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む20件の成果を検証しました。V07着手前にhost wrapper再利用の不足が判明し、V12（`05ebf0b`）でentry前にpoolを準備し、host拡張なしで関数別guest regionをadmit／releaseします。厳密budget、全provider OOM／再試行、cumulative request、callback前拒否を確認しました。未計上の前提2 ptを追加してから完了したため、**残り118 → 120 → 118 pt**、doneは1行増です。V11／V12の前提2件の後は、V07のowned source guest-call fixtureを実行する成果へ進みます。Fixtureのcheckは成功しますが、実行はeffect前に `Call` を拒否します。G06／G08の広い実行／service成果、G07のV09代入とN03 native evidence、G14／G16のnative／cross-mode conformanceは残します。新たなexit gateは完了扱いにしていません。1002 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

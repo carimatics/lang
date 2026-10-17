@@ -6,13 +6,13 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**45 done · 1 doing · 46 todo · 120 remaining pt**
+**46 done · 0 doing · 46 todo · 118 remaining pt**
 
-**次: M2-V12 → guest entry前に再利用するframe wrapper poolを準備し、host拡張なしでguest regionをadmit／releaseする。**
+**次: M2-V07 → owned source guest call／resultを再帰上限とreturn escrow付きで実行する。**
 
-直近の完了：**M2-V11**（`1dcf260`）。Admission済みsnapshotでCopy／affine CFG argumentを同時転送します。追加VM test 7件でscalar Copy oracle 243 case、Copy enum 9 case、入れ子owner permutation 24 case、古いloan tokenの再束縛、厳密snapshot／cell budget、loopでrequestが増えないこと、全admission／guest OOM箇所、全fuel prefixを検証します。VM 40／CLI 26 testが成功しています。全体の **71 suite・997 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。
+直近の完了：**M2-V12**（`05ebf0b`）。Host wrapper準備と、再利用するguest frame admissionを分けました。追加pool test 5件でmain／calleeの異なるshapeと固定host capacity／会計、厳密size 0課金、全provider OOMと再試行、逆順rollback、cumulative試行課金、quota／capacity／active状態拒否、別layouts、厳密host budgetを検証します。Frame 11／VM 40／CLI 26 testが成功しています。全体の **71 suite・1002 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。未計上の前提2 ptを追加してから完了したため、**残り118 → 120 → 118 pt**、doneは1行増です。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **初回12.9秒／最終0.6秒**、全test **133.8秒**、rustdoc **12.6秒**、fuzz Clippy **0.7秒**。Copy enum case追加後にClippyを再実行し、全test baselineは1回実行しました。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **成功時3.2秒**、全test **132.2秒**、rustdoc **12.8秒**、fuzz Clippy **1.3秒**。初回Clippy **10.3秒**で見つかったtestの不要castを修正して再実行し、全test baselineは1回実行しました。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultを経由するowner move、checked loanによる投影先fieldの読み取り／変更、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。次はV07のowned source guest-call fixtureです。G06／G08は広い実行／service成果を残し、G07もV09の代入とN03のnative evidence、G14／G16もnative／cross-mode conformanceが必要です。他owning service、REPL実行、ownership artifactも各gateに残します。未対応命令／payloadはprovider callback前に拒否します。
 
@@ -106,7 +106,7 @@ V07着手前の監査（2026-10-18 JST）：[owned-call fixture](../../examples/
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get／set／push、UTF-8変換、Text byte長を実行。Bounds／OOM、変換確保数、fuel／interruption cleanup、Copy cell loop再利用を検証。 | `8b24c94` |
 | M2-V05 | done | 0 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityとBytes cloneを実行。独立owner、allocator identity、typed OOM／quota error、fuel／loop cleanupを検証。 | `752a369` |
 | M2-V06 | done | 0 | M2-V03,M2-S03 | G06,G08 | 入れ子Bytes／Text／Copy record／enum／sum ownerとreference projectionを実行。Pack用確保なし、記述逆順の1回限りdrop、OOM／panic／fuel、loop cleanupを検証。 | `92d225a` |
-| M2-V12 | doing | 2 | M2-V11 | G06 | Guest entry前に再利用するhost frame wrapperを準備。関数別guest regionのadmit／release、厳密上限、OOM rollbackをhost pool拡張なしで実行。 | — |
+| M2-V12 | done | 0 | M2-V11 | G06 | Host拡張なしでmain／callee regionをadmit／release。厳密budget、size 0課金、OOM rollback／再試行、cumulative request、callback前拒否を検証。 | `05ebf0b` |
 | M2-V07 | todo | 3 | M2-V06,M2-V11,M2-V12 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |

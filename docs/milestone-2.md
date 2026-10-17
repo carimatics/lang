@@ -6,13 +6,13 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**45 done · 1 doing · 46 todo · 120 remaining pt**
+**46 done · 0 doing · 46 todo · 118 remaining pt**
 
-**Next: M2-V12 → prepare reusable frame wrapper pools before guest entry, then admit/release guest regions without host growth.**
+**Next: M2-V07 → execute owned source guest calls/results with recursion limits and return escrow.**
 
-Latest delivery: **M2-V11** (`1dcf260`) executes simultaneous Copy/affine CFG argument transfer through admitted snapshots. Seven added VM tests cover 243 scalar Copy oracle cases, nine Copy enum cases, 24 nested-owner permutations, old loan-token rebinding, exact snapshot/cell budgets, unchanged loop allocation requests, all admission/guest OOM points and all fuel prefixes. VM 40/CLI 26 tests pass. The full baseline passes **997 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy.
+Latest delivery: **M2-V12** (`05ebf0b`) separates host wrapper preparation from reusable guest frame admission. Five added pool tests cover main/callee shapes with fixed host capacity/accounting, exact zero-sized charges, all provider OOM points and retry, reverse rollback, cumulative attempts, quota/capacity/active-state rejection, foreign layouts and exact host budgets. Frame 11/VM 40/CLI 26 tests pass. The full baseline passes **1002 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy. The newly exposed 2-point prerequisite was added and completed: **118 → 120 → 118 pt**, with one additional done row.
 
-Measured last code baseline (2026-10-18 JST): workspace Clippy **12.9 s initial / 0.6 s final**, full tests **133.8 s**, rustdoc **12.6 s**, fuzz Clippy **0.7 s**. The Clippy rerun followed the added Copy enum case; the full test baseline ran once. These are command durations, not total working time; the logs do not attribute every part of wall time. Documentation-only updates use consistency checks.
+Measured last code baseline (2026-10-18 JST): workspace Clippy **3.2 s passing**, full tests **132.2 s**, rustdoc **12.8 s**, fuzz Clippy **1.3 s**. An initial **10.3 s** Clippy run found a redundant test cast, corrected before the passing rerun; the full test baseline ran once. These are command durations, not total working time; the logs do not attribute every part of wall time. Documentation-only updates use consistency checks.
 
 Current source capability: a zero-parameter i64 main can use Bytes/Text operations, move their owners through nested records/enums/Option/Result, read or mutate projected fields through checked loans, and clean normal/failure exits. Borrowed matching and the partial-move prohibition are unchanged. V11 adds in-memory MIR CFG argument execution; current ownership source lowering does not generate those parameters. Next is V07's owned source guest-call fixture. G06/G08 retain their broader execution/service outcomes, G07 needs V09 assignment and N03 native evidence, and G14/G16 still require native/cross-mode conformance. Other owning services, REPL execution and ownership artifacts retain their gates. Unsupported operations/payloads fail before provider callbacks.
 
@@ -106,7 +106,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get/set/push, UTF-8 conversion and Text byte length execute; bounds/OOM, conversion allocation counts, fuel/interruption cleanup and Copy-cell loop reuse verified. | `8b24c94` |
 | M2-V05 | done | 0 | M2-V04 | G07 | Source Text concat/clone/to-bytes/equality and Bytes clone execute with independent owners, allocator identity, typed OOM/quota errors, fuel and loop cleanup. | `752a369` |
 | M2-V06 | done | 0 | M2-V03,M2-S03 | G06,G08 | Nested Bytes/Text/Copy record/enum/sum owners and reference projections execute; no packing allocation, reverse written exactly-once drops, OOM/panic/fuel and loop cleanup verified. | `92d225a` |
-| M2-V12 | doing | 2 | M2-V11 | G06 | Prepare reusable host frame wrappers before guest entry; admit/release per-function guest regions with exact limits, OOM rollback and no host-pool growth. | — |
+| M2-V12 | done | 0 | M2-V11 | G06 | Reusable host wrappers admit/release main/callee regions without host growth; exact budgets, zero-sized charges, OOM rollback/retry, cumulative requests and pre-callback rejection verified. | `05ebf0b` |
 | M2-V07 | todo | 3 | M2-V06,M2-V11,M2-V12 | G06 | Execute owned guest calls/results with recursion limits and return escrow. | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | Execute generated failure exits: fuel/OOM/body failures, ordered cleanup and nested failure reports. | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Execute provisional-read match arms and prepared replacement across RHS effects. | — |
