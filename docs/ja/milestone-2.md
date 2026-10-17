@@ -6,15 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**37 done · 0 doing · 50 todo · 129 remaining pt**
+**38 done · 0 doing · 53 todo · 136 remaining pt**
 
-**次: M2-V03 → Bytesのソースプログラムを実行する。**
+**次: M2-S01 → source所有権取り出しを判断し、変更操作のfixtureを実行可能にする。**
 
-直近の完了：**M2-V02**（`86c23ce`）。検査済みlocal／value／return storageの受け入れ、全requestのpreflight、OOM時の逆順rollback、確保なしのretirement／再利用を追加しました。Source／runtimeの6 testが成功し、全provider allocation箇所の失敗と128回の再利用を含めて検証しました。全体の943 test、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功し、rustdocはVM／codegenのcache生成物の再構築後に通りました。計画した3 ptを減らして残り129 ptとなり、新たな前提作業は追加していません。
+直近の完了：**M2-V03**（`ece8690`）。検査済みownership MIRと生成failure／cleanup flowで [Bytes source program](../../examples/scripts/bytes.lang) を実行します。結果は `0` で、buffer OOMはtyped Errへ進み、全fuel prefixでstorageを解放します。Source／runtime 8 testとCLI回帰が成功しました。全体の952 test、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功し、rustdocはcodegen metadataのcache再構築後に通りました。
 
-次の受入evidence：`core::bytes_new(core::allocator())` のResultをmatchし、`core::bytes_len` を返すsource mainは `lang check` に成功していますが、`lang run` はownership profileをまだ拒否します。M2-V03でこのprogramと通常cleanupを実行します。計画した2件の前提作業は完了したため、queueをこの実行fixtureへ進めます。
+現在のsource対応範囲：引数なしi64 mainで、`core::allocator()`、Bytes new／len、borrowed Result match、scalar／Copy命令、shared loan、生成cleanupを実行できます。REPL／native実行と残りownership命令は各gateに残し、未対応命令はprovider callback前に拒否します。
 
-現在、ownershipを使うプログラムは `lang check` で検査できますが、`lang run` とREPLではまだ実行できません。従来の完了条件は **18件中5件完了** です。下記の完了実装にはcompiler／runtimeの前提作業も含み、機能全体が実行可能になったことを意味しません。
+従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
 この文書を実装Todoの正本とします。Roadmapには従来の受入条件とその履歴上の重みを残します。件数は独立して検証した成果の数であり、各件の作業量が等しいという意味ではありません。残りpointは積み上げによる暫定見積もりで、native／C／platform統合の確度は低く、時間や完成時期の予測ではありません。完了済み作業に後付けのeffort pointは与えません。完了行の *残り* pointは0です。
 
@@ -32,6 +32,8 @@
 初回の残り134 ptの作業一覧は欠けていた詳細見積もりを置き換えたもので、完了済み34 ptの付け直しや新しい完成率の作成ではありません。現在の残りpointは成果の完了で減り、再見積もりでは変更を明示します。新旧の総計は粒度が異なり、過去のcost超過率の計算には使えません。新たな作業が判明したら、task数と残りpointの増減を含めて明示的に再見積もりします。
 
 ## 作業ルール
+
+最初の実行fixture後の監査（2026-10-18 JST）：RFC 0007の受理済みmove／match規則では、非Copyのcase bindingは読み取りloanです。生成したBytesをownedなmutable localへbindingすると、`SRC0014`（expected Bytes, found &Bytes）で拒否されることを確認しました。Allocating Option／Resultから変更／消費core命令へ進む経路を妨げるため、V04前にS01〜S03（8 pt）を追加し、明示的で互換性を持つ取り出し設計を判断してからcompiler／runtime contractを実装します。受理済みborrowed matchingを暗黙に変更しません。また新VMはCFG block argumentを明示的に拒否するため、一般guest-call conformance前にV11（2 pt）を追加します。V03で3 ptを減らし、新規4行で10 ptを加えるため、残作業は129から **136 pt**、**53 todo** へ変わります。S02／S03はS01で設計を選ぶまで暫定とし、大きい形式を選んだ場合はcode前に分割／再見積もりします。実行できたsource fixtureは完了成果として維持します。
 
 - 実装前に1行を選んで `doing` にし、同時進行は最大1件とします。1行は観測可能な1成果、残り1〜3 ptです。それより大きい、または前提が不明なら着手前に分割します。
 - 計画開始から10分経ってもpatchまたは実行可能な実験がなければ、設計を広げる前にtaskを狭めて最小限の有用な実験を実行します。抽象化やhardeningの追加は、選択した成果または受理済み要件に必要な場合に限ります。取得できる検証所要時間を記録し、commit間隔を稼働時間とはみなしません。
@@ -91,14 +93,18 @@
 | --- | --- | ---: | --- | --- | --- | --- |
 | M2-V01 | done | 0 | M2-D34 | G08 | Managed Unit／Option／Result／error codec：入れ子往復、tag検証、厳密な上限。 | `71ece57` |
 | M2-V02 | done | 0 | M2-V01 | G06 | 上限付きowned frameの受け入れ時、effect前にvalue／retirement storageを確保し、失敗rollbackを検証。 | `86c23ce` |
-| M2-V03 | todo | 3 | M2-V02,M2-D35 | G06,G07 | lang runでBytes new／lenのソースと通常dropを実行し、到達可能な未対応命令はeffect前に拒否。 | — |
-| M2-V04 | todo | 3 | M2-V03 | G07,G08 | Bytes get／set／pushとUTF-8成功／失敗をソースから実行し、bounds／OOMを検証。 | — |
+| M2-V03 | done | 0 | M2-V02,M2-D35 | G06,G07 | lang runでBytes new／lenのソースと通常dropを実行し、到達可能な未対応命令はeffect前に拒否。 | `ece8690` |
+| M2-S01 | todo | 2 | M2-V03 | G07,G08,G09,G10 | Borrowed matchingとの互換性を含む、Option／Result全体の所有権取り出しをRFC改訂／follow-upで受理記録にする。 | — |
+| M2-S02 | todo | 3 | M2-S01 | G08 | 受理した取り出し形式のsource typing、affine／loan／region検査、MIR contractをcompile-pass／fail付きで実装。 | — |
+| M2-S03 | todo | 3 | M2-S02 | G06,G08 | 移譲時の新規確保なしにwhole-payload抽出を実行し、move後使用拒否、失敗cleanup、owned Bytes source fixtureを検証。 | — |
+| M2-V04 | todo | 3 | M2-V03,M2-S03 | G07,G08 | Bytes get／set／pushとUTF-8成功／失敗をソースから実行し、bounds／OOMを検証。 | — |
 | M2-V05 | todo | 2 | M2-V04 | G07 | Text concat／clone／to-bytesのソース実行でallocator identityと失敗結果を保持。 | — |
-| M2-V06 | todo | 3 | M2-V03 | G06,G08 | 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証。 | — |
-| M2-V07 | todo | 3 | M2-V06 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
+| M2-V06 | todo | 3 | M2-V03,M2-S03 | G06,G08 | 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証。 | — |
+| M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPLのownership受け入れ／結果表示をrunに揃え、失敗を分離。 | — |
+| M2-V11 | todo | 2 | M2-V06 | G08,G14,G16 | 上限付き事前予約scratch storageで、cycle／loopを含むCopy／affine CFG block argumentの同時転送を実行。 | — |
 
 ## Shared、arena、collection
 

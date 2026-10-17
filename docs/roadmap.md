@@ -8,9 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**37 verified deliveries · 0 in progress · 50 remaining tasks (provisional 129 pt).**
+**38 verified deliveries · 0 in progress · 53 remaining tasks (provisional 136 pt).**
 
-Use the [M2 delivery board](milestone-2.md) for the current Todo list, commit evidence and remaining estimates (updated 2026-10-18 JST). Eleven deliveries landed since the gate score last changed. Managed finite-value access (`71ece57`) and frame storage admission (`86c23ce`) are complete; next: execute a source Bytes program through `lang run`. Its `lang check` fixture passes; ownership execution is still unavailable.
+Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). Twelve deliveries landed since the gate score last changed. The source Bytes program now prints `0` through `lang run` with normal/fuel-failure cleanup (`ece8690`). Next resolve owned Option/Result extraction before mutating core operations. The audit adds 8 pt for that explicit RFC/compiler/runtime work and 2 pt for CFG block arguments, after completing V03's 3 pt. REPL, native execution and remaining core operations retain their gates.
 
 The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 
