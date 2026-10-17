@@ -3,6 +3,90 @@
 
 use super::{Frame, Kind, Reason, Slot, StateError};
 use lang_mir::unit::FunctionId;
+
+/// Construction order borrowed only from independently verified ownership MIR.
+/// Physical field storage remains in declaration order. Copy/vacant fields may
+/// be represented by None when draining owning payloads.
+#[derive(Clone, Copy, Debug)]
+pub struct RecordOrder<'a> {
+    order: &'a [u32],
+    fields: &'a [lang_mir::unit::Register],
+    values: &'a [lang_mir::unit::ownership::TypeUse],
+}
+impl<'a> RecordOrder<'a> {
+    pub fn new(typed: &'a b::TypedBodies, function: FunctionId, site: b::Site) -> Option<Self> {
+        let index = function.0 as usize;
+        let instruction = typed
+            .functions()
+            .get(index)?
+            .blocks
+            .get(site.block.0 as usize)?
+            .instructions
+            .get(site.order.checked_sub(1)?)?;
+        let b::Op::Record {
+            fields,
+            initialization_order,
+            ..
+        } = &instruction.op
+        else {
+            return None;
+        };
+        Some(Self {
+            order: initialization_order,
+            fields,
+            values: &typed.places().functions()[index].values,
+        })
+    }
+    pub const fn field_count(&self) -> usize {
+        self.fields.len()
+    }
+    pub fn reverse(&self) -> impl Iterator<Item = u32> + '_ {
+        self.order.iter().rev().copied()
+    }
+    pub fn field_span(&self, field: u32) -> Option<lang_mir::unit::Span> {
+        let value = self.fields.get(field as usize)?;
+        Some(self.values[value.0 as usize].span)
+    }
+    /// Consume each field before yielding it to cleanup. A failed field cleanup
+    /// can therefore be recorded and iteration continued without retry. The
+    /// caller must contain/report each trusted cleanup and exhaust the drain.
+    /// Dropping this iterator leaves unvisited fields with their current owner.
+    pub fn drain<'fields, T>(
+        &self,
+        fields: &'fields mut [Option<T>],
+    ) -> Result<RecordDrain<'a, 'fields, T>, StateError> {
+        if fields.len() != self.fields.len() {
+            return Err(StateError::AggregateArity {
+                expected: self.fields.len(),
+                actual: fields.len(),
+            });
+        }
+        Ok(RecordDrain {
+            order: self.order.iter().rev(),
+            fields,
+        })
+    }
+}
+#[must_use = "exhaust the drain to clean all selected fields"]
+pub struct RecordDrain<'order, 'fields, T> {
+    order: std::iter::Rev<std::slice::Iter<'order, u32>>,
+    fields: &'fields mut [Option<T>],
+}
+impl<T> Iterator for RecordDrain<'_, '_, T> {
+    type Item = (u32, T);
+    fn next(&mut self) -> Option<Self::Item> {
+        for &field in self.order.by_ref() {
+            if let Some(value) = self.fields[field as usize].take() {
+                return Some((field, value));
+            }
+        }
+        None
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.order.len()))
+    }
+}
+impl<T> std::iter::FusedIterator for RecordDrain<'_, '_, T> {}
 use lang_mir::unit::ownership::{bodies as b, declarations as d};
 
 pub struct MirLayout<'a> {

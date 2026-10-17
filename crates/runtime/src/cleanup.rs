@@ -15,7 +15,7 @@ use std::mem::ManuallyDrop;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 mod mir;
-pub use mir::MirLayout;
+pub use mir::{MirLayout, RecordDrain, RecordOrder};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {
@@ -71,6 +71,7 @@ pub enum StateError {
     ScopeLimit,
     OuterScope,
     CallBoundary,
+    AggregateArity { expected: usize, actual: usize },
     Failed,
 }
 impl Display for StateError {
@@ -422,6 +423,18 @@ impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
         let (payload, span) = self.remove(source);
         self.insert(target, payload, span);
         Ok(())
+    }
+    /// Transfer an owner into already reserved aggregate/call storage. The
+    /// caller assumes its obligation before further fallible work; generated
+    /// adapters must validate the complete transfer before removing any owner.
+    pub fn take_owner(&mut self, slot: Slot) -> Result<T, StateError> {
+        self.running()?;
+        if self.declared(slot)?.kind != Kind::Owner {
+            return Err(StateError::KindMismatch);
+        }
+        self.value(slot)?;
+        let (payload, _) = self.remove(slot);
+        Ok(ManuallyDrop::into_inner(payload))
     }
     /// Call after destination/RHS evaluation and replacement validation.
     /// No callback runs until the incoming owner has been committed.

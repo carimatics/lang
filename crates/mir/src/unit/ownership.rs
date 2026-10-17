@@ -211,6 +211,7 @@ pub enum ErrorKind {
     UndefinedPrepared(u32),
     PreparedDoesNotDominate(u32),
     InvalidInitialization(u32),
+    InvalidInitializationOrder(u32),
     CoreTypeArity {
         expected: usize,
         actual: usize,

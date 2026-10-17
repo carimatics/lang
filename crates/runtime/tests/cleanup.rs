@@ -664,6 +664,32 @@ fn cleanup_ranges_preflight_all_targets_and_select_each_live_owner_once() {
 }
 
 #[test]
+fn exported_owners_leave_no_source_obligation_and_registrations_cannot_escape() {
+    let (drops, trace) = (Drops::default(), Trace::default());
+    let mut instance = Instance::default();
+    let mut frame = instance.enter(Limits::default(), cleaner(&trace)).unwrap();
+    initialize(&mut frame, 0, 10, &drops);
+    frame.declare(Slot(1), Kind::Borrow).unwrap();
+    frame
+        .initialize(Slot(1), resource(99, &drops), None)
+        .unwrap();
+    assert_eq!(
+        frame.take_owner(Slot(1)).unwrap_err(),
+        StateError::KindMismatch
+    );
+    let owner = frame.take_owner(Slot(0)).unwrap();
+    assert_eq!(
+        frame.take_owner(Slot(0)).unwrap_err(),
+        StateError::Uninitialized
+    );
+    frame.finish(Exit::Return(None));
+    assert_eq!(ids(&trace), [99]);
+    assert_eq!(*drops.borrow(), [99]);
+    drop(owner);
+    assert_eq!(*drops.borrow(), [99, 10]);
+}
+
+#[test]
 fn generated_moves_replacements_and_explicit_drops_match_an_independent_order_oracle() {
     for seed in 1..=100u64 {
         let (drops, trace) = (Drops::default(), Trace::default());

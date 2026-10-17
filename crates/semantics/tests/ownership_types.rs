@@ -140,15 +140,20 @@ fn automatic_owned_record_evaluates_written_order_and_uses_canonical_field_order
         reads.iter().map(|r| r.0).collect::<Vec<_>>(),
         [Root::Local(LocalId(1)), Root::Local(LocalId(0))]
     );
-    let fields = table.functions[0].blocks[0]
+    let (fields, order) = table.functions[0].blocks[0]
         .instructions
         .iter()
         .find_map(|i| match &i.op {
-            Op::Record { fields, .. } => Some(fields),
+            Op::Record {
+                fields,
+                initialization_order,
+                ..
+            } => Some((fields, initialization_order)),
             _ => None,
         })
         .unwrap();
     assert_eq!(fields, &[reads[1].1, reads[0].1]);
+    assert_eq!(order, &[1, 0]);
 }
 
 #[test]

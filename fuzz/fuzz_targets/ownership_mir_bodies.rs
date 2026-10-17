@@ -42,7 +42,7 @@ fuzz_target!(|bytes: &[u8]| {
         o::Type::I64,
         o::Type::I64,
         o::Type::I64,
-        o::Type::I64,
+        o::Type::Nominal(m::DefinitionId(0)),
         o::Type::I64,
         o::Type::I64,
         o::Type::I64,
@@ -90,7 +90,24 @@ fuzz_target!(|bytes: &[u8]| {
                     path: "body-fuzz.lang".into(),
                     text: "x".repeat(16),
                 }],
-                definitions: vec![],
+                definitions: vec![o::Definition {
+                    name: "Pair".into(),
+                    public: false,
+                    span,
+                    kind: o::DefinitionKind::Record(
+                        ["first", "second"]
+                            .into_iter()
+                            .map(|name| o::Field {
+                                name: name.into(),
+                                span,
+                                ty: o::TypeUse {
+                                    ty: o::Type::I64,
+                                    span,
+                                },
+                            })
+                            .collect(),
+                    ),
+                }],
                 constructed: constructors
                     .into_iter()
                     .map(|constructor| o::Constructed { constructor, span })
@@ -176,7 +193,7 @@ fuzz_target!(|bytes: &[u8]| {
             let loan = b::LoanId(u32::from(byte(at + 3) % 8));
             let place = p::PlaceId(u32::from(byte(at + 3) % 4));
             let destination = b::PreparedPlaceId(u32::from(byte(at + 3) % 8));
-            let (op, output) = match byte(at) % 26 {
+            let (op, output) = match byte(at) % 27 {
                 0 => (b::Op::Bool(byte(at + 1) & 1 != 0), true),
                 1 => (b::Op::I64(i64::from(byte(at + 1))), true),
                 2 => (b::Op::Add(a, z), true),
@@ -295,7 +312,7 @@ fuzz_target!(|bytes: &[u8]| {
                     false,
                 ),
                 24 => (b::Op::DropValueIfAvailable(a), false),
-                _ => (
+                25 => (
                     b::Op::Cleanup(b::Cleanup {
                         steps: (0..byte(at + 4) % 6)
                             .map(|index| {
@@ -320,6 +337,16 @@ fuzz_target!(|bytes: &[u8]| {
                             .collect(),
                     }),
                     false,
+                ),
+                _ => (
+                    b::Op::Record {
+                        definition: m::DefinitionId(u32::from(byte(at + 3) % 3)),
+                        fields: vec![a, z],
+                        initialization_order: (0..byte(at + 4) % 5)
+                            .map(|index| u32::from(byte(at + 5 + usize::from(index)) % 5))
+                            .collect(),
+                    },
+                    true,
                 ),
             };
             instructions.push(b::Instruction {

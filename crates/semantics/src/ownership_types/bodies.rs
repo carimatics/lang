@@ -1,6 +1,6 @@
 //! Automatic lowering from region-checked source bodies, including generated
-//! lexical/temporary cleanup ranges. Executable layouts, aggregate order
-//! metadata, and generated failure exits remain required for source execution.
+//! lexical/temporary cleanup ranges and record initialization order. Executable
+//! layouts and generated failure exits remain required for source execution.
 
 use super::*;
 use lang_hir::program::{BodyTypes, FunctionFacts};
@@ -533,14 +533,17 @@ impl Lowerer<'_, '_, '_> {
             }
             r::ExpressionKind::Record { definition, fields } => {
                 let mut values = self.c.budget.vector(fields.len())?;
+                let mut initialization_order = self.c.budget.vector(fields.len())?;
                 values.resize(fields.len(), m::Register(0));
                 for (index, field) in fields.iter().enumerate() {
-                    values[self.facts.record_order(expression).unwrap()[index]] =
-                        self.expression(field.value, block, depth + 1)?;
+                    let ordinal = self.facts.record_order(expression).unwrap()[index];
+                    values[ordinal] = self.expression(field.value, block, depth + 1)?;
+                    initialization_order.push(id(ordinal)?);
                 }
                 b::Op::Record {
                     definition: m::DefinitionId(id(definition.0)?),
                     fields: values,
+                    initialization_order,
                 }
             }
             r::ExpressionKind::Case { index, .. } => b::Op::Variant {

@@ -746,6 +746,7 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
                 b::Op::Record {
                     definition: m::DefinitionId(0),
                     fields: vec![r(0)],
+                    initialization_order: vec![0],
                 },
             ),
             instruction(&[2], b::Op::CopyPlace(p)),

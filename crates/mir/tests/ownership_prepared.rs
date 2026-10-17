@@ -610,6 +610,7 @@ fn a_prepared_direct_field_requires_initialized_parent_storage_at_publication() 
                 b::Op::Record {
                     definition: m::DefinitionId(0),
                     fields: vec![r(0)],
+                    initialization_order: vec![0],
                 },
                 4,
             ),

@@ -123,6 +123,9 @@ pub enum Op {
     Record {
         definition: DefinitionId,
         fields: Vec<m::Register>,
+        /// Declaration-field ordinals in actual initialization order. This is
+        /// a complete permutation, independent of physical field placement.
+        initialization_order: Vec<u32>,
     },
     Variant {
         case: u32,
@@ -876,7 +879,11 @@ impl Check<'_, '_> {
                 };
                 self.one(i, E(ty))
             }
-            Op::Record { definition, fields } => {
+            Op::Record {
+                definition,
+                fields,
+                initialization_order,
+            } => {
                 let d = self
                     .types
                     .table
@@ -892,6 +899,24 @@ impl Check<'_, '_> {
                     ));
                 };
                 self.arity(fields.len(), expected.len(), s)?;
+                self.arity(initialization_order.len(), fields.len(), s)?;
+                let mut seen = self.budget.vector(fields.len())?;
+                seen.resize(fields.len(), false);
+                for &field in initialization_order {
+                    self.budget.charge(1)?;
+                    let Some(seen) = seen.get_mut(field as usize) else {
+                        return Err(Error::new(
+                            ErrorKind::InvalidInitializationOrder(field),
+                            Some(s),
+                        ));
+                    };
+                    if std::mem::replace(seen, true) {
+                        return Err(Error::new(
+                            ErrorKind::InvalidInitializationOrder(field),
+                            Some(s),
+                        ));
+                    }
+                }
                 for (v, t) in fields.iter().zip(expected) {
                     self.expect(*v, E(t.ty.ty), s)?;
                 }

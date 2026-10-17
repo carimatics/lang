@@ -357,7 +357,7 @@ Parameterは各activationの最外scopeに置きます。入れ子のguest call�
 
 Execution failureをprimaryとし、それがなければ最初のcleanup failureをprimaryにします。後続recordは事前確保buffer（既定で合計256 record）内で順序とsource spanを保持します。Overflow時はtruncation countを増やし、cleanupを続行します。Cleanup failureまたはcontain済みhost panicは`Instance`をpoisonして次のentryを拒否しますが、cleanupに成功したguest panicはpoisonしません。Trusted callbackには可変payloadを渡してpanicをcontainし、payload自体の破棄も別にcontainします。Callbackがpanicした場合は部分処理済みvalueを意図的にleakし、panic payloadの破棄中に再度panicした場合も再帰的にunwindせず隔離します。Reportはこの隔離数を記録し、cleanup中に診断文字列を確保しません。
 
-Runtime testは、実際の初期化／再初期化順、条件分岐／loop slot、move元の除外、transactional replacement、入れ子call、返却値保留、全modeled execution failure区分、上限付きreportのoverflow、metadata確保失敗、panic containment、poison／再入、実際のshared owner解放を検証します。独立したlistベースoracleで256 stepの生成列を100件照合します。このengineはruntimeのcleanup遷移を提供しますが、source ownership実行にはownership MIRのscope／failure elaboration、aggregate field／temporaryの順序metadata、fallible guest allocatorのaccounting、VM／native adapterが引き続き必要です。Host Rustのmetadata確保はguest allocatorの権限ではなく、serialized formatの変更もありません。
+Runtime testは、実際の初期化／再初期化順、条件分岐／loop slot、move元の除外、transactional replacement、入れ子call、返却値保留、全modeled execution failure区分、上限付きreportのoverflow、metadata確保失敗、panic containment、poison／再入、実際のshared owner解放を検証します。独立したlistベースoracleで256 stepの生成列を100件照合します。このengineはruntimeのcleanup遷移を提供しますが、source ownership実行にはownership MIRの生成failure exit、production aggregate cleanupの統合、fallible guest allocatorのaccounting、VM／native adapterが引き続き必要です。Host Rustのmetadata確保はguest allocatorの権限ではなく、serialized formatの変更もありません。
 
 出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Cleanup engine](../../crates/runtime/src/cleanup.rs)と[16 runtime test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
 
@@ -369,9 +369,19 @@ Typed verifierは対象のidentity／type、入れ子の各span、loan定義とr
 
 `lang_runtime::cleanup::MirLayout`はtyped functionのlocal、value、registrationを上限付きentry frameのcellへ対応付けます。Offsetを検査し、Copy valueにowning cellは作りません。`Frame::cleanup_mir`はcallback前にrange全体とcell kindを検査し、確保をせず生存中の義務を選択して、選択したregistrationを終了し、ownerを動的な初期化逆順で処理します。Vacant cellや重複targetで二重cleanupは起きません。選択外のcaller valueは生存を維持します。このmappingはguest allocatorの権限や実行用payload layoutを与えず、adapterにはmove／loan／regionのproofと実行preflightが引き続き必要です。
 
-追加5 testはrangeのpreflight／選択、不正なMIR／runtime target、入れ子source span、verifierの厳密な予算境界、sourceからruntimeへの接続を検証します。Transfer／cleanupに限定したinterpreterで、source生成の全検査済みMIRと実際のshared resourceを使います。Localをmoveして再初期化すると、宣言逆順なら`1, 2, 3`となる値を`3, 1, 2`の順でcleanupします。Owning return成功時はshared valueを保持し、cleanup failureを注入した場合は独立したcleanup後に未公開resultも解放します。このtestは汎用ownership VMではありません。Aggregateの構築順metadata、生成runtime failure exit、owned layout／fallible allocation、production VM／native adapterは未完了です。Workspace全868 testとfmt／Clippy／docが成功し、fuzz targetのformat／locked Clippyと拡張body targetの非instrumented smoke 10,000回も成功しました。
+追加5 testはrangeのpreflight／選択、不正なMIR／runtime target、入れ子source span、verifierの厳密な予算境界、sourceからruntimeへの接続を検証します。Transfer／cleanupに限定したinterpreterで、source生成の全検査済みMIRと実際のshared resourceを使います。Localをmoveして再初期化すると、宣言逆順なら`1, 2, 3`となる値を`3, 1, 2`の順でcleanupします。Owning return成功時はshared valueを保持し、cleanup failureを注入した場合は独立したcleanup後に未公開resultも解放します。このtestは汎用ownership VMではありません。Production aggregate cleanup、生成runtime failure exit、owned layout／fallible allocation、production VM／native adapterは未完了です。Workspace全868 testとfmt／Clippy／docが成功し、fuzz targetのformat／locked Clippyと拡張body targetの非instrumented smoke 10,000回も成功しました。
 
 出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[MIR cleanup契約](../../crates/mir/src/unit/ownership/bodies.rs)、[source lowering](../../crates/semantics/src/ownership_types/bodies.rs)、[runtime mapping](../../crates/runtime/src/cleanup/mir.rs)、[source統合test](../../tests/ownership_cleanup.rs)、[runtime test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
+
+### Record構築とfield cleanup順
+
+実装／検証日：2026-10-18 JST。Ownershipの`Op::Record`はoperandをfieldの宣言順に保持し、宣言field ordinalをsource初期化順に並べた完全なpermutationの`initialization_order`を追加します。自動loweringはfieldを記述順に評価しながらこのpermutationを記録します。Typed verifierは累積work／allocation／element上限の下で、ordinalの不足／過剰、重複、範囲外を拒否します。空recordのpermutationは空です。位置引数によるvariant payloadのoperandは既に初期化順を保持しています。Serialized Copy schemaは変更せず、in-memory ownership命令を構築するconsumerはpermutationを指定する必要があります。
+
+`lang_runtime::cleanup::RecordOrder`は検証済みownership record命令からだけmetadataを借り、逆順のfieldとinitializer spanを提供します。確保を行わない`drain`はeffect前にstorage arityを検査し、各owning fieldを消費してからcleanupへ渡し、`None`で表すCopy／vacant cellを飛ばします。Drainを途中でdropしても未訪問fieldはcallerの所有に残るため、生成cleanupは個別failureをcontain／報告し、最後まで処理する必要があります。`Frame::take_owner`は事前予約したaggregate／call storageへpayloadを移し、borrow registrationのexportを拒否します。生成adapterはownerを取り出す前に転送全体を検証し、その後のfallibleな処理より前にincomingの義務を引き受ける必要があります。
+
+追加6 testは、3 fieldのsource記述順全6通り、宣言順の物理配置後のaggregate返却／caller cleanup、Copy fieldを含む入れ子recordと同じnominal typeの値ごとに異なる構築順、部分的field drainとiterator途中drop、空record、不正order metadata、initializer span、厳密な予算境界、owner exportのguardを検証します。Record／transferに限定したinterpreterで、source生成の全検査済みMIRを通して実際のshared valueを移し、test用aggregate storageはentry前に予約します。Aggregate構築と所有権移転を通した順序保持を実証しますが、汎用owned payload layoutやproduction ownership VMは提供しません。生成execution failure exit、production adapterでのfield単位のfallible cleanup報告、guest allocatorのaccounting、VM／native conformanceは引き続き必要です。
+
+出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Ownership record契約](../../crates/mir/src/unit/ownership/bodies.rs)、[source lowering](../../crates/semantics/src/ownership_types/bodies.rs)、[record順序runtime helper](../../crates/runtime/src/cleanup/mir.rs)、[record統合test](../../tests/record_cleanup.rs)、[runtime transfer test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
 
 ### Source analysis profileとdriver境界
 
