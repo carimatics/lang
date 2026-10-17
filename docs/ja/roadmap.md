@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み42件 · 進行中1件 · 残り48件（暫定125 pt）。**
+**検証済み43件 · 進行中0件 · 残り48件（暫定123 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む16件の成果を検証しました。V04（`8b24c94`）でBytes変更とUTF-8変換を実行し、[変更fixture](../../examples/analysis/extraction.lang) は `1`、[UTF-8 script](../../examples/scripts/utf8.lang) はbyte長の `3` を表示します。Growth／失敗cleanup、不正入力の結果、Copy cellのloop再利用を確認しました。次は残りText操作（V05）で、equalityも明記しました。V04で3 ptを減らし、残作業は128 → 125 ptです。新たなexit gateは完了扱いにしていません。975 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。一般source aggregate、他owning service、REPL／native実行、ownership artifactは各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む17件の成果を検証しました。V05（`752a369`）でText clone／concat／to-bytes／equalityとBytes cloneを実行し、[Text script](../../examples/scripts/text.lang) はcopyの独立性を確認して `2` を表示します。厳密request、shared alias、OOM／quota時の入力保持、failure／fuel／loop cleanupを確認しました。V05で2 ptを減らし、残作業は125 → 123 ptです。次は入れ子source aggregateとreference projection（V06）です。G07はV09の代入とN03のnative evidenceまでopenとし、新たなexit gateは完了扱いにしていません。981 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

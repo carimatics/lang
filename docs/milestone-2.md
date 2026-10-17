@@ -6,15 +6,15 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**42 done · 1 doing · 48 todo · 125 remaining pt**
+**43 done · 0 doing · 48 todo · 123 remaining pt**
 
-**Next: M2-V05 → execute Text clone/concat/to-bytes/equality with allocator and failure evidence.**
+**Next: M2-V06 → execute nested record/enum owner moves and reference projections with exactly-once drops.**
 
-Latest delivery: **M2-V04** (`8b24c94`) executes Bytes get/set/push, exclusive byte loans, consuming UTF-8 conversion and Text byte length. [The mutation fixture](../examples/analysis/extraction.lang) prints `1`; [the UTF-8 script](../examples/scripts/utf8.lang) prints `3`. VM 20/CLI 24 tests cover exact growth requests/no conversion allocation, bounds/invalid bytes, OOM/quota errors, UTF-8 offsets/NUL/empty values, all fuel prefixes, interrupted operations and loop reuse. A discovered Copy-cell loop restriction is fixed without permitting affine overwrite. The full baseline passes **975 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy.
+Latest delivery: **M2-V05** (`752a369`) executes Text clone/concat/to-bytes/equality and Bytes clone. [The Text script](../examples/scripts/text.lang) prints `2` after checking independent copies. VM 25/CLI 25 tests cover exact allocation requests, byte equality including NUL and canonical-equivalent byte differences, shared aliases, OOM/quota input preservation, each script buffer allocation failure, all fuel prefixes and loop cleanup. The full baseline passes **981 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy.
 
-Measured last code baseline (2026-10-18 JST): workspace Clippy **9.3 s**, full tests **169.5 s**, rustdoc **8.9 s**, fuzz Clippy **0.4 s**. These are command durations, not total working time; the logs do not attribute every part of wall time. Targeted tests exposed/fixed the loop restriction before the full test baseline. Run the baseline once per coherent code delivery; documentation-only updates use consistency checks.
+Measured last code baseline (2026-10-18 JST): workspace Clippy **9.7 s**, full tests **105.7 s**, rustdoc **9.0 s**, fuzz Clippy **0.7 s**. These are command durations, not total working time; the logs do not attribute every part of wall time. Focused VM/CLI tests passed before the full baseline. Run the baseline once per coherent code delivery; documentation-only updates use consistency checks.
 
-Current source capability: a zero-parameter i64 main can allocate/mutate/read Bytes, convert them to valid UTF-8 Text, read Text byte length, construct/extract Bytes/Text/Copy sums, borrow-match results and clean normal/failure exits. Borrowed matching is unchanged. Text clone/concat/to-bytes/equality is next; the V05 row explicitly includes the already required `text_equal`, with its existing 2-point estimate. Other owning services, general source aggregates, REPL/native execution and ownership artifacts retain their gates. Unsupported operations/payloads fail before provider callbacks.
+Current source capability: a zero-parameter i64 main can allocate/mutate/read/clone Bytes, convert them to valid UTF-8 Text, read/clone/concatenate/compare Text or copy it to Bytes, construct/extract Bytes/Text/Copy sums, borrow-match results and clean normal/failure exits. Borrowed matching is unchanged. V05 includes the already required Bytes clone/equality within its 2-point estimate. General source aggregates are next. G07 remains open for V09 assignment and N03 native evidence; other owning services, REPL execution and ownership artifacts also retain their gates. Unsupported operations/payloads fail before provider callbacks.
 
 The original exit gates remain **5 / 18 complete**. Completed deliveries include compiler/runtime prerequisites and the initial source execution fixture; they do not assert that entire core-library or backend features are complete.
 
@@ -102,7 +102,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-S02 | done | 0 | M2-S01 | G08 | Three RFC 0009 calls type-check and lower to independently verified MIR; compile pass/fail covers Copy/move, loans, regions and nested sums. Runtime remains gated. | `b562c0f` |
 | M2-S03 | done | 0 | M2-S02 | G06,G08 | Finite Bytes/Copy sums and all three whole-payload extractions execute without transfer allocation; source fixture, panic/fuel/OOM cleanup and nested managed order/span transfer verified. | `e584902` |
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get/set/push, UTF-8 conversion and Text byte length execute; bounds/OOM, conversion allocation counts, fuel/interruption cleanup and Copy-cell loop reuse verified. | `8b24c94` |
-| M2-V05 | doing | 2 | M2-V04 | G07 | Source Text concat/clone/to-bytes/equality and Bytes clone preserve allocator identity and report failure correctly. | — |
+| M2-V05 | done | 0 | M2-V04 | G07 | Source Text concat/clone/to-bytes/equality and Bytes clone execute with independent owners, allocator identity, typed OOM/quota errors, fuel and loop cleanup. | `752a369` |
 | M2-V06 | todo | 3 | M2-V03,M2-S03 | G06,G08 | Execute nested record/enum owner moves and checked reference projections with exactly-once drops. | — |
 | M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Execute owned guest calls/results with recursion limits and return escrow. | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | Execute generated failure exits: fuel/OOM/body failures, ordered cleanup and nested failure reports. | — |

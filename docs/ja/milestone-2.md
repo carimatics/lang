@@ -6,15 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**42 done · 1 doing · 48 todo · 125 remaining pt**
+**43 done · 0 doing · 48 todo · 123 remaining pt**
 
-**次: M2-V05 → Text clone／concat／to-bytes／equalityをallocator・失敗の裏付け付きで実行する。**
+**次: M2-V06 → 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証する。**
 
-直近の完了：**M2-V04**（`8b24c94`）。Bytes get／set／push、exclusive byte loan、所有権を消費するUTF-8変換、Text byte長を実行します。[変更fixture](../../examples/analysis/extraction.lang) は `1`、[UTF-8 script](../../examples/scripts/utf8.lang) は `3` を表示します。VM 20／CLI 24 testで厳密growth request／変換時確保なし、bounds／invalid byte、OOM／quota error、UTF-8 offset／NUL／空値、全fuel prefix、操作途中interruption、loop再利用を検証します。判明したCopy cellのloop制約を、affine上書きを許さず修正しました。全体の **71 suite・975 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyが成功しています。
+直近の完了：**M2-V05**（`752a369`）。Text clone／concat／to-bytes／equalityとBytes cloneを実行します。[Text script](../../examples/scripts/text.lang) はcopyの独立性を確認して `2` を表示します。VM 25／CLI 25 testで厳密allocation request、NULと正規等価でも異なるbyte列の比較、shared alias、OOM／quota時の入力保持、scriptの各buffer allocation失敗、全fuel prefix、loop cleanupを検証します。全体の **71 suite・981 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyが成功しています。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **9.3秒**、全test **169.5秒**、rustdoc **8.9秒**、fuzz Clippy **0.4秒**。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。対象testでloop制約を発見／修正してから全test baselineを実行しました。まとまったcode成果ごとにbaselineを1回実行し、文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **9.7秒**、全test **105.7秒**、rustdoc **9.0秒**、fuzz Clippy **0.7秒**。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。対象VM／CLI testが成功してから全体baselineを実行しました。まとまったcode成果ごとにbaselineを1回実行し、文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes確保／変更／読み取り、UTF-8 Textへの変換、Text byte長、Bytes／Text／Copy sumの構築／取り出し、borrowed Result match、正常／失敗exitのcleanupを実行できます。Borrowed matchは維持します。次はText clone／concat／to-bytes／equalityです。V05行には既存要件の `text_equal` を明記し、既存見積もり2 ptを維持します。他owning service、一般source aggregate、REPL／native実行、ownership artifactは各gateに残します。未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes確保／変更／読み取り／clone、UTF-8 Textへの変換、Textの長さ／clone／連結／比較／Bytesへのcopy、Bytes／Text／Copy sumの構築／取り出し、borrowed Result match、正常／失敗exitのcleanupを実行できます。Borrowed matchは維持します。V05は既存要件のBytes clone／equalityを2 pt内で扱いました。次は一般source aggregateです。G07はV09の代入とN03のnative evidenceまでopenとし、他owning service、REPL実行、ownership artifactも各gateに残します。未対応命令／payloadはprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -102,7 +102,7 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 | M2-S02 | done | 0 | M2-S01 | G08 | RFC 0009の3操作を型検査し独立検証済みMIRへlower。Copy／move、loan、region、入れ子sumのcompile pass／fail。Runtimeはgateを維持。 | `b562c0f` |
 | M2-S03 | done | 0 | M2-S02 | G06,G08 | 有限Bytes／Copy sumと3種のwhole-payload取り出しをtransfer確保なしで実行。Source fixture、panic／fuel／OOM cleanup、managedな入れ子順序／span移譲を検証。 | `e584902` |
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get／set／push、UTF-8変換、Text byte長を実行。Bounds／OOM、変換確保数、fuel／interruption cleanup、Copy cell loop再利用を検証。 | `8b24c94` |
-| M2-V05 | doing | 2 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityとBytes cloneのソース実行でallocator identityと失敗結果を保持。 | — |
+| M2-V05 | done | 0 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityとBytes cloneを実行。独立owner、allocator identity、typed OOM／quota error、fuel／loop cleanupを検証。 | `752a369` |
 | M2-V06 | todo | 3 | M2-V03,M2-S03 | G06,G08 | 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証。 | — |
 | M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
