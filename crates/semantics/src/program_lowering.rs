@@ -422,7 +422,9 @@ impl<'a> Lowerer<'a, '_> {
         let span = source.span;
         let t = ty(self.context.input, self.facts.expressions()[expression.0])?;
         let op = match &source.kind {
-            r::ExpressionKind::Borrow { .. } | r::ExpressionKind::Dereference(_) => {
+            r::ExpressionKind::Borrow { .. }
+            | r::ExpressionKind::Dereference(_)
+            | r::ExpressionKind::CoreCall { .. } => {
                 return Err(LowerError::UnsupportedOwnershipBody { span: source.span });
             }
             r::ExpressionKind::Local(local) => {

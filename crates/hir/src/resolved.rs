@@ -231,6 +231,12 @@ pub enum ExpressionKind {
         callee: Callable,
         arguments: Vec<ExpressionId>,
     },
+    CoreCall {
+        operation: crate::core::Operation,
+        type_arguments: Vec<TypeUse>,
+        arguments: Vec<ExpressionId>,
+        callee_span: Span,
+    },
     /// A bare enum-case path, distinct from explicit call parentheses.
     Case {
         definition: DefinitionId,

@@ -136,18 +136,143 @@ fn validate(sources: &SourceMap, program: &r::Program) {
 }
 
 #[test]
-fn specialized_calls_still_fail_with_spans_before_legacy_hir_assumptions() {
-    for text in [
+fn core_specializations_resolve_names_even_in_unreachable_source() {
+    rejects(
         "fn f() -> i64 { return core::vec_len::<i64>(values); }",
+        codes::UNKNOWN_NAME,
+    );
+    rejects(
         "fn f() -> i64 { return 1; let mut x: i64 = core::vec_len::<i64>(values); }",
-    ] {
-        let files = Files::new(text);
-        let (sources, graph) = files.graph();
-        let error = bind_program(&graph, &sources, BindingLimits::default()).unwrap_err();
-        let BindingError::UnsupportedSyntax { span } = error else {
-            panic!("{text}: {error:?}")
+        codes::UNKNOWN_NAME,
+    );
+}
+
+#[test]
+fn every_core_operation_binds_with_concrete_type_arguments_and_written_value_order() {
+    use lang_hir::core::Operation;
+    for operation in Operation::ALL {
+        let signature = operation.signature();
+        let specialization = match signature.type_arguments.len() {
+            0 => "",
+            1 => "::<i64>",
+            2 => "::<i64, bool>",
+            _ => panic!(),
         };
-        assert!(!sources.slice(span).unwrap().trim().is_empty(), "{text}");
+        let arguments = ["a", "b", "c"][..signature.parameters.len()].join(", ");
+        // Deliberately only name/arity binding: value types and loan validity
+        // belong to the later ownership body checker, so this is not run.
+        let text = format!(
+            "fn f(a: i64, b: i64, c: i64) -> i64 {{ return core::{}{specialization}({arguments}); }}",
+            operation.name()
+        );
+        let (sources, program) = Files::new(&text).program();
+        let f = &program.functions[0];
+        let r::StatementKind::Return(result) = f.blocks[f.body.0].statements[0].kind else {
+            panic!()
+        };
+        let r::ExpressionKind::CoreCall {
+            operation: bound,
+            ref type_arguments,
+            ref arguments,
+            callee_span,
+        } = f.expressions[result.0].kind
+        else {
+            panic!()
+        };
+        assert_eq!(bound, operation);
+        assert_eq!(type_arguments.len(), signature.type_arguments.len());
+        for (i, argument) in type_arguments.iter().enumerate() {
+            assert_eq!(sources.slice(argument.span).unwrap(), ["i64", "bool"][i]);
+        }
+        for (i, argument) in arguments.iter().enumerate() {
+            assert!(
+                matches!(f.expressions[argument.0].kind, r::ExpressionKind::Local(r::LocalId(index)) if index == i)
+            );
+        }
+        assert_eq!(
+            sources.slice(callee_span).unwrap(),
+            format!("core::{}", operation.name())
+        );
+        assert!(matches!(
+            lang_hir::program::check_program(program, &sources, Default::default()),
+            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+        ));
+    }
+}
+
+#[test]
+fn core_call_paths_and_arities_are_checked_without_user_generic_fallback() {
+    for call in [
+        "core::vec_len(x)",
+        "core::vec_len::<i64, bool>(x)",
+        "core::map_len::<i64>(x)",
+        "core::text_len::<i64>(x)",
+        "core::vec_clear::<i64>(x)",
+        "core::vec_len::nested::<i64>(x)",
+        "f::<i64>(x)",
+    ] {
+        rejects(
+            &format!("fn f(x: i64) -> i64 {{ return {call}; }}"),
+            codes::UNSUPPORTED_SPECIALIZATION,
+        );
+    }
+    for call in [
+        "core::allocator(x)",
+        "core::text_len()",
+        "core::vec_push::<i64>(x)",
+        "core::map_insert::<i64, bool>(x, x)",
+    ] {
+        rejects(
+            &format!("fn f(x: i64) -> i64 {{ return {call}; }}"),
+            codes::TYPE_MISMATCH,
+        );
+    }
+    Files::new("fn f(x: i64) -> i64 { return root::core::vec_len::<i64>(x); }").program();
+}
+
+#[test]
+fn core_argument_instantiation_keeps_nominal_identity_and_compiler_limits() {
+    let (sources, program) = Files::new("struct Item { n: i64 } fn f(x: i64) -> i64 { return core::vec_len::<core::Option<Item>>(x); }").program();
+    let f = &program.functions[0];
+    let call = f
+        .expressions
+        .iter()
+        .find_map(|e| {
+            if let r::ExpressionKind::CoreCall { type_arguments, .. } = &e.kind {
+                Some(type_arguments)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(sources.slice(call[0].span).unwrap(), "core::Option<Item>");
+    let r::Type::Constructed(id) = call[0].value_type else {
+        panic!()
+    };
+    assert_eq!(
+        program.types[id.0].constructor,
+        r::TypeConstructor::Option(r::Type::Nominal(r::DefinitionId(0)))
+    );
+    for (text, limits) in [
+        (
+            "fn f(x: i64) -> i64 { return core::vec_push::<i64>(x, x); }",
+            BindingLimits {
+                expressions: 2,
+                ..Default::default()
+            },
+        ),
+        (
+            "fn f(x: i64) -> i64 { return core::vec_len::<core::Vec<core::Text>>(x); }",
+            BindingLimits {
+                types: 1,
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(matches!(
+            Files::new(text).bind(limits).1,
+            Err(BindingError::Limit(_))
+        ));
     }
 }
 

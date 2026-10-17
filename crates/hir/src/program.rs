@@ -1049,7 +1049,9 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         self.context.enter(expression.span, depth)?;
         let span = expression.span;
         let ty = match &expression.kind {
-            r::ExpressionKind::Borrow { .. } | r::ExpressionKind::Dereference(_) => {
+            r::ExpressionKind::Borrow { .. }
+            | r::ExpressionKind::Dereference(_)
+            | r::ExpressionKind::CoreCall { .. } => {
                 return Err(CheckError::OwnershipProfile { span });
             }
             r::ExpressionKind::Integer(_) => Some(r::Type::I64),

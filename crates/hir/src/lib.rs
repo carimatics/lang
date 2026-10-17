@@ -7,6 +7,7 @@
 //! expression/pattern/call typing and bounded exhaustiveness are checked by
 //! `program`, which produces a read-only typed program on success.
 
+pub mod core;
 pub mod layout;
 pub mod program;
 pub mod resolved;

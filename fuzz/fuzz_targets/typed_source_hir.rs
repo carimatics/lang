@@ -2,6 +2,7 @@
 
 use lang_diagnostics::SourceMap;
 use lang_hir::{
+    core::Operation,
     layout::{LayoutError, LayoutLimits},
     program::{CheckError, CheckLimits, check_program},
     resolved as r,
@@ -78,7 +79,7 @@ fuzz_target!(|bytes: &[u8]| {
     for chunk in bytes.chunks(4).take(32) {
         let a = r::ExpressionId(chunk.get(1).copied().unwrap_or(0) as usize);
         let b = r::ExpressionId(chunk.get(2).copied().unwrap_or(0) as usize);
-        let kind = match chunk[0] % 12 {
+        let kind = match chunk[0] % 13 {
             0 => r::ExpressionKind::Integer(i64::from(chunk[0] as i8)),
             1 => r::ExpressionKind::Boolean(chunk[0] & 16 != 0),
             2 => r::ExpressionKind::Local(r::LocalId(a.0)),
@@ -105,6 +106,7 @@ fuzz_target!(|bytes: &[u8]| {
             },
             9 => r::ExpressionKind::Borrow { kind: r::LoanKind::Shared, place: r::PlaceId(a.0) },
             10 => r::ExpressionKind::Dereference(a),
+            11 => r::ExpressionKind::CoreCall { operation: Operation::ALL[b.0 % Operation::ALL.len()], type_arguments: vec![use_type(ty(chunk[0]))], arguments: vec![a], callee_span: span },
             _ => r::ExpressionKind::Field {
                 receiver: a,
                 name: name("b"),

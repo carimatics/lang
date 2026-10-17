@@ -9,7 +9,7 @@ use std::fmt::{Display, Formatter};
 use lang_diagnostics::{
     Diagnostic, DiagnosticCode, Label, Severity, SourceError, SourceMap, Span, codes,
 };
-use lang_hir::{resolved as r, source::Name};
+use lang_hir::{core, resolved as r, source::Name};
 use lang_syntax::{NodeId, SyntaxElement, SyntaxKind as S, SyntaxTree, TokenKind as K};
 
 use crate::modules::{
@@ -46,19 +46,12 @@ impl Default for BindingLimits {
 pub enum BindingError {
     Source(SourceError),
     Limit(Box<Diagnostic>),
-    UnsupportedSyntax { span: Span },
 }
 impl Display for BindingError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Source(e) => Display::fmt(e, f),
             Self::Limit(d) => write!(f, "{}: {}", d.code.as_str(), d.message),
-            Self::UnsupportedSyntax { span } => write!(
-                f,
-                "ownership syntax is parsed but source binding is not implemented at bytes {}..{}",
-                span.range().start,
-                span.range().end
-            ),
         }
     }
 }
@@ -125,9 +118,8 @@ pub fn bind_program(
             }
         }
         context.significant.push(starts);
-        // Specialized core calls still require their finite built-in
-        // signatures. Resolve other ownership body nodes below, retaining
-        // explicit place roots for later move/loan analysis.
+        // Charge every parsed CST node, including unreachable source, before
+        // binding the finite core signatures and ordinary declarations.
         for node in module.tree().nodes() {
             context
                 .charge(node.span(), 0)
@@ -135,9 +127,6 @@ pub fn bind_program(
                     Abort::Fatal(error) => error,
                     Abort::Recover => unreachable!(),
                 })?;
-            if node.kind() == S::SpecializedCall {
-                return Err(BindingError::UnsupportedSyntax { span: node.span() });
-            }
         }
     }
     let mut definition_items = Vec::new();
@@ -532,6 +521,32 @@ impl<'a> Context<'a> {
             "record syntax requires a nominal type",
             None,
         )
+    }
+    fn core_operation(
+        &mut self,
+        module: ModuleId,
+        path: NodeId,
+    ) -> BindResult<Option<core::Operation>> {
+        let tree = self.tree(module);
+        let span = self.semantic_span(module, path)?;
+        self.charge(span, 0)?;
+        let mut names = direct_tokens(tree, path).filter(|t| t.kind == K::Identifier);
+        let first = names.next().expect("parsed path has a name");
+        if self.sources.slice(first.span).unwrap() != "core" {
+            return Ok(None);
+        }
+        let operation = names
+            .next()
+            .and_then(|token| core::Operation::from_name(self.sources.slice(token.span).unwrap()));
+        if operation.is_none() || names.next().is_some() {
+            return self.fail(
+                codes::UNSUPPORTED_SPECIALIZATION,
+                span,
+                "unknown core operation",
+                None,
+            );
+        }
+        Ok(operation)
     }
     fn case(&mut self, module: ModuleId, path: NodeId) -> BindResult<(r::DefinitionId, usize)> {
         if let ResolvedName::Case { definition, index } = self.resolve(module, path)? {
@@ -973,34 +988,46 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
                 receiver: self.expression(children[0], depth + 1)?,
                 name: direct_name(self.context.sources, tree, syntax),
             },
-            S::Call => {
+            S::Call | S::SpecializedCall => {
                 let path = first_path(tree, children[0]);
                 self.reject_local_path(path)?;
-                let callee = match self.value_name(path)? {
-                    ResolvedName::Case { definition, index } => r::Callable::Case {
-                        definition: self.context.definitions[&definition],
-                        index,
-                    },
-                    ResolvedName::Item(id) => {
-                        if let Some(id) = self.context.functions.get(&id) {
-                            r::Callable::Guest(*id)
-                        } else if let Some(id) = self.context.imports.get(&id) {
-                            r::Callable::Host(*id)
-                        } else {
-                            return self.context.fail(
-                                codes::TYPE_MISMATCH,
-                                span,
-                                "declaration is not callable",
-                                Some(self.context.graph.item(id).unwrap().name().span),
-                            );
-                        }
+                if let Some(operation) = self.context.core_operation(self.module, path)? {
+                    self.core_call(operation, path, syntax, depth + 1)?
+                } else {
+                    if node.kind() == S::SpecializedCall {
+                        return self.context.fail(
+                            codes::UNSUPPORTED_SPECIALIZATION,
+                            span,
+                            "only listed core operations take explicit type arguments",
+                            None,
+                        );
                     }
-                };
-                let mut arguments = Vec::new();
-                for argument in child_nodes(tree, children[1]) {
-                    arguments.push(self.expression(argument, depth + 1)?);
+                    let callee = match self.value_name(path)? {
+                        ResolvedName::Case { definition, index } => r::Callable::Case {
+                            definition: self.context.definitions[&definition],
+                            index,
+                        },
+                        ResolvedName::Item(id) => {
+                            if let Some(id) = self.context.functions.get(&id) {
+                                r::Callable::Guest(*id)
+                            } else if let Some(id) = self.context.imports.get(&id) {
+                                r::Callable::Host(*id)
+                            } else {
+                                return self.context.fail(
+                                    codes::TYPE_MISMATCH,
+                                    span,
+                                    "declaration is not callable",
+                                    Some(self.context.graph.item(id).unwrap().name().span),
+                                );
+                            }
+                        }
+                    };
+                    let mut arguments = Vec::new();
+                    for argument in child_nodes(tree, children[1]) {
+                        arguments.push(self.expression(argument, depth + 1)?);
+                    }
+                    r::ExpressionKind::Call { callee, arguments }
                 }
-                r::ExpressionKind::Call { callee, arguments }
             }
             S::Construction => {
                 let path = first_path(tree, children[0]);
@@ -1022,6 +1049,56 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         let id = r::ExpressionId(self.function.expressions.len());
         self.function.expressions.push(r::Expression { kind, span });
         Ok(id)
+    }
+    fn core_call(
+        &mut self,
+        operation: core::Operation,
+        path: NodeId,
+        syntax: NodeId,
+        depth: usize,
+    ) -> BindResult<r::ExpressionKind> {
+        let tree = self.tree();
+        let span = self.context.semantic_span(self.module, syntax)?;
+        self.context.charge(span, depth)?;
+        let signature = operation.signature();
+        let types =
+            child_nodes(tree, syntax).find(|id| tree.node(*id).unwrap().kind() == S::TypeArguments);
+        let arguments = child_nodes(tree, syntax)
+            .find(|id| tree.node(*id).unwrap().kind() == S::Arguments)
+            .expect("parsed call has arguments");
+        let count = types.map_or(0, |types| child_nodes(tree, types).count());
+        if count != signature.type_arguments.len() || (count == 0 && types.is_some()) {
+            return self.context.fail(
+                codes::UNSUPPORTED_SPECIALIZATION,
+                span,
+                "incorrect number of explicit core type arguments",
+                None,
+            );
+        }
+        if child_nodes(tree, arguments).count() != signature.parameters.len() {
+            return self.context.fail(
+                codes::TYPE_MISMATCH,
+                span,
+                "incorrect number of core value arguments",
+                None,
+            );
+        }
+        let mut type_arguments = Vec::new();
+        if let Some(types) = types {
+            for ty in child_nodes(tree, types) {
+                type_arguments.push(self.context.ty(self.module, ty, false)?);
+            }
+        }
+        let mut values = Vec::new();
+        for argument in child_nodes(tree, arguments) {
+            values.push(self.expression(argument, depth + 1)?);
+        }
+        Ok(r::ExpressionKind::CoreCall {
+            operation,
+            type_arguments,
+            arguments: values,
+            callee_span: self.context.semantic_span(self.module, path)?,
+        })
     }
     fn place(&mut self, syntax: NodeId, depth: usize) -> BindResult<r::PlaceId> {
         let tree = self.tree();
