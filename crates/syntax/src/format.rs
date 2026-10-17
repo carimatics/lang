@@ -65,6 +65,7 @@ fn brace(owner: S) -> Result<Brace, FormatError> {
 }
 enum Delimiter {
     Paren,
+    TypeArguments,
     Brace { kind: Brace, empty: bool },
 }
 struct Writer {
@@ -314,14 +315,50 @@ pub fn format(
                 writer.space = false;
                 writer.token(text)?;
             }
+            K::LessThan if owners[index] == S::TypeArguments => {
+                writer.space = false;
+                writer.token(text)?;
+                writer.indent += 1;
+                if delimiters.len() == delimiters.capacity() {
+                    delimiters
+                        .try_reserve(1)
+                        .map_err(|_| FormatError::AllocationFailed)?;
+                }
+                delimiters.push(Delimiter::TypeArguments);
+            }
+            K::GreaterThan => {
+                if !matches!(delimiters.pop(), Some(Delimiter::TypeArguments)) {
+                    return Err(FormatError::InvalidTree);
+                }
+                writer.indent = writer
+                    .indent
+                    .checked_sub(1)
+                    .ok_or(FormatError::InvalidTree)?;
+                writer.space = false;
+                writer.token(text)?;
+            }
+            K::Ampersand | K::Star => {
+                writer.space |= previous.is_some_and(|k| {
+                    !matches!(
+                        k,
+                        K::LeftParen | K::ColonColon | K::Dot | K::Ampersand | K::Star
+                    )
+                });
+                writer.token(text)?;
+            }
             K::Equal | K::Plus | K::LessThan | K::Arrow | K::FatArrow => {
                 writer.space = true;
                 writer.token(text)?;
                 writer.space = true;
             }
             _ => {
-                writer.space |=
-                    previous.is_some_and(|k| !matches!(k, K::LeftParen | K::ColonColon | K::Dot));
+                writer.space |= previous.is_some_and(|k| {
+                    !matches!(
+                        k,
+                        K::LeftParen | K::ColonColon | K::Dot | K::Ampersand | K::Star
+                    ) && !(k == K::LessThan
+                        && matches!(delimiters.last(), Some(Delimiter::TypeArguments)))
+                });
                 writer.token(text)?;
             }
         }

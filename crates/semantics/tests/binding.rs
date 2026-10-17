@@ -135,6 +135,52 @@ fn validate(sources: &SourceMap, program: &r::Program) {
     }
 }
 
+#[test]
+fn parsed_ownership_forms_fail_with_spans_before_legacy_hir_assumptions() {
+    for text in [
+        "fn f(x: &i64) -> i64 { return 0; }",
+        "fn f(x: &mut i64) -> i64 { return 0; }",
+        "fn f(x: shared Item) -> i64 { return 0; }",
+        "fn f(x: weak Item) -> i64 { return 0; }",
+        "fn f(x: arena Item) -> i64 { return 0; }",
+        "fn f(x: core::Vec<i64>) -> i64 { return 0; }",
+        "fn f(x: i64) -> i64 { return &x; }",
+        "fn f(x: i64) -> i64 { return (*x); }",
+        "fn f(x: i64) -> i64 { x.field = 1; return 0; }",
+        "fn f(x: i64) -> i64 { arena graph(x) {} return 0; }",
+        "fn f() -> i64 { return core::vec_len::<i64>(values); }",
+        "fn f() -> i64 { return 1; let mut x: &i64 = &missing; }",
+    ] {
+        let files = Files::new(text);
+        let (sources, graph) = files.graph();
+        let error = bind_program(&graph, &sources, BindingLimits::default()).unwrap_err();
+        let BindingError::UnsupportedSyntax { span } = error else {
+            panic!("{text}: {error:?}")
+        };
+        assert!(!sources.slice(span).unwrap().trim().is_empty(), "{text}");
+    }
+}
+
+#[test]
+fn core_cannot_be_shadowed_by_parameters_locals_or_pattern_bindings() {
+    for text in [
+        "fn f(core: i64) -> i64 { return core; }",
+        "fn f() -> i64 { let mut core: i64 = 1; return core; }",
+        "fn f(x: i64) -> i64 { match x { core => { return core; }, } }",
+    ] {
+        let (_, result) = Files::new(text).bind(BindingLimits::default());
+        let result = result.unwrap();
+        assert!(result.program.is_none());
+        assert_eq!(
+            result.diagnostics[0].code,
+            codes::UNSUPPORTED_SPECIALIZATION,
+            "{text}"
+        );
+    }
+    // Record field names are not bindings in the root namespace.
+    Files::new("struct R { core: i64 } fn f() -> i64 { return R { core: 1 }.core; }").program();
+}
+
 fn rejects(text: &str, code: lang_diagnostics::DiagnosticCode) {
     let files = Files::new(text);
     let (_, analysis) = files.bind(BindingLimits::default());

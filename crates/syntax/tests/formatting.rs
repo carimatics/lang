@@ -108,6 +108,44 @@ fn complete_accepted_grammar_round_trips_with_identical_semantic_cst_structure()
 }
 
 #[test]
+fn ownership_types_loans_generic_calls_and_arenas_round_trip() {
+    checked(include_str!("fixtures/ownership.lang"), false);
+    let text = "fn f(x:&mut core::Vec<core::Option<i64>>,a:shared Node,b:weak Node)->core::Unit{(*x).field=value;arena graph(core::allocator()){let mut p:arena Node=q;}return core::Unit{};}";
+    let formatted = checked(text, false);
+    assert!(
+        formatted.contains("x: &mut core::Vec<core::Option<i64>>"),
+        "{formatted}"
+    );
+    assert!(formatted.contains("(*x).field = value;"));
+    assert!(formatted.contains("arena graph(core::allocator()) {"));
+    assert_eq!(
+        checked("core::vec_get::<core::Option<i64>>(&values,0)", true),
+        "core::vec_get::<core::Option<i64>>(&values, 0)\n"
+    );
+    assert_eq!(checked("&mut value.field", true), "&mut value.field\n");
+    assert_eq!(
+        checked("a<core::vec_len::<i64>(&values)", true),
+        "a < core::vec_len::<i64>(&values)\n"
+    );
+}
+
+#[test]
+fn ownership_comment_insertion_preserves_token_ownership_and_precedence() {
+    let text = "fn f(x:&mut core::Vec<core::Option<i64>>)->i64{(*x).field=y;arena graph(a){}return core::vec_len::<core::Option<i64>>(&values);}";
+    let mut sources = SourceMap::new();
+    let source = sources.add("ownership.lang", text).unwrap();
+    let tree = parse(&sources, source, ParseLimits::default()).unwrap();
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    for token in tree.tokens().iter().filter(|t| !t.kind.is_trivia()) {
+        for comment in [" /* α */ ", " // 😀\n"] {
+            let mut changed = text.to_string();
+            changed.insert_str(token.span.range().end, comment);
+            checked(&changed, false);
+        }
+    }
+}
+
+#[test]
 fn record_patterns_constructions_fields_and_parenthesized_heads_stay_distinct() {
     checked(
         "struct R { flag: bool, value: i64 } fn f()->i64{if (R{flag:true,value:1}.flag){match (R {value:2,flag:false}){R{value:x,flag:_}=>{return x;},}}else{return 0;}return 1;}",

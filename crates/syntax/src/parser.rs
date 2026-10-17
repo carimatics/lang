@@ -2,8 +2,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use lang_diagnostics::{
-    Applicability, Diagnostic, Fix, Label, Severity, SourceError, SourceId, SourceMap, Span,
-    TextEdit, codes,
+    Applicability, Diagnostic, DiagnosticCode, Fix, Label, Severity, SourceError, SourceId,
+    SourceMap, Span, TextEdit, codes,
 };
 
 use crate::{LexError, LexLimits, Token, TokenKind as K, lex};
@@ -52,10 +52,17 @@ pub enum SyntaxKind {
     Import,
     Host,
     Type,
+    LoanType,
+    SharedType,
+    WeakType,
+    ArenaType,
+    TypeArguments,
     Path,
     Block,
     Let,
     Assign,
+    PlaceAssign,
+    Arena,
     If,
     While,
     Return,
@@ -65,6 +72,9 @@ pub enum SyntaxKind {
     Name,
     Parenthesized,
     Call,
+    SpecializedCall,
+    Borrow,
+    Dereference,
     Arguments,
     Construction,
     FieldValue,
@@ -414,18 +424,24 @@ impl<'a> Parser<'a> {
         message: &str,
         fix: Option<&str>,
     ) -> Result<()> {
+        self.missing_code(expected, message, fix, codes::EXPECTED_SYNTAX)
+    }
+
+    fn missing_code(
+        &mut self,
+        expected: ExpectedSyntax,
+        message: &str,
+        fix: Option<&str>,
+        code: DiagnosticCode,
+    ) -> Result<()> {
         self.charge()?;
         if self.diagnostics.len() >= self.limits.diagnostics {
             return Err(self.limit("syntax diagnostic limit exceeded"));
         }
         let primary = self.current_span();
         let insertion = self.span(primary.range().start, primary.range().start);
-        let mut diagnostic = Diagnostic::new(
-            codes::EXPECTED_SYNTAX,
-            Severity::Error,
-            message,
-            Label::new(primary, message),
-        );
+        let mut diagnostic =
+            Diagnostic::new(code, Severity::Error, message, Label::new(primary, message));
         if let Some(text) = fix {
             diagnostic.fixes.push(Fix {
                 message: format!("insert `{text}`"),
@@ -455,6 +471,16 @@ impl<'a> Parser<'a> {
         // Only delimiter insertions with an established follow boundary are
         // machine-applicable. Missing names/expressions/types are never guessed.
         let next = self.peek();
+        if kind == K::Identifier && next.is_some_and(ownership_keyword) {
+            self.missing_code(
+                ExpectedSyntax::Token(kind),
+                "ownership keyword is reserved; rename this identifier",
+                None,
+                codes::UNSUPPORTED_SPECIALIZATION,
+            )?;
+            self.bump()?;
+            return Ok(false);
+        }
         let fix = match kind {
             K::Semicolon
                 if next.is_none()
@@ -674,7 +700,28 @@ impl<'a> Parser<'a> {
         self.start(SyntaxKind::Type)?;
         match self.peek() {
             Some(K::I64 | K::Bool) => self.bump()?,
-            Some(K::Identifier | K::Root) => self.path()?,
+            Some(K::Identifier | K::Root) => {
+                self.path()?;
+                if self.peek() == Some(K::LessThan) {
+                    self.type_arguments()?;
+                }
+            }
+            Some(K::Ampersand | K::Shared | K::Weak | K::Arena) => {
+                let modifier = match self.peek().unwrap() {
+                    K::Ampersand => SyntaxKind::LoanType,
+                    K::Shared => SyntaxKind::SharedType,
+                    K::Weak => SyntaxKind::WeakType,
+                    K::Arena => SyntaxKind::ArenaType,
+                    _ => unreachable!(),
+                };
+                self.start(modifier)?;
+                self.bump()?;
+                if modifier == SyntaxKind::LoanType {
+                    self.eat(K::Mut)?;
+                }
+                self.ty()?;
+                self.finish()?;
+            }
             _ => self.missing(ExpectedSyntax::Type, "expected a type", None)?,
         }
         self.finish()?;
@@ -687,11 +734,27 @@ impl<'a> Parser<'a> {
             self.expect(K::ColonColon)?;
         }
         self.expect(K::Identifier)?;
-        while self.eat(K::ColonColon)? {
+        while self.peek() == Some(K::ColonColon) && self.lookahead(1) != Some(K::LessThan) {
+            self.bump()?;
             if !self.expect(K::Identifier)? {
                 break;
             }
         }
+        self.finish()?;
+        Ok(())
+    }
+
+    fn lookahead(&self, distance: usize) -> Option<K> {
+        self.significant
+            .get(self.head + distance)
+            .map(|index| self.tokens[*index].kind)
+    }
+
+    fn type_arguments(&mut self) -> Result<()> {
+        self.start(SyntaxKind::TypeArguments)?;
+        self.expect(K::LessThan)?;
+        self.list(K::GreaterThan, false, Self::ty)?;
+        self.expect(K::GreaterThan)?;
         self.finish()?;
         Ok(())
     }
@@ -816,7 +879,9 @@ impl<'a> Parser<'a> {
     fn statement(&mut self) -> Result<()> {
         let kind = match self.peek() {
             Some(K::Let) => SyntaxKind::Let,
-            Some(K::Identifier) => SyntaxKind::Assign,
+            Some(K::Identifier) if self.lookahead(1) == Some(K::Equal) => SyntaxKind::Assign,
+            Some(K::Identifier | K::LeftParen) => SyntaxKind::PlaceAssign,
+            Some(K::Arena) if self.lookahead(1) != Some(K::Equal) => SyntaxKind::Arena,
             Some(K::If) => SyntaxKind::If,
             Some(K::While) => SyntaxKind::While,
             Some(K::Return) => SyntaxKind::Return,
@@ -841,6 +906,20 @@ impl<'a> Parser<'a> {
                 self.expression(true)?;
                 self.expect(K::Semicolon)?;
             }
+            SyntaxKind::PlaceAssign => {
+                self.primary(true)?;
+                self.expect(K::Equal)?;
+                self.expression(true)?;
+                self.expect(K::Semicolon)?;
+            }
+            SyntaxKind::Arena => {
+                self.bump()?;
+                self.expect(K::Identifier)?;
+                self.expect(K::LeftParen)?;
+                self.expression(true)?;
+                self.expect(K::RightParen)?;
+                self.block()?;
+            }
             SyntaxKind::Return => {
                 self.bump()?;
                 self.expression(true)?;
@@ -861,7 +940,16 @@ impl<'a> Parser<'a> {
             }
             SyntaxKind::Match => self.match_statement()?,
             _ => {
-                self.missing(ExpectedSyntax::Expression, "expected a statement", None)?;
+                if self.peek().is_some_and(ownership_keyword) {
+                    self.missing_code(
+                        ExpectedSyntax::Expression,
+                        "ownership keyword is reserved; rename this identifier",
+                        None,
+                        codes::UNSUPPORTED_SPECIALIZATION,
+                    )?;
+                } else {
+                    self.missing(ExpectedSyntax::Expression, "expected a statement", None)?;
+                }
                 self.recover(true)?;
             }
         }
@@ -909,14 +997,27 @@ impl<'a> Parser<'a> {
     }
 
     fn sum(&mut self, records: bool) -> Result<()> {
-        self.primary(records)?;
+        self.unary(records)?;
         while self.peek() == Some(K::Plus) {
             self.precede(SyntaxKind::Add)?;
             self.bump()?;
-            self.primary(records)?;
+            self.unary(records)?;
             self.finish()?;
         }
         Ok(())
+    }
+
+    fn unary(&mut self, records: bool) -> Result<()> {
+        if self.peek() == Some(K::Ampersand) {
+            self.start(SyntaxKind::Borrow)?;
+            self.bump()?;
+            self.eat(K::Mut)?;
+            self.unary(records)?;
+            self.finish()?;
+            Ok(())
+        } else {
+            self.primary(records)
+        }
     }
 
     fn primary(&mut self, records: bool) -> Result<()> {
@@ -930,12 +1031,23 @@ impl<'a> Parser<'a> {
                 self.start(SyntaxKind::Name)?;
                 self.path()?;
                 self.finish()?;
-                if self.peek() == Some(K::LeftParen) {
-                    self.precede(SyntaxKind::Call)?;
+                let specialization =
+                    self.peek() == Some(K::ColonColon) && self.lookahead(1) == Some(K::LessThan);
+                if specialization || self.peek() == Some(K::LeftParen) {
+                    self.precede(if specialization {
+                        SyntaxKind::SpecializedCall
+                    } else {
+                        SyntaxKind::Call
+                    })?;
+                    if specialization {
+                        self.bump()?;
+                        self.type_arguments()?;
+                    }
                     self.start(SyntaxKind::Arguments)?;
-                    self.bump()?;
-                    self.list(K::RightParen, true, Self::argument)?;
-                    self.expect(K::RightParen)?;
+                    if self.expect(K::LeftParen)? {
+                        self.list(K::RightParen, true, Self::argument)?;
+                        self.expect(K::RightParen)?;
+                    }
                     self.finish()?;
                     self.finish()?;
                 } else if records && self.peek() == Some(K::LeftBrace) {
@@ -949,13 +1061,29 @@ impl<'a> Parser<'a> {
             Some(K::LeftParen) => {
                 self.start(SyntaxKind::Parenthesized)?;
                 self.bump()?;
-                self.expression(true)?;
+                if self.peek() == Some(K::Star) {
+                    self.start(SyntaxKind::Dereference)?;
+                    self.bump()?;
+                    self.expression(true)?;
+                    self.finish()?;
+                } else {
+                    self.expression(true)?;
+                }
                 self.expect(K::RightParen)?;
                 self.finish()?;
             }
             _ => {
                 self.start(SyntaxKind::Error)?;
-                self.missing(ExpectedSyntax::Expression, "expected an expression", None)?;
+                if self.peek().is_some_and(ownership_keyword) {
+                    self.missing_code(
+                        ExpectedSyntax::Expression,
+                        "ownership keyword is reserved; rename this identifier",
+                        None,
+                        codes::UNSUPPORTED_SPECIALIZATION,
+                    )?;
+                } else {
+                    self.missing(ExpectedSyntax::Expression, "expected an expression", None)?;
+                }
                 if self.peek().is_some_and(|kind| !expression_boundary(kind)) {
                     self.bump()?;
                 }
@@ -1029,7 +1157,16 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 self.start(SyntaxKind::Error)?;
-                self.missing(ExpectedSyntax::Pattern, "expected a pattern", None)?;
+                if self.peek().is_some_and(ownership_keyword) {
+                    self.missing_code(
+                        ExpectedSyntax::Pattern,
+                        "ownership keyword is reserved; rename this identifier",
+                        None,
+                        codes::UNSUPPORTED_SPECIALIZATION,
+                    )?;
+                } else {
+                    self.missing(ExpectedSyntax::Pattern, "expected a pattern", None)?;
+                }
                 if self.peek().is_some_and(|kind| !expression_boundary(kind)) {
                     self.bump()?;
                 }
@@ -1084,7 +1221,10 @@ fn item_start(kind: K) -> bool {
     )
 }
 fn statement_start(kind: K) -> bool {
-    matches!(kind, K::Let | K::If | K::While | K::Return | K::Match)
+    matches!(
+        kind,
+        K::Let | K::If | K::While | K::Return | K::Match | K::Arena
+    )
 }
 fn list_element_start(kind: K) -> bool {
     matches!(
@@ -1099,7 +1239,14 @@ fn list_element_start(kind: K) -> bool {
             | K::False
             | K::Wildcard
             | K::LeftParen
+            | K::Ampersand
+            | K::Shared
+            | K::Weak
+            | K::Arena
     )
+}
+fn ownership_keyword(kind: K) -> bool {
+    matches!(kind, K::Shared | K::Weak | K::Arena)
 }
 fn expression_boundary(kind: K) -> bool {
     matches!(

@@ -80,6 +80,28 @@ fn keywords_are_exact_ascii_and_wildcard_is_distinct() {
 }
 
 #[test]
+fn ownership_punctuation_keeps_individual_closers_and_exact_keywords() {
+    let (_, lexed) =
+        tokenize("shared weak arena &mut *x core::Vec<core::Vec<i64>> a<1 Shared weakly arena2");
+    assert!(lexed.diagnostics.is_empty());
+    let tokens = significant(&lexed);
+    assert_eq!(
+        &tokens[..7],
+        &[
+            K::Shared,
+            K::Weak,
+            K::Arena,
+            K::Ampersand,
+            K::Mut,
+            K::Star,
+            K::Identifier
+        ]
+    );
+    assert_eq!(tokens.iter().filter(|k| **k == K::GreaterThan).count(), 2);
+    assert_eq!(&tokens[tokens.len() - 3..], &[K::Identifier; 3]);
+}
+
+#[test]
 fn punctuation_prefers_two_character_tokens() {
     let (_, lexed) = tokenize("(){}:;,.=+< -> :: => ::: ==> -->");
     assert_eq!(

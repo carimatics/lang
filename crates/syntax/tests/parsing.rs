@@ -116,6 +116,151 @@ fn complete_accepted_grammar_is_lossless() {
 }
 
 #[test]
+fn accepted_ownership_grammar_has_explicit_lossless_nodes_and_all_prefixes_recover() {
+    let fixture = include_str!("fixtures/ownership.lang");
+    let (_, tree) = parsed(fixture, false);
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    for kind in [
+        S::LoanType,
+        S::SharedType,
+        S::WeakType,
+        S::ArenaType,
+        S::TypeArguments,
+        S::Borrow,
+        S::Dereference,
+        S::PlaceAssign,
+        S::Arena,
+        S::SpecializedCall,
+    ] {
+        assert!(
+            tree.nodes().iter().any(|n| n.kind() == kind),
+            "missing {kind:?}"
+        );
+    }
+    for end in (0..=fixture.len()).filter(|i| fixture.is_char_boundary(*i)) {
+        parsed(&fixture[..end], false);
+    }
+}
+
+#[test]
+fn loans_generic_arguments_and_comparisons_have_distinct_shapes() {
+    let (sources, tree) = parsed("&mut x.field + core::vec_len::<i64>(&values) < 42", true);
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    let shape = shape(&sources, &tree);
+    assert!(
+        shape.contains("Borrow(& mut Field(Name(Path(x)) . field))"),
+        "{shape}"
+    );
+    assert!(
+        shape.contains(
+            "SpecializedCall(Name(Path(core :: vec_len)) :: TypeArguments(< Type(i64) >)"
+        ),
+        "{shape}"
+    );
+    assert!(shape.starts_with("ExpressionRoot(LessThan(Add("), "{shape}");
+    for text in [
+        "*x",
+        "&",
+        "core::f::<>()",
+        "core::f::<i64>",
+        "fn f<T>(x: T) -> T { return x; }",
+    ] {
+        assert!(
+            parsed(text, !text.starts_with("fn ")).1.has_errors(),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn ownership_keywords_in_legacy_name_positions_have_migration_diagnostics() {
+    for text in [
+        "fn shared() -> i64 { return 0; }",
+        "fn f(weak: i64) -> i64 { return 0; }",
+        "fn f() -> i64 { let mut arena: i64 = 0; return arena; }",
+        "fn f() -> i64 { shared = 1; return 0; }",
+        "fn f() -> i64 { arena = 1; return 0; }",
+        "fn f() -> i64 { match 1 { weak => { return 0; }, } }",
+    ] {
+        let (_, tree) = parsed(text, false);
+        assert!(
+            tree.diagnostics()
+                .iter()
+                .any(|d| d.code == codes::UNSUPPORTED_SPECIALIZATION),
+            "{text}\n{:?}",
+            tree.diagnostics()
+        );
+    }
+}
+
+#[test]
+fn ownership_recovery_preserves_later_items_and_reports_bounded_resource_failures() {
+    for text in [
+        "fn broken(x: core::Vec<) -> i64 { return 0; } fn later() -> i64 { return 1; }",
+        "fn broken() -> i64 { return core::f::<i64(1); } fn later() -> i64 { return 1; }",
+        "fn broken() -> i64 { arena graph(a) { return &; } } fn later() -> i64 { return 1; }",
+    ] {
+        let (sources, tree) = parsed(text, false);
+        assert!(tree.has_errors());
+        assert!(
+            tree.nodes().iter().any(|n| n.kind() == S::Function
+                && sources.slice(n.span()).unwrap().contains("fn later()")),
+            "{text}"
+        );
+    }
+    for text in [
+        format!("fn f(x: {}i64) -> i64 {{ return 0; }}", "&".repeat(300)),
+        format!(
+            "fn f(x: {}i64{}) -> i64 {{ return 0; }}",
+            "core::Vec<".repeat(200),
+            ">".repeat(200)
+        ),
+        format!("{}value", "&".repeat(300)),
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources.add("deep.lang", &text).unwrap();
+        let result = if text.starts_with("fn ") {
+            parse(&sources, source, ParseLimits::default())
+        } else {
+            parse_expression(&sources, source, ParseLimits::default())
+        };
+        assert!(
+            matches!(result, Err(ParseError::Limit(_))),
+            "expected a resource error"
+        );
+    }
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add(
+            "list.lang",
+            "fn f(x: core::Map<i64, bool>) -> i64 { return 0; }",
+        )
+        .unwrap();
+    assert!(
+        parse(
+            &sources,
+            source,
+            ParseLimits {
+                list_elements: 2,
+                ..ParseLimits::default()
+            }
+        )
+        .is_ok()
+    );
+    assert!(matches!(
+        parse(
+            &sources,
+            source,
+            ParseLimits {
+                list_elements: 1,
+                ..ParseLimits::default()
+            }
+        ),
+        Err(ParseError::Limit(_))
+    ));
+}
+
+#[test]
 fn precedence_associativity_and_named_calls_have_a_stable_shape() {
     let (sources, tree) = parsed("a + b + c.d < f(1, 2)", true);
     assert!(!tree.has_errors());

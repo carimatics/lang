@@ -935,6 +935,15 @@ impl Loader<'_, '_> {
                 _ => continue,
             };
             self.charge(span)?;
+            if name.text == "core" {
+                self.report(Diagnostic::new(
+                    codes::UNSUPPORTED_SPECIALIZATION,
+                    Severity::Error,
+                    "core is a reserved root namespace; rename this declaration or import",
+                    Label::new(name.span, "reserved core namespace"),
+                ))?;
+                continue;
+            }
             let (used, maximum, description) = match kind {
                 ItemKind::Function => (
                     &mut self.functions,

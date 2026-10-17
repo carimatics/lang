@@ -74,6 +74,35 @@ impl Drop for Files {
     }
 }
 
+#[test]
+fn core_namespace_declarations_and_imports_fail_before_loading_reserved_modules() {
+    for text in [
+        "fn core() -> i64 { return 0; }",
+        "struct core { value: i64 }",
+        "enum core { A }",
+        "extern fn core(value: i64) -> i64;",
+        "mod core;",
+    ] {
+        let files = Files::new(text);
+        // No core.lang exists: reporting the reserved name must precede IO.
+        let (sources, analysis) = files.load(ModuleLimits::default()).unwrap();
+        assert!(analysis.graph.is_none());
+        let diagnostic = &analysis.diagnostics[0];
+        assert_eq!(diagnostic.code, codes::UNSUPPORTED_SPECIALIZATION, "{text}");
+        assert_eq!(sources.slice(diagnostic.primary.span).unwrap(), "core");
+    }
+    let files = Files::new("mod child; use child::core;");
+    files.write("child.lang", b"pub fn core() -> i64 { return 0; }");
+    let (_, analysis) = files.load(ModuleLimits::default()).unwrap();
+    assert!(analysis.graph.is_none());
+    assert!(
+        analysis
+            .diagnostics
+            .iter()
+            .any(|d| d.code == codes::UNSUPPORTED_SPECIALIZATION)
+    );
+}
+
 fn module(graph: &ModuleGraph, hierarchy: &[&str]) -> ModuleId {
     graph
         .modules()

@@ -1,0 +1,27 @@
+// RFC 0007 syntax fixture. Semantic implementation is a separate scope.
+struct Message { body: core::Text }
+struct Node { next: core::Option<arena Node>, value: i64 }
+struct Cache { values: core::Map<core::Text, core::Vec<shared Message>> }
+
+fn length(message: &Message) -> i64 {
+    return core::text_len(&message.body);
+}
+
+fn update(value: &mut Message, replacement: core::Text) -> core::Unit {
+    (*value).body = replacement;
+    return core::Unit {};
+}
+
+fn example(allocator: &core::Allocator, parent: shared Message, old: weak Message) -> core::Unit {
+    let mut list: core::Result<core::Vec<core::Option<i64>>, core::AllocError> = core::vec_new::<core::Option<i64>>(allocator);
+    arena graph(allocator) {
+        let mut reference: arena Node = candidate;
+        let mut borrowed: &mut Message = &mut local;
+        borrowed.body = replacement;
+        match core::vec_get::<core::Option<i64>>(&list, 0) {
+            core::Result::Ok(item) => { return core::Unit {}; },
+            core::Result::Err(error) => { return core::Unit {}; },
+        }
+    }
+    return core::Unit {};
+}

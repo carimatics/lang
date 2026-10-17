@@ -215,7 +215,7 @@ impl DiagnosticCode {
     }
 }
 
-/// Accepted identities from RFCs 0002/0006. Implementation and stabilization are separate.
+/// Accepted identities from RFCs 0002/0006/0007. Implementation and stabilization are separate.
 pub mod codes {
     use super::DiagnosticCode;
 
@@ -238,6 +238,11 @@ pub mod codes {
     pub const UNREACHABLE_ARM: DiagnosticCode = DiagnosticCode("SRC0017");
     pub const INVALID_ENTRY: DiagnosticCode = DiagnosticCode("SRC0018");
     pub const UNREACHABLE_STATEMENT: DiagnosticCode = DiagnosticCode("SRC0019");
+    pub const INVALID_OWNER_USE: DiagnosticCode = DiagnosticCode("SRC0020");
+    pub const INVALID_LOAN: DiagnosticCode = DiagnosticCode("SRC0021");
+    pub const REGION_ESCAPE: DiagnosticCode = DiagnosticCode("SRC0022");
+    pub const INVALID_OWNERSHIP_TYPE: DiagnosticCode = DiagnosticCode("SRC0023");
+    pub const UNSUPPORTED_SPECIALIZATION: DiagnosticCode = DiagnosticCode("SRC0024");
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

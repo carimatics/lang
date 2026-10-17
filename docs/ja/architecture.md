@@ -117,6 +117,12 @@ Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと
 
 ### Source formatter
 
+2026-10-17に実装したRFC 0007構文拡張：lossless token／CSTで `&T`／`&mut T`、`shared T`／`weak T`／`arena T`、入れ子の組み込みtype argument、`::<...>` call、place borrow、括弧付きdereference、place assignment、allocatorを渡す字句的arena blockを表現します。Generic末尾の `>` は別tokenのままで、`<` 比較と符号付き整数のbehaviorを維持します。Prefix／type argumentの再帰とrecoveryは既存node／depth／list／work上限に従い、formatterはgeneric delimiterと比較を区別して新tokenの全境界間のcommentを保持します。
+
+従来の名前位置のownership予約語、`core` というdeclaration／import／local／pattern bindingには受理済み `SRC0024` を出し、予約module名はfile IOより前に拒否します。通常record fieldの `core` は許可します。Source bindingはwork budget付きで全CST nodeを事前確認し、対応HIRを実装するまでownership／type-argument構文にspan付き `BindingError::UnsupportedSyntax { span }` を返します。Borrowed primitive annotationを無視したり、旧実装のunreachable分岐へ進んだりしません。受理済み `SRC0020`–`SRC0024` の登録は全semantic checkの実装を意味しません。追加10 testで構文／precedence、ownership fixture全prefix、recovery／resource上限、comment保持のformatter／CST往復、migration、span付きbinding拒否を検証します。Ownership HIR／MIR、borrow validity、arena escape解析、組み込み型検査、実行は未完了です。
+
+情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、syntax／diagnostic／module／binding実装とtestは2026-10-17 JST更新／確認。受理済みsource profileの実装sliceで、新しい言語判断やownership解析の完了ではありません。
+
 2026-10-17実装：`lang_syntax::format` は実際のparsed token ownerとdelimiter文脈を使ってformatします。宣言、statement block、match body、record value／patternを区別し、delimiterごとの4-space indentation、operator／注釈のspace、1行1 statement／member／宣言を適用します。Optional comma、literalの表記、実comment／tokenの全byteは維持します。不正treeは `PreservedInvalid` と元snapshot全体を返し、有効treeは末尾LF付きの冪等なtextを生成します。反復passとdelimiter stack、失敗可能buffer、16 MiB output上限、node／child／token／indentation／text-chunkを課金する10,000,000 work limitを使います。Lookaheadを1回index化しtriviaの反復走査を避けます。9件のsyntax testは完全なsemantic CST shape／comment round trip、scalar fixtureの全comment挿入境界、不正input保持、resource／snapshot failureを検証します。2件のsource testはformat後の複数file aggregateのVM結果／counterとscalar VM／JIT behaviorを検証します。Source parser fuzz targetも有効outputを再parse・再formatしnode／token保持を検証し、instrumentationなしの10,000-run smokeが成功しました。単独CLI formatter commandはMilestone 4の統合作業です。
 
 ### Script CLI

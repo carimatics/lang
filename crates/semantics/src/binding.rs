@@ -44,12 +44,19 @@ impl Default for BindingLimits {
 pub enum BindingError {
     Source(SourceError),
     Limit(Box<Diagnostic>),
+    UnsupportedSyntax { span: Span },
 }
 impl Display for BindingError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Source(e) => Display::fmt(e, f),
             Self::Limit(d) => write!(f, "{}: {}", d.code.as_str(), d.message),
+            Self::UnsupportedSyntax { span } => write!(
+                f,
+                "ownership syntax is parsed but source binding is not implemented at bytes {}..{}",
+                span.range().start,
+                span.range().end
+            ),
         }
     }
 }
@@ -114,6 +121,32 @@ pub fn bind_program(
             }
         }
         context.significant.push(starts);
+        // New accepted syntax must not reach RFC 0006-only assumptions (for
+        // example, treating a nested borrowed i64 as an ordinary i64). Keep a
+        // span-bearing failure until the ownership HIR implements each form.
+        for node in module.tree().nodes() {
+            context
+                .charge(node.span(), 0)
+                .map_err(|abort| match abort {
+                    Abort::Fatal(error) => error,
+                    Abort::Recover => unreachable!(),
+                })?;
+            if matches!(
+                node.kind(),
+                S::LoanType
+                    | S::SharedType
+                    | S::WeakType
+                    | S::ArenaType
+                    | S::TypeArguments
+                    | S::SpecializedCall
+                    | S::Borrow
+                    | S::Dereference
+                    | S::PlaceAssign
+                    | S::Arena
+            ) {
+                return Err(BindingError::UnsupportedSyntax { span: node.span() });
+            }
+        }
     }
     let mut definition_items = Vec::new();
     let mut function_items = Vec::new();
@@ -527,6 +560,14 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         annotation: Option<r::TypeUse>,
     ) -> BindResult<r::LocalId> {
         self.context.charge(name.span, 0)?;
+        if name.text == "core" {
+            return self.context.fail(
+                codes::UNSUPPORTED_SPECIALIZATION,
+                name.span,
+                "core is a reserved root namespace; rename this binding",
+                None,
+            );
+        }
         if let Some(original) = self.declared.get(&name.text).copied() {
             return self.context.fail(
                 codes::DUPLICATE_NAME,
