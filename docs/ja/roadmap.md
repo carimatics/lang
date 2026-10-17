@@ -253,6 +253,8 @@ Commit `ec16f8a` はruntime shared-ownership engineを追加しました。実�
 
 Source grammarのfollow-up（2026-10-17 JST）：lossless parser／formatterで受理済みRFC 0007のloan／ownership type、入れ子の組み込みtype argumentと `::<...>` call、place borrow／dereference／assignment、allocatorを渡すarena blockを実装しました。追加10 testでownership fixture全prefix、syntax／CST／comment往復、limit／recovery、`SRC0024` 予約名migration、旧source bindingへ進む前のspan付き拒否を検証し、full baselineは541 testすべてpassしました。これは未完了8 ptのHIR／MIR ownership outcome内のprerequisite進捗であり、move／loan、arena escape安全性、組み込み型検査、実行、ownership wire supportの完了ではありません。Roadmap確認では完了21/113 ptと残る全decision／implementation／measurement gateを維持します。次はcleanup／allocator／unsafe／FFI契約をowner判断可能な形へ起草し、受理済みRFC 0007のownership-aware source解析を独立して進めます。
 
+Decision gateの準備（2026-10-17 JST）：提案[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)と日本語対訳はcleanup／failure優先順位とreturn escrow、recoverable budget付きguest allocation、unsafe／capability規則、有限generated C status／header／descriptor契約を定義します。提案layout assertionはApple Clang 21で両tier-1 target tripleにpassし、4つのscalar descriptor／SHA-256 vectorを独立検証しました。提案／cross-target fixtureでありsource実装やnative Windows実行ではありません。第2の5 pt gateは明示owner dispositionまで未完了です。Ownership wire encodingは別途必要な判断で、grammar／source解析はRFC 0007に従って独立に進められます。Reviewでは総113 ptと元のownership／core／platform／conformance／performanceの全deliverableを維持します。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
