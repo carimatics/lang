@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み41件 · 進行中0件 · 残り50件（暫定128 pt）。**
+**検証済み42件 · 進行中0件 · 残り49件（暫定125 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む15件の成果を検証しました。S03（`e584902`）で [Owned Bytes script](../../examples/scripts/owned_bytes.lang) が実行でき、有限sum構築とRFC 0009の3取り出しcallで1つのbufferをmoveし、`0` を表示してtransfer allocationなしでcleanupします。次はBytes変更とUTF-8変換（V04）です。S03で3 ptを減らし、残作業は131 → 128 ptです。新たなexit gateは完了扱いにしていません。967 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning payload、任意source aggregate、REPL、native実行は各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む16件の成果を検証しました。V04（`8b24c94`）でBytes変更とUTF-8変換を実行し、[変更fixture](../../examples/analysis/extraction.lang) は `1`、[UTF-8 script](../../examples/scripts/utf8.lang) はbyte長の `3` を表示します。Growth／失敗cleanup、不正入力の結果、Copy cellのloop再利用を確認しました。次は残りText操作（V05）で、equalityも明記しました。V04で3 ptを減らし、残作業は128 → 125 ptです。新たなexit gateは完了扱いにしていません。975 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。一般source aggregate、他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
