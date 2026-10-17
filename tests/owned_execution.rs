@@ -266,30 +266,43 @@ fn every_fuel_prefix_cleans_source_owners_and_ends_loans_without_poisoning() {
 
 #[test]
 fn unsupported_core_operations_are_rejected_before_earlier_source_allocations() {
-    let program = checked(
-        "fn main() -> i64 { let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); let mut later: core::Result<core::Vec<i64>, core::AllocError> = core::vec_new::<i64>(core::allocator()); return 0; }",
-    );
-    let (mut allocator, trace) = allocator();
-    let error = vm::execute_entry(
-        program.failure_flow(),
-        &mut c::Instance::default(),
-        Some(&mut allocator),
-        control(),
-    )
-    .err()
-    .unwrap();
-    assert!(matches!(
-        error.reason,
-        vm::Reason::Unsupported {
-            core: Some(Operation::VecNew)
-        }
-    ));
-    assert_eq!(allocator.stats(), a::Stats::default());
-    assert!(trace.borrow().requests.is_empty());
-    let span = error.fault.unwrap();
-    let typed = program.mir().activity().moved().typed();
-    let text = &typed.places().declarations().types().table().sources[span.source.0 as usize].text;
-    assert!(text[span.start as usize..span.end as usize].contains("vec_new"));
+    for (later, expected) in [
+        (
+            "let mut later: core::Result<core::Vec<i64>, core::AllocError> = core::vec_new::<i64>(core::allocator());",
+            Operation::VecNew,
+        ),
+        (
+            "let mut later: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(first);",
+            Operation::ResultUnwrap,
+        ),
+        (
+            "let mut later: core::AllocError = core::result_unwrap_err::<core::Bytes, core::AllocError>(first);",
+            Operation::ResultUnwrapErr,
+        ),
+    ] {
+        let program = checked(&format!(
+            "fn main() -> i64 {{ let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); {later} return 0; }}"
+        ));
+        let (mut allocator, trace) = allocator();
+        let error = vm::execute_entry(
+            program.failure_flow(),
+            &mut c::Instance::default(),
+            Some(&mut allocator),
+            control(),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            matches!(error.reason, vm::Reason::Unsupported { core: Some(actual) } if actual == expected)
+        );
+        assert_eq!(allocator.stats(), a::Stats::default());
+        assert!(trace.borrow().requests.is_empty());
+        let span = error.fault.unwrap();
+        let typed = program.mir().activity().moved().typed();
+        let text =
+            &typed.places().declarations().types().table().sources[span.source.0 as usize].text;
+        assert!(text[span.start as usize..span.end as usize].contains(expected.name()));
+    }
 }
 
 #[test]

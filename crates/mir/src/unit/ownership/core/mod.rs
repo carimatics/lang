@@ -1,4 +1,4 @@
-//! Finite RFC 0007 core-call types and result provenance. No runtime operation,
+//! Finite RFC 0007/0009 core-call types and result provenance. No runtime operation,
 //! allocator callback, source ABI, or serialized opcode is defined here.
 
 use super::bodies::{LoanId, Site};
@@ -118,6 +118,17 @@ pub enum Operation {
     ArenaNew,
     ArenaRead,
     ArenaReplace,
+    OptionUnwrap,
+    ResultUnwrap,
+    ResultUnwrapErr,
+}
+
+/// A checked whole-sum extraction: the other valid case raises this guest panic.
+/// Neither this contract nor an operation's enum ordinal defines a wire tag.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Extraction {
+    pub case: u32,
+    pub panic_code: i64,
 }
 
 const T: TypePattern = TypePattern::Argument(0);
@@ -139,6 +150,7 @@ const WEAK: TypePattern = TypePattern::Weak(&T);
 const ARENA: TypePattern = TypePattern::Arena(&T);
 const OWNER: TypePattern = TypePattern::ArenaOwner;
 const ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Storable];
+const TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Storable; 2];
 const SHARED_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::SharedPayload];
 const MAP_TWO: &[TypeArgumentRule] = &[TypeArgumentRule::MapKey, TypeArgumentRule::Storable];
 
@@ -156,7 +168,7 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 37] = [
         Self::Allocator,
         Self::TextFromUtf8,
         Self::TextClone,
@@ -191,6 +203,9 @@ impl Operation {
         Self::ArenaNew,
         Self::ArenaRead,
         Self::ArenaReplace,
+        Self::OptionUnwrap,
+        Self::ResultUnwrap,
+        Self::ResultUnwrapErr,
     ];
 
     pub const fn name(self) -> &'static str {
@@ -229,6 +244,9 @@ impl Operation {
             Self::ArenaNew => "arena_new",
             Self::ArenaRead => "arena_read",
             Self::ArenaReplace => "arena_replace",
+            Self::OptionUnwrap => "option_unwrap",
+            Self::ResultUnwrap => "result_unwrap",
+            Self::ResultUnwrapErr => "result_unwrap_err",
         }
     }
 
@@ -238,10 +256,31 @@ impl Operation {
             .find(|operation| operation.name() == name)
     }
 
+    pub const fn extraction(self) -> Option<Extraction> {
+        match self {
+            Self::OptionUnwrap => Some(Extraction {
+                case: 1,
+                panic_code: -1,
+            }),
+            Self::ResultUnwrap => Some(Extraction {
+                case: 0,
+                panic_code: -2,
+            }),
+            Self::ResultUnwrapErr => Some(Extraction {
+                case: 1,
+                panic_code: -3,
+            }),
+            _ => None,
+        }
+    }
+
     pub fn signature(self) -> Signature {
         use LoanKind::{Exclusive as M, Shared as S};
         use TypePattern as P;
         let mut sig = match self {
+            Self::OptionUnwrap => signature(ONE, &[P::Option(&T)], T),
+            Self::ResultUnwrap => signature(TWO, &[P::Result(&T, &V)], T),
+            Self::ResultUnwrapErr => signature(TWO, &[P::Result(&T, &V)], V),
             Self::Allocator => signature(&[], &[], P::Loan(S, &ALLOCATOR)),
             Self::TextFromUtf8 => signature(&[], &[BYTES], P::Result(&TEXT, &UTF8_ERROR)),
             Self::TextClone => signature(

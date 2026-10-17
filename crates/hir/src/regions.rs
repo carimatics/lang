@@ -1270,6 +1270,23 @@ impl Checker<'_, '_> {
         let span = self.function.expressions[id.0].span;
         self.context.budget.enter(span, depth)?;
         match op {
+            O::OptionUnwrap | O::ResultUnwrap | O::ResultUnwrapErr => {
+                let case = match op {
+                    O::OptionUnwrap => core::Case::Some,
+                    O::ResultUnwrap => core::Case::Ok,
+                    O::ResultUnwrapErr => core::Case::Err,
+                    _ => unreachable!(),
+                };
+                self.project(
+                    values[0],
+                    Step {
+                        kind: StepKind::Payload(Tag::Core(case), 0),
+                        ty: self.facts.expressions()[id.0],
+                    },
+                    span,
+                    depth + 1,
+                )
+            }
             O::ArenaNew | O::ArenaRead | O::ArenaReplace => {
                 let owner = self.authority(values[0], span, depth + 1)?;
                 for i in 1..values.len() {

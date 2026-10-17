@@ -14,7 +14,7 @@
 
 ## 概要
 
-RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。これは受理済み設計であり、実装済みsource behaviorではありません。
+RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。Source／MIR解析は実装済みで、runtime取り出しと残り実行modeは未完了です。Acceptanceと実装完了／stabilizationは別に扱います。
 
 | 操作 | Signature | 期待するcase | 別caseのpanic code |
 | --- | --- | --- | ---: |
@@ -149,7 +149,9 @@ Untrusted MIR／artifactがintrinsic名を使って、期待tagの断定、paylo
 
 Decision：**2026-10-18 JSTに実験段階の委任に基づきaccepted**。再現済みの具体的blocker、既存構文／ownership規則を使う追加的で有限なAPI、明示panic／cleanup意味論、RFC 0007／0008に整合する上限付きcompiler／runtime sliceがあるとreviewで判断しました。このscopeのblocking design questionはなく、個別owner approval待ちにはしません。
 
-未検証の仮説：3つのspecialized操作が暫定S02／S03 slice内に収まること、guard後unwrapのergonomicsが初期source workloadに十分なこと、対応payload layoutをadmission済みmetadataで移譲できること。実装で検証し、新作業が見つかったらslice拡大前に明示し、未対応payload／modeのgateを維持します。将来の汎用的な消費matchは別の設計判断であり、borrowed matchを暗黙変更する許可ではありません。
+2026-10-18 JST確認の部分実装：S02でsource signature 3種類と独立検証済みMIR callを追加し、move／loan検査と選択payloadのregion伝播も確認しました。Guide fixtureは `lang check` に成功し、VM preflightは取り出しをeffect前に引き続き拒否します。S03、広いpayload対応、native conformanceは未完了です。
+
+未検証の仮説：transferが暫定S03 slice内に収まること、guard後unwrapのergonomicsが初期source workloadに十分なこと、対応payload layoutをadmission済みmetadataで移譲できること。実装で検証し、新作業が見つかったらslice拡大前に明示し、未対応payload／modeのgateを維持します。将来の汎用的な消費matchは別の設計判断であり、borrowed matchを暗黙変更する許可ではありません。
 
 ## 情報源
 
@@ -157,5 +159,5 @@ Decision：**2026-10-18 JSTに実験段階の委任に基づきaccepted**。再�
 - [RFC 0007](0007-source-ownership-and-core-values.md)：whole-owner move、borrowed match、core catalog、region規則。元の受理本文は2026-10-17 JST最終更新（`31ab7ac`）。Follow-up参照を2026-10-18 JST追加、同日確認。
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md)：panic、cleanup precedence、allocator／C boundary。2026-10-17 JST最終更新（`b094a58`）、2026-10-18 JST確認。
 - [MIR core validation](../../../crates/mir/src/unit/ownership/core/validation.rs)：既存transitive Storable検査、2026-10-17 JST最終変更（`4619937`）。[Ownership instruction](../../../crates/mir/src/unit/ownership/bodies.rs)：既存whole `UnpackVariant` contract、2026-10-18 JST最終変更（`a984e5e`）。両方2026-10-18 JST確認。実装の接続点を示し、取り出しの実装完了ではない。
-- [Source Bytes fixture](../../../examples/scripts/bytes.lang)、[実行test](../../../tests/owned_execution.rs)：2026-10-18 JST最終変更（`ece8690`）。Read-only source実行は `0`、match payloadをowned Bytesへbindingする試みは `SRC0014` を再現。2026-10-18 JST確認。本RFCのguide exampleを既存compilerでcheckすると新nameまで進んで `SRC0024`（unknown core operation）になります。構文の経路を確認したもので、新しい型／runtime意味論の証明ではありません。
+- [Source Bytes fixture](../../../examples/scripts/bytes.lang)、[実行test](../../../tests/owned_execution.rs)：2026-10-18 JST最初の実装（`ece8690`）。Read-only source実行は `0`、match payloadをowned Bytesへbindingする試みは `SRC0014` を再現。2026-10-18 JST確認。実装前の基準 `bde2902` ではguide exampleが新nameまで進んで `SRC0024`（unknown core operation）になりました。[取り出しfixture](../../../examples/analysis/extraction.lang)、[source／MIR test](../../../crates/semantics/tests/sum_extraction.rs)、更新したpreflight回帰では、解析成功とeffect前の未対応runtime拒否を確認しています。2026-10-18 JST更新／確認。Runtime取り出しの証明ではありません。
 - [実装Todo](../milestone-2.md)：scope／依存／残見積もり。2026-10-18 JST更新・確認。本RFCはproject判断であり、外部言語の新しい事実や計測済み性能を主張しない。

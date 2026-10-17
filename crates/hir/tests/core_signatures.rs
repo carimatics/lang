@@ -83,7 +83,12 @@ fn signatures_record_result_provenance_and_concrete_argument_restrictions() {
             &[T::MapKey, T::Storable]
         } else if operation.name().starts_with("shared_") || operation.name().starts_with("weak_") {
             &[T::SharedPayload]
-        } else if operation.name().starts_with("vec_") || operation.name().starts_with("arena_") {
+        } else if operation.name().starts_with("result_") {
+            &[T::Storable; 2]
+        } else if operation.name().starts_with("vec_")
+            || operation.name().starts_with("arena_")
+            || operation.name().starts_with("option_")
+        {
             &[T::Storable]
         } else {
             &[]

@@ -61,6 +61,7 @@ Requirements: Rust `1.99.0` with rustfmt and Clippy, pinned by `rust-toolchain.t
 
 ```bash
 cargo run -- check examples/analysis/ownership.lang
+cargo run -- check examples/analysis/extraction.lang
 cargo run -- run examples/scripts/answer.lang
 cargo run -- run examples/scripts/bytes.lang
 cargo run -- repl

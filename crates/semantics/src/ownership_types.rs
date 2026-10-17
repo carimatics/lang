@@ -457,5 +457,8 @@ pub const fn core_operation(operation: lang_hir::core::Operation) -> o::core::Op
         lang_hir::core::Operation::ArenaNew => o::core::Operation::ArenaNew,
         lang_hir::core::Operation::ArenaRead => o::core::Operation::ArenaRead,
         lang_hir::core::Operation::ArenaReplace => o::core::Operation::ArenaReplace,
+        lang_hir::core::Operation::OptionUnwrap => o::core::Operation::OptionUnwrap,
+        lang_hir::core::Operation::ResultUnwrap => o::core::Operation::ResultUnwrap,
+        lang_hir::core::Operation::ResultUnwrapErr => o::core::Operation::ResultUnwrapErr,
     }
 }

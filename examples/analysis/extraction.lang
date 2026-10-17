@@ -1,0 +1,18 @@
+// RFC 0009 source/MIR analysis fixture; execution requires M2-S03/V04.
+fn main() -> i64 {
+    let mut made: core::Result<core::Bytes, core::AllocError> =
+        core::bytes_new(core::allocator());
+    match made {
+        core::Result::Ok(_) => {},
+        core::Result::Err(_) => { return -1; },
+    }
+    let mut bytes: core::Bytes =
+        core::result_unwrap::<core::Bytes, core::AllocError>(made);
+    let mut pushed: core::Result<core::Unit, core::BufferError> =
+        core::bytes_push(bytes, 65);
+    match pushed {
+        core::Result::Ok(_) => {},
+        core::Result::Err(_) => { return -2; },
+    }
+    return core::bytes_len(bytes);
+}

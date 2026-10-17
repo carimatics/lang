@@ -327,6 +327,16 @@ Move解析はoperationがfailureを返す場合もowning inputを消費します
 
 出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[MIR契約](../../crates/mir/src/unit/ownership/core/mod.rs)、[独立signature fixture](../../tests/fixtures/core-signatures.txt)、[MIR test](../../crates/mir/tests/ownership_core.rs)、[source adapter／test](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。受理済みprofile内の解析を実装し、runtime ownership、arena brand、cleanup、allocator budget、C boundary、layout、version付きserializationはそれぞれ独立した完了gateを維持します。
 
+### Option／Result全体取り出しの解析
+
+2026-10-18 JST実装／確認：[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) の `option_unwrap`、`result_unwrap`、`result_unwrap_err` を有限HIR／MIR catalogへ追加しました（37操作）。既存の明示generic-call構文、厳密なStorable signature、by-value argument検査を適用します。選択payloadがCopyでもsumがnon-Copyならmoveし、sum全体がCopyなら再利用できます。Live loanやpartial field moveは引き続き不正で、通常／provisional loanをspecializationできません。Borrowed source matchは変更しません。
+
+Region解析は選択payloadの構造付きprovenanceをprojectし、消去したり無関係なcase payloadを収集したりしません。入れ子sum経由でもarena brandと既存escape制約を維持します。自動loweringはcall spanを保持し、独立MIRのtype、move、activity、provenance、failure-flow検証を通ります。MIRは各取り出しの期待caseと固定guest-panic codeを記録し、serialized tagやbackend型は追加しません。独立MIR arena-effect verifierは別の必須taskとして残します。
+
+Source 6 testでowning result 3種類、guard付きallocationから変更までの解析、Copy／non-Copy再利用、名前付きloan、partial move、branch／loop、厳密signature、禁止／provisional loan、同一region readとtransitive escapeを検証します。独立signature oracle、不正MIR／消費済みinput test、formatter fixtureにも追加しました。既存foreign-HIR／ownership-MIR fuzz generatorはoperation catalog全体から選ぶため、新wire formatなしで新操作にも到達します。VM preflight回帰は、先行Bytes allocationのprovider呼び出しも含め、effect前に未対応の取り出し操作を拒否します。Runtime payload移譲、規定panicの実行、REPL、native dispatchは未実装で、`lang check` の成功はこれらのcallを実行可能にしません。
+
+出典：[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)、[source／MIR解析test](../../crates/semantics/tests/sum_extraction.rs)、[MIR契約／test](../../crates/mir/tests/ownership_core.rs)、[preflight回帰](../../tests/owned_execution.rs)。2026-10-18 JST更新／確認。
+
 ### Automatic ownership body lowering
 
 2026-10-17実装：`lang_semantics::ownership_types::bodies::lower` はregion検証済みsource bodyを受け取り、独立に検証するownership MIRを自動生成します。Type／declaration／place adapterと命令生成は累積work／allocation／element budgetを共有します。Source expression identityとspanを保持し、compiler生成のborrow valueとassignment placeには型と上限を持つmetadata slotを割り当てます。APIは実行できない `TypedBodies` を返し、手作業で命令を組み立てずに既存のmove／loan activity／provenance解析へ渡せます。

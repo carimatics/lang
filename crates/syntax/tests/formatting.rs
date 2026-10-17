@@ -127,6 +127,11 @@ fn ownership_types_loans_generic_calls_and_arenas_round_trip() {
         checked("a<core::vec_len::<i64>(&values)", true),
         "a < core::vec_len::<i64>(&values)\n"
     );
+    checked(
+        "core::result_unwrap::<core::Option<core::Bytes>,core::Text>(core::result_unwrap_err::<i64,core::Result<core::Option<core::Bytes>,core::Text>>(value))",
+        true,
+    );
+    checked("core::option_unwrap::<core::Bytes>(value)", true);
 }
 
 #[test]

@@ -61,6 +61,7 @@ Milestone 1のsource pipelineは複数fileのmodule、型付きfunctionと再帰
 
 ```bash
 cargo run -- check examples/analysis/ownership.lang
+cargo run -- check examples/analysis/extraction.lang
 cargo run -- run examples/scripts/answer.lang
 cargo run -- run examples/scripts/bytes.lang
 cargo run -- repl

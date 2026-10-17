@@ -14,7 +14,7 @@
 
 ## Summary
 
-Extend RFC 0007's finite core catalog with three explicit operations that take an entire Option/Result by value. A matching case returns its entire payload; the other case raises a guest panic with RFC 0008 cleanup. Existing borrowed matching and the prohibition on partial moves remain unchanged. This is an accepted design, not implemented source behavior.
+Extend RFC 0007's finite core catalog with three explicit operations that take an entire Option/Result by value. A matching case returns its entire payload; the other case raises a guest panic with RFC 0008 cleanup. Existing borrowed matching and the prohibition on partial moves remain unchanged. Source/MIR analysis is implemented; runtime extraction and the remaining execution modes are pending. Acceptance is separate from implementation completion and stabilization.
 
 | Operation | Signature | Expected case | Other-case panic code |
 | --- | --- | --- | ---: |
@@ -149,7 +149,9 @@ Untrusted MIR/artifacts cannot assert an expected tag, forge a payload type, dup
 
 Decision: **accepted under experimental delegation on 2026-10-18 JST**. The review finds a concrete reproduced blocker, an additive finite API using existing syntax/ownership rules, explicit panic/cleanup semantics, and bounded compiler/runtime slices consistent with RFCs 0007/0008. No blocking design question remains for this scope; no individual owner approval is queued.
 
-Unverified assumptions: three specialized operations fit the provisional S02/S03 slices; guard-then-unwrap ergonomics are sufficient for early source workloads; all supported payload layouts can transfer with admitted metadata. Implementation must test these assumptions, expose newly discovered work before expanding a slice, and retain gates for unsupported payloads/modes. A later general consuming match is a separate design decision, not implicit permission to change borrowed matching.
+Partial implementation verified 2026-10-18 JST: S02 adds all three source signatures and independently checked MIR calls, including move/loan checks and selected-payload region propagation. The guide fixture passes `lang check`; VM preflight still rejects extraction before effects. S03, broader payload support and native conformance remain incomplete.
+
+Unverified assumptions: transfer fits the provisional S03 slice; guard-then-unwrap ergonomics are sufficient for early source workloads; all supported payload layouts can transfer with admitted metadata. Implementation must test these assumptions, expose newly discovered work before expanding a slice, and retain gates for unsupported payloads/modes. A later general consuming match is a separate design decision, not implicit permission to change borrowed matching.
 
 ## Sources
 
@@ -157,5 +159,5 @@ Unverified assumptions: three specialized operations fit the provisional S02/S03
 - [RFC 0007](0007-source-ownership-and-core-values.md), whole-owner moves, borrowed matches, core catalog and region rules; original accepted text last updated 2026-10-17 JST (`31ab7ac`); follow-up reference added 2026-10-18 JST, verified the same day.
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md), panic, cleanup precedence, allocator and C boundaries; last updated 2026-10-17 JST (`b094a58`), verified 2026-10-18 JST.
 - [MIR core validation](../../crates/mir/src/unit/ownership/core/validation.rs), existing transitive Storable check, last changed 2026-10-17 JST (`4619937`); [ownership instructions](../../crates/mir/src/unit/ownership/bodies.rs), existing whole `UnpackVariant` contract, last changed 2026-10-18 JST (`a984e5e`); both verified 2026-10-18 JST. These show implementation seams, not completed extraction.
-- [Source Bytes fixture](../../examples/scripts/bytes.lang) and [execution tests](../../tests/owned_execution.rs), last changed 2026-10-18 JST (`ece8690`); the read-only source run prints `0`, while attempting an owned Bytes binding from the match payload reproduces `SRC0014`, verified 2026-10-18 JST. Checking this RFC's guide example with the existing compiler reaches the new name and reports `SRC0024` (unknown core operation), confirming the grammar path but not new type/runtime semantics.
+- [Source Bytes fixture](../../examples/scripts/bytes.lang) and [execution tests](../../tests/owned_execution.rs), initial implementation 2026-10-18 JST (`ece8690`); the read-only source run prints `0`, while attempting an owned Bytes binding from the match payload reproduces `SRC0014`, verified 2026-10-18 JST. At the pre-implementation checkpoint `bde2902`, this RFC's guide example reached the new name and reported `SRC0024` (unknown core operation). The [extraction fixture](../../examples/analysis/extraction.lang), [source/MIR tests](../../crates/semantics/tests/sum_extraction.rs), and updated preflight regression now verify successful analysis and unsupported runtime rejection before effects; updated/verified 2026-10-18 JST. None proves runtime extraction.
 - [Delivery board](../milestone-2.md), scope/dependencies/remaining estimates, updated and verified 2026-10-18 JST. This RFC makes project choices, with no new external-language or measured performance claim.

@@ -329,8 +329,8 @@ fn body(mut f: Fixture) -> b::BodyTable {
 }
 
 #[test]
-fn all_thirty_four_contracts_accept_three_independent_concrete_rfc_signatures() {
-    assert_eq!(rows().len(), 34);
+fn all_contracts_accept_three_independent_concrete_rfc_signatures() {
+    assert_eq!(rows().len(), 37);
     let mut seen = std::collections::BTreeSet::new();
     for (name, arity, signature) in rows() {
         for variant in 0..3 {
@@ -355,7 +355,7 @@ fn all_thirty_four_contracts_accept_three_independent_concrete_rfc_signatures() 
 }
 
 #[test]
-fn thirty_one_non_arena_calls_flow_through_types_moves_activity_and_provenance() {
+fn non_arena_calls_flow_through_types_moves_activity_and_provenance() {
     for (name, arity, signature) in rows().into_iter().filter(|r| !r.0.starts_with("arena_")) {
         let out = fully_check(body(fixture(name, arity, signature, 0)));
         let typed = out.activity().moved().typed();
@@ -363,6 +363,44 @@ fn thirty_one_non_arena_calls_flow_through_types_moves_activity_and_provenance()
         assert_eq!(facts.core_calls().len(), 1);
         assert_eq!(facts.core_calls()[0].operation.name(), name);
         assert_eq!(facts.needs_instance_allocator(), name == "allocator");
+    }
+}
+
+#[test]
+fn extraction_checks_reject_forged_result_types_and_nonstorable_specializations() {
+    for (name, case, panic_code) in [
+        ("option_unwrap", 1, -1),
+        ("result_unwrap", 0, -2),
+        ("result_unwrap_err", 1, -3),
+    ] {
+        let contract = c::Operation::from_name(name).unwrap().extraction().unwrap();
+        assert_eq!(contract, c::Extraction { case, panic_code });
+        let mut f = by_name(name);
+        f.result = o::Type::Bool;
+        assert!(matches!(
+            check(f).unwrap_err().kind,
+            o::ErrorKind::CoreType {
+                position: c::Position::Result,
+                ..
+            }
+        ));
+        for index in 0..c::Operation::from_name(name)
+            .unwrap()
+            .signature()
+            .type_arguments
+            .len()
+        {
+            let mut f = by_name(name);
+            let loan = parse(&mut f.table, "&i64", [o::Type::I64; 2]);
+            f.call.type_arguments[index].ty = loan;
+            assert!(matches!(
+                check(f).unwrap_err().kind,
+                o::ErrorKind::CoreTypeArgument {
+                    rule: c::TypeArgumentRule::Storable,
+                    ..
+                }
+            ));
+        }
     }
 }
 
@@ -576,29 +614,37 @@ fn provisional_sum_storage_nesting_forwarding_and_block_arguments_are_rejected()
 
 #[test]
 fn owning_core_arguments_are_consumed_and_cannot_be_implicitly_restored_on_failure() {
-    let mut t = body(by_name("text_from_utf8"));
-    let (position, argument) = t.functions[0].blocks[0]
-        .instructions
-        .iter()
-        .enumerate()
-        .find_map(|(n, i)| {
-            if let b::Op::CoreCall(call) = &i.op {
-                Some((n, call.arguments[0]))
-            } else {
-                None
-            }
-        })
-        .unwrap();
-    t.functions[0].blocks[0]
-        .instructions
-        .insert(position + 1, instruction(&[], b::Op::DropValue(argument)));
-    let typed = t.verify(Default::default()).unwrap();
-    assert!(matches!(
-        o::moves::analyze(typed, Default::default())
-            .unwrap_err()
-            .kind,
-        o::moves::ErrorKind::Unavailable { .. }
-    ));
+    for name in [
+        "text_from_utf8",
+        "option_unwrap",
+        "result_unwrap",
+        "result_unwrap_err",
+    ] {
+        let (name, arity, signature) = rows().into_iter().find(|row| row.0 == name).unwrap();
+        let mut t = body(fixture(name, arity, signature, 1));
+        let (position, argument) = t.functions[0].blocks[0]
+            .instructions
+            .iter()
+            .enumerate()
+            .find_map(|(n, i)| {
+                if let b::Op::CoreCall(call) = &i.op {
+                    Some((n, call.arguments[0]))
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        t.functions[0].blocks[0]
+            .instructions
+            .insert(position + 1, instruction(&[], b::Op::DropValue(argument)));
+        let typed = t.verify(Default::default()).unwrap();
+        assert!(matches!(
+            o::moves::analyze(typed, Default::default())
+                .unwrap_err()
+                .kind,
+            o::moves::ErrorKind::Unavailable { .. }
+        ));
+    }
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! The finite RFC 0007 core operation signatures. These backend-independent
+//! The finite RFC 0007/0009 core operation signatures. These backend-independent
 //! templates describe source types and result provenance; they do not grant
 //! allocator authority, implement an operation, or establish body validity.
 
@@ -277,6 +277,9 @@ pub enum Operation {
     ArenaNew,
     ArenaRead,
     ArenaReplace,
+    OptionUnwrap,
+    ResultUnwrap,
+    ResultUnwrapErr,
 }
 
 const T: TypePattern = TypePattern::Argument(0);
@@ -298,6 +301,7 @@ const WEAK: TypePattern = TypePattern::Weak(&T);
 const ARENA: TypePattern = TypePattern::Arena(&T);
 const OWNER: TypePattern = TypePattern::ArenaOwner;
 const ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Storable];
+const TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Storable; 2];
 const SHARED_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::SharedPayload];
 const MAP_TWO: &[TypeArgumentRule] = &[TypeArgumentRule::MapKey, TypeArgumentRule::Storable];
 
@@ -315,7 +319,7 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 37] = [
         Self::Allocator,
         Self::TextFromUtf8,
         Self::TextClone,
@@ -350,6 +354,9 @@ impl Operation {
         Self::ArenaNew,
         Self::ArenaRead,
         Self::ArenaReplace,
+        Self::OptionUnwrap,
+        Self::ResultUnwrap,
+        Self::ResultUnwrapErr,
     ];
 
     pub const fn name(self) -> &'static str {
@@ -388,6 +395,9 @@ impl Operation {
             Self::ArenaNew => "arena_new",
             Self::ArenaRead => "arena_read",
             Self::ArenaReplace => "arena_replace",
+            Self::OptionUnwrap => "option_unwrap",
+            Self::ResultUnwrap => "result_unwrap",
+            Self::ResultUnwrapErr => "result_unwrap_err",
         }
     }
 
@@ -401,6 +411,9 @@ impl Operation {
         use LoanKind::{Exclusive as M, Shared as S};
         use TypePattern as P;
         let mut sig = match self {
+            Self::OptionUnwrap => signature(ONE, &[P::Option(&T)], T),
+            Self::ResultUnwrap => signature(TWO, &[P::Result(&T, &V)], T),
+            Self::ResultUnwrapErr => signature(TWO, &[P::Result(&T, &V)], V),
             Self::Allocator => signature(&[], &[], P::Loan(S, &ALLOCATOR)),
             Self::TextFromUtf8 => signature(&[], &[BYTES], P::Result(&TEXT, &UTF8_ERROR)),
             Self::TextClone => signature(
