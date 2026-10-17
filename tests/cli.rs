@@ -44,6 +44,26 @@ fn whole_option_and_result_ownership_extraction_runs_from_source() {
 }
 
 #[test]
+fn bytes_mutation_and_utf8_conversion_run_from_source() {
+    for (source, expected) in [
+        (
+            include_str!("../examples/analysis/extraction.lang"),
+            b"1\n".as_slice(),
+        ),
+        (
+            include_str!("../examples/scripts/utf8.lang"),
+            b"3\n".as_slice(),
+        ),
+    ] {
+        let files = Files::new(source);
+        let output = run(&files, &[]);
+        assert!(output.status.success(), "{}", stderr(&output));
+        assert_eq!(output.stdout, expected);
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
 fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
     let text = b"fn f(x: &i64) -> i64 { return 0; }";
     let mut limits = CompileLimits::default();

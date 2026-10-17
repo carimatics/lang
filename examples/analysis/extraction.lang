@@ -1,4 +1,4 @@
-// RFC 0009 analysis fixture; Bytes push execution still requires M2-V04.
+// RFC 0009 whole-owner extraction followed by source Bytes mutation.
 fn main() -> i64 {
     let mut made: core::Result<core::Bytes, core::AllocError> =
         core::bytes_new(core::allocator());

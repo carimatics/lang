@@ -11,6 +11,8 @@ use std::{cell::RefCell, path::Path, rc::Rc, time::Instant};
 
 const SOURCE: &str = include_str!("../examples/scripts/bytes.lang");
 const OWNED_SOURCE: &str = include_str!("../examples/scripts/owned_bytes.lang");
+const UTF8_SOURCE: &str = include_str!("../examples/scripts/utf8.lang");
+const MUTATION_SOURCE: &str = include_str!("../examples/analysis/extraction.lang");
 fn checked(source: &str) -> Box<OwnershipProgram> {
     let analysis = frontend::analyze_virtual(
         SourceMap::new(),
@@ -35,7 +37,10 @@ struct Trace {
     requests: Vec<a::Request>,
     released: Vec<a::Request>,
     deny_buffer: bool,
+    deny_growth: bool,
     fail_at: usize,
+    interrupt_growth: Option<Rc<InterruptionFlag>>,
+    interrupt_release: Option<Rc<InterruptionFlag>>,
 }
 struct Provider(Rc<RefCell<Trace>>);
 impl a::Provider for Provider {
@@ -43,14 +48,28 @@ impl a::Provider for Provider {
     fn allocate(&mut self, request: a::Request) -> Option<a::Storage> {
         let mut trace = self.0.borrow_mut();
         trace.requests.push(request);
-        if (trace.deny_buffer && request.bytes() == 24) || trace.fail_at == trace.requests.len() {
+        if (trace.deny_buffer && request.bytes() == 24)
+            || (trace.deny_growth && request.bytes() == 25)
+            || trace.fail_at == trace.requests.len()
+        {
             None
         } else {
+            if request.bytes() == 25
+                && let Some(flag) = &trace.interrupt_growth
+            {
+                flag.interrupt();
+            }
             a::Storage::try_new(request).ok()
         }
     }
     fn deallocate(&mut self, _: a::Storage, request: a::Request) {
-        self.0.borrow_mut().released.push(request);
+        let mut trace = self.0.borrow_mut();
+        trace.released.push(request);
+        if request.bytes() == 25
+            && let Some(flag) = &trace.interrupt_release
+        {
+            flag.interrupt();
+        }
     }
 }
 fn allocator() -> (a::Allocator<Provider>, Rc<RefCell<Trace>>) {
@@ -67,6 +86,332 @@ fn allocator() -> (a::Allocator<Provider>, Rc<RefCell<Trace>>) {
 }
 fn control() -> Control<'static> {
     Control::with_limits(Limits::default())
+}
+
+fn bytes_program(pushes: &[i64], tail: &str) -> String {
+    let mut source = "fn main() -> i64 { let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));".to_owned();
+    for (i, byte) in pushes.iter().enumerate() {
+        source.push_str(&format!("let mut p{i}: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, {byte}));"));
+    }
+    source.push_str(tail);
+    source.push('}');
+    source
+}
+const INVALID_UTF8: &str = "match core::text_from_utf8(bytes) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::Utf8Error::Invalid(offset)) => { return offset; }, }";
+
+#[test]
+fn mutation_and_utf8_reuse_the_grown_buffer_without_conversion_allocation() {
+    let program = checked(UTF8_SOURCE);
+    let typed = program.mir().activity().moved().typed();
+    let layouts = lang_runtime::layout::Layouts::compile(
+        typed.places().declarations().types(),
+        Default::default(),
+    )
+    .unwrap();
+    let plan = lang_runtime::layout::FramePlan::compile(
+        &layouts,
+        typed,
+        lang_mir::unit::FunctionId(0),
+        Default::default(),
+        usize::MAX,
+    )
+    .unwrap();
+    let admitted: Vec<_> = plan
+        .requests()
+        .iter()
+        .copied()
+        .filter(|r| r.bytes() != 0)
+        .collect();
+    let (mut allocator, trace) = allocator();
+    let mut instance = c::Instance::default();
+    let outcome = vm::execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 3);
+    let trace = trace.borrow();
+    assert_eq!(&trace.requests[..admitted.len()], admitted.as_slice());
+    assert_eq!(
+        trace.requests[admitted.len()..]
+            .iter()
+            .map(|r| r.bytes())
+            .collect::<Vec<_>>(),
+        [24, 25, 26, 28]
+    );
+    assert_eq!(
+        outcome.allocations.requests as usize,
+        plan.requests().len() + 4
+    );
+    assert_eq!(trace.requests.len(), trace.released.len());
+    assert_eq!(outcome.allocations.live_allocations, 0);
+    assert!(!instance.is_poisoned());
+}
+
+#[test]
+fn bytes_domain_errors_preserve_storage_and_follow_index_before_byte_validation() {
+    for (pushes, tail, expected) in [
+        (
+            &[][..],
+            "match core::bytes_get(bytes, -1) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::BoundsError::OutOfBounds) => { return core::bytes_len(bytes); }, }",
+            0,
+        ),
+        (
+            &[65][..],
+            "match core::bytes_get(bytes, 9223372036854775807) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::BoundsError::OutOfBounds) => { return core::bytes_len(bytes); }, }",
+            1,
+        ),
+        (
+            &[][..],
+            "match core::bytes_push(bytes, -1) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::BufferError::InvalidByte) => { return core::bytes_len(bytes); }, core::Result::Err(_) => { return -2; }, }",
+            0,
+        ),
+        (
+            &[][..],
+            "match core::bytes_push(bytes, 256) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::BufferError::InvalidByte) => { return core::bytes_len(bytes); }, core::Result::Err(_) => { return -2; }, }",
+            0,
+        ),
+        (
+            &[][..],
+            "match core::bytes_set(bytes, 0, 256) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::BufferError::Bounds) => { return core::bytes_len(bytes); }, core::Result::Err(_) => { return -2; }, }",
+            0,
+        ),
+        (
+            &[65][..],
+            "match core::bytes_set(bytes, 0, 256) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::BufferError::InvalidByte) => { return core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(bytes, 0)); }, core::Result::Err(_) => { return -2; }, }",
+            65,
+        ),
+        (
+            &[65][..],
+            "match core::bytes_set(bytes, -1, 0) { core::Result::Ok(_) => { return -1; }, core::Result::Err(core::BufferError::Bounds) => { return core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(bytes, 0)); }, core::Result::Err(_) => { return -2; }, }",
+            65,
+        ),
+        (
+            &[65][..],
+            "let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_set(bytes, 0, 255)); return core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(bytes, 0));",
+            255,
+        ),
+    ] {
+        let program = checked(&bytes_program(pushes, tail));
+        let (mut allocator, trace) = allocator();
+        let mut instance = c::Instance::default();
+        assert_eq!(
+            vm::execute_entry(
+                program.failure_flow(),
+                &mut instance,
+                Some(&mut allocator),
+                control()
+            )
+            .unwrap()
+            .value,
+            expected
+        );
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+        assert!(!instance.is_poisoned());
+    }
+}
+
+#[test]
+fn grow_oom_and_allocation_limits_are_typed_and_preserve_the_original_owner() {
+    for limit in [false, true] {
+        let error = if limit { "Limit" } else { "OutOfMemory" };
+        let source = bytes_program(
+            &[],
+            &format!(
+                "match core::bytes_push(bytes, 65) {{ core::Result::Ok(_) => {{ return -1; }}, core::Result::Err(core::BufferError::Allocation(core::AllocError::{error})) => {{ return core::bytes_len(bytes); }}, core::Result::Err(_) => {{ return -2; }}, }}"
+            ),
+        );
+        let program = checked(&source);
+        let typed = program.mir().activity().moved().typed();
+        let layouts = lang_runtime::layout::Layouts::compile(
+            typed.places().declarations().types(),
+            Default::default(),
+        )
+        .unwrap();
+        let plan = lang_runtime::layout::FramePlan::compile(
+            &layouts,
+            typed,
+            lang_mir::unit::FunctionId(0),
+            Default::default(),
+            usize::MAX,
+        )
+        .unwrap();
+        let budget = plan.requests().iter().map(|r| r.bytes()).sum::<u64>() + 24;
+        let trace = Rc::new(RefCell::new(Trace {
+            deny_growth: !limit,
+            ..Default::default()
+        }));
+        let mut allocator = a::Allocator::new(
+            Provider(Rc::clone(&trace)),
+            a::Limits {
+                cumulative_bytes: if limit {
+                    budget
+                } else {
+                    a::Limits::default().cumulative_bytes
+                },
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut instance = c::Instance::default();
+        assert_eq!(
+            vm::execute_entry(
+                program.failure_flow(),
+                &mut instance,
+                Some(&mut allocator),
+                control()
+            )
+            .unwrap()
+            .value,
+            0
+        );
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert_eq!(
+            trace.borrow().requests.len(),
+            trace.borrow().released.len() + usize::from(!limit)
+        );
+        assert_eq!(
+            trace
+                .borrow()
+                .requests
+                .iter()
+                .filter(|r| r.bytes() == 25)
+                .count(),
+            usize::from(!limit)
+        );
+        assert!(!instance.is_poisoned());
+    }
+}
+
+#[test]
+fn valid_utf8_preserves_empty_and_embedded_zero_byte_lengths() {
+    for data in [&[][..], &[0][..], &[65, 0, 66][..]] {
+        let source = bytes_program(
+            data,
+            "let mut text: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes)); return core::text_len(text);",
+        );
+        let program = checked(&source);
+        let (mut allocator, trace) = allocator();
+        assert_eq!(
+            vm::execute_entry(
+                program.failure_flow(),
+                &mut c::Instance::default(),
+                Some(&mut allocator),
+                control()
+            )
+            .unwrap()
+            .value,
+            data.len() as i64
+        );
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+    }
+}
+
+#[test]
+fn conversion_loops_recycle_both_success_and_error_results_before_fuel_exit() {
+    for byte in [None, Some(65), Some(255)] {
+        let push = byte.map_or(String::new(), |value| format!("let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, {value}));"));
+        let source = format!(
+            "fn main() -> i64 {{ let mut running: bool = true; while running {{ let mut copied: core::Option<i64> = core::Option::Some(0); let mut seen: i64 = core::option_unwrap::<i64>(copied); let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())); {push} let mut converted: core::Result<core::Text, core::Utf8Error> = core::text_from_utf8(bytes); }} return 0; }}"
+        );
+        let program = checked(&source);
+        let (mut allocator, trace) = allocator();
+        let mut instance = c::Instance::default();
+        let error = vm::execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            Control::with_limits(Limits {
+                fuel: Some(200),
+                ..Default::default()
+            }),
+        )
+        .err()
+        .unwrap();
+        assert!(
+            matches!(
+                error.reason,
+                vm::Reason::Execution(c::FailureKind::Execution(ExecutionFailure::FuelLimit))
+            ),
+            "byte={byte:?}: {error:?}"
+        );
+        assert!(
+            trace
+                .borrow()
+                .requests
+                .iter()
+                .filter(|r| r.bytes() == 24)
+                .count()
+                > 1
+        );
+        assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert!(!instance.is_poisoned());
+    }
+}
+
+#[test]
+fn utf8_errors_keep_the_first_invalid_offset_and_consume_the_source_buffer() {
+    for (data, expected) in [(&[65, 255][..], 1), (&[227, 129][..], 0), (&[128][..], 0)] {
+        let program = checked(&bytes_program(data, INVALID_UTF8));
+        let (mut allocator, trace) = allocator();
+        let mut instance = c::Instance::default();
+        assert_eq!(
+            vm::execute_entry(
+                program.failure_flow(),
+                &mut instance,
+                Some(&mut allocator),
+                control()
+            )
+            .unwrap()
+            .value,
+            expected
+        );
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+        assert!(!instance.is_poisoned());
+    }
+}
+
+#[test]
+fn interruption_after_growth_or_conversion_release_cleans_current_handles() {
+    for conversion in [false, true] {
+        let source = if conversion {
+            bytes_program(&[255], INVALID_UTF8)
+        } else {
+            bytes_program(&[65], "return core::bytes_len(bytes);")
+        };
+        let program = checked(&source);
+        let flag = Rc::new(InterruptionFlag::new());
+        let (mut allocator, trace) = allocator();
+        if conversion {
+            trace.borrow_mut().interrupt_release = Some(Rc::clone(&flag));
+        } else {
+            trace.borrow_mut().interrupt_growth = Some(Rc::clone(&flag));
+        }
+        let mut instance = c::Instance::default();
+        let error = vm::execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            control().and_interruption(&flag),
+        )
+        .err()
+        .unwrap();
+        assert!(flag.is_interrupted());
+        assert!(matches!(
+            error.reason,
+            vm::Reason::Execution(c::FailureKind::Execution(ExecutionFailure::Interrupted))
+        ));
+        assert!(error.report.unwrap().secondary().is_empty());
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+        assert!(!instance.is_poisoned());
+    }
 }
 
 #[test]
@@ -438,18 +783,23 @@ fn source_handles_bytes_oom_as_typed_err_without_allocating_an_error_result() {
 
 #[test]
 fn every_fuel_prefix_cleans_source_owners_and_ends_loans_without_poisoning() {
-    for source in [SOURCE, OWNED_SOURCE] {
-        let program = checked(source);
+    for source in [
+        SOURCE.to_owned(),
+        OWNED_SOURCE.to_owned(),
+        UTF8_SOURCE.to_owned(),
+        MUTATION_SOURCE.to_owned(),
+        bytes_program(&[65, 255], INVALID_UTF8),
+    ] {
+        let program = checked(&source);
         let (mut baseline, _) = allocator();
-        let fuel = vm::execute_entry(
+        let baseline = vm::execute_entry(
             program.failure_flow(),
             &mut c::Instance::default(),
             Some(&mut baseline),
             control(),
         )
-        .unwrap()
-        .usage
-        .fuel;
+        .unwrap();
+        let fuel = baseline.usage.fuel;
         for available in 0..=fuel {
             let (mut allocator, trace) = allocator();
             let mut instance = c::Instance::default();
@@ -478,7 +828,7 @@ fn every_fuel_prefix_cleans_source_owners_and_ends_loans_without_poisoning() {
                     .text;
                 assert!(text.get(span.start as usize..span.end as usize).is_some());
             } else {
-                assert_eq!(result.unwrap().value, 0);
+                assert_eq!(result.unwrap().value, baseline.value);
             }
             assert!(!instance.is_poisoned());
             assert_eq!(allocator.stats().live_allocations, 0);
@@ -497,12 +847,12 @@ fn unsupported_core_operations_are_rejected_before_earlier_source_allocations() 
             "vec_new",
         ),
         (
-            "let mut later: core::Result<core::Text, core::Utf8Error> = core::text_from_utf8(core::result_unwrap::<core::Bytes, core::AllocError>(first));",
-            Some(Operation::TextFromUtf8),
-            "text_from_utf8",
+            "let mut converted: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(core::result_unwrap::<core::Bytes, core::AllocError>(first))); let mut later: core::Result<core::Text, core::AllocError> = core::text_clone(core::allocator(), converted);",
+            Some(Operation::TextClone),
+            "text_clone",
         ),
         (
-            "let mut later: core::Option<core::Text> = core::Option::None;",
+            "let mut later: core::Option<core::Vec<i64>> = core::Option::None;",
             None,
             "Option::None",
         ),

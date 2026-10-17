@@ -14,7 +14,7 @@
 
 ## Summary
 
-Extend RFC 0007's finite core catalog with three explicit operations that take an entire Option/Result by value. A matching case returns its entire payload; the other case raises a guest panic with RFC 0008 cleanup. Existing borrowed matching and the prohibition on partial moves remain unchanged. Source/MIR analysis and an initial Bytes/Copy VM profile are implemented; broader payloads, REPL and native execution remain pending. Acceptance is separate from implementation completion and stabilization.
+Extend RFC 0007's finite core catalog with three explicit operations that take an entire Option/Result by value. A matching case returns its entire payload; the other case raises a guest panic with RFC 0008 cleanup. Existing borrowed matching and the prohibition on partial moves remain unchanged. Source/MIR analysis and an initial Bytes/Text/Copy VM profile are implemented; broader payloads, REPL and native execution remain pending. Acceptance is separate from implementation completion and stabilization.
 
 | Operation | Signature | Expected case | Other-case panic code |
 | --- | --- | --- | ---: |
@@ -66,7 +66,7 @@ fn main() -> i64 {
 }
 ```
 
-The intended successful result is `1`. This example becomes executable only when extraction and Bytes push dispatch are implemented. An unguarded unwrap is legal and checks its case at runtime; a compiler need not prove the preceding match. To recover an owning Err, handle Ok in a borrowed match and then call `result_unwrap_err` on the whole Result. A caller may instead return the whole Result without extraction. No automatic propagation or conversion is inserted.
+The successful result is `1`; this example executes in the V04 profile. An unguarded unwrap is legal and checks its case at runtime; a compiler need not prove the preceding match. To recover an owning Err, handle Ok in a borrowed match and then call `result_unwrap_err` on the whole Result. A caller may instead return the whole Result without extraction. No automatic propagation or conversion is inserted.
 
 ## Reference semantics
 
@@ -149,7 +149,7 @@ Untrusted MIR/artifacts cannot assert an expected tag, forge a payload type, dup
 
 Decision: **accepted under experimental delegation on 2026-10-18 JST**. The review finds a concrete reproduced blocker, an additive finite API using existing syntax/ownership rules, explicit panic/cleanup semantics, and bounded compiler/runtime slices consistent with RFCs 0007/0008. No blocking design question remains for this scope; no individual owner approval is queued.
 
-Partial implementation verified 2026-10-18 JST: S02 adds all three source signatures and independently checked MIR calls, including move/loan checks and selected-payload region propagation. S03 executes all three operations and finite Option/Result construction for Bytes/Copy payloads, preserves panic codes/spans and cleans failure paths. [The owned Bytes fixture](../../examples/scripts/owned_bytes.lang) prints `0` without transfer allocation. The full guide fixture still needs Bytes push dispatch (V04). Nested non-Copy source aggregates, other owning payloads, REPL and native conformance retain their implementation gates.
+Partial implementation verified 2026-10-18 JST: S02 adds all three source signatures and independently checked MIR calls, including move/loan checks and selected-payload region propagation. S03 executes the Bytes/Copy operations and preserves panic codes/spans and failure cleanup. [The owned Bytes fixture](../../examples/scripts/owned_bytes.lang) prints `0` without transfer allocation. V04 adds Text payloads, byte mutation/conversion and Copy result-cell reuse in loops; [the guide fixture](../../examples/analysis/extraction.lang) prints `1` and [the UTF-8 fixture](../../examples/scripts/utf8.lang) prints byte length `3`. Nested non-Copy source aggregates, remaining owning adapters, REPL and native conformance retain their implementation gates.
 
 Unverified assumptions: guard-then-unwrap ergonomics are sufficient for early source workloads, and all future supported payload adapters can transfer with admitted metadata. Current tests cover real Bytes, Copy values, nested managed order/span transfer and failure cleanup; they do not establish every source payload/mode. Expose newly discovered work before expanding a slice, and retain gates for unsupported payloads/modes. A later general consuming match is a separate design decision, not implicit permission to change borrowed matching.
 

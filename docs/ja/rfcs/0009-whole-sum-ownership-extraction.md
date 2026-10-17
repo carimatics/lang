@@ -14,7 +14,7 @@
 
 ## 概要
 
-RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。Source／MIR解析と初期Bytes／Copy VM profileは実装済みで、広いpayload、REPL、native実行は未完了です。Acceptanceと実装完了／stabilizationは別に扱います。
+RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。Source／MIR解析と初期Bytes／Text／Copy VM profileは実装済みで、広いpayload、REPL、native実行は未完了です。Acceptanceと実装完了／stabilizationは別に扱います。
 
 | 操作 | Signature | 期待するcase | 別caseのpanic code |
 | --- | --- | --- | ---: |
@@ -66,7 +66,7 @@ fn main() -> i64 {
 }
 ```
 
-意図する成功時の結果は `1` です。取り出しとBytes push dispatchを実装して初めて実行できます。Guardなしのunwrapも合法で、runtimeにcaseを確認します。Compilerに先行matchの証明は要求しません。Owned Errを回復可能な形で取り出すには、borrowed matchでOkを処理してからResult全体へ `result_unwrap_err` を呼びます。取り出さずResult全体をreturnすることもできます。自動伝播／変換は挿入しません。
+成功時の結果は `1` で、V04 profileで実行できます。Guardなしのunwrapも合法で、runtimeにcaseを確認します。Compilerに先行matchの証明は要求しません。Owned Errを回復可能な形で取り出すには、borrowed matchでOkを処理してからResult全体へ `result_unwrap_err` を呼びます。取り出さずResult全体をreturnすることもできます。自動伝播／変換は挿入しません。
 
 ## 厳密な意味論
 
@@ -149,7 +149,7 @@ Untrusted MIR／artifactがintrinsic名を使って、期待tagの断定、paylo
 
 Decision：**2026-10-18 JSTに実験段階の委任に基づきaccepted**。再現済みの具体的blocker、既存構文／ownership規則を使う追加的で有限なAPI、明示panic／cleanup意味論、RFC 0007／0008に整合する上限付きcompiler／runtime sliceがあるとreviewで判断しました。このscopeのblocking design questionはなく、個別owner approval待ちにはしません。
 
-2026-10-18 JST確認の部分実装：S02でsource signature 3種類と独立検証済みMIR callを追加し、move／loan検査と選択payloadのregion伝播も確認しました。S03ではBytes／Copy payloadの3操作と有限Option／Result構築を実行し、panic code／spanとfailure cleanupを維持します。[Owned Bytes fixture](../../../examples/scripts/owned_bytes.lang) はtransfer allocationなしで `0` を表示します。Guide全体のfixtureはBytes push dispatch（V04）が未対応です。入れ子non-Copy source aggregate、他owning payload、REPL、native conformanceは実装gateを維持します。
+2026-10-18 JST確認の部分実装：S02でsource signature 3種類と独立検証済みMIR callを追加し、move／loan検査と選択payloadのregion伝播も確認しました。S03ではBytes／Copy操作を実行し、panic code／spanとfailure cleanupを維持します。[Owned Bytes fixture](../../../examples/scripts/owned_bytes.lang) はtransfer allocationなしで `0` を表示します。V04でText payload、byte変更／変換、loopでのCopy結果cell再利用を追加し、[guide fixture](../../../examples/analysis/extraction.lang) は `1`、[UTF-8 fixture](../../../examples/scripts/utf8.lang) はbyte長の `3` を表示します。入れ子non-Copy source aggregate、残りowning adapter、REPL、native conformanceは実装gateを維持します。
 
 未検証の仮説：guard後unwrapのergonomicsが初期source workloadに十分なこと、今後対応する全payload adapterをadmission済みmetadataで移譲できること。現testは実際のBytes、Copy value、managedな入れ子の順序／span移譲とfailure cleanupを扱い、全source payload／modeを証明しません。新作業はslice拡大前に明示し、未対応payload／modeのgateを維持します。将来の汎用的な消費matchは別の設計判断であり、borrowed matchを暗黙変更する許可ではありません。
 

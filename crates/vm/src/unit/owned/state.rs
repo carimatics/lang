@@ -1,6 +1,8 @@
 use super::*;
 use o::places::{Place, ProjectionKind, Root};
 
+mod buffers;
+
 #[derive(Clone, Copy)]
 pub(super) enum Target {
     Allocator,
@@ -258,7 +260,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         destination: usize,
         contract: o::core::Extraction,
     ) -> Step<()> {
-        if self.cells[destination].live {
+        if self.cells[destination].live && !self.is_copy(destination) {
             return Err(c::ExecutionFailure::Invariant);
         }
         let root = self.root(source)?;
@@ -293,7 +295,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         payload: Option<usize>,
         span: m::Span,
     ) -> Step<()> {
-        if self.cells[destination].live {
+        if self.cells[destination].live && !self.is_copy(destination) {
             return Err(c::ExecutionFailure::Invariant);
         }
         if let Some(source) = payload {

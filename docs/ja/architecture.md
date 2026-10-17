@@ -333,7 +333,7 @@ Move解析はoperationがfailureを返す場合もowning inputを消費します
 
 Region解析は選択payloadの構造付きprovenanceをprojectし、消去したり無関係なcase payloadを収集したりしません。入れ子sum経由でもarena brandと既存escape制約を維持します。自動loweringはcall spanを保持し、独立MIRのtype、move、activity、provenance、failure-flow検証を通ります。MIRは各取り出しの期待caseと固定guest-panic codeを記録し、serialized tagやbackend型は追加しません。独立MIR arena-effect verifierは別の必須taskとして残します。
 
-Source 6 testでowning result 3種類、guard付きallocationから変更までの解析、Copy／non-Copy再利用、名前付きloan、partial move、branch／loop、厳密signature、禁止／provisional loan、同一region readとtransitive escapeを検証します。独立signature oracle、不正MIR／消費済みinput test、formatter fixtureにも追加しました。既存foreign-HIR／ownership-MIR fuzz generatorはoperation catalog全体から選ぶため、新wire formatなしで新操作にも到達します。S02時点ではVMが取り出しをeffect前に拒否していましたが、後述の実行profileでBytes／Copy取り出しに対応しました。他payload adapter、REPL、native dispatchはgateを維持し、`lang check` の成功だけでは実行可能性を証明しません。
+Source 6 testでowning result 3種類、guard付きallocationから変更までの解析、Copy／non-Copy再利用、名前付きloan、partial move、branch／loop、厳密signature、禁止／provisional loan、同一region readとtransitive escapeを検証します。独立signature oracle、不正MIR／消費済みinput test、formatter fixtureにも追加しました。既存foreign-HIR／ownership-MIR fuzz generatorはoperation catalog全体から選ぶため、新wire formatなしで新操作にも到達します。S02時点ではVMが取り出しをeffect前に拒否していましたが、後述の実行profileでBytes／Text／Copy取り出しに対応しました。他payload adapter、REPL、native dispatchはgateを維持し、`lang check` の成功だけでは実行可能性を証明しません。
 
 出典：[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)、[source／MIR解析test](../../crates/semantics/tests/sum_extraction.rs)、[MIR契約／test](../../crates/mir/tests/ownership_core.rs)、[preflight回帰](../../tests/owned_execution.rs)。2026-10-18 JST更新／確認。
 
@@ -459,7 +459,7 @@ Fixtureのtokenはhost test registryで実際のshared ownerへ解決します�
 
 実装／検証日：2026-10-18 JST。`lang_vm::unit::owned::execute_entry` は独立にloan検査済みownership MIRから作られた既存failure CFGを実行します。CLIは `fn main() -> i64` を持つownership programにこの経路を選び、明示的なbudget付きinstance allocatorを供給します。[Bytes script](../../examples/scripts/bytes.lang) はBytesを生成してResultをmatchし、shared loanで長さを読み、ownerをcleanupして `0` を表示します。従来のownership解析exampleも実行できます。REPLとnative compileはCopy境界を維持し、ownership bytecode encodingは未実装のままです。
 
-V03の初期対応命令はscalar定数／算術／比較、Copy／whole-value moveとlocal初期化、shared ordinary loan、Result case検査／view、生成cleanup、allocator／Bytes-new／Bytes-lenのcore callでした。後述のS03で有限sumの構築／取り出しを追加しました。Entryの到達可能CFG内にある未対応命令は、allocationの後に書かれていてもprovider callback前に拒否します。Guest call、block argument、任意aggregate constructor、事前評価した代入先、exclusive loan、残りcore命令は後続taskです。実行は選択したentry functionだけで行い、source解析はprogram全体を検査します。
+V03の初期対応命令はscalar定数／算術／比較、Copy／whole-value moveとlocal初期化、shared ordinary loan、Result case検査／view、生成cleanup、allocator／Bytes-new／Bytes-lenのcore callでした。後述のS03／V04で有限sumの構築／取り出しと、exclusive loanによるbyte変更／変換を追加しました。Entryの到達可能CFG内にある未対応命令は、allocationの後に書かれていてもprovider callback前に拒否します。Guest call、block argument、任意aggregate constructor、事前評価した代入先、残りcore命令は後続taskです。実行は選択したentry functionだけで行い、source解析はprogram全体を検査します。
 
 Host slot／逆map、loan generation、cleanup／report poolは上限付きでguest entry前に予約します。`FramePlan::reserve_after` でそれらの累積準備使用量を再開します。Drop不要のloan valueも含む全非Copy cellを初期化ledgerで扱い、moveはownerを複製せず同等型のphysical storageを交換します。Private loan tokenでactive generation、liveな参照先、pointee型を検査し、raw address権限は与えません。Copy layout transferはCopy分類、型、範囲を追加確保なしで検証します。Buffer readは元のownerをcellへ保持したままservice tokenを検証します。
 
@@ -480,6 +480,20 @@ Host slot／逆map、loan generation、cleanup／report poolは上限付きでgu
 実行suiteは13 testとなり、従来fixtureへadmission＋buffer 1個だけの厳密allocation数、全admission OOM prefix、panic code／span 3種類とinstance再利用、Copy sum、sum cell反復再利用を追加しました。全fuel prefixも新scriptを扱います。Managed test 2件では実際のBytesを入れ子構造へpack／unpackし、記述した初期化順の逆順とspanを保持し、不正／未初期化transferがownerを失わず拒否され、元のpanicと順序付きsecondary cleanup failure／poisonが維持されることを確認します。CLI回帰も新scriptを実行します。このprofileとmanaged移譲の接続点の証明であり、任意source aggregateやcross-mode conformanceの証明ではありません。
 
 出典：[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)、[managed移譲](../../crates/runtime/src/layout/storage/transfer.rs)、[VM dispatch／state](../../crates/vm/src/unit/owned.rs)、[実行test](../../tests/owned_execution.rs)、[managed test](../../crates/runtime/tests/managed_values.rs)、[script](../../examples/scripts/owned_bytes.lang)。2026-10-18 JST更新／確認。最初のdev checkはFreshと判定された古いMIR metadata artifactを選び、生成済み `lang-mir` artifactだけの再構築でAPI未検出を解消しました。Source側の回避策は追加していません。
+
+### Sourceのbyte変更とUTF-8変換
+
+2026-10-18 JST実装／確認：V04は受理済みcore signatureでBytes get／set／push、所有権を消費するUTF-8変換、Text byte長、通常のexclusive byte loanを実行します。[従来の取り出し／変更fixture](../../examples/analysis/extraction.lang) は `1` を表示し、[UTF-8 script](../../examples/scripts/utf8.lang) はpush／set／getでU+3042を構築し、storageをTextへ移譲してbyte長の `3` を表示します。Text payloadも有限sum構築／取り出しgateを通ります。残りText allocation操作、collection、一般source aggregate、guest call、REPL、native実行は各taskに残します。
+
+Loan generation、live owner、pointeeの検査でtargetを解決し、このprofileのshared／exclusive permissionと非alias性は独立検証済みMIRで証明します。変更操作はprivateなservice-token snapshotを使い、次のguest failure／control boundary前に最新tokenをloan元ownerへ戻します。Growでheap handleが変わる場合に必要です。Structured bounds／invalid-byte／allocation errorではownerと既存内容を保持し、setはbuffer serviceのindex確認がbyte確認より先という順序を維持します。
+
+UTF-8変換は成功／typed UTF-8 errorの両方でflatなBytes入力を消費し、frame tokenをclearしてledger obligationを移譲／解消します。成功時はallocation／allocator identityを保持し、不正入力は解放して最初の不正byte offsetを返します。Buffer preflight faultでは入力をfailure cleanup用に保持します。Resultのdata／order／report storageは実行前にadmission済みで、変換／result publicationで新guest regionを確保しません。Text長はNULを含むbyte数であり、scalar／grapheme数ではありません。
+
+追加loop回帰で、2回目の定義時にliveなCopy結果cellを拒否する既存VM制約が判明しました。Constructor／取り出し先はCopyの上書きを許し、affine valueでは空destinationを引き続き要求します。空／正常／不正変換loopとCopy sum構築／取り出しの反復で、漏れやpoisonなしに指定fuel exitへ到達します。
+
+VM実行suiteは20 test、CLI suiteは24 testです。Frame＋buffer／growthの厳密request、変換時の新規確保なし、負／最大boundsとinvalid-byte precedence、grow OOM／quota error、空／NUL／multibyte UTF-8と不正offset、cell反復再利用、5つのsource fixtureの全fuel prefix、growth／変換解放直後のinterruptionを確認しました。Wrapper modelだけでなく実際の最新handle／owner cleanupを検証します。Native、ownership wire、fuzz campaignの結果は主張しません。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST最終更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST）、[buffer service](../../crates/runtime/src/buffer.rs)、[VM buffer adapter](../../crates/vm/src/unit/owned/state/buffers.rs)、[実行test](../../tests/owned_execution.rs)、[CLI test](../../tests/cli.rs)、[UTF-8 script](../../examples/scripts/utf8.lang)。Service／adapter／test／scriptは2026-10-18 JST更新／確認。
 
 ### Owned frame storageの受け入れ
 

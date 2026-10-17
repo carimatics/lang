@@ -65,11 +65,15 @@ cargo run -- check examples/analysis/extraction.lang
 cargo run -- run examples/scripts/answer.lang
 cargo run -- run examples/scripts/bytes.lang
 cargo run -- run examples/scripts/owned_bytes.lang
+cargo run -- run examples/analysis/extraction.lang
+cargo run -- run examples/scripts/utf8.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
-`check` はCopyまたはRFC 0007／0009 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。`run` はCopy profileと、`core::allocator()`、Bytes new／len、borrowed match、shared loan、Bytes／Copy valueの有限Option／Result構築とwhole-payload取り出し、cleanupを扱う初期ownership profileに対応します。Answer scriptは `42`、Bytes script 2つはstorage解放後に `0` を出力します。取り出しはcaseを確認し、不一致ならsource位置付きguest panicを報告します。未対応命令／payloadはpreflightで拒否します。Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応し、REPLは引き続きCopy専用です。CLIはhost importを登録せず、owned実行instanceにはbudget付きallocatorを明示的に供給します。検証日：2026-10-18 JST。
+`check` はCopyまたはRFC 0007／0009 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。`run` はCopy profileと、allocator authority、Bytes new／len／get／set／push、所有権を消費するUTF-8変換とText byte長、有限Bytes／Text／Copy Option／Result構築・取り出し、lexical loan、cleanupを扱う初期ownership profileに対応します。Answer scriptは `42`、`bytes.lang`／`owned_bytes.lang` は `0`、取り出し／変更exampleは `1`、`utf8.lang` はbyte長の `3` を表示します。表示前にstorageを解放します。取り出しはcaseを確認し、不一致ならsource位置付きguest panicを報告します。未対応命令／payloadはpreflightで拒否します。
+
+Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応し、REPLは引き続きCopy専用です。CLIはhost importを登録せず、owned実行instanceにはbudget付きallocatorを明示的に供給します。検証日：2026-10-18 JST。
 
 REPLは検証に成功したitem定義をcommitし、submissionごとに1つのexpressionを新しいVM counterで評価します。Scalarまたはqualified aggregate valueを表示し、複数行入力と `:reset`／`:quit` に対応します。失敗したsubmissionは以前の定義を保持し、host副作用はrollbackしません。
 

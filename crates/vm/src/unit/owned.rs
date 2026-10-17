@@ -73,8 +73,10 @@ fn payload_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
     let o::Type::Constructed(id) = ty else {
         return false;
     };
-    types.table().constructed[id.0 as usize].constructor
-        == o::Constructor::Builtin(o::Builtin::Bytes)
+    matches!(
+        types.table().constructed[id.0 as usize].constructor,
+        o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text)
+    )
 }
 fn sum_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
     let o::Type::Constructed(id) = ty else {
@@ -99,6 +101,11 @@ fn supported(op: &b::Op, types: &o::VerifiedTypes, result: Option<o::Type>) -> b
                     o::core::Operation::Allocator
                         | o::core::Operation::BytesNew
                         | o::core::Operation::BytesLen
+                        | o::core::Operation::BytesGet
+                        | o::core::Operation::BytesSet
+                        | o::core::Operation::BytesPush
+                        | o::core::Operation::TextFromUtf8
+                        | o::core::Operation::TextLen
                 )
         }
         b::Op::Variant { .. } => result.is_some_and(|ty| sum_supported(types, ty)),
@@ -121,10 +128,7 @@ fn supported(op: &b::Op, types: &o::VerifiedTypes, result: Option<o::Type>) -> b
         | b::Op::IsCase { .. }
         | b::Op::CopyCaseField { .. }
         | b::Op::BorrowCaseField { .. }
-        | b::Op::Borrow {
-            kind: o::LoanKind::Shared,
-            ..
-        } => true,
+        | b::Op::Borrow { .. } => true,
         b::Op::Cleanup(cleanup) => !cleanup
             .steps
             .iter()
@@ -724,6 +728,47 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 shared
                     .borrow_mut()
                     .write(result()?, l::Immediate::I64(len))?;
+            }
+            o::core::Operation::TextLen => {
+                let len = shared.borrow().text_len(value(call.arguments[0]))?;
+                shared
+                    .borrow_mut()
+                    .write(result()?, l::Immediate::I64(len))?;
+            }
+            op @ (o::core::Operation::BytesGet
+            | o::core::Operation::BytesSet
+            | o::core::Operation::BytesPush) => {
+                let mut state = shared.borrow_mut();
+                let l::Immediate::I64(first) = state.read(state.root(value(call.arguments[1]))?)?
+                else {
+                    return Err(c::ExecutionFailure::Invariant);
+                };
+                let reference = value(call.arguments[0]);
+                let destination = result()?;
+                match op {
+                    o::core::Operation::BytesGet => {
+                        state.bytes_get(reference, first, destination, span)?
+                    }
+                    o::core::Operation::BytesPush => {
+                        state.bytes_push(reference, first, destination, span)?
+                    }
+                    _ => {
+                        let l::Immediate::I64(byte) =
+                            state.read(state.root(value(call.arguments[2]))?)?
+                        else {
+                            return Err(c::ExecutionFailure::Invariant);
+                        };
+                        state.bytes_set(reference, first, byte, destination, span)?;
+                    }
+                }
+            }
+            o::core::Operation::TextFromUtf8 => {
+                let source = value(call.arguments[0]);
+                frame.value(c::Slot(source)).map_err(invariant)?;
+                shared
+                    .borrow_mut()
+                    .text_from_utf8(source, result()?, span)?;
+                let _ = frame.take_owner(c::Slot(source)).map_err(invariant)?;
             }
             _ => return Err(c::ExecutionFailure::Invariant),
         },

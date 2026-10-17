@@ -1,0 +1,19 @@
+// Build the UTF-8 bytes for U+3042, then transfer their storage into Text.
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut a: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 65));
+    let mut b: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 129));
+    let mut c: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 130));
+    let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_set(bytes, 0, 227));
+    let mut first: i64 = core::result_unwrap::<i64, core::BoundsError>(
+        core::bytes_get(bytes, 0));
+    if first < 227 { return -1; }
+    let mut text: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(
+        core::text_from_utf8(bytes));
+    return core::text_len(text);
+}
