@@ -1,11 +1,13 @@
-//! Backend-independent source HIR for accepted RFCs 0002/0006.
+//! Backend-independent source HIR for accepted RFCs 0002/0006/0007.
 //!
 //! The original RFC 0002 analyzer accepts structured semantic syntax and yields
 //! a typed primitive function only after successful checking. `resolved` holds
-//! name-resolved RFC 0006 program input; `layout` checks bounded copy-only nominal
+//! name-resolved program input; `types` checks ownership type properties,
+//! `core` describes finite built-ins, and `layout` checks copy-only nominal
 //! layouts. Source parsing/module binding live outside this crate. Program-wide
 //! expression/pattern/call typing and bounded exhaustiveness are checked by
-//! `program`, which produces a read-only typed program on success.
+//! `program`. Its executable typed program remains Copy-only. Separate body
+//! type facts do not establish moves, loan/region flow, or executable validity.
 
 pub mod core;
 pub mod layout;

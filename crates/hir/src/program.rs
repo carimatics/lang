@@ -1,6 +1,8 @@
 //! Full program typing for name-resolved RFC 0006 input.
 
+mod bodies;
 mod coverage;
+pub use bodies::{BodyAnalysis, BodyTypes, analyze_bodies};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
@@ -11,6 +13,7 @@ use lang_diagnostics::{
 };
 
 use crate::{
+    core,
     layout::{LayoutError, LayoutLimits, ValueLayout, analyze_layouts},
     resolved as r,
     source::Name,
@@ -33,6 +36,7 @@ pub struct CheckLimits {
     pub work: usize,
     pub exhaustiveness: usize,
     pub witness_bytes: usize,
+    pub type_display_bytes: usize,
 }
 impl Default for CheckLimits {
     fn default() -> Self {
@@ -51,6 +55,7 @@ impl Default for CheckLimits {
             work: 10_000_000,
             exhaustiveness: 10_000_000,
             witness_bytes: 65_536,
+            type_display_bytes: 65_536,
         }
     }
 }
@@ -84,6 +89,7 @@ pub enum CheckInputErrorKind {
     SharedNode(ArenaKind),
     Orphan(ArenaKind),
     IncompleteTyping,
+    InvalidPlace,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CheckError {
@@ -128,6 +134,12 @@ pub struct FunctionFacts {
     fields: BTreeMap<r::ExpressionId, usize>,
     records: BTreeMap<r::ExpressionId, Vec<usize>>,
     pattern_fields: BTreeMap<r::PatternId, Vec<r::PatternId>>,
+    calls: BTreeMap<r::ExpressionId, CallFacts>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallFacts {
+    pub parameters: Vec<r::Type>,
+    pub result_binding: core::ResultBinding,
 }
 impl FunctionFacts {
     pub fn locals(&self) -> &[r::Type] {
@@ -151,6 +163,9 @@ impl FunctionFacts {
     }
     pub fn pattern_fields(&self, id: r::PatternId) -> Option<&[r::PatternId]> {
         self.pattern_fields.get(&id).map(Vec::as_slice)
+    }
+    pub fn call(&self, id: r::ExpressionId) -> Option<&CallFacts> {
+        self.calls.get(&id)
     }
 }
 
@@ -205,15 +220,15 @@ fn check_program_internal(
     limits: CheckLimits,
     infer: Option<r::FunctionId>,
 ) -> Result<ProgramAnalysis, CheckError> {
-    if let Some(first) = source.types.first() {
-        let analysis = types::analyze(&source, sources, limits.types).map_err(CheckError::Types)?;
-        if analysis.facts.is_none() {
+    if let Some(span) = source.types.first().map(|first| first.span) {
+        let analysis = analyze_bodies(source, sources, limits)?;
+        if analysis.bodies.is_none() {
             return Ok(ProgramAnalysis {
                 program: None,
                 diagnostics: analysis.diagnostics,
             });
         }
-        return Err(CheckError::OwnershipProfile { span: first.span });
+        return Err(CheckError::OwnershipProfile { span });
     }
     let mut context = Context {
         source: &source,
@@ -223,6 +238,7 @@ fn check_program_internal(
         coverage_work: 0,
         diagnostics: Vec::new(),
         errors: 0,
+        types: None,
     };
     context.metadata()?;
     let expression = if let Some(id) = infer {
@@ -317,9 +333,76 @@ struct Context<'a> {
     work: usize,
     coverage_work: usize,
     diagnostics: Vec<Diagnostic>,
+    types: Option<bodies::TypeStore>,
     errors: usize,
 }
 impl<'a> Context<'a> {
+    fn constructor(&self, ty: r::Type) -> Option<r::TypeConstructor> {
+        self.types.as_ref().and_then(|types| types.constructor(ty))
+    }
+    fn loan(&self, ty: r::Type) -> Option<(r::LoanKind, r::Type)> {
+        if let Some(r::TypeConstructor::Loan(kind, target)) = self.constructor(ty) {
+            Some((kind, target))
+        } else {
+            None
+        }
+    }
+    fn is_copy(&self, ty: r::Type, span: Span) -> Result<bool, CheckError> {
+        self.types.as_ref().map_or(Ok(true), |types| {
+            types.properties(ty, span).map(|p| p.is_copy)
+        })
+    }
+    fn instantiate(
+        &mut self,
+        pattern: core::TypePattern,
+        arguments: &[r::Type],
+        span: Span,
+    ) -> Result<r::Type, CheckError> {
+        self.types
+            .as_mut()
+            .ok_or(CheckError::OwnershipProfile { span })?
+            .instantiate(pattern, arguments, span, 0)
+    }
+    fn intern(
+        &mut self,
+        constructor: r::TypeConstructor,
+        span: Span,
+    ) -> Result<r::Type, CheckError> {
+        self.types
+            .as_mut()
+            .ok_or(CheckError::OwnershipProfile { span })?
+            .intern(constructor, span)
+    }
+    fn core_payload(
+        &mut self,
+        case: core::Case,
+        expected: Option<r::Type>,
+        span: Span,
+    ) -> Result<Option<Vec<r::Type>>, CheckError> {
+        let family = expected.and_then(|ty| self.types.as_ref().and_then(|types| types.family(ty)));
+        if let Some((family, arguments)) = family
+            && family == case.family()
+        {
+            let mut payload = Vec::new();
+            for pattern in case.payload() {
+                self.charge(span)?;
+                payload.push(self.instantiate(
+                    *pattern,
+                    &arguments[..family.type_arguments()],
+                    span,
+                )?);
+            }
+            Ok(Some(payload))
+        } else {
+            self.error(
+                codes::TYPE_MISMATCH,
+                span,
+                "core case requires an unambiguous expected type of its own family",
+                None,
+            )?;
+            Ok(None)
+        }
+    }
     fn limit(&self, span: Span, message: &str) -> CheckError {
         CheckError::Limit(Box::new(Diagnostic::new(
             codes::RESOURCE_LIMIT,
@@ -393,12 +476,80 @@ impl<'a> Context<'a> {
         }
         self.report(diagnostic)
     }
-    fn type_name(&self, ty: r::Type) -> &str {
+    fn type_text(&mut self, ty: r::Type, span: Span) -> Result<String, CheckError> {
+        let mut text = String::new();
+        self.write_type(ty, span, 0, &mut text)?;
+        Ok(text)
+    }
+    fn type_fragment(
+        &mut self,
+        text: &mut String,
+        fragment: &str,
+        span: Span,
+    ) -> Result<(), CheckError> {
+        if fragment.len() > self.limits.type_display_bytes.saturating_sub(text.len()) {
+            return Err(self.limit(span, "type diagnostic byte limit exceeded"));
+        }
+        for _ in 0..fragment.len().div_ceil(1024) {
+            self.charge(span)?;
+        }
+        text.try_reserve(fragment.len())
+            .map_err(|_| CheckError::Types(types::Error::AllocationFailed { span }))?;
+        text.push_str(fragment);
+        Ok(())
+    }
+    fn write_type(
+        &mut self,
+        ty: r::Type,
+        span: Span,
+        depth: usize,
+        text: &mut String,
+    ) -> Result<(), CheckError> {
+        self.charge(span)?;
+        if depth > self.limits.types.depth.min(64) {
+            return Err(self.limit(span, "type diagnostic depth limit exceeded"));
+        }
         match ty {
-            r::Type::I64 => "i64",
-            r::Type::Bool => "bool",
-            r::Type::Nominal(id) => &self.source.definitions[id.0].qualified_name,
-            r::Type::Constructed(_) => "ownership type",
+            r::Type::I64 => self.type_fragment(text, "i64", span),
+            r::Type::Bool => self.type_fragment(text, "bool", span),
+            r::Type::Nominal(id) => {
+                let name = self
+                    .source
+                    .definitions
+                    .get(id.0)
+                    .ok_or_else(|| input(CheckInputErrorKind::InvalidDefinition(id.0), Some(span)))?
+                    .qualified_name
+                    .as_str();
+                self.type_fragment(text, name, span)
+            }
+            r::Type::Constructed(id) => {
+                let constructor = self.constructor(ty).ok_or_else(|| {
+                    input(CheckInputErrorKind::InvalidConstructed(id.0), Some(span))
+                })?;
+                let (prefix, suffix) = match constructor {
+                    r::TypeConstructor::Builtin(builtin) => {
+                        self.type_fragment(text, "core::", span)?;
+                        return self.type_fragment(text, builtin.name(), span);
+                    }
+                    r::TypeConstructor::Option(_) => ("core::Option<", ">"),
+                    r::TypeConstructor::Result(..) => ("core::Result<", ">"),
+                    r::TypeConstructor::Vec(_) => ("core::Vec<", ">"),
+                    r::TypeConstructor::Map(..) => ("core::Map<", ">"),
+                    r::TypeConstructor::Shared(_) => ("shared ", ""),
+                    r::TypeConstructor::Weak(_) => ("weak ", ""),
+                    r::TypeConstructor::Arena(_) => ("arena ", ""),
+                    r::TypeConstructor::Loan(r::LoanKind::Shared, _) => ("&", ""),
+                    r::TypeConstructor::Loan(r::LoanKind::Exclusive, _) => ("&mut ", ""),
+                };
+                self.type_fragment(text, prefix, span)?;
+                for (index, argument) in constructor.arguments().enumerate() {
+                    if index != 0 {
+                        self.type_fragment(text, ", ", span)?;
+                    }
+                    self.write_type(argument, span, depth + 1, text)?;
+                }
+                self.type_fragment(text, suffix, span)
+            }
         }
     }
     fn expect(
@@ -412,14 +563,12 @@ impl<'a> Context<'a> {
         if let Some(actual) = actual
             && actual != expected
         {
+            let expected_text = self.type_text(expected, span)?;
+            let actual_text = self.type_text(actual, span)?;
             self.error(
                 code,
                 span,
-                &format!(
-                    "expected `{}`, found `{}`",
-                    self.type_name(expected),
-                    self.type_name(actual)
-                ),
+                &format!("expected `{expected_text}`, found `{actual_text}`"),
                 original,
             )?;
         }
@@ -465,10 +614,12 @@ impl<'a> Context<'a> {
         self.charge(ty.span)?;
         match ty.value_type {
             r::Type::Constructed(id) => {
-                return Err(input(
-                    CheckInputErrorKind::InvalidConstructed(id.0),
-                    Some(ty.span),
-                ));
+                if self.types.is_none() || id.0 >= self.source.types.len() {
+                    return Err(input(
+                        CheckInputErrorKind::InvalidConstructed(id.0),
+                        Some(ty.span),
+                    ));
+                }
             }
             r::Type::Nominal(id) => {
                 let definition = self.source.definitions.get(id.0).ok_or_else(|| {
@@ -685,6 +836,8 @@ struct FunctionChecker<'a, 'b> {
     fields: BTreeMap<r::ExpressionId, usize>,
     records: BTreeMap<r::ExpressionId, Vec<usize>>,
     pattern_fields: BTreeMap<r::PatternId, Vec<r::PatternId>>,
+    calls: BTreeMap<r::ExpressionId, CallFacts>,
+    borrow_match: bool,
 }
 impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn new(context: &'b mut Context<'a>, function: &'a r::Function, infer_result: bool) -> Self {
@@ -709,6 +862,8 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             fields: BTreeMap::new(),
             records: BTreeMap::new(),
             pattern_fields: BTreeMap::new(),
+            calls: BTreeMap::new(),
+            borrow_match: false,
         }
     }
     fn start(
@@ -798,6 +953,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             fields: self.fields,
             records: self.records,
             pattern_fields: self.pattern_fields,
+            calls: self.calls,
         }))
     }
     fn declare(
@@ -883,13 +1039,26 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<Flow, CheckError> {
         self.context.enter(statement.span, depth)?;
         match &statement.kind {
+            r::StatementKind::PlaceAssign { place, value } if self.context.types.is_some() => {
+                self.place(*place, statement.span)?;
+                let expected = self.expression(r::ExpressionId(place.0), depth + 1)?;
+                let actual = self.expression_expected(*value, expected, depth + 1)?;
+                if let Some(expected) = expected {
+                    self.context.expect(
+                        actual,
+                        expected,
+                        codes::TYPE_MISMATCH,
+                        statement.span,
+                        None,
+                    )?;
+                }
+            }
             r::StatementKind::PlaceAssign { .. } | r::StatementKind::Arena { .. } => {
                 return Err(CheckError::OwnershipProfile {
                     span: statement.span,
                 });
             }
             r::StatementKind::LetMut { local, initializer } => {
-                let actual = self.expression(*initializer, depth + 1)?;
                 let expected = self
                     .function
                     .locals
@@ -901,6 +1070,8 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                             Some(statement.span),
                         )
                     })?;
+                let actual =
+                    self.expression_expected(*initializer, Some(expected.value_type), depth + 1)?;
                 self.context.expect(
                     actual,
                     expected.value_type,
@@ -917,7 +1088,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             }
             r::StatementKind::Assign { local, value } => {
                 let expected = self.local(*local, statement.span)?;
-                let actual = self.expression(*value, depth + 1)?;
+                let actual = self.expression_expected(*value, expected, depth + 1)?;
                 let declaration = &self.function.locals[local.0];
                 if declaration.kind != r::BindingKind::Mutable {
                     self.context.error(
@@ -938,7 +1109,8 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 }
             }
             r::StatementKind::Return(value) => {
-                let ty = self.expression(*value, depth + 1)?;
+                let expected = (!self.infer_result).then_some(self.function.result.value_type);
+                let ty = self.expression_expected(*value, expected, depth + 1)?;
                 if !self.infer_result {
                     self.context.expect(
                         ty,
@@ -986,6 +1158,14 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             }
             r::StatementKind::Match { scrutinee, arms } => {
                 let ty = self.expression(*scrutinee, depth + 1)?;
+                let previous_borrow_match = self.borrow_match;
+                let ty = if let Some(ty) = ty {
+                    self.borrow_match = self.context.loan(ty).is_some()
+                        || !self.context.is_copy(ty, statement.span)?;
+                    Some(self.context.loan(ty).map_or(ty, |(_, target)| target))
+                } else {
+                    None
+                };
                 let mut valid = ty.is_some();
                 let mut all_return = !arms.is_empty();
                 for arm in arms {
@@ -1006,9 +1186,11 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                         statement.span,
                     )?;
                     if exhaustive && all_return {
+                        self.borrow_match = previous_borrow_match;
                         return Ok(Flow::Returns);
                     }
                 }
+                self.borrow_match = previous_borrow_match;
             }
         }
         Ok(Flow::FallsThrough)
@@ -1038,6 +1220,14 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         id: r::ExpressionId,
         depth: usize,
     ) -> Result<Option<r::Type>, CheckError> {
+        self.expression_expected(id, None, depth)
+    }
+    fn expression_expected(
+        &mut self,
+        id: r::ExpressionId,
+        expected: Option<r::Type>,
+        depth: usize,
+    ) -> Result<Option<r::Type>, CheckError> {
         Self::start(
             &mut self.expression_visits,
             id.0,
@@ -1048,13 +1238,100 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         self.context.within(self.function.span, expression.span)?;
         self.context.enter(expression.span, depth)?;
         let span = expression.span;
+        if self.context.types.is_none()
+            && matches!(
+                expression.kind,
+                r::ExpressionKind::Borrow { .. }
+                    | r::ExpressionKind::Dereference(_)
+                    | r::ExpressionKind::CoreCall { .. }
+                    | r::ExpressionKind::CoreUnit
+                    | r::ExpressionKind::CoreCase { .. }
+            )
+        {
+            return Err(CheckError::OwnershipProfile { span });
+        }
         let ty = match &expression.kind {
-            r::ExpressionKind::Borrow { .. }
-            | r::ExpressionKind::Dereference(_)
-            | r::ExpressionKind::CoreCall { .. }
-            | r::ExpressionKind::CoreUnit
-            | r::ExpressionKind::CoreCase { .. } => {
-                return Err(CheckError::OwnershipProfile { span });
+            r::ExpressionKind::CoreUnit => Some(
+                self.context
+                    .intern(r::TypeConstructor::Builtin(r::BuiltinType::Unit), span)?,
+            ),
+            r::ExpressionKind::CoreCase {
+                case,
+                payload,
+                explicit_payload,
+                case_span,
+            } => {
+                self.context.within(span, *case_span)?;
+                let ty = if case.family().type_arguments() == 0 {
+                    Some(self.context.intern(
+                        r::TypeConstructor::Builtin(
+                            r::BuiltinType::from_name(case.family().name()).unwrap(),
+                        ),
+                        span,
+                    )?)
+                } else {
+                    expected
+                };
+                let expected_payload = self.context.core_payload(*case, ty, span)?;
+                if payload.len() != case.payload().len()
+                    || *explicit_payload == case.payload().is_empty()
+                {
+                    self.context.error(
+                        codes::INVALID_SHAPE,
+                        span,
+                        "core case payload shape does not match its case",
+                        None,
+                    )?;
+                }
+                if payload.len() > self.context.limits.layout.fields {
+                    return Err(self.context.limit(span, "core payload limit exceeded"));
+                }
+                for (position, expression) in payload.iter().enumerate() {
+                    let expected = expected_payload
+                        .as_ref()
+                        .and_then(|p| p.get(position))
+                        .copied();
+                    let actual = self.expression_expected(*expression, expected, depth + 1)?;
+                    if let Some(expected) = expected {
+                        self.context.expect(
+                            actual,
+                            expected,
+                            codes::TYPE_MISMATCH,
+                            self.function.expressions[expression.0].span,
+                            Some(*case_span),
+                        )?;
+                    }
+                }
+                expected_payload.and(ty)
+            }
+            r::ExpressionKind::CoreCall { .. } => self.core_call(id, expression, depth)?,
+            r::ExpressionKind::Borrow { kind, place } => {
+                self.place(*place, span)?;
+                let target = self.expression(r::ExpressionId(place.0), depth + 1)?;
+                if let Some(target) = target {
+                    Some(
+                        self.context
+                            .intern(r::TypeConstructor::Loan(*kind, target), span)?,
+                    )
+                } else {
+                    None
+                }
+            }
+            r::ExpressionKind::Dereference(value) => {
+                let target = self.expression(*value, depth + 1)?;
+                if let Some((_, target)) = target.and_then(|ty| self.context.loan(ty)) {
+                    Some(target)
+                } else {
+                    if target.is_some() {
+                        self.context.error(
+                            codes::INVALID_LOAN,
+                            span,
+                            "dereference requires an ordinary loan",
+                            None,
+                        )?;
+                    }
+                    None
+                }
             }
             r::ExpressionKind::Integer(_) => Some(r::Type::I64),
             r::ExpressionKind::Boolean(_) => Some(r::Type::Bool),
@@ -1077,7 +1354,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 })
             }
             r::ExpressionKind::Call { callee, arguments } => {
-                self.call(*callee, arguments, span, depth)?
+                self.call(id, *callee, arguments, span, depth)?
             }
             r::ExpressionKind::Case { definition, index } => {
                 let declared = self.definition(*definition, span)?;
@@ -1117,9 +1394,16 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 let mut order = Vec::new();
                 for field in fields {
                     self.context.name(span, &field.name)?;
-                    let ty = self.expression(field.value, depth + 1)?;
+                    let index = if let Some(declared_fields) = declared_fields {
+                        self.field_index(declared_fields, &field.name)?
+                    } else {
+                        None
+                    };
+                    let expected =
+                        declared_fields.and_then(|f| index.map(|i| f[i].value_type.value_type));
+                    let ty = self.expression_expected(field.value, expected, depth + 1)?;
                     if let Some(declared_fields) = declared_fields {
-                        if let Some(index) = self.field_index(declared_fields, &field.name)? {
+                        if let Some(index) = index {
                             if let Some(original) = seen.insert(index, field.name.span) {
                                 self.context.error(
                                     codes::INVALID_SHAPE,
@@ -1166,6 +1450,8 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             r::ExpressionKind::Field { receiver, name } => {
                 self.context.name(span, name)?;
                 let receiver = self.expression(*receiver, depth + 1)?;
+                let receiver =
+                    receiver.map(|ty| self.context.loan(ty).map_or(ty, |(_, target)| target));
                 if let Some(r::Type::Nominal(definition)) = receiver {
                     let declared = self.definition(definition, span)?;
                     if let r::DefinitionKind::Record(fields) = &declared.kind {
@@ -1209,6 +1495,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
     }
     fn call(
         &mut self,
+        id: r::ExpressionId,
         callee: r::Callable,
         arguments: &[r::ExpressionId],
         span: Span,
@@ -1216,10 +1503,6 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
     ) -> Result<Option<r::Type>, CheckError> {
         if arguments.len() > self.context.limits.layout.fields {
             return Err(self.context.limit(span, "call argument limit exceeded"));
-        }
-        let mut actual = Vec::new();
-        for argument in arguments {
-            actual.push(self.expression(*argument, depth + 1)?);
         }
         let (expected, result, original): (Vec<r::Type>, r::Type, Span) =
             match callee {
@@ -1273,6 +1556,14 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     )
                 }
             };
+        let mut actual = Vec::new();
+        for (position, argument) in arguments.iter().enumerate() {
+            actual.push(self.expression_expected(
+                *argument,
+                expected.get(position).copied(),
+                depth + 1,
+            )?);
+        }
         if actual.len() != expected.len() {
             self.context.error(
                 codes::TYPE_MISMATCH,
@@ -1281,16 +1572,183 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 Some(original),
             )?;
         }
-        for (index, (actual, expected)) in actual.into_iter().zip(expected).enumerate() {
+        for (index, (actual, expected)) in
+            actual.into_iter().zip(expected.iter().copied()).enumerate()
+        {
             self.context.charge(span)?;
-            self.context.expect(
-                actual,
-                expected,
-                codes::TYPE_MISMATCH,
-                self.function.expressions[arguments[index].0].span,
-                Some(original),
+            self.argument(actual, expected, arguments[index], Some(original))?;
+        }
+        self.calls.insert(
+            id,
+            CallFacts {
+                parameters: expected,
+                result_binding: core::ResultBinding::Value,
+            },
+        );
+        Ok(Some(result))
+    }
+    fn is_place(&mut self, id: r::PlaceId, span: Span) -> Result<bool, CheckError> {
+        let mut current = id.0;
+        for depth in 0..=self.context.limits.depth.min(256) {
+            self.context.enter(span, depth)?;
+            let expression = self.function.expressions.get(current).ok_or_else(|| {
+                input(
+                    CheckInputErrorKind::InvalidId {
+                        arena: ArenaKind::Expression,
+                        index: current,
+                    },
+                    Some(span),
+                )
+            })?;
+            match expression.kind {
+                r::ExpressionKind::Local(_) | r::ExpressionKind::Dereference(_) => return Ok(true),
+                r::ExpressionKind::Field { receiver, .. } => current = receiver.0,
+                _ => return Ok(false),
+            }
+        }
+        Err(self.context.limit(span, "place depth limit exceeded"))
+    }
+    fn place(&mut self, id: r::PlaceId, span: Span) -> Result<(), CheckError> {
+        if self.is_place(id, span)? {
+            Ok(())
+        } else {
+            Err(input(CheckInputErrorKind::InvalidPlace, Some(span)))
+        }
+    }
+    fn argument(
+        &mut self,
+        actual: Option<r::Type>,
+        expected: r::Type,
+        expression: r::ExpressionId,
+        related: Option<Span>,
+    ) -> Result<(), CheckError> {
+        let span = self.function.expressions[expression.0].span;
+        if let (Some(actual), Some((kind, target))) = (actual, self.context.loan(expected)) {
+            if let Some((actual_kind, actual_target)) = self.context.loan(actual)
+                && target == actual_target
+                && (kind == actual_kind || kind == r::LoanKind::Shared)
+            {
+                return Ok(());
+            }
+            if actual == target {
+                if self.is_place(r::PlaceId(expression.0), span)? {
+                    return Ok(());
+                }
+                self.context.error(
+                    codes::INVALID_LOAN,
+                    span,
+                    "borrowed parameter requires a compatible place or loan",
+                    related,
+                )?;
+                return Ok(());
+            }
+        }
+        self.context
+            .expect(actual, expected, codes::TYPE_MISMATCH, span, related)?;
+        Ok(())
+    }
+    fn core_call(
+        &mut self,
+        id: r::ExpressionId,
+        expression: &'a r::Expression,
+        depth: usize,
+    ) -> Result<Option<r::Type>, CheckError> {
+        let r::ExpressionKind::CoreCall {
+            operation,
+            type_arguments,
+            arguments,
+            callee_span,
+        } = &expression.kind
+        else {
+            unreachable!()
+        };
+        let span = expression.span;
+        self.context.within(span, *callee_span)?;
+        let signature = operation.signature();
+        if arguments.len() > self.context.limits.layout.fields
+            || type_arguments.len() > self.context.limits.layout.fields
+        {
+            return Err(self
+                .context
+                .limit(span, "core call argument limit exceeded"));
+        }
+        let arity_valid = type_arguments.len() == signature.type_arguments.len();
+        if !arity_valid {
+            self.context.error(
+                codes::UNSUPPORTED_SPECIALIZATION,
+                span,
+                "incorrect number of core type arguments",
+                Some(*callee_span),
             )?;
         }
+        if arguments.len() != signature.parameters.len() {
+            self.context.error(
+                codes::TYPE_MISMATCH,
+                span,
+                "incorrect number of core value arguments",
+                Some(*callee_span),
+            )?;
+        }
+        let mut types = Vec::new();
+        for (index, ty) in type_arguments.iter().enumerate() {
+            self.context.type_use(span, *ty, false)?;
+            types.push(ty.value_type);
+            if let Some(rule) = signature.type_arguments.get(index) {
+                let properties = self
+                    .context
+                    .types
+                    .as_ref()
+                    .unwrap()
+                    .properties(ty.value_type, ty.span)?;
+                if properties.contains_loan || properties.contains_allocator {
+                    self.context.error(codes::INVALID_OWNERSHIP_TYPE, ty.span, "core type argument must be storable without ordinary loans or allocator authority", None)?;
+                }
+                if *rule == core::TypeArgumentRule::SharedPayload && properties.contains_arena {
+                    self.context.error(
+                        codes::REGION_ESCAPE,
+                        ty.span,
+                        "shared payload type cannot contain arena brands",
+                        None,
+                    )?;
+                }
+                if *rule == core::TypeArgumentRule::MapKey
+                    && ty.value_type != r::Type::I64
+                    && self.context.constructor(ty.value_type)
+                        != Some(r::TypeConstructor::Builtin(r::BuiltinType::Text))
+                {
+                    self.context.error(
+                        codes::UNSUPPORTED_SPECIALIZATION,
+                        ty.span,
+                        "Map keys must be exactly i64 or core::Text",
+                        None,
+                    )?;
+                }
+            }
+        }
+        let mut parameters = Vec::new();
+        if arity_valid {
+            for pattern in signature.parameters {
+                parameters.push(self.context.instantiate(*pattern, &types, span)?);
+            }
+        }
+        for (index, argument) in arguments.iter().enumerate() {
+            let expected = parameters.get(index).copied();
+            let actual = self.expression_expected(*argument, expected, depth + 1)?;
+            if let Some(expected) = expected {
+                self.argument(actual, expected, *argument, Some(*callee_span))?;
+            }
+        }
+        if !arity_valid {
+            return Ok(None);
+        }
+        let result = self.context.instantiate(signature.result, &types, span)?;
+        self.calls.insert(
+            id,
+            CallFacts {
+                parameters,
+                result_binding: signature.result_binding,
+            },
+        );
         Ok(Some(result))
     }
     fn pattern(
@@ -1309,14 +1767,68 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         let span = pattern.span;
         self.context.within(self.function.span, span)?;
         self.context.enter(span, depth)?;
+        let binding_expected = expected;
+        let expected = expected.map(|ty| self.context.loan(ty).map_or(ty, |(_, target)| target));
         let mut valid = expected.is_some();
         match &pattern.kind {
-            r::PatternKind::CoreUnit | r::PatternKind::CoreCase { .. } => {
-                return Err(CheckError::OwnershipProfile { span });
+            r::PatternKind::CoreUnit => {
+                let unit = self
+                    .context
+                    .intern(r::TypeConstructor::Builtin(r::BuiltinType::Unit), span)?;
+                valid &= self.pattern_type(unit, expected, span, None)?;
+            }
+            r::PatternKind::CoreCase {
+                case,
+                payload,
+                explicit_payload,
+                case_span,
+            } => {
+                if self.context.types.is_none() {
+                    return Err(CheckError::OwnershipProfile { span });
+                }
+                self.context.within(span, *case_span)?;
+                let types = self.context.core_payload(*case, expected, span)?;
+                valid &= types.is_some();
+                if payload.len() > self.context.limits.layout.fields {
+                    return Err(self
+                        .context
+                        .limit(span, "core pattern payload limit exceeded"));
+                }
+                if payload.len() != case.payload().len()
+                    || *explicit_payload == case.payload().is_empty()
+                {
+                    self.context.error(
+                        codes::INVALID_SHAPE,
+                        span,
+                        "core pattern payload shape does not match its case",
+                        Some(*case_span),
+                    )?;
+                    valid = false;
+                }
+                for (position, pattern) in payload.iter().enumerate() {
+                    valid &= self.pattern(
+                        *pattern,
+                        types.as_ref().and_then(|p| p.get(position)).copied(),
+                        depth + 1,
+                    )?;
+                }
             }
             r::PatternKind::Wildcard => {}
             r::PatternKind::Binding(local) => {
-                self.declare(*local, r::BindingKind::Pattern, expected, span)?
+                let expected = binding_expected;
+                let binding = if let Some(ty) = expected
+                    && self.borrow_match
+                    && self.context.loan(ty).is_none()
+                    && !self.context.is_copy(ty, span)?
+                {
+                    Some(
+                        self.context
+                            .intern(r::TypeConstructor::Loan(r::LoanKind::Shared, ty), span)?,
+                    )
+                } else {
+                    expected
+                };
+                self.declare(*local, r::BindingKind::Pattern, binding, span)?
             }
             r::PatternKind::Integer(_) => {
                 valid &= self.pattern_type(r::Type::I64, expected, span, None)?
@@ -1441,7 +1953,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             }
         }
         self.pattern_visits[id.0] = Visit::Done;
-        self.patterns[id.0] = expected;
+        self.patterns[id.0] = binding_expected;
         Ok(valid)
     }
     fn pattern_type(

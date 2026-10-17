@@ -4,7 +4,7 @@ use lang_diagnostics::SourceMap;
 use lang_hir::{
     core::{Case, Operation},
     layout::{LayoutError, LayoutLimits},
-    program::{CheckError, CheckLimits, check_program},
+    program::{CheckError, CheckLimits, analyze_bodies, check_program},
     resolved as r,
     source::Name,
     types,
@@ -291,6 +291,38 @@ fuzz_target!(|bytes: &[u8]| {
         }
         Err(types::Error::Limit(d)) => d.validate(&sources).unwrap(),
         Err(types::Error::Input { .. } | types::Error::AllocationFailed { .. }) => {}
+    }
+    match analyze_bodies(program.clone(), &sources, limits) {
+        Ok(analysis) => {
+            for diagnostic in analysis.diagnostics {
+                diagnostic.validate(&sources).unwrap();
+            }
+            if let Some(bodies) = analysis.bodies {
+                assert_eq!(bodies.source(), &program);
+                assert!(bodies.types().len() >= program.types.len());
+                for function in bodies.functions() {
+                    for ty in function
+                        .locals()
+                        .iter()
+                        .chain(function.expressions())
+                        .chain(function.patterns())
+                    {
+                        assert!(bodies.properties(*ty).is_some());
+                    }
+                }
+            }
+        }
+        Err(
+            CheckError::Limit(d)
+            | CheckError::Layout(LayoutError::Limit(d))
+            | CheckError::Types(types::Error::Limit(d)),
+        ) => d.validate(&sources).unwrap(),
+        Err(
+            CheckError::Input { .. }
+            | CheckError::Layout(LayoutError::Input { .. })
+            | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
+            | CheckError::OwnershipProfile { .. },
+        ) => {}
     }
     match check_program(program, &sources, limits) {
         Ok(analysis) => {

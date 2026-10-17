@@ -69,6 +69,19 @@ fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
 }
 
 #[test]
+fn ownership_body_type_errors_are_rendered_before_the_pending_execution_boundary() {
+    let files = Files::new(
+        "fn main() -> i64 { let mut value: core::Option<i64> = core::Option::Some(true); return 0; }",
+    );
+    let output = run(&files, &[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("SRC0014"), "{}", stderr(&output));
+    assert!(stderr(&output).contains("bool"));
+    assert!(stderr(&output).contains("i64"));
+}
+
+#[test]
 fn scripts_print_one_signed_value_and_success_is_not_the_return_exit_code() {
     for (source, expected) in [
         ("fn main() -> i64 { return 42; }", "42\n"),

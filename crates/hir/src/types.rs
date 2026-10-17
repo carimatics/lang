@@ -100,6 +100,14 @@ pub struct Facts {
     allocations: usize,
 }
 impl Facts {
+    pub(crate) fn into_parts(self) -> (Vec<Properties>, Vec<Properties>, usize, usize) {
+        (
+            self.definitions,
+            self.constructed,
+            self.work,
+            self.allocations,
+        )
+    }
     pub fn get(&self, ty: r::Type) -> Option<Properties> {
         match ty {
             r::Type::I64 | r::Type::Bool => Some(Properties::bits(0)),
@@ -145,13 +153,13 @@ struct Reverse {
     parent: usize,
     inline: bool,
 }
-struct Budget {
-    limits: Limits,
-    work: usize,
-    allocations: usize,
+pub(crate) struct Budget {
+    pub(crate) limits: Limits,
+    pub(crate) work: usize,
+    pub(crate) allocations: usize,
 }
 impl Budget {
-    fn limit(&self, span: Span, message: &str) -> Error {
+    pub(crate) fn limit(&self, span: Span, message: &str) -> Error {
         Error::Limit(Box::new(Diagnostic::new(
             codes::RESOURCE_LIMIT,
             Severity::Error,
@@ -159,7 +167,7 @@ impl Budget {
             Label::new(span, message),
         )))
     }
-    fn charge(&mut self, span: Span, n: usize) -> Result<(), Error> {
+    pub(crate) fn charge(&mut self, span: Span, n: usize) -> Result<(), Error> {
         self.work = self
             .work
             .checked_add(n)
@@ -175,7 +183,7 @@ impl Budget {
             .ok_or_else(|| self.limit(span, "source type allocation limit exceeded"))?;
         Ok(())
     }
-    fn vector<T>(&mut self, span: Span, n: usize) -> Result<Vec<T>, Error> {
+    pub(crate) fn vector<T>(&mut self, span: Span, n: usize) -> Result<Vec<T>, Error> {
         self.allocate::<T>(span, n)?;
         let mut v = Vec::new();
         v.try_reserve_exact(n)
@@ -197,7 +205,7 @@ impl Budget {
         text.push_str(value);
         Ok(text)
     }
-    fn push<T>(&mut self, span: Span, v: &mut Vec<T>, value: T) -> Result<(), Error> {
+    pub(crate) fn push<T>(&mut self, span: Span, v: &mut Vec<T>, value: T) -> Result<(), Error> {
         self.charge(span, 1)?;
         if v.len() == v.capacity() {
             let next = v

@@ -544,6 +544,464 @@ fn realistic_core_source_binds_through_calls_cases_and_read_places() {
     ));
 }
 
+fn body_analysis(text: &str) -> (SourceMap, lang_hir::program::BodyAnalysis) {
+    let (sources, program) = Files::new(text).program();
+    let analysis =
+        lang_hir::program::analyze_bodies(program, &sources, Default::default()).unwrap();
+    for diagnostic in &analysis.diagnostics {
+        diagnostic.validate(&sources).unwrap();
+    }
+    (sources, analysis)
+}
+
+#[test]
+fn bidirectional_core_context_reaches_returns_locals_arguments_and_record_fields() {
+    let (_, analysis) = body_analysis(
+        "struct Box { value: core::Option<i64> } fn consume(value: core::Result<core::Option<i64>, core::AllocError>) -> i64 { return 0; } fn f() -> core::Result<Box, core::AllocError> { let mut local: core::Option<i64> = core::Option::None; local = core::Option::Some(1); let mut record: Box = Box { value: core::Option::Some(2) }; let mut call: i64 = consume(core::Result::Ok(core::Option::Some(3))); return core::Result::Ok(Box { value: core::Option::None }); }",
+    );
+    assert!(analysis.bodies.is_some(), "{:?}", analysis.diagnostics);
+    let bodies = analysis.bodies.unwrap();
+    assert!(
+        bodies.functions()[1]
+            .locals()
+            .iter()
+            .all(|ty| bodies.properties(*ty).unwrap().is_copy)
+    );
+    let (_, unit) = body_analysis(
+        "fn f(x: core::Unit) -> core::Unit { match x { core::Unit {} => { return core::Unit {}; }, } }",
+    );
+    assert!(unit.bodies.is_some(), "{:?}", unit.diagnostics);
+}
+
+#[test]
+fn real_core_body_types_keep_provisional_read_loans_out_of_resolved_source() {
+    let (_, analysis) = body_analysis(include_str!("fixtures/core-binding.lang"));
+    assert!(analysis.bodies.is_some(), "{:?}", analysis.diagnostics);
+    let bodies = analysis.bodies.unwrap();
+    assert!(bodies.types().len() > bodies.source().types.len());
+    let function = &bodies.source().functions[0];
+    for name in ["values", "read"] {
+        let index = function
+            .locals
+            .iter()
+            .position(|local| local.name.text == name)
+            .unwrap();
+        let r::Type::Constructed(id) = bodies.functions()[0].locals()[index] else {
+            panic!()
+        };
+        assert!(
+            matches!(
+                bodies.types()[id.0].constructor,
+                r::TypeConstructor::Loan(r::LoanKind::Shared, _)
+            ),
+            "{name}"
+        );
+    }
+    for (index, expression) in function.expressions.iter().enumerate() {
+        if let r::ExpressionKind::CoreCall { operation, .. } = expression.kind {
+            assert_eq!(
+                bodies.functions()[0]
+                    .call(r::ExpressionId(index))
+                    .unwrap()
+                    .result_binding,
+                operation.signature().result_binding
+            );
+        }
+    }
+    let sources = Files::new(include_str!("fixtures/core-binding.lang"));
+    let (snapshots, program) = sources.program();
+    assert!(matches!(
+        lang_hir::program::check_program(program, &snapshots, Default::default()),
+        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+    ));
+}
+
+#[test]
+fn type_only_analysis_handles_explicit_and_inferred_loans_and_place_types() {
+    for text in [
+        "fn length(x: &core::Text) -> i64 { return core::text_len(x); } fn f(text: core::Text) -> i64 { let mut read: &core::Text = &text; return length(read); }",
+        "fn length(x: &core::Text) -> i64 { return core::text_len(x); } fn f(text: core::Text) -> i64 { return length(text); }",
+        "fn f(bytes: &mut core::Bytes) -> core::Result<core::Unit, core::BufferError> { return core::bytes_set(bytes, 0, 255); }",
+        "fn f(values: &mut core::Vec<i64>) -> i64 { match core::vec_get_mut::<i64>(values, 0) { core::Result::Ok(read) => { (*read) = 1; return (*read); }, core::Result::Err(_) => { return 0; }, } }",
+        "struct R { value: i64 } fn f(value: &mut R) -> i64 { value.value = 2; return value.value; }",
+    ] {
+        let (_, analysis) = body_analysis(text);
+        assert!(
+            analysis.bodies.is_some(),
+            "{text}: {:?}",
+            analysis.diagnostics
+        );
+    }
+}
+
+#[test]
+fn core_body_type_errors_produce_no_type_facts() {
+    for (text, code) in [
+        (
+            "fn f() -> core::Option<i64> { return core::Option::Some(true); }",
+            codes::TYPE_MISMATCH,
+        ),
+        (
+            "fn f() -> core::Result<i64, core::AllocError> { return core::Option::Some(1); }",
+            codes::TYPE_MISMATCH,
+        ),
+        (
+            "fn f() -> i64 { match core::Option::Some(1) { _ => { return 0; }, } }",
+            codes::TYPE_MISMATCH,
+        ),
+        (
+            "fn f(x: i64) -> i64 { return core::text_len(x); }",
+            codes::TYPE_MISMATCH,
+        ),
+        (
+            "fn f(x: i64) -> i64 { return core::map_len::<bool, i64>(x); }",
+            codes::UNSUPPORTED_SPECIALIZATION,
+        ),
+        (
+            "fn f(x: i64) -> i64 { return core::vec_len::<&i64>(x); }",
+            codes::INVALID_OWNERSHIP_TYPE,
+        ),
+        (
+            "fn f(x: i64) -> i64 { return core::vec_len::<core::Allocator>(x); }",
+            codes::INVALID_OWNERSHIP_TYPE,
+        ),
+        (
+            "struct N { token: arena i64 } fn f(a: &core::Allocator, n: N) -> i64 { let mut result: core::Result<shared i64, core::OwnershipError> = core::shared_new::<N>(a, n); return 0; }",
+            codes::REGION_ESCAPE,
+        ),
+        ("fn f() -> i64 { return (*1); }", codes::INVALID_LOAN),
+    ] {
+        let (_, analysis) = body_analysis(text);
+        assert!(analysis.bodies.is_none(), "{text}");
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == code),
+            "{text}: {:?}",
+            analysis.diagnostics
+        );
+    }
+}
+
+#[test]
+fn core_body_exhaustiveness_and_usefulness_share_the_existing_search() {
+    for (text, missing) in [
+        (
+            "fn f(x: core::Option<i64>) -> i64 { match x { core::Option::Some(_) => { return 1; }, } }",
+            "core::Option::None",
+        ),
+        (
+            "fn f(x: core::Result<core::Unit, core::BoundsError>) -> i64 { match x { core::Result::Ok(core::Unit {}) => { return 1; }, } }",
+            "core::Result::Err(core::BoundsError::OutOfBounds)",
+        ),
+        (
+            "fn f(x: core::BufferError) -> i64 { match x { core::BufferError::Bounds => { return 1; }, core::BufferError::InvalidByte => { return 2; }, } }",
+            "core::BufferError::Allocation(core::AllocError::Limit)",
+        ),
+    ] {
+        let (_, analysis) = body_analysis(text);
+        assert!(analysis.bodies.is_none());
+        let diagnostic = analysis
+            .diagnostics
+            .iter()
+            .find(|d| d.code == codes::NON_EXHAUSTIVE_MATCH)
+            .unwrap();
+        assert!(
+            diagnostic.notes[0].contains(missing),
+            "{:?}",
+            diagnostic.notes
+        );
+    }
+    let (_, analysis) = body_analysis(
+        "fn f(x: core::Option<i64>) -> i64 { match x { _ => { return 1; }, core::Option::None => { return 0; }, } }",
+    );
+    assert!(analysis.bodies.is_some());
+    assert!(
+        analysis
+            .diagnostics
+            .iter()
+            .any(|d| d.code == codes::UNREACHABLE_ARM)
+    );
+}
+
+fn signature_source(pattern: lang_hir::core::TypePattern) -> String {
+    use lang_hir::core::TypePattern as P;
+    match pattern {
+        P::I64 | P::Argument(0) => "i64".into(),
+        P::Bool | P::Argument(1) => "bool".into(),
+        P::Argument(_) => panic!(),
+        P::Builtin(b) => format!("core::{}", b.name()),
+        P::Option(t) => format!("core::Option<{}>", signature_source(*t)),
+        P::Result(t, e) => format!(
+            "core::Result<{}, {}>",
+            signature_source(*t),
+            signature_source(*e)
+        ),
+        P::Vec(t) => format!("core::Vec<{}>", signature_source(*t)),
+        P::Map(k, v) => format!(
+            "core::Map<{}, {}>",
+            signature_source(*k),
+            signature_source(*v)
+        ),
+        P::Shared(t) => format!("shared {}", signature_source(*t)),
+        P::Weak(t) => format!("weak {}", signature_source(*t)),
+        P::Arena(t) => format!("arena {}", signature_source(*t)),
+        P::Loan(r::LoanKind::Shared, t) => format!("&{}", signature_source(*t)),
+        P::Loan(r::LoanKind::Exclusive, t) => format!("&mut {}", signature_source(*t)),
+        P::ArenaOwner => panic!("arena-owner body typing remains a separate scope"),
+    }
+}
+
+#[test]
+fn body_typing_instantiates_all_non_arena_core_signatures_from_real_source() {
+    use lang_hir::core::{Operation, ResultBinding};
+    for operation in Operation::ALL {
+        if matches!(
+            operation,
+            Operation::ArenaNew | Operation::ArenaRead | Operation::ArenaReplace
+        ) {
+            continue;
+        }
+        let sig = operation.signature();
+        let parameters = sig
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(i, p)| format!("p{i}: {}", signature_source(*p)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let arguments = (0..sig.parameters.len())
+            .map(|i| format!("p{i}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let generics = match sig.type_arguments.len() {
+            0 => "",
+            1 => "::<i64>",
+            2 => "::<i64, bool>",
+            _ => panic!(),
+        };
+        let call = format!("core::{}{generics}({arguments})", operation.name());
+        let (result, body) = match sig.result_binding {
+            ResultBinding::InstanceAllocator => (
+                "i64".into(),
+                format!("let mut authority: &core::Allocator = {call}; return 0;"),
+            ),
+            ResultBinding::ProvisionalLoan { .. } => (
+                "i64".into(),
+                format!("match {call} {{ _ => {{ return 0; }}, }}"),
+            ),
+            _ => (signature_source(sig.result), format!("return {call};")),
+        };
+        let text = format!("fn f({parameters}) -> {result} {{ {body} }}");
+        let (_, analysis) = body_analysis(&text);
+        assert!(
+            analysis.bodies.is_some(),
+            "{operation:?}: {:?}",
+            analysis.diagnostics
+        );
+    }
+    let (sources, program) = Files::new(
+        "fn f(allocator: &core::Allocator) -> i64 { arena graph(allocator) {} return 0; }",
+    )
+    .program();
+    assert!(matches!(
+        lang_hir::program::analyze_bodies(program, &sources, Default::default()),
+        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+    ));
+}
+
+#[test]
+fn body_typing_checks_every_core_case_payload_with_a_concrete_expected_family() {
+    use lang_hir::core::{Case, Family, TypePattern as P};
+    for case in Case::ALL {
+        let result = match case.family() {
+            Family::Option => "core::Option<i64>".into(),
+            Family::Result => "core::Result<i64, bool>".into(),
+            family => format!("core::{}", family.name()),
+        };
+        let mut expression = format!("core::{}::{}", case.family().name(), case.name());
+        if let Some(payload) = case.payload().first() {
+            let value = match payload {
+                P::Argument(0) | P::I64 => "1",
+                P::Argument(1) => "true",
+                P::Builtin(r::BuiltinType::AllocError) => "core::AllocError::Limit",
+                _ => panic!(),
+            };
+            expression.push_str(&format!("({value})"));
+        }
+        let (_, analysis) =
+            body_analysis(&format!("fn f() -> {result} {{ return {expression}; }}"));
+        assert!(
+            analysis.bodies.is_some(),
+            "{case:?}: {:?}",
+            analysis.diagnostics
+        );
+    }
+    let (_, analysis) = body_analysis(
+        "fn f() -> i64 { match core::AllocError::Limit { core::AllocError::Limit => { return 1; }, core::AllocError::OutOfMemory => { return 2; }, core::AllocError::Overflow => { return 3; }, } }",
+    );
+    assert!(analysis.bodies.is_some(), "{:?}", analysis.diagnostics);
+}
+
+#[test]
+fn body_typing_retains_copy_checker_results_and_original_resolved_source() {
+    let (sources, program) = Files::new("struct R { x: i64, b: bool } enum E { None, Some(R) } fn value(x: i64) -> E { return E::Some(R { b: true, x: x }); } fn f(x: i64) -> i64 { match value(x) { E::None => { return 0; }, E::Some(R { x: result, b: _ }) => { return result; }, } }").program();
+    let copy =
+        lang_hir::program::check_program(program.clone(), &sources, Default::default()).unwrap();
+    let body =
+        lang_hir::program::analyze_bodies(program.clone(), &sources, Default::default()).unwrap();
+    assert_eq!(copy.diagnostics, body.diagnostics);
+    let body = body.bodies.unwrap();
+    assert_eq!(copy.program.unwrap().functions(), body.functions());
+    assert_eq!(body.source(), &program);
+    let again =
+        lang_hir::program::analyze_bodies(body.source().clone(), &sources, Default::default())
+            .unwrap();
+    assert_eq!(again.bodies.unwrap(), body);
+}
+
+#[test]
+fn type_only_facts_do_not_authorize_move_validity_or_executable_lowering() {
+    let text = "fn f(text: core::Text) -> i64 { let mut moved: core::Text = text; return core::text_len(text); }";
+    let (sources, program) = Files::new(text).program();
+    let types =
+        lang_hir::program::analyze_bodies(program.clone(), &sources, Default::default()).unwrap();
+    assert!(types.bodies.is_some(), "{:?}", types.diagnostics);
+    assert!(matches!(
+        lang_hir::program::check_program(program, &sources, Default::default()),
+        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+    ));
+}
+
+#[test]
+fn body_type_instantiation_and_coverage_limits_fail_without_partial_facts() {
+    use lang_hir::program::{CheckError, CheckLimits, analyze_bodies};
+    let (sources, program) = Files::new(include_str!("fixtures/core-binding.lang")).program();
+    let baseline = analyze_bodies(program.clone(), &sources, Default::default())
+        .unwrap()
+        .bodies
+        .unwrap();
+    let mut exact = CheckLimits::default();
+    exact.types.work = baseline.type_work_used();
+    exact.types.allocations = baseline.requested_type_bytes();
+    assert_eq!(
+        analyze_bodies(program.clone(), &sources, exact)
+            .unwrap()
+            .bodies
+            .unwrap(),
+        baseline
+    );
+    for limits in [
+        CheckLimits {
+            types: lang_hir::types::Limits {
+                work: baseline.type_work_used() - 1,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        CheckLimits {
+            types: lang_hir::types::Limits {
+                allocations: baseline.requested_type_bytes() - 1,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        CheckLimits {
+            types: lang_hir::types::Limits {
+                constructed: program.types.len(),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        CheckLimits {
+            work: 0,
+            ..Default::default()
+        },
+        CheckLimits {
+            exhaustiveness: 0,
+            ..Default::default()
+        },
+    ] {
+        let error = analyze_bodies(program.clone(), &sources, limits).unwrap_err();
+        let (CheckError::Limit(d) | CheckError::Types(lang_hir::types::Error::Limit(d))) = error
+        else {
+            panic!("{error:?}")
+        };
+        d.validate(&sources).unwrap();
+    }
+}
+
+#[test]
+fn malformed_foreign_body_type_arguments_and_places_are_rejected_structurally() {
+    use lang_hir::core::Operation;
+    use lang_hir::program::{CheckError, CheckInputErrorKind as K, analyze_bodies};
+    let (sources, mut program) = Files::new(include_str!("fixtures/core-binding.lang")).program();
+    let source_len = program.types.len();
+    // This index can already name an inferred loan by this call site; it is
+    // still outside the original source arena and cannot be a source argument.
+    for expression in &mut program.functions[0].expressions {
+        if let r::ExpressionKind::CoreCall {
+            operation: Operation::VecGet,
+            type_arguments,
+            ..
+        } = &mut expression.kind
+        {
+            type_arguments[0].value_type = r::Type::Constructed(r::ConstructedTypeId(source_len));
+        }
+    }
+    assert!(
+        matches!(analyze_bodies(program, &sources, Default::default()), Err(CheckError::Input { kind: K::InvalidConstructed(id), .. }) if id == source_len)
+    );
+    let (sources, mut program) =
+        Files::new("fn f(x: &i64) -> i64 { let mut read: &i64 = &(*x); return 0; }").program();
+    let literal = program.functions[0]
+        .expressions
+        .iter()
+        .position(|e| matches!(e.kind, r::ExpressionKind::Integer(0)))
+        .unwrap();
+    for expression in &mut program.functions[0].expressions {
+        if let r::ExpressionKind::Borrow { place, .. } = &mut expression.kind {
+            *place = r::PlaceId(literal);
+        }
+    }
+    assert!(matches!(
+        analyze_bodies(program, &sources, Default::default()),
+        Err(CheckError::Input {
+            kind: K::InvalidPlace,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn instantiated_type_diagnostics_name_arguments_and_obey_output_bounds() {
+    let text = "fn f(value: core::Vec<bool>) -> i64 { return core::vec_len::<i64>(value); }";
+    let (sources, analysis) = body_analysis(text);
+    let diagnostic = analysis
+        .diagnostics
+        .iter()
+        .find(|d| d.code == codes::TYPE_MISMATCH)
+        .unwrap();
+    assert!(
+        diagnostic.message.contains("&core::Vec<i64>"),
+        "{}",
+        diagnostic.message
+    );
+    assert!(
+        diagnostic.message.contains("core::Vec<bool>"),
+        "{}",
+        diagnostic.message
+    );
+    diagnostic.validate(&sources).unwrap();
+    let (sources, program) = Files::new(text).program();
+    let limits = lang_hir::program::CheckLimits {
+        type_display_bytes: 4,
+        ..Default::default()
+    };
+    assert!(matches!(
+        lang_hir::program::analyze_bodies(program, &sources, limits),
+        Err(lang_hir::program::CheckError::Limit(_))
+    ));
+}
+
 #[test]
 fn borrow_place_and_dereference_binding_preserves_roots_kinds_and_spans() {
     let (sources, program) = Files::new("struct Inner { n: i64 } struct Outer { child: Inner } fn f(x: &mut Outer) -> i64 { let mut read: &i64 = &x.child.n; let mut write: &mut i64 = &mut (*x).child.n; (*write) = 7; (*x).child.n = (*read); return 0; }").program();

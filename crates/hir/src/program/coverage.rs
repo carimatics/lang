@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use lang_diagnostics::{Diagnostic, Label, Severity, Span, codes};
 
 use super::{CheckError, Context};
+use crate::core;
 use crate::resolved as r;
 
 #[derive(Clone, Copy)]
@@ -19,6 +20,9 @@ enum Constructor {
     Boolean(bool),
     Record(r::DefinitionId),
     Case(r::DefinitionId, usize),
+    CoreUnit,
+    CoreCase(core::Case, r::Type),
+    Opaque(r::Type),
 }
 struct State {
     rows: Vec<Vec<Cell>>,
@@ -136,7 +140,7 @@ impl<'a> Search<'a, '_> {
             ),
         })
     }
-    fn constructor(&mut self, cell: Cell) -> Result<Option<Constructor>, CheckError> {
+    fn constructor(&mut self, cell: Cell, ty: r::Type) -> Result<Option<Constructor>, CheckError> {
         if self.wildcard(cell)? {
             return Ok(None);
         }
@@ -144,10 +148,9 @@ impl<'a> Search<'a, '_> {
             unreachable!()
         };
         Ok(Some(match self.function.patterns[id.0].kind {
-            r::PatternKind::CoreUnit | r::PatternKind::CoreCase { .. } => {
-                return Err(CheckError::OwnershipProfile {
-                    span: self.function.patterns[id.0].span,
-                });
+            r::PatternKind::CoreUnit => Constructor::CoreUnit,
+            r::PatternKind::CoreCase { case, .. } => {
+                Constructor::CoreCase(case, self.context.loan(ty).map_or(ty, |(_, target)| target))
             }
             r::PatternKind::Integer(value) => Constructor::Integer(value),
             r::PatternKind::Boolean(value) => Constructor::Boolean(value),
@@ -159,13 +162,36 @@ impl<'a> Search<'a, '_> {
         }))
     }
     fn constructors(&mut self, state: &State) -> Result<Vec<Constructor>, CheckError> {
-        if let Some(constructor) = self.constructor(state.vector[0])? {
+        if let Some(constructor) = self.constructor(state.vector[0], state.types[0])? {
             return Ok(vec![constructor]);
         }
-        match state.types[0] {
-            r::Type::Constructed(_) => Err(CheckError::OwnershipProfile {
-                span: self.function.span,
-            }),
+        let ty = self
+            .context
+            .loan(state.types[0])
+            .map_or(state.types[0], |(_, target)| target);
+        match ty {
+            r::Type::Constructed(_) => {
+                if self.context.constructor(ty)
+                    == Some(r::TypeConstructor::Builtin(r::BuiltinType::Unit))
+                {
+                    return Ok(vec![Constructor::CoreUnit]);
+                }
+                if let Some((family, _)) = self
+                    .context
+                    .types
+                    .as_ref()
+                    .and_then(|types| types.family(ty))
+                {
+                    let mut result = Vec::new();
+                    for case in family.cases() {
+                        self.charge()?;
+                        result.push(Constructor::CoreCase(*case, ty));
+                    }
+                    Ok(result)
+                } else {
+                    Ok(vec![Constructor::Opaque(ty)])
+                }
+            }
             r::Type::Bool => Ok(vec![
                 Constructor::Boolean(false),
                 Constructor::Boolean(true),
@@ -173,7 +199,7 @@ impl<'a> Search<'a, '_> {
             r::Type::I64 => {
                 let mut literals = BTreeSet::new();
                 for row in &state.rows {
-                    if let Some(Constructor::Integer(value)) = self.constructor(row[0])? {
+                    if let Some(Constructor::Integer(value)) = self.constructor(row[0], ty)? {
                         literals.insert(value);
                     }
                 }
@@ -209,6 +235,17 @@ impl<'a> Search<'a, '_> {
     fn payload_types(&mut self, constructor: Constructor) -> Result<Vec<r::Type>, CheckError> {
         let mut result = Vec::new();
         match constructor {
+            Constructor::CoreCase(case, ty) => {
+                result = self
+                    .context
+                    .core_payload(case, Some(ty), self.span)?
+                    .ok_or_else(|| {
+                        super::input(
+                            super::CheckInputErrorKind::IncompleteTyping,
+                            Some(self.span),
+                        )
+                    })?;
+            }
             Constructor::Record(id) => {
                 let r::DefinitionKind::Record(fields) = &self.context.source.definitions[id.0].kind
                 else {
@@ -236,6 +273,7 @@ impl<'a> Search<'a, '_> {
     fn specialize(
         &mut self,
         cell: Cell,
+        ty: r::Type,
         constructor: Constructor,
         arity: usize,
     ) -> Result<Option<Vec<Cell>>, CheckError> {
@@ -248,7 +286,7 @@ impl<'a> Search<'a, '_> {
             }
             return Ok(Some(result));
         }
-        if self.constructor(cell)? != Some(constructor) {
+        if self.constructor(cell, ty)? != Some(constructor) {
             return Ok(None);
         }
         let Cell::Pattern(id) = cell else {
@@ -256,7 +294,9 @@ impl<'a> Search<'a, '_> {
         };
         let payload: &[r::PatternId] = match &self.function.patterns[id.0].kind {
             r::PatternKind::Record { .. } => &self.fields[&id],
-            r::PatternKind::Case { payload, .. } => payload,
+            r::PatternKind::Case { payload, .. } | r::PatternKind::CoreCase { payload, .. } => {
+                payload
+            }
             _ => &[],
         };
         let mut result = Vec::new();
@@ -314,8 +354,12 @@ impl<'a> Search<'a, '_> {
             for constructor in self.constructors(&state)?.into_iter().rev() {
                 self.charge()?;
                 let mut payload_types = self.payload_types(constructor)?;
-                let Some(mut vector) =
-                    self.specialize(state.vector[0], constructor, payload_types.len())?
+                let Some(mut vector) = self.specialize(
+                    state.vector[0],
+                    state.types[0],
+                    constructor,
+                    payload_types.len(),
+                )?
                 else {
                     continue;
                 };
@@ -324,7 +368,7 @@ impl<'a> Search<'a, '_> {
                 for row in &state.rows {
                     self.charge()?;
                     if let Some(mut payload) =
-                        self.specialize(row[0], constructor, payload_types.len())?
+                        self.specialize(row[0], state.types[0], constructor, payload_types.len())?
                     {
                         payload.extend(self.copy(&row[1..])?);
                         specialized.push(payload);
@@ -367,6 +411,25 @@ impl<'a> Search<'a, '_> {
                     .next()
                     .expect("witness constructors are a complete preorder")
                 {
+                    Constructor::CoreUnit => pieces.push(Piece::Text("core::Unit {}")),
+                    Constructor::Opaque(_) => pieces.push(Piece::Text("_")),
+                    Constructor::CoreCase(case, _) => {
+                        if !case.payload().is_empty() {
+                            pieces.push(Piece::Text(")"));
+                            for position in (0..case.payload().len()).rev() {
+                                self.charge()?;
+                                pieces.push(Piece::Value);
+                                if position != 0 {
+                                    pieces.push(Piece::Text(", "));
+                                }
+                            }
+                            pieces.push(Piece::Text("("));
+                        }
+                        pieces.push(Piece::Text(case.name()));
+                        pieces.push(Piece::Text("::"));
+                        pieces.push(Piece::Text(case.family().name()));
+                        pieces.push(Piece::Text("core::"));
+                    }
                     Constructor::Integer(value) => {
                         let value = value.to_string();
                         if value.len()

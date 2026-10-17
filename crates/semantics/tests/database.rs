@@ -450,6 +450,39 @@ fn ownership_type_limit_is_a_revision_safe_source_diagnostic() {
 }
 
 #[test]
+fn ownership_body_type_diagnostics_are_cached_and_invalidated_with_source_revisions() {
+    let d = Directory::new();
+    let mut db = Database::new(None, Default::default()).unwrap();
+    let main = open(
+        &mut db,
+        &d.file("main.lang"),
+        "fn main() -> i64 { let mut value: core::Option<i64> = core::Option::Some(true); return 0; }",
+    );
+    let snapshot = db.analyze(&main).unwrap();
+    assert_eq!(snapshot.status, AnalysisStatus::Diagnostics);
+    assert!(snapshot.error.is_none());
+    let diagnostic = snapshot
+        .diagnostics
+        .iter()
+        .find(|d| d.code == codes::TYPE_MISMATCH)
+        .unwrap();
+    assert_eq!(
+        snapshot.sources.slice(diagnostic.primary.span).unwrap(),
+        "true"
+    );
+    diagnostic.validate(&snapshot.sources).unwrap();
+    db.change(&main, Arc::from(&b"fn main() -> i64 { return 0; }"[..]))
+        .unwrap();
+    let latest = db.analyze(&main).unwrap();
+    assert_eq!(latest.status, AnalysisStatus::Valid);
+    assert!(latest.diagnostics.is_empty());
+    assert_eq!(
+        snapshot.sources.slice(diagnostic.primary.span).unwrap(),
+        "true"
+    );
+}
+
+#[test]
 fn closing_a_document_releases_cache_capacity_and_retries_previous_resource_failures() {
     let d = Directory::new();
     let mut probe = Database::new(None, Limits::default()).unwrap();
