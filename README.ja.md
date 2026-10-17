@@ -49,6 +49,7 @@
 - [RFC 0004：Owned value、明示的共有、cyclic graph storage](docs/ja/rfcs/0004-owned-values-and-cyclic-graphs.md)
 - [RFC 0005：Structured task、cancellation、isolated service](docs/ja/rfcs/0005-structured-tasks-and-isolated-services.md)
 - [RFC 0006：Source frontendとportable VM program（implemented）](docs/ja/rfcs/0006-source-frontend-and-portable-programs.md)
+- [RFC 0007：Sourceのownershipとcore value（proposed）](docs/ja/rfcs/0007-source-ownership-and-core-values.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

@@ -49,6 +49,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0004: Owned values, explicit sharing, and cyclic graph storage](docs/rfcs/0004-owned-values-and-cyclic-graphs.md)
 - [RFC 0005: Structured tasks, cancellation, and isolated services](docs/rfcs/0005-structured-tasks-and-isolated-services.md)
 - [RFC 0006: Source frontend and portable VM programs (implemented)](docs/rfcs/0006-source-frontend-and-portable-programs.md)
+- [RFC 0007: Source ownership and core values (proposed)](docs/rfcs/0007-source-ownership-and-core-values.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
