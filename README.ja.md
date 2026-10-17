@@ -59,7 +59,9 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang-hir::program` はresolved sourceのfunction、call、aggregate操作、pattern、上限付きexhaustivenessを検証してread-onlyなtyped programを生成します。Missing witnessとunreachable arm／statementを報告し、到達不能bodyも検証します。`cargo test -p lang-semantics --test program_typing` でsourceのcompile-pass／fail、有限domain oracle、不正IRを検証できます。MIR／VM実行とsource CLI entry pointは未実装です。
 
-`lang_mir::unit` はsource byte／span、call、nominal value、SSA dominance、上限付きallocation／work計数を含むcompilation unitを定義／検証します。`cargo test -p lang-mir --test units` で検証できます。Source loweringとVM／native統合は未完了で、unitのdata structureはserialized formatではありません。
+`lang_mir::unit` はsource byte／span、call、nominal value、SSA dominance、上限付きallocation／work計数を含むcompilation unitを定義／検証します。`cargo test -p lang-mir --test units` で検証できます。Unitのdata structureはserialized formatではありません。
+
+`lang_semantics::program_lowering` は検証済みsource programのcall、record／enum、pattern test／binding、join、loopを検証済みunitへloweringし、全生成function／instruction／terminatorにbyte spanを付けます。構築とverificationはresource budgetを共有します。`cargo test -p lang-semantics --test program_lowering` で検証できます。Source VM／native実行の統合は残ります。
 
 `lang_bytecode::unit` は明示的なversion／opcode、ID再配置、UTF-8／span検証、decoder／verifier共通のresource budgetを持つcanonical schema 1 artifactをencode／decodeします。`cargo test -p lang-bytecode --test unit_codec` で検証できます。固定golden fixtureと不正input／fuzz検証を含み、source VM実行は未完了です。
 

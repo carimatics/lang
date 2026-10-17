@@ -395,48 +395,44 @@ fn multiple_function_errors_keep_related_source_spans_without_an_artifact() {
 
 #[test]
 fn work_is_charged_at_exact_boundaries_including_module_path_resolution() {
-    let files = Files::new("fn f() -> i64 { return 1; }");
-    assert!(
-        files
-            .bind(BindingLimits {
-                work: 5,
-                ..BindingLimits::default()
+    let minimum = |text: &str| {
+        let files = Files::new(text);
+        let first = (1..512)
+            .find(|work| {
+                files
+                    .bind(BindingLimits {
+                        work: *work,
+                        ..BindingLimits::default()
+                    })
+                    .1
+                    .is_ok()
             })
-            .1
-            .unwrap()
-            .program
-            .is_some()
-    );
-    assert!(matches!(
-        files
-            .bind(BindingLimits {
-                work: 4,
-                ..BindingLimits::default()
-            })
-            .1,
-        Err(BindingError::Limit(_))
-    ));
-    let files = Files::new("fn f() -> i64 { return f(); }");
-    assert!(
-        files
-            .bind(BindingLimits {
-                work: 7,
-                ..BindingLimits::default()
-            })
-            .1
-            .unwrap()
-            .program
-            .is_some()
-    );
-    assert!(matches!(
-        files
-            .bind(BindingLimits {
-                work: 6,
-                ..BindingLimits::default()
-            })
-            .1,
-        Err(BindingError::Limit(_))
-    ));
+            .unwrap();
+        assert!(
+            files
+                .bind(BindingLimits {
+                    work: first,
+                    ..BindingLimits::default()
+                })
+                .1
+                .unwrap()
+                .program
+                .is_some()
+        );
+        assert!(matches!(
+            files
+                .bind(BindingLimits {
+                    work: first - 1,
+                    ..BindingLimits::default()
+                })
+                .1,
+            Err(BindingError::Limit(_))
+        ));
+        first
+    };
+    let scalar = minimum("fn f() -> i64 { return 1; }");
+    assert!(minimum("fn f() -> i64 { return f(); }") > scalar);
+    assert!(minimum("/*a*/ /*b*/ /*c*/ fn f() -> i64 { return 1; }") > scalar);
 }
 
 #[test]

@@ -59,7 +59,9 @@ Milestone 1 now has backend-independent `lang-diagnostics`, `lang-syntax`, and `
 
 `lang-hir::program` checks complete resolved source functions, calls, aggregate operations, patterns, and bounded exhaustiveness into a read-only typed program. It reports missing witnesses and unreachable arms/statements while still checking their bodies. Run `cargo test -p lang-semantics --test program_typing` for source compile-pass/fail, finite-domain oracle, and malformed-IR coverage. MIR/VM execution and source CLI entry points remain unimplemented.
 
-`lang_mir::unit` now defines and validates complete compilation units with source bytes/spans, calls, nominal values, SSA dominance, and bounded allocation/work accounting. Run `cargo test -p lang-mir --test units`. Source lowering and VM/native integration remain pending; the unit data structures are not a serialized format.
+`lang_mir::unit` now defines and validates complete compilation units with source bytes/spans, calls, nominal values, SSA dominance, and bounded allocation/work accounting. Run `cargo test -p lang-mir --test units`. The unit data structures are not a serialized format.
+
+`lang_semantics::program_lowering` lowers checked source programs, including calls, records/enums, pattern tests/bindings, joins, and loops, to verified units with byte spans on all generated functions/instructions/terminators. Construction and verification share resource budgets. Run `cargo test -p lang-semantics --test program_lowering`. Source VM/native execution remains integration work.
 
 `lang_bytecode::unit` encodes/decodes canonical schema-1 artifacts with explicit versions/opcodes, ID remapping, UTF-8/span validation, and shared decoder/verifier resource budgets. Run `cargo test -p lang-bytecode --test unit_codec`. The codec includes a fixed golden fixture and malformed-input/fuzz coverage; source VM execution is still pending.
 

@@ -97,7 +97,24 @@ pub fn bind_program(
         definitions: BTreeMap::new(),
         functions: BTreeMap::new(),
         imports: BTreeMap::new(),
+        significant: Vec::new(),
     };
+    // Keep CST ranges lossless, but exclude leading trivia from semantic
+    // ranges. Index once so long comment prefixes are not rescanned for every
+    // parent in a left-associative expression.
+    for module in graph.modules() {
+        let mut starts = Vec::new();
+        for token in module.tree().tokens() {
+            context.charge(token.span, 0).map_err(|abort| match abort {
+                Abort::Fatal(error) => error,
+                Abort::Recover => unreachable!(),
+            })?;
+            if !token.kind.is_trivia() {
+                starts.push(token.span.range().start);
+            }
+        }
+        context.significant.push(starts);
+    }
     let mut definition_items = Vec::new();
     let mut function_items = Vec::new();
     let mut import_items = Vec::new();
@@ -171,6 +188,7 @@ pub fn bind_program(
 struct Context<'a> {
     graph: &'a ModuleGraph,
     sources: &'a SourceMap,
+    significant: Vec<Vec<usize>>,
     limits: BindingLimits,
     diagnostics: Vec<Diagnostic>,
     work: usize,
@@ -194,6 +212,27 @@ enum Arena {
 impl<'a> Context<'a> {
     fn tree(&self, module: ModuleId) -> &'a SyntaxTree {
         self.graph.module(module).unwrap().tree()
+    }
+    fn semantic_span(&mut self, module: ModuleId, syntax: NodeId) -> BindResult<Span> {
+        let span = self.tree(module).node(syntax).unwrap().span();
+        let steps = self.significant[module.index()]
+            .len()
+            .checked_ilog2()
+            .unwrap_or(0)
+            + 1;
+        for _ in 0..steps {
+            self.charge(span, 0)?;
+        }
+        let starts = &self.significant[module.index()];
+        let index = starts.partition_point(|start| *start < span.range().start);
+        let start = starts
+            .get(index)
+            .copied()
+            .filter(|start| *start < span.range().end)
+            .unwrap_or(span.range().start);
+        self.sources
+            .span(span.source(), start..span.range().end)
+            .map_err(|error| Abort::Fatal(BindingError::Source(error)))
     }
     fn limit(&self, span: Span, message: &str) -> Abort {
         Abort::Fatal(BindingError::Limit(Box::new(Diagnostic::new(
@@ -271,7 +310,7 @@ impl<'a> Context<'a> {
     }
     fn ty(&mut self, module: ModuleId, syntax: NodeId, public: bool) -> BindResult<r::TypeUse> {
         let tree = self.tree(module);
-        let span = tree.node(syntax).unwrap().span();
+        let span = self.semantic_span(module, syntax)?;
         self.charge(span, 0)?;
         for token in direct_tokens(tree, syntax) {
             match token.kind {
@@ -383,7 +422,7 @@ impl<'a> Context<'a> {
             qualified_name: item.qualified_name().into(),
             public: item.is_public(),
             kind,
-            span: tree.node(syntax).unwrap().span(),
+            span: self.semantic_span(item.module(), syntax)?,
         })
     }
     fn host(&mut self, item: &Item) -> BindResult<r::HostImport> {
@@ -398,7 +437,7 @@ impl<'a> Context<'a> {
             name: item_name(item),
             qualified_name: item.qualified_name().into(),
             parameter: direct_name(self.sources, tree, parameter),
-            span: tree.node(item.syntax()).unwrap().span(),
+            span: self.semantic_span(item.module(), item.syntax())?,
         })
     }
 }
@@ -414,7 +453,7 @@ struct FunctionBinder<'a, 'b> {
 impl<'a, 'b> FunctionBinder<'a, 'b> {
     fn bind(context: &'b mut Context<'a>, item: &Item) -> BindResult<r::Function> {
         let tree = context.tree(item.module());
-        let span = tree.node(item.syntax()).unwrap().span();
+        let span = context.semantic_span(item.module(), item.syntax())?;
         context.charge(span, 0)?;
         let children: Vec<_> = child_nodes(tree, item.syntax()).collect();
         let parameters = children
@@ -437,7 +476,7 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
             .sources
             .span(
                 span.source(),
-                span.range().start..tree.node(body).unwrap().span().range().start,
+                span.range().start..context.semantic_span(item.module(), body)?.range().start,
             )
             .map_err(|e| Abort::Fatal(BindingError::Source(e)))?;
         let function = r::Function {
@@ -557,7 +596,7 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
     }
     fn block(&mut self, syntax: NodeId, depth: usize) -> BindResult<r::BlockId> {
         let tree = self.tree();
-        let span = tree.node(syntax).unwrap().span();
+        let span = self.context.semantic_span(self.module, syntax)?;
         self.context.charge(span, depth)?;
         self.context.reserve(Arena::Block, span)?;
         self.scopes.push(BTreeMap::new());
@@ -581,7 +620,7 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
     fn statement(&mut self, syntax: NodeId, depth: usize) -> BindResult<r::Statement> {
         let tree = self.tree();
         let node = tree.node(syntax).unwrap();
-        let span = node.span();
+        let span = self.context.semantic_span(self.module, syntax)?;
         self.context.charge(span, depth)?;
         let children: Vec<_> = child_nodes(tree, syntax).collect();
         let kind = match node.kind() {
@@ -652,7 +691,7 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
                     arms.push(r::Arm {
                         pattern,
                         body,
-                        span: tree.node(*arm).unwrap().span(),
+                        span: self.context.semantic_span(self.module, *arm)?,
                     });
                 }
                 r::StatementKind::Match { scrutinee, arms }
@@ -664,7 +703,7 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
     fn expression(&mut self, syntax: NodeId, depth: usize) -> BindResult<r::ExpressionId> {
         let tree = self.tree();
         let node = tree.node(syntax).unwrap();
-        let span = node.span();
+        let span = self.context.semantic_span(self.module, syntax)?;
         self.context.charge(span, depth)?;
         let children: Vec<_> = child_nodes(tree, syntax).collect();
         let kind = match node.kind() {
@@ -778,7 +817,7 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
     fn pattern(&mut self, syntax: NodeId, depth: usize) -> BindResult<r::PatternId> {
         let tree = self.tree();
         let node = tree.node(syntax).unwrap();
-        let span = node.span();
+        let span = self.context.semantic_span(self.module, syntax)?;
         self.context.charge(span, depth)?;
         let children: Vec<_> = child_nodes(tree, syntax).collect();
         let kind = match node.kind() {

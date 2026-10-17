@@ -1,7 +1,8 @@
 //! Accepted RFC 0002 typed HIR to backend-neutral, validated SSA MIR.
 //!
 //! This operates on successful structured-input HIR. It neither parses text
-//! nor implements any proposed RFC 0006 syntax, call, aggregate, or wire rule.
+//! nor implements the extended RFC 0006 compilation-unit profile; that lives
+//! in `program_lowering`.
 
 use std::error::Error;
 use std::fmt::{Display, Formatter};
