@@ -128,6 +128,26 @@ fn loan_diagnostics_reach_cli_and_loan_limits_keep_source_snapshots() {
 }
 
 #[test]
+fn nested_reference_permissions_and_caller_cell_escape_reach_cli() {
+    for (text, code) in [
+        (
+            "fn bad(p: &&mut i64) -> i64 { (*(*p)) = 2; return 0; } fn main() -> i64 { return 0; }",
+            "SRC0021",
+        ),
+        (
+            "fn bad(cell: &mut &i64, value: &i64) -> i64 { (*cell) = value; return 0; } fn main() -> i64 { return 0; }",
+            "SRC0022",
+        ),
+    ] {
+        let files = Files::new(text);
+        let output = run(&files, &[]);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(stderr(&output).contains(code), "{}", stderr(&output));
+    }
+}
+
+#[test]
 fn scripts_print_one_signed_value_and_success_is_not_the_return_exit_code() {
     for (source, expected) in [
         ("fn main() -> i64 { return 42; }", "42\n"),

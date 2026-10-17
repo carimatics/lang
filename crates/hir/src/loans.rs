@@ -1,6 +1,6 @@
 //! Lexical whole-owner loans over move-checked source bodies.
-//! Nested reference cells and value arena-brand flow remain separate gates;
-//! these facts cannot construct an executable program.
+//! Nested reference cells preserve access and lifetime dependencies. Value
+//! arena-brand flow and executable promotion remain separate requirements.
 
 use crate::{core, moves::MoveCheckedBodies, program::FunctionFacts, resolved as r};
 use lang_diagnostics::{Diagnostic, Label, Severity, SourceError, SourceMap, Span, codes};
@@ -51,6 +51,7 @@ pub struct LoanId(pub usize);
 pub enum Owner {
     Local(r::LocalId),
     Parameter(r::LocalId),
+    ParameterPointee { parameter: r::LocalId, level: usize },
     Temporary(r::ExpressionId),
     InstanceAllocator,
 }
@@ -63,7 +64,13 @@ pub struct Loan {
     /// Lexical nesting level, including temporary call/match frames. This is
     /// analysis metadata, not a runtime generation or a serialized region ID.
     pub scope: usize,
+    /// Address/provenance view without an active borrow. Assignment can
+    /// evaluate its destination before borrowing is checked at publication.
+    pub projection: bool,
     owner_scope: usize,
+    cell: Option<usize>,
+    dependency_start: usize,
+    dependency_len: usize,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ViolationKind {
@@ -71,6 +78,7 @@ pub enum ViolationKind {
     Immutable,
     FrozenParent,
     Escape,
+    CallerCellEscape,
     LoopState,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -81,23 +89,21 @@ pub struct Violation {
     pub span: Span,
     pub related: Option<Span>,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PendingKind {
-    NestedReferenceCell,
-}
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Pending {
-    pub function: r::FunctionId,
-    pub kind: PendingKind,
-    pub span: Span,
-}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionLoans {
     loans: Vec<Loan>,
+    dependencies: Vec<LoanId>,
 }
 impl FunctionLoans {
     pub fn loans(&self) -> &[Loan] {
         &self.loans
+    }
+    /// Transitive owner/cell dependencies, excluding the loan itself. Every
+    /// ID precedes this loan; the set includes its optional owner parent.
+    pub fn dependencies(&self, id: LoanId) -> Option<&[LoanId]> {
+        self.loans.get(id.0).map(|loan| {
+            &self.dependencies[loan.dependency_start..loan.dependency_start + loan.dependency_len]
+        })
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -126,9 +132,6 @@ pub struct Analysis {
     pub bodies: Option<LoanCheckedBodies>,
     pub diagnostics: Vec<Diagnostic>,
     pub violations: Vec<Violation>,
-    /// Unsupported provenance is a remaining analysis gate, never a claim of
-    /// invalid source semantics and never successful checked-body evidence.
-    pub pending: Vec<Pending>,
 }
 
 struct Budget {
@@ -256,8 +259,10 @@ impl State {
 struct Place {
     owner: Owner,
     via: Option<LoanId>,
+    guard: Option<LoanId>,
     mutable: bool,
     scope: usize,
+    cell: Option<usize>,
 }
 struct Value {
     place: Option<Place>,
@@ -291,7 +296,6 @@ struct Context {
     budget: Budget,
     diagnostics: Vec<Diagnostic>,
     violations: Vec<Violation>,
-    pending: Vec<Pending>,
 }
 impl Context {
     fn report(&mut self, violation: Violation) -> Result<(), Error> {
@@ -306,9 +310,15 @@ impl Context {
             }
             ViolationKind::FrozenParent => "parent loan is frozen by a live reborrow",
             ViolationKind::Escape => "loan outlives its owner or parent loan",
+            ViolationKind::CallerCellEscape => {
+                "ordinary loans cannot escape into a caller-owned reference cell"
+            }
             ViolationKind::LoopState => "loop back-edge must restore the header loan state",
         };
-        let code = if violation.kind == ViolationKind::Escape {
+        let code = if matches!(
+            violation.kind,
+            ViolationKind::Escape | ViolationKind::CallerCellEscape
+        ) {
             codes::REGION_ESCAPE
         } else {
             codes::INVALID_LOAN
@@ -348,7 +358,6 @@ pub fn analyze(
         },
         diagnostics: Vec::new(),
         violations: Vec::new(),
-        pending: Vec::new(),
     };
     if bodies.source().functions.len() > limits.functions {
         return Err(context.budget.limit(root, "loan function limit exceeded"));
@@ -367,29 +376,9 @@ pub fn analyze(
                     .limit(function.span, "loan local limit exceeded")
             })?;
         let facts = &bodies.functions()[index];
-        let mut nested = false;
-        for ty in facts.locals().iter().chain(facts.expressions()) {
-            context.budget.charge(function.span, 1)?;
-            if let r::Type::Constructed(id) = ty
-                && let r::TypeConstructor::Loan(_, target) = bodies.types()[id.0].constructor
-                && bodies.properties(target).unwrap().contains_loan
-            {
-                nested = true;
-            }
-        }
-        if nested {
-            context.budget.push(
-                function.span,
-                &mut context.pending,
-                Pending {
-                    function: r::FunctionId(index),
-                    kind: PendingKind::NestedReferenceCell,
-                    span: function.span,
-                },
-            )?;
-            functions.push(FunctionLoans { loans: Vec::new() });
-            continue;
-        }
+        context
+            .budget
+            .charge(function.span, function.locals.len())?;
         let mut references = context
             .budget
             .vector(function.span, function.locals.len())?;
@@ -405,6 +394,7 @@ pub fn analyze(
             facts,
             id: r::FunctionId(index),
             loans: Vec::new(),
+            dependencies: Vec::new(),
             state: State {
                 references,
                 active: Vec::new(),
@@ -413,19 +403,9 @@ pub fn analyze(
             scopes: Vec::new(),
         };
         for local in &function.parameters {
-            if let Some(kind) = checker.loan(facts.locals()[local.0]) {
+            if checker.loan(facts.locals()[local.0]).is_some() {
                 let span = function.locals[local.0].name.span;
-                let id = checker.create(
-                    Place {
-                        owner: Owner::Parameter(*local),
-                        via: None,
-                        mutable: kind == r::LoanKind::Exclusive,
-                        scope: 0,
-                    },
-                    kind,
-                    0,
-                    span,
-                )?;
+                let id = checker.parameter(*local, facts.locals()[local.0], 0, span)?;
                 checker
                     .context
                     .budget
@@ -435,11 +415,12 @@ pub fn analyze(
         checker.block(function.body, 0)?;
         functions.push(FunctionLoans {
             loans: checker.loans,
+            dependencies: checker.dependencies,
         });
     }
     let work = context.budget.work;
     let allocations = context.budget.allocations;
-    let successful = context.violations.is_empty() && context.pending.is_empty();
+    let successful = context.violations.is_empty();
     Ok(Analysis {
         bodies: successful.then_some(LoanCheckedBodies {
             moved,
@@ -449,7 +430,6 @@ pub fn analyze(
         }),
         diagnostics: context.diagnostics,
         violations: context.violations,
-        pending: context.pending,
     })
 }
 
@@ -460,11 +440,21 @@ struct Checker<'a, 'b> {
     facts: &'a FunctionFacts,
     id: r::FunctionId,
     loans: Vec<Loan>,
+    dependencies: Vec<LoanId>,
     state: State,
     depths: Vec<usize>,
     scopes: Vec<Vec<r::LocalId>>,
 }
 impl Checker<'_, '_> {
+    fn loan_target(&self, ty: r::Type) -> Option<(r::LoanKind, r::Type)> {
+        if let r::Type::Constructed(id) = ty
+            && let r::TypeConstructor::Loan(kind, target) = self.bodies.types()[id.0].constructor
+        {
+            Some((kind, target))
+        } else {
+            None
+        }
+    }
     fn loan(&self, ty: r::Type) -> Option<r::LoanKind> {
         if let r::Type::Constructed(id) = ty
             && let r::TypeConstructor::Loan(kind, _) = self.bodies.types()[id.0].constructor
@@ -512,23 +502,43 @@ impl Checker<'_, '_> {
             .budget
             .push(span, self.scopes.last_mut().unwrap(), local)
     }
-    fn ancestor(&mut self, ancestor: LoanId, mut child: LoanId, span: Span) -> Result<bool, Error> {
-        loop {
-            self.context.budget.charge(span, 1)?;
-            if ancestor == child {
-                return Ok(true);
-            }
-            if let Some(parent) = self.loans[child.0].parent {
-                child = parent;
-            } else {
-                return Ok(false);
-            }
-        }
+    fn ancestor(&mut self, ancestor: LoanId, child: LoanId, span: Span) -> Result<bool, Error> {
+        let loan = self.loans[child.0];
+        self.context.budget.charge(span, loan.dependency_len + 1)?;
+        Ok(ancestor == child
+            || self.dependencies
+                [loan.dependency_start..loan.dependency_start + loan.dependency_len]
+                .contains(&ancestor))
     }
     fn access(&mut self, place: Place, access: Access, span: Span) -> Result<bool, Error> {
+        let parents = self.parents(place, &[], span)?;
+        self.access_parents(place, access, &parents, span)
+    }
+    fn access_parents(
+        &mut self,
+        place: Place,
+        access: Access,
+        parents: &[LoanId],
+        span: Span,
+    ) -> Result<bool, Error> {
+        let mut valid = self.access_one(place, access, parents, span)?;
+        for id in parents {
+            valid &= self.access_one(self.loan_place(*id), access, parents, span)?;
+        }
+        Ok(valid)
+    }
+    fn access_one(
+        &mut self,
+        place: Place,
+        access: Access,
+        parents: &[LoanId],
+        span: Span,
+    ) -> Result<bool, Error> {
         if access == Access::Write && !place.mutable {
             let related = match place.owner {
-                Owner::Local(id) | Owner::Parameter(id) => {
+                Owner::Local(id)
+                | Owner::Parameter(id)
+                | Owner::ParameterPointee { parameter: id, .. } => {
                     Some(self.function.locals[id.0].name.span)
                 }
                 _ => None,
@@ -541,6 +551,23 @@ impl Checker<'_, '_> {
             self.context.budget.charge(span, 1)?;
             let id = self.state.active[index];
             let loan = self.loans[id.0];
+            self.context.budget.charge(span, parents.len())?;
+            if parents.contains(&id) {
+                continue;
+            }
+            if let Some(via) = place.via
+                && self.ancestor(via, id, span)?
+                && (access != Access::Read || loan.kind == r::LoanKind::Exclusive)
+            {
+                self.report(
+                    ViolationKind::FrozenParent,
+                    Some(place.owner),
+                    span,
+                    Some(loan.span),
+                )?;
+                valid = false;
+                continue;
+            }
             if loan.owner != place.owner {
                 continue;
             }
@@ -564,12 +591,38 @@ impl Checker<'_, '_> {
         }
         Ok(valid)
     }
+    fn parents(
+        &mut self,
+        place: Place,
+        extra: &[LoanId],
+        span: Span,
+    ) -> Result<Vec<LoanId>, Error> {
+        let mut parents = Vec::new();
+        for id in place
+            .via
+            .into_iter()
+            .chain(place.guard)
+            .chain(extra.iter().copied())
+        {
+            self.context.budget.union(span, &mut parents, &[id])?;
+            let loan = self.loans[id.0];
+            let inherited = self.context.budget.copy(
+                span,
+                &self.dependencies
+                    [loan.dependency_start..loan.dependency_start + loan.dependency_len],
+            )?;
+            self.context.budget.union(span, &mut parents, &inherited)?;
+        }
+        Ok(parents)
+    }
     fn create(
         &mut self,
         place: Place,
         kind: r::LoanKind,
         scope: usize,
         span: Span,
+        parents: &[LoanId],
+        projection: bool,
     ) -> Result<LoanId, Error> {
         self.context.budget.loans = self
             .context
@@ -579,6 +632,12 @@ impl Checker<'_, '_> {
             .filter(|n| *n <= self.context.budget.limits.loans)
             .ok_or_else(|| self.context.budget.limit(span, "loan count limit exceeded"))?;
         let id = LoanId(self.loans.len());
+        let dependency_start = self.dependencies.len();
+        for parent in parents {
+            self.context
+                .budget
+                .push(span, &mut self.dependencies, *parent)?;
+        }
         self.context.budget.push(
             span,
             &mut self.loans,
@@ -589,9 +648,15 @@ impl Checker<'_, '_> {
                 span,
                 scope,
                 owner_scope: place.scope,
+                cell: place.cell,
+                projection,
+                dependency_start,
+                dependency_len: parents.len(),
             },
         )?;
-        self.context.budget.push(span, &mut self.state.active, id)?;
+        if !projection {
+            self.context.budget.push(span, &mut self.state.active, id)?;
+        }
         Ok(id)
     }
     fn borrow(
@@ -601,12 +666,36 @@ impl Checker<'_, '_> {
         scope: usize,
         span: Span,
     ) -> Result<Option<LoanId>, Error> {
-        let parent = place.via.map(|id| self.loans[id.0]);
-        if place.scope > scope || parent.is_some_and(|p| p.scope > scope) {
-            let related = parent.map(|p| p.span).or_else(|| match place.owner {
-                Owner::Local(id) => Some(self.function.locals[id.0].name.span),
-                _ => None,
-            });
+        self.borrow_extra(place, kind, scope, span, &[], false)
+    }
+    fn borrow_extra(
+        &mut self,
+        place: Place,
+        kind: r::LoanKind,
+        scope: usize,
+        span: Span,
+        extra: &[LoanId],
+        projection: bool,
+    ) -> Result<Option<LoanId>, Error> {
+        if scope == 0 {
+            self.report(
+                ViolationKind::CallerCellEscape,
+                Some(place.owner),
+                span,
+                place.via.map(|id| self.loans[id.0].span),
+            )?;
+            return Ok(None);
+        }
+        let parents = self.parents(place, extra, span)?;
+        self.context.budget.charge(span, parents.len())?;
+        let shorter = parents.iter().find(|id| self.loans[id.0].scope > scope);
+        if place.scope > scope || shorter.is_some() {
+            let related = shorter
+                .map(|id| self.loans[id.0].span)
+                .or_else(|| match place.owner {
+                    Owner::Local(id) => Some(self.function.locals[id.0].name.span),
+                    _ => None,
+                });
             self.report(ViolationKind::Escape, Some(place.owner), span, related)?;
             return Ok(None);
         }
@@ -615,8 +704,9 @@ impl Checker<'_, '_> {
         } else {
             Access::Write
         };
-        if self.access(place, access, span)? {
-            self.create(place, kind, scope, span).map(Some)
+        if projection || self.access_parents(place, access, &parents, span)? {
+            self.create(place, kind, scope, span, &parents, projection)
+                .map(Some)
         } else {
             Ok(None)
         }
@@ -626,16 +716,70 @@ impl Checker<'_, '_> {
         Place {
             owner: loan.owner,
             via: Some(id),
+            guard: None,
             mutable: loan.kind == r::LoanKind::Exclusive,
             scope: loan.owner_scope,
+            cell: loan.cell,
         }
+    }
+    fn parameter(
+        &mut self,
+        local: r::LocalId,
+        ty: r::Type,
+        level: usize,
+        span: Span,
+    ) -> Result<LoanId, Error> {
+        self.context.budget.enter(span, level)?;
+        let (kind, target) = self.loan_target(ty).unwrap();
+        let owner = if level == 0 {
+            Owner::Parameter(local)
+        } else {
+            Owner::ParameterPointee {
+                parameter: local,
+                level,
+            }
+        };
+        let cell = if self.loan(target).is_some() {
+            let index = self.state.references.len();
+            self.context
+                .budget
+                .push(span, &mut self.state.references, Vec::new())?;
+            let inner = self.parameter(local, target, level + 1, span)?;
+            self.context
+                .budget
+                .push(span, &mut self.state.references[index], inner)?;
+            Some(index)
+        } else {
+            None
+        };
+        self.create(
+            Place {
+                owner,
+                via: None,
+                guard: None,
+                mutable: kind == r::LoanKind::Exclusive,
+                scope: 0,
+                cell,
+            },
+            kind,
+            0,
+            span,
+            &[],
+            false,
+        )
     }
     fn singleton(&mut self, place: Place, span: Span) -> Result<Vec<Place>, Error> {
         let mut values = self.context.budget.vector(span, 1)?;
         values.push(place);
         Ok(values)
     }
-    fn places(&mut self, id: r::ExpressionId, depth: usize) -> Result<Vec<Place>, Error> {
+    fn places(
+        &mut self,
+        id: r::ExpressionId,
+        intent: r::LoanKind,
+        scope: usize,
+        depth: usize,
+    ) -> Result<Vec<Place>, Error> {
         let expression = &self.function.expressions[id.0];
         let span = expression.span;
         self.context.budget.enter(span, depth)?;
@@ -644,37 +788,41 @@ impl Checker<'_, '_> {
                 Place {
                     owner: Owner::Local(*local),
                     via: None,
+                    guard: None,
                     mutable: matches!(
                         self.function.locals[local.0].kind,
                         r::BindingKind::Mutable | r::BindingKind::ArenaOwner
                     ),
                     scope: self.depths[local.0],
+                    cell: self.loan(self.facts.locals()[local.0]).map(|_| local.0),
                 },
                 span,
             ),
-            r::ExpressionKind::Dereference(value) => self.referents(*value, depth + 1),
+            r::ExpressionKind::Dereference(value) => {
+                self.referents(*value, intent, scope, depth + 1)
+            }
             r::ExpressionKind::Field { receiver, .. } => {
                 if self.loan(self.facts.expressions()[receiver.0]).is_some() {
-                    self.referents(*receiver, depth + 1)
+                    self.referents(*receiver, intent, scope, depth + 1)
                 } else {
-                    self.places(*receiver, depth + 1)
+                    self.places(*receiver, intent, scope, depth + 1)
                 }
             }
             _ => {
-                let value = self.eval(id, self.scopes.len(), depth + 1)?;
+                let value = self.eval(id, scope, depth + 1)?;
                 self.singleton(value.place.unwrap(), span)
             }
         }
     }
-    fn referents(&mut self, id: r::ExpressionId, depth: usize) -> Result<Vec<Place>, Error> {
+    fn referents(
+        &mut self,
+        id: r::ExpressionId,
+        intent: r::LoanKind,
+        scope: usize,
+        depth: usize,
+    ) -> Result<Vec<Place>, Error> {
         let span = self.function.expressions[id.0].span;
-        let refs = if let r::ExpressionKind::Local(local) = self.function.expressions[id.0].kind {
-            self.context
-                .budget
-                .copy(span, &self.state.references[local.0])?
-        } else {
-            self.eval(id, self.scopes.len(), depth + 1)?.references
-        };
+        let refs = self.reference_value(id, intent, scope, false, depth + 1)?;
         let mut places = self.context.budget.vector(span, refs.len())?;
         for id in refs {
             self.context.budget.charge(span, 1)?;
@@ -689,27 +837,21 @@ impl Checker<'_, '_> {
         scope: usize,
         depth: usize,
     ) -> Result<Vec<LoanId>, Error> {
-        let expression = &self.function.expressions[id.0];
-        let span = expression.span;
-        self.context.budget.enter(span, depth)?;
-        if let r::ExpressionKind::Borrow {
-            kind: explicit,
-            place,
-        } = expression.kind
-        {
-            let mut out = Vec::new();
-            for place in self.places(r::ExpressionId(place.0), depth + 1)? {
-                if let Some(id) = self.borrow(place, explicit, scope, span)? {
-                    self.context.budget.push(span, &mut out, id)?;
-                }
-            }
-            return Ok(out);
+        if self.loan(self.facts.expressions()[id.0]).is_some() {
+            return self.reference_value(id, kind, scope, true, depth + 1);
         }
-        let places = if self.loan(self.facts.expressions()[id.0]).is_some() {
-            self.referents(id, depth + 1)?
-        } else {
-            self.places(id, depth + 1)?
-        };
+        self.reference_place(id, kind, scope, depth + 1)
+    }
+    fn reference_place(
+        &mut self,
+        id: r::ExpressionId,
+        kind: r::LoanKind,
+        scope: usize,
+        depth: usize,
+    ) -> Result<Vec<LoanId>, Error> {
+        let span = self.function.expressions[id.0].span;
+        self.context.budget.enter(span, depth)?;
+        let places = self.places(id, kind, scope, depth + 1)?;
         let mut out = Vec::new();
         for place in places {
             if let Some(id) = self.borrow(place, kind, scope, span)? {
@@ -717,6 +859,145 @@ impl Checker<'_, '_> {
             }
         }
         Ok(out)
+    }
+    fn reference_value(
+        &mut self,
+        id: r::ExpressionId,
+        kind: r::LoanKind,
+        scope: usize,
+        forward: bool,
+        depth: usize,
+    ) -> Result<Vec<LoanId>, Error> {
+        let expression = &self.function.expressions[id.0];
+        let span = expression.span;
+        self.context.budget.enter(span, depth)?;
+        match expression.kind {
+            r::ExpressionKind::Local(local) => {
+                let place = Place {
+                    owner: Owner::Local(local),
+                    via: None,
+                    guard: None,
+                    mutable: self.function.locals[local.0].kind == r::BindingKind::Mutable,
+                    scope: self.depths[local.0],
+                    cell: Some(local.0),
+                };
+                self.access(place, Access::Read, span)?;
+                let references = self
+                    .context
+                    .budget
+                    .copy(span, &self.state.references[local.0])?;
+                if !forward {
+                    return Ok(references);
+                }
+                let mut out = Vec::new();
+                for id in references {
+                    if let Some(id) = self.borrow(self.loan_place(id), kind, scope, span)? {
+                        self.context.budget.push(span, &mut out, id)?;
+                    }
+                }
+                Ok(out)
+            }
+            r::ExpressionKind::Borrow {
+                kind: explicit,
+                place,
+            } => {
+                let places = self.places(r::ExpressionId(place.0), explicit, scope, depth + 1)?;
+                let mut out = Vec::new();
+                for place in places {
+                    if let Some(id) = self.borrow(place, explicit, scope, span)? {
+                        self.context.budget.push(span, &mut out, id)?;
+                    }
+                }
+                Ok(out)
+            }
+            r::ExpressionKind::CoreCall { .. } => Ok(self.eval(id, scope, depth + 1)?.references),
+            _ => {
+                let places = self.places(id, kind, scope, depth + 1)?;
+                let mut out = Vec::new();
+                for place in places {
+                    self.load_reference(place, kind, scope, span, !forward, &mut out)?;
+                }
+                Ok(out)
+            }
+        }
+    }
+    fn load_reference(
+        &mut self,
+        cell: Place,
+        kind: r::LoanKind,
+        scope: usize,
+        span: Span,
+        projection: bool,
+        out: &mut Vec<LoanId>,
+    ) -> Result<(), Error> {
+        if !self.access(cell, Access::Read, span)? {
+            return Ok(());
+        }
+        let Some(index) = cell.cell else {
+            return Ok(());
+        };
+        let contents = self
+            .context
+            .budget
+            .copy(span, &self.state.references[index])?;
+        for id in contents {
+            let mut place = self.loan_place(id);
+            place.guard = cell.via;
+            place.mutable &= cell.mutable;
+            let kind = if projection && !place.mutable {
+                r::LoanKind::Shared
+            } else {
+                kind
+            };
+            if let Some(id) = self.borrow_extra(place, kind, scope, span, &[], projection)? {
+                self.context.budget.push(span, out, id)?;
+            }
+        }
+        Ok(())
+    }
+    fn argument_reference(
+        &mut self,
+        id: r::ExpressionId,
+        parameter: r::Type,
+        scope: usize,
+        depth: usize,
+    ) -> Result<Vec<LoanId>, Error> {
+        let (kind, target) = self.loan_target(parameter).unwrap();
+        if self.facts.expressions()[id.0] == target {
+            self.reference_place(id, kind, scope, depth + 1)
+        } else {
+            self.reference(id, kind, scope, depth + 1)
+        }
+    }
+    fn reserve_contents(
+        &mut self,
+        id: LoanId,
+        scope: usize,
+        span: Span,
+        depth: usize,
+    ) -> Result<(), Error> {
+        self.context.budget.enter(span, depth)?;
+        let loan = self.loans[id.0];
+        if let Some(cell) = loan.cell {
+            let contents = self
+                .context
+                .budget
+                .copy(span, &self.state.references[cell])?;
+            for inner in contents {
+                let mut place = self.loan_place(inner);
+                place.guard = Some(id);
+                place.mutable &= loan.kind == r::LoanKind::Exclusive;
+                let kind = if place.mutable {
+                    r::LoanKind::Exclusive
+                } else {
+                    r::LoanKind::Shared
+                };
+                if let Some(inner) = self.borrow(place, kind, scope, span)? {
+                    self.reserve_contents(inner, scope, span, depth + 1)?;
+                }
+            }
+        }
+        Ok(())
     }
     fn eval(
         &mut self,
@@ -744,15 +1025,17 @@ impl Checker<'_, '_> {
                 } else {
                     Access::Move
                 };
-                let places = self.places(id, depth + 1)?;
+                let places = self.places(id, r::LoanKind::Shared, result_scope, depth + 1)?;
                 for place in &places {
                     self.access(*place, access, span)?;
                 }
                 return Ok(Value::plain(places.first().copied().unwrap_or(Place {
                     owner: Owner::Temporary(id),
                     via: None,
+                    guard: None,
                     mutable: false,
                     scope: result_scope,
+                    cell: None,
                 })));
             }
             r::ExpressionKind::Call { arguments, .. }
@@ -762,8 +1045,22 @@ impl Checker<'_, '_> {
                 let call_scope = self.scopes.len();
                 let mut returned = Vec::new();
                 for (index, argument) in arguments.iter().enumerate() {
-                    let value = if let Some(kind) = self.loan(call.parameters[index]) {
-                        self.reference(*argument, kind, call_scope, depth + 1)?
+                    let value = if self.loan(call.parameters[index]).is_some() {
+                        let value = self.argument_reference(
+                            *argument,
+                            call.parameters[index],
+                            call_scope,
+                            depth + 1,
+                        )?;
+                        for id in &value {
+                            self.reserve_contents(
+                                *id,
+                                call_scope,
+                                self.function.expressions[argument.0].span,
+                                0,
+                            )?;
+                        }
+                        value
                     } else {
                         self.eval(*argument, call_scope, depth + 1)?.references
                     };
@@ -772,6 +1069,9 @@ impl Checker<'_, '_> {
                     {
                         for id in value {
                             let mut place = self.loan_place(id);
+                            let mut inherited = self.parents(place, &[], span)?;
+                            self.context.budget.charge(span, inherited.len())?;
+                            inherited.retain(|id| self.loans[id.0].scope <= result_scope);
                             while let Some(via) = place.via {
                                 self.context.budget.charge(span, 1)?;
                                 let loan = self.loans[via.0];
@@ -780,7 +1080,9 @@ impl Checker<'_, '_> {
                                 }
                                 place.via = loan.parent;
                             }
-                            self.context.budget.push(span, &mut returned, place)?;
+                            self.context
+                                .budget
+                                .push(span, &mut returned, (place, inherited))?;
                         }
                     }
                 }
@@ -788,10 +1090,15 @@ impl Checker<'_, '_> {
                 match call.result_binding {
                     core::ResultBinding::ProvisionalLoan { .. } => {
                         let mut refs = Vec::new();
-                        for place in returned {
-                            if let Some(id) =
-                                self.borrow(place, r::LoanKind::Shared, result_scope, span)?
-                            {
+                        for (place, inherited) in returned {
+                            if let Some(id) = self.borrow_extra(
+                                place,
+                                r::LoanKind::Shared,
+                                result_scope,
+                                span,
+                                &inherited,
+                                false,
+                            )? {
                                 self.context.budget.push(span, &mut refs, id)?;
                             }
                         }
@@ -805,8 +1112,10 @@ impl Checker<'_, '_> {
                         let place = Place {
                             owner: Owner::InstanceAllocator,
                             via: None,
+                            guard: None,
                             mutable: false,
                             scope: 0,
+                            cell: None,
                         };
                         let mut refs = Vec::new();
                         if let Some(id) =
@@ -842,8 +1151,10 @@ impl Checker<'_, '_> {
         Ok(Value::plain(Place {
             owner: Owner::Temporary(id),
             via: None,
+            guard: None,
             mutable: false,
             scope: result_scope,
+            cell: None,
         }))
     }
     fn block(&mut self, id: r::BlockId, depth: usize) -> Result<bool, Error> {
@@ -890,18 +1201,51 @@ impl Checker<'_, '_> {
                 let place = Place {
                     owner: Owner::Local(*local),
                     via: None,
+                    guard: None,
                     mutable: self.function.locals[local.0].kind == r::BindingKind::Mutable,
                     scope: self.depths[local.0],
+                    cell: self.loan(self.facts.locals()[local.0]).map(|_| local.0),
                 };
                 self.access(place, Access::Write, span)?;
                 self.state.references[local.0] = refs;
             }
             r::StatementKind::PlaceAssign { place, value } => {
                 self.begin(span)?;
-                let places = self.places(r::ExpressionId(place.0), depth + 1)?;
-                self.eval(*value, self.scopes.len(), depth + 1)?;
-                for place in places {
-                    self.access(place, Access::Write, span)?;
+                let places = self.places(
+                    r::ExpressionId(place.0),
+                    r::LoanKind::Exclusive,
+                    self.scopes.len(),
+                    depth + 1,
+                )?;
+                if let Some(kind) = self.loan(self.facts.expressions()[place.0]) {
+                    let scope = places
+                        .iter()
+                        .map(|p| p.scope)
+                        .min()
+                        .unwrap_or(self.scopes.len());
+                    let refs = self.reference(*value, kind, scope, depth + 1)?;
+                    let weak = places.len() != 1;
+                    for place in places {
+                        if self.access(place, Access::Write, span)?
+                            && let Some(cell) = place.cell
+                        {
+                            if weak {
+                                self.context.budget.union(
+                                    span,
+                                    &mut self.state.references[cell],
+                                    &refs,
+                                )?;
+                            } else {
+                                self.state.references[cell] =
+                                    self.context.budget.copy(span, &refs)?;
+                            }
+                        }
+                    }
+                } else {
+                    self.eval(*value, self.scopes.len(), depth + 1)?;
+                    for place in places {
+                        self.access(place, Access::Write, span)?;
+                    }
                 }
                 self.end(span)?;
             }

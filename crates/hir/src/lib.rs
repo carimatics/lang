@@ -9,8 +9,8 @@
 //! `program`. Its executable typed program remains Copy-only. Separate body
 //! type facts do not establish moves, loan/region flow, or executable validity.
 //! `moves` checks definite initialization and local consumption. `loans` checks
-//! lexical whole-owner access for single-layer loans; nested reference cells,
-//! arena-brand flow, and executable promotion remain separate requirements.
+//! lexical whole-owner access and nested reference cells. Arena-brand flow
+//! and executable promotion remain separate requirements.
 
 pub mod core;
 pub mod layout;

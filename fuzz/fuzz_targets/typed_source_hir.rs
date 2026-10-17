@@ -371,9 +371,6 @@ fuzz_target!(|bytes: &[u8]| {
                                     for d in analysis.diagnostics {
                                         d.validate(&sources).unwrap();
                                     }
-                                    for pending in analysis.pending {
-                                        sources.slice(pending.span).unwrap();
-                                    }
                                     if let Some(checked) = analysis.bodies {
                                         assert_eq!(checked.moved().bodies().source(), &program);
                                         for facts in checked.functions() {
@@ -381,6 +378,12 @@ fuzz_target!(|bytes: &[u8]| {
                                                 sources.slice(loan.span).unwrap();
                                                 if let Some(parent) = loan.parent {
                                                     assert!(parent.0 < index);
+                                                }
+                                                for dependency in facts
+                                                    .dependencies(loans::LoanId(index))
+                                                    .unwrap()
+                                                {
+                                                    assert!(dependency.0 < index);
                                                 }
                                             }
                                         }
