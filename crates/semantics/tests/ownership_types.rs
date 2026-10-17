@@ -76,6 +76,205 @@ fn compare(checked: &RegionCheckedBodies, v: &o::VerifiedTypes) {
 }
 const FAMILY: &str = "struct Node { next: core::Option<arena Node> } enum Choice { Empty, Value(core::Text) } fn f(a: &core::Allocator, t: core::Text, b: core::Bytes, u: core::Unit, o: core::Option<i64>, r: core::Result<i64, core::AllocError>, v: core::Vec<i64>, m: core::Map<core::Text, i64>, s: shared i64, w: weak i64, n: arena Node, x: &mut i64, be: core::BoundsError, bu: core::BufferError, utf: core::Utf8Error, own: core::OwnershipError, ar: core::ArenaError) -> i64 { return 0; }";
 
+fn automatic_mir(text: &str) -> o::loans::LoanCheckedBodies {
+    let (sources, checked) = prepare(text);
+    let original = checked.clone();
+    let typed = ownership_types::bodies::lower(&checked, &sources, Default::default()).unwrap();
+    assert_eq!(checked, original);
+    let moved = o::moves::analyze(typed, Default::default()).unwrap();
+    let active = o::loan_activity::analyze(moved, Default::default()).unwrap();
+    o::loans::analyze(active, Default::default()).unwrap()
+}
+
+#[test]
+fn automatic_owned_return_keeps_the_return_value_and_discards_consumed_owners() {
+    let out = automatic_mir(
+        "fn owned(t: core::Text) -> core::Text { let mut a: core::Text = t; return a; }",
+    );
+    assert!(
+        out.activity().moved().functions()[0].exits()[0]
+            .owners()
+            .is_empty()
+    );
+    let typed = out.activity().moved().typed().clone();
+    let mut table = typed.into_table();
+    let block = &mut table.functions[0].blocks[0];
+    let m::Term::Return(value) = block.terminator.kind else {
+        panic!()
+    };
+    block.instructions.push(o::bodies::Instruction {
+        results: vec![],
+        op: o::bodies::Op::DropValueIfAvailable(value),
+        span: block.span,
+    });
+    let typed = table.verify(Default::default()).unwrap();
+    assert!(matches!(
+        o::moves::analyze(typed, Default::default())
+            .unwrap_err()
+            .kind,
+        o::moves::ErrorKind::Unavailable { .. }
+    ));
+}
+
+#[test]
+fn automatic_owned_record_evaluates_written_order_and_uses_canonical_field_order() {
+    use o::{bodies::Op, declarations::LocalId, places::Root};
+    let out = automatic_mir(
+        "struct Pair { a: core::Text, b: core::Text } fn pair(a: core::Text, b: core::Text) -> Pair { return Pair { b: b, a: a }; }",
+    );
+    let typed = out.activity().moved().typed();
+    let table = typed.clone().into_table();
+    let frame = &typed.places().functions()[0];
+    let reads: Vec<_> = table.functions[0].blocks[0]
+        .instructions
+        .iter()
+        .filter_map(|i| match i.op {
+            Op::MovePlace(p) => Some((frame.places[p.0 as usize].root, i.results[0])),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        reads.iter().map(|r| r.0).collect::<Vec<_>>(),
+        [Root::Local(LocalId(1)), Root::Local(LocalId(0))]
+    );
+    let fields = table.functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find_map(|i| match &i.op {
+            Op::Record { fields, .. } => Some(fields),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(fields, &[reads[1].1, reads[0].1]);
+}
+
+#[test]
+fn automatic_borrows_calls_and_prepared_assignment_preserve_source_paths() {
+    automatic_mir(
+        "fn read(p: &i64) -> i64 { return (*p); } fn update(p: &mut i64) -> i64 { let mut a: i64 = read(&(*p)); (*p) = a + 7; return (*p); }",
+    );
+    // An implicit place borrow and an exclusive-to-shared reborrow both end at the call.
+    automatic_mir(
+        "fn read(p: &i64) -> i64 { return (*p); } fn update(p: &mut i64) -> i64 { let mut a: i64 = read(p); (*p) = a + 7; return read((*p)); }",
+    );
+    automatic_mir(
+        "fn f(x: i64) -> i64 { let mut a: i64 = x; let mut loan: &i64 = &a; return (*loan); }",
+    );
+    automatic_mir(
+        "fn set(p: &mut i64) -> i64 { (*p) = 7; return (*p); } fn twice(p: &mut i64) -> i64 { let mut a: i64 = set(p); return set(p); }",
+    );
+}
+
+#[test]
+fn automatic_loop_branch_cleanup_handles_maybe_moved_locals_and_allocator_loans() {
+    let out = automatic_mir(
+        "fn work(flag: bool) -> i64 { let mut n: i64 = 0; while n < 3 { let mut bytes: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); if flag { let mut moved: core::Result<core::Bytes, core::AllocError> = bytes; } else { } n = n + 1; } return n; }",
+    );
+    let typed = out.activity().moved().typed();
+    assert!(typed.facts()[0].needs_instance_allocator());
+    assert!(
+        out.activity().moved().functions()[0].exits()[0]
+            .owners()
+            .is_empty()
+    );
+}
+
+#[test]
+fn automatic_if_returns_nominal_core_values_and_host_imports_keep_a_valid_cfg() {
+    automatic_mir(
+        "enum Choice { Empty, Value(i64) } fn f(flag: bool) -> Choice { if flag { return Choice::Value(3); } else { return Choice::Empty; } }",
+    );
+    automatic_mir(
+        "fn f(flag: bool) -> core::Result<core::Unit, core::AllocError> { if flag { return core::Result::Ok(core::Unit {}); } return core::Result::Err(core::AllocError::Limit); }",
+    );
+    automatic_mir("extern fn host(x: i64) -> i64; fn f(x: i64) -> i64 { return host(x); }");
+}
+
+#[test]
+fn automatic_arena_entry_core_owner_borrow_and_exit_have_balanced_lifetimes() {
+    automatic_mir(
+        "fn f(a: &core::Allocator) -> i64 { arena graph(a) { let mut created: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph, 7); } return 0; }",
+    );
+    automatic_mir("fn f(a: &core::Allocator) -> i64 { arena graph(a) { return 0; } }");
+}
+
+#[test]
+fn conditional_drop_cannot_bypass_an_active_loan_or_reuse_a_discarded_value() {
+    use o::{bodies as b, declarations::LocalId};
+    let (sources, checked) =
+        prepare("fn f(x: i64) -> i64 { let mut loan: &i64 = &x; return (*loan); }");
+    let typed = ownership_types::bodies::lower(&checked, &sources, Default::default()).unwrap();
+    let mut table = typed.into_table();
+    let block = &mut table.functions[0].blocks[0];
+    let position = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.op, b::Op::Borrow { .. }))
+        .unwrap()
+        + 1;
+    block.instructions.insert(
+        position,
+        b::Instruction {
+            results: vec![],
+            op: b::Op::DropLocalIfInitialized(LocalId(0)),
+            span: block.span,
+        },
+    );
+    let typed = table.verify(Default::default()).unwrap();
+    let moved = o::moves::analyze(typed, Default::default()).unwrap();
+    let active = o::loan_activity::analyze(moved, Default::default()).unwrap();
+    assert!(o::loans::analyze(active, Default::default()).is_err());
+}
+
+#[test]
+fn automatic_lowering_rejects_unlowered_match_atomically_with_the_original_span() {
+    let text = include_str!("fixtures/arena-body.lang");
+    let (sources, checked) = prepare(text);
+    let original = checked.clone();
+    let error = ownership_types::bodies::lower(&checked, &sources, Default::default()).unwrap_err();
+    let Error::UnsupportedBody {
+        feature: ownership_types::UnsupportedBody::Match,
+        span,
+    } = error
+    else {
+        panic!("{error:?}")
+    };
+    assert!(sources.slice(span).unwrap().starts_with("match created"));
+    assert_eq!(checked, original);
+}
+
+#[test]
+fn automatic_construction_and_verification_use_exact_cumulative_budgets() {
+    let (sources, checked) = prepare(
+        "fn read(x: &i64) -> i64 { return (*x); } fn f(x: i64) -> i64 { let mut y: i64 = read(x); y = y + 1; return y; }",
+    );
+    let out = ownership_types::bodies::lower(&checked, &sources, Default::default()).unwrap();
+    for (kind, used) in [
+        (m::LimitKind::Work, out.work_used()),
+        (m::LimitKind::Allocations, out.requested_bytes()),
+        (m::LimitKind::Elements, out.elements_used()),
+    ] {
+        let mut limits = o::bodies::Limits::default();
+        match kind {
+            m::LimitKind::Work => limits.places.ownership.unit.work = used,
+            m::LimitKind::Allocations => limits.places.ownership.unit.allocations = used,
+            _ => limits.places.ownership.unit.elements = used,
+        }
+        assert_eq!(
+            out,
+            ownership_types::bodies::lower(&checked, &sources, limits).unwrap()
+        );
+        match kind {
+            m::LimitKind::Work => limits.places.ownership.unit.work -= 1,
+            m::LimitKind::Allocations => limits.places.ownership.unit.allocations -= 1,
+            _ => limits.places.ownership.unit.elements -= 1,
+        }
+        assert!(
+            matches!(ownership_types::bodies::lower(&checked, &sources, limits).unwrap_err(), Error::Mir(m::Error { kind: m::ErrorKind::Limit { kind: k, .. }, .. }) | Error::Types(o::Error { kind: o::ErrorKind::Mir(m::ErrorKind::Limit { kind: k, .. }), .. }) if k == kind)
+        );
+    }
+}
+
 #[test]
 fn every_source_core_identity_maps_to_the_independent_mir_contract() {
     let mut seen = std::collections::BTreeSet::new();

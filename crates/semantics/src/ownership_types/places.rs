@@ -12,6 +12,15 @@ pub fn lower(
     sources: &SourceMap,
     limits: p::Limits,
 ) -> Result<p::VerifiedPlaces> {
+    let (mut c, out) = construct(checked, sources, limits)?;
+    Ok(out.verify_with_budget(&mut c.budget, limits.ownership.constructed, limits.places)?)
+}
+
+pub(super) fn construct<'a>(
+    checked: &RegionCheckedBodies,
+    sources: &'a SourceMap,
+    limits: p::Limits,
+) -> Result<(Context<'a>, p::PlaceTable)> {
     let bodies = checked.loaned().moved().bodies();
     let (mut c, declarations) = construct_declarations(checked, sources, limits.ownership)?;
     let mut out = p::PlaceTable {
@@ -92,7 +101,7 @@ pub fn lower(
         }
         out.functions.push(f);
     }
-    Ok(out.verify_with_budget(&mut c.budget, limits.ownership.constructed, limits.places)?)
+    Ok((c, out))
 }
 
 fn project(

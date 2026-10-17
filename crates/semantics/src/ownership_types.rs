@@ -1,5 +1,6 @@
 //! Checked source ownership HIR to the MIR's independently verified type graph.
-//! This adapter does not lower instructions or authorize execution/serialization.
+//! Type/place adapters and automatic body lowering remain independent from
+//! executable layouts, runtime authority, and serialization.
 
 use lang_diagnostics::{SourceError, SourceId, SourceMap, Span};
 use lang_hir::{regions::RegionCheckedBodies, resolved as r};
@@ -7,7 +8,14 @@ use lang_mir::unit::{self as m, ownership as o};
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 
+pub mod bodies;
 pub mod places;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnsupportedBody {
+    Match,
+    ProvisionalResult,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
@@ -15,9 +23,29 @@ pub enum Error {
     Mir(m::Error),
     Types(o::Error),
     MissingSource,
-    MissingLocal { function: usize, local: usize },
-    MissingExpression { function: usize, expression: usize },
-    MissingField { function: usize, expression: usize },
+    MissingLocal {
+        function: usize,
+        local: usize,
+    },
+    MissingExpression {
+        function: usize,
+        expression: usize,
+    },
+    MissingField {
+        function: usize,
+        expression: usize,
+    },
+    MissingPlace {
+        function: usize,
+        expression: usize,
+    },
+    UnsupportedBody {
+        feature: UnsupportedBody,
+        span: Span,
+    },
+    Fallthrough {
+        function: usize,
+    },
     Capacity,
 }
 impl From<SourceError> for Error {
@@ -37,7 +65,7 @@ impl From<o::Error> for Error {
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "source ownership type lowering failed: {self:?}")
+        write!(f, "source ownership MIR lowering failed: {self:?}")
     }
 }
 impl StdError for Error {}

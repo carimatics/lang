@@ -700,7 +700,7 @@ impl Context<'_, '_> {
                 self.clear_capture(row, id)?;
             }
             Op::DiscardPrepared(id) => self.clear_capture(row, id.0 as usize)?,
-            Op::DropValue(v) => {
+            Op::DropValue(v) | Op::DropValueIfAvailable(v) => {
                 let node = self.topology.value(*v);
                 let place = self.direct(node)?;
                 let copy = self
@@ -720,7 +720,7 @@ impl Context<'_, '_> {
                 )?;
                 self.consume(row, *v)?;
             }
-            Op::DropLocal(l) | Op::ArenaExit { owner: l } => {
+            Op::DropLocal(l) | Op::DropLocalIfInitialized(l) | Op::ArenaExit { owner: l } => {
                 let node = self.topology.local(*l);
                 let place = self.direct(node)?;
                 self.access(row, &place, Access::Write, s, mode)?;

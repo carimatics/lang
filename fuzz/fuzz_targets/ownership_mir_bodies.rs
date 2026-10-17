@@ -176,7 +176,7 @@ fuzz_target!(|bytes: &[u8]| {
             let loan = b::LoanId(u32::from(byte(at + 3) % 8));
             let place = p::PlaceId(u32::from(byte(at + 3) % 4));
             let destination = b::PreparedPlaceId(u32::from(byte(at + 3) % 8));
-            let (op, output) = match byte(at) % 23 {
+            let (op, output) = match byte(at) % 25 {
                 0 => (b::Op::Bool(byte(at + 1) & 1 != 0), true),
                 1 => (b::Op::I64(i64::from(byte(at + 1))), true),
                 2 => (b::Op::Add(a, z), true),
@@ -271,7 +271,7 @@ fuzz_target!(|bytes: &[u8]| {
                     false,
                 ),
                 21 => (b::Op::DiscardPrepared(destination), false),
-                _ => (
+                22 => (
                     b::Op::CoreCall(o::core::Call {
                         operation: o::core::Operation::ALL
                             [usize::from(byte(at + 3)) % o::core::Operation::ALL.len()],
@@ -290,6 +290,11 @@ fuzz_target!(|bytes: &[u8]| {
                     }),
                     true,
                 ),
+                23 => (
+                    b::Op::DropLocalIfInitialized(d::LocalId(u32::from(byte(at + 3) % 3))),
+                    false,
+                ),
+                _ => (b::Op::DropValueIfAvailable(a), false),
             };
             instructions.push(b::Instruction {
                 results: if output {

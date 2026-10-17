@@ -378,6 +378,16 @@ impl Context<'_, '_> {
             }
             Op::Copy(v) | Op::IsCase { value: v, .. } => self.read(state, *v, s, mode)?,
             Op::Move(v) | Op::DropValue(v) => self.take(state, *v, s, mode)?,
+            Op::DropValueIfAvailable(v) => {
+                let index = self.value(*v);
+                self.budget.charge(1)?;
+                if !self.properties[index].copy {
+                    if state[index].may_live() && self.causes[index].is_none() {
+                        self.causes[index] = Some(s);
+                    }
+                    state[index] = Availability::Vacant;
+                }
+            }
             Op::CopyPlace(p) | Op::Borrow { place: p, .. } => {
                 self.read_place(state, *p, s, mode)?
             }
@@ -462,6 +472,13 @@ impl Context<'_, '_> {
                 if available && self.causes[index].is_none() {
                     self.causes[index] = Some(s);
                 }
+            }
+            Op::DropLocalIfInitialized(l) => {
+                self.budget.charge(1)?;
+                if state[l.0 as usize].may_live() && self.causes[l.0 as usize].is_none() {
+                    self.causes[l.0 as usize] = Some(s);
+                }
+                state[l.0 as usize] = Availability::Vacant;
             }
             Op::ArenaEnter { owner, allocator } => {
                 self.read(state, *allocator, s, mode)?;

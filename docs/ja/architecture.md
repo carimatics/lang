@@ -327,6 +327,16 @@ Move解析はoperationがfailureを返す場合もowning inputを消費します
 
 出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[MIR契約](../../crates/mir/src/unit/ownership/core/mod.rs)、[独立signature fixture](../../tests/fixtures/core-signatures.txt)、[MIR test](../../crates/mir/tests/ownership_core.rs)、[source adapter／test](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。受理済みprofile内の解析を実装し、runtime ownership、arena brand、cleanup、allocator budget、C boundary、layout、version付きserializationはそれぞれ独立した完了gateを維持します。
 
+### Automatic ownership body lowering
+
+2026-10-17実装：`lang_semantics::ownership_types::bodies::lower` はregion検証済みsource bodyを受け取り、独立に検証するownership MIRを自動生成します。Type／declaration／place adapterと命令生成は累積work／allocation／element budgetを共有します。Source expression identityとspanを保持し、compiler生成のborrow valueとassignment placeには型と上限を持つmetadata slotを割り当てます。APIは実行できない `TypedBodies` を返し、手作業で命令を組み立てずに既存のmove／loan activity／provenance解析へ渡せます。
+
+現在の経路はowned localとreturn、nominal／core constructor、記述順のrecord／call引数、明示／暗黙place borrow、exclusive-to-shared／exclusive-to-exclusive reborrow、guest／scalar host／core call、RHS前のdestination準備を行うassignment、if／while CFG、arena開始／終了をlowerします。Call一時loanはcall後に、字句的loanは正常scope／return edgeで終了します。条件付きlocal／SSA discardは、移動済み値を許容しながらauthority／active loanの検証を維持し、loop localのstorageを復元し、返却するSSA ownerを保持します。これらは正常flowのstorage／ownership factです。実初期化順に従う破棄、return cleanupの失敗、全exceptional edgeは、実行前にRFC 0008のcleanup elaborationを必要とします。
+
+追加9件のsource testでowned returnの消費、recordの評価／並べ替え、入れ子／暗黙引数borrow、一時loan後の変更、branch／loopの移動済みかもしれないlocal、allocator要件、scalar host import、nominal／core sum、arena owner call／return時の終了、条件付きdiscardのactive loan拒否、未対応matchのspan／入力保持、正確な累積上限を確認します。Ownership-body fuzzerも条件付きdiscardを生成します。到達可能なmatchとprovisional借用core結果は、pattern／arm lifetimeのlowering実装まで明示的に拒否します。独立MIRのarena brand／guest effect検証、owned layout、allocation authority、failure cleanup、serialization、VM／native実行は未完了であり、このAPIだけでHIR／MIRやarena／core成果を完了扱いにはしません。
+
+出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[自動lowerer](../../crates/semantics/src/ownership_types/bodies.rs)、[source統合test](../../crates/semantics/tests/ownership_types.rs)、[ownership命令](../../crates/mir/src/unit/ownership/bodies.rs)。更新／検証日：2026-10-17 JST。この変更では実行用／serialize用ownership profileを追加しません。
+
 ### Source formatter
 
 2026-10-17に実装したRFC 0007構文拡張：lossless token／CSTで `&T`／`&mut T`、`shared T`／`weak T`／`arena T`、入れ子の組み込みtype argument、`::<...>` call、place borrow、括弧付きdereference、place assignment、allocatorを渡す字句的arena blockを表現します。Generic末尾の `>` は別tokenのままで、`<` 比較と符号付き整数のbehaviorを維持します。Prefix／type argumentの再帰とrecoveryは既存node／depth／list／work上限に従い、formatterはgeneric delimiterと比較を区別して新tokenの全境界間のcommentを保持します。

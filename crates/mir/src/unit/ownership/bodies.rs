@@ -50,6 +50,10 @@ pub enum Op {
     DiscardPrepared(PreparedPlaceId),
     DropValue(m::Register),
     DropLocal(d::LocalId),
+    /// Drop an initialized local, or do nothing when its value was moved out.
+    DropLocalIfInitialized(d::LocalId),
+    /// Drop a remaining SSA owner, or do nothing when it was consumed.
+    DropValueIfAvailable(m::Register),
     Borrow {
         loan: LoanId,
         kind: LoanKind,
@@ -117,6 +121,7 @@ impl Op {
             Self::Copy(v)
             | Self::Move(v)
             | Self::DropValue(v)
+            | Self::DropValueIfAvailable(v)
             | Self::Initialize { value: v, .. }
             | Self::Replace { value: v, .. }
             | Self::ReplacePrepared { value: v, .. }
@@ -677,14 +682,14 @@ impl Check<'_, '_> {
                 self.destination(*id, s)?;
                 self.void(i)
             }
-            Op::DropValue(v) => {
+            Op::DropValue(v) | Op::DropValueIfAvailable(v) => {
                 let ty = self.value(*v, s)?;
                 if self.authority(ty) {
                     return Err(Error::new(ErrorKind::MoveAuthority(ty), Some(s)));
                 }
                 self.void(i)
             }
-            Op::DropLocal(l) => {
+            Op::DropLocal(l) | Op::DropLocalIfInitialized(l) => {
                 let ty = self.local(*l, s)?.ty.ty;
                 if self.authority(ty) {
                     return Err(Error::new(ErrorKind::MoveAuthority(ty), Some(s)));
@@ -1263,7 +1268,8 @@ fn provisional_use(op: &Op, value: m::Register) -> bool {
         | Op::CopyCaseField { value: v, .. }
         | Op::BorrowCaseField { value: v, .. }
         | Op::UnpackVariant { value: v, .. }
-        | Op::DropValue(v) => *v == value,
+        | Op::DropValue(v)
+        | Op::DropValueIfAvailable(v) => *v == value,
         _ => false,
     }
 }
