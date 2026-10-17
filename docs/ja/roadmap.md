@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P0：** Deterministicなscript／transactional REPL entry pointを提供し、続いて残るformatterとLSP統合を進めます。
+- **次の進行中P0：** Transactional REPL entry pointを完成させ、続いて残るformatterとLSP統合を進めます。
 
 ### 優先度順のタスク
 
@@ -210,7 +210,7 @@ Commit `e62b33b` は明示file権限付きvirtual root analysis、分離したex
 | Module／source snapshot | Parser／module query、reverse-dependency invalidation、editor document lifecycle |
 | Script／REPL契約 | Deterministicなscript entry／outputとtransactional REPL execution |
 
-5つの判断領域はすべてRFC 0006で受理済みです。完了したlibrary実行経路だけではscript／editorのexitを証明しません。[`src/main.rs`](../../src/main.rs)の確認では、実行fileは依然として整数2つを受け取りprototype MIRを構築しており、source fileをまだ実行しません。Milestone 1のexitまでにCLI／REPLと残るP1 toolingの全scopeを完了する必要があります。
+5つの判断領域はすべてRFC 0006で受理済みです。実行fileは `lang run` でsource scriptを実行し、`SRC0018` でscript entryを検証し、符号付き結果1つを出力してexit 0、compile／runtime／usage failureでexit 1／2を返します。10件のCLI testと全体の440-test baselineが成功し、複数fileのexampleは `42` を出力します。従来の整数2つのmodeも維持します。Transactional REPLは未完了のscript／REPL item 3 ptに残り、Milestone 1のexitには残るP1 toolingの全scopeも引き続き必須です。
 
 以前のowner判断blockerは2026-10-17の明示受理で解消し、`031575e` に記録しました。受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)と[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)が実装契約を提供します（最終更新2026-10-17 JST）。受理によって完了するのは5つの判断checkboxだけです。実装完了、scope縮小、Milestone 1 exitを推定しません。Milestone 1の最終capability guideは、実際のsource駆動milestoneが完了した後の成果物として残ります。
 

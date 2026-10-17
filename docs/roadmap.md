@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** provide deterministic script/transactional REPL entry points, followed by the remaining formatter and LSP integration.
+- **Next active P0:** finish transactional REPL entry points, followed by the remaining formatter and LSP integration.
 
 ### Tasks in priority order
 
@@ -210,7 +210,7 @@ Commit `e62b33b` adds virtual root analysis with explicit file authority, isolat
 | Module/source snapshots | Parser/module queries, reverse-dependency invalidation, and editor document lifecycle |
 | Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
 
-All five decision areas are accepted in RFC 0006. The completed library execution path still does not establish the script/editor exit. Inspection of [`src/main.rs`](../src/main.rs) confirms the executable still accepts two integers and constructs prototype MIR; it does not yet run source files. CLI/REPL and the full remaining P1 tooling scope must be completed before Milestone 1 exits.
+All five decision areas are accepted in RFC 0006. The executable now runs source scripts through `lang run`, validates the script entry with `SRC0018`, prints one signed result with exit 0, and uses exit 1/2 for compile/runtime/usage failures. Ten CLI tests and the full 440-test baseline pass; the multi-file example prints `42`. The original two-integer mode is retained. Transactional REPL remains in the unchecked 3-point script/REPL item, and the full remaining P1 tooling scope is still required before Milestone 1 exits.
 
 The previous owner-decision blocker is resolved by the explicit 2026-10-17 acceptance, recorded in `031575e`. Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) and [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) now provide the implementation contract (last updated 2026-10-17 JST). Acceptance completes only the five decision checkboxes. No implementation completion, scope reduction, or Milestone 1 exit is inferred. The final Milestone 1 capability guide remains due after the actual source-driven milestone is complete.
 
