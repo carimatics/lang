@@ -6,13 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**39 done · 0 doing · 52 todo · 134 remaining pt**
+**40 done · 0 doing · 51 todo · 131 remaining pt**
 
-**次: M2-S02 → 受理済みのsum全体取り出し3操作を型検査してlowerする。**
+**次: M2-S03 → admission済みpayload移譲とowned Bytes source fixtureを実行する。**
 
-直近の完了：**M2-S01**（`c4cb8b9`）。[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) でSome／Ok／Err payloadの明示取り出しを受理し、borrowed matchを維持したpanic／cleanup、互換性、検証条件を記録しました。設計行の完了であり、source実装の完了ではありません。Repository consistencyの3 checkが成功（3.02秒）し、guide exampleは現時点で未登録のcore nameまで進みます（`SRC0024`）。直近の実行成果は引き続き **M2-V03**（`ece8690`）で、[Bytes source program](../../examples/scripts/bytes.lang) が `0` を表示し、対象source／runtime 8 testとcode baseline 952 testが成功しています。
+直近の完了：**M2-S02**（`b562c0f`）。[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) のSome／Ok／Err取り出しをsource／MIR解析へ実装しました。[取り出しfixture](../../examples/analysis/extraction.lang) はCLI `check` に成功し、move／loan／region違反を拒否し、MIRのsignature／消費を独立検証します。新source 6 testと不正MIR 1 testが成功しました。全体の **71 suite・959 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyが成功しています。実行は取り出しcallのeffect前で引き続きgateします（fuel 0、host call 0）。直近の実行成果は **M2-V03**（`ece8690`）のままで、[Bytes source program](../../examples/scripts/bytes.lang) が `0` を表示します。
 
-現在のsource対応範囲：引数なしi64 mainで、`core::allocator()`、Bytes new／len、borrowed Result match、scalar／Copy命令、shared loan、生成cleanupを実行できます。新しい取り出し操作、REPL／native実行、残りownership命令は各実装gateに残し、未対応命令はprovider callback前に拒否します。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **22.5秒**、全test **244.4秒**、rustdoc **22.9秒**、fuzz Clippy **1.8秒**。各suiteが報告するtest実行時間の合計は4.7秒で、残りwall timeの内訳は、含まれるbuild／runner costを超えてこのlogでは特定できません。Command所要時間であり、全稼働時間ではありません。まとまったcode成果ごとにbaselineを1回実行し、文書のみの更新はconsistency checkを使います。
+
+現在のsource対応範囲：引数なしi64 mainで、`core::allocator()`、Bytes new／len、borrowed Result match、scalar／Copy命令、shared loan、生成cleanupを実行できます。新しい取り出し操作はsource／MIR解析を通りますが実行gateを残し、REPL／native実行と残りownership命令も各gateに残します。未対応命令はprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -97,7 +99,7 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 | M2-V02 | done | 0 | M2-V01 | G06 | 上限付きowned frameの受け入れ時、effect前にvalue／retirement storageを確保し、失敗rollbackを検証。 | `86c23ce` |
 | M2-V03 | done | 0 | M2-V02,M2-D35 | G06,G07 | lang runでBytes new／lenのソースと通常dropを実行し、到達可能な未対応命令はeffect前に拒否。 | `ece8690` |
 | M2-S01 | done | 0 | M2-V03 | G07,G08,G09,G10 | RFC 0009でSome／Ok／Err全体取り出しを受理。Borrowed match維持、明示panic／cleanupと互換性規則。設計のみ。 | `c4cb8b9` |
-| M2-S02 | todo | 3 | M2-S01 | G08 | 受理した取り出し形式のsource typing、affine／loan／region検査、MIR contractをcompile-pass／fail付きで実装。 | — |
+| M2-S02 | done | 0 | M2-S01 | G08 | RFC 0009の3操作を型検査し独立検証済みMIRへlower。Copy／move、loan、region、入れ子sumのcompile pass／fail。Runtimeはgateを維持。 | `b562c0f` |
 | M2-S03 | todo | 3 | M2-S02 | G06,G08 | 移譲時の新規確保なしにwhole-payload抽出を実行し、move後使用拒否、失敗cleanup、owned Bytes source fixtureを検証。 | — |
 | M2-V04 | todo | 3 | M2-V03,M2-S03 | G07,G08 | Bytes get／set／pushとUTF-8成功／失敗をソースから実行し、bounds／OOMを検証。 | — |
 | M2-V05 | todo | 2 | M2-V04 | G07 | Text concat／clone／to-bytesのソース実行でallocator identityと失敗結果を保持。 | — |
