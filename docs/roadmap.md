@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Milestone 1 exit:** all P0/P1 implementation is complete; record the final capability guide and completion audit.
+- **Milestone 1 exit:** all P0/P1 outcomes are complete; the [capability guide](milestone-1.md) records usage, evidence, and remaining limits. Milestone 2 is the next implementation scope.
 
 ### Tasks in priority order
 
@@ -210,7 +210,7 @@ Source execution evidence includes `cb3312d` (typed source to verified MIR), `b1
 
 Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) and implemented [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md), last updated 2026-10-17 JST, define this completed profile. Native guest calls/aggregates remain explicitly unsupported until Milestone 2; production ownership/concurrency and complete developer tooling remain later scope. Local source-native evidence does not claim a new Windows CI run, sanitizer campaign, coverage-guided fuzz result, stable ABI, or production sandbox.
 
-The final bilingual capability guide is the remaining documentation deliverable after this exit audit; it does not replace or reduce any implementation requirement.
+The final bilingual [capability guide](milestone-1.md) records the implemented language, CLI/REPL/editor workflows, embedding APIs, limits, evidence, and later scope. It completes the documentation deliverable after this exit audit without replacing or reducing any implementation requirement.
 
 Exit verified: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 

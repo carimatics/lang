@@ -40,6 +40,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Prototype benchmark evidence](docs/benchmarks.md)
 - [Architecture baseline](docs/architecture.md)
 - [Implementation roadmap](docs/roadmap.md)
+- [Milestone 1 capability guide](docs/milestone-1.md)
 - [RFC process and template](docs/rfcs/0000-template.md)
 - [RFC 0001: Project charter and compatibility policy](docs/rfcs/0001-project-charter.md)
 - [RFC 0002: Prototype integer and structured control-flow semantics](docs/rfcs/0002-prototype-control-flow.md)

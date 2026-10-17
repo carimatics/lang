@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **Milestone 1 exit：** 全P0／P1実装が完了しました。最終capability guideと完了監査を記録します。
+- **Milestone 1 exit：** 全P0／P1成果が完了し、[機能ガイド](milestone-1.md)へ利用方法、evidence、残る制限を記録しました。次の実装scopeはMilestone 2です。
 
 ### 優先度順のタスク
 
@@ -210,7 +210,7 @@ Source実行のevidenceは `cb3312d`（typed source→verified MIR）、`b1964e7
 
 受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)と実装済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)が、この完了profileを定義します（最終更新2026-10-17 JST）。Native guest call／aggregateはMilestone 2まで明示的に非対応です。Production ownership／concurrencyと完全なdeveloper toolingは後続scopeです。Local source-native evidenceから新しいWindows CI run、sanitizer campaign、coverage-guided fuzz結果、stable ABI、production sandboxを主張しません。
 
-このexit audit後、最終的な英日capability guideが残るdocumentation成果物です。実装要件を代替／縮小するものではありません。
+最終的な英日[機能ガイド](milestone-1.md)へ実装済みlanguage、CLI／REPL／editor workflow、embedding API、上限、evidence、後続scopeを記録しました。実装要件を代替／縮小せず、このexit audit後のdocumentation成果物を完了します。
 
 Exit確認済み：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがあります。
 
