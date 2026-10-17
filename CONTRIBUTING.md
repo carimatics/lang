@@ -45,6 +45,8 @@ Start from `docs/rfcs/0000-template.md` when changing any of the following:
 
 An RFC must distinguish accepted requirements from hypotheses and must include alternatives, costs, migration, diagnostics, implementation stages, and test strategy.
 
+During experimental early development, [RFC 0001's delegated decision policy](docs/rfcs/0001-project-charter.md#experimental-rfc-decisions) allows the coding agent to accept a reasonably sound RFC without individual user approval. Record the decision and remaining uncertainty; revise the RFC explicitly before implementing a later design change. Acceptance remains separate from implementation and stabilization.
+
 ## Testing strategy
 
 `cargo test --test repository_consistency` checks roadmap totals, mirrored task states, and RFC status/update dates. Run it after planning changes. Both tier-1 CI workflows run the full baseline and check formatting in the separate fuzz workspace; the macOS workflow also lints all fuzz binaries with warnings denied. Run `cargo fmt --manifest-path fuzz/Cargo.toml --check` and `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` after fuzz-target or shared dependency changes. Compiling fuzz targets is not a fuzz campaign; longer fuzzing remains explicit validation work.

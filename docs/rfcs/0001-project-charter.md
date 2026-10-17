@@ -62,11 +62,17 @@ The project uses RFC status and compatibility labels to communicate what users m
 RFCs use these states:
 
 - `proposed`: under discussion; no compatibility promise.
-- `accepted`: approved by the repository owner; implementation may still be incomplete.
+- `accepted`: approved by the repository owner or under the experimental delegation below; implementation may still be incomplete.
 - `implemented`: the accepted design is available behind its intended interface and validation passes.
 - `stabilized`: users may rely on the documented compatibility policy.
 - `withdrawn`: closed without adoption.
 - `superseded`: replaced by a named RFC.
+
+### Experimental RFC decisions
+
+Owner delegation recorded 2026-10-17 JST: during this experimental early implementation, the coding agent may accept an RFC without individual user approval when it judges the design reasonably sound for the current scope. Review consistency with accepted invariants, concrete semantics, and a feasible implementation/validation plan. Record the acceptance date, delegated decision rationale, and remaining unverified assumptions, then continue implementation. Acceptance does not establish correctness, performance, implementation completion, or stabilization.
+
+Accepted RFCs remain revisable. When a design change becomes necessary, make an explicit RFC revision or follow-up RFC, record what changed and why plus compatibility/migration consequences, and update its English/Japanese pair before implementing the changed contract. Do not silently treat divergent implementation as the accepted design. The owner may revise or revoke this delegation.
 
 Every compatibility-sensitive RFC identifies the affected domains:
 

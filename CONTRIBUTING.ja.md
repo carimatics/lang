@@ -45,6 +45,8 @@ cargo doc --workspace --no-deps
 
 RFCでは、承認済み要件と仮説を区別し、代替案、コスト、移行、診断、実装段階、テスト戦略を含める必要があります。
 
+実験的な初期開発では、[RFC 0001の判断委任方針](docs/ja/rfcs/0001-project-charter.md#実験段階のrfc判断)に従い、coding agentがある程度妥当と判断できるRFCを個別のユーザー承認なしで受理できます。判断と残る不確実性を記録し、後から設計変更を実装する前にRFCを明示的に改訂してください。受理は実装・安定化と区別します。
+
 ## テスト戦略
 
 `cargo test --test repository_consistency` はroadmap集計、日英task状態、RFC status／更新日を検証します。計画変更後に実行してください。両tier-1 CI workflowで全baselineと別fuzz workspaceのformat確認を実行し、macOS workflowでは全fuzz binaryをwarning禁止でlintします。Fuzz targetまたは共有dependency変更後は `cargo fmt --manifest-path fuzz/Cargo.toml --check` と `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` を実行してください。Fuzz targetのcompileはfuzz campaignではなく、長時間fuzzingは明示的な検証作業として残ります。

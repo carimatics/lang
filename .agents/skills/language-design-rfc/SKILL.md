@@ -19,7 +19,7 @@ Read these files before drafting or reviewing:
 - `docs/research.md` when comparing external designs
 - Existing RFCs that affect the proposal
 
-Start new RFCs from `docs/rfcs/0000-template.md`. Keep the status `proposed` until the repository owner explicitly accepts it.
+Start new RFCs from `docs/rfcs/0000-template.md`. Apply [RFC 0001's experimental delegation](../../../docs/rfcs/0001-project-charter.md#experimental-rfc-decisions): accept a reasonably sound design without individual user approval, record the date, rationale, and unverified assumptions, then continue implementation. Keep unresolved designs `proposed`. Revise the RFC explicitly before implementing a later design change.
 
 ## Required analysis
 
@@ -57,4 +57,4 @@ Use small prototypes and benchmarks for claims about ergonomics, compile time, r
 
 ## Review outcome
 
-End reviews with one of: ready for decision, needs revision, needs prototype/measurement, or conflicts with an accepted invariant. List blocking questions separately from optional follow-ups.
+End reviews with one of: accepted under experimental delegation, ready for decision, needs revision, needs prototype/measurement, or conflicts with an accepted invariant. Use delegated acceptance when the review supports it; do not queue routine owner approval. List blocking questions separately from optional follow-ups.

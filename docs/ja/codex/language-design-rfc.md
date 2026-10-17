@@ -19,7 +19,7 @@ Draftまたはreviewの前に次を読みます。
 - External designを比較する場合は `docs/research.md`
 - 提案に影響する既存RFC
 
-新しいRFCは `docs/rfcs/0000-template.md` から開始します。Repository ownerが明示的にacceptするまでstatusを `proposed` のままにします。
+新しいRFCは `docs/rfcs/0000-template.md` から開始します。[RFC 0001の実験段階の委任](../rfcs/0001-project-charter.md#実験段階のrfc判断)に従い、ある程度妥当と判断できる設計は個別のユーザー承認なしで受理し、日付、判断理由、未検証の仮定を記録して実装を続けます。未解決の設計は `proposed` を維持します。後から設計変更を実装する前にRFCを明示的に改訂します。
 
 ## 必須分析
 
@@ -57,4 +57,4 @@ Ergonomics、compile time、runtime performance、call overhead、code sizeに�
 
 ## Review結果
 
-Reviewの最後に、`ready for decision`、`needs revision`、`needs prototype/measurement`、`conflicts with an accepted invariant` のいずれかを示します。Blocking questionをoptional follow-upと分けて記載します。
+Reviewの最後に、`accepted under experimental delegation`、`ready for decision`、`needs revision`、`needs prototype/measurement`、`conflicts with an accepted invariant` のいずれかを示します。Reviewで受理できると判断したら委任に基づいて受理し、通常のowner承認待ちにはしません。Blocking questionをoptional follow-upと分けて記載します。

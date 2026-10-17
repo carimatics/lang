@@ -74,6 +74,8 @@ Add focused tests for behavior changes. Compiler work should use the appropriate
 - Update documentation in the same change as behavior or architecture.
 - Use `docs/rfcs/0000-template.md` for changes that affect users or long-lived compatibility.
 - Use the RFC 0001 lifecycle labels: proposed, accepted, implemented, stabilized, withdrawn, or superseded. Acceptance does not imply implementation or stabilization; record a rejected proposal as withdrawn with its decision rationale.
+- During experimental early development, apply the owner's 2026-10-17 JST delegation in [RFC 0001](docs/rfcs/0001-project-charter.md): accept reasonably sound RFCs without individual user approval, record the rationale and unverified assumptions, and continue work.
+- Revise the affected RFC or write a follow-up with the change rationale and compatibility consequences before implementing a changed accepted design; update its translation pair together.
 - Include migration and compatibility consequences for changes to syntax, ABI, package metadata, or serialized artifacts.
 
 ## Security

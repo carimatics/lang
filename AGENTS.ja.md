@@ -74,6 +74,8 @@ cargo doc --workspace --no-deps
 - 動作またはアーキテクチャの変更と同じ変更でドキュメントを更新してください。
 - ユーザーまたは長期互換性に影響する変更では `docs/rfcs/0000-template.md` を使用してください。
 - RFC 0001のlifecycle label（proposed、accepted、implemented、stabilized、withdrawn、superseded）を使用してください。受理は実装・安定化を意味しません。拒否された提案はdecision rationaleを添えてwithdrawnと記録してください。
+- 実験的な初期開発の間は、[RFC 0001](docs/ja/rfcs/0001-project-charter.md)に記録した2026-10-17 JSTのownerの委任を適用し、ある程度妥当と判断できるRFCを個別のユーザー承認なしで受理し、判断理由と未検証の仮定を記録して作業を続けてください。
+- 受理済み設計を変更して実装する前に、対象RFCの改訂またはfollow-upで変更理由と互換性への影響を記録し、英日対訳を同時に更新してください。
 - 構文、ABI、package metadata、serialized artifactの変更には移行と互換性への影響を含めてください。
 
 ## セキュリティ
