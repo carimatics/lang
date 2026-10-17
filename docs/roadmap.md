@@ -202,6 +202,8 @@ Commit `cb3312d` connects typed source HIR to shared verified MIR; `b1964e7` add
 
 The current checklist has 1 unchecked P1 implementation item totaling 4 points. The formatter closes its 5-point outcome with nine semantic CST/comment/idempotence/invalid-input tests and two source VM/native equivalence tests. The full 467-test baseline passes; the source parser/formatter fuzz target completed an uninstrumented 10,000-run smoke. CLI formatter-command integration remains in Milestone 4. This table is a dependency view, not additional scope or completion credit.
 
+The preparsed-module provider now reuses actual parser/source snapshot pointers in module resolution, with six focused tests and a passing 473-test baseline. Cached-policy/cumulative-limit checks and duplicate-file preflight remain enforced. This is the integration prerequisite for automatic query recipes; document lifecycle, revision-safe publication, and LSP transport remain in the final unchecked task, without partial completion credit.
+
 Commit `e62b33b` added virtual root analysis with explicit file authority, isolated expression-result typing, and library lowering without automatic main selection. Eight tests and the full 430-test baseline passed. No completion credit was awarded at that prerequisite boundary; the later `bbc1f3d` session integration completes the 3-point script/REPL outcome.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |

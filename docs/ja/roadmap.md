@@ -202,6 +202,8 @@ Commit `cb3312d` はtyped source HIRを共有verified MIRへ接続し、`b1964e7
 
 現在のchecklistには未完了のP1実装1項目、合計4 ptがあります。Formatterはsemantic CST／comment／冪等性／不正inputの9件とsource VM／native一致の2件のtestにより成果5 ptを完了します。全体の467-test baselineが成功し、source parser／formatter fuzz targetのinstrumentationなしの10,000-run smokeも完了しました。CLI formatter command統合はMilestone 4に残ります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
+Preparsed-module providerは実際のparser／source snapshot pointerをmodule解決で再利用し、6件の集中testと473-test baselineが成功しています。Cache policy／通算limit検証と重複fileのpreflightも維持します。Query recipe自動実行への統合prerequisiteであり、document lifecycle、revision-safe publication、LSP transportは最後の未完了taskに残し、部分完了点を付けません。
+
 Commit `e62b33b` は明示file権限付きvirtual root analysis、分離したexpression結果typing、mainを自動選択しないlibrary loweringを追加しました。8件のtestと全体の430-test baselineが成功しました。そのprerequisite境界では完了点を付けず、後続の `bbc1f3d` によるsession統合でscript／REPLの成果3 ptを完了します。
 
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
