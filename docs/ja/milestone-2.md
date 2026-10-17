@@ -6,15 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**48 done · 0 doing · 44 todo · 112 remaining pt**
+**49 done · 0 doing · 44 todo · 112 remaining pt**
 
-**次: M2-V09 → provisional-read match armとRHS effectをまたぐprepared replacementを実行する。**
+**次: M2-V10 → ownership REPL submissionの受け入れ・結果表示・失敗分離をrunと揃える。**
 
-直近の完了：**M2-V08**（`a7af470`）。両VM driverで実ledgerとbuffer cleanupを使い、生成source failure／return exitを検証しました。[Cleanup-call script](../../examples/scripts/cleanup_calls.lang) は `13` を表示します。追加VM unit test 10件で入れ子順序／span、未公開result破棄、全provider OOM／fuel prefixでのexecution primary優先、panic封じ込め、poison／再利用、cleanup途中のinterruptionを確認します。262-leaf fixtureでも256-record report上限を超えて全解放します。CLI suiteは28件です。全体の **71 suite・1026 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。**残り115 → 112 pt**、doneは1行増、新たな前提追加はありません。
+直近の完了：**M2-V09**（`0311bd0`）。[Prepared root／field replacement](../../examples/scripts/owned_replace.lang) がcaller fieldの更新とscalar loop代入を経て `3` を表示します。RHS effect越しに元の代入先を保持し、追加の移譲allocationなしでold cleanupより先に公開します。追加VM integration 8件、managed 2件、VM fault 2件、CLI 1件でCopy／owned／loan／Text、move済みroot再初期化、reference cell付け替え、field順序／span、拒否／再試行、全fuel／OOM prefix、公開後cleanup失敗を検証します。VM integration 60／managed 9／CLI 29 testが成功しています。全体の **71 suite・1039 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。着手前の分割・再見積もりでV13と3 ptを追加し、V09の3 ptを完了したため、**残り112 → 115 → 112 pt**、doneは1行増、計93行です。Provisional core-readのVM／REPL conformanceはV13へ明示して残します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **10.3秒**、全test **118.3秒**、rustdoc **9.3秒**、fuzz Clippy **0.7秒**、すべて成功です。Focused check後の全test baselineは1回です。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **14.9秒**、全test **144.6秒**、rustdoc **12.9秒**、fuzz Clippy **2.1秒**、すべて成功です。Focused check後の全test baselineは1回です。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest callを経由するowner move、checked borrowed parameterによる投影先fieldの読み取り／変更、cleanupで保護したescrow経由のowned return、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。次はV09のprovisional-read／prepared replacement実行です。V08で有限profileのfailure cleanupを検証しましたが、G06にはshared／weak統合のR02〜R04とnative failure loweringのN05が残ります。G08は広いservice成果、G07もV09の代入とN03のnative evidence、G14／G16もnative／cross-mode conformanceが必要です。他owning service、REPL実行、ownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。次はV10のownership REPL実行で、service adapter後のprovisional core-read conformanceはV13へ残します。G06にはshared／weak統合のR02〜R04とnative failure loweringのN05、G07にはN03 native evidenceが残ります。G08には広いservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -48,6 +48,8 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 - 18件の完了条件を維持します。必要な実機tier-1実行を含め、全evidenceが揃った場合だけ完了にします。Localのobjectや設定済みCI jobはWindows native実行evidenceではありません。未完了のP1 debug作業はexit前に移動先と再見積もりを明示します。
 
 V07着手前の監査（2026-10-18 JST）：[owned-call fixture](../../examples/scripts/owned_calls.lang) はsource解析が通りますが、実行はeffect前に `Call` を拒否します。現在の `FramePlan::reserve_after` は呼び出しごとに新しいhost wrapper vectorを確保し、最外guest entry前にhost poolを用意する既存実装contractを満たしません。V07前に再利用するwrapperのadmission／cancel用 **M2-V12（2 pt）** を追加します。**残り118 → 120 pt**、新規1行で **45 done／1 doing／46 todo** です。V07のowned／loan source call、再帰上限、return escrowは暫定3 ptで維持し、新たな前提はcode前に明示します。V11とV12で前提作業が2件続くため、その後は基盤を増やす前にV07のsource fixtureを実行する成果を必須にします。
+
+V09着手前の監査（2026-10-18 JST）：provisional core readには未完了のVec／Map／shared／arena source adapterが必要ですが、C03／C06は既にV09へ依存しており、従来の複合行に依存cycleが隠れていました。Prepared replacementをV09へ残し、不足しているallocationなしのroot／field storage交換と、old cleanup前のpublication adapterを含めて **2 → 3 pt** へ再見積もりします。Provisional-readの成功／未使用／失敗armとVM／REPLのloan conformanceは、C03／C06／R04／R06／V10後の **V13（2 pt）** へ移します。両成果を維持し、**残り112 → 115 pt**、1行追加（計93行）、**48 done／1 doing／44 todo** です。V09では基盤を増やす前に実際のsource replacement fixtureを実行する成果を必須にし、元のexit gateは維持します。
 
 ## 完了済み実装
 
@@ -109,7 +111,8 @@ V07着手前の監査（2026-10-18 JST）：[owned-call fixture](../../examples/
 | M2-V12 | done | 0 | M2-V11 | G06 | Host拡張なしでmain／callee regionをadmit／release。厳密budget、size 0課金、OOM rollback／再試行、cumulative request、callback前拒否を検証。 | `05ebf0b` |
 | M2-V07 | done | 0 | M2-V06,M2-V11,M2-V12 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | `15436f0` |
 | M2-V08 | done | 0 | M2-V07,M2-D32 | G06 | Single／callの生成failure exitで、body／fuel／OOM／interruptionとcleanup error／panic注入時の入れ子drop順序／span、保護return、順序付き上限report、poison／再利用、全解放を検証。 | `a7af470` |
-| M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |
+| M2-V09 | done | 0 | M2-V04,M2-V06 | G07,G08 | Root／投影先置換でRHS effect越しに確定済みtargetを保持し、移譲用allocationなしでold cleanup前に公開。Caller所有権、field順序／span、失敗cleanup、再試行を維持。 | `0311bd0` |
+| M2-V13 | todo | 2 | M2-C03,M2-C06,M2-R04,M2-R06,M2-V10 | G08 | Provisional core readの成功／未使用／失敗armとloan終了をsource VM／REPL実行で検証。 | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPLのownership受け入れ／結果表示をrunに揃え、失敗を分離。 | — |
 | M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | 上限付きadmission済みsnapshotでCopy／affine CFG argumentを同時転送。Cycle／fan-out／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを検証。 | `1dcf260` |
 

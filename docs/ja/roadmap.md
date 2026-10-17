@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み48件 · 進行中0件 · 残り44件（暫定112 pt）。**
+**検証済み49件 · 進行中0件 · 残り44件（暫定112 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む22件の成果を検証しました。V08（`a7af470`）で両VM driverと実buffer retirementへsource由来failure／return exitを通して実行します。Cleanup-call scriptは `13` を表示し、実leaf解放後だけerror／panicを注入して入れ子順序／span、保護result、execution primary優先、poison／再利用、interruptionを検証します。全provider OOM／fuel prefixと262-leafの上限report overflowでも全allocationを解放します。**残り115 → 112 pt**、doneは1行増、新たな前提追加はありません。次はV09のprovisional-read／prepared replacement実行です。G06にはshared／weak統合のR02〜R04とnative failure loweringのN05、G08には広いservice成果、G07にはV09の代入とN03 native evidence、G14／G16にはnative／cross-mode conformanceが残ります。新たなexit gateは完了扱いにしていません。1026 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む23件の成果を検証しました。V09（`0311bd0`）でprepared root／field replacement、scalar loop、caller所有値の更新を実行でき、source fixtureは `3` を表示します。RHSのreference cell付け替え越しにcaptureを保持し、allocationなしのstorage交換を使ってold cleanup前に正しいfield順序／spanで公開します。不正storage／再試行、move済みroot、入れ子Text、全fuel／OOM prefix、公開後cleanup失敗を検証しました。着手前にC03／C06との依存cycleを分割し、V09を3 ptとし、service adapter後のprovisional-read VM／REPL conformanceをV13へ残しました。先に3 ptを追加し、V09の3 ptを完了したため、**残り112 → 115 → 112 pt**、doneは1行増、計93行です。次はV10のownership REPL実行です。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／provisional-read成果、G14／G16にはnative／cross-mode conformanceが残ります。新たなexit gateは完了扱いにしていません。1039 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning serviceとownership artifactは各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
