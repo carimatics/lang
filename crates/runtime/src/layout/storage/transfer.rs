@@ -1,6 +1,113 @@
 use super::*;
 
 impl Reservation<'_, '_> {
+    /// Exchange a fully initialized incoming root with an initialized root or
+    /// field, without callbacks or allocation. Both obligations remain owned by
+    /// the trusted adapter; it must publish the new ledger state before retiring
+    /// the old value now held by `incoming`. A field becomes its parent's newest
+    /// initializer and retains the replacement span, including through loans.
+    pub fn exchange_root_at<P: Provider>(
+        &mut self,
+        target: Location,
+        incoming: &mut Self,
+        span: m::Span,
+        allocator: &mut Allocator<P>,
+    ) -> Result<Option<m::Span>, Error> {
+        let output = self.validate_location(target)?;
+        let source = incoming.validate_location(incoming.root())?;
+        if !std::ptr::eq(self.layouts.types, incoming.layouts.types)
+            || self.layouts.types.equivalent(target.ty, incoming.ty) != Some(true)
+            || output.size != source.size
+            || output.metadata_bytes != source.metadata_bytes
+            || self.data == incoming.data
+        {
+            return Err(Error::InvalidType(incoming.ty));
+        }
+        if !self.layouts.span_valid(span) {
+            return Err(Error::InvalidSpan);
+        }
+        let size = output.size as usize;
+        let metadata = output.metadata_bytes as usize;
+        let offset = target.offset as usize;
+        let meta_offset = target.metadata as usize;
+        for (handle, start, len) in [
+            (self.data, offset, size),
+            (incoming.data, 0, size),
+            (self.metadata, meta_offset, metadata),
+            (incoming.metadata, 0, metadata),
+        ] {
+            if start.checked_add(len).ok_or(Error::Overflow)? > allocator.bytes(handle)?.len() {
+                return Err(Error::State);
+            }
+        }
+        // Preserve all payload/order bytes on validation failure. Only the
+        // already reserved temporary walk area is used by this dry run.
+        for cell in [&mut *self, &mut *incoming] {
+            let result = cell.begin_retirement(None, allocator);
+            cell.top = 0;
+            if cell.state == State::Draining {
+                cell.state = State::Prepared;
+            }
+            result?;
+        }
+        let mut parent_order = None;
+        if let Some(parent) = target.parent {
+            let location = Location {
+                owner: self.data,
+                ty: parent.ty,
+                offset: parent.offset,
+                metadata: parent.metadata,
+                parent: None,
+            };
+            if self.child(location, parent.field, allocator)? != target {
+                return Err(Error::ForeignLocation);
+            }
+            let layout = self.validate_location(location)?;
+            if layout.work_slots != 0 {
+                let (aggregate, _) = Self::aggregate(
+                    self.layouts,
+                    Work {
+                        ty: location.ty,
+                        offset: location.offset,
+                        metadata: location.metadata,
+                        span: None,
+                    },
+                    allocator,
+                    self.data,
+                )?;
+                let start = parent.metadata as usize;
+                let end =
+                    start + ORDER_HEADER as usize + aggregate.fields.len() * ORDER_ENTRY as usize;
+                let bytes = allocator
+                    .bytes(self.metadata)?
+                    .get(start..end)
+                    .ok_or(Error::State)?;
+                let rank = (0..aggregate.fields.len())
+                    .find(|rank| {
+                        read_u32(bytes, ORDER_HEADER as usize + rank * ORDER_ENTRY as usize)
+                            == Ok(parent.field)
+                    })
+                    .ok_or(Error::InvalidOrder)?;
+                let entry = start + ORDER_HEADER as usize + rank * ORDER_ENTRY as usize;
+                let old_span = read_span(allocator.bytes(self.metadata)?, entry + 4)?;
+                parent_order = Some((entry, end, parent.field, old_span));
+            }
+        }
+        allocator.swap_bytes(self.data, offset, incoming.data, 0, size)?;
+        allocator.swap_bytes(self.metadata, meta_offset, incoming.metadata, 0, metadata)?;
+        if let Some((entry, end, field, old_span)) = parent_order {
+            let row = allocator.bytes_mut(self.metadata)?;
+            row.copy_within(entry + ORDER_ENTRY as usize..end, entry);
+            let last = end - ORDER_ENTRY as usize;
+            row[last..end].fill(0);
+            write_u32(row, last, field)?;
+            write_span(row, last + 4, Some(span))?;
+            write_u32(row, last + 16, 1)?;
+            Ok(old_span)
+        } else {
+            Ok(None)
+        }
+    }
     /// Move a whole initialized root into admitted, unpublished storage.
     /// The adapter must own the source obligation and an empty destination;
     /// this does not authorize replacement or moving a field out of an owner.

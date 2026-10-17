@@ -658,6 +658,101 @@ fn interruption_during_cleanup_waits_for_the_drain_and_stops_before_caller_effec
 }
 
 #[test]
+fn root_and_field_replacement_publish_before_old_cleanup_and_update_initialization_order() {
+    let make = CALLS.split("fn leaf").next().unwrap();
+    for field in [false, true] {
+        let body = if field {
+            "fn change(value: &mut Pair, replacement: core::Bytes) -> core::Unit { (*value).left = replacement; return core::Unit {}; } fn main() -> i64 { let mut value: Pair = Pair { left: make(1), right: make(2) }; let mut done: core::Unit = change(&mut value,make(3)); return core::bytes_len(value.left) + core::bytes_len(value.right); }"
+        } else {
+            "fn change(value: &mut core::Bytes, replacement: core::Bytes) -> core::Unit { (*value) = replacement; return core::Unit {}; } fn main() -> i64 { let mut first: core::Bytes = make(1); let mut second: core::Bytes = make(2); let mut done: core::Unit = change(&mut first,make(3)); return core::bytes_len(first) + core::bytes_len(second); }"
+        };
+        let source = format!("{make}{body}");
+        let program = checked(&source);
+        for fail in [false, true] {
+            let _guard = install(Injection {
+                all: fail,
+                ..Default::default()
+            });
+            let (mut allocator, trace) = allocator();
+            let mut instance = c::Instance::default();
+            let result = execute_entry(
+                program.failure_flow(),
+                &mut instance,
+                Some(&mut allocator),
+                control(),
+            );
+            assert_eq!(lengths(), [1, 3, 2]);
+            let events = events();
+            assert_eq!(events[0].reason, c::Reason::Replacement);
+            assert!(events[1..].iter().all(|event| event.reason
+                == if fail {
+                    c::Reason::Failure
+                } else {
+                    c::Reason::ScopeExit
+                }));
+            if field {
+                let span = events[0].span.unwrap();
+                assert_eq!(&source[span.start as usize..span.end as usize], "make(1)");
+                let span = events[1].span.unwrap();
+                assert_eq!(
+                    &source[span.start as usize..span.end as usize],
+                    "replacement"
+                );
+            }
+            if fail {
+                let error = result.err().unwrap();
+                let report = error.report.unwrap();
+                assert_records(
+                    std::slice::from_ref(report.primary().unwrap()),
+                    &events[..1],
+                );
+                assert_records(report.secondary(), &events[1..]);
+                assert!(instance.is_poisoned());
+            } else {
+                assert_eq!(result.unwrap().value, 5);
+                assert!(!instance.is_poisoned());
+            }
+            assert!(trace.borrow().live.is_empty());
+            assert_empty(&allocator);
+        }
+    }
+}
+
+#[test]
+fn rhs_failure_discards_the_capture_without_replacing_the_old_field() {
+    let make = CALLS.split("fn leaf").next().unwrap();
+    let source = format!(
+        "{make} fn fail() -> core::Bytes {{ let mut none: core::Option<core::Bytes> = core::Option::None; return core::option_unwrap::<core::Bytes>(none); }} fn main() -> i64 {{ let mut value: Pair = Pair {{ left: make(1), right: make(2) }}; value.left = fail(); return 0; }}"
+    );
+    let program = checked(&source);
+    let _guard = install(Injection {
+        all: true,
+        ..Default::default()
+    });
+    let (mut allocator, trace) = allocator();
+    let mut instance = c::Instance::default();
+    let failure = execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(lengths(), [2, 1]);
+    assert!(
+        events()
+            .iter()
+            .all(|event| event.reason == c::Reason::Failure)
+    );
+    assert_eq!(failure.panic_code, Some(-1));
+    assert_execution_first(&failure);
+    assert!(instance.is_poisoned());
+    assert!(trace.borrow().live.is_empty());
+    assert_empty(&allocator);
+}
+
+#[test]
 fn cleanup_failure_after_real_retirement_runs_the_generated_call_exit() {
     let make = CALLS.split("fn leaf").next().unwrap();
     let source = format!(

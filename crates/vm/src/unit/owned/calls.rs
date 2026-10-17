@@ -45,15 +45,18 @@ fn pool_usage(
     capacity: usize,
     cells: usize,
     loans: usize,
+    prepared: usize,
 ) -> Result<m::Usage, l::Error> {
     let mut budget = m::Budget::with_usage(limits, initial)?;
     let cell_count = cells.checked_mul(capacity).ok_or(l::Error::Overflow)?;
     let loan_count = loans.checked_mul(capacity).ok_or(l::Error::Overflow)?;
+    let prepared_count = prepared.checked_mul(capacity).ok_or(l::Error::Overflow)?;
     budget.allocate::<l::FrameStorage<'_, '_>>(capacity)?;
     budget.allocate::<bool>(capacity)?;
     budget.allocate::<state::Cell>(cell_count)?;
     budget.allocate::<usize>(cell_count)?;
     budget.allocate::<state::Loan>(loan_count)?;
+    budget.allocate::<Option<state::Capture>>(prepared_count)?;
     budget.allocate::<Activation>(capacity)?;
     budget.allocate::<super::super::StackFrame>(capacity)?;
     budget.charge(cell_count)?;
@@ -92,9 +95,12 @@ fn declare<P: a::Provider, C: c::Cleaner<Ticket>>(
                 physical: address.cell + i,
                 ty: plan.cell_type(i).unwrap().ty,
                 live: false,
+                slot: (i < ordinary).then_some(address.slot(address.cell + i)),
             };
             state.inverse[address.cell + i] = address.cell + i;
         }
+        state.prepared[address.prepared..address.prepared + typed.functions()[index].prepared]
+            .fill(None);
     }
     for i in 0..ordinary {
         if !shared.borrow().is_copy(address.cell + i) {
@@ -355,6 +361,11 @@ pub(super) fn execute<P: a::Provider>(
         .max()
         .unwrap()
         .max(1);
+    let prepared_stride = reachable
+        .iter()
+        .map(|id| typed.functions()[*id].prepared)
+        .max()
+        .unwrap();
     // A disabled frame counter does not disable preparation budgets. Find the
     // exact largest pool those budgets admit without allocating trial buffers.
     let desired = control
@@ -373,6 +384,7 @@ pub(super) fn execute<P: a::Provider>(
             middle,
             cell_stride,
             loan_stride,
+            prepared_stride,
         )
         .is_ok()
         {
@@ -382,8 +394,15 @@ pub(super) fn execute<P: a::Provider>(
         }
     }
     if capacity == 0 {
-        pool_usage(limits, budget_usage(&budget), 1, cell_stride, loan_stride)
-            .map_err(|e| fail(Reason::Preparation(e)))?;
+        pool_usage(
+            limits,
+            budget_usage(&budget),
+            1,
+            cell_stride,
+            loan_stride,
+            prepared_stride,
+        )
+        .map_err(|e| fail(Reason::Preparation(e)))?;
         return Err(fail(Reason::Preparation(l::Error::State)));
     }
     let multiply = |n: usize| {
@@ -408,6 +427,7 @@ pub(super) fn execute<P: a::Provider>(
             physical: i,
             ty: o::Type::I64,
             live: false,
+            slot: None,
         });
         inverse.push(i);
     }
@@ -420,6 +440,10 @@ pub(super) fn execute<P: a::Provider>(
             target: None,
         });
     }
+    let mut prepared = budget
+        .vector(multiply(prepared_stride)?)
+        .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    prepared.resize(multiply(prepared_stride)?, None);
     let mut stack = budget
         .vector(capacity)
         .map_err(|e| fail(Reason::Preparation(e.into())))?;
@@ -447,6 +471,7 @@ pub(super) fn execute<P: a::Provider>(
         cells,
         inverse,
         loans,
+        prepared,
         panic_code: None,
         current: Address::entry(function),
     }));
@@ -583,6 +608,7 @@ pub(super) fn execute<P: a::Provider>(
                             cell: depth * cell_stride,
                             slot: depth * slot_stride,
                             loan: depth * loan_stride,
+                            prepared: depth * prepared_stride,
                         };
                         declare(typed, callee_plan, &shared, &mut frame, target_address)?;
                         for (argument, parameter) in arguments
@@ -718,7 +744,12 @@ pub(super) fn execute<P: a::Provider>(
                     }
                 }
             }
-            f::Kind::DiscardPrepared { next } => next,
+            f::Kind::DiscardPrepared { next } => {
+                shared.borrow_mut().prepared
+                    [address.prepared..address.prepared + typed.functions()[index].prepared]
+                    .fill(None);
+                next
+            }
             f::Kind::RetireReturn { next, failure } => {
                 if frame.retire_exit().is_ok() {
                     next

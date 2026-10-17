@@ -1,0 +1,21 @@
+// Run with: cargo run -- run examples/scripts/owned_replace.lang
+// Prints 3 after root/field replacement and a scalar loop.
+struct Boxed { bytes: core::Bytes, count: i64 }
+fn make() -> core::Bytes {
+    return core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+}
+fn update(value: &mut Boxed) -> core::Unit {
+    (*value).bytes = make();
+    (*value).count = (*value).count + 1;
+    return core::Unit {};
+}
+fn main() -> i64 {
+    let mut value: Boxed = Boxed { count: 0, bytes: make() };
+    value = Boxed { bytes: make(), count: 0 };
+    let mut i: i64 = 0;
+    while i < 3 {
+        let mut done: core::Unit = update(&mut value);
+        i = i + 1;
+    }
+    return value.count + core::bytes_len(value.bytes);
+}

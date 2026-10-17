@@ -2,6 +2,13 @@ use super::*;
 use o::places::{Place, ProjectionKind, Root};
 
 mod buffers;
+mod replacement;
+
+#[derive(Clone, Copy)]
+pub(super) enum Capture {
+    Root(usize),
+    Path(Target),
+}
 
 #[derive(Clone, Copy)]
 pub(super) enum Target {
@@ -12,6 +19,7 @@ pub(super) struct Cell {
     pub physical: usize,
     pub ty: o::Type,
     pub live: bool,
+    pub slot: Option<c::Slot>,
 }
 pub(super) struct Loan {
     pub generation: u64,
@@ -24,6 +32,7 @@ pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub cells: Vec<Cell>,
     pub inverse: Vec<usize>,
     pub loans: Vec<Loan>,
+    pub prepared: Vec<Option<Capture>>,
     pub panic_code: Option<i64>,
     pub current: Address,
 }

@@ -56,6 +56,15 @@ fn nested_cleanup_calls_run_and_preserve_body_panic_stack() {
 }
 
 #[test]
+fn owned_root_and_field_replacement_execute_with_scalar_loop_state() {
+    let files = Files::new(include_str!("../examples/scripts/owned_replace.lang"));
+    let executed = run(&files, &[]);
+    assert!(executed.status.success(), "{}", stderr(&executed));
+    assert_eq!(executed.stdout, b"3\n");
+    assert!(executed.stderr.is_empty());
+}
+
+#[test]
 fn whole_option_and_result_ownership_extraction_runs_from_source() {
     let files = Files::new(include_str!("../examples/scripts/owned_bytes.lang"));
     let executed = run(&files, &[]);

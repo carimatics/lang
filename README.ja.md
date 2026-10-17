@@ -70,6 +70,7 @@ cargo run -- run examples/scripts/utf8.lang
 cargo run -- run examples/scripts/text.lang
 cargo run -- run examples/scripts/owned_calls.lang
 cargo run -- run examples/scripts/cleanup_calls.lang
+cargo run -- run examples/scripts/owned_replace.lang
 cargo run -- run examples/scripts/owned_aggregate.lang
 cargo run -- repl
 cargo run --quiet -- lsp
@@ -77,7 +78,7 @@ cargo run --quiet -- lsp
 
 `check` はCopyまたはRFC 0007／0009 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。`run` はCopy profileと、allocator authority、Bytes new／len／get／set／push／clone、所有権を消費するUTF-8変換、Text byte長／clone／concat／to-bytes／equality、入れ子Bytes／Text／Copy record／enumとOption／Result構築・取り出し、lexical loan、cleanupを扱う初期ownership profileに対応します。Answer scriptは `42`、`bytes.lang`／`owned_bytes.lang` は `0`、取り出し／変更exampleは `1`、`utf8.lang` はbyte長の `3`、`text.lang` はcloneと変換後の独立性を確認して `2` を表示します。`owned_aggregate.lang` は入れ子ownerを移動し、投影したreferenceを読んで `9` を表示します。表示前にstorageを解放します。取り出しはcaseを確認し、不一致ならsource位置付きguest panicを報告します。未対応命令／payloadはpreflightで拒否します。
 
-Ownership profileはCopy／owned parameterとresult、borrowed parameterを持つguest functionを自己再帰／相互再帰も含めて実行します。`owned_calls.lang` はBytesの再帰的な移譲とborrowed callを経て `1`、`cleanup_calls.lang` は入れ子aggregate／callのcleanupを経て `13` を表示します。返却値をcallee cleanup成功まで保護し、失敗時は実際に入ったsource call stackを示します。2026-10-18 JST確認。[実装とtest出典](docs/ja/architecture.md#owned-guest-callとreturn)と[failure exit conformance](docs/ja/architecture.md#owned-failure-exitのconformance)を参照してください。
+Ownership profileはCopy／owned parameterとresult、borrowed parameterを持つguest functionを自己再帰／相互再帰も含めて実行します。`owned_calls.lang` はBytesの再帰的な移譲とborrowed callを経て `1`、`cleanup_calls.lang` は入れ子aggregate／callのcleanupを経て `13` を表示します。`owned_replace.lang` はowner全体／fieldの置換とscalar loopを経て `3` を表示します。代入先をRHSより先に確定し、新しい値を公開してから古い値をcleanupします。返却値をcallee cleanup成功まで保護し、失敗時は実際に入ったsource call stackを示します。2026-10-18 JST確認。[Call](docs/ja/architecture.md#owned-guest-callとreturn)、[failure exit](docs/ja/architecture.md#owned-failure-exitのconformance)、[置換の根拠](docs/ja/architecture.md#prepared-ownership-replacement)を参照してください。
 
 Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応し、REPLは引き続きCopy専用です。CLIはhost importを登録せず、owned実行instanceにはbudget付きallocatorを明示的に供給します。検証日：2026-10-18 JST。
 

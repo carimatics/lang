@@ -13,6 +13,8 @@ use std::{cell::RefCell, path::Path, rc::Rc, time::Instant};
 mod calls;
 #[path = "support/owned_edges.rs"]
 mod edges;
+#[path = "support/owned_replace.rs"]
+mod replacement;
 
 const SOURCE: &str = include_str!("../examples/scripts/bytes.lang");
 const OWNED_SOURCE: &str = include_str!("../examples/scripts/owned_bytes.lang");

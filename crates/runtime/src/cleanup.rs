@@ -486,6 +486,18 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
         self.destroy(target, old, old_span, Reason::Replacement);
         self.running()
     }
+    /// The adapter has already published a field replacement. This source slot
+    /// now owns the detached old field and its original initialization span.
+    pub fn retire_replaced(&mut self, slot: Slot, span: Option<Span>) -> Result<(), StateError> {
+        self.running()?;
+        if self.declared(slot)?.kind != Kind::Owner {
+            return Err(StateError::KindMismatch);
+        }
+        self.value(slot)?;
+        let (payload, _) = self.remove(slot);
+        self.destroy(slot, payload, span, Reason::Replacement);
+        self.running()
+    }
     pub fn drop_value(&mut self, slot: Slot) -> Result<(), StateError> {
         self.running()?;
         self.value(slot)?;

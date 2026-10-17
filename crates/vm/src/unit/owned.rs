@@ -70,6 +70,7 @@ struct Address {
     cell: usize,
     slot: usize,
     loan: usize,
+    prepared: usize,
 }
 impl Address {
     fn entry(function: m::FunctionId) -> Self {
@@ -78,6 +79,7 @@ impl Address {
             cell: 0,
             slot: 0,
             loan: 0,
+            prepared: 0,
         }
     }
     fn slot(self, cell: usize) -> c::Slot {
@@ -131,6 +133,10 @@ fn supported(op: &b::Op, payloads: &profile::Payloads, result: Option<o::Type>) 
         | b::Op::CopyPlace(_)
         | b::Op::MovePlace(_)
         | b::Op::Initialize { .. }
+        | b::Op::Replace { .. }
+        | b::Op::PreparePlace { .. }
+        | b::Op::ReplacePrepared { .. }
+        | b::Op::DiscardPrepared(_)
         | b::Op::DropValue(_)
         | b::Op::DropLocal(_)
         | b::Op::DropValueIfAvailable(_)
@@ -296,6 +302,10 @@ fn execute_single<P: a::Provider>(
     let mut loans = budget
         .vector(body.loans)
         .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    let mut prepared = budget
+        .vector(body.prepared)
+        .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    prepared.resize(body.prepared, None);
     let mut trace = budget
         .vector(1)
         .map_err(|e| fail(Reason::Preparation(e.into())))?;
@@ -310,6 +320,8 @@ fn execute_single<P: a::Provider>(
             physical: i,
             ty: plan.cell_type(i).unwrap().ty,
             live: false,
+            slot: (i < declaration.locals.len() + typed.places().functions()[index].values.len())
+                .then_some(c::Slot(i)),
         });
         inverse.push(i);
     }
@@ -326,6 +338,7 @@ fn execute_single<P: a::Provider>(
         cells,
         inverse,
         loans,
+        prepared,
         panic_code: None,
         current: Address::entry(function),
     }));
@@ -518,7 +531,10 @@ fn execute_single<P: a::Provider>(
                     }
                 }
             }
-            f::Kind::DiscardPrepared { next } => next,
+            f::Kind::DiscardPrepared { next } => {
+                shared.borrow_mut().prepared.fill(None);
+                next
+            }
             f::Kind::RetireReturn { next, failure } => {
                 if frame.retire_exit().is_ok() {
                     next
@@ -635,6 +651,70 @@ fn transfer_between<P: a::Provider, C: c::Cleaner<Ticket>>(
         state.swap_move(from, to)
     }
 }
+fn replace<P: a::Provider, C: c::Cleaner<Ticket>>(
+    shared: &Rc<RefCell<State<'_, '_, '_, P>>>,
+    frame: &mut c::Frame<'_, Ticket, C>,
+    capture: state::Capture,
+    source: usize,
+    span: m::Span,
+) -> Step<()> {
+    let (
+        logical,
+        target,
+        root,
+        copy,
+        live,
+        source_slot,
+        target_slot,
+        source_physical,
+        target_physical,
+    ) = {
+        let state = shared.borrow();
+        let (logical, target, root) = state.captured(capture)?;
+        let Target::Data { cell, .. } = target else {
+            return Err(c::ExecutionFailure::Invariant);
+        };
+        (
+            logical,
+            target,
+            root,
+            state.is_copy(source),
+            state.cells[logical].live,
+            state.cells[source]
+                .slot
+                .ok_or(c::ExecutionFailure::Invariant)?,
+            state.cells[logical]
+                .slot
+                .ok_or(c::ExecutionFailure::Invariant)?,
+            state.cells[source].physical,
+            cell,
+        )
+    };
+    if !copy {
+        frame.value(source_slot).map_err(invariant)?;
+        if root && !live {
+            return transfer_between(shared, frame, source, logical, source_slot, target_slot);
+        }
+        frame.value(target_slot).map_err(invariant)?;
+    }
+    let old_span = shared.borrow_mut().exchange(target, source, span)?;
+    if copy {
+        let mut state = shared.borrow_mut();
+        // Copy operands remain reusable SSA values after publication.
+        state.copy(target, source)?;
+        state.cells[logical].live = true;
+        Ok(())
+    } else if root {
+        *frame.value_mut(source_slot).map_err(invariant)? = Ticket::Cell(target_physical);
+        *frame.value_mut(target_slot).map_err(invariant)? = Ticket::Cell(source_physical);
+        frame.replace(source_slot, target_slot).map_err(invariant)
+    } else {
+        frame
+            .retire_replaced(source_slot, old_span)
+            .map_err(invariant)
+    }
+}
+
 fn transfer_edge<P: a::Provider, C: c::Cleaner<Ticket>>(
     typed: &b::TypedBodies,
     function: m::FunctionId,
@@ -777,6 +857,42 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             value(*source),
             address.cell + local.0 as usize,
         )?,
+        b::Op::PreparePlace { destination, place } => {
+            let mut state = shared.borrow_mut();
+            let capture = state.capture(&places[place.0 as usize], values)?;
+            state.prepared[address.prepared + destination.0 as usize] = Some(capture);
+        }
+        b::Op::ReplacePrepared {
+            destination,
+            value: source,
+        } => {
+            let capture = shared.borrow_mut().prepared[address.prepared + destination.0 as usize]
+                .take()
+                .ok_or(c::ExecutionFailure::Invariant)?;
+            replace(
+                shared,
+                frame,
+                capture,
+                value(*source),
+                typed.places().functions()[index].values[source.0 as usize].span,
+            )?;
+        }
+        b::Op::Replace {
+            place,
+            value: source,
+        } => {
+            let capture = shared.borrow().capture(&places[place.0 as usize], values)?;
+            replace(
+                shared,
+                frame,
+                capture,
+                value(*source),
+                typed.places().functions()[index].values[source.0 as usize].span,
+            )?;
+        }
+        b::Op::DiscardPrepared(destination) => {
+            shared.borrow_mut().prepared[address.prepared + destination.0 as usize] = None;
+        }
         b::Op::CopyPlace(place) | b::Op::MovePlace(place) => {
             let place = &places[place.0 as usize];
             let target = shared.borrow().place(place, values)?;

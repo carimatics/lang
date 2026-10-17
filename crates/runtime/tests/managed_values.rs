@@ -690,3 +690,210 @@ fn invalid_construction_rejects_transfer_without_publishing_or_losing_the_payloa
     );
     assert_eq!(allocator.stats().live_allocations, 0);
 }
+
+#[test]
+fn field_exchange_preflights_both_values_and_reorders_initialization_without_allocation() {
+    let mut table = table();
+    table.sources[0].text = "abcd".into();
+    let bytes = builtin(&mut table, o::Builtin::Bytes);
+    let pair = o::Type::Nominal(m::DefinitionId(0));
+    table.definitions.push(o::Definition {
+        name: "Pair".into(),
+        public: false,
+        span: span(),
+        kind: o::DefinitionKind::Record(
+            ["a", "b"]
+                .into_iter()
+                .map(|name| o::Field {
+                    name: name.into(),
+                    span: span(),
+                    ty: o::TypeUse {
+                        ty: bytes,
+                        span: span(),
+                    },
+                })
+                .collect(),
+        ),
+    });
+    let verified = table.verify(Default::default()).unwrap();
+    let layouts = l::Layouts::compile(&verified, Default::default()).unwrap();
+    let mark = |start| m::Span {
+        start,
+        end: start + 1,
+        ..span()
+    };
+    for replaced in 0..2 {
+        let mut allocator = allocator();
+        let mut root = l::Reservation::allocate(&layouts, pair, &mut allocator).unwrap();
+        let mut incoming = l::Reservation::allocate(&layouts, bytes, &mut allocator).unwrap();
+        let mut wrong = l::Reservation::allocate(&layouts, o::Type::I64, &mut allocator).unwrap();
+        for (field, data) in [(0, b"a".as_slice()), (1, b"bb".as_slice())] {
+            let mut value = Bytes::from_slice(&mut allocator, data).unwrap();
+            let token = value.take_token(&allocator).unwrap();
+            let at = root.child(root.root(), field, &allocator).unwrap().offset() as usize;
+            root.data_mut(&mut allocator).unwrap()[at..at + 32].copy_from_slice(&token);
+        }
+        root.initialize_order(
+            root.root(),
+            [(0, mark(0)), (1, mark(1))].into_iter(),
+            &mut allocator,
+        )
+        .unwrap();
+        let mut value = Bytes::from_slice(&mut allocator, b"ccc").unwrap();
+        let token = value.take_token(&allocator).unwrap();
+        incoming
+            .data_mut(&mut allocator)
+            .unwrap()
+            .copy_from_slice(&token);
+        let target = root.child(root.root(), replaced, &allocator).unwrap();
+        let before = allocator.stats();
+        let root_data = root.data(&allocator).unwrap().to_vec();
+        let source_data = incoming.data(&allocator).unwrap().to_vec();
+        assert_eq!(
+            root.exchange_root_at(wrong.root(), &mut incoming, mark(2), &mut allocator),
+            Err(l::Error::ForeignLocation)
+        );
+        assert_eq!(
+            root.exchange_root_at(target, &mut wrong, mark(2), &mut allocator),
+            Err(l::Error::InvalidType(o::Type::I64))
+        );
+        assert_eq!(
+            root.exchange_root_at(target, &mut incoming, mark(8), &mut allocator),
+            Err(l::Error::InvalidSpan)
+        );
+        assert_eq!(root.data(&allocator).unwrap(), root_data);
+        assert_eq!(incoming.data(&allocator).unwrap(), source_data);
+        assert_eq!(allocator.stats(), before);
+        let old = root
+            .exchange_root_at(target, &mut incoming, mark(2), &mut allocator)
+            .unwrap();
+        assert_eq!(old, Some(mark(replaced)));
+        assert_eq!(allocator.stats(), before);
+        wrong.release_storage(&mut allocator).unwrap();
+        let mut trace = Vec::new();
+        let mut instance = c::Instance::default();
+        let mut frame = instance
+            .enter_with_context(
+                Default::default(),
+                |cell: &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
+                    cell.cleanup(
+                        &mut allocator,
+                        context,
+                        |token, allocator, reason, context| {
+                            let mut snapshot = token.bytes;
+                            let length = Bytes::from_token(&mut snapshot, allocator)
+                                .unwrap()
+                                .len(allocator)
+                                .unwrap();
+                            trace.push((length, context.span(), reason));
+                            buffer::cleanup_token(&verified, token, allocator).map_err(|_| 1u32)
+                        },
+                    )
+                    .map_err(|_| 2u32)
+                },
+            )
+            .unwrap();
+        frame.declare(c::Slot(0), c::Kind::Owner).unwrap();
+        frame.declare(c::Slot(1), c::Kind::Owner).unwrap();
+        assert!(frame.initialize(c::Slot(0), root, None).is_ok());
+        assert!(frame.initialize(c::Slot(1), incoming, None).is_ok());
+        frame.retire_replaced(c::Slot(1), old).unwrap();
+        assert!(
+            frame
+                .finish(c::Exit::Return(None))
+                .report
+                .primary()
+                .is_none()
+        );
+        let kept = if replaced == 0 { 2 } else { 1 };
+        let kept_span = if replaced == 0 { mark(1) } else { mark(0) };
+        assert_eq!(
+            trace,
+            [
+                (
+                    i64::from(replaced) + 1,
+                    Some(mark(replaced)),
+                    c::Reason::Replacement
+                ),
+                (3, Some(mark(2)), c::Reason::ScopeExit),
+                (kept, Some(kept_span), c::Reason::ScopeExit)
+            ]
+        );
+        assert_eq!(allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn uninitialized_exchange_source_leaves_both_owners_available_for_retry() {
+    let mut table = table();
+    let bytes = builtin(&mut table, o::Builtin::Bytes);
+    let option = construct(&mut table, o::Constructor::Option(bytes));
+    let verified = table.verify(Default::default()).unwrap();
+    let layouts = l::Layouts::compile(&verified, Default::default()).unwrap();
+    let mut allocator = allocator();
+    let mut target = l::Reservation::allocate(&layouts, option, &mut allocator).unwrap();
+    let mut incoming = l::Reservation::allocate(&layouts, option, &mut allocator).unwrap();
+    for (cell, data) in [(&target, b"a".as_slice()), (&incoming, b"ccc".as_slice())] {
+        cell.prepare_case(cell.root(), 1, &mut allocator).unwrap();
+        let mut bytes = Bytes::from_slice(&mut allocator, data).unwrap();
+        let token = bytes.take_token(&allocator).unwrap();
+        let at = cell.child(cell.root(), 0, &allocator).unwrap().offset() as usize;
+        cell.data_mut(&mut allocator).unwrap()[at..at + 32].copy_from_slice(&token);
+    }
+    target
+        .initialize_order(target.root(), [(0, span())].into_iter(), &mut allocator)
+        .unwrap();
+    let before = allocator.stats();
+    let old = target.data(&allocator).unwrap().to_vec();
+    let new = incoming.data(&allocator).unwrap().to_vec();
+    assert_eq!(
+        target.exchange_root_at(target.root(), &mut incoming, span(), &mut allocator),
+        Err(l::Error::Uninitialized)
+    );
+    assert_eq!(target.data(&allocator).unwrap(), old);
+    assert_eq!(incoming.data(&allocator).unwrap(), new);
+    assert_eq!(allocator.stats(), before);
+    incoming
+        .initialize_order(incoming.root(), [(0, span())].into_iter(), &mut allocator)
+        .unwrap();
+    assert_eq!(
+        target
+            .exchange_root_at(target.root(), &mut incoming, span(), &mut allocator)
+            .unwrap(),
+        None
+    );
+    assert_eq!(allocator.stats(), before);
+    let mut trace = Vec::new();
+    let mut instance = c::Instance::default();
+    let mut frame = instance
+        .enter_with_context(
+            Default::default(),
+            |cell: &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
+                cell.cleanup(&mut allocator, context, |token, allocator, _, _| {
+                    let mut snapshot = token.bytes;
+                    trace.push(
+                        Bytes::from_token(&mut snapshot, allocator)
+                            .unwrap()
+                            .len(allocator)
+                            .unwrap(),
+                    );
+                    buffer::cleanup_token(&verified, token, allocator).map_err(|_| 1u32)
+                })
+                .map_err(|_| 2u32)
+            },
+        )
+        .unwrap();
+    for (id, cell) in [target, incoming].into_iter().enumerate() {
+        frame.declare(c::Slot(id), c::Kind::Owner).unwrap();
+        assert!(frame.initialize(c::Slot(id), cell, None).is_ok());
+    }
+    assert!(
+        frame
+            .finish(c::Exit::Return(None))
+            .report
+            .primary()
+            .is_none()
+    );
+    assert_eq!(trace, [1, 3]);
+    assert_eq!(allocator.stats().live_allocations, 0);
+}

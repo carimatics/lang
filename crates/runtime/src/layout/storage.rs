@@ -13,6 +13,14 @@ pub struct Location {
     ty: o::Type,
     offset: u64,
     metadata: u64,
+    parent: Option<Parent>,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Parent {
+    ty: o::Type,
+    offset: u64,
+    metadata: u64,
+    field: u32,
 }
 impl Location {
     pub const fn ty(self) -> o::Type {
@@ -98,6 +106,7 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             ty: self.ty,
             offset: 0,
             metadata: 0,
+            parent: None,
         }
     }
     pub fn data<'a, P: Provider>(&self, allocator: &'a Allocator<P>) -> Result<&'a [u8], Error> {
@@ -163,6 +172,7 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             span: None,
         };
         let (aggregate, payload) = Self::aggregate(self.layouts, work, allocator, self.data)?;
+        let index = field;
         let field = aggregate
             .fields
             .get(field as usize)
@@ -172,6 +182,12 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             ty: field.ty,
             offset: add(payload, field.offset)?,
             metadata: add(location.metadata, field.metadata_offset)?,
+            parent: Some(Parent {
+                ty: location.ty,
+                offset: location.offset,
+                metadata: location.metadata,
+                field: index,
+            }),
         })
     }
     /// Record actual initializer order and spans without allocating. A failed

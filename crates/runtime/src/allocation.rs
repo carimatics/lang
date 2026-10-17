@@ -482,6 +482,39 @@ impl<P: Provider> Allocator<P> {
         }
         Ok(())
     }
+    /// Exchange disjoint admitted regions after validating both complete ranges.
+    pub(crate) fn swap_bytes(
+        &mut self,
+        a: Handle,
+        from: usize,
+        b: Handle,
+        to: usize,
+        len: usize,
+    ) -> Result<(), Error> {
+        let a_index = self.index(a)?;
+        let b_index = self.index(b)?;
+        let a_end = from.checked_add(len).ok_or(Error::Overflow)?;
+        let b_end = to.checked_add(len).ok_or(Error::Overflow)?;
+        if a_index == b_index
+            || a_end > self.request(a)?.bytes as usize
+            || b_end > self.request(b)?.bytes as usize
+        {
+            return Err(Error::InvalidStorage);
+        }
+        if len == 0 {
+            return Ok(());
+        }
+        let (a, b) = if a_index < b_index {
+            let (left, right) = self.slots.split_at_mut(b_index);
+            (left[a_index].as_mut().unwrap(), right[0].as_mut().unwrap())
+        } else {
+            let (left, right) = self.slots.split_at_mut(a_index);
+            (right[0].as_mut().unwrap(), left[b_index].as_mut().unwrap())
+        };
+        a.region.as_mut().unwrap().bytes_mut()[from..a_end]
+            .swap_with_slice(&mut b.region.as_mut().unwrap().bytes_mut()[to..b_end]);
+        Ok(())
+    }
     fn release_index(&mut self, index: usize) {
         let allocation = self.slots[index].take().expect("validated live allocation");
         // Capacity for every locator was reserved before entry.
