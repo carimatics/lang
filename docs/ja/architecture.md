@@ -283,7 +283,7 @@ Branch引数は選択されたedgeだけでtransferします。全引数を読�
 
 構造verifierは各captureのplace／site／spanを保持し、IDの一意性と範囲、累積capture上限を検査し、prepareがすべてのpublication／discardに先行して支配することを要求します。静的place mutability、authority制限、replacement型の互換性、resultが0件であることも検証します。Value-root依存はprepare時のSSA useであり、publicationの明示operandは評価済みRHSです。これは内部のin-memory contractであり、ownership artifact encodingではありません。
 
-Move解析は各captureを独立したnon-Copy／drop不要のstate slotとして追跡します。Local全体のprepareは再初期化のため未初期化storageを許可し、projection／間接destinationは評価時にrootの初期化を要求します。Publication／discardでcaptureを一度だけ消費し、すべてのreturnは各pathのpending captureを処理し、loop feedbackはcapture状態を復元します。RHS loopの外でprepareしたdestinationは、そのloop中にpendingのまま変化せず保持できます。Publicationでlocal全体の初期化を復元し、間接publicationでは以前のroot reference cellを読み直しません。後続loan stageはreplacementを許可する前に、captureしたownerと推移的reference-cell依存を検証する必要があります。
+Move解析は各captureを独立したnon-Copy／drop不要のstate slotとして追跡します。Local全体のprepareは再初期化のため未初期化storageを許可し、projection／間接destinationは評価時にrootの初期化を要求します。Publication／discardでcaptureを一度だけ消費し、すべてのreturnは各pathのpending captureを処理し、loop feedbackはcapture状態を復元します。RHS loopの外でprepareしたdestinationは、そのloop中にpendingのまま変化せず保持できます。Publicationでlocal全体の初期化を復元し、間接publicationでは以前のroot reference cellを読み直しません。後続provenance stageはreplacementの前に、captureしたownerと推移的reference-cell依存を検証します。
 
 追加10 testで不正capture ID／型／permission／arity、同一blockとbranch間の支配関係、二重消費、failure pathのdiscard、loopの再captureとpending RHS loop、間接root、正確な累積budget、replay、独立した経路消費oracleと比較する81個の生成diamondを確認します。追加1件のsource組み立てfixtureは検査済みsource metadataを保持し、literal RHSとpublicationの前にprepareを配置します。これは手動組み立てであり、自動source-body loweringや実行のevidenceではありません。拡張したlock済みbody fuzz targetは3操作を扱い、Clippyとinstrumentationなし10,000-run smokeを通り、coverage-guidedの主張は行いません。
 
@@ -297,9 +297,25 @@ Move解析は各captureを独立したnon-Copy／drop不要のstate slotとし�
 
 追加10 testでrequired／冪等／conditional end、joinと通常return、条件付き生成、均衡／不均衡loop、irreducible cycle、guard付きcase loan、範囲／replay、正確な累積budget、独立した具体pathのend oracleと比較する81個の生成diamondを確認します。新しい検査済みsource組み立てfixtureはnamed lexical loanの明示begin／read／end列を供給します。これはsource metadataの手動組み立てであり、自動body loweringではありません。Lock済みbody fuzz targetも成功したactivity解析を再検証し、Clippyとinstrumentationなし10,000-run smokeを通りました。Coverage-guidedのevidenceは主張しません。
 
-`ActivityBodies` は実行できず、完全なloan-validity proofとは区別します。参照先解決、alias排他性やparent freezing、推移的reference-cell依存、暗黙caller-parameter loanの検証、終了済み参照のaccess拒否、古いloop参照が再activateした生成site identityを使わないことは検証しません。後続provenance stageで拒否すべき型付きuse-after-endを明示testとして残します。準備済みdestinationもRHS effect後のowner／依存の再検証が必要です。Region／call effect、cleanup／allocator／layout contract、完全なsource／core／runtime lowering、VM／native実行、ownership serializationはMilestone 2作業として残ります。
+`ActivityBodies` は実行できず、完全なloan-validity proofとは区別します。参照先解決、alias排他性やparent freezing、推移的reference-cell依存、暗黙caller-parameter loanの検証、終了済み参照のaccess拒否、古いloop参照が再activateした生成site identityを使わないことは検証しません。型付きuse-after-end fixtureはこのactivity stageを通り、後続provenance stageで拒否します。準備済みdestinationもRHS effect後のowner／依存の再検証が必要です。Region／call effect、cleanup／allocator／layout contract、完全なsource／core／runtime lowering、VM／native実行、ownership serializationはMilestone 2作業として残ります。
 
 出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[activity解析](../../crates/mir/src/unit/ownership/loan_activity.rs)、[共通CFG走査](../../crates/mir/src/unit/ownership/flow.rs)、[test](../../crates/mir/tests/ownership_loan_activity.rs)、[source fixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Activity latticeとproof stage表現は実装上の選択であり、この前提作業だけでownership／arena／core outcomeは完了しません。
+
+### Ownership MIR reference provenance and access
+
+2026-10-17実装：`lang-mir::unit::ownership::loans::analyze` は変更不可のactivity検査済みbodyを受け取り、抽象的なlocal／SSA／caller所有cellに対して通常referenceを検証します。Loanを含むinline stack sumはpayload cellを分けて保持します。各reference identityは可能な参照先と推移的parent／cell依存を持ち、callerのloan chainには異なるcompiler専用identityとpointee cellを与えます。これは解析symbolであり、runtime address／generation／serialized IDではありません。
+
+Read、write、move、破棄、動的SSA定義でwhole-owner loanの排他性を検査します。Shared readは共存でき、exclusive accessには正しいreference pathが必要で、live reborrowは競合するparent accessをfreezeします。依存loanがactiveのままparentを終了すると失敗します。Referenceの無効化はlocal／SSAのmove、initialization、replacement、sum構築／unpack、選択edgeでの同時引数transfer、条件付きjoinを通じて追跡します。Referenceはpathごとに異なるactive loanを指せますが、lifetime終了pathは個別の無効化factに記録します。Loopの生成siteを再activateしても古い格納referenceは復活しません。構造化errorはoperationと関連loanのspanを保持します。
+
+Reference cellの借用と、その内容へのaccessは別操作として扱います。Nested dereferenceはcellへ到達するためのguardを保持し、guest callはすべての入れ子の引数referenceに対するshared／exclusive permissionの交差を検査します。Caller所有reference cellへ通常のlocal loanは格納できません。Prepare済みdestinationはRHS effectをまたいで評価済み参照先とguardを保持し、publicationはそのsnapshotを使って終了済み依存を拒否します。直接fieldへのpublicationでもRHS effect後にparent storageの初期化を再検査します。このcheckerはallocatorやhost capabilityを付与しません。
+
+上限付き単調伝播は共通CFG走査を使い、irreducible cycleを含むfeedback edgeで、reference cell、支配するSSA／header value、active loan descriptor、capture済みdestinationの復元を検証します。均衡loopはfresh reference temporaryを定義でき、外側referenceをself-edge parameterで変化させず保持できます。密なbit matrixには累積word上限、topologyには累積node上限とpathごとのdepth上限を設けます。Work、要求buffer、temporary query set、elementはactivity stageの実際の計上を再開します。これはcapacity上限付き解析であり、performance測定ではありません。
+
+追加17 testに、独立owner-interval oracleと比較する96 program、nested／caller cell、parent freezingと早期end、条件付きreference、payload view、古いloop alias、prepare済みdestination、均衡／irreducible loop、正確な累積上限／depth、replay、70 loanのreference／target bit境界を含みます。追加のregressionはparent storageのdrop後にprepare済み直接fieldをreplaceする操作を拒否します。既存3件の検査済みsource組み立てfixtureもprovenance検査を通り、以前activityだけを通っていたuse-after-end fixtureはこのstageで拒否します。拡張したlock済みbody fuzz targetはClippyとinstrumentationなし10,000-run smokeを通り、coverage-guidedの主張は行いません。
+
+`LoanCheckedBodies` は実行できません。現在のinstruction familyは通常のownership操作、constructor、guest call、scalar host importを表し、完全なcore operation loweringと、そのprovisional／arena result contractが必要です。Arena brand／escapeとguest mutation effect、自動の完全なsource-body lowering、cleanup／allocator／layout contract、VM／native runtime統合、ownership serializationはMilestone 2の独立要件として残ります。これらの独立した解析factだけでHIR／MIR、arena、core outcomeは完了しません。
+
+出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[provenance／access checker](../../crates/mir/src/unit/ownership/loans/mod.rs)、[test](../../crates/mir/tests/ownership_loans.rs)、[prepare済みfield regression](../../crates/mir/tests/ownership_prepared.rs)、[source組み立てfixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Cell topology、bit matrix、無効化表現は受理済みprofile内の実装上の選択です。
 
 ### Source formatter
 

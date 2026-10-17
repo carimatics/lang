@@ -455,6 +455,9 @@ fn checked_source_owned_return_can_supply_typed_mir_instructions_and_cfg() {
     assert!(out.facts()[0].definitions()[value.0 as usize].is_some());
     let moved = lang_mir::unit::ownership::moves::analyze(out, Default::default()).unwrap();
     assert!(moved.functions()[0].exits()[0].owners().is_empty());
+    let activity =
+        lang_mir::unit::ownership::loan_activity::analyze(moved, Default::default()).unwrap();
+    lang_mir::unit::ownership::loans::analyze(activity, Default::default()).unwrap();
 }
 
 #[test]
@@ -535,6 +538,9 @@ fn checked_source_assignment_supplies_destination_before_rhs_in_a_mir_assembly_f
     .unwrap();
     let moved = lang_mir::unit::ownership::moves::analyze(typed, Default::default()).unwrap();
     assert!(moved.functions()[0].exits()[0].owners().is_empty());
+    let activity =
+        lang_mir::unit::ownership::loan_activity::analyze(moved, Default::default()).unwrap();
+    lang_mir::unit::ownership::loans::analyze(activity, Default::default()).unwrap();
 }
 
 #[test]
@@ -631,4 +637,5 @@ fn checked_source_lexical_loan_can_supply_explicit_begin_and_end_in_a_mir_assemb
             .owners()
             .is_empty()
     );
+    lang_mir::unit::ownership::loans::analyze(activity, Default::default()).unwrap();
 }

@@ -534,9 +534,15 @@ fn activity_facts_do_not_promote_an_ended_reference_or_implicit_parameter_loan_t
         ],
         m::Term::Return(r(5)),
     )];
-    // The later provenance stage must reject this use. Activation/end state
-    // alone deliberately grants no reference-liveness or executable proof.
-    analyze(t).unwrap();
+    // Activation/end state alone grants no reference-liveness proof; the
+    // subsequent provenance checker must reject the ended reference.
+    let activity = analyze(t).unwrap();
+    assert!(matches!(
+        lang_mir::unit::ownership::loans::analyze(activity, Default::default())
+            .unwrap_err()
+            .kind,
+        lang_mir::unit::ownership::loans::ErrorKind::EndedReference(_)
+    ));
     let mut t = table(vec![]);
     t.functions[0].loans = 0;
     let out = analyze(t).unwrap();

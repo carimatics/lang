@@ -434,6 +434,16 @@ impl Context<'_, '_> {
                     self.typed.facts()[self.function].prepared()[destination.0 as usize].unwrap();
                 let p = &self.typed.places().functions()[self.function].places
                     [captured.place.0 as usize];
+                if !p.projections.is_empty()
+                    && !self
+                        .typed
+                        .places()
+                        .facts(FunctionId(self.function as u32), captured.place)
+                        .unwrap()
+                        .through_loan
+                {
+                    self.read_place(state, captured.place, s, mode)?;
+                }
                 if p.projections.is_empty()
                     && let p::Root::Local(l) = p.root
                 {

@@ -12,6 +12,7 @@ pub mod bodies;
 pub mod declarations;
 mod flow;
 pub mod loan_activity;
+pub mod loans;
 pub mod moves;
 pub mod places;
 

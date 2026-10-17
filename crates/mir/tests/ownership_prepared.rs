@@ -574,3 +574,64 @@ fn capture_limits_and_state_accounting_are_cumulative_and_replayable() {
         }
     ));
 }
+
+#[test]
+fn a_prepared_direct_field_requires_initialized_parent_storage_at_publication() {
+    let mut t = table(vec![]);
+    t.places.declarations.types.definitions.push(o::Definition {
+        name: "Record".into(),
+        public: false,
+        span: span(),
+        kind: o::DefinitionKind::Record(vec![o::Field {
+            name: "value".into(),
+            span: span(),
+            ty: o::TypeUse {
+                ty: o::Type::I64,
+                span: span(),
+            },
+        }]),
+    });
+    let record = o::Type::Nominal(m::DefinitionId(0));
+    t.places.declarations.functions[0].locals[0].ty.ty = record;
+    t.places.functions[0].values.push(o::TypeUse {
+        ty: record,
+        span: span(),
+    });
+    t.places.functions[0].places[0]
+        .projections
+        .push(p::Projection {
+            kind: p::ProjectionKind::Field(0),
+            span: span(),
+        });
+    t.functions[0].blocks = vec![entry(
+        vec![
+            instruction(
+                &[3],
+                b::Op::Record {
+                    definition: m::DefinitionId(0),
+                    fields: vec![r(0)],
+                },
+                4,
+            ),
+            instruction(
+                &[],
+                b::Op::Initialize {
+                    local: d::LocalId(0),
+                    value: r(3),
+                },
+                5,
+            ),
+            prepare(),
+            instruction(&[], b::Op::DropLocal(d::LocalId(0)), 6),
+            replace(),
+        ],
+        m::Term::Return(r(1)),
+    )];
+    assert!(matches!(
+        moved(t).unwrap_err().kind,
+        f::ErrorKind::Unavailable {
+            slot: f::Slot::Local(d::LocalId(0)),
+            state: f::Availability::Vacant
+        }
+    ));
+}
