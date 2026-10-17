@@ -371,6 +371,12 @@ impl Context<'_, '_> {
         let s = i.span;
         self.budget.charge(1)?;
         match &i.op {
+            Op::Cleanup(cleanup) => {
+                for step in &cleanup.steps {
+                    self.budget.charge(1)?;
+                    self.operation(state, &step.instruction(), mode)?;
+                }
+            }
             Op::I64(_) | Op::Bool(_) | Op::Unit | Op::EndBorrow { .. } => {}
             Op::Add(a, z) | Op::LessThan(a, z) | Op::EqualI64(a, z) => {
                 self.read(state, *a, s, mode)?;

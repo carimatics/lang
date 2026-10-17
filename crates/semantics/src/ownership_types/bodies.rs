@@ -1,6 +1,6 @@
-//! Automatic normal-flow lowering from region-checked source bodies.
-//! These bodies still require executable layouts, actual initialization-order
-//! drop elaboration, and failure cleanup before any execution adapter may use them.
+//! Automatic lowering from region-checked source bodies, including generated
+//! lexical/temporary cleanup ranges. Executable layouts, aggregate order
+//! metadata, and generated failure exits remain required for source execution.
 
 use super::*;
 use lang_hir::program::{BodyTypes, FunctionFacts};
@@ -301,22 +301,31 @@ impl Lowerer<'_, '_, '_> {
         block: m::BlockId,
         returned: Option<m::Register>,
     ) -> Result<()> {
+        let mut steps = self.c.budget.vector(end - mark)?;
         for i in (mark..end).rev() {
             self.c.budget.charge(1)?;
-            let (op, span) = match self.actions[i] {
-                Action::Local(local, span) => (b::Op::DropLocalIfInitialized(local), span),
+            let (target, span) = match self.actions[i] {
+                Action::Local(local, span) => (b::CleanupTarget::Local(local), span),
                 Action::Value(value, _) if Some(value) == returned => continue,
-                Action::Value(value, span) => (b::Op::DropValueIfAvailable(value), span),
-                Action::Loan(loan, span) => (
-                    b::Op::EndBorrow {
-                        loan,
-                        mode: b::EndMode::IfActive,
-                    },
-                    span,
-                ),
-                Action::Arena(owner, span) => (b::Op::ArenaExit { owner }, span),
+                Action::Value(value, span) => (b::CleanupTarget::Value(value), span),
+                Action::Loan(loan, span) => (b::CleanupTarget::Loan(loan), span),
+                Action::Arena(owner, span) => (b::CleanupTarget::Arena(owner), span),
             };
-            self.emit(block, None, op, span)?;
+            steps.push(b::CleanupStep {
+                target,
+                span: self.c.span(span)?,
+            });
+        }
+        if !steps.is_empty() {
+            // emit() remaps its source span. Each step already carries the
+            // independently remapped original action span.
+            let span = match self.actions[mark] {
+                Action::Local(_, span)
+                | Action::Value(_, span)
+                | Action::Loan(_, span)
+                | Action::Arena(_, span) => span,
+            };
+            self.emit(block, None, b::Op::Cleanup(b::Cleanup { steps }), span)?;
         }
         Ok(())
     }

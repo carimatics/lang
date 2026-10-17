@@ -180,6 +180,9 @@ fn block(
 ) -> Result<(), Error> {
     for i in &body.instructions {
         budget.charge(1)?;
+        if let b::Op::Cleanup(cleanup) = &i.op {
+            budget.charge(cleanup.steps.len())?;
+        }
         if let Some(loan) = i.op.created_loan() {
             let slot = &mut state[loan.0 as usize];
             if mode == Mode::Check && *slot != Activity::Inactive {
@@ -190,12 +193,14 @@ fn block(
                 });
             }
             *slot = Activity::Active;
-        } else if let b::Op::EndBorrow { loan, mode: end } = i.op {
+        }
+        for (loan, end, span) in i.op.ended_loans(i.span) {
+            budget.charge(1)?;
             let slot = &mut state[loan.0 as usize];
             if mode == Mode::Check && end == b::EndMode::Required && *slot != Activity::Active {
                 return Err(Error {
                     kind: ErrorKind::NotActive { loan, state: *slot },
-                    primary: Some(i.span),
+                    primary: Some(span),
                     secondary: origins[loan.0 as usize],
                 });
             }

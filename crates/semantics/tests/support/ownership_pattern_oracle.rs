@@ -103,6 +103,16 @@ fn execute(typed: &b::TypedBodies, arguments: Vec<Value>) -> Result<Value, ()> {
                     None
                 }
                 b::Op::DropValueIfAvailable(_) => None,
+                b::Op::Cleanup(cleanup) => {
+                    for step in &cleanup.steps {
+                        match step.target {
+                            b::CleanupTarget::Local(local) => locals[local.0 as usize] = None,
+                            b::CleanupTarget::Value(_) => {}
+                            _ => panic!("non-Copy cleanup in the Copy-only oracle"),
+                        }
+                    }
+                    None
+                }
                 b::Op::Record { fields, .. } => {
                     Some(Value::Record(fields.iter().map(|r| get(*r)).collect()))
                 }
@@ -227,9 +237,13 @@ fn unreachable_exits_keep_cleanup_obligations_and_require_ended_loans() {
         .iter()
         .position(|b| b.terminator.kind == b::Term::Unreachable)
         .unwrap();
-    table.functions[0].blocks[fault]
-        .instructions
-        .retain(|i| !matches!(i.op, b::Op::EndBorrow { .. }));
+    for i in &mut table.functions[0].blocks[fault].instructions {
+        if let b::Op::Cleanup(cleanup) = &mut i.op {
+            cleanup
+                .steps
+                .retain(|s| !matches!(s.target, b::CleanupTarget::Loan(_)));
+        }
+    }
     let moved = o::moves::analyze(
         table.verify(Default::default()).unwrap(),
         Default::default(),
@@ -242,12 +256,13 @@ fn unreachable_exits_keep_cleanup_obligations_and_require_ended_loans() {
         o::loan_activity::ErrorKind::Unended { .. }
     ));
     let mut table = typed.into_table();
-    table.functions[0].blocks[fault].instructions.retain(|i| {
-        !matches!(
-            i.op,
-            b::Op::DropLocalIfInitialized(o::declarations::LocalId(1))
-        )
-    });
+    for i in &mut table.functions[0].blocks[fault].instructions {
+        if let b::Op::Cleanup(cleanup) = &mut i.op {
+            cleanup
+                .steps
+                .retain(|s| s.target != b::CleanupTarget::Local(o::declarations::LocalId(1)));
+        }
+    }
     let moved = o::moves::analyze(
         table.verify(Default::default()).unwrap(),
         Default::default(),

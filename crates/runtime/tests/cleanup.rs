@@ -633,6 +633,37 @@ fn failed_callee_cleanup_destroys_unpublished_result_and_retains_caller_scope() 
 }
 
 #[test]
+fn cleanup_ranges_preflight_all_targets_and_select_each_live_owner_once() {
+    let (drops, trace) = (Drops::default(), Trace::default());
+    let mut instance = Instance::default();
+    let mut frame = instance.enter(Limits::default(), cleaner(&trace)).unwrap();
+    initialize(&mut frame, 0, 10, &drops);
+    initialize(&mut frame, 1, 20, &drops);
+    frame.declare(Slot(2), Kind::Borrow).unwrap();
+    frame
+        .initialize(Slot(2), resource(99, &drops), None)
+        .unwrap();
+    frame.declare(Slot(3), Kind::Owner).unwrap();
+    assert_eq!(
+        frame.cleanup_slots([Slot(0), Slot(99999)].into_iter()),
+        Err(StateError::InvalidSlot)
+    );
+    assert!(trace.borrow().is_empty());
+    frame
+        .cleanup_slots([Slot(0), Slot(2), Slot(0), Slot(3)].into_iter())
+        .unwrap();
+    assert_eq!(ids(&trace), [99, 10]);
+    frame
+        .initialize(Slot(3), resource(30, &drops), None)
+        .unwrap();
+    frame.cleanup_slots([Slot(1)].into_iter()).unwrap();
+    assert_eq!(ids(&trace), [99, 10, 20]);
+    assert_eq!(*frame.value(Slot(3)).unwrap().value, 30);
+    frame.finish(Exit::Return(None));
+    assert_eq!(*drops.borrow(), [99, 10, 20, 30]);
+}
+
+#[test]
 fn generated_moves_replacements_and_explicit_drops_match_an_independent_order_oracle() {
     for seed in 1..=100u64 {
         let (drops, trace) = (Drops::default(), Trace::default());

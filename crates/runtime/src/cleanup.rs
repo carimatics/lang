@@ -5,13 +5,17 @@
 //! unlink the source and reinitialization appends a new obligation. Generated
 //! adapters must declare parameters in order, preserve aggregate field order,
 //! and validate loans, prepared destinations and shared publication before
-//! calling this engine. This is not yet an executable ownership MIR adapter.
+//! calling this engine. The MIR cleanup mapping does not make complete
+//! ownership bodies executable.
 
 use lang_mir::unit::Span;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::mem::ManuallyDrop;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+
+mod mir;
+pub use mir::MirLayout;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {
@@ -254,6 +258,7 @@ struct Value<T> {
     older: Option<Slot>,
     newer: Option<Slot>,
     next_declaration: Option<Slot>,
+    selected: bool,
 }
 impl<T> Default for Value<T> {
     fn default() -> Self {
@@ -265,6 +270,7 @@ impl<T> Default for Value<T> {
             older: None,
             newer: None,
             next_declaration: None,
+            selected: false,
         }
     }
 }
@@ -385,6 +391,7 @@ impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
         let depth = value.scope.expect("validated declaration");
         let older = value.older.take();
         let newer = value.newer.take();
+        value.selected = false;
         if let Some(older) = older {
             self.slots[older.0].newer = newer;
         }
@@ -453,6 +460,30 @@ impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
         self.forget_scope();
         self.running()
     }
+    /// Drain a generated cleanup range in actual initialization order. Vacant
+    /// cells and duplicate targets are harmless. Validate every target before
+    /// effects, and allocate no metadata while selecting or draining values.
+    pub fn cleanup_slots<I>(&mut self, slots: I) -> Result<(), StateError>
+    where
+        I: Iterator<Item = Slot> + Clone,
+    {
+        self.running()?;
+        for slot in slots.clone() {
+            self.declared(slot)?;
+        }
+        for slot in slots.clone() {
+            self.slots[slot.0].selected = true;
+        }
+        for kind in [Kind::Borrow, Kind::Owner] {
+            for depth in (0..self.scopes.len()).rev() {
+                self.drain_kind_if(depth, kind, Reason::ScopeExit, true);
+            }
+        }
+        for slot in slots {
+            self.slots[slot.0].selected = false;
+        }
+        self.running()
+    }
     /// Hold a callee result outside its exiting scopes, then publish into an
     /// uninitialized caller cell only after successful callee cleanup. For a
     /// Copy/Unit result pass None/None and publish it separately after success.
@@ -512,11 +543,14 @@ impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
         }
     }
     fn drain_kind(&mut self, depth: usize, kind: Kind, reason: Reason) {
+        self.drain_kind_if(depth, kind, reason, false);
+    }
+    fn drain_kind_if(&mut self, depth: usize, kind: Kind, reason: Reason, selected: bool) {
         let mut slot = self.scopes[depth].newest;
         while let Some(current) = slot {
             let value = &self.slots[current.0];
             slot = value.older;
-            if value.kind == kind {
+            if value.kind == kind && (!selected || value.selected) {
                 let (payload, span) = self.remove(current);
                 self.destroy(current, payload, span, reason);
             }

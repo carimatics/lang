@@ -18,6 +18,43 @@ pub enum EndMode {
     Required,
     IfActive,
 }
+/// A generated lexical/temporary cleanup range. Targets describe obligations,
+/// not their physical destruction order; runtime order follows initialization.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Cleanup {
+    pub steps: Vec<CleanupStep>,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CleanupTarget {
+    Local(d::LocalId),
+    Value(m::Register),
+    Loan(LoanId),
+    Arena(d::LocalId),
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CleanupStep {
+    pub target: CleanupTarget,
+    pub span: Span,
+}
+impl CleanupStep {
+    /// Static flow transfer only. Execution drains the whole range in dynamic
+    /// order, ending registrations before cleaning owners.
+    pub fn instruction(self) -> Instruction {
+        Instruction {
+            results: Vec::new(),
+            op: match self.target {
+                CleanupTarget::Local(local) => Op::DropLocalIfInitialized(local),
+                CleanupTarget::Value(value) => Op::DropValueIfAvailable(value),
+                CleanupTarget::Loan(loan) => Op::EndBorrow {
+                    loan,
+                    mode: EndMode::IfActive,
+                },
+                CleanupTarget::Arena(owner) => Op::ArenaExit { owner },
+            },
+            span: self.span,
+        }
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Op {
     I64(i64),
@@ -57,6 +94,7 @@ pub enum Op {
     DropLocalIfInitialized(d::LocalId),
     /// Drop a remaining SSA owner, or do nothing when it was consumed.
     DropValueIfAvailable(m::Register),
+    Cleanup(Cleanup),
     Borrow {
         loan: LoanId,
         kind: LoanKind,
@@ -141,7 +179,31 @@ impl Op {
             Self::Variant { payload, .. } => ([None, None], payload),
             _ => ([None, None], &[]),
         };
-        fixed.into_iter().flatten().chain(variable.iter().copied())
+        let steps: &[CleanupStep] = match self {
+            Self::Cleanup(cleanup) => &cleanup.steps,
+            _ => &[],
+        };
+        fixed
+            .into_iter()
+            .flatten()
+            .chain(variable.iter().copied())
+            .chain(steps.iter().filter_map(|step| match step.target {
+                CleanupTarget::Value(value) => Some(value),
+                _ => None,
+            }))
+    }
+    pub fn ended_loans(&self, span: Span) -> impl Iterator<Item = (LoanId, EndMode, Span)> + '_ {
+        let (direct, steps): (Option<_>, &[CleanupStep]) = match self {
+            Self::EndBorrow { loan, mode } => (Some((*loan, *mode, span)), &[]),
+            Self::Cleanup(cleanup) => (None, &cleanup.steps),
+            _ => (None, &[]),
+        };
+        direct
+            .into_iter()
+            .chain(steps.iter().filter_map(|step| match step.target {
+                CleanupTarget::Loan(loan) => Some((loan, EndMode::IfActive, step.span)),
+                _ => None,
+            }))
     }
     pub const fn place(&self) -> Option<p::PlaceId> {
         match self {
@@ -616,6 +678,28 @@ impl Check<'_, '_> {
         let s = i.span;
         use Expected::{Builtin as B, Exact as E};
         match &i.op {
+            Op::Cleanup(cleanup) => {
+                self.void(i)?;
+                self.budget.allocate::<CleanupStep>(cleanup.steps.len())?;
+                // End registrations first, regardless of untrusted list order.
+                for loans in [true, false] {
+                    for step in &cleanup.steps {
+                        self.budget.charge(1)?;
+                        if matches!(step.target, CleanupTarget::Loan(_)) == loans {
+                            at(
+                                validation::source_span(
+                                    &self.types.table.sources,
+                                    Some(step.span),
+                                    self.budget,
+                                ),
+                                step.span,
+                            )?;
+                            self.operation(&step.instruction(), site)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
             Op::I64(_) => self.one(i, E(Type::I64)),
             Op::Bool(_) => self.one(i, E(Type::Bool)),
             Op::Unit => self.one(i, B(Builtin::Unit)),
@@ -1177,16 +1261,16 @@ fn function(
                     return Err(Error::new(ErrorKind::CoreProvisionalUse(v), Some(i.span)));
                 }
             }
-            if let Op::EndBorrow { loan, mode } = i.op {
+            for (loan, mode, span) in i.op.ended_loans(i.span) {
                 let Some(site) = loans.get(loan.0 as usize).copied().flatten() else {
-                    return Err(Error::new(ErrorKind::UndefinedLoan(loan.0), Some(i.span)));
+                    return Err(Error::new(ErrorKind::UndefinedLoan(loan.0), Some(span)));
                 };
                 if mode == EndMode::Required
                     && ((site.block == here.block && site.order >= here.order)
                         || (site.block != here.block
                             && !dominates(&idom, site.block.0, here.block.0, c.budget)?))
                 {
-                    return Err(Error::new(ErrorKind::UndefinedLoan(loan.0), Some(i.span)));
+                    return Err(Error::new(ErrorKind::UndefinedLoan(loan.0), Some(span)));
                 }
             }
             if let Op::ReplacePrepared { destination, .. } | Op::DiscardPrepared(destination) = i.op
@@ -1267,6 +1351,7 @@ fn provisional(
 }
 fn provisional_use(op: &Op, value: m::Register) -> bool {
     match op {
+        Op::Cleanup(_) => true, // Every register operand here is a conditional discard.
         Op::IsCase { value: v, .. }
         | Op::CopyCaseField { value: v, .. }
         | Op::BorrowCaseField { value: v, .. }

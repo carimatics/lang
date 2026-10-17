@@ -543,6 +543,16 @@ impl Context<'_, '_> {
             self.access(row, &destination, Access::Write, s, mode)?;
         }
         match &i.op {
+            Op::Cleanup(cleanup) => {
+                for loans in [true, false] {
+                    for step in &cleanup.steps {
+                        self.budget.charge(1)?;
+                        if matches!(step.target, b::CleanupTarget::Loan(_)) == loans {
+                            self.operation(row, &step.instruction(), mode)?;
+                        }
+                    }
+                }
+            }
             Op::Borrow { loan, place, .. } => {
                 let place = self.place(row, *place, s, mode)?;
                 self.begin(

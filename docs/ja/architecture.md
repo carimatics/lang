@@ -361,6 +361,18 @@ Runtime testは、実際の初期化／再初期化順、条件分岐／loop slo
 
 出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Cleanup engine](../../crates/runtime/src/cleanup.rs)と[16 runtime test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
 
+### 生成MIR cleanup range
+
+実装／検証日：2026-10-18 JST。Ownershipの自動loweringは、生成するlexical／temporary cleanup範囲ごとに`Op::Cleanup`を出力します。Rangeはlocal、SSA value、loan registration、arena ownerの対象と、各actionのsource spanを保持します。返却するowning registerは終了rangeから除外します。個別の明示operationも利用できますが、生成するlocal cleanupは宣言逆順の実行listではなくなり、古いlocalの再初期化でruntimeのcleanup位置が変わります。
+
+Typed verifierは対象のidentity／type、入れ子の各span、loan定義とregister dominance、provisional resultのdiscard、void resultのarity、累積work／allocation／element上限を検査します。Move解析は条件付きdiscardの遷移を適用します。Activity解析は指定registrationを終了し、provenance解析はowner storageのdiscard前にその終了を検証します。`CleanupStep::instruction`は静的解析用の展開です。Ownership実行consumerはその展開順を物理破棄順に使わず、rangeを一単位として処理する必要があります。既存のserialized Copy instruction schemaは変えず、新variantはin-memory ownership MIRに属します。
+
+`lang_runtime::cleanup::MirLayout`はtyped functionのlocal、value、registrationを上限付きentry frameのcellへ対応付けます。Offsetを検査し、Copy valueにowning cellは作りません。`Frame::cleanup_mir`はcallback前にrange全体とcell kindを検査し、確保をせず生存中の義務を選択して、選択したregistrationを終了し、ownerを動的な初期化逆順で処理します。Vacant cellや重複targetで二重cleanupは起きません。選択外のcaller valueは生存を維持します。このmappingはguest allocatorの権限や実行用payload layoutを与えず、adapterにはmove／loan／regionのproofと実行preflightが引き続き必要です。
+
+追加5 testはrangeのpreflight／選択、不正なMIR／runtime target、入れ子source span、verifierの厳密な予算境界、sourceからruntimeへの接続を検証します。Transfer／cleanupに限定したinterpreterで、source生成の全検査済みMIRと実際のshared resourceを使います。Localをmoveして再初期化すると、宣言逆順なら`1, 2, 3`となる値を`3, 1, 2`の順でcleanupします。Owning return成功時はshared valueを保持し、cleanup failureを注入した場合は独立したcleanup後に未公開resultも解放します。このtestは汎用ownership VMではありません。Aggregateの構築順metadata、生成runtime failure exit、owned layout／fallible allocation、production VM／native adapterは未完了です。Workspace全868 testとfmt／Clippy／docが成功し、fuzz targetのformat／locked Clippyと拡張body targetの非instrumented smoke 10,000回も成功しました。
+
+出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[MIR cleanup契約](../../crates/mir/src/unit/ownership/bodies.rs)、[source lowering](../../crates/semantics/src/ownership_types/bodies.rs)、[runtime mapping](../../crates/runtime/src/cleanup/mir.rs)、[source統合test](../../tests/ownership_cleanup.rs)、[runtime test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
+
 ### Source analysis profileとdriver境界
 
 実装／検証日：2026-10-18 JST。`lang_hir::program::analyze_program`は検査済みCopy program、またはprivateなregion検査済みHIR bodyを保持するownership programを返します。互換entry pointの`check_program`と`check_expression_function`は引き続きCopy execution profileを要求します。成功したownership解析は保持され、再実行したり未対応の言語機能として報告したりしません。
