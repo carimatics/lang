@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P0：** Typed source programを検証済みの共通MIR unitへloweringし、続いて上限付きVM frameとportable bytecodeで受理済みcall／aggregateを実行します。
+- **次の進行中P0：** 検証済みの共通MIR unitに対するschema 1 bytecodeのencode／decodeを実装し、続いてsource loweringと上限付きVM実行を接続します。
 
 ### 優先度順のタスク
 
@@ -191,6 +191,8 @@ Commit `844aad0` はparsed scope、nominal type path、forward／mutual call、h
 Commit `1d5fa88` は `lang-hir` に上限付きnominal layout analysisを追加しました。ID／name／spanの検証、member重複／空enumの拒否、反復処理の循環検出、record cell／enum最大payload cellのchecked計算、guest割り当て前のdepth／work／構造上限を実装します。10件のHIR testと2件のparsed-source testで循環、overflow、depth 64／65とcell 4096／4097の境界、明示的な深いstack、不正input、small budgetを検証します。全体のbaseline（331 test）は成功しています。元のaggregate-typing 8 ptを、検証済みlayout成果3 ptと、aggregate操作／pattern typing・exhaustiveness 5 ptへ分割しました。全scopeと89 ptの総計を保持し、layoutによるtyped bodyや実行の成立は主張しません。
 
 Commit `ef95dc0` はprimitive／control flow、guest／host call、厳密なnominal aggregate／field、pattern binding／shape、return経路、上限付きexhaustivenessのsource全体HIR typingを完了しました。成功後だけimmutableなtype／field／order／flow factsを公開し、warningではartifactを維持し、semantic errorや不正IRをloweringへ渡しません。24件の統合testはcompile-pass／fail source、有限domain oracleとの1,458件の照合、256-field直積、moduleから有効なmissing witness、不正ID／tree／scope／budget境界を含みます。両fuzz targetはcompileでき、新しい `typed_source_hir` targetのinstrumentationなしの10,000-run smokeも完了しました。Sanitizer／coverage-guided evidenceは主張しません。全体のbaseline（355 test）は成功しています。元のsource／call typingとaggregate／pattern typing成果を完了し、MIR loweringやsource実行の完了は主張しません。
+
+Commit `e6b6987` は受理済みcompilation-unit MIR modelとbudget付きverifierを追加しました。Source-byte metadata、全必須operation、nominal layout、SSA／dominance、CFG argument／reachability、signature、entry検証、既存owned制約を扱います。15件のtestは独立したdominance oracleとの1,536件の照合、正確なlayout／resource境界、source位置、通算allocation／work計数を含みます。全体のbaseline（370 test）は成功しています。残るlowering、bytecode、VM taskの共有prerequisiteであり、未完了の統合にchecklist点を付けません。次のscopeは、decoder／verifierの共通通算budgetを使うcanonical schema 1 encode／decodeです。
 
 ### 残る依存関係の監査（2026-10-17）
 

@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** lower typed source programs into validated shared MIR units, then execute accepted calls/aggregates with bounded VM frames and portable bytecode.
+- **Next active P0:** implement schema-1 bytecode encoding/decoding against the validated shared MIR unit, then connect source lowering and bounded VM execution.
 
 ### Tasks in priority order
 
@@ -191,6 +191,8 @@ Commit `844aad0` resolves parsed scopes, nominal type paths, forward/mutual call
 Commit `1d5fa88` adds bounded nominal layout analysis to `lang-hir`: validated IDs/names/spans, duplicate member and empty-enum rejection, iterative cycle detection, checked record cells/enum maximum-payload cells, and depth/work/structural limits before guest allocation. Ten HIR tests and two parsed-source tests verify cycles, overflow, exact depth 64/65 and cell 4096/4097 boundaries, explicit deep stacks, malformed inputs, and small budgets. The full baseline passes (331 tests). The original 8-point aggregate-typing task is split into this verified 3-point layout outcome and 5 points of aggregate operations/pattern typing and exhaustiveness. All scope and the 89-point total are retained; layouts do not establish typed bodies or execution.
 
 Commit `ef95dc0` completes source-wide HIR typing for primitives/control flow, guest/host calls, exact nominal aggregates/fields, pattern bindings/shapes, return paths, and bounded exhaustiveness. Typed programs expose immutable type/field/order/flow facts only after successful checking; warnings preserve artifacts, while semantic errors or forged IR cannot reach lowering. Twenty-four integration tests include compile-pass/fail source cases, 1,458 finite-domain oracle comparisons, a 256-field product, module-valid missing witnesses, and malformed-ID/tree/scope/budget boundaries. Both fuzz targets compile; the new `typed_source_hir` target completed an uninstrumented 10,000-run smoke without claiming sanitizer/coverage-guided evidence. The full baseline passes (355 tests). This closes the original source/call and aggregate/pattern typing outcomes, not MIR lowering or source execution.
+
+Commit `e6b6987` adds the accepted compilation-unit MIR model and a budgeted verifier with source-byte metadata, all required operations, nominal layouts, SSA/dominance, CFG arguments/reachability, signatures, entry validation, and existing owned restrictions. Fifteen tests include 1,536 independent dominance-oracle comparisons, exact layout/resource boundaries, source positions, and cumulative allocation/work accounting. The full baseline passes (370 tests). This is a prerequisite shared by remaining lowering, bytecode, and VM tasks; no checklist points are awarded for their incomplete integration. The next scope is canonical schema-1 encoding/decoding using the same cumulative decoder/verifier budget.
 
 ### Remaining dependency audit (2026-10-17)
 
