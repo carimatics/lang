@@ -133,6 +133,10 @@ Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと
 
 2026-10-17実装：immutableな `SourceMap` のclone／includeは `Arc<SourceFile>` snapshotと既存identityを共有し、新editには引き続きglobal unique IDを割り当てます。Moduleは `Arc<SyntaxTree>` を保持します。`load_preparsed` は明示read権限の下でcanonical identityを解決し、そのparser結果を渡すhost `ModuleProvider` を受け取ります。Module格納前に同じparse policyと通算source／token／node budgetを検証し、parser-limit snapshotを保持し、同じcanonical fileは2回目のparse要求前に検出します。Module index化では従来の宣言／alias workに加えてnode／path-child訪問を課金します。6件のtestは同じpointerのtree／source再利用、duplicate preflight、通算budget、不正／foreign input、policy不一致、診断snapshot保持を検証します。Query recipeの自動実行とtransportは最後の統合scopeです。
 
+2026-10-17実装：`lang_semantics::database` は `lang-query` 上でinput → parser → module → semantic診断のrecipeを自動実行します。Module構築は `load_preparsed` 経由でcached CSTを使い、semantic analysisは名前解決とsource全体のtypingを実行し、typed HIRを重複保持せずimmutableな診断／snapshotを保持します。通常editはreverse consumerをinvalidateし、無関係なentryを維持します。新しいvirtual fileを含めopen overlayをdiskより優先します。Disk読込は上限付きで明示canonical rootを要求し、rootなしではfileを読みません。Watch／discovery epochはmissing fileやsymlink identity変更を含むmodule発見を保守的にinvalidateし、無関係なparser snapshotは再利用します。Closeはoverlay inputを捨て、共有poolを解放するためparser cacheをinvalidateします。Closed dependencyは必要時にdiskから再読込します。
+
+独立したprepare／compute／publish APIでdatabase外のworkを可能にし、graph ticketでedit、close／reopen、新しいwork、別graphの結果によるcache置換を拒否します。Host cacheの既定limitは既知file 256、input byte 16 MiB、parser node 2,000,000、module index node 2,000,000、診断text 16 MiB、graph node 4,096／edge 65,536／graph work 10,000,000です。各compiler phaseも個別limitを維持します。Cache countにcallerが保持する過去snapshot／jobは含めず、そのlifetimeはhostが管理します。12件のtestは実tree再利用、選択的invalidation、stale publication拒否、不完全sourceの元診断、close／disk fallback、missing／watched／virtual module回復、読込権限／symlink preflight、resource境界、edit／close後の回復を検証します。LSPのdocument／protocol adapterが最後の統合作業です。
+
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。
 
 - Fileをparseする

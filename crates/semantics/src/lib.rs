@@ -17,6 +17,7 @@
 //! cycles are released in bulk.
 
 pub mod binding;
+pub mod database;
 pub mod graph;
 pub mod lowering;
 pub mod modules;

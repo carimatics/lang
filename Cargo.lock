@@ -382,6 +382,7 @@ dependencies = [
  "lang-diagnostics",
  "lang-hir",
  "lang-mir",
+ "lang-query",
  "lang-syntax",
 ]
 
