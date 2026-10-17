@@ -325,6 +325,10 @@ Record構築順の保持（2026-10-18 JST）：commit `a984e5e` は、ownership�
 
 見直し：recordのfield順序がnominal layoutとは独立して構築／move／返却を通して保持されました。このmetadata統合部分は完了しましたが、deterministic dropやownership実行の成果は未完了です。生成failure exit、production cleanupでの順序付きfield failure報告、owned layout／fallible guest allocation、VM／native adapterが残ります。M2は34 / 113 pt（30.1%）、全18成果中5成果、全体332 / 764 pt（43.5%）を維持し、scope、依存関係、113 pt見積もりは引き続き妥当です。次は入れ子fieldのfailure後も処理／報告を続けるfailure pathとcleanup contextを実装し、続いてfallible allocationとowned実行を接続します。独立arena、ownership artifact、unsafe／C、packaging、differential／platform／debug、performanceのgateも引き続き必要です。
 
+入れ子cleanup failureの報告（2026-10-18 JST）：commit `9678072` は生成／登録済み`Cleaner`向けに共有する上限付き`Context`を追加し、通常callbackの互換性を維持します。Child cleanupは呼び出し前に義務を消費し、callback／payloadのpanicを個別にcontainして、fieldのinitializer spanと親slot／reasonを保持し、child用reportを確保せず順序付きfailureを追加します。`RecordOrder::cleanup_fields`は最後までdrainを続け、execution failureをprimaryに維持し、overflow時は省略record数を数え、cleanup failureでinstanceをpoisonします。追加6 testは、3 recordのbufferで300 fieldが失敗するケース、親spanの復元、悪意あるpanicのdisposal、事前予約した1 work itemで2万段のhost所有shapeを反復処理するケースを含みます。検証を限定したsource生成MIRのrecord interpreterでも、予約済みの反復traversal storageを使い、実際のshared owner解放、入れ子initializer診断、未公開resultのcleanupからの全failureを検証しました。Workspace全880 test、fmt／Clippy／doc、fuzz format／全bin locked Clippyが成功しました。Evidence：[context architecture](architecture.md#contextを共有するfield-cleanup報告)とリンク先実装／testの更新／検証日：2026-10-18 JST。RFC 0008の最終更新日：2026-10-17。
+
+見直し：runtimeの報告境界は入れ子failureに対応しましたが、生成guest failure edgeとproduction ownership実行は未実装です。Deterministic drop成果は未完了とし、M2は34 / 113 pt（30.1%）、全18成果中5成果、全体332 / 764 pt（43.5%）を維持します。現在のscope／依存関係と113 pt見積もりは引き続き妥当です。次はownership MIRのruntime failure cleanup経路を生成し、続いてowned layoutとnormal allocation時のretirement予約をfallible guest allocationおよびVM／native実行へ接続します。予約はguest effect前に完了する必要があり、failure後にcleanup用traversal storageを代替確保してはいけません。独立arena effect、version付きownership artifact、unsafe／C、packaging、differential／platform／debug、performanceのgateも引き続き必要です。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
