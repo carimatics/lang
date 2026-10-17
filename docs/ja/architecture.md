@@ -425,6 +425,26 @@ Runtimeの`Frame`には対応する段階的exit操作を追加します。`stag
 
 出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Allocator基盤](../../crates/runtime/src/allocation.rs)と[allocator test](../../crates/runtime/tests/allocation.rs)の更新／検証日：2026-10-18 JST。
 
+### Managed owned layoutと予約済みretirement storage
+
+実装／検証日：2026-10-18 JST。`lang_runtime::layout::Layouts::compile`は、独立に検証済みのownership型からprivateなmanaged実行用layoutとdrop descriptorを生成します。依存関係の反復走査はinlineのrecord／enum／Option／Result構造を辿り、再帰的なcollection／shared型も含め、owning／reference indirectionで止まります。Size、padding、alignment、metadata、workの算術を検査し、表現不能なlayoutをguest entry前に拒否します。CompileはMIRの累積work／allocation／element予算を再開します。Descriptorはfield／type spanを保持し、frontendへbackend／platform型を持ち込みません。
+
+Managed scalarは明示sizeを使い、recordは宣言順のoffsetを保持し、enumはtagと最大のaligned active payloadを予約します。Core Copy errorは実際のpayload storageを含み、UTF-8 errorはi64 offsetを、allocationを含むerrorはallocation-error tagを保持します。Indirect valueはprivateな32-byte logical tokenを使います。Token layoutはpointer、allocator、liveness、loan、regionの権限を与えません。これらはruntime内部のlayoutであり、C／native calling conventionやownership artifact encodingではありません。
+
+`Reservation`はpayload storageと、inline aggregateすべての初期化順／span状態および上限付き反復work領域をまとめてpreflightし、fallibleに確保します。Metadataはpayload公開前に確保し、後続dataのOOM時はmetadataを解放しつつcumulative request課金を維持します。両regionを明示的に初期化します。入れ子aggregateの状態範囲は重ならず、variantは最大caseの必要量を予約し、Copy fieldにはdrop workを作りません。必要storageは通常構築中にinstance allocatorへ課金し、execution failure後に初めて要求することはありません。
+
+Opaque locationはallocation generationに結び付きます。`initialize_from_mir`は検査済みrecord／variant命令から構築順とinitializer spanを直接取り込み、同一の検証済み型グラフとresult typeの一致を要求します。Iteratorを使い、guest経路で一時vectorを作りません。Active enum caseをorder状態へ結び付け、未初期化の入れ子aggregate、不正case、重複／範囲外order、不正span、別allocationのlocationをretirement前に拒否します。この構築helperによってcallerのmove／loan／regionやownership transferのproofを省略できるわけではありません。
+
+`begin_retirement`は義務を1つも返す前にactive shape全体を検査します。予約済みLIFO work領域でfieldを実際の初期化逆順に辿り、Copy holeを飛ばし、initializer spanを持つindirect tokenを返します。各leafはcallback前に消費し、明示的な完了確認によってleaf処理中の次の走査やstorage解放を防ぎます。Retirement開始後の変更も拒否します。`Reservation::cleanup`は切り離したtoken bytesをentryの共有`Context`へ渡し、独立したfailure／panicをcontainして報告し、走査を続け、全drain後にpayload／order／work storageを解放します。対応するowning serviceはtokenを検証／消費し、indirect descendantも事前予約済みmetadataで処理する必要があります。
+
+追加10 testは、有限core型とerror payload、物理offset／alignment、data／retirementを合わせた予算と決定的OOMのrollback、実際のshared ownerを使うsource record全6構築順、入れ子record／variantの状態とCopy hole、enum caseの変更／不正値、別allocation／再利用前の構築location、厳密な累積compiler予算とreplay、指数的に展開するlayoutのoverflow、cleanup中に確保しない1,024段のinline shapeを検証します。共有Contextとの統合では元のfuel failureを維持し、各leafのcleanup failureまたはcontainしたpanicをsource順に報告し、実際のownerを一度だけ解放して両予約regionを解放します。Ownership typeのfuzz targetも、決定的layout replay、fieldの範囲／alignment、metadataの範囲を検査します。
+
+Fixtureのtokenはhost test registryで実際のshared ownerへ解決します。Productionのtoken／service adapter、動的collection／shared／arenaのpayloadとretirement統合、全owning opcodeの実行、VM／native loweringとconformanceは引き続き必要です。今回のruntime storage／descriptor実装によってdeterministic dropやsource core-library成果が完了したとはしません。
+
+検証：workspace全917 testと必須fmt／Clippy／doc baselineが成功しました。Fuzz targetのformat／全bin locked Clippyと、拡張ownership type targetの非instrumented smoke 10,000回も成功しました。このsmokeはsanitizerやcoverage-guided fuzzingのevidenceではありません。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Layout compiler](../../crates/runtime/src/layout.rs)、[storage予約／retirement](../../crates/runtime/src/layout/storage.rs)、[source／runtime統合test](../../tests/owned_layout.rs)、[ownership type fuzz target](../../fuzz/fuzz_targets/ownership_mir_types.rs)の更新／検証日：2026-10-18 JST。
+
 ### Source analysis profileとdriver境界
 
 実装／検証日：2026-10-18 JST。`lang_hir::program::analyze_program`は検査済みCopy program、またはprivateなregion検査済みHIR bodyを保持するownership programを返します。互換entry pointの`check_program`と`check_expression_function`は引き続きCopy execution profileを要求します。成功したownership解析は保持され、再実行したり未対応の言語機能として報告したりしません。

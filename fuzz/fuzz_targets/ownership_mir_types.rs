@@ -89,6 +89,62 @@ fuzz_target!(|bytes: &[u8]| {
     if let Ok(verified) = table.verify(limits) {
         let replay = verified.table().clone().verify(limits).unwrap();
         assert_eq!(verified, replay);
+        let compiled = lang_runtime::layout::Layouts::compile(&verified, limits.unit);
+        if let Err(error) = &compiled {
+            assert!(
+                matches!(
+                    error,
+                    lang_runtime::layout::Error::Resource { .. }
+                        | lang_runtime::layout::Error::Overflow
+                        | lang_runtime::layout::Error::Allocation(
+                            lang_runtime::allocation::Error::Overflow
+                        )
+                ),
+                "unexpected layout failure for verified types: {error}"
+            );
+        }
+        if let Ok(layouts) = compiled {
+            let replay = lang_runtime::layout::Layouts::compile(&verified, limits.unit).unwrap();
+            let types = [Type::I64, Type::Bool]
+                .into_iter()
+                .chain(
+                    (0..verified.table().definitions.len())
+                        .map(|i| Type::Nominal(m::DefinitionId(i as u32))),
+                )
+                .chain(
+                    (0..verified.table().constructed.len())
+                        .map(|i| Type::Constructed(ConstructedId(i as u32))),
+                );
+            for ty in types {
+                let layout = layouts.get(ty).unwrap();
+                assert_eq!(Some(layout), replay.get(ty));
+                assert!(layout.alignment.is_power_of_two());
+                assert_eq!(layout.size % layout.alignment, 0);
+                layout.storage_requests().unwrap();
+                let fields = |aggregate: &lang_runtime::layout::Aggregate, payload: u64| {
+                    for field in &aggregate.fields {
+                        let child = layouts.get(field.ty).unwrap();
+                        assert_eq!((payload + field.offset) % child.alignment, 0);
+                        assert!(payload + field.offset + child.size <= layout.size);
+                        assert!(
+                            field.metadata_offset + child.metadata_bytes <= layout.metadata_bytes
+                        );
+                    }
+                };
+                match &layout.kind {
+                    lang_runtime::layout::Kind::Record(aggregate) => fields(aggregate, 0),
+                    lang_runtime::layout::Kind::Enum {
+                        payload_offset,
+                        cases,
+                    } => {
+                        for case in cases {
+                            fields(case, *payload_offset);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
         for i in 0..verified.table().constructed.len() {
             let t = Type::Constructed(ConstructedId(i as u32));
             assert_eq!(verified.equivalent(t, t), Some(true));

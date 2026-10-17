@@ -4,6 +4,7 @@ pub mod allocation;
 pub mod arena;
 pub mod cleanup;
 pub mod component;
+pub mod layout;
 pub mod shared;
 
 use std::collections::HashMap;
