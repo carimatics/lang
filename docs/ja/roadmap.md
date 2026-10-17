@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 61 pt | 89 pt | 68.5% |
+| 1 — frontendとbytecodeのvertical slice（現在） | 77 pt | 89 pt | 86.5% |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **270 pt** | **738 pt** | **36.6%** |
+| **全体** | **286 pt** | **738 pt** | **38.8%** |
 
 ## Milestone 0：設計baseline
 
@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P0：** 検証済みschema 1 compilation unitへsource loweringと上限付きVM実行を接続します。
+- **次の進行中P0：** Deterministicなscript／transactional REPL entry pointを提供し、続いて残るformatterとLSP統合を進めます。
 
 ### 優先度順のタスク
 
@@ -137,9 +137,9 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 
 ## Milestone 1：frontendとbytecodeのvertical slice（現在）
 
-**進捗：61 / 89 pt（68.5%）。**
+**進捗：77 / 89 pt（86.5%）。**
 
-Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。受理済みの5つの設計gateが16 ptの完了分で、字句規則、module／call、aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを対象にします。Lossless parsing、module loading／resolution、source全体のtyping、nominal layout、pattern exhaustivenessは実装済みです。SourceのMIR／VM／native統合、portable artifact、CLI、toolingは別の成果として残ります。
+Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。受理済みの5つの設計gateが16 ptの完了分で、字句規則、module／call、aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを対象にします。Lossless parsing、module loading／resolution、source全体のtyping、nominal layout、pattern、source MIR、portable artifact、上限付きVM実行、初期scalar native conformanceは実装済みです。CLI／REPL、formatter、LSP統合は必須成果として残ります。
 
 2026-10-17の見積り89 ptを維持します。Bytecode／REPL受理を2 pt／1 ptのtaskとして明示し、実装scopeを削っていません。Primitive typingを構造化input HIR 3 ptとparser接続済みsource／call conformance 5 pt、loweringをprimitive HIR／MIR 2 ptとparser接続／拡張source conformance 3 ptへ分割しました。これらの完了した基盤は広いfrontend全体の完了ではありません。
 
@@ -158,11 +158,11 @@ Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.
 - [x] **P0 — Copy専用nominal定義のshapeを検証し、再帰型の循環を拒否し、checkedなvalue-cell／depth layoutと不正input testを実装する。** — 3 pt
 - [x] **P0 — Record／variant構築、field、pattern、exhaustivenessをsource HIRへtype-checkする。** — 5 pt
 - [x] **P0 — 受理済みprimitive HIRをCFG block argument／source map付きvalidated typed MIRへloweringし、VM／JIT differential testを追加する。** — 2 pt
-- [ ] **P0 — 受理済みcall／aggregateとsource-span conformanceを含むparser接続済みHIR-to-MIR loweringを完成させる。** — 3 pt
+- [x] **P0 — 受理済みcall／aggregateとsource-span conformanceを含むparser接続済みHIR-to-MIR loweringを完成させる。** — 3 pt
 - [x] **P0 — Portable bytecode schemaと上限付きdecoding／verificationの契約を受理する。** — 2 pt
 - [x] **P0 — Prototypeをencoding、decoding、verification付きversioned register bytecodeへ昇格させる。** — 5 pt
-- [ ] **P0 — 受理済みsource call、call frame、return、bounded recursionをMIR／bytecode／VMへ実装しfailure／stack testを追加する。** — 8 pt
-- [ ] **P0 — Typed host registration付きでsource-language subsetをVM実行する。** — 5 pt
+- [x] **P0 — 受理済みsource call、call frame、return、bounded recursionをMIR／bytecode／VMへ実装しfailure／stack testを追加する。** — 8 pt
+- [x] **P0 — Typed host registration付きでsource-language subsetをVM実行する。** — 5 pt
 - [x] **P0 — Script entry／outputとtransactional REPL state／error契約を受理する。** — 1 pt
 - [ ] **P0 — Deterministicなscript／REPL entry pointを提供する。** — 3 pt
 - [ ] **P1 — Formatterとparser／formatter round-trip testを実装する。** — 5 pt
@@ -198,21 +198,17 @@ Commit `b5b83b7` はportable schema 1 bytecodeのencode／decodeと共通budget�
 
 ### 残る依存関係の監査（2026-10-17）
 
-Commit `cb3312d` はtyped source HIRを共有verified MIR unitへ接続し、call、aggregate、guard付きpattern、CFG value flow、semantic byte spanを扱います。8件のparsed-source testでloweringとresource境界を検証し、全体のbaseline（389 test）は成功しています。残るlowering task 3 ptには、VM／native source differentialとnative link／run conformanceを保持します。未完了の統合には点を付けません。
+Commit `cb3312d` はtyped source HIRを共有verified MIRへ接続し、`b1964e7` はparsed-source VM／JIT一致とmacOS AArch64のdirect／response-file AOT link／runを含む9件のnative scalar conformance testを追加しました。Commit `d041598` はsource駆動compilation-unit実行を完了します。17件のsource→canonical wire→VM testはcall、2,000段recursion、mutual call、aggregate／pattern、typed qualified host import、副作用順、frame解放、厳密なfailure計数、source stackを検証します。7件のhand-built unit testは同時copy oracleとの独立324比較、不正value、最大enum storage、owned identity、checked-projection trapを含みます。全体のbaseline（422 test）が成功し、decoder／VM fuzz targetのcompileとinstrumentationなしの10,000-run smokeも完了しました。この統合成果でlowering 3 pt、guest frame／call 8 pt、typed source VM実行5 ptを完了します。
 
-Owner受理、source全体のtyping、portable artifact後のchecklistには未完了の実装6項目、合計28 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
-
-Native scalar adapterと9件のparsed-source conformance testにより、source駆動scalar VM／JIT一致とmacOS AArch64のdirect／response-file AOT link／run、引数なし呼出し、span、owned identity、typed-import preflight、structuredな未対応／metadata／budget failureを確認しました。全体のbaseline（398 test）は成功しています。Call／aggregate valueを扱う共有compilation-unit VMが次のscopeであり、そのsource実行経路の検証までsource-lowering統合task 3 ptを未完了に保ちます。
+現在のchecklistには未完了の実装3項目、合計12 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
 | --- | --- |
 | 字句仕様 | Formatter round trip、不完全sourceのLSP診断 |
-| Module／function-call意味論 | Guest frame／recursion、typed host execution、source／HIR／MIR／VM／native conformance |
-| Record／variant／pattern意味論と表現 | Aggregateのsource／HIR／MIR／VM conformance |
-| Portable bytecode契約 | 検証済みartifactの実行とsource conformance |
+| Module／source snapshot | Parser／module query、reverse-dependency invalidation、editor document lifecycle |
 | Script／REPL契約 | Deterministicなscript entry／outputとtransactional REPL execution |
 
-5つの判断領域はすべてRFC 0006で受理済みです。構造化input HIR、MIR lowering、graph／cache core、protocol診断変換だけではsource駆動exitを証明しません。[`src/main.rs`](../../src/main.rs)の確認では、実行fileは依然として整数2つを受け取りprototype MIRを構築しており、source fileをまだ実行しません。追加dispositionを求めず、受理済みのparser接続済み実装へ進みます。
+5つの判断領域はすべてRFC 0006で受理済みです。完了したlibrary実行経路だけではscript／editorのexitを証明しません。[`src/main.rs`](../../src/main.rs)の確認では、実行fileは依然として整数2つを受け取りprototype MIRを構築しており、source fileをまだ実行しません。Milestone 1のexitまでにCLI／REPLと残るP1 toolingの全scopeを完了する必要があります。
 
 以前のowner判断blockerは2026-10-17の明示受理で解消し、`031575e` に記録しました。受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)と[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)が実装契約を提供します（最終更新2026-10-17 JST）。受理によって完了するのは5つの判断checkboxだけです。実装完了、scope縮小、Milestone 1 exitを推定しません。Milestone 1の最終capability guideは、実際のsource駆動milestoneが完了した後の成果物として残ります。
 

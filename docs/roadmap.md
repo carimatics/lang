@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 61 pt | 89 pt | 68.5% |
+| 1 — frontend and bytecode vertical slice (current) | 77 pt | 89 pt | 86.5% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **270 pt** | **738 pt** | **36.6%** |
+| **Overall** | **286 pt** | **738 pt** | **38.8%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** connect source lowering and bounded VM execution to the verified schema-1 compilation unit.
+- **Next active P0:** provide deterministic script/transactional REPL entry points, followed by the remaining formatter and LSP integration.
 
 ### Tasks in priority order
 
@@ -137,9 +137,9 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 61 / 89 pt (68.5%).**
+**Progress: 77 / 89 pt (86.5%).**
 
-The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five accepted design gates account for 16 completed points across lexical rules, modules/calls, aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Lossless parsing, module loading/resolution, source-wide typing, nominal layouts, and pattern exhaustiveness are implemented. Source MIR/VM/native integration, portable artifacts, CLI, and tooling remain separate outcomes.
+The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five accepted design gates account for 16 completed points across lexical rules, modules/calls, aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Lossless parsing, module loading/resolution, source-wide typing, nominal layouts, patterns, source MIR, portable artifacts, bounded VM execution, and initial scalar native conformance are implemented. CLI/REPL, formatter, and LSP integration remain required outcomes.
 
 The 2026-10-17 estimate remains 89 points: it exposed bytecode/REPL acceptance as 2-point/1-point tasks without dropping implementation scope. Primitive typing was split into 3 points of structured-input HIR and 5 points of parser-connected source/call conformance; lowering into 2 points of primitive HIR/MIR and 3 points of parser-connected/extended-source conformance. These completed foundations do not complete the broader frontend.
 
@@ -158,11 +158,11 @@ The 8-point incremental-tooling task is likewise split into 3 points of shared g
 - [x] **P0 — Validate copy-only nominal definition shapes, reject recursive type cycles, and compute checked value-cell/depth layouts with malformed-input tests.** — 3 pt
 - [x] **P0 — Type-check record/variant construction, fields, patterns, and exhaustiveness into source HIR.** — 5 pt
 - [x] **P0 — Lower accepted primitive HIR into validated typed MIR with CFG block arguments, source maps, and VM/JIT differential tests.** — 2 pt
-- [ ] **P0 — Complete parser-connected HIR-to-MIR lowering, including accepted calls/aggregates and source-span conformance.** — 3 pt
+- [x] **P0 — Complete parser-connected HIR-to-MIR lowering, including accepted calls/aggregates and source-span conformance.** — 3 pt
 - [x] **P0 — Accept the portable bytecode schema and bounded decoding/verification contract.** — 2 pt
 - [x] **P0 — Promote the prototype into versioned register bytecode with encoding, decoding, and verification.** — 5 pt
-- [ ] **P0 — Implement accepted source calls, call frames, returns, and bounded recursion in MIR, bytecode, and VM with failure/stack tests.** — 8 pt
-- [ ] **P0 — Execute the source-language subset in the VM with typed host registration.** — 5 pt
+- [x] **P0 — Implement accepted source calls, call frames, returns, and bounded recursion in MIR, bytecode, and VM with failure/stack tests.** — 8 pt
+- [x] **P0 — Execute the source-language subset in the VM with typed host registration.** — 5 pt
 - [x] **P0 — Accept script entry/output and transactional REPL state/error contracts.** — 1 pt
 - [ ] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
 - [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
@@ -198,21 +198,17 @@ Commit `b5b83b7` completes portable schema-1 bytecode encoding/decoding and shar
 
 ### Remaining dependency audit (2026-10-17)
 
-Commit `cb3312d` connects typed source HIR to the shared verified MIR unit, with calls, aggregates, guarded patterns, CFG value flow, and semantic byte spans. Eight parsed-source tests cover lowering and resource boundaries; the full baseline passes (389 tests). The remaining 3-point lowering task retains VM/native source differential and native link/run conformance. No points are awarded for that incomplete integration.
+Commit `cb3312d` connects typed source HIR to shared verified MIR; `b1964e7` adds nine native scalar conformance tests, including parsed-source VM/JIT equivalence and macOS AArch64 direct/response-file AOT link/run. Commit `d041598` completes source-driven compilation-unit execution: seventeen source-to-canonical-wire-to-VM tests cover calls, 2,000-level recursion, mutual calls, aggregates/patterns, typed qualified host imports, ordered effects, frame release, exact failure counters, and source stacks. Seven hand-built unit tests include 324 independent simultaneous-copy comparisons, malformed values, maximum enum storage, owned identity, and checked-projection traps. The full baseline passes (422 tests); the decoder/VM fuzz target compiles and completed an uninstrumented 10,000-run smoke. These integrated outcomes close lowering (3 pt), guest frames/calls (8 pt), and typed source VM execution (5 pt).
 
-After owner acceptance, source-wide typing, and portable artifacts, the current checklist has 6 unchecked implementation items totaling 28 points. This table is a dependency view, not additional scope or completion credit.
-
-The native scalar adapter and nine parsed-source conformance tests now establish source-driven scalar VM/JIT equivalence and macOS AArch64 direct/response-file AOT link/run, plus zero-arity invocation, spans, owned identity, typed-import preflight, and structured unsupported/metadata/budget failures. The full baseline passes (398 tests). The shared compilation-unit VM with calls/aggregate values remains the next scope; the 3-point source-lowering integration task stays unchecked until that source execution path is verified.
+The current checklist has 3 unchecked implementation items totaling 12 points. This table is a dependency view, not additional scope or completion credit.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Formatter round trips and incomplete-source LSP diagnostics |
-| Module/function-call semantics | Guest frames/recursion, typed host execution, and source/HIR/MIR/VM/native conformance |
-| Record/variant/pattern semantics and representation | Aggregate source/HIR/MIR/VM conformance |
-| Portable bytecode contract | Verified artifact execution and source conformance |
+| Module/source snapshots | Parser/module queries, reverse-dependency invalidation, and editor document lifecycle |
 | Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
 
-All five decision areas are accepted in RFC 0006. The structured-input HIR, MIR lowering, graph/cache core, and protocol diagnostic conversion still do not establish the source-driven exit. Inspection of [`src/main.rs`](../src/main.rs) confirms the executable still accepts two integers and constructs prototype MIR; it does not yet run source files. Work now proceeds through the accepted parser-connected implementation rather than requesting another disposition.
+All five decision areas are accepted in RFC 0006. The completed library execution path still does not establish the script/editor exit. Inspection of [`src/main.rs`](../src/main.rs) confirms the executable still accepts two integers and constructs prototype MIR; it does not yet run source files. CLI/REPL and the full remaining P1 tooling scope must be completed before Milestone 1 exits.
 
 The previous owner-decision blocker is resolved by the explicit 2026-10-17 acceptance, recorded in `031575e`. Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) and [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) now provide the implementation contract (last updated 2026-10-17 JST). Acceptance completes only the five decision checkboxes. No implementation completion, scope reduction, or Milestone 1 exit is inferred. The final Milestone 1 capability guide remains due after the actual source-driven milestone is complete.
 
