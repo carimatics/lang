@@ -141,7 +141,13 @@ CLIとrevision管理付きtoolingはtype-limit診断とsource snapshotを保持�
 
 Source bindingは `::<...>` 構文を含む修飾済み `core`／`root::core` callを、具体type use、記述順の引数、callee／argument／call spanを持つ `CoreCall` へ解決します。未知operation、type argumentの過不足、user generic callには `SRC0024`、値arityの不一致には `SRC0014` を出します。具体type argumentは既存の上限付きnominal／constructor解決とexpression／work limitを使います。従来のgeneric-call `UnsupportedSyntax` guardは除去し、Copy専用checkerとMIR loweringは実行artifact生成前に引き続きcore callを拒否します。2件のcatalog testで全signatureを独立したRFC表の期待値と照合し、由来／制約metadataを検証します。追加3件のsource testと更新した到達不能名testで全operation、arity、root修飾、identity／span／順序、limitを検証します。全fmt／Clippy／test／doc baselineが成功し（565 test）、core-call inputを追加したlock済みforeign-HIR fuzz targetもcompileしました。
 
-完了したのはoperation識別とarity／signature metadataです。Operand型の適合、callでのtype-argument storage／Map key／shared payload制約、推論borrow、result loan duration、core case／Unitの構築・pattern、runtime operation、allocator認可、公開allocator／FFI ABIは未実装です。これらの検査と実行pathはMilestone 2の未完了作業として残します。情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、core／解決済みHIR、source binding／checking／lowering、test、fuzz target。2026-10-17 JST更新／確認。
+完了したのはoperation識別とarity／signature metadataです。Operand型の適合、callでのtype-argument storage／Map key／shared payload制約、推論borrow、result loan duration、core case／Unitの完全なtyping、runtime operation、allocator認可、公開allocator／FFI ABIは未実装です。Core value／pattern bindingは後述し、残る検査と実行pathはMilestone 2の未完了作業です。情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、core／解決済みHIR、source binding／checking／lowering、test、fuzz target。2026-10-17 JST更新／確認。
+
+### Core valueとpatternのbinding
+
+2026-10-17実装：core catalogはOption／Resultと6つのerror familyの全22 caseを、正確なpayload templateと所属familyを含めて識別します。Source bindingはcore case identity、入れ子payload、括弧の有無、source path／value／pattern spanを、user nominal IDと区別した専用HIR nodeへ保持します。Zero-payload caseは括弧を省略し、payload付きcaseは正確なshapeを要求します。`core::Unit {}` は式とpatternで空のcore recordです。空payloadのpattern listは既存parserが拒否し、他のcore shape errorには `SRC0015` を出します。Caseのtype argumentは期待するannotation／parameter／result／field文脈またはmatch scrutineeから暗黙に得る方針を維持し、明示 `::<...>` case specializationには `SRC0024` を出します。
+
+独立したcatalog test 1件で全family／case／payloadをRFC 0007と照合し、6件のsource testで全caseの式／pattern、入れ子error／sum、Unit、不正shape、user／core identity分離、pattern scope、expression／pattern／depth budget、現実的なallocator／Vec／Result／read-place binding fixtureを検証します。全572 test、fmt／Clippy／doc、lock済みfuzz compileが成功しました。Foreign-HIR fuzz targetにはcore Unit／caseと不正core patternを追加しました。これはbinding／shapeのみを保証し、expected-type推論、payload型の適合、exhaustiveness、move、loan／region、cleanup、MIR／VM／native実行、ownership wire supportは未完了です。Copy専用checkerと防御的lowering／coverage境界は実行artifact生成前にcore nodeを拒否します。情報源：受理済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)のshape規則、受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、core／解決済みHIR、binding／checking／lowering、test／fixture、fuzz target。2026-10-17 JST更新／確認。
 
 ### Source formatter
 

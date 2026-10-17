@@ -424,7 +424,9 @@ impl<'a> Lowerer<'a, '_> {
         let op = match &source.kind {
             r::ExpressionKind::Borrow { .. }
             | r::ExpressionKind::Dereference(_)
-            | r::ExpressionKind::CoreCall { .. } => {
+            | r::ExpressionKind::CoreCall { .. }
+            | r::ExpressionKind::CoreUnit
+            | r::ExpressionKind::CoreCase { .. } => {
                 return Err(LowerError::UnsupportedOwnershipBody { span: source.span });
             }
             r::ExpressionKind::Local(local) => {
@@ -857,6 +859,11 @@ impl<'a> Lowerer<'a, '_> {
         let pattern_source = &self.function.patterns[pattern.0];
         let span = pattern_source.span;
         match &pattern_source.kind {
+            r::PatternKind::CoreUnit | r::PatternKind::CoreCase { .. } => {
+                return Err(LowerError::UnsupportedOwnershipBody {
+                    span: pattern_source.span,
+                });
+            }
             r::PatternKind::Wildcard => {}
             r::PatternKind::Binding(local) => e.environment[local.0] = Some(value),
             r::PatternKind::Integer(integer) => {

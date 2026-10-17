@@ -277,6 +277,274 @@ fn core_argument_instantiation_keeps_nominal_identity_and_compiler_limits() {
 }
 
 #[test]
+fn every_core_case_binds_in_values_and_patterns_without_synthetic_nominal_ids() {
+    use lang_hir::core::Case;
+    for case in Case::ALL {
+        let path = format!("core::{}::{}", case.family().name(), case.name());
+        let explicit = !case.payload().is_empty();
+        let expression = format!("{path}{}", if explicit { "(x)" } else { "" });
+        let (sources, program) =
+            Files::new(&format!("fn f(x: i64) -> i64 {{ return {expression}; }}")).program();
+        assert!(program.definitions.is_empty() && program.types.is_empty());
+        let f = &program.functions[0];
+        let r::StatementKind::Return(result) = f.blocks[f.body.0].statements[0].kind else {
+            panic!()
+        };
+        let r::ExpressionKind::CoreCase {
+            case: bound,
+            ref payload,
+            explicit_payload,
+            case_span,
+        } = f.expressions[result.0].kind
+        else {
+            panic!()
+        };
+        assert_eq!(bound, case);
+        assert_eq!(explicit_payload, explicit);
+        assert_eq!(payload.len(), usize::from(explicit));
+        assert_eq!(sources.slice(case_span).unwrap(), path);
+        if let Some(value) = payload.first() {
+            assert!(matches!(
+                f.expressions[value.0].kind,
+                r::ExpressionKind::Local(r::LocalId(0))
+            ));
+        }
+        assert!(matches!(
+            lang_hir::program::check_program(program, &sources, Default::default()),
+            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+        ));
+        let pattern = format!("{path}{}", if explicit { "(value)" } else { "" });
+        let (sources, program) = Files::new(&format!("fn f(x: i64) -> i64 {{ match x {{ {pattern} => {{ return 0; }}, _ => {{ return 1; }}, }} }}")).program();
+        let f = &program.functions[0];
+        let core = f
+            .patterns
+            .iter()
+            .find(|p| matches!(p.kind, r::PatternKind::CoreCase { .. }))
+            .unwrap();
+        let r::PatternKind::CoreCase {
+            case: bound,
+            ref payload,
+            explicit_payload,
+            case_span,
+        } = core.kind
+        else {
+            panic!()
+        };
+        assert_eq!(bound, case);
+        assert_eq!(explicit_payload, explicit);
+        assert_eq!(payload.len(), usize::from(explicit));
+        assert_eq!(sources.slice(case_span).unwrap(), path);
+        assert!(matches!(
+            lang_hir::program::check_program(program, &sources, Default::default()),
+            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+        ));
+    }
+}
+
+#[test]
+fn unit_is_an_empty_core_record_in_values_and_patterns() {
+    let (sources, program) = Files::new("fn f(x: core::Unit) -> core::Unit { match x { root::core::Unit {} => { return core::Unit {}; }, } }").program();
+    let f = &program.functions[0];
+    assert!(
+        f.expressions
+            .iter()
+            .any(|e| matches!(e.kind, r::ExpressionKind::CoreUnit)
+                && sources.slice(e.span).unwrap() == "core::Unit {}")
+    );
+    assert!(
+        f.patterns
+            .iter()
+            .any(|p| matches!(p.kind, r::PatternKind::CoreUnit)
+                && sources.slice(p.span).unwrap() == "root::core::Unit {}")
+    );
+    assert!(program.definitions.is_empty());
+    for text in [
+        "fn f() -> i64 { return core::Unit {}; }",
+        "fn f(x: i64) -> i64 { match x { core::Unit {} => { return 0; }, } }",
+    ] {
+        let (sources, program) = Files::new(text).program();
+        assert!(program.types.is_empty());
+        assert!(matches!(
+            lang_hir::program::check_program(program, &sources, Default::default()),
+            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+        ));
+    }
+}
+
+#[test]
+fn core_values_and_patterns_enforce_exact_case_and_unit_shape() {
+    for expression in [
+        "core::Option::None()",
+        "core::Option::Some",
+        "core::Option::Some()",
+        "core::Result::Ok(1, 2)",
+        "core::Unit",
+        "core::Unit()",
+        "core::Unit { n: 1 }",
+        "core::Option::Some {}",
+    ] {
+        rejects(
+            &format!("fn f() -> i64 {{ return {expression}; }}"),
+            codes::INVALID_SHAPE,
+        );
+    }
+    for pattern in [
+        "core::Option::Some",
+        "core::Result::Err(x, y)",
+        "core::Unit { n: value }",
+        "core::Unit",
+        "core::text_len(x)",
+    ] {
+        rejects(
+            &format!("fn f(x: i64) -> i64 {{ match x {{ {pattern} => {{ return 0; }}, }} }}"),
+            codes::INVALID_SHAPE,
+        );
+    }
+    // Empty payload pattern lists are rejected by the accepted parser before
+    // binding; expression-call lists remain valid syntax and fail shape above.
+    for pattern in ["core::Option::None()", "core::Option::Some()"] {
+        let files = Files::new(&format!(
+            "fn f(x: i64) -> i64 {{ match x {{ {pattern} => {{ return 0; }}, }} }}"
+        ));
+        let mut sources = SourceMap::new();
+        let parsed = load_modules(
+            &mut sources,
+            &files.0.join("main.lang"),
+            &files.0,
+            Default::default(),
+        )
+        .unwrap();
+        assert!(parsed.graph.is_none());
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|d| d.code == codes::EXPECTED_SYNTAX)
+        );
+    }
+    rejects(
+        "fn f() -> i64 { return core::Option::Some::<i64>(1); }",
+        codes::UNSUPPORTED_SPECIALIZATION,
+    );
+    rejects(
+        "fn f() -> i64 { return core::Option::Ok; }",
+        codes::UNSUPPORTED_SPECIALIZATION,
+    );
+    rejects(
+        "fn f() -> i64 { return core::BoundsError::Bounds; }",
+        codes::UNSUPPORTED_SPECIALIZATION,
+    );
+}
+
+#[test]
+fn core_cases_retain_nested_payloads_and_pattern_scope() {
+    let (sources, program) = Files::new("fn f(x: core::Result<core::Option<i64>, core::BufferError>) -> i64 { match x { core::Result::Ok(core::Option::Some(value)) => { return value; }, core::Result::Err(core::BufferError::Allocation(core::AllocError::Limit)) => { return 1; }, _ => { return 0; }, } }").program();
+    let f = &program.functions[0];
+    assert_eq!(
+        f.patterns
+            .iter()
+            .filter(|p| matches!(p.kind, r::PatternKind::CoreCase { .. }))
+            .count(),
+        5
+    );
+    let value = f
+        .locals
+        .iter()
+        .position(|l| l.name.text == "value")
+        .unwrap();
+    assert!(
+        f.expressions
+            .iter()
+            .any(|e| matches!(e.kind, r::ExpressionKind::Local(r::LocalId(id)) if id == value))
+    );
+    for p in &f.patterns {
+        sources.slice(p.span).unwrap();
+    }
+    rejects(
+        "fn f(x: i64) -> i64 { match x { core::Option::Some(value) => { return 0; }, } return value; }",
+        codes::UNKNOWN_NAME,
+    );
+    Files::new("fn f() -> core::Result<i64, core::BufferError> { return core::Result::Err(core::BufferError::Allocation(core::AllocError::Limit)); }").program();
+}
+
+#[test]
+fn user_and_core_cases_have_distinct_identity_and_source_budgets() {
+    let (_, program) = Files::new("enum Option { Some(i64), None } fn f(x: i64) -> i64 { let mut user: Option = Option::Some(x); let mut builtin: core::Option<i64> = core::Option::Some(x); return 0; }").program();
+    let f = &program.functions[0];
+    assert!(f.expressions.iter().any(|e| matches!(
+        e.kind,
+        r::ExpressionKind::Call {
+            callee: r::Callable::Case { .. },
+            ..
+        }
+    )));
+    assert!(
+        f.expressions
+            .iter()
+            .any(|e| matches!(e.kind, r::ExpressionKind::CoreCase { .. }))
+    );
+    for (text, limits) in [
+        (
+            "fn f() -> i64 { return core::Option::Some(1); }",
+            BindingLimits {
+                expressions: 1,
+                ..Default::default()
+            },
+        ),
+        (
+            "fn f(x: i64) -> i64 { match x { core::Option::Some(value) => { return 0; }, } }",
+            BindingLimits {
+                patterns: 1,
+                ..Default::default()
+            },
+        ),
+        (
+            "fn f(x: i64) -> i64 { return core::Result::Ok(core::Option::Some(x)); }",
+            BindingLimits {
+                depth: 4,
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(matches!(
+            Files::new(text).bind(limits).1,
+            Err(BindingError::Limit(_))
+        ));
+    }
+}
+
+#[test]
+fn realistic_core_source_binds_through_calls_cases_and_read_places() {
+    let (sources, program) = Files::new(include_str!("fixtures/core-binding.lang")).program();
+    let f = &program.functions[0];
+    assert_eq!(
+        f.expressions
+            .iter()
+            .filter(|e| matches!(e.kind, r::ExpressionKind::CoreCall { .. }))
+            .count(),
+        3
+    );
+    assert_eq!(
+        f.patterns
+            .iter()
+            .filter(|p| matches!(p.kind, r::PatternKind::CoreCase { .. }))
+            .count(),
+        4
+    );
+    assert!(
+        f.expressions
+            .iter()
+            .any(|e| matches!(e.kind, r::ExpressionKind::Dereference(_)))
+    );
+    let types = lang_hir::types::analyze(&program, &sources, Default::default()).unwrap();
+    assert!(types.facts.is_some(), "{:?}", types.diagnostics);
+    assert!(matches!(
+        lang_hir::program::check_program(program, &sources, Default::default()),
+        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+    ));
+}
+
+#[test]
 fn borrow_place_and_dereference_binding_preserves_roots_kinds_and_spans() {
     let (sources, program) = Files::new("struct Inner { n: i64 } struct Outer { child: Inner } fn f(x: &mut Outer) -> i64 { let mut read: &i64 = &x.child.n; let mut write: &mut i64 = &mut (*x).child.n; (*write) = 7; (*x).child.n = (*read); return 0; }").program();
     let f = &program.functions[0];

@@ -58,6 +58,190 @@ pub struct Signature {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Family {
+    Option,
+    Result,
+    AllocError,
+    BoundsError,
+    BufferError,
+    Utf8Error,
+    OwnershipError,
+    ArenaError,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Case {
+    None,
+    Some,
+    Ok,
+    Err,
+    AllocLimit,
+    AllocOutOfMemory,
+    AllocOverflow,
+    OutOfBounds,
+    BufferBounds,
+    InvalidByte,
+    BufferAllocation,
+    InvalidUtf8,
+    OwnershipAllocation,
+    StrongCycle,
+    ExpiredWeak,
+    BorrowConflict,
+    Unavailable,
+    CountOverflow,
+    ArenaAllocation,
+    CrossRegion,
+    ArenaUnavailable,
+    ArenaBorrowConflict,
+}
+
+impl Family {
+    pub const ALL: [Self; 8] = [
+        Self::Option,
+        Self::Result,
+        Self::AllocError,
+        Self::BoundsError,
+        Self::BufferError,
+        Self::Utf8Error,
+        Self::OwnershipError,
+        Self::ArenaError,
+    ];
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Option => "Option",
+            Self::Result => "Result",
+            Self::AllocError => "AllocError",
+            Self::BoundsError => "BoundsError",
+            Self::BufferError => "BufferError",
+            Self::Utf8Error => "Utf8Error",
+            Self::OwnershipError => "OwnershipError",
+            Self::ArenaError => "ArenaError",
+        }
+    }
+    pub const fn type_arguments(self) -> usize {
+        match self {
+            Self::Option => 1,
+            Self::Result => 2,
+            _ => 0,
+        }
+    }
+    pub fn cases(self) -> &'static [Case] {
+        use Case as C;
+        match self {
+            Self::Option => &[C::None, C::Some],
+            Self::Result => &[C::Ok, C::Err],
+            Self::AllocError => &[C::AllocLimit, C::AllocOutOfMemory, C::AllocOverflow],
+            Self::BoundsError => &[C::OutOfBounds],
+            Self::BufferError => &[C::BufferBounds, C::InvalidByte, C::BufferAllocation],
+            Self::Utf8Error => &[C::InvalidUtf8],
+            Self::OwnershipError => &[
+                C::OwnershipAllocation,
+                C::StrongCycle,
+                C::ExpiredWeak,
+                C::BorrowConflict,
+                C::Unavailable,
+                C::CountOverflow,
+            ],
+            Self::ArenaError => &[
+                C::ArenaAllocation,
+                C::CrossRegion,
+                C::ArenaUnavailable,
+                C::ArenaBorrowConflict,
+            ],
+        }
+    }
+}
+
+impl Case {
+    pub const ALL: [Self; 22] = [
+        Self::None,
+        Self::Some,
+        Self::Ok,
+        Self::Err,
+        Self::AllocLimit,
+        Self::AllocOutOfMemory,
+        Self::AllocOverflow,
+        Self::OutOfBounds,
+        Self::BufferBounds,
+        Self::InvalidByte,
+        Self::BufferAllocation,
+        Self::InvalidUtf8,
+        Self::OwnershipAllocation,
+        Self::StrongCycle,
+        Self::ExpiredWeak,
+        Self::BorrowConflict,
+        Self::Unavailable,
+        Self::CountOverflow,
+        Self::ArenaAllocation,
+        Self::CrossRegion,
+        Self::ArenaUnavailable,
+        Self::ArenaBorrowConflict,
+    ];
+    pub const fn family(self) -> Family {
+        match self {
+            Self::None | Self::Some => Family::Option,
+            Self::Ok | Self::Err => Family::Result,
+            Self::AllocLimit | Self::AllocOutOfMemory | Self::AllocOverflow => Family::AllocError,
+            Self::OutOfBounds => Family::BoundsError,
+            Self::BufferBounds | Self::InvalidByte | Self::BufferAllocation => Family::BufferError,
+            Self::InvalidUtf8 => Family::Utf8Error,
+            Self::OwnershipAllocation
+            | Self::StrongCycle
+            | Self::ExpiredWeak
+            | Self::BorrowConflict
+            | Self::Unavailable
+            | Self::CountOverflow => Family::OwnershipError,
+            Self::ArenaAllocation
+            | Self::CrossRegion
+            | Self::ArenaUnavailable
+            | Self::ArenaBorrowConflict => Family::ArenaError,
+        }
+    }
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Some => "Some",
+            Self::Ok => "Ok",
+            Self::Err => "Err",
+            Self::AllocLimit => "Limit",
+            Self::AllocOutOfMemory => "OutOfMemory",
+            Self::AllocOverflow => "Overflow",
+            Self::OutOfBounds => "OutOfBounds",
+            Self::BufferBounds => "Bounds",
+            Self::InvalidByte => "InvalidByte",
+            Self::BufferAllocation | Self::OwnershipAllocation | Self::ArenaAllocation => {
+                "Allocation"
+            }
+            Self::InvalidUtf8 => "Invalid",
+            Self::StrongCycle => "StrongCycle",
+            Self::ExpiredWeak => "ExpiredWeak",
+            Self::BorrowConflict | Self::ArenaBorrowConflict => "BorrowConflict",
+            Self::Unavailable | Self::ArenaUnavailable => "Unavailable",
+            Self::CountOverflow => "CountOverflow",
+            Self::CrossRegion => "CrossRegion",
+        }
+    }
+    pub fn from_path(family: &str, name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|case| case.family().name() == family && case.name() == name)
+    }
+    /// Option/Result payload arguments are inferred from expected source
+    /// context or the match scrutinee, never from explicit case type arguments.
+    pub fn payload(self) -> &'static [TypePattern] {
+        match self {
+            Self::Some | Self::Ok => &[T],
+            Self::Err => &[V],
+            Self::BufferAllocation | Self::OwnershipAllocation | Self::ArenaAllocation => {
+                &[ALLOC_ERROR]
+            }
+            Self::InvalidUtf8 => &[TypePattern::I64],
+            _ => &[],
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Operation {
     Allocator,
     TextFromUtf8,

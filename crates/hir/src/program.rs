@@ -1051,7 +1051,9 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         let ty = match &expression.kind {
             r::ExpressionKind::Borrow { .. }
             | r::ExpressionKind::Dereference(_)
-            | r::ExpressionKind::CoreCall { .. } => {
+            | r::ExpressionKind::CoreCall { .. }
+            | r::ExpressionKind::CoreUnit
+            | r::ExpressionKind::CoreCase { .. } => {
                 return Err(CheckError::OwnershipProfile { span });
             }
             r::ExpressionKind::Integer(_) => Some(r::Type::I64),
@@ -1309,6 +1311,9 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         self.context.enter(span, depth)?;
         let mut valid = expected.is_some();
         match &pattern.kind {
+            r::PatternKind::CoreUnit | r::PatternKind::CoreCase { .. } => {
+                return Err(CheckError::OwnershipProfile { span });
+            }
             r::PatternKind::Wildcard => {}
             r::PatternKind::Binding(local) => {
                 self.declare(*local, r::BindingKind::Pattern, expected, span)?

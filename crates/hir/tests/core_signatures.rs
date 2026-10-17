@@ -198,3 +198,66 @@ fn signatures_record_result_provenance_and_concrete_argument_restrictions() {
         }
     }
 }
+
+#[test]
+fn core_case_families_and_payloads_match_the_accepted_closed_sums() {
+    use lang_hir::core::{Case, Family};
+    let expected = [
+        ("Option", "None", ""),
+        ("Option", "Some", "T"),
+        ("Result", "Ok", "T"),
+        ("Result", "Err", "V"),
+        ("AllocError", "Limit", ""),
+        ("AllocError", "OutOfMemory", ""),
+        ("AllocError", "Overflow", ""),
+        ("BoundsError", "OutOfBounds", ""),
+        ("BufferError", "Bounds", ""),
+        ("BufferError", "InvalidByte", ""),
+        ("BufferError", "Allocation", "AllocError"),
+        ("Utf8Error", "Invalid", "i64"),
+        ("OwnershipError", "Allocation", "AllocError"),
+        ("OwnershipError", "StrongCycle", ""),
+        ("OwnershipError", "ExpiredWeak", ""),
+        ("OwnershipError", "BorrowConflict", ""),
+        ("OwnershipError", "Unavailable", ""),
+        ("OwnershipError", "CountOverflow", ""),
+        ("ArenaError", "Allocation", "AllocError"),
+        ("ArenaError", "CrossRegion", ""),
+        ("ArenaError", "Unavailable", ""),
+        ("ArenaError", "BorrowConflict", ""),
+    ];
+    assert_eq!(expected.len(), Case::ALL.len());
+    let mut seen = std::collections::BTreeSet::new();
+    for (family, name, payload) in expected {
+        let case = Case::from_path(family, name).unwrap();
+        assert!(seen.insert(case));
+        assert_eq!(case.family().name(), family);
+        assert_eq!(case.name(), name);
+        assert_eq!(
+            case.payload()
+                .iter()
+                .map(|p| ty(*p))
+                .collect::<Vec<_>>()
+                .join(", "),
+            payload
+        );
+    }
+    let mut grouped = std::collections::BTreeSet::new();
+    for family in Family::ALL {
+        assert_eq!(
+            family.type_arguments(),
+            match family {
+                Family::Option => 1,
+                Family::Result => 2,
+                _ => 0,
+            }
+        );
+        for case in family.cases() {
+            assert_eq!(case.family(), family);
+            assert!(grouped.insert(*case));
+        }
+    }
+    assert_eq!(grouped, seen);
+    assert!(Case::from_path("Option", "Ok").is_none());
+    assert!(Case::from_path("ArenaError", "StrongCycle").is_none());
+}

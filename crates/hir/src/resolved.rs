@@ -217,6 +217,13 @@ pub struct FieldValue {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpressionKind {
+    CoreUnit,
+    CoreCase {
+        case: crate::core::Case,
+        payload: Vec<ExpressionId>,
+        explicit_payload: bool,
+        case_span: Span,
+    },
     Integer(i64),
     Boolean(bool),
     Local(LocalId),
@@ -266,6 +273,13 @@ pub struct PatternField {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PatternKind {
+    CoreUnit,
+    CoreCase {
+        case: crate::core::Case,
+        payload: Vec<PatternId>,
+        explicit_payload: bool,
+        case_span: Span,
+    },
     Wildcard,
     Binding(LocalId),
     Integer(i64),

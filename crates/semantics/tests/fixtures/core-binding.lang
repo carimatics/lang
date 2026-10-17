@@ -1,0 +1,15 @@
+// Source binding fixture; ownership checking/execution is not yet implemented.
+fn main() -> i64 {
+    let mut allocator: &core::Allocator = core::allocator();
+    let mut created: core::Result<core::Vec<i64>, core::AllocError> =
+        core::vec_new::<i64>(allocator);
+    match created {
+        core::Result::Ok(values) => {
+            match core::vec_get::<i64>(values, 0) {
+                core::Result::Ok(read) => { return (*read); },
+                core::Result::Err(_) => { return 0; },
+            }
+        },
+        core::Result::Err(_) => { return 0; },
+    }
+}

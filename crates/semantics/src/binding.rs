@@ -73,6 +73,12 @@ impl From<BindingError> for Abort {
     }
 }
 type BindResult<T> = Result<T, Abort>;
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum CoreName {
+    Operation(core::Operation),
+    Case(core::Case),
+    Unit,
+}
 
 /// A failed name pass yields diagnostics without a resolved program. The
 /// original immutable snapshots must remain available throughout analysis.
@@ -522,11 +528,7 @@ impl<'a> Context<'a> {
             None,
         )
     }
-    fn core_operation(
-        &mut self,
-        module: ModuleId,
-        path: NodeId,
-    ) -> BindResult<Option<core::Operation>> {
+    fn core_name(&mut self, module: ModuleId, path: NodeId) -> BindResult<Option<CoreName>> {
         let tree = self.tree(module);
         let span = self.semantic_span(module, path)?;
         self.charge(span, 0)?;
@@ -535,18 +537,47 @@ impl<'a> Context<'a> {
         if self.sources.slice(first.span).unwrap() != "core" {
             return Ok(None);
         }
-        let operation = names
+        let second = names
             .next()
-            .and_then(|token| core::Operation::from_name(self.sources.slice(token.span).unwrap()));
-        if operation.is_none() || names.next().is_some() {
+            .map(|token| self.sources.slice(token.span).unwrap());
+        let third = names
+            .next()
+            .map(|token| self.sources.slice(token.span).unwrap());
+        let name = match (second, third, names.next()) {
+            (Some("Unit"), None, None) => Some(CoreName::Unit),
+            (Some(name), None, None) => core::Operation::from_name(name).map(CoreName::Operation),
+            (Some(family), Some(name), None) => {
+                core::Case::from_path(family, name).map(CoreName::Case)
+            }
+            _ => None,
+        };
+        if name.is_none() {
             return self.fail(
                 codes::UNSUPPORTED_SPECIALIZATION,
                 span,
-                "unknown core operation",
+                "unknown core value or operation",
                 None,
             );
         }
-        Ok(operation)
+        Ok(name)
+    }
+    fn case_shape(
+        &mut self,
+        case: core::Case,
+        explicit: bool,
+        count: usize,
+        span: Span,
+    ) -> BindResult<()> {
+        self.charge(span, 0)?;
+        if count != case.payload().len() || explicit == case.payload().is_empty() {
+            return self.fail(
+                codes::INVALID_SHAPE,
+                span,
+                "core case requires its exact payload shape; zero-payload cases omit parentheses",
+                None,
+            );
+        }
+        Ok(())
     }
     fn case(&mut self, module: ModuleId, path: NodeId) -> BindResult<(r::DefinitionId, usize)> {
         if let ResolvedName::Case { definition, index } = self.resolve(module, path)? {
@@ -951,7 +982,13 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
                 let count = direct_tokens(tree, path)
                     .filter(|t| !t.kind.is_trivia())
                     .count();
-                if let Some(local) = self.local_path(path) {
+                if let Some(name) = self.context.core_name(self.module, path)? {
+                    if let CoreName::Case(case) = name {
+                        self.core_case_value(case, path, None, span, depth + 1)?
+                    } else {
+                        return self.context.fail(codes::INVALID_SHAPE, span, "core operation requires call syntax; Unit requires empty record braces", None);
+                    }
+                } else if let Some(local) = self.local_path(path) {
                     if count == 1 {
                         r::ExpressionKind::Local(local)
                     } else {
@@ -991,8 +1028,31 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
             S::Call | S::SpecializedCall => {
                 let path = first_path(tree, children[0]);
                 self.reject_local_path(path)?;
-                if let Some(operation) = self.context.core_operation(self.module, path)? {
-                    self.core_call(operation, path, syntax, depth + 1)?
+                if let Some(name) = self.context.core_name(self.module, path)? {
+                    match name {
+                        CoreName::Operation(operation) => {
+                            self.core_call(operation, path, syntax, depth + 1)?
+                        }
+                        CoreName::Case(case) => {
+                            if node.kind() == S::SpecializedCall {
+                                return self.context.fail(
+                                    codes::UNSUPPORTED_SPECIALIZATION,
+                                    span,
+                                    "core case type arguments come from expected context",
+                                    None,
+                                );
+                            }
+                            self.core_case_value(case, path, Some(children[1]), span, depth + 1)?
+                        }
+                        CoreName::Unit => {
+                            return self.context.fail(
+                                codes::INVALID_SHAPE,
+                                span,
+                                "Unit requires empty record braces",
+                                None,
+                            );
+                        }
+                    }
                 } else {
                     if node.kind() == S::SpecializedCall {
                         return self.context.fail(
@@ -1032,16 +1092,28 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
             S::Construction => {
                 let path = first_path(tree, children[0]);
                 self.reject_local_path(path)?;
-                let definition = self.context.nominal(self.module, path)?;
-                let mut fields = Vec::new();
-                for field in children.iter().skip(1) {
-                    let value = child_nodes(tree, *field).next().unwrap();
-                    fields.push(r::FieldValue {
-                        name: direct_name(self.context.sources, tree, *field),
-                        value: self.expression(value, depth + 1)?,
-                    });
+                if let Some(name) = self.context.core_name(self.module, path)? {
+                    if name != CoreName::Unit || children.len() != 1 {
+                        return self.context.fail(
+                            codes::INVALID_SHAPE,
+                            span,
+                            "only core::Unit has an empty core record construction",
+                            None,
+                        );
+                    }
+                    r::ExpressionKind::CoreUnit
+                } else {
+                    let definition = self.context.nominal(self.module, path)?;
+                    let mut fields = Vec::new();
+                    for field in children.iter().skip(1) {
+                        let value = child_nodes(tree, *field).next().unwrap();
+                        fields.push(r::FieldValue {
+                            name: direct_name(self.context.sources, tree, *field),
+                            value: self.expression(value, depth + 1)?,
+                        });
+                    }
+                    r::ExpressionKind::Record { definition, fields }
                 }
-                r::ExpressionKind::Record { definition, fields }
             }
             _ => unreachable!("successful parser expression"),
         };
@@ -1049,6 +1121,32 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         let id = r::ExpressionId(self.function.expressions.len());
         self.function.expressions.push(r::Expression { kind, span });
         Ok(id)
+    }
+    fn core_case_value(
+        &mut self,
+        case: core::Case,
+        path: NodeId,
+        arguments: Option<NodeId>,
+        span: Span,
+        depth: usize,
+    ) -> BindResult<r::ExpressionKind> {
+        let tree = self.tree();
+        self.context.charge(span, depth)?;
+        let count = arguments.map_or(0, |list| child_nodes(tree, list).count());
+        self.context
+            .case_shape(case, arguments.is_some(), count, span)?;
+        let mut payload = Vec::new();
+        if let Some(list) = arguments {
+            for node in child_nodes(tree, list) {
+                payload.push(self.expression(node, depth + 1)?);
+            }
+        }
+        Ok(r::ExpressionKind::CoreCase {
+            case,
+            payload,
+            explicit_payload: arguments.is_some(),
+            case_span: self.context.semantic_span(self.module, path)?,
+        })
     }
     fn core_call(
         &mut self,
@@ -1187,35 +1285,80 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
                 _ => unreachable!("valid literal pattern"),
             },
             S::RecordPattern => {
-                let definition = self
-                    .context
-                    .nominal(self.module, first_path(tree, children[0]))?;
-                let mut fields = Vec::new();
-                for field in children.iter().skip(1) {
-                    let pattern = child_nodes(tree, *field).next().unwrap();
-                    fields.push(r::PatternField {
-                        name: direct_name(self.context.sources, tree, *field),
-                        pattern: self.pattern(pattern, depth + 1)?,
-                    });
+                let path = first_path(tree, children[0]);
+                if let Some(name) = self.context.core_name(self.module, path)? {
+                    if name != CoreName::Unit || children.len() != 1 {
+                        return self.context.fail(
+                            codes::INVALID_SHAPE,
+                            span,
+                            "only core::Unit has an empty core record pattern",
+                            None,
+                        );
+                    }
+                    r::PatternKind::CoreUnit
+                } else {
+                    let definition = self
+                        .context
+                        .nominal(self.module, first_path(tree, children[0]))?;
+                    let mut fields = Vec::new();
+                    for field in children.iter().skip(1) {
+                        let pattern = child_nodes(tree, *field).next().unwrap();
+                        fields.push(r::PatternField {
+                            name: direct_name(self.context.sources, tree, *field),
+                            pattern: self.pattern(pattern, depth + 1)?,
+                        });
+                    }
+                    r::PatternKind::Record { definition, fields }
                 }
-                r::PatternKind::Record { definition, fields }
             }
             S::CasePattern => {
-                let (definition, index) = self
-                    .context
-                    .case(self.module, first_path(tree, children[0]))?;
-                let explicit_payload = children.len() > 1;
-                let mut payload = Vec::new();
-                if explicit_payload {
-                    for pattern in child_nodes(tree, children[1]) {
-                        payload.push(self.pattern(pattern, depth + 1)?);
+                let path = first_path(tree, children[0]);
+                if let Some(name) = self.context.core_name(self.module, path)? {
+                    let CoreName::Case(case) = name else {
+                        return self.context.fail(
+                            codes::INVALID_SHAPE,
+                            span,
+                            "pattern requires a core case or Unit record",
+                            None,
+                        );
+                    };
+                    let explicit_payload = children.len() > 1;
+                    let count = if explicit_payload {
+                        child_nodes(tree, children[1]).count()
+                    } else {
+                        0
+                    };
+                    self.context
+                        .case_shape(case, explicit_payload, count, span)?;
+                    let mut payload = Vec::new();
+                    if explicit_payload {
+                        for node in child_nodes(tree, children[1]) {
+                            payload.push(self.pattern(node, depth + 1)?);
+                        }
                     }
-                }
-                r::PatternKind::Case {
-                    definition,
-                    index,
-                    payload,
-                    explicit_payload,
+                    r::PatternKind::CoreCase {
+                        case,
+                        payload,
+                        explicit_payload,
+                        case_span: self.context.semantic_span(self.module, path)?,
+                    }
+                } else {
+                    let (definition, index) = self
+                        .context
+                        .case(self.module, first_path(tree, children[0]))?;
+                    let explicit_payload = children.len() > 1;
+                    let mut payload = Vec::new();
+                    if explicit_payload {
+                        for pattern in child_nodes(tree, children[1]) {
+                            payload.push(self.pattern(pattern, depth + 1)?);
+                        }
+                    }
+                    r::PatternKind::Case {
+                        definition,
+                        index,
+                        payload,
+                        explicit_payload,
+                    }
                 }
             }
             _ => unreachable!("successful parser pattern"),

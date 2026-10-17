@@ -144,6 +144,11 @@ impl<'a> Search<'a, '_> {
             unreachable!()
         };
         Ok(Some(match self.function.patterns[id.0].kind {
+            r::PatternKind::CoreUnit | r::PatternKind::CoreCase { .. } => {
+                return Err(CheckError::OwnershipProfile {
+                    span: self.function.patterns[id.0].span,
+                });
+            }
             r::PatternKind::Integer(value) => Constructor::Integer(value),
             r::PatternKind::Boolean(value) => Constructor::Boolean(value),
             r::PatternKind::Record { definition, .. } => Constructor::Record(definition),

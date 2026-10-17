@@ -2,7 +2,7 @@
 
 use lang_diagnostics::SourceMap;
 use lang_hir::{
-    core::Operation,
+    core::{Case, Operation},
     layout::{LayoutError, LayoutLimits},
     program::{CheckError, CheckLimits, check_program},
     resolved as r,
@@ -79,7 +79,7 @@ fuzz_target!(|bytes: &[u8]| {
     for chunk in bytes.chunks(4).take(32) {
         let a = r::ExpressionId(chunk.get(1).copied().unwrap_or(0) as usize);
         let b = r::ExpressionId(chunk.get(2).copied().unwrap_or(0) as usize);
-        let kind = match chunk[0] % 13 {
+        let kind = match chunk[0] % 15 {
             0 => r::ExpressionKind::Integer(i64::from(chunk[0] as i8)),
             1 => r::ExpressionKind::Boolean(chunk[0] & 16 != 0),
             2 => r::ExpressionKind::Local(r::LocalId(a.0)),
@@ -104,9 +104,24 @@ fuzz_target!(|bytes: &[u8]| {
                     value: a,
                 }],
             },
-            9 => r::ExpressionKind::Borrow { kind: r::LoanKind::Shared, place: r::PlaceId(a.0) },
+            9 => r::ExpressionKind::Borrow {
+                kind: r::LoanKind::Shared,
+                place: r::PlaceId(a.0),
+            },
             10 => r::ExpressionKind::Dereference(a),
-            11 => r::ExpressionKind::CoreCall { operation: Operation::ALL[b.0 % Operation::ALL.len()], type_arguments: vec![use_type(ty(chunk[0]))], arguments: vec![a], callee_span: span },
+            11 => r::ExpressionKind::CoreCall {
+                operation: Operation::ALL[b.0 % Operation::ALL.len()],
+                type_arguments: vec![use_type(ty(chunk[0]))],
+                arguments: vec![a],
+                callee_span: span,
+            },
+            12 => r::ExpressionKind::CoreUnit,
+            13 => r::ExpressionKind::CoreCase {
+                case: Case::ALL[b.0 % Case::ALL.len()],
+                payload: vec![a],
+                explicit_payload: true,
+                case_span: span,
+            },
             _ => r::ExpressionKind::Field {
                 receiver: a,
                 name: name("b"),
@@ -131,7 +146,7 @@ fuzz_target!(|bytes: &[u8]| {
             kind: r::ExpressionKind::Integer(0),
             span,
         });
-        let kind = match byte(2) % 5 {
+        let kind = match byte(2) % 7 {
             0 => r::PatternKind::Wildcard,
             1 => r::PatternKind::Boolean(false),
             2 => r::PatternKind::Integer(0),
@@ -140,6 +155,13 @@ fuzz_target!(|bytes: &[u8]| {
                 index: byte(3) as usize,
                 payload: vec![],
                 explicit_payload: false,
+            },
+            4 => r::PatternKind::CoreUnit,
+            5 => r::PatternKind::CoreCase {
+                case: Case::ALL[usize::from(byte(3)) % Case::ALL.len()],
+                payload: vec![r::PatternId(0)],
+                explicit_payload: true,
+                case_span: span,
             },
             _ => r::PatternKind::Record {
                 definition: r::DefinitionId(0),
@@ -192,26 +214,32 @@ fuzz_target!(|bytes: &[u8]| {
         span,
         signature_span: span,
     };
-    let constructed = if byte(31) & 1 == 0 { vec![] } else {
-        bytes.chunks(3).take(32).map(|chunk| {
-            let a = ty(chunk.get(1).copied().unwrap_or(0));
-            let b = ty(chunk.get(2).copied().unwrap_or(0));
-            let constructor = match chunk[0] % 12 {
-                0 => r::TypeConstructor::Builtin(r::BuiltinType::Text),
-                1 => r::TypeConstructor::Builtin(r::BuiltinType::Allocator),
-                2 => r::TypeConstructor::Option(a),
-                3 => r::TypeConstructor::Result(a, b),
-                4 => r::TypeConstructor::Vec(a),
-                5 => r::TypeConstructor::Map(a, b),
-                6 => r::TypeConstructor::Shared(a),
-                7 => r::TypeConstructor::Weak(a),
-                8 => r::TypeConstructor::Arena(a),
-                9 => r::TypeConstructor::Loan(r::LoanKind::Shared, a),
-                10 => r::TypeConstructor::Loan(r::LoanKind::Exclusive, a),
-                _ => r::TypeConstructor::Builtin(r::BuiltinType::Unit),
-            };
-            r::ConstructedType { constructor, span }
-        }).collect()
+    let constructed = if byte(31) & 1 == 0 {
+        vec![]
+    } else {
+        bytes
+            .chunks(3)
+            .take(32)
+            .map(|chunk| {
+                let a = ty(chunk.get(1).copied().unwrap_or(0));
+                let b = ty(chunk.get(2).copied().unwrap_or(0));
+                let constructor = match chunk[0] % 12 {
+                    0 => r::TypeConstructor::Builtin(r::BuiltinType::Text),
+                    1 => r::TypeConstructor::Builtin(r::BuiltinType::Allocator),
+                    2 => r::TypeConstructor::Option(a),
+                    3 => r::TypeConstructor::Result(a, b),
+                    4 => r::TypeConstructor::Vec(a),
+                    5 => r::TypeConstructor::Map(a, b),
+                    6 => r::TypeConstructor::Shared(a),
+                    7 => r::TypeConstructor::Weak(a),
+                    8 => r::TypeConstructor::Arena(a),
+                    9 => r::TypeConstructor::Loan(r::LoanKind::Shared, a),
+                    10 => r::TypeConstructor::Loan(r::LoanKind::Exclusive, a),
+                    _ => r::TypeConstructor::Builtin(r::BuiltinType::Unit),
+                };
+                r::ConstructedType { constructor, span }
+            })
+            .collect()
     };
     let program = r::Program {
         modules: vec![r::Module {
@@ -230,7 +258,17 @@ fuzz_target!(|bytes: &[u8]| {
         functions: vec![function],
     };
     let limits = CheckLimits {
-        types: types::Limits { constructed: 32, definitions: 8, functions: 8, modules: 4, members: 8, depth: 8, work: 16_384, allocations: 1024 * 1024, diagnostics: 32 },
+        types: types::Limits {
+            constructed: 32,
+            definitions: 8,
+            functions: 8,
+            modules: 4,
+            members: 8,
+            depth: 8,
+            work: 16_384,
+            allocations: 1024 * 1024,
+            diagnostics: 32,
+        },
         layout: LayoutLimits {
             definitions: 8,
             fields: 8,
@@ -246,9 +284,13 @@ fuzz_target!(|bytes: &[u8]| {
         ..CheckLimits::default()
     };
     match types::analyze(&program, &sources, limits.types) {
-        Ok(analysis) => for diagnostic in analysis.diagnostics { diagnostic.validate(&sources).unwrap(); },
+        Ok(analysis) => {
+            for diagnostic in analysis.diagnostics {
+                diagnostic.validate(&sources).unwrap();
+            }
+        }
         Err(types::Error::Limit(d)) => d.validate(&sources).unwrap(),
-        Err(types::Error::Input { .. } | types::Error::AllocationFailed { .. }) => {},
+        Err(types::Error::Input { .. } | types::Error::AllocationFailed { .. }) => {}
     }
     match check_program(program, &sources, limits) {
         Ok(analysis) => {
@@ -262,9 +304,18 @@ fuzz_target!(|bytes: &[u8]| {
                 );
             }
         }
-        Err(CheckError::Limit(d) | CheckError::Layout(LayoutError::Limit(d)) | CheckError::Types(types::Error::Limit(d))) => {
+        Err(
+            CheckError::Limit(d)
+            | CheckError::Layout(LayoutError::Limit(d))
+            | CheckError::Types(types::Error::Limit(d)),
+        ) => {
             d.validate(&sources).unwrap();
         }
-        Err(CheckError::Input { .. } | CheckError::Layout(LayoutError::Input { .. }) | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. }) | CheckError::OwnershipProfile { .. }) => {}
+        Err(
+            CheckError::Input { .. }
+            | CheckError::Layout(LayoutError::Input { .. })
+            | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
+            | CheckError::OwnershipProfile { .. },
+        ) => {}
     }
 });
