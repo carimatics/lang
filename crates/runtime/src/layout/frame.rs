@@ -204,6 +204,34 @@ impl<'layouts, 'types> FrameStorage<'layouts, 'types> {
         }
         self.cells.get_mut(index).ok_or(Error::InvalidCell(index))
     }
+    /// Borrow distinct admitted cells for an allocation-free ownership transfer.
+    pub fn two_cells_mut(
+        &mut self,
+        first: usize,
+        second: usize,
+    ) -> Result<
+        (
+            &mut Reservation<'layouts, 'types>,
+            &mut Reservation<'layouts, 'types>,
+        ),
+        Error,
+    > {
+        if self.released || first == second {
+            return Err(Error::State);
+        }
+        for index in [first, second] {
+            if index >= self.cells.len() {
+                return Err(Error::InvalidCell(index));
+            }
+        }
+        if first < second {
+            let (left, right) = self.cells.split_at_mut(second);
+            Ok((&mut left[first], &mut right[0]))
+        } else {
+            let (left, right) = self.cells.split_at_mut(first);
+            Ok((&mut right[0], &mut left[second]))
+        }
+    }
     /// Cancel unpublished cells or release fully retired storage. The execution
     /// ledger must discharge live owners first. Preflight every cell/handle so a
     /// pending retirement or foreign allocator cannot release a valid prefix.

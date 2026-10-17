@@ -64,11 +64,12 @@ cargo run -- check examples/analysis/ownership.lang
 cargo run -- check examples/analysis/extraction.lang
 cargo run -- run examples/scripts/answer.lang
 cargo run -- run examples/scripts/bytes.lang
+cargo run -- run examples/scripts/owned_bytes.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
-`check` validates Copy or RFC 0007 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile for `core::allocator()`, Bytes new/len, Result matching, shared loans and cleanup. The answer script prints `42`; the Bytes script prints `0`, with storage released before the result is printed. Unsupported ownership operations fail preflight. Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`; the REPL remains Copy-only. The CLI registers no host imports and explicitly supplies the owned execution instance's budgeted allocator. Verified 2026-10-18 JST.
+`check` validates Copy or RFC 0007/0009 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile for `core::allocator()`, Bytes new/len, borrowed matching, shared loans, finite Option/Result construction and whole-payload extraction for Bytes/Copy values, and cleanup. The answer script prints `42`; both Bytes scripts print `0`, with storage released before the result is printed. Extraction checks its case and reports a source-located guest panic on mismatch. Unsupported operations/payloads fail preflight. Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`; the REPL remains Copy-only. The CLI registers no host imports and explicitly supplies the owned execution instance's budgeted allocator. Verified 2026-10-18 JST.
 
 The REPL commits successfully checked item definitions and evaluates one expression per submission with fresh VM counters. It prints scalars or qualified aggregate values, accepts multiline input, and supports `:reset` and `:quit`. Failed submissions preserve prior definitions; host effects are not rolled back.
 

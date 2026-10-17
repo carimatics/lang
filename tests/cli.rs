@@ -35,6 +35,15 @@ fn owned_bytes_new_len_runs_from_source() {
 }
 
 #[test]
+fn whole_option_and_result_ownership_extraction_runs_from_source() {
+    let files = Files::new(include_str!("../examples/scripts/owned_bytes.lang"));
+    let executed = run(&files, &[]);
+    assert!(executed.status.success(), "{}", stderr(&executed));
+    assert_eq!(executed.stdout, b"0\n");
+    assert!(executed.stderr.is_empty());
+}
+
+#[test]
 fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
     let text = b"fn f(x: &i64) -> i64 { return 0; }";
     let mut limits = CompileLimits::default();

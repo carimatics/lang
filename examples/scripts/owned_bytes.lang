@@ -1,0 +1,16 @@
+// Whole owners cross all three RFC 0009 extraction operations.
+fn main() -> i64 {
+    let mut made: core::Result<core::Bytes, core::AllocError> =
+        core::bytes_new(core::allocator());
+    match made {
+        core::Result::Ok(_) => {},
+        core::Result::Err(_) => { return -1; },
+    }
+    let mut bytes: core::Bytes =
+        core::result_unwrap::<core::Bytes, core::AllocError>(made);
+    let mut optional: core::Option<core::Bytes> = core::Option::Some(bytes);
+    let mut taken: core::Bytes = core::option_unwrap::<core::Bytes>(optional);
+    let mut error: core::Result<i64, core::Bytes> = core::Result::Err(taken);
+    let mut recovered: core::Bytes = core::result_unwrap_err::<i64, core::Bytes>(error);
+    return core::bytes_len(recovered);
+}

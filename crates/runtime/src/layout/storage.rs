@@ -3,6 +3,7 @@
 use super::*;
 use allocation::{Allocator, Handle, Provider};
 
+mod transfer;
 mod value;
 pub use value::{ArenaError, Immediate, OwnershipError};
 

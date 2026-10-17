@@ -33,10 +33,16 @@ pub struct Failure {
     pub function: Option<m::FunctionId>,
     pub fault: Option<m::Span>,
     pub report: Option<c::Report>,
+    /// Original RFC 0009 guest-panic code, preserved through failure cleanup.
+    pub panic_code: Option<i64>,
 }
 impl Display for Failure {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ownership execution failed: {:?}", self.reason)
+        write!(f, "ownership execution failed: {:?}", self.reason)?;
+        if let Some(code) = self.panic_code {
+            write!(f, " (panic code {code})")?;
+        }
+        Ok(())
     }
 }
 impl std::error::Error for Failure {}
@@ -57,16 +63,45 @@ fn rejected(reason: Reason, function: Option<m::FunctionId>, fault: Option<m::Sp
         fault,
         usage: Usage::default(),
         report: None,
+        panic_code: None,
     }
 }
-fn supported(op: &b::Op) -> bool {
+fn payload_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
+    if types.properties(ty).is_some_and(|p| p.is_copy) {
+        return true;
+    }
+    let o::Type::Constructed(id) = ty else {
+        return false;
+    };
+    types.table().constructed[id.0 as usize].constructor
+        == o::Constructor::Builtin(o::Builtin::Bytes)
+}
+fn sum_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
+    let o::Type::Constructed(id) = ty else {
+        return false;
+    };
+    match types.table().constructed[id.0 as usize].constructor {
+        o::Constructor::Option(t) => payload_supported(types, t),
+        o::Constructor::Result(t, e) => payload_supported(types, t) && payload_supported(types, e),
+        _ => false,
+    }
+}
+fn supported(op: &b::Op, types: &o::VerifiedTypes, result: Option<o::Type>) -> bool {
     match op {
-        b::Op::CoreCall(call) => matches!(
-            call.operation,
-            o::core::Operation::Allocator
-                | o::core::Operation::BytesNew
-                | o::core::Operation::BytesLen
-        ),
+        b::Op::CoreCall(call) => {
+            (call.operation.extraction().is_some()
+                && call
+                    .type_arguments
+                    .iter()
+                    .all(|t| payload_supported(types, t.ty)))
+                || matches!(
+                    call.operation,
+                    o::core::Operation::Allocator
+                        | o::core::Operation::BytesNew
+                        | o::core::Operation::BytesLen
+                )
+        }
+        b::Op::Variant { .. } => result.is_some_and(|ty| sum_supported(types, ty)),
         b::Op::I64(_)
         | b::Op::Bool(_)
         | b::Op::Unit
@@ -147,6 +182,7 @@ pub fn execute_entry<P: a::Provider>(
         return Err(fail(Reason::Entry));
     }
     let body = &typed.functions()[index];
+    let types = declarations.types();
     for block in &body.blocks {
         if !block.parameters.is_empty() {
             return Err(rejected(
@@ -156,7 +192,11 @@ pub fn execute_entry<P: a::Provider>(
             ));
         }
         for instruction in &block.instructions {
-            if !supported(&instruction.op) {
+            let result = instruction
+                .results
+                .first()
+                .map(|v| typed.places().functions()[index].values[v.0 as usize].ty);
+            if !supported(&instruction.op, types, result) {
                 let core = if let b::Op::CoreCall(call) = &instruction.op {
                     Some(call.operation)
                 } else {
@@ -176,7 +216,6 @@ pub fn execute_entry<P: a::Provider>(
     let allocator = allocator.ok_or_else(|| fail(Reason::MissingAllocator))?;
     a::Allocator::preflight(Some(allocator)).map_err(|e| fail(Reason::Preparation(e.into())))?;
     let limits = m::Limits::default();
-    let types = declarations.types();
     let layouts = l::Layouts::compile(types, limits).map_err(|e| fail(Reason::Preparation(e)))?;
     let plan = l::FramePlan::compile(
         &layouts,
@@ -235,6 +274,7 @@ pub fn execute_entry<P: a::Provider>(
         cells,
         inverse,
         loans,
+        panic_code: None,
     }));
     let cleaner_state = Rc::clone(&shared);
     let mut frame = instance
@@ -416,6 +456,7 @@ pub fn execute_entry<P: a::Provider>(
         };
     };
     let mut state = shared.borrow_mut();
+    let panic_code = state.panic_code;
     let State {
         allocator, storage, ..
     } = &mut *state;
@@ -430,6 +471,7 @@ pub fn execute_entry<P: a::Provider>(
             function: Some(function),
             fault,
             report: Some(completion.report),
+            panic_code,
         });
     }
     if let Some(primary) = completion.report.primary() {
@@ -439,6 +481,7 @@ pub fn execute_entry<P: a::Provider>(
             function: Some(function),
             fault: primary.span.or(fault),
             report: Some(completion.report),
+            panic_code,
         });
     }
     let value = result.ok_or_else(|| {
@@ -621,6 +664,35 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                     .payload()
                     .ok_or(c::ExecutionFailure::Invariant)?;
                 state.write(result()?, payload)?;
+            }
+        }
+        b::Op::Variant { case, payload } => {
+            let incoming = payload.first().map(|r| value(*r));
+            let payload_span = payload.first().map_or(span, |r| {
+                typed.places().functions()[index].values[r.0 as usize].span
+            });
+            let moved = incoming.filter(|from| !shared.borrow().is_copy(*from));
+            if let Some(from) = moved {
+                frame.value(c::Slot(from)).map_err(invariant)?;
+            }
+            shared
+                .borrow_mut()
+                .variant(result()?, *case, incoming, payload_span)?;
+            if let Some(from) = moved {
+                let _ = frame.take_owner(c::Slot(from)).map_err(invariant)?;
+            }
+        }
+        b::Op::CoreCall(call) if call.operation.extraction().is_some() => {
+            let source = value(call.arguments[0]);
+            let moved = !shared.borrow().is_copy(source);
+            if moved {
+                frame.value(c::Slot(source)).map_err(invariant)?;
+            }
+            shared
+                .borrow_mut()
+                .extract(source, result()?, call.operation.extraction().unwrap())?;
+            if moved {
+                let _ = frame.take_owner(c::Slot(source)).map_err(invariant)?;
             }
         }
         b::Op::CoreCall(call) => match call.operation {

@@ -22,6 +22,7 @@ pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub cells: Vec<Cell>,
     pub inverse: Vec<usize>,
     pub loans: Vec<Loan>,
+    pub panic_code: Option<i64>,
 }
 pub(super) type Step<T> = Result<T, c::ExecutionFailure>;
 pub(super) fn invariant<T>(_: T) -> c::ExecutionFailure {
@@ -246,6 +247,102 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         self.inverse[b] = from;
         self.cells[from].live = false;
         self.cells[to].live = true;
+        Ok(())
+    }
+    pub fn is_copy(&self, index: usize) -> bool {
+        self.types.properties(self.cells[index].ty).unwrap().is_copy
+    }
+    pub fn extract(
+        &mut self,
+        source: usize,
+        destination: usize,
+        contract: o::core::Extraction,
+    ) -> Step<()> {
+        if self.cells[destination].live {
+            return Err(c::ExecutionFailure::Invariant);
+        }
+        let root = self.root(source)?;
+        if self.case(root)? != contract.case {
+            self.panic_code = Some(contract.panic_code);
+            return Err(c::ExecutionFailure::Panic);
+        }
+        if self.is_copy(source) {
+            self.copy(self.field(root, 0)?, destination)?;
+        } else {
+            let from = self.cells[source].physical;
+            let to = self.cells[destination].physical;
+            let (input, output) = self
+                .storage
+                .as_mut()
+                .ok_or(c::ExecutionFailure::Invariant)?
+                .two_cells_mut(from, to)
+                .map_err(invariant)?;
+            input
+                .extract_case_into(contract.case, output, self.allocator)
+                .map_err(invariant)?;
+            input.recycle(self.allocator).map_err(invariant)?;
+            self.cells[source].live = false;
+            self.cells[destination].live = true;
+        }
+        Ok(())
+    }
+    pub fn variant(
+        &mut self,
+        destination: usize,
+        case: u32,
+        payload: Option<usize>,
+        span: m::Span,
+    ) -> Step<()> {
+        if self.cells[destination].live {
+            return Err(c::ExecutionFailure::Invariant);
+        }
+        if let Some(source) = payload {
+            self.root(source)?;
+        }
+        let target = self.cells[destination].physical;
+        let output = self
+            .storage
+            .as_ref()
+            .ok_or(c::ExecutionFailure::Invariant)?
+            .cell(target)
+            .map_err(invariant)?;
+        let root = output.root();
+        output
+            .prepare_case(root, case, self.allocator)
+            .map_err(invariant)?;
+        // Prepare the sole-field order before moving an incoming owner; no
+        // fallible initialization work remains after the obligation transfer.
+        output
+            .initialize_order(root, payload.map(|_| (0, span)).into_iter(), self.allocator)
+            .map_err(invariant)?;
+        if let Some(source) = payload {
+            let from = self.cells[source].physical;
+            let child = output.child(root, 0, self.allocator).map_err(invariant)?;
+            if self.is_copy(source) {
+                let input = self
+                    .storage
+                    .as_ref()
+                    .unwrap()
+                    .cell(from)
+                    .map_err(invariant)?;
+                output
+                    .copy_from(child, input, input.root(), self.allocator)
+                    .map_err(invariant)?;
+            } else {
+                let (input, output) = self
+                    .storage
+                    .as_mut()
+                    .unwrap()
+                    .two_cells_mut(from, target)
+                    .map_err(invariant)?;
+                input
+                    .move_root_into(output, child, self.allocator)
+                    .map_err(invariant)?;
+                input.recycle(self.allocator).map_err(invariant)?;
+                self.cells[source].live = false;
+            }
+        }
+        self.cells[destination].live = true;
         Ok(())
     }
     pub fn bytes_new(&mut self, destination: usize, span: m::Span) -> Step<()> {

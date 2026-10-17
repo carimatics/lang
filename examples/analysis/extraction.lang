@@ -1,4 +1,4 @@
-// RFC 0009 source/MIR analysis fixture; execution requires M2-S03/V04.
+// RFC 0009 analysis fixture; Bytes push execution still requires M2-V04.
 fn main() -> i64 {
     let mut made: core::Result<core::Bytes, core::AllocError> =
         core::bytes_new(core::allocator());
