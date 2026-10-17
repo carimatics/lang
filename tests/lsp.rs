@@ -289,14 +289,18 @@ fn canonical_formatter_returns_utf16_whole_document_edits_and_preserves_invalid_
 #[test]
 fn local_file_uris_round_trip_and_reject_unsupported_authorities_and_encodings() {
     let files = Files::new();
-    let path = files.0.join("hello 😀 #?.lang");
+    let path = files.0.join("hello 😀 #%.lang");
+    std::fs::write(&path, "").unwrap();
     let name = uri::file(&path).unwrap();
     assert!(name.contains("%F0%9F%98%80"));
-    assert_eq!(uri::path(&name, 8192).unwrap(), path);
-    assert_eq!(
-        uri::path(&name.replacen("file:///", "file://localhost/", 1), 8192).unwrap(),
-        path
-    );
+    assert!(name.contains("%23%25"));
+    for encoded in [&name, &name.replacen("file:///", "file://localhost/", 1)] {
+        let decoded = uri::path(encoded, 8192).unwrap();
+        // Windows canonicalize returns a verbatim disk prefix, while a file URI
+        // decodes to a normal disk path. Compare the target and stable URI form.
+        assert_eq!(std::fs::canonicalize(&decoded).unwrap(), path);
+        assert_eq!(uri::file(&decoded).unwrap(), name);
+    }
     for name in [
         "https://host/a",
         "file://remote/a",
@@ -321,6 +325,23 @@ fn local_file_uris_round_trip_and_reject_unsupported_authorities_and_encodings()
     );
     assert_eq!(rejected[0]["method"], "window/logMessage");
     assert_eq!(server.stats().unwrap().disk_reads, 0);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_file_uris_normalize_verbatim_disk_paths_and_reject_unc_paths() {
+    let normal = Path::new(r"C:\source space\hello 😀 #%.lang");
+    let verbatim = Path::new(r"\\?\C:\source space\hello 😀 #%.lang");
+    let encoded = "file:///C:/source%20space/hello%20%F0%9F%98%80%20%23%25.lang";
+    assert_eq!(uri::file(normal).unwrap(), encoded);
+    assert_eq!(uri::file(verbatim).unwrap(), encoded);
+    assert_eq!(uri::path(encoded, 8192).unwrap(), normal);
+    for path in [
+        r"\\server\share\file.lang",
+        r"\\?\UNC\server\share\file.lang",
+    ] {
+        assert_eq!(uri::file(Path::new(path)), Err(uri::UriError::NonLocal));
+    }
 }
 
 #[cfg(unix)]

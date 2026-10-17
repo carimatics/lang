@@ -13,6 +13,9 @@ fn hex(b: u8) -> Option<u8> {
         _ => None,
     }
 }
+/// Decode without filesystem access. Windows disk URIs produce normal paths;
+/// filesystem canonicalization (which may add a verbatim prefix) and authority
+/// checks belong to the source database, not this lexical conversion.
 pub fn path(uri: &str, limit: usize) -> Result<PathBuf, UriError> {
     if uri.len() > limit || uri.contains(['?', '#']) {
         return Err(UriError::Invalid);
@@ -70,6 +73,8 @@ pub fn path(uri: &str, limit: usize) -> Result<PathBuf, UriError> {
     }
     Ok(path)
 }
+/// Encode a local path, normalizing Windows verbatim disk prefixes to the same
+/// URI as ordinary disk paths. UNC paths remain outside the local-only profile.
 pub fn file(path: &Path) -> Result<String, UriError> {
     if !path.is_absolute() {
         return Err(UriError::Invalid);
