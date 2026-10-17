@@ -4,11 +4,13 @@
 
 [日本語版](ja/milestone-2.md) · [Exit gates](roadmap.md#milestone-2-ownership-and-native-aot)
 
-Updated and verified: **2026-10-18 JST**. Evidence checkpoint: `0c2c012`.
+Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**35 done · 0 doing · 52 todo · 134 remaining pt**
+**36 done · 0 doing · 51 todo · 132 remaining pt**
 
-**Next: M2-V01 → M2-V02 → M2-V03: run a source Bytes program.**
+**Next: M2-V02 → M2-V03: run a source Bytes program.**
+
+Latest delivery: **M2-V01** (`71ece57`) adds checked managed scalar/core error access and nested sum preparation. Five runtime tests and one source/MIR integration test pass; the full baseline passes 937 tests plus fmt/Clippy/doc and fuzz-workspace fmt/all-bin locked Clippy. No additional prerequisite was needed for this delivery. The remaining estimate decreases by its planned 2 pt; the next frame-admission task must preserve the existing pre-effect allocation and rollback contract.
 
 Ownership programs currently pass `lang check`; `lang run` and the REPL still reject ownership. The original exit gates remain **5 / 18 complete**. Completed deliveries below include compiler and runtime prerequisites; they do not assert that their entire feature is executable.
 
@@ -25,7 +27,7 @@ The causes were:
 3. Work proceeded horizontally through compiler/runtime foundations while source execution stayed unavailable. Some prerequisites are necessary, but there was no visible limit on adding more before testing a usable path. Extended planning also delayed the first concrete change.
 4. Each slice appended a long historical report and a separate roadmap commit. That recorded activity without exposing a current queue. Full baseline checks were repeated for code slices; their time was not measured, so this audit cannot attribute a specific share of elapsed time to testing.
 
-The 134 remaining points below replace the missing detailed estimate; they do not rescore the completed 34 points or manufacture a new completion percentage. The old and new totals have different granularity and must not be used to calculate a historical cost overrun. Re-estimate newly discovered work explicitly, including the change in task count and remaining points.
+The initial 134-point remaining-work inventory replaced the missing detailed estimate; it did not rescore the completed 34 points or manufacture a new completion percentage. Current remaining points decrease as deliveries finish and change explicitly when work is re-estimated. The old and new totals have different granularity and must not be used to calculate a historical cost overrun. Re-estimate newly discovered work explicitly, including the change in task count and remaining points.
 
 ## Working rules
 
@@ -85,7 +87,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 | ID | State | Remaining pt | Needs | Gate | Outcome / acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M2-V01 | todo | 2 | M2-D34 | G08 | Managed Unit/Option/Result/error codecs: nested round trips, checked tags and exact bounds. | — |
+| M2-V01 | done | 0 | M2-D34 | G08 | Managed Unit/Option/Result/error codecs: nested round trips, checked tags and exact bounds. | `71ece57` |
 | M2-V02 | todo | 3 | M2-V01 | G06 | Bounded owned frame admission reserves value/retirement storage before effects; allocation-failure rollback fixture. | — |
 | M2-V03 | todo | 3 | M2-V02,M2-D35 | G06,G07 | lang run executes a source Bytes new/len program and normal drop; reject unsupported reachable operations before effects. | — |
 | M2-V04 | todo | 3 | M2-V03 | G07,G08 | Source Bytes get/set/push and valid/invalid UTF-8 conversion execute with bounds/OOM fixtures. | — |

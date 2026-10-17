@@ -4,11 +4,13 @@
 
 [English](../milestone-2.md) · [完了条件](roadmap.md#milestone-2ownershipとnative-aot)
 
-更新・確認日：**2026-10-18 JST**。実装evidenceの基準commit：`0c2c012`。
+更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**35 done · 0 doing · 52 todo · 134 remaining pt**
+**36 done · 0 doing · 51 todo · 132 remaining pt**
 
-**次: M2-V01 → M2-V02 → M2-V03：Bytesのソースプログラムを実行する。**
+**次: M2-V02 → M2-V03：Bytesのソースプログラムを実行する。**
+
+直近の完了：**M2-V01**（`71ece57`）。Managed scalar／core errorの型検査付きaccessと入れ子sumのprepareを追加しました。Runtime 5 testとsource／MIR統合1 testが成功し、全体の937 test、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しました。この成果に追加の前提作業は不要でした。計画した2 ptを残見積もりから減らし、次のframe受け入れtaskでもeffect前allocationとrollbackの既存contractを保持します。
 
 現在、ownershipを使うプログラムは `lang check` で検査できますが、`lang run` とREPLではまだ実行できません。従来の完了条件は **18件中5件完了** です。下記の完了実装にはcompiler／runtimeの前提作業も含み、機能全体が実行可能になったことを意味しません。
 
@@ -25,7 +27,7 @@
 3. Compiler／runtimeの基盤を横方向に進め、ソース実行が未対応のままでした。必要な前提作業もありますが、利用可能な経路を試す前に基盤を追加し続けることへの明示的な制限がありませんでした。設計検討の長期化も最初の具体的な変更を遅らせました。
 4. 各実装で長い履歴reportと別のroadmap commitを追加し、活動記録は増えても現在のqueueが見えませんでした。Code sliceごとにfull baselineを再実行していましたが、所要時間は計測していないため、経過時間に対するtestの比率は断定できません。
 
-以下の残り134 ptは欠けていた詳細見積もりを置き換えるもので、完了済み34 ptの付け直しや新しい完成率の作成ではありません。新旧の総計は粒度が異なり、過去のcost超過率の計算には使えません。新たな作業が判明したら、task数と残りpointの増減を含めて明示的に再見積もりします。
+初回の残り134 ptの作業一覧は欠けていた詳細見積もりを置き換えたもので、完了済み34 ptの付け直しや新しい完成率の作成ではありません。現在の残りpointは成果の完了で減り、再見積もりでは変更を明示します。新旧の総計は粒度が異なり、過去のcost超過率の計算には使えません。新たな作業が判明したら、task数と残りpointの増減を含めて明示的に再見積もりします。
 
 ## 作業ルール
 
@@ -85,7 +87,7 @@
 
 | ID | State | Remaining pt | Needs | Gate | 成果／受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M2-V01 | todo | 2 | M2-D34 | G08 | Managed Unit／Option／Result／error codec：入れ子往復、tag検証、厳密な上限。 | — |
+| M2-V01 | done | 0 | M2-D34 | G08 | Managed Unit／Option／Result／error codec：入れ子往復、tag検証、厳密な上限。 | `71ece57` |
 | M2-V02 | todo | 3 | M2-V01 | G06 | 上限付きowned frameの受け入れ時、effect前にvalue／retirement storageを確保し、失敗rollbackを検証。 | — |
 | M2-V03 | todo | 3 | M2-V02,M2-D35 | G06,G07 | lang runでBytes new／lenのソースと通常dropを実行し、到達可能な未対応命令はeffect前に拒否。 | — |
 | M2-V04 | todo | 3 | M2-V03 | G07,G08 | Bytes get／set／pushとUTF-8成功／失敗をソースから実行し、bounds／OOMを検証。 | — |
