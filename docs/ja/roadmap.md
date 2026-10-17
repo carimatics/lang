@@ -259,6 +259,8 @@ Source typeのfollow-up（2026-10-17 JST）：commit `81fab15` はRFC 0007のtyp
 
 Source bodyのfollow-up（2026-10-17 JST）：commit `f6e0edb` は通常loan、明示dereference、place assignmentを既存expression arena内の専用place IDへbindし、字句的なcompiler-created arena ownerも追加しました。6件のsource testで正確なroot／span、temporary拒否、owner visibility／名前規則、到達不能codeの診断、通算expression／local／block／depth上限、ownership annotationがなくても実行用checkで拒否する境界を検証します。全560 test、fmt／Clippy／doc、lock済みfuzz compileが成功しました。Bindingが保証するのは名前とplace shapeのみで、mutability、move、loan flow、allocator authority、region escape、core signature、cleanup、ownership MIR／VM／native動作は未完了です。Reviewでは完了21/113 ptと元のoutcome／見積もりを維持します。次は受理済み有限core signatureとownership body checkingを接続し、RFC 0008の判断とownership serializationは独立gateとして残します。
 
+Core signatureのfollow-up（2026-10-17 JST）：commit `9342175` はRFC 0007が要求する全34 operationを、固定source signature template、type-argument制約、value／instance allocator／provisional loan／arena result由来とともに識別します。Source callは具体type argumentをbindし、callee／argument spanと記述順を保持します。不正pathとtype／value arityには受理済みsource診断を出し、generic-callのunsupported-syntax guardを置換しました。独立したsignature表／由来の2 testと追加3 source testが、全565 testのfmt／Clippy／doc baselineおよびlock済みfuzz compileとともに成功しました。Operand型／規則の強制、loan／region flow、core case／Unit構築とpattern、operation、実行用loweringは未完了で、compiler／runtime／ABI gateは維持します。Reviewでは21/113 ptと元の総計／outcomeを維持し、この前提作業を未完了HIR／core実装scope内へ記録します。次はcore value／case構文のbindingとownership body typing／flowを実装し、RFC 0008はowner判断待ちとして残します。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
