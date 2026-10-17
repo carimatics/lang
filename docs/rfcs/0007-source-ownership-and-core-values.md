@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0007-source-ownership-and-core-values.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-17
 - Last updated: 2026-10-17
@@ -14,7 +14,7 @@
 
 ## Summary
 
-Complete Milestone 2's first decision gate without reopening RFC 0004's accepted ownership policy. Preserve RFC 0006 copy programs, add non-copy core values and lexical loans, and fix the smallest collection/type surface needed for command-line tools and an eventual bootstrap compiler. These are proposed project choices, not implemented behavior.
+Complete Milestone 2's first decision gate without reopening RFC 0004's accepted ownership policy. Preserve RFC 0006 copy programs, add non-copy core values and lexical loans, and fix the smallest collection/type surface needed for command-line tools and an eventual bootstrap compiler. These are accepted project choices, not implemented behavior.
 
 Use Rust-like `&T` / `&mut T` parameter types, explicit `shared T` / `weak T` ownership categories, and `arena T` for a reference branded by an inferred lexical arena. Ordinary records/enums are Copy exactly when all their fields/payloads are Copy. Core `Text`, `Bytes`, `Vec<T>`, and `Map<K, V>` own their storage and move. Only the listed built-in generic types/functions are introduced; user-defined generic declarations, methods, traits, lifetime parameters, and implicit cloning remain deferred.
 
@@ -203,9 +203,9 @@ Validate owning type/region identity, loans, handles, generation, initialization
 
 ## Open questions
 
-The proposed choices above are ready for owner review. The blocking decision is whether to adopt this finite source/core surface, particularly lexical whole-owner borrowing, compiler-known built-in generic collections, and checked whole-payload shared mutation. Cleanup/allocator/FFI validity and exact ownership wire encoding deliberately require their own decisions before dependent implementation. Those follow-ups are not optional for Milestone 2 completion.
+The repository owner explicitly accepted this source/core profile on 2026-10-17 JST, including lexical whole-owner borrowing, compiler-known built-in generic collections, and checked whole-payload shared mutation. There are no remaining blocking questions for this profile. Cleanup/allocator/FFI validity and exact ownership wire encoding deliberately require their own decisions before dependent implementation. Those follow-ups are not optional for Milestone 2 completion.
 
-Review outcome: **ready for decision on the source/core profile**; no source-profile acceptance, implementation, stabilization, or measured ergonomics/performance is claimed.
+Decision: **accepted on 2026-10-17 JST** by the repository owner. The pre-decision review outcome was ready for decision. Implementation, stabilization, and measured ergonomics/performance are not claimed.
 
 ## Sources
 

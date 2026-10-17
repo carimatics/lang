@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0007-source-ownership-and-core-values.md)
 
-- ステータス: proposed
+- ステータス: accepted
 - 著者: Project contributors
 - 作成日: 2026-10-17
 - 最終更新日: 2026-10-17
@@ -14,7 +14,7 @@
 
 ## 概要
 
-RFC 0004の受理済みownership policyを再検討することなく、Milestone 2の最初のdecision gateを具体化します。RFC 0006のCopy programを維持し、non-copyなcore valueと字句的loanを追加し、CLI toolと将来のbootstrap compilerに必要な最小collection／型表面を定義します。以下はprojectの提案であり、実装済みbehaviorではありません。
+RFC 0004の受理済みownership policyを再検討することなく、Milestone 2の最初のdecision gateを具体化します。RFC 0006のCopy programを維持し、non-copyなcore valueと字句的loanを追加し、CLI toolと将来のbootstrap compilerに必要な最小collection／型表面を定義します。以下はprojectの受理済み判断であり、実装済みbehaviorではありません。
 
 Parameter typeはRust風の `&T`／`&mut T`、明示的ownership categoryは `shared T`／`weak T`、字句的arenaに推論上のbrandで結び付く参照は `arena T` とします。通常のrecord／enumは全field／payloadがCopyの場合に限りCopyです。Coreの `Text`、`Bytes`、`Vec<T>`、`Map<K, V>` はstorageを所有しmoveします。ここに列挙する組み込みgeneric type／functionのみ導入し、user-defined generic declaration、method、trait、lifetime parameter、暗黙のcloneは延期します。
 
@@ -203,9 +203,9 @@ MIR／bytecode／host境界でowning type／region identity、loan、handle、ge
 
 ## 未解決事項
 
-上記の選択肢はowner review可能です。Blocking decisionは、字句的whole-owner borrow、compiler専用組み込みgeneric collection、checked whole-payload shared mutationを含む有限source／core surfaceを採用するかです。Cleanup／allocator／FFI validityと厳密ownership wire encodingは、依存実装前にそれぞれの判断が必要であり、Milestone 2完了に任意のfollow-upではありません。
+Repository ownerは2026-10-17 JSTにこのsource／core profileを明示的に受理しました。字句的whole-owner borrow、compiler専用組み込みgeneric collection、checked whole-payload shared mutationを含み、このprofileのblocking questionは残っていません。Cleanup／allocator／FFI validityと厳密ownership wire encodingは、依存実装前にそれぞれの判断が必要であり、Milestone 2完了に任意のfollow-upではありません。
 
-Review outcome：**source／core profileのdecision-ready**。Source profileのacceptance、implementation、stabilization、計測済みergonomics／performanceは主張しません。
+Decision：repository ownerが**2026-10-17 JSTにaccepted**。判断前のreview outcomeはdecision-readyでした。Implementation、stabilization、計測済みergonomics／performanceは主張しません。
 
 ## 情報源
 
