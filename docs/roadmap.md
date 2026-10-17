@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 77 pt | 89 pt | 86.5% |
+| 1 — frontend and bytecode vertical slice (current) | 80 pt | 89 pt | 89.9% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **286 pt** | **738 pt** | **38.8%** |
+| **Overall** | **289 pt** | **738 pt** | **39.2%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** finish transactional REPL entry points, followed by the remaining formatter and LSP integration.
+- **Next active P1:** implement formatter round trips, then complete parser/module queries and the LSP prototype.
 
 ### Tasks in priority order
 
@@ -137,7 +137,7 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 77 / 89 pt (86.5%).**
+**Progress: 80 / 89 pt (89.9%).**
 
 The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five accepted design gates account for 16 completed points across lexical rules, modules/calls, aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Lossless parsing, module loading/resolution, source-wide typing, nominal layouts, patterns, source MIR, portable artifacts, bounded VM execution, and initial scalar native conformance are implemented. CLI/REPL, formatter, and LSP integration remain required outcomes.
 
@@ -164,7 +164,7 @@ The 8-point incremental-tooling task is likewise split into 3 points of shared g
 - [x] **P0 — Implement accepted source calls, call frames, returns, and bounded recursion in MIR, bytecode, and VM with failure/stack tests.** — 8 pt
 - [x] **P0 — Execute the source-language subset in the VM with typed host registration.** — 5 pt
 - [x] **P0 — Accept script entry/output and transactional REPL state/error contracts.** — 1 pt
-- [ ] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
+- [x] **P0 — Provide deterministic script and REPL entry points.** — 3 pt
 - [ ] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
 - [x] **P1 — Implement a bounded revisioned query graph/cache with transitive invalidation, stale-result guards, and structured HIR diagnostic-cache tests.** — 3 pt
 - [x] **P1 — Map structured diagnostics to bounded UTF-16 LSP data with protocol line endings, related labels, and position tests.** — 1 pt
@@ -200,17 +200,16 @@ Commit `b5b83b7` completes portable schema-1 bytecode encoding/decoding and shar
 
 Commit `cb3312d` connects typed source HIR to shared verified MIR; `b1964e7` adds nine native scalar conformance tests, including parsed-source VM/JIT equivalence and macOS AArch64 direct/response-file AOT link/run. Commit `d041598` completes source-driven compilation-unit execution: seventeen source-to-canonical-wire-to-VM tests cover calls, 2,000-level recursion, mutual calls, aggregates/patterns, typed qualified host imports, ordered effects, frame release, exact failure counters, and source stacks. Seven hand-built unit tests include 324 independent simultaneous-copy comparisons, malformed values, maximum enum storage, owned identity, and checked-projection traps. The full baseline passes (422 tests); the decoder/VM fuzz target compiles and completed an uninstrumented 10,000-run smoke. These integrated outcomes close lowering (3 pt), guest frames/calls (8 pt), and typed source VM execution (5 pt).
 
-The current checklist has 3 unchecked implementation items totaling 12 points. This table is a dependency view, not additional scope or completion credit.
+The current checklist has 2 unchecked P1 implementation items totaling 9 points. This table is a dependency view, not additional scope or completion credit.
 
-Commit `e62b33b` adds virtual root analysis with explicit file authority, isolated expression-result typing, and library lowering without automatic main selection. Eight tests and the full 430-test baseline pass. These are REPL prerequisites; transactional submissions, original-submission diagnostics, deterministic display, and CLI integration remain in the unchecked 3-point task. No additional completion credit is claimed.
+Commit `e62b33b` added virtual root analysis with explicit file authority, isolated expression-result typing, and library lowering without automatic main selection. Eight tests and the full 430-test baseline passed. No completion credit was awarded at that prerequisite boundary; the later `bbc1f3d` session integration completes the 3-point script/REPL outcome.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Formatter round trips and incomplete-source LSP diagnostics |
 | Module/source snapshots | Parser/module queries, reverse-dependency invalidation, and editor document lifecycle |
-| Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
 
-All five decision areas are accepted in RFC 0006. The executable now runs source scripts through `lang run`, validates the script entry with `SRC0018`, prints one signed result with exit 0, and uses exit 1/2 for compile/runtime/usage failures. Ten CLI tests and the full 440-test baseline pass; the multi-file example prints `42`. The original two-integer mode is retained. Transactional REPL remains in the unchecked 3-point script/REPL item, and the full remaining P1 tooling scope is still required before Milestone 1 exits.
+All five decision areas are accepted in RFC 0006. Commit `77287e7` adds deterministic `lang run`, script entry diagnostics, exit contracts, explicit limits, and ten CLI tests. Transactional sessions now complete the paired script/REPL outcome: sixteen tests cover successful/failed definitions, duplicate/reset behavior, canonical values, original submission diagnostics/fixes/stacks, fresh execution budgets, host effects, file authority, malformed input, limits, buffering, and piped recovery/EOF. A TTY smoke verified continuation/quit. The full baseline passes (456 tests). Both remaining P1 tooling tasks are still required before Milestone 1 exits.
 
 The previous owner-decision blocker is resolved by the explicit 2026-10-17 acceptance, recorded in `031575e`. Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) and [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) now provide the implementation contract (last updated 2026-10-17 JST). Acceptance completes only the five decision checkboxes. No implementation completion, scope reduction, or Milestone 1 exit is inferred. The final Milestone 1 capability guide remains due after the actual source-driven milestone is complete.
 
