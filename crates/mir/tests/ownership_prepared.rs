@@ -53,14 +53,14 @@ fn replace() -> b::Instruction {
 fn discard() -> b::Instruction {
     instruction(&[], b::Op::DiscardPrepared(id()), 12)
 }
-fn jump(n: u32) -> m::Term {
-    m::Term::Jump(m::Target {
+fn jump(n: u32) -> b::Term {
+    b::Term::Jump(m::Target {
         block: m::BlockId(n),
         arguments: vec![],
     })
 }
-fn branch(a: u32, z: u32) -> m::Term {
-    m::Term::Branch {
+fn branch(a: u32, z: u32) -> b::Term {
+    b::Term::Branch {
         condition: r(2),
         then_target: m::Target {
             block: m::BlockId(a),
@@ -72,7 +72,7 @@ fn branch(a: u32, z: u32) -> m::Term {
         },
     }
 }
-fn block(instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn block(instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     b::Block {
         parameters: vec![],
         instructions,
@@ -83,7 +83,7 @@ fn block(instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
         span: span(),
     }
 }
-fn entry(mut instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn entry(mut instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     let mut prefix = vec![
         instruction(&[0], b::Op::I64(1), 1),
         instruction(&[1], b::Op::I64(2), 2),
@@ -142,7 +142,7 @@ fn table(instructions: Vec<b::Instruction>) -> b::BodyTable {
         functions: vec![b::FunctionBody {
             loans: 0,
             prepared: 1,
-            blocks: vec![entry(instructions, m::Term::Return(r(1)))],
+            blocks: vec![entry(instructions, b::Term::Return(r(1)))],
         }],
     }
 }
@@ -159,7 +159,7 @@ fn captured_whole_local_reinitializes_storage_and_keeps_separate_identity() {
     // Inspect the vacant destination and live capture at a block boundary.
     t.functions[0].blocks = vec![
         entry(vec![prepare()], jump(1)),
-        block(vec![replace()], m::Term::Return(r(1))),
+        block(vec![replace()], b::Term::Return(r(1))),
     ];
     let out = moved(t).unwrap();
     let fact = out.typed().facts()[0].prepared()[0].unwrap();
@@ -263,8 +263,8 @@ fn capture_must_precede_and_dominate_every_publication_or_discard() {
         let mut t = table(vec![]);
         t.functions[0].blocks = vec![
             entry(vec![], branch(1, 2)),
-            block(vec![prepare(), discard()], m::Term::Return(r(1))),
-            block(vec![op], m::Term::Return(r(1))),
+            block(vec![prepare(), discard()], b::Term::Return(r(1))),
+            block(vec![op], b::Term::Return(r(1))),
         ];
         assert_eq!(
             typed(t).unwrap_err().kind,
@@ -280,7 +280,7 @@ fn both_branch_outcomes_must_finish_the_capture_and_only_selected_edge_consumes_
         entry(vec![prepare()], branch(1, 2)),
         block(vec![replace()], jump(3)),
         block(vec![discard()], jump(3)),
-        block(vec![], m::Term::Return(r(1))),
+        block(vec![], b::Term::Return(r(1))),
     ];
     let out = moved(t.clone()).unwrap();
     assert_eq!(
@@ -318,7 +318,7 @@ fn loops_restore_capture_state_and_allow_a_pending_destination_around_rhs_iterat
             jump(1),
         ),
         block(vec![prepare(), replace()], branch(1, 2)),
-        block(vec![], m::Term::Return(r(1))),
+        block(vec![], b::Term::Return(r(1))),
     ];
     moved(t.clone()).unwrap();
     t.functions[0].blocks[1].instructions.pop();
@@ -334,7 +334,7 @@ fn loops_restore_capture_state_and_allow_a_pending_destination_around_rhs_iterat
     t.functions[0].blocks = vec![
         entry(vec![prepare()], jump(1)),
         block(vec![], branch(1, 2)),
-        block(vec![replace()], m::Term::Return(r(1))),
+        block(vec![replace()], b::Term::Return(r(1))),
     ];
     // The destination is evaluated outside an RHS loop and stays pending,
     // unchanged, until the RHS finishes. Back-edges must preserve that state.
@@ -418,7 +418,7 @@ fn indirect() -> b::BodyTable {
             ),
             replace(),
         ],
-        m::Term::Return(r(1)),
+        b::Term::Return(r(1)),
     )];
     t
 }
@@ -497,7 +497,7 @@ fn all_eighty_one_diamonds_agree_with_an_independent_path_consumption_oracle() {
             entry(vec![prepare()], branch(1, 2)),
             block(ops(&actions[..2]), jump(3)),
             block(ops(&actions[2..]), jump(3)),
-            block(vec![], m::Term::Return(r(1))),
+            block(vec![], b::Term::Return(r(1))),
         ];
         assert_eq!(moved(t).is_ok(), expected, "graph {code}: {actions:?}");
     }
@@ -625,7 +625,7 @@ fn a_prepared_direct_field_requires_initialized_parent_storage_at_publication() 
             instruction(&[], b::Op::DropLocal(d::LocalId(0)), 6),
             replace(),
         ],
-        m::Term::Return(r(1)),
+        b::Term::Return(r(1)),
     )];
     assert!(matches!(
         moved(t).unwrap_err().kind,

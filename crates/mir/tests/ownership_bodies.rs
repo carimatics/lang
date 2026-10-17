@@ -32,7 +32,7 @@ fn target(block: u32, args: &[u32]) -> m::Target {
         arguments: args.iter().copied().map(r).collect(),
     }
 }
-fn block(parameters: &[u32], instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn block(parameters: &[u32], instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     b::Block {
         parameters: parameters.iter().copied().map(r).collect(),
         instructions,
@@ -140,7 +140,7 @@ fn diamonds_define_typed_block_parameters_and_preserve_unused_origin_slots() {
         block(
             &[],
             vec![instruction(&[0], b::Op::Bool(true))],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(0),
                 then_target: target(1, &[]),
                 else_target: target(2, &[]),
@@ -149,14 +149,14 @@ fn diamonds_define_typed_block_parameters_and_preserve_unused_origin_slots() {
         block(
             &[],
             vec![instruction(&[1], b::Op::I64(1))],
-            m::Term::Jump(target(3, &[1])),
+            b::Term::Jump(target(3, &[1])),
         ),
         block(
             &[],
             vec![instruction(&[2], b::Op::I64(2))],
-            m::Term::Jump(target(3, &[2])),
+            b::Term::Jump(target(3, &[2])),
         ),
-        block(&[3], vec![], m::Term::Return(r(3))),
+        block(&[3], vec![], b::Term::Return(r(3))),
     ];
     let v = t.verify(b::Limits::default()).unwrap();
     assert_eq!(v.facts()[0].immediate_dominators(), [0, 0, 0, 0]);
@@ -186,12 +186,12 @@ fn noncopy_block_arguments_and_loop_backedges_are_typed_without_claiming_flow_pr
                 instruction(&[0], b::Op::MovePlace(p)),
                 instruction(&[1], b::Op::Bool(false)),
             ],
-            m::Term::Jump(target(1, &[0])),
+            b::Term::Jump(target(1, &[0])),
         ),
         block(
             &[2],
             vec![],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(1),
                 then_target: target(2, &[]),
                 else_target: target(3, &[]),
@@ -200,9 +200,9 @@ fn noncopy_block_arguments_and_loop_backedges_are_typed_without_claiming_flow_pr
         block(
             &[],
             vec![instruction(&[3], b::Op::Move(r(2)))],
-            m::Term::Jump(target(1, &[3])),
+            b::Term::Jump(target(1, &[3])),
         ),
-        block(&[], vec![], m::Term::Return(r(2))),
+        block(&[], vec![], b::Term::Return(r(2))),
     ];
     t.verify(b::Limits::default()).unwrap();
 }
@@ -232,13 +232,13 @@ fn generated_cfg_dominance_matches_an_independent_path_intersection_oracle() {
                 ops.push(instruction(&[2], b::Op::Copy(r(1))));
             }
             let term = if block_id + 1 == count {
-                m::Term::Return(r(3))
+                b::Term::Return(r(3))
             } else {
                 let a = block_id + 1;
                 let z = (block_id + 2 + (seed % 3)).min(count - 1);
                 predecessors[a].push(block_id);
                 predecessors[z].push(block_id);
-                m::Term::Branch {
+                b::Term::Branch {
                     condition: r(0),
                     then_target: target(a as u32, &[]),
                     else_target: target(z as u32, &[]),
@@ -267,7 +267,7 @@ fn generated_cfg_dominance_matches_an_independent_path_intersection_oracle() {
 #[test]
 fn duplicate_undefined_forward_values_and_bad_cfg_shapes_are_rejected() {
     let mut t = table(&[o::Type::I64], &[], o::Type::I64);
-    t.functions[0].blocks = vec![block(&[], vec![], m::Term::Return(r(0)))];
+    t.functions[0].blocks = vec![block(&[], vec![], b::Term::Return(r(0)))];
     assert_eq!(
         error(t.clone()),
         o::ErrorKind::Mir(m::ErrorKind::UndefinedRegister(0))
@@ -291,13 +291,13 @@ fn duplicate_undefined_forward_values_and_bad_cfg_shapes_are_rejected() {
     bad.functions[0].blocks[0].parameters.push(r(0));
     assert_eq!(error(bad), o::ErrorKind::Mir(m::ErrorKind::EntryParameters));
     let mut bad = t.clone();
-    bad.functions[0].blocks[0].terminator.kind = m::Term::Jump(target(0, &[]));
+    bad.functions[0].blocks[0].terminator.kind = b::Term::Jump(target(0, &[]));
     assert_eq!(
         error(bad),
         o::ErrorKind::Mir(m::ErrorKind::EntryPredecessor)
     );
     let mut bad = t.clone();
-    bad.functions[0].blocks[0].terminator.kind = m::Term::Jump(target(9, &[]));
+    bad.functions[0].blocks[0].terminator.kind = b::Term::Jump(target(9, &[]));
     assert_eq!(error(bad), o::ErrorKind::Mir(m::ErrorKind::InvalidBlock(9)));
     let mut bad = t.clone();
     bad.functions[0].blocks.clear();
@@ -364,7 +364,7 @@ fn loan_body() -> b::BodyTable {
             ),
             instruction(&[], b::Op::DropLocal(d::LocalId(l))),
         ],
-        m::Term::Return(r(2)),
+        b::Term::Return(r(2)),
     )];
     t
 }
@@ -479,7 +479,7 @@ fn arena_entry_exit_and_allocator_loan_types_are_explicit() {
             ),
             instruction(&[1], b::Op::I64(0)),
         ],
-        m::Term::Return(r(1)),
+        b::Term::Return(r(1)),
     )];
     t.clone().verify(b::Limits::default()).unwrap();
     t.functions[0].blocks[0].instructions[2].op = b::Op::ArenaExit {
@@ -594,14 +594,14 @@ fn case_body(borrow: bool) -> b::BodyTable {
                     },
                 ),
             ],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(3),
                 then_target: target(1, &[]),
                 else_target: target(2, &[]),
             },
         ),
-        block(&[], ops, m::Term::Return(r(4))),
-        block(&[], vec![], m::Term::Return(r(0))),
+        block(&[], ops, b::Term::Return(r(4))),
+        block(&[], vec![], b::Term::Return(r(0))),
     ];
     t
 }
@@ -613,11 +613,11 @@ fn variant_payload_copy_borrow_and_whole_unpack_require_a_matching_true_edge_gua
     t.functions[0].blocks[0].instructions[3].op = b::Op::Bool(true);
     assert_eq!(error(t), o::ErrorKind::CaseGuard);
     let mut t = case_body(false);
-    t.functions[0].blocks[2].terminator.kind = m::Term::Jump(target(1, &[]));
+    t.functions[0].blocks[2].terminator.kind = b::Term::Jump(target(1, &[]));
     assert_eq!(error(t), o::ErrorKind::CaseGuard);
     let mut t = case_body(false);
     t.functions[0].blocks.pop();
-    t.functions[0].blocks[0].terminator.kind = m::Term::Branch {
+    t.functions[0].blocks[0].terminator.kind = b::Term::Branch {
         condition: r(3),
         then_target: target(1, &[]),
         else_target: target(1, &[]),
@@ -678,7 +678,7 @@ fn every_core_error_case_and_option_result_payload_shape_is_checked() {
                     instruction(&[1], b::Op::I64(3)),
                     instruction(&[2], b::Op::Variant { case, payload }),
                 ],
-                m::Term::Return(r(2)),
+                b::Term::Return(r(2)),
             )];
             t.clone().verify(b::Limits::default()).unwrap();
             t.functions[0].blocks[0].instructions[2].op = b::Op::Variant {
@@ -709,7 +709,7 @@ fn every_core_error_case_and_option_result_payload_shape_is_checked() {
                 instruction(&[0], b::Op::I64(1)),
                 instruction(&[1], b::Op::Variant { case, payload }),
             ],
-            m::Term::Return(r(1)),
+            b::Term::Return(r(1)),
         )];
         t.verify(b::Limits::default()).unwrap();
     }
@@ -750,7 +750,7 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
             ),
             instruction(&[2], b::Op::CopyPlace(p)),
         ],
-        m::Term::Return(r(2)),
+        b::Term::Return(r(2)),
     )];
     t.verify(b::Limits::default()).unwrap();
     let mut t = table(&[o::Type::I64, o::Type::I64], &[], o::Type::I64);
@@ -792,7 +792,7 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
                         },
                     ),
                 ],
-                m::Term::Return(r(1)),
+                b::Term::Return(r(1)),
             )],
         },
         b::FunctionBody {
@@ -801,7 +801,7 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
             blocks: vec![block(
                 &[],
                 vec![instruction(&[0], b::Op::I64(7))],
-                m::Term::Return(r(0)),
+                b::Term::Return(r(0)),
             )],
         },
     ];
@@ -824,7 +824,7 @@ fn structural_typing_deliberately_does_not_prove_move_or_loan_state() {
             instruction(&[1], b::Op::Move(r(0))),
             instruction(&[2], b::Op::Move(r(0))),
         ],
-        m::Term::Return(r(2)),
+        b::Term::Return(r(2)),
     )];
     // Value 0 has one dominating definition, but is consumed twice. The next
     // ownership-flow stage must reject this; TypedBodies grants no execution.
@@ -858,7 +858,7 @@ fn scalar_unit_result_shapes_types_and_void_operations_are_checked() {
             instruction(&[], b::Op::DropValue(r(2))),
             instruction(&[5], b::Op::Unit),
         ],
-        m::Term::Return(r(5)),
+        b::Term::Return(r(5)),
     )];
     t.clone().verify(b::Limits::default()).unwrap();
     let mut bad = t.clone();

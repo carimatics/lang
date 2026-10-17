@@ -20,7 +20,7 @@ fn instruction(results: &[m::Register], op: b::Op) -> b::Instruction {
         span: span(),
     }
 }
-fn block(instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn block(instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     b::Block {
         parameters: vec![],
         instructions,
@@ -324,7 +324,7 @@ fn body(mut f: Fixture) -> b::BodyTable {
     }
     instructions.push(instruction(&[zero], b::Op::I64(0)));
     f.table.functions[0].loans = usize::from(lease.is_some());
-    f.table.functions[0].blocks = vec![block(instructions, m::Term::Return(zero))];
+    f.table.functions[0].blocks = vec![block(instructions, b::Term::Return(zero))];
     f.table
 }
 
@@ -550,10 +550,10 @@ fn provisional_sum_storage_nesting_forwarding_and_block_arguments_are_rejected()
                 destination
                     .instructions
                     .push(instruction(&[zero], b::Op::I64(0)));
-                destination.terminator.kind = m::Term::Return(zero);
+                destination.terminator.kind = b::Term::Return(zero);
                 t.functions[0].blocks.push(destination);
                 t.functions[0].blocks[0].instructions.truncate(position + 1);
-                t.functions[0].blocks[0].terminator.kind = m::Term::Jump(m::Target {
+                t.functions[0].blocks[0].terminator.kind = b::Term::Jump(m::Target {
                     block: m::BlockId(1),
                     arguments: vec![output],
                 });
@@ -681,7 +681,7 @@ fn arena_core_calls_retain_the_lexical_owner_until_the_read_ends() {
             },
         )
     };
-    let branch = |condition, yes, no| m::Term::Branch {
+    let branch = |condition, yes, no| b::Term::Branch {
         condition,
         then_target: m::Target {
             block: m::BlockId(yes),
@@ -748,7 +748,7 @@ fn arena_core_calls_retain_the_lexical_owner_until_the_read_ends() {
         ),
         block(
             vec![instruction(&[], b::Op::DropValue(raw_new)), exit(), end(0)],
-            m::Term::Return(number),
+            b::Term::Return(number),
         ),
         block(
             vec![
@@ -777,7 +777,7 @@ fn arena_core_calls_retain_the_lexical_owner_until_the_read_ends() {
                 exit(),
                 end(0),
             ],
-            m::Term::Return(result),
+            b::Term::Return(result),
         ),
         block(
             vec![
@@ -787,7 +787,7 @@ fn arena_core_calls_retain_the_lexical_owner_until_the_read_ends() {
                 exit(),
                 end(0),
             ],
-            m::Term::Return(number),
+            b::Term::Return(number),
         ),
     ];
     let checked = fully_check(t.clone());
@@ -981,7 +981,7 @@ fn get_flow(name: &str, early_parent: bool) -> b::BodyTable {
     t.functions[0].blocks = vec![
         block(
             prefix,
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: guard,
                 then_target: m::Target {
                     block: m::BlockId(1),
@@ -993,8 +993,8 @@ fn get_flow(name: &str, early_parent: bool) -> b::BodyTable {
                 },
             },
         ),
-        block(yes, m::Term::Return(read)),
-        block(no, m::Term::Return(zero)),
+        block(yes, b::Term::Return(read)),
+        block(no, b::Term::Return(zero)),
     ];
     t
 }
@@ -1048,7 +1048,7 @@ fn allocator_preflight_requirements_reach_recursive_callers_and_leave_unrelated_
                 },
             ),
         ],
-        m::Term::Return(r(1)),
+        b::Term::Return(r(1)),
     )];
     t.functions[2].blocks = vec![block(
         vec![instruction(
@@ -1058,11 +1058,11 @@ fn allocator_preflight_requirements_reach_recursive_callers_and_leave_unrelated_
                 arguments: vec![],
             },
         )],
-        m::Term::Return(r(0)),
+        b::Term::Return(r(0)),
     )];
     t.functions[3].blocks = vec![block(
         vec![instruction(&[r(0)], b::Op::I64(0))],
-        m::Term::Return(r(0)),
+        b::Term::Return(r(0)),
     )];
     let typed = t.clone().verify(Default::default()).unwrap();
     assert_eq!(
@@ -1091,7 +1091,7 @@ fn allocator_preflight_requirements_reach_recursive_callers_and_leave_unrelated_
     t.functions[0].loans = 0;
     t.functions[0].blocks = vec![block(
         vec![instruction(&[zero], b::Op::I64(0))],
-        m::Term::Return(zero),
+        b::Term::Return(zero),
     )];
     assert!(
         t.verify(Default::default())

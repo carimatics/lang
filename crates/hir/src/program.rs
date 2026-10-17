@@ -2026,6 +2026,13 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             r::PatternKind::Wildcard => {}
             r::PatternKind::Binding(local) => {
                 let expected = binding_expected;
+                if let Some(ty) = expected
+                    && self.context.loan(ty).is_none()
+                    && let Some(types) = &self.context.types
+                    && types.properties(ty, span)?.contains_loan
+                {
+                    self.context.error(codes::INVALID_OWNERSHIP_TYPE, span, "match a provisional loan result's cases instead of binding the whole result", None)?;
+                }
                 let binding = if let Some(ty) = expected
                     && self.borrow_match
                     && self.context.loan(ty).is_none()

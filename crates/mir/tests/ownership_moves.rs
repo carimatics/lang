@@ -36,7 +36,7 @@ fn target(block: u32, args: &[u32]) -> m::Target {
         arguments: args.iter().copied().map(r).collect(),
     }
 }
-fn block(parameters: &[u32], instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn block(parameters: &[u32], instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     b::Block {
         parameters: parameters.iter().copied().map(r).collect(),
         instructions,
@@ -145,7 +145,7 @@ fn double_moves_are_rejected_with_use_and_possible_consumption_spans() {
             instruction(&[1], b::Op::Move(r(0)), 2),
             instruction(&[2], b::Op::Move(r(0)), 3),
         ],
-        m::Term::Return(r(2)),
+        b::Term::Return(r(2)),
     )];
     let error = analyze(t).unwrap_err();
     assert_eq!(
@@ -189,7 +189,7 @@ fn local_initialization_whole_replacement_and_copy_use_follow_slot_state() {
             ),
             instruction(&[3], b::Op::MovePlace(dst), 5),
         ],
-        m::Term::Return(r(3)),
+        b::Term::Return(r(3)),
     )];
     let v = analyze(t).unwrap();
     assert!(v.functions()[0].exits()[0].owners().is_empty());
@@ -211,7 +211,7 @@ fn local_initialization_whole_replacement_and_copy_use_follow_slot_state() {
             instruction(&[1], b::Op::CopyPlace(p), 3),
             instruction(&[], b::Op::DropValue(r(0)), 4),
         ],
-        m::Term::Return(r(0)),
+        b::Term::Return(r(0)),
     )];
     analyze(t).unwrap();
 }
@@ -231,7 +231,7 @@ fn uninitialized_reads_borrows_and_repeated_initialization_fail() {
             instruction(&[0], b::Op::I64(7), 1),
             instruction(&[1], b::Op::CopyPlace(p), 2),
         ],
-        m::Term::Return(r(1)),
+        b::Term::Return(r(1)),
     )];
     assert!(matches!(
         analyze(t.clone()).unwrap_err().kind,
@@ -251,7 +251,7 @@ fn uninitialized_reads_borrows_and_repeated_initialization_fail() {
         },
         2,
     );
-    bad.functions[0].blocks[0].terminator.kind = m::Term::Return(r(0));
+    bad.functions[0].blocks[0].terminator.kind = b::Term::Return(r(0));
     assert!(analyze(bad).is_err());
     let mut bad = t;
     bad.functions[0].blocks[0].instructions = vec![
@@ -273,7 +273,7 @@ fn uninitialized_reads_borrows_and_repeated_initialization_fail() {
             3,
         ),
     ];
-    bad.functions[0].blocks[0].terminator.kind = m::Term::Return(r(0));
+    bad.functions[0].blocks[0].terminator.kind = b::Term::Return(r(0));
     assert_eq!(
         analyze(bad).unwrap_err().kind,
         a::ErrorKind::InitializeLive(a::Slot::Local(l))
@@ -294,7 +294,7 @@ fn branch_owner(read_after: bool) -> b::BodyTable {
         block(
             &[],
             vec![instruction(&[0], b::Op::Bool(true), 1)],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(0),
                 then_target: target(1, &[]),
                 else_target: target(2, &[]),
@@ -306,10 +306,10 @@ fn branch_owner(read_after: bool) -> b::BodyTable {
                 instruction(&[1], b::Op::MovePlace(p), 2),
                 instruction(&[], b::Op::DropValue(r(1)), 3),
             ],
-            m::Term::Jump(target(3, &[])),
+            b::Term::Jump(target(3, &[])),
         ),
-        block(&[], vec![], m::Term::Jump(target(3, &[]))),
-        block(&[], joined, m::Term::Return(r(3))),
+        block(&[], vec![], b::Term::Jump(target(3, &[]))),
+        block(&[], joined, b::Term::Return(r(3))),
     ];
     t
 }
@@ -348,14 +348,14 @@ fn branch_arguments_consume_only_the_chosen_edge_and_returned_owners_transfer() 
                 instruction(&[0], b::Op::Bool(true), 1),
                 instruction(&[1], b::Op::MovePlace(p), 2),
             ],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(0),
                 then_target: target(1, &[1]),
                 else_target: target(2, &[1]),
             },
         ),
-        block(&[2], vec![], m::Term::Return(r(2))),
-        block(&[3], vec![], m::Term::Return(r(3))),
+        block(&[2], vec![], b::Term::Return(r(2))),
+        block(&[3], vec![], b::Term::Return(r(3))),
     ];
     let v = analyze(t).unwrap();
     assert!(
@@ -381,12 +381,12 @@ fn noncopy_self_edge_swaps_read_all_arguments_before_rebinding_parameters() {
                 instruction(&[1], b::Op::MovePlace(py), 2),
                 instruction(&[4], b::Op::Bool(false), 3),
             ],
-            m::Term::Jump(target(1, &[0, 1])),
+            b::Term::Jump(target(1, &[0, 1])),
         ),
         block(
             &[2, 3],
             vec![],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(4),
                 then_target: target(1, &[3, 2]),
                 else_target: target(2, &[2, 3]),
@@ -395,11 +395,11 @@ fn noncopy_self_edge_swaps_read_all_arguments_before_rebinding_parameters() {
         block(
             &[5, 6],
             vec![instruction(&[], b::Op::DropValue(r(6)), 4)],
-            m::Term::Return(r(5)),
+            b::Term::Return(r(5)),
         ),
     ];
     analyze(t.clone()).unwrap();
-    if let m::Term::Branch { then_target, .. } = &mut t.functions[0].blocks[1].terminator.kind {
+    if let b::Term::Branch { then_target, .. } = &mut t.functions[0].blocks[1].terminator.kind {
         then_target.arguments = vec![r(2), r(2)];
     }
     assert!(analyze(t).is_err());
@@ -427,12 +427,12 @@ fn owner_loop(restore: bool) -> b::BodyTable {
                 instruction(&[2], b::Op::Bool(false), 3),
                 instruction(&[3], b::Op::I64(0), 4),
             ],
-            m::Term::Jump(target(1, &[])),
+            b::Term::Jump(target(1, &[])),
         ),
         block(
             &[],
             vec![],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(2),
                 then_target: target(2, &[]),
                 else_target: target(3, &[]),
@@ -455,12 +455,12 @@ fn owner_loop(restore: bool) -> b::BodyTable {
                     6,
                 ),
             ],
-            m::Term::Jump(target(1, &[])),
+            b::Term::Jump(target(1, &[])),
         ),
         block(
             &[],
             vec![instruction(&[], b::Op::DropLocal(y), 7)],
-            m::Term::Return(r(3)),
+            b::Term::Return(r(3)),
         ),
     ];
     t
@@ -486,12 +486,12 @@ fn loop_feedback_restores_local_and_owner_availability() {
                 instruction(&[0], b::Op::I64(0), 1),
                 instruction(&[1], b::Op::Bool(false), 2),
             ],
-            m::Term::Jump(target(1, &[])),
+            b::Term::Jump(target(1, &[])),
         ),
         block(
             &[],
             vec![],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(1),
                 then_target: target(2, &[]),
                 else_target: target(3, &[]),
@@ -507,9 +507,9 @@ fn loop_feedback_restores_local_and_owner_availability() {
                 },
                 3,
             )],
-            m::Term::Jump(target(1, &[])),
+            b::Term::Jump(target(1, &[])),
         ),
-        block(&[], vec![], m::Term::Return(r(0))),
+        block(&[], vec![], b::Term::Return(r(0))),
     ];
     assert!(matches!(
         analyze(t).unwrap_err().kind,
@@ -531,18 +531,18 @@ fn irreducible_cycles_are_analyzed_without_assuming_a_single_loop_entry() {
                 instruction(&[0], b::Op::Bool(false), 1),
                 instruction(&[1], b::Op::I64(0), 2),
             ],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(0),
                 then_target: target(1, &[]),
                 else_target: target(2, &[]),
             },
         ),
-        block(&[], vec![], m::Term::Jump(target(3, &[]))),
-        block(&[], vec![], m::Term::Jump(target(3, &[]))),
+        block(&[], vec![], b::Term::Jump(target(3, &[]))),
+        block(&[], vec![], b::Term::Jump(target(3, &[]))),
         block(
             &[],
             vec![],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(0),
                 then_target: target(1, &[]),
                 else_target: target(2, &[]),
@@ -643,7 +643,7 @@ fn generated_local_sequences_match_an_independent_single_owner_oracle() {
             }
         }
         t.functions[0].loans = loans as usize;
-        t.functions[0].blocks = vec![block(&[], ops, m::Term::Return(r(3)))];
+        t.functions[0].blocks = vec![block(&[], ops, b::Term::Return(r(3)))];
         assert_eq!(analyze(t).is_ok(), valid, "seed {seed}");
     }
 }
@@ -688,7 +688,7 @@ fn indirect_access_requires_the_reference_value_and_root_cell_to_be_available() 
             instruction(&[], b::Op::DropValue(r(1)), 4),
             instruction(&[2], b::Op::CopyPlace(referent), 5),
         ],
-        m::Term::Return(r(2)),
+        b::Term::Return(r(2)),
     )];
     assert!(matches!(
         analyze(t).unwrap_err().kind,
@@ -745,7 +745,7 @@ fn arena_activation_state_is_tracked_without_claiming_region_reference_safety() 
             instruction(&[], b::Op::ArenaExit { owner }, 3),
             instruction(&[2], b::Op::I64(0), 4),
         ],
-        m::Term::Return(r(2)),
+        b::Term::Return(r(2)),
     )];
     analyze(t.clone()).unwrap();
     t.functions[0].blocks[0].instructions[2].op = b::Op::ArenaEnter {

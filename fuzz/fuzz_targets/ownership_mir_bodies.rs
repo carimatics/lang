@@ -310,18 +310,19 @@ fuzz_target!(|bytes: &[u8]| {
             block: m::BlockId(u32::from(v) % count as u32),
             arguments: vec![],
         };
-        let kind = match byte(block + 350) % 3 {
-            0 => m::Term::Return(if byte(block + 351) == 0 {
+        let kind = match byte(block + 350) % 4 {
+            0 => b::Term::Return(if byte(block + 351) == 0 {
                 m::Register(7)
             } else {
                 r(byte(block + 351))
             }),
-            1 => m::Term::Jump(dest(byte(block + 352))),
-            _ => m::Term::Branch {
+            1 => b::Term::Jump(dest(byte(block + 352))),
+            2 => b::Term::Branch {
                 condition: r(byte(block + 353)),
                 then_target: dest(byte(block + 354)),
                 else_target: dest(byte(block + 355)),
             },
+            _ => b::Term::Unreachable,
         };
         function.blocks.push(b::Block {
             parameters: vec![],

@@ -802,13 +802,13 @@ impl Context<'_, '_> {
             self.operation(row, i, mode)?;
         }
         match body.terminator.kind {
-            m::Term::Return(value) => {
+            b::Term::Return(value) => {
                 self.read_value(row, value, true, body.terminator.span, mode)?
             }
-            m::Term::Branch { condition, .. } => {
+            b::Term::Branch { condition, .. } => {
                 self.read_value(row, condition, false, body.terminator.span, mode)?
             }
-            m::Term::Jump(_) => {}
+            b::Term::Jump(_) | b::Term::Unreachable => {}
         }
         Ok(())
     }

@@ -5,6 +5,9 @@
 use super::super as m;
 use super::{declarations as d, places as p, *};
 
+mod term;
+pub use term::Term;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LoanId(pub u32);
 /// Function-local identity of a destination capture site, not a source value.
@@ -166,7 +169,7 @@ pub struct Instruction {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Terminator {
-    pub kind: m::Term,
+    pub kind: Term,
     pub span: Span,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -966,7 +969,7 @@ fn case_guard(
     }
     for (source, b) in body.blocks.iter().enumerate() {
         budget.charge(1)?;
-        if let m::Term::Branch {
+        if let Term::Branch {
             condition,
             then_target,
             else_target,
@@ -1084,17 +1087,17 @@ fn function(
         }
         within(c.types, block.span, block.terminator.span, c.budget)?;
         match block.terminator.kind {
-            m::Term::Return(v) => c.expect(
+            Term::Return(v) => c.expect(
                 v,
                 Expected::Exact(declaration.result.ty),
                 block.terminator.span,
             )?,
-            m::Term::Branch { condition, .. } => c.expect(
+            Term::Branch { condition, .. } => c.expect(
                 condition,
                 Expected::Exact(Type::Bool),
                 block.terminator.span,
             )?,
-            m::Term::Jump(_) => {}
+            Term::Jump(_) | Term::Unreachable => {}
         }
         for target in block.terminator.kind.targets() {
             at(c.budget.charge(1), block.terminator.span)?;

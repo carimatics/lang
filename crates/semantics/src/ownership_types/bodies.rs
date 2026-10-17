@@ -6,6 +6,8 @@ use super::*;
 use lang_hir::program::{BodyTypes, FunctionFacts};
 use lang_mir::unit::ownership::{bodies as b, declarations as d, places as p};
 
+mod matching;
+
 fn push<T>(c: &mut Context<'_>, out: &mut Vec<T>, value: T) -> Result<()> {
     c.budget.charge(1)?;
     if out.len() == out.capacity() {
@@ -45,7 +47,7 @@ struct Counts {
     prepared: usize,
 }
 
-/// Lower complete functions atomically, rejecting still-unlowered match flow.
+/// Lower complete RFC 0007 source functions atomically, including match flow.
 /// All construction and independent verification share one cumulative budget.
 pub fn lower(
     checked: &RegionCheckedBodies,
@@ -82,6 +84,7 @@ pub fn lower(
             facts: &input.functions()[index],
             index,
             frame,
+            types: &mut table.declarations.types.constructed,
             paths,
             blocks: Vec::new(),
             actions: Vec::new(),
@@ -134,6 +137,7 @@ struct Lowerer<'a, 'b, 'c> {
     facts: &'b FunctionFacts,
     index: usize,
     frame: &'a mut p::FunctionPlaces,
+    types: &'a mut Vec<o::Constructed>,
     paths: Vec<Option<p::PlaceId>>,
     blocks: Vec<Block>,
     actions: Vec<Action>,
@@ -215,7 +219,7 @@ impl Lowerer<'_, '_, '_> {
             b::Instruction { results, op, span },
         )
     }
-    fn seal(&mut self, block: m::BlockId, kind: m::Term, span: Span) -> Result<()> {
+    fn seal(&mut self, block: m::BlockId, kind: b::Term, span: Span) -> Result<()> {
         self.c.budget.charge(1)?;
         let span = self.c.span(span)?;
         self.blocks[block.0 as usize].terminator = Some(b::Terminator { kind, span });
@@ -288,7 +292,16 @@ impl Lowerer<'_, '_, '_> {
         block: m::BlockId,
         returned: Option<m::Register>,
     ) -> Result<()> {
-        for i in (mark..self.actions.len()).rev() {
+        self.cleanup_range(mark, self.actions.len(), block, returned)
+    }
+    fn cleanup_range(
+        &mut self,
+        mark: usize,
+        end: usize,
+        block: m::BlockId,
+        returned: Option<m::Register>,
+    ) -> Result<()> {
+        for i in (mark..end).rev() {
             self.c.budget.charge(1)?;
             let (op, span) = match self.actions[i] {
                 Action::Local(local, span) => (b::Op::DropLocalIfInitialized(local), span),
@@ -341,10 +354,9 @@ impl Lowerer<'_, '_, '_> {
             let path = if actual == target {
                 Some(self.path(expression)?)
             } else if let r::Type::Constructed(actual) = actual
-                && let r::TypeConstructor::Loan(other_kind, other_target) =
+                && let r::TypeConstructor::Loan(_, other_target) =
                     self.input.types()[actual.0].constructor
                 && other_target == target
-                && (other_kind != kind || other_kind == r::LoanKind::Exclusive)
             {
                 let origin = self.value(ty(target)?, span)?;
                 let (root, mut projections) = if let Some(path) = self.paths[expression.0] {
@@ -507,58 +519,8 @@ impl Lowerer<'_, '_, '_> {
                 self.actions.truncate(mark);
                 return self.result(expression);
             }
-            r::ExpressionKind::CoreCall {
-                operation,
-                type_arguments,
-                arguments,
-                ..
-            } => {
-                let operation = super::core_operation(*operation);
-                if matches!(
-                    operation.signature().result_binding,
-                    o::core::ResultBinding::ProvisionalLoan { .. }
-                ) {
-                    return Err(Error::UnsupportedBody {
-                        feature: UnsupportedBody::ProvisionalResult,
-                        span,
-                    });
-                }
-                let mark = self.actions.len();
-                let arguments = self.arguments(
-                    arguments,
-                    Some(&self.facts.call(expression).unwrap().parameters),
-                    block,
-                    depth,
-                )?;
-                let mut types = self.c.budget.vector(type_arguments.len())?;
-                for argument in type_arguments {
-                    types.push(o::TypeUse {
-                        ty: ty(argument.value_type)?,
-                        span: self.c.span(argument.span)?,
-                    });
-                }
-                let result_loan = if operation == o::core::Operation::Allocator {
-                    Some(self.loan()?)
-                } else {
-                    None
-                };
-                self.emit(
-                    block,
-                    Some(out),
-                    b::Op::CoreCall(o::core::Call {
-                        operation,
-                        arguments,
-                        type_arguments: types,
-                        result_loan,
-                    }),
-                    span,
-                )?;
-                self.cleanup(mark, block, None)?;
-                self.actions.truncate(mark);
-                if let Some(loan) = result_loan {
-                    self.action(Action::Loan(loan, span))?;
-                }
-                return self.result(expression);
+            r::ExpressionKind::CoreCall { .. } => {
+                return self.core_call(expression, false, block, depth);
             }
             r::ExpressionKind::Record { definition, fields } => {
                 let mut values = self.c.budget.vector(fields.len())?;
@@ -678,7 +640,7 @@ impl Lowerer<'_, '_, '_> {
                 r::StatementKind::Return(value) => {
                     let value = self.expression(*value, block, depth + 1)?;
                     self.cleanup(0, block, Some(value))?;
-                    self.seal(block, m::Term::Return(value), span)?;
+                    self.seal(block, b::Term::Return(value), span)?;
                     current = None;
                 }
                 r::StatementKind::If {
@@ -691,7 +653,7 @@ impl Lowerer<'_, '_, '_> {
                     let no = self.block(span)?;
                     self.seal(
                         block,
-                        m::Term::Branch {
+                        b::Term::Branch {
                             condition,
                             then_target: target(yes),
                             else_target: target(no),
@@ -707,7 +669,7 @@ impl Lowerer<'_, '_, '_> {
                     current = if left.is_some() || right.is_some() {
                         let join = self.block(span)?;
                         for predecessor in [left, right].into_iter().flatten() {
-                            self.seal(predecessor, m::Term::Jump(target(join)), span)?;
+                            self.seal(predecessor, b::Term::Jump(target(join)), span)?;
                         }
                         Some(join)
                     } else {
@@ -718,11 +680,11 @@ impl Lowerer<'_, '_, '_> {
                     let header = self.block(span)?;
                     let work = self.block(span)?;
                     let after = self.block(span)?;
-                    self.seal(block, m::Term::Jump(target(header)), span)?;
+                    self.seal(block, b::Term::Jump(target(header)), span)?;
                     let condition = self.expression(*condition, header, depth + 1)?;
                     self.seal(
                         header,
-                        m::Term::Branch {
+                        b::Term::Branch {
                             condition,
                             then_target: target(work),
                             else_target: target(after),
@@ -730,7 +692,7 @@ impl Lowerer<'_, '_, '_> {
                         span,
                     )?;
                     if let Some(exit) = self.body(*body, work, depth + 1)? {
-                        self.seal(exit, m::Term::Jump(target(header)), span)?;
+                        self.seal(exit, b::Term::Jump(target(header)), span)?;
                     }
                     current = Some(after);
                 }
@@ -750,11 +712,8 @@ impl Lowerer<'_, '_, '_> {
                     }
                     self.actions.truncate(arena_mark);
                 }
-                r::StatementKind::Match { .. } => {
-                    return Err(Error::UnsupportedBody {
-                        feature: UnsupportedBody::Match,
-                        span,
-                    });
+                r::StatementKind::Match { scrutinee, arms } => {
+                    current = self.match_statement(*scrutinee, arms, block, span, depth + 1)?;
                 }
             }
         }

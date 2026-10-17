@@ -13,6 +13,9 @@ use lang_semantics::{
 };
 use std::path::Path;
 
+#[path = "support/ownership_pattern_oracle.rs"]
+mod pattern_oracle;
+
 fn prepare(text: &str) -> (SourceMap, RegionCheckedBodies) {
     let mut sources = SourceMap::new();
     lang_syntax::add_source(&mut sources, "unused.lang", b"unused", Default::default()).unwrap();
@@ -99,7 +102,7 @@ fn automatic_owned_return_keeps_the_return_value_and_discards_consumed_owners() 
     let typed = out.activity().moved().typed().clone();
     let mut table = typed.into_table();
     let block = &mut table.functions[0].blocks[0];
-    let m::Term::Return(value) = block.terminator.kind else {
+    let o::bodies::Term::Return(value) = block.terminator.kind else {
         panic!()
     };
     block.instructions.push(o::bodies::Instruction {
@@ -227,20 +230,145 @@ fn conditional_drop_cannot_bypass_an_active_loan_or_reuse_a_discarded_value() {
 }
 
 #[test]
-fn automatic_lowering_rejects_unlowered_match_atomically_with_the_original_span() {
-    let text = include_str!("fixtures/arena-body.lang");
-    let (sources, checked) = prepare(text);
-    let original = checked.clone();
-    let error = ownership_types::bodies::lower(&checked, &sources, Default::default()).unwrap_err();
-    let Error::UnsupportedBody {
-        feature: ownership_types::UnsupportedBody::Match,
-        span,
-    } = error
-    else {
-        panic!("{error:?}")
+fn automatic_complete_arena_fixture_lowers_nested_core_matches_and_read_lifetimes() {
+    automatic_mir(include_str!("fixtures/arena-body.lang"));
+}
+
+#[test]
+fn automatic_core_read_matches_keep_bound_loans_and_release_unused_results_before_mutation() {
+    automatic_mir(
+        "fn read(p: &i64) -> i64 { return (*p); } fn twice(p: &i64) -> i64 { let mut first: i64 = read(p); return read(p); }",
+    );
+    automatic_mir(
+        "fn get(v: &core::Vec<i64>, i: i64) -> i64 { match core::vec_get::<i64>(v, i) { core::Result::Ok(value) => { return (*value); }, core::Result::Err(_) => { return 0; }, } }",
+    );
+    automatic_mir(
+        "fn set(v: &mut core::Vec<i64>, i: i64) -> i64 { match core::vec_get_mut::<i64>(v, i) { core::Result::Ok(value) => { (*value) = 7; return (*value); }, core::Result::Err(_) => { return 0; }, } }",
+    );
+    automatic_mir(
+        "fn unused(v: &mut core::Vec<i64>) -> i64 { match core::vec_get_mut::<i64>(v, 0) { core::Result::Ok(_) => { let mut pushed_ok: core::Result<core::Unit, core::AllocError> = core::vec_push::<i64>(v, 7); }, core::Result::Err(_) => { let mut pushed_err: core::Result<core::Unit, core::AllocError> = core::vec_push::<i64>(v, 9); }, } return 0; }",
+    );
+}
+
+#[test]
+fn automatic_nested_patterns_test_before_binding_and_leave_noncopy_scrutinees_available() {
+    automatic_mir("fn scalar(p: &i64) -> i64 { match p { copied => { return copied; }, } }");
+    automatic_mir(
+        "struct Record { n: i64, text: core::Text } fn borrowed(p: &mut Record) -> i64 { match p { view => { return view.n; }, } }",
+    );
+    automatic_mir(
+        "fn nested(p: &mut &mut i64) -> i64 { match p { view => { (*view) = 9; return (*view); }, } }",
+    );
+    automatic_mir(
+        "struct Pair { n: i64, text: core::Text } enum Item { None, Pair(Pair) } fn f(x: Item) -> Item { match x { Item::Pair(Pair { n: 0, text: t }) => { let mut len: i64 = core::text_len(t); }, Item::Pair(Pair { n: n, text: _ }) => { let mut v: i64 = n; }, Item::None => { }, } return x; }",
+    );
+    automatic_mir(
+        "struct Pair { n: i64, flag: bool } fn f(v: &mut core::Vec<Pair>) -> i64 { match core::vec_get_mut::<Pair>(v, 0) { core::Result::Ok(Pair { n: 0, flag: true }) => { return 1; }, core::Result::Ok(p) => { (*p).n = 7; return (*p).n; }, core::Result::Err(_) => { return 0; }, } }",
+    );
+    automatic_mir(
+        "fn b(x: bool) -> i64 { match x { true => { return 1; }, false => { return 2; }, } }",
+    );
+    automatic_mir(
+        "fn n(x: i64) -> i64 { match x { 0 => { return 1; }, -1 => { return 2; }, n => { return n; }, } }",
+    );
+}
+
+#[test]
+fn automatic_noncopy_core_payload_patterns_and_map_key_lifetimes_validate() {
+    automatic_mir(
+        "struct Pair { n: i64, text: core::Text } fn f(v: &mut core::Vec<Pair>) -> i64 { match core::vec_get_mut::<Pair>(v, 0) { core::Result::Ok(Pair { n: 0, text: t }) => { return core::text_len(t); }, core::Result::Ok(p) => { (*p).n = 7; return (*p).n; }, core::Result::Err(_) => { return 0; }, } }",
+    );
+    automatic_mir(
+        "fn get(m: &core::Map<core::Text, i64>, first: core::Text, second: core::Text) -> i64 { let mut key: core::Text = first; match core::map_get::<core::Text, i64>(m, key) { core::Option::Some(value) => { key = second; return (*value); }, core::Option::None => { key = second; return 0; }, } }",
+    );
+    automatic_mir(
+        "fn inspect(s: shared i64) -> i64 { match core::shared_read::<i64>(s) { core::Result::Ok(value) => { return (*value); }, core::Result::Err(_) => { return 0; }, } }",
+    );
+}
+
+#[test]
+fn automatic_match_loops_and_unused_borrowed_payloads_restore_iteration_state() {
+    automatic_mir(
+        "struct Pair { n: i64, flag: bool } fn keep(v: &mut core::Vec<Pair>) -> i64 { match core::vec_get_mut::<Pair>(v, 0) { core::Result::Ok(Pair { n: copied, flag: _ }) => { let mut pushed: core::Result<core::Unit, core::AllocError> = core::vec_push::<Pair>(v, Pair { n: copied, flag: true }); return copied; }, core::Result::Err(_) => { return 0; }, } }",
+    );
+    automatic_mir(
+        "fn sum(v: &core::Vec<i64>) -> i64 { let mut n: i64 = 0; let mut total: i64 = 0; while n < 3 { match core::vec_get::<i64>(v, n) { core::Result::Ok(value) => { total = total + (*value); }, core::Result::Err(_) => { }, } n = n + 1; } return total; }",
+    );
+    automatic_mir(
+        "fn count(s: shared i64) -> i64 { let mut owned: shared i64 = s; match core::shared_read::<i64>(owned) { core::Result::Ok(_) => { let mut replaced_ok: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<i64>(owned, 7); }, core::Result::Err(_) => { let mut replaced_err: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<i64>(owned, 9); }, } return 0; }",
+    );
+    automatic_mir("fn f(x: core::Unit) -> i64 { match x { core::Unit {} => { return 0; }, } }");
+}
+
+#[test]
+fn whole_provisional_results_are_rejected_at_source_bindings() {
+    let mut sources = SourceMap::new();
+    let text = "fn f(v: &core::Vec<i64>) -> i64 { match core::vec_get::<i64>(v, 0) { whole => { return 0; }, } }";
+    let loaded = load_virtual(
+        &mut sources,
+        Path::new("whole.lang"),
+        text.as_bytes(),
+        None,
+        Default::default(),
+    )
+    .unwrap();
+    assert!(loaded.diagnostics.is_empty());
+    let bound = bind_program(&loaded.graph.unwrap(), &sources, Default::default()).unwrap();
+    assert!(bound.diagnostics.is_empty());
+    let typed = analyze_bodies(bound.program.unwrap(), &sources, Default::default()).unwrap();
+    assert!(typed.bodies.is_none());
+    assert_eq!(typed.diagnostics.len(), 1);
+    assert_eq!(
+        sources.slice(typed.diagnostics[0].primary.span).unwrap(),
+        "whole"
+    );
+    typed.diagnostics[0].validate(&sources).unwrap();
+}
+
+#[test]
+fn match_construction_view_types_and_verification_share_exact_resource_limits() {
+    let (sources, checked) = prepare(
+        "struct Pair { n: i64, text: core::Text } fn f(v: &mut core::Vec<Pair>) -> i64 { match core::vec_get_mut::<Pair>(v, 0) { core::Result::Ok(Pair { n: 0, text: t }) => { return core::text_len(t); }, core::Result::Ok(p) => { return (*p).n; }, core::Result::Err(_) => { return 0; }, } }",
+    );
+    let out = ownership_types::bodies::lower(&checked, &sources, Default::default()).unwrap();
+    for (kind, used) in [
+        (m::LimitKind::Work, out.work_used()),
+        (m::LimitKind::Allocations, out.requested_bytes()),
+        (m::LimitKind::Elements, out.elements_used()),
+    ] {
+        let mut limits = o::bodies::Limits::default();
+        match kind {
+            m::LimitKind::Work => limits.places.ownership.unit.work = used,
+            m::LimitKind::Allocations => limits.places.ownership.unit.allocations = used,
+            _ => limits.places.ownership.unit.elements = used,
+        }
+        assert_eq!(
+            out,
+            ownership_types::bodies::lower(&checked, &sources, limits).unwrap()
+        );
+        match kind {
+            m::LimitKind::Work => limits.places.ownership.unit.work -= 1,
+            m::LimitKind::Allocations => limits.places.ownership.unit.allocations -= 1,
+            _ => limits.places.ownership.unit.elements -= 1,
+        }
+        assert!(
+            matches!(ownership_types::bodies::lower(&checked, &sources, limits).unwrap_err(), Error::Mir(m::Error { kind: m::ErrorKind::Limit { kind: k, .. }, .. }) | Error::Types(o::Error { kind: o::ErrorKind::Mir(m::ErrorKind::Limit { kind: k, .. }), .. }) if k == kind)
+        );
+    }
+    let table = out.into_table();
+    let loans: usize = table.functions.iter().map(|f| f.loans).sum();
+    assert!(loans > 0);
+    let limits = o::bodies::Limits {
+        loans: loans - 1,
+        ..Default::default()
     };
-    assert!(sources.slice(span).unwrap().starts_with("match created"));
-    assert_eq!(checked, original);
+    assert!(matches!(
+        ownership_types::bodies::lower(&checked, &sources, limits).unwrap_err(),
+        Error::Types(o::Error {
+            kind: o::ErrorKind::LoanLimit { .. },
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -373,7 +501,7 @@ fn checked_source_core_allocator_retains_its_span_and_preflight_fact_in_mir_asse
                     },
                 ],
                 terminator: b::Terminator {
-                    kind: m::Term::Return(returned),
+                    kind: o::bodies::Term::Return(returned),
                     span,
                 },
                 span,
@@ -756,7 +884,7 @@ fn checked_source_owned_return_can_supply_typed_mir_instructions_and_cfg() {
                     span,
                 }],
                 terminator: b::Terminator {
-                    kind: m::Term::Return(value),
+                    kind: o::bodies::Term::Return(value),
                     span: function_span,
                 },
                 span: function_span,
@@ -840,7 +968,7 @@ fn checked_source_assignment_supplies_destination_before_rhs_in_a_mir_assembly_f
                 parameters: vec![],
                 instructions,
                 terminator: b::Terminator {
-                    kind: m::Term::Return(returned),
+                    kind: o::bodies::Term::Return(returned),
                     span,
                 },
                 span,
@@ -930,7 +1058,7 @@ fn checked_source_lexical_loan_can_supply_explicit_begin_and_end_in_a_mir_assemb
                 parameters: vec![],
                 instructions,
                 terminator: b::Terminator {
-                    kind: m::Term::Return(returned),
+                    kind: o::bodies::Term::Return(returned),
                     span,
                 },
                 span,

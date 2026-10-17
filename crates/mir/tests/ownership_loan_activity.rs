@@ -46,14 +46,14 @@ fn begin() -> b::Instruction {
 fn end(mode: b::EndMode, n: u32) -> b::Instruction {
     instruction(&[], b::Op::EndBorrow { loan: loan(), mode }, n)
 }
-fn jump(n: u32) -> m::Term {
-    m::Term::Jump(m::Target {
+fn jump(n: u32) -> b::Term {
+    b::Term::Jump(m::Target {
         block: m::BlockId(n),
         arguments: vec![],
     })
 }
-fn branch(x: u32, y: u32) -> m::Term {
-    m::Term::Branch {
+fn branch(x: u32, y: u32) -> b::Term {
+    b::Term::Branch {
         condition: r(3),
         then_target: m::Target {
             block: m::BlockId(x),
@@ -65,7 +65,7 @@ fn branch(x: u32, y: u32) -> m::Term {
         },
     }
 }
-fn block(instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn block(instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     b::Block {
         parameters: vec![],
         instructions,
@@ -76,7 +76,7 @@ fn block(instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
         span: span(),
     }
 }
-fn entry(mut instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn entry(mut instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     let mut prefix = vec![
         instruction(&[0], b::Op::I64(7), 1),
         instruction(&[3], b::Op::Bool(true), 2),
@@ -145,7 +145,7 @@ fn table(instructions: Vec<b::Instruction>) -> b::BodyTable {
         functions: vec![b::FunctionBody {
             loans: 2,
             prepared: 0,
-            blocks: vec![entry(instructions, m::Term::Return(r(0)))],
+            blocks: vec![entry(instructions, b::Term::Return(r(0)))],
         }],
     }
 }
@@ -222,7 +222,7 @@ fn joins_retain_maybe_active_state_and_require_conditional_cleanup() {
         entry(vec![begin()], branch(1, 2)),
         block(vec![end(b::EndMode::Required, 5)], jump(3)),
         block(vec![], jump(3)),
-        block(vec![end(b::EndMode::IfActive, 6)], m::Term::Return(r(0))),
+        block(vec![end(b::EndMode::IfActive, 6)], b::Term::Return(r(0))),
     ];
     let out = analyze(t.clone()).unwrap();
     assert_eq!(
@@ -256,7 +256,7 @@ fn a_loan_created_only_on_one_arm_can_be_conditionally_ended_after_the_join() {
         entry(vec![], branch(1, 2)),
         block(vec![begin()], jump(3)),
         block(vec![], jump(3)),
-        block(vec![end(b::EndMode::IfActive, 6)], m::Term::Return(r(0))),
+        block(vec![end(b::EndMode::IfActive, 6)], b::Term::Return(r(0))),
     ];
     let out = analyze(t).unwrap();
     assert_eq!(
@@ -271,7 +271,7 @@ fn loops_restore_activation_state_and_allow_an_outer_loan_to_remain_active() {
     t.functions[0].blocks = vec![
         entry(vec![], jump(1)),
         block(vec![begin(), end(b::EndMode::Required, 5)], branch(1, 2)),
-        block(vec![], m::Term::Return(r(0))),
+        block(vec![], b::Term::Return(r(0))),
     ];
     analyze(t.clone()).unwrap();
     t.functions[0].blocks[1].instructions.pop();
@@ -289,7 +289,7 @@ fn loops_restore_activation_state_and_allow_an_outer_loan_to_remain_active() {
     t.functions[0].blocks = vec![
         entry(vec![begin()], jump(1)),
         block(vec![], branch(1, 2)),
-        block(vec![end(b::EndMode::Required, 6)], m::Term::Return(r(0))),
+        block(vec![end(b::EndMode::Required, 6)], b::Term::Return(r(0))),
     ];
     let out = analyze(t).unwrap();
     assert_eq!(
@@ -305,7 +305,7 @@ fn irreducible_cycles_restore_loan_state_without_requiring_a_natural_loop_header
         entry(vec![], branch(1, 2)),
         block(vec![begin(), end(b::EndMode::Required, 5)], jump(2)),
         block(vec![], branch(1, 3)),
-        block(vec![], m::Term::Return(r(0))),
+        block(vec![], b::Term::Return(r(0))),
     ];
     analyze(t.clone()).unwrap();
     t.functions[0].blocks[1].instructions.pop();
@@ -350,7 +350,7 @@ fn guarded_case_payload_borrows_use_the_same_activation_state_machine() {
                     4,
                 ),
             ],
-            m::Term::Branch {
+            b::Term::Branch {
                 condition: r(4),
                 then_target: m::Target {
                     block: m::BlockId(1),
@@ -377,9 +377,9 @@ fn guarded_case_payload_borrows_use_the_same_activation_state_machine() {
                 ),
                 end(b::EndMode::Required, 6),
             ],
-            m::Term::Return(r(0)),
+            b::Term::Return(r(0)),
         ),
-        block(vec![], m::Term::Return(r(0))),
+        block(vec![], b::Term::Return(r(0))),
     ];
     analyze(t.clone()).unwrap();
     t.functions[0].blocks[1].instructions.pop();
@@ -428,7 +428,7 @@ fn all_eighty_one_diamonds_match_an_independent_concrete_path_end_oracle() {
             entry(vec![begin()], branch(1, 2)),
             block(ops(&actions[..2]), jump(3)),
             block(ops(&actions[2..]), jump(3)),
-            block(vec![], m::Term::Return(r(0))),
+            block(vec![], b::Term::Return(r(0))),
         ];
         assert_eq!(analyze(t).is_ok(), expected, "graph {code}: {actions:?}");
     }
@@ -532,7 +532,7 @@ fn activity_facts_do_not_promote_an_ended_reference_or_implicit_parameter_loan_t
             end(b::EndMode::Required, 5),
             instruction(&[5], b::Op::CopyPlace(p::PlaceId(1)), 6),
         ],
-        m::Term::Return(r(5)),
+        b::Term::Return(r(5)),
     )];
     // Activation/end state alone grants no reference-liveness proof; the
     // subsequent provenance checker must reject the ended reference.

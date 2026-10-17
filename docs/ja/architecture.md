@@ -313,7 +313,7 @@ Reference cellの借用と、その内容へのaccessは別操作として扱い
 
 追加17 testに、独立owner-interval oracleと比較する96 program、nested／caller cell、parent freezingと早期end、条件付きreference、payload view、古いloop alias、prepare済みdestination、均衡／irreducible loop、正確な累積上限／depth、replay、70 loanのreference／target bit境界を含みます。追加のregressionはparent storageのdrop後にprepare済み直接fieldをreplaceする操作を拒否します。既存3件の検査済みsource組み立てfixtureもprovenance検査を通り、以前activityだけを通っていたuse-after-end fixtureはこのstageで拒否します。拡張したlock済みbody fuzz targetはClippyとinstrumentationなし10,000-run smokeを通り、coverage-guidedの主張は行いません。
 
-`LoanCheckedBodies` は実行できません。後述のcore operation拡張でtyped callとprovisional／arena result contractを追加します。Arena brand／escapeとguest mutation effect、自動の完全なsource-body lowering、受理済みcleanup／allocator契約の実装、owned layout、VM／native runtime統合、ownership serializationはMilestone 2の独立要件として残ります。これらの独立した解析factだけでHIR／MIR、arena、core outcomeは完了しません。
+`LoanCheckedBodies` は実行できません。後述のcore operationと自動source adapterでtyped core callとRFC 0007の完全なbody loweringを提供します。独立MIRのarena brand／escapeとguest mutation effect、受理済みcleanup／allocator契約の実装、owned layout、VM／native runtime統合、ownership serializationはMilestone 2の独立要件として残ります。これらの独立した解析factだけでarena／coreや実行用ownership成果は完了しません。
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[provenance／access checker](../../crates/mir/src/unit/ownership/loans/mod.rs)、[test](../../crates/mir/tests/ownership_loans.rs)、[prepare済みfield regression](../../crates/mir/tests/ownership_prepared.rs)、[source組み立てfixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Cell topology、bit matrix、無効化表現は受理済みprofile内の実装上の選択です。
 
@@ -333,9 +333,21 @@ Move解析はoperationがfailureを返す場合もowning inputを消費します
 
 現在の経路はowned localとreturn、nominal／core constructor、記述順のrecord／call引数、明示／暗黙place borrow、exclusive-to-shared／exclusive-to-exclusive reborrow、guest／scalar host／core call、RHS前のdestination準備を行うassignment、if／while CFG、arena開始／終了をlowerします。Call一時loanはcall後に、字句的loanは正常scope／return edgeで終了します。条件付きlocal／SSA discardは、移動済み値を許容しながらauthority／active loanの検証を維持し、loop localのstorageを復元し、返却するSSA ownerを保持します。これらは正常flowのstorage／ownership factです。実初期化順に従う破棄、return cleanupの失敗、全exceptional edgeは、実行前にRFC 0008のcleanup elaborationを必要とします。
 
-追加9件のsource testでowned returnの消費、recordの評価／並べ替え、入れ子／暗黙引数borrow、一時loan後の変更、branch／loopの移動済みかもしれないlocal、allocator要件、scalar host import、nominal／core sum、arena owner call／return時の終了、条件付きdiscardのactive loan拒否、未対応matchのspan／入力保持、正確な累積上限を確認します。Ownership-body fuzzerも条件付きdiscardを生成します。到達可能なmatchとprovisional借用core結果は、pattern／arm lifetimeのlowering実装まで明示的に拒否します。独立MIRのarena brand／guest effect検証、owned layout、allocation authority、failure cleanup、serialization、VM／native実行は未完了であり、このAPIだけでHIR／MIRやarena／core成果を完了扱いにはしません。
+初期9件のsource testでowned returnの消費、recordの評価／並べ替え、入れ子／暗黙引数borrow、一時loan後の変更、branch／loopの移動済みかもしれないlocal、allocator要件、scalar host import、nominal／core sum、arena owner call／return時の終了、条件付きdiscardのactive loan拒否、source span／入力保持、正確な累積上限を確認します。Ownership-body fuzzerも条件付きdiscardを生成します。後述のmatch／arm拡張でRFC 0007のfrontend body経路を完成させます。独立MIRのarena brand／guest effect検証、owned layout、allocation authority、failure cleanup、serialization、VM／native実行は未完了であり、arena／core実行は独立した完了gateを維持します。
 
 出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[自動lowerer](../../crates/semantics/src/ownership_types/bodies.rs)、[source統合test](../../crates/semantics/tests/ownership_types.rs)、[ownership命令](../../crates/mir/src/unit/ownership/bodies.rs)。更新／検証日：2026-10-17 JST。この変更では実行用／serialize用ownership profileを追加しません。
+
+### Ownership match arms and provisional loans
+
+2026-10-18 JST実装：自動loweringでRFC 0007の全pattern形式、入れ子match、借用scrutineeを扱います。Pattern全体を検査してからbindingを公開し、non-Copy scrutineeを保持し、不一致時は次のarmを試す前に一時pattern viewを終了します。Copy leafは借用view経由で読み、affineなshared／exclusive loan bindingには参照またはguard付きprovisional payload全体を渡します。Loan引数は両kindともcallerから暗黙copy／moveせずreborrowします。Provisional result全体のbindingは `SRC0020` で拒否するため、名前付きcaseをmatchしてpayloadをbindしてください。
+
+Loanをbindする成功armはcore leaseと引数の祖先loanをbody終了まで保持します。失敗／未使用armはCopy bindingを保持しつつ、view、生result、provisional lease、一時parent loanをbody前に解放します。Map keyはcall後に独立して終了します。継続するarmは合流前にbinding scopeをcleanupし、loop feedbackは同じstorage／loan状態へ戻します。借用／入れ子参照scrutineeのpermissionは全dereferenceを通して保持します。
+
+Ownership MIRはserialized Copy profileから独立した `bodies::Term` を持ち、`Unreachable` を追加します。網羅的matchのfallthroughは架空の結果を作らず、この終端経路を使います。Move解析は両exit kindのcleanup義務を記録し、loan activityはどちらのexitでも全loan終了を要求します。今後の実行adapterは `Unreachable` 到達時にinvariant faultを封じ込める必要があります。従来のCopy termは明示的に変換でき、この変更でownership wire encoding、実行用layout、schema変更は導入しません。
+
+追加9件のsource testと完全なarena fixtureの拡張で、non-Copy record、可変core payload、未使用／Copy payloadの解放、map key、shared read、loop、借用／入れ子参照binding、生result拒否、正確な上限、fault exit義務を確認します。Test専用Copy evaluatorで、入れ子nominal／core patternとloop内scalar matchについて独立に定めた43件の返却値／fault結果を照合し、ownership runtime実行は実装しません。これらで受理済みsource profileのHIR／MIR owned／move／lexical borrow解析経路を完成させます。Driverの実行profileは引き続きCopyのみで、cleanup順序／失敗、owned layout／allocation、独立MIRのarena brand／effect、serialization、VM／native統合はそれぞれの要件として残ります。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17 JST。[Match lowerer](../../crates/semantics/src/ownership_types/bodies/matching.rs)、[ownership制御フロー](../../crates/mir/src/unit/ownership/bodies/term.rs)、[source test](../../crates/semantics/tests/ownership_types.rs)、[独立oracle](../../crates/semantics/tests/support/ownership_pattern_oracle.rs)の更新／検証日：2026-10-18 JST。
 
 ### Source formatter
 

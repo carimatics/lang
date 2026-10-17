@@ -202,7 +202,7 @@ fn block(
             *slot = Activity::Inactive;
         }
     }
-    if mode == Mode::Check && matches!(body.terminator.kind, m::Term::Return(_)) {
+    if mode == Mode::Check && body.terminator.kind.is_exit() {
         for (index, activity) in state.iter().copied().enumerate() {
             budget.charge(1)?;
             if activity != Activity::Inactive {

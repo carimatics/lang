@@ -529,7 +529,7 @@ impl Context<'_, '_> {
             self.operation(state, i, mode)?;
         }
         match body.terminator.kind {
-            m::Term::Return(v) => {
+            b::Term::Return(v) => {
                 self.take(state, v, body.terminator.span, mode)?;
                 if mode == Mode::Check {
                     for (index, availability) in
@@ -548,10 +548,10 @@ impl Context<'_, '_> {
                     }
                 }
             }
-            m::Term::Branch { condition, .. } => {
+            b::Term::Branch { condition, .. } => {
                 self.read(state, condition, body.terminator.span, mode)?
             }
-            m::Term::Jump(_) => {}
+            b::Term::Jump(_) | b::Term::Unreachable => {}
         }
         Ok(())
     }
@@ -797,7 +797,7 @@ fn function(
     let exits_count = body
         .blocks
         .iter()
-        .filter(|b| matches!(b.terminator.kind, m::Term::Return(_)))
+        .filter(|b| b.terminator.kind.is_exit())
         .count();
     c.budget.charge(blocks)?;
     let mut exits = c.budget.vector(exits_count)?;
@@ -808,7 +808,7 @@ fn function(
             &entries[block * slots..(block + 1) * slots],
         )?;
         c.block(&mut state, block, Mode::Check)?;
-        if matches!(b.terminator.kind, m::Term::Return(_)) {
+        if b.terminator.kind.is_exit() {
             let count = state
                 .iter()
                 .zip(&properties)

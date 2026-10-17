@@ -30,7 +30,7 @@ fn i(results: &[m::Register], op: b::Op, n: u32) -> b::Instruction {
         span: at(n),
     }
 }
-fn block(instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn block(instructions: Vec<b::Instruction>, term: b::Term) -> b::Block {
     b::Block {
         parameters: vec![],
         instructions,
@@ -41,7 +41,7 @@ fn block(instructions: Vec<b::Instruction>, term: m::Term) -> b::Block {
         span: span(),
     }
 }
-fn entry(mut ops: Vec<b::Instruction>, term: m::Term) -> b::Block {
+fn entry(mut ops: Vec<b::Instruction>, term: b::Term) -> b::Block {
     let mut prefix = vec![
         i(&[r(0)], b::Op::I64(7), 1),
         i(&[r(1)], b::Op::I64(11), 2),
@@ -66,14 +66,14 @@ fn entry(mut ops: Vec<b::Instruction>, term: m::Term) -> b::Block {
     prefix.append(&mut ops);
     block(prefix, term)
 }
-fn jump(to: u32, arguments: &[m::Register]) -> m::Term {
-    m::Term::Jump(m::Target {
+fn jump(to: u32, arguments: &[m::Register]) -> b::Term {
+    b::Term::Jump(m::Target {
         block: m::BlockId(to),
         arguments: arguments.to_vec(),
     })
 }
-fn branch(x: u32, y: u32) -> m::Term {
-    m::Term::Branch {
+fn branch(x: u32, y: u32) -> b::Term {
+    b::Term::Branch {
         condition: r(2),
         then_target: m::Target {
             block: m::BlockId(x),
@@ -227,7 +227,7 @@ fn end(id: b::LoanId, n: u32) -> b::Instruction {
     )
 }
 fn finish(t: &mut b::BodyTable, ops: Vec<b::Instruction>) {
-    t.functions[0].blocks = vec![entry(ops, m::Term::Return(r(0)))];
+    t.functions[0].blocks = vec![entry(ops, b::Term::Return(r(0)))];
 }
 fn activity(t: b::BodyTable) -> a::ActivityBodies {
     a::analyze(
@@ -641,7 +641,7 @@ fn branch_reference_arguments_preserve_path_correlated_activity_and_simultaneous
             end(a, 16),
             end(b, 17),
         ],
-        m::Term::Return(read),
+        b::Term::Return(read),
     );
     join.parameters.push(joined);
     t.functions[0].blocks = vec![
@@ -681,7 +681,7 @@ fn conditional_ends_invalidate_reference_values_even_when_the_identity_may_still
         block(vec![], jump(3, &[])),
         block(
             vec![i(&[result], b::Op::CopyPlace(path), 12), end(id, 13)],
-            m::Term::Return(result),
+            b::Term::Return(result),
         ),
     ];
     assert!(matches!(
@@ -738,7 +738,7 @@ fn stale_reference_cells_cannot_revive_when_a_loop_reuses_a_creation_identity() 
             ],
             branch(1, 2),
         ),
-        block(vec![end(outer, 16)], m::Term::Return(r(0))),
+        block(vec![end(outer, 16)], b::Term::Return(r(0))),
     ];
     assert!(matches!(
         analyze(t).unwrap_err().kind,
@@ -996,13 +996,13 @@ fn balanced_and_irreducible_loops_do_not_reject_new_reference_temporaries() {
                 entry(vec![], branch(1, 2)),
                 block(ops, jump(2, &[])),
                 block(vec![], branch(1, 3)),
-                block(vec![], m::Term::Return(r(0))),
+                block(vec![], b::Term::Return(r(0))),
             ]
         } else {
             vec![
                 entry(vec![], jump(1, &[])),
                 block(ops, branch(1, 2)),
-                block(vec![], m::Term::Return(r(0))),
+                block(vec![], b::Term::Return(r(0))),
             ]
         };
         analyze(t).unwrap();
@@ -1026,7 +1026,7 @@ fn an_outer_reference_can_flow_through_a_simultaneous_self_edge_and_exit_paramet
     let read = value(&mut t, o::Type::I64);
     let mut loop_block = block(
         vec![],
-        m::Term::Branch {
+        b::Term::Branch {
             condition: r(2),
             then_target: m::Target {
                 block: m::BlockId(1),
@@ -1041,7 +1041,7 @@ fn an_outer_reference_can_flow_through_a_simultaneous_self_edge_and_exit_paramet
     loop_block.parameters.push(header);
     let mut exit_block = block(
         vec![i(&[read], b::Op::CopyPlace(path), 11), end(id, 12)],
-        m::Term::Return(read),
+        b::Term::Return(read),
     );
     exit_block.parameters.push(exit);
     t.functions[0].blocks = vec![
@@ -1123,7 +1123,7 @@ fn loan_sum_payload_views_retain_parent_dependencies_and_cannot_end_the_parent_f
                         12,
                     ),
                 ],
-                m::Term::Branch {
+                b::Term::Branch {
                     condition: guard,
                     then_target: m::Target {
                         block: m::BlockId(1),
@@ -1135,8 +1135,8 @@ fn loan_sum_payload_views_retain_parent_dependencies_and_cannot_end_the_parent_f
                     },
                 },
             ),
-            block(success, m::Term::Return(read)),
-            block(vec![end(parent, 18)], m::Term::Return(r(0))),
+            block(success, b::Term::Return(read)),
+            block(vec![end(parent, 18)], b::Term::Return(r(0))),
         ];
         let out = analyze(t);
         assert_eq!(out.is_ok(), !early);
@@ -1247,7 +1247,7 @@ fn borrowing_a_reference_cell_and_passing_nested_access_authority_have_distinct_
                 prepared: 0,
                 blocks: vec![block(
                     vec![i(&[r(0)], b::Op::I64(0), 1)],
-                    m::Term::Return(r(0)),
+                    b::Term::Return(r(0)),
                 )],
             });
             let result = value(&mut t, o::Type::I64);
