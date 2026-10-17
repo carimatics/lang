@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 43 pt | 89 pt | 48.3% |
+| 1 — frontend and bytecode vertical slice (current) | 46 pt | 89 pt | 51.7% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **252 pt** | **738 pt** | **34.1%** |
+| **Overall** | **255 pt** | **738 pt** | **34.6%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** type-check resolved source functions/calls and aggregates/patterns, including bounded layouts and exhaustiveness, under accepted RFC 0006.
+- **Next active P0:** type-check resolved source functions/calls and aggregate operations/patterns with exhaustiveness; bounded nominal layouts are implemented under accepted RFC 0006.
 
 ### Tasks in priority order
 
@@ -137,7 +137,7 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 43 / 89 pt (48.3%).**
+**Progress: 46 / 89 pt (51.7%).**
 
 The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five accepted design gates account for 16 completed points across lexical rules, modules/calls, aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Lossless parsing, module loading/namespaces, and parsed source name/type-path resolution are implemented. Source-wide typing, lowering/execution, artifacts, and tooling integration remain separate outcomes.
 
@@ -155,7 +155,8 @@ The 8-point incremental-tooling task is likewise split into 3 points of shared g
 - [x] **P0 — Resolve and type-check structured RFC 0002 function input into span-preserving HIR with bounded analysis and diagnostic tests.** — 3 pt
 - [ ] **P0 — Connect parsed source to HIR and type-check source functions/control flow, including accepted call signatures, with compile-pass/fail fixtures.** — 5 pt
 - [x] **P0 — Accept records, variants, patterns, and exhaustiveness semantics plus their typed MIR/value representation and compatibility fixtures.** — 5 pt
-- [ ] **P0 — Type-check records, variants, patterns, and exhaustiveness.** — 8 pt
+- [x] **P0 — Validate copy-only nominal definition shapes, reject recursive type cycles, and compute checked value-cell/depth layouts with malformed-input tests.** — 3 pt
+- [ ] **P0 — Type-check record/variant construction, fields, patterns, and exhaustiveness into source HIR.** — 5 pt
 - [x] **P0 — Lower accepted primitive HIR into validated typed MIR with CFG block arguments, source maps, and VM/JIT differential tests.** — 2 pt
 - [ ] **P0 — Complete parser-connected HIR-to-MIR lowering, including accepted calls/aggregates and source-span conformance.** — 3 pt
 - [x] **P0 — Accept the portable bytecode schema and bounded decoding/verification contract.** — 2 pt
@@ -187,15 +188,17 @@ Commit `eadf992` adds explicit-root canonical module loading, compilation-local 
 
 Commit `844aad0` resolves parsed scopes, nominal type paths, forward/mutual calls, host imports, and record/enum/pattern names into backend-independent `lang-hir::resolved` arenas. It preserves annotation/expression/pattern/control-flow spans and written evaluation order, rejects function-wide name reuse and immutable assignment, and checks public-signature type visibility. Fifteen tests verify these outcomes, complete syntax-fixture conversion, exact work boundaries, resource limits, and snapshot identity. The full fmt/Clippy/test/doc baseline passes (319 tests). This completes source name resolution only: expression/pattern typing, nominal layouts/cycles, exhaustiveness, and return completeness remain in the unchanged typing tasks. A resolved program is not an executable artifact.
 
+Commit `1d5fa88` adds bounded nominal layout analysis to `lang-hir`: validated IDs/names/spans, duplicate member and empty-enum rejection, iterative cycle detection, checked record cells/enum maximum-payload cells, and depth/work/structural limits before guest allocation. Ten HIR tests and two parsed-source tests verify cycles, overflow, exact depth 64/65 and cell 4096/4097 boundaries, explicit deep stacks, malformed inputs, and small budgets. The full baseline passes (331 tests). The original 8-point aggregate-typing task is split into this verified 3-point layout outcome and 5 points of aggregate operations/pattern typing and exhaustiveness. All scope and the 89-point total are retained; layouts do not establish typed bodies or execution.
+
 ### Remaining dependency audit (2026-10-17)
 
-After owner acceptance, lossless parsing, and source name resolution, the current checklist has 9 unchecked implementation items totaling 46 points. This table is a dependency view, not additional scope or completion credit.
+After owner acceptance, source name resolution, and nominal layouts, the current checklist has 9 unchecked implementation items totaling 43 points. This table is a dependency view, not additional scope or completion credit.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Parser-connected typing, formatter round trips, and incomplete-source LSP diagnostics |
 | Module/function-call semantics | Source/call typing, guest frames/recursion, typed host execution, and parser-connected source/HIR/MIR conformance |
-| Record/variant/pattern semantics and representation | Aggregate typing/exhaustiveness and aggregate source/HIR/MIR/VM conformance |
+| Record/variant/pattern semantics and representation | Aggregate operations/pattern typing, exhaustiveness, and aggregate source/HIR/MIR/VM conformance |
 | Portable bytecode contract | Versioned encoding/decoding and bounded verification |
 | Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
 

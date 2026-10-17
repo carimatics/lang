@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 43 pt | 89 pt | 48.3% |
+| 1 — frontendとbytecodeのvertical slice（現在） | 46 pt | 89 pt | 51.7% |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **252 pt** | **738 pt** | **34.1%** |
+| **全体** | **255 pt** | **738 pt** | **34.6%** |
 
 ## Milestone 0：設計baseline
 
@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P0：** 受理済みRFC 0006に沿ってresolved sourceのfunction／callとaggregate／patternをtype-checkし、上限付きlayoutとexhaustivenessを検証します。
+- **次の進行中P0：** Resolved sourceのfunction／callとaggregate操作／patternをtype-checkし、exhaustivenessを検証します。受理済みRFC 0006に沿う上限付きnominal layoutは実装済みです。
 
 ### 優先度順のタスク
 
@@ -137,7 +137,7 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 
 ## Milestone 1：frontendとbytecodeのvertical slice（現在）
 
-**進捗：43 / 89 pt（48.3%）。**
+**進捗：46 / 89 pt（51.7%）。**
 
 Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。受理済みの5つの設計gateが16 ptの完了分で、字句規則、module／call、aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを対象にします。Lossless parsing、module loading／namespace、parsed sourceのname／type-path解決は実装済みです。Source全体のtyping、lowering／実行、artifact、tooling統合は別の成果として残ります。
 
@@ -155,7 +155,8 @@ Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.
 - [x] **P0 — 構造化したRFC 0002 function inputをspan保持HIRへ解決／type-checkし、上限付きanalysisと診断testを追加する。** — 3 pt
 - [ ] **P0 — Parsed sourceをHIRへ接続し、受理済みcall signatureを含むsource function／control flowをcompile-pass／fail fixtureでtype-checkする。** — 5 pt
 - [x] **P0 — Record／variant／pattern／exhaustivenessの意味論、typed MIR／value表現、互換性fixtureを受理する。** — 5 pt
-- [ ] **P0 — Record、variant、pattern、exhaustivenessをtype-checkする。** — 8 pt
+- [x] **P0 — Copy専用nominal定義のshapeを検証し、再帰型の循環を拒否し、checkedなvalue-cell／depth layoutと不正input testを実装する。** — 3 pt
+- [ ] **P0 — Record／variant構築、field、pattern、exhaustivenessをsource HIRへtype-checkする。** — 5 pt
 - [x] **P0 — 受理済みprimitive HIRをCFG block argument／source map付きvalidated typed MIRへloweringし、VM／JIT differential testを追加する。** — 2 pt
 - [ ] **P0 — 受理済みcall／aggregateとsource-span conformanceを含むparser接続済みHIR-to-MIR loweringを完成させる。** — 3 pt
 - [x] **P0 — Portable bytecode schemaと上限付きdecoding／verificationの契約を受理する。** — 2 pt
@@ -187,15 +188,17 @@ Commit `eadf992` は明示rootのcanonical module loading、compilation内のID�
 
 Commit `844aad0` はparsed scope、nominal type path、forward／mutual call、host import、record／enum／pattern名をbackend非依存の `lang-hir::resolved` arenaへ解決します。注釈／expression／pattern／control-flow spanと記述順の評価順序を保持し、function全体の名前再利用／immutable assignmentを拒否し、public-signatureのtype可視性を検証します。15件のtestでこれらの成果、syntax fixture全体の変換、正確なwork境界、resource上限、snapshot identityを検証します。全体のfmt／Clippy／test／doc baseline（319 test）は成功しています。完了したのはsourceの名前解決であり、expression／pattern typing、nominal layout／循環、exhaustiveness、return経路の完全性は元のtyping taskに残ります。Resolved programは実行可能artifactではありません。
 
+Commit `1d5fa88` は `lang-hir` に上限付きnominal layout analysisを追加しました。ID／name／spanの検証、member重複／空enumの拒否、反復処理の循環検出、record cell／enum最大payload cellのchecked計算、guest割り当て前のdepth／work／構造上限を実装します。10件のHIR testと2件のparsed-source testで循環、overflow、depth 64／65とcell 4096／4097の境界、明示的な深いstack、不正input、small budgetを検証します。全体のbaseline（331 test）は成功しています。元のaggregate-typing 8 ptを、検証済みlayout成果3 ptと、aggregate操作／pattern typing・exhaustiveness 5 ptへ分割しました。全scopeと89 ptの総計を保持し、layoutによるtyped bodyや実行の成立は主張しません。
+
 ### 残る依存関係の監査（2026-10-17）
 
-Owner受理、lossless parsing、sourceの名前解決後のchecklistには未完了の実装9項目、合計46 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
+Owner受理、sourceの名前解決、nominal layout実装後のchecklistには未完了の実装9項目、合計43 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
 | --- | --- |
 | 字句仕様 | Parser接続済みtyping、formatter round trip、不完全sourceのLSP診断 |
 | Module／function-call意味論 | Source／call typing、guest frame／recursion、typed host execution、parser接続済みsource／HIR／MIR conformance |
-| Record／variant／pattern意味論と表現 | Aggregate typing／exhaustiveness、aggregateのsource／HIR／MIR／VM conformance |
+| Record／variant／pattern意味論と表現 | Aggregate操作／pattern typing、exhaustiveness、aggregateのsource／HIR／MIR／VM conformance |
 | Portable bytecode契約 | Version付きencoding／decodingと上限付きverification |
 | Script／REPL契約 | Deterministicなscript entry／outputとtransactional REPL execution |
 
