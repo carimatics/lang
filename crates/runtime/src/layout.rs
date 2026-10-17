@@ -29,6 +29,10 @@ pub enum Error {
         cells: usize,
         limit: usize,
     },
+    FrameCapacity {
+        cells: usize,
+        capacity: usize,
+    },
     InvalidCase(u32),
     InvalidValue,
     InvalidField(u32),

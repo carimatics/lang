@@ -1,0 +1,20 @@
+// Check with: cargo run -- check examples/scripts/owned_calls.lang
+// Runtime fixture for M2-V07; guest calls remain gated until that delivery.
+// Owned arguments and results must cross each recursive activation once.
+fn carry(value: core::Bytes, depth: i64) -> core::Bytes {
+    if depth < 1 { return value; }
+    return carry(value, depth + (-1));
+}
+
+fn length(view: &core::Bytes) -> i64 {
+    return core::bytes_len(view);
+}
+
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 65));
+    let mut moved: core::Bytes = carry(bytes, 3);
+    return length(moved);
+}

@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**45 verified deliveries · 0 in progress · 46 remaining tasks (provisional 118 pt).**
+**45 verified deliveries · 1 in progress · 46 remaining tasks (provisional 120 pt).**
 
 Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). Nineteen deliveries have been verified since the gate score last changed, including the planned follow-up design decision. V11 (`1dcf260`) executes simultaneous Copy/affine CFG arguments through admitted snapshots, with scalar/enum/owner oracles, loan rebinding, cell/quota/OOM and fuel cleanup evidence. V11 removes 2 pt: 120 → 118 remaining pt. Current ownership source lowering does not generate those parameters; next is V07's owned source guest-call fixture. G06/G08 retain their broader execution/service outcomes, G07 needs V09 assignment and N03 native evidence, and G14/G16 retain native/cross-mode conformance. No new exit gate is closed. The 997-test baseline and fmt/Clippy/doc pass; measured validation durations are on the board. Other owning services, REPL/native execution and ownership artifacts retain their gates.
 

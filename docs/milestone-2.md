@@ -6,9 +6,9 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**45 done · 0 doing · 46 todo · 118 remaining pt**
+**45 done · 1 doing · 46 todo · 120 remaining pt**
 
-**Next: M2-V07 → execute owned source guest calls/results with recursion limits and return escrow.**
+**Next: M2-V12 → prepare reusable frame wrapper pools before guest entry, then admit/release guest regions without host growth.**
 
 Latest delivery: **M2-V11** (`1dcf260`) executes simultaneous Copy/affine CFG argument transfer through admitted snapshots. Seven added VM tests cover 243 scalar Copy oracle cases, nine Copy enum cases, 24 nested-owner permutations, old loan-token rebinding, exact snapshot/cell budgets, unchanged loop allocation requests, all admission/guest OOM points and all fuel prefixes. VM 40/CLI 26 tests pass. The full baseline passes **997 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy.
 
@@ -46,6 +46,8 @@ S01 decision audit (2026-10-18 JST): RFC 0009 selects three finite core calls us
 - Run focused checks first and the required full baseline once for a coherent code delivery. Documentation-only follow-ups run repository consistency checks; repeat broader checks only for new code, failures, or unresolved concerns. Keep the implementation/roadmap commit sequence, but replace repetitive narrative appends with row updates. Append an audit only when scope, estimates, dependencies or an exit decision changes.
 - After two consecutive prerequisite deliveries without a new source execution fixture, stop expanding the foundation and review the next vertical slice. Report the concrete blocker and remaining task, not a generic claim that estimates remain appropriate.
 - Keep all 18 exit gates. Close a gate only with its full evidence, including actual tier-1 execution where required. A local object or configured CI job is not native Windows execution evidence. Unfinished P1 debug work must be explicitly moved and re-estimated before exit.
+
+V07 readiness audit (2026-10-18 JST): [the owned-call fixture](../examples/scripts/owned_calls.lang) passes source analysis but execution still rejects `Call` before effects. `FramePlan::reserve_after` currently allocates a fresh host wrapper vector per invocation, while the existing implementation contract requires host pools before outermost guest entry. Add **M2-V12 (2 pt)** for reusable wrapper admission/cancellation before V07: **118 → 120 remaining pt**, one new row, **45 done / 1 doing / 46 todo**. V07 retains source owned/loan calls, recursive limits and return escrow at a provisional 3 pt; expose any further prerequisite before coding. V11 and V12 form two prerequisite deliveries, so the next delivery must execute V07's source fixture before further foundation work.
 
 ## Completed deliveries
 
@@ -104,7 +106,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get/set/push, UTF-8 conversion and Text byte length execute; bounds/OOM, conversion allocation counts, fuel/interruption cleanup and Copy-cell loop reuse verified. | `8b24c94` |
 | M2-V05 | done | 0 | M2-V04 | G07 | Source Text concat/clone/to-bytes/equality and Bytes clone execute with independent owners, allocator identity, typed OOM/quota errors, fuel and loop cleanup. | `752a369` |
 | M2-V06 | done | 0 | M2-V03,M2-S03 | G06,G08 | Nested Bytes/Text/Copy record/enum/sum owners and reference projections execute; no packing allocation, reverse written exactly-once drops, OOM/panic/fuel and loop cleanup verified. | `92d225a` |
-| M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Execute owned guest calls/results with recursion limits and return escrow. | — |
+| M2-V12 | doing | 2 | M2-V11 | G06 | Prepare reusable host frame wrappers before guest entry; admit/release per-function guest regions with exact limits, OOM rollback and no host-pool growth. | — |
+| M2-V07 | todo | 3 | M2-V06,M2-V11,M2-V12 | G06 | Execute owned guest calls/results with recursion limits and return escrow. | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | Execute generated failure exits: fuel/OOM/body failures, ordered cleanup and nested failure reports. | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Execute provisional-read match arms and prepared replacement across RHS effects. | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPL ownership admission/result display matches run and preserves failure isolation. | — |

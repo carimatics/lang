@@ -12,6 +12,9 @@ use lang_runtime::{
 use lang_semantics::analysis::{OwnershipProgram, Program};
 use std::{cell::RefCell, path::Path, rc::Rc};
 
+#[path = "support/owned_pools.rs"]
+mod pools;
+
 const SOURCE: &str = "fn make(a: &core::Allocator, flag: bool) -> core::Result<core::Bytes, core::AllocError> { let mut made: core::Result<core::Bytes, core::AllocError> = core::bytes_new(a); if flag { return made; } return core::Result::Err(core::AllocError::Limit); }";
 fn checked(source: &str) -> Box<OwnershipProgram> {
     let analysis = frontend::analyze_virtual(

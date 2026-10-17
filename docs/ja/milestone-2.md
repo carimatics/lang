@@ -6,9 +6,9 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**45 done · 0 doing · 46 todo · 118 remaining pt**
+**45 done · 1 doing · 46 todo · 120 remaining pt**
 
-**次: M2-V07 → owned source guest call／resultを再帰上限とreturn escrow付きで実行する。**
+**次: M2-V12 → guest entry前に再利用するframe wrapper poolを準備し、host拡張なしでguest regionをadmit／releaseする。**
 
 直近の完了：**M2-V11**（`1dcf260`）。Admission済みsnapshotでCopy／affine CFG argumentを同時転送します。追加VM test 7件でscalar Copy oracle 243 case、Copy enum 9 case、入れ子owner permutation 24 case、古いloan tokenの再束縛、厳密snapshot／cell budget、loopでrequestが増えないこと、全admission／guest OOM箇所、全fuel prefixを検証します。VM 40／CLI 26 testが成功しています。全体の **71 suite・997 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。
 
@@ -46,6 +46,8 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 - 対象を絞ったcheckから始め、まとまったcode成果ごとに必須full baselineを1回実行します。文書だけのfollow-upはrepository consistencyを確認し、追加code、失敗、未解決の懸念がある場合だけ広いcheckを再実行します。実装／roadmapのcommit順序は維持し、繰り返しの長文追記を行更新に置き換えます。監査記録の追記はscope、見積もり、依存、完了判断が変わった場合に限ります。
 - ソース実行fixtureが増えない前提作業が2件続いたら、基盤の拡張を止め、次のvertical sliceを再検討します。漠然と「見積もりは妥当」とせず、具体的な阻害要因と残taskを報告します。
 - 18件の完了条件を維持します。必要な実機tier-1実行を含め、全evidenceが揃った場合だけ完了にします。Localのobjectや設定済みCI jobはWindows native実行evidenceではありません。未完了のP1 debug作業はexit前に移動先と再見積もりを明示します。
+
+V07着手前の監査（2026-10-18 JST）：[owned-call fixture](../../examples/scripts/owned_calls.lang) はsource解析が通りますが、実行はeffect前に `Call` を拒否します。現在の `FramePlan::reserve_after` は呼び出しごとに新しいhost wrapper vectorを確保し、最外guest entry前にhost poolを用意する既存実装contractを満たしません。V07前に再利用するwrapperのadmission／cancel用 **M2-V12（2 pt）** を追加します。**残り118 → 120 pt**、新規1行で **45 done／1 doing／46 todo** です。V07のowned／loan source call、再帰上限、return escrowは暫定3 ptで維持し、新たな前提はcode前に明示します。V11とV12で前提作業が2件続くため、その後は基盤を増やす前にV07のsource fixtureを実行する成果を必須にします。
 
 ## 完了済み実装
 
@@ -104,7 +106,8 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get／set／push、UTF-8変換、Text byte長を実行。Bounds／OOM、変換確保数、fuel／interruption cleanup、Copy cell loop再利用を検証。 | `8b24c94` |
 | M2-V05 | done | 0 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityとBytes cloneを実行。独立owner、allocator identity、typed OOM／quota error、fuel／loop cleanupを検証。 | `752a369` |
 | M2-V06 | done | 0 | M2-V03,M2-S03 | G06,G08 | 入れ子Bytes／Text／Copy record／enum／sum ownerとreference projectionを実行。Pack用確保なし、記述逆順の1回限りdrop、OOM／panic／fuel、loop cleanupを検証。 | `92d225a` |
-| M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
+| M2-V12 | doing | 2 | M2-V11 | G06 | Guest entry前に再利用するhost frame wrapperを準備。関数別guest regionのadmit／release、厳密上限、OOM rollbackをhost pool拡張なしで実行。 | — |
+| M2-V07 | todo | 3 | M2-V06,M2-V11,M2-V12 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPLのownership受け入れ／結果表示をrunに揃え、失敗を分離。 | — |

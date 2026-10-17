@@ -525,9 +525,19 @@ VM testを7件追加し、実行suiteは40件です。Source由来MIRをtyping�
 
 `reserve` は最初のallocator callback前にguestのpayload／order／retirement request一覧全体をpreflightし、parameterやguest effectを受け入れる前に全cellをprepareします。Host wrapper poolは最外側のguest entry前に構築し、guest callでは実行中にhost poolを拡張せず、受け入れ済みのcall storageを使います。Guestの設定上限とhost pool予算の拒否はcallback前に返し、provider OOMでは完了済み予約をすべて逆順に解放してcumulativeの試行課金を維持します。既存のcaller-owned allocationは保持します。返すstorageは未公開で、move、初期化、loan、region、実行の権限を与えません。
 
-`Reservation::retire` は既存のcontext付きcleanup drainを共有し、regionを保持します。`recycle` は全drain終了かつ未処理leafなしの場合だけ受け付け、data／metadataをclearし、allocationやprovider callbackなしで再利用可能にします。`FrameStorage::release` は解放開始前に全cellとhandleを検査し、retirement途中や異なるallocatorによって有効なprefixだけが解放されることを防ぎます。再利用／解放前に実行ledgerでlive ownerをretireする必要があり、構造上のLocationがloan権限になることはありません。Frame stack／call会計、failure CFG実行、本番VM dispatchは引き続き明示的な実装taskです。
+`Reservation::retire` は既存のcontext付きcleanup drainを共有し、regionを保持します。`recycle` は全drain終了かつ未処理leafなしの場合だけ受け付け、data／metadataをclearし、allocationやprovider callbackなしで再利用可能にします。`FrameStorage::release` は解放開始前に全cellとhandleを検査し、retirement途中や異なるallocatorによって有効なprefixだけが解放されることを防ぎます。再利用／解放前に実行ledgerでlive ownerをretireする必要があり、構造上のLocationがloan権限になることはありません。前述の単一entry VMはfailure CFGを実行し、複数activationのcall／return会計はV07／V08の残作業です。
 
-Source／runtimeの6 testで、local／value／cleanup mappingとrequested storageの厳密上限、全5種類のguest複合上限によるcallback前拒否、host poolのwork／allocation／element厳密上限、全provider allocation箇所のOOMと逆順rollbackおよび既存owner保持、別の型graph／不正function／cell上限、Resultをその場で128回retire／再利用する処理、実際のBytesの逆順cleanupと早すぎるrecycle／frame解放の拒否を検証します。出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Frame受け入れ](../../crates/runtime/src/layout/frame.rs)、[retirement／再利用](../../crates/runtime/src/layout/storage.rs)、[test](../../tests/owned_frame.rs)の更新／検証日：2026-10-18 JST。
+初期のsource／runtime 6 testで、local／value／cleanup mappingとrequested storageの厳密上限、全5種類のguest複合上限によるcallback前拒否、host poolのwork／allocation／element厳密上限、全provider allocation箇所のOOMと逆順rollbackおよび既存owner保持、別の型graph／不正function／cell上限、Resultをその場で128回retire／再利用する処理、実際のBytesの逆順cleanupと早すぎるrecycle／frame解放の拒否を検証します。出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[frame受け入れ](../../crates/runtime/src/layout/frame.rs)、[retirement／再利用](../../crates/runtime/src/layout/storage.rs)、[test](../../tests/owned_frame.rs)。2026-10-18 JST更新／確認。
+
+### 再利用するframe wrapper pool
+
+2026-10-18 JST実装／確認：V12でhost wrapper準備とguest region admissionを分けました。`FramePlan::prepare_pool[_after]` はallocator callbackなしに、累積compiler／host budget内で上限付きwrapper容量をfallibleに予約します。`FrameStorage::admit` はactive状態、物理wrapper容量、準備済みcompiler使用量、guest quotaを検査し、同じlayoutsのplanをその容量へ受け入れます。小さな関数planもpoolを共有できます。`FrameCapacity` はwrapper容量の失敗をVMのlive-cell上限と区別して報告します。従来の1回限りのreserveも同じprepare／admit経路を使い、callback前のquota確認を維持します。
+
+解放に成功すると、host vectorのallocationと課金済み使用量を保持して再admissionできます。Admission失敗時は確保済みguest regionを逆順解放し、cumulativeの試行allocation課金を保持し、poolを再利用可能にします。Activeなstorageへ別admissionで上書きできません。Parameter受け入れ、loan lifetime、payloadの1回限りretirementは引き続きcallerの責任で、pool準備は所有権を与えません。Storage再利用の実装であり、guest call実行やactivation stack全体の完成ではありません。
+
+Frame suiteは6件から11件になりました。追加5 testで、main／calleeの異なるshapeの反復と固定capacity／会計、size 0課金を含む厳密request、全provider OOM箇所からの再試行成功、逆順rollback、cumulative試行request、callback前のquota／capacity／active状態拒否、別layouts、host work／allocation／elementの厳密budgetを確認します。既存VM suite 40 testも成功しています。[Source call fixture](../../examples/scripts/owned_calls.lang) のcheckは成功しますが、実行はeffect前に `Call` を拒否します。V11／V12の前提2件の後は、基盤を追加する前にV07でこのsourceを実行する成果を必須にします。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[frame plan／pool](../../crates/runtime/src/layout/frame.rs)、[capacity error](../../crates/runtime/src/layout.rs)、[pool test](../../tests/support/owned_pools.rs)、[frame test](../../tests/owned_frame.rs)、[call fixture](../../examples/scripts/owned_calls.lang)。2026-10-18 JST更新／確認。Source構文、受理済み意味論、serialized format、C ABIは変更しません。
 
 ### Managedな有限core value
 

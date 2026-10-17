@@ -18,6 +18,9 @@ pub struct FramePlan<'layouts, 'types> {
 }
 pub struct FrameStorage<'layouts, 'types> {
     cells: Vec<Reservation<'layouts, 'types>>,
+    layouts: &'layouts Layouts<'types>,
+    capacity: usize,
+    preparation: m::Usage,
     usage: m::Usage,
     released: bool,
 }
@@ -32,6 +35,11 @@ fn combined(a: usize, b: usize, common: usize) -> Result<usize, Error> {
     a.checked_sub(common)
         .and_then(|extra| extra.checked_add(b))
         .ok_or(Error::Overflow)
+}
+fn covers(outer: m::Usage, inner: m::Usage) -> bool {
+    outer.work >= inner.work
+        && outer.allocation_bytes >= inner.allocation_bytes
+        && outer.elements >= inner.elements
 }
 impl<'layouts, 'types> FramePlan<'layouts, 'types> {
     /// Include locals, SSA values, block-argument snapshots, explicit loan
@@ -191,37 +199,91 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         allocator: &mut Allocator<P>,
         initial: m::Usage,
     ) -> Result<FrameStorage<'layouts, 'types>, Error> {
-        if initial.work < self.usage.work
-            || initial.allocation_bytes < self.usage.allocation_bytes
-            || initial.elements < self.usage.elements
-        {
+        if !covers(initial, self.usage) {
             return Err(Error::State);
         }
         allocator.check(&self.requests)?;
+        let mut pool = self.prepare_pool_after(initial)?;
+        pool.admit(self, allocator)?;
+        Ok(pool)
+    }
+
+    /// Prepare only bounded host wrappers, without an allocator callback or
+    /// guest region. Prepare before outermost guest entry; admission can then
+    /// reuse this capacity for plans from the same layouts/type graph.
+    pub fn prepare_pool(&self) -> Result<FrameStorage<'layouts, 'types>, Error> {
+        self.prepare_pool_after(self.usage)
+    }
+    /// Resume a caller's cumulative compiler/host-pool preparation budget.
+    pub fn prepare_pool_after(
+        &self,
+        initial: m::Usage,
+    ) -> Result<FrameStorage<'layouts, 'types>, Error> {
+        if !covers(initial, self.usage) {
+            return Err(Error::State);
+        }
         let mut budget = m::Budget::with_usage(self.limits, initial)?;
         budget.charge(self.cells.len())?;
-        let mut cells: Vec<Reservation<'layouts, 'types>> = budget.vector(self.cells.len())?;
-        for ty in &self.cells {
-            match Reservation::allocate(self.layouts, ty.ty, allocator) {
-                Ok(cell) => cells.push(cell),
-                Err(error) => {
-                    for cell in cells.iter_mut().rev() {
-                        cell.release_storage(allocator)?;
-                    }
-                    return Err(error);
-                }
-            }
-        }
+        let cells = budget.vector(self.cells.len())?;
         Ok(FrameStorage {
             cells,
+            layouts: self.layouts,
+            capacity: self.cells.len(),
+            preparation: initial,
             usage: usage(&budget),
-            released: false,
+            released: true,
         })
     }
 }
 impl<'layouts, 'types> FrameStorage<'layouts, 'types> {
     pub const fn usage(&self) -> m::Usage {
         self.usage
+    }
+    /// Logical wrapper capacity charged at preparation, not allocator rounding.
+    pub const fn cell_capacity(&self) -> usize {
+        self.capacity
+    }
+    /// Admit guest regions into a prepared/released pool without growing its
+    /// host vector. The caller supplies entry/parameter ownership authority.
+    /// Failure releases the completed prefix and leaves the pool reusable.
+    pub fn admit<P: Provider>(
+        &mut self,
+        plan: &FramePlan<'layouts, 'types>,
+        allocator: &mut Allocator<P>,
+    ) -> Result<(), Error> {
+        if !self.released {
+            return Err(Error::State);
+        }
+        if !std::ptr::eq(self.layouts, plan.layouts) {
+            return Err(Error::ForeignLocation);
+        }
+        if plan.cell_count() > self.capacity {
+            return Err(Error::FrameCapacity {
+                cells: plan.cell_count(),
+                capacity: self.capacity,
+            });
+        }
+        if !covers(self.preparation, plan.usage) {
+            return Err(Error::State);
+        }
+        allocator.check(&plan.requests)?;
+        // Old wrappers contain only released regions. Keep their allocation;
+        // every push below fits the separately budgeted logical capacity.
+        self.cells.clear();
+        for ty in &plan.cells {
+            match Reservation::allocate(plan.layouts, ty.ty, allocator) {
+                Ok(cell) => self.cells.push(cell),
+                Err(error) => {
+                    for cell in self.cells.iter_mut().rev() {
+                        cell.release_storage(allocator)?;
+                    }
+                    self.cells.clear();
+                    return Err(error);
+                }
+            }
+        }
+        self.released = false;
+        Ok(())
     }
     pub fn cell(&self, index: usize) -> Result<&Reservation<'layouts, 'types>, Error> {
         if self.released {

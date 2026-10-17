@@ -8,7 +8,7 @@
 
 ## 現在のM2実装状況
 
-**検証済み45件 · 進行中0件 · 残り46件（暫定118 pt）。**
+**検証済み45件 · 進行中1件 · 残り46件（暫定120 pt）。**
 
 現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む19件の成果を検証しました。V11（`1dcf260`）でadmission済みsnapshotによるCopy／affine CFG argument同時転送を実行し、scalar／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを確認しました。V11で2 ptを減らし、残作業は120 → 118 ptです。現在のownership source loweringはそのparameterを生成せず、次はV07のowned source guest-call fixtureです。G06／G08の広い実行／service成果、G07のV09代入とN03 native evidence、G14／G16のnative／cross-mode conformanceは残します。新たなexit gateは完了扱いにしていません。997 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
