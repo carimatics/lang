@@ -100,12 +100,17 @@ fn supported(op: &b::Op, types: &o::VerifiedTypes, result: Option<o::Type>) -> b
                     call.operation,
                     o::core::Operation::Allocator
                         | o::core::Operation::BytesNew
+                        | o::core::Operation::BytesClone
                         | o::core::Operation::BytesLen
                         | o::core::Operation::BytesGet
                         | o::core::Operation::BytesSet
                         | o::core::Operation::BytesPush
                         | o::core::Operation::TextFromUtf8
                         | o::core::Operation::TextLen
+                        | o::core::Operation::TextClone
+                        | o::core::Operation::TextBytes
+                        | o::core::Operation::TextConcat
+                        | o::core::Operation::TextEqual
                 )
         }
         b::Op::Variant { .. } => result.is_some_and(|ty| sum_supported(types, ty)),
@@ -708,14 +713,9 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 register_loan(frame, id)?;
             }
             o::core::Operation::BytesNew => {
-                if !matches!(
-                    shared
-                        .borrow()
-                        .reference(shared.borrow().root(value(call.arguments[0]))?)?,
-                    Target::Allocator
-                ) {
-                    return Err(c::ExecutionFailure::Invariant);
-                }
+                shared
+                    .borrow()
+                    .require_allocator(value(call.arguments[0]))?;
                 let destination = result()?;
                 shared.borrow_mut().bytes_new(destination, span)?;
                 let physical = shared.borrow().cells[destination].physical;
@@ -734,6 +734,28 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 shared
                     .borrow_mut()
                     .write(result()?, l::Immediate::I64(len))?;
+            }
+            o::core::Operation::TextEqual => {
+                let equal = shared
+                    .borrow()
+                    .text_equal(value(call.arguments[0]), value(call.arguments[1]))?;
+                shared
+                    .borrow_mut()
+                    .write(result()?, l::Immediate::Bool(equal))?;
+            }
+            op @ (o::core::Operation::BytesClone
+            | o::core::Operation::TextClone
+            | o::core::Operation::TextBytes
+            | o::core::Operation::TextConcat) => {
+                let mut state = shared.borrow_mut();
+                state.require_allocator(value(call.arguments[0]))?;
+                state.allocate_buffer(
+                    op,
+                    value(call.arguments[1]),
+                    call.arguments.get(2).map(|r| value(*r)),
+                    result()?,
+                    span,
+                )?;
             }
             op @ (o::core::Operation::BytesGet
             | o::core::Operation::BytesSet

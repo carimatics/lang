@@ -140,12 +140,113 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let outcome = bytes.set(self.allocator, index, value);
         self.finish_write(target, bytes, outcome, destination, span)
     }
-    pub fn text_len(&self, reference: usize) -> Step<i64> {
+    fn borrowed_text(&self, reference: usize) -> Step<buffer::Text> {
         let target = self.reference(self.root(reference)?)?;
-        let text = buffer::Text::from_token(&mut self.token(target)?, self.allocator)
-            .map_err(|_| c::ExecutionFailure::Fault)?;
+        buffer::Text::from_token(&mut self.token(target)?, self.allocator)
+            .map_err(|_| c::ExecutionFailure::Fault)
+    }
+    pub fn require_allocator(&self, reference: usize) -> Step<()> {
+        match self.reference(self.root(reference)?)? {
+            Target::Allocator => Ok(()),
+            _ => Err(c::ExecutionFailure::Invariant),
+        }
+    }
+    pub fn text_len(&self, reference: usize) -> Step<i64> {
+        let text = self.borrowed_text(reference)?;
         text.len(self.allocator)
             .map_err(|_| c::ExecutionFailure::Fault)
+    }
+    pub fn text_equal(&self, left: usize, right: usize) -> Step<bool> {
+        let left = self.borrowed_text(left)?;
+        let right = self.borrowed_text(right)?;
+        left.equal(&right, self.allocator)
+            .map_err(|_| c::ExecutionFailure::Fault)
+    }
+    pub fn allocate_buffer(
+        &mut self,
+        operation: o::core::Operation,
+        reference: usize,
+        other: Option<usize>,
+        destination: usize,
+        span: m::Span,
+    ) -> Step<()> {
+        if self.cells[destination].live {
+            return Err(c::ExecutionFailure::Invariant);
+        }
+        let outcome = match operation {
+            o::core::Operation::BytesClone => {
+                let (_, bytes) = self.borrowed_bytes(reference)?;
+                bytes.try_clone(self.allocator).and_then(|mut value| {
+                    value
+                        .take_token(self.allocator)
+                        .map_err(buffer::Failure::Fault)
+                })
+            }
+            o::core::Operation::TextClone => {
+                let text = self.borrowed_text(reference)?;
+                text.try_clone(self.allocator).and_then(|mut value| {
+                    value
+                        .take_token(self.allocator)
+                        .map_err(buffer::Failure::Fault)
+                })
+            }
+            o::core::Operation::TextBytes => {
+                let text = self.borrowed_text(reference)?;
+                text.to_bytes(self.allocator).and_then(|mut value| {
+                    value
+                        .take_token(self.allocator)
+                        .map_err(buffer::Failure::Fault)
+                })
+            }
+            o::core::Operation::TextConcat => {
+                let left = self.borrowed_text(reference)?;
+                let right = self.borrowed_text(other.ok_or(c::ExecutionFailure::Invariant)?)?;
+                left.concat(&right, self.allocator).and_then(|mut value| {
+                    value
+                        .take_token(self.allocator)
+                        .map_err(buffer::Failure::Fault)
+                })
+            }
+            _ => return Err(c::ExecutionFailure::Invariant),
+        };
+        let case = match &outcome {
+            Ok(_) => 0,
+            Err(buffer::Failure::Error(_)) => 1,
+            Err(buffer::Failure::Fault(_)) => return Err(c::ExecutionFailure::Fault),
+        };
+        let cell = self
+            .storage
+            .as_ref()
+            .ok_or(c::ExecutionFailure::Invariant)?
+            .cell(self.cells[destination].physical)
+            .map_err(invariant)?;
+        let root = cell.root();
+        cell.prepare_case(root, case, self.allocator)
+            .map_err(invariant)?;
+        let payload = cell.child(root, 0, self.allocator).map_err(invariant)?;
+        match outcome {
+            Ok(token) => {
+                let start = payload.offset() as usize;
+                cell.data_mut(self.allocator)
+                    .map_err(invariant)?
+                    .get_mut(
+                        start
+                            ..start
+                                .checked_add(32)
+                                .ok_or(c::ExecutionFailure::Invariant)?,
+                    )
+                    .ok_or(c::ExecutionFailure::Invariant)?
+                    .copy_from_slice(&token);
+            }
+            Err(buffer::Failure::Error(error)) => cell
+                .write_immediate(payload, l::Immediate::Allocation(error), self.allocator)
+                .map_err(invariant)?,
+            Err(buffer::Failure::Fault(_)) => unreachable!("handled before publication"),
+        }
+        cell.initialize_order(root, [(0, span)].into_iter(), self.allocator)
+            .map_err(invariant)?;
+        self.cells[destination].live = true;
+        Ok(())
     }
     pub fn text_from_utf8(&mut self, source: usize, destination: usize, span: m::Span) -> Step<()> {
         if self.cells[destination].live {

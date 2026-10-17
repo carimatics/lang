@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**42 verified deliveries · 0 in progress · 49 remaining tasks (provisional 125 pt).**
+**42 verified deliveries · 1 in progress · 48 remaining tasks (provisional 125 pt).**
 
 Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). Sixteen deliveries have been verified since the gate score last changed, including the planned follow-up design decision. V04 (`8b24c94`) executes Bytes mutation and UTF-8 conversion: [the mutation fixture](../examples/analysis/extraction.lang) prints `1`, and [the UTF-8 script](../examples/scripts/utf8.lang) prints byte length `3`. Growth/failure cleanup, invalid-input results and Copy-cell loop reuse are verified. Next execute the remaining Text operations (V05), explicitly including equality. V04 removes 3 pt: 128 → 125 remaining pt, with no new exit gate closed. The 975-test baseline and fmt/Clippy/doc pass; measured validation durations are on the board. General source aggregates, other owning services, REPL/native execution and ownership artifacts retain their gates.
 

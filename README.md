@@ -67,11 +67,12 @@ cargo run -- run examples/scripts/bytes.lang
 cargo run -- run examples/scripts/owned_bytes.lang
 cargo run -- run examples/analysis/extraction.lang
 cargo run -- run examples/scripts/utf8.lang
+cargo run -- run examples/scripts/text.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
-`check` validates Copy or RFC 0007/0009 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile with allocator authority, Bytes new/len/get/set/push, consuming UTF-8 conversion and Text byte length, finite Bytes/Text/Copy Option/Result construction/extraction, lexical loans and cleanup. The answer script prints `42`; `bytes.lang` and `owned_bytes.lang` print `0`, the extraction/mutation example prints `1`, and `utf8.lang` prints the byte length `3`. Storage is released before printing the result. Extraction checks its case and reports a source-located guest panic on mismatch. Unsupported operations/payloads fail preflight.
+`check` validates Copy or RFC 0007/0009 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile with allocator authority, Bytes new/len/get/set/push/clone, consuming UTF-8 conversion, Text byte length/clone/concat/to-bytes/equality, finite Bytes/Text/Copy Option/Result construction/extraction, lexical loans and cleanup. The answer script prints `42`; `bytes.lang` and `owned_bytes.lang` print `0`, the extraction/mutation example prints `1`, `utf8.lang` prints the byte length `3`, and `text.lang` prints `2` after checking independent clones and conversions. Storage is released before printing the result. Extraction checks its case and reports a source-located guest panic on mismatch. Unsupported operations/payloads fail preflight.
 
 Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`; the REPL remains Copy-only. The CLI registers no host imports and explicitly supplies the owned execution instance's budgeted allocator. Verified 2026-10-18 JST.
 

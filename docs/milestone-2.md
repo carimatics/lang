@@ -6,7 +6,7 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**42 done · 0 doing · 49 todo · 125 remaining pt**
+**42 done · 1 doing · 48 todo · 125 remaining pt**
 
 **Next: M2-V05 → execute Text clone/concat/to-bytes/equality with allocator and failure evidence.**
 
@@ -102,7 +102,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-S02 | done | 0 | M2-S01 | G08 | Three RFC 0009 calls type-check and lower to independently verified MIR; compile pass/fail covers Copy/move, loans, regions and nested sums. Runtime remains gated. | `b562c0f` |
 | M2-S03 | done | 0 | M2-S02 | G06,G08 | Finite Bytes/Copy sums and all three whole-payload extractions execute without transfer allocation; source fixture, panic/fuel/OOM cleanup and nested managed order/span transfer verified. | `e584902` |
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get/set/push, UTF-8 conversion and Text byte length execute; bounds/OOM, conversion allocation counts, fuel/interruption cleanup and Copy-cell loop reuse verified. | `8b24c94` |
-| M2-V05 | todo | 2 | M2-V04 | G07 | Source Text concat/clone/to-bytes/equality preserve allocator identity and report failure correctly. | — |
+| M2-V05 | doing | 2 | M2-V04 | G07 | Source Text concat/clone/to-bytes/equality and Bytes clone preserve allocator identity and report failure correctly. | — |
 | M2-V06 | todo | 3 | M2-V03,M2-S03 | G06,G08 | Execute nested record/enum owner moves and checked reference projections with exactly-once drops. | — |
 | M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Execute owned guest calls/results with recursion limits and return escrow. | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | Execute generated failure exits: fuel/OOM/body failures, ordered cleanup and nested failure reports. | — |

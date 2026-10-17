@@ -1,0 +1,27 @@
+// Explicit clones preserve their sources; to-bytes produces independent storage.
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 65));
+    let mut cloned_bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_clone(core::allocator(), bytes));
+    let mut left: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(
+        core::text_from_utf8(bytes));
+    let mut copy: core::Text = core::result_unwrap::<core::Text, core::AllocError>(
+        core::text_clone(core::allocator(), left));
+    if core::text_equal(left, copy) {} else { return -1; }
+    let mut joined: core::Text = core::result_unwrap::<core::Text, core::AllocError>(
+        core::text_concat(core::allocator(), left, copy));
+    let mut mutable_bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::text_bytes(core::allocator(), joined));
+    let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_set(mutable_bytes, 0, 66));
+    let mut modified: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(
+        core::text_from_utf8(mutable_bytes));
+    if core::text_equal(joined, modified) { return -2; }
+    let mut cloned_original: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(
+        core::text_from_utf8(cloned_bytes));
+    if core::text_equal(left, cloned_original) {} else { return -3; }
+    return core::text_len(joined);
+}

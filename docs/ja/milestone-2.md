@@ -6,7 +6,7 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**42 done · 0 doing · 49 todo · 125 remaining pt**
+**42 done · 1 doing · 48 todo · 125 remaining pt**
 
 **次: M2-V05 → Text clone／concat／to-bytes／equalityをallocator・失敗の裏付け付きで実行する。**
 
@@ -102,7 +102,7 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 | M2-S02 | done | 0 | M2-S01 | G08 | RFC 0009の3操作を型検査し独立検証済みMIRへlower。Copy／move、loan、region、入れ子sumのcompile pass／fail。Runtimeはgateを維持。 | `b562c0f` |
 | M2-S03 | done | 0 | M2-S02 | G06,G08 | 有限Bytes／Copy sumと3種のwhole-payload取り出しをtransfer確保なしで実行。Source fixture、panic／fuel／OOM cleanup、managedな入れ子順序／span移譲を検証。 | `e584902` |
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get／set／push、UTF-8変換、Text byte長を実行。Bounds／OOM、変換確保数、fuel／interruption cleanup、Copy cell loop再利用を検証。 | `8b24c94` |
-| M2-V05 | todo | 2 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityのソース実行でallocator identityと失敗結果を保持。 | — |
+| M2-V05 | doing | 2 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityとBytes cloneのソース実行でallocator identityと失敗結果を保持。 | — |
 | M2-V06 | todo | 3 | M2-V03,M2-S03 | G06,G08 | 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証。 | — |
 | M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |

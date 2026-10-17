@@ -483,7 +483,7 @@ Host slot／逆map、loan generation、cleanup／report poolは上限付きでgu
 
 ### Sourceのbyte変更とUTF-8変換
 
-2026-10-18 JST実装／確認：V04は受理済みcore signatureでBytes get／set／push、所有権を消費するUTF-8変換、Text byte長、通常のexclusive byte loanを実行します。[従来の取り出し／変更fixture](../../examples/analysis/extraction.lang) は `1` を表示し、[UTF-8 script](../../examples/scripts/utf8.lang) はpush／set／getでU+3042を構築し、storageをTextへ移譲してbyte長の `3` を表示します。Text payloadも有限sum構築／取り出しgateを通ります。残りText allocation操作、collection、一般source aggregate、guest call、REPL、native実行は各taskに残します。
+2026-10-18 JST実装／確認：V04は受理済みcore signatureでBytes get／set／push、所有権を消費するUTF-8変換、Text byte長、通常のexclusive byte loanを実行します。[従来の取り出し／変更fixture](../../examples/analysis/extraction.lang) は `1` を表示し、[UTF-8 script](../../examples/scripts/utf8.lang) はpush／set／getでU+3042を構築し、storageをTextへ移譲してbyte長の `3` を表示します。Text payloadも有限sum構築／取り出しgateを通ります。V05でBytes cloneとText clone／concat／to-bytes／equalityを追加し、[Text script](../../examples/scripts/text.lang) はcopyの独立性を確認して `2` を表示します。Collection、一般source aggregate、guest call、prepareを伴う置換、REPL、native実行は各taskに残し、G07も残る代入／native evidenceの確認までopenです。
 
 Loan generation、live owner、pointeeの検査でtargetを解決し、このprofileのshared／exclusive permissionと非alias性は独立検証済みMIRで証明します。変更操作はprivateなservice-token snapshotを使い、次のguest failure／control boundary前に最新tokenをloan元ownerへ戻します。Growでheap handleが変わる場合に必要です。Structured bounds／invalid-byte／allocation errorではownerと既存内容を保持し、setはbuffer serviceのindex確認がbyte確認より先という順序を維持します。
 
@@ -491,9 +491,11 @@ UTF-8変換は成功／typed UTF-8 errorの両方でflatなBytes入力を消費�
 
 追加loop回帰で、2回目の定義時にliveなCopy結果cellを拒否する既存VM制約が判明しました。Constructor／取り出し先はCopyの上書きを許し、affine valueでは空destinationを引き続き要求します。空／正常／不正変換loopとCopy sum構築／取り出しの反復で、漏れやpoisonなしに指定fuel exitへ到達します。
 
-VM実行suiteは20 test、CLI suiteは24 testです。Frame＋buffer／growthの厳密request、変換時の新規確保なし、負／最大boundsとinvalid-byte precedence、grow OOM／quota error、空／NUL／multibyte UTF-8と不正offset、cell反復再利用、5つのsource fixtureの全fuel prefix、growth／変換解放直後のinterruptionを確認しました。Wrapper modelだけでなく実際の最新handle／owner cleanupを検証します。Native、ownership wire、fuzz campaignの結果は主張しません。
+Clone、concat、TextからBytesへの操作は、明示的allocator loanを検証してから独立ownerを確保します。Admission済みResult cellへ新tokenまたはtyped allocation errorを公開し、OOM／quota失敗時も借用した入力は読み取り可能です。その後のmove／cleanupでもinstance allocator identityを維持します。同じshared alias同士の比較／連結も可能です。等価性はNULを含む正確なUTF-8 byte列で判定し、正規化しません。変換後のBytesを変更しても元のTextは変わりません。
 
-出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST最終更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST）、[buffer service](../../crates/runtime/src/buffer.rs)、[VM buffer adapter](../../crates/vm/src/unit/owned/state/buffers.rs)、[実行test](../../tests/owned_execution.rs)、[CLI test](../../tests/cli.rs)、[UTF-8 script](../../examples/scripts/utf8.lang)。Service／adapter／test／scriptは2026-10-18 JST更新／確認。
+VM実行suiteは25 test、CLI suiteは25 testです。Frame＋buffer／growth／cloneの厳密request、UTF-8変換時の新規確保なし、負／最大boundsとinvalid-byte precedence、OOM／quota error、空／NUL／multibyte UTF-8と不正offset、正規等価でもbyte列が異なるText、cell／loan反復再利用、6つのsource fixtureの全fuel prefix、growth／変換解放直後のinterruptionを確認しました。Text scriptのbuffer allocation 6回も順番に失敗させ、元のpanic保持と全owner解放を確認します。Wrapper modelだけでなく実際の最新handle／owner cleanupを検証します。Native、ownership wire、fuzz campaignの結果は主張しません。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST最終更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST）、[buffer service](../../crates/runtime/src/buffer.rs)、[VM buffer adapter](../../crates/vm/src/unit/owned/state/buffers.rs)、[実行test](../../tests/owned_execution.rs)、[CLI test](../../tests/cli.rs)、[UTF-8 script](../../examples/scripts/utf8.lang)、[Text script](../../examples/scripts/text.lang)。Service／adapter／test／scriptは2026-10-18 JST更新／確認。
 
 ### Owned frame storageの受け入れ
 

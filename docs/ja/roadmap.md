@@ -8,7 +8,7 @@
 
 ## 現在のM2実装状況
 
-**検証済み42件 · 進行中0件 · 残り49件（暫定125 pt）。**
+**検証済み42件 · 進行中1件 · 残り48件（暫定125 pt）。**
 
 現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む16件の成果を検証しました。V04（`8b24c94`）でBytes変更とUTF-8変換を実行し、[変更fixture](../../examples/analysis/extraction.lang) は `1`、[UTF-8 script](../../examples/scripts/utf8.lang) はbyte長の `3` を表示します。Growth／失敗cleanup、不正入力の結果、Copy cellのloop再利用を確認しました。次は残りText操作（V05）で、equalityも明記しました。V04で3 ptを減らし、残作業は128 → 125 ptです。新たなexit gateは完了扱いにしていません。975 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。一般source aggregate、他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
