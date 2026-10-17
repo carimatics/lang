@@ -7,6 +7,8 @@ use lang_mir::unit::{self as m, ownership as o};
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 
+pub mod places;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     Source(SourceError),
@@ -14,6 +16,8 @@ pub enum Error {
     Types(o::Error),
     MissingSource,
     MissingLocal { function: usize, local: usize },
+    MissingExpression { function: usize, expression: usize },
+    MissingField { function: usize, expression: usize },
     Capacity,
 }
 impl From<SourceError> for Error {
@@ -290,6 +294,15 @@ pub fn lower_declarations(
     sources: &SourceMap,
     limits: o::Limits,
 ) -> Result<o::declarations::VerifiedDeclarations> {
+    let (mut c, out) = construct_declarations(checked, sources, limits)?;
+    Ok(out.verify_with_budget(&mut c.budget, limits.constructed)?)
+}
+
+fn construct_declarations<'a>(
+    checked: &RegionCheckedBodies,
+    sources: &'a SourceMap,
+    limits: o::Limits,
+) -> Result<(Context<'a>, o::declarations::Declarations)> {
     use o::declarations as d;
     let bodies = checked.loaned().moved().bodies();
     let input = bodies.source();
@@ -375,5 +388,5 @@ pub fn lower_declarations(
             locals: typed,
         });
     }
-    Ok(out.verify_with_budget(&mut c.budget, limits.constructed)?)
+    Ok((c, out))
 }

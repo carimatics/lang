@@ -9,6 +9,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 pub mod declarations;
+pub mod places;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ConstructedId(pub u32);
@@ -128,7 +129,10 @@ impl Default for Limits {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     Mir(super::ErrorKind),
-    ConstructedLimit { requested: usize, limit: usize },
+    ConstructedLimit {
+        requested: usize,
+        limit: usize,
+    },
     InvalidType(Type),
     ForwardConstructed(ConstructedId),
     SpanOutsideOwner,
@@ -140,15 +144,51 @@ pub enum ErrorKind {
     InvalidMapKey(Type),
     InvalidFunction(FunctionId),
     InvalidImport(super::ImportId),
-    InvalidLocal { function: FunctionId, local: u32 },
+    InvalidLocal {
+        function: FunctionId,
+        local: u32,
+    },
     InvalidParameterList(FunctionId),
     InvalidSignatureType(Type),
     PrivateSignatureType(Type),
     InvalidLocalType(Type),
     InvalidOwner(ArenaOwner),
     InvalidHostSignature,
-    CallArity { expected: usize, actual: usize },
-    CallType { expected: Type, actual: Type },
+    CallArity {
+        expected: usize,
+        actual: usize,
+    },
+    CallType {
+        expected: Type,
+        actual: Type,
+    },
+    FunctionBodyCount {
+        expected: usize,
+        actual: usize,
+    },
+    PlaceLimit {
+        requested: usize,
+        limit: usize,
+    },
+    InvalidValue(super::Register),
+    InvalidPlace(u32),
+    DuplicatePlace(super::Register),
+    InvalidDereference(Type),
+    ExpectedRecord(Type),
+    InvalidField {
+        definition: DefinitionId,
+        field: u32,
+    },
+    PlaceType {
+        expected: Type,
+        actual: Type,
+    },
+    ImmutablePlace,
+    NonCopyPlace(Type),
+    PartialMove(Type),
+    MoveThroughLoan(Type),
+    MoveAuthority(Type),
+    ReplaceAuthority(Type),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {

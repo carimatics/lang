@@ -268,3 +268,154 @@ fn source_declaration_lowering_and_independent_verification_share_one_budget() {
         );
     }
 }
+
+const PLACE_SOURCE: &str = "struct Inner { value: i64 } struct Outer { inner: Inner, text: core::Text } fn fields(p: &mut Outer) -> i64 { (*p).inner.value = 7; p.inner.value = 8; let mut read: &i64 = &p.inner.value; return (*read); } fn temporary() -> i64 { let mut value: i64 = 7; return (*(&value)); }";
+
+#[test]
+fn source_places_normalize_automatic_dereference_fields_and_temporary_loan_roots() {
+    use lang_mir::unit::ownership::places as p;
+    let (sources, checked) = prepare(PLACE_SOURCE);
+    let original = checked.clone();
+    let v = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    assert_eq!(checked, original);
+    let expected = vec![
+        p::ProjectionKind::Dereference,
+        p::ProjectionKind::Field(0),
+        p::ProjectionKind::Field(0),
+    ];
+    let mut found = 0;
+    for (i, place) in v.functions()[0].places.iter().enumerate() {
+        let path: Vec<_> = place.projections.iter().map(|p| p.kind).collect();
+        if path == expected {
+            found += 1;
+            assert_eq!(
+                v.facts(m::FunctionId(0), p::PlaceId(i as u32))
+                    .unwrap()
+                    .value_type,
+                o::Type::I64
+            );
+        }
+        assert_eq!(
+            &PLACE_SOURCE[place.span.start as usize..place.span.end as usize],
+            sources
+                .slice(
+                    checked.loaned().moved().bodies().source().functions[0].expressions
+                        [place.origin.0 as usize]
+                        .span
+                )
+                .unwrap()
+        );
+    }
+    assert!(found >= 2);
+    assert!(v.functions()[1].places.iter().any(|place| {
+        matches!(place.root, p::Root::Value(_))
+            && place
+                .projections
+                .iter()
+                .map(|p| p.kind)
+                .eq([p::ProjectionKind::Dereference])
+    }));
+    assert_eq!(
+        v,
+        ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap()
+    );
+}
+
+#[test]
+fn source_nested_reference_permissions_intersect_in_the_mir_path() {
+    use lang_mir::unit::ownership::places as p;
+    let text = "fn read(value: &&mut i64) -> i64 { return (*(*value)); } fn write(value: &mut &mut i64) -> i64 { (*(*value)) = 3; return (*(*value)); }";
+    let (sources, checked) = prepare(text);
+    let v = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    for (f, function) in v.functions().iter().enumerate() {
+        let mut found = false;
+        for (i, place) in function.places.iter().enumerate() {
+            if place.projections.iter().map(|p| p.kind).eq([
+                p::ProjectionKind::Dereference,
+                p::ProjectionKind::Dereference,
+            ]) {
+                found = true;
+                assert_eq!(
+                    v.facts(m::FunctionId(f as u32), p::PlaceId(i as u32))
+                        .unwrap()
+                        .exclusive_borrow,
+                    f == 1
+                );
+            }
+        }
+        assert!(found);
+    }
+}
+
+#[test]
+fn source_arena_owners_and_provisional_read_locals_keep_place_identity() {
+    use lang_mir::unit::ownership::places as p;
+    let (sources, checked) = prepare(include_str!("fixtures/arena-body.lang"));
+    let v = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    let mut found = false;
+    for (i, place) in v.functions()[0].places.iter().enumerate() {
+        if let p::Root::Local(local) = place.root
+            && v.declarations().functions()[0].locals[local.0 as usize].kind
+                == o::declarations::LocalKind::ArenaOwner
+            && place.projections.is_empty()
+        {
+            found = true;
+            v.check_access(
+                m::FunctionId(0),
+                p::PlaceId(i as u32),
+                p::Access::Borrow(o::LoanKind::Exclusive),
+                place.span,
+                &mut m::Budget::new(m::Limits::default()),
+            )
+            .unwrap();
+            assert!(
+                v.check_access(
+                    m::FunctionId(0),
+                    p::PlaceId(i as u32),
+                    p::Access::Move,
+                    place.span,
+                    &mut m::Budget::new(m::Limits::default())
+                )
+                .is_err()
+            );
+        }
+    }
+    assert!(found);
+}
+
+#[test]
+fn source_place_construction_and_all_verifiers_share_exact_budgets() {
+    use lang_mir::unit::ownership::places as p;
+    let (sources, checked) = prepare(PLACE_SOURCE);
+    let v = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    for (kind, used) in [
+        (m::LimitKind::Work, v.work_used()),
+        (m::LimitKind::Allocations, v.requested_bytes()),
+        (m::LimitKind::Elements, v.elements_used()),
+    ] {
+        let mut l = p::Limits::default();
+        match kind {
+            m::LimitKind::Work => l.ownership.unit.work = used,
+            m::LimitKind::Allocations => l.ownership.unit.allocations = used,
+            _ => l.ownership.unit.elements = used,
+        }
+        ownership_types::places::lower(&checked, &sources, l).unwrap();
+        match kind {
+            m::LimitKind::Work => l.ownership.unit.work -= 1,
+            m::LimitKind::Allocations => l.ownership.unit.allocations -= 1,
+            _ => l.ownership.unit.elements -= 1,
+        }
+        assert!(ownership_types::places::lower(&checked, &sources, l).is_err());
+    }
+    assert!(
+        ownership_types::places::lower(
+            &checked,
+            &sources,
+            p::Limits {
+                places: 0,
+                ..Default::default()
+            }
+        )
+        .is_err()
+    );
+}

@@ -223,7 +223,7 @@ Verifierはsource／name／span metadata、nominal／constructed参照、前方�
 
 構築と検証はwork、要求allocation byte、elementの累積budgetを共有し、source／definition／member／constructed／depthにも上限を設けます。13件のfocused testでsource／MIR属性の一致、ownerとprovisional read型、snapshot／span保持と再変換、壊れたgraph／metadata／storage入力、正確なresource境界、400 definitionのchain、独立Copy／drop oracleで照合する200件の生成型graphを検証します。`ownership_mir_types` fuzz targetはlock済みmanifestでcompileし、instrumentationなし10,000-run smokeが成功しました。このsmokeはcoverage-guided fuzzのevidenceではありません。
 
-`VerifiedTypes` はgraphのshape／属性と、後述の型同値を証明します。生のtable indexは論理参照であり、wire tagではありません。Owner symbolはruntime authorityを与えません。次の宣言stageで対応する宣言を検査しますが、instruction／place／CFG検証、initialization／move／loan／region遷移、layout、cleanup、core operation、VM／native lowering、ownership serializationは個別要件として残ります。実行可能な `VerifiedUnit` への変換は提供せず、既存Copy profileとbytecode schema 1は変更しません。この前提作業だけではHIR／MIR ownershipやarenaのoutcomeは完了しません。
+`VerifiedTypes` はgraphのshape／属性と、後述の型同値を証明します。生のtable indexは論理参照であり、wire tagではありません。Owner symbolはruntime authorityを与えません。次の宣言／place stageで対応する宣言と型付きpathを検査しますが、実行可能instruction／CFG検証、initialization／move／loan／region遷移、layout、cleanup、core operation、VM／native lowering、ownership serializationは個別要件として残ります。実行可能な `VerifiedUnit` への変換は提供せず、既存Copy profileとbytecode schema 1は変更しません。この前提作業だけではHIR／MIR ownershipやarenaのoutcomeは完了しません。
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[MIR型verifier](../../crates/mir/src/unit/ownership.rs)、[source adapter](../../crates/semantics/src/ownership_types.rs)、対応test、fuzz target。更新／検証日：2026-10-17 JST。Graph storageと解析algorithmは実装上の選択であり、serialized format、heap ABI、performance測定の主張は追加しません。
 
@@ -235,9 +235,21 @@ Verifierはsource／name／span metadata、nominal／constructed参照、前方�
 
 `lang-semantics::ownership_types::lower_declarations` はregion検査済みsource function、import、型推論済み／型注釈付きlocalを変換し、function／local ID、binding kind、名前、snapshot、byte spanを保持します。`VerifiedDeclarations::check_call` と `check_import` は、明示的な引数型を検証済み同値判定で比較し、宣言されたresult型を返します。Borrow推論、move、liveness／region／capability遷移の検証、code実行は行いません。既存host importは正確に `(i64) -> i64` のままで、この宣言APIからallocator callbackや提案中のC boundaryを推論しません。
 
-追加13件のfocused testで、独立に展開したkeyと比較する80件の生成型同値graph、同じhash bucketへ配置する32個の異なるkey、nominal／loan／ownerの区別、正確なbudget、不正なparameter／name／span／type／owner入力、禁止signature、scalar host call、source再変換、異なるfunctionで同じlocal indexを使うsource arenaを確認します。拡張fuzz targetは同値、宣言、再検証、引数検査を扱い、lock済みcompile／Clippyとinstrumentationなし10,000-run smokeが成功しました。Coverage-guidedの主張は行いません。これらのwrapperは実行できません。対応するMilestone 2 outcomeの完了には、typed instruction／place／CFGとownership遷移、cleanup／layout、core／runtimeのVM／native統合、ownership wire encodingが必要です。
+追加13件のfocused testで、独立に展開したkeyと比較する80件の生成型同値graph、同じhash bucketへ配置する32個の異なるkey、nominal／loan／ownerの区別、正確なbudget、不正なparameter／name／span／type／owner入力、禁止signature、scalar host call、source再変換、異なるfunctionで同じlocal indexを使うsource arenaを確認します。拡張fuzz targetは同値、宣言、再検証、引数検査を扱い、lock済みcompile／Clippyとinstrumentationなし10,000-run smokeが成功しました。Coverage-guidedの主張は行いません。これらのwrapperは実行できません。次のplace stageがsourceのrecord／dereference pathを扱いますが、対応するMilestone 2 outcomeの完了には、typed instruction／CFGとownership遷移、cleanup／layout、core／runtimeのVM／native統合、ownership wire encodingが必要です。
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[型同値](../../crates/mir/src/unit/ownership.rs)、[宣言verifier](../../crates/mir/src/unit/ownership/declarations.rs)、[source adapter](../../crates/semantics/src/ownership_types.rs)、test、fuzz target。更新／検証日：2026-10-17 JST。Interningとmetadataの方式は実装上の選択であり、新たな言語規則、公開heap／C ABI、serialization、performance測定は主張しません。
+
+### Ownership MIR places
+
+2026-10-17実装：`lang-mir::unit::ownership::places` はfunction内のlocal／value root、明示的な通常loan dereference、record field projectionを検証します。全typed value descriptor、place origin、root、field、projection span、導出したresult型を検証済み宣言／型と照合します。Shared／weak／arena tokenのraw dereferenceは許可せず、enum payloadをrecord fieldとして扱わず、MIR field projectionでloanを暗黙dereferenceしません。Value descriptorが提供するのは型とsource originであり、検証済みSSA定義や実行済みloadではありません。
+
+静的access queryはCopy read、whole-value move、禁止されるnon-Copyのpartial／borrowed move、型が一致するreplacement、shared／exclusive borrowを区別します。Owning parameterとpattern bindingはimmutableです。Shared loanを一度通ると、その後に内側のexclusive loanがあってもpathはread-onlyのままです。Arena ownerはcore authorityのためのexclusive borrowを許可しますが、move／replacementを拒否します。Opaque allocator authorityも通常値としてmove／replaceできません。Value rootのbindingはimmutableですが、通常exclusive loanのreferentへのaccessは許可され得ます。これらのpermissionはloanが正しく生成されたことを前提とし、active loan／cell provenance、initialization、lifetime、region flow、borrow escape安全性は証明しません。
+
+`lang-semantics::ownership_types::places::lower` はregion検査済みsourceのlocal／field／dereference式を正規化し、expression index、snapshot、byte spanを保持します。Sourceの自動field dereferenceは明示stepへ変換し、入れ子のdereferenceではshared／exclusiveの全pathを保持します。Temporary loan式はtyped value rootを使います。Verifierはprojection後の型を独立に導出し、検証済み同値判定でsource type descriptorと比較します。正規化とqueryはmetadataを生成し、guestのread／write／move／allocation、loan lifetime、cleanupには実行可能な遷移が必要です。
+
+追加14 testで、独立permission-intersection oracleと比較する60通りのnested loan path、Copyとpartial／borrowed moveの区別、parameter／pattern／valueの不変性、authority操作、不正なroot／field／type／origin／span、正確な累積budget、source field／temporary／nested loan／arenaの正規化と再変換を確認します。構築と全type／declaration／place verifierでwork／allocation／element budgetを共有し、localとvalue descriptorには累積register上限、place数とprojection depthには個別上限を設けます。拡張 `ownership_mir_types` fuzz targetは不正place、再検証、access queryを含み、lock済みtargetのClippyとinstrumentationなし10,000-run smokeが成功しました。Coverage-guidedの主張は行いません。
+
+`VerifiedPlaces` は実行可能MIR unitやmemory-access capabilityではありません。Instruction／value定義、CFG／dominanceとinitialization／move／loan／region dataflow、合成pattern／payload path、cleanup／layout、core／runtime operation、VM／native実行、ownership serializationが必要です。ここで扱う通常source place profileだけではHIR／MIRやarenaのoutcomeは完了しません。出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[place verifier](../../crates/mir/src/unit/ownership/places.rs)、[source normalizer](../../crates/semantics/src/ownership_types/places.rs)、test、fuzz target。更新／検証日：2026-10-17 JST。表現、interning、budget粒度は実装上の選択であり、新たな公開ABI、wire tag、performanceは主張しません。
 
 ### Source formatter
 

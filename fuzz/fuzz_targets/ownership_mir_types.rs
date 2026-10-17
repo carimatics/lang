@@ -160,6 +160,74 @@ fuzz_target!(|bytes: &[u8]| {
                     f.result.ty
                 );
             }
+            use lang_mir::unit::ownership::places as p;
+            let mut table = p::PlaceTable {
+                declarations: checked.into_declarations(),
+                functions: vec![],
+            };
+            for i in 0..table.declarations.functions.len() {
+                let mut f = p::FunctionPlaces::default();
+                for j in 0..usize::from(byte(i + 410) % 8) {
+                    f.values.push(TypeUse {
+                        ty: ty(byte(i * 8 + j + 420)),
+                        span,
+                    });
+                }
+                for j in 0..usize::from(byte(i + 450) % 8) {
+                    let mut projections = vec![];
+                    for k in 0..usize::from(byte(i * 8 + j + 480) % 4) {
+                        projections.push(p::Projection {
+                            kind: if byte(i * 8 + j + k + 490) & 1 == 0 {
+                                p::ProjectionKind::Dereference
+                            } else {
+                                p::ProjectionKind::Field(u32::from(byte(i * 8 + j + k + 500) % 16))
+                            },
+                            span,
+                        });
+                    }
+                    f.places.push(p::Place {
+                        origin: m::Register(u32::from(byte(i * 8 + j + 460) % 16)),
+                        root: if byte(i * 8 + j + 470) & 1 == 0 {
+                            p::Root::Local(d::LocalId(u32::from(byte(i * 8 + j + 475) % 16)))
+                        } else {
+                            p::Root::Value(m::Register(u32::from(byte(i * 8 + j + 475) % 16)))
+                        },
+                        projections,
+                        span,
+                    });
+                }
+                table.functions.push(f);
+            }
+            let place_limits = p::Limits {
+                places: 32,
+                ownership: limits,
+            };
+            if let Ok(places) = table.verify(place_limits) {
+                assert_eq!(
+                    places.clone().into_table().verify(place_limits).unwrap(),
+                    places
+                );
+                for (i, f) in places.functions().iter().enumerate() {
+                    for (j, _) in f.places.iter().enumerate() {
+                        places
+                            .check_access(
+                                m::FunctionId(i as u32),
+                                p::PlaceId(j as u32),
+                                p::Access::Read,
+                                span,
+                                &mut budget,
+                            )
+                            .unwrap();
+                        let _ = places.check_access(
+                            m::FunctionId(i as u32),
+                            p::PlaceId(j as u32),
+                            p::Access::Move,
+                            span,
+                            &mut budget,
+                        );
+                    }
+                }
+            }
         }
     }
 });
