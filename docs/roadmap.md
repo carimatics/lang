@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 56 pt | 89 pt | 62.9% |
+| 1 — frontend and bytecode vertical slice (current) | 61 pt | 89 pt | 68.5% |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **265 pt** | **738 pt** | **35.9%** |
+| **Overall** | **270 pt** | **738 pt** | **36.6%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P0:** implement schema-1 bytecode encoding/decoding against the validated shared MIR unit, then connect source lowering and bounded VM execution.
+- **Next active P0:** connect source lowering and bounded VM execution to the verified schema-1 compilation unit.
 
 ### Tasks in priority order
 
@@ -137,7 +137,7 @@ Exit achieved: accepted design baselines, cross-mode prototypes, and initial bac
 
 ## Milestone 1: frontend and bytecode vertical slice (current)
 
-**Progress: 56 / 89 pt (62.9%).**
+**Progress: 61 / 89 pt (68.5%).**
 
 The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five accepted design gates account for 16 completed points across lexical rules, modules/calls, aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Lossless parsing, module loading/resolution, source-wide typing, nominal layouts, and pattern exhaustiveness are implemented. Source MIR/VM/native integration, portable artifacts, CLI, and tooling remain separate outcomes.
 
@@ -160,7 +160,7 @@ The 8-point incremental-tooling task is likewise split into 3 points of shared g
 - [x] **P0 — Lower accepted primitive HIR into validated typed MIR with CFG block arguments, source maps, and VM/JIT differential tests.** — 2 pt
 - [ ] **P0 — Complete parser-connected HIR-to-MIR lowering, including accepted calls/aggregates and source-span conformance.** — 3 pt
 - [x] **P0 — Accept the portable bytecode schema and bounded decoding/verification contract.** — 2 pt
-- [ ] **P0 — Promote the prototype into versioned register bytecode with encoding, decoding, and verification.** — 5 pt
+- [x] **P0 — Promote the prototype into versioned register bytecode with encoding, decoding, and verification.** — 5 pt
 - [ ] **P0 — Implement accepted source calls, call frames, returns, and bounded recursion in MIR, bytecode, and VM with failure/stack tests.** — 8 pt
 - [ ] **P0 — Execute the source-language subset in the VM with typed host registration.** — 5 pt
 - [x] **P0 — Accept script entry/output and transactional REPL state/error contracts.** — 1 pt
@@ -194,16 +194,18 @@ Commit `ef95dc0` completes source-wide HIR typing for primitives/control flow, g
 
 Commit `e6b6987` adds the accepted compilation-unit MIR model and a budgeted verifier with source-byte metadata, all required operations, nominal layouts, SSA/dominance, CFG arguments/reachability, signatures, entry validation, and existing owned restrictions. Fifteen tests include 1,536 independent dominance-oracle comparisons, exact layout/resource boundaries, source positions, and cumulative allocation/work accounting. The full baseline passes (370 tests). This is a prerequisite shared by remaining lowering, bytecode, and VM tasks; no checklist points are awarded for their incomplete integration. The next scope is canonical schema-1 encoding/decoding using the same cumulative decoder/verifier budget.
 
+Commit `b5b83b7` completes portable schema-1 bytecode encoding/decoding and shared-budget verification. Eleven tests cover an 88-byte fixed fixture, all twelve operations, canonical global table sorting and ID relocation, byte-identical reencoding, truncation/malformed inputs, and cumulative byte/count/allocation/work limits. The decoder fuzz target compiles and completed an uninstrumented 10,000-run smoke. The full fmt/Clippy/test/doc baseline passes (381 tests). This closes the 5-point portable-artifact outcome; execution remains separate.
+
 ### Remaining dependency audit (2026-10-17)
 
-After owner acceptance and source-wide typing, the current checklist has 7 unchecked implementation items totaling 33 points. This table is a dependency view, not additional scope or completion credit.
+After owner acceptance, source-wide typing, and portable artifacts, the current checklist has 6 unchecked implementation items totaling 28 points. This table is a dependency view, not additional scope or completion credit.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
 | --- | --- |
 | Lexical specification | Formatter round trips and incomplete-source LSP diagnostics |
 | Module/function-call semantics | Guest frames/recursion, typed host execution, and source/HIR/MIR/VM/native conformance |
 | Record/variant/pattern semantics and representation | Aggregate source/HIR/MIR/VM conformance |
-| Portable bytecode contract | Versioned encoding/decoding and bounded verification |
+| Portable bytecode contract | Verified artifact execution and source conformance |
 | Script/REPL contract | Deterministic script entry/output and transactional REPL execution |
 
 All five decision areas are accepted in RFC 0006. The structured-input HIR, MIR lowering, graph/cache core, and protocol diagnostic conversion still do not establish the source-driven exit. Inspection of [`src/main.rs`](../src/main.rs) confirms the executable still accepts two integers and constructs prototype MIR; it does not yet run source files. Work now proceeds through the accepted parser-connected implementation rather than requesting another disposition.
