@@ -1,8 +1,8 @@
 //! Diagnostic data conversion for the LSP UTF-16 position profile.
 //!
-//! This is an adapter, not a language server or a wire codec. A future server
-//! must supply document URIs, negotiate UTF-16, respect related-information
-//! capabilities, and guard publication with the shared query graph.
+//! The root crate's stdio server supplies document URIs, negotiates UTF-16,
+//! respects related-information capabilities, and uses the shared query database
+//! to guard publication. This crate keeps the conversion independent of transport.
 //! Source: LSP 3.18 position/range/diagnostic/text-document definitions,
 //! verified 2026-10-17; see docs/architecture.md for source dates and links.
 
@@ -207,10 +207,38 @@ impl OutputBudget {
     }
 }
 
-/// Convert valid source labels using host-supplied document URIs. URIs are
-/// opaque, already validated protocol inputs; no filesystem paths are inferred
-/// or read. Related information is retained for capable clients; capability
-/// filtering, publication versions, JSON encoding, and code actions come later.
+/// UTF-16 protocol coordinates for an actual UTF-8 text snapshot. This also
+/// supports raw-input reporting without inventing a language source span.
+pub fn text_position(
+    text: &str,
+    offset: usize,
+    source_bytes: usize,
+) -> Result<Position, MappingError> {
+    if text.len() > source_bytes {
+        return Err(MappingError::LimitExceeded(LimitKind::SourceBytes));
+    }
+    Index::new(text)?.position(offset)
+}
+
+/// Map a validated source range, including whole-document formatting edits.
+pub fn map_range(
+    span: Span,
+    sources: &SourceMap,
+    source_bytes: usize,
+) -> Result<Range, MappingError> {
+    sources.slice(span).map_err(MappingError::Source)?;
+    let text = sources
+        .file(span.source())
+        .map_err(MappingError::Source)?
+        .text();
+    if text.len() > source_bytes {
+        return Err(MappingError::LimitExceeded(LimitKind::SourceBytes));
+    }
+    Index::new(text)?.range(span)
+}
+
+/// Convert source labels with host-supplied URIs. No filesystem IO occurs;
+/// the host owns capability filtering, publication versions, and JSON encoding.
 pub fn map_diagnostic(
     diagnostic: &SourceDiagnostic,
     sources: &SourceMap,

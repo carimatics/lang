@@ -177,6 +177,13 @@ impl Database {
     pub const fn limits(&self) -> Limits {
         self.limits
     }
+    pub fn raw_input(&self, path: &Path) -> Option<&[u8]> {
+        let keys = self.files.get(path)?;
+        match self.graph.get(keys.input)?.as_ref() {
+            Cached::Input(Some(bytes)) => Some(bytes),
+            _ => None,
+        }
+    }
     pub fn open_paths(&self) -> impl Iterator<Item = &Path> {
         self.files
             .iter()

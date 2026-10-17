@@ -41,6 +41,7 @@ lang-syntax = { path = "crates/syntax" }
 lang-vm = { path = "crates/vm" }
 object = { version = "0.40.0", default-features = false, features = ["coff", "macho", "read_core", "std", "write"] }
 target-lexicon = "0.13.5"
+serde_json = "1.0"
 
 [package]
 name = "lang"
@@ -53,11 +54,13 @@ lang-bytecode.workspace = true
 lang-codegen-clif.workspace = true
 lang-diagnostics.workspace = true
 lang-hir.workspace = true
+lang-lsp.workspace = true
 lang-mir.workspace = true
 lang-runtime.workspace = true
 lang-semantics.workspace = true
 lang-syntax.workspace = true
 lang-vm.workspace = true
+serde_json.workspace = true
 
 [target.'cfg(all(target_os = "windows", target_env = "msvc"))'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }

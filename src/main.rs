@@ -10,7 +10,7 @@ use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang <left> <right>\n";
+const USAGE: &str = "usage: lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
 enum Command {
     Run {
         file: PathBuf,
@@ -21,6 +21,7 @@ enum Command {
         root: Option<PathBuf>,
         limits: Limits,
     },
+    Lsp,
     Prototype(i64, i64),
     Help,
 }
@@ -59,6 +60,14 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
     };
     if first == "--help" || first == "-h" {
         return Ok(Command::Help);
+    }
+    if first == "lsp" {
+        if arguments.len() != 1 {
+            return Err(usage(
+                "lsp accepts no arguments; initialize supplies the source root",
+            ));
+        }
+        return Ok(Command::Lsp);
     }
     let repl = first == "repl";
     if first != "run" && !repl {
@@ -121,6 +130,12 @@ fn run() -> Result<u8, CliError> {
             print!("{USAGE}");
             Ok(0)
         }
+        Command::Lsp => lang::lsp::serve(
+            &mut io::stdin().lock(),
+            &mut io::stdout().lock(),
+            lang::lsp::Limits::default(),
+        )
+        .map_err(failure),
         Command::Prototype(left, right) => {
             let results = run_prototype_add(left, right).map_err(failure)?;
             println!(
