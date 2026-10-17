@@ -383,6 +383,16 @@ Typed verifierは対象のidentity／type、入れ子の各span、loan定義とr
 
 出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Ownership record契約](../../crates/mir/src/unit/ownership/bodies.rs)、[source lowering](../../crates/semantics/src/ownership_types/bodies.rs)、[record順序runtime helper](../../crates/runtime/src/cleanup/mir.rs)、[record統合test](../../tests/record_cleanup.rs)、[runtime transfer test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
 
+### Contextを共有するfield cleanup報告
+
+実装／検証日：2026-10-18 JST。`lang_runtime::cleanup::Cleaner`は借用した`Context`を通して生成aggregate cleanupを支援します。`Instance::enter_with_context`と`enter_cleaner`は通常entryと同じmetadata／report bufferを事前確保し、既存2引数callbackとの互換性を維持します。`Context::field`は切り離したchildを消費してからtrusted cleanupを呼び、callbackとpayload破棄のpanicを個別にcontainして、全failureを親の上限付きreportへ記録します。Childのinitializer spanは一時的に親の位置を上書きし、その後元に戻ります。Contextは所有frame slotとexit reasonを保持します。`Context::fail`は兄弟cleanupを終了せずcontainer failureを報告できます。
+
+`RecordOrder::cleanup_fields`は個別cleanupが失敗してもfield drainを最後まで処理します。戻り値はstorage shapeの妥当性を報告し、cleanup failureは共有contextへ残るため、frameはresult公開を拒否してinstanceをpoisonします。元のexecution failureをprimaryにし、順序付きfield failureを後続に置き、それがなければ最初のfield failureをprimaryにします。Buffer overflow時は省略record数を数えてcleanupを続行します。Fieldのpanic隔離もroot valueと同じ上限付きdisposal方針を使います。Contextはchild用の別report、診断文字列、fuel課金、guest allocationを追加しません。
+
+生成adapterはnormal allocation／frame setup中に反復retirement用storageを予約する必要があります。Contextはowned payload shapeを推測せず、failure後にtraversal storageを予約しません。追加6 testは、report共有と親span復元、3 record上限bufferと元のfuel failureに対する300 field failure、callback／destructor／悪意あるpayloadのpanic、2万段のhost所有shapeを事前確保した1 itemのworklistで処理するケースを含みます。検証を限定したtest interpreterを通して、source生成の全検査済みrecord MIRと実際のshared ownerを接続します。事前予約した反復worklistで、構築順に従う入れ子field failureを各initializer span付きで報告し、cleanup失敗時は全field failureを保持しながら未公開record resultも破棄します。Workspace全880 test、fmt／Clippy、fuzz targetのformat／locked Clippyが成功しました。生成guest failure exit、source allocation／retirement予約、実行用owned layout、production VM／native adapterとconformanceは未完了です。
+
+出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Cleanup context](../../crates/runtime/src/cleanup/context.rs)、[entry統合](../../crates/runtime/src/cleanup.rs)、[record helper](../../crates/runtime/src/cleanup/mir.rs)、[runtime test](../../crates/runtime/tests/cleanup.rs)、[source統合test](../../tests/record_cleanup.rs)の更新／検証日：2026-10-18 JST。
+
 ### Source analysis profileとdriver境界
 
 実装／検証日：2026-10-18 JST。`lang_hir::program::analyze_program`は検査済みCopy program、またはprivateなregion検査済みHIR bodyを保持するownership programを返します。互換entry pointの`check_program`と`check_expression_function`は引き続きCopy execution profileを要求します。成功したownership解析は保持され、再実行したり未対応の言語機能として報告したりしません。

@@ -1,8 +1,9 @@
 //! Mapping independently typed ownership MIR obligations to entry-frame cells.
 //! This mapping supplies no executable payload layout or guest allocator grant.
 
-use super::{Frame, Kind, Reason, Slot, StateError};
+use super::{Cleaner, Context, Frame, Kind, Slot, StateError};
 use lang_mir::unit::FunctionId;
+use lang_mir::unit::ownership::{bodies as b, declarations as d};
 
 /// Construction order borrowed only from independently verified ownership MIR.
 /// Physical field storage remains in declaration order. Copy/vacant fields may
@@ -40,8 +41,21 @@ impl<'a> RecordOrder<'a> {
     pub const fn field_count(&self) -> usize {
         self.fields.len()
     }
-    pub fn reverse(&self) -> impl Iterator<Item = u32> + '_ {
+    pub fn reverse(&self) -> impl DoubleEndedIterator<Item = u32> + ExactSizeIterator + '_ {
         self.order.iter().rev().copied()
+    }
+    /// Clean each detached field against the entry's shared report. A field
+    /// failure never aborts this drain or hides subsequent field failures.
+    pub fn cleanup_fields<T, C: Cleaner<T>>(
+        &self,
+        fields: &mut [Option<T>],
+        context: &mut Context<'_>,
+        cleaner: &mut C,
+    ) -> Result<(), StateError> {
+        for (field, value) in self.drain(fields)? {
+            context.field(value, self.field_span(field), cleaner);
+        }
+        Ok(())
     }
     pub fn field_span(&self, field: u32) -> Option<lang_mir::unit::Span> {
         let value = self.fields.get(field as usize)?;
@@ -87,7 +101,6 @@ impl<T> Iterator for RecordDrain<'_, '_, T> {
     }
 }
 impl<T> std::iter::FusedIterator for RecordDrain<'_, '_, T> {}
-use lang_mir::unit::ownership::{bodies as b, declarations as d};
 
 pub struct MirLayout<'a> {
     typed: &'a b::TypedBodies,
@@ -178,7 +191,7 @@ impl<'a> MirLayout<'a> {
     }
 }
 
-impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
+impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     /// Consume a MIR cleanup range through the dynamic initialization ledger.
     /// Callers supply checked MIR and predeclare its non-Copy/registration cells.
     pub fn cleanup_mir(

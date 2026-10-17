@@ -12,9 +12,10 @@ use lang_mir::unit::Span;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::mem::ManuallyDrop;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 
+mod context;
 mod mir;
+pub use context::{Cleaner, Context, Contextual};
 pub use mir::{MirLayout, RecordDrain, RecordOrder};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -212,6 +213,24 @@ impl Instance {
     where
         C: FnMut(&mut T, Reason) -> Result<(), u32>,
     {
+        self.enter_cleaner(limits, cleaner)
+    }
+    /// Generated aggregate cleanup shares the entry's bounded report buffer.
+    pub fn enter_with_context<T, C>(
+        &mut self,
+        limits: Limits,
+        cleaner: C,
+    ) -> Result<Frame<'_, T, Contextual<C>>, EnterError>
+    where
+        C: FnMut(&mut T, Reason, &mut Context<'_>) -> Result<(), u32>,
+    {
+        self.enter_cleaner(limits, Contextual(cleaner))
+    }
+    pub fn enter_cleaner<T, C: Cleaner<T>>(
+        &mut self,
+        limits: Limits,
+        cleaner: C,
+    ) -> Result<Frame<'_, T, C>, EnterError> {
         if self.poisoned {
             return Err(EnterError::Poisoned);
         }
@@ -290,7 +309,7 @@ struct Scope {
 /// is deliberately leaked: invoking its possibly panicking destructor during
 /// unwinding could otherwise abort before independent owners are cleaned.
 #[must_use = "finish the frame to inspect cleanup failures and publish its result"]
-pub struct Frame<'a, T, C: FnMut(&mut T, Reason) -> Result<(), u32>> {
+pub struct Frame<'a, T, C: Cleaner<T>> {
     instance: &'a mut Instance,
     cleaner: C,
     slots: Vec<Value<T>>,
@@ -299,7 +318,7 @@ pub struct Frame<'a, T, C: FnMut(&mut T, Reason) -> Result<(), u32>> {
     report: Report,
     finished: bool,
 }
-impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
+impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     fn running(&self) -> Result<(), StateError> {
         if self.report.primary.is_some() {
             Err(StateError::Failed)
@@ -584,52 +603,24 @@ impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
             self.forget_scope();
         }
     }
-    fn cleanup_failure(&mut self, kind: FailureKind, slot: Slot, span: Option<Span>) {
-        self.instance.poisoned = true;
-        self.report.record(FailureRecord {
-            kind,
-            slot: Some(slot),
-            span,
-        });
-    }
-    fn panic_payload(
-        &mut self,
-        payload: Box<dyn std::any::Any + Send>,
-        slot: Slot,
-        span: Option<Span>,
-    ) {
-        if let Err(secondary) = catch_unwind(AssertUnwindSafe(|| drop(payload))) {
-            // A second hostile payload must not recursively unwind disposal.
-            std::mem::forget(secondary);
-            self.report.quarantined = self.report.quarantined.saturating_add(1);
-            self.cleanup_failure(FailureKind::PanicPayloadDropPanic, slot, span);
-        }
-    }
     fn destroy(
         &mut self,
         slot: Slot,
-        mut payload: ManuallyDrop<T>,
+        payload: ManuallyDrop<T>,
         span: Option<Span>,
         reason: Reason,
     ) {
-        match catch_unwind(AssertUnwindSafe(|| (self.cleaner)(&mut payload, reason))) {
-            Ok(Ok(())) => {}
-            Ok(Err(code)) => self.cleanup_failure(FailureKind::Cleanup(code), slot, span),
-            Err(panic) => {
-                self.cleanup_failure(FailureKind::CleanupPanic, slot, span);
-                self.panic_payload(panic, slot, span);
-                self.report.quarantined = self.report.quarantined.saturating_add(1);
-                // ManuallyDrop suppresses T::drop after a partially executed
-                // trusted callback. Independent obligations still drain.
-                return;
-            }
-        }
-        if let Err(panic) = catch_unwind(AssertUnwindSafe(|| {
-            drop(ManuallyDrop::into_inner(payload));
-        })) {
-            self.cleanup_failure(FailureKind::PayloadDropPanic, slot, span);
-            self.panic_payload(panic, slot, span);
-        }
+        let cleaner = &mut self.cleaner;
+        let mut context = Context {
+            instance: &mut *self.instance,
+            report: &mut self.report,
+            slot,
+            span,
+            reason,
+        };
+        context.run(payload, |value, context| {
+            cleaner.cleanup(value, reason, context)
+        });
     }
     pub fn finish(mut self, exit: Exit) -> Completion<T> {
         let mut returned = None;
@@ -681,7 +672,7 @@ impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Frame<'_, T, C> {
         }
     }
 }
-impl<T, C: FnMut(&mut T, Reason) -> Result<(), u32>> Drop for Frame<'_, T, C> {
+impl<T, C: Cleaner<T>> Drop for Frame<'_, T, C> {
     fn drop(&mut self) {
         if !self.finished {
             self.drain_all(Reason::Failure);

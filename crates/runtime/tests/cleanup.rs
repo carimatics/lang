@@ -1,7 +1,7 @@
 use lang_mir::unit::{SourceId, Span};
 use lang_runtime::cleanup::{
-    EnterError, ExecutionFailure, Exit, FailureKind, Frame, Instance, Kind, Limits, Reason, Slot,
-    StateError,
+    Context, Contextual, EnterError, ExecutionFailure, Exit, FailureKind, Frame, Instance, Kind,
+    Limits, Reason, Slot, StateError,
 };
 use lang_runtime::shared::{Payload, SharedHeap, Strong};
 use std::cell::{Cell, RefCell};
@@ -687,6 +687,248 @@ fn exported_owners_leave_no_source_obligation_and_registrations_cannot_escape() 
     assert_eq!(*drops.borrow(), [99]);
     drop(owner);
     assert_eq!(*drops.borrow(), [99, 10]);
+}
+
+#[test]
+fn contextual_fields_share_ordered_reports_and_restore_parent_location() {
+    let drops = Drops::default();
+    let mut instance = Instance::default();
+    let mut frame = instance
+        .enter_with_context(
+            Limits::default(),
+            |fields: &mut Vec<Option<Resource>>, reason, context: &mut Context<'_>| {
+                assert_eq!(context.slot(), Slot(0));
+                assert_eq!(context.span(), Some(span(100)));
+                assert_eq!(context.reason(), reason);
+                let mut leaf =
+                    Contextual::new(|value: &mut Resource, reason, context: &mut Context<'_>| {
+                        assert_eq!(reason, Reason::ScopeExit);
+                        context.fail(*value.value);
+                        Ok(())
+                    });
+                for (index, field) in fields.iter_mut().enumerate().rev() {
+                    if let Some(value) = field.take() {
+                        context.field(
+                            value,
+                            (index != 1).then_some(span((index + 1) as u32)),
+                            &mut leaf,
+                        );
+                        assert_eq!(context.span(), Some(span(100)));
+                    }
+                }
+                context.fail(99);
+                Err(88)
+            },
+        )
+        .unwrap();
+    frame.declare(Slot(0), Kind::Owner).unwrap();
+    frame
+        .initialize(
+            Slot(0),
+            (1..=3).map(|id| Some(resource(id, &drops))).collect(),
+            Some(span(100)),
+        )
+        .unwrap();
+    let done = frame.finish(Exit::Return(None));
+    assert_eq!(done.report.primary().unwrap().kind, FailureKind::Cleanup(3));
+    assert_eq!(done.report.primary().unwrap().span, Some(span(3)));
+    assert_eq!(
+        done.report
+            .secondary()
+            .iter()
+            .map(|r| r.kind)
+            .collect::<Vec<_>>(),
+        [
+            FailureKind::Cleanup(2),
+            FailureKind::Cleanup(1),
+            FailureKind::Cleanup(99),
+            FailureKind::Cleanup(88)
+        ]
+    );
+    assert_eq!(done.report.secondary()[0].span, Some(span(100))); // missing child span inherits parent
+    assert_eq!(done.report.secondary()[2].span, Some(span(100)));
+    assert!(
+        done.report
+            .secondary()
+            .iter()
+            .all(|r| r.slot == Some(Slot(0)))
+    );
+    assert_eq!(*drops.borrow(), [3, 2, 1]);
+    assert!(done.poisoned);
+}
+
+#[test]
+fn field_report_overflow_never_stops_cleanup_or_replaces_execution_primary() {
+    let drops = Drops::default();
+    let mut instance = Instance::default();
+    let mut frame = instance
+        .enter_with_context(
+            Limits {
+                slots: 1,
+                failure_records: 3,
+                ..Limits::default()
+            },
+            |fields: &mut Vec<Option<Resource>>, reason, context: &mut Context<'_>| {
+                assert_eq!(reason, Reason::Failure);
+                for field in fields.iter_mut().rev() {
+                    if let Some(value) = field.take() {
+                        context.field(value, None, &mut |value: &mut Resource, _: Reason| {
+                            Err(*value.value)
+                        });
+                    }
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+    frame.declare(Slot(0), Kind::Owner).unwrap();
+    frame
+        .initialize(
+            Slot(0),
+            (0..300).map(|id| Some(resource(id, &drops))).collect(),
+            None,
+        )
+        .unwrap();
+    let done = frame.finish(Exit::Failure {
+        failure: ExecutionFailure::FuelLimit,
+        span: Some(span(900)),
+    });
+    assert_eq!(
+        done.report.primary().unwrap().kind,
+        FailureKind::Execution(ExecutionFailure::FuelLimit)
+    );
+    assert_eq!(done.report.primary().unwrap().span, Some(span(900)));
+    assert_eq!(
+        done.report
+            .secondary()
+            .iter()
+            .map(|r| r.kind)
+            .collect::<Vec<_>>(),
+        [FailureKind::Cleanup(299), FailureKind::Cleanup(298)]
+    );
+    assert_eq!(done.report.truncated(), 298);
+    assert_eq!(*drops.borrow(), (0..300).rev().collect::<Vec<_>>());
+    assert!(done.poisoned);
+}
+
+#[test]
+fn child_callback_and_disposal_panics_do_not_hide_later_field_cleanup() {
+    struct HostilePanic;
+    impl Drop for HostilePanic {
+        fn drop(&mut self) {
+            panic!("hostile child panic payload");
+        }
+    }
+    let drops = Drops::default();
+    let mut instance = Instance::default();
+    let mut frame = instance
+        .enter_with_context(
+            Limits::default(),
+            |fields: &mut Vec<Option<Resource>>, _, context: &mut Context<'_>| {
+                for field in fields.iter_mut().rev() {
+                    if let Some(value) = field.take() {
+                        let location = Some(span(*value.value));
+                        context.field(value, location, &mut |value: &mut Resource, _: Reason| {
+                            if *value.value == 2 {
+                                std::panic::panic_any(HostilePanic);
+                            }
+                            if *value.value == 3 { Err(3) } else { Ok(()) }
+                        });
+                    }
+                }
+                Ok(())
+            },
+        )
+        .unwrap();
+    let mut first = resource(1, &drops);
+    first.panic_on_drop = true;
+    frame.declare(Slot(0), Kind::Owner).unwrap();
+    frame
+        .initialize(
+            Slot(0),
+            vec![
+                Some(first),
+                Some(resource(2, &drops)),
+                Some(resource(3, &drops)),
+            ],
+            None,
+        )
+        .unwrap();
+    let done = frame.finish(Exit::Return(None));
+    assert_eq!(done.report.primary().unwrap().kind, FailureKind::Cleanup(3));
+    assert_eq!(
+        done.report
+            .secondary()
+            .iter()
+            .map(|r| r.kind)
+            .collect::<Vec<_>>(),
+        [
+            FailureKind::CleanupPanic,
+            FailureKind::PanicPayloadDropPanic,
+            FailureKind::PayloadDropPanic
+        ]
+    );
+    assert_eq!(
+        done.report
+            .secondary()
+            .iter()
+            .map(|r| r.span)
+            .collect::<Vec<_>>(),
+        [Some(span(2)), Some(span(2)), Some(span(1))]
+    );
+    assert_eq!(done.report.quarantined(), 2);
+    assert_eq!(*drops.borrow(), [3, 1]);
+    assert!(done.poisoned);
+}
+
+#[test]
+fn deeply_nested_owned_payloads_can_retire_iteratively_from_reserved_work_storage() {
+    #[derive(Debug)]
+    enum Tree {
+        Leaf(Resource),
+        Branch(Option<Box<Tree>>),
+    }
+    let drops = Drops::default();
+    let mut tree = Tree::Leaf(resource(7, &drops));
+    for _ in 0..20_000 {
+        tree = Tree::Branch(Some(Box::new(tree)));
+    }
+    // One pending child suffices for this shape, independent of its depth.
+    let mut pending = Vec::with_capacity(1);
+    let capacity = pending.capacity();
+    let mut instance = Instance::default();
+    let mut frame = instance
+        .enter_with_context(
+            Limits::default(),
+            |root: &mut Tree, _, context: &mut Context<'_>| {
+                assert!(pending.is_empty());
+                let Tree::Branch(child) = root else {
+                    panic!("branch root");
+                };
+                pending.push(*child.take().unwrap());
+                while let Some(value) = pending.pop() {
+                    context.field(value, Some(span(7)), &mut |value: &mut Tree, _: Reason| {
+                        match value {
+                            Tree::Leaf(value) => Err(*value.value),
+                            Tree::Branch(child) => {
+                                assert!(pending.len() < capacity);
+                                pending.push(*child.take().unwrap());
+                                Ok(())
+                            }
+                        }
+                    });
+                }
+                assert_eq!(pending.capacity(), capacity);
+                Ok(())
+            },
+        )
+        .unwrap();
+    frame.declare(Slot(0), Kind::Owner).unwrap();
+    frame.initialize(Slot(0), tree, None).unwrap();
+    let done = frame.finish(Exit::Return(None));
+    assert_eq!(done.report.primary().unwrap().kind, FailureKind::Cleanup(7));
+    assert_eq!(*drops.borrow(), [7]);
+    assert!(done.poisoned);
 }
 
 #[test]

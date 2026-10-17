@@ -7,7 +7,8 @@ use lang_mir::unit::{
     ownership::{self as o, bodies as b, declarations as d, places as p},
 };
 use lang_runtime::cleanup::{
-    Exit, Instance, Kind, Limits, MirLayout, RecordOrder, Slot, StateError,
+    Cleaner, Context, ExecutionFailure, Exit, FailureKind, Instance, Kind, Limits, MirLayout,
+    Reason, RecordOrder, Slot, StateError,
 };
 use lang_runtime::shared::{Payload, SharedHeap, Strong};
 use lang_semantics::analysis::{OwnershipProgram, Program};
@@ -456,4 +457,192 @@ fn empty_records_and_invalid_instruction_sites_have_no_field_obligations() {
         assert!(RecordOrder::new(typed, m::FunctionId(0), site).is_none());
     }
     assert!(RecordOrder::new(typed, m::FunctionId(99), sites(typed)[0]).is_none());
+}
+
+fn enqueue_fields<'a>(value: &mut Value<'a>, pending: &mut Vec<(Value<'a>, Option<m::Span>)>) {
+    let Value::Record { fields, order } = value else {
+        panic!("record payload");
+    };
+    // Push in initialization order, then pop in cleanup order. Descendants
+    // stay ahead of older siblings, with no recursive cleanup call chain.
+    for field in order.reverse().rev() {
+        if let Some(value) = fields[field as usize].take() {
+            assert!(pending.len() < pending.capacity());
+            pending.push((value, order.field_span(field)));
+        }
+    }
+}
+
+struct IterativeRecordCleaner<'a> {
+    pending: Vec<(Value<'a>, Option<m::Span>)>,
+    root_span: m::Span,
+}
+impl<'a> Cleaner<Value<'a>> for IterativeRecordCleaner<'a> {
+    fn cleanup(
+        &mut self,
+        root: &mut Value<'a>,
+        reason: Reason,
+        context: &mut Context<'_>,
+    ) -> Result<(), u32> {
+        assert_eq!(context.reason(), reason);
+        assert!(self.pending.is_empty());
+        let pending = &mut self.pending;
+        let capacity = pending.capacity();
+        enqueue_fields(root, pending);
+        while let Some((value, span)) = pending.pop() {
+            context.field(value, span, &mut |value: &mut Value<'a>, _: Reason| {
+                if let Value::Leaf { owner, .. } = value {
+                    Err(u32::from(owner.read().unwrap().bytes()[0]))
+                } else {
+                    enqueue_fields(value, pending);
+                    Ok(())
+                }
+            });
+        }
+        assert_eq!(pending.capacity(), capacity);
+        assert_eq!(context.span(), Some(self.root_span));
+        Ok(())
+    }
+}
+
+#[test]
+fn source_nested_field_failures_use_one_bounded_report_and_original_execution_primary() {
+    let program = checked(
+        "struct Bundle { first: shared i64, second: shared i64, third: shared i64 }
+        struct Pair { left: Bundle, right: Bundle }
+        fn make(a: shared i64, b: shared i64, c: shared i64,
+                d: shared i64, e: shared i64, f: shared i64) -> Pair {
+            return Pair { left: Bundle { third: c, first: a, second: b },
+                          right: Bundle { first: d, second: e, third: f } };
+        }",
+    );
+    let typed = program.mir().activity().moved().typed();
+    let root_span = typed.places().declarations().functions()[0].span;
+    for execution_failure in [false, true] {
+        let trace = Trace::default();
+        let (value, heap) = materialize(typed, &trace);
+        // This finite test program constructs each node once. Reserve all
+        // traversal storage before entry; capacity stays fixed during cleanup.
+        let cleaner = IterativeRecordCleaner {
+            pending: Vec::with_capacity(sites(typed).len() + 6),
+            root_span,
+        };
+        let mut instance = Instance::default();
+        let mut frame = instance.enter_cleaner(Limits::default(), cleaner).unwrap();
+        frame.declare(Slot(0), Kind::Owner).unwrap();
+        frame.initialize(Slot(0), value, Some(root_span)).unwrap();
+        let done = frame.finish(if execution_failure {
+            Exit::Failure {
+                failure: ExecutionFailure::FuelLimit,
+                span: Some(root_span),
+            }
+        } else {
+            Exit::Return(None)
+        });
+        let all: Vec<_> = done
+            .report
+            .primary()
+            .into_iter()
+            .chain(done.report.secondary())
+            .collect();
+        let cleanup = if execution_failure {
+            assert_eq!(
+                all[0].kind,
+                FailureKind::Execution(ExecutionFailure::FuelLimit)
+            );
+            &all[1..]
+        } else {
+            &all[..]
+        };
+        assert_eq!(
+            cleanup.iter().map(|r| r.kind).collect::<Vec<_>>(),
+            [6, 5, 4, 2, 1, 3].map(FailureKind::Cleanup)
+        );
+        for record in cleanup {
+            let FailureKind::Cleanup(id) = record.kind else {
+                unreachable!();
+            };
+            let span = record.span.unwrap();
+            let source =
+                &typed.places().declarations().types().table().sources[span.source.0 as usize];
+            assert_eq!(
+                &source.text[span.start as usize..span.end as usize],
+                ["a", "b", "c", "d", "e", "f"][id as usize - 1]
+            );
+            assert_eq!(record.slot, Some(Slot(0)));
+        }
+        assert_eq!(*trace.borrow(), [6, 5, 4, 2, 1, 3]);
+        assert_eq!(heap.stats().unwrap().live_nodes, 0);
+        assert!(done.poisoned);
+        assert!(done.value.is_none());
+    }
+}
+
+#[test]
+fn record_field_cleanup_reports_all_failures_while_discarding_unpublished_result() {
+    let program = checked(&source(&[2, 0, 1]));
+    let typed = program.mir().activity().moved().typed();
+    let span = typed.places().declarations().functions()[0].span;
+    let first_trace = Trace::default();
+    let second_trace = Trace::default();
+    let (returned, first_heap) = materialize(typed, &first_trace);
+    let (other, second_heap) = materialize(typed, &second_trace);
+    let reasons = RefCell::new(Vec::new());
+    let mut instance = Instance::default();
+    let mut frame = instance
+        .enter_with_context(
+            Limits::default(),
+            |value: &mut Value<'_>, reason, context: &mut Context<'_>| {
+                reasons.borrow_mut().push((context.slot(), reason));
+                let slot = context.slot();
+                let Value::Record { fields, order } = value else {
+                    panic!("record");
+                };
+                order
+                    .cleanup_fields(
+                        fields,
+                        context,
+                        &mut |value: &mut Value<'_>, field_reason: Reason| {
+                            assert_eq!(field_reason, reason);
+                            let Value::Leaf { owner, .. } = value else {
+                                panic!("leaf");
+                            };
+                            Err(slot.0 as u32 * 10 + u32::from(owner.read().unwrap().bytes()[0]))
+                        },
+                    )
+                    .unwrap();
+                assert!(fields.iter().all(Option::is_none));
+                assert_eq!(context.span(), Some(span));
+                Ok(())
+            },
+        )
+        .unwrap();
+    frame.declare(Slot(0), Kind::Owner).unwrap();
+    frame.declare(Slot(1), Kind::Owner).unwrap();
+    frame.initialize(Slot(0), returned, Some(span)).unwrap();
+    frame.initialize(Slot(1), other, Some(span)).unwrap();
+    let done = frame.finish(Exit::Return(Some(Slot(0))));
+    assert!(done.value.is_none());
+    assert!(done.poisoned);
+    let all: Vec<_> = done
+        .report
+        .primary()
+        .into_iter()
+        .chain(done.report.secondary())
+        .collect();
+    assert_eq!(
+        all.iter().map(|r| r.kind).collect::<Vec<_>>(),
+        [12, 11, 13, 2, 1, 3].map(FailureKind::Cleanup)
+    );
+    assert_eq!(
+        *reasons.borrow(),
+        [
+            (Slot(1), Reason::ScopeExit),
+            (Slot(0), Reason::UnpublishedReturn)
+        ]
+    );
+    assert_eq!(*first_trace.borrow(), [2, 1, 3]);
+    assert_eq!(*second_trace.borrow(), [2, 1, 3]);
+    assert_eq!(first_heap.stats().unwrap().live_nodes, 0);
+    assert_eq!(second_heap.stats().unwrap().live_nodes, 0);
 }
