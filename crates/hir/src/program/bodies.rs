@@ -75,8 +75,10 @@ pub fn analyze_bodies(
     };
     context.metadata()?;
     let mut functions = Vec::new();
-    for function in &source.functions {
-        functions.push(FunctionChecker::new(&mut context, function, false).check()?);
+    for (index, function) in source.functions.iter().enumerate() {
+        functions.push(
+            FunctionChecker::new(&mut context, function, false, r::FunctionId(index)).check()?,
+        );
     }
     if context.errors != 0 {
         return Ok(BodyAnalysis {
@@ -226,6 +228,11 @@ impl TypeStore {
             ));
         }
         match constructor {
+            r::TypeConstructor::ArenaOwner(_) => {
+                properties.is_copy = false;
+                properties.requires_drop = true;
+                properties.contains_arena = true;
+            }
             r::TypeConstructor::Builtin(r::BuiltinType::Text | r::BuiltinType::Bytes)
             | r::TypeConstructor::Vec(_)
             | r::TypeConstructor::Map(..)
@@ -273,6 +280,16 @@ impl TypeStore {
         span: Span,
         depth: usize,
     ) -> Result<r::Type, CheckError> {
+        self.instantiate_with_owner(pattern, arguments, None, span, depth)
+    }
+    pub(super) fn instantiate_with_owner(
+        &mut self,
+        pattern: core::TypePattern,
+        arguments: &[r::Type],
+        owner: Option<r::Type>,
+        span: Span,
+        depth: usize,
+    ) -> Result<r::Type, CheckError> {
         self.budget.charge(span, 1).map_err(CheckError::Types)?;
         if depth >= self.budget.limits.depth.min(64) {
             return Err(CheckError::Types(
@@ -290,36 +307,60 @@ impl TypeStore {
                     .copied()
                     .ok_or_else(|| input(CheckInputErrorKind::InvalidSignature, Some(span)));
             }
-            P::ArenaOwner => return Err(CheckError::OwnershipProfile { span }),
-            P::Builtin(b) => r::TypeConstructor::Builtin(b),
-            P::Option(t) => {
-                r::TypeConstructor::Option(self.instantiate(*t, arguments, span, depth + 1)?)
+            P::ArenaOwner => {
+                return owner
+                    .ok_or_else(|| input(CheckInputErrorKind::InvalidSignature, Some(span)));
             }
+            P::Builtin(b) => r::TypeConstructor::Builtin(b),
+            P::Option(t) => r::TypeConstructor::Option(self.instantiate_with_owner(
+                *t,
+                arguments,
+                owner,
+                span,
+                depth + 1,
+            )?),
             P::Result(t, e) => {
-                let t = self.instantiate(*t, arguments, span, depth + 1)?;
-                let e = self.instantiate(*e, arguments, span, depth + 1)?;
+                let t = self.instantiate_with_owner(*t, arguments, owner, span, depth + 1)?;
+                let e = self.instantiate_with_owner(*e, arguments, owner, span, depth + 1)?;
                 r::TypeConstructor::Result(t, e)
             }
-            P::Vec(t) => {
-                r::TypeConstructor::Vec(self.instantiate(*t, arguments, span, depth + 1)?)
-            }
+            P::Vec(t) => r::TypeConstructor::Vec(self.instantiate_with_owner(
+                *t,
+                arguments,
+                owner,
+                span,
+                depth + 1,
+            )?),
             P::Map(k, v) => {
-                let k = self.instantiate(*k, arguments, span, depth + 1)?;
-                let v = self.instantiate(*v, arguments, span, depth + 1)?;
+                let k = self.instantiate_with_owner(*k, arguments, owner, span, depth + 1)?;
+                let v = self.instantiate_with_owner(*v, arguments, owner, span, depth + 1)?;
                 r::TypeConstructor::Map(k, v)
             }
-            P::Shared(t) => {
-                r::TypeConstructor::Shared(self.instantiate(*t, arguments, span, depth + 1)?)
-            }
-            P::Weak(t) => {
-                r::TypeConstructor::Weak(self.instantiate(*t, arguments, span, depth + 1)?)
-            }
-            P::Arena(t) => {
-                r::TypeConstructor::Arena(self.instantiate(*t, arguments, span, depth + 1)?)
-            }
-            P::Loan(kind, t) => {
-                r::TypeConstructor::Loan(kind, self.instantiate(*t, arguments, span, depth + 1)?)
-            }
+            P::Shared(t) => r::TypeConstructor::Shared(self.instantiate_with_owner(
+                *t,
+                arguments,
+                owner,
+                span,
+                depth + 1,
+            )?),
+            P::Weak(t) => r::TypeConstructor::Weak(self.instantiate_with_owner(
+                *t,
+                arguments,
+                owner,
+                span,
+                depth + 1,
+            )?),
+            P::Arena(t) => r::TypeConstructor::Arena(self.instantiate_with_owner(
+                *t,
+                arguments,
+                owner,
+                span,
+                depth + 1,
+            )?),
+            P::Loan(kind, t) => r::TypeConstructor::Loan(
+                kind,
+                self.instantiate_with_owner(*t, arguments, owner, span, depth + 1)?,
+            ),
         };
         self.intern(constructor, span)
     }

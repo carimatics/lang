@@ -1,0 +1,23 @@
+// Typed body fixture; region/loan flow and execution are checked separately.
+fn answer(allocator: &core::Allocator) -> i64 {
+    arena graph(allocator) {
+        let mut created: core::Result<arena i64, core::ArenaError> =
+            core::arena_new::<i64>(graph, 7);
+        match created {
+            core::Result::Ok(node) => {
+                let mut replaced: core::Result<core::Unit, core::ArenaError> =
+                    core::arena_replace::<i64>(graph, node, 9);
+                match replaced {
+                    core::Result::Ok(core::Unit {}) => {
+                        match core::arena_read::<i64>(graph, node) {
+                            core::Result::Ok(read) => { return (*read); },
+                            core::Result::Err(_) => { return 0; },
+                        }
+                    },
+                    core::Result::Err(_) => { return 0; },
+                }
+            },
+            core::Result::Err(_) => { return 0; },
+        }
+    }
+}

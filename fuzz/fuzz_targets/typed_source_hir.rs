@@ -138,7 +138,7 @@ fuzz_target!(|bytes: &[u8]| {
     let root = r::ExpressionId(expressions.len() - 1);
     let mut blocks = Vec::new();
     let mut patterns = Vec::new();
-    let statement = if byte(0) & 128 == 0 {
+    let mut statement = if byte(0) & 128 == 0 {
         r::StatementKind::Return(root)
     } else {
         let return_value = r::ExpressionId(expressions.len());
@@ -186,6 +186,14 @@ fuzz_target!(|bytes: &[u8]| {
             }],
         }
     };
+    let arena_statement = byte(30) & 1 != 0;
+    if arena_statement {
+        statement = r::StatementKind::Arena {
+            owner: r::LocalId(1),
+            allocator: root,
+            body: r::BlockId(usize::from(byte(29))),
+        };
+    }
     let body = r::BlockId(blocks.len());
     blocks.push(r::Block {
         statements: vec![r::Statement {
@@ -195,7 +203,7 @@ fuzz_target!(|bytes: &[u8]| {
         span,
         closing_brace: sources.span(source, text.len() - 1..text.len()).unwrap(),
     });
-    let function = r::Function {
+    let mut function = r::Function {
         module: r::ModuleId(0),
         name: name("f"),
         qualified_name: "f".into(),
@@ -214,6 +222,13 @@ fuzz_target!(|bytes: &[u8]| {
         span,
         signature_span: span,
     };
+    if arena_statement {
+        function.locals.push(r::Local {
+            name: name("next"),
+            kind: r::BindingKind::ArenaOwner,
+            annotation: None,
+        });
+    }
     let constructed = if byte(31) & 1 == 0 {
         vec![]
     } else {
@@ -223,7 +238,7 @@ fuzz_target!(|bytes: &[u8]| {
             .map(|chunk| {
                 let a = ty(chunk.get(1).copied().unwrap_or(0));
                 let b = ty(chunk.get(2).copied().unwrap_or(0));
-                let constructor = match chunk[0] % 12 {
+                let constructor = match chunk[0] % 13 {
                     0 => r::TypeConstructor::Builtin(r::BuiltinType::Text),
                     1 => r::TypeConstructor::Builtin(r::BuiltinType::Allocator),
                     2 => r::TypeConstructor::Option(a),
@@ -235,6 +250,10 @@ fuzz_target!(|bytes: &[u8]| {
                     8 => r::TypeConstructor::Arena(a),
                     9 => r::TypeConstructor::Loan(r::LoanKind::Shared, a),
                     10 => r::TypeConstructor::Loan(r::LoanKind::Exclusive, a),
+                    11 => r::TypeConstructor::ArenaOwner(r::ArenaOwnerId {
+                        function: r::FunctionId(99),
+                        local: r::LocalId(99),
+                    }),
                     _ => r::TypeConstructor::Builtin(r::BuiltinType::Unit),
                 };
                 r::ConstructedType { constructor, span }

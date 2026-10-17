@@ -45,6 +45,13 @@ pub enum Type {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ConstructedTypeId(pub usize);
+/// Compiler-created lexical authority. Local IDs alone are function-scoped;
+/// this pair keeps owner identity distinct across the whole typed arena.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ArenaOwnerId {
+    pub function: FunctionId,
+    pub local: LocalId,
+}
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LoanKind {
     Shared,
@@ -106,11 +113,14 @@ pub enum TypeConstructor {
     Weak(Type),
     Arena(Type),
     Loan(LoanKind, Type),
+    /// Only the typed body arena may contain this constructor. Resolved source
+    /// input cannot name, annotate, or specialize an arena-owner type.
+    ArenaOwner(ArenaOwnerId),
 }
 impl TypeConstructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
         let pair = match self {
-            Self::Builtin(_) => [None, None],
+            Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
             Self::Option(t)
             | Self::Vec(t)
             | Self::Shared(t)

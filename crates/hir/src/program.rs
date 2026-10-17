@@ -292,8 +292,13 @@ fn check_program_internal(
     let mut facts = Vec::new();
     for (index, function) in source.functions.iter().enumerate() {
         facts.push(
-            FunctionChecker::new(&mut context, function, infer == Some(r::FunctionId(index)))
-                .check()?,
+            FunctionChecker::new(
+                &mut context,
+                function,
+                infer == Some(r::FunctionId(index)),
+                r::FunctionId(index),
+            )
+            .check()?,
         );
     }
     let successful = context.errors == 0;
@@ -362,6 +367,18 @@ impl<'a> Context<'a> {
             .as_mut()
             .ok_or(CheckError::OwnershipProfile { span })?
             .instantiate(pattern, arguments, span, 0)
+    }
+    fn instantiate_with_owner(
+        &mut self,
+        pattern: core::TypePattern,
+        arguments: &[r::Type],
+        owner: Option<r::Type>,
+        span: Span,
+    ) -> Result<r::Type, CheckError> {
+        self.types
+            .as_mut()
+            .ok_or(CheckError::OwnershipProfile { span })?
+            .instantiate_with_owner(pattern, arguments, owner, span, 0)
     }
     fn intern(
         &mut self,
@@ -527,6 +544,7 @@ impl<'a> Context<'a> {
                     input(CheckInputErrorKind::InvalidConstructed(id.0), Some(span))
                 })?;
                 let (prefix, suffix) = match constructor {
+                    r::TypeConstructor::ArenaOwner(_) => ("arena-owner", ""),
                     r::TypeConstructor::Builtin(builtin) => {
                         self.type_fragment(text, "core::", span)?;
                         return self.type_fragment(text, builtin.name(), span);
@@ -756,12 +774,12 @@ impl<'a> Context<'a> {
                     ));
                 }
                 match (local.kind, local.annotation) {
-                    (r::BindingKind::ArenaOwner, None) => {
+                    (r::BindingKind::ArenaOwner, None) if self.types.is_none() => {
                         return Err(CheckError::OwnershipProfile {
                             span: local.name.span,
                         });
                     }
-                    (r::BindingKind::Pattern, None) => {}
+                    (r::BindingKind::Pattern | r::BindingKind::ArenaOwner, None) => {}
                     (r::BindingKind::Parameter | r::BindingKind::Mutable, Some(ty)) => self
                         .type_use(
                             function.span,
@@ -822,6 +840,7 @@ enum Visit {
 struct FunctionChecker<'a, 'b> {
     context: &'b mut Context<'a>,
     function: &'a r::Function,
+    function_id: r::FunctionId,
     infer_result: bool,
     locals: Vec<Option<r::Type>>,
     expressions: Vec<Option<r::Type>>,
@@ -840,10 +859,16 @@ struct FunctionChecker<'a, 'b> {
     borrow_match: bool,
 }
 impl<'a, 'b> FunctionChecker<'a, 'b> {
-    fn new(context: &'b mut Context<'a>, function: &'a r::Function, infer_result: bool) -> Self {
+    fn new(
+        context: &'b mut Context<'a>,
+        function: &'a r::Function,
+        infer_result: bool,
+        function_id: r::FunctionId,
+    ) -> Self {
         Self {
             context,
             function,
+            function_id,
             infer_result,
             locals: function
                 .locals
@@ -1039,6 +1064,48 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<Flow, CheckError> {
         self.context.enter(statement.span, depth)?;
         match &statement.kind {
+            r::StatementKind::Arena {
+                owner,
+                allocator,
+                body,
+            } if self.context.types.is_some() => {
+                let expected = self.context.instantiate(
+                    core::TypePattern::Loan(
+                        r::LoanKind::Shared,
+                        &core::TypePattern::Builtin(r::BuiltinType::Allocator),
+                    ),
+                    &[],
+                    statement.span,
+                )?;
+                let actual = self.expression_expected(*allocator, Some(expected), depth + 1)?;
+                self.argument(actual, expected, *allocator, None)?;
+                let local = self.function.locals.get(owner.0).ok_or_else(|| {
+                    input(
+                        CheckInputErrorKind::InvalidId {
+                            arena: ArenaKind::Local,
+                            index: owner.0,
+                        },
+                        Some(statement.span),
+                    )
+                })?;
+                let owner_type = self.context.intern(
+                    r::TypeConstructor::ArenaOwner(r::ArenaOwnerId {
+                        function: self.function_id,
+                        local: *owner,
+                    }),
+                    local.name.span,
+                )?;
+                self.scopes.push(Vec::new());
+                self.declare(
+                    *owner,
+                    r::BindingKind::ArenaOwner,
+                    Some(owner_type),
+                    statement.span,
+                )?;
+                let flow = self.block(*body, depth + 1)?;
+                self.leave_scope();
+                return Ok(flow);
+            }
             r::StatementKind::PlaceAssign { place, value } if self.context.types.is_some() => {
                 self.place(*place, statement.span)?;
                 let expected = self.expression(r::ExpressionId(place.0), depth + 1)?;
@@ -1626,8 +1693,15 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         if let (Some(actual), Some((kind, target))) = (actual, self.context.loan(expected)) {
             if let Some((actual_kind, actual_target)) = self.context.loan(actual)
                 && target == actual_target
-                && (kind == actual_kind || kind == r::LoanKind::Shared)
             {
+                if kind != actual_kind && kind == r::LoanKind::Exclusive {
+                    self.context.error(
+                        codes::INVALID_LOAN,
+                        span,
+                        "exclusive parameter cannot use a shared loan",
+                        related,
+                    )?;
+                }
                 return Ok(());
             }
             if actual == target {
@@ -1725,15 +1799,60 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 }
             }
         }
+        let arena_operation = matches!(
+            operation,
+            core::Operation::ArenaNew | core::Operation::ArenaRead | core::Operation::ArenaReplace
+        );
+        let first = if arena_operation {
+            arguments
+                .first()
+                .map(|argument| self.expression(*argument, depth + 1))
+                .transpose()?
+        } else {
+            None
+        };
+        let owner = first
+            .flatten()
+            .map(|ty| self.context.loan(ty).map_or(ty, |(_, target)| target))
+            .filter(|ty| {
+                matches!(
+                    self.context.constructor(*ty),
+                    Some(r::TypeConstructor::ArenaOwner(_))
+                )
+            });
+        if arena_operation && owner.is_none() {
+            let owner_span = arguments
+                .first()
+                .map_or(span, |id| self.function.expressions[id.0].span);
+            self.context.error(
+                codes::INVALID_OWNERSHIP_TYPE,
+                owner_span,
+                "arena operation requires a lexical arena owner or its loan",
+                Some(*callee_span),
+            )?;
+            for argument in arguments.iter().skip(usize::from(first.is_some())) {
+                self.expression(*argument, depth + 1)?;
+            }
+            return Ok(None);
+        }
         let mut parameters = Vec::new();
         if arity_valid {
             for pattern in signature.parameters {
-                parameters.push(self.context.instantiate(*pattern, &types, span)?);
+                parameters.push(
+                    self.context
+                        .instantiate_with_owner(*pattern, &types, owner, span)?,
+                );
             }
         }
         for (index, argument) in arguments.iter().enumerate() {
             let expected = parameters.get(index).copied();
-            let actual = self.expression_expected(*argument, expected, depth + 1)?;
+            let actual = if index == 0
+                && let Some(actual) = first
+            {
+                actual
+            } else {
+                self.expression_expected(*argument, expected, depth + 1)?
+            };
             if let Some(expected) = expected {
                 self.argument(actual, expected, *argument, Some(*callee_span))?;
             }

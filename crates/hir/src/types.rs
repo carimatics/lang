@@ -51,6 +51,7 @@ pub enum InputError {
     InvalidParameter(usize),
     SpanOutsideOwner,
     NameTextMismatch,
+    CompilerOnlyType(usize),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
@@ -458,6 +459,9 @@ pub fn analyze(
     let mut generic_depth: Vec<usize> = c.budget.vector(root, program.types.len())?;
     for (index, ty) in program.types.iter().enumerate() {
         c.span(ty.span)?;
+        if matches!(ty.constructor, r::TypeConstructor::ArenaOwner(_)) {
+            return Err(input(InputError::CompilerOnlyType(index), Some(ty.span)));
+        }
         let mut found = false;
         for module in &program.modules {
             c.budget.charge(ty.span, 1)?;

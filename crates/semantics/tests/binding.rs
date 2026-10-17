@@ -802,10 +802,12 @@ fn body_typing_instantiates_all_non_arena_core_signatures_from_real_source() {
         "fn f(allocator: &core::Allocator) -> i64 { arena graph(allocator) {} return 0; }",
     )
     .program();
-    assert!(matches!(
-        lang_hir::program::analyze_bodies(program, &sources, Default::default()),
-        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
-    ));
+    assert!(
+        lang_hir::program::analyze_bodies(program, &sources, Default::default())
+            .unwrap()
+            .bodies
+            .is_some()
+    );
 }
 
 #[test]
@@ -999,6 +1001,287 @@ fn instantiated_type_diagnostics_name_arguments_and_obey_output_bounds() {
     assert!(matches!(
         lang_hir::program::analyze_bodies(program, &sources, limits),
         Err(lang_hir::program::CheckError::Limit(_))
+    ));
+}
+
+#[test]
+fn all_arena_operations_instantiate_the_same_lexical_owner_and_return_types() {
+    use lang_hir::core::{Operation, ResultBinding};
+    let (_, analysis) = body_analysis(include_str!("fixtures/arena-body.lang"));
+    assert!(analysis.bodies.is_some(), "{:?}", analysis.diagnostics);
+    let bodies = analysis.bodies.unwrap();
+    let function = &bodies.source().functions[0];
+    let owner = function
+        .locals
+        .iter()
+        .position(|l| l.kind == r::BindingKind::ArenaOwner)
+        .unwrap();
+    let owner_type = bodies.functions()[0].locals()[owner];
+    let r::Type::Constructed(owner_id) = owner_type else {
+        panic!()
+    };
+    assert_eq!(
+        bodies.types()[owner_id.0].constructor,
+        r::TypeConstructor::ArenaOwner(r::ArenaOwnerId {
+            function: r::FunctionId(0),
+            local: r::LocalId(owner)
+        })
+    );
+    let properties = bodies.properties(owner_type).unwrap();
+    assert!(!properties.is_copy && properties.requires_drop && properties.contains_arena);
+    let mut seen = std::collections::BTreeSet::new();
+    for (id, expression) in function.expressions.iter().enumerate() {
+        if let r::ExpressionKind::CoreCall { operation, .. } = expression.kind {
+            seen.insert(operation);
+            let facts = bodies.functions()[0].call(r::ExpressionId(id)).unwrap();
+            let r::Type::Constructed(parameter) = facts.parameters[0] else {
+                panic!()
+            };
+            let kind = if operation == Operation::ArenaRead {
+                r::LoanKind::Shared
+            } else {
+                r::LoanKind::Exclusive
+            };
+            assert_eq!(
+                bodies.types()[parameter.0].constructor,
+                r::TypeConstructor::Loan(kind, owner_type)
+            );
+            assert_eq!(
+                facts.result_binding,
+                match operation {
+                    Operation::ArenaNew => ResultBinding::ArenaReference { owner: 0 },
+                    Operation::ArenaRead => ResultBinding::ProvisionalLoan { parameter: 0 },
+                    _ => ResultBinding::Value,
+                }
+            );
+        }
+    }
+    assert_eq!(
+        seen,
+        [
+            Operation::ArenaNew,
+            Operation::ArenaRead,
+            Operation::ArenaReplace
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert!(
+        bodies
+            .source()
+            .types
+            .iter()
+            .all(|t| !matches!(t.constructor, r::TypeConstructor::ArenaOwner(_)))
+    );
+}
+
+#[test]
+fn lexical_owner_identity_is_distinct_across_nested_regions_and_functions() {
+    let (_, analysis) = body_analysis(
+        "fn f(a: &core::Allocator) -> i64 { arena graph(a) { arena nested(a) {} } return 0; } fn g(a: &core::Allocator) -> i64 { arena graph(a) {} return 0; }",
+    );
+    let bodies = analysis.bodies.unwrap();
+    let mut seen = std::collections::BTreeSet::new();
+    for (function_id, function) in bodies.source().functions.iter().enumerate() {
+        for (local_id, local) in function.locals.iter().enumerate() {
+            if local.kind == r::BindingKind::ArenaOwner {
+                let ty = bodies.functions()[function_id].locals()[local_id];
+                assert!(seen.insert(ty));
+                let r::Type::Constructed(id) = ty else {
+                    panic!()
+                };
+                assert_eq!(
+                    bodies.types()[id.0].constructor,
+                    r::TypeConstructor::ArenaOwner(r::ArenaOwnerId {
+                        function: r::FunctionId(function_id),
+                        local: r::LocalId(local_id)
+                    })
+                );
+            }
+        }
+    }
+    assert_eq!(seen.len(), 3);
+}
+
+#[test]
+fn arena_calls_accept_explicit_loans_and_owner_aliases_with_preserved_identity() {
+    let text = "fn f(a: &core::Allocator) -> i64 { arena graph(a) { let mut created: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(&mut graph, 1); match created { core::Result::Ok(node) => { match graph { alias => { match core::arena_read::<i64>(alias, node) { core::Result::Ok(read) => { return (*read); }, core::Result::Err(_) => { return 0; }, } }, } }, core::Result::Err(_) => { return 0; }, } } }";
+    let (_, analysis) = body_analysis(text);
+    assert!(analysis.bodies.is_some(), "{:?}", analysis.diagnostics);
+    let bodies = analysis.bodies.unwrap();
+    let function = &bodies.source().functions[0];
+    let graph = function
+        .locals
+        .iter()
+        .position(|l| l.name.text == "graph")
+        .unwrap();
+    let alias = function
+        .locals
+        .iter()
+        .position(|l| l.name.text == "alias")
+        .unwrap();
+    let r::Type::Constructed(id) = bodies.functions()[0].locals()[alias] else {
+        panic!()
+    };
+    assert_eq!(
+        bodies.types()[id.0].constructor,
+        r::TypeConstructor::Loan(r::LoanKind::Shared, bodies.functions()[0].locals()[graph])
+    );
+}
+
+#[test]
+fn arena_owner_allocator_and_loan_kind_mismatches_are_source_diagnostics() {
+    for (text, code) in [
+        (
+            "fn f(a: i64) -> i64 { arena graph(a) {} return 0; }",
+            codes::TYPE_MISMATCH,
+        ),
+        (
+            "fn f(a: &core::Allocator) -> i64 { let mut n: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(a, 1); return 0; }",
+            codes::INVALID_OWNERSHIP_TYPE,
+        ),
+        (
+            "fn f(a: &core::Allocator, n: arena i64) -> i64 { let mut r: core::Result<core::Unit, core::ArenaError> = core::arena_replace::<i64>(n, n, 1); return 0; }",
+            codes::INVALID_OWNERSHIP_TYPE,
+        ),
+        (
+            "fn f(a: &core::Allocator) -> i64 { arena graph(a) { let mut n: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(&graph, 1); } return 0; }",
+            codes::INVALID_LOAN,
+        ),
+    ] {
+        let (_, analysis) = body_analysis(text);
+        assert!(analysis.bodies.is_none(), "{text}");
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == code),
+            "{text}: {:?}",
+            analysis.diagnostics
+        );
+    }
+}
+
+#[test]
+fn compiler_only_owner_types_cannot_enter_resolved_input_or_generic_arguments() {
+    use lang_hir::types::{Error, InputError};
+    let (sources, mut program) = Files::new("fn f() -> i64 { return 0; }").program();
+    program.types.push(r::ConstructedType {
+        constructor: r::TypeConstructor::ArenaOwner(r::ArenaOwnerId {
+            function: r::FunctionId(99),
+            local: r::LocalId(99),
+        }),
+        span: program.functions[0].span,
+    });
+    assert!(matches!(
+        lang_hir::types::analyze(&program, &sources, Default::default()),
+        Err(Error::Input {
+            kind: InputError::CompilerOnlyType(0),
+            ..
+        })
+    ));
+    assert!(matches!(
+        lang_hir::program::analyze_bodies(program, &sources, Default::default()),
+        Err(lang_hir::program::CheckError::Types(Error::Input {
+            kind: InputError::CompilerOnlyType(0),
+            ..
+        }))
+    ));
+    rejects(
+        "fn f(a: &core::Allocator) -> i64 { arena graph(a) { let mut n: core::Result<arena i64, core::ArenaError> = core::arena_new::<core::ArenaOwner>(graph, graph); } return 0; }",
+        codes::UNSUPPORTED_SPECIALIZATION,
+    );
+}
+
+#[test]
+fn arena_body_types_preserve_the_type_only_and_resource_boundaries() {
+    use lang_hir::program::{CheckError, CheckLimits, analyze_bodies};
+    let (sources, program) = Files::new(include_str!("fixtures/arena-body.lang")).program();
+    let baseline = analyze_bodies(program.clone(), &sources, Default::default())
+        .unwrap()
+        .bodies
+        .unwrap();
+    let mut exact = CheckLimits::default();
+    exact.types.work = baseline.type_work_used();
+    exact.types.allocations = baseline.requested_type_bytes();
+    assert_eq!(
+        analyze_bodies(program.clone(), &sources, exact)
+            .unwrap()
+            .bodies
+            .unwrap(),
+        baseline
+    );
+    exact.types.work -= 1;
+    assert!(matches!(
+        analyze_bodies(program.clone(), &sources, exact),
+        Err(CheckError::Types(lang_hir::types::Error::Limit(_)))
+    ));
+    assert!(matches!(
+        lang_hir::program::check_program(program, &sources, Default::default()),
+        Err(CheckError::OwnershipProfile { .. })
+    ));
+}
+
+#[test]
+fn malformed_owner_bindings_cannot_become_parameters_or_bypass_local_metadata() {
+    use lang_hir::program::{CheckError, CheckInputErrorKind as K, analyze_bodies};
+    let (sources, program) =
+        Files::new("fn f(a: &core::Allocator) -> i64 { arena graph(a) {} return 0; }").program();
+    let owner = program.functions[0]
+        .locals
+        .iter()
+        .position(|l| l.kind == r::BindingKind::ArenaOwner)
+        .unwrap();
+    let mut bad = program.clone();
+    bad.functions[0].parameters.push(r::LocalId(owner));
+    assert!(matches!(
+        analyze_bodies(bad, &sources, Default::default()),
+        Err(CheckError::Input {
+            kind: K::InvalidSignature,
+            ..
+        })
+    ));
+    let mut bad = program.clone();
+    for block in &mut bad.functions[0].blocks {
+        for statement in &mut block.statements {
+            if let r::StatementKind::Arena { owner, .. } = &mut statement.kind {
+                *owner = r::LocalId(0);
+            }
+        }
+    }
+    assert!(matches!(
+        analyze_bodies(bad, &sources, Default::default()),
+        Err(CheckError::Input {
+            kind: K::InvalidLocalMetadata,
+            ..
+        })
+    ));
+    let mut bad = program;
+    for block in &mut bad.functions[0].blocks {
+        for statement in &mut block.statements {
+            if let r::StatementKind::Arena { owner, .. } = &mut statement.kind {
+                *owner = r::LocalId(99);
+            }
+        }
+    }
+    assert!(matches!(
+        analyze_bodies(bad, &sources, Default::default()),
+        Err(CheckError::Input {
+            kind: K::InvalidId { .. },
+            ..
+        })
+    ));
+}
+
+#[test]
+fn owner_type_identity_does_not_substitute_for_value_region_flow() {
+    let text = "fn f(a: &core::Allocator) -> i64 { arena outer(a) { let mut created: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(outer, 1); match created { core::Result::Ok(node) => { arena inner(a) { match core::arena_read::<i64>(inner, node) { core::Result::Ok(read) => { return (*read); }, core::Result::Err(_) => { return 0; }, } } }, core::Result::Err(_) => { return 0; }, } } }";
+    let (sources, program) = Files::new(text).program();
+    let types =
+        lang_hir::program::analyze_bodies(program.clone(), &sources, Default::default()).unwrap();
+    assert!(types.bodies.is_some(), "{:?}", types.diagnostics);
+    // The pending region pass must reject this cross-region read. Type-only
+    // facts cannot currently pass the executable boundary.
+    assert!(matches!(
+        lang_hir::program::check_program(program, &sources, Default::default()),
+        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
     ));
 }
 
