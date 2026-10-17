@@ -1,0 +1,7 @@
+fn main() -> i64 {
+    let mut made: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator());
+    match made {
+        core::Result::Ok(value) => { return core::bytes_len(value); },
+        core::Result::Err(_) => { return -1; },
+    }
+}

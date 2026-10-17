@@ -62,11 +62,12 @@ Requirements: Rust `1.99.0` with rustfmt and Clippy, pinned by `rust-toolchain.t
 ```bash
 cargo run -- check examples/analysis/ownership.lang
 cargo run -- run examples/scripts/answer.lang
+cargo run -- run examples/scripts/bytes.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
-`check` validates Copy or RFC 0007 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. The ownership example is analysis-only while its runtime profile is being implemented. `run` uses the Copy executable profile: the script prints `42` and exits 0. Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`. The CLI registers no host imports. Verified 2026-10-18 JST.
+`check` validates Copy or RFC 0007 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile for `core::allocator()`, Bytes new/len, Result matching, shared loans and cleanup. The answer script prints `42`; the Bytes script prints `0`, with storage released before the result is printed. Unsupported ownership operations fail preflight. Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`; the REPL remains Copy-only. The CLI registers no host imports and explicitly supplies the owned execution instance's budgeted allocator. Verified 2026-10-18 JST.
 
 The REPL commits successfully checked item definitions and evaluates one expression per submission with fresh VM counters. It prints scalars or qualified aggregate values, accepts multiline input, and supports `:reset` and `:quit`. Failed submissions preserve prior definitions; host effects are not rolled back.
 
@@ -74,7 +75,7 @@ Configure an LSP client to execute `target/debug/lang lsp` after `cargo build`. 
 
 The shared APIs are `lang::frontend`, `lang::repl::Session`, `lang_semantics::analysis`, `lang_semantics::database`, `lang_syntax::format`, and the `unit` modules in MIR, bytecode, VM, and Cranelift crates. Source analysis returns an explicit Copy or ownership program; the ownership variant retains checked HIR and MIR. Compiler/codec/cache budgets are configurable. VM defaults are 1,000,000 fuel, 1,000 host calls, 256 guest frames, and 1,000,000 live value cells. Interruption/deadlines act at guest safe points; trusted native callbacks are non-preemptible and must not unwind.
 
-The whole-unit native API in `lang_codegen_clif::program` supports the RFC 0006 Copy profile, including guest calls, boolean interfaces, records/enums and patterns. Ownership-aware source execution, public C adapters and production native packaging remain Milestone 2 work. `cargo run -- 20 22` retains the original scalar VM/JIT comparison. Cranelift 0.136.3 is the initial native backend. Native linker/debug evidence and historical platform measurements are documented in [architecture](docs/architecture.md), [benchmarks](docs/benchmarks.md), and the [roadmap](docs/roadmap.md); local source-conformance execution on 2026-10-17 is macOS AArch64, with Windows execution requiring CI evidence.
+The whole-unit native API in `lang_codegen_clif::program` supports the RFC 0006 Copy profile, including guest calls, boolean interfaces, records/enums and patterns. Ownership-aware native lowering, public C adapters and production native packaging remain Milestone 2 work. `cargo run -- 20 22` retains the original scalar VM/JIT comparison. Cranelift 0.136.3 is the initial native backend. Native linker/debug evidence and historical platform measurements are documented in [architecture](docs/architecture.md), [benchmarks](docs/benchmarks.md), and the [roadmap](docs/roadmap.md); local source-conformance execution on 2026-10-17 is macOS AArch64, with Windows execution requiring CI evidence.
 
 Before finalizing code changes, run:
 

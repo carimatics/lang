@@ -345,6 +345,52 @@ fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8
         Err(AnalysisError::Diagnostics) => return Ok(1),
         Err(error) => return Err(failure(error)),
     };
+    if let lang_semantics::analysis::Program::Ownership(program) = &typed {
+        let mut instance = lang_runtime::cleanup::Instance::default();
+        let mut allocator = lang_runtime::allocation::Allocator::new(
+            lang_runtime::allocation::System,
+            Default::default(),
+        )
+        .map_err(failure)?;
+        return match vm::owned::execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            Control::with_limits(limits),
+        ) {
+            Ok(outcome) => {
+                writeln!(io::stdout().lock(), "{}", outcome.value).map_err(failure)?;
+                Ok(0)
+            }
+            Err(error) => {
+                writeln!(
+                    stderr,
+                    "error[runtime]: {error} (fuel {}, host calls {})",
+                    error.usage.fuel, error.usage.host_calls
+                )
+                .map_err(failure)?;
+                if let Some(span) = error.fault {
+                    let types = program
+                        .mir()
+                        .activity()
+                        .moved()
+                        .typed()
+                        .places()
+                        .declarations()
+                        .types();
+                    if let Some(source) = types.table().sources.get(span.source.0 as usize)
+                        && let Some(prefix) = source.text.get(..span.start as usize)
+                    {
+                        let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
+                        let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                        writeln!(stderr, "  at main ({:?}:{line}:{column})", source.path)
+                            .map_err(failure)?;
+                    }
+                }
+                Ok(1)
+            }
+        };
+    }
     let typed = frontend::copy_executable(&typed).map_err(failure)?;
     let program = match frontend::compile_script(typed, &analysis.sources, compile) {
         Ok(program) => program,

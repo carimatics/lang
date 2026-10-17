@@ -26,6 +26,15 @@ fn stderr(output: &Output) -> String {
 }
 
 #[test]
+fn owned_bytes_new_len_runs_from_source() {
+    let files = Files::new(include_str!("../examples/scripts/bytes.lang"));
+    let executed = run(&files, &[]);
+    assert!(executed.status.success(), "{}", stderr(&executed));
+    assert_eq!(executed.stdout, b"0\n");
+    assert!(executed.stderr.is_empty());
+}
+
+#[test]
 fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
     let text = b"fn f(x: &i64) -> i64 { return 0; }";
     let mut limits = CompileLimits::default();
@@ -71,7 +80,7 @@ fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
 }
 
 #[test]
-fn ownership_check_succeeds_and_run_stops_at_the_executable_profile_boundary() {
+fn ownership_bytes_example_passes_check_and_runs() {
     let files = Files::new(include_str!("../examples/analysis/ownership.lang"));
     let checked = cli([
         OsString::from("check"),
@@ -80,18 +89,9 @@ fn ownership_check_succeeds_and_run_stops_at_the_executable_profile_boundary() {
     assert!(checked.status.success(), "{}", stderr(&checked));
     assert!(checked.stderr.is_empty());
     let executed = run(&files, &[]);
-    assert!(!executed.status.success());
-    assert!(executed.stdout.is_empty());
-    assert!(
-        stderr(&executed).contains("ownership"),
-        "{}",
-        stderr(&executed)
-    );
-    assert!(
-        stderr(&executed).contains("execution"),
-        "{}",
-        stderr(&executed)
-    );
+    assert!(executed.status.success(), "{}", stderr(&executed));
+    assert_eq!(executed.stdout, b"0\n");
+    assert!(executed.stderr.is_empty());
 }
 
 #[test]

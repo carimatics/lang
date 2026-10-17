@@ -152,8 +152,22 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         &self,
         allocator: &mut Allocator<P>,
     ) -> Result<FrameStorage<'layouts, 'types>, Error> {
+        self.reserve_after(allocator, self.usage)
+    }
+    /// Resume accounting after an execution adapter's bounded pre-entry pools.
+    pub fn reserve_after<P: Provider>(
+        &self,
+        allocator: &mut Allocator<P>,
+        initial: m::Usage,
+    ) -> Result<FrameStorage<'layouts, 'types>, Error> {
+        if initial.work < self.usage.work
+            || initial.allocation_bytes < self.usage.allocation_bytes
+            || initial.elements < self.usage.elements
+        {
+            return Err(Error::State);
+        }
         allocator.check(&self.requests)?;
-        let mut budget = m::Budget::with_usage(self.limits, self.usage)?;
+        let mut budget = m::Budget::with_usage(self.limits, initial)?;
         budget.charge(self.cells.len())?;
         let mut cells: Vec<Reservation<'layouts, 'types>> = budget.vector(self.cells.len())?;
         for ty in &self.cells {

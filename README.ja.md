@@ -62,11 +62,12 @@ Milestone 1のsource pipelineは複数fileのmodule、型付きfunctionと再帰
 ```bash
 cargo run -- check examples/analysis/ownership.lang
 cargo run -- run examples/scripts/answer.lang
+cargo run -- run examples/scripts/bytes.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
-`check` はCopyまたはRFC 0007 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。Ownership例はruntime profile実装中の解析専用です。`run` はCopy実行profileを使い、scriptは `42` を出力してexit 0です。Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応します。CLIはhost importを登録しません。検証日：2026-10-18 JST。
+`check` はCopyまたはRFC 0007 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。`run` はCopy profileと、`core::allocator()`、Bytes new／len、Result match、shared loan、cleanupを扱う初期ownership profileに対応します。Answer scriptは `42`、Bytes scriptはstorage解放後に `0` を出力します。未対応ownership命令はpreflightで拒否します。Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応し、REPLは引き続きCopy専用です。CLIはhost importを登録せず、owned実行instanceにはbudget付きallocatorを明示的に供給します。検証日：2026-10-18 JST。
 
 REPLは検証に成功したitem定義をcommitし、submissionごとに1つのexpressionを新しいVM counterで評価します。Scalarまたはqualified aggregate valueを表示し、複数行入力と `:reset`／`:quit` に対応します。失敗したsubmissionは以前の定義を保持し、host副作用はrollbackしません。
 
@@ -74,7 +75,7 @@ REPLは検証に成功したitem定義をcommitし、submissionごとに1つのe
 
 共有APIは `lang::frontend`、`lang::repl::Session`、`lang_semantics::analysis`、`lang_semantics::database`、`lang_syntax::format`、MIR／bytecode／VM／Cranelift crateの `unit` moduleです。Source解析は明示的なCopy／ownership programを返し、ownership variantは検証済みHIR／MIRを保持します。Compiler／codec／cache budgetを設定できます。VM既定値はfuel 1,000,000、host call 1,000、guest frame 256、live value cell 1,000,000です。Interruption／deadlineはguest safe pointで作用し、trusted native callbackはpreemptできず、unwindは禁止です。
 
-`lang_codegen_clif::program` のunit全体native APIは、guest call、boolean interface、record／enum、patternを含むRFC 0006 Copy profileを扱います。Ownership-aware source実行、公開C adapter、production native packagingはMilestone 2の残作業です。`cargo run -- 20 22` は以前のscalar VM／JIT比較を保持します。初期native backendはCranelift 0.136.3です。Native linker／debug evidenceと過去のplatform計測は[architecture](docs/ja/architecture.md)、[benchmarks](docs/ja/benchmarks.md)、[roadmap](docs/ja/roadmap.md)へ記録しています。2026-10-17のlocal source-conformance実行環境はmacOS AArch64で、Windows実行にはCI evidenceが必要です。
+`lang_codegen_clif::program` のunit全体native APIは、guest call、boolean interface、record／enum、patternを含むRFC 0006 Copy profileを扱います。Ownership-aware native lowering、公開C adapter、production native packagingはMilestone 2の残作業です。`cargo run -- 20 22` は以前のscalar VM／JIT比較を保持します。初期native backendはCranelift 0.136.3です。Native linker／debug evidenceと過去のplatform計測は[architecture](docs/ja/architecture.md)、[benchmarks](docs/ja/benchmarks.md)、[roadmap](docs/ja/roadmap.md)へ記録しています。2026-10-17のlocal source-conformance実行環境はmacOS AArch64で、Windows実行にはCI evidenceが必要です。
 
 Code変更の確定前に次を実行します。
 

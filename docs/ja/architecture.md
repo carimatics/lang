@@ -445,6 +445,20 @@ Fixtureのtokenはhost test registryで実際のshared ownerへ解決します�
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Layout compiler](../../crates/runtime/src/layout.rs)、[storage予約／retirement](../../crates/runtime/src/layout/storage.rs)、[source／runtime統合test](../../tests/owned_layout.rs)、[ownership type fuzz target](../../fuzz/fuzz_targets/ownership_mir_types.rs)の更新／検証日：2026-10-18 JST。
 
+### 初期Bytesソース実行
+
+実装／検証日：2026-10-18 JST。`lang_vm::unit::owned::execute_entry` は独立にloan検査済みownership MIRから作られた既存failure CFGを実行します。CLIは `fn main() -> i64` を持つownership programにこの経路を選び、明示的なbudget付きinstance allocatorを供給します。[Bytes script](../../examples/scripts/bytes.lang) はBytesを生成してResultをmatchし、shared loanで長さを読み、ownerをcleanupして `0` を表示します。従来のownership解析exampleも実行できます。REPLとnative compileはCopy境界を維持し、ownership bytecode encodingは未実装のままです。
+
+初期対応命令はscalar定数／算術／比較、Copy／whole-value moveとlocal初期化、shared ordinary loan、Result case検査／view、生成cleanup、allocator／Bytes-new／Bytes-lenのcore callです。Entryの到達可能CFG内にある未対応命令は、allocationの後に書かれていてもprovider callback前に拒否します。Guest call、block argument、Unit以外のconstructor、事前評価した代入先、exclusive loan、残りcore命令は後続taskです。実行は選択したentry functionだけで行い、source解析はprogram全体を検査します。
+
+Host slot／逆map、loan generation、cleanup／report poolは上限付きでguest entry前に予約します。`FramePlan::reserve_after` でそれらの累積準備使用量を再開します。Drop不要のloan valueも含む全非Copy cellを初期化ledgerで扱い、moveはownerを複製せず同等型のphysical storageを交換します。Private loan tokenでactive generation、liveな参照先、pointee型を検査し、raw address権限は与えません。Copy layout transferはCopy分類、型、範囲を追加確保なしで検証します。Buffer readは元のownerをcellへ保持したままservice tokenを検証します。
+
+生成fuel nodeでguest命令／terminatorを課金し、interruption／deadlineを検査します。Cleanupはfuelを消費しません。i64結果をtail cleanup前にstageし、retirement成功後に公開します。Bytes OOMは予約済みtyped Errを追加確保なしで返します。Fuel failureはsource spanを保持し、全owner／loanをcleanupします。事前確保済みcleanup reportはinlineで返し、失敗時のbox確保を避けます。Provider callbackにはtrusted allocation contractを維持します。これは初期single-frame経路の実装であり、全ownership call／failure／native conformanceの完了ではありません。
+
+Source／runtimeの8 testで、実際のstorageと厳密な解放数、typed OOM、全fuel prefix、loopでのloan／move／cell再利用、ownerと共存するCopy read、frame OOMとretry、未対応命令のpreflight、authority／poison／control／frame／cell拒否を検証します。CLI testでは両実行exampleを扱います。Follow-upのsource実験では設計の欠落も判明しました。RFC 0007の非Copy match bindingは読み取り専用なので、allocating Resultからowned payloadを取り出せません。Bytesとしてbindingすると `SRC0014`（expected Bytes, found &Bytes）になります。現行borrowed-match規則は受理済みのままとし、source所有権の取り出し前に別のRFC改訂で解決します。
+
+出典：特にmove／match規則を含む [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md) の最終更新日：2026-10-17。[Owned VM](../../crates/vm/src/unit/owned.rs)、[loan／storage状態](../../crates/vm/src/unit/owned/state.rs)、[CLI](../../src/main.rs)、[実行test](../../tests/owned_execution.rs)、[CLI test](../../tests/cli.rs) の更新／検証日：2026-10-18 JST。
+
 ### Owned frame storageの受け入れ
 
 実装／検証日：2026-10-18 JST。`layout::FramePlan` は検査済みownership MIRとlayoutと同一の検証済み型graphから、1関数のlocal、SSA value、return escrowの予約を作ります。明示的loan registrationはcell上限とcleanup-slot mappingに含め、別のpayload copyは作りません。TypeUseはsource spanを保持します。計画compileはtyped bodyとlayoutのwork／allocation／element使用量を合算し、共通type graphは1回だけ数えます。上限付きhost wrapper vectorはentry前に累積plan／pool予算の下でfallibleに予約します。このtrusted host poolはguest allocatorのrequested byteとは別に報告し、process memoryの計測とはしません。
@@ -493,7 +507,7 @@ Production ownership VM／native dispatch、managedなUnit／Option／Resultのm
 
 `lang check [--source-root DIR] FILE`はコードを実行せず、名前解決と該当するsource解析を行います。Libraryの検査には`main`関数もhost関数のbindingも不要です。成功時は無出力で終了status 0、source／analysis failureは1、不正なcommand usageは2を返します。[Ownership example](../../examples/analysis/ownership.lang)でこの経路を確認できます。Query database snapshotも検査に成功したownership sourceをvalidとして報告し、既存のrevision／dependency publication検査と上限付きdiagnostics cacheを維持します。
 
-Frontendの`Analysis.result`は共通の`Program` enumを保持するようになりました。Copy `TypedProgram`が必要なcallerは`as_copy`でvariantを選択するか、`frontend::copy_executable`で構造化されたexecution-profile errorを取得します。既存のCopy MIR／bytecode lowering APIは変更しません。`lang run`とREPLはcompileまたはitem publicationの前にこの境界を適用し、拒否されたownership REPL itemはcommit済みsessionを変更しません。Ownership解析proofはまだ実行可能layout、allocation、cleanupを許可せず、serialized formatの変更もありません。
+Frontendの`Analysis.result`は共通の`Program` enumを保持します。Copy `TypedProgram`が必要なcallerは`as_copy`でvariantを選択するか、`frontend::copy_executable`で構造化されたprofile errorを取得します。既存のCopy MIR／bytecode lowering APIは変更しません。Native loweringとREPLはこの境界を維持し、拒否されたownership REPL itemはcommit済みsessionを保持します。`lang run`は前述の初期ownership直接実行経路を選択します。解析だけでallocation／実行を許可するのではなく、その経路で対応命令、instance権限、storage、control上限を別途preflightします。Serialized ownership formatは別の設計決定として残します。
 
 検証では、HIR／MIR解析結果の保持、元sourceを指すresource診断、library／複数fileの検査、query cacheの無効化とstale ticket、REPL拒否時のtransactionを対象に7 testを追加しました。CLI／REPL／queryのfocused test 63件とworkspace全847 test、およびformat、Clippy、documentation生成、fuzz targetのformat／Clippyが成功しました。独立したexampleも`cargo run -- check examples/analysis/ownership.lang`で成功しています。
 

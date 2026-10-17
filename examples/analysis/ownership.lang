@@ -1,5 +1,5 @@
 // Analyze with: cargo run -- check examples/analysis/ownership.lang
-// Ownership execution is a later Milestone 2 outcome.
+// This initial Bytes profile also runs with: cargo run -- run examples/analysis/ownership.lang
 fn main() -> i64 {
     let mut created: core::Result<core::Bytes, core::AllocError> =
         core::bytes_new(core::allocator());

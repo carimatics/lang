@@ -125,6 +125,38 @@ impl Immediate {
 }
 
 impl Reservation<'_, '_> {
+    /// Copy a verified Copy value between prepared locations without scratch
+    /// allocation. Owning payloads require a separate, checked transfer.
+    pub fn copy_from<P: Provider>(
+        &self,
+        target: Location,
+        source: &Self,
+        from: Location,
+        allocator: &mut Allocator<P>,
+    ) -> Result<(), Error> {
+        let to_layout = self.validate_location(target)?;
+        let from_layout = source.validate_location(from)?;
+        if !std::ptr::eq(self.layouts.types, source.layouts.types)
+            || self.layouts.types.equivalent(target.ty, from.ty) != Some(true)
+            || !self
+                .layouts
+                .types
+                .properties(from.ty)
+                .is_some_and(|p| p.is_copy)
+            || to_layout.metadata_bytes != 0
+            || from_layout.metadata_bytes != 0
+        {
+            return Err(Error::InvalidType(from.ty));
+        }
+        allocator.copy_bytes(
+            source.data,
+            usize::try_from(from.offset).map_err(|_| Error::Overflow)?,
+            self.data,
+            usize::try_from(target.offset).map_err(|_| Error::Overflow)?,
+            usize::try_from(to_layout.size).map_err(|_| Error::Overflow)?,
+        )?;
+        Ok(())
+    }
     fn builtin(&self, ty: o::Type) -> Option<o::Builtin> {
         let o::Type::Constructed(id) = ty else {
             return None;

@@ -14,6 +14,8 @@ use lang_runtime::{HostFunctionRegistry, I64HostFunction};
 
 use crate::InterruptionFlag;
 
+pub mod owned;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Value {
     value_type: m::Type,

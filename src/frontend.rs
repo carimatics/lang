@@ -203,7 +203,8 @@ pub fn compile_script(
         .map_err(ScriptError::Lower)
 }
 
-/// Execution and native lowering still accept only the verified Copy profile.
+/// The Copy VM/native/REPL pipeline requires this profile. Source CLI ownership
+/// execution uses the independently loan-checked in-memory ownership path.
 pub fn copy_executable(program: &CheckedProgram) -> Result<&TypedProgram, CheckError> {
     match program {
         CheckedProgram::Copy(program) => Ok(program),
