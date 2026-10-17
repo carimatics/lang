@@ -452,4 +452,6 @@ fn checked_source_owned_return_can_supply_typed_mir_instructions_and_cfg() {
     .verify(b::Limits::default())
     .unwrap();
     assert!(out.facts()[0].definitions()[value.0 as usize].is_some());
+    let moved = lang_mir::unit::ownership::moves::analyze(out, Default::default()).unwrap();
+    assert!(moved.functions()[0].exits()[0].owners().is_empty());
 }

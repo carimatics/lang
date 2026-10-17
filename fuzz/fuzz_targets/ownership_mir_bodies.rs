@@ -251,5 +251,18 @@ fuzz_target!(|bytes: &[u8]| {
     .verify(limits)
     {
         assert_eq!(typed.clone().into_table().verify(limits).unwrap(), typed);
+        use lang_mir::unit::ownership::moves as flow;
+        let limits = flow::Limits {
+            work: 100_000,
+            allocations: 2 * 1024 * 1024,
+            elements: 100_000,
+            state_cells: 4096,
+        };
+        if let Ok(checked) = flow::analyze(typed, limits) {
+            assert_eq!(
+                flow::analyze(checked.clone().into_typed(), limits).unwrap(),
+                checked
+            );
+        }
     }
 });

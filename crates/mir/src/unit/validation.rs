@@ -140,6 +140,13 @@ impl Display for Error {
 }
 impl StdError for Error {}
 
+/// Cumulative resources consumed before an immutable pipeline stage.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Usage {
+    pub work: usize,
+    pub allocation_bytes: usize,
+    pub elements: usize,
+}
 /// Shared by decoding and verification. Counts cumulative requested buffers,
 /// including temporary buffers; releasing one does not replenish this budget.
 pub struct Budget {
@@ -149,6 +156,22 @@ pub struct Budget {
     elements: usize,
 }
 impl Budget {
+    /// Resume cumulative accounting across immutable verified pipeline stages.
+    pub fn with_usage(limits: Limits, usage: Usage) -> Result<Self, Error> {
+        cap(usage.work, limits.work, LimitKind::Work)?;
+        cap(
+            usage.allocation_bytes,
+            limits.allocations,
+            LimitKind::Allocations,
+        )?;
+        cap(usage.elements, limits.elements, LimitKind::Elements)?;
+        Ok(Self {
+            limits,
+            work: usage.work,
+            allocations: usage.allocation_bytes,
+            elements: usage.elements,
+        })
+    }
     pub const fn new(limits: Limits) -> Self {
         Self {
             limits,

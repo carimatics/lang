@@ -6,7 +6,7 @@ mod validation;
 
 pub use validation::{
     Budget, Error, ErrorKind, FunctionFacts, Layout, LimitKind, Limits, SourceFacts, UnitFacts,
-    VerifiedUnit,
+    Usage, VerifiedUnit,
 };
 
 use crate::ResourceTypeId;

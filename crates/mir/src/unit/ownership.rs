@@ -10,6 +10,7 @@ use std::hash::{Hash, Hasher};
 
 pub mod bodies;
 pub mod declarations;
+pub mod moves;
 pub mod places;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

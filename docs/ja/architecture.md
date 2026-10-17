@@ -261,9 +261,21 @@ Payload操作には、同じvalueとcaseを調べる `IsCase` が生成したgua
 
 追加13 testで、独立した経路交差dominator oracleと比較する120個の生成CFG、non-Copy loop引数、result／definition／edgeの不正、local／value-root依存、borrow／arena命令、guard付きpayload Copy／borrow／unpack、22種すべてのcore case shape、record／call／import、正確な累積budget、source接続のowned-return組み立てfixtureを確認します。Fixtureは検査済みreturnを1件手動で組み立て、自動source-body loweringは主張しません。新しい `ownership_mir_bodies` test-input generatorはlock済みcompile／Clippyとinstrumentationなし10,000-run smokeを通過し、coverage-guidedの主張は行いません。Work／allocation／element budgetはmetadataとbody検証で累積し、block／instruction／loan数にも上限を設けます。
 
-`TypedBodies` はinstruction型とCFG構造だけを証明し、実行可能なCopy profileの `VerifiedUnit` には変換できません。明示testでは構造上型が合う二重moveを受け入れ、ownership-flowによる拒否がまだ必要であることを記録します。Initialization、affine consumption、有効loanと推移的cell依存、loop状態復元、region／call effect、RHSのeffectをまたいで準備したassignment destination、cleanup／failure順序、layout、完全なsource／core lowering、等価なVM／native実行、受理済みownership serializationが必要です。このstageだけではMilestone 2のownership／arena／core outcomeは完了しません。
+`TypedBodies` はinstruction型とCFG構造だけを証明し、実行可能なCopy profileの `VerifiedUnit` には変換できません。構造testは型が合う二重moveを受け入れますが、次のinitialization／consumption stageで拒否します。有効loanと推移的cell依存、間接alias／region／call effect、RHSのeffectをまたいで準備したassignment destination、cleanup／failure順序、layout、完全なsource／core lowering、等価なVM／native実行、受理済みownership serializationが必要です。このstageだけではMilestone 2のownership／arena／core outcomeは完了しません。
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[body表現／verifier](../../crates/mir/src/unit/ownership/bodies.rs)、[構造test](../../crates/mir/tests/ownership_bodies.rs)、source組み立てtest、fuzz target。更新／検証日：2026-10-17 JST。CFG／storage／guard表現は実装上の選択であり、公開cleanup／allocator／C ABI、serialized layout、performance測定は追加しません。
+
+### Ownership MIR initialization and moves
+
+2026-10-17実装：`lang-mir::unit::ownership::moves::analyze` はlocal storageとtyped SSA valueを、未初期化、初期化済み、一部pathでのみ初期化済みの3状態で独立追跡します。すべてのparameter localは初期化済みで開始し、他のstorageとvalue descriptorは未初期化で開始します。Read／borrowには確実なavailabilityが必要で、non-Copy transferはsourceを消費し、constructor／call operandは記述順に移します。Mutable local全体のreplacementでmove済みcellを再初期化でき、通常initializationはliveの可能性があるdestinationを拒否します。Ownerを持つSSA再定義は保持storageを暗黙に上書きできません。Copy引数／値のdropはsourceを維持し、local dropとarena exitはstorageを未初期化へ戻します。
+
+Branch引数は選択されたedgeだけでtransferします。全引数を読み取り／消費してからdestination parameterを再束縛し、non-Copyのself-edge swapを許可しながら、同じowner入力の重複を拒否します。上限付き単調work queueでpath状態を合流します。DFS feedback edgeから非循環の初回iteration baselineを作り、一意のnatural-loop entryを持たないcycleも含め、feedback時に全localとdrop対象SSA slotの状態復元を要求します。Copy SSA temporaryはowner復元の対象ではなく、通常loanのactivation／provenanceは次のstageの責務です。Blockのentry状態、以前の消費の可能性があるspan、return時のcleanup obligationを読み取り専用factとして保持します。
+
+`Budget::with_usage` で、変更不可のtyped stageが実際に使ったwork／allocation／element counterを再開してflow解析します。State matrixには個別の累積cell上限を設け、走査／copy／joinのworkと明示bufferを計上します。追加12 testで二重moveと診断span、未初期化storage／borrow、再初期化、branch joinと条件付きcleanup obligation、選択edge transfer、non-Copy swap、loop状態復元、irreducible cycle、arena activation、正確なresource境界、独立single-owner oracleと比較する160件の生成操作列を確認します。既存source owned-return組み立てfixtureもこのstageを通り、残るowner obligationがないことを確認します。拡張したlock済みbody fuzz targetはClippyとinstrumentationなし10,000-run smokeを通過しました。Coverage-guidedのevidenceではありません。
+
+`MoveCheckedBodies` は引き続き実行できません。Return時にlive／maybe-live ownerをcleanup対象として報告できますが、このstageはobligationを記録し、未決定cleanup policyを選択・挿入しません。Dereferenceにはroot reference／cellの初期化を要求しますが、有効loan、推移的cell依存、参照先aliasの妥当性、escape／region／call effect、RHSのeffectをまたぐ準備済みdestination、allocator／cleanup／layout／runtime contractは未証明です。完全なsource／core loweringとVM／native／wire統合はMilestone 2作業として残ります。このstageだけではHIR／MIRやarenaのoutcomeは完了しません。
+
+出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[CFG状態解析](../../crates/mir/src/unit/ownership/moves.rs)、[test](../../crates/mir/tests/ownership_moves.rs)、累積budget API、source fixture、fuzz target。更新／検証日：2026-10-17 JST。Lattice、feedback edgeの方法、診断witnessは実装上の選択であり、新たなsource rule、公開cleanup ABI、artifact encoding、performance測定は主張しません。
 
 ### Source formatter
 
