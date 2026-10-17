@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod component;
+pub mod shared;
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
