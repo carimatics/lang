@@ -255,12 +255,11 @@ fn move_checked_bodies_still_require_lexical_loan_validation() {
             .iter()
             .any(|a| a.kind == AccessKind::Move)
     );
-    // The unused named loan lasts to block exit. The pending loan pass must
-    // reject this move; initialization facts alone cannot enable execution.
-    assert!(matches!(
-        check_program(source, &sources, CheckLimits::default()),
-        Err(CheckError::OwnershipProfile { .. })
-    ));
+    // Initialization facts alone cannot enable execution. The following loan
+    // pass rejects the move even though the named loan is unused.
+    let checked = check_program(source, &sources, CheckLimits::default()).unwrap();
+    assert!(checked.program.is_none());
+    assert_eq!(checked.diagnostics[0].code, codes::INVALID_LOAN);
 }
 
 #[test]

@@ -4,7 +4,7 @@ use lang_diagnostics::SourceMap;
 use lang_hir::{
     core::{Case, Operation},
     layout::{LayoutError, LayoutLimits},
-    moves,
+    loans, moves,
     program::{CheckError, CheckLimits, analyze_bodies, check_program},
     resolved as r,
     source::Name,
@@ -278,6 +278,15 @@ fuzz_target!(|bytes: &[u8]| {
         functions: vec![function],
     };
     let limits = CheckLimits {
+        loans: loans::Limits {
+            functions: 8,
+            locals: 64,
+            loans: 128,
+            depth: 16,
+            work: 16_384,
+            allocations: 1024 * 1024,
+            diagnostics: 32,
+        },
         moves: moves::Limits {
             functions: 8,
             locals: 64,
@@ -357,6 +366,31 @@ fuzz_target!(|bytes: &[u8]| {
                                     assert!(access.local.0 < function.locals.len());
                                 }
                             }
+                            match loans::analyze(checked, &sources, limits.loans) {
+                                Ok(analysis) => {
+                                    for d in analysis.diagnostics {
+                                        d.validate(&sources).unwrap();
+                                    }
+                                    for pending in analysis.pending {
+                                        sources.slice(pending.span).unwrap();
+                                    }
+                                    if let Some(checked) = analysis.bodies {
+                                        assert_eq!(checked.moved().bodies().source(), &program);
+                                        for facts in checked.functions() {
+                                            for (index, loan) in facts.loans().iter().enumerate() {
+                                                sources.slice(loan.span).unwrap();
+                                                if let Some(parent) = loan.parent {
+                                                    assert!(parent.0 < index);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(loans::Error::Limit(d)) => d.validate(&sources).unwrap(),
+                                Err(
+                                    loans::Error::Source(_) | loans::Error::AllocationFailed { .. },
+                                ) => {}
+                            }
                         }
                     }
                     Err(moves::Error::Limit(d)) => d.validate(&sources).unwrap(),
@@ -368,13 +402,15 @@ fuzz_target!(|bytes: &[u8]| {
             CheckError::Limit(d)
             | CheckError::Layout(LayoutError::Limit(d))
             | CheckError::Types(types::Error::Limit(d))
-            | CheckError::Moves(moves::Error::Limit(d)),
+            | CheckError::Moves(moves::Error::Limit(d))
+            | CheckError::Loans(loans::Error::Limit(d)),
         ) => d.validate(&sources).unwrap(),
         Err(
             CheckError::Input { .. }
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
+            | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
             | CheckError::OwnershipProfile { .. },
         ) => {}
     }
@@ -394,7 +430,8 @@ fuzz_target!(|bytes: &[u8]| {
             CheckError::Limit(d)
             | CheckError::Layout(LayoutError::Limit(d))
             | CheckError::Types(types::Error::Limit(d))
-            | CheckError::Moves(moves::Error::Limit(d)),
+            | CheckError::Moves(moves::Error::Limit(d))
+            | CheckError::Loans(loans::Error::Limit(d)),
         ) => {
             d.validate(&sources).unwrap();
         }
@@ -403,6 +440,7 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
+            | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
             | CheckError::OwnershipProfile { .. },
         ) => {}
     }

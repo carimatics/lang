@@ -105,6 +105,29 @@ fn move_diagnostics_reach_cli_and_move_limits_keep_source_snapshots() {
 }
 
 #[test]
+fn loan_diagnostics_reach_cli_and_loan_limits_keep_source_snapshots() {
+    let text = "fn bad(text: core::Text) -> core::Text { let mut read: &core::Text = &text; return text; } fn main() -> i64 { return 0; }";
+    let files = Files::new(text);
+    let output = run(&files, &[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("SRC0021"), "{}", stderr(&output));
+    let mut limits = CompileLimits::default();
+    limits.typing.loans.work = 0;
+    let analysis = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("loans.lang"),
+        text.as_bytes(),
+        None,
+        limits,
+        None,
+    );
+    assert!(matches!(analysis.result, Err(AnalysisError::Diagnostics)));
+    assert_eq!(analysis.diagnostics[0].code, codes::RESOURCE_LIMIT);
+    analysis.diagnostics[0].validate(&analysis.sources).unwrap();
+}
+
+#[test]
 fn scripts_print_one_signed_value_and_success_is_not_the_return_exit_code() {
     for (source, expected) in [
         ("fn main() -> i64 { return 42; }", "42\n"),

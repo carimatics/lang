@@ -15,7 +15,7 @@ use lang_diagnostics::{
 use crate::{
     core,
     layout::{LayoutError, LayoutLimits, ValueLayout, analyze_layouts},
-    moves, resolved as r,
+    loans, moves, resolved as r,
     source::Name,
     types,
 };
@@ -25,6 +25,7 @@ pub struct CheckLimits {
     pub layout: LayoutLimits,
     pub types: types::Limits,
     pub moves: moves::Limits,
+    pub loans: loans::Limits,
     pub modules: usize,
     pub functions: usize,
     pub imports: usize,
@@ -45,6 +46,7 @@ impl Default for CheckLimits {
             layout: LayoutLimits::default(),
             types: types::Limits::default(),
             moves: moves::Limits::default(),
+            loans: loans::Limits::default(),
             modules: 256,
             functions: 4096,
             imports: 4096,
@@ -102,6 +104,7 @@ pub enum CheckError {
     Layout(LayoutError),
     Types(types::Error),
     Moves(moves::Error),
+    Loans(loans::Error),
     OwnershipProfile {
         span: Span,
     },
@@ -114,9 +117,10 @@ impl Display for CheckError {
             Self::Layout(e) => Display::fmt(e, f),
             Self::Types(e) => Display::fmt(e, f),
             Self::Moves(e) => Display::fmt(e, f),
-            Self::OwnershipProfile { .. } => {
-                f.write_str("ownership source bodies require the pending move/loan checker")
-            }
+            Self::Loans(e) => Display::fmt(e, f),
+            Self::OwnershipProfile { .. } => f.write_str(
+                "ownership source bodies require the remaining provenance checks and ownership MIR",
+            ),
             Self::Limit(d) => write!(f, "{}: {}", d.code.as_str(), d.message),
         }
     }
@@ -228,25 +232,6 @@ fn check_program_internal(
     limits: CheckLimits,
     infer: Option<r::FunctionId>,
 ) -> Result<ProgramAnalysis, CheckError> {
-    if let Some(span) = source.types.first().map(|first| first.span) {
-        let analysis = analyze_bodies(source, sources, limits)?;
-        let Some(bodies) = analysis.bodies else {
-            return Ok(ProgramAnalysis {
-                program: None,
-                diagnostics: analysis.diagnostics,
-            });
-        };
-        let mut diagnostics = analysis.diagnostics;
-        let moved = moves::analyze(bodies, sources, limits.moves).map_err(CheckError::Moves)?;
-        diagnostics.extend(moved.diagnostics);
-        if moved.bodies.is_none() {
-            return Ok(ProgramAnalysis {
-                program: None,
-                diagnostics,
-            });
-        }
-        return Err(CheckError::OwnershipProfile { span });
-    }
     let mut context = Context {
         source: &source,
         sources,
@@ -257,7 +242,80 @@ fn check_program_internal(
         errors: 0,
         types: None,
     };
-    context.metadata()?;
+    let mut ownership_span = source.types.first().map(|first| first.span);
+    if ownership_span.is_none() {
+        // Validate/count foreign arenas before looking for new forms without
+        // constructed annotations. The scan shares the Copy checker budget.
+        context.metadata()?;
+        'scan: for function in &source.functions {
+            context.charge(function.span)?;
+            for expression in &function.expressions {
+                context.charge(function.span)?;
+                if matches!(
+                    expression.kind,
+                    r::ExpressionKind::Borrow { .. }
+                        | r::ExpressionKind::Dereference(_)
+                        | r::ExpressionKind::CoreCall { .. }
+                        | r::ExpressionKind::CoreCase { .. }
+                        | r::ExpressionKind::CoreUnit
+                ) {
+                    ownership_span = Some(expression.span);
+                    break 'scan;
+                }
+            }
+            for pattern in &function.patterns {
+                context.charge(function.span)?;
+                if matches!(
+                    pattern.kind,
+                    r::PatternKind::CoreUnit | r::PatternKind::CoreCase { .. }
+                ) {
+                    ownership_span = Some(pattern.span);
+                    break 'scan;
+                }
+            }
+            for block in &function.blocks {
+                context.charge(function.span)?;
+                for statement in &block.statements {
+                    context.charge(function.span)?;
+                    if matches!(
+                        statement.kind,
+                        r::StatementKind::PlaceAssign { .. } | r::StatementKind::Arena { .. }
+                    ) {
+                        ownership_span = Some(statement.span);
+                        break 'scan;
+                    }
+                }
+            }
+        }
+    }
+    if let Some(span) = ownership_span {
+        let analysis = analyze_bodies(source, sources, limits)?;
+        let Some(bodies) = analysis.bodies else {
+            return Ok(ProgramAnalysis {
+                program: None,
+                diagnostics: analysis.diagnostics,
+            });
+        };
+        let mut diagnostics = analysis.diagnostics;
+        let moved = moves::analyze(bodies, sources, limits.moves).map_err(CheckError::Moves)?;
+        diagnostics.extend(moved.diagnostics);
+        let Some(checked_moves) = moved.bodies else {
+            return Ok(ProgramAnalysis {
+                program: None,
+                diagnostics,
+            });
+        };
+        let loaned =
+            loans::analyze(checked_moves, sources, limits.loans).map_err(CheckError::Loans)?;
+        if !loaned.diagnostics.is_empty() {
+            diagnostics.extend(loaned.diagnostics);
+            return Ok(ProgramAnalysis {
+                program: None,
+                diagnostics,
+            });
+        }
+        return Err(CheckError::OwnershipProfile { span });
+    }
     let expression = if let Some(id) = infer {
         let invalid = || input(CheckInputErrorKind::InvalidExpressionFunction, None);
         let function = source.functions.get(id.0).ok_or_else(invalid)?;
@@ -791,11 +849,6 @@ impl<'a> Context<'a> {
                     ));
                 }
                 match (local.kind, local.annotation) {
-                    (r::BindingKind::ArenaOwner, None) if self.types.is_none() => {
-                        return Err(CheckError::OwnershipProfile {
-                            span: local.name.span,
-                        });
-                    }
                     (r::BindingKind::Pattern | r::BindingKind::ArenaOwner, None) => {}
                     (r::BindingKind::Parameter | r::BindingKind::Mutable, Some(ty)) => self
                         .type_use(

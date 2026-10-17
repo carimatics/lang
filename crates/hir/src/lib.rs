@@ -8,11 +8,13 @@
 //! expression/pattern/call typing and bounded exhaustiveness are checked by
 //! `program`. Its executable typed program remains Copy-only. Separate body
 //! type facts do not establish moves, loan/region flow, or executable validity.
-//! `moves` checks definite initialization and local consumption; loan/region
-//! validity and executable promotion remain separate requirements.
+//! `moves` checks definite initialization and local consumption. `loans` checks
+//! lexical whole-owner access for single-layer loans; nested reference cells,
+//! arena-brand flow, and executable promotion remain separate requirements.
 
 pub mod core;
 pub mod layout;
+pub mod loans;
 pub mod moves;
 pub mod program;
 pub mod resolved;

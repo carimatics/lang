@@ -159,8 +159,8 @@ fn every_core_operation_binds_with_concrete_type_arguments_and_written_value_ord
             _ => panic!(),
         };
         let arguments = ["a", "b", "c"][..signature.parameters.len()].join(", ");
-        // Deliberately only name/arity binding: value types and loan validity
-        // belong to the later ownership body checker, so this is not run.
+        // Deliberately only name/arity binding: the subsequent body checker
+        // diagnoses these invalid value types before executable promotion.
         let text = format!(
             "fn f(a: i64, b: i64, c: i64) -> i64 {{ return core::{}{specialization}({arguments}); }}",
             operation.name()
@@ -193,10 +193,18 @@ fn every_core_operation_binds_with_concrete_type_arguments_and_written_value_ord
             sources.slice(callee_span).unwrap(),
             format!("core::{}", operation.name())
         );
-        assert!(matches!(
-            lang_hir::program::check_program(program, &sources, Default::default()),
-            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
-        ));
+        let checked =
+            lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+        assert!(checked.program.is_none());
+        assert!(
+            checked
+                .diagnostics
+                .iter()
+                .any(|d| d.severity == lang_diagnostics::Severity::Error)
+        );
+        for d in checked.diagnostics {
+            d.validate(&sources).unwrap();
+        }
     }
 }
 
@@ -309,10 +317,18 @@ fn every_core_case_binds_in_values_and_patterns_without_synthetic_nominal_ids() 
                 r::ExpressionKind::Local(r::LocalId(0))
             ));
         }
-        assert!(matches!(
-            lang_hir::program::check_program(program, &sources, Default::default()),
-            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
-        ));
+        let checked =
+            lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+        assert!(checked.program.is_none());
+        assert!(
+            checked
+                .diagnostics
+                .iter()
+                .any(|d| d.severity == lang_diagnostics::Severity::Error)
+        );
+        for d in checked.diagnostics {
+            d.validate(&sources).unwrap();
+        }
         let pattern = format!("{path}{}", if explicit { "(value)" } else { "" });
         let (sources, program) = Files::new(&format!("fn f(x: i64) -> i64 {{ match x {{ {pattern} => {{ return 0; }}, _ => {{ return 1; }}, }} }}")).program();
         let f = &program.functions[0];
@@ -334,10 +350,18 @@ fn every_core_case_binds_in_values_and_patterns_without_synthetic_nominal_ids() 
         assert_eq!(explicit_payload, explicit);
         assert_eq!(payload.len(), usize::from(explicit));
         assert_eq!(sources.slice(case_span).unwrap(), path);
-        assert!(matches!(
-            lang_hir::program::check_program(program, &sources, Default::default()),
-            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
-        ));
+        let checked =
+            lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+        assert!(checked.program.is_none());
+        assert!(
+            checked
+                .diagnostics
+                .iter()
+                .any(|d| d.severity == lang_diagnostics::Severity::Error)
+        );
+        for d in checked.diagnostics {
+            d.validate(&sources).unwrap();
+        }
     }
 }
 
@@ -364,10 +388,18 @@ fn unit_is_an_empty_core_record_in_values_and_patterns() {
     ] {
         let (sources, program) = Files::new(text).program();
         assert!(program.types.is_empty());
-        assert!(matches!(
-            lang_hir::program::check_program(program, &sources, Default::default()),
-            Err(lang_hir::program::CheckError::OwnershipProfile { .. })
-        ));
+        let checked =
+            lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+        assert!(checked.program.is_none());
+        assert!(
+            checked
+                .diagnostics
+                .iter()
+                .any(|d| d.severity == lang_diagnostics::Severity::Error)
+        );
+        for d in checked.diagnostics {
+            d.validate(&sources).unwrap();
+        }
     }
 }
 
@@ -1466,7 +1498,7 @@ fn ownership_body_binding_uses_existing_expression_local_block_and_depth_budgets
 }
 
 #[test]
-fn copy_checker_rejects_ownership_bodies_even_without_constructed_annotations() {
+fn extended_forms_reach_body_analysis_even_without_constructed_annotations() {
     for text in [
         "fn f(x: i64) -> i64 { return &x; }",
         "fn f(x: i64) -> i64 { return (*x); }",
@@ -1476,12 +1508,18 @@ fn copy_checker_rejects_ownership_bodies_even_without_constructed_annotations() 
     ] {
         let (sources, program) = Files::new(text).program();
         assert!(program.types.is_empty());
-        let error =
-            lang_hir::program::check_program(program, &sources, Default::default()).unwrap_err();
-        let lang_hir::program::CheckError::OwnershipProfile { span } = error else {
-            panic!("{error:?}")
-        };
-        assert!(!sources.slice(span).unwrap().is_empty());
+        let checked =
+            lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+        assert!(checked.program.is_none());
+        assert!(
+            checked
+                .diagnostics
+                .iter()
+                .any(|d| d.severity == lang_diagnostics::Severity::Error)
+        );
+        for d in checked.diagnostics {
+            d.validate(&sources).unwrap();
+        }
     }
 }
 
