@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-17
 - Last updated: 2026-10-17
@@ -14,7 +14,7 @@
 
 ## Summary
 
-Resolve Milestone 2's remaining cleanup/allocator/unsafe/FFI decision gate on top of accepted RFCs 0004/0007. These are proposed project choices, not implementation or stabilization claims.
+Resolve Milestone 2's remaining cleanup/allocator/unsafe/FFI decision gate on top of accepted RFCs 0004/0007. The project owner accepted these choices on 2026-10-17 JST. Acceptance does not imply implementation or stabilization.
 
 Use explicit typed Result values for recoverable errors, compiler-elaborated deterministic cleanup on every normal/failure edge, fallible budgeted guest allocation, and a generated C status/out-parameter boundary. Unsafe source marks trusted foreign calls; it never disables move, loan, region, or artifact validation. The first C profile supports scalars and finite Copy aggregates through adapters, preserving the source's private native layout. Arbitrary C APIs can use a C shim implementing the generated contract.
 
@@ -173,7 +173,7 @@ Source/IR/artifacts/handles remain untrusted at their validation boundaries. All
 
 ## Implementation plan
 
-1. Obtain explicit owner disposition; keep proposed until acceptance. Keep the second roadmap gate unchecked until the owner accepts the cleanup/allocator/unsafe/C-validity contract.
+1. Owner disposition recorded: accepted on 2026-10-17 JST following the explicit instruction to accept RFC 0008 and continue. The second roadmap decision gate is complete; implementation gates remain separate.
 2. Implement ownership HIR/MIR initialization/drop/failure flow, checked allocator authority and metadata reservation, and backend-neutral cleanup/error state. Preserve all spans and accepted Copy behavior.
 3. Adapt the shared runtime's host Arc/storage strategy to the fallible guest allocator contract before exposing these source operations. Add arena/core/container lifetime and failure paths; no guest callback runs under graph locks.
 4. Implement unsafe/C grammar, exact generated descriptor/header fixtures, typed import/export adapters and context validation. Verify the specified C size/alignment/offset/symbol behavior with actual compilers on macOS AArch64 and Windows x86-64. Until complete, reject unsupported boundary shapes before effects/publication.
@@ -193,9 +193,9 @@ Source/IR/artifacts/handles remain untrusted at their validation boundaries. All
 
 ## Open questions
 
-Blocking owner choice: adopt explicit cleanup/status flow, recoverable budgeted guest allocation, and this finite generated C boundary. The specified descriptor/layout/digest contracts require real implementation fixtures before implemented status; a general embedding API and exact ownership bytecode still require their own accepted/versioned contracts. They may not be silently inferred from this decision. There is no user-defined destructor or raw-pointer source escape hatch in this profile.
+The owner has accepted explicit cleanup/status flow, recoverable budgeted guest allocation, and this finite generated C boundary. The specified descriptor/layout/digest contracts require real implementation fixtures before implemented status; a general embedding API and exact ownership bytecode still require their own accepted/versioned contracts. They may not be silently inferred from this decision. There is no user-defined destructor or raw-pointer source escape hatch in this profile.
 
-Review outcome: **ready for decision on cleanup/allocator/unsafe/C-validity semantics**. Exact generated descriptor fixtures, implementation, platform conformance, measurements and stabilization are not claimed.
+Review outcome: **accepted on 2026-10-17 JST for cleanup/allocator/unsafe/C-validity semantics**. Exact generated descriptor fixtures, implementation, platform conformance, measurements and stabilization are not claimed.
 
 Prototype evidence verified 2026-10-17 JST: [layout fixture](../../benchmarks/fixtures/c-abi-profile-1-layout.c) passes `clang --target=arm64-apple-macos -std=c11 -Wall -Wextra -Werror -fsyntax-only` and the corresponding `--target=x86_64-pc-windows-msvc` command under Apple Clang 21.0.0 (`clang-2100.3.34.2`). [Fingerprint vectors](../../benchmarks/fixtures/c-abi-profile-1-fingerprints.json) record exact scalar descriptor bytes/SHA-256 for both directions/targets. These are proposal fixtures, not compiler-generated headers, native Windows/MSVC execution, or source C interoperability. Full implementation gates above remain required.
 

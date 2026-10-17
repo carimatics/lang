@@ -36,13 +36,13 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 21 pt | 113 pt | 18.6% |
+| 2 — ownership and native AOT | 26 pt | 113 pt | 23.0% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **319 pt** | **764 pt** | **41.8%** |
+| **Overall** | **324 pt** | **764 pt** | **42.4%** |
 
 ## Milestone 0: design baseline
 
@@ -218,12 +218,12 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 21 / 113 pt (18.6%).**
+**Progress: 26 / 113 pt (23.0%).**
 
 Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFC 0004's state models do not specify source grammar, production allocation, or an ABI. Complete the corresponding decision gate before each dependent implementation; re-estimate the core-library slice after its RFC fixes the minimal requirements.
 
 - [x] **P0 — Accept the source ownership/borrow/arena profile, Copy classification, and minimal core-library type surface (including text/bytes, collection use, and any required generic syntax).** — 5 pt
-- [ ] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
+- [x] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
 - [ ] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
 - [x] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
@@ -242,6 +242,8 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
+
+Owner decision (2026-10-17 JST): [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md) is accepted following the owner's explicit instruction to accept it and continue. The cleanup/allocator/unsafe/C-validity decision gate is complete, adding 5 pt; M2 is now 26 / 113 pt (23.0%), with 4 of 18 outcomes complete. Acceptance authorizes the specified implementation but does not complete cleanup, guest allocation, unsafe/FFI enforcement, C adapters, or platform conformance. Earlier follow-up entries below record the state at their respective commits; their references to RFC 0008 being proposed or awaiting acceptance are historical. The accepted RFC and this decision record give its current status.
 
 Implementation evidence verified 2026-10-17 JST: commit `926fb3b` adds `lang-codegen-clif::program` whole-unit JIT/object lowering for all twelve RFC 0006 copy-value operations. Ten focused tests cover canonical wire round trips, forward/mutual calls, bool and nested aggregate interfaces, structural/literal patterns, loop joins and self-edge swaps, host evaluation order/preflight, invalid inputs/projections, compile budgets/frame capacity, multi-file spans, both Mach-O/COFF generation, and macOS direct/response-file link/run. The full fmt/Clippy/test/doc baseline passes (515 tests). The original scalar/owned compatibility adapter remains available. New Windows native execution, ownership-aware objects, public C ABI/headers, full source debug formats, production packaging, and representative performance/conformance remain their own unchecked outcomes.
 

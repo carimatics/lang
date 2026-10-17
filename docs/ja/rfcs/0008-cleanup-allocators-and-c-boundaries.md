@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 
-- ステータス: proposed
+- ステータス: accepted
 - 著者: Project contributors
 - 作成日: 2026-10-17
 - 最終更新日: 2026-10-17
@@ -14,7 +14,7 @@
 
 ## 概要
 
-受理済みRFC 0004／0007を前提として、Milestone 2に残るcleanup／allocator／unsafe／FFIのdecision gateを定義します。Projectの提案であり、実装／stabilizationの主張ではありません。
+受理済みRFC 0004／0007を前提として、Milestone 2に残るcleanup／allocator／unsafe／FFIのdecision gateを定義します。Project ownerは2026-10-17 JSTにこの判断を受理しました。受理は実装／stabilizationの完了を意味しません。
 
 Recoverable errorは明示的typed Result、全正常／failure edgeのcleanupはcompilerがelaborateするdeterministic処理、guest allocationはbudget付きfallible操作、C境界は生成したstatus／out-parameter形式とします。Unsafe sourceは信頼するforeign callを明示するだけで、move／loan／region／artifact検証を無効にしません。最初のC profileはadapter経由のscalarと有限Copy aggregateを扱い、source専用native layoutを保持します。範囲外のC APIは生成contractを実装するC shimで接続できます。
 
@@ -173,7 +173,7 @@ Source／IR／artifact／handleは各境界でuntrustedとして検証します�
 
 ## 実装計画
 
-1. Owner dispositionを得る。明示acceptanceまでproposedを維持し、cleanup／allocator／unsafe／C-validity契約をownerが受理するまで第2roadmap gateを完了にしない。
+1. Owner dispositionを記録済み：RFC 0008をacceptedとして作業を続ける明示指示に従い、2026-10-17 JSTに受理しました。第2roadmap decision gateは完了し、implementation gateは別途維持します。
 2. Ownership HIR／MIRの初期化／drop／failure flow、checked allocator authority／metadata reserve、backend-neutral cleanup／error stateを実装し、全spanとCopy behaviorを維持する。
 3. Shared runtimeのhost Arc／storage戦略をfallible guest allocator契約へ適応してからsource operationを公開し、arena／core／containerのlifetime／failure経路を追加する。Graph lock内でguest callbackを呼ばない。
 4. Unsafe／C構文、厳密generated descriptor／header fixture、typed import／export adapter、context検証を実装する。MacOS AArch64／Windows x86-64実compilerで規定size／alignment／offset／symbolを検証し、未対応形状はeffect／publication前に拒否する。
@@ -193,9 +193,9 @@ Source／IR／artifact／handleは各境界でuntrustedとして検証します�
 
 ## 未解決事項
 
-Blocking owner choiceは、明示cleanup／status flow、recoverable budget付きguest allocation、有限generated C boundaryの採用です。規定descriptor／layout／digestはimplemented前に実fixtureで確認し、汎用embedding APIと厳密ownership bytecodeは個別の受理済みversioned契約を必要とします。暗黙に補ってはいけません。このprofileにuser-defined destructorやraw-pointer source escape hatchはありません。
+Ownerは明示cleanup／status flow、recoverable budget付きguest allocation、有限generated C boundaryを受理しました。規定descriptor／layout／digestはimplemented前に実fixtureで確認し、汎用embedding APIと厳密ownership bytecodeは個別の受理済みversioned契約を必要とします。暗黙に補ってはいけません。このprofileにuser-defined destructorやraw-pointer source escape hatchはありません。
 
-Review outcome：**cleanup／allocator／unsafe／C-validity semanticsのdecision-ready**。完全なgenerated descriptor fixture、implementation、platform conformance、measurement、stabilizationは主張しません。
+Review outcome：**cleanup／allocator／unsafe／C-validity semanticsを2026-10-17 JSTに受理済み**。完全なgenerated descriptor fixture、implementation、platform conformance、measurement、stabilizationは主張しません。
 
 2026-10-17 JST確認のprototype evidence：[layout fixture](../../../benchmarks/fixtures/c-abi-profile-1-layout.c)はApple Clang 21.0.0（`clang-2100.3.34.2`）で `clang --target=arm64-apple-macos -std=c11 -Wall -Wextra -Werror -fsyntax-only` と、同じcommandの `--target=x86_64-pc-windows-msvc` をpassしました。[Fingerprint vector](../../../benchmarks/fixtures/c-abi-profile-1-fingerprints.json)は両direction／targetのscalar descriptor byte／SHA-256を記録します。提案fixtureであり、compiler生成header、native Windows／MSVC実行、source C interoperabilityではなく、上記implementation gateは残ります。
 

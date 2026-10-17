@@ -36,13 +36,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 21 pt | 113 pt | 18.6% |
+| 2 — ownershipとnative AOT | 26 pt | 113 pt | 23.0% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **319 pt** | **764 pt** | **41.8%** |
+| **全体** | **324 pt** | **764 pt** | **42.4%** |
 
 ## Milestone 0：設計baseline
 
@@ -218,12 +218,12 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**進捗：21 / 113 pt（18.6%）。**
+**進捗：26 / 113 pt（23.0%）。**
 
 開始条件：RFC 0006の実装済みcopy-value profileとcompatibility fixtureを基準とします。RFC 0004のstate modelはsource構文、production allocation、ABIを規定しません。対応する設計決定を受理してから依存する実装を進め、core-library sliceはRFCで最小要件が定まった時点で再見積もりします。
 
 - [x] **P0 — Sourceのownership／borrow／arena profile、Copy分類、最小core-library型表面（text／byte、collection利用、必要なgeneric構文を含む）を受理する。** — 5 pt
-- [ ] **P0 — 未規定のerror／panic cleanup、unsafe／FFI validity、allocator contractを公開interface実装前に受理する。** — 5 pt
+- [x] **P0 — 未規定のerror／panic cleanup、unsafe／FFI validity、allocator contractを公開interface実装前に受理する。** — 5 pt
 - [ ] **P0 — Typed HIR／MIRでowned value、move、lexical borrow checkingを実装する。** — 8 pt
 - [x] **P0 — RFC 0004のshared／weak retain-release、retainを伴うweak upgrade、atomic cycle-preflight／publicationを実装しrollback／race testを追加する。** — 8 pt
 - [ ] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
@@ -242,6 +242,8 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。
+
+Ownerの判断（2026-10-17 JST）：RFC 0008をacceptedとして作業を続ける明示指示に従い、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)を受理しました。Cleanup／allocator／unsafe／C-validity decision gateは完了し、5 ptを加算してM2は26 / 113 pt（23.0%）、全18成果中4成果完了となりました。受理により規定実装を進めますが、cleanup、guest allocation、unsafe／FFI強制、C adapter、platform conformanceは完了扱いにしません。以下の過去follow-upは各commit時点の状態を記録しており、RFC 0008のproposed／受理待ちという記述は履歴です。現在のstatusは受理済みRFCとこの判断記録を参照してください。
 
 2026-10-17 JSTに確認した実装evidence：commit `926fb3b` はRFC 0006のcopy-value全12命令を扱う `lang-codegen-clif::program` のunit全体JIT／object loweringを追加しました。10件のfocused testでcanonical wire往復、前方／相互call、boolと入れ子aggregateのinterface、structural／literal pattern、loop join／self-edge swap、host評価順序／preflight、不正入力／projection、compile budget／frame capacity、複数fileのspan、Mach-O／COFF生成、macOSでのdirect／response-file link／runを検証します。Fmt／Clippy／test／docのfull baselineは515 testすべてpassしました。従来のscalar／owned compatibility adapterも維持します。新しいWindows native実行、ownership-aware object、公開C ABI／header、完全なsource debug format、production packaging、代表的performance／conformanceは、それぞれの未完了成果として残ります。
 
