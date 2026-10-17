@@ -6,15 +6,15 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**40 done · 0 doing · 51 todo · 131 remaining pt**
+**41 done · 0 doing · 50 todo · 128 remaining pt**
 
-**Next: M2-S03 → execute admitted payload transfer and the owned Bytes source fixture.**
+**Next: M2-V04 → execute Bytes get/set/push and valid/invalid UTF-8 conversion from source.**
 
-Latest delivery: **M2-S02** (`b562c0f`) implements [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) source/MIR analysis for Some/Ok/Err extraction. [The extraction fixture](../examples/analysis/extraction.lang) passes CLI `check`; move/loan/region violations are rejected, with independent MIR signature/consumption checks. Six new source tests and a malformed-MIR test pass. The full baseline passes **959 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy. Execution is still gated at the extraction call before effects (fuel 0, host calls 0). The last executable delivery remains **M2-V03** (`ece8690`): [the source Bytes program](../examples/scripts/bytes.lang) prints `0`.
+Latest delivery: **M2-S03** (`e584902`) executes [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) extraction and finite Option/Result construction for Bytes/Copy payloads. [The owned Bytes script](../examples/scripts/owned_bytes.lang) runs all three extraction operations and prints `0`, with one buffer allocation and no transfer allocation. VM 13/CLI 23/managed-value 7 tests cover panic codes/spans, every fuel/admission-OOM prefix, loop reuse, nested construction order/spans and failure cleanup. The full baseline passes **967 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy. Nested non-Copy source aggregates, other owning services, REPL and native execution retain their gates.
 
-Measured last code baseline (2026-10-18 JST): workspace Clippy **22.5 s**, full tests **244.4 s**, rustdoc **22.9 s**, fuzz Clippy **1.8 s**. Suite-reported test execution totals 4.7 s; this log does not attribute the remaining wall time beyond its included build/runner costs. These are command durations, not total working time. Run the baseline once per coherent code delivery; documentation-only updates use consistency checks.
+Measured last code baseline (2026-10-18 JST): workspace Clippy **21.0 s**, full tests **221.6 s**, rustdoc **10.9 s** after rebuilding outdated HIR metadata (the initial attempt failed after 14.1 s), fuzz Clippy **0.8 s**. These are command durations, not total working time; the logs do not attribute every part of wall time. Run the baseline once per coherent code delivery; documentation-only updates use consistency checks.
 
-Current source capability: `core::allocator()`, Bytes new/len, borrowed Result matching, scalar/Copy operations, shared loans and generated cleanup run from a zero-parameter i64 main. The new extraction calls now pass source/MIR analysis but retain their execution gate; REPL/native execution and remaining ownership operations also retain their gates. Unsupported operations fail before provider callbacks.
+Current source capability: a zero-parameter i64 main can allocate/read Bytes, borrow-match results, construct finite Bytes/Copy sums, extract whole Some/Ok/Err payloads, and clean normal/failure exits. Borrowed matching is unchanged. Mutation/UTF-8 conversion is next; the full [mutation analysis example](../examples/analysis/extraction.lang) currently stops at the exclusive argument loan before Bytes push. Unsupported operations/payloads fail before provider callbacks. Managed nested transfer tests do not claim source record/enum execution.
 
 The original exit gates remain **5 / 18 complete**. Completed deliveries include compiler/runtime prerequisites and the initial source execution fixture; they do not assert that entire core-library or backend features are complete.
 
@@ -100,7 +100,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-V03 | done | 0 | M2-V02,M2-D35 | G06,G07 | lang run executes a source Bytes new/len program and normal drop; reject unsupported reachable operations before effects. | `ece8690` |
 | M2-S01 | done | 0 | M2-V03 | G07,G08,G09,G10 | RFC 0009 accepts whole Some/Ok/Err extraction with unchanged borrowed matching, explicit panic/cleanup and compatibility rules. Design only. | `c4cb8b9` |
 | M2-S02 | done | 0 | M2-S01 | G08 | Three RFC 0009 calls type-check and lower to independently verified MIR; compile pass/fail covers Copy/move, loans, regions and nested sums. Runtime remains gated. | `b562c0f` |
-| M2-S03 | todo | 3 | M2-S02 | G06,G08 | Execute whole-payload extraction without new transfer allocation; test moved-source rejection, failure cleanup and an owned Bytes source fixture. | — |
+| M2-S03 | done | 0 | M2-S02 | G06,G08 | Finite Bytes/Copy sums and all three whole-payload extractions execute without transfer allocation; source fixture, panic/fuel/OOM cleanup and nested managed order/span transfer verified. | `e584902` |
 | M2-V04 | todo | 3 | M2-V03,M2-S03 | G07,G08 | Source Bytes get/set/push and valid/invalid UTF-8 conversion execute with bounds/OOM fixtures. | — |
 | M2-V05 | todo | 2 | M2-V04 | G07 | Source Text concat/clone/to-bytes preserve allocator identity and report failure correctly. | — |
 | M2-V06 | todo | 3 | M2-V03,M2-S03 | G06,G08 | Execute nested record/enum owner moves and checked reference projections with exactly-once drops. | — |
