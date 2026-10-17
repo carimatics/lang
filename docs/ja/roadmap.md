@@ -36,13 +36,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 13 pt | 113 pt | 11.5% |
+| 2 — ownershipとnative AOT | 21 pt | 113 pt | 18.6% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **311 pt** | **764 pt** | **40.7%** |
+| **全体** | **319 pt** | **764 pt** | **41.8%** |
 
 ## Milestone 0：設計baseline
 
@@ -218,14 +218,14 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**進捗：13 / 113 pt（11.5%）。**
+**進捗：21 / 113 pt（18.6%）。**
 
 開始条件：RFC 0006の実装済みcopy-value profileとcompatibility fixtureを基準とします。RFC 0004のstate modelはsource構文、production allocation、ABIを規定しません。対応する設計決定を受理してから依存する実装を進め、core-library sliceはRFCで最小要件が定まった時点で再見積もりします。
 
 - [x] **P0 — Sourceのownership／borrow／arena profile、Copy分類、最小core-library型表面（text／byte、collection利用、必要なgeneric構文を含む）を受理する。** — 5 pt
 - [ ] **P0 — 未規定のerror／panic cleanup、unsafe／FFI validity、allocator contractを公開interface実装前に受理する。** — 5 pt
 - [ ] **P0 — Typed HIR／MIRでowned value、move、lexical borrow checkingを実装する。** — 8 pt
-- [ ] **P0 — RFC 0004のshared／weak retain-release、retainを伴うweak upgrade、atomic cycle-preflight／publicationを実装しrollback／race testを追加する。** — 8 pt
+- [x] **P0 — RFC 0004のshared／weak retain-release、retainを伴うweak upgrade、atomic cycle-preflight／publicationを実装しrollback／race testを追加する。** — 8 pt
 - [ ] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
 - [ ] **P0 — 受理済みのreturn／error／panic cleanup規則に従ってdeterministic dropをelaborateする。** — 8 pt
 - [ ] **P0 — RFC 0007のText／Bytes source operation、UTF-8検証、checked index、allocatorを保持する変換を実装する。** — 5 pt
@@ -248,6 +248,8 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 このscope後のroadmap確認：113 pt総計と全decision gateは引き続き適切です。今回の受理済みcopy-value実装はsource ownershipの判断に依存せず、その完了によってownership／core-libraryやproduction AOTのtaskを完了扱いにはしません。暗黙のacceptance／stabilizationは記録しません。
 
 Commit `a607ed2` は[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と日本語対訳を追加しました。Copy分類、字句的loan／region、明示shared／weak／arena構文、allocator-awareなtext／byte／collectionの有限型表面を定めます。Ownerが2026-10-17 JSTに明示受理し、`31ab7ac` に記録したことで最初の5 pt decision gateが完了しました。Cleanup／allocator／unsafe／FFI契約とownership bytecode encodingは別判断のままです。Link／対訳metadata確認とrepository-consistency testはpassしました。受理済みの有限surfaceをText／Bytes（5）、Unit／Option／Result／組み込みspecialization（3）、Vec（5）、Map（3）の独立して検証可能な4成果へ再見積もりしました。従来8+8 ptの総計とsource／platform／conformance／measurementの全scopeを保持します。次は残り契約を定義し、source／allocator統合の早計な完了主張を避けながら受理済みRFC 0004のruntime serviceを進めます。
+
+Commit `ec16f8a` はruntime shared-ownership engineを追加しました。実際のretain付きowner／upgrade、追跡strong／weak field、generation／provenance確認、aliasを考慮するread lease、mutexで線形化するwhole-payload cycle preflight／publicationを実装します。16件のfocused testに、独立した推移閉包／count oracleとの1,000比較、64回の逆向きpublication競合、128回のweak upgrade／last-release競合、15,001 nodeの反復reclamation、rollback／limit／枯渇／poison境界を含みます。Fmt／Clippy／test／docのfull baselineは531 testすべてpassしました。Runtime lifecycle／publicationだけを完了とし、source／MIR／VM／native ownership統合、arena、guest cleanup、公開allocator／FFI契約は未完了です。現engineはabortし得るArc allocationを含むhost Rust storageを使い、未決のsource allocatorのrecoverable-OOM契約やsandboxを保証しません。Roadmap確認では総113 ptと残る全outcomeを維持します。次のdecision scopeはcleanup／allocator／unsafe／FFIで、source ownership analysisはRFC 0007の受理により独立して開始可能です。
 
 ## Milestone 3：concurrencyとembedding
 

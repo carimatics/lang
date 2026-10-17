@@ -198,7 +198,7 @@ Publicationは全endpointと累積node／slot／edge／live-payload-byte上限�
 
 このserviceでruntime retain／releaseとatomic publicationのscopeを完了します。Source type／loan lowering、VM／native ownership operation、guest destructor／error／panic cleanup、arena、allocator callback、source heap ABI統合はMilestone 2の個別作業として残ります。現状はhost Rust allocationを使い、fallible Vec reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Live payload計上はprocess／allocator全体のmemory計上ではありません。Source契約を公開する前に、別途受理するallocator／cleanup profileへ適応または置換する必要があります。Poisonしたstateはfail closedとし、Rust hostは他のRust owner同様token／guardを意図的にleakできます。
 
-情報源：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)／[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、runtime実装とtestは2026-10-17 JST更新／確認。Rust同期／Arc／Vec APIはinstall済みのpinしたstable toolchainで確認し、living API sourceに更新日の記載はなく、確認日は2026-10-17 JSTです。Lock、storage、capacity戦略は実装判断で、performance budgetは主張しません。
+情報源：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)／[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、runtime実装とtestは2026-10-17 JST更新／確認。Build／test evidenceにはpinしたstableの `rustc 1.99.0 (b940084d7 2026-09-28)` を使い、2026-10-17 JSTに確認しました。外部API文書のinspectionは主張しません。Lock、storage、capacity戦略は実装判断で、performance budgetは主張しません。
 
 ### Async borrow／cancellation実験
 

@@ -36,13 +36,13 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 13 pt | 113 pt | 11.5% |
+| 2 — ownership and native AOT | 21 pt | 113 pt | 18.6% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **311 pt** | **764 pt** | **40.7%** |
+| **Overall** | **319 pt** | **764 pt** | **41.8%** |
 
 ## Milestone 0: design baseline
 
@@ -218,14 +218,14 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 13 / 113 pt (11.5%).**
+**Progress: 21 / 113 pt (18.6%).**
 
 Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFC 0004's state models do not specify source grammar, production allocation, or an ABI. Complete the corresponding decision gate before each dependent implementation; re-estimate the core-library slice after its RFC fixes the minimal requirements.
 
 - [x] **P0 — Accept the source ownership/borrow/arena profile, Copy classification, and minimal core-library type surface (including text/bytes, collection use, and any required generic syntax).** — 5 pt
 - [ ] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
 - [ ] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
-- [ ] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
+- [x] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
 - [ ] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
 - [ ] **P0 — Implement RFC 0007 Text/Bytes source operations, UTF-8 validation, checked indices, and allocator-preserving conversions.** — 5 pt
@@ -248,6 +248,8 @@ Implementation evidence verified 2026-10-17 JST: commit `926fb3b` adds `lang-cod
 Roadmap review after this scope: the 113-point total and all decision gates remain appropriate. This accepted copy-value implementation was independent of the source-ownership decisions; its completion does not satisfy any ownership/core-library or production-AOT task. No implicit acceptance or stabilization is recorded.
 
 Commit `a607ed2` supplied [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) and its Japanese mirror: Copy classification, lexical loans/regions, explicit shared/weak/arena syntax, and a finite allocator-aware text/byte/collection type surface. The owner explicitly accepted it on 2026-10-17 JST, recorded in `31ab7ac`, closing the first 5-point decision gate. Cleanup/allocator/unsafe/FFI contracts and the ownership bytecode encoding remain separate decisions. Link/translation metadata checks and repository-consistency tests pass. The accepted finite surface was re-estimated as four independently verifiable outcomes: Text/Bytes (5), Unit/Option/Result/built-in specialization (3), Vec (5), and Map (3). This preserves the former 8+8-point total and all source, platform, conformance, and measurement scope. Next define the remaining contracts and progress accepted RFC 0004 runtime services without claiming source/allocator integration prematurely.
+
+Commit `ec16f8a` adds the runtime shared-ownership engine: real retained owners/upgrades, tracked strong/weak fields, generation/provenance checks, alias-aware read leases, and mutex-linearized whole-payload cycle preflight/publication. Sixteen focused tests include 1,000 independent transitive-closure/count-oracle comparisons, 64 opposite-publication races, 128 weak-upgrade/last-release races, 15,001-node iterative reclamation, and rollback/limit/exhaustion/poison boundaries. The full fmt/Clippy/test/doc baseline passes (531 tests). This closes only the runtime lifecycle/publication outcome. Source/MIR/VM/native ownership integration, arenas, guest cleanup, and the public allocator/FFI contracts remain unchecked. The engine currently uses host Rust storage, including potentially aborting Arc allocation; it does not promise the pending source allocator's recoverable-OOM contract or a sandbox. Roadmap review retains 113 total points and all remaining outcomes; the next decision scope is cleanup/allocator/unsafe/FFI, with source ownership analysis independently unblocked by RFC 0007 acceptance.
 
 ## Milestone 3: concurrency and embedding
 
