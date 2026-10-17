@@ -434,6 +434,7 @@ fn checked_source_owned_return_can_supply_typed_mir_instructions_and_cfg() {
         places: places.into_table(),
         functions: vec![b::FunctionBody {
             loans: 0,
+            prepared: 0,
             blocks: vec![b::Block {
                 parameters: vec![],
                 instructions: vec![b::Instruction {
@@ -453,5 +454,85 @@ fn checked_source_owned_return_can_supply_typed_mir_instructions_and_cfg() {
     .unwrap();
     assert!(out.facts()[0].definitions()[value.0 as usize].is_some());
     let moved = lang_mir::unit::ownership::moves::analyze(out, Default::default()).unwrap();
+    assert!(moved.functions()[0].exits()[0].owners().is_empty());
+}
+
+#[test]
+fn checked_source_assignment_supplies_destination_before_rhs_in_a_mir_assembly_fixture() {
+    use lang_mir::unit::ownership::{bodies as b, places as p};
+    let text = "fn update(p: &mut i64) -> i64 { (*p) = 7; return (*p); }";
+    let (sources, checked) = prepare(text);
+    let places = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    let frame = &places.functions()[0];
+    let mut paths = frame
+        .places
+        .iter()
+        .enumerate()
+        .filter(|(_, place)| {
+            place
+                .projections
+                .iter()
+                .any(|p| p.kind == p::ProjectionKind::Dereference)
+        })
+        .collect::<Vec<_>>();
+    paths.sort_by_key(|(_, p)| p.span.start);
+    let (destination, path) = paths[0];
+    let (returned, read) = *paths.last().unwrap();
+    let rhs = frame
+        .values
+        .iter()
+        .position(|v| &text[v.span.start as usize..v.span.end as usize] == "7")
+        .unwrap();
+    let rhs_span = frame.values[rhs].span;
+    assert!(path.span.start < rhs_span.start && rhs_span.start < read.span.start);
+    let span = places.declarations().functions()[0].span;
+    let instructions = vec![
+        b::Instruction {
+            results: vec![],
+            op: b::Op::PreparePlace {
+                destination: b::PreparedPlaceId(0),
+                place: p::PlaceId(destination as u32),
+            },
+            span: path.span,
+        },
+        b::Instruction {
+            results: vec![m::Register(rhs as u32)],
+            op: b::Op::I64(7),
+            span: rhs_span,
+        },
+        b::Instruction {
+            results: vec![],
+            op: b::Op::ReplacePrepared {
+                destination: b::PreparedPlaceId(0),
+                value: m::Register(rhs as u32),
+            },
+            span: path.span,
+        },
+        b::Instruction {
+            results: vec![read.origin],
+            op: b::Op::CopyPlace(p::PlaceId(returned as u32)),
+            span: read.span,
+        },
+    ];
+    let returned = read.origin;
+    let typed = b::BodyTable {
+        places: places.into_table(),
+        functions: vec![b::FunctionBody {
+            loans: 0,
+            prepared: 1,
+            blocks: vec![b::Block {
+                parameters: vec![],
+                instructions,
+                terminator: b::Terminator {
+                    kind: m::Term::Return(returned),
+                    span,
+                },
+                span,
+            }],
+        }],
+    }
+    .verify(Default::default())
+    .unwrap();
+    let moved = lang_mir::unit::ownership::moves::analyze(typed, Default::default()).unwrap();
     assert!(moved.functions()[0].exits()[0].owners().is_empty());
 }

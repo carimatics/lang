@@ -29,6 +29,7 @@ impl Availability {
 pub enum Slot {
     Local(d::LocalId),
     Value(m::Register),
+    Prepared(b::PreparedPlaceId),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
@@ -43,6 +44,8 @@ pub enum ErrorKind {
     },
     InitializeLive(Slot),
     OverwriteOwner(Slot),
+    OverwritePrepared(b::PreparedPlaceId),
+    UnfinishedPrepared(b::PreparedPlaceId),
     LoopState {
         header: m::BlockId,
         slot: Slot,
@@ -107,6 +110,7 @@ impl Exit {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionMoves {
     locals: usize,
+    values: usize,
     slots: usize,
     blocks: usize,
     entries: Vec<Availability>,
@@ -114,19 +118,26 @@ pub struct FunctionMoves {
     exits: Vec<Exit>,
 }
 impl FunctionMoves {
+    fn index(&self, slot: Slot) -> Option<usize> {
+        let s = match slot {
+            Slot::Local(l) if (l.0 as usize) < self.locals => l.0 as usize,
+            Slot::Value(v) if (v.0 as usize) < self.values => {
+                self.locals.checked_add(v.0 as usize)?
+            }
+            Slot::Prepared(p) => self
+                .locals
+                .checked_add(self.values)?
+                .checked_add(p.0 as usize)?,
+            _ => return None,
+        };
+        (s < self.slots).then_some(s)
+    }
     pub fn entry(&self, block: m::BlockId, slot: Slot) -> Option<Availability> {
         let b = block.0 as usize;
         if b >= self.blocks {
             return None;
         }
-        let s = match slot {
-            Slot::Local(l) if (l.0 as usize) < self.locals => l.0 as usize,
-            Slot::Value(v) => self.locals.checked_add(v.0 as usize)?,
-            _ => return None,
-        };
-        if s >= self.slots {
-            return None;
-        }
+        let s = self.index(slot)?;
         self.entries
             .get(b.checked_mul(self.slots)?.checked_add(s)?)
             .copied()
@@ -136,11 +147,7 @@ impl FunctionMoves {
     }
     /// A possible earlier consumption site for diagnostics, not path identity.
     pub fn consumption_span(&self, slot: Slot) -> Option<Span> {
-        let s = match slot {
-            Slot::Local(l) if (l.0 as usize) < self.locals => l.0 as usize,
-            Slot::Value(v) => self.locals.checked_add(v.0 as usize)?,
-            _ => return None,
-        };
+        let s = self.index(slot)?;
         self.causes.get(s).copied().flatten()
     }
 }
@@ -197,11 +204,13 @@ fn copy<T: Copy>(budget: &mut Budget, destination: &mut [T], source: &[T]) -> Re
     destination.copy_from_slice(source);
     Ok(())
 }
-fn slot(locals: usize, index: usize) -> Slot {
+fn slot(locals: usize, values: usize, index: usize) -> Slot {
     if index < locals {
         Slot::Local(d::LocalId(index as u32))
-    } else {
+    } else if index - locals < values {
         Slot::Value(m::Register((index - locals) as u32))
+    } else {
+        Slot::Prepared(b::PreparedPlaceId((index - locals - values) as u32))
     }
 }
 fn join(
@@ -223,6 +232,7 @@ struct Context<'a, 'b> {
     typed: &'a b::TypedBodies,
     function: usize,
     locals: usize,
+    values: usize,
     properties: &'a [Properties],
     causes: &'b mut [Option<Span>],
     budget: &'b mut Budget,
@@ -239,7 +249,7 @@ impl Context<'_, '_> {
         if mode == Mode::Check && state[index] != Availability::Available {
             return Err(Error {
                 kind: ErrorKind::Unavailable {
-                    slot: slot(self.locals, index),
+                    slot: slot(self.locals, self.values, index),
                     state: state[index],
                 },
                 primary: Some(span),
@@ -267,6 +277,9 @@ impl Context<'_, '_> {
     }
     fn value(&self, v: m::Register) -> usize {
         self.locals + v.0 as usize
+    }
+    fn prepared(&self, id: b::PreparedPlaceId) -> usize {
+        self.locals + self.values + id.0 as usize
     }
     fn read(
         &mut self,
@@ -296,7 +309,7 @@ impl Context<'_, '_> {
         self.budget.charge(1)?;
         if mode == Mode::Check && self.properties[index].drop && state[index].may_live() {
             return Err(Error {
-                kind: ErrorKind::OverwriteOwner(slot(self.locals, index)),
+                kind: ErrorKind::OverwriteOwner(slot(self.locals, self.values, index)),
                 primary: Some(span),
                 secondary: self.causes[index],
             });
@@ -396,6 +409,41 @@ impl Context<'_, '_> {
                     self.take(state, *value, s, mode)?;
                 }
             }
+            Op::PreparePlace { destination, place } => {
+                let p = &self.typed.places().functions()[self.function].places[place.0 as usize];
+                // A whole local destination is an address, so reinitializing
+                // moved storage needs no read. Projections evaluate their root.
+                if !p.projections.is_empty() || matches!(p.root, p::Root::Value(_)) {
+                    self.read_place(state, *place, s, mode)?;
+                }
+                let index = self.prepared(*destination);
+                if mode == Mode::Check && state[index].may_live() {
+                    return Err(Error {
+                        kind: ErrorKind::OverwritePrepared(*destination),
+                        primary: Some(s),
+                        secondary: None,
+                    });
+                }
+                state[index] = Availability::Available;
+            }
+            Op::ReplacePrepared { destination, value } => {
+                let index = self.prepared(*destination);
+                self.require(state, index, s, mode)?;
+                self.take(state, *value, s, mode)?;
+                let captured =
+                    self.typed.facts()[self.function].prepared()[destination.0 as usize].unwrap();
+                let p = &self.typed.places().functions()[self.function].places
+                    [captured.place.0 as usize];
+                if p.projections.is_empty()
+                    && let p::Root::Local(l) = p.root
+                {
+                    state[l.0 as usize] = Availability::Available;
+                }
+                // Underlying alias validity belongs to loan analysis. Do not
+                // reread a reference cell that RHS effects may have rebound.
+                self.consume(state, index, s, mode)?;
+            }
+            Op::DiscardPrepared(id) => self.consume(state, self.prepared(*id), s, mode)?,
             Op::DropLocal(l) | Op::ArenaExit { owner: l } => {
                 let index = l.0 as usize;
                 let available = state[index] == Availability::Available;
@@ -449,7 +497,25 @@ impl Context<'_, '_> {
             self.operation(state, i, mode)?;
         }
         match body.terminator.kind {
-            m::Term::Return(v) => self.take(state, v, body.terminator.span, mode)?,
+            m::Term::Return(v) => {
+                self.take(state, v, body.terminator.span, mode)?;
+                if mode == Mode::Check {
+                    for (index, availability) in
+                        state.iter().enumerate().skip(self.locals + self.values)
+                    {
+                        self.budget.charge(1)?;
+                        if availability.may_live() {
+                            return Err(Error {
+                                kind: ErrorKind::UnfinishedPrepared(b::PreparedPlaceId(
+                                    (index - self.locals - self.values) as u32,
+                                )),
+                                primary: Some(body.terminator.span),
+                                secondary: None,
+                            });
+                        }
+                    }
+                }
+            }
             m::Term::Branch { condition, .. } => {
                 self.read(state, condition, body.terminator.span, mode)?
             }
@@ -534,8 +600,11 @@ pub fn analyze(typed: b::TypedBodies, limits: Limits) -> Result<MoveCheckedBodie
     for f in 0..typed.functions().len() {
         let declaration = &typed.places().declarations().functions()[f];
         let slots = add(
-            declaration.locals.len(),
-            typed.places().functions()[f].values.len(),
+            add(
+                declaration.locals.len(),
+                typed.places().functions()[f].values.len(),
+            )?,
+            typed.functions()[f].prepared,
         )?;
         let count = slots
             .checked_mul(typed.functions()[f].blocks.len())
@@ -576,7 +645,7 @@ fn function(
     let declaration = &typed.places().declarations().functions()[function];
     let locals = declaration.locals.len();
     let values = &typed.places().functions()[function].values;
-    let slots = add(locals, values.len())?;
+    let slots = add(add(locals, values.len())?, body.prepared)?;
     let blocks = body.blocks.len();
     let cells = slots
         .checked_mul(blocks)
@@ -600,6 +669,13 @@ fn function(
             drop: p.requires_drop,
         });
     }
+    for _ in 0..body.prepared {
+        budget.charge(1)?;
+        properties.push(Properties {
+            copy: false,
+            drop: false,
+        });
+    }
     let mut causes = filled(budget, slots, None)?;
     let graph = cycles(body, budget)?;
     let mut baseline = filled(budget, cells, Availability::Vacant)?;
@@ -615,6 +691,7 @@ fn function(
         typed,
         function,
         locals,
+        values: values.len(),
         properties: &properties,
         causes: &mut causes,
         budget,
@@ -706,11 +783,13 @@ fn function(
             let expected = &baseline[to * slots..(to + 1) * slots];
             for (index, (before, after)) in expected.iter().zip(&edge).enumerate() {
                 c.budget.charge(1)?;
-                if (index < locals || properties[index].drop) && before != after {
+                if (index < locals || properties[index].drop || index >= locals + values.len())
+                    && before != after
+                {
                     return Err(Error {
                         kind: ErrorKind::LoopState {
                             header: target.block,
-                            slot: slot(locals, index),
+                            slot: slot(locals, values.len(), index),
                             expected: *before,
                             actual: *after,
                         },
@@ -747,7 +826,7 @@ fn function(
                 c.budget.charge(1)?;
                 if s.may_live() && p.drop {
                     owners.push(Obligation {
-                        slot: slot(locals, index),
+                        slot: slot(locals, values.len(), index),
                         state: *s,
                     });
                 }
@@ -764,6 +843,7 @@ fn function(
     }
     Ok(FunctionMoves {
         locals,
+        values: values.len(),
         slots,
         blocks,
         entries,

@@ -99,6 +99,7 @@ fuzz_target!(|bytes: &[u8]| {
     let count = usize::from(byte(0) % 8) + 1;
     let mut function = b::FunctionBody {
         loans: 4,
+        prepared: 4,
         blocks: vec![],
     };
     for block in 0..count {
@@ -116,7 +117,8 @@ fuzz_target!(|bytes: &[u8]| {
             let z = r(byte(at + 2));
             let loan = b::LoanId(u32::from(byte(at + 3) % 8));
             let place = p::PlaceId(u32::from(byte(at + 3) % 4));
-            let (op, output) = match byte(at) % 19 {
+            let destination = b::PreparedPlaceId(u32::from(byte(at + 3) % 8));
+            let (op, output) = match byte(at) % 22 {
                 0 => (b::Op::Bool(byte(at + 1) & 1 != 0), true),
                 1 => (b::Op::I64(i64::from(byte(at + 1))), true),
                 2 => (b::Op::Add(a, z), true),
@@ -198,10 +200,19 @@ fuzz_target!(|bytes: &[u8]| {
                     true,
                 ),
                 17 => (b::Op::DropValue(a), false),
-                _ => (
+                18 => (
                     b::Op::DropLocal(d::LocalId(u32::from(byte(at + 3) % 3))),
                     false,
                 ),
+                19 => (b::Op::PreparePlace { destination, place }, false),
+                20 => (
+                    b::Op::ReplacePrepared {
+                        destination,
+                        value: a,
+                    },
+                    false,
+                ),
+                _ => (b::Op::DiscardPrepared(destination), false),
             };
             instructions.push(b::Instruction {
                 results: if output {

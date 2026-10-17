@@ -277,6 +277,18 @@ Branch引数は選択されたedgeだけでtransferします。全引数を読�
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[CFG状態解析](../../crates/mir/src/unit/ownership/moves.rs)、[test](../../crates/mir/tests/ownership_moves.rs)、累積budget API、source fixture、fuzz target。更新／検証日：2026-10-17 JST。Lattice、feedback edgeの方法、診断witnessは実装上の選択であり、新たなsource rule、公開cleanup ABI、artifact encoding、performance測定は主張しません。
 
+### Prepared ownership assignment destinations
+
+2026-10-17実装：ownership MIRは `PreparePlace` と `ReplacePrepared` を分離し、評価済みdestinationを使わない経路には `DiscardPrepared` を用意します。Function内の `PreparedPlaceId` で、source valueやloanとは独立したcapture siteを識別します。PrepareはRHSのeffectより前にdestination pathを評価し、publicationはreference cellを読み直さずcapture済みpathを使います。RHS評価中のexclusive loanはactivateしません。既存 `Replace` はpath解決とpublicationを一度に行うprimitiveとして残し、間にRHSのeffectが入るsource loweringには明示prepareを使います。
+
+構造verifierは各captureのplace／site／spanを保持し、IDの一意性と範囲、累積capture上限を検査し、prepareがすべてのpublication／discardに先行して支配することを要求します。静的place mutability、authority制限、replacement型の互換性、resultが0件であることも検証します。Value-root依存はprepare時のSSA useであり、publicationの明示operandは評価済みRHSです。これは内部のin-memory contractであり、ownership artifact encodingではありません。
+
+Move解析は各captureを独立したnon-Copy／drop不要のstate slotとして追跡します。Local全体のprepareは再初期化のため未初期化storageを許可し、projection／間接destinationは評価時にrootの初期化を要求します。Publication／discardでcaptureを一度だけ消費し、すべてのreturnは各pathのpending captureを処理し、loop feedbackはcapture状態を復元します。RHS loopの外でprepareしたdestinationは、そのloop中にpendingのまま変化せず保持できます。Publicationでlocal全体の初期化を復元し、間接publicationでは以前のroot reference cellを読み直しません。後続loan stageはreplacementを許可する前に、captureしたownerと推移的reference-cell依存を検証する必要があります。
+
+追加10 testで不正capture ID／型／permission／arity、同一blockとbranch間の支配関係、二重消費、failure pathのdiscard、loopの再captureとpending RHS loop、間接root、正確な累積budget、replay、独立した経路消費oracleと比較する81個の生成diamondを確認します。追加1件のsource組み立てfixtureは検査済みsource metadataを保持し、literal RHSとpublicationの前にprepareを配置します。これは手動組み立てであり、自動source-body loweringや実行のevidenceではありません。拡張したlock済みbody fuzz targetは3操作を扱い、Clippyとinstrumentationなし10,000-run smokeを通り、coverage-guidedの主張は行いません。
+
+出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)のassignment評価順序、[body verifier](../../crates/mir/src/unit/ownership/bodies.rs)、[move解析](../../crates/mir/src/unit/ownership/moves.rs)、[capture test](../../crates/mir/tests/ownership_prepared.rs)、[source fixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Capture表現は実装上の選択です。有効loan／alias／region／call、cleanup／allocator／layout contract、core／runtime lowering、VM／native等価性、ownership serializationは未証明であり、この前提作業だけでMilestone 2 outcomeは完了しません。
+
 ### Source formatter
 
 2026-10-17に実装したRFC 0007構文拡張：lossless token／CSTで `&T`／`&mut T`、`shared T`／`weak T`／`arena T`、入れ子の組み込みtype argument、`::<...>` call、place borrow、括弧付きdereference、place assignment、allocatorを渡す字句的arena blockを表現します。Generic末尾の `>` は別tokenのままで、`<` 比較と符号付き整数のbehaviorを維持します。Prefix／type argumentの再帰とrecoveryは既存node／depth／list／work上限に従い、formatterはgeneric delimiterと比較を区別して新tokenの全境界間のcommentを保持します。

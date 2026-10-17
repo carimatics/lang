@@ -198,6 +198,14 @@ pub enum ErrorKind {
     InvalidLoan(u32),
     DuplicateLoan(u32),
     UndefinedLoan(u32),
+    PreparedLimit {
+        requested: usize,
+        limit: usize,
+    },
+    InvalidPrepared(u32),
+    DuplicatePrepared(u32),
+    UndefinedPrepared(u32),
+    PreparedDoesNotDominate(u32),
     InvalidInitialization(u32),
     ExpectedBuiltin {
         expected: Builtin,

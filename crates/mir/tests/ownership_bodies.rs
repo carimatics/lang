@@ -773,6 +773,7 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
     t.functions = vec![
         b::FunctionBody {
             loans: 0,
+            prepared: 0,
             blocks: vec![block(
                 &[],
                 vec![
@@ -796,6 +797,7 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
         },
         b::FunctionBody {
             loans: 0,
+            prepared: 0,
             blocks: vec![block(
                 &[],
                 vec![instruction(&[0], b::Op::I64(7))],

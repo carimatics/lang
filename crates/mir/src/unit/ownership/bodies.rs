@@ -7,6 +7,9 @@ use super::{declarations as d, places as p, *};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LoanId(pub u32);
+/// Function-local identity of a destination capture site, not a source value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PreparedPlaceId(pub u32);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EndMode {
     Required,
@@ -32,6 +35,19 @@ pub enum Op {
         place: p::PlaceId,
         value: m::Register,
     },
+    /// Evaluate and retain a destination path before RHS effects. This does not
+    /// activate an exclusive loan; publication must revalidate its dependencies.
+    PreparePlace {
+        destination: PreparedPlaceId,
+        place: p::PlaceId,
+    },
+    /// Publish through the captured path, without rereading reference cells.
+    ReplacePrepared {
+        destination: PreparedPlaceId,
+        value: m::Register,
+    },
+    /// Abandon a captured path, for example on an RHS failure edge.
+    DiscardPrepared(PreparedPlaceId),
     DropValue(m::Register),
     DropLocal(d::LocalId),
     Borrow {
@@ -102,6 +118,7 @@ impl Op {
             | Self::DropValue(v)
             | Self::Initialize { value: v, .. }
             | Self::Replace { value: v, .. }
+            | Self::ReplacePrepared { value: v, .. }
             | Self::ArenaEnter { allocator: v, .. }
             | Self::IsCase { value: v, .. } => ([Some(*v), None], &[]),
             Self::CopyCaseField { value, guard, .. }
@@ -121,6 +138,7 @@ impl Op {
             Self::CopyPlace(p)
             | Self::MovePlace(p)
             | Self::Replace { place: p, .. }
+            | Self::PreparePlace { place: p, .. }
             | Self::Borrow { place: p, .. } => Some(*p),
             _ => None,
         }
@@ -153,6 +171,7 @@ pub struct Block {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FunctionBody {
     pub loans: usize,
+    pub prepared: usize,
     pub blocks: Vec<Block>,
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -163,12 +182,14 @@ pub struct BodyTable {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {
     pub loans: usize,
+    pub prepared: usize,
     pub places: p::Limits,
 }
 impl Default for Limits {
     fn default() -> Self {
         Self {
             loans: 1_000_000,
+            prepared: 1_000_000,
             places: p::Limits::default(),
         }
     }
@@ -178,10 +199,17 @@ pub struct Site {
     pub block: m::BlockId,
     pub order: usize,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PreparedPlace {
+    pub site: Site,
+    pub place: p::PlaceId,
+    pub span: Span,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionFacts {
     definitions: Vec<Option<Site>>,
     loans: Vec<Option<Site>>,
+    prepared: Vec<Option<PreparedPlace>>,
     idom: Vec<u32>,
 }
 impl FunctionFacts {
@@ -190,6 +218,9 @@ impl FunctionFacts {
     }
     pub fn loans(&self) -> &[Option<Site>] {
         &self.loans
+    }
+    pub fn prepared(&self) -> &[Option<PreparedPlace>] {
+        &self.prepared
     }
     pub fn immediate_dominators(&self) -> &[u32] {
         &self.idom
@@ -237,6 +268,7 @@ impl BodyTable {
             limits.places.ownership.constructed,
             limits.places.places,
             limits.loans,
+            limits.prepared,
         )
     }
     pub fn verify_with_budget(
@@ -245,6 +277,7 @@ impl BodyTable {
         constructed_limit: usize,
         place_limit: usize,
         loan_limit: usize,
+        prepared_limit: usize,
     ) -> Result<TypedBodies, Error> {
         if self.functions.len() != self.places.functions.len() {
             return Err(Error::new(
@@ -259,7 +292,8 @@ impl BodyTable {
             .places
             .verify_with_budget(budget, constructed_limit, place_limit)?;
         let mut facts = budget.vector(self.functions.len())?;
-        let (mut blocks, mut instructions, mut loans) = (0usize, 0usize, 0usize);
+        let (mut blocks, mut instructions, mut loans, mut prepared) =
+            (0usize, 0usize, 0usize, 0usize);
         for (f, body) in self.functions.iter().enumerate() {
             blocks = add(blocks, body.blocks.len())?;
             cap(blocks, budget.limits().blocks, m::LimitKind::Blocks)?;
@@ -269,6 +303,16 @@ impl BodyTable {
                     ErrorKind::LoanLimit {
                         requested: loans,
                         limit: loan_limit,
+                    },
+                    Some(places.declarations().functions()[f].span),
+                ));
+            }
+            prepared = add(prepared, body.prepared)?;
+            if prepared > prepared_limit {
+                return Err(Error::new(
+                    ErrorKind::PreparedLimit {
+                        requested: prepared,
+                        limit: prepared_limit,
                     },
                     Some(places.declarations().functions()[f].span),
                 ));
@@ -458,6 +502,7 @@ struct Check<'a, 'b> {
     types: &'a VerifiedTypes,
     frame: &'a p::FunctionPlaces,
     declaration: &'a d::Function,
+    prepared: &'a [Option<PreparedPlace>],
     function: FunctionId,
     budget: &'b mut Budget,
 }
@@ -537,6 +582,12 @@ impl Check<'_, '_> {
             .check_access(self.function, p, a, span, self.budget)?;
         Ok(self.place(p, span)?.value_type)
     }
+    fn destination(&self, id: PreparedPlaceId, span: Span) -> Result<PreparedPlace, Error> {
+        self.prepared
+            .get(id.0 as usize)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidPrepared(id.0), Some(span)))?
+            .ok_or_else(|| Error::new(ErrorKind::UndefinedPrepared(id.0), Some(span)))
+    }
     fn operation(&mut self, i: &Instruction) -> Result<(), Error> {
         let s = i.span;
         use Expected::{Builtin as B, Exact as E};
@@ -593,6 +644,21 @@ impl Check<'_, '_> {
             Op::Replace { place, value } => {
                 let ty = self.value(*value, s)?;
                 self.access(*place, p::Access::Replace(ty), s)?;
+                self.void(i)
+            }
+            Op::PreparePlace { place, .. } => {
+                let ty = self.place(*place, s)?.value_type;
+                self.access(*place, p::Access::Replace(ty), s)?;
+                self.void(i)
+            }
+            Op::ReplacePrepared { destination, value } => {
+                let captured = self.destination(*destination, s)?;
+                let ty = self.value(*value, s)?;
+                self.access(captured.place, p::Access::Replace(ty), s)?;
+                self.void(i)
+            }
+            Op::DiscardPrepared(id) => {
+                self.destination(*id, s)?;
                 self.void(i)
             }
             Op::DropValue(v) => {
@@ -890,11 +956,38 @@ fn function(
     u32::try_from(body.blocks.len())
         .map_err(|_| m::Error::new(m::ErrorKind::ArithmeticOverflow))?;
     u32::try_from(body.loans).map_err(|_| m::Error::new(m::ErrorKind::ArithmeticOverflow))?;
+    u32::try_from(body.prepared).map_err(|_| m::Error::new(m::ErrorKind::ArithmeticOverflow))?;
+    let mut prepared = filled(budget, body.prepared, None)?;
+    for (b, block) in body.blocks.iter().enumerate() {
+        for (position, i) in block.instructions.iter().enumerate() {
+            budget.charge(1)?;
+            if let Op::PreparePlace { destination, place } = i.op {
+                let slot = prepared.get_mut(destination.0 as usize).ok_or_else(|| {
+                    Error::new(ErrorKind::InvalidPrepared(destination.0), Some(i.span))
+                })?;
+                if slot.is_some() {
+                    return Err(Error::new(
+                        ErrorKind::DuplicatePrepared(destination.0),
+                        Some(i.span),
+                    ));
+                }
+                *slot = Some(PreparedPlace {
+                    site: Site {
+                        block: m::BlockId(b as u32),
+                        order: position + 1,
+                    },
+                    place,
+                    span: i.span,
+                });
+            }
+        }
+    }
     let mut c = Check {
         places,
         types: places.declarations().types(),
         frame: &places.functions()[index],
         declaration,
+        prepared: &prepared,
         function: FunctionId(index as u32),
         budget,
     };
@@ -1034,6 +1127,19 @@ fn function(
                     return Err(Error::new(ErrorKind::UndefinedLoan(loan.0), Some(i.span)));
                 }
             }
+            if let Op::ReplacePrepared { destination, .. } | Op::DiscardPrepared(destination) = i.op
+            {
+                let site = c.destination(destination, i.span)?.site;
+                if (site.block == here.block && site.order >= here.order)
+                    || (site.block != here.block
+                        && !dominates(&idom, site.block.0, here.block.0, c.budget)?)
+                {
+                    return Err(Error::new(
+                        ErrorKind::PreparedDoesNotDominate(destination.0),
+                        Some(i.span),
+                    ));
+                }
+            }
             case_guard(
                 body,
                 &definitions,
@@ -1064,6 +1170,7 @@ fn function(
     Ok(FunctionFacts {
         definitions,
         loans,
+        prepared,
         idom,
     })
 }
