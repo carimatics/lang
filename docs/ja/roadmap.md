@@ -313,6 +313,10 @@ Ownership解析のdriver統合（2026-10-18 JST）：commit `d25706c` は、成�
 
 見直し：完了済みownership frontend解析をuserとeditor callerへ提供しましたが、別のM2成果は完了していません。M2は34 / 113 pt（30.1%）、全18成果中5成果、roadmap全体は332 / 764 pt（43.5%）を維持します。現在のscope、依存関係、113 ptの見積もりは引き続き妥当です。次は実際の初期化／再初期化順とfailure exitを保持するcleanup elaborationを実装し、続いてowned layoutとfallibleなinstance allocationを実行可能core operationへ接続します。正常flowのstorage-discard命令と非実行の解析proofだけではこれらの成果を満たしません。Ownership artifact、独立したarena effect、backend／platform conformanceと残るgateは未完了です。
 
+Cleanup runtime統合の基盤（2026-10-18 JST）：commit `c437dc1` は`lang_runtime::cleanup`を追加し、実際のpayloadを所有して、上限付きlexical／call scope内で初期化成功の逆順を追跡します。Moveは義務を移転し、再初期化は末尾へ追加し、置換は新しいownerをcommitしてから旧値をcleanupします。Entryと入れ子callのreturnはcleanup成功までowning resultを保留し、失敗時は未公開resultもcleanupします。Ownerより先にborrow registrationを終了し、失敗後も独立したcleanupを続けます。順序付きreportは既定で256 recordを事前確保しoverflow数を記録し、cleanup failure／contain済みhost panicはinstanceをpoisonします。Panicしたcallbackのvalueと悪意あるsecondary panic payloadは再帰的unwindをせず隔離します。16 runtime testで実際のshared owner解放、入れ子call、limit／failure／poison挙動と、独立oracleによる256 stepの生成列100件を検証しました。Workspace全863 test、fmt／Clippy／doc、fuzz format／全bin locked Clippyが成功しました。Evidence：[cleanup architecture](architecture.md#cleanup-runtimeとfailure-reporting)、[engine](../../crates/runtime/src/cleanup.rs)、[test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。RFC 0008の最終更新日：2026-10-17。
+
+見直し：source／MIRのscopeとfailure exitがこのruntime遷移を駆動し、aggregate field／temporaryの実構築順を保持し、実行adapterで受理済み意味論を実証するまでdeterministic drop成果は未完了です。Engineのfallibleなhost metadata確保はguest allocatorのaccounting完了を意味しません。現在のscope／依存関係と113 pt見積もりを維持し、M2は34 / 113 pt（30.1%）、全18成果中5成果、全体は332 / 764 pt（43.5%）のままです。次はscope／activation境界、aggregate初期化順、生成failure exitを含むownership MIRのcleanup elaborationをこのengineへ接続し、続いてowned layout／fallible core allocationとVM／native実行を実装します。既存Copy互換性と、残るarena、ownership artifact、unsafe／C、packaging、conformance、platform／debug、performanceのgateも引き続き必要です。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
