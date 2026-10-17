@@ -1,18 +1,23 @@
 use lang::{
     frontend::{self, AnalysisError, CompileLimits, ScriptError},
+    repl::{Event, Readiness, ReplError, ReplLimits, Report, Session, SubmissionBuffer},
     run_prototype_add,
 };
 use lang_runtime::HostFunctionRegistry;
 use lang_vm::unit::{self as vm, Control, HostBindings, Limits};
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Write};
+use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang <left> <right>\n";
+const USAGE: &str = "usage: lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang <left> <right>\n";
 enum Command {
     Run {
         file: PathBuf,
+        root: Option<PathBuf>,
+        limits: Limits,
+    },
+    Repl {
         root: Option<PathBuf>,
         limits: Limits,
     },
@@ -55,7 +60,8 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
     if first == "--help" || first == "-h" {
         return Ok(Command::Help);
     }
-    if first != "run" {
+    let repl = first == "repl";
+    if first != "run" && !repl {
         if arguments.len() != 2 {
             return Err(usage("expected a command or two integers"));
         }
@@ -94,9 +100,14 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
                 "--cells" => limits.live_cells = Some(number(&value, flag)?),
                 _ => unreachable!(),
             }
+        } else if repl {
+            return Err(usage("repl accepts no positional arguments"));
         } else if file.replace(PathBuf::from(argument)).is_some() {
             return Err(usage("only one root file is allowed"));
         }
+    }
+    if repl {
+        return Ok(Command::Repl { root, limits });
     }
     Ok(Command::Run {
         file: file.ok_or_else(|| usage("missing root file"))?,
@@ -122,7 +133,137 @@ fn run() -> Result<u8, CliError> {
             Ok(0)
         }
         Command::Run { file, root, limits } => run_script(file, root, limits),
+        Command::Repl { root, limits } => run_repl(root, limits),
     }
+}
+
+fn run_repl(root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
+    let root = root
+        .map(std::fs::canonicalize)
+        .transpose()
+        .map_err(failure)?;
+    if root.as_ref().is_some_and(|root| !root.is_dir()) {
+        return Err(failure("REPL source root must be a directory"));
+    }
+    let mut session = Session::new(root, ReplLimits::default());
+    let byte_limit = session.limits().compile.modules.parse.lex.source_bytes;
+    let depth = session
+        .limits()
+        .compile
+        .modules
+        .parse
+        .depth
+        .min(session.limits().compile.modules.parse.lex.comment_depth);
+    let hosts = HostFunctionRegistry::new();
+    let bindings = HostBindings::new();
+    let interactive = io::stdin().is_terminal();
+    let mut input = io::stdin().lock();
+    let mut buffer = SubmissionBuffer::default();
+    loop {
+        if interactive {
+            let mut output = io::stdout().lock();
+            write!(
+                output,
+                "{}",
+                if buffer.bytes().is_empty() {
+                    "> "
+                } else {
+                    ".. "
+                }
+            )
+            .map_err(failure)?;
+            output.flush().map_err(failure)?;
+        }
+        let mut line = Vec::new();
+        let read = (&mut input)
+            .take(
+                byte_limit
+                    .saturating_sub(buffer.bytes().len())
+                    .saturating_add(1) as u64,
+            )
+            .read_until(b'\n', &mut line)
+            .map_err(failure)?;
+        if read == 0 {
+            if buffer.bytes().is_empty() {
+                return Ok(0);
+            }
+            let report = session.submit(
+                buffer.bytes(),
+                &hosts,
+                &bindings,
+                Control::with_limits(limits),
+            );
+            let failed = report.result.is_err();
+            print_repl_report(&report)?;
+            return Ok(u8::from(failed));
+        }
+        let readiness = match buffer.push(&line, byte_limit, depth) {
+            Ok(readiness) => readiness,
+            Err(_) => {
+                eprintln!("error[SRC0011]: REPL submission byte limit exceeded");
+                return Ok(1);
+            }
+        };
+        if readiness == Readiness::Continue {
+            continue;
+        }
+        let report = session.submit(
+            buffer.bytes(),
+            &hosts,
+            &bindings,
+            Control::with_limits(limits),
+        );
+        print_repl_report(&report)?;
+        buffer.clear();
+        if matches!(report.result, Ok(Event::Quit)) {
+            return Ok(0);
+        }
+    }
+}
+fn print_repl_report(report: &Report) -> Result<(), CliError> {
+    let mut stderr = io::stderr().lock();
+    for diagnostic in &report.diagnostics {
+        stderr
+            .write_all(
+                diagnostic
+                    .render(&report.sources)
+                    .map_err(failure)?
+                    .as_bytes(),
+            )
+            .map_err(failure)?;
+    }
+    match &report.result {
+        Ok(Event::Value(value)) => writeln!(io::stdout().lock(), "{value}").map_err(failure)?,
+        Err(ReplError::Diagnostics) => {}
+        Err(ReplError::Runtime(error)) => {
+            writeln!(
+                stderr,
+                "error[runtime]: {:?} (fuel {}, host calls {})",
+                error.reason, error.usage.fuel, error.usage.host_calls
+            )
+            .map_err(failure)?;
+            for frame in &error.stack {
+                let name = error.function_name(*frame);
+                if let Some(span) = frame.span {
+                    let source = report.sources.file(span.source()).map_err(failure)?;
+                    let position = source.position(span.range().start).map_err(failure)?;
+                    writeln!(
+                        stderr,
+                        "  at {name} ({:?}:{}:{})",
+                        source.name(),
+                        position.line,
+                        position.column
+                    )
+                    .map_err(failure)?;
+                } else {
+                    writeln!(stderr, "  at {name}").map_err(failure)?;
+                }
+            }
+        }
+        Err(error) => writeln!(stderr, "error: {error}").map_err(failure)?,
+        Ok(_) => {}
+    }
+    Ok(())
 }
 fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
     // CLI is the host choosing compiler inputs. Child modules use this

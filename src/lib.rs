@@ -15,6 +15,7 @@ pub mod component_conformance;
 pub mod component_resource_conformance;
 pub mod frontend;
 pub mod linker;
+pub mod repl;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionResults {

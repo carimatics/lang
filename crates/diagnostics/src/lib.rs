@@ -119,6 +119,12 @@ impl SourceMap {
         self.files.get(&source).ok_or(SourceError::UnknownSource)
     }
 
+    /// Immutable snapshots in source-identity order; display names grant no IO
+    /// authority and need not be unique across revisions.
+    pub fn iter(&self) -> impl Iterator<Item = (SourceId, &SourceFile)> {
+        self.files.iter().map(|(id, file)| (*id, file))
+    }
+
     pub fn span(&self, source: SourceId, range: Range<usize>) -> Result<Span, SourceError> {
         let file = self.file(source)?;
         if range.start > range.end {

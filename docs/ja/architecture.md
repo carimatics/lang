@@ -61,7 +61,7 @@ MIR ─────────────────────────�
 
 型付きMIRをsemantic contractとします。Backend固有のoptimizationは異なっても構いませんが、観測可能な動作、destruction order、panic／error behavior、integer semantics、concurrency ruleは異なってはいけません。
 
-受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は、最初のsource subsetとして `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐlive valueはtyped block argumentへloweringします。受理済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)は、字句規則とmodule／call、aggregate／pattern、portable bytecode、script／REPLの拡張を定義します。Diagnostics、lossless tokenization／parsing、構造化inputのprimitive HIR analysis、primitive HIR-to-MIR loweringは実装済みですが、source実行とformatterは未実装です。
+受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)は `i64` parameter／result、wrapping addition、signed comparison、mutable local、`if`／`else`、`while`、明示的 `return`、左から右の評価順序を定義します。Join／back-edgeをまたぐvalueはtyped block argumentで運びます。受理済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)は字句規則、module／call、aggregate／pattern、portable bytecode、上限付きframe、script／REPL behaviorを追加します。Diagnostics、lossless parsing、source typing／lowering、portable artifact、上限付きVM実行、初期native scalar conformance、script、transactional REPLは実装済みです。Formatterとparser／module-query LSP統合は未完了です。
 
 2026-10-17実装：`lang-syntax` はUTF-8 inputを検証し、不正encodingや先頭BOMにはsnapshotを作成しません。Input errorはraw byte範囲を保持します。Lexerは受け入れた各snapshotを、空白、comment、不正token、不正Unicode scalarも含む、連続した完全なtoken列として保持します。符号付きdecimalのoverflow、不正token、comment内も含むNUL、閉じていないblock comment、直接作成したsnapshotのBOM違反を報告します。Source byte、token、nested-comment depth、診断数の上限を超えると `SRC0011` でanalysisを終了します。Commentは反復処理で走査します。13件のlexer testが正確な範囲、復元、決定的な混合Unicode input、resource境界を検証します。
 
@@ -101,7 +101,7 @@ Source生成unitは `lang_codegen_clif::unit` により既存native profileへ�
 
 ### Compilation-unit execution
 
-2026-10-17実装のvirtual-source基盤：`modules::load_virtual` はhost指定root byteを、file読込と同じ通算module／source／token／node budgetとraw encoding検証でparseします。Temporary fileを作らずrootを再読込せず、hostが明示的なcanonical source rootを与えなければchild fileを読みません。`check_expression_function` は1つのreturnだけを持ちlocal／parameter／patternがなく、unit内のどこからも呼ばれないprivate root `__repl_eval_*` wrapperだけの結果型を推論します。他の宣言には明示result型検証を維持します。最終signatureは診断messageの解析ではなく検証済みexpression factsから得ます。`lower_library` はscript entryの自動選択を止め、session／library内でmain名の通常関数を許可します。8件のtestはvirtual UTF-8 snapshot、権限、nested module、上限、推論と不正wrapperの制約、通常typing、library entry policyを検証します。Session transaction、元submissionへの診断対応、CLIは未完了です。
+2026-10-17実装のvirtual-source基盤：`modules::load_virtual` はhost指定root byteをfile読込と同じ通算module／source／token／node budgetとraw encoding検証でparseします。Temporary fileを作らずrootを再読込せず、child fileには明示的canonical source rootを要求します。`check_expression_function` は1つのreturnだけを持ちlocal／parameter／patternがなく、unit内から呼ばれないprivate root `__repl_eval_*` wrapperだけの結果型を推論します。他の宣言には明示result型検証を維持し、最終signatureは検証済みexpression factsから得ます。`lower_library` はscript entryの自動選択を止めます。8件のtestはvirtual UTF-8 snapshot、権限、nested module、上限、推論と不正wrapperの制約、通常typing、library entry policyを検証します。後述のtransactional sessionがこれらのAPIを使います。
 
 2026-10-17実装：`lang_vm::unit` は検証済みportable programを明示 `Vec` frameで実行し、guest callにRustの再帰を使いません。各frameは全registerの最大cell数の検証済み合計を1つのflat bufferへ割り当て、offsetとparallel-copy schedulingはregister metadataとします。Recordはzero header、enumはcase tagと最大payloadまでのzero paddingを持ちます。Aggregate構築／projection、argument、return、CFG copyを課金済みstorage内で処理します。Parallel copyは上書き前にfan-outを処理し、cycleを1 cellずつ回転させます。Result storageは最終frame bufferを再利用します。Typed embedding valueは実行前に厳密なsize、bool、nonzero owned index、record header、enum tag／padding、nested memberを検証します。既存owned identityは論理resource indexの転送であり、新resource managerではありません。
 
@@ -117,7 +117,13 @@ Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと
 
 ### Script CLI
 
-2026-10-17実装のscript CLI：`lang run FILE` は共通 `lang::frontend` analysis pipelineと既定compile limitを使い、厳密に `main() -> i64` を選択・検証してverified unitへloweringし、空のtyped host registryで上限付きVMを実行します。Hostは `--source-root` 指定がなければfileの親をsource rootに選びます。Compiler errorはresource診断を含めsnapshotを保持し、rawな不正encodingはspanを捏造せずstable codeとbyte rangeを報告します。成功時は符号付き10進数と改行を1つ出力しexit 0、compile／runtime失敗はstderrとexit 1、usage errorはexit 2です。Runtime errorはcounterとentry済みguest source frameを保持します。明示VM-limit flagと従来の整数2つのprototypeも利用できます。10件のCLI／frontend testでこれらの契約、複数fileのaggregate、空／不正entry、encoding／source不正、typed-import拒否、設定可能limitを検証します。実行可能REPLは別の統合作業です。
+2026-10-17実装のscript CLI：`lang run FILE` は共通 `lang::frontend` analysis／既定compile limitを使い、`main() -> i64` を検証して、空のtyped host registryでverified unitを実行します。Hostは `--source-root` がなければfileの親をsource rootに選びます。Resource診断はsnapshotを保持し、raw encoding失敗はspanを捏造せずstable code／byte rangeを報告します。成功時は符号付き10進数と改行を1つ出力してexit 0、compile／runtime失敗はstderrとexit 1、usage errorはexit 2です。Runtime errorはcounterとentry済みsource frameを保持します。VM-limit flagと従来の整数2つのprototypeも利用できます。10件のCLI／frontend testはこれらの契約、複数fileのaggregate、entry、不正input、typed-import拒否、limitを検証します。
+
+### Transactional REPL
+
+2026-10-17実装：`lang::repl::Session` は1つのitemまたはexpressionを受け付けます。候補定義全体をanalysisし、library MIR検証後にだけitemをcommitします。Errorは以前のtext定義を保持します。Expressionは衝突しない生成wrapperを選び、新しいVM counterで実行し、scalarまたはqualified name・宣言順fieldのaggregate valueを出力します。Mutable valueを永続化しません。`:reset` は定義を消去し、`:quit` またはEOFで終了します。CLIは追加byteだけを走査してnested commentと括弧／波括弧を追跡し、割り当て前に入力上限を確認し、不完全EOFを診断します。TTYにはprimary／continuation promptを出し、pipe入力には出しません。処理済みsubmission error後も通常quit／EOFはexit 0、不完全EOFと致命的IO／入力上限失敗はexit 1です。File moduleには `--source-root` を要求し、CLIのhost importは空です。
+
+元submissionは独立immutable snapshotです。Segment mapでprimary／related label、fix edit、fault位置、全guest call siteを合成sourceから元snapshotへ戻し、runtime表示で生成wrapper名／行を隠します。各reportがsourceと失敗runtimeのunitを所有するため、後続submissionやresetで位置が無効になりません。Sessionにはtext定義だけを保持します。出力は反復処理とし、既定上限は65,536 byteです。線形byte走査で既存の全identifierより長いwrapper名を生成し、走査／生成byteを設定済みparse-work枠へ課金します。各compiler phaseも個別の設定limitを維持します。Guest／display失敗でhost副作用をrollbackしません。16件のtestはtransaction、item数、canonical display、source／fix／stack対応、fresh budget、host副作用、file権限、不正UTF-8／comment、上限、buffering、pipe CLIの回復／reset／EOFを検証します。Local TTY smokeでも継続入力とquitを確認しました。
 
 ### Incremental architecture
 

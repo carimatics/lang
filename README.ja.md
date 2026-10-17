@@ -65,9 +65,9 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang_bytecode::unit` は明示的なversion／opcode、ID再配置、UTF-8／span検証、decoder／verifier共通のresource budgetを持つcanonical schema 1 artifactをencode／decodeします。`cargo test -p lang-bytecode --test unit_codec` で検証できます。固定golden fixtureと不正input／fuzz検証を含みます。
 
-`lang_vm::unit` は全受理済みMilestone 1 operationを明示guest frame stackとflatなcopy-value storageで実行します。既定値はfuel 1,000,000、host call 1,000、frame 256、live cell 1,000,000で、interruption／deadline検査とsource stack traceを提供します。Guest実行前に全宣言qualified host importの明示typed registry bindingを要求します。`cargo test --test source_vm` でsource→wire→VM実行、`cargo test -p lang-vm --test units` でparallel copy、value検証、checked projection境界を検証できます。REPL CLI、formatter、LSP transportは未完了です。
+`lang_vm::unit` は全受理済みMilestone 1 operationを明示guest frame stackとflatなcopy-value storageで実行します。既定値はfuel 1,000,000、host call 1,000、frame 256、live cell 1,000,000で、interruption／deadline検査とsource stack traceを提供します。Guest実行前に全宣言qualified host importの明示typed registry bindingを要求します。`cargo test --test source_vm` でsource→wire→VM実行、`cargo test -p lang-vm --test units` でparallel copy、value検証、checked projection境界を検証できます。FormatterとLSP transportは未完了です。
 
-REPL向けの基盤は `modules::load_virtual` でvirtual root snapshotを受け取り、`check_expression_function` で制約したhost生成expression wrapperの結果型を推論し、script entryを選ばずlibraryをloweringします。File moduleには引き続き明示source rootを要求します。`cargo test -p lang-semantics --test virtual_programs` で検証できます。Transactional session stateとCLIは統合作業として残ります。
+REPLは `modules::load_virtual` でvirtual snapshotを受け取り、`check_expression_function` で制約したhost生成expression wrapperの結果型を推論し、script entryを選ばずlibraryをloweringします。`lang::repl::Session` はanalysis成功のitemだけをcommitし、新しいVM counterでexpressionを実行し、診断／fix／runtime stackを元submissionへ対応付けます。File moduleには明示source rootを要求します。`cargo test --test repl` と `cargo test -p lang-semantics --test virtual_programs` で検証できます。
 
 `lang_codegen_clif::unit` は検証済みunitを初期native scalar／CFG・straight-line owned profileへ変換し、register再配置とbyte spanからdebug mapへの変換を行います。拡張call／aggregate／operationはcode公開前に拒否します。`cargo test --test source_conformance` でparsed-source scalar VM／JIT比較、引数なし呼出し、metadata／budget failure、tier-1 nativeのdirect／response-file link／runを検証できます（macOS AArch64でlocal実行済み、Windows実行はCI側のevidenceです）。
 
@@ -89,7 +89,9 @@ REPL向けの基盤は `modules::load_virtual` でvirtual root snapshotを受け
 cargo run -- run examples/scripts/answer.lang
 ```
 
-`lang run FILE` はfileの親をcompiler source rootに選び、`--source-root DIR` で明示指定もできます。成功時は符号付き結果1つを出力してexit 0、compile／runtime失敗はstderr診断とexit 1、不正usageはexit 2です。Scriptの結果をexit codeにはしません。`--fuel`、`--host-calls`、`--frames`、`--cells` でVM limitを明示設定できます。CLIはhost importを登録しません。Embeddingでは `lang::frontend::CompileLimits` で同じcompiler pipelineを設定できます。`cargo test --test cli` でscript／usage契約を検証します。Transactional REPLは未完了です。
+`lang run FILE` はfileの親をcompiler source rootに選び、`--source-root DIR` で明示指定もできます。成功時は符号付き結果1つを出力してexit 0、compile／runtime失敗はstderr診断とexit 1、不正usageはexit 2です。Scriptの結果をexit codeにはしません。`--fuel`、`--host-calls`、`--frames`、`--cells` でVM limitを明示設定できます。CLIはhost importを登録しません。Embeddingでは `lang::frontend::CompileLimits` で同じcompiler pipelineを設定できます。`cargo test --test cli` でscript／usage契約を検証します。
+
+`cargo run -- repl` でtransactional sessionを開始します。1つのitemまたはexpressionをsubmitし、括弧／波括弧やnested commentが閉じていなければ継続入力できます。`:reset` は定義を消去し、`:quit` またはEOFで終了します。失敗したsubmissionは以前の定義を保持します。Valueはcanonicalなqualified nameと宣言順fieldで表示し、expression出力の既定上限は65,536 byteです。Pipe入力にはpromptを出しません。処理済みsubmission errorがあっても通常quit／EOFはexit 0、不完全EOFと致命的IO／入力上限失敗はexit 1です。`--source-root DIR` でfile moduleを明示有効化でき、VM-limit flagもREPLへ適用します。実行失敗前のhost副作用は観測可能なままです。
 
 現在のVM/native等価性プロトタイプを実行します。
 
