@@ -174,13 +174,6 @@ pub fn execute_entry<P: a::Provider>(
     let payloads =
         profile::Payloads::compile(types, limits).map_err(|e| fail(Reason::Preparation(e)))?;
     for block in &body.blocks {
-        if !block.parameters.is_empty() {
-            return Err(rejected(
-                Reason::BlockArguments,
-                Some(function),
-                Some(block.terminator.span),
-            ));
-        }
         for instruction in &block.instructions {
             let result = instruction
                 .results
@@ -306,6 +299,25 @@ pub fn execute_entry<P: a::Provider>(
                 )))
             })?;
     }
+    for parameter in body.blocks.iter().flat_map(|b| &b.parameters) {
+        let cell = plan.scratch_cell(*parameter).expect("planned parameter");
+        if !types
+            .properties(plan.cell_type(cell).unwrap().ty)
+            .unwrap()
+            .is_copy
+        {
+            frame
+                .declare(
+                    c::Slot(plan.scratch_slot(*parameter).unwrap()),
+                    c::Kind::Owner,
+                )
+                .map_err(|_| {
+                    fail(Reason::Execution(c::FailureKind::Execution(
+                        c::ExecutionFailure::Invariant,
+                    )))
+                })?;
+        }
+    }
     let reserved = plan.reserve_after(shared.borrow_mut().allocator, budget_usage(&budget));
     let storage = match reserved {
         Ok(storage) => storage,
@@ -370,7 +382,23 @@ pub fn execute_entry<P: a::Provider>(
                     failure
                 }
             },
-            f::Kind::Transfer { target, .. } => target,
+            f::Kind::Transfer {
+                block,
+                arm,
+                target,
+                failure,
+            } => match transfer_edge(typed, function, block, arm, &plan, &shared, &mut frame) {
+                Ok(()) => target,
+                Err(error) => {
+                    cause = if frame.report().primary().is_some() {
+                        c::Cause::Reported
+                    } else {
+                        c::Cause::Execution(error)
+                    };
+                    fault = Some(current.span);
+                    failure
+                }
+            },
             f::Kind::Branch {
                 condition,
                 then_node,
@@ -494,6 +522,16 @@ fn transfer<P: a::Provider, C: c::Cleaner<Ticket>>(
     from: usize,
     to: usize,
 ) -> Step<()> {
+    transfer_between(shared, frame, from, to, c::Slot(from), c::Slot(to))
+}
+fn transfer_between<P: a::Provider, C: c::Cleaner<Ticket>>(
+    shared: &Rc<RefCell<State<'_, '_, '_, P>>>,
+    frame: &mut c::Frame<'_, Ticket, C>,
+    from: usize,
+    to: usize,
+    source_slot: c::Slot,
+    target_slot: c::Slot,
+) -> Step<()> {
     let mut state = shared.borrow_mut();
     let properties = state
         .types
@@ -504,10 +542,68 @@ fn transfer<P: a::Provider, C: c::Cleaner<Ticket>>(
         state.copy(source, to)
     } else {
         frame
-            .move_value(c::Slot(from), c::Slot(to))
+            .move_value(source_slot, target_slot)
             .map_err(invariant)?;
         state.swap_move(from, to)
     }
+}
+fn transfer_edge<P: a::Provider, C: c::Cleaner<Ticket>>(
+    typed: &b::TypedBodies,
+    function: m::FunctionId,
+    block: m::BlockId,
+    arm: u8,
+    plan: &l::FramePlan<'_, '_>,
+    shared: &Rc<RefCell<State<'_, '_, '_, P>>>,
+    frame: &mut c::Frame<'_, Ticket, C>,
+) -> Step<()> {
+    let body = &typed.functions()[function.0 as usize];
+    let target = body.blocks[block.0 as usize]
+        .terminator
+        .kind
+        .targets()
+        .nth(arm as usize)
+        .ok_or(c::ExecutionFailure::Invariant)?;
+    let parameters = &body.blocks[target.block.0 as usize].parameters;
+    let values = typed.places().declarations().functions()[function.0 as usize]
+        .locals
+        .len();
+    // Capture every input before publishing any output. Affine inputs are
+    // unique by the independent move proof; Copy inputs may be repeated.
+    for (argument, parameter) in target.arguments.iter().zip(parameters) {
+        let from = values + argument.0 as usize;
+        let scratch = plan
+            .scratch_cell(*parameter)
+            .ok_or(c::ExecutionFailure::Invariant)?;
+        transfer_between(
+            shared,
+            frame,
+            from,
+            scratch,
+            c::Slot(from),
+            c::Slot(plan.scratch_slot(*parameter).unwrap()),
+        )?;
+    }
+    for parameter in parameters {
+        let to = values + parameter.0 as usize;
+        let scratch = plan.scratch_cell(*parameter).unwrap();
+        let old_nondropping_affine = {
+            let state = shared.borrow();
+            let properties = state.types.properties(state.cells[to].ty).unwrap();
+            state.cells[to].live && !properties.is_copy && !properties.requires_drop
+        };
+        if old_nondropping_affine {
+            drop_cell(shared, frame, to, true)?;
+        }
+        transfer_between(
+            shared,
+            frame,
+            scratch,
+            to,
+            c::Slot(plan.scratch_slot(*parameter).unwrap()),
+            c::Slot(to),
+        )?;
+    }
+    Ok(())
 }
 fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
     typed: &b::TypedBodies,

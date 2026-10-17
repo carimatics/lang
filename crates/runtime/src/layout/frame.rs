@@ -12,6 +12,7 @@ pub struct FramePlan<'layouts, 'types> {
     locals: usize,
     values: usize,
     cleanup_slots: usize,
+    scratch: Vec<Option<usize>>,
     limits: m::Limits,
     usage: m::Usage,
 }
@@ -33,8 +34,9 @@ fn combined(a: usize, b: usize, common: usize) -> Result<usize, Error> {
         .ok_or(Error::Overflow)
 }
 impl<'layouts, 'types> FramePlan<'layouts, 'types> {
-    /// Include locals, SSA values, explicit loan registrations and return escrow
-    /// in the cell limit. Loans have no separate payload storage. Host compiler
+    /// Include locals, SSA values, block-argument snapshots, explicit loan
+    /// registrations and return escrow in the cell limit. Loans have no
+    /// separate payload storage. Host compiler
     /// and wrapper pools use cumulative fallible MIR allocation/work budgets.
     pub fn compile(
         layouts: &'layouts Layouts<'types>,
@@ -55,11 +57,17 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             .get(index)
             .ok_or(Error::InvalidFunction(function))?;
         let values = &typed.places().functions()[index].values;
+        let parameters = typed.functions()[index]
+            .blocks
+            .iter()
+            .flat_map(|b| &b.parameters);
+        let scratch_count = parameters.clone().count();
         let count = declaration
             .locals
             .len()
             .checked_add(values.len())
             .and_then(|n| n.checked_add(1))
+            .and_then(|n| n.checked_add(scratch_count))
             .ok_or(Error::Overflow)?;
         let cleanup_slots = count
             .checked_sub(1)
@@ -86,12 +94,22 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         let mut budget = m::Budget::with_usage(limits, initial)?;
         let mut cells = budget.vector(count)?;
         let mut requests = budget.vector(count.checked_mul(2).ok_or(Error::Overflow)?)?;
+        let mut scratch = budget.vector(if scratch_count == 0 { 0 } else { values.len() })?;
+        if scratch_count != 0 {
+            scratch.resize(values.len(), None);
+            let start = declaration.locals.len() + values.len() + 1;
+            for (offset, parameter) in parameters.clone().enumerate() {
+                budget.charge(1)?;
+                scratch[parameter.0 as usize] = Some(start + offset);
+            }
+        }
         for ty in declaration
             .locals
             .iter()
             .map(|l| l.ty)
             .chain(values.iter().copied())
             .chain([declaration.result])
+            .chain(parameters.map(|parameter| values[parameter.0 as usize]))
         {
             budget.charge(1)?;
             let layout = layouts.get(ty.ty).ok_or(Error::InvalidType(ty.ty))?;
@@ -105,6 +123,7 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             locals: declaration.locals.len(),
             values: values.len(),
             cleanup_slots,
+            scratch,
             limits,
             usage: usage(&budget),
         })
@@ -117,6 +136,18 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
     }
     pub const fn return_cell(&self) -> usize {
         self.locals + self.values
+    }
+    /// Snapshot reserved for this block parameter, after the return escrow.
+    pub fn scratch_cell(&self, parameter: m::Register) -> Option<usize> {
+        self.scratch.get(parameter.0 as usize).copied().flatten()
+    }
+    /// Scratch obligations follow the original MIR owner/loan slots, so the
+    /// cleanup mapping for source values and loan registrations stays stable.
+    pub fn scratch_slot(&self, parameter: m::Register) -> Option<usize> {
+        let cell = self.scratch_cell(parameter)?;
+        let count = self.cells.len() - self.return_cell() - 1;
+        let offset = cell - self.return_cell() - 1;
+        Some(self.cleanup_slots - count + offset)
     }
     pub fn local(&self, local: LocalId) -> Result<usize, Error> {
         let index = local.0 as usize;

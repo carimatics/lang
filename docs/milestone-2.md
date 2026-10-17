@@ -6,7 +6,7 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**44 done · 0 doing · 47 todo · 120 remaining pt**
+**44 done · 1 doing · 46 todo · 120 remaining pt**
 
 **Next: M2-V11 → execute simultaneous Copy/affine CFG block-argument transfers, including cycles, with admitted scratch storage.**
 
@@ -108,7 +108,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | Execute generated failure exits: fuel/OOM/body failures, ordered cleanup and nested failure reports. | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Execute provisional-read match arms and prepared replacement across RHS effects. | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPL ownership admission/result display matches run and preserves failure isolation. | — |
-| M2-V11 | todo | 2 | M2-V06 | G08,G14,G16 | Execute simultaneous Copy/affine CFG block-argument transfers, including cycles/loops, using bounded pre-reserved scratch storage. | — |
+| M2-V11 | doing | 2 | M2-V06 | G08,G14,G16 | Execute simultaneous Copy/affine CFG block-argument transfers, including cycles/loops, using bounded pre-reserved scratch storage. | — |
 
 ## Shared, arenas and collections
 

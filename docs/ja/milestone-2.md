@@ -6,7 +6,7 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**44 done · 0 doing · 47 todo · 120 remaining pt**
+**44 done · 1 doing · 46 todo · 120 remaining pt**
 
 **次: M2-V11 → admission済みscratch storageで、cycleを含むCopy／affine CFG block argumentの同時転送を実行する。**
 
@@ -108,7 +108,7 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPLのownership受け入れ／結果表示をrunに揃え、失敗を分離。 | — |
-| M2-V11 | todo | 2 | M2-V06 | G08,G14,G16 | 上限付き事前予約scratch storageで、cycle／loopを含むCopy／affine CFG block argumentの同時転送を実行。 | — |
+| M2-V11 | doing | 2 | M2-V06 | G08,G14,G16 | 上限付き事前予約scratch storageで、cycle／loopを含むCopy／affine CFG block argumentの同時転送を実行。 | — |
 
 ## Shared、arena、collection
 

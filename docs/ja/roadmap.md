@@ -8,7 +8,7 @@
 
 ## 現在のM2実装状況
 
-**検証済み44件 · 進行中0件 · 残り47件（暫定120 pt）。**
+**検証済み44件 · 進行中1件 · 残り46件（暫定120 pt）。**
 
 現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む18件の成果を検証しました。V06（`92d225a`）で入れ子Bytes／Text／Copy record／enum／sum ownerとchecked reference projectionを実行し、[aggregate script](../../examples/scripts/owned_aggregate.lang) は `9` を表示します。Pack用確保なし、記述逆順の1回限り破棄、投影先grow、OOM／panic／fuel／loop cleanupを確認しました。V06で3 ptを減らし、残作業は123 → 120 ptです。次はV11のblock argument転送を実行し、それへ依存するV07のguest callへ進みます。G06／G08の広い実行／service成果は残し、G07もV09の代入とN03のnative evidenceが必要です。新たなexit gateは完了扱いにしていません。990 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 

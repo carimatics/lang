@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**44 verified deliveries · 0 in progress · 47 remaining tasks (provisional 120 pt).**
+**44 verified deliveries · 1 in progress · 46 remaining tasks (provisional 120 pt).**
 
 Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). Eighteen deliveries have been verified since the gate score last changed, including the planned follow-up design decision. V06 (`92d225a`) executes nested Bytes/Text/Copy record/enum/sum owners and checked reference projections: [the aggregate script](../examples/scripts/owned_aggregate.lang) prints `9`. No packing allocation, reverse written exactly-once destruction, projected growth and OOM/panic/fuel/loop cleanup are verified. V06 removes 3 pt: 123 → 120 remaining pt. Next is V11 block-argument transfer before its dependent V07 guest calls. G06/G08 retain their broader execution/service outcomes; G07 still needs V09 assignment and N03 native evidence. No new exit gate is closed. The 990-test baseline and fmt/Clippy/doc pass; measured validation durations are on the board. Other owning services, REPL/native execution and ownership artifacts retain their gates.
 

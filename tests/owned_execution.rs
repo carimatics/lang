@@ -9,6 +9,9 @@ use lang_vm::{
 };
 use std::{cell::RefCell, path::Path, rc::Rc, time::Instant};
 
+#[path = "support/owned_edges.rs"]
+mod edges;
+
 const SOURCE: &str = include_str!("../examples/scripts/bytes.lang");
 const OWNED_SOURCE: &str = include_str!("../examples/scripts/owned_bytes.lang");
 const UTF8_SOURCE: &str = include_str!("../examples/scripts/utf8.lang");
