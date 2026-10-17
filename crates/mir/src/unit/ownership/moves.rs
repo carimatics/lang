@@ -3,7 +3,7 @@
 //! prepared destination validity, or executable VM/native behavior.
 
 use super::super as m;
-use super::{bodies as b, declarations as d, places as p, *};
+use super::{bodies as b, declarations as d, flow::cycles, places as p, *};
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 
@@ -539,44 +539,6 @@ impl Context<'_, '_> {
         }
         Ok(())
     }
-}
-
-struct Cycles {
-    feedback: Vec<[bool; 2]>,
-    order: Vec<usize>,
-}
-fn cycles(body: &b::FunctionBody, budget: &mut Budget) -> Result<Cycles, Error> {
-    let n = body.blocks.len();
-    let mut color = filled(budget, n, 0u8)?;
-    let mut feedback = filled(budget, n, [false; 2])?;
-    let mut pending = budget.vector(n)?;
-    let mut order = budget.vector(n)?;
-    color[0] = 1;
-    pending.push((0usize, 0usize));
-    while let Some((block, next)) = pending.last_mut() {
-        budget.charge(1)?;
-        if let Some(target) = body.blocks[*block].terminator.kind.targets().nth(*next) {
-            let edge = *next;
-            *next += 1;
-            let to = target.block.0 as usize;
-            match color[to] {
-                0 => {
-                    color[to] = 1;
-                    pending.push((to, 0));
-                }
-                1 => feedback[*block][edge] = true,
-                _ => {}
-            }
-        } else {
-            let node = *block;
-            pending.pop();
-            color[node] = 2;
-            order.push(node);
-        }
-    }
-    budget.charge(n)?;
-    order.reverse();
-    Ok(Cycles { feedback, order })
 }
 
 /// Resume the typed stage's cumulative resource counters. The resulting proof

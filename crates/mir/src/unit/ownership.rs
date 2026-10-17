@@ -10,6 +10,8 @@ use std::hash::{Hash, Hasher};
 
 pub mod bodies;
 pub mod declarations;
+mod flow;
+pub mod loan_activity;
 pub mod moves;
 pub mod places;
 

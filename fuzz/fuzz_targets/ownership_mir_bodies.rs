@@ -274,6 +274,19 @@ fuzz_target!(|bytes: &[u8]| {
                 flow::analyze(checked.clone().into_typed(), limits).unwrap(),
                 checked
             );
+            use lang_mir::unit::ownership::loan_activity as activity;
+            let limits = activity::Limits {
+                work: 100_000,
+                allocations: 2 * 1024 * 1024,
+                elements: 100_000,
+                state_cells: 4096,
+            };
+            if let Ok(checked) = activity::analyze(checked, limits) {
+                assert_eq!(
+                    activity::analyze(checked.clone().into_moved(), limits).unwrap(),
+                    checked
+                );
+            }
         }
     }
 });

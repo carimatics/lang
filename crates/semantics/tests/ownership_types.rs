@@ -536,3 +536,99 @@ fn checked_source_assignment_supplies_destination_before_rhs_in_a_mir_assembly_f
     let moved = lang_mir::unit::ownership::moves::analyze(typed, Default::default()).unwrap();
     assert!(moved.functions()[0].exits()[0].owners().is_empty());
 }
+
+#[test]
+fn checked_source_lexical_loan_can_supply_explicit_begin_and_end_in_a_mir_assembly_fixture() {
+    use lang_mir::unit::ownership::{bodies as b, loan_activity as a, places as p};
+    let text = "fn read(value: i64) -> i64 { let mut loan: &i64 = &value; return (*loan); }";
+    let (sources, checked) = prepare(text);
+    let places = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    let frame = &places.functions()[0];
+    let owner = frame
+        .places
+        .iter()
+        .position(|p| {
+            p.root == p::Root::Local(lang_mir::unit::ownership::declarations::LocalId(0))
+                && p.projections.is_empty()
+        })
+        .unwrap();
+    let (read_id, read) = frame
+        .places
+        .iter()
+        .enumerate()
+        .find(|(_, p)| {
+            p.projections
+                .iter()
+                .any(|p| p.kind == p::ProjectionKind::Dereference)
+        })
+        .unwrap();
+    let borrowed = frame
+        .values
+        .iter()
+        .position(|v| &text[v.span.start as usize..v.span.end as usize] == "&value")
+        .unwrap();
+    let borrow_span = frame.values[borrowed].span;
+    let span = places.declarations().functions()[0].span;
+    let returned = read.origin;
+    let instructions = vec![
+        b::Instruction {
+            results: vec![m::Register(borrowed as u32)],
+            op: b::Op::Borrow {
+                loan: b::LoanId(0),
+                kind: o::LoanKind::Shared,
+                place: p::PlaceId(owner as u32),
+            },
+            span: borrow_span,
+        },
+        b::Instruction {
+            results: vec![],
+            op: b::Op::Initialize {
+                local: lang_mir::unit::ownership::declarations::LocalId(1),
+                value: m::Register(borrowed as u32),
+            },
+            span: borrow_span,
+        },
+        b::Instruction {
+            results: vec![returned],
+            op: b::Op::CopyPlace(p::PlaceId(read_id as u32)),
+            span: read.span,
+        },
+        b::Instruction {
+            results: vec![],
+            op: b::Op::EndBorrow {
+                loan: b::LoanId(0),
+                mode: b::EndMode::Required,
+            },
+            span: read.span,
+        },
+    ];
+    let typed = b::BodyTable {
+        places: places.into_table(),
+        functions: vec![b::FunctionBody {
+            loans: 1,
+            prepared: 0,
+            blocks: vec![b::Block {
+                parameters: vec![],
+                instructions,
+                terminator: b::Terminator {
+                    kind: m::Term::Return(returned),
+                    span,
+                },
+                span,
+            }],
+        }],
+    }
+    .verify(Default::default())
+    .unwrap();
+    let moved = lang_mir::unit::ownership::moves::analyze(typed, Default::default()).unwrap();
+    let activity = a::analyze(moved, Default::default()).unwrap();
+    assert_eq!(
+        activity.functions()[0].entry(m::BlockId(0), b::LoanId(0)),
+        Some(a::Activity::Inactive)
+    );
+    assert!(
+        activity.moved().functions()[0].exits()[0]
+            .owners()
+            .is_empty()
+    );
+}

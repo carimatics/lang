@@ -289,6 +289,18 @@ Move解析は各captureを独立したnon-Copy／drop不要のstate slotとし�
 
 出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)のassignment評価順序、[body verifier](../../crates/mir/src/unit/ownership/bodies.rs)、[move解析](../../crates/mir/src/unit/ownership/moves.rs)、[capture test](../../crates/mir/tests/ownership_prepared.rs)、[source fixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Capture表現は実装上の選択です。有効loan／alias／region／call、cleanup／allocator／layout contract、core／runtime lowering、VM／native等価性、ownership serializationは未証明であり、この前提作業だけでMilestone 2 outcomeは完了しません。
 
+### Explicit MIR loan activation and end state
+
+2026-10-17実装：`lang-mir::unit::ownership::loan_activity::analyze` は変更不可のmove検査済みbodyを受け取り、明示的な各 `LoanId` をinactive、active、一部の到達pathでのみactiveの3状態で独立追跡します。Placeとcase payloadのborrow生成でidentityをactivateします。Required endには確実なactivityが必要で、conditional endは冪等に条件付きactivityを解消します。通常returnのすべてのpathで明示loanを終了する必要があります。これはRFC 0007のlexical lifetimeに基づく内部MIRの義務であり、未決定のpanic／error cleanupやdestructor ABIを選択しません。
+
+上限付き単調CFG伝播でblock-entryのactivity factを保持します。Move解析と同じ課金済みDFS feedback-edge走査を使い、irreducible cycleでもfeedbackと初回iteration baselineを比較し、外側loanがloop中にactiveのまま変化せず保持されることを許可し、不均衡なactivation／end状態を拒否します。Resource計上はmove stageの実際のwork／allocation／element使用量を再開します。Baselineと固定点matrixには個別の累積cell上限を設け、queue／scratch bufferを事前確保します。状態違反の診断は失敗operation／returnのspanと、関連する生成またはloop-header spanを保持します。
+
+追加10 testでrequired／冪等／conditional end、joinと通常return、条件付き生成、均衡／不均衡loop、irreducible cycle、guard付きcase loan、範囲／replay、正確な累積budget、独立した具体pathのend oracleと比較する81個の生成diamondを確認します。新しい検査済みsource組み立てfixtureはnamed lexical loanの明示begin／read／end列を供給します。これはsource metadataの手動組み立てであり、自動body loweringではありません。Lock済みbody fuzz targetも成功したactivity解析を再検証し、Clippyとinstrumentationなし10,000-run smokeを通りました。Coverage-guidedのevidenceは主張しません。
+
+`ActivityBodies` は実行できず、完全なloan-validity proofとは区別します。参照先解決、alias排他性やparent freezing、推移的reference-cell依存、暗黙caller-parameter loanの検証、終了済み参照のaccess拒否、古いloop参照が再activateした生成site identityを使わないことは検証しません。後続provenance stageで拒否すべき型付きuse-after-endを明示testとして残します。準備済みdestinationもRHS effect後のowner／依存の再検証が必要です。Region／call effect、cleanup／allocator／layout contract、完全なsource／core／runtime lowering、VM／native実行、ownership serializationはMilestone 2作業として残ります。
+
+出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[activity解析](../../crates/mir/src/unit/ownership/loan_activity.rs)、[共通CFG走査](../../crates/mir/src/unit/ownership/flow.rs)、[test](../../crates/mir/tests/ownership_loan_activity.rs)、[source fixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Activity latticeとproof stage表現は実装上の選択であり、この前提作業だけでownership／arena／core outcomeは完了しません。
+
 ### Source formatter
 
 2026-10-17に実装したRFC 0007構文拡張：lossless token／CSTで `&T`／`&mut T`、`shared T`／`weak T`／`arena T`、入れ子の組み込みtype argument、`::<...>` call、place borrow、括弧付きdereference、place assignment、allocatorを渡す字句的arena blockを表現します。Generic末尾の `>` は別tokenのままで、`<` 比較と符号付き整数のbehaviorを維持します。Prefix／type argumentの再帰とrecoveryは既存node／depth／list／work上限に従い、formatterはgeneric delimiterと比較を区別して新tokenの全境界間のcommentを保持します。
