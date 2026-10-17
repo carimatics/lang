@@ -4,6 +4,7 @@
 //! ranges, never invented spans into a different string. Tokens retain trivia
 //! and malformed text as validated ranges into immutable source snapshots.
 
+pub mod format;
 mod lexer;
 mod parser;
 
