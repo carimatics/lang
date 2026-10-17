@@ -10,8 +10,8 @@
 //! type facts do not establish moves, loan/region flow, or executable validity.
 //! `moves` checks definite initialization and local consumption. `loans` checks
 //! lexical whole-owner access and nested reference cells. `regions` checks
-//! intraprocedural arena-brand flow; region-bearing guest calls, ownership
-//! MIR, and executable promotion remain separate requirements.
+//! arena-brand flow and bounded guest-call mutation summaries. Ownership MIR
+//! and executable promotion remain separate requirements.
 
 pub mod core;
 pub mod layout;

@@ -171,6 +171,16 @@ fn arena_region_diagnostics_and_limits_reach_the_source_frontend() {
 }
 
 #[test]
+fn guest_region_store_diagnostics_include_the_call_and_callee_origin() {
+    let text = "fn put(out: &mut core::Option<arena i64>, token: arena i64) -> i64 { (*out) = core::Option::Some(token); return 0; } fn bad(a: &core::Allocator) -> i64 { let mut outside: core::Option<arena i64> = core::Option::None; arena graph(a) { let mut made: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph, 1); match made { core::Result::Ok(token) => { return put(outside, token); }, core::Result::Err(_) => { return 0; }, } } } fn main() -> i64 { return 0; }";
+    let output = run(&Files::new(text), &[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("SRC0022"), "{}", stderr(&output));
+    assert!(stderr(&output).contains("callee mutation"));
+}
+
+#[test]
 fn scripts_print_one_signed_value_and_success_is_not_the_return_exit_code() {
     for (source, expected) in [
         ("fn main() -> i64 { return 42; }", "42\n"),

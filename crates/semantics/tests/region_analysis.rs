@@ -46,21 +46,15 @@ fn analyze(text: &str) -> (SourceMap, regions::Analysis) {
 }
 fn accepted(text: &str) {
     let (_, a) = analyze(text);
-    assert!(
-        a.bodies.is_some(),
-        "{text}: {:?} {:?}",
-        a.violations,
-        a.pending
-    );
+    assert!(a.bodies.is_some(), "{text}: {:?}", a.violations);
 }
 fn rejected(text: &str, kind: V) {
     let (_, a) = analyze(text);
     assert!(a.bodies.is_none(), "{text}");
     assert!(
         a.violations.iter().any(|v| v.kind == kind),
-        "{text}: {:?} {:?}",
-        a.violations,
-        a.pending
+        "{text}: {:?}",
+        a.violations
     );
 }
 fn two_nodes(middle: &str, body: &str) -> String {
@@ -247,15 +241,258 @@ fn unreachable_region_effects_do_not_poison_facts() {
 }
 
 #[test]
-fn guest_region_calls_remain_an_explicit_interprocedural_gate() {
+fn readonly_guest_region_calls_have_complete_region_evidence() {
     let text = "fn inspect(token: arena i64) -> i64 { return 0; } fn f(token: arena i64) -> i64 { return inspect(token); }";
     let (_, a) = analyze(text);
-    assert!(a.bodies.is_none());
+    assert!(a.bodies.is_some());
     assert!(a.diagnostics.is_empty());
-    assert_eq!(a.pending.len(), 1);
-    assert_eq!(a.pending[0].function.0, 1);
-    assert_eq!(a.pending[0].callee.0, 0);
+    assert!(a.bodies.unwrap().functions()[1].mutations().is_empty());
     accepted("fn id(value: i64) -> i64 { return value; } fn f() -> i64 { return id(7); }");
+}
+
+#[test]
+fn guest_stores_substitute_actual_brands_and_keep_the_callee_store_span() {
+    let text = format!(
+        "fn put(out: &mut core::Option<arena i64>, token: arena i64) -> i64 {{ (*out) = core::Option::Some(token); return 0; }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "let mut used: i64 = put(outside, token); return 0;"
+        )
+    );
+    let (sources, a) = analyze(&text);
+    let v = a.violations.iter().find(|v| v.kind == V::Escape).unwrap();
+    assert!(sources.slice(v.span).unwrap().starts_with("put("));
+    assert!(
+        sources
+            .slice(v.related.unwrap())
+            .unwrap()
+            .starts_with("(*out) =")
+    );
+    let d = a
+        .diagnostics
+        .iter()
+        .find(|d| d.primary.span == v.span)
+        .unwrap();
+    assert_eq!(d.secondary.len(), 2);
+    let valid = format!(
+        "fn put(out: &mut core::Option<arena i64>, token: arena i64) -> i64 {{ (*out) = core::Option::Some(token); return 0; }} {}",
+        guest_node(
+            "",
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "let mut used: i64 = put(outside, token); return 0;"
+        )
+    );
+    accepted(&valid);
+}
+
+fn guest_node(before: &str, inside: &str, body: &str) -> String {
+    format!(
+        "fn f(a: &core::Allocator) -> i64 {{ {before} arena graph(a) {{ {inside} let mut made: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph, 1); match made {{ core::Result::Ok(token) => {{ {body} }}, core::Result::Err(_) => {{ return 0; }}, }} }} return 0; }}"
+    )
+}
+
+#[test]
+fn transient_guest_stores_are_checked_even_when_the_final_value_is_empty() {
+    let text = format!(
+        "fn put_clear(out: &mut core::Option<arena i64>, token: arena i64) -> i64 {{ (*out) = core::Option::Some(token); (*out) = core::Option::None; return 0; }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "let mut used: i64 = put_clear(outside, token); return 0;"
+        )
+    );
+    rejected(&text, V::Escape);
+}
+
+#[test]
+fn guest_final_values_preserve_strong_clears() {
+    let text = format!(
+        "fn clear(out: &mut core::Option<arena i64>) -> i64 {{ (*out) = core::Option::None; return 0; }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "let mut local: core::Option<arena i64> = core::Option::Some(token); let mut used: i64 = clear(local); outside = local; return 0;"
+        )
+    );
+    accepted(&text);
+}
+
+#[test]
+fn guest_inline_field_origins_do_not_union_unrelated_regions() {
+    for (field, valid) in [("left", true), ("right", false)] {
+        let text = format!(
+            "struct Pair {{ left: arena i64, right: arena i64 }} fn put(out: &mut core::Option<arena i64>, pair: Pair) -> i64 {{ (*out) = core::Option::Some(pair.{field}); return 0; }} {}",
+            two_nodes(
+                "let mut outside: core::Option<arena i64> = core::Option::None;",
+                "let mut pair: Pair = Pair { left: node1, right: node2 }; let mut used: i64 = put(outside, pair); return 0;"
+            )
+        );
+        let (_, a) = analyze(&text);
+        assert_eq!(a.bodies.is_some(), valid, "{text}: {:?}", a.violations);
+        if let Some(checked) = a.bodies {
+            let f = &checked.functions()[0];
+            assert_eq!(f.mutations().len(), 1);
+            assert_eq!(f.mutations()[0].dereferences, 1);
+            assert!(f.brands().iter().enumerate().any(|(i, _)| {
+                f.caller_origin(regions::BrandId(i)).is_some_and(|o| {
+                    o.projections()
+                        .iter()
+                        .any(|p| p.kind == regions::ProjectionKind::Field(0))
+                })
+            }));
+        }
+    }
+}
+
+#[test]
+fn guest_targets_follow_fields_and_nested_reference_cells() {
+    let field = format!(
+        "struct Holder {{ value: core::Option<arena i64> }} fn put(out: &mut Holder, token: arena i64) -> i64 {{ out.value = core::Option::Some(token); return 0; }} {}",
+        guest_node(
+            "let mut outside: Holder = Holder { value: core::Option::None };",
+            "",
+            "let mut used: i64 = put(outside, token); return 0;"
+        )
+    );
+    rejected(&field, V::Escape);
+    let nested = format!(
+        "fn put(out: &mut &mut core::Option<arena i64>, token: arena i64) -> i64 {{ (*(*out)) = core::Option::Some(token); return 0; }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None; let mut alias: &mut core::Option<arena i64> = &mut outside;",
+            "",
+            "let mut used: i64 = put(alias, token); return 0;"
+        )
+    );
+    rejected(&nested, V::Escape);
+}
+
+#[test]
+fn guest_collection_mutations_use_the_caller_storage_lifetime() {
+    let text = "fn push(values: &mut core::Vec<arena i64>, token: arena i64) -> i64 { let mut result: core::Result<core::Unit, core::AllocError> = core::vec_push::<arena i64>(values, token); return 0; } fn f(a: &core::Allocator, original: core::Vec<arena i64>) -> i64 { let mut values: core::Vec<arena i64> = original; arena graph(a) { let mut made: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph, 1); match made { core::Result::Ok(token) => { return push(values, token); }, core::Result::Err(_) => { return 0; }, } } }";
+    rejected(text, V::Escape);
+}
+
+#[test]
+fn multiple_guest_outputs_read_a_single_pre_call_snapshot() {
+    let text = format!(
+        "fn swap(a: &mut core::Option<arena i64>, b: &mut core::Option<arena i64>) -> i64 {{ let mut old: core::Option<arena i64> = (*a); (*a) = (*b); (*b) = old; return 0; }} {}",
+        two_nodes(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "let mut left: core::Option<arena i64> = core::Option::Some(node1); let mut right: core::Option<arena i64> = core::Option::Some(node2); let mut used: i64 = swap(left, right); outside = right; return 0;"
+        )
+    );
+    accepted(&text);
+}
+
+#[test]
+fn recursive_normal_return_summaries_retain_definite_clears() {
+    let text = format!(
+        "fn clear(out: &mut core::Option<arena i64>, n: i64) -> i64 {{ if n < 1 {{ (*out) = core::Option::None; return 0; }} return clear(out, n + -1); }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "let mut local: core::Option<arena i64> = core::Option::Some(token); let mut used: i64 = clear(local, 3); outside = local; return 0;"
+        )
+    );
+    accepted(&text);
+}
+
+#[test]
+fn mutually_recursive_store_requirements_reach_the_caller() {
+    let text = format!(
+        "fn left(out: &mut core::Option<arena i64>, token: arena i64, n: i64) -> i64 {{ return right(out, token, n); }} fn right(out: &mut core::Option<arena i64>, token: arena i64, n: i64) -> i64 {{ if n < 1 {{ (*out) = core::Option::Some(token); return 0; }} return left(out, token, n + -1); }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "return left(outside, token, 3);"
+        )
+    );
+    rejected(&text, V::Escape);
+}
+
+#[test]
+fn stores_before_nonreturning_recursion_still_escape() {
+    let text = format!(
+        "fn sink(out: &mut core::Option<arena i64>, token: arena i64) -> i64 {{ (*out) = core::Option::Some(token); return sink(out, token); }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "return sink(outside, token);"
+        )
+    );
+    rejected(&text, V::Escape);
+}
+
+#[test]
+fn nonreturning_readonly_recursion_does_not_invent_stores_or_normal_returns() {
+    let text = format!(
+        "fn spin(out: &mut core::Option<arena i64>, token: arena i64) -> i64 {{ return spin(out, token); }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "let mut never: i64 = spin(outside, token); outside = core::Option::Some(token); return 0;"
+        )
+    );
+    let (_, a) = analyze(&text);
+    let checked = a.bodies.unwrap();
+    assert!(checked.functions()[0].mutations().is_empty());
+    let source = checked.loaned().moved().bodies().source();
+    let f = &source.functions[1];
+    for (id, expression) in f.expressions.iter().enumerate() {
+        if matches!(
+            expression.kind,
+            lang_hir::resolved::ExpressionKind::CoreCase {
+                case: lang_hir::core::Case::Some,
+                ..
+            }
+        ) {
+            assert!(
+                checked.functions()[1]
+                    .expression_brands(lang_hir::resolved::ExpressionId(id))
+                    .is_none()
+            );
+        }
+    }
+}
+
+#[test]
+fn transitive_guest_stores_agree_with_the_lexical_scope_oracle() {
+    let writer = "fn put(out: &mut core::Option<arena i64>, token: arena i64) -> i64 { (*out) = core::Option::Some(token); return 0; } fn forward(out: &mut core::Option<arena i64>, token: arena i64) -> i64 { return put(out, token); } ";
+    let mut successful = 0;
+    for count in 1..=3 {
+        for sink in 0..=count {
+            for origin in 0..count {
+                let text = format!(
+                    "{writer}{}",
+                    lexical_program(
+                        count,
+                        sink,
+                        &format!("return forward(outside, token{origin});")
+                    )
+                );
+                let (_, a) = analyze(&text);
+                let valid = sink > origin;
+                assert_eq!(a.bodies.is_some(), valid, "{text}: {:?}", a.violations);
+                successful += usize::from(valid);
+            }
+        }
+    }
+    assert_eq!(successful, 10);
+}
+
+#[test]
+fn guest_sum_origins_preserve_payload_and_unselected_case_precision() {
+    for value in ["Choice::A(node1)", "Choice::B(node2)"] {
+        let text = format!(
+            "enum Choice {{ A(arena i64), B(arena i64) }} fn put(out: &mut core::Option<arena i64>, value: Choice) -> i64 {{ match value {{ Choice::A(token) => {{ (*out) = core::Option::Some(token); return 0; }}, Choice::B(_) => {{ return 0; }}, }} }} {}",
+            two_nodes(
+                "let mut outside: core::Option<arena i64> = core::Option::None;",
+                &format!("let mut used: i64 = put(outside, {value}); return 0;")
+            )
+        );
+        accepted(&text);
+    }
 }
 
 #[test]
@@ -326,28 +563,11 @@ fn generated_lexical_stores_agree_with_an_independent_scope_oracle() {
     for count in 1..=3 {
         for sink in 0..=count {
             for origin in 0..count {
-                let mut text = String::from("fn f(a: &core::Allocator) -> i64 { ");
-                if sink == 0 {
-                    text.push_str(
-                        "let mut outside: core::Option<arena i64> = core::Option::None; ",
-                    );
-                }
-                for level in 0..count {
-                    text.push_str(&format!("arena graph{level}(a) {{ "));
-                    if sink == level + 1 {
-                        text.push_str(
-                            "let mut outside: core::Option<arena i64> = core::Option::None; ",
-                        );
-                    }
-                    text.push_str(&format!("let mut made{level}: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph{level}, 1); match made{level} {{ core::Result::Ok(token{level}) => {{ "));
-                }
-                text.push_str(&format!(
-                    "outside = core::Option::Some(token{origin}); return 0; "
-                ));
-                for _ in 0..count {
-                    text.push_str("}, core::Result::Err(_) => { return 0; }, } } ");
-                }
-                text.push('}');
+                let text = lexical_program(
+                    count,
+                    sink,
+                    &format!("outside = core::Option::Some(token{origin}); return 0;"),
+                );
                 let (_, a) = analyze(&text);
                 let valid = sink > origin;
                 assert_eq!(a.bodies.is_some(), valid, "{text}: {:?}", a.violations);
@@ -356,4 +576,72 @@ fn generated_lexical_stores_agree_with_an_independent_scope_oracle() {
         }
     }
     assert_eq!(successful, 10);
+}
+
+fn lexical_program(count: usize, sink: usize, body: &str) -> String {
+    let mut text = String::from("fn f(a: &core::Allocator) -> i64 { ");
+    if sink == 0 {
+        text.push_str("let mut outside: core::Option<arena i64> = core::Option::None; ");
+    }
+    for level in 0..count {
+        text.push_str(&format!("arena graph{level}(a) {{ "));
+        if sink == level + 1 {
+            text.push_str("let mut outside: core::Option<arena i64> = core::Option::None; ");
+        }
+        text.push_str(&format!("let mut made{level}: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph{level}, 1); match made{level} {{ core::Result::Ok(token{level}) => {{ "));
+    }
+    text.push_str(body);
+    for _ in 0..count {
+        text.push_str("}, core::Result::Err(_) => { return 0; }, } } ");
+    }
+    text.push('}');
+    text
+}
+
+#[test]
+fn recursive_summary_replay_and_exact_resource_budgets_preserve_source() {
+    let text = format!(
+        "fn clear(out: &mut core::Option<arena i64>, n: i64) -> i64 {{ if n < 1 {{ (*out) = core::Option::None; return 0; }} return clear(out, n + -1); }} {}",
+        guest_node(
+            "let mut outside: core::Option<arena i64> = core::Option::None;",
+            "",
+            "let mut local: core::Option<arena i64> = core::Option::Some(token); let mut used: i64 = clear(local, 3); outside = local; return 0;"
+        )
+    );
+    let (sources, loaned) = prepare(&text);
+    let original = loaned.moved().bodies().source().clone();
+    let baseline = regions::analyze(loaned.clone(), &sources, Default::default()).unwrap();
+    assert_eq!(
+        baseline,
+        regions::analyze(loaned.clone(), &sources, Default::default()).unwrap()
+    );
+    let checked = baseline.bodies.unwrap();
+    assert_eq!(checked.loaned().moved().bodies().source(), &original);
+    let exact = Limits {
+        work: checked.work_used(),
+        allocations: checked.requested_bytes(),
+        ..Limits::default()
+    };
+    assert!(
+        regions::analyze(loaned.clone(), &sources, exact)
+            .unwrap()
+            .bodies
+            .is_some()
+    );
+    for limits in [
+        Limits {
+            work: exact.work - 1,
+            ..exact
+        },
+        Limits {
+            allocations: exact.allocations - 1,
+            ..exact
+        },
+    ] {
+        let Err(regions::Error::Limit(d)) = regions::analyze(loaned.clone(), &sources, limits)
+        else {
+            panic!("{limits:?}");
+        };
+        d.validate(&sources).unwrap();
+    }
 }

@@ -1,6 +1,8 @@
-//! Intraprocedural arena-brand dataflow over loan-checked source bodies.
-//! Core storage/authority is modeled explicitly. Region-bearing guest calls
-//! remain a pending interprocedural gate; no result grants execution authority.
+//! Arena-brand dataflow over loan-checked source bodies. Guest-call final
+//! values and transient store requirements use separate bounded fixed points.
+//! No result grants execution authority.
+
+mod summary;
 
 use crate::{
     core,
@@ -81,17 +83,31 @@ pub struct Violation {
     pub kind: ViolationKind,
     pub brand: Brand,
     pub span: Span,
+    pub related: Option<Span>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Pending {
-    pub function: r::FunctionId,
-    pub callee: r::FunctionId,
+pub struct Mutation {
+    pub parameter: r::LocalId,
+    pub dereferences: usize,
     pub span: Span,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallerOrigin {
+    pub parameter: r::LocalId,
+    pub dereferences: usize,
+    path: Vec<Projection>,
+}
+impl CallerOrigin {
+    pub fn projections(&self) -> &[Projection] {
+        &self.path
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionRegions {
     brands: Vec<Brand>,
     expressions: Vec<Option<Vec<BrandId>>>,
+    origins: Vec<Option<CallerOrigin>>,
+    mutations: Vec<Mutation>,
 }
 impl FunctionRegions {
     pub fn brands(&self) -> &[Brand] {
@@ -101,6 +117,12 @@ impl FunctionRegions {
     /// Unreachable expressions have no facts. IDs are local to this function.
     pub fn expression_brands(&self, id: r::ExpressionId) -> Option<&[BrandId]> {
         self.expressions.get(id.0).and_then(|v| v.as_deref())
+    }
+    pub fn caller_origin(&self, id: BrandId) -> Option<&CallerOrigin> {
+        self.origins.get(id.0).and_then(Option::as_ref)
+    }
+    pub fn mutations(&self) -> &[Mutation] {
+        &self.mutations
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -129,7 +151,6 @@ pub struct Analysis {
     pub bodies: Option<RegionCheckedBodies>,
     pub diagnostics: Vec<Diagnostic>,
     pub violations: Vec<Violation>,
-    pub pending: Vec<Pending>,
 }
 
 struct Budget {
@@ -231,10 +252,14 @@ struct Context {
     budget: Budget,
     diagnostics: Vec<Diagnostic>,
     violations: Vec<Violation>,
-    pending: Vec<Pending>,
+    reporting: bool,
 }
 impl Context {
     fn report(&mut self, v: Violation) -> Result<(), Error> {
+        self.budget.charge(v.span, 1)?;
+        if !self.reporting {
+            return Ok(());
+        }
         // Repeated fixed-point visits must not duplicate the same violation.
         self.budget.charge(v.span, self.violations.len())?;
         if self.violations.contains(&v) {
@@ -267,6 +292,14 @@ impl Context {
                 .text(v.brand.span, "arena or caller provenance introduced here")?,
         );
         self.budget.push(v.span, &mut d.secondary, related)?;
+        if let Some(span) = v.related {
+            let related = Label::new(
+                span,
+                self.budget
+                    .text(span, "callee mutation contributing to this store")?,
+            );
+            self.budget.push(v.span, &mut d.secondary, related)?;
+        }
         self.budget.push(v.span, &mut self.diagnostics, d)?;
         self.budget.push(v.span, &mut self.violations, v)
     }
@@ -276,10 +309,11 @@ impl Context {
 struct ValueId(usize);
 const EMPTY: ValueId = ValueId(0);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Tag {
+pub enum SumCase {
     Core(core::Case),
     User(r::DefinitionId, usize),
 }
+type Tag = SumCase;
 #[derive(Debug, Eq, PartialEq)]
 enum Value {
     Empty,
@@ -301,16 +335,18 @@ impl Value {
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum StepKind {
+pub enum ProjectionKind {
     Field(usize),
     Payload(Tag, usize),
     Element,
 }
+type StepKind = ProjectionKind;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Step {
-    kind: StepKind,
-    ty: r::Type,
+pub struct Projection {
+    pub kind: ProjectionKind,
+    pub ty: r::Type,
 }
+type Step = Projection;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Path {
     parent: Option<usize>,
@@ -350,16 +386,13 @@ pub fn analyze(
         },
         diagnostics: Vec::new(),
         violations: Vec::new(),
-        pending: Vec::new(),
+        reporting: false,
     };
     if bodies.source().functions.len() > limits.functions {
         return Err(context.budget.limit(root, "region function limit exceeded"));
     }
-    let mut functions = context
-        .budget
-        .vector(root, bodies.source().functions.len())?;
     let mut total_locals = 0usize;
-    for (index, function) in bodies.source().functions.iter().enumerate() {
+    for function in &bodies.source().functions {
         total_locals = total_locals
             .checked_add(function.locals.len())
             .filter(|n| *n <= limits.locals)
@@ -368,67 +401,55 @@ pub fn analyze(
                     .budget
                     .limit(function.span, "region local limit exceeded")
             })?;
-        let facts = &bodies.functions()[index];
-        let mut pending = false;
-        for (id, expression) in function.expressions.iter().enumerate() {
-            context.budget.charge(expression.span, 1)?;
-            if let r::ExpressionKind::Call {
-                callee: r::Callable::Guest(callee),
-                ..
-            } = expression.kind
-            {
-                for parameter in &facts.call(r::ExpressionId(id)).unwrap().parameters {
-                    context.budget.charge(expression.span, 1)?;
-                    if bodies.properties(*parameter).unwrap().contains_arena {
-                        context.budget.push(
-                            expression.span,
-                            &mut context.pending,
-                            Pending {
-                                function: r::FunctionId(index),
-                                callee,
-                                span: expression.span,
-                            },
-                        )?;
-                        pending = true;
-                        break;
-                    }
-                }
+    }
+    let count = bodies.source().functions.len();
+    let mut summaries = context.budget.vector(root, count)?;
+    summaries.resize_with(count, summary::Summary::bottom);
+    // Normal-return outputs first, then all transient stores. Mixing these
+    // domains would lose stores followed by a clear or invent recursive ones.
+    for requirements in [false, true] {
+        loop {
+            context.budget.charge(root, 1)?;
+            let mut next = context.budget.vector(root, count)?;
+            let mut stable = true;
+            for index in 0..count {
+                let function = &bodies.source().functions[index];
+                let mut checker =
+                    new_checker(&mut context, bodies, index, &summaries, requirements);
+                checker.initialize()?;
+                checker.block(function.body, 0)?;
+                let summary = checker.summarize()?;
+                checker.context.budget.charge(
+                    function.span,
+                    summary.cost().saturating_add(summaries[index].cost()),
+                )?;
+                stable &= summary == summaries[index];
+                next.push(summary);
+            }
+            summaries = next;
+            if stable {
+                break;
             }
         }
-        if pending {
-            functions.push(FunctionRegions {
-                brands: Vec::new(),
-                expressions: Vec::new(),
-            });
-            continue;
-        }
-        let mut checker = Checker {
-            context: &mut context,
-            bodies,
-            function,
-            facts,
-            id: r::FunctionId(index),
-            values: Vec::new(),
-            paths: Vec::new(),
-            places: Vec::new(),
-            roots: Vec::new(),
-            state: Vec::new(),
-            brands: Vec::new(),
-            expressions: Vec::new(),
-            temporaries: Vec::new(),
-            matches: Vec::new(),
-            scopes: Vec::new(),
-        };
+    }
+    context.reporting = true;
+    let mut functions = context.budget.vector(root, count)?;
+    for index in 0..count {
+        let function = &bodies.source().functions[index];
+        let mut checker = new_checker(&mut context, bodies, index, &summaries, true);
         checker.initialize()?;
         checker.block(function.body, 0)?;
+        let mutations = checker.mutation_facts()?;
         functions.push(FunctionRegions {
             brands: checker.brands,
             expressions: checker.expressions,
+            origins: checker.origins,
+            mutations,
         });
     }
     let work = context.budget.work;
     let allocations = context.budget.allocations;
-    let successful = context.violations.is_empty() && context.pending.is_empty();
+    let successful = context.violations.is_empty();
     Ok(Analysis {
         bodies: successful.then_some(RegionCheckedBodies {
             loaned,
@@ -438,8 +459,41 @@ pub fn analyze(
         }),
         diagnostics: context.diagnostics,
         violations: context.violations,
-        pending: context.pending,
     })
+}
+
+fn new_checker<'a, 'b>(
+    context: &'b mut Context,
+    bodies: &'a BodyTypes,
+    index: usize,
+    summaries: &'b [summary::Summary],
+    requirements: bool,
+) -> Checker<'a, 'b> {
+    Checker {
+        context,
+        bodies,
+        function: &bodies.source().functions[index],
+        facts: &bodies.functions()[index],
+        id: r::FunctionId(index),
+        values: Vec::new(),
+        paths: Vec::new(),
+        places: Vec::new(),
+        roots: Vec::new(),
+        state: Vec::new(),
+        brands: Vec::new(),
+        origins: Vec::new(),
+        expressions: Vec::new(),
+        temporaries: Vec::new(),
+        matches: Vec::new(),
+        scopes: Vec::new(),
+        summaries,
+        requirements,
+        parameter_roots: Vec::new(),
+        outputs: Vec::new(),
+        has_exit: false,
+        diverges: false,
+        call_origin: None,
+    }
 }
 
 struct Checker<'a, 'b> {
@@ -454,11 +508,19 @@ struct Checker<'a, 'b> {
     roots: Vec<Root>,
     state: Vec<ValueId>,
     brands: Vec<Brand>,
+    origins: Vec<Option<CallerOrigin>>,
     expressions: Vec<Option<Vec<BrandId>>>,
     /// Stable expression scratch slots, reused on fixed-point visits.
     temporaries: Vec<Option<usize>>,
     matches: Vec<Option<usize>>,
     scopes: Vec<Scope>,
+    summaries: &'b [summary::Summary],
+    requirements: bool,
+    parameter_roots: Vec<summary::ParameterRoot>,
+    outputs: Vec<ValueId>,
+    has_exit: bool,
+    diverges: bool,
+    call_origin: Option<Span>,
 }
 impl Checker<'_, '_> {
     fn constructor(&self, ty: r::Type) -> Option<r::TypeConstructor> {
@@ -524,7 +586,7 @@ impl Checker<'_, '_> {
     fn brand(&mut self, kind: BrandKind, scope: usize, span: Span) -> Result<BrandId, Error> {
         for (index, brand) in self.brands.iter().enumerate() {
             self.context.budget.charge(span, 1)?;
-            if brand.kind == kind {
+            if brand.kind == kind && self.origins[index].is_none() {
                 return Ok(BrandId(index));
             }
         }
@@ -532,6 +594,7 @@ impl Checker<'_, '_> {
         self.context
             .budget
             .push(span, &mut self.brands, Brand { kind, span, scope })?;
+        self.context.budget.push(span, &mut self.origins, None)?;
         Ok(id)
     }
     fn singleton_brand(&mut self, brand: BrandId, span: Span) -> Result<ValueId, Error> {
@@ -635,32 +698,6 @@ impl Checker<'_, '_> {
         self.context.budget.charge(span, out.len())?;
         out.reverse();
         Ok(out)
-    }
-    fn parameter(
-        &mut self,
-        local: r::LocalId,
-        ty: r::Type,
-        depth: usize,
-    ) -> Result<ValueId, Error> {
-        let span = self.function.locals[local.0].name.span;
-        self.context.budget.enter(span, depth)?;
-        if let Some(target) = self.loan(ty) {
-            let value = self.parameter(local, target, depth + 1)?;
-            let root = self.root(target, 0, value, span)?;
-            self.root_reference(root, span)
-        } else if self.branded(ty) {
-            let brand = self.brand(
-                BrandKind::Caller {
-                    function: self.id,
-                    parameter: local,
-                },
-                0,
-                span,
-            )?;
-            self.singleton_brand(brand, span)
-        } else {
-            Ok(EMPTY)
-        }
     }
     fn initialize(&mut self) -> Result<(), Error> {
         let span = self.function.span;
@@ -957,6 +994,7 @@ impl Checker<'_, '_> {
     ) -> Result<(), Error> {
         let p = self.places[place];
         self.check_store(value, self.roots[p.root].scope, span, depth + 1)?;
+        self.record_store(p.root, value, span)?;
         let path = self.path(p.path, span)?;
         let old = self.get(p.root);
         let new = self.update(old, self.roots[p.root].ty, &path, value, span, depth + 1)?;
@@ -982,6 +1020,7 @@ impl Checker<'_, '_> {
                     kind: ViolationKind::Escape,
                     brand,
                     span,
+                    related: self.call_origin,
                 })?;
             }
         }
@@ -1001,6 +1040,7 @@ impl Checker<'_, '_> {
                     kind: ViolationKind::CrossArena,
                     brand: self.brands[id.0],
                     span,
+                    related: None,
                 })?;
             }
         }
@@ -1014,6 +1054,9 @@ impl Checker<'_, '_> {
         }
     }
     fn locations(&mut self, id: r::ExpressionId, depth: usize) -> Result<Vec<usize>, Error> {
+        if self.diverges {
+            return Ok(Vec::new());
+        }
         let expression = &self.function.expressions[id.0];
         let span = expression.span;
         self.context.budget.enter(span, depth)?;
@@ -1105,6 +1148,9 @@ impl Checker<'_, '_> {
         }
     }
     fn eval(&mut self, id: r::ExpressionId, depth: usize) -> Result<ValueId, Error> {
+        if self.diverges {
+            return Ok(EMPTY);
+        }
         let expression = &self.function.expressions[id.0];
         let span = expression.span;
         self.context.budget.enter(span, depth)?;
@@ -1144,8 +1190,12 @@ impl Checker<'_, '_> {
                         depth + 1,
                     )?);
                 }
-                if let r::Callable::Case { definition, index } = callee {
+                if self.diverges {
+                    EMPTY
+                } else if let r::Callable::Case { definition, index } = callee {
                     self.case(Tag::User(*definition, *index), values, span)?
+                } else if let r::Callable::Guest(callee) = callee {
+                    self.apply_call(*callee, &values, span, depth + 1)?
                 } else {
                     EMPTY
                 }
@@ -1163,7 +1213,11 @@ impl Checker<'_, '_> {
                         depth + 1,
                     )?);
                 }
-                self.core_call(id, *operation, arguments, &values, depth + 1)?
+                if self.diverges {
+                    EMPTY
+                } else {
+                    self.core_call(id, *operation, arguments, &values, depth + 1)?
+                }
             }
             r::ExpressionKind::Add(a, b) | r::ExpressionKind::LessThan(a, b) => {
                 self.eval(*a, depth + 1)?;
@@ -1172,6 +1226,9 @@ impl Checker<'_, '_> {
             }
             _ => EMPTY,
         };
+        if self.diverges {
+            return Ok(EMPTY);
+        }
         let brands = self.collect(value, span, depth + 1)?;
         if let Some(previous) = &mut self.expressions[id.0] {
             self.context.budget.union(span, previous, &brands)?;
@@ -1315,6 +1372,7 @@ impl Checker<'_, '_> {
                         kind: ViolationKind::SharedStorage,
                         brand: self.brands[brand.0],
                         span,
+                        related: None,
                     })?;
                 }
                 Ok(EMPTY)
@@ -1397,6 +1455,7 @@ impl Checker<'_, '_> {
         Ok(values)
     }
     fn block(&mut self, id: r::BlockId, depth: usize) -> Result<bool, Error> {
+        self.diverges = false;
         let block = &self.function.blocks[id.0];
         self.context.budget.enter(block.span, depth)?;
         self.begin(block.span)?;
@@ -1416,16 +1475,25 @@ impl Checker<'_, '_> {
         match &statement.kind {
             r::StatementKind::LetMut { local, initializer } => {
                 let value = self.eval(*initializer, depth + 1)?;
+                if self.diverges {
+                    return Ok(false);
+                }
                 self.declare(*local, value, span)?;
             }
             r::StatementKind::Assign { local, value } => {
                 let value = self.eval(*value, depth + 1)?;
+                if self.diverges {
+                    return Ok(false);
+                }
                 self.check_store(value, self.roots[local.0].scope, span, depth + 1)?;
                 self.put(local.0, value, span)?;
             }
             r::StatementKind::PlaceAssign { place, value } => {
                 let places = self.locations(r::ExpressionId(place.0), depth + 1)?;
                 let value = self.eval(*value, depth + 1)?;
+                if self.diverges {
+                    return Ok(false);
+                }
                 let weak = places.len() != 1;
                 for place in places {
                     self.store(place, value, weak, span, depth + 1)?;
@@ -1433,14 +1501,19 @@ impl Checker<'_, '_> {
             }
             r::StatementKind::Return(value) => {
                 let value = self.eval(*value, depth + 1)?;
+                if self.diverges {
+                    return Ok(false);
+                }
                 for brand in self.collect(value, span, depth + 1)? {
                     self.context.report(Violation {
                         function: self.id,
                         kind: ViolationKind::ReturnEscape,
                         brand: self.brands[brand.0],
                         span,
+                        related: None,
                     })?;
                 }
+                self.capture_outputs(span)?;
                 return Ok(false);
             }
             r::StatementKind::Arena {
@@ -1449,6 +1522,9 @@ impl Checker<'_, '_> {
                 body,
             } => {
                 self.eval(*allocator, depth + 1)?;
+                if self.diverges {
+                    return Ok(false);
+                }
                 self.begin(span)?;
                 let brand = self.brand(
                     BrandKind::Local(r::ArenaOwnerId {
@@ -1470,8 +1546,12 @@ impl Checker<'_, '_> {
                 else_block,
             } => {
                 self.eval(*condition, depth + 1)?;
+                if self.diverges {
+                    return Ok(false);
+                }
                 let base = std::mem::take(&mut self.state);
                 self.state = self.context.budget.copy(span, &base)?;
+                self.diverges = false;
                 let yes = self.block(*then_block, depth + 1)?;
                 let yes_state = std::mem::take(&mut self.state);
                 self.state = self.context.budget.copy(span, &base)?;
@@ -1487,6 +1567,7 @@ impl Checker<'_, '_> {
                     (false, true) => no_state,
                     (false, false) => base,
                 };
+                self.diverges = false;
                 return Ok(yes || no);
             }
             r::StatementKind::While { condition, body } => {
@@ -1495,6 +1576,9 @@ impl Checker<'_, '_> {
                     self.context.budget.charge(span, 1)?;
                     self.state = self.context.budget.copy(span, &header)?;
                     self.eval(*condition, depth + 1)?;
+                    if self.diverges {
+                        return Ok(false);
+                    }
                     let exit = self.context.budget.copy(span, &self.state)?;
                     if !self.block(*body, depth + 1)? {
                         self.state = exit;
@@ -1514,10 +1598,15 @@ impl Checker<'_, '_> {
                     }
                     header = next;
                 }
+                self.diverges = false;
             }
             r::StatementKind::Match { scrutinee, arms } => {
                 self.begin(span)?;
                 let value = self.eval(*scrutinee, depth + 1)?;
+                if self.diverges {
+                    self.end(span)?;
+                    return Ok(false);
+                }
                 let ty = self.facts.expressions()[scrutinee.0];
                 // Non-Copy patterns only read their scrutinee. A snapshot
                 // retains field precision; provisional loan payloads retain
@@ -1555,6 +1644,7 @@ impl Checker<'_, '_> {
                 let reaches = joined.is_some();
                 self.state = joined.unwrap_or(base);
                 self.end(span)?;
+                self.diverges = false;
                 return Ok(reaches);
             }
         }

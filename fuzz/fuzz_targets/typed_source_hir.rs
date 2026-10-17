@@ -402,9 +402,6 @@ fuzz_target!(|bytes: &[u8]| {
                                                 for d in analysis.diagnostics {
                                                     d.validate(&sources).unwrap();
                                                 }
-                                                for pending in analysis.pending {
-                                                    sources.slice(pending.span).unwrap();
-                                                }
                                                 if let Some(checked) = analysis.bodies {
                                                     assert_eq!(
                                                         checked.loaned().moved().bodies().source(),
@@ -415,8 +412,40 @@ fuzz_target!(|bytes: &[u8]| {
                                                         .iter()
                                                         .zip(checked.functions())
                                                     {
-                                                        for brand in facts.brands() {
+                                                        for (id, brand) in
+                                                            facts.brands().iter().enumerate()
+                                                        {
                                                             sources.slice(brand.span).unwrap();
+                                                            if let Some(origin) = facts
+                                                                .caller_origin(regions::BrandId(id))
+                                                            {
+                                                                assert!(
+                                                                    origin.parameter.0
+                                                                        < function.locals.len()
+                                                                );
+                                                                for projection in
+                                                                    origin.projections()
+                                                                {
+                                                                    assert!(
+                                                                        checked
+                                                                            .loaned()
+                                                                            .moved()
+                                                                            .bodies()
+                                                                            .properties(
+                                                                                projection.ty
+                                                                            )
+                                                                            .is_some()
+                                                                    );
+                                                                }
+                                                            }
+                                                        }
+                                                        for mutation in facts.mutations() {
+                                                            assert!(
+                                                                mutation.parameter.0
+                                                                    < function.locals.len()
+                                                            );
+                                                            assert!(mutation.dereferences > 0);
+                                                            sources.slice(mutation.span).unwrap();
                                                         }
                                                         for id in 0..function.expressions.len() {
                                                             if let Some(brands) = facts
