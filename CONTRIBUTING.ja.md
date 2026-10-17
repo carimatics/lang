@@ -47,7 +47,7 @@ RFCでは、承認済み要件と仮説を区別し、代替案、コスト、�
 
 ## テスト戦略
 
-`cargo test --test repository_consistency` はroadmap集計、日英task状態、RFC status／更新日を検証します。計画変更後に実行してください。両tier-1 CI workflowで全baselineを実行し、macOS workflowでは別workspaceのdecoder fuzz targetもcompileします。Fuzz targetのcompileはfuzz campaignではなく、長時間fuzzingは明示的な検証作業として残ります。
+`cargo test --test repository_consistency` はroadmap集計、日英task状態、RFC status／更新日を検証します。計画変更後に実行してください。両tier-1 CI workflowで全baselineと別fuzz workspaceのformat確認を実行し、macOS workflowでは全fuzz binaryをwarning禁止でlintします。Fuzz targetまたは共有dependency変更後は `cargo fmt --manifest-path fuzz/Cargo.toml --check` と `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` を実行してください。Fuzz targetのcompileはfuzz campaignではなく、長時間fuzzingは明示的な検証作業として残ります。
 
 Tier-1 AOT integrationは `tests/fixtures/aot_harness.c` を共有します。最適化したC callbackはunsigned演算とbit保持変換でRustのwrapping behaviorに合わせ、通常入力に加えて `i64` 境界値、allocation sum、overflowするFibonacciを検証します。
 

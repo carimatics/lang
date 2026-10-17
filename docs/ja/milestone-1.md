@@ -145,6 +145,8 @@ Source string／float／array、generic、method、closure、再帰data type、�
 
 ## Evidenceと情報源の日付
 
+その後の[repository全体review](review-2026-10-17.md)に、権限／handle／linkerの追加回帰testと最新の検証結果を記録しています。RFC 0006のsource semanticsとportable wire byteは変更しません。
+
 2026-10-17の完了監査は **497 testの成功**、`cargo fmt --all --check`、警告をエラーとするClippy、workspace documentation生成を記録します。Parser／formatter、typed-HIR、portable-decoder／VM targetにはinstrumentationなしの10,000-run smoke evidenceがありますが、coverage-guided／sanitizer検証は主張しません。[README](../../README.ja.md#開発)のcommandで全baselineを再現できます。
 
 | 情報源 | 公開／更新日または確認日 |

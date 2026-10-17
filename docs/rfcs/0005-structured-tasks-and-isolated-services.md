@@ -206,6 +206,8 @@ Unscoped futures simplify spawning but permit children to outlive borrowed/owned
 
 ## Implementation plan
 
+The strict isolation/cancellation policy is accepted. Source async syntax, scheduler/channel/backpressure rules, and the production component cancellation/embedding profile still require the explicit Milestone 3 decisions before dependent implementation. Existing task/service state models do not implement a production scheduler or full task-tree cleanup.
+
 1. Add source/HIR task scopes, suspension points, moves into messages, service-owner operations, and compile-pass/fail fixtures.
 2. Add typed MIR operations and validation for no live borrow at suspension, scoped child handles, `Send` derivation, and isolation.
 3. Generalize the existing task/service models into one deterministic reference interpreter with limits and stable diagnostics.

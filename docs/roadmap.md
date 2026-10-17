@@ -28,19 +28,21 @@ The second typed-resource slice is now complete at its stated prototype boundary
 
 The representative-application task is also complete at its prototype boundary. A host-orchestrated fixture composes two-provider negotiation, deterministic lock generation, exact-lock replay, instance publication, scalar and typed-resource VM/JIT calls, and guest-trap cleanup. Its clean schema-20 macOS baseline records a 67.592 us median, 68.459 us p95, and 1.109% RSD across 31 samples of 1,000 operations. The clean Windows baseline records a 236.804 us median, 266.366 us p95, and 6.201% RSD for the same row; production generated dispatch stubs remain separate work.
 
+The 2026-10-17 repository review exposed missing entry gates for source ownership/core-library syntax and the production component profile, and separated native compilation of the existing copy-value profile from ownership-aware AOT. It adds 21 pending points to Milestone 2 and 5 to Milestone 3; completed work remains 298 points. The lower overall percentage reflects newly explicit work. Source/core-library foundations must precede representative workloads and self-hosting; C embedding stabilization follows conformance and resource enforcement.
+
 Progress snapshot verified against this repository state on 2026-10-17 (JST):
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
-| 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
+| 2 — ownership and native AOT | 0 pt | 113 pt | 0.0% |
+| 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **298 pt** | **738 pt** | **40.4%** |
+| **Overall** | **298 pt** | **764 pt** | **39.0%** |
 
 ## Milestone 0: design baseline
 
@@ -216,33 +218,40 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 0 / 92 pt (0.0%).**
+**Progress: 0 / 113 pt (0.0%).**
 
+Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFC 0004's state models do not specify source grammar, production allocation, or an ABI. Complete the corresponding decision gate before each dependent implementation; re-estimate the core-library slice after its RFC fixes the minimal requirements.
+
+- [ ] **P0 — Accept the source ownership/borrow/arena profile, Copy classification, and minimal core-library type surface (including text/bytes, collection use, and any required generic syntax).** — 5 pt
+- [ ] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
 - [ ] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
-- [ ] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
-- [ ] **P0 — Elaborate deterministic drops and define destruction behavior on return, error, and panic paths.** — 8 pt
+- [ ] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
+- [ ] **P0 — Implement the accepted text/byte and core-library source primitives needed by representative CLI programs and the bootstrap compiler.** — 8 pt
+- [ ] **P0 — Implement allocator-aware standard containers against the accepted source and allocator profiles.** — 8 pt
 - [ ] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
 - [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
-- [ ] **P0 — Complete source-program object generation for macOS AArch64 and Windows x86-64.** — 8 pt
+- [ ] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
+- [ ] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
 - [ ] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
 - [ ] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
 - [ ] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
-- [ ] **P1 — Implement allocator-aware standard containers.** — 8 pt
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
 
 ## Milestone 3: concurrency and embedding
 
-**Progress: 0 / 91 pt (0.0%).**
+**Progress: 0 / 96 pt (0.0%).**
+
+Entry: Milestone 2 supplies ownership and cleanup semantics on both execution paths. RFCs 0003 and 0005 remain the accepted semantic baseline; their prototypes do not complete production IDL, scheduler, or sandbox work. The source VM already bounds frames and live cells; this milestone extends accounting across tasks, native code, and host callbacks.
 
 - [ ] **P0 — Accept remaining scheduler/channel/backpressure/error contracts, send/share derivation, and source async syntax without relaxing RFC 0005.** — 5 pt
+- [ ] **P0 — Accept the production component IDL/wire profile and embedding ABI, including compatibility, typed failures, callback reentrancy, and cancellation mapping to RFC 0003.** — 5 pt
 - [ ] **P0 — Implement structured task lifetimes and deterministic cancellation cleanup.** — 8 pt
 - [ ] **P0 — Implement channels with bounded backpressure and cancellation behavior.** — 5 pt
 - [ ] **P0 — Enforce actor isolation and accepted data-race capability rules.** — 8 pt
-- [ ] **P0 — Stabilize the C embedding API and generated bindings.** — 8 pt
 - [ ] **P0 — Implement the versioned component IDL and bounded serialization.** — 8 pt
 - [ ] **P0 — Implement canonical owned/borrowed resource adapters.** — 8 pt
 - [ ] **P0 — Enforce capability-gated component imports.** — 5 pt
@@ -251,6 +260,7 @@ Exit: representative command-line programs match VM semantics and performance is
 - [ ] **P0 — Enforce heap/allocation limits, including host-callback accounting.** — 5 pt
 - [ ] **P0 — Enforce recursion-depth and live-task limits.** — 5 pt
 - [ ] **P0 — Enforce cooperative interruption across VM, JIT, AOT, and callback boundaries.** — 8 pt
+- [ ] **P0 — Stabilize the C embedding API and generated bindings after cross-mode ownership, failure, capability, and resource-limit conformance passes on both tier-1 platforms.** — 8 pt
 - [ ] **P1 — Ship trusted-native and verified-script plugin examples.** — 5 pt
 
 Exit: a native host can load a user script, expose a typed API, call the script, receive callbacks, and enforce capabilities without IPC.
@@ -259,9 +269,9 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 **Progress: 0 / 63 pt (0.0%).**
 
-- [ ] **P0 — Implement `lang` build, run, and test orchestration.** — 5 pt
-- [ ] **P0 — Define package/workspace manifests and target conditions.** — 5 pt
+- [ ] **P0 — Accept versioned package/workspace manifests, target conditions, lockfile compatibility, and the machine-readable CLI diagnostic contract.** — 5 pt
 - [ ] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt
+- [ ] **P0 — Extend the existing `lang run` frontend into package-aware build/run/test orchestration with the accepted structured diagnostic output.** — 5 pt
 - [ ] **P0 — Integrate package, fmt, lint, and doc commands into the CLI.** — 5 pt
 - [ ] **P0 — Implement LSP navigation, completion, and semantic tokens.** — 8 pt
 - [ ] **P0 — Implement safe rename and code actions.** — 8 pt
@@ -292,6 +302,8 @@ Exit: the language can evolve without silently breaking source, package, bytecod
 
 **Progress: 0 / 74 pt (0.0%).**
 
+Entry: the Rust compiler must already compile the required text/byte, collection, allocation, module, and host-I/O primitives on both tier-1 platforms. Freezing the subset is an evidence-based compatibility decision, not permission to invent missing stage-0 semantics during the port.
+
 - [ ] **P0 — Define and freeze the self-hosting subset.** — 5 pt
 - [ ] **P0 — Implement lossless syntax, parsing, and diagnostics in the language.** — 8 pt
 - [ ] **P0 — Implement resolution, type checking, and typed HIR in the language.** — 8 pt
@@ -309,6 +321,8 @@ Exit: stage 2 passes the same conformance suite as stage 0 and can build the sup
 ## Milestone 7: additional frontends
 
 **Progress: 0 / 55 pt (0.0%).**
+
+Entry: the first frontend, shared ABI, and conformance suite must be stable. An additional frontend requires an accepted RFC and cannot be used to bypass unresolved semantics in the first language.
 
 - [ ] **P0 — Demonstrate that a distinct frontend provides requirements that libraries, profiles, or syntax sugar cannot serve.** — 5 pt
 - [ ] **P0 — Specify the frontend semantics and its shared-MIR/component boundary.** — 5 pt

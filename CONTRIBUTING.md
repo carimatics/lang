@@ -47,7 +47,7 @@ An RFC must distinguish accepted requirements from hypotheses and must include a
 
 ## Testing strategy
 
-`cargo test --test repository_consistency` checks roadmap totals, mirrored task states, and RFC status/update dates. Run it after planning changes. Both tier-1 CI workflows run the full baseline; the macOS workflow also compiles the separate decoder fuzz workspace. Compiling fuzz targets is not a fuzz campaign; longer fuzzing remains explicit validation work.
+`cargo test --test repository_consistency` checks roadmap totals, mirrored task states, and RFC status/update dates. Run it after planning changes. Both tier-1 CI workflows run the full baseline and check formatting in the separate fuzz workspace; the macOS workflow also lints all fuzz binaries with warnings denied. Run `cargo fmt --manifest-path fuzz/Cargo.toml --check` and `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` after fuzz-target or shared dependency changes. Compiling fuzz targets is not a fuzz campaign; longer fuzzing remains explicit validation work.
 
 The tier-1 AOT integrations share `tests/fixtures/aot_harness.c`. Its optimized C callbacks use unsigned arithmetic and bit-preserving conversion to match Rust wrapping behavior, and exercise `i64` extremes, allocation sums, and overflowing Fibonacci as well as ordinary inputs.
 

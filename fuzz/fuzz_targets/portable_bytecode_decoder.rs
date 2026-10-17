@@ -23,7 +23,9 @@ fn check(bytes: &[u8], limits: CodecLimits) {
             &lang_runtime::HostFunctionRegistry::new(),
             &lang_vm::unit::HostBindings::new(),
             lang_vm::unit::Control::with_limits(lang_vm::unit::Limits {
-                fuel: Some(128), host_calls: Some(0), frames: Some(8),
+                fuel: Some(128),
+                host_calls: Some(0),
+                frames: Some(8),
                 live_cells: Some(4096),
             }),
         );

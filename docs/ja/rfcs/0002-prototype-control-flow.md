@@ -200,7 +200,7 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 実装計画
 
-2026-10-17レビュー：受理済みproduction ruleは維持しますが、`IDENT`、comment、whitespace、source encoding、signed-literal tokenizationはまだ完全には規定されていません。Frontend実装はMilestone 1の字句仕様受理gateを通し、これらの選択をimplicitなparser behaviorにしないでください。Module、call、aggregateは本RFCの範囲外です。
+2026-10-17レビュー：本RFC単体では`IDENT`、comment、whitespace、encoding、signed-literal tokenizationは未完です。受理・実装済みの[RFC 0006](0006-source-frontend-and-portable-programs.md)がこの字句gateを閉じ、user-visible `bool`、module、call、aggregateでsubsetを拡張しています。現在のfrontend実装では両契約を参照してください。以下の計画は本RFC当初のscalar sliceを記録します。
 
 1. 正確なgrammarのためのlossless parserとsyntax nodeを追加し、valid、incomplete、recovered inputのsnapshotを用意する。
 2. Nameをresolveし、source spanとaccepted diagnostic identityを保持しながら、`i64`、内部 `bool`、mutation、condition、明示的returnをtype-checkする。
@@ -223,11 +223,11 @@ Loopとarithmeticをmacro、builder API、standard-library callでmodel化しま
 
 ## 未解決事項
 
-- Immutable `let` bindingとuser-visibleな `bool` localを、この最初のfrontend sliceまたはfollow-upのどちらに含めるべきか。
+- 後続で通常のimmutable bindingにどの構文を追加するか。User-visible `bool` storageは既にRFC 0006で受理・実装済みです。
 - Wrapping `+` を維持しながら、後続editionでどのchecked-arithmetic syntaxを追加すべきか。
 - `break`、`continue`、value-producing loop expressionを後続control-flow RFCでまとめてdesignすべきか。
 
-Decision：この狭いprototype subsetはrepository ownerにより **2026-10-17にaccepted**。対応するMIR shapeにはVM／JIT differential、AOT、benchmark evidenceがすでにあるため、追加のprototype blockerはありません。Immutable binding、user-visible boolean storage、checked-arithmetic spelling、loop expressionはoptional follow-upのままです。
+Decision：この狭いprototype subsetはrepository ownerにより **2026-10-17にaccepted**。対応するMIR shapeにはVM／JIT differential、AOT、benchmark evidenceがすでにあるため、追加のprototype blockerはありません。通常のimmutable binding、checked-arithmetic spelling、loop expressionはoptional follow-upのままで、user-visible boolean storageはRFC 0006で解決済みです。
 
 ## 情報源
 

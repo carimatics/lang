@@ -222,7 +222,7 @@ Untrusted inputには明示的なcompile／decode／verification budgetとmalfor
 
 ## Test計画
 
-以下は必須の互換性fixtureであり、既存の成功済みtestではありません。
+以下の互換性要件は実装済みであり、今後も回帰検証の対象です。この表は必要な挙動を示し、後続のevidence表が実行可能なsuiteを対応付けます。
 
 | 領域 | Input／action | 必須結果 |
 | --- | --- | --- |
@@ -243,7 +243,17 @@ Untrusted inputには明示的なcompile／decode／verification budgetとmalfor
 | REPL | Valid定義、invalid定義、後続call、reset、不完全EOF | Transactional定義、fresh budget、deterministic表示 |
 | Tooling | 2回format、依存edit、source close、古いdiagnostic完了 | Idempotence、対象限定invalidation、clear／最新diagnostic |
 
-Compiler／parserとbytecodeのseed corpus付きfuzz target、明示depth／count／work／allocation-limit test、全codeのcompile-pass／fail fixture、HIR／MIR／bytecode snapshot、macOS／Windows workspace CIを追加します。Native testはsupport対象scalar source subsetを扱い、未supportの新native操作は明示的に失敗させます。手動構築MIRのtestだけでMilestone 1完了を主張しません。
+| 検証範囲 | 実行可能なevidence（repository相対path） |
+| --- | --- |
+| 字句境界とrecovery | `crates/syntax/tests/lexing.rs`、`parsing.rs`、`fixtures/accepted.lang` |
+| 権限、resolution、typed aggregate／pattern | `crates/semantics/tests/modules.rs`、`binding.rs`、`program_typing.rs`、`database.rs`、`crates/hir/tests/nominal_layouts.rs` |
+| Source loweringとscalar nativeの一致 | `crates/semantics/tests/program_lowering.rs`、`tests/source_conformance.rs`、`hir_lowering.rs` |
+| Call、metering、stack、aggregate実行 | `tests/source_vm.rs`、`crates/vm/tests/units.rs` |
+| MIRとportable wire検証 | `crates/mir/tests/units.rs`、`crates/bytecode/tests/unit_codec.rs`、`fixtures/unit-v1-main-42.hex` |
+| CLIとtransactional REPL | `tests/cli.rs`、`repl.rs`、`crates/semantics/tests/virtual_programs.rs` |
+| Formattingとeditor lifecycle | `crates/syntax/tests/formatting.rs`、`tests/formatter.rs`、`lsp.rs`、`crates/semantics/tests/database.rs`、`crates/query/tests/hir_cache.rs` |
+
+Parser／HIR／bytecodeのfuzz target、明示depth／count／work／allocation-limit test、diagnostic compile-pass／fail fixture、構造snapshot、macOS／Windows workspace CIがあります。Parser fixtureとgolden bytecodeは再現可能なseedです。Fuzz binaryのcompile／smoke実行はinstrumented fuzz campaignではありません。Native testは対応するscalar source subsetを扱い、非対応の新native操作を明示的に拒否します。現在の検証詳細とplatform上の制約は[repository review](../review-2026-10-17.md)に記録し、以下の当初完了evidenceは過去の記録として維持します。
 
 ## 未決事項
 

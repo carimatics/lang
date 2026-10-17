@@ -145,6 +145,8 @@ There are no source strings/floats/arrays, generics, methods, closures, recursiv
 
 ## Evidence and source dates
 
+The later [whole-repository review](review-2026-10-17.md) records additional authority/handle/linker regressions and updated validation. It does not change RFC 0006 source semantics or portable wire bytes.
+
 The 2026-10-17 completion audit records **497 passing tests**, `cargo fmt --all --check`, Clippy with warnings denied, and workspace documentation generation. Parser/formatter, typed-HIR, and portable-decoder/VM targets have uninstrumented 10,000-run smoke evidence; this does not claim coverage-guided or sanitizer verification. Reproduce the full baseline with the commands in [README](../README.md#development).
 
 | Source | Publication/update or verification date |

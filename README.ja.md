@@ -41,6 +41,7 @@
 - [アーキテクチャbaseline](docs/ja/architecture.md)
 - [実装ロードマップ](docs/ja/roadmap.md)
 - [Milestone 1機能ガイド](docs/ja/milestone-1.md)
+- [全ファイルreview、2026-10-17](docs/ja/review-2026-10-17.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
 - [RFC 0001：プロジェクト憲章と互換性ポリシー](docs/ja/rfcs/0001-project-charter.md)
 - [RFC 0002：Prototype integer／structured control-flow semantics](docs/ja/rfcs/0002-prototype-control-flow.md)

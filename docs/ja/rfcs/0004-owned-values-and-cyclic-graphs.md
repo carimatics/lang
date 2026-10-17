@@ -215,7 +215,9 @@ Rust `Rc`／Swift ARCが示す馴染みのあるdesignです。Dynamic cycle-pre
 
 ## Implementation plan
 
-1. Source／HIR ownership categoryと、move、borrow conflict、escaping arena reference、cross-region edgeのcompile-fail testを追加します。正確なconvenience syntaxはedition gate内で暫定に保ちます。
+Policyは受理済みですが、例示はsource grammarの受理ではありません。Milestone 2ではsource ownership／core-library profileと残るcleanup／FFI／allocator contractの受理を記録してから依存実装へ進みます。既存graph modelは比較evidenceであり、production retain／releaseやatomic cycle publicationではありません。
+
+1. 別途受理したsource profileに従い、source／HIR ownership categoryと、move、borrow conflict、escaping arena reference、cross-region edgeのcompile-fail testを追加します。
 2. Typed MIR ownership／region operationとvalidationを追加し、source span／stable diagnostic identityを維持します。
 3. 既存 `crates/semantics` graph modelを、generation tag付きhandle／resource limitを持つruntime-facing checked-edge／lexical-arena prototypeへ一般化します。
 4. 同じfixtureをbytecode VM／native executionへlowerし、event trace、destruction order、weak upgrade、全failure outcomeを比較します。

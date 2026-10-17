@@ -200,7 +200,7 @@ Support `if` and `return` but omit `while` and assignment. This is smaller, but 
 
 ## Implementation plan
 
-Review clarification (2026-10-17): the accepted production rules remain unchanged, but `IDENT`, comments, whitespace, source encoding, and signed-literal tokenization are not fully specified. Frontend implementation must pass the Milestone 1 lexical-specification acceptance gate rather than silently making these choices in the parser. Modules, calls, and aggregates remain outside this RFC.
+Review clarification (2026-10-17): this RFC alone leaves `IDENT`, comments, whitespace, encoding, and signed-literal tokenization incomplete. Accepted and implemented [RFC 0006](0006-source-frontend-and-portable-programs.md) closes that lexical gate and extends this subset with user-visible `bool`, modules, calls, and aggregates. Use both contracts for current frontend implementation; the plan below records this RFC's original scalar slice.
 
 1. Add a lossless parser and syntax nodes for the exact grammar, with snapshots for valid, incomplete, and recovered input.
 2. Resolve names and type-check `i64`, internal `bool`, mutation, conditions, and explicit returns while preserving source spans and the accepted diagnostic identities.
@@ -223,11 +223,11 @@ Review clarification (2026-10-17): the accepted production rules remain unchange
 
 ## Open questions
 
-- Should immutable `let` bindings and user-visible `bool` locals join this first frontend slice or a follow-up?
+- Which immutable ordinary-binding syntax should a follow-up add? User-visible `bool` storage is already accepted and implemented by RFC 0006.
 - Which checked-arithmetic syntax should a later edition add while retaining wrapping `+`?
 - Should `break`, `continue`, and value-producing loop expressions be designed together in a later control-flow RFC?
 
-Decision: **accepted on 2026-10-17** by the repository owner for this narrow prototype subset. There are no additional prototype blockers because the corresponding MIR shapes already have VM/JIT differential, AOT, and benchmark evidence. Immutable bindings, user-visible boolean storage, checked-arithmetic spelling, and loop expressions remain optional follow-ups.
+Decision: **accepted on 2026-10-17** by the repository owner for this narrow prototype subset. There are no additional prototype blockers because the corresponding MIR shapes already have VM/JIT differential, AOT, and benchmark evidence. Immutable ordinary bindings, checked-arithmetic spelling, and loop expressions remain optional follow-ups; RFC 0006 resolves user-visible boolean storage.
 
 ## Sources
 

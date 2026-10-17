@@ -222,7 +222,7 @@ Untrusted inputs have explicit compile/decode/verification budgets and malformed
 
 ## Test plan
 
-These are required compatibility fixtures, not existing passing tests:
+These compatibility requirements are implemented and remain regression obligations. The table describes required behavior; the evidence map below identifies the executable suites.
 
 | Area | Input/action | Required outcome |
 | --- | --- | --- |
@@ -243,7 +243,17 @@ These are required compatibility fixtures, not existing passing tests:
 | REPL | Valid definition, invalid definition, later call, reset, incomplete EOF | Transactional definitions, fresh budgets, deterministic output |
 | Tooling | Format twice, edit dependency, close source, stale diagnostic completion | Idempotence, targeted invalidation, cleared/current diagnostics |
 
-Add compiler/parser and bytecode fuzz targets with seed corpora, explicit depth/count/work/allocation-limit tests, compile-pass/fail fixtures for all codes, HIR/MIR/bytecode snapshots, and macOS/Windows workspace CI. Native tests cover the supported scalar source subset; unsupported new native operations must fail explicitly. Do not claim complete Milestone 1 from hand-built MIR tests alone.
+| Coverage | Executable evidence (repository-relative paths) |
+| --- | --- |
+| Lexical boundaries and recovery | `crates/syntax/tests/lexing.rs`, `parsing.rs`, `fixtures/accepted.lang` |
+| Authority, resolution, and typed aggregates/patterns | `crates/semantics/tests/modules.rs`, `binding.rs`, `program_typing.rs`, `database.rs`; `crates/hir/tests/nominal_layouts.rs` |
+| Source lowering and scalar native equivalence | `crates/semantics/tests/program_lowering.rs`; `tests/source_conformance.rs`, `hir_lowering.rs` |
+| Calls, metering, stacks, and aggregate execution | `tests/source_vm.rs`; `crates/vm/tests/units.rs` |
+| MIR and portable wire validation | `crates/mir/tests/units.rs`; `crates/bytecode/tests/unit_codec.rs`, `fixtures/unit-v1-main-42.hex` |
+| CLI and transactional REPL | `tests/cli.rs`, `repl.rs`; `crates/semantics/tests/virtual_programs.rs` |
+| Formatting and editor lifecycle | `crates/syntax/tests/formatting.rs`; `tests/formatter.rs`, `lsp.rs`; `crates/semantics/tests/database.rs`; `crates/query/tests/hir_cache.rs` |
+
+Parser/HIR/bytecode fuzz targets, explicit depth/count/work/allocation-limit tests, diagnostic compile-pass/fail fixtures, structural snapshots, and macOS/Windows workspace CI are present. The parser fixture and golden bytecode provide reproducible seeds; compiling or smoke-running the fuzz binaries is not an instrumented fuzz campaign. Native tests cover the supported scalar source subset and explicitly reject unsupported new native operations. Current validation details and platform limitations are recorded in the [repository review](../review-2026-10-17.md); the original completion evidence below remains historical.
 
 ## Open questions
 

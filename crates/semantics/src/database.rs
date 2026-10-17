@@ -190,8 +190,9 @@ impl Database {
             .filter(|(_, keys)| keys.open)
             .map(|(path, _)| path.as_path())
     }
-    /// Existing files canonicalize; a new virtual file needs an existing
-    /// canonical parent. With no root this is a pure lexical operation.
+    /// Open overlays retain their authorized canonical identity. Otherwise,
+    /// existing files canonicalize and new files need a canonical parent.
+    /// With no root this is a pure lexical operation.
     pub fn document_path(&self, path: &Path) -> Result<PathBuf, DbError> {
         if !path.is_absolute()
             || path.to_str().is_none()
@@ -203,6 +204,11 @@ impl Database {
             })
         {
             return Err(DbError::InvalidPath);
+        }
+        // An authorized open overlay remains usable after its on-disk path is
+        // deleted or replaced. Reading it cannot acquire new disk authority.
+        if self.files.get(path).is_some_and(|keys| keys.open) {
+            return Ok(path.into());
         }
         if let Some(root) = &self.root {
             let canonical = match std::fs::canonicalize(path) {
@@ -279,8 +285,12 @@ impl Database {
             .sum()
     }
     fn store(&mut self, path: &Path, bytes: Option<Arc<[u8]>>) -> Result<(), DbError> {
-        let keys = self.keys(path)?;
-        let old = match self.graph.get(keys.input).map(Arc::as_ref) {
+        let old = match self
+            .files
+            .get(path)
+            .and_then(|keys| self.graph.get(keys.input))
+            .map(Arc::as_ref)
+        {
             Some(Cached::Input(Some(bytes))) => bytes.len(),
             _ => 0,
         };
@@ -292,6 +302,7 @@ impl Database {
         {
             return Err(DbError::Limit(LimitKind::InputBytes));
         }
+        let keys = self.keys(path)?;
         self.graph
             .set_input(keys.input, Arc::new(Cached::Input(bytes)))?;
         Ok(())
@@ -389,6 +400,8 @@ impl Database {
         Ok(bytes)
     }
     pub fn parsed(&mut self, path: &Path) -> Result<Arc<ProvidedParse>, DbError> {
+        let path = self.document_path(path)?;
+        let path = path.as_path();
         let keys = self.keys(path)?;
         if let Some(Cached::Parsed(parsed)) = self.graph.get(keys.parse).map(Arc::as_ref) {
             return Ok(parsed.clone());
@@ -448,6 +461,8 @@ impl Database {
         Ok(parsed)
     }
     pub fn modules(&mut self, path: &Path) -> Result<Arc<ModuleSnapshot>, DbError> {
+        let path = self.document_path(path)?;
+        let path = path.as_path();
         let keys = self.keys(path)?;
         if let Some(Cached::Module(module)) = self.graph.get(keys.module).map(Arc::as_ref) {
             return Ok(module.clone());
@@ -501,6 +516,8 @@ impl Database {
         Ok(module)
     }
     pub fn prepare(&mut self, path: &Path) -> Result<AnalysisJob, DbError> {
+        let path = self.document_path(path)?;
+        let path = path.as_path();
         let module = self.modules(path)?;
         let keys = self.keys(path)?;
         let ticket = self.graph.begin(keys.analysis, [keys.module])?;
@@ -537,6 +554,8 @@ impl Database {
         Ok(completed.snapshot)
     }
     pub fn analyze(&mut self, path: &Path) -> Result<Arc<AnalysisSnapshot>, DbError> {
+        let path = self.document_path(path)?;
+        let path = path.as_path();
         let keys = self.keys(path)?;
         if let Some(Cached::Analysis(analysis)) = self.graph.get(keys.analysis).map(Arc::as_ref) {
             return Ok(analysis.clone());

@@ -450,7 +450,7 @@ impl SystemLinker {
             request
                 .objects
                 .iter()
-                .map(|object| object.as_os_str().to_os_string()),
+                .map(|object| literal_path_argument(object)),
         );
         for path in &request.library_search_paths {
             let mut argument = OsString::from(match self.flavor {
@@ -470,6 +470,7 @@ impl SystemLinker {
                 LinkerFlavor::MsvcLink => {
                     argument.push(library);
                     argument.push(".lib");
+                    argument = literal_path_argument(Path::new(&argument));
                 }
             }
             arguments.push(argument);
@@ -477,7 +478,7 @@ impl SystemLinker {
         match self.flavor {
             LinkerFlavor::Cc => {
                 arguments.push(OsString::from("-o"));
-                arguments.push(request.output.as_os_str().to_os_string());
+                arguments.push(literal_path_argument(&request.output));
             }
             LinkerFlavor::MsvcLink => {
                 let mut output_argument = OsString::from("/OUT:");
@@ -547,6 +548,22 @@ impl SystemLinker {
         }
 
         Ok(())
+    }
+}
+
+// Drivers expand @response files even where a filename is expected, and leading
+// '-' input paths are options. Preserve relative filenames without changing cwd
+// or requiring the output file to exist. Both command forms share this boundary.
+fn literal_path_argument(path: &Path) -> OsString {
+    if path.is_relative()
+        && matches!(
+            path.as_os_str().as_encoded_bytes().first(),
+            Some(b'-' | b'@')
+        )
+    {
+        Path::new(".").join(path).into_os_string()
+    } else {
+        path.as_os_str().to_os_string()
     }
 }
 
@@ -888,6 +905,89 @@ mod tests {
                 OsString::from("build/program"),
             ]
         );
+    }
+
+    #[test]
+    fn option_like_filenames_remain_literal_in_commands_and_response_files() {
+        let request = LinkRequest::new("@output")
+            .with_object("-input.o")
+            .with_object("@input.o");
+        for flavor in [LinkerFlavor::Cc, LinkerFlavor::MsvcLink] {
+            let linker = SystemLinker::new_with_flavor("unused", flavor);
+            let command = linker.command(&request).unwrap();
+            assert_eq!(command.arguments()[0], Path::new(".").join("-input.o"));
+            assert_eq!(command.arguments()[1], Path::new(".").join("@input.o"));
+            let bytes = linker.response_file_contents(&request).unwrap();
+            let response = match flavor {
+                LinkerFlavor::Cc => String::from_utf8(bytes).unwrap(),
+                LinkerFlavor::MsvcLink => String::from_utf16(
+                    &bytes[2..]
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|b| u16::from_le_bytes([b[0], b[1]]))
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap(),
+            };
+            assert!(!response.lines().any(|line| line.starts_with("\"@")));
+            assert!(!response.lines().any(|line| line.starts_with("\"-input")));
+        }
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn cc_links_option_like_relative_filenames_directly_and_through_response_file() {
+        let directory = TestDirectory::create();
+        fs::write(
+            directory.path().join("main.c"),
+            "int main(void) { return 0; }",
+        )
+        .unwrap();
+        assert!(
+            std::process::Command::new("cc")
+                .current_dir(directory.path())
+                .args(["-c", "main.c", "-o", "./-input.o"])
+                .status()
+                .unwrap()
+                .success()
+        );
+        fs::copy(
+            directory.path().join("-input.o"),
+            directory.path().join("@input.o"),
+        )
+        .unwrap();
+        let linker = SystemLinker::new("cc");
+        for input in ["-input.o", "@input.o"] {
+            let request = LinkRequest::new("@output").with_object(input);
+            fs::write(
+                directory.path().join("args.rsp"),
+                linker.response_file_contents(&request).unwrap(),
+            )
+            .unwrap();
+            for command in [
+                linker.command(&request).unwrap(),
+                linker
+                    .command_with_response_file(&request, "args.rsp")
+                    .unwrap(),
+            ] {
+                assert!(
+                    std::process::Command::new(command.program())
+                        .current_dir(directory.path())
+                        .args(command.arguments())
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+                assert!(
+                    std::process::Command::new(directory.path().join("@output"))
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+                fs::remove_file(directory.path().join("@output")).unwrap();
+            }
+        }
     }
 
     #[test]

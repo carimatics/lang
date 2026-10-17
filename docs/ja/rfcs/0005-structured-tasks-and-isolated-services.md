@@ -206,6 +206,8 @@ Unscoped futureはspawnを簡単にしますが、childがborrowed／owned paren
 
 ## Implementation plan
 
+厳格なisolation／cancellation policyは受理済みです。Source async構文、scheduler／channel／backpressure規則、production componentのcancellation／embedding profileは、依存実装前にMilestone 3の明示的な設計決定を必要とします。既存task／service state modelはproduction schedulerや完全なtask-tree cleanupの実装ではありません。
+
 1. Source／HIR task scope、suspension point、messageへのmove、service-owner operation、compile-pass／fail fixtureを追加します。
 2. No-live-borrow-at-suspension、scoped child handle、`Send` derivation、isolationのtyped MIR operation／validationを追加します。
 3. 既存task／service modelをlimit／stable diagnostic付きの1つのdeterministic reference interpreterへ一般化します。

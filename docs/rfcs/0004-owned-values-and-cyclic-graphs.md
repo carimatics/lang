@@ -215,7 +215,9 @@ Rust `Rc` and Swift ARC show this familiar design. It avoids dynamic cycle-prefl
 
 ## Implementation plan
 
-1. Add source/HIR ownership categories and compile-fail tests for moves, borrow conflicts, escaping arena references, and cross-region edges. Keep exact convenience syntax provisional behind the edition gate.
+The policy is accepted; the examples do not accept a source grammar. Milestone 2 must record acceptance of the source ownership/core-library profile and remaining cleanup/FFI/allocator contracts before their dependent implementation. The existing graph model is comparative evidence, not production retain/release or atomic cycle publication.
+
+1. Add source/HIR ownership categories and compile-fail tests for moves, borrow conflicts, escaping arena references, and cross-region edges using the separately accepted source profile.
 2. Add typed MIR ownership and region operations plus validation. Preserve source spans and stable diagnostic identities.
 3. Generalize the existing `crates/semantics` graph model into a runtime-facing checked-edge and lexical-arena prototype with generation-tagged handles and resource limits.
 4. Lower the same fixtures to bytecode VM and native execution; compare event traces, destruction order, weak upgrades, and every failure outcome.

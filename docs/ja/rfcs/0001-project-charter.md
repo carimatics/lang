@@ -53,7 +53,7 @@
 - 本番スクリプト環境でのJITコンパイル必須化。
 - 将来のすべてのライブラリ抽象化に対するGC非使用の保証。
 - プレアルファ期間中のリリース日、長期サポート期間、セマンティックバージョニング保証の約束。
-- 現在の算術プロトタイプを承認済み言語意味論として扱うこと。
+- 受理済みRFCの範囲外のprototype挙動を言語意味論として扱うこと。
 
 ## ガイドレベル設計
 
@@ -106,7 +106,7 @@ RFC 0002は最初のsource subsetのwrapping `i64` 加算を受理していま�
 - 埋め込みhost callとcallbackは、最終的に型なしraw pointerではなく、型付き登録と生成adapterを利用する。
 - WebAssembly/component実行は将来のsandbox tierであり、最初のプロトタイプには必須でない。
 
-現在のembedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。VMは合成可能なopt-in instruction-fuel／host-call budget、value-slot limit、共有one-way interruption flag、絶対monotonic deadlineも試作します。各instruction／terminatorと実行に入るcallbackは、それぞれのcounterで1 unitを消費し、各動的limitは対応するside effectの前に確認します。Validationとarity checkの後、検証済みregister countをregister-file allocation前に確認します。すでにsetされたinterruptionまたは期限切れdeadlineはそのallocation前に停止し、以降のconditionはinstruction、terminator、pre-callback safe pointで観測して、structured errorに両方の消費counterを含め、interruptionを優先します。Callback-triggered interruptionとdeadline expirationはcooperativeであり、そのcallback完了後にのみ観測します。成功したlimit付きexecutionは両方のcountと静的slot footprintを報告します。既存convenience APIはunbounded、non-interruptible、deadlineなしのままで、native／JIT executionに同等のenforcementはありません。Slotはbyte単位のheap chargeではなくVM register entryであり、host callbackのallocationはlimit外です。これはstable ABIではなくtest scaffoldingです。Aggregate value、error transport、panic containment、capability、heap／recursion／task limit、callbackのpreemptive interruption、serialized interfaceは未指定かつ未実装のままです。
+当初のscalar embedding実験では、各host functionにbackend非依存のMIR identifierを割り当て、runtimeごとのregistryから型付き `extern "C" fn(i64) -> i64` を解決します。VMはそのregistry経由でdispatchし、Craneliftは同じ登録済み関数をJIT moduleへimportします。VMは合成可能なopt-in instruction-fuel／host-call budget、value-slot limit、共有one-way interruption flag、絶対monotonic deadlineも試作します。各instruction／terminatorと実行に入るcallbackは、それぞれのcounterで1 unitを消費し、各動的limitは対応するside effectの前に確認します。Validationとarity checkの後、検証済みregister countをregister-file allocation前に確認します。すでにsetされたinterruptionまたは期限切れdeadlineはそのallocation前に停止し、以降のconditionはinstruction、terminator、pre-callback safe pointで観測して、structured errorに両方の消費counterを含め、interruptionを優先します。Callback-triggered interruptionとdeadline expirationはcooperativeであり、そのcallback完了後にのみ観測します。成功したlimit付きexecutionは両方のcountと静的slot footprintを報告します。Legacy scalar convenience APIはunbounded、non-interruptible、deadlineなしのままで、native／JIT executionに同等のenforcementはありません。Slotはbyte単位のheap chargeではなくVM register entryであり、host callbackのallocationはlimit外です。このscalar実験はstable ABIではなくtest scaffoldingです。現在はRFC 0003がcomponentのownership／failure boundaryとcandidate serializationを規定し、実行可能なprototypeがあります。RFC 0006はsource aggregate、portable bytecode、既定のfuel／host-call／frame／live-cell上限を持つVMを実装しています。Backend全体のproduction heap／task accounting、豊富なcomponent call、callbackのpreemptive interruptionは実装範囲外です。対応範囲は現在の[機能ガイド](../milestone-1.md)を参照してください。
 
 実行モード間に意図的な差を設ける場合、RFC、必要に応じた診断、その境界を示すテストが必要です。
 
@@ -205,8 +205,8 @@ Milestone 0はprototype／設計の範囲で完了しています。RFC 0001–0
 - `lang` に代わる恒久的なプロジェクト名と言語名は何か。
 - 最初の公開pre-1.0 releaseで、どの互換性保証を開始するか。
 - Windows AArch64を最初のnative backend milestoneの前と後のどちらでTier 1に加えるか。
-- canonical ABI実験の出発点として、どのcomponent modelを利用するか。
-- Byte単位のheap、recursion、task budgetをprototype instruction-fuel／host-call-budget／value-slot-limit／cooperative-interruption／absolute-deadline interfaceとどう合成するか。
+- WIT互換性を早計に主張せず、受理済みRFC 0003 profileを将来のWebAssembly component targetとどう相互運用させるか。
+- Production heap／live-task accountingをnative code、source VMのframe／live-cell上限、host callback全体でどう合成するか。RFC 0006は既にguest recursionの上限を定義しており、cross-mode accountingはMilestone 3に残ります。
 
 Decision：RFC 0003のacceptance後、repository ownerが**2026-10-17にaccept**しました。このacceptanceはproject charter、compatibility policy、evidence requirement、Craneliftをinitial JIT／AOT backendとする結果的なarchitecture baselineを承認します。未実装のsource、ABI、package、serialized-format detailをstabilizeするものではありません。命名とWindows AArch64の時期は任意のfollow-upです。
 

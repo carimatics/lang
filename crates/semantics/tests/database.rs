@@ -42,6 +42,102 @@ const MAIN: &str = "mod math; fn main() -> i64 { return math::value(); }";
 const CHILD: &str = "pub fn value() -> i64 { return 42; }";
 const BAD_CHILD: &str = "pub fn value() -> i64 { return false; }";
 
+#[cfg(unix)]
+#[test]
+fn authorized_overlay_survives_disk_replacement_without_acquiring_new_authority() {
+    let root = Directory::new();
+    let outside = Directory::new();
+    root.write("main.lang", "fn main() -> i64 { return 1; }");
+    outside.write("secret.lang", "fn main() -> i64 { return false; }");
+    let mut db = root.db();
+    let path = open(
+        &mut db,
+        &root.file("main.lang"),
+        "fn main() -> i64 { return 2; }",
+    );
+    fs::remove_file(&path).unwrap();
+    assert_eq!(db.analyze(&path).unwrap().status, AnalysisStatus::Valid);
+    std::os::unix::fs::symlink(outside.file("secret.lang"), &path).unwrap();
+    assert_eq!(db.analyze(&path).unwrap().status, AnalysisStatus::Valid);
+    assert_eq!(db.stats().disk_reads, 0);
+    db.close(&path).unwrap();
+    assert!(matches!(db.parsed(&path), Err(DbError::OutsideRoot(_))));
+    assert_eq!(db.stats().disk_reads, 0);
+}
+
+#[test]
+fn public_queries_validate_source_authority_before_reading_or_caching() {
+    let d = Directory::new();
+    let outside = Directory::new();
+    outside.write("outside.lang", "fn outside() -> i64 { return 7; }");
+    let traversal =
+        d.0.join("..")
+            .join(outside.0.file_name().unwrap())
+            .join("outside.lang");
+    let mut db = d.db();
+    assert!(db.parsed(&traversal).is_err());
+    assert_eq!(db.stats().disk_reads, 0);
+    assert!(db.raw_input(&traversal).is_none());
+    assert!(db.modules(&traversal).is_err());
+    assert!(db.prepare(&traversal).is_err());
+    assert!(db.analyze(&traversal).is_err());
+    assert_eq!(db.stats().disk_reads, 0);
+}
+
+#[test]
+fn rejected_open_does_not_consume_the_file_budget() {
+    let d = Directory::new();
+    let mut db = Database::new(
+        Some(&d.0),
+        Limits {
+            files: 1,
+            input_bytes: 1,
+            ..Limits::default()
+        },
+    )
+    .unwrap();
+    assert!(matches!(
+        db.open(&d.file("too-big.lang"), Arc::from(&b"ab"[..])),
+        Err(DbError::Limit(LimitKind::InputBytes))
+    ));
+    let path = open(&mut db, &d.file("valid.lang"), "");
+    assert_eq!(db.analyze(&path).unwrap().status, AnalysisStatus::Valid);
+}
+
+#[cfg(unix)]
+#[test]
+fn public_parse_rejects_symlink_escape_and_reuses_canonical_aliases() {
+    let d = Directory::new();
+    let outside = Directory::new();
+    outside.write("outside.lang", "fn outside() -> i64 { return 7; }");
+    std::os::unix::fs::symlink(outside.file("outside.lang"), d.file("escape.lang")).unwrap();
+    d.write("source.lang", "fn f() -> i64 { return 1; }");
+    std::os::unix::fs::symlink(d.file("source.lang"), d.file("alias.lang")).unwrap();
+    let mut db = d.db();
+    assert!(matches!(
+        db.parsed(&d.file("escape.lang")),
+        Err(DbError::OutsideRoot(_))
+    ));
+    assert_eq!(db.stats().disk_reads, 0);
+    let first = db.parsed(&d.file("alias.lang")).unwrap();
+    assert!(Arc::ptr_eq(
+        &first,
+        &db.parsed(&d.file("source.lang")).unwrap()
+    ));
+    assert_eq!(db.stats().disk_reads, 1);
+    let path = open(
+        &mut db,
+        &d.file("source.lang"),
+        "fn f() -> i64 { return 2; }",
+    );
+    let current = db.parsed(&path).unwrap();
+    assert!(!Arc::ptr_eq(&first, &current));
+    assert!(Arc::ptr_eq(
+        &current,
+        &db.parsed(&d.file("alias.lang")).unwrap()
+    ));
+}
+
 #[test]
 fn real_parser_module_and_semantic_queries_reuse_cache_and_invalidate_only_consumers() {
     let d = Directory::new();

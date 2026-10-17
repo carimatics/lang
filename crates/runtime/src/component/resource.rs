@@ -7,12 +7,16 @@
 use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const FIRST_GENERATION: u64 = 1;
 const FIRST_BORROW_ID: u64 = 1;
+static NEXT_TABLE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct OwnedResourceHandle {
+    // Host-only provenance; the component wire lane remains instance-local u32.
+    table: u64,
     slot: u32,
     generation: u64,
 }
@@ -108,6 +112,7 @@ impl<T> ResourceSlot<T> {
 
 #[derive(Debug)]
 pub struct ResourceTable<T> {
+    identity: Option<u64>,
     slots: Vec<ResourceSlot<T>>,
     free_slots: BTreeSet<u32>,
     next_borrow_id: u64,
@@ -117,6 +122,9 @@ pub struct ResourceTable<T> {
 impl<T> Default for ResourceTable<T> {
     fn default() -> Self {
         Self {
+            identity: NEXT_TABLE
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .ok(),
             slots: Vec::new(),
             free_slots: BTreeSet::new(),
             next_borrow_id: FIRST_BORROW_ID,
@@ -131,6 +139,7 @@ impl<T> ResourceTable<T> {
     }
 
     pub fn insert(&mut self, value: T) -> Result<OwnedResourceHandle, ResourceTableError> {
+        let table = self.identity.ok_or(ResourceTableError::TableIdExhausted)?;
         let handle = if let Some(slot_index) = self.free_slots.pop_first() {
             let slot = &mut self.slots[slot_index as usize];
             debug_assert!(slot.value.is_none());
@@ -138,6 +147,7 @@ impl<T> ResourceTable<T> {
             debug_assert!(slot.exclusive_borrow.is_none());
             slot.value = Some(value);
             OwnedResourceHandle {
+                table,
                 slot: slot_index,
                 generation: slot.generation,
             }
@@ -147,6 +157,7 @@ impl<T> ResourceTable<T> {
             self.slots
                 .push(ResourceSlot::occupied(FIRST_GENERATION, value));
             OwnedResourceHandle {
+                table,
                 slot: slot_index,
                 generation: FIRST_GENERATION,
             }
@@ -297,6 +308,9 @@ impl<T> ResourceTable<T> {
         &self,
         owner: OwnedResourceHandle,
     ) -> Result<&ResourceSlot<T>, ResourceTableError> {
+        if self.identity != Some(owner.table) {
+            return Err(ResourceTableError::StaleOwnedHandle(owner));
+        }
         let Some(slot) = self.slots.get(owner.slot as usize) else {
             return Err(ResourceTableError::StaleOwnedHandle(owner));
         };
@@ -310,6 +324,9 @@ impl<T> ResourceTable<T> {
         &mut self,
         owner: OwnedResourceHandle,
     ) -> Result<&mut ResourceSlot<T>, ResourceTableError> {
+        if self.identity != Some(owner.table) {
+            return Err(ResourceTableError::StaleOwnedHandle(owner));
+        }
         let Some(slot) = self.slots.get_mut(owner.slot as usize) else {
             return Err(ResourceTableError::StaleOwnedHandle(owner));
         };
@@ -355,6 +372,7 @@ impl<T> ResourceTable<T> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ResourceTableError {
+    TableIdExhausted,
     CapacityExhausted,
     BorrowIdExhausted,
     StaleOwnedHandle(OwnedResourceHandle),
@@ -376,6 +394,9 @@ pub enum ResourceTableError {
 impl Display for ResourceTableError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::TableIdExhausted => {
+                formatter.write_str("component resource table identities are exhausted")
+            }
             Self::CapacityExhausted => formatter.write_str("component resource table is full"),
             Self::BorrowIdExhausted => {
                 formatter.write_str("component resource borrow identifiers are exhausted")
@@ -415,6 +436,40 @@ impl Error for ResourceTableError {}
 #[cfg(test)]
 mod tests {
     use super::{OwnedResourceHandle, ResourceBorrowKind, ResourceTable, ResourceTableError};
+
+    #[test]
+    fn foreign_table_tokens_cannot_read_mutate_end_or_release_resources() {
+        let mut first = ResourceTable::new();
+        let mut second = ResourceTable::new();
+        let first_owner = first.insert(11).unwrap();
+        let second_owner = second.insert(22).unwrap();
+        assert_eq!(first_owner.slot(), second_owner.slot());
+        assert_eq!(first_owner.generation(), second_owner.generation());
+        assert!(matches!(
+            second.release(first_owner),
+            Err(ResourceTableError::StaleOwnedHandle(_))
+        ));
+        let first_borrow = first.borrow_exclusive(first_owner).unwrap();
+        let second_borrow = second.borrow_exclusive(second_owner).unwrap();
+        assert!(second.get_borrowed(first_borrow).is_err());
+        assert!(second.get_borrowed_mut(first_borrow).is_err());
+        assert!(second.end_borrow(first_borrow).is_err());
+        assert_eq!(*second.get_borrowed(second_borrow).unwrap(), 22);
+        first.end_borrow(first_borrow).unwrap();
+        second.end_borrow(second_borrow).unwrap();
+        assert_eq!(first.release(first_owner).unwrap(), 11);
+        assert_eq!(second.release(second_owner).unwrap(), 22);
+    }
+
+    #[test]
+    fn exhausted_table_identity_cannot_publish_a_handle() {
+        let mut table = ResourceTable {
+            identity: None,
+            ..ResourceTable::new()
+        };
+        assert_eq!(table.insert(1), Err(ResourceTableError::TableIdExhausted));
+        assert!(table.is_empty());
+    }
 
     #[test]
     fn generation_tags_prevent_stale_handles_from_aliasing_reused_slots() {
@@ -545,6 +600,7 @@ mod tests {
         let original = table.insert(5).unwrap();
         table.slots[original.slot() as usize].generation = u64::MAX;
         let exhausted = OwnedResourceHandle {
+            table: original.table,
             slot: original.slot(),
             generation: u64::MAX,
         };
