@@ -309,6 +309,10 @@ Ownership frontendの完了（2026-10-18 JST）：commit `ad40b7a` は、借用�
 
 8 ptのHIR／MIR成果の完了確認：受理済みsource type／declaration／place loweringと全expression／statement／pattern形式が、独立検証するtyped CFG、definite initialization／affine move、prepare済みdestination、明示loan activity、推移的reference provenanceへつながりました。既存source compile-pass／fail、type／CFG／resource-limit、stale alias／parent freezing、生成oracleのsuiteと、新しいmatch統合testをfrontend解析のevidenceとします。この成果を完了にし、M2は34 / 113 pt（30.1%）、全18成果中5成果完了、roadmap全体は332 / 764 pt（43.5%）となります。RFC 0007全体のimplementedやowned実行の有効化は主張せず、driverの実行profileはCopyのみです。Arena統合／独立MIR brand・effect、実初期化順／failure cleanup、fallible guest allocation／owned layout、core runtime operation、version付きownership artifact、unsafe／C、backend／platform／performanceは独立gateを維持します。113 ptの見積もりは引き続き妥当です。次はdriverのownership解析interfaceを統合し、続いてowned program実行に必要なcleanup／layout／allocation契約を実装します。
 
+Ownership解析のdriver統合（2026-10-18 JST）：commit `d25706c` は、成功したownership HIR／MIR proofを`lang_semantics::analysis`、共通frontend、revisionを検査するquery jobに保持します。`lang check [--source-root DIR] FILE`で両source profileを検査でき、`main`やhost bindingのないlibraryも対象です。[Ownership example](../../examples/analysis/ownership.lang)もこのcommandで成功します。Ownership MIRのresource limitは元sourceを指す`SRC0011`診断になります。`lang run`とtransactional REPLの実行境界は明示的にCopyのみです。追加7 testでこれらの経路、source span、cache無効化／stale ticket、拒否itemの非publicationを検証しました。Workspace全847 test、format、Clippy、documentation生成、fuzz format／全bin locked Clippy、独立exampleが成功しました。Evidence：[architecture](architecture.md#source-analysis-profileとdriver境界)とリンク先の実装／testの更新／検証日：2026-10-18 JST。RFC 0007／0008はacceptedを維持し、最終更新日は2026-10-17です。
+
+見直し：完了済みownership frontend解析をuserとeditor callerへ提供しましたが、別のM2成果は完了していません。M2は34 / 113 pt（30.1%）、全18成果中5成果、roadmap全体は332 / 764 pt（43.5%）を維持します。現在のscope、依存関係、113 ptの見積もりは引き続き妥当です。次は実際の初期化／再初期化順とfailure exitを保持するcleanup elaborationを実装し、続いてowned layoutとfallibleなinstance allocationを実行可能core operationへ接続します。正常flowのstorage-discard命令と非実行の解析proofだけではこれらの成果を満たしません。Ownership artifact、独立したarena effect、backend／platform conformanceと残るgateは未完了です。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
