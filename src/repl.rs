@@ -351,8 +351,17 @@ impl Session {
             Ok(typed) => typed,
             Err(e) => return Report::failure(sources, diagnostics, ReplError::Analysis(e)),
         };
-        let unit = match program_lowering::lower_library(&typed, &sources, self.limits.compile.mir)
-        {
+        let typed = match frontend::copy_executable(&typed) {
+            Ok(typed) => typed,
+            Err(e) => {
+                return Report::failure(
+                    sources,
+                    diagnostics,
+                    ReplError::Analysis(AnalysisError::Typing(e)),
+                );
+            }
+        };
+        let unit = match program_lowering::lower_library(typed, &sources, self.limits.compile.mir) {
             Ok(unit) => unit,
             Err(e) => return Report::failure(sources, diagnostics, ReplError::Lower(e)),
         };

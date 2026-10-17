@@ -60,12 +60,146 @@ fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
         Default::default(),
         None,
     );
-    let Err(AnalysisError::Typing(lang_hir::program::CheckError::OwnershipProfile { span })) =
-        pending.result
+    let program = pending.result.as_ref().unwrap();
+    assert!(program.as_copy().is_none());
+    let Err(lang_hir::program::CheckError::OwnershipProfile { span }) =
+        frontend::copy_executable(program)
     else {
         panic!()
     };
     assert_eq!(pending.sources.slice(span).unwrap(), "&i64");
+}
+
+#[test]
+fn ownership_check_succeeds_and_run_stops_at_the_executable_profile_boundary() {
+    let files = Files::new(include_str!("../examples/analysis/ownership.lang"));
+    let checked = cli([
+        OsString::from("check"),
+        files.0.join("source.lang").into_os_string(),
+    ]);
+    assert!(checked.status.success(), "{}", stderr(&checked));
+    assert!(checked.stderr.is_empty());
+    let executed = run(&files, &[]);
+    assert!(!executed.status.success());
+    assert!(executed.stdout.is_empty());
+    assert!(
+        stderr(&executed).contains("ownership"),
+        "{}",
+        stderr(&executed)
+    );
+    assert!(
+        stderr(&executed).contains("execution"),
+        "{}",
+        stderr(&executed)
+    );
+}
+
+#[test]
+fn driver_ownership_results_expose_both_proofs_without_constructing_copy_bytecode() {
+    let text = "fn get(v: &core::Vec<i64>) -> i64 { match core::vec_get::<i64>(v, 0) { core::Result::Ok(value) => { return (*value); }, core::Result::Err(_) => { return 0; }, } }";
+    let analysis = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("owned.lang"),
+        text.as_bytes(),
+        None,
+        Default::default(),
+        None,
+    );
+    assert!(analysis.diagnostics.is_empty());
+    let program = analysis.result.as_ref().unwrap();
+    let lang_semantics::analysis::Program::Ownership(owned) = program else {
+        panic!()
+    };
+    assert_eq!(
+        owned.hir().loaned().moved().bodies().source(),
+        program.source()
+    );
+    assert_eq!(
+        owned.mir().activity().moved().typed().facts()[0]
+            .core_calls()
+            .len(),
+        1
+    );
+    assert_eq!(program.functions().len(), 1);
+    assert!(frontend::copy_executable(program).is_err());
+}
+
+#[test]
+fn check_accepts_library_modules_without_binding_hosts_and_rejects_execution_flags() {
+    let files = Files::new(
+        "mod data; extern fn host(n: i64) -> i64; fn library(t: core::Text) -> i64 { return host(data::length(t)); }",
+    );
+    std::fs::write(
+        files.0.join("data.lang"),
+        "pub fn length(t: &core::Text) -> i64 { return core::text_len(t); }",
+    )
+    .unwrap();
+    for explicit in [false, true] {
+        let mut args = vec![OsString::from("check")];
+        if explicit {
+            args.extend([
+                OsString::from("--source-root"),
+                files.0.clone().into_os_string(),
+            ]);
+        }
+        args.push(files.0.join("source.lang").into_os_string());
+        let output = cli(args);
+        assert!(output.status.success(), "{}", stderr(&output));
+        assert!(output.stdout.is_empty() && output.stderr.is_empty());
+    }
+    let wrong = cli([
+        OsString::from("check"),
+        OsString::from("--fuel"),
+        OsString::from("1"),
+        files.0.join("source.lang").into_os_string(),
+    ]);
+    assert_eq!(wrong.status.code(), Some(2));
+    assert!(stderr(&wrong).contains("unknown check option --fuel"));
+}
+
+#[test]
+fn ownership_mir_bounds_render_original_source_spans_at_every_analysis_stage() {
+    let text = "fn get(v: &core::Vec<i64>) -> i64 { match core::vec_get::<i64>(v, 0) { core::Result::Ok(value) => { return (*value); }, core::Result::Err(_) => { return 0; }, } }";
+    for stage in 0..4 {
+        let mut limits = CompileLimits::default();
+        match stage {
+            0 => limits.ownership.bodies.places.ownership.unit.work = 0,
+            1 => limits.ownership.moves.state_cells = 0,
+            2 => limits.ownership.activity.state_cells = 0,
+            _ => limits.ownership.loans.nodes = 0,
+        }
+        let mut sources = SourceMap::new();
+        sources.add("unused.lang", "unused").unwrap();
+        let analysis = frontend::analyze_virtual(
+            sources,
+            Path::new("bounded.lang"),
+            text.as_bytes(),
+            None,
+            limits,
+            None,
+        );
+        assert!(
+            matches!(analysis.result, Err(AnalysisError::Diagnostics)),
+            "stage {stage}: {:?}",
+            analysis.result
+        );
+        assert_eq!(analysis.diagnostics.len(), 1);
+        let d = &analysis.diagnostics[0];
+        assert_eq!(d.code, codes::RESOURCE_LIMIT);
+        assert_eq!(analysis.sources.slice(d.primary.span).unwrap(), text);
+        d.validate(&analysis.sources).unwrap();
+    }
+    let mut limits = CompileLimits::default();
+    limits.ownership.bodies.places.ownership.unit.work = 0;
+    let copy = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("copy.lang"),
+        b"fn main() -> i64 { return 7; }",
+        None,
+        limits,
+        None,
+    );
+    assert!(copy.result.unwrap().as_copy().is_some());
 }
 
 #[test]

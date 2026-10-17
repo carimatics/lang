@@ -47,6 +47,27 @@ fn rendered(report: &Report) -> String {
 }
 
 #[test]
+fn analyzed_ownership_items_do_not_commit_to_the_copy_execution_session() {
+    let mut session = Session::default();
+    commit(&mut session, "fn keep() -> i64 { return 7; }");
+    let report = submit(
+        &mut session,
+        "fn owned(v: core::Text) -> core::Text { return v; }",
+    );
+    assert!(matches!(
+        report.result,
+        Err(ReplError::Analysis(lang::frontend::AnalysisError::Typing(
+            lang_hir::program::CheckError::OwnershipProfile { .. }
+        )))
+    ));
+    assert!(report.diagnostics.is_empty());
+    value(&mut session, "keep()", "7");
+    // Reusing the rejected name proves the item was not partially published.
+    commit(&mut session, "fn owned() -> i64 { return 9; }");
+    value(&mut session, "owned()", "9");
+}
+
+#[test]
 fn definitions_commit_only_after_successful_complete_analysis() {
     let mut s = Session::default();
     commit(&mut s, "fn add_one(x: i64) -> i64 { return x + 1; }");

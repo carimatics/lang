@@ -18,7 +18,7 @@ use crate::modules::{
 use lang_diagnostics::{Diagnostic, Label, Severity, SourceId, SourceMap, codes};
 use lang_hir::{
     layout::LayoutError,
-    program::{CheckError, CheckLimits, check_program},
+    program::{CheckError, CheckLimits},
 };
 use lang_query::{Graph, GraphError, Key, Ticket};
 use lang_syntax::{ParseError, ParseLimits, add_source, parse};
@@ -28,6 +28,7 @@ pub struct Limits {
     pub modules: ModuleLimits,
     pub binding: BindingLimits,
     pub typing: CheckLimits,
+    pub ownership: crate::analysis::OwnershipLimits,
     pub graph: lang_query::Limits,
     pub files: usize,
     pub input_bytes: usize,
@@ -41,6 +42,7 @@ impl Default for Limits {
             modules: ModuleLimits::default(),
             binding: BindingLimits::default(),
             typing: CheckLimits::default(),
+            ownership: crate::analysis::OwnershipLimits::default(),
             graph: lang_query::Limits {
                 nodes: 4096,
                 edges: 65_536,
@@ -104,6 +106,7 @@ pub enum AnalysisFailure {
     Module(Arc<ModuleLoadError>),
     Binding(BindingError),
     Typing(CheckError),
+    Ownership(crate::analysis::Error),
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AnalysisStatus {
@@ -527,6 +530,7 @@ impl Database {
             module,
             binding: self.limits.binding,
             typing: self.limits.typing,
+            ownership: self.limits.ownership,
         })
     }
     pub fn publish(
@@ -631,6 +635,7 @@ pub struct AnalysisJob {
     module: Arc<ModuleSnapshot>,
     binding: BindingLimits,
     typing: CheckLimits,
+    ownership: crate::analysis::OwnershipLimits,
 }
 pub struct CompletedAnalysis {
     ticket: Ticket,
@@ -651,8 +656,16 @@ impl AnalysisJob {
                 Ok(bound) => {
                     diagnostics.extend(bound.diagnostics);
                     if let Some(program) = bound.program {
-                        match check_program(program, &self.module.sources, self.typing) {
-                            Err(error) => failure = Some(AnalysisFailure::Typing(error)),
+                        match crate::analysis::analyze(
+                            program,
+                            &self.module.sources,
+                            self.typing,
+                            self.ownership,
+                        ) {
+                            Err(crate::analysis::Error::Hir(error)) => {
+                                failure = Some(AnalysisFailure::Typing(error))
+                            }
+                            Err(error) => failure = Some(AnalysisFailure::Ownership(error)),
                             Ok(checked) => {
                                 diagnostics.extend(checked.diagnostics);
                                 valid = checked.program.is_some();

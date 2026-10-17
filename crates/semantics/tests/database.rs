@@ -42,6 +42,52 @@ const MAIN: &str = "mod math; fn main() -> i64 { return math::value(); }";
 const CHILD: &str = "pub fn value() -> i64 { return 42; }";
 const BAD_CHILD: &str = "pub fn value() -> i64 { return false; }";
 
+const OWNED: &str = "fn get(v: &core::Vec<i64>) -> i64 { match core::vec_get::<i64>(v, 0) { core::Result::Ok(value) => { return (*value); }, core::Result::Err(_) => { return 0; }, } }";
+
+#[test]
+fn ownership_analysis_success_is_cached_and_invalidated_without_an_execution_profile_error() {
+    let d = Directory::new();
+    let mut db = d.db();
+    let path = open(&mut db, &d.file("owned.lang"), OWNED);
+    let first = db.analyze(&path).unwrap();
+    assert_eq!(first.status, AnalysisStatus::Valid);
+    assert!(first.error.is_none());
+    assert!(first.diagnostics.is_empty());
+    assert!(Arc::ptr_eq(&first, &db.analyze(&path).unwrap()));
+    db.change(&path, Arc::from(&b"fn bad(t: core::Text) -> core::Text { let mut moved: core::Text = t; return t; }"[..])).unwrap();
+    let changed = db.analyze(&path).unwrap();
+    assert_eq!(changed.status, AnalysisStatus::Diagnostics);
+    assert!(changed.error.is_none());
+    assert!(!changed.diagnostics.is_empty());
+    db.change(&path, Arc::from(OWNED.as_bytes())).unwrap();
+    assert_eq!(db.analyze(&path).unwrap().status, AnalysisStatus::Valid);
+    assert!(first.diagnostics.is_empty());
+}
+
+#[test]
+fn ownership_mir_limits_are_cached_source_diagnostics_and_stale_jobs_cannot_publish() {
+    let d = Directory::new();
+    let mut limits = Limits::default();
+    limits.ownership.loans.nodes = 0;
+    let mut db = Database::new(Some(&d.0), limits).unwrap();
+    let path = open(&mut db, &d.file("owned.lang"), OWNED);
+    let old = db.prepare(&path).unwrap();
+    db.change(&path, Arc::from(&b"fn main() -> i64 { return 7; }"[..]))
+        .unwrap();
+    assert!(matches!(
+        db.publish(old.compute()),
+        Err(DbError::Graph(GraphError::StaleTicket))
+    ));
+    assert_eq!(db.analyze(&path).unwrap().status, AnalysisStatus::Valid);
+    db.change(&path, Arc::from(OWNED.as_bytes())).unwrap();
+    let limited = db.analyze(&path).unwrap();
+    assert_eq!(limited.status, AnalysisStatus::Diagnostics);
+    assert!(limited.error.is_none());
+    assert_eq!(limited.diagnostics[0].code, codes::RESOURCE_LIMIT);
+    limited.diagnostics[0].validate(&limited.sources).unwrap();
+    assert!(Arc::ptr_eq(&limited, &db.analyze(&path).unwrap()));
+}
+
 #[cfg(unix)]
 #[test]
 fn authorized_overlay_survives_disk_replacement_without_acquiring_new_authority() {

@@ -349,6 +349,20 @@ Ownership MIRはserialized Copy profileから独立した `bodies::Term` を持�
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17 JST。[Match lowerer](../../crates/semantics/src/ownership_types/bodies/matching.rs)、[ownership制御フロー](../../crates/mir/src/unit/ownership/bodies/term.rs)、[source test](../../crates/semantics/tests/ownership_types.rs)、[独立oracle](../../crates/semantics/tests/support/ownership_pattern_oracle.rs)の更新／検証日：2026-10-18 JST。
 
+### Source analysis profileとdriver境界
+
+実装／検証日：2026-10-18 JST。`lang_hir::program::analyze_program`は検査済みCopy program、またはprivateなregion検査済みHIR bodyを保持するownership programを返します。互換entry pointの`check_program`と`check_expression_function`は引き続きCopy execution profileを要求します。成功したownership解析は保持され、再実行したり未対応の言語機能として報告したりしません。
+
+`lang_semantics::analysis::analyze`がdriver／query共通のentry pointです。検査済みownership HIRをtyped MIRへloweringし、move、loan activity、provenanceを検査して、HIR／MIR両方のproofを`Program::Ownership`に保持します。Copy programは既存の`TypedProgram`表現を維持し、ownership MIRのlimitは適用されません。Ownership MIRのresource failureは元のroot module spanを持つ`SRC0011`診断になります。Driverはremap後のMIR source IDから元のsource IDを推測しません。内部不変条件のerrorは構造化されたanalysis failureとして保持します。
+
+`lang check [--source-root DIR] FILE`はコードを実行せず、名前解決と該当するsource解析を行います。Libraryの検査には`main`関数もhost関数のbindingも不要です。成功時は無出力で終了status 0、source／analysis failureは1、不正なcommand usageは2を返します。[Ownership example](../../examples/analysis/ownership.lang)でこの経路を確認できます。Query database snapshotも検査に成功したownership sourceをvalidとして報告し、既存のrevision／dependency publication検査と上限付きdiagnostics cacheを維持します。
+
+Frontendの`Analysis.result`は共通の`Program` enumを保持するようになりました。Copy `TypedProgram`が必要なcallerは`as_copy`でvariantを選択するか、`frontend::copy_executable`で構造化されたexecution-profile errorを取得します。既存のCopy MIR／bytecode lowering APIは変更しません。`lang run`とREPLはcompileまたはitem publicationの前にこの境界を適用し、拒否されたownership REPL itemはcommit済みsessionを変更しません。Ownership解析proofはまだ実行可能layout、allocation、cleanupを許可せず、serialized formatの変更もありません。
+
+検証では、HIR／MIR解析結果の保持、元sourceを指すresource診断、library／複数fileの検査、query cacheの無効化とstale ticket、REPL拒否時のtransactionを対象に7 testを追加しました。CLI／REPL／queryのfocused test 63件とworkspace全847 test、およびformat、Clippy、documentation生成、fuzz targetのformat／Clippyが成功しました。独立したexampleも`cargo run -- check examples/analysis/ownership.lang`で成功しています。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[共通analysis](../../crates/semantics/src/analysis.rs)、[frontend](../../src/frontend.rs)、[CLI](../../src/main.rs)、[query test](../../crates/semantics/tests/database.rs)、[CLI test](../../tests/cli.rs)、[REPL test](../../tests/repl.rs)の更新／検証日：2026-10-18 JST。
+
 ### Source formatter
 
 2026-10-17に実装したRFC 0007構文拡張：lossless token／CSTで `&T`／`&mut T`、`shared T`／`weak T`／`arena T`、入れ子の組み込みtype argument、`::<...>` call、place borrow、括弧付きdereference、place assignment、allocatorを渡す字句的arena blockを表現します。Generic末尾の `>` は別tokenのままで、`<` 比較と符号付き整数のbehaviorを維持します。Prefix／type argumentの再帰とrecoveryは既存node／depth／list／work上限に従い、formatterはgeneric delimiterと比較を区別して新tokenの全境界間のcommentを保持します。

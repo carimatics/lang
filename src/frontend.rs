@@ -3,11 +3,12 @@ use lang_bytecode::unit::Program;
 use lang_diagnostics::{Diagnostic, Label, Severity, SourceMap, codes};
 use lang_hir::{
     layout::LayoutError,
-    program::{CheckError, CheckLimits, TypedProgram, check_expression_function, check_program},
+    program::{CheckError, CheckLimits, TypedProgram, check_expression_function},
     resolved as r,
 };
 use lang_mir::unit as m;
 use lang_semantics::{
+    analysis::{self, OwnershipLimits, Program as CheckedProgram},
     binding::{BindingError, BindingLimits, bind_program},
     modules::{ModuleAnalysis, ModuleLimits, ModuleLoadError, load_modules, load_virtual},
     program_lowering::{self, LowerError},
@@ -23,6 +24,7 @@ pub struct CompileLimits {
     pub binding: BindingLimits,
     pub typing: CheckLimits,
     pub mir: m::Limits,
+    pub ownership: OwnershipLimits,
 }
 #[derive(Debug)]
 pub enum AnalysisError {
@@ -30,6 +32,7 @@ pub enum AnalysisError {
     Module(ModuleLoadError),
     Binding(BindingError),
     Typing(CheckError),
+    Ownership(analysis::Error),
     MissingWrapper,
 }
 impl Display for AnalysisError {
@@ -46,6 +49,7 @@ impl Display for AnalysisError {
             Self::Module(e) => Display::fmt(e, f),
             Self::Binding(e) => Display::fmt(e, f),
             Self::Typing(e) => Display::fmt(e, f),
+            Self::Ownership(e) => Display::fmt(e, f),
             Self::MissingWrapper => f.write_str("missing generated expression wrapper"),
         }
     }
@@ -55,7 +59,7 @@ impl Error for AnalysisError {}
 pub struct Analysis {
     pub sources: SourceMap,
     pub diagnostics: Vec<Diagnostic>,
-    pub result: Result<TypedProgram, AnalysisError>,
+    pub result: Result<CheckedProgram, AnalysisError>,
 }
 impl Analysis {
     fn failure(sources: SourceMap, mut diagnostics: Vec<Diagnostic>, error: AnalysisError) -> Self {
@@ -132,12 +136,20 @@ fn finish(
             return Analysis::failure(sources, diagnostics, AnalysisError::MissingWrapper);
         };
         check_expression_function(program, &sources, limits.typing, r::FunctionId(index))
+            .map(|checked| analysis::Analysis {
+                program: checked.program.map(CheckedProgram::Copy),
+                diagnostics: checked.diagnostics,
+            })
+            .map_err(analysis::Error::Hir)
     } else {
-        check_program(program, &sources, limits.typing)
+        analysis::analyze(program, &sources, limits.typing, limits.ownership)
     };
     let checked = match checked {
         Ok(c) => c,
-        Err(e) => return Analysis::failure(sources, diagnostics, AnalysisError::Typing(e)),
+        Err(analysis::Error::Hir(e)) => {
+            return Analysis::failure(sources, diagnostics, AnalysisError::Typing(e));
+        }
+        Err(e) => return Analysis::failure(sources, diagnostics, AnalysisError::Ownership(e)),
     };
     diagnostics.extend(checked.diagnostics);
     Analysis {
@@ -189,4 +201,14 @@ pub fn compile_script(
     program_lowering::lower(typed, sources, limits.mir)
         .map(Program::from_verified)
         .map_err(ScriptError::Lower)
+}
+
+/// Execution and native lowering still accept only the verified Copy profile.
+pub fn copy_executable(program: &CheckedProgram) -> Result<&TypedProgram, CheckError> {
+    match program {
+        CheckedProgram::Copy(program) => Ok(program),
+        CheckedProgram::Ownership(program) => Err(CheckError::OwnershipProfile {
+            span: program.feature_span(),
+        }),
+    }
 }

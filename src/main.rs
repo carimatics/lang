@@ -10,8 +10,12 @@ use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
 enum Command {
+    Check {
+        file: PathBuf,
+        root: Option<PathBuf>,
+    },
     Run {
         file: PathBuf,
         root: Option<PathBuf>,
@@ -70,7 +74,8 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
         return Ok(Command::Lsp);
     }
     let repl = first == "repl";
-    if first != "run" && !repl {
+    let check = first == "check";
+    if first != "run" && !repl && !check {
         if arguments.len() != 2 {
             return Err(usage("expected a command or two integers"));
         }
@@ -89,6 +94,9 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
             return Ok(Command::Help);
         }
         if let Some(flag) = argument.to_str().filter(|s| s.starts_with("--")) {
+            if check && flag != "--source-root" {
+                return Err(usage(format!("unknown check option {flag}")));
+            }
             if !matches!(
                 flag,
                 "--source-root" | "--fuel" | "--host-calls" | "--frames" | "--cells"
@@ -117,6 +125,12 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
     }
     if repl {
         return Ok(Command::Repl { root, limits });
+    }
+    if check {
+        return Ok(Command::Check {
+            file: file.ok_or_else(|| usage("missing root file"))?,
+            root,
+        });
     }
     Ok(Command::Run {
         file: file.ok_or_else(|| usage("missing root file"))?,
@@ -147,6 +161,7 @@ fn run() -> Result<u8, CliError> {
             }
             Ok(0)
         }
+        Command::Check { file, root } => check_source(file, root),
         Command::Run { file, root, limits } => run_script(file, root, limits),
         Command::Repl { root, limits } => run_repl(root, limits),
     }
@@ -280,15 +295,38 @@ fn print_repl_report(report: &Report) -> Result<(), CliError> {
     }
     Ok(())
 }
-fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
-    // CLI is the host choosing compiler inputs. Child modules use this
-    // source root; source execution itself acquires no file authority.
-    let root = root.unwrap_or_else(|| {
+fn source_root(file: &std::path::Path, root: Option<PathBuf>) -> PathBuf {
+    root.unwrap_or_else(|| {
         file.parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(std::path::Path::new("."))
             .to_path_buf()
-    });
+    })
+}
+fn check_source(file: PathBuf, root: Option<PathBuf>) -> Result<u8, CliError> {
+    let root = source_root(&file, root);
+    let analysis = frontend::analyze_file(&file, &root, CompileLimits::default());
+    let mut stderr = io::stderr().lock();
+    for diagnostic in &analysis.diagnostics {
+        stderr
+            .write_all(
+                diagnostic
+                    .render(&analysis.sources)
+                    .map_err(failure)?
+                    .as_bytes(),
+            )
+            .map_err(failure)?;
+    }
+    match analysis.result {
+        Ok(_) => Ok(0),
+        Err(AnalysisError::Diagnostics) => Ok(1),
+        Err(error) => Err(failure(error)),
+    }
+}
+fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
+    // CLI is the host choosing compiler inputs. Child modules use this
+    // source root; source execution itself acquires no file authority.
+    let root = source_root(&file, root);
     let compile = CompileLimits::default();
     let analysis = frontend::analyze_file(&file, &root, compile);
     let mut stderr = io::stderr().lock();
@@ -307,7 +345,8 @@ fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8
         Err(AnalysisError::Diagnostics) => return Ok(1),
         Err(error) => return Err(failure(error)),
     };
-    let program = match frontend::compile_script(&typed, &analysis.sources, compile) {
+    let typed = frontend::copy_executable(&typed).map_err(failure)?;
+    let program = match frontend::compile_script(typed, &analysis.sources, compile) {
         Ok(program) => program,
         Err(ScriptError::Entry(diagnostic)) => {
             stderr

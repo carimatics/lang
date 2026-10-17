@@ -60,20 +60,21 @@ The Milestone 1 source pipeline supports multi-file modules, typed functions and
 Requirements: Rust `1.99.0` with rustfmt and Clippy, pinned by `rust-toolchain.toml`; `mise` supplies auxiliary tool versions when needed.
 
 ```bash
+cargo run -- check examples/analysis/ownership.lang
 cargo run -- run examples/scripts/answer.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
-The script prints `42` and exits 0. Compile/runtime errors exit 1; usage errors exit 2. Its result is not an exit code. `--source-root DIR` selects file authority; otherwise scripts use the root file's parent and REPL sessions have no file-module authority. Both commands accept `--fuel`, `--host-calls`, `--frames`, and `--cells`. The CLI registers no host imports.
+`check` validates Copy or RFC 0007 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. The ownership example is analysis-only while its runtime profile is being implemented. `run` uses the Copy executable profile: the script prints `42` and exits 0. Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`. The CLI registers no host imports. Verified 2026-10-18 JST.
 
 The REPL commits successfully checked item definitions and evaluates one expression per submission with fresh VM counters. It prints scalars or qualified aggregate values, accepts multiline input, and supports `:reset` and `:quit`. Failed submissions preserve prior definitions; host effects are not rolled back.
 
 Configure an LSP client to execute `target/debug/lang lsp` after `cargo build`. The stdio profile supports initialize/shutdown/exit, UTF-16 positions, full document synchronization, versioned diagnostics, watched-file refresh, and canonical four-space document formatting. Initialization grants at most one explicit local workspace root; without one, only open buffers are available. Code actions, completion, navigation, and debugger integration remain later work. See [architecture and protocol sources](docs/architecture.md#diagnostics-lsp-and-debugging).
 
-The shared APIs are `lang::frontend`, `lang::repl::Session`, `lang_semantics::database`, `lang_syntax::format`, and the `unit` modules in MIR, bytecode, VM, and Cranelift crates. Compiler/codec/cache budgets are configurable. VM defaults are 1,000,000 fuel, 1,000 host calls, 256 guest frames, and 1,000,000 live value cells. Interruption/deadlines act at guest safe points; trusted native callbacks are non-preemptible and must not unwind.
+The shared APIs are `lang::frontend`, `lang::repl::Session`, `lang_semantics::analysis`, `lang_semantics::database`, `lang_syntax::format`, and the `unit` modules in MIR, bytecode, VM, and Cranelift crates. Source analysis returns an explicit Copy or ownership program; the ownership variant retains checked HIR and MIR. Compiler/codec/cache budgets are configurable. VM defaults are 1,000,000 fuel, 1,000 host calls, 256 guest frames, and 1,000,000 live value cells. Interruption/deadlines act at guest safe points; trusted native callbacks are non-preemptible and must not unwind.
 
-The initial native adapter handles the scalar/CFG profile and existing straight-line owned fixture; source guest calls and aggregates return unsupported-feature errors until Milestone 2. `cargo run -- 20 22` retains the original scalar VM/JIT comparison. Cranelift 0.136.3 is the initial native backend. Native linker/debug evidence and historical platform measurements are documented in [architecture](docs/architecture.md), [benchmarks](docs/benchmarks.md), and the [roadmap](docs/roadmap.md); local source-conformance execution on 2026-10-17 is macOS AArch64, with Windows execution requiring CI evidence.
+The whole-unit native API in `lang_codegen_clif::program` supports the RFC 0006 Copy profile, including guest calls, boolean interfaces, records/enums and patterns. Ownership-aware source execution, public C adapters and production native packaging remain Milestone 2 work. `cargo run -- 20 22` retains the original scalar VM/JIT comparison. Cranelift 0.136.3 is the initial native backend. Native linker/debug evidence and historical platform measurements are documented in [architecture](docs/architecture.md), [benchmarks](docs/benchmarks.md), and the [roadmap](docs/roadmap.md); local source-conformance execution on 2026-10-17 is macOS AArch64, with Windows execution requiring CI evidence.
 
 Before finalizing code changes, run:
 

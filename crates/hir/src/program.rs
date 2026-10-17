@@ -123,7 +123,7 @@ impl Display for CheckError {
             Self::Loans(e) => Display::fmt(e, f),
             Self::Regions(e) => Display::fmt(e, f),
             Self::OwnershipProfile { .. } => f.write_str(
-                "ownership source bodies require the remaining provenance checks and ownership MIR",
+                "ownership source requires the ownership execution profile, which is not implemented yet",
             ),
             Self::Limit(d) => write!(f, "{}: {}", d.code.as_str(), d.message),
         }
@@ -208,12 +208,67 @@ pub struct ProgramAnalysis {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// Successful source analysis is distinct from a supported executable profile.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CheckedProgram {
+    Copy(TypedProgram),
+    Ownership(Box<OwnershipProgram>),
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OwnershipProgram {
+    bodies: regions::RegionCheckedBodies,
+    feature_span: Span,
+}
+impl OwnershipProgram {
+    pub fn bodies(&self) -> &regions::RegionCheckedBodies {
+        &self.bodies
+    }
+    pub const fn feature_span(&self) -> Span {
+        self.feature_span
+    }
+}
+impl CheckedProgram {
+    pub fn source(&self) -> &r::Program {
+        match self {
+            Self::Copy(program) => program.source(),
+            Self::Ownership(program) => program.bodies.loaned().moved().bodies().source(),
+        }
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceAnalysis {
+    pub program: Option<CheckedProgram>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+pub fn analyze_program(
+    source: r::Program,
+    sources: &SourceMap,
+    limits: CheckLimits,
+) -> Result<SourceAnalysis, CheckError> {
+    check_program_internal(source, sources, limits, None)
+}
+fn require_copy(analysis: SourceAnalysis) -> Result<ProgramAnalysis, CheckError> {
+    let program = match analysis.program {
+        Some(CheckedProgram::Copy(program)) => Some(program),
+        Some(CheckedProgram::Ownership(program)) => {
+            return Err(CheckError::OwnershipProfile {
+                span: program.feature_span,
+            });
+        }
+        None => None,
+    };
+    Ok(ProgramAnalysis {
+        program,
+        diagnostics: analysis.diagnostics,
+    })
+}
+
 pub fn check_program(
     source: r::Program,
     sources: &SourceMap,
     limits: CheckLimits,
 ) -> Result<ProgramAnalysis, CheckError> {
-    check_program_internal(source, sources, limits, None)
+    require_copy(check_program_internal(source, sources, limits, None)?)
 }
 
 /// Infer only a host-generated REPL expression wrapper's result. Ordinary
@@ -227,7 +282,12 @@ pub fn check_expression_function(
     limits: CheckLimits,
     wrapper: r::FunctionId,
 ) -> Result<ProgramAnalysis, CheckError> {
-    check_program_internal(source, sources, limits, Some(wrapper))
+    require_copy(check_program_internal(
+        source,
+        sources,
+        limits,
+        Some(wrapper),
+    )?)
 }
 
 fn check_program_internal(
@@ -235,7 +295,7 @@ fn check_program_internal(
     sources: &SourceMap,
     limits: CheckLimits,
     infer: Option<r::FunctionId>,
-) -> Result<ProgramAnalysis, CheckError> {
+) -> Result<SourceAnalysis, CheckError> {
     let mut context = Context {
         source: &source,
         sources,
@@ -295,7 +355,7 @@ fn check_program_internal(
     if let Some(span) = ownership_span {
         let analysis = analyze_bodies(source, sources, limits)?;
         let Some(bodies) = analysis.bodies else {
-            return Ok(ProgramAnalysis {
+            return Ok(SourceAnalysis {
                 program: None,
                 diagnostics: analysis.diagnostics,
             });
@@ -304,7 +364,7 @@ fn check_program_internal(
         let moved = moves::analyze(bodies, sources, limits.moves).map_err(CheckError::Moves)?;
         diagnostics.extend(moved.diagnostics);
         let Some(checked_moves) = moved.bodies else {
-            return Ok(ProgramAnalysis {
+            return Ok(SourceAnalysis {
                 program: None,
                 diagnostics,
             });
@@ -313,7 +373,7 @@ fn check_program_internal(
             loans::analyze(checked_moves, sources, limits.loans).map_err(CheckError::Loans)?;
         if !loaned.diagnostics.is_empty() {
             diagnostics.extend(loaned.diagnostics);
-            return Ok(ProgramAnalysis {
+            return Ok(SourceAnalysis {
                 program: None,
                 diagnostics,
             });
@@ -323,12 +383,18 @@ fn check_program_internal(
             .map_err(CheckError::Regions)?;
         if !regioned.diagnostics.is_empty() {
             diagnostics.extend(regioned.diagnostics);
-            return Ok(ProgramAnalysis {
+            return Ok(SourceAnalysis {
                 program: None,
                 diagnostics,
             });
         }
-        return Err(CheckError::OwnershipProfile { span });
+        return Ok(SourceAnalysis {
+            program: Some(CheckedProgram::Ownership(Box::new(OwnershipProgram {
+                bodies: regioned.bodies.expect("region success without diagnostics"),
+                feature_span: span,
+            }))),
+            diagnostics,
+        });
     }
     let expression = if let Some(id) = infer {
         let invalid = || input(CheckInputErrorKind::InvalidExpressionFunction, None);
@@ -373,7 +439,7 @@ fn check_program_internal(
         context.report(diagnostic)?;
     }
     let Some(layouts) = layout.layouts else {
-        return Ok(ProgramAnalysis {
+        return Ok(SourceAnalysis {
             program: None,
             diagnostics: context.diagnostics,
         });
@@ -393,7 +459,7 @@ fn check_program_internal(
     let successful = context.errors == 0;
     let diagnostics = context.diagnostics;
     if !successful {
-        return Ok(ProgramAnalysis {
+        return Ok(SourceAnalysis {
             program: None,
             diagnostics,
         });
@@ -406,12 +472,12 @@ fn check_program_internal(
         source.functions[wrapper.0].result.value_type =
             functions[wrapper.0].expressions[expression.0];
     }
-    Ok(ProgramAnalysis {
-        program: Some(TypedProgram {
+    Ok(SourceAnalysis {
+        program: Some(CheckedProgram::Copy(TypedProgram {
             source,
             functions,
             layouts,
-        }),
+        })),
         diagnostics,
     })
 }
