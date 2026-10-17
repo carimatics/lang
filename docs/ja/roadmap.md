@@ -317,6 +317,10 @@ Cleanup runtime統合の基盤（2026-10-18 JST）：commit `c437dc1` は`lang_r
 
 見直し：source／MIRのscopeとfailure exitがこのruntime遷移を駆動し、aggregate field／temporaryの実構築順を保持し、実行adapterで受理済み意味論を実証するまでdeterministic drop成果は未完了です。Engineのfallibleなhost metadata確保はguest allocatorのaccounting完了を意味しません。現在のscope／依存関係と113 pt見積もりを維持し、M2は34 / 113 pt（30.1%）、全18成果中5成果、全体は332 / 764 pt（43.5%）のままです。次はscope／activation境界、aggregate初期化順、生成failure exitを含むownership MIRのcleanup elaborationをこのengineへ接続し、続いてowned layout／fallible core allocationとVM／native実行を実装します。既存Copy互換性と、残るarena、ownership artifact、unsafe／C、packaging、conformance、platform／debug、performanceのgateも引き続き必要です。
 
+生成cleanup rangeの接続（2026-10-18 JST）：commit `6216b43` はownershipの自動loweringを変更し、個別source spanを持つlexical／temporary `Op::Cleanup` rangeを出力して、返却owning registerをrange外に保持します。独立したtype／move／activity／provenance検査で、累積上限の下で対象と遷移を検証します。`MirLayout`と`Frame::cleanup_mir`が対象を宣言済みruntime cellに対応付け、effect前にrange全体をpreflightし、Copy／vacant valueを除外してregistrationを終了し、metadata確保をせず選択ownerを動的な初期化順でcleanupします。追加5 testには、source生成MIRのtransfer／cleanupに限定したinterpreterと実際のshared valueを使った検証を含みます。再初期化後は宣言逆順の`1, 2, 3`ではなく`3, 1, 2`でcleanupし、cleanup failure時は未公開owning resultを解放します。不正target／span、verifierの厳密な予算境界、重複target、range preflight失敗も対象です。Workspace全868 test、fmt／Clippy／doc、fuzz format／全bin locked Clippyと、拡張body targetの非instrumented smoke 10,000回が成功しました。Evidence：[cleanup range architecture](architecture.md#生成mir-cleanup-range)とリンク先実装／testの更新／検証日：2026-10-18 JST。RFC 0008の最終更新日：2026-10-17。
+
+見直し：source生成のcleanup rangeがruntime engineへ接続されましたが、検証を限定したtest interpreterによってownership VM実行やdeterministic dropのconformanceが完了したとはしません。M2は34 / 113 pt（30.1%）、全18成果中5成果、全体332 / 764 pt（43.5%）を維持し、scope、依存関係、113 pt見積もりは引き続き妥当です。次はownership MIRにaggregate field／temporaryの実構築順を保持し、生成runtime failure exitをelaborateして、続いてowned layout／fallible allocationとproduction VM／native adapterを実装します。独立arena effect、version付きownership artifactと、残るunsafe／C、packaging、conformance、platform／debug、performanceのgateは未完了です。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
