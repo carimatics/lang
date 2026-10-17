@@ -251,6 +251,8 @@ Commit `a607ed2` は[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と
 
 Commit `ec16f8a` はruntime shared-ownership engineを追加しました。実際のretain付きowner／upgrade、追跡strong／weak field、generation／provenance確認、aliasを考慮するread lease、mutexで線形化するwhole-payload cycle preflight／publicationを実装します。16件のfocused testに、独立した推移閉包／count oracleとの1,000比較、64回の逆向きpublication競合、128回のweak upgrade／last-release競合、15,001 nodeの反復reclamation、rollback／limit／枯渇／poison境界を含みます。Fmt／Clippy／test／docのfull baselineは531 testすべてpassしました。Runtime lifecycle／publicationだけを完了とし、source／MIR／VM／native ownership統合、arena、guest cleanup、公開allocator／FFI契約は未完了です。現engineはabortし得るArc allocationを含むhost Rust storageを使い、未決のsource allocatorのrecoverable-OOM契約やsandboxを保証しません。Roadmap確認では総113 ptと残る全outcomeを維持します。次のdecision scopeはcleanup／allocator／unsafe／FFIで、source ownership analysisはRFC 0007の受理により独立して開始可能です。
 
+Source grammarのfollow-up（2026-10-17 JST）：lossless parser／formatterで受理済みRFC 0007のloan／ownership type、入れ子の組み込みtype argumentと `::<...>` call、place borrow／dereference／assignment、allocatorを渡すarena blockを実装しました。追加10 testでownership fixture全prefix、syntax／CST／comment往復、limit／recovery、`SRC0024` 予約名migration、旧source bindingへ進む前のspan付き拒否を検証し、full baselineは541 testすべてpassしました。これは未完了8 ptのHIR／MIR ownership outcome内のprerequisite進捗であり、move／loan、arena escape安全性、組み込み型検査、実行、ownership wire supportの完了ではありません。Roadmap確認では完了21/113 ptと残る全decision／implementation／measurement gateを維持します。次はcleanup／allocator／unsafe／FFI契約をowner判断可能な形へ起草し、受理済みRFC 0007のownership-aware source解析を独立して進めます。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
