@@ -6,11 +6,13 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**36 done · 0 doing · 51 todo · 132 remaining pt**
+**37 done · 0 doing · 50 todo · 129 remaining pt**
 
-**次: M2-V02 → M2-V03：Bytesのソースプログラムを実行する。**
+**次: M2-V03 → Bytesのソースプログラムを実行する。**
 
-直近の完了：**M2-V01**（`71ece57`）。Managed scalar／core errorの型検査付きaccessと入れ子sumのprepareを追加しました。Runtime 5 testとsource／MIR統合1 testが成功し、全体の937 test、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しました。この成果に追加の前提作業は不要でした。計画した2 ptを残見積もりから減らし、次のframe受け入れtaskでもeffect前allocationとrollbackの既存contractを保持します。
+直近の完了：**M2-V02**（`86c23ce`）。検査済みlocal／value／return storageの受け入れ、全requestのpreflight、OOM時の逆順rollback、確保なしのretirement／再利用を追加しました。Source／runtimeの6 testが成功し、全provider allocation箇所の失敗と128回の再利用を含めて検証しました。全体の943 test、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功し、rustdocはVM／codegenのcache生成物の再構築後に通りました。計画した3 ptを減らして残り129 ptとなり、新たな前提作業は追加していません。
+
+次の受入evidence：`core::bytes_new(core::allocator())` のResultをmatchし、`core::bytes_len` を返すsource mainは `lang check` に成功していますが、`lang run` はownership profileをまだ拒否します。M2-V03でこのprogramと通常cleanupを実行します。計画した2件の前提作業は完了したため、queueをこの実行fixtureへ進めます。
 
 現在、ownershipを使うプログラムは `lang check` で検査できますが、`lang run` とREPLではまだ実行できません。従来の完了条件は **18件中5件完了** です。下記の完了実装にはcompiler／runtimeの前提作業も含み、機能全体が実行可能になったことを意味しません。
 
@@ -88,7 +90,7 @@
 | ID | State | Remaining pt | Needs | Gate | 成果／受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M2-V01 | done | 0 | M2-D34 | G08 | Managed Unit／Option／Result／error codec：入れ子往復、tag検証、厳密な上限。 | `71ece57` |
-| M2-V02 | todo | 3 | M2-V01 | G06 | 上限付きowned frameの受け入れ時、effect前にvalue／retirement storageを確保し、失敗rollbackを検証。 | — |
+| M2-V02 | done | 0 | M2-V01 | G06 | 上限付きowned frameの受け入れ時、effect前にvalue／retirement storageを確保し、失敗rollbackを検証。 | `86c23ce` |
 | M2-V03 | todo | 3 | M2-V02,M2-D35 | G06,G07 | lang runでBytes new／lenのソースと通常dropを実行し、到達可能な未対応命令はeffect前に拒否。 | — |
 | M2-V04 | todo | 3 | M2-V03 | G07,G08 | Bytes get／set／pushとUTF-8成功／失敗をソースから実行し、bounds／OOMを検証。 | — |
 | M2-V05 | todo | 2 | M2-V04 | G07 | Text concat／clone／to-bytesのソース実行でallocator identityと失敗結果を保持。 | — |
