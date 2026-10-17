@@ -6,6 +6,8 @@
 //! scoped to one compilation (or one function for local/body IDs). Consumers
 //! that accept externally constructed input must validate IDs, spans, and limits.
 //! No syntax-tree or code-generation type crosses this boundary.
+//! Expression, pattern, and block arenas form source trees: each node is used
+//! exactly once. Program typing rejects cycles, shared nodes, and orphan nodes.
 
 use lang_diagnostics::Span;
 

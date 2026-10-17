@@ -4,9 +4,11 @@
 //! a typed primitive function only after successful checking. `resolved` holds
 //! name-resolved RFC 0006 program input; `layout` checks bounded copy-only nominal
 //! layouts. Source parsing/module binding live outside this crate. Program-wide
-//! expression/pattern typing and exhaustiveness remain a separate boundary.
+//! expression/pattern/call typing and bounded exhaustiveness are checked by
+//! `program`, which produces a read-only typed program on success.
 
 pub mod layout;
+pub mod program;
 pub mod resolved;
 pub mod source;
 

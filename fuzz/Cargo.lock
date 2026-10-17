@@ -62,9 +62,17 @@ name = "lang-fuzz"
 version = "0.0.0"
 dependencies = [
  "lang-diagnostics",
+ "lang-hir",
  "lang-runtime",
  "lang-syntax",
  "libfuzzer-sys",
+]
+
+[[package]]
+name = "lang-hir"
+version = "0.1.0"
+dependencies = [
+ "lang-diagnostics",
 ]
 
 [[package]]
