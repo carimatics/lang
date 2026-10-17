@@ -16,6 +16,7 @@ use std::mem::ManuallyDrop;
 mod context;
 mod mir;
 pub use context::{Cleaner, Context, Contextual};
+pub use lang_mir::unit::ownership::failure::{Cause, ExecutionFailure};
 pub use mir::{MirLayout, RecordDrain, RecordOrder};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,6 +74,8 @@ pub enum StateError {
     OuterScope,
     CallBoundary,
     AggregateArity { expected: usize, actual: usize },
+    ExitPending,
+    ExitNotStaged,
     Failed,
 }
 impl Display for StateError {
@@ -89,22 +92,11 @@ pub struct Rejected<T> {
     pub value: T,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ExecutionFailure {
-    Panic,
-    Fault,
-    FuelLimit,
-    FrameLimit,
-    CellLimit,
-    AllocationLimit,
-    HostCall,
-    HostPanic,
-    Invariant,
-}
-impl ExecutionFailure {
-    fn poisons(self) -> bool {
-        matches!(self, Self::HostPanic | Self::Invariant)
-    }
+fn poisons(failure: ExecutionFailure) -> bool {
+    matches!(
+        failure,
+        ExecutionFailure::HostPanic | ExecutionFailure::Invariant
+    )
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FailureKind {
@@ -259,6 +251,7 @@ impl Instance {
                 quarantined: 0,
             },
             finished: false,
+            pending: None,
         })
     }
 }
@@ -300,6 +293,11 @@ struct Scope {
     declarations: Option<Slot>,
     call: bool,
 }
+struct PendingExit<T> {
+    depth: usize,
+    returned: Option<(Slot, ManuallyDrop<T>, Option<Span>)>,
+    retired: bool,
+}
 
 /// A frame holds real owners and reserves all bookkeeping before guest entry.
 /// The trusted cleaner must mark its internal cleanup attempts before returning;
@@ -317,6 +315,7 @@ pub struct Frame<'a, T, C: Cleaner<T>> {
     limits: Limits,
     report: Report,
     finished: bool,
+    pending: Option<PendingExit<T>>,
 }
 impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     fn running(&self) -> Result<(), StateError> {
@@ -350,6 +349,9 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     }
     fn push_scope(&mut self, call: bool) -> Result<(), StateError> {
         self.running()?;
+        if self.pending.is_some() {
+            return Err(StateError::ExitPending);
+        }
         if self.scopes.len() == self.limits.scopes {
             return Err(StateError::ScopeLimit);
         }
@@ -361,6 +363,9 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     }
     pub fn declare(&mut self, slot: Slot, kind: Kind) -> Result<(), StateError> {
         self.running()?;
+        if self.pending.is_some() {
+            return Err(StateError::ExitPending);
+        }
         let value = self.slots.get_mut(slot.0).ok_or(StateError::InvalidSlot)?;
         if value.scope.is_some() {
             return Err(StateError::AlreadyDeclared);
@@ -480,6 +485,9 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     }
     pub fn close_scope(&mut self) -> Result<(), StateError> {
         self.running()?;
+        if self.pending.is_some() {
+            return Err(StateError::ExitPending);
+        }
         if self.scopes.len() == 1 {
             return Err(StateError::OuterScope);
         }
@@ -525,6 +533,9 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
         target: Option<Slot>,
     ) -> Result<(), StateError> {
         self.running()?;
+        if self.pending.is_some() {
+            return Err(StateError::ExitPending);
+        }
         let depth = self
             .scopes
             .iter()
@@ -622,17 +633,175 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
             cleaner.cleanup(value, reason, context)
         });
     }
+    /// Protect an unpublished result before generated return cleanup starts.
+    /// Copy/Unit results remain in the adapter; use None for their ledger slot.
+    pub fn stage_return(&mut self, value: Option<Slot>) -> Result<(), StateError> {
+        self.running()?;
+        if self.pending.is_some() {
+            return Err(StateError::ExitPending);
+        }
+        let depth = self
+            .scopes
+            .iter()
+            .rposition(|scope| scope.call)
+            .ok_or(StateError::ExitNotStaged)?;
+        let returned = if let Some(slot) = value {
+            if self.declared(slot)?.kind != Kind::Owner {
+                return Err(StateError::KindMismatch);
+            }
+            if self.declared(slot)?.scope.is_none_or(|scope| scope < depth) {
+                return Err(StateError::CallBoundary);
+            }
+            self.value(slot)?;
+            let (payload, span) = self.remove(slot);
+            Some((slot, payload, span))
+        } else {
+            None
+        };
+        self.pending = Some(PendingExit {
+            depth,
+            returned,
+            retired: false,
+        });
+        Ok(())
+    }
+    /// Record a fresh execution failure, or preserve a callee/cleanup report.
+    /// A Reported status without any report is a contained invariant failure.
+    pub fn begin_failure(&mut self, cause: Cause, span: Option<Span>) -> Result<(), StateError> {
+        if self.pending.is_none() {
+            let depth = self
+                .scopes
+                .iter()
+                .rposition(|scope| scope.call)
+                .ok_or(StateError::ExitNotStaged)?;
+            self.pending = Some(PendingExit {
+                depth,
+                returned: None,
+                retired: false,
+            });
+        }
+        let failure = match cause {
+            Cause::Execution(failure) => Some(failure),
+            Cause::Reported if self.report.primary.is_none() => Some(ExecutionFailure::Invariant),
+            Cause::Reported => None,
+        };
+        if let Some(failure) = failure {
+            self.instance.poisoned |= poisons(failure);
+            self.report.execution(failure, span);
+        }
+        Ok(())
+    }
+    /// Retire one activation once. Failure does not stop independent cleanup.
+    /// Reentering the common failure path never retries consumed obligations.
+    pub fn retire_exit(&mut self) -> Result<(), StateError> {
+        let pending = self.pending.as_mut().ok_or(StateError::ExitNotStaged)?;
+        if !pending.retired {
+            pending.retired = true;
+            let depth = pending.depth;
+            self.drain_from(
+                depth,
+                if self.report.primary.is_some() {
+                    Reason::Failure
+                } else {
+                    Reason::ScopeExit
+                },
+            );
+        }
+        self.running()
+    }
+    pub fn discard_result(&mut self) -> Result<(), StateError> {
+        let pending = self.pending.as_mut().ok_or(StateError::ExitNotStaged)?;
+        if !pending.retired {
+            return Err(StateError::ExitPending);
+        }
+        if let Some((slot, payload, span)) = pending.returned.take() {
+            self.destroy(slot, payload, span, Reason::UnpublishedReturn);
+        }
+        Ok(())
+    }
+    /// Publish into a caller only after the callee activation retired cleanly.
+    pub fn publish_staged_to(&mut self, target: Option<Slot>) -> Result<(), StateError> {
+        self.running()?;
+        let pending = self.pending.as_ref().ok_or(StateError::ExitNotStaged)?;
+        if !pending.retired {
+            return Err(StateError::ExitPending);
+        }
+        if pending.depth == 0 {
+            return Err(StateError::OuterScope);
+        }
+        match (&pending.returned, target) {
+            (Some(_), Some(target)) => {
+                let value = self.declared(target)?;
+                if value.kind != Kind::Owner
+                    || value.scope.is_none_or(|scope| scope >= pending.depth)
+                {
+                    return Err(StateError::CallBoundary);
+                }
+                if value.payload.is_some() {
+                    return Err(StateError::Initialized);
+                }
+            }
+            (None, None) => {}
+            _ => return Err(StateError::KindMismatch),
+        }
+        let pending = self.pending.take().expect("validated staged exit");
+        if let Some((_, payload, span)) = pending.returned {
+            self.insert(target.expect("validated caller result cell"), payload, span);
+        }
+        Ok(())
+    }
+    /// Return failure to the caller without publishing a result or replacing
+    /// the shared report. The caller follows its own generated failure edge.
+    pub fn propagate_call_failure(&mut self) -> Result<(), StateError> {
+        let pending = self.pending.as_ref().ok_or(StateError::ExitNotStaged)?;
+        if pending.depth == 0 {
+            return Err(StateError::OuterScope);
+        }
+        if !pending.retired || pending.returned.is_some() {
+            return Err(StateError::ExitPending);
+        }
+        if self.report.primary.is_none() {
+            return Err(StateError::Failed);
+        }
+        self.pending = None;
+        Ok(())
+    }
+    pub fn finish_staged_return(mut self) -> Completion<T> {
+        if !self
+            .pending
+            .as_ref()
+            .is_some_and(|exit| exit.depth == 0 && exit.retired)
+        {
+            self.instance.poisoned = true;
+            self.report.execution(ExecutionFailure::Invariant, None);
+        }
+        self.finish(Exit::Return(None))
+    }
+    pub fn finish_reported_failure(mut self) -> Completion<T> {
+        if self.report.primary.is_none() {
+            self.instance.poisoned = true;
+            self.report.execution(ExecutionFailure::Invariant, None);
+        }
+        self.finish(Exit::Return(None))
+    }
     pub fn finish(mut self, exit: Exit) -> Completion<T> {
-        let mut returned = None;
+        let had_pending = self.pending.is_some();
+        let pending = self.pending.take();
+        let nested_depth = pending
+            .as_ref()
+            .filter(|pending| pending.depth > 0)
+            .map(|pending| pending.depth);
+        let mut returned = pending.and_then(|pending| pending.returned);
         match exit {
             Exit::Failure { failure, span } => {
-                self.instance.poisoned |= failure.poisons();
+                self.instance.poisoned |= poisons(failure);
                 self.report.execution(failure, span);
             }
             Exit::Return(Some(slot)) => {
-                if self
-                    .declared(slot)
-                    .is_ok_and(|v| v.kind == Kind::Owner && v.payload.is_some())
+                if !had_pending
+                    && self
+                        .declared(slot)
+                        .is_ok_and(|v| v.kind == Kind::Owner && v.payload.is_some())
                 {
                     let (payload, span) = self.remove(slot);
                     returned = Some((slot, payload, span));
@@ -642,6 +811,18 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
                 }
             }
             Exit::Return(None) => {}
+        }
+        if let Some(depth) = nested_depth {
+            // An entry-wide abort still completes the callee's exit before
+            // retiring its callers. A callee result cannot become an entry result.
+            if self.report.primary.is_none() {
+                self.instance.poisoned = true;
+                self.report.execution(ExecutionFailure::Invariant, None);
+            }
+            self.drain_from(depth, Reason::Failure);
+            if let Some((slot, payload, span)) = returned.take() {
+                self.destroy(slot, payload, span, Reason::UnpublishedReturn);
+            }
         }
         self.drain_all(if self.report.primary.is_some() {
             Reason::Failure
@@ -675,6 +856,12 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
 impl<T, C: Cleaner<T>> Drop for Frame<'_, T, C> {
     fn drop(&mut self) {
         if !self.finished {
+            if let Some(pending) = self.pending.take() {
+                self.drain_from(pending.depth, Reason::Failure);
+                if let Some((slot, payload, span)) = pending.returned {
+                    self.destroy(slot, payload, span, Reason::UnpublishedReturn);
+                }
+            }
             self.drain_all(Reason::Failure);
         }
     }

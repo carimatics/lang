@@ -11,6 +11,7 @@ pub struct OwnershipLimits {
     pub moves: o::moves::Limits,
     pub activity: o::loan_activity::Limits,
     pub loans: o::loans::Limits,
+    pub failure: o::failure::Limits,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Program {
@@ -20,14 +21,17 @@ pub enum Program {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OwnershipProgram {
     hir: Box<h::OwnershipProgram>,
-    mir: o::loans::LoanCheckedBodies,
+    flow: o::failure::Elaborated,
 }
 impl OwnershipProgram {
     pub fn hir(&self) -> &lang_hir::regions::RegionCheckedBodies {
         self.hir.bodies()
     }
     pub fn mir(&self) -> &o::loans::LoanCheckedBodies {
-        &self.mir
+        self.flow.source()
+    }
+    pub fn failure_flow(&self) -> &o::failure::Elaborated {
+        &self.flow
     }
     pub const fn feature_span(&self) -> Span {
         self.hir.feature_span()
@@ -66,6 +70,7 @@ pub enum Error {
     Moves(o::moves::Error),
     Activity(o::loan_activity::Error),
     Loans(o::loans::Error),
+    Failure(o::failure::Error),
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -75,6 +80,7 @@ impl Display for Error {
             Self::Moves(e) => Display::fmt(e, f),
             Self::Activity(e) => Display::fmt(e, f),
             Self::Loans(e) => Display::fmt(e, f),
+            Self::Failure(e) => Display::fmt(e, f),
         }
     }
 }
@@ -118,6 +124,10 @@ impl Error {
                     o::loans::ErrorKind::Nodes { .. } | o::loans::ErrorKind::StateWords { .. }
                 ) || matches!(&e.kind, o::loans::ErrorKind::Resource(k) if resource(k))
             }
+            Self::Failure(e) => {
+                matches!(&e.kind, o::failure::ErrorKind::Nodes { .. })
+                    || matches!(&e.kind, o::failure::ErrorKind::Resource(k) if resource(k))
+            }
         };
         exhausted.then(|| {
             Diagnostic::new(
@@ -151,10 +161,11 @@ pub fn analyze(
                 let moved = o::moves::analyze(typed, limits.moves).map_err(Error::Moves)?;
                 let activity =
                     o::loan_activity::analyze(moved, limits.activity).map_err(Error::Activity)?;
-                o::loans::analyze(activity, limits.loans).map_err(Error::Loans)
+                let loaned = o::loans::analyze(activity, limits.loans).map_err(Error::Loans)?;
+                o::failure::elaborate(loaned, limits.failure).map_err(Error::Failure)
             })();
             match result {
-                Ok(mir) => Some(Program::Ownership(Box::new(OwnershipProgram { hir, mir }))),
+                Ok(flow) => Some(Program::Ownership(Box::new(OwnershipProgram { hir, flow }))),
                 Err(e) => {
                     if let Some(d) = root.and_then(|root| e.resource_diagnostic(root)) {
                         diagnostics.push(d);

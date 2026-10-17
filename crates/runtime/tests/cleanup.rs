@@ -1,7 +1,7 @@
 use lang_mir::unit::{SourceId, Span};
 use lang_runtime::cleanup::{
-    Context, Contextual, EnterError, ExecutionFailure, Exit, FailureKind, Frame, Instance, Kind,
-    Limits, Reason, Slot, StateError,
+    Cause, Context, Contextual, EnterError, ExecutionFailure, Exit, FailureKind, Frame, Instance,
+    Kind, Limits, Reason, Slot, StateError,
 };
 use lang_runtime::shared::{Payload, SharedHeap, Strong};
 use std::cell::{Cell, RefCell};
@@ -254,6 +254,10 @@ fn every_execution_failure_keeps_primary_and_only_host_panic_or_invariant_poison
         ExecutionFailure::Panic,
         ExecutionFailure::Fault,
         ExecutionFailure::FuelLimit,
+        ExecutionFailure::Interrupted,
+        ExecutionFailure::DeadlineExceeded,
+        ExecutionFailure::HostCallLimit,
+        ExecutionFailure::CounterOverflow,
         ExecutionFailure::FrameLimit,
         ExecutionFailure::CellLimit,
         ExecutionFailure::AllocationLimit,
@@ -929,6 +933,131 @@ fn deeply_nested_owned_payloads_can_retire_iteratively_from_reserved_work_storag
     assert_eq!(done.report.primary().unwrap().kind, FailureKind::Cleanup(7));
     assert_eq!(*drops.borrow(), [7]);
     assert!(done.poisoned);
+}
+
+#[test]
+fn staged_callee_results_publish_after_retirement_and_preserve_caller_state() {
+    let (drops, trace) = (Drops::default(), Trace::default());
+    let mut instance = Instance::default();
+    let mut frame = instance.enter(Limits::default(), cleaner(&trace)).unwrap();
+    initialize(&mut frame, 0, 10, &drops);
+    frame.declare(Slot(1), Kind::Owner).unwrap();
+    frame.open_call().unwrap();
+    initialize(&mut frame, 2, 20, &drops);
+    initialize(&mut frame, 3, 30, &drops);
+    assert_eq!(
+        frame.stage_return(Some(Slot(0))),
+        Err(StateError::CallBoundary)
+    );
+    frame.stage_return(Some(Slot(2))).unwrap();
+    assert_eq!(frame.stage_return(None), Err(StateError::ExitPending));
+    assert_eq!(frame.open_scope(), Err(StateError::ExitPending));
+    assert_eq!(frame.close_scope(), Err(StateError::ExitPending));
+    assert_eq!(
+        frame.publish_staged_to(Some(Slot(1))),
+        Err(StateError::ExitPending)
+    );
+    frame.retire_exit().unwrap();
+    frame.retire_exit().unwrap(); // no retry
+    assert_eq!(*drops.borrow(), [30]);
+    assert_eq!(*frame.value(Slot(0)).unwrap().value, 10);
+    frame.publish_staged_to(Some(Slot(1))).unwrap();
+    assert_eq!(*frame.value(Slot(1)).unwrap().value, 20);
+    frame.open_call().unwrap();
+    frame.stage_return(None).unwrap();
+    frame.retire_exit().unwrap();
+    frame.publish_staged_to(None).unwrap();
+    frame.finish(Exit::Return(None));
+    assert_eq!(*drops.borrow(), [30, 20, 10]);
+}
+
+#[test]
+fn callee_failure_propagates_one_report_and_discards_staged_result_before_caller_cleanup() {
+    let drops = Drops::default();
+    let mut instance = Instance::default();
+    let mut frame = instance
+        .enter(Limits::default(), |value: &mut Resource, _| {
+            Err(*value.value)
+        })
+        .unwrap();
+    initialize(&mut frame, 0, 10, &drops);
+    frame.open_call().unwrap();
+    initialize(&mut frame, 1, 20, &drops);
+    initialize(&mut frame, 2, 30, &drops);
+    frame.stage_return(Some(Slot(2))).unwrap();
+    assert_eq!(frame.retire_exit(), Err(StateError::Failed));
+    frame.begin_failure(Cause::Reported, None).unwrap();
+    assert_eq!(frame.retire_exit(), Err(StateError::Failed));
+    frame.discard_result().unwrap();
+    frame.discard_result().unwrap();
+    frame.propagate_call_failure().unwrap();
+    assert_eq!(*frame.value(Slot(0)).unwrap().value, 10);
+    frame.begin_failure(Cause::Reported, None).unwrap();
+    assert_eq!(frame.retire_exit(), Err(StateError::Failed));
+    frame.discard_result().unwrap();
+    let done = frame.finish_reported_failure();
+    assert_eq!(
+        done.report.primary().unwrap().kind,
+        FailureKind::Cleanup(20)
+    );
+    assert_eq!(
+        done.report
+            .secondary()
+            .iter()
+            .map(|r| r.kind)
+            .collect::<Vec<_>>(),
+        [FailureKind::Cleanup(30), FailureKind::Cleanup(10)]
+    );
+    assert_eq!(*drops.borrow(), [20, 30, 10]);
+    assert!(done.poisoned);
+}
+
+#[test]
+fn abandoned_staged_exit_still_retires_result_last_and_never_publishes_invalid_exit() {
+    let (drops, trace) = (Drops::default(), Trace::default());
+    let mut instance = Instance::default();
+    {
+        let mut frame = instance.enter(Limits::default(), cleaner(&trace)).unwrap();
+        initialize(&mut frame, 0, 10, &drops);
+        initialize(&mut frame, 1, 20, &drops);
+        frame.stage_return(Some(Slot(0))).unwrap();
+    }
+    assert_eq!(
+        *trace.borrow(),
+        [(20, Reason::Failure), (10, Reason::UnpublishedReturn)]
+    );
+    for explicit_failure in [false, true] {
+        let mut frame = instance.enter(Limits::default(), cleaner(&trace)).unwrap();
+        initialize(&mut frame, 0, 40, &drops);
+        frame.open_call().unwrap();
+        initialize(&mut frame, 1, 50, &drops);
+        initialize(&mut frame, 2, 60, &drops);
+        frame.stage_return(Some(Slot(1))).unwrap();
+        if explicit_failure {
+            let done = frame.finish(Exit::Failure {
+                failure: ExecutionFailure::Panic,
+                span: None,
+            });
+            assert_eq!(
+                done.report.primary().unwrap().kind,
+                FailureKind::Execution(ExecutionFailure::Panic)
+            );
+        } else {
+            drop(frame);
+        }
+    }
+    let mut frame = instance.enter(Limits::default(), cleaner(&trace)).unwrap();
+    initialize(&mut frame, 0, 30, &drops);
+    assert_eq!(frame.retire_exit(), Err(StateError::ExitNotStaged));
+    frame.stage_return(Some(Slot(0))).unwrap();
+    let done = frame.finish_staged_return(); // missing retirement is an invariant
+    assert!(done.value.is_none());
+    assert_eq!(
+        done.report.primary().unwrap().kind,
+        FailureKind::Execution(ExecutionFailure::Invariant)
+    );
+    assert!(done.poisoned);
+    assert_eq!(*drops.borrow(), [20, 10, 60, 50, 40, 60, 50, 40, 30]);
 }
 
 #[test]

@@ -1,6 +1,6 @@
 //! Automatic lowering from region-checked source bodies, including generated
 //! lexical/temporary cleanup ranges and record initialization order. Executable
-//! layouts and generated failure exits remain required for source execution.
+//! layouts, guest allocation and execution adapters remain required.
 
 use super::*;
 use lang_hir::program::{BodyTypes, FunctionFacts};

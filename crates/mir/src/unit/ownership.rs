@@ -11,6 +11,7 @@ use std::hash::{Hash, Hasher};
 pub mod bodies;
 pub mod core;
 pub mod declarations;
+pub mod failure;
 mod flow;
 pub mod loan_activity;
 pub mod loans;

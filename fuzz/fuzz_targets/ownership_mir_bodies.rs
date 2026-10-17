@@ -436,6 +436,28 @@ fuzz_target!(|bytes: &[u8]| {
                         loans::analyze(checked.clone().into_activity(), limits).unwrap(),
                         checked
                     );
+                    use lang_mir::unit::ownership::failure;
+                    let limits = failure::Limits {
+                        work: 100_000,
+                        allocations: 2 * 1024 * 1024,
+                        elements: 100_000,
+                        nodes: 4096,
+                    };
+                    if let Ok(flow) = failure::elaborate(checked, limits) {
+                        assert_eq!(
+                            failure::elaborate(flow.source().clone(), limits).unwrap(),
+                            flow
+                        );
+                        for function in flow.functions() {
+                            assert!(
+                                function
+                                    .nodes()
+                                    .iter()
+                                    .flat_map(|node| node.kind.targets())
+                                    .all(|target| (target.0 as usize) < function.nodes().len())
+                            );
+                        }
+                    }
                 }
             }
         }
