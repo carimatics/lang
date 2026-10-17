@@ -341,6 +341,16 @@ The root crate now expresses the initial tier-1 linker policy as a backend-neutr
 
 The historical backend experiments and their original evidence gaps remain documented in [benchmark evidence](benchmarks.md). They do not reopen the accepted source rules or completed Windows baseline.
 
+### Whole-unit copy-value lowering
+
+Implemented 2026-10-17: `lang-codegen-clif::program` lowers the complete RFC 0006 copy-value operation set from verified compilation units into JIT code or one native object. All guest functions are declared before bodies, supporting forward and mutual recursion, bool parameters/results, nested records/enums, field projection, ordered patterns, and aggregate loop joins. A private pointer/cell convention carries arguments and results; it is neither a stable source ABI nor a C export interface. Values retain nominal identities, checked bool/tag/header/padding invariants, and zero-initialized inactive enum storage. Every block edge reads all operands before writing destinations. Invalid enum projection returns a status that propagates through guest calls before later effects.
+
+Compilation revalidates MIR with cumulative budgets, preflights all host bindings, charges expanded cell copies and temporary buffers, and rejects owned registers, layouts deeper than 64, or frames plus outgoing arguments above 1 MiB. These are explicit native compiler capacity limits. Cranelift's internal allocation is a trusted compiler boundary. JIT invocation validates canonical input buffers and holds the executable owner throughout the call; dropping the owner releases executable mappings. Native recursion and host callbacks remain trusted synchronous execution without VM fuel/frame/interruption enforcement.
+
+Native ranges preserve original source IDs and byte spans for every emitted instruction/terminator, including multiple modules. Emitting complete source-level DWARF/CodeView for this new internal convention remains the separate Milestone 2 debug task. `tests/native_program.rs` covers portable-bytecode round trips, VM/JIT result equality, recursion, composite inputs/results, literal/structural patterns, evaluation order, self-edge swaps, invalid projections/inputs, compile budgets/frame capacity, both Mach-O/COFF objects, and cfg-gated direct/response-file object link/run. macOS AArch64 execution is verified locally; new Windows x86-64 execution evidence remains pending.
+
+Sources: accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md), MIR layout/verifier and native implementation/tests, all updated/verified 2026-10-17 JST. Locked Cranelift 0.136.3 installed source supplies stack-slot, memory-flag, module, and executable-release APIs; no publication/update date is stated in those source files, verified 2026-10-17 JST. Cell layout and capacity limits here are project implementation choices.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.

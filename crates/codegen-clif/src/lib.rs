@@ -17,6 +17,7 @@ use lang_runtime::HostFunctionRegistry;
 pub use target_lexicon::Triple;
 
 mod debug;
+pub mod program;
 pub mod unit;
 
 pub struct CompiledFunction {
@@ -35,7 +36,7 @@ impl Drop for OwnedJitModule {
     fn drop(&mut self) {
         if let Some(module) = self.0.take() {
             // SAFETY: module code pointers never escape this crate. Invocation
-            // borrows CompiledFunction, so no invocation can outlive this owner.
+            // borrows its compiled owner, so no invocation can outlive it.
             // Before publication, no compiled code has been called at all.
             unsafe { module.free_memory() };
         }

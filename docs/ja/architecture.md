@@ -341,6 +341,16 @@ Root crateは、初期tier-1 linker policyをbackend-neutralな `LinkTarget` dom
 
 過去のbackend実験と当時のevidence不足は[benchmark evidence](benchmarks.md)に記録します。受理済みsource規則や完了済みWindows baselineを未決定へ戻すものではありません。
 
+### Compilation unit全体のcopy-value lowering
+
+2026-10-17実装：`lang-codegen-clif::program` は検証済みcompilation unitからRFC 0006のcopy-value命令すべてをJIT codeまたは単一native objectへloweringします。全guest functionをbodyより先に宣言し、前方／相互再帰、bool parameter／result、入れ子のrecord／enum、field projection、順序付きpattern、aggregateのloop joinをsupportします。引数と結果は内部専用のpointer／cell規約で受け渡し、stable source ABIやC export interfaceとしては扱いません。Nominal identity、bool／tag／header／paddingの妥当性、enum非active領域のゼロ初期化を保持します。Block edgeでは全operandを読んでからdestinationへ書き込みます。不正なenum projectionはstatusを返し、後続の副作用を実行する前にguest call全体へ伝播します。
+
+Compilationは累積budgetでMIRを再検証し、全host bindingを事前確認し、展開後のcell copyと一時bufferを計上します。Owned register、深さ64を超えるlayout、outgoing argumentを含め1 MiBを超えるframeはnative compilerの明示的なcapacity limitとして拒否します。Cranelift内部のallocationは信頼するcompiler境界です。JIT呼び出し時にはcanonical input bufferを検証し、call全体で実行codeのownerを保持し、ownerのdropで実行用mappingを解放します。Native recursionとhost callbackは信頼する同期実行で、VMのfuel／frame／interruption制限は適用しません。
+
+Native rangeは複数moduleを含む元のsource IDとinstruction／terminatorのbyte spanを保持します。この新しい内部規約に対応する完全なsource-level DWARF／CodeView出力は、Milestone 2の独立したdebug taskです。`tests/native_program.rs` はportable bytecode往復、VM／JIT結果一致、再帰、複合型の入力／結果、literal／structural pattern、評価順序、self-edgeでの入れ替え、不正projection／入力、compile budget／frame capacity、Mach-O／COFF object、およびcfgで対象を絞ったdirect／response-file object link／runを検証します。macOS AArch64実行はlocalで確認済みで、新しいWindows x86-64実行evidenceは未取得です。
+
+情報源：受理済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)、MIR layout／verifier、native実装／testはすべて2026-10-17 JST更新／確認。Lock済みCranelift 0.136.3のinstall済みsourceでstack-slot、memory-flag、module、実行memory解放APIを確認しました。各source fileに公開／更新日の明記はなく、確認日は2026-10-17 JSTです。Cell layoutとcapacity limitはprojectの実装判断です。
+
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。
