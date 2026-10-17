@@ -243,7 +243,9 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 
 2026-10-17 JSTに確認した実装evidence：commit `926fb3b` はRFC 0006のcopy-value全12命令を扱う `lang-codegen-clif::program` のunit全体JIT／object loweringを追加しました。10件のfocused testでcanonical wire往復、前方／相互call、boolと入れ子aggregateのinterface、structural／literal pattern、loop join／self-edge swap、host評価順序／preflight、不正入力／projection、compile budget／frame capacity、複数fileのspan、Mach-O／COFF生成、macOSでのdirect／response-file link／runを検証します。Fmt／Clippy／test／docのfull baselineは515 testすべてpassしました。従来のscalar／owned compatibility adapterも維持します。新しいWindows native実行、ownership-aware object、公開C ABI／header、完全なsource debug format、production packaging、代表的performance／conformanceは、それぞれの未完了成果として残ります。
 
-このscope後のroadmap確認：113 pt総計と全decision gateは引き続き適切です。今回の受理済みcopy-value実装はsource ownershipの判断に依存せず、その完了によってownership／core-libraryやproduction AOTのtaskを完了扱いにはしません。次は判断可能なownership／core-library profileとcleanup／allocator／FFI profileを定義し、可能な部分では受理済みRFC 0004のruntime作業を独立に進めます。暗黙のacceptance／stabilizationは記録しません。
+このscope後のroadmap確認：113 pt総計と全decision gateは引き続き適切です。今回の受理済みcopy-value実装はsource ownershipの判断に依存せず、その完了によってownership／core-libraryやproduction AOTのtaskを完了扱いにはしません。暗黙のacceptance／stabilizationは記録しません。
+
+Commit `a607ed2` は提案段階の[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と日本語対訳を追加しました。Copy分類、字句的loan／region、明示shared／weak／arena構文、allocator-awareなtext／byte／collectionの有限型表面を定めます。最初の5 pt decision gateはowner dispositionまで未完了のままです。Cleanup／allocator／unsafe／FFI契約とownership bytecode encodingは別判断であり、本提案から暗黙に受理しません。Link／対訳metadata確認とrepository-consistency testはpassしました。次はsource profileのdispositionを得て残り契約を定義し、独立に進められる受理済みRFC 0004のruntime作業を進めます。Acceptance後にcore実装を再見積もりし、source／platform／conformance／measurementの全outcomeを維持します。
 
 ## Milestone 3：concurrencyとembedding
 
