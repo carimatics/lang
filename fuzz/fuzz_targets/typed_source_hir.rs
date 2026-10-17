@@ -78,7 +78,7 @@ fuzz_target!(|bytes: &[u8]| {
     for chunk in bytes.chunks(4).take(32) {
         let a = r::ExpressionId(chunk.get(1).copied().unwrap_or(0) as usize);
         let b = r::ExpressionId(chunk.get(2).copied().unwrap_or(0) as usize);
-        let kind = match chunk[0] % 10 {
+        let kind = match chunk[0] % 12 {
             0 => r::ExpressionKind::Integer(i64::from(chunk[0] as i8)),
             1 => r::ExpressionKind::Boolean(chunk[0] & 16 != 0),
             2 => r::ExpressionKind::Local(r::LocalId(a.0)),
@@ -103,6 +103,8 @@ fuzz_target!(|bytes: &[u8]| {
                     value: a,
                 }],
             },
+            9 => r::ExpressionKind::Borrow { kind: r::LoanKind::Shared, place: r::PlaceId(a.0) },
+            10 => r::ExpressionKind::Dereference(a),
             _ => r::ExpressionKind::Field {
                 receiver: a,
                 name: name("b"),

@@ -605,6 +605,11 @@ impl<'a> Context<'a> {
                     ));
                 }
                 match (local.kind, local.annotation) {
+                    (r::BindingKind::ArenaOwner, None) => {
+                        return Err(CheckError::OwnershipProfile {
+                            span: local.name.span,
+                        });
+                    }
                     (r::BindingKind::Pattern, None) => {}
                     (r::BindingKind::Parameter | r::BindingKind::Mutable, Some(ty)) => self
                         .type_use(
@@ -878,6 +883,11 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<Flow, CheckError> {
         self.context.enter(statement.span, depth)?;
         match &statement.kind {
+            r::StatementKind::PlaceAssign { .. } | r::StatementKind::Arena { .. } => {
+                return Err(CheckError::OwnershipProfile {
+                    span: statement.span,
+                });
+            }
             r::StatementKind::LetMut { local, initializer } => {
                 let actual = self.expression(*initializer, depth + 1)?;
                 let expected = self
@@ -1039,6 +1049,9 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         self.context.enter(expression.span, depth)?;
         let span = expression.span;
         let ty = match &expression.kind {
+            r::ExpressionKind::Borrow { .. } | r::ExpressionKind::Dereference(_) => {
+                return Err(CheckError::OwnershipProfile { span });
+            }
             r::ExpressionKind::Integer(_) => Some(r::Type::I64),
             r::ExpressionKind::Boolean(_) => Some(r::Type::Bool),
             r::ExpressionKind::Local(local) => self.local(*local, span)?,

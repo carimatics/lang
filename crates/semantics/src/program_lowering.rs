@@ -25,6 +25,7 @@ pub enum LowerError {
     Depth,
     Capacity,
     UnsupportedConstructedType(r::ConstructedTypeId),
+    UnsupportedOwnershipBody { span: Span },
 }
 impl From<m::Error> for LowerError {
     fn from(e: m::Error) -> Self {
@@ -421,6 +422,9 @@ impl<'a> Lowerer<'a, '_> {
         let span = source.span;
         let t = ty(self.context.input, self.facts.expressions()[expression.0])?;
         let op = match &source.kind {
+            r::ExpressionKind::Borrow { .. } | r::ExpressionKind::Dereference(_) => {
+                return Err(LowerError::UnsupportedOwnershipBody { span: source.span });
+            }
             r::ExpressionKind::Local(local) => {
                 return exit.environment[local.0].ok_or(LowerError::UninitializedLocal(local.0));
             }
@@ -570,6 +574,11 @@ impl<'a> Lowerer<'a, '_> {
             };
             self.context.budget.charge(1)?;
             current = match &statement.kind {
+                r::StatementKind::PlaceAssign { .. } | r::StatementKind::Arena { .. } => {
+                    return Err(LowerError::UnsupportedOwnershipBody {
+                        span: statement.span,
+                    });
+                }
                 r::StatementKind::LetMut { local, initializer }
                 | r::StatementKind::Assign {
                     local,

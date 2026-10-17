@@ -125,9 +125,9 @@ pub fn bind_program(
             }
         }
         context.significant.push(starts);
-        // Ownership body operations still require move/loan HIR. Type
-        // constructors are resolved below, but body forms must fail with a
-        // span before reaching RFC 0006-only expression assumptions.
+        // Specialized core calls still require their finite built-in
+        // signatures. Resolve other ownership body nodes below, retaining
+        // explicit place roots for later move/loan analysis.
         for node in module.tree().nodes() {
             context
                 .charge(node.span(), 0)
@@ -135,10 +135,7 @@ pub fn bind_program(
                     Abort::Fatal(error) => error,
                     Abort::Recover => unreachable!(),
                 })?;
-            if matches!(
-                node.kind(),
-                S::SpecializedCall | S::Borrow | S::Dereference | S::PlaceAssign | S::Arena
-            ) {
+            if node.kind() == S::SpecializedCall {
                 return Err(BindingError::UnsupportedSyntax { span: node.span() });
             }
         }
@@ -833,6 +830,28 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
                     value: self.expression(children[0], depth + 1)?,
                 }
             }
+            S::PlaceAssign => {
+                let place = self.place(children[0], depth + 1)?;
+                let value = self.expression(children[1], depth + 1)?;
+                r::StatementKind::PlaceAssign { place, value }
+            }
+            S::Arena => {
+                // The owner is not visible in its own allocator expression.
+                let allocator = self.expression(children[0], depth + 1)?;
+                self.scopes.push(BTreeMap::new());
+                let owner = self.declare(
+                    direct_name(self.context.sources, tree, syntax),
+                    r::BindingKind::ArenaOwner,
+                    None,
+                )?;
+                let body = self.block(children[1], depth + 1)?;
+                self.scopes.pop();
+                r::StatementKind::Arena {
+                    owner,
+                    allocator,
+                    body,
+                }
+            }
             S::Return => r::StatementKind::Return(self.expression(children[0], depth + 1)?),
             S::If => {
                 let condition = self.expression(children[0], depth + 1)?;
@@ -883,6 +902,20 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         self.context.charge(span, depth)?;
         let children: Vec<_> = child_nodes(tree, syntax).collect();
         let kind = match node.kind() {
+            S::Borrow => {
+                let kind = if direct_tokens(tree, syntax).any(|t| t.kind == K::Mut) {
+                    r::LoanKind::Exclusive
+                } else {
+                    r::LoanKind::Shared
+                };
+                r::ExpressionKind::Borrow {
+                    kind,
+                    place: self.place(children[0], depth + 1)?,
+                }
+            }
+            S::Dereference => {
+                r::ExpressionKind::Dereference(self.expression(children[0], depth + 1)?)
+            }
             S::Literal => match direct_tokens(tree, syntax)
                 .find(|t| !t.kind.is_trivia())
                 .unwrap()
@@ -987,6 +1020,70 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         };
         self.context.reserve(Arena::Expression, span)?;
         let id = r::ExpressionId(self.function.expressions.len());
+        self.function.expressions.push(r::Expression { kind, span });
+        Ok(id)
+    }
+    fn place(&mut self, syntax: NodeId, depth: usize) -> BindResult<r::PlaceId> {
+        let tree = self.tree();
+        let node = tree.node(syntax).unwrap();
+        let span = self.context.semantic_span(self.module, syntax)?;
+        self.context.charge(span, depth)?;
+        let kind = match node.kind() {
+            S::Parenthesized => {
+                let place = self.place(child_nodes(tree, syntax).next().unwrap(), depth + 1)?;
+                self.function.expressions[place.0].span = span;
+                return Ok(place);
+            }
+            S::Name => {
+                let path = first_path(tree, syntax);
+                let count = direct_tokens(tree, path)
+                    .filter(|t| !t.kind.is_trivia())
+                    .count();
+                let Some(local) = self.local_path(path).filter(|_| count == 1) else {
+                    let name = path_name(self.context.sources, tree, path);
+                    let code = if count == 1
+                        && self
+                            .context
+                            .graph
+                            .module(self.module)
+                            .unwrap()
+                            .find(&name.text)
+                            .is_none()
+                    {
+                        codes::UNKNOWN_NAME
+                    } else {
+                        codes::INVALID_LOAN
+                    };
+                    return self.context.fail(
+                        code,
+                        span,
+                        "place must name a visible local owner or loan",
+                        None,
+                    );
+                };
+                r::ExpressionKind::Local(local)
+            }
+            S::Field => {
+                let receiver = self.place(child_nodes(tree, syntax).next().unwrap(), depth + 1)?;
+                r::ExpressionKind::Field {
+                    receiver: r::ExpressionId(receiver.0),
+                    name: direct_name(self.context.sources, tree, syntax),
+                }
+            }
+            S::Dereference => r::ExpressionKind::Dereference(
+                self.expression(child_nodes(tree, syntax).next().unwrap(), depth + 1)?,
+            ),
+            _ => {
+                return self.context.fail(
+                    codes::INVALID_LOAN,
+                    span,
+                    "borrow and assignment require a place, not a temporary value",
+                    None,
+                );
+            }
+        };
+        self.context.reserve(Arena::Expression, span)?;
+        let id = r::PlaceId(self.function.expressions.len());
         self.function.expressions.push(r::Expression { kind, span });
         Ok(id)
     }

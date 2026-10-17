@@ -136,14 +136,10 @@ fn validate(sources: &SourceMap, program: &r::Program) {
 }
 
 #[test]
-fn ownership_body_forms_fail_with_spans_before_legacy_hir_assumptions() {
+fn specialized_calls_still_fail_with_spans_before_legacy_hir_assumptions() {
     for text in [
-        "fn f(x: i64) -> i64 { return &x; }",
-        "fn f(x: i64) -> i64 { return (*x); }",
-        "fn f(x: i64) -> i64 { x.field = 1; return 0; }",
-        "fn f(x: i64) -> i64 { arena graph(x) {} return 0; }",
         "fn f() -> i64 { return core::vec_len::<i64>(values); }",
-        "fn f() -> i64 { return 1; let mut x: &i64 = &missing; }",
+        "fn f() -> i64 { return 1; let mut x: i64 = core::vec_len::<i64>(values); }",
     ] {
         let files = Files::new(text);
         let (sources, graph) = files.graph();
@@ -152,6 +148,202 @@ fn ownership_body_forms_fail_with_spans_before_legacy_hir_assumptions() {
             panic!("{text}: {error:?}")
         };
         assert!(!sources.slice(span).unwrap().trim().is_empty(), "{text}");
+    }
+}
+
+#[test]
+fn borrow_place_and_dereference_binding_preserves_roots_kinds_and_spans() {
+    let (sources, program) = Files::new("struct Inner { n: i64 } struct Outer { child: Inner } fn f(x: &mut Outer) -> i64 { let mut read: &i64 = &x.child.n; let mut write: &mut i64 = &mut (*x).child.n; (*write) = 7; (*x).child.n = (*read); return 0; }").program();
+    let f = &program.functions[0];
+    let body = &f.blocks[f.body.0];
+    for (statement, expected_kind, expected_span) in [
+        (&body.statements[0], r::LoanKind::Shared, "&x.child.n"),
+        (
+            &body.statements[1],
+            r::LoanKind::Exclusive,
+            "&mut (*x).child.n",
+        ),
+    ] {
+        let r::StatementKind::LetMut { initializer, .. } = statement.kind else {
+            panic!()
+        };
+        let expression = &f.expressions[initializer.0];
+        assert_eq!(sources.slice(expression.span).unwrap(), expected_span);
+        let r::ExpressionKind::Borrow { kind, place } = expression.kind else {
+            panic!()
+        };
+        assert_eq!(kind, expected_kind);
+        let r::ExpressionKind::Field { receiver, ref name } = f.expressions[place.0].kind else {
+            panic!()
+        };
+        assert_eq!(name.text, "n");
+        assert!(matches!(
+            f.expressions[receiver.0].kind,
+            r::ExpressionKind::Field { .. }
+        ));
+    }
+    let r::StatementKind::PlaceAssign { place, value } = body.statements[2].kind else {
+        panic!()
+    };
+    assert_eq!(
+        sources.slice(f.expressions[place.0].span).unwrap(),
+        "(*write)"
+    );
+    assert!(matches!(
+        f.expressions[place.0].kind,
+        r::ExpressionKind::Dereference(_)
+    ));
+    assert!(matches!(
+        f.expressions[value.0].kind,
+        r::ExpressionKind::Integer(7)
+    ));
+    let r::StatementKind::PlaceAssign { place, value } = body.statements[3].kind else {
+        panic!()
+    };
+    assert_eq!(
+        sources.slice(f.expressions[place.0].span).unwrap(),
+        "(*x).child.n"
+    );
+    assert_eq!(
+        sources.slice(f.expressions[value.0].span).unwrap(),
+        "(*read)"
+    );
+}
+
+#[test]
+fn arena_owner_binding_has_a_distinct_identity_and_lexical_scope() {
+    let (sources, program) = Files::new("fn f(allocator: &core::Allocator) -> i64 { arena outer(allocator) { arena inner(outer) { let mut copy: i64 = inner; } let mut copy_outer: i64 = outer; } return 0; }").program();
+    let f = &program.functions[0];
+    let r::StatementKind::Arena {
+        owner: outer,
+        allocator,
+        body,
+    } = f.blocks[f.body.0].statements[0].kind
+    else {
+        panic!()
+    };
+    assert_eq!(f.locals[outer.0].kind, r::BindingKind::ArenaOwner);
+    assert!(f.locals[outer.0].annotation.is_none());
+    assert_eq!(sources.slice(f.locals[outer.0].name.span).unwrap(), "outer");
+    assert!(matches!(
+        f.expressions[allocator.0].kind,
+        r::ExpressionKind::Local(r::LocalId(0))
+    ));
+    let r::StatementKind::Arena {
+        owner: inner,
+        allocator,
+        body: inner_body,
+    } = f.blocks[body.0].statements[0].kind
+    else {
+        panic!()
+    };
+    assert_ne!(inner, outer);
+    assert!(matches!(f.expressions[allocator.0].kind, r::ExpressionKind::Local(id) if id == outer));
+    let r::StatementKind::LetMut { initializer, .. } = f.blocks[inner_body.0].statements[0].kind
+    else {
+        panic!()
+    };
+    assert!(
+        matches!(f.expressions[initializer.0].kind, r::ExpressionKind::Local(id) if id == inner)
+    );
+}
+
+#[test]
+fn temporary_values_and_module_items_are_not_places() {
+    for expression in ["&1", "&(x + 1)", "&make()", "&R { n: 1 }.n", "&make", "&R"] {
+        rejects(
+            &format!(
+                "struct R {{ n: i64 }} fn make() -> i64 {{ return 1; }} fn f(x: i64) -> i64 {{ return {expression}; }}"
+            ),
+            codes::INVALID_LOAN,
+        );
+    }
+    rejects(
+        "struct R { n: i64 } fn f() -> i64 { R { n: 1 }.n = 2; return 0; }",
+        codes::INVALID_LOAN,
+    );
+    rejects("fn f() -> i64 { return &missing; }", codes::UNKNOWN_NAME);
+    rejects(
+        "fn f() -> i64 { return 1; let mut x: &i64 = &missing; }",
+        codes::UNKNOWN_NAME,
+    );
+}
+
+#[test]
+fn arena_names_obey_visibility_name_reuse_and_reserved_root_rules() {
+    for text in [
+        "fn f(a: i64) -> i64 { arena graph(graph) {} return 0; }",
+        "fn f(a: i64) -> i64 { arena graph(a) {} return graph; }",
+        "fn f(a: i64) -> i64 { arena outer(a) { arena inner(outer) {} let mut x: i64 = inner; } return 0; }",
+    ] {
+        rejects(text, codes::UNKNOWN_NAME);
+    }
+    rejects(
+        "fn f(a: i64) -> i64 { arena a(a) {} return 0; }",
+        codes::DUPLICATE_NAME,
+    );
+    rejects(
+        "fn f(a: i64) -> i64 { arena core(a) {} return 0; }",
+        codes::UNSUPPORTED_SPECIALIZATION,
+    );
+}
+
+#[test]
+fn ownership_body_binding_uses_existing_expression_local_block_and_depth_budgets() {
+    for (text, limits) in [
+        (
+            "fn f(x: i64) -> i64 { return &x; }",
+            BindingLimits {
+                expressions: 1,
+                ..Default::default()
+            },
+        ),
+        (
+            "fn f(x: i64) -> i64 { arena graph(x) {} return 0; }",
+            BindingLimits {
+                locals: 1,
+                ..Default::default()
+            },
+        ),
+        (
+            "fn f(x: i64) -> i64 { arena graph(x) {} return 0; }",
+            BindingLimits {
+                blocks: 1,
+                ..Default::default()
+            },
+        ),
+        (
+            "fn f(x: i64) -> i64 { return &x.field.field.field; }",
+            BindingLimits {
+                depth: 4,
+                ..Default::default()
+            },
+        ),
+    ] {
+        assert!(matches!(
+            Files::new(text).bind(limits).1,
+            Err(BindingError::Limit(_))
+        ));
+    }
+}
+
+#[test]
+fn copy_checker_rejects_ownership_bodies_even_without_constructed_annotations() {
+    for text in [
+        "fn f(x: i64) -> i64 { return &x; }",
+        "fn f(x: i64) -> i64 { return (*x); }",
+        "fn f(x: i64) -> i64 { x.field = 1; return 0; }",
+        "fn f(x: i64) -> i64 { arena graph(x) {} return 0; }",
+        "fn f(x: i64) -> i64 { return 0; x.field = 1; }",
+    ] {
+        let (sources, program) = Files::new(text).program();
+        assert!(program.types.is_empty());
+        let error =
+            lang_hir::program::check_program(program, &sources, Default::default()).unwrap_err();
+        let lang_hir::program::CheckError::OwnershipProfile { span } = error else {
+            panic!("{error:?}")
+        };
+        assert!(!sources.slice(span).unwrap().is_empty());
     }
 }
 

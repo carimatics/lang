@@ -25,6 +25,11 @@ pub struct ImportId(pub usize);
 pub struct LocalId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ExpressionId(pub usize);
+/// A place root in the function's expression arena. Binding admits only
+/// locals, field chains, and explicit dereferences; type/loan validity is a
+/// later check. This uses the expression budget, not a second storage arena.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct PlaceId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct PatternId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -182,6 +187,8 @@ pub enum BindingKind {
     Parameter,
     Mutable,
     Pattern,
+    /// Compiler-created owner visible only inside its lexical arena body.
+    ArenaOwner,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -213,6 +220,11 @@ pub enum ExpressionKind {
     Integer(i64),
     Boolean(bool),
     Local(LocalId),
+    Borrow {
+        kind: LoanKind,
+        place: PlaceId,
+    },
+    Dereference(ExpressionId),
     Add(ExpressionId, ExpressionId),
     LessThan(ExpressionId, ExpressionId),
     Call {
@@ -286,6 +298,15 @@ pub enum StatementKind {
     Assign {
         local: LocalId,
         value: ExpressionId,
+    },
+    PlaceAssign {
+        place: PlaceId,
+        value: ExpressionId,
+    },
+    Arena {
+        owner: LocalId,
+        allocator: ExpressionId,
+        body: BlockId,
     },
     If {
         condition: ExpressionId,
