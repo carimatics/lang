@@ -261,6 +261,8 @@ Source bodyのfollow-up（2026-10-17 JST）：commit `f6e0edb` は通常loan、�
 
 Core signatureのfollow-up（2026-10-17 JST）：commit `9342175` はRFC 0007が要求する全34 operationを、固定source signature template、type-argument制約、value／instance allocator／provisional loan／arena result由来とともに識別します。Source callは具体type argumentをbindし、callee／argument spanと記述順を保持します。不正pathとtype／value arityには受理済みsource診断を出し、generic-callのunsupported-syntax guardを置換しました。独立したsignature表／由来の2 testと追加3 source testが、全565 testのfmt／Clippy／doc baselineおよびlock済みfuzz compileとともに成功しました。Operand型／規則の強制、loan／region flow、core case／Unit構築とpattern、operation、実行用loweringは未完了で、compiler／runtime／ABI gateは維持します。Reviewでは21/113 ptと元の総計／outcomeを維持し、この前提作業を未完了HIR／core実装scope内へ記録します。次はcore value／case構文のbindingとownership body typing／flowを実装し、RFC 0008はowner判断待ちとして残します。
 
+Core valueのfollow-up（2026-10-17 JST）：commit `0115a46` はUnit空recordのvalue／patternと、全22 Option／Result／error caseを、閉じたfamily identity、正確なpayload／括弧shape、入れ子payload、source span付きでbindし、疑似user nominal IDを導入しません。独立したcase catalog test 1件と6件のsource testで全case、入れ子scope／error、parserとbindingの拒否境界、identity分離、budget、allocator／Vec／Result／read-place fixtureを検証します。全572 testのfmt／Clippy／doc baselineとlock済みfuzz compileが成功しました。Expected-context推論、payload型の適合、exhaustiveness、ownership flow、実際のcore operation、cleanup、実行用lowering、ownership serializationは未完了で、HIR／MIR 8 ptもUnit／Option／Result 3 ptも完了扱いにしません。Roadmap reviewでは21/113 pt、元の全outcome、独立したRFC 0008／wire decision gateを維持します。受理済みgrammarとcore名が解決済みHIRに揃ったため、次の実装scopeはexpected-type body解析とmove／loan／region checkingです。Binding testからruntimeやABIの完了を推定しません。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
