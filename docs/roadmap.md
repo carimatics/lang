@@ -30,19 +30,19 @@ The representative-application task is also complete at its prototype boundary. 
 
 The 2026-10-17 repository review exposed missing entry gates for source ownership/core-library syntax and the production component profile, and separated native compilation of the existing copy-value profile from ownership-aware AOT. It adds 21 pending points to Milestone 2 and 5 to Milestone 3; completed work remains 298 points. The lower overall percentage reflects newly explicit work. Source/core-library foundations must precede representative workloads and self-hosting; C embedding stabilization follows conformance and resource enforcement.
 
-Progress snapshot verified against this repository state on 2026-10-17 (JST):
+Progress snapshot verified against this repository state on 2026-10-18 (JST):
 
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 26 pt | 113 pt | 23.0% |
+| 2 — ownership and native AOT | 34 pt | 113 pt | 30.1% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **324 pt** | **764 pt** | **42.4%** |
+| **Overall** | **332 pt** | **764 pt** | **43.5%** |
 
 ## Milestone 0: design baseline
 
@@ -218,13 +218,13 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 26 / 113 pt (23.0%).**
+**Progress: 34 / 113 pt (30.1%).**
 
 Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFC 0004's state models do not specify source grammar, production allocation, or an ABI. Complete the corresponding decision gate before each dependent implementation; re-estimate the core-library slice after its RFC fixes the minimal requirements.
 
 - [x] **P0 — Accept the source ownership/borrow/arena profile, Copy classification, and minimal core-library type surface (including text/bytes, collection use, and any required generic syntax).** — 5 pt
 - [x] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
-- [ ] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
+- [x] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
 - [x] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
 - [ ] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
@@ -304,6 +304,10 @@ Roadmap review after this scope: M2 remains 26 / 113 pt, with 4 of 18 outcomes c
 Automatic ownership-body follow-up (2026-10-17 JST): commit `39bb20e` replaces manual instruction assembly with checked-source-to-typed-MIR lowering for owned locals/returns, nominal/core constructors, explicit/implicit/reborrowed arguments, guest/host/core calls, prepared assignments, if/while flow, and arena entry/exit. Conditional local/SSA discards normalize moved/maybe-live storage without bypassing active loans; returned SSA owners remain available. Nine added source tests pass through independent move/activity/provenance analyses and cover exact cumulative construction/verification budgets. The full fmt/Clippy/test/doc baseline passes (831 tests), along with fuzz formatting/all-bin locked Clippy and a 10,000-run uninstrumented body smoke run.
 
 Roadmap review after this scope: retain 26 / 113 pt and 4 of 18 outcomes. The next body-integration slice is match-pattern lowering and success/failure-arm lifetime handling for provisional core reads; reachable matches are currently rejected explicitly. Actual initialization-order destruction and exceptional cleanup remain the separate RFC 0008 drop outcome, and independent arena-brand/effect validation, executable ownership layouts, allocation, serialization and backend/platform work remain open. The existing gates and 113-point estimate are still appropriate; automatic normal-flow lowering is concrete integration progress without completing those broader outcomes.
+
+Ownership frontend completion (2026-10-18 JST): commit `ad40b7a` completes automatic RFC 0007 pattern/match lowering, including borrowed/nested-reference scrutinees and provisional core-result arms. Patterns are tested before bindings; failed views and unused/failed core leases end before the arm body, successful loan bindings retain their ancestry, and Map keys end after the call. Shared and exclusive loan arguments are reborrowed. Binding a whole provisional result now reports `SRC0020` instead of exposing its internal sum. Ownership-specific `Unreachable` exits retain move obligations and require ended loans without changing the serialized Copy schema. Nine added source tests and the extended arena fixture pass through the full analysis chain; a separate Copy oracle checks 43 returned-value/fault cases. The full fmt/Clippy/test/doc baseline passes (840 tests); fuzz formatting/all-bin locked Clippy and the 10,000-run uninstrumented body smoke also pass.
+
+Completion audit for the 8-point HIR/MIR outcome: accepted source type/declaration/place lowering and all expression/statement/pattern forms now connect to independently checked typed CFGs, definite initialization/affine moves, prepared destinations, explicit loan activity and transitive reference provenance. The existing source compile-pass/fail, type/CFG/resource-limit, stale-alias/parent-freezing and generated-oracle suites plus the new integrated match tests provide its frontend analysis evidence. Mark this outcome complete: M2 is 34 / 113 pt (30.1%), with 5 of 18 outcomes complete; the overall roadmap is 332 / 764 pt (43.5%). This does not mark RFC 0007 implemented as a whole or enable owned execution: the driver's executable profile is still Copy. Arena integration/independent MIR brands and effects, actual initialization-order/failure cleanup, fallible guest allocation and owned layouts, core runtime operations, versioned ownership artifacts, unsafe/C and backend/platform/performance outcomes retain their gates. The 113-point estimate remains appropriate. The next integration work is the ownership analysis interface in the driver, followed by cleanup/layout/allocation contracts needed for executable ownership programs.
 
 ## Milestone 3: concurrency and embedding
 

@@ -30,19 +30,19 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 2026-10-17のrepository reviewで、source ownership／core-library構文とproduction component profileの開始gate欠落を明確にし、既存copy-value profileのnative compilationをownership-aware AOTから分離しました。Milestone 2に未完了21 pt、Milestone 3に未完了5 ptを追加し、完了済み298 ptは維持します。全体進捗の低下は隠れていた作業の明示によるものです。Source／core-library基盤を代表的workload／self-hostingより先に整備し、C embeddingのstable化はconformance／resource enforcement確認後に行います。
 
-このrepository stateに対して2026-10-17（JST）に確認した進捗snapshot：
+このrepository stateに対して2026-10-18（JST）に確認した進捗snapshot：
 
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 26 pt | 113 pt | 23.0% |
+| 2 — ownershipとnative AOT | 34 pt | 113 pt | 30.1% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **324 pt** | **764 pt** | **42.4%** |
+| **全体** | **332 pt** | **764 pt** | **43.5%** |
 
 ## Milestone 0：設計baseline
 
@@ -218,13 +218,13 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**進捗：26 / 113 pt（23.0%）。**
+**進捗：34 / 113 pt（30.1%）。**
 
 開始条件：RFC 0006の実装済みcopy-value profileとcompatibility fixtureを基準とします。RFC 0004のstate modelはsource構文、production allocation、ABIを規定しません。対応する設計決定を受理してから依存する実装を進め、core-library sliceはRFCで最小要件が定まった時点で再見積もりします。
 
 - [x] **P0 — Sourceのownership／borrow／arena profile、Copy分類、最小core-library型表面（text／byte、collection利用、必要なgeneric構文を含む）を受理する。** — 5 pt
 - [x] **P0 — 未規定のerror／panic cleanup、unsafe／FFI validity、allocator contractを公開interface実装前に受理する。** — 5 pt
-- [ ] **P0 — Typed HIR／MIRでowned value、move、lexical borrow checkingを実装する。** — 8 pt
+- [x] **P0 — Typed HIR／MIRでowned value、move、lexical borrow checkingを実装する。** — 8 pt
 - [x] **P0 — RFC 0004のshared／weak retain-release、retainを伴うweak upgrade、atomic cycle-preflight／publicationを実装しrollback／race testを追加する。** — 8 pt
 - [ ] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
 - [ ] **P0 — 受理済みのreturn／error／panic cleanup規則に従ってdeterministic dropをelaborateする。** — 8 pt
@@ -304,6 +304,10 @@ MIR core callのfollow-up（2026-10-17 JST）：commit `4619937` はRFC 0007の�
 自動ownership bodyのfollow-up（2026-10-17 JST）：commit `39bb20e` は、owned local／return、nominal／core constructor、明示／暗黙／reborrow引数、guest／host／core call、prepare付きassignment、if／while flow、arena開始／終了について、手作業の命令組み立てをchecked sourceからtyped MIRへの自動変換に置き換えました。条件付きlocal／SSA discardはactive loan検証を維持して移動済み／maybe-live storageを正規化し、返却するSSA ownerを保持します。追加9件のsource testが独立したmove／activity／provenance解析を通り、構築／検証の正確な累積上限も確認します。Fmt／Clippy／test／docのfull baselineは831 testすべてpassし、fuzzのformat／全bin locked Clippyと非instrumented body smoke 10,000回もpassしました。
 
 このscope後のroadmap確認：26 / 113 pt、全18成果中4成果完了を維持します。次のbody統合対象はmatch patternのloweringとprovisional core readの成功／失敗armごとのlifetime処理です。現在、到達可能なmatchは明示的に拒否します。実初期化順の破棄とexceptional cleanupはRFC 0008の独立したdrop成果であり、独立arena brand／effect検証、実行用ownership layout、allocation、serialization、backend／platform作業も未完了です。既存gateと113 pt見積もりは引き続き妥当です。正常flowの自動変換は具体的な統合進捗であり、これらの広い成果を完了扱いにはしません。
+
+Ownership frontendの完了（2026-10-18 JST）：commit `ad40b7a` は、借用／入れ子参照scrutineeとprovisional core-result armを含むRFC 0007のpattern／match自動loweringを完成させました。Pattern検査後にbindingを作り、不一致viewと未使用／失敗core leaseをarm body前に終了し、成功loan bindingの祖先関係を保持し、Map keyはcall後に終了します。Shared／exclusive loan引数はreborrowします。Provisional result全体のbindingは内部sumを公開せず `SRC0020` を報告します。Ownership専用の `Unreachable` exitでもmove義務と全loan終了を維持し、serialized Copy schemaは変更しません。追加9件のsource testと拡張arena fixtureが全解析経路を通り、独立Copy oracleは43件の返却値／faultを照合します。Fmt／Clippy／test／docのfull baselineは840 testすべてpassし、fuzz format／全bin locked Clippyと非instrumented body smoke 10,000回もpassしました。
+
+8 ptのHIR／MIR成果の完了確認：受理済みsource type／declaration／place loweringと全expression／statement／pattern形式が、独立検証するtyped CFG、definite initialization／affine move、prepare済みdestination、明示loan activity、推移的reference provenanceへつながりました。既存source compile-pass／fail、type／CFG／resource-limit、stale alias／parent freezing、生成oracleのsuiteと、新しいmatch統合testをfrontend解析のevidenceとします。この成果を完了にし、M2は34 / 113 pt（30.1%）、全18成果中5成果完了、roadmap全体は332 / 764 pt（43.5%）となります。RFC 0007全体のimplementedやowned実行の有効化は主張せず、driverの実行profileはCopyのみです。Arena統合／独立MIR brand・effect、実初期化順／failure cleanup、fallible guest allocation／owned layout、core runtime operation、version付きownership artifact、unsafe／C、backend／platform／performanceは独立gateを維持します。113 ptの見積もりは引き続き妥当です。次はdriverのownership解析interfaceを統合し、続いてowned program実行に必要なcleanup／layout／allocation契約を実装します。
 
 ## Milestone 3：concurrencyとembedding
 
