@@ -204,6 +204,8 @@ Commit `cb3312d` はtyped source HIRを共有verified MIRへ接続し、`b1964e7
 
 Preparsed-module providerは実際のparser／source snapshot pointerをmodule解決で再利用し、6件の集中testと473-test baselineが成功しています。Cache policy／通算limit検証と重複fileのpreflightも維持します。Query recipe自動実行への統合prerequisiteであり、document lifecycle、revision-safe publication、LSP transportは最後の未完了taskに残し、部分完了点を付けません。
 
+Commit `d419df9` はparser／module／semantic診断queryの自動adapterを完了します。12件のtestは実cache再利用、選択的reverse invalidation、edit／close／reopen／新work後のstale job、不完全source snapshot、disk／overlay切替、missing／watched module、権限／symlink、host resource回復を検証します。全体の485-test baselineが成功しています。最後の4 pt itemを完了する前に、wire transport、capability negotiation、version付きeditor publication、close診断消去を満たす必要があります。
+
 Commit `e62b33b` は明示file権限付きvirtual root analysis、分離したexpression結果typing、mainを自動選択しないlibrary loweringを追加しました。8件のtestと全体の430-test baselineが成功しました。そのprerequisite境界では完了点を付けず、後続の `bbc1f3d` によるsession統合でscript／REPLの成果3 ptを完了します。
 
 | 受理済みRFC 0006契約 | 残る依存先の成果 |

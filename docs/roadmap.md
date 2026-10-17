@@ -204,6 +204,8 @@ The current checklist has 1 unchecked P1 implementation item totaling 4 points. 
 
 The preparsed-module provider now reuses actual parser/source snapshot pointers in module resolution, with six focused tests and a passing 473-test baseline. Cached-policy/cumulative-limit checks and duplicate-file preflight remain enforced. This is the integration prerequisite for automatic query recipes; document lifecycle, revision-safe publication, and LSP transport remain in the final unchecked task, without partial completion credit.
 
+Commit `d419df9` completes the automatic parser/module/semantic-diagnostic query adapter. Twelve tests cover real cache reuse, selective reverse invalidation, stale jobs after edits/close/reopen/newer work, incomplete-source snapshots, disk/overlay transitions, missing/watched modules, authority/symlinks, and host resource recovery. The full 485-test baseline passes. Wire transport, capability negotiation, versioned editor publication, and close-diagnostic clearing remain required before closing the final 4-point item.
+
 Commit `e62b33b` added virtual root analysis with explicit file authority, isolated expression-result typing, and library lowering without automatic main selection. Eight tests and the full 430-test baseline passed. No completion credit was awarded at that prerequisite boundary; the later `bbc1f3d` session integration completes the 3-point script/REPL outcome.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |
