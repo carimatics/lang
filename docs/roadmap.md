@@ -198,6 +198,8 @@ Commit `b5b83b7` completes portable schema-1 bytecode encoding/decoding and shar
 
 ### Remaining dependency audit (2026-10-17)
 
+Commit `cb3312d` connects typed source HIR to the shared verified MIR unit, with calls, aggregates, guarded patterns, CFG value flow, and semantic byte spans. Eight parsed-source tests cover lowering and resource boundaries; the full baseline passes (389 tests). The remaining 3-point lowering task retains VM/native source differential and native link/run conformance. No points are awarded for that incomplete integration.
+
 After owner acceptance, source-wide typing, and portable artifacts, the current checklist has 6 unchecked implementation items totaling 28 points. This table is a dependency view, not additional scope or completion credit.
 
 | Accepted RFC 0006 contract | Remaining dependent outcomes |

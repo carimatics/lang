@@ -198,6 +198,8 @@ Commit `b5b83b7` はportable schema 1 bytecodeのencode／decodeと共通budget�
 
 ### 残る依存関係の監査（2026-10-17）
 
+Commit `cb3312d` はtyped source HIRを共有verified MIR unitへ接続し、call、aggregate、guard付きpattern、CFG value flow、semantic byte spanを扱います。8件のparsed-source testでloweringとresource境界を検証し、全体のbaseline（389 test）は成功しています。残るlowering task 3 ptには、VM／native source differentialとnative link／run conformanceを保持します。未完了の統合には点を付けません。
+
 Owner受理、source全体のtyping、portable artifact後のchecklistには未完了の実装6項目、合計28 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
