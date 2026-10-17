@@ -1,4 +1,5 @@
 use super::*;
+use crate::unit::ownership::core;
 use crate::unit::ownership::{Constructor, DefinitionKind, places as p};
 use state::{has, ids, set};
 use topology::{Topology, constructor};
@@ -388,7 +389,7 @@ impl Context<'_, '_> {
         &mut self,
         row: &mut [u64],
         id: b::LoanId,
-        result: m::Register,
+        result: usize,
         place: Place,
         span: Span,
         mode: Mode,
@@ -421,7 +422,7 @@ impl Context<'_, '_> {
             self.budget.charge(1)?;
             set(row, self.layout.deps(id), parent, true);
         }
-        let node = self.topology.value(result);
+        let node = result;
         self.clear(row, node)?;
         set(
             row,
@@ -544,15 +545,56 @@ impl Context<'_, '_> {
         match &i.op {
             Op::Borrow { loan, place, .. } => {
                 let place = self.place(row, *place, s, mode)?;
-                self.begin(row, *loan, i.results[0], place, s, mode)?;
+                self.begin(
+                    row,
+                    *loan,
+                    self.topology.value(i.results[0]),
+                    place,
+                    s,
+                    mode,
+                )?;
             }
             Op::BorrowCaseField {
                 loan, value, case, ..
             } => {
                 let place = self.payload(row, *value, *case, s, mode)?;
-                self.begin(row, *loan, i.results[0], place, s, mode)?;
+                self.begin(
+                    row,
+                    *loan,
+                    self.topology.value(i.results[0]),
+                    place,
+                    s,
+                    mode,
+                )?;
             }
             Op::EndBorrow { loan, .. } => self.end(row, loan.0 as usize, s, mode)?,
+            Op::CoreCall(call) => {
+                for value in &call.arguments {
+                    self.read_value(row, *value, true, s, mode)?;
+                    self.reserve_argument(row, *value, s, mode)?;
+                }
+                let output = self.topology.value(i.results[0]);
+                self.clear(row, output)?;
+                match call.operation.signature().result_binding {
+                    core::ResultBinding::InstanceAllocator => {
+                        let place = self.direct(self.topology.instance_allocator.unwrap())?;
+                        self.begin(row, call.result_loan.unwrap(), output, place, s, mode)?;
+                    }
+                    core::ResultBinding::ProvisionalLoan {
+                        parameter, success, ..
+                    } => {
+                        let place = self.direct(self.topology.value(call.arguments[parameter]))?;
+                        let place = self.dereference(row, place, s, mode)?;
+                        let result =
+                            self.topology.cells[output].children[success as usize].unwrap();
+                        self.begin(row, call.result_loan.unwrap(), result, place, s, mode)?;
+                    }
+                    _ => {}
+                }
+                for value in &call.arguments {
+                    self.consume(row, *value)?;
+                }
+            }
             Op::Copy(v) | Op::Move(v) => {
                 let transfer = matches!(i.op, Op::Move(_));
                 self.read_value(row, *v, transfer, s, mode)?;

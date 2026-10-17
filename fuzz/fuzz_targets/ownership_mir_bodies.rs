@@ -21,6 +21,21 @@ fuzz_target!(|bytes: &[u8]| {
         o::Constructor::Option(o::Type::I64),
         o::Constructor::Result(o::Type::I64, c(0)),
         o::Constructor::Loan(o::LoanKind::Shared, o::Type::I64),
+        o::Constructor::Builtin(o::Builtin::Allocator),
+        o::Constructor::Loan(o::LoanKind::Shared, c(4)),
+        o::Constructor::Vec(o::Type::I64),
+        o::Constructor::Loan(
+            if byte(360) & 1 == 0 {
+                o::LoanKind::Shared
+            } else {
+                o::LoanKind::Exclusive
+            },
+            c(6),
+        ),
+        o::Constructor::Builtin(o::Builtin::BoundsError),
+        o::Constructor::Result(c(3), c(8)),
+        o::Constructor::Loan(o::LoanKind::Exclusive, o::Type::I64),
+        o::Constructor::Result(c(10), c(8)),
     ];
     let values = [
         o::Type::Bool,
@@ -35,26 +50,38 @@ fuzz_target!(|bytes: &[u8]| {
         c(1),
         c(2),
         c(3),
+        c(5),
+        c(7),
+        c(9),
+        c(11),
     ];
     let declaration = d::Function {
         name: "f".into(),
         public: false,
         span,
         signature_span: span,
-        parameters: vec![],
+        parameters: vec![d::LocalId(1)],
         result: o::TypeUse {
             ty: o::Type::I64,
             span,
         },
-        locals: vec![d::Local {
-            name: "local".into(),
-            span,
-            kind: d::LocalKind::Mutable,
-            ty: o::TypeUse {
-                ty: o::Type::I64,
+        locals: vec![
+            d::Local {
+                name: "local".into(),
                 span,
+                kind: d::LocalKind::Mutable,
+                ty: o::TypeUse {
+                    ty: o::Type::I64,
+                    span,
+                },
             },
-        }],
+            d::Local {
+                name: "container".into(),
+                span,
+                kind: d::LocalKind::Parameter,
+                ty: o::TypeUse { ty: c(7), span },
+            },
+        ],
     };
     let places = p::PlaceTable {
         declarations: d::Declarations {
@@ -93,6 +120,12 @@ fuzz_target!(|bytes: &[u8]| {
                     }],
                     span,
                 },
+                p::Place {
+                    origin: m::Register(13),
+                    root: p::Root::Local(d::LocalId(1)),
+                    projections: vec![],
+                    span,
+                },
             ],
         }],
     };
@@ -110,6 +143,31 @@ fuzz_target!(|bytes: &[u8]| {
                 op: b::Op::I64(0),
                 span,
             });
+            instructions.push(b::Instruction {
+                results: vec![m::Register(13)],
+                op: b::Op::MovePlace(p::PlaceId(2)),
+                span,
+            });
+            if byte(0) & 8 != 0 {
+                instructions.push(b::Instruction {
+                    results: vec![m::Register(12)],
+                    op: b::Op::CoreCall(o::core::Call {
+                        operation: o::core::Operation::Allocator,
+                        type_arguments: vec![],
+                        arguments: vec![],
+                        result_loan: Some(b::LoanId(0)),
+                    }),
+                    span,
+                });
+                instructions.push(b::Instruction {
+                    results: vec![],
+                    op: b::Op::EndBorrow {
+                        loan: b::LoanId(0),
+                        mode: b::EndMode::Required,
+                    },
+                    span,
+                });
+            }
         }
         for i in 0..usize::from(byte(block + 1) % 5) {
             let at = block * 40 + i * 6 + 10;
@@ -118,7 +176,7 @@ fuzz_target!(|bytes: &[u8]| {
             let loan = b::LoanId(u32::from(byte(at + 3) % 8));
             let place = p::PlaceId(u32::from(byte(at + 3) % 4));
             let destination = b::PreparedPlaceId(u32::from(byte(at + 3) % 8));
-            let (op, output) = match byte(at) % 22 {
+            let (op, output) = match byte(at) % 23 {
                 0 => (b::Op::Bool(byte(at + 1) & 1 != 0), true),
                 1 => (b::Op::I64(i64::from(byte(at + 1))), true),
                 2 => (b::Op::Add(a, z), true),
@@ -212,7 +270,26 @@ fuzz_target!(|bytes: &[u8]| {
                     },
                     false,
                 ),
-                _ => (b::Op::DiscardPrepared(destination), false),
+                21 => (b::Op::DiscardPrepared(destination), false),
+                _ => (
+                    b::Op::CoreCall(o::core::Call {
+                        operation: o::core::Operation::ALL
+                            [usize::from(byte(at + 3)) % o::core::Operation::ALL.len()],
+                        type_arguments: (0..byte(at + 4) % 3)
+                            .map(|index| o::TypeUse {
+                                ty: if index == 0 {
+                                    o::Type::I64
+                                } else {
+                                    c(u32::from(byte(at + 2) % 12))
+                                },
+                                span,
+                            })
+                            .collect(),
+                        arguments: [a, z, m::Register(7)][..usize::from(byte(at + 1) % 4)].to_vec(),
+                        result_loan: (byte(at + 4) & 4 != 0).then_some(loan),
+                    }),
+                    true,
+                ),
             };
             instructions.push(b::Instruction {
                 results: if output {

@@ -74,6 +74,7 @@ pub enum Op {
         import: m::ImportId,
         arguments: Vec<m::Register>,
     },
+    CoreCall(core::Call),
     Record {
         definition: DefinitionId,
         fields: Vec<m::Register>,
@@ -127,6 +128,7 @@ impl Op {
             Self::Call { arguments, .. } | Self::Import { arguments, .. } => {
                 ([None, None], arguments)
             }
+            Self::CoreCall(call) => ([None, None], &call.arguments),
             Self::Record { fields, .. } => ([None, None], fields),
             Self::Variant { payload, .. } => ([None, None], payload),
             _ => ([None, None], &[]),
@@ -146,6 +148,7 @@ impl Op {
     pub const fn created_loan(&self) -> Option<LoanId> {
         match self {
             Self::Borrow { loan, .. } | Self::BorrowCaseField { loan, .. } => Some(*loan),
+            Self::CoreCall(call) => call.result_loan,
             _ => None,
         }
     }
@@ -211,6 +214,8 @@ pub struct FunctionFacts {
     loans: Vec<Option<Site>>,
     prepared: Vec<Option<PreparedPlace>>,
     idom: Vec<u32>,
+    core_calls: Vec<core::Fact>,
+    needs_allocator: bool,
 }
 impl FunctionFacts {
     pub fn definitions(&self) -> &[Option<Site>] {
@@ -224,6 +229,14 @@ impl FunctionFacts {
     }
     pub fn immediate_dominators(&self) -> &[u32] {
         &self.idom
+    }
+    pub fn core_calls(&self) -> &[core::Fact] {
+        &self.core_calls
+    }
+    /// Transitive guest-call requirement, including recursive calls. Runtime
+    /// entry preflight must supply authority before publishing guest effects.
+    pub const fn needs_instance_allocator(&self) -> bool {
+        self.needs_allocator
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -328,6 +341,7 @@ impl BodyTable {
             )?;
             facts.push(function(&places, f, body, budget)?);
         }
+        allocator_requirements(&self.functions, &mut facts, budget)?;
         Ok(TypedBodies {
             places,
             functions: self.functions,
@@ -505,6 +519,8 @@ struct Check<'a, 'b> {
     prepared: &'a [Option<PreparedPlace>],
     function: FunctionId,
     budget: &'b mut Budget,
+    core_calls: Vec<core::Fact>,
+    needs_allocator: bool,
 }
 impl Check<'_, '_> {
     fn value(&mut self, v: m::Register, span: Span) -> Result<Type, Error> {
@@ -588,7 +604,7 @@ impl Check<'_, '_> {
             .ok_or_else(|| Error::new(ErrorKind::InvalidPrepared(id.0), Some(span)))?
             .ok_or_else(|| Error::new(ErrorKind::UndefinedPrepared(id.0), Some(span)))
     }
-    fn operation(&mut self, i: &Instruction) -> Result<(), Error> {
+    fn operation(&mut self, i: &Instruction, site: Site) -> Result<(), Error> {
         let s = i.span;
         use Expected::{Builtin as B, Exact as E};
         match &i.op {
@@ -680,6 +696,31 @@ impl Check<'_, '_> {
                 self.borrow_result(i, *kind, E(ty))
             }
             Op::EndBorrow { .. } => self.void(i),
+            Op::CoreCall(call) => {
+                self.arity(i.results.len(), 1, s)?;
+                let result = self.value(i.results[0], s)?;
+                let mut arguments = self.budget.vector(call.arguments.len())?;
+                for value in &call.arguments {
+                    arguments.push(self.value(*value, s)?);
+                }
+                let checked = core::check(
+                    self.places.declarations(),
+                    self.function,
+                    call,
+                    &arguments,
+                    result,
+                    s,
+                    self.budget,
+                )?;
+                self.needs_allocator |=
+                    checked.result_binding == core::ResultBinding::InstanceAllocator;
+                self.core_calls.push(core::Fact {
+                    site,
+                    operation: call.operation,
+                    checked,
+                });
+                Ok(())
+            }
             Op::ArenaEnter { owner, allocator } => {
                 if self.local(*owner, s)?.kind != d::LocalKind::ArenaOwner {
                     return Err(Error::new(
@@ -958,9 +999,13 @@ fn function(
     u32::try_from(body.loans).map_err(|_| m::Error::new(m::ErrorKind::ArithmeticOverflow))?;
     u32::try_from(body.prepared).map_err(|_| m::Error::new(m::ErrorKind::ArithmeticOverflow))?;
     let mut prepared = filled(budget, body.prepared, None)?;
+    let mut core_count = 0usize;
     for (b, block) in body.blocks.iter().enumerate() {
         for (position, i) in block.instructions.iter().enumerate() {
             budget.charge(1)?;
+            if matches!(i.op, Op::CoreCall(_)) {
+                core_count = add(core_count, 1)?;
+            }
             if let Op::PreparePlace { destination, place } = i.op {
                 let slot = prepared.get_mut(destination.0 as usize).ok_or_else(|| {
                     Error::new(ErrorKind::InvalidPrepared(destination.0), Some(i.span))
@@ -990,7 +1035,10 @@ fn function(
         prepared: &prepared,
         function: FunctionId(index as u32),
         budget,
+        core_calls: Vec::new(),
+        needs_allocator: false,
     };
+    c.core_calls = c.budget.vector(core_count)?;
     let mut definitions = filled(c.budget, c.frame.values.len(), None)?;
     let mut loans = filled(c.budget, body.loans, None)?;
     let mut starts = filled(c.budget, body.blocks.len() + 1, 0usize)?;
@@ -1010,11 +1058,11 @@ fn function(
         }
         for (position, i) in block.instructions.iter().enumerate() {
             within(c.types, block.span, i.span, c.budget)?;
-            c.operation(i)?;
             let site = Site {
                 block: m::BlockId(b as u32),
                 order: position + 1,
             };
+            c.operation(i, site)?;
             for v in &i.results {
                 c.value(*v, i.span)?;
                 define(&mut definitions, *v, site, i.span)?;
@@ -1109,11 +1157,17 @@ fn function(
             };
             for v in i.op.operands() {
                 use_value(&definitions, &idom, v, here, i.span, c.budget)?;
+                if provisional(body, &definitions, v, c.budget)? && !provisional_use(&i.op, v) {
+                    return Err(Error::new(ErrorKind::CoreProvisionalUse(v), Some(i.span)));
+                }
             }
             if let Some(p) = i.op.place()
                 && let p::Root::Value(v) = c.frame.places[p.0 as usize].root
             {
                 use_value(&definitions, &idom, v, here, i.span, c.budget)?;
+                if provisional(body, &definitions, v, c.budget)? {
+                    return Err(Error::new(ErrorKind::CoreProvisionalUse(v), Some(i.span)));
+                }
             }
             if let Op::EndBorrow { loan, mode } = i.op {
                 let Some(site) = loans.get(loan.0 as usize).copied().flatten() else {
@@ -1165,12 +1219,81 @@ fn function(
                 block.terminator.span,
                 c.budget,
             )?;
+            if provisional(body, &definitions, v, c.budget)? {
+                return Err(Error::new(
+                    ErrorKind::CoreProvisionalUse(v),
+                    Some(block.terminator.span),
+                ));
+            }
         }
     }
+    let core_calls = c.core_calls;
+    let needs_allocator = c.needs_allocator;
     Ok(FunctionFacts {
         definitions,
         loans,
         prepared,
         idom,
+        core_calls,
+        needs_allocator,
     })
+}
+
+fn provisional(
+    body: &FunctionBody,
+    definitions: &[Option<Site>],
+    value: m::Register,
+    budget: &mut Budget,
+) -> Result<bool, Error> {
+    budget.charge(1)?;
+    let Some(site) = definitions[value.0 as usize] else {
+        return Ok(false);
+    };
+    if site.order == 0 {
+        return Ok(false);
+    }
+    Ok(
+        matches!(&body.blocks[site.block.0 as usize].instructions[site.order - 1].op,
+        Op::CoreCall(call) if matches!(call.operation.signature().result_binding, core::ResultBinding::ProvisionalLoan { .. })),
+    )
+}
+fn provisional_use(op: &Op, value: m::Register) -> bool {
+    match op {
+        Op::IsCase { value: v, .. }
+        | Op::CopyCaseField { value: v, .. }
+        | Op::BorrowCaseField { value: v, .. }
+        | Op::UnpackVariant { value: v, .. }
+        | Op::DropValue(v) => *v == value,
+        _ => false,
+    }
+}
+fn allocator_requirements(
+    bodies: &[FunctionBody],
+    facts: &mut [FunctionFacts],
+    budget: &mut Budget,
+) -> Result<(), Error> {
+    loop {
+        let mut changed = false;
+        for (index, body) in bodies.iter().enumerate() {
+            budget.charge(1)?;
+            if facts[index].needs_allocator {
+                continue;
+            }
+            'blocks: for block in &body.blocks {
+                for i in &block.instructions {
+                    budget.charge(1)?;
+                    if let Op::Call { function, .. } = i.op
+                        && facts[function.0 as usize].needs_allocator
+                    {
+                        facts[index].needs_allocator = true;
+                        changed = true;
+                        break 'blocks;
+                    }
+                }
+            }
+        }
+        if !changed {
+            return Ok(());
+        }
+    }
 }

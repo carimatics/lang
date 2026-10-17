@@ -26,122 +26,18 @@ fn ty(pattern: P) -> String {
 fn every_core_signature_matches_the_accepted_rfc_table() {
     // Independent source-contract expectations, including parameter order,
     // owning inputs, borrowed results, and every operation-specific error.
-    let expected = [
-        ("allocator", 0, "() -> &Allocator"),
-        ("text_from_utf8", 0, "(Bytes) -> Result<Text, Utf8Error>"),
-        (
-            "text_clone",
-            0,
-            "(&Allocator, &Text) -> Result<Text, AllocError>",
-        ),
-        ("text_len", 0, "(&Text) -> i64"),
-        (
-            "text_bytes",
-            0,
-            "(&Allocator, &Text) -> Result<Bytes, AllocError>",
-        ),
-        ("text_equal", 0, "(&Text, &Text) -> bool"),
-        (
-            "text_concat",
-            0,
-            "(&Allocator, &Text, &Text) -> Result<Text, AllocError>",
-        ),
-        ("bytes_new", 0, "(&Allocator) -> Result<Bytes, AllocError>"),
-        (
-            "bytes_clone",
-            0,
-            "(&Allocator, &Bytes) -> Result<Bytes, AllocError>",
-        ),
-        ("bytes_len", 0, "(&Bytes) -> i64"),
-        ("bytes_get", 0, "(&Bytes, i64) -> Result<i64, BoundsError>"),
-        (
-            "bytes_push",
-            0,
-            "(&mut Bytes, i64) -> Result<Unit, BufferError>",
-        ),
-        (
-            "bytes_set",
-            0,
-            "(&mut Bytes, i64, i64) -> Result<Unit, BufferError>",
-        ),
-        ("vec_new", 1, "(&Allocator) -> Result<Vec<T>, AllocError>"),
-        ("vec_len", 1, "(&Vec<T>) -> i64"),
-        (
-            "vec_push",
-            1,
-            "(&mut Vec<T>, T) -> Result<Unit, AllocError>",
-        ),
-        ("vec_pop", 1, "(&mut Vec<T>) -> Option<T>"),
-        ("vec_get", 1, "(&Vec<T>, i64) -> Result<&T, BoundsError>"),
-        (
-            "vec_get_mut",
-            1,
-            "(&mut Vec<T>, i64) -> Result<&mut T, BoundsError>",
-        ),
-        (
-            "map_new",
-            2,
-            "(&Allocator) -> Result<Map<T, V>, AllocError>",
-        ),
-        ("map_len", 2, "(&Map<T, V>) -> i64"),
-        (
-            "map_insert",
-            2,
-            "(&mut Map<T, V>, T, V) -> Result<Option<V>, AllocError>",
-        ),
-        ("map_get", 2, "(&Map<T, V>, &T) -> Option<&V>"),
-        ("map_remove", 2, "(&mut Map<T, V>, &T) -> Option<V>"),
-        (
-            "shared_new",
-            1,
-            "(&Allocator, T) -> Result<shared T, OwnershipError>",
-        ),
-        (
-            "shared_clone",
-            1,
-            "(&shared T) -> Result<shared T, OwnershipError>",
-        ),
-        (
-            "shared_read",
-            1,
-            "(&shared T) -> Result<&T, OwnershipError>",
-        ),
-        (
-            "shared_replace",
-            1,
-            "(&mut shared T, T) -> Result<Unit, OwnershipError>",
-        ),
-        (
-            "weak_new",
-            1,
-            "(&shared T) -> Result<weak T, OwnershipError>",
-        ),
-        (
-            "weak_clone",
-            1,
-            "(&weak T) -> Result<weak T, OwnershipError>",
-        ),
-        (
-            "weak_upgrade",
-            1,
-            "(&weak T) -> Result<shared T, OwnershipError>",
-        ),
-        (
-            "arena_new",
-            1,
-            "(&mut arena-owner, T) -> Result<arena T, ArenaError>",
-        ),
-        (
-            "arena_read",
-            1,
-            "(&arena-owner, arena T) -> Result<&T, ArenaError>",
-        ),
-        (
-            "arena_replace",
-            1,
-            "(&mut arena-owner, arena T, T) -> Result<Unit, ArenaError>",
-        ),
-    ];
+    let expected: Vec<_> = include_str!("../../../tests/fixtures/core-signatures.txt")
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.is_empty())
+        .map(|line| {
+            let mut fields = line.split('|');
+            let name = fields.next().unwrap();
+            let arity: usize = fields.next().unwrap().parse().unwrap();
+            let signature = fields.next().unwrap();
+            assert!(fields.next().is_none());
+            (name, arity, signature)
+        })
+        .collect();
     assert_eq!(expected.len(), Operation::ALL.len());
     let mut seen = std::collections::BTreeSet::new();
     for (name, arity, text) in expected {

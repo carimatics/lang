@@ -77,6 +77,120 @@ fn compare(checked: &RegionCheckedBodies, v: &o::VerifiedTypes) {
 const FAMILY: &str = "struct Node { next: core::Option<arena Node> } enum Choice { Empty, Value(core::Text) } fn f(a: &core::Allocator, t: core::Text, b: core::Bytes, u: core::Unit, o: core::Option<i64>, r: core::Result<i64, core::AllocError>, v: core::Vec<i64>, m: core::Map<core::Text, i64>, s: shared i64, w: weak i64, n: arena Node, x: &mut i64, be: core::BoundsError, bu: core::BufferError, utf: core::Utf8Error, own: core::OwnershipError, ar: core::ArenaError) -> i64 { return 0; }";
 
 #[test]
+fn every_source_core_identity_maps_to_the_independent_mir_contract() {
+    let mut seen = std::collections::BTreeSet::new();
+    for source in lang_hir::core::Operation::ALL {
+        let mir = ownership_types::core_operation(source);
+        assert!(seen.insert(mir));
+        assert_eq!(source.name(), mir.name());
+        assert_eq!(
+            source.signature().type_arguments.len(),
+            mir.signature().type_arguments.len()
+        );
+        match (
+            source.signature().result_binding,
+            mir.signature().result_binding,
+        ) {
+            (lang_hir::core::ResultBinding::Value, o::core::ResultBinding::Value)
+            | (
+                lang_hir::core::ResultBinding::InstanceAllocator,
+                o::core::ResultBinding::InstanceAllocator,
+            ) => {}
+            (
+                lang_hir::core::ResultBinding::ArenaReference { owner: a },
+                o::core::ResultBinding::ArenaReference { owner: b },
+            ) => assert_eq!(a, b),
+            (
+                lang_hir::core::ResultBinding::ProvisionalLoan { parameter: a },
+                o::core::ResultBinding::ProvisionalLoan { parameter: b, .. },
+            ) => assert_eq!(a, b),
+            pair => panic!("inconsistent provenance for {source:?}: {pair:?}"),
+        }
+    }
+    assert_eq!(seen.len(), o::core::Operation::ALL.len());
+}
+
+#[test]
+fn checked_source_core_allocator_retains_its_span_and_preflight_fact_in_mir_assembly() {
+    use lang_mir::unit::ownership::{bodies as b, declarations as d, places as p};
+    let text =
+        "fn allocator_use() -> i64 { let mut a: &core::Allocator = core::allocator(); return 0; }";
+    let (sources, checked) = prepare(text);
+    let places = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    let frame = &places.functions()[0];
+    let find = |s: &str| {
+        frame
+            .values
+            .iter()
+            .position(|v| &text[v.span.start as usize..v.span.end as usize] == s)
+            .unwrap()
+    };
+    let call = find("core::allocator()");
+    let zero = find("0");
+    let call_span = frame.values[call].span;
+    let span = places.declarations().functions()[0].span;
+    let returned = m::Register(zero as u32);
+    // This fixture assembles instructions explicitly; production body lowering is separate.
+    let typed = b::BodyTable {
+        places: places.into_table(),
+        functions: vec![b::FunctionBody {
+            loans: 1,
+            prepared: 0,
+            blocks: vec![b::Block {
+                parameters: vec![],
+                instructions: vec![
+                    b::Instruction {
+                        results: vec![m::Register(call as u32)],
+                        op: b::Op::CoreCall(o::core::Call {
+                            operation: ownership_types::core_operation(
+                                lang_hir::core::Operation::Allocator,
+                            ),
+                            type_arguments: vec![],
+                            arguments: vec![],
+                            result_loan: Some(b::LoanId(0)),
+                        }),
+                        span: call_span,
+                    },
+                    b::Instruction {
+                        results: vec![],
+                        op: b::Op::Initialize {
+                            local: d::LocalId(0),
+                            value: m::Register(call as u32),
+                        },
+                        span: call_span,
+                    },
+                    b::Instruction {
+                        results: vec![returned],
+                        op: b::Op::I64(0),
+                        span,
+                    },
+                    b::Instruction {
+                        results: vec![],
+                        op: b::Op::EndBorrow {
+                            loan: b::LoanId(0),
+                            mode: b::EndMode::Required,
+                        },
+                        span,
+                    },
+                ],
+                terminator: b::Terminator {
+                    kind: m::Term::Return(returned),
+                    span,
+                },
+                span,
+            }],
+        }],
+    }
+    .verify(Default::default())
+    .unwrap();
+    assert!(typed.facts()[0].needs_instance_allocator());
+    assert_eq!(typed.facts()[0].core_calls()[0].site.order, 1);
+    let moved = o::moves::analyze(typed, Default::default()).unwrap();
+    let active = o::loan_activity::analyze(moved, Default::default()).unwrap();
+    o::loans::analyze(active, Default::default()).unwrap();
+}
+
+#[test]
 fn checked_source_family_lowers_with_stable_identities_and_remapped_snapshot_spans() {
     let (sources, checked) = prepare(FAMILY);
     let original = checked.clone();

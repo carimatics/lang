@@ -25,6 +25,7 @@ pub enum Owner {
         local: super::declarations::LocalId,
         level: u32,
     },
+    InstanceAllocator,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {

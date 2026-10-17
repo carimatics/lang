@@ -487,6 +487,11 @@ impl Context<'_, '_> {
                     self.take(state, *value, s, mode)?;
                 }
             }
+            Op::CoreCall(call) => {
+                for value in &call.arguments {
+                    self.take(state, *value, s, mode)?;
+                }
+            }
             Op::CopyCaseField { value, guard, .. } | Op::BorrowCaseField { value, guard, .. } => {
                 self.read(state, *value, s, mode)?;
                 self.read(state, *guard, s, mode)?;

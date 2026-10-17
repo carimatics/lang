@@ -390,3 +390,44 @@ fn construct_declarations<'a>(
     }
     Ok((c, out))
 }
+
+/// Map resolved source identity explicitly; display names and Rust discriminants
+/// are not the ownership MIR operation contract.
+pub const fn core_operation(operation: lang_hir::core::Operation) -> o::core::Operation {
+    match operation {
+        lang_hir::core::Operation::Allocator => o::core::Operation::Allocator,
+        lang_hir::core::Operation::TextFromUtf8 => o::core::Operation::TextFromUtf8,
+        lang_hir::core::Operation::TextClone => o::core::Operation::TextClone,
+        lang_hir::core::Operation::TextLen => o::core::Operation::TextLen,
+        lang_hir::core::Operation::TextBytes => o::core::Operation::TextBytes,
+        lang_hir::core::Operation::TextEqual => o::core::Operation::TextEqual,
+        lang_hir::core::Operation::TextConcat => o::core::Operation::TextConcat,
+        lang_hir::core::Operation::BytesNew => o::core::Operation::BytesNew,
+        lang_hir::core::Operation::BytesClone => o::core::Operation::BytesClone,
+        lang_hir::core::Operation::BytesLen => o::core::Operation::BytesLen,
+        lang_hir::core::Operation::BytesGet => o::core::Operation::BytesGet,
+        lang_hir::core::Operation::BytesPush => o::core::Operation::BytesPush,
+        lang_hir::core::Operation::BytesSet => o::core::Operation::BytesSet,
+        lang_hir::core::Operation::VecNew => o::core::Operation::VecNew,
+        lang_hir::core::Operation::VecLen => o::core::Operation::VecLen,
+        lang_hir::core::Operation::VecPush => o::core::Operation::VecPush,
+        lang_hir::core::Operation::VecPop => o::core::Operation::VecPop,
+        lang_hir::core::Operation::VecGet => o::core::Operation::VecGet,
+        lang_hir::core::Operation::VecGetMut => o::core::Operation::VecGetMut,
+        lang_hir::core::Operation::MapNew => o::core::Operation::MapNew,
+        lang_hir::core::Operation::MapLen => o::core::Operation::MapLen,
+        lang_hir::core::Operation::MapInsert => o::core::Operation::MapInsert,
+        lang_hir::core::Operation::MapGet => o::core::Operation::MapGet,
+        lang_hir::core::Operation::MapRemove => o::core::Operation::MapRemove,
+        lang_hir::core::Operation::SharedNew => o::core::Operation::SharedNew,
+        lang_hir::core::Operation::SharedClone => o::core::Operation::SharedClone,
+        lang_hir::core::Operation::SharedRead => o::core::Operation::SharedRead,
+        lang_hir::core::Operation::SharedReplace => o::core::Operation::SharedReplace,
+        lang_hir::core::Operation::WeakNew => o::core::Operation::WeakNew,
+        lang_hir::core::Operation::WeakClone => o::core::Operation::WeakClone,
+        lang_hir::core::Operation::WeakUpgrade => o::core::Operation::WeakUpgrade,
+        lang_hir::core::Operation::ArenaNew => o::core::Operation::ArenaNew,
+        lang_hir::core::Operation::ArenaRead => o::core::Operation::ArenaRead,
+        lang_hir::core::Operation::ArenaReplace => o::core::Operation::ArenaReplace,
+    }
+}

@@ -26,6 +26,7 @@ pub(super) struct Topology {
     pub kinds: Vec<LoanKind>,
     pub origins: Vec<Option<Span>>,
     pub parameters: Vec<Parameter>,
+    pub instance_allocator: Option<usize>,
 }
 pub(super) fn constructor(types: &VerifiedTypes, ty: Type) -> Option<Constructor> {
     if let Type::Constructed(id) = ty {
@@ -69,6 +70,7 @@ impl Topology {
             kinds: super::super::flow::filled(budget, body.loans, LoanKind::Shared)?,
             origins: super::super::flow::filled(budget, body.loans, None)?,
             parameters: Vec::new(),
+            instance_allocator: None,
         };
         for (i, local) in declaration.locals.iter().enumerate() {
             let node = this.node(
@@ -102,9 +104,30 @@ impl Topology {
                 if let Some(id) = i.op.created_loan() {
                     this.kinds[id.0 as usize] = match i.op {
                         b::Op::Borrow { kind, .. } => kind,
+                        b::Op::CoreCall(ref call) => call.loan_kind().unwrap(),
                         _ => LoanKind::Shared,
                     };
                     this.origins[id.0 as usize] = Some(i.span);
+                }
+                if let b::Op::CoreCall(call) = &i.op
+                    && call.operation == crate::unit::ownership::core::Operation::Allocator
+                    && this.instance_allocator.is_none()
+                {
+                    let Some(Constructor::Loan(_, allocator)) =
+                        constructor(types, frame.values[i.results[0].0 as usize].ty)
+                    else {
+                        unreachable!()
+                    };
+                    this.instance_allocator = Some(this.node(
+                        types,
+                        allocator,
+                        Owner::InstanceAllocator,
+                        true,
+                        0,
+                        limits,
+                        used,
+                        budget,
+                    )?);
                 }
             }
         }

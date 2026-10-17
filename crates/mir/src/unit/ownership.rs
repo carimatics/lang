@@ -9,6 +9,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 pub mod bodies;
+pub mod core;
 pub mod declarations;
 mod flow;
 pub mod loan_activity;
@@ -210,6 +211,26 @@ pub enum ErrorKind {
     UndefinedPrepared(u32),
     PreparedDoesNotDominate(u32),
     InvalidInitialization(u32),
+    CoreTypeArity {
+        expected: usize,
+        actual: usize,
+    },
+    CoreTypeArgument {
+        index: usize,
+        rule: core::TypeArgumentRule,
+        actual: Type,
+    },
+    CoreType {
+        operation: core::Operation,
+        position: core::Position,
+        actual: Type,
+    },
+    CoreLoan {
+        operation: core::Operation,
+        expected: bool,
+        actual: Option<u32>,
+    },
+    CoreProvisionalUse(super::Register),
     ExpectedBuiltin {
         expected: Builtin,
         actual: Type,

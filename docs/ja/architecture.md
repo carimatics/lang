@@ -313,9 +313,19 @@ Reference cellの借用と、その内容へのaccessは別操作として扱い
 
 追加17 testに、独立owner-interval oracleと比較する96 program、nested／caller cell、parent freezingと早期end、条件付きreference、payload view、古いloop alias、prepare済みdestination、均衡／irreducible loop、正確な累積上限／depth、replay、70 loanのreference／target bit境界を含みます。追加のregressionはparent storageのdrop後にprepare済み直接fieldをreplaceする操作を拒否します。既存3件の検査済みsource組み立てfixtureもprovenance検査を通り、以前activityだけを通っていたuse-after-end fixtureはこのstageで拒否します。拡張したlock済みbody fuzz targetはClippyとinstrumentationなし10,000-run smokeを通り、coverage-guidedの主張は行いません。
 
-`LoanCheckedBodies` は実行できません。現在のinstruction familyは通常のownership操作、constructor、guest call、scalar host importを表し、完全なcore operation loweringと、そのprovisional／arena result contractが必要です。Arena brand／escapeとguest mutation effect、自動の完全なsource-body lowering、cleanup／allocator／layout contract、VM／native runtime統合、ownership serializationはMilestone 2の独立要件として残ります。これらの独立した解析factだけでHIR／MIR、arena、core outcomeは完了しません。
+`LoanCheckedBodies` は実行できません。後述のcore operation拡張でtyped callとprovisional／arena result contractを追加します。Arena brand／escapeとguest mutation effect、自動の完全なsource-body lowering、受理済みcleanup／allocator契約の実装、owned layout、VM／native runtime統合、ownership serializationはMilestone 2の独立要件として残ります。これらの独立した解析factだけでHIR／MIR、arena、core outcomeは完了しません。
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[provenance／access checker](../../crates/mir/src/unit/ownership/loans/mod.rs)、[test](../../crates/mir/tests/ownership_loans.rs)、[prepare済みfield regression](../../crates/mir/tests/ownership_prepared.rs)、[source組み立てfixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Cell topology、bit matrix、無効化表現は受理済みprofile内の実装上の選択です。
+
+### Ownership MIR core-call contracts
+
+2026-10-17実装：`lang_mir::unit::ownership::core` は受理済みRFC 0007の全34 operationを独立に規定します。`CoreCall` は具体type argumentのspanと記述したoperand順を保持します。Typed body検証は正確な引数／結果形状、storable／map-key／shared-payload制約、必須result-loan identity、arena operationの具体的な字句的owner authorityを確認します。Frontendの網羅的adapterはHIR型をMIR APIへ公開せずsource operation identityを対応付けます。HIR／MIR testはどちらかの実装から期待値を生成せず、独立した共通RFC signature fixtureを使います。
+
+Move解析はoperationがfailureを返す場合もowning inputを消費します。Provenance解析は借用payloadの成功後もcontainer／owner loanを保持し、推移的parent依存を追跡し、map keyは結果と独立に解放します。Core readは論理的なprovisional loan予約を作り、実際の返却参照は成功payloadだけに存在します。失敗／未使用pathも予約を終了し、取得済みleaseがあれば解放します。生のprovisional sumは検査、一致case guard下のprojection、unpack、破棄だけを許可し、通常storage、forward、入れ子化、block引数を拒否します。Instance allocatorは独立した借用host cellであり、factがallocator capabilityを付与したりallocatorを呼んだりすることはありません。
+
+読み取り専用のcall factはresult由来と具体arena ownerを記録します。上限付き固定点計算で `needs_instance_allocator()` を再帰guest callerへ伝播し、後続の実行adapterがeffect前にwhole-call preflightできるようにします。これは実行adapterへの要件であり、preflightやguest allocation engineの実装ではありません。11件のMIR testに、独立に具体化した102 signature case、全31 non-arena operationのtype／move／activity／provenance解析、arena new／read／replaceをつなぐfixture、guard付き結果のlifetime、再帰requirement、不正call、正確な累積上限を含みます。2件のsource testで全operation対応とspanを保持したsource由来allocator callの明示組み立てを確認し、完全な自動body loweringは未完了です。上限付きownership-body fuzzerもcore callとallocator-loan pathを生成します。
+
+出典：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[MIR契約](../../crates/mir/src/unit/ownership/core/mod.rs)、[独立signature fixture](../../tests/fixtures/core-signatures.txt)、[MIR test](../../crates/mir/tests/ownership_core.rs)、[source adapter／test](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。受理済みprofile内の解析を実装し、runtime ownership、arena brand、cleanup、allocator budget、C boundary、layout、version付きserializationはそれぞれ独立した完了gateを維持します。
 
 ### Source formatter
 
