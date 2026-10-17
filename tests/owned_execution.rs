@@ -14,6 +14,7 @@ const OWNED_SOURCE: &str = include_str!("../examples/scripts/owned_bytes.lang");
 const UTF8_SOURCE: &str = include_str!("../examples/scripts/utf8.lang");
 const MUTATION_SOURCE: &str = include_str!("../examples/analysis/extraction.lang");
 const TEXT_SOURCE: &str = include_str!("../examples/scripts/text.lang");
+const AGGREGATE_SOURCE: &str = include_str!("../examples/scripts/owned_aggregate.lang");
 fn checked(source: &str) -> Box<OwnershipProgram> {
     let analysis = frontend::analyze_virtual(
         SourceMap::new(),
@@ -37,6 +38,7 @@ fn checked(source: &str) -> Box<OwnershipProgram> {
 struct Trace {
     requests: Vec<a::Request>,
     released: Vec<a::Request>,
+    released_ids: Vec<usize>,
     deny_buffer: bool,
     deny_growth: bool,
     fail_at: usize,
@@ -44,9 +46,21 @@ struct Trace {
     interrupt_release: Option<Rc<InterruptionFlag>>,
 }
 struct Provider(Rc<RefCell<Trace>>);
+struct Region {
+    storage: a::Storage,
+    id: usize,
+}
+impl a::Region for Region {
+    fn bytes(&self) -> &[u8] {
+        self.storage.bytes()
+    }
+    fn bytes_mut(&mut self) -> &mut [u8] {
+        self.storage.bytes_mut()
+    }
+}
 impl a::Provider for Provider {
-    type Region = a::Storage;
-    fn allocate(&mut self, request: a::Request) -> Option<a::Storage> {
+    type Region = Region;
+    fn allocate(&mut self, request: a::Request) -> Option<Region> {
         let mut trace = self.0.borrow_mut();
         trace.requests.push(request);
         if (trace.deny_buffer && request.bytes() == 24)
@@ -60,12 +74,16 @@ impl a::Provider for Provider {
             {
                 flag.interrupt();
             }
-            a::Storage::try_new(request).ok()
+            a::Storage::try_new(request).ok().map(|storage| Region {
+                storage,
+                id: trace.requests.len(),
+            })
         }
     }
-    fn deallocate(&mut self, _: a::Storage, request: a::Request) {
+    fn deallocate(&mut self, region: Region, request: a::Request) {
         let mut trace = self.0.borrow_mut();
         trace.released.push(request);
+        trace.released_ids.push(region.id);
         if request.bytes() == 25
             && let Some(flag) = &trace.interrupt_release
         {
@@ -92,6 +110,318 @@ fn text_allocator() -> (a::Allocator<Provider>, Rc<RefCell<Trace>>) {
 }
 fn control() -> Control<'static> {
     Control::with_limits(Limits::default())
+}
+
+fn frame_requests(program: &OwnershipProgram) -> Vec<a::Request> {
+    let typed = program.mir().activity().moved().typed();
+    let layouts = lang_runtime::layout::Layouts::compile(
+        typed.places().declarations().types(),
+        Default::default(),
+    )
+    .unwrap();
+    lang_runtime::layout::FramePlan::compile(
+        &layouts,
+        typed,
+        lang_mir::unit::FunctionId(0),
+        Default::default(),
+        usize::MAX,
+    )
+    .unwrap()
+    .requests()
+    .to_vec()
+}
+fn assert_all_released(allocator: &a::Allocator<Provider>, trace: &Trace) {
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert_eq!(allocator.stats().live_bytes, 0);
+    let unique: std::collections::BTreeSet<_> = trace.released_ids.iter().copied().collect();
+    assert_eq!(
+        unique.len(),
+        trace.released_ids.len(),
+        "release each region once"
+    );
+}
+
+#[test]
+fn nested_source_owners_move_without_allocation_and_drop_in_reverse_written_order() {
+    let program = checked(AGGREGATE_SOURCE);
+    let requests = frame_requests(&program);
+    let admitted: Vec<_> = requests
+        .iter()
+        .copied()
+        .filter(|r| r.bytes() != 0)
+        .collect();
+    let (mut allocator, trace) = text_allocator();
+    let mut instance = c::Instance::default();
+    let outcome = vm::execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 9);
+    assert_eq!(outcome.allocations.requests as usize, requests.len() + 3);
+    let trace = trace.borrow();
+    assert_eq!(&trace.requests[..admitted.len()], admitted.as_slice());
+    assert_eq!(
+        trace.requests[admitted.len()..]
+            .iter()
+            .map(|r| r.bytes())
+            .collect::<Vec<_>>(),
+        [24, 25, 25]
+    );
+    let leaves: Vec<_> = trace
+        .released
+        .iter()
+        .zip(&trace.released_ids)
+        .filter_map(|(request, id)| (request.bytes() == 25).then_some(*id))
+        .collect();
+    // Pair was written text, ready, bytes: retire bytes before text even though
+    // their physical fields are declared bytes, text, ready.
+    assert_eq!(leaves, [admitted.len() + 2, admitted.len() + 3]);
+    assert_eq!(trace.requests.len(), trace.released.len());
+    assert_all_released(&allocator, &trace);
+    assert!(!instance.is_poisoned());
+}
+
+#[test]
+fn nested_sums_transfer_aggregate_payloads_in_both_result_branches_and_on_panic() {
+    for (wrap, expected, panic) in [
+        (
+            "let mut wrapped: core::Option<core::Result<Packet, core::Bytes>> = core::Option::Some(core::Result::Ok(packet)); let mut moved: Packet = core::result_unwrap::<Packet, core::Bytes>(core::option_unwrap::<core::Result<Packet, core::Bytes>>(wrapped));",
+            9,
+            None,
+        ),
+        (
+            "let mut wrapped: core::Result<core::Bytes, Packet> = core::Result::Err(packet); let mut moved: Packet = core::result_unwrap_err::<core::Bytes, Packet>(wrapped);",
+            9,
+            None,
+        ),
+        (
+            "let mut wrapped: core::Result<core::Bytes, Packet> = core::Result::Err(packet); let mut wrong: core::Bytes = core::result_unwrap::<core::Bytes, Packet>(wrapped); let mut moved: Packet = Packet::Empty;",
+            0,
+            Some(-2),
+        ),
+    ] {
+        let source = AGGREGATE_SOURCE.replace("let mut moved: Packet = packet;", wrap);
+        let program = checked(&source);
+        let (mut allocator, trace) = allocator_with_limits(a::Limits {
+            live_allocations: 512,
+            ..Default::default()
+        });
+        let mut instance = c::Instance::default();
+        let result = vm::execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            control(),
+        );
+        if let Some(code) = panic {
+            let error = result.err().unwrap();
+            assert_eq!(error.panic_code, Some(code));
+            assert!(error.report.unwrap().secondary().is_empty());
+        } else {
+            assert_eq!(result.unwrap().value, expected);
+        }
+        assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+        assert_all_released(&allocator, &trace.borrow());
+        assert!(!instance.is_poisoned());
+    }
+}
+
+#[test]
+fn user_enum_multiple_payloads_and_empty_copy_aggregates_execute() {
+    let source = AGGREGATE_SOURCE
+        .replace(
+            "enum Packet { Empty, Full(Envelope) }",
+            "struct Empty {} enum Packet { Empty, Full(Envelope, Empty, core::Bytes, i64) }",
+        )
+        .replace(
+            "Packet::Full(envelope)",
+            "Packet::Full(envelope, Empty {}, core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())), 4)",
+        )
+        .replace("Packet::Full(payload)", "Packet::Full(payload, _, extra_bytes, extra)")
+        .replace("+ (*payload).count", "+ (*payload).count + core::bytes_len(extra_bytes) + extra");
+    let program = checked(&source);
+    let (mut allocator, trace) = text_allocator();
+    assert_eq!(
+        vm::execute_entry(
+            program.failure_flow(),
+            &mut c::Instance::default(),
+            Some(&mut allocator),
+            control()
+        )
+        .unwrap()
+        .value,
+        13
+    );
+    assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+    assert_all_released(&allocator, &trace.borrow());
+}
+
+#[test]
+fn every_aggregate_admission_and_buffer_oom_releases_completed_regions_once() {
+    let program = checked(AGGREGATE_SOURCE);
+    let admitted = frame_requests(&program)
+        .iter()
+        .filter(|r| r.bytes() != 0)
+        .count();
+    for failed in 1..=admitted + 3 {
+        let (mut allocator, trace) = text_allocator();
+        trace.borrow_mut().fail_at = failed;
+        let mut instance = c::Instance::default();
+        let error = vm::execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            control(),
+        )
+        .err()
+        .unwrap();
+        if failed <= admitted {
+            assert!(matches!(error.reason, vm::Reason::Preparation(_)));
+        } else {
+            assert_eq!(error.panic_code, Some(-2));
+        }
+        assert!(error.report.unwrap().secondary().is_empty());
+        assert_eq!(
+            trace.borrow().requests.len(),
+            trace.borrow().released.len() + 1
+        );
+        assert_all_released(&allocator, &trace.borrow());
+        assert!(!instance.is_poisoned());
+    }
+}
+
+#[test]
+fn initializer_failure_retires_only_completed_temporaries_before_record_publication() {
+    let source = "struct Pair { first: core::Bytes, second: core::Bytes } fn main() -> i64 { let mut pair: Pair = Pair { second: core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())), first: core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())) }; return core::bytes_len(pair.first); }";
+    let program = checked(source);
+    let admitted = frame_requests(&program)
+        .iter()
+        .filter(|r| r.bytes() != 0)
+        .count();
+    let (mut allocator, trace) = text_allocator();
+    trace.borrow_mut().fail_at = admitted + 2;
+    let mut instance = c::Instance::default();
+    let error = vm::execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.panic_code, Some(-2));
+    assert!(error.report.unwrap().secondary().is_empty());
+    assert_eq!(trace.borrow().released_ids[0], admitted + 1);
+    assert_eq!(
+        trace.borrow().requests.len(),
+        trace.borrow().released.len() + 1
+    );
+    assert_all_released(&allocator, &trace.borrow());
+    assert!(!instance.is_poisoned());
+}
+
+#[test]
+fn nested_aggregate_loops_recycle_moved_storage_and_reference_projections() {
+    let (declarations, main) = AGGREGATE_SOURCE.split_once("fn main() -> i64 {").unwrap();
+    let (construction, _) = main.split_once("let mut moved: Packet = packet;").unwrap();
+    let source = format!(
+        "{declarations} fn main() -> i64 {{ let mut running: bool = true; while running {{ {construction} let mut moved: Packet = packet; match moved {{ Packet::Empty => {{}}, Packet::Full(payload) => {{ let mut view: &Pair = &(*payload).pair; let mut length: i64 = core::bytes_len((*view).bytes); }}, }} }} return 0; }}"
+    );
+    let program = checked(&source);
+    let (mut allocator, trace) = text_allocator();
+    let mut instance = c::Instance::default();
+    let error = vm::execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        Control::with_limits(Limits {
+            fuel: Some(350),
+            ..Default::default()
+        }),
+    )
+    .err()
+    .unwrap();
+    assert!(
+        matches!(
+            error.reason,
+            vm::Reason::Execution(c::FailureKind::Execution(ExecutionFailure::FuelLimit))
+        ),
+        "{error:?}"
+    );
+    assert!(
+        trace
+            .borrow()
+            .requests
+            .iter()
+            .filter(|r| r.bytes() == 25)
+            .count()
+            > 4
+    );
+    assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+    assert_all_released(&allocator, &trace.borrow());
+    assert!(!instance.is_poisoned());
+}
+
+#[test]
+fn nested_exclusive_projections_restore_grown_tokens_to_the_aggregate_owner() {
+    for mutation in [
+        "let mut pushed_again: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(envelope.pair.bytes, 66));",
+        "if true { let mut base: &mut Envelope = &mut envelope; let mut node: &mut Pair = &mut (*base).pair; let mut pushed_again: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push((*node).bytes, 66)); }",
+    ] {
+        let source = AGGREGATE_SOURCE.replace(
+            "let mut packet: Packet = Packet::Full(envelope);",
+            &format!("{mutation} let mut packet: Packet = Packet::Full(envelope);"),
+        );
+        let program = checked(&source);
+        let (mut allocator, trace) = text_allocator();
+        let mut instance = c::Instance::default();
+        assert_eq!(
+            vm::execute_entry(
+                program.failure_flow(),
+                &mut instance,
+                Some(&mut allocator),
+                control()
+            )
+            .unwrap()
+            .value,
+            10
+        );
+        assert!(
+            trace
+                .borrow()
+                .requests
+                .iter()
+                .any(|request| request.bytes() == 26)
+        );
+        assert_eq!(trace.borrow().requests.len(), trace.borrow().released.len());
+        assert_all_released(&allocator, &trace.borrow());
+        assert!(!instance.is_poisoned());
+    }
+}
+
+#[test]
+fn inactive_unsupported_user_enum_payloads_are_rejected_before_provider_callbacks() {
+    let program = checked(
+        "enum Pending { Empty, Full(core::Vec<i64>) } fn main() -> i64 { let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); let mut later: Pending = Pending::Empty; return 0; }",
+    );
+    let (mut allocator, trace) = allocator();
+    let error = vm::execute_entry(
+        program.failure_flow(),
+        &mut c::Instance::default(),
+        Some(&mut allocator),
+        control(),
+    )
+    .err()
+    .unwrap();
+    assert!(matches!(
+        error.reason,
+        vm::Reason::Unsupported { core: None }
+    ));
+    assert_eq!(error.usage.fuel, 0);
+    assert!(trace.borrow().requests.is_empty());
 }
 
 fn bytes_program(pushes: &[i64], tail: &str) -> String {
@@ -1078,6 +1408,7 @@ fn every_fuel_prefix_cleans_source_owners_and_ends_loans_without_poisoning() {
         UTF8_SOURCE.to_owned(),
         MUTATION_SOURCE.to_owned(),
         TEXT_SOURCE.to_owned(),
+        AGGREGATE_SOURCE.to_owned(),
         bytes_program(&[65, 255], INVALID_UTF8),
     ] {
         let program = checked(&source);

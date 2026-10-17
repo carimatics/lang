@@ -483,7 +483,7 @@ Host slot／逆map、loan generation、cleanup／report poolは上限付きでgu
 
 ### Sourceのbyte変更とUTF-8変換
 
-2026-10-18 JST実装／確認：V04は受理済みcore signatureでBytes get／set／push、所有権を消費するUTF-8変換、Text byte長、通常のexclusive byte loanを実行します。[従来の取り出し／変更fixture](../../examples/analysis/extraction.lang) は `1` を表示し、[UTF-8 script](../../examples/scripts/utf8.lang) はpush／set／getでU+3042を構築し、storageをTextへ移譲してbyte長の `3` を表示します。Text payloadも有限sum構築／取り出しgateを通ります。V05でBytes cloneとText clone／concat／to-bytes／equalityを追加し、[Text script](../../examples/scripts/text.lang) はcopyの独立性を確認して `2` を表示します。Collection、一般source aggregate、guest call、prepareを伴う置換、REPL、native実行は各taskに残し、G07も残る代入／native evidenceの確認までopenです。
+2026-10-18 JST実装／確認：V04は受理済みcore signatureでBytes get／set／push、所有権を消費するUTF-8変換、Text byte長、通常のexclusive byte loanを実行します。[従来の取り出し／変更fixture](../../examples/analysis/extraction.lang) は `1` を表示し、[UTF-8 script](../../examples/scripts/utf8.lang) はpush／set／getでU+3042を構築し、storageをTextへ移譲してbyte長の `3` を表示します。Text payloadも有限sum構築／取り出しgateを通ります。V05でBytes cloneとText clone／concat／to-bytes／equalityを追加し、[Text script](../../examples/scripts/text.lang) はcopyの独立性を確認して `2` を表示します。Collection、guest call、prepareを伴う置換、REPL、native実行は各taskに残し、G07も残る代入／native evidenceの確認までopenです。
 
 Loan generation、live owner、pointeeの検査でtargetを解決し、このprofileのshared／exclusive permissionと非alias性は独立検証済みMIRで証明します。変更操作はprivateなservice-token snapshotを使い、次のguest failure／control boundary前に最新tokenをloan元ownerへ戻します。Growでheap handleが変わる場合に必要です。Structured bounds／invalid-byte／allocation errorではownerと既存内容を保持し、setはbuffer serviceのindex確認がbyte確認より先という順序を維持します。
 
@@ -496,6 +496,18 @@ Clone、concat、TextからBytesへの操作は、明示的allocator loanを検�
 VM実行suiteは25 test、CLI suiteは25 testです。Frame＋buffer／growth／cloneの厳密request、UTF-8変換時の新規確保なし、負／最大boundsとinvalid-byte precedence、OOM／quota error、空／NUL／multibyte UTF-8と不正offset、正規等価でもbyte列が異なるText、cell／loan反復再利用、6つのsource fixtureの全fuel prefix、growth／変換解放直後のinterruptionを確認しました。Text scriptのbuffer allocation 6回も順番に失敗させ、元のpanic保持と全owner解放を確認します。Wrapper modelだけでなく実際の最新handle／owner cleanupを検証します。Native、ownership wire、fuzz campaignの結果は主張しません。
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST最終更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST）、[buffer service](../../crates/runtime/src/buffer.rs)、[VM buffer adapter](../../crates/vm/src/unit/owned/state/buffers.rs)、[実行test](../../tests/owned_execution.rs)、[CLI test](../../tests/cli.rs)、[UTF-8 script](../../examples/scripts/utf8.lang)、[Text script](../../examples/scripts/text.lang)。Service／adapter／test／scriptは2026-10-18 JST更新／確認。
+
+### Source ownerの入れ子とreference projection
+
+2026-10-18 JST実装／確認：V06はBytes／Text／Copy valueを持つrecordとuser enumを実行し、record／enum／Option／Resultの再帰的な入れ子も扱います。[Aggregate script](../../examples/scripts/owned_aggregate.lang) はPairをEnvelope、Packetへ移動し、借用した入れ子fieldを読んで `9` を返します。Option／Result全体の取り出しも、Resultのowningな両branchで対応aggregateを移譲できます。Matchは引き続きnon-Copy payloadを借用し、任意field取り出しとpartial moveは禁止します。
+
+VMは物理fieldを宣言順に置き、検証済みMIRに記録された実際の記述順と初期化式spanを保持します。Transfer前に全field型、destination、input obligation、order metadataを確認します。既存のadmission済みstorageで入れ子data／order metadataを移譲し、provider callback、payload cleanup、retain／releaseを行いません。移譲後にだけframeのinput obligationを除き、aggregate obligationを公開します。Pack内部にはguest control boundaryがありません。Moveで入れ子order／spanを維持し、直接／名前付きexclusive reference projectionによるgrow後も、cleanup前に最新buffer tokenを包含ownerへ戻します。
+
+反復的でmemoを持つpayload-profile walkは、非activeなenum caseを含む全inline依存を検査します。Fallibleで上限付きのhost storage／workを使い、累積frame準備budgetへ計上します。未対応Vec／Map／shared／arena serviceは、非active payload内でもprovider callback前にgateします。新しいserialized format、source規則、公開ABIは追加しません。
+
+実行suiteは33 test、CLI suiteは26 testです。新しい検証は、admission＋buffer 3回のみでpack用allocationがないこと、解放IDの一意性と記述順の逆順破棄、複数fieldのenum payload、空Copy record、入れ子sumの成功／panic cleanup、全admission／buffer OOM prefix、公開前のinitializer失敗、直接／名前付き投影先のgrow、loop再利用、7つのsource fixtureの全fuel prefixを扱います。Guest call、block argument、prepareを伴う置換、他service adapter、REPL、native、ownership artifactは別の成果です。このlocal testだけでG06／G08を完了扱いにせず、native platform／fuzz campaignのevidenceも主張しません。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[VM dispatch](../../crates/vm/src/unit/owned.rs)、[payload profile](../../crates/vm/src/unit/owned/profile.rs)、[state／pack](../../crates/vm/src/unit/owned/state.rs)、[managed移譲](../../crates/runtime/src/layout/storage/transfer.rs)、[実行test](../../tests/owned_execution.rs)、[CLI test](../../tests/cli.rs)、[aggregate script](../../examples/scripts/owned_aggregate.lang)。2026-10-18 JST更新／確認。
 
 ### Owned frame storageの受け入れ
 

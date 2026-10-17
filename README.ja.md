@@ -68,11 +68,12 @@ cargo run -- run examples/scripts/owned_bytes.lang
 cargo run -- run examples/analysis/extraction.lang
 cargo run -- run examples/scripts/utf8.lang
 cargo run -- run examples/scripts/text.lang
+cargo run -- run examples/scripts/owned_aggregate.lang
 cargo run -- repl
 cargo run --quiet -- lsp
 ```
 
-`check` はCopyまたはRFC 0007／0009 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。`run` はCopy profileと、allocator authority、Bytes new／len／get／set／push／clone、所有権を消費するUTF-8変換、Text byte長／clone／concat／to-bytes／equality、有限Bytes／Text／Copy Option／Result構築・取り出し、lexical loan、cleanupを扱う初期ownership profileに対応します。Answer scriptは `42`、`bytes.lang`／`owned_bytes.lang` は `0`、取り出し／変更exampleは `1`、`utf8.lang` はbyte長の `3`、`text.lang` はcloneと変換後の独立性を確認して `2` を表示します。表示前にstorageを解放します。取り出しはcaseを確認し、不一致ならsource位置付きguest panicを報告します。未対応命令／payloadはpreflightで拒否します。
+`check` はCopyまたはRFC 0007／0009 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。`run` はCopy profileと、allocator authority、Bytes new／len／get／set／push／clone、所有権を消費するUTF-8変換、Text byte長／clone／concat／to-bytes／equality、入れ子Bytes／Text／Copy record／enumとOption／Result構築・取り出し、lexical loan、cleanupを扱う初期ownership profileに対応します。Answer scriptは `42`、`bytes.lang`／`owned_bytes.lang` は `0`、取り出し／変更exampleは `1`、`utf8.lang` はbyte長の `3`、`text.lang` はcloneと変換後の独立性を確認して `2` を表示します。`owned_aggregate.lang` は入れ子ownerを移動し、投影したreferenceを読んで `9` を表示します。表示前にstorageを解放します。取り出しはcaseを確認し、不一致ならsource位置付きguest panicを報告します。未対応命令／payloadはpreflightで拒否します。
 
 Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応し、REPLは引き続きCopy専用です。CLIはhost importを登録せず、owned実行instanceにはbudget付きallocatorを明示的に供給します。検証日：2026-10-18 JST。
 

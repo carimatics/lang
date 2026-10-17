@@ -8,7 +8,7 @@
 
 ## 現在のM2実装状況
 
-**検証済み43件 · 進行中0件 · 残り48件（暫定123 pt）。**
+**検証済み43件 · 進行中1件 · 残り47件（暫定123 pt）。**
 
 現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む17件の成果を検証しました。V05（`752a369`）でText clone／concat／to-bytes／equalityとBytes cloneを実行し、[Text script](../../examples/scripts/text.lang) はcopyの独立性を確認して `2` を表示します。厳密request、shared alias、OOM／quota時の入力保持、failure／fuel／loop cleanupを確認しました。V05で2 ptを減らし、残作業は125 → 123 ptです。次は入れ子source aggregateとreference projection（V06）です。G07はV09の代入とN03のnative evidenceまでopenとし、新たなexit gateは完了扱いにしていません。981 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 

@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**43 verified deliveries · 0 in progress · 48 remaining tasks (provisional 123 pt).**
+**43 verified deliveries · 1 in progress · 47 remaining tasks (provisional 123 pt).**
 
 Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). Seventeen deliveries have been verified since the gate score last changed, including the planned follow-up design decision. V05 (`752a369`) executes Text clone/concat/to-bytes/equality and Bytes clone: [the Text script](../examples/scripts/text.lang) prints `2` after checking independent copies. Exact requests, shared aliases, OOM/quota input preservation and failure/fuel/loop cleanup are verified. V05 removes 2 pt: 125 → 123 remaining pt. Next execute nested source aggregates and reference projections (V06). G07 remains open for V09 assignment and N03 native evidence; no new exit gate is closed. The 981-test baseline and fmt/Clippy/doc pass; measured validation durations are on the board. Other owning services, REPL/native execution and ownership artifacts retain their gates.
 

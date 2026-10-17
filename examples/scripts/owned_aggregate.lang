@@ -1,0 +1,28 @@
+// Nested owners move together; matching borrows their payloads.
+struct Pair { bytes: core::Bytes, text: core::Text, ready: bool }
+struct Envelope { pair: Pair, count: i64 }
+enum Packet { Empty, Full(Envelope) }
+
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 65));
+    let mut copied: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_clone(core::allocator(), bytes));
+    let mut text: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(
+        core::text_from_utf8(copied));
+    let mut pair: Pair = Pair { text: text, ready: true, bytes: bytes };
+    let mut envelope: Envelope = Envelope { count: 7, pair: pair };
+    let mut packet: Packet = Packet::Full(envelope);
+    let mut moved: Packet = packet;
+    match moved {
+        Packet::Empty => { return -1; },
+        Packet::Full(payload) => {
+            let mut view: &Pair = &(*payload).pair;
+            if (*view).ready {
+                return core::bytes_len((*view).bytes) + core::text_len((*view).text) + (*payload).count;
+            } else { return -2; }
+        },
+    }
+}

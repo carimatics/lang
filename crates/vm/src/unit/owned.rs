@@ -12,6 +12,7 @@ use std::{
     rc::Rc,
 };
 
+mod profile;
 mod state;
 use state::{State, Step, Target, invariant};
 #[derive(Debug)]
@@ -66,36 +67,11 @@ fn rejected(reason: Reason, function: Option<m::FunctionId>, fault: Option<m::Sp
         panic_code: None,
     }
 }
-fn payload_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
-    if types.properties(ty).is_some_and(|p| p.is_copy) {
-        return true;
-    }
-    let o::Type::Constructed(id) = ty else {
-        return false;
-    };
-    matches!(
-        types.table().constructed[id.0 as usize].constructor,
-        o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text)
-    )
-}
-fn sum_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
-    let o::Type::Constructed(id) = ty else {
-        return false;
-    };
-    match types.table().constructed[id.0 as usize].constructor {
-        o::Constructor::Option(t) => payload_supported(types, t),
-        o::Constructor::Result(t, e) => payload_supported(types, t) && payload_supported(types, e),
-        _ => false,
-    }
-}
-fn supported(op: &b::Op, types: &o::VerifiedTypes, result: Option<o::Type>) -> bool {
+fn supported(op: &b::Op, payloads: &profile::Payloads, result: Option<o::Type>) -> bool {
     match op {
         b::Op::CoreCall(call) => {
             (call.operation.extraction().is_some()
-                && call
-                    .type_arguments
-                    .iter()
-                    .all(|t| payload_supported(types, t.ty)))
+                && call.type_arguments.iter().all(|t| payloads.supports(t.ty)))
                 || matches!(
                     call.operation,
                     o::core::Operation::Allocator
@@ -113,7 +89,9 @@ fn supported(op: &b::Op, types: &o::VerifiedTypes, result: Option<o::Type>) -> b
                         | o::core::Operation::TextEqual
                 )
         }
-        b::Op::Variant { .. } => result.is_some_and(|ty| sum_supported(types, ty)),
+        b::Op::Record { .. } | b::Op::Variant { .. } => {
+            result.is_some_and(|ty| payloads.supports(ty))
+        }
         b::Op::I64(_)
         | b::Op::Bool(_)
         | b::Op::Unit
@@ -192,6 +170,9 @@ pub fn execute_entry<P: a::Provider>(
     }
     let body = &typed.functions()[index];
     let types = declarations.types();
+    let limits = m::Limits::default();
+    let payloads =
+        profile::Payloads::compile(types, limits).map_err(|e| fail(Reason::Preparation(e)))?;
     for block in &body.blocks {
         if !block.parameters.is_empty() {
             return Err(rejected(
@@ -205,7 +186,7 @@ pub fn execute_entry<P: a::Provider>(
                 .results
                 .first()
                 .map(|v| typed.places().functions()[index].values[v.0 as usize].ty);
-            if !supported(&instruction.op, types, result) {
+            if !supported(&instruction.op, &payloads, result) {
                 let core = if let b::Op::CoreCall(call) = &instruction.op {
                     Some(call.operation)
                 } else {
@@ -224,7 +205,6 @@ pub fn execute_entry<P: a::Provider>(
     }
     let allocator = allocator.ok_or_else(|| fail(Reason::MissingAllocator))?;
     a::Allocator::preflight(Some(allocator)).map_err(|e| fail(Reason::Preparation(e.into())))?;
-    let limits = m::Limits::default();
     let layouts = l::Layouts::compile(types, limits).map_err(|e| fail(Reason::Preparation(e)))?;
     let plan = l::FramePlan::compile(
         &layouts,
@@ -237,18 +217,21 @@ pub fn execute_entry<P: a::Provider>(
     let extra = |a: usize, b: usize, common: usize| a.checked_add(b.checked_sub(common)?);
     let initial = m::Usage {
         work: extra(plan.usage().work, flow.work_used(), typed.work_used())
+            .and_then(|n| n.checked_add(payloads.usage.work))
             .ok_or_else(|| fail(Reason::Preparation(l::Error::Overflow)))?,
         allocation_bytes: extra(
             plan.usage().allocation_bytes,
             flow.requested_bytes(),
             typed.requested_bytes(),
         )
+        .and_then(|n| n.checked_add(payloads.usage.allocation_bytes))
         .ok_or_else(|| fail(Reason::Preparation(l::Error::Overflow)))?,
         elements: extra(
             plan.usage().elements,
             flow.elements_used(),
             typed.elements_used(),
         )
+        .and_then(|n| n.checked_add(payloads.usage.elements))
         .ok_or_else(|| fail(Reason::Preparation(l::Error::Overflow)))?,
     };
     let mut budget =
@@ -675,20 +658,43 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 state.write(result()?, payload)?;
             }
         }
-        b::Op::Variant { case, payload } => {
-            let incoming = payload.first().map(|r| value(*r));
-            let payload_span = payload.first().map_or(span, |r| {
-                typed.places().functions()[index].values[r.0 as usize].span
-            });
-            let moved = incoming.filter(|from| !shared.borrow().is_copy(*from));
-            if let Some(from) = moved {
-                frame.value(c::Slot(from)).map_err(invariant)?;
+        b::Op::Record { fields, .. }
+        | b::Op::Variant {
+            payload: fields, ..
+        } => {
+            for from in fields.iter().map(|r| value(*r)) {
+                if !shared.borrow().is_copy(from) {
+                    frame.value(c::Slot(from)).map_err(invariant)?;
+                }
             }
-            shared
-                .borrow_mut()
-                .variant(result()?, *case, incoming, payload_span)?;
-            if let Some(from) = moved {
-                let _ = frame.take_owner(c::Slot(from)).map_err(invariant)?;
+            let field_span = |field: u32| {
+                let register = fields[field as usize];
+                typed.places().functions()[index].values[register.0 as usize].span
+            };
+            match &instruction.op {
+                b::Op::Record {
+                    initialization_order,
+                    ..
+                } => shared.borrow_mut().aggregate(
+                    result()?,
+                    None,
+                    fields.iter().map(|r| value(*r)),
+                    initialization_order
+                        .iter()
+                        .map(|field| (*field, field_span(*field))),
+                )?,
+                b::Op::Variant { case, .. } => shared.borrow_mut().aggregate(
+                    result()?,
+                    Some(*case),
+                    fields.iter().map(|r| value(*r)),
+                    (0..fields.len() as u32).map(|field| (field, field_span(field))),
+                )?,
+                _ => unreachable!(),
+            }
+            for from in fields.iter().map(|r| value(*r)) {
+                if !shared.borrow().is_copy(from) {
+                    let _ = frame.take_owner(c::Slot(from)).map_err(invariant)?;
+                }
             }
         }
         b::Op::CoreCall(call) if call.operation.extraction().is_some() => {

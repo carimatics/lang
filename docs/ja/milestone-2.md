@@ -6,7 +6,7 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**43 done · 0 doing · 48 todo · 123 remaining pt**
+**43 done · 1 doing · 47 todo · 123 remaining pt**
 
 **次: M2-V06 → 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証する。**
 
@@ -103,7 +103,7 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 | M2-S03 | done | 0 | M2-S02 | G06,G08 | 有限Bytes／Copy sumと3種のwhole-payload取り出しをtransfer確保なしで実行。Source fixture、panic／fuel／OOM cleanup、managedな入れ子順序／span移譲を検証。 | `e584902` |
 | M2-V04 | done | 0 | M2-V03,M2-S03 | G07,G08 | Source Bytes get／set／push、UTF-8変換、Text byte長を実行。Bounds／OOM、変換確保数、fuel／interruption cleanup、Copy cell loop再利用を検証。 | `8b24c94` |
 | M2-V05 | done | 0 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityとBytes cloneを実行。独立owner、allocator identity、typed OOM／quota error、fuel／loop cleanupを検証。 | `752a369` |
-| M2-V06 | todo | 3 | M2-V03,M2-S03 | G06,G08 | 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証。 | — |
+| M2-V06 | doing | 3 | M2-V03,M2-S03 | G06,G08 | 入れ子record／enumのowner moveとreference projectionを実行し、dropが1回であることを検証。 | — |
 | M2-V07 | todo | 3 | M2-V06,M2-V11 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |

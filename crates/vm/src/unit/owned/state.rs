@@ -288,18 +288,15 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         }
         Ok(())
     }
-    pub fn variant(
+    pub fn aggregate(
         &mut self,
         destination: usize,
-        case: u32,
-        payload: Option<usize>,
-        span: m::Span,
+        case: Option<u32>,
+        fields: impl ExactSizeIterator<Item = usize> + Clone,
+        order: impl ExactSizeIterator<Item = (u32, m::Span)>,
     ) -> Step<()> {
         if self.cells[destination].live && !self.is_copy(destination) {
             return Err(c::ExecutionFailure::Invariant);
-        }
-        if let Some(source) = payload {
-            self.root(source)?;
         }
         let target = self.cells[destination].physical;
         let output = self
@@ -309,17 +306,39 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             .cell(target)
             .map_err(invariant)?;
         let root = output.root();
+        if let Some(case) = case {
+            output
+                .prepare_case(root, case, self.allocator)
+                .map_err(invariant)?;
+        }
+        for (field, source) in fields.clone().enumerate() {
+            let input = self.root(source)?;
+            let Target::Data { location, .. } = input else {
+                return Err(c::ExecutionFailure::Invariant);
+            };
+            let child = output
+                .child(root, field as u32, self.allocator)
+                .map_err(invariant)?;
+            if self.types.equivalent(location.ty(), child.ty()) != Some(true) {
+                return Err(c::ExecutionFailure::Invariant);
+            }
+        }
+        // Validate complete written order/spans before transferring obligations.
+        // All payload/order/work storage was admitted before guest execution.
         output
-            .prepare_case(root, case, self.allocator)
+            .initialize_order(root, order, self.allocator)
             .map_err(invariant)?;
-        // Prepare the sole-field order before moving an incoming owner; no
-        // fallible initialization work remains after the obligation transfer.
-        output
-            .initialize_order(root, payload.map(|_| (0, span)).into_iter(), self.allocator)
-            .map_err(invariant)?;
-        if let Some(source) = payload {
+        for (field, source) in fields.enumerate() {
             let from = self.cells[source].physical;
-            let child = output.child(root, 0, self.allocator).map_err(invariant)?;
+            let output = self
+                .storage
+                .as_ref()
+                .unwrap()
+                .cell(target)
+                .map_err(invariant)?;
+            let child = output
+                .child(root, field as u32, self.allocator)
+                .map_err(invariant)?;
             if self.is_copy(source) {
                 let input = self
                     .storage
