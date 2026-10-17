@@ -65,6 +65,8 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang_bytecode::unit` は明示的なversion／opcode、ID再配置、UTF-8／span検証、decoder／verifier共通のresource budgetを持つcanonical schema 1 artifactをencode／decodeします。`cargo test -p lang-bytecode --test unit_codec` で検証できます。固定golden fixtureと不正input／fuzz検証を含み、source VM実行は未完了です。
 
+`lang_codegen_clif::unit` は検証済みunitを初期native scalar／CFG・straight-line owned profileへ変換し、register再配置とbyte spanからdebug mapへの変換を行います。拡張call／aggregate／operationはcode公開前に拒否します。`cargo test --test source_conformance` でparsed-source scalar VM／JIT比較、引数なし呼出し、metadata／budget failure、tier-1 nativeのdirect／response-file link／runを検証できます（macOS AArch64でlocal実行済み、Windows実行はCI側のevidenceです）。
+
 `lang-semantics::lowering` は成功したprimitive HIRを検証済みtyped MIRへ変換します。Branch assignmentはtyped block parameterでmergeし、loopはback-edgeを越えてmutable valueを運び、early returnと到達不能statementは受理済みbehaviorを保持します。Instruction／terminator spanを既存bytecodeとnative debug metadataへ対応付けます。`cargo test --test hir_lowering` で構造化inputのVM／JIT differential execution、host-object debug mapping、lowering budgetを検証できます。これらはHIR-to-MIR経路のevidenceであり、end-to-end source compilationではありません。
 
 `lang-query` はincremental graph／cacheの共有coreとして、immutable input revision、明示query dependency、推移的invalidation、editやclose／reopen後の古いanalysis結果を拒否するpublication ticketを提供します。Graphのnode、edge、bookkeeping workに上限を設け、失敗をstate変更前に検証します。`cargo test -p lang-query` はcache分離、古い／別graphの結果、dependency置換、cycle、limit、実際の構造化input HIR診断cacheを検証します。Adapterは参照する全dependencyの宣言が必要です。Compiler queryの自動実行、parser／module dependency検出、LSP transportは未実装です。

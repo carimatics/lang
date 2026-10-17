@@ -95,6 +95,8 @@ Unit検証は反復処理のnominal依存走査、圧縮predecessor list、反�
 
 ### Source program lowering
 
+Source生成unitは `lang_codegen_clif::unit` により既存native profileへ接続します。要求unit limitを再検証し、変換buffer／workへ課金し、symbolic registerを旧連続順へ再配置し、明示host IDを対応付け、immutableなbyte spanをline／scalar-column debug metadataへ変換します。部分的・複数fileにまたがるfunction mapは位置を黙って失わず拒否します。未対応signature／operationはbackend codeの割り当て・公開前に拒否し、新guest callとcopy aggregateはnative後続作業までVM側の責務です。全宣言host importをJIT compile前にregistryでpreflightします。元のnative compile／旧validation APIはtrusted-input境界を保持し、adapter budgetによるnative compiler時間／memory制限は主張しません。9件のsource conformance testは演算／CFGのVM・JIT一致、signature確認付き引数なし呼出し、bytecode／JIT／AOTでのspan、未対応case、typed import／owned identity、metadata／budget failureを扱います。Tier-1条件付きC harnessがparsed-source objectをdirect／response-file両modeでlink／実行します。2026-10-17のlocal evidenceはmacOS AArch64であり、同じWindows経路はCI実行を要します。
+
 2026-10-17実装：`lang_semantics::program_lowering` はimmutableなtyped source HIRを検証済みcompilation unitへ変換します。Argument／payloadの左から右の評価、recordの記述順評価と宣言順格納、scrutineeの1回評価、順序付き副作用なしpattern test、case guard後のchecked enum projection、arm-local bindingを保持します。Exhaustivenessにより最終armを無条件にでき、汎用runtime match-failure経路は生成しません。定数trueの構造的branchでwarningのみのcovered armをverifier上到達可能に保ちます。Joinはtyped block argumentを使い、loop headerはaggregate／boolを含む可視mutable valueを運びます。Dead statementは命令を生成しません。合成jumpを含むfunction、全instruction、全terminatorにsemantic byte spanを保持し、fileを読まずsnapshot本文をコピーします。構築と最終検証はwork／allocation／element budgetとunit全体register／block／instruction countを共有します。8件のparsed-source testで契約と拒否境界を検証します。VM／native実行とsource differential conformanceは統合作業として残ります。
 
 ### Portable bytecode

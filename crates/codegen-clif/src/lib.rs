@@ -17,6 +17,7 @@ use lang_runtime::HostFunctionRegistry;
 pub use target_lexicon::Triple;
 
 mod debug;
+pub mod unit;
 
 pub struct CompiledFunction {
     _module: OwnedJitModule,
@@ -180,6 +181,17 @@ impl CompiledFunction {
         // SAFETY: JIT code remains alive with `self._module`, and the signature
         // checked above matches the generated function's native signature.
         Ok(unsafe { function(argument) })
+    }
+
+    pub fn invoke_i64_0(&self) -> Result<i64, InvokeError> {
+        self.validate_invocation(&[], Type::I64)?;
+        // SAFETY: compilation records the validated signature, and the check
+        // above accepts exactly zero parameters and an i64 result. The code
+        // pointer stays owned by self._module for this entire borrowed call.
+        let function: unsafe extern "C" fn() -> i64 = unsafe { std::mem::transmute(self.code) };
+        // SAFETY: the generated C signature and live code ownership match the
+        // checked function pointer above.
+        Ok(unsafe { function() })
     }
 
     pub fn invoke_own_resource_1(
