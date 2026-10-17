@@ -1,4 +1,4 @@
-//! Full program typing for name-resolved RFC 0006 input.
+//! Executable RFC 0006 Copy typing and type-only RFC 0007 body analysis.
 
 mod bodies;
 mod coverage;
