@@ -16,6 +16,17 @@ fn check(bytes: &[u8], limits: CodecLimits) {
         )
         .unwrap();
         assert_eq!(encoded, bytes);
+        // No host authority is supplied. Guest instructions, recursion, and
+        // aggregate copies remain bounded even for valid adversarial units.
+        let _ = lang_vm::unit::execute_entry(
+            &program,
+            &lang_runtime::HostFunctionRegistry::new(),
+            &lang_vm::unit::HostBindings::new(),
+            lang_vm::unit::Control::with_limits(lang_vm::unit::Limits {
+                fuel: Some(128), host_calls: Some(0), frames: Some(8),
+                live_cells: Some(4096),
+            }),
+        );
     }
 }
 

@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod unit;
+
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroU32;

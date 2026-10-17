@@ -74,6 +74,7 @@ dependencies = [
  "lang-mir",
  "lang-runtime",
  "lang-syntax",
+ "lang-vm",
  "libfuzzer-sys",
 ]
 
@@ -100,6 +101,15 @@ name = "lang-syntax"
 version = "0.1.0"
 dependencies = [
  "lang-diagnostics",
+]
+
+[[package]]
+name = "lang-vm"
+version = "0.1.0"
+dependencies = [
+ "lang-bytecode",
+ "lang-mir",
+ "lang-runtime",
 ]
 
 [[package]]

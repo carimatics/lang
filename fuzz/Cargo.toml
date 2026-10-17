@@ -15,6 +15,7 @@ lang-syntax = { path = "../crates/syntax" }
 lang-hir = { path = "../crates/hir" }
 lang-bytecode = { path = "../crates/bytecode" }
 lang-mir = { path = "../crates/mir" }
+lang-vm = { path = "../crates/vm" }
 
 [[bin]]
 name = "portable_bytecode_decoder"

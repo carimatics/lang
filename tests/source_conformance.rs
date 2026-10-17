@@ -1,65 +1,13 @@
 //! Parsed source through shared MIR and the initial native scalar profile.
 
 use std::fs;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use lang_codegen_clif::{InvokeError, unit as native};
-use lang_diagnostics::{Severity, SourceMap};
-use lang_hir::program::{CheckLimits, check_program};
 use lang_mir::{HostFunctionId, unit as m};
 use lang_runtime::HostFunctionRegistry;
-use lang_semantics::{
-    binding::{BindingLimits, bind_program},
-    modules::{ModuleLimits, load_modules},
-    program_lowering,
-};
-
-static NEXT: AtomicU64 = AtomicU64::new(0);
-struct Files(PathBuf);
-impl Files {
-    fn new(text: &str) -> Self {
-        let directory = std::env::temp_dir().join(format!(
-            "lang source conformance {} {}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory).unwrap();
-        let files = Self(directory);
-        fs::write(files.0.join("source.lang"), text).unwrap();
-        files
-    }
-    fn unit(&self) -> m::VerifiedUnit {
-        let mut sources = SourceMap::new();
-        let loaded = load_modules(
-            &mut sources,
-            &self.0.join("source.lang"),
-            &self.0,
-            ModuleLimits::default(),
-        )
-        .unwrap();
-        assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
-        let bound =
-            bind_program(&loaded.graph.unwrap(), &sources, BindingLimits::default()).unwrap();
-        assert!(bound.diagnostics.is_empty(), "{:?}", bound.diagnostics);
-        let checked =
-            check_program(bound.program.unwrap(), &sources, CheckLimits::default()).unwrap();
-        assert!(
-            checked
-                .diagnostics
-                .iter()
-                .all(|d| d.severity == Severity::Warning),
-            "{:?}",
-            checked.diagnostics
-        );
-        program_lowering::lower(&checked.program.unwrap(), &sources, m::Limits::default()).unwrap()
-    }
-}
-impl Drop for Files {
-    fn drop(&mut self) {
-        fs::remove_dir_all(&self.0).unwrap();
-    }
-}
+#[path = "support/source.rs"]
+mod source;
+use source::Files;
 
 #[test]
 fn parsed_wrapping_and_signed_branch_results_match_vm_and_jit() {
@@ -85,6 +33,17 @@ fn parsed_wrapping_and_signed_branch_results_match_vm_and_jit() {
         };
         assert_eq!(lang_vm::execute(&bytecode, &[a, b]).unwrap(), expected);
         assert_eq!(jit.invoke_i64_2(a, b).unwrap(), expected);
+        let program = lang_bytecode::unit::Program::from_verified(u.clone());
+        let result = lang_vm::unit::execute(
+            &program,
+            m::FunctionId(0),
+            &[lang_vm::unit::Value::i64(a), lang_vm::unit::Value::i64(b)],
+            &HostFunctionRegistry::new(),
+            &lang_vm::unit::HostBindings::new(),
+            lang_vm::unit::Control::default(),
+        )
+        .unwrap();
+        assert_eq!(result.value.as_i64(), Some(expected));
     }
     assert!(matches!(
         jit.invoke_i64_0(),
@@ -113,6 +72,17 @@ fn parsed_nested_loop_carried_values_and_early_returns_match_native() {
         };
         assert_eq!(lang_vm::execute(&bytecode, &[n]).unwrap(), expected);
         assert_eq!(jit.invoke_i64_1(n).unwrap(), expected);
+        let program = lang_bytecode::unit::Program::from_verified(u.clone());
+        let result = lang_vm::unit::execute(
+            &program,
+            m::FunctionId(0),
+            &[lang_vm::unit::Value::i64(n)],
+            &HostFunctionRegistry::new(),
+            &lang_vm::unit::HostBindings::new(),
+            lang_vm::unit::Control::default(),
+        )
+        .unwrap();
+        assert_eq!(result.value.as_i64(), Some(expected));
     }
 }
 
