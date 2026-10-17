@@ -6,7 +6,7 @@ use lang_hir::{
     layout::{LayoutError, LayoutLimits},
     loans, moves,
     program::{CheckError, CheckLimits, analyze_bodies, check_program},
-    resolved as r,
+    regions, resolved as r,
     source::Name,
     types,
 };
@@ -278,6 +278,16 @@ fuzz_target!(|bytes: &[u8]| {
         functions: vec![function],
     };
     let limits = CheckLimits {
+        regions: regions::Limits {
+            functions: 8,
+            locals: 64,
+            values: 256,
+            places: 256,
+            depth: 16,
+            work: 16_384,
+            allocations: 1024 * 1024,
+            diagnostics: 32,
+        },
         loans: loans::Limits {
             functions: 8,
             locals: 64,
@@ -387,6 +397,50 @@ fuzz_target!(|bytes: &[u8]| {
                                                 }
                                             }
                                         }
+                                        match regions::analyze(checked, &sources, limits.regions) {
+                                            Ok(analysis) => {
+                                                for d in analysis.diagnostics {
+                                                    d.validate(&sources).unwrap();
+                                                }
+                                                for pending in analysis.pending {
+                                                    sources.slice(pending.span).unwrap();
+                                                }
+                                                if let Some(checked) = analysis.bodies {
+                                                    assert_eq!(
+                                                        checked.loaned().moved().bodies().source(),
+                                                        &program
+                                                    );
+                                                    for (function, facts) in program
+                                                        .functions
+                                                        .iter()
+                                                        .zip(checked.functions())
+                                                    {
+                                                        for brand in facts.brands() {
+                                                            sources.slice(brand.span).unwrap();
+                                                        }
+                                                        for id in 0..function.expressions.len() {
+                                                            if let Some(brands) = facts
+                                                                .expression_brands(r::ExpressionId(
+                                                                    id,
+                                                                ))
+                                                            {
+                                                                assert!(
+                                                                    brands.iter().all(|id| id.0
+                                                                        < facts.brands().len())
+                                                                );
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Err(regions::Error::Limit(d)) => {
+                                                d.validate(&sources).unwrap()
+                                            }
+                                            Err(
+                                                regions::Error::Source(_)
+                                                | regions::Error::AllocationFailed { .. },
+                                            ) => {}
+                                        }
                                     }
                                 }
                                 Err(loans::Error::Limit(d)) => d.validate(&sources).unwrap(),
@@ -406,7 +460,8 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Layout(LayoutError::Limit(d))
             | CheckError::Types(types::Error::Limit(d))
             | CheckError::Moves(moves::Error::Limit(d))
-            | CheckError::Loans(loans::Error::Limit(d)),
+            | CheckError::Loans(loans::Error::Limit(d))
+            | CheckError::Regions(regions::Error::Limit(d)),
         ) => d.validate(&sources).unwrap(),
         Err(
             CheckError::Input { .. }
@@ -414,6 +469,9 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
             | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
+            | CheckError::Regions(
+                regions::Error::Source(_) | regions::Error::AllocationFailed { .. },
+            )
             | CheckError::OwnershipProfile { .. },
         ) => {}
     }
@@ -434,7 +492,8 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Layout(LayoutError::Limit(d))
             | CheckError::Types(types::Error::Limit(d))
             | CheckError::Moves(moves::Error::Limit(d))
-            | CheckError::Loans(loans::Error::Limit(d)),
+            | CheckError::Loans(loans::Error::Limit(d))
+            | CheckError::Regions(regions::Error::Limit(d)),
         ) => {
             d.validate(&sources).unwrap();
         }
@@ -444,6 +503,9 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
             | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
+            | CheckError::Regions(
+                regions::Error::Source(_) | regions::Error::AllocationFailed { .. },
+            )
             | CheckError::OwnershipProfile { .. },
         ) => {}
     }

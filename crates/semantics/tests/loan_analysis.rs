@@ -490,6 +490,17 @@ fn nested_dependency_graphs_and_budgets_are_validated_independently() {
 }
 
 #[test]
+fn mutable_core_projections_keep_exclusive_authority() {
+    accepted(
+        "fn f(v: &mut core::Vec<i64>) -> i64 { match core::vec_get_mut::<i64>(v, 0) { core::Result::Ok(cell) => { (*cell) = 3; return (*cell); }, core::Result::Err(_) => { return 0; }, } }",
+    );
+    rejected(
+        "fn f(v: &mut core::Vec<i64>) -> i64 { match core::vec_get_mut::<i64>(v, 0) { core::Result::Ok(cell) => { return core::vec_len::<i64>(v); }, core::Result::Err(_) => { return 0; }, } }",
+        V::FrozenParent,
+    );
+}
+
+#[test]
 fn generated_nested_paths_agree_with_a_permission_intersection_oracle() {
     let mut successful_writes = 0;
     for depth in 1..=5 {

@@ -70,7 +70,8 @@ impl Analysis {
                 | CheckError::Layout(LayoutError::Limit(d))
                 | CheckError::Types(lang_hir::types::Error::Limit(d))
                 | CheckError::Moves(lang_hir::moves::Error::Limit(d))
-                | CheckError::Loans(lang_hir::loans::Error::Limit(d)),
+                | CheckError::Loans(lang_hir::loans::Error::Limit(d))
+                | CheckError::Regions(lang_hir::regions::Error::Limit(d)),
             ) => {
                 diagnostics.push(*d);
                 AnalysisError::Diagnostics

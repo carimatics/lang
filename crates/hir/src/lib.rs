@@ -9,14 +9,16 @@
 //! `program`. Its executable typed program remains Copy-only. Separate body
 //! type facts do not establish moves, loan/region flow, or executable validity.
 //! `moves` checks definite initialization and local consumption. `loans` checks
-//! lexical whole-owner access and nested reference cells. Arena-brand flow
-//! and executable promotion remain separate requirements.
+//! lexical whole-owner access and nested reference cells. `regions` checks
+//! intraprocedural arena-brand flow; region-bearing guest calls, ownership
+//! MIR, and executable promotion remain separate requirements.
 
 pub mod core;
 pub mod layout;
 pub mod loans;
 pub mod moves;
 pub mod program;
+pub mod regions;
 pub mod resolved;
 pub mod source;
 pub mod types;

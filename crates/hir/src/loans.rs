@@ -1089,11 +1089,19 @@ impl Checker<'_, '_> {
                 self.end(span)?;
                 match call.result_binding {
                     core::ResultBinding::ProvisionalLoan { .. } => {
+                        let r::Type::Constructed(result) = ty else {
+                            unreachable!("typed provisional sum")
+                        };
+                        let payload = match self.bodies.types()[result.0].constructor {
+                            r::TypeConstructor::Result(t, _) | r::TypeConstructor::Option(t) => t,
+                            _ => unreachable!("typed provisional sum"),
+                        };
+                        let kind = self.loan(payload).unwrap();
                         let mut refs = Vec::new();
                         for (place, inherited) in returned {
                             if let Some(id) = self.borrow_extra(
                                 place,
-                                r::LoanKind::Shared,
+                                kind,
                                 result_scope,
                                 span,
                                 &inherited,

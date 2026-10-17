@@ -1313,12 +1313,11 @@ fn owner_type_identity_does_not_substitute_for_value_region_flow() {
     let types =
         lang_hir::program::analyze_bodies(program.clone(), &sources, Default::default()).unwrap();
     assert!(types.bodies.is_some(), "{:?}", types.diagnostics);
-    // The pending region pass must reject this cross-region read. Type-only
-    // facts cannot currently pass the executable boundary.
-    assert!(matches!(
-        lang_hir::program::check_program(program, &sources, Default::default()),
-        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
-    ));
+    // Type identity alone does not prove value provenance. The following
+    // region pass now rejects the cross-region read before execution.
+    let checked = lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+    assert!(checked.program.is_none());
+    assert_eq!(checked.diagnostics[0].code, codes::REGION_ESCAPE);
 }
 
 #[test]

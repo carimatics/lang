@@ -148,6 +148,29 @@ fn nested_reference_permissions_and_caller_cell_escape_reach_cli() {
 }
 
 #[test]
+fn arena_region_diagnostics_and_limits_reach_the_source_frontend() {
+    let text = "fn bad(a: &core::Allocator) -> i64 { let mut outside: core::Option<arena i64> = core::Option::None; arena graph(a) { let mut made: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph, 7); match made { core::Result::Ok(token) => { outside = core::Option::Some(token); }, core::Result::Err(_) => {}, } } return 0; } fn main() -> i64 { return 0; }";
+    let files = Files::new(text);
+    let output = run(&files, &[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("SRC0022"), "{}", stderr(&output));
+    let mut limits = CompileLimits::default();
+    limits.typing.regions.work = 0;
+    let analysis = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("regions.lang"),
+        text.as_bytes(),
+        None,
+        limits,
+        None,
+    );
+    assert!(matches!(analysis.result, Err(AnalysisError::Diagnostics)));
+    assert_eq!(analysis.diagnostics[0].code, codes::RESOURCE_LIMIT);
+    analysis.diagnostics[0].validate(&analysis.sources).unwrap();
+}
+
+#[test]
 fn scripts_print_one_signed_value_and_success_is_not_the_return_exit_code() {
     for (source, expected) in [
         ("fn main() -> i64 { return 42; }", "42\n"),

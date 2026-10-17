@@ -15,7 +15,7 @@ use lang_diagnostics::{
 use crate::{
     core,
     layout::{LayoutError, LayoutLimits, ValueLayout, analyze_layouts},
-    loans, moves, resolved as r,
+    loans, moves, regions, resolved as r,
     source::Name,
     types,
 };
@@ -26,6 +26,7 @@ pub struct CheckLimits {
     pub types: types::Limits,
     pub moves: moves::Limits,
     pub loans: loans::Limits,
+    pub regions: regions::Limits,
     pub modules: usize,
     pub functions: usize,
     pub imports: usize,
@@ -47,6 +48,7 @@ impl Default for CheckLimits {
             types: types::Limits::default(),
             moves: moves::Limits::default(),
             loans: loans::Limits::default(),
+            regions: regions::Limits::default(),
             modules: 256,
             functions: 4096,
             imports: 4096,
@@ -105,6 +107,7 @@ pub enum CheckError {
     Types(types::Error),
     Moves(moves::Error),
     Loans(loans::Error),
+    Regions(regions::Error),
     OwnershipProfile {
         span: Span,
     },
@@ -118,6 +121,7 @@ impl Display for CheckError {
             Self::Types(e) => Display::fmt(e, f),
             Self::Moves(e) => Display::fmt(e, f),
             Self::Loans(e) => Display::fmt(e, f),
+            Self::Regions(e) => Display::fmt(e, f),
             Self::OwnershipProfile { .. } => f.write_str(
                 "ownership source bodies require the remaining provenance checks and ownership MIR",
             ),
@@ -309,6 +313,16 @@ fn check_program_internal(
             loans::analyze(checked_moves, sources, limits.loans).map_err(CheckError::Loans)?;
         if !loaned.diagnostics.is_empty() {
             diagnostics.extend(loaned.diagnostics);
+            return Ok(ProgramAnalysis {
+                program: None,
+                diagnostics,
+            });
+        }
+        let checked_loans = loaned.bodies.expect("loan success without diagnostics");
+        let regioned = regions::analyze(checked_loans, sources, limits.regions)
+            .map_err(CheckError::Regions)?;
+        if !regioned.diagnostics.is_empty() {
+            diagnostics.extend(regioned.diagnostics);
             return Ok(ProgramAnalysis {
                 program: None,
                 diagnostics,

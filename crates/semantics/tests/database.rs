@@ -560,6 +560,41 @@ fn nested_reference_diagnostics_preserve_parameter_origins_across_revisions() {
 }
 
 #[test]
+fn region_diagnostics_preserve_arena_origins_and_recover_after_revision_changes() {
+    let directory = Directory::new();
+    let mut db = Database::new(None, Default::default()).unwrap();
+    let text = "fn bad(a: &core::Allocator) -> i64 { let mut outside: core::Option<arena i64> = core::Option::None; arena graph(a) { let mut made: core::Result<arena i64, core::ArenaError> = core::arena_new::<i64>(graph, 7); match made { core::Result::Ok(token) => { outside = core::Option::Some(token); }, core::Result::Err(_) => {}, } } return 0; }";
+    let main = open(&mut db, &directory.file("main.lang"), text);
+    let snapshot = db.analyze(&main).unwrap();
+    assert_eq!(snapshot.status, AnalysisStatus::Diagnostics);
+    assert!(snapshot.error.is_none());
+    let d = snapshot
+        .diagnostics
+        .iter()
+        .find(|d| d.code == codes::REGION_ESCAPE)
+        .unwrap();
+    d.validate(&snapshot.sources).unwrap();
+    assert_eq!(
+        snapshot.sources.slice(d.secondary[0].span).unwrap(),
+        "graph"
+    );
+    assert!(
+        snapshot
+            .sources
+            .slice(d.primary.span)
+            .unwrap()
+            .starts_with("outside =")
+    );
+    db.change(&main, Arc::from(&b"fn main() -> i64 { return 0; }"[..]))
+        .unwrap();
+    assert_eq!(db.analyze(&main).unwrap().status, AnalysisStatus::Valid);
+    assert_eq!(
+        snapshot.sources.slice(d.secondary[0].span).unwrap(),
+        "graph"
+    );
+}
+
+#[test]
 fn closing_a_document_releases_cache_capacity_and_retries_previous_resource_failures() {
     let d = Directory::new();
     let mut probe = Database::new(None, Limits::default()).unwrap();
