@@ -3,6 +3,9 @@
 use super::*;
 use allocation::{Allocator, Handle, Provider};
 
+mod value;
+pub use value::{ArenaError, Immediate, OwnershipError};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Location {
     owner: Handle,

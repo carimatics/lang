@@ -6,7 +6,7 @@ use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 
 mod storage;
-pub use storage::{Leaf, Location, Reservation, Token};
+pub use storage::{ArenaError, Immediate, Leaf, Location, OwnershipError, Reservation, Token};
 
 const ORDER_HEADER: u64 = 8;
 const ORDER_ENTRY: u64 = 24;
@@ -22,6 +22,7 @@ pub enum Error {
     Overflow,
     InvalidType(o::Type),
     InvalidCase(u32),
+    InvalidValue,
     InvalidField(u32),
     InvalidOrder,
     InvalidSpan,

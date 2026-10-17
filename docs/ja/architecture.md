@@ -445,6 +445,16 @@ Fixtureのtokenはhost test registryで実際のshared ownerへ解決します�
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Layout compiler](../../crates/runtime/src/layout.rs)、[storage予約／retirement](../../crates/runtime/src/layout/storage.rs)、[source／runtime統合test](../../tests/owned_layout.rs)、[ownership type fuzz target](../../fuzz/fuzz_targets/ownership_mir_types.rs)の更新／検証日：2026-10-18 JST。
 
+### Managedな有限core value
+
+実装／検証日：2026-10-18 JST。Managed reservationに、i64、Bool、Unit、有限core error全6系統を追加確保なしで型検査して読み書きする `read_immediate`／`write_immediate` を追加しました。Errorのcase順はsource MIRに一致し、allocationを含むerrorは入れ子のAllocErrorを、Utf8Errorはi64 payload全体を保持します。読み出しではBoolの非canonical byte、不正な外側error tag、不正な入れ子allocation tagを拒否します。書き込みは変更前に型とbyte範囲全体を検証し、paddingと非active error payloadを初期化し、型不一致時はstorageを保持します。Record末尾ちょうどにあるsize 0のUnit fieldも扱えます。
+
+`case` はOption／Result／nominal／errorのdiscriminantを検証し、`Immediate::payload` はCopyなerror payloadだけを返します。`prepare_case` は未公開variant destinationのinline data全体と構築metadataをclearし、provider allocationなしで検査済みcaseを選択します。その後adapterがpayloadを移譲し、実際の初期化順を記録します。未構築のowning aggregateはretirement preflightで拒否し、構築済みResult／OptionはactiveなBytes tokenだけを本番buffer serviceでretireします。Locationは構造上のoffsetであり、読み出し、移譲、再利用はsourceのmove／loan／region検査と実行ledgerで許可する必要があります。再利用先をprepareする前には元のownerをretireします。
+
+Runtime 5 testで、全core error caseと入れ子allocation payloadの明示vector、i64境界値、Boolの不正byte全254値、size 0のfield境界、別allocationのlocationとretirement状態、入れ子sum往復128回、不正tag、拒否時の書き込み保持、不変のallocation会計、active Bytesの正確な1回のcleanupを検証します。検査済みsourceとの統合testでは、入れ子Result／Option／BufferError／AllocErrorのcaseを生成MIRと直接照合します。このprivate managed codecはserialized artifactやC ABIではなく、単独でownership VM／native実行を有効にするものではありません。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Managed value access](../../crates/runtime/src/layout/storage/value.rs)、[runtime test](../../crates/runtime/tests/managed_values.rs)、[検査済みsource統合](../../tests/owned_layout.rs)の更新／検証日：2026-10-18 JST。
+
 ### Allocatorを使うBytes／Textとtoken cleanup
 
 実装／検証日：2026-10-18 JST。`lang_runtime::buffer`は明示的instance allocatorを通してRFC 0007のBytes／Text runtime operationを提供します。Bufferの24-byte length／capacity／kind headerとpayload capacityをalignment 8の1つのfallible allocationへ置き、headerとcapacityの両方をrequested storageへ計上します。空の値も実際のheader allocationとallocator権限を保持します。Lengthは非負i64に収め、負／範囲外indexを拒否し、byte変更は0..=255以外の整数を切り詰めや部分変更なしで拒否します。

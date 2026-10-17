@@ -101,6 +101,73 @@ fn allocator() -> a::Allocator<a::System> {
 }
 
 #[test]
+fn managed_nested_core_cases_agree_with_source_lowering() {
+    let program = checked(
+        "fn make() -> core::Result<core::Option<core::Result<i64, core::BufferError>>, core::Utf8Error> { return core::Result::Ok(core::Option::Some(core::Result::Err(core::BufferError::Allocation(core::AllocError::Overflow)))); }",
+    );
+    let typed = typed(&program);
+    let types = types(typed);
+    let variants = sites(typed);
+    assert_eq!(variants.len(), 5);
+    let (root_site, result) = variants.last().copied().unwrap();
+    let result = typed.places().functions()[0].values[result.0 as usize].ty;
+    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+    let mut allocator = allocator();
+    let mut value = l::Reservation::allocate(&layouts, result, &mut allocator).unwrap();
+    let root = value.root();
+    value.prepare_case(root, 0, &mut allocator).unwrap();
+    let option = value.child(root, 0, &allocator).unwrap();
+    value.prepare_case(option, 1, &mut allocator).unwrap();
+    let result = value.child(option, 0, &allocator).unwrap();
+    value.prepare_case(result, 1, &mut allocator).unwrap();
+    let error = value.child(result, 0, &allocator).unwrap();
+    let immediate = l::Immediate::Buffer(lang_runtime::buffer::BufferError::Allocation(
+        lang_runtime::buffer::AllocError::Overflow,
+    ));
+    value
+        .write_immediate(error, immediate, &mut allocator)
+        .unwrap();
+    value
+        .initialize_from_mir(root, typed, m::FunctionId(0), root_site, &mut allocator)
+        .unwrap();
+    for location in [root, option, result, error] {
+        let (site, _) = variants
+            .iter()
+            .find(|(_, value)| {
+                types.equivalent(
+                    typed.places().functions()[0].values[value.0 as usize].ty,
+                    location.ty(),
+                ) == Some(true)
+            })
+            .unwrap();
+        let b::Op::Variant { case, .. } =
+            typed.functions()[0].blocks[site.block.0 as usize].instructions[site.order - 1].op
+        else {
+            panic!("checked variant")
+        };
+        assert_eq!(value.case(location, &allocator), Ok(case));
+    }
+    let allocation = value
+        .read_immediate(error, &allocator)
+        .unwrap()
+        .payload()
+        .unwrap();
+    let (site, _) = variants.first().unwrap();
+    let b::Op::Variant { case, .. } =
+        typed.functions()[0].blocks[site.block.0 as usize].instructions[site.order - 1].op
+    else {
+        panic!("allocation error variant")
+    };
+    assert_eq!(allocation.case(), Some(case));
+    assert_eq!(
+        allocation,
+        l::Immediate::Allocation(lang_runtime::buffer::AllocError::Overflow)
+    );
+    value.release_storage(&mut allocator).unwrap();
+    assert_eq!(allocator.stats().live_allocations, 0);
+}
+
+#[test]
 fn all_core_constructors_have_finite_managed_layouts_and_correct_error_payloads() {
     let mut table = table();
     let unit = construct(&mut table, o::Constructor::Builtin(o::Builtin::Unit));
