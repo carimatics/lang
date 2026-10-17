@@ -36,13 +36,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 8 pt | 113 pt | 7.1% |
+| 2 — ownershipとnative AOT | 13 pt | 113 pt | 11.5% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **306 pt** | **764 pt** | **40.1%** |
+| **全体** | **311 pt** | **764 pt** | **40.7%** |
 
 ## Milestone 0：設計baseline
 
@@ -218,18 +218,20 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**進捗：8 / 113 pt（7.1%）。**
+**進捗：13 / 113 pt（11.5%）。**
 
 開始条件：RFC 0006の実装済みcopy-value profileとcompatibility fixtureを基準とします。RFC 0004のstate modelはsource構文、production allocation、ABIを規定しません。対応する設計決定を受理してから依存する実装を進め、core-library sliceはRFCで最小要件が定まった時点で再見積もりします。
 
-- [ ] **P0 — Sourceのownership／borrow／arena profile、Copy分類、最小core-library型表面（text／byte、collection利用、必要なgeneric構文を含む）を受理する。** — 5 pt
+- [x] **P0 — Sourceのownership／borrow／arena profile、Copy分類、最小core-library型表面（text／byte、collection利用、必要なgeneric構文を含む）を受理する。** — 5 pt
 - [ ] **P0 — 未規定のerror／panic cleanup、unsafe／FFI validity、allocator contractを公開interface実装前に受理する。** — 5 pt
 - [ ] **P0 — Typed HIR／MIRでowned value、move、lexical borrow checkingを実装する。** — 8 pt
 - [ ] **P0 — RFC 0004のshared／weak retain-release、retainを伴うweak upgrade、atomic cycle-preflight／publicationを実装しrollback／race testを追加する。** — 8 pt
 - [ ] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
 - [ ] **P0 — 受理済みのreturn／error／panic cleanup規則に従ってdeterministic dropをelaborateする。** — 8 pt
-- [ ] **P0 — 代表的CLI programとbootstrap compilerに必要な、受理済みtext／byteとcore-libraryのsource primitiveを実装する。** — 8 pt
-- [ ] **P0 — 受理済みsource／allocator profileに従ってallocator-aware standard containerを実装する。** — 8 pt
+- [ ] **P0 — RFC 0007のText／Bytes source operation、UTF-8検証、checked index、allocatorを保持する変換を実装する。** — 5 pt
+- [ ] **P0 — Core source operationに必要なRFC 0007のUnit／Option／Resultと有限built-in specializationを実装する。** — 3 pt
+- [ ] **P0 — RFC 0007のallocator-aware Vec source operationをmove／loan／growth／failure conformance付きで実装する。** — 5 pt
+- [ ] **P0 — RFC 0007のallocator-aware Map source operationを厳密key equalityとreplacement／failure conformance付きで実装する。** — 3 pt
 - [ ] **P0 — 狭いunsafe boundaryを定義し、FFI validity ruleを強制する。** — 5 pt
 - [ ] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
 - [x] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
@@ -245,7 +247,7 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 
 このscope後のroadmap確認：113 pt総計と全decision gateは引き続き適切です。今回の受理済みcopy-value実装はsource ownershipの判断に依存せず、その完了によってownership／core-libraryやproduction AOTのtaskを完了扱いにはしません。暗黙のacceptance／stabilizationは記録しません。
 
-Commit `a607ed2` は提案段階の[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と日本語対訳を追加しました。Copy分類、字句的loan／region、明示shared／weak／arena構文、allocator-awareなtext／byte／collectionの有限型表面を定めます。最初の5 pt decision gateはowner dispositionまで未完了のままです。Cleanup／allocator／unsafe／FFI契約とownership bytecode encodingは別判断であり、本提案から暗黙に受理しません。Link／対訳metadata確認とrepository-consistency testはpassしました。次はsource profileのdispositionを得て残り契約を定義し、独立に進められる受理済みRFC 0004のruntime作業を進めます。Acceptance後にcore実装を再見積もりし、source／platform／conformance／measurementの全outcomeを維持します。
+Commit `a607ed2` は[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と日本語対訳を追加しました。Copy分類、字句的loan／region、明示shared／weak／arena構文、allocator-awareなtext／byte／collectionの有限型表面を定めます。Ownerが2026-10-17 JSTに明示受理し、`31ab7ac` に記録したことで最初の5 pt decision gateが完了しました。Cleanup／allocator／unsafe／FFI契約とownership bytecode encodingは別判断のままです。Link／対訳metadata確認とrepository-consistency testはpassしました。受理済みの有限surfaceをText／Bytes（5）、Unit／Option／Result／組み込みspecialization（3）、Vec（5）、Map（3）の独立して検証可能な4成果へ再見積もりしました。従来8+8 ptの総計とsource／platform／conformance／measurementの全scopeを保持します。次は残り契約を定義し、source／allocator統合の早計な完了主張を避けながら受理済みRFC 0004のruntime serviceを進めます。
 
 ## Milestone 3：concurrencyとembedding
 

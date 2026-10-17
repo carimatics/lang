@@ -36,13 +36,13 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 8 pt | 113 pt | 7.1% |
+| 2 — ownership and native AOT | 13 pt | 113 pt | 11.5% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **306 pt** | **764 pt** | **40.1%** |
+| **Overall** | **311 pt** | **764 pt** | **40.7%** |
 
 ## Milestone 0: design baseline
 
@@ -218,18 +218,20 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 8 / 113 pt (7.1%).**
+**Progress: 13 / 113 pt (11.5%).**
 
 Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFC 0004's state models do not specify source grammar, production allocation, or an ABI. Complete the corresponding decision gate before each dependent implementation; re-estimate the core-library slice after its RFC fixes the minimal requirements.
 
-- [ ] **P0 — Accept the source ownership/borrow/arena profile, Copy classification, and minimal core-library type surface (including text/bytes, collection use, and any required generic syntax).** — 5 pt
+- [x] **P0 — Accept the source ownership/borrow/arena profile, Copy classification, and minimal core-library type surface (including text/bytes, collection use, and any required generic syntax).** — 5 pt
 - [ ] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
 - [ ] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
 - [ ] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
-- [ ] **P0 — Implement the accepted text/byte and core-library source primitives needed by representative CLI programs and the bootstrap compiler.** — 8 pt
-- [ ] **P0 — Implement allocator-aware standard containers against the accepted source and allocator profiles.** — 8 pt
+- [ ] **P0 — Implement RFC 0007 Text/Bytes source operations, UTF-8 validation, checked indices, and allocator-preserving conversions.** — 5 pt
+- [ ] **P0 — Implement RFC 0007 Unit/Option/Result and finite built-in specializations needed by core source operations.** — 3 pt
+- [ ] **P0 — Implement the RFC 0007 allocator-aware Vec source operations with move, loan, growth, and failure conformance.** — 5 pt
+- [ ] **P0 — Implement the RFC 0007 allocator-aware Map source operations with exact key equality and replacement/failure conformance.** — 3 pt
 - [ ] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
 - [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
 - [x] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
@@ -245,7 +247,7 @@ Implementation evidence verified 2026-10-17 JST: commit `926fb3b` adds `lang-cod
 
 Roadmap review after this scope: the 113-point total and all decision gates remain appropriate. This accepted copy-value implementation was independent of the source-ownership decisions; its completion does not satisfy any ownership/core-library or production-AOT task. No implicit acceptance or stabilization is recorded.
 
-Commit `a607ed2` supplies proposed [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) and its Japanese mirror: Copy classification, lexical loans/regions, explicit shared/weak/arena syntax, and a finite allocator-aware text/byte/collection type surface. The first 5-point decision gate remains unchecked until owner disposition. Cleanup/allocator/unsafe/FFI contracts and the ownership bytecode encoding are separate decisions, not implied by the proposal. Link/translation metadata checks and repository-consistency tests pass. Next obtain the source-profile disposition, define the remaining contracts, and progress accepted RFC 0004 runtime work where independent; re-estimate the core implementation after acceptance, retaining all source, platform, conformance, and measurement outcomes.
+Commit `a607ed2` supplied [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) and its Japanese mirror: Copy classification, lexical loans/regions, explicit shared/weak/arena syntax, and a finite allocator-aware text/byte/collection type surface. The owner explicitly accepted it on 2026-10-17 JST, recorded in `31ab7ac`, closing the first 5-point decision gate. Cleanup/allocator/unsafe/FFI contracts and the ownership bytecode encoding remain separate decisions. Link/translation metadata checks and repository-consistency tests pass. The accepted finite surface was re-estimated as four independently verifiable outcomes: Text/Bytes (5), Unit/Option/Result/built-in specialization (3), Vec (5), and Map (3). This preserves the former 8+8-point total and all source, platform, conformance, and measurement scope. Next define the remaining contracts and progress accepted RFC 0004 runtime services without claiming source/allocator integration prematurely.
 
 ## Milestone 3: concurrency and embedding
 
