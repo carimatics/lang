@@ -3,19 +3,23 @@
 //! Logical arena-owner symbols confer no runtime or allocator authority.
 
 use super::{Budget, DefinitionId, FunctionId, Source, Span, validation};
+use std::collections::hash_map::DefaultHasher;
 use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub mod declarations;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ConstructedId(pub u32);
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Type {
     I64,
     Bool,
     Nominal(DefinitionId),
     Constructed(ConstructedId),
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Builtin {
     Unit,
     Text,
@@ -28,17 +32,17 @@ pub enum Builtin {
     OwnershipError,
     ArenaError,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LoanKind {
     Shared,
     Exclusive,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ArenaOwner {
     pub function: FunctionId,
     pub local: u32,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Constructor {
     Builtin(Builtin),
     Option(Type),
@@ -100,7 +104,7 @@ pub struct Definition {
     pub span: Span,
     pub kind: DefinitionKind,
 }
-/// Indices name graph entries, not a semantic structural-equality algorithm.
+/// Indices name graph entries. Use verified equivalence to compare types.
 /// Constructed arguments precede their parents; nominal indirection may recur.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct TypeTable {
@@ -134,6 +138,17 @@ pub enum ErrorKind {
     ArenaInShared(Type),
     PrivateInPublic(Type),
     InvalidMapKey(Type),
+    InvalidFunction(FunctionId),
+    InvalidImport(super::ImportId),
+    InvalidLocal { function: FunctionId, local: u32 },
+    InvalidParameterList(FunctionId),
+    InvalidSignatureType(Type),
+    PrivateSignatureType(Type),
+    InvalidLocalType(Type),
+    InvalidOwner(ArenaOwner),
+    InvalidHostSignature,
+    CallArity { expected: usize, actual: usize },
+    CallType { expected: Type, actual: Type },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {
@@ -184,6 +199,7 @@ impl Properties {
 pub struct VerifiedTypes {
     table: TypeTable,
     bits: Vec<u8>,
+    canonical: Vec<Type>,
     work: usize,
     bytes: usize,
     elements: usize,
@@ -195,6 +211,19 @@ impl VerifiedTypes {
     pub fn properties(&self, ty: Type) -> Option<Properties> {
         let index = node(&self.table, ty).ok()?;
         self.bits.get(index).copied().map(Properties::from_bits)
+    }
+    /// First equivalent entry in this table. Nominal types remain distinct;
+    /// constructed types compare recursively, including loan kind/owner symbol.
+    /// The returned logical reference has meaning only within this table.
+    pub fn canonical(&self, ty: Type) -> Option<Type> {
+        node(&self.table, ty).ok()?;
+        Some(match ty {
+            Type::Constructed(id) => self.canonical[id.0 as usize],
+            other => other,
+        })
+    }
+    pub fn equivalent(&self, left: Type, right: Type) -> Option<bool> {
+        Some(self.canonical(left)? == self.canonical(right)?)
     }
     pub const fn work_used(&self) -> usize {
         self.work
@@ -220,14 +249,70 @@ impl TypeTable {
         constructed_limit: usize,
     ) -> Result<VerifiedTypes, Error> {
         let bits = validate(&self, budget, constructed_limit)?;
+        let canonical = canonicalize(&self, budget)?;
         Ok(VerifiedTypes {
             table: self,
             bits,
+            canonical,
             work: budget.work_used(),
             bytes: budget.allocation_bytes(),
             elements: budget.elements_used(),
         })
     }
+}
+
+fn canonicalize(table: &TypeTable, budget: &mut Budget) -> Result<Vec<Type>, Error> {
+    let n = table.constructed.len();
+    let mut canonical = budget.vector(n)?;
+    if n == 0 {
+        return Ok(canonical);
+    }
+    let capacity = n
+        .checked_mul(2)
+        .and_then(usize::checked_next_power_of_two)
+        .ok_or_else(|| super::Error::new(super::ErrorKind::ArithmeticOverflow))?;
+    // Fixed fallibly reserved open addressing: hashing allocates nothing, every
+    // probe is charged, and equality compares keys rather than hash values.
+    // At most n entries occupy at least 2*n slots. No growth or full-table loop.
+    let mut slots = filled(budget, capacity, None::<(Constructor, Type)>)?;
+    for (i, t) in table.constructed.iter().enumerate() {
+        budget.charge(1)?;
+        let child = |ty| match ty {
+            Type::Constructed(id) => canonical[id.0 as usize],
+            other => other,
+        };
+        let key = match t.constructor {
+            Constructor::Option(t) => Constructor::Option(child(t)),
+            Constructor::Result(t, e) => Constructor::Result(child(t), child(e)),
+            Constructor::Vec(t) => Constructor::Vec(child(t)),
+            Constructor::Map(k, v) => Constructor::Map(child(k), child(v)),
+            Constructor::Shared(t) => Constructor::Shared(child(t)),
+            Constructor::Weak(t) => Constructor::Weak(child(t)),
+            Constructor::Arena(t) => Constructor::Arena(child(t)),
+            Constructor::Loan(k, t) => Constructor::Loan(k, child(t)),
+            Constructor::Builtin(_) | Constructor::ArenaOwner(_) => t.constructor,
+        };
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        let mut slot = (hasher.finish() as usize) & (capacity - 1);
+        loop {
+            at(budget.charge(1), t.span)?;
+            match slots[slot] {
+                Some((existing, representative)) if existing == key => {
+                    canonical.push(representative);
+                    break;
+                }
+                None => {
+                    let representative = Type::Constructed(ConstructedId(i as u32));
+                    slots[slot] = Some((key, representative));
+                    canonical.push(representative);
+                    break;
+                }
+                _ => slot = (slot + 1) & (capacity - 1),
+            }
+        }
+    }
+    Ok(canonical)
 }
 
 const NONCOPY: u8 = 1;

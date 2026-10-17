@@ -173,3 +173,98 @@ fn lowering_and_validation_share_exact_cumulative_resource_limits() {
         Error::Source(_)
     ));
 }
+
+#[test]
+fn function_local_and_owner_declarations_preserve_checked_source_identity() {
+    use o::declarations::LocalKind;
+    for text in [
+        FAMILY,
+        include_str!("fixtures/arena-body.lang"),
+        "fn first(a: &core::Allocator) -> i64 { arena one(a) {} return 1; } fn second(a: &core::Allocator) -> i64 { arena two(a) {} return 2; }",
+    ] {
+        let (sources, checked) = prepare(text);
+        let v =
+            ownership_types::lower_declarations(&checked, &sources, o::Limits::default()).unwrap();
+        compare(&checked, v.types());
+        let b = checked.loaned().moved().bodies();
+        assert_eq!(v.functions().len(), b.source().functions.len());
+        for (i, (from, to)) in b.source().functions.iter().zip(v.functions()).enumerate() {
+            assert_eq!(from.qualified_name, to.name);
+            assert_eq!(from.locals.len(), to.locals.len());
+            assert_eq!(
+                from.parameters.iter().map(|p| p.0).collect::<Vec<_>>(),
+                to.parameters
+                    .iter()
+                    .map(|p| p.0 as usize)
+                    .collect::<Vec<_>>()
+            );
+            for (j, local) in to.locals.iter().enumerate() {
+                assert_eq!(from.locals[j].name.text, local.name);
+                if local.kind == LocalKind::ArenaOwner {
+                    let o::Type::Constructed(id) = local.ty.ty else {
+                        panic!("owner type")
+                    };
+                    assert_eq!(
+                        v.types().table().constructed[id.0 as usize].constructor,
+                        o::Constructor::ArenaOwner(o::ArenaOwner {
+                            function: m::FunctionId(i as u32),
+                            local: j as u32
+                        })
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            v,
+            ownership_types::lower_declarations(&checked, &sources, o::Limits::default()).unwrap()
+        );
+    }
+}
+
+#[test]
+fn source_scalar_host_declarations_and_materialized_calls_validate_without_execution() {
+    let (sources, checked) = prepare(
+        "extern fn host(value: i64) -> i64; fn answer(value: i64) -> i64 { return host(value); }",
+    );
+    let v = ownership_types::lower_declarations(&checked, &sources, o::Limits::default()).unwrap();
+    let span = v.functions()[0].span;
+    let mut budget = m::Budget::new(m::Limits::default());
+    assert_eq!(
+        v.check_call(m::FunctionId(0), &[o::Type::I64], span, &mut budget)
+            .unwrap(),
+        o::Type::I64
+    );
+    assert_eq!(
+        v.check_import(m::ImportId(0), &[o::Type::I64], span, &mut budget)
+            .unwrap(),
+        o::Type::I64
+    );
+}
+
+#[test]
+fn source_declaration_lowering_and_independent_verification_share_one_budget() {
+    let (sources, checked) = prepare(include_str!("fixtures/arena-body.lang"));
+    let v = ownership_types::lower_declarations(&checked, &sources, o::Limits::default()).unwrap();
+    for (k, used) in [
+        (m::LimitKind::Work, v.work_used()),
+        (m::LimitKind::Allocations, v.requested_bytes()),
+        (m::LimitKind::Elements, v.elements_used()),
+    ] {
+        let mut l = o::Limits::default();
+        match k {
+            m::LimitKind::Work => l.unit.work = used,
+            m::LimitKind::Allocations => l.unit.allocations = used,
+            _ => l.unit.elements = used,
+        }
+        ownership_types::lower_declarations(&checked, &sources, l).unwrap();
+        match k {
+            m::LimitKind::Work => l.unit.work -= 1,
+            m::LimitKind::Allocations => l.unit.allocations -= 1,
+            _ => l.unit.elements -= 1,
+        }
+        let e = ownership_types::lower_declarations(&checked, &sources, l).unwrap_err();
+        assert!(
+            matches!(e,Error::Mir(m::Error{kind:m::ErrorKind::Limit{kind,..},..})|Error::Types(o::Error{kind:o::ErrorKind::Mir(m::ErrorKind::Limit{kind,..}),..}) if kind==k)
+        );
+    }
+}

@@ -13,6 +13,7 @@ pub enum Error {
     Mir(m::Error),
     Types(o::Error),
     MissingSource,
+    MissingLocal { function: usize, local: usize },
     Capacity,
 }
 impl From<SourceError> for Error {
@@ -129,6 +130,15 @@ pub fn lower(
     sources: &SourceMap,
     limits: o::Limits,
 ) -> Result<o::VerifiedTypes> {
+    let (mut c, table) = construct(checked, sources, limits)?;
+    Ok(table.verify_with_budget(&mut c.budget, limits.constructed)?)
+}
+
+fn construct<'a>(
+    checked: &RegionCheckedBodies,
+    sources: &'a SourceMap,
+    limits: o::Limits,
+) -> Result<(Context<'a>, o::TypeTable)> {
     let bodies = checked.loaned().moved().bodies();
     let input = bodies.source();
     let mut c = Context {
@@ -257,5 +267,113 @@ pub fn lower(
             span: c.span(t.span)?,
         });
     }
-    Ok(table.verify_with_budget(&mut c.budget, limits.constructed)?)
+    Ok((c, table))
+}
+
+fn cap(n: usize, limit: usize, kind: m::LimitKind) -> Result<()> {
+    if n > limit {
+        Err(m::Error::new(m::ErrorKind::Limit {
+            kind,
+            requested: n,
+            limit,
+        })
+        .into())
+    } else {
+        Ok(())
+    }
+}
+
+/// Preserve source function/local identities and immutable parameter kinds.
+/// The verified result contains no instructions and cannot authorize execution.
+pub fn lower_declarations(
+    checked: &RegionCheckedBodies,
+    sources: &SourceMap,
+    limits: o::Limits,
+) -> Result<o::declarations::VerifiedDeclarations> {
+    use o::declarations as d;
+    let bodies = checked.loaned().moved().bodies();
+    let input = bodies.source();
+    cap(
+        input.functions.len(),
+        limits.unit.functions,
+        m::LimitKind::Functions,
+    )?;
+    cap(
+        input.imports.len(),
+        limits.unit.imports,
+        m::LimitKind::Imports,
+    )?;
+    let (mut c, table) = construct(checked, sources, limits)?;
+    let mut out = d::Declarations {
+        types: table,
+        imports: c.budget.vector(input.imports.len())?,
+        functions: c.budget.vector(input.functions.len())?,
+    };
+    for import in &input.imports {
+        c.budget.charge(1)?;
+        let mut parameters = c.budget.vector(1)?;
+        parameters.push(o::TypeUse {
+            ty: o::Type::I64,
+            span: c.span(import.parameter.span)?,
+        });
+        out.imports.push(d::Import {
+            name: c.text(&import.qualified_name)?,
+            span: c.span(import.span)?,
+            parameters,
+            result: o::TypeUse {
+                ty: o::Type::I64,
+                span: c.span(import.span)?,
+            },
+        });
+    }
+    let mut locals = 0usize;
+    for (i, f) in input.functions.iter().enumerate() {
+        c.budget.charge(1)?;
+        cap(f.parameters.len(), limits.unit.fields, m::LimitKind::Fields)?;
+        locals = locals.checked_add(f.locals.len()).ok_or(Error::Capacity)?;
+        cap(locals, limits.unit.registers, m::LimitKind::Registers)?;
+        let mut parameters = c.budget.vector(f.parameters.len())?;
+        for local in &f.parameters {
+            c.budget.charge(1)?;
+            parameters.push(d::LocalId(id(local.0)?));
+        }
+        let mut typed = c.budget.vector(f.locals.len())?;
+        for (local_index, local) in f.locals.iter().enumerate() {
+            c.budget.charge(1)?;
+            let t = bodies
+                .functions()
+                .get(i)
+                .and_then(|f| f.locals().get(local_index))
+                .copied()
+                .ok_or(Error::MissingLocal {
+                    function: i,
+                    local: local_index,
+                })?;
+            let kind = match local.kind {
+                r::BindingKind::Parameter => d::LocalKind::Parameter,
+                r::BindingKind::Mutable => d::LocalKind::Mutable,
+                r::BindingKind::Pattern => d::LocalKind::Pattern,
+                r::BindingKind::ArenaOwner => d::LocalKind::ArenaOwner,
+            };
+            typed.push(d::Local {
+                name: c.text(&local.name.text)?,
+                span: c.span(local.name.span)?,
+                kind,
+                ty: o::TypeUse {
+                    ty: ty(t)?,
+                    span: c.span(local.annotation.map_or(local.name.span, |t| t.span))?,
+                },
+            });
+        }
+        out.functions.push(d::Function {
+            name: c.text(&f.qualified_name)?,
+            public: f.public,
+            span: c.span(f.span)?,
+            signature_span: c.span(f.signature_span)?,
+            parameters,
+            result: c.type_use(f.result)?,
+            locals: typed,
+        });
+    }
+    Ok(out.verify_with_budget(&mut c.budget, limits.constructed)?)
 }

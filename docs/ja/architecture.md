@@ -223,9 +223,21 @@ Verifierはsource／name／span metadata、nominal／constructed参照、前方�
 
 構築と検証はwork、要求allocation byte、elementの累積budgetを共有し、source／definition／member／constructed／depthにも上限を設けます。13件のfocused testでsource／MIR属性の一致、ownerとprovisional read型、snapshot／span保持と再変換、壊れたgraph／metadata／storage入力、正確なresource境界、400 definitionのchain、独立Copy／drop oracleで照合する200件の生成型graphを検証します。`ownership_mir_types` fuzz targetはlock済みmanifestでcompileし、instrumentationなし10,000-run smokeが成功しました。このsmokeはcoverage-guided fuzzのevidenceではありません。
 
-`VerifiedTypes` が証明するのは、このgraphのshapeと属性だけです。Table indexは論理参照であり、structural type equalityのアルゴリズムやwire tagではありません。Owner symbolはruntime authorityを与えず、実行可能bodyを導入する際に対応する宣言とflowの検証が必要です。Function signature、instruction／place／CFG検証、initialization／move／loan／region遷移、layout、cleanup、core operation、VM／native lowering、ownership serializationは個別要件として残ります。実行可能な `VerifiedUnit` への変換は提供せず、既存Copy profileとbytecode schema 1は変更しません。この前提作業だけではHIR／MIR ownershipやarenaのoutcomeは完了しません。
+`VerifiedTypes` はgraphのshape／属性と、後述の型同値を証明します。生のtable indexは論理参照であり、wire tagではありません。Owner symbolはruntime authorityを与えません。次の宣言stageで対応する宣言を検査しますが、instruction／place／CFG検証、initialization／move／loan／region遷移、layout、cleanup、core operation、VM／native lowering、ownership serializationは個別要件として残ります。実行可能な `VerifiedUnit` への変換は提供せず、既存Copy profileとbytecode schema 1は変更しません。この前提作業だけではHIR／MIR ownershipやarenaのoutcomeは完了しません。
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[MIR型verifier](../../crates/mir/src/unit/ownership.rs)、[source adapter](../../crates/semantics/src/ownership_types.rs)、対応test、fuzz target。更新／検証日：2026-10-17 JST。Graph storageと解析algorithmは実装上の選択であり、serialized format、heap ABI、performance測定の主張は追加しません。
+
+### Ownership MIR declarations
+
+2026-10-17実装：検証済みownership型は `canonical` と `equivalent` のqueryを提供します。構造的に同じconstructed entryは、検証済みargumentを介して最初の同値entryへ正規化します。Nominal definition、shared／exclusive loan kind、function／local arena owner symbolは別々のidentityを維持します。元のtable entryとspanは保持します。固定サイズでfallible reserveするopen-address tableでhash probeごとに課金し、key全体を比較するため、衝突で型を混同したりwork上限を回避したりできません。Hash値とRust layoutは実装詳細であり、serialized identityではありません。
+
+`lang-mir::unit::ownership::declarations` はfunction／importの名前とspan、signature／localの型参照、parameterとlocalの正確な対応、parameter bindingの不変性、public／private公開、arena owner symbolに対応するfunction／local宣言とowner kind／typeを独立検証します。User resultは推移的loan、arena brand、allocator authority、hidden ownerを拒否します。Parameterは入れ子の通常loanとallocator loanを許可しますが、compiler既知のloan入りstack sumはuser signatureから除外します。通常localはarena ownerを装ったり、allocator authorityを値で格納したりできません。Local数は累積register quotaを使い、型／宣言の全検査で同じwork／allocation／element budgetを共有します。
+
+`lang-semantics::ownership_types::lower_declarations` はregion検査済みsource function、import、型推論済み／型注釈付きlocalを変換し、function／local ID、binding kind、名前、snapshot、byte spanを保持します。`VerifiedDeclarations::check_call` と `check_import` は、明示的な引数型を検証済み同値判定で比較し、宣言されたresult型を返します。Borrow推論、move、liveness／region／capability遷移の検証、code実行は行いません。既存host importは正確に `(i64) -> i64` のままで、この宣言APIからallocator callbackや提案中のC boundaryを推論しません。
+
+追加13件のfocused testで、独立に展開したkeyと比較する80件の生成型同値graph、同じhash bucketへ配置する32個の異なるkey、nominal／loan／ownerの区別、正確なbudget、不正なparameter／name／span／type／owner入力、禁止signature、scalar host call、source再変換、異なるfunctionで同じlocal indexを使うsource arenaを確認します。拡張fuzz targetは同値、宣言、再検証、引数検査を扱い、lock済みcompile／Clippyとinstrumentationなし10,000-run smokeが成功しました。Coverage-guidedの主張は行いません。これらのwrapperは実行できません。対応するMilestone 2 outcomeの完了には、typed instruction／place／CFGとownership遷移、cleanup／layout、core／runtimeのVM／native統合、ownership wire encodingが必要です。
+
+出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[型同値](../../crates/mir/src/unit/ownership.rs)、[宣言verifier](../../crates/mir/src/unit/ownership/declarations.rs)、[source adapter](../../crates/semantics/src/ownership_types.rs)、test、fuzz target。更新／検証日：2026-10-17 JST。Interningとmetadataの方式は実装上の選択であり、新たな言語規則、公開heap／C ABI、serialization、performance測定は主張しません。
 
 ### Source formatter
 

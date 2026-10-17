@@ -90,6 +90,8 @@ fuzz_target!(|bytes: &[u8]| {
         let replay = verified.table().clone().verify(limits).unwrap();
         assert_eq!(verified, replay);
         for i in 0..verified.table().constructed.len() {
+            let t = Type::Constructed(ConstructedId(i as u32));
+            assert_eq!(verified.equivalent(t, t), Some(true));
             assert!(
                 verified
                     .properties(Type::Constructed(ConstructedId(i as u32)))
@@ -101,5 +103,63 @@ fuzz_target!(|bytes: &[u8]| {
                 .properties(Type::Constructed(ConstructedId(u32::MAX)))
                 .is_none()
         );
+        use lang_mir::unit::ownership::declarations as d;
+        let mut declarations = d::Declarations {
+            types: verified.table().clone(),
+            ..Default::default()
+        };
+        for i in 0..usize::from(byte(260) % 4) {
+            let mut locals = vec![];
+            for j in 0..usize::from(byte(i + 261) % 8) {
+                locals.push(d::Local {
+                    name: format!("local{j}"),
+                    span,
+                    kind: match byte(i * 8 + j + 280) % 4 {
+                        0 => d::LocalKind::Parameter,
+                        1 => d::LocalKind::Mutable,
+                        2 => d::LocalKind::Pattern,
+                        _ => d::LocalKind::ArenaOwner,
+                    },
+                    ty: TypeUse {
+                        ty: ty(byte(i * 8 + j + 320)),
+                        span,
+                    },
+                });
+            }
+            declarations.functions.push(d::Function {
+                name: format!("function{i}"),
+                public: byte(i + 350) & 1 != 0,
+                span,
+                signature_span: span,
+                parameters: (0..usize::from(byte(i + 360) % 5))
+                    .map(|j| d::LocalId(u32::from(byte(i * 5 + j + 370) % 16)))
+                    .collect(),
+                result: TypeUse {
+                    ty: ty(byte(i + 400)),
+                    span,
+                },
+                locals,
+            });
+        }
+        if let Ok(checked) = declarations.verify(limits) {
+            assert_eq!(
+                checked.clone().into_declarations().verify(limits).unwrap(),
+                checked
+            );
+            let mut budget = m::Budget::new(limits.unit);
+            for (i, f) in checked.functions().iter().enumerate() {
+                let arguments: Vec<_> = f
+                    .parameters
+                    .iter()
+                    .map(|p| f.locals[p.0 as usize].ty.ty)
+                    .collect();
+                assert_eq!(
+                    checked
+                        .check_call(m::FunctionId(i as u32), &arguments, span, &mut budget)
+                        .unwrap(),
+                    f.result.ty
+                );
+            }
+        }
     }
 });
