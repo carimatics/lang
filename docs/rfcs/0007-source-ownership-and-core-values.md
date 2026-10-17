@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-17
-- Last updated: 2026-10-17
+- Last updated: 2026-10-18
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -109,6 +109,8 @@ Core Option/Result cases use qualified paths `core::Option::None`, `core::Option
 
 Copy values preserve RFC 0006 assignment/call/return behavior. Moving a non-copy place transfers its entire initialized value. By-value field extraction from a non-copy aggregate is rejected, including moving only one match binding. Matching such an aggregate borrows its scrutinee once for the whole match; non-copy bindings become read loans to their fields, while Copy bindings copy. Mutating or moving the scrutinee while those loans are live is an error. A by-value wildcard does not silently consume an owner. Moving the whole scrutinee after the match is allowed once its loans have ended.
 
+Follow-up accepted 2026-10-18 JST: [RFC 0009](0009-whole-sum-ownership-extraction.md) adds explicit whole Option/Result extraction through `option_unwrap`, `result_unwrap`, and `result_unwrap_err`. They consume the whole sum by value, return its expected payload, or panic with RFC 0008 cleanup. This extends the finite core catalog below without changing borrowed matching or permitting partial moves; acceptance does not imply implementation.
+
 Records/enums may recursively mention themselves only through owning indirection (`Vec`, `Map`, `shared`, `weak`) or `arena` references. The compiler checks finite inline layouts and a finite set of concrete built-in instantiations; recursively expanding type arguments are rejected by a charged work/depth/instantiation budget. `Option<Node>` alone does not break an inline cycle. Types containing ordinary loans are forbidden in fields, containers, function results, and globals. `Allocator` cannot be stored in guest values.
 
 ### Loan and region checking
@@ -180,7 +182,7 @@ Validate owning type/region identity, loans, handles, generation, initialization
 
 ## Implementation plan
 
-1. Record owner disposition. Keep `proposed` until explicitly accepted; keep both roadmap decision gates unchecked until their respective accepted contracts exist.
+1. Record disposition by the owner or under RFC 0001's experimental delegation. Keep `proposed` until accepted; keep both roadmap decision gates unchecked until their respective accepted contracts exist.
 2. Add lossless grammar/format/recovery fixtures and normalized source type identities. Implement Copy/move/lexical-loan/region analysis with compile-pass/fail diagnostics and charged dataflow/instantiation bounds.
 3. Specify/accept remaining cleanup, allocator, unsafe/FFI, and versioned ownership bytecode contracts before implementing their public/wire interfaces. Re-estimate core-library and native integration work against the concrete surface above; preserve every original outcome.
 4. Add explicit MIR transitions/verifier and runtime allocation/shared/arena services, then implement the same source operations in VM/JIT/AOT. Reject unsupported paths before effects/publication during development.
@@ -207,8 +209,11 @@ The repository owner explicitly accepted this source/core profile on 2026-10-17 
 
 Decision: **accepted on 2026-10-17 JST** by the repository owner. The pre-decision review outcome was ready for decision. Implementation, stabilization, and measured ergonomics/performance are not claimed.
 
+Follow-up decision: **RFC 0009 accepted under experimental delegation on 2026-10-18 JST** after the first source execution exposed the inability to obtain owned payloads from allocating results. Its explicit operations and failure/compatibility rules amend this catalog; the original match rule stays in force.
+
 ## Sources
 
+- [RFC 0009](0009-whole-sum-ownership-extraction.md), accepted whole-sum extraction follow-up and reproduced source blocker; created/updated and verified 2026-10-18 JST.
 - [RFC 0004](0004-owned-values-and-cyclic-graphs.md), accepted ownership/category/cycle/arena policy; last updated 2026-10-17 JST, verified 2026-10-17 JST.
 - [RFC 0006](0006-source-frontend-and-portable-programs.md), implemented source/Copy/portable-program baseline; last updated 2026-10-17 JST, verified 2026-10-17 JST.
 - [Architecture](../architecture.md) and [roadmap](../roadmap.md), project contracts/remaining outcomes; last updated 2026-10-17 JST, verified 2026-10-17 JST.

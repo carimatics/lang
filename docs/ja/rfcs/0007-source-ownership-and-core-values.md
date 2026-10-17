@@ -7,7 +7,7 @@
 - ステータス: accepted
 - 著者: Project contributors
 - 作成日: 2026-10-17
-- 最終更新日: 2026-10-17
+- 最終更新日: 2026-10-18
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -109,6 +109,8 @@ Option／Result caseは `core::Option::None`、`core::Option::Some(value)`、`co
 
 Copy valueはRFC 0006のassignment／call／returnを維持します。Non-copy placeのmoveは初期化済みvalue全体を移譲します。Non-copy aggregateのfieldをvalueで取り出すpartial moveは禁止し、match bindingを1つだけmoveすることも禁止します。そのaggregateのmatchはscrutineeをmatch全体で1回borrowし、non-copy bindingはfieldへのread loan、Copy bindingはcopyになります。Loanがliveの間scrutineeのmutation／moveを禁止します。By-value wildcardはownerを暗黙consumeしません。Match終了でloanが終わればscrutinee全体をmoveできます。
 
+2026-10-18 JST受理のfollow-up：[RFC 0009](0009-whole-sum-ownership-extraction.md) が `option_unwrap`、`result_unwrap`、`result_unwrap_err` によるOption／Result全体の明示取り出しを追加します。Sum全体をvalueで消費し、期待payloadを返すか、RFC 0008のcleanupを伴うpanicにします。以下の有限core catalogを拡張しますが、borrowed matchやpartial move禁止は変えません。Acceptanceは実装完了を意味しません。
+
 Record／enumが自身を再帰的に参照できるのは、owning indirection（Vec、Map、shared、weak）またはarena reference経由だけです。Compilerは有限inline layoutと有限個の具体的組み込みinstantiationを確認し、type argumentが無限展開する再帰を課金付きwork／depth／instantiation budgetで拒否します。`Option<Node>` だけではinline cycleを切れません。通常loanをfield、container、function result、globalへ格納してはいけません。Allocatorもguest valueへ格納できません。
 
 ### Loanとregionの確認
@@ -180,7 +182,7 @@ MIR／bytecode／host境界でowning type／region identity、loan、handle、ge
 
 ## 実装計画
 
-1. Owner dispositionを記録する。明示acceptanceまで `proposed` を維持し、各契約が受理されるまで両roadmap decision gateは未完了とする。
+1. OwnerまたはRFC 0001の実験段階の委任による判断を記録する。Acceptanceまで `proposed` を維持し、各契約が受理されるまで両roadmap decision gateは未完了とする。
 2. Lossless grammar／format／recovery fixture、正規化source type identityを追加し、Copy／move／lexical-loan／region analysisをcompile-pass／fail診断と課金付きdataflow／instantiation上限で実装する。
 3. 公開／wire interface実装前にcleanup、allocator、unsafe／FFI、versioned ownership bytecode契約を定義／受理する。上記surfaceに対してcore-library／native integrationを再見積もりし、元の全outcomeを維持する。
 4. 明示MIR transition／verifierとruntime allocation／shared／arena serviceを追加し、同じsource operationをVM／JIT／AOTで実装する。開発中の未対応pathはeffect／publication前に拒否する。
@@ -207,8 +209,11 @@ Repository ownerは2026-10-17 JSTにこのsource／core profileを明示的に�
 
 Decision：repository ownerが**2026-10-17 JSTにaccepted**。判断前のreview outcomeはdecision-readyでした。Implementation、stabilization、計測済みergonomics／performanceは主張しません。
 
+Follow-up decision：最初のsource実行でallocating resultからowned payloadを得られないことが判明し、**2026-10-18 JSTに実験段階の委任でRFC 0009をaccepted**としました。その明示操作とfailure／互換性規則でcatalogを拡張し、元のmatch規則は維持します。
+
 ## 情報源
 
+- [RFC 0009](0009-whole-sum-ownership-extraction.md)：受理済みsum全体取り出しのfollow-upと再現済みsource blocker。2026-10-18 JST作成／更新・確認。
 - [RFC 0004](0004-owned-values-and-cyclic-graphs.md)：受理済みownership／category／cycle／arena方針。2026-10-17 JST最終更新、同日確認。
 - [RFC 0006](0006-source-frontend-and-portable-programs.md)：実装済みsource／Copy／portable program基準。2026-10-17 JST最終更新、同日確認。
 - [Architecture](../architecture.md)、[roadmap](../roadmap.md)：project契約と残りoutcome。2026-10-17 JST最終更新、同日確認。
