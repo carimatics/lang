@@ -21,6 +21,7 @@ pub mod database;
 pub mod graph;
 pub mod lowering;
 pub mod modules;
+pub mod ownership_types;
 pub mod program_lowering;
 pub mod service;
 

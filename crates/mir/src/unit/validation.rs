@@ -356,7 +356,7 @@ fn identifier(name: &str) -> bool {
         .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
         && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
-fn name(name: &str, qualified: bool, budget: &mut Budget) -> Result<(), Error> {
+pub(super) fn name(name: &str, qualified: bool, budget: &mut Budget) -> Result<(), Error> {
     budget.charge(name.len().saturating_add(1))?;
     if if qualified {
         name.split("::").all(identifier)
@@ -396,7 +396,7 @@ fn sift(names: &mut [&str], mut root: usize, end: usize, budget: &mut Budget) ->
     }
     Ok(())
 }
-fn unique(names: &mut [&str], budget: &mut Budget) -> Result<(), Error> {
+pub(super) fn unique(names: &mut [&str], budget: &mut Budget) -> Result<(), Error> {
     for root in (0..names.len() / 2).rev() {
         sift(names, root, names.len(), budget)?;
     }
@@ -448,10 +448,16 @@ fn signature(unit: &Unit, signature: &Signature, budget: &mut Budget) -> Result<
     valid_type(unit, signature.result, budget)
 }
 fn span(unit: &Unit, span: Option<Span>, budget: &mut Budget) -> Result<(), Error> {
+    source_span(&unit.sources, span, budget)
+}
+pub(super) fn source_span(
+    sources: &[Source],
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Result<(), Error> {
     budget.charge(1)?;
     if let Some(span) = span {
-        let source = unit
-            .sources
+        let source = sources
             .get(span.source.0 as usize)
             .ok_or_else(|| Error::new(ErrorKind::InvalidSpan))?;
         if span.start > span.end
@@ -486,19 +492,12 @@ pub(super) fn validate(unit: &Unit, budget: &mut Budget) -> Result<UnitFacts, Er
     })
 }
 
-fn metadata(unit: &Unit, budget: &mut Budget) -> Result<(), Error> {
+pub(super) fn source_metadata(sources: &[Source], budget: &mut Budget) -> Result<(), Error> {
     let limits = budget.limits;
-    count(unit.sources.len(), limits.sources, LimitKind::Sources)?;
-    count(
-        unit.definitions.len(),
-        limits.definitions,
-        LimitKind::Definitions,
-    )?;
-    count(unit.imports.len(), limits.imports, LimitKind::Imports)?;
-    count(unit.functions.len(), limits.functions, LimitKind::Functions)?;
-    let mut paths = budget.vector(unit.sources.len())?;
+    count(sources.len(), limits.sources, LimitKind::Sources)?;
+    let mut paths = budget.vector(sources.len())?;
     let mut bytes = 0_usize;
-    for source in &unit.sources {
+    for source in sources {
         budget.charge(source.path.len().saturating_add(1))?;
         if source.path.contains(['\\', '\0'])
             || (source.path.as_bytes().get(1) == Some(&b':')
@@ -525,7 +524,20 @@ fn metadata(unit: &Unit, budget: &mut Budget) -> Result<(), Error> {
         }
         paths.push(source.path.as_str());
     }
-    unique(&mut paths, budget)?;
+    unique(&mut paths, budget)
+}
+
+fn metadata(unit: &Unit, budget: &mut Budget) -> Result<(), Error> {
+    let limits = budget.limits;
+    count(unit.sources.len(), limits.sources, LimitKind::Sources)?;
+    count(
+        unit.definitions.len(),
+        limits.definitions,
+        LimitKind::Definitions,
+    )?;
+    count(unit.imports.len(), limits.imports, LimitKind::Imports)?;
+    count(unit.functions.len(), limits.functions, LimitKind::Functions)?;
+    source_metadata(&unit.sources, budget)?;
     let names_count = unit
         .definitions
         .len()

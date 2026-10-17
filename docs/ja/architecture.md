@@ -215,6 +215,18 @@ Guest region callの未完了APIは削除しました。読み取り専用 `Func
 
 追加14件のsource testで直接／推移的call store、一時write後のclear、最終値のstrong update、inline field／sum精度、間接target、collection effect、call前swap、再帰clear、相互再帰write、通常returnしない再帰、再解析／source保持、正確なsummary budgetを検証します。20生成programは二つのguest callを経由し、独立lexical-scope oracleと一致して成功／拒否を10件ずつ含みます。追加2件のCLI／query testでcall／callee診断の由来とrevision更新後の復帰を検証します。全682 test、fmt／Clippy／doc、lock済みfuzz compile、instrumentationなし10,000-run HIR smokeが成功しました。Foreign-HIR targetはcaller projection型とmutation spanも検証し、instrumented coverageは主張しません。情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)のloan／regionとcall規則、typed region／summary実装、source／CLI／query test、fuzz target。2026-10-17 JST更新／確認。
 
+### In-memory ownership MIR types
+
+2026-10-17実装：`lang-mir::unit::ownership` はfrontend／backendに依存せずRFC 0004／0007のnominal／constructed type graphを表現します。`lang-semantics::ownership_types::lower` は、変更不可のregion検査済みHIRを独立検証するgraphへ変換し、10種すべてのbuiltin、有限constructor、shared／exclusive loan、compiler生成のloan sum、lexical arena owner symbolを保持します。Definition／constructed indexとfunction／local owner symbolはsource identityを維持し、変更不可source snapshotと全definition／member／type-use spanをsource IDを付け替えてcopyします。変換のためにdisplay pathを読み直すことはありません。
+
+Verifierはsource／name／span metadata、nominal／constructed参照、前方を参照しないconstructed argument、member上限、名前重複、空でないenum、正確なMap key分類、public／private公開、推移的storage制約を検査します。明示stackによる走査でinline再帰型を拒否し、indirectionを介する再帰を許可します。上限付き単調work queueでinline storageを介するCopy／dropと、全referentを介するloan／arena／allocator／owner／private属性を計算します。Core read-resultのOption／Resultはstack valueにloanを保持できますが、nominal／heap storageは通常loan、allocator authority、owner symbolを拒否します。Shared／weak storageは推移的なarena brandも拒否します。Source annotationとして記述できる型の制約はfrontendの責務です。
+
+構築と検証はwork、要求allocation byte、elementの累積budgetを共有し、source／definition／member／constructed／depthにも上限を設けます。13件のfocused testでsource／MIR属性の一致、ownerとprovisional read型、snapshot／span保持と再変換、壊れたgraph／metadata／storage入力、正確なresource境界、400 definitionのchain、独立Copy／drop oracleで照合する200件の生成型graphを検証します。`ownership_mir_types` fuzz targetはlock済みmanifestでcompileし、instrumentationなし10,000-run smokeが成功しました。このsmokeはcoverage-guided fuzzのevidenceではありません。
+
+`VerifiedTypes` が証明するのは、このgraphのshapeと属性だけです。Table indexは論理参照であり、structural type equalityのアルゴリズムやwire tagではありません。Owner symbolはruntime authorityを与えず、実行可能bodyを導入する際に対応する宣言とflowの検証が必要です。Function signature、instruction／place／CFG検証、initialization／move／loan／region遷移、layout、cleanup、core operation、VM／native lowering、ownership serializationは個別要件として残ります。実行可能な `VerifiedUnit` への変換は提供せず、既存Copy profileとbytecode schema 1は変更しません。この前提作業だけではHIR／MIR ownershipやarenaのoutcomeは完了しません。
+
+出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[MIR型verifier](../../crates/mir/src/unit/ownership.rs)、[source adapter](../../crates/semantics/src/ownership_types.rs)、対応test、fuzz target。更新／検証日：2026-10-17 JST。Graph storageと解析algorithmは実装上の選択であり、serialized format、heap ABI、performance測定の主張は追加しません。
+
 ### Source formatter
 
 2026-10-17に実装したRFC 0007構文拡張：lossless token／CSTで `&T`／`&mut T`、`shared T`／`weak T`／`arena T`、入れ子の組み込みtype argument、`::<...>` call、place borrow、括弧付きdereference、place assignment、allocatorを渡す字句的arena blockを表現します。Generic末尾の `>` は別tokenのままで、`<` 比較と符号付き整数のbehaviorを維持します。Prefix／type argumentの再帰とrecoveryは既存node／depth／list／work上限に従い、formatterはgeneric delimiterと比較を区別して新tokenの全境界間のcommentを保持します。

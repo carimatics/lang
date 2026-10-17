@@ -59,5 +59,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "ownership_mir_types"
+path = "fuzz_targets/ownership_mir_types.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]
 members = ["."]

@@ -1,6 +1,7 @@
 //! Backend-neutral compilation units for the RFC 0006 semantic contract.
 //! Wire encoding belongs to `lang-bytecode`; these Rust layouts are not formats.
 
+pub mod ownership;
 mod validation;
 
 pub use validation::{
