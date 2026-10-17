@@ -87,6 +87,12 @@ Bindingの既定上限はunit全体でlocal／expression／pattern／blockが各
 
 Exhaustivenessはbool／record／enumの直積と、言及された整数literal＋補集合の代表値へconstructor specializationを適用します。Searchとwitness rendererは明示stackを使います。全columnがwildcardのmatrix rowがあれば、残る直積の値を列挙せずcoverageを確定します。Missing witnessはfunctionのmoduleから有効なpathを使います。Type checkingはmetadata／node／operand／signature parameter／field候補の訪問を10,000,000-step budgetへ課金します。Exhaustivenessは別の10,000,000-step budgetへstate、row／cellの訪問、member copy、constructor、related arm label、witness fragmentを毎回課金します。既定ではarenaを各1,000,000、宣言／listを前述の上限、再帰を256、診断数を4,096、witness出力を65,536 byteに制限します。Limit超過は `SRC0011` を返し、誤ってexhaustiveと判断しません。24件のsource統合testは、独立した有限domain coverage maskとの1,458件の照合、256-field bool直積、moduleをまたぐwitness修復、不正IR／budgetを含みます。`typed_source_hir` は独立したresolved-IR境界をfuzzし、targetのcompileとinstrumentationなしの10,000-run smokeが完了しました。Coverage-guided／sanitizer evidenceは主張しません。SourceのMIR／VM／native統合、portable artifact、CLI／toolingは後続段階です。
 
+### Compilation units and validation
+
+2026-10-17実装：`lang_mir::unit` はRFC 0006のcompilation-unit契約を定義します。Source本文／相対pathとbyte span、nominal定義、typed host import、名前付きfunction／register／block、任意の `main() -> i64` entryを含みます。Primitive定数／演算、named call、record構築／projection、enum構築／test／checked payload projection、内部整数比較を扱います。`.verify` はname／type／layout、signature、source境界、register定義、dominance、reachability、block argument、ownership制約を検証後だけimmutableな `VerifiedUnit` を返します。Checked enum projectionはcase guardの証明がなくても有効なIRであり、定義済みruntime trapは実行側の責務です。既存の単一function APIとone-block owned-resource fixtureは維持します。Source lowering、bytecode encode／decode、VM frame、native adapterはこのunit表現への接続が残ります。
+
+Unit検証は反復処理のnominal依存走査、圧縮predecessor list、反復処理のreverse-postorder immediate dominatorを使います。構造上限だけでdataflow workも制限できるとは仮定せず、CFG／operand／dominatorの再訪問を課金します。共有 `Budget` は将来のdecoder／verifierの通算計数に対応し、既定でwork 10,000,000、要求bufferの累計128 MiB、要求vector要素の累計8,000,000をtemporary bufferも含めて制限します。解放してもbudgetは回復しません。Name byte／比較、source-line index、table要素の初期化、metadata／type／signature／member訪問、instruction、operand、edge、ancestor走査も課金します。Buffer割り当て前にchecked arithmeticとfallible reservationを使います。Caller所有のraw unit storageはverifierのallocation計数から除き、decoderは自身のbufferを同じbudgetへ課金する必要があります。15件のtestが上限と正確なlayout、span、owned制約、独立した経路除去oracleとの1,536件のSSA dominance照合を検証します。Rust object layoutはwire formatではなく、schema 1のbyte encodingは別の残作業です。
+
 ### Incremental architecture
 
 最初の非自明なfrontendからdependency-tracked query systemを使用します。各queryはdeterministicで、個別に計測できる必要があります。

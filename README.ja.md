@@ -59,6 +59,8 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang-hir::program` はresolved sourceのfunction、call、aggregate操作、pattern、上限付きexhaustivenessを検証してread-onlyなtyped programを生成します。Missing witnessとunreachable arm／statementを報告し、到達不能bodyも検証します。`cargo test -p lang-semantics --test program_typing` でsourceのcompile-pass／fail、有限domain oracle、不正IRを検証できます。MIR／VM実行とsource CLI entry pointは未実装です。
 
+`lang_mir::unit` はsource byte／span、call、nominal value、SSA dominance、上限付きallocation／work計数を含むcompilation unitを定義／検証します。`cargo test -p lang-mir --test units` で検証できます。Source loweringとbytecode／VM／native統合は未完了で、unitのdata structureはserialized formatではありません。
+
 `lang-semantics::lowering` は成功したprimitive HIRを検証済みtyped MIRへ変換します。Branch assignmentはtyped block parameterでmergeし、loopはback-edgeを越えてmutable valueを運び、early returnと到達不能statementは受理済みbehaviorを保持します。Instruction／terminator spanを既存bytecodeとnative debug metadataへ対応付けます。`cargo test --test hir_lowering` で構造化inputのVM／JIT differential execution、host-object debug mapping、lowering budgetを検証できます。これらはHIR-to-MIR経路のevidenceであり、end-to-end source compilationではありません。
 
 `lang-query` はincremental graph／cacheの共有coreとして、immutable input revision、明示query dependency、推移的invalidation、editやclose／reopen後の古いanalysis結果を拒否するpublication ticketを提供します。Graphのnode、edge、bookkeeping workに上限を設け、失敗をstate変更前に検証します。`cargo test -p lang-query` はcache分離、古い／別graphの結果、dependency置換、cycle、limit、実際の構造化input HIR診断cacheを検証します。Adapterは参照する全dependencyの宣言が必要です。Compiler queryの自動実行、parser／module dependency検出、LSP transportは未実装です。
