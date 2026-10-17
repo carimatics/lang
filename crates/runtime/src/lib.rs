@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod arena;
+pub mod cleanup;
 pub mod component;
 pub mod shared;
 

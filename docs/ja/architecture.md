@@ -349,6 +349,18 @@ Ownership MIRはserialized Copy profileから独立した `bodies::Term` を持�
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17 JST。[Match lowerer](../../crates/semantics/src/ownership_types/bodies/matching.rs)、[ownership制御フロー](../../crates/mir/src/unit/ownership/bodies/term.rs)、[source test](../../crates/semantics/tests/ownership_types.rs)、[独立oracle](../../crates/semantics/tests/support/ownership_pattern_oracle.rs)の更新／検証日：2026-10-18 JST。
 
+### Cleanup runtimeとfailure reporting
+
+実装日：2026-10-18 JST。`lang_runtime::cleanup`は上限付きentry frameで実際のruntime payloadを所有します。Slot metadata、lexical／call scope、failure bufferはentry前にfallibleな確保を行います。Intrusive listで宣言順とは独立して初期化成功順を記録します。Moveはsourceの義務を外し、再初期化は新しい義務を末尾に追加します。置換はframe stateを検査してincoming ownerをcommitしてから、切り離した旧値のtrusted cleanupを呼びます。生成adapterはcommit前にprepare済みdestination、loan、shared publicationも検証する必要があります。
+
+Parameterは各activationの最外scopeに置きます。入れ子のguest callは同じentry frame内で別の宣言slotを使います。`return_to`とentryの`finish`はowning resultを終了scopeの外に保留し、ownerより先にcompiler既知のborrow registrationを終了して、cleanup成功後にだけresultを公開します。Cleanup失敗時は独立した義務を処理してから未公開resultも破棄します。明示drop、通常scope exit、failure exit、hostによる中断のいずれもcleanup呼び出し前に義務を消費し、失敗したcleanupは再試行しません。型付き`Err`は通常の返却値です。
+
+Execution failureをprimaryとし、それがなければ最初のcleanup failureをprimaryにします。後続recordは事前確保buffer（既定で合計256 record）内で順序とsource spanを保持します。Overflow時はtruncation countを増やし、cleanupを続行します。Cleanup failureまたはcontain済みhost panicは`Instance`をpoisonして次のentryを拒否しますが、cleanupに成功したguest panicはpoisonしません。Trusted callbackには可変payloadを渡してpanicをcontainし、payload自体の破棄も別にcontainします。Callbackがpanicした場合は部分処理済みvalueを意図的にleakし、panic payloadの破棄中に再度panicした場合も再帰的にunwindせず隔離します。Reportはこの隔離数を記録し、cleanup中に診断文字列を確保しません。
+
+Runtime testは、実際の初期化／再初期化順、条件分岐／loop slot、move元の除外、transactional replacement、入れ子call、返却値保留、全modeled execution failure区分、上限付きreportのoverflow、metadata確保失敗、panic containment、poison／再入、実際のshared owner解放を検証します。独立したlistベースoracleで256 stepの生成列を100件照合します。このengineはruntimeのcleanup遷移を提供しますが、source ownership実行にはownership MIRのscope／failure elaboration、aggregate field／temporaryの順序metadata、fallible guest allocatorのaccounting、VM／native adapterが引き続き必要です。Host Rustのmetadata確保はguest allocatorの権限ではなく、serialized formatの変更もありません。
+
+出典：[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Cleanup engine](../../crates/runtime/src/cleanup.rs)と[16 runtime test](../../crates/runtime/tests/cleanup.rs)の更新／検証日：2026-10-18 JST。
+
 ### Source analysis profileとdriver境界
 
 実装／検証日：2026-10-18 JST。`lang_hir::program::analyze_program`は検査済みCopy program、またはprivateなregion検査済みHIR bodyを保持するownership programを返します。互換entry pointの`check_program`と`check_expression_function`は引き続きCopy execution profileを要求します。成功したownership解析は保持され、再実行したり未対応の言語機能として報告したりしません。
