@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み44件 · 進行中1件 · 残り46件（暫定120 pt）。**
+**検証済み45件 · 進行中0件 · 残り46件（暫定118 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む18件の成果を検証しました。V06（`92d225a`）で入れ子Bytes／Text／Copy record／enum／sum ownerとchecked reference projectionを実行し、[aggregate script](../../examples/scripts/owned_aggregate.lang) は `9` を表示します。Pack用確保なし、記述逆順の1回限り破棄、投影先grow、OOM／panic／fuel／loop cleanupを確認しました。V06で3 ptを減らし、残作業は123 → 120 ptです。次はV11のblock argument転送を実行し、それへ依存するV07のguest callへ進みます。G06／G08の広い実行／service成果は残し、G07もV09の代入とN03のnative evidenceが必要です。新たなexit gateは完了扱いにしていません。990 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む19件の成果を検証しました。V11（`1dcf260`）でadmission済みsnapshotによるCopy／affine CFG argument同時転送を実行し、scalar／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを確認しました。V11で2 ptを減らし、残作業は120 → 118 ptです。現在のownership source loweringはそのparameterを生成せず、次はV07のowned source guest-call fixtureです。G06／G08の広い実行／service成果、G07のV09代入とN03 native evidence、G14／G16のnative／cross-mode conformanceは残します。新たなexit gateは完了扱いにしていません。997 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

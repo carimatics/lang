@@ -6,15 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**44 done · 1 doing · 46 todo · 120 remaining pt**
+**45 done · 0 doing · 46 todo · 118 remaining pt**
 
-**次: M2-V11 → admission済みscratch storageで、cycleを含むCopy／affine CFG block argumentの同時転送を実行する。**
+**次: M2-V07 → owned source guest call／resultを再帰上限とreturn escrow付きで実行する。**
 
-直近の完了：**M2-V06**（`92d225a`）。入れ子Bytes／Text／Copy record／enum／sum、owner move、checked reference projectionを実行し、[aggregate script](../../examples/scripts/owned_aggregate.lang) は `9` を表示します。VM 33／CLI 26 testでpack用確保なし、解放IDの一意性／記述逆順破棄、複数field variant、入れ子sumの成功／panic、全admission／buffer OOM prefix、initializer失敗、投影先grow、loop再利用、全fuel prefixを検証します。全体の **71 suite・990 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyが成功しています。
+直近の完了：**M2-V11**（`1dcf260`）。Admission済みsnapshotでCopy／affine CFG argumentを同時転送します。追加VM test 7件でscalar Copy oracle 243 case、Copy enum 9 case、入れ子owner permutation 24 case、古いloan tokenの再束縛、厳密snapshot／cell budget、loopでrequestが増えないこと、全admission／guest OOM箇所、全fuel prefixを検証します。VM 40／CLI 26 testが成功しています。全体の **71 suite・997 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **9.4秒**、全test **101.0秒**、rustdoc **9.2秒**、fuzz Clippy **0.4秒**。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。対象testのfixtureに含めた未対応の単独block構文を修正してから全体baselineを実行しました。まとまったcode成果ごとにbaselineを1回実行し、文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **初回12.9秒／最終0.6秒**、全test **133.8秒**、rustdoc **12.6秒**、fuzz Clippy **0.7秒**。Copy enum case追加後にClippyを再実行し、全test baselineは1回実行しました。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultを経由するowner move、checked loanによる投影先fieldの読み取り／変更、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。次はV11で、V07のguest callは既にそのblock argument転送へ依存しています。G06／G08は広い実行／service成果までopenとし、G07もV09の代入とN03のnative evidenceが必要です。他owning service、REPL実行、ownership artifactも各gateに残します。未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultを経由するowner move、checked loanによる投影先fieldの読み取り／変更、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。次はV07のowned source guest-call fixtureです。G06／G08は広い実行／service成果を残し、G07もV09の代入とN03のnative evidence、G14／G16もnative／cross-mode conformanceが必要です。他owning service、REPL実行、ownership artifactも各gateに残します。未対応命令／payloadはprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -108,7 +108,7 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPLのownership受け入れ／結果表示をrunに揃え、失敗を分離。 | — |
-| M2-V11 | doing | 2 | M2-V06 | G08,G14,G16 | 上限付き事前予約scratch storageで、cycle／loopを含むCopy／affine CFG block argumentの同時転送を実行。 | — |
+| M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | 上限付きadmission済みsnapshotでCopy／affine CFG argumentを同時転送。Cycle／fan-out／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを検証。 | `1dcf260` |
 
 ## Shared、arena、collection
 

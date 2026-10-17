@@ -6,15 +6,15 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**44 done · 1 doing · 46 todo · 120 remaining pt**
+**45 done · 0 doing · 46 todo · 118 remaining pt**
 
-**Next: M2-V11 → execute simultaneous Copy/affine CFG block-argument transfers, including cycles, with admitted scratch storage.**
+**Next: M2-V07 → execute owned source guest calls/results with recursion limits and return escrow.**
 
-Latest delivery: **M2-V06** (`92d225a`) executes nested Bytes/Text/Copy records/enums/sums, owner moves and checked reference projections. [The aggregate script](../examples/scripts/owned_aggregate.lang) prints `9`. VM 33/CLI 26 tests cover no packing allocation, unique release IDs/reverse written destruction, multi-field variants, nested sum success/panic, every admission/buffer OOM prefix, initializer failure, projected growth, loop reuse and all fuel prefixes. The full baseline passes **990 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy.
+Latest delivery: **M2-V11** (`1dcf260`) executes simultaneous Copy/affine CFG argument transfer through admitted snapshots. Seven added VM tests cover 243 scalar Copy oracle cases, nine Copy enum cases, 24 nested-owner permutations, old loan-token rebinding, exact snapshot/cell budgets, unchanged loop allocation requests, all admission/guest OOM points and all fuel prefixes. VM 40/CLI 26 tests pass. The full baseline passes **997 tests in 71 suites**, fmt/Clippy/doc, and fuzz-workspace fmt/all-bin locked Clippy.
 
-Measured last code baseline (2026-10-18 JST): workspace Clippy **9.4 s**, full tests **101.0 s**, rustdoc **9.2 s**, fuzz Clippy **0.4 s**. These are command durations, not total working time; the logs do not attribute every part of wall time. Focused tests corrected a test fixture's unsupported bare-block syntax before the full baseline. Run the baseline once per coherent code delivery; documentation-only updates use consistency checks.
+Measured last code baseline (2026-10-18 JST): workspace Clippy **12.9 s initial / 0.6 s final**, full tests **133.8 s**, rustdoc **12.6 s**, fuzz Clippy **0.7 s**. The Clippy rerun followed the added Copy enum case; the full test baseline ran once. These are command durations, not total working time; the logs do not attribute every part of wall time. Documentation-only updates use consistency checks.
 
-Current source capability: a zero-parameter i64 main can use Bytes/Text operations, move their owners through nested records/enums/Option/Result, read or mutate projected fields through checked loans, and clean normal/failure exits. Borrowed matching and the partial-move prohibition are unchanged. Next is V11: V07 guest calls already depend on its block-argument transfers. G06/G08 remain open for their broader execution/service outcomes, and G07 still needs V09 assignment and N03 native evidence. Other owning services, REPL execution and ownership artifacts retain their gates. Unsupported operations/payloads fail before provider callbacks.
+Current source capability: a zero-parameter i64 main can use Bytes/Text operations, move their owners through nested records/enums/Option/Result, read or mutate projected fields through checked loans, and clean normal/failure exits. Borrowed matching and the partial-move prohibition are unchanged. V11 adds in-memory MIR CFG argument execution; current ownership source lowering does not generate those parameters. Next is V07's owned source guest-call fixture. G06/G08 retain their broader execution/service outcomes, G07 needs V09 assignment and N03 native evidence, and G14/G16 still require native/cross-mode conformance. Other owning services, REPL execution and ownership artifacts retain their gates. Unsupported operations/payloads fail before provider callbacks.
 
 The original exit gates remain **5 / 18 complete**. Completed deliveries include compiler/runtime prerequisites and the initial source execution fixture; they do not assert that entire core-library or backend features are complete.
 
@@ -108,7 +108,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | Execute generated failure exits: fuel/OOM/body failures, ordered cleanup and nested failure reports. | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Execute provisional-read match arms and prepared replacement across RHS effects. | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPL ownership admission/result display matches run and preserves failure isolation. | — |
-| M2-V11 | doing | 2 | M2-V06 | G08,G14,G16 | Execute simultaneous Copy/affine CFG block-argument transfers, including cycles/loops, using bounded pre-reserved scratch storage. | — |
+| M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | Simultaneous Copy/affine CFG arguments execute through bounded admitted snapshots; cycle/fan-out/enum/owner oracles, loan rebinding, cell/quota/OOM and fuel cleanup verified. | `1dcf260` |
 
 ## Shared, arenas and collections
 
