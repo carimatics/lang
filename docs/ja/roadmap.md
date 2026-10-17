@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み47件 · 進行中0件 · 残り45件（暫定115 pt）。**
+**検証済み48件 · 進行中0件 · 残り44件（暫定112 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む21件の成果を検証しました。V07（`15436f0`）でV11／V12の前提2件の後に必須としたsourceを実行でき、owned-call scriptはBytesの再帰的な移譲とborrowed callを経て `1` を表示します。明示的activationでcaller loanとreturn escrowを保護し、prospective上限、厳密guest allocation／release会計、source failure stackを維持します。自己再帰／相互再帰／1024段再帰、全provider OOM／fuel prefix、投影先変更、再利用が成功しました。**残り118 → 115 pt**、doneは1行増、新たな前提追加はありません。次はV08の生成failure／cleanup conformanceです。G06／G08の広い実行／service成果、G07のV09代入とN03 native evidence、G14／G16のnative／cross-mode conformanceは残します。新たなexit gateは完了扱いにしていません。1015 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む22件の成果を検証しました。V08（`a7af470`）で両VM driverと実buffer retirementへsource由来failure／return exitを通して実行します。Cleanup-call scriptは `13` を表示し、実leaf解放後だけerror／panicを注入して入れ子順序／span、保護result、execution primary優先、poison／再利用、interruptionを検証します。全provider OOM／fuel prefixと262-leafの上限report overflowでも全allocationを解放します。**残り115 → 112 pt**、doneは1行増、新たな前提追加はありません。次はV09のprovisional-read／prepared replacement実行です。G06にはshared／weak統合のR02〜R04とnative failure loweringのN05、G08には広いservice成果、G07にはV09の代入とN03 native evidence、G14／G16にはnative／cross-mode conformanceが残ります。新たなexit gateは完了扱いにしていません。1026 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
