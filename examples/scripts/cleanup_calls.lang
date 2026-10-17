@@ -1,0 +1,32 @@
+// Run with: cargo run -- run examples/scripts/cleanup_calls.lang
+// Prints 13 after nested aggregate and call cleanup; tests inject failures.
+struct Pair { left: core::Bytes, right: core::Bytes }
+struct Envelope { inside: Pair, last: core::Bytes }
+fn grow(bytes: core::Bytes, n: i64) -> core::Bytes {
+    if n < 1 { return bytes; }
+    let mut value: core::Bytes = bytes;
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(&mut value, 65));
+    return grow(value, n + (-1));
+}
+fn make(n: i64) -> core::Bytes {
+    return grow(core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())), n);
+}
+fn leaf(returned: core::Bytes, spill: Envelope, fail: bool) -> core::Bytes {
+    let mut local: core::Bytes = make(4);
+    if fail {
+        let mut missing: core::Option<core::Bytes> = core::Option::None;
+        return core::option_unwrap::<core::Bytes>(missing);
+    }
+    return returned;
+}
+fn outer(input: core::Bytes, fail: bool) -> core::Bytes {
+    let mut kept: core::Bytes = make(5);
+    let mut carried: core::Bytes = leaf(input, Envelope { last: make(3), inside: Pair { right: make(2), left: make(1) } }, fail);
+    let mut after: core::Bytes = make(8);
+    return carried;
+}
+fn main() -> i64 {
+    let mut kept: core::Bytes = make(6);
+    let mut out: core::Bytes = outer(make(7), false);
+    return core::bytes_len(out) + core::bytes_len(kept);
+}

@@ -7,3 +7,7 @@ edition.workspace = true
 lang-bytecode.workspace = true
 lang-mir.workspace = true
 lang-runtime.workspace = true
+
+[dev-dependencies]
+lang-diagnostics.workspace = true
+lang-semantics.workspace = true

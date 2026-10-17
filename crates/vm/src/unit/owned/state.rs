@@ -473,8 +473,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                     .ok_or(1u32)?
                     .cell_mut(physical)
                     .map_err(|_| 2u32)?;
-                cell.retire(self.allocator, context, |token, allocator, _, _| {
-                    buffer::cleanup_token(self.types, token, allocator).map_err(|_| 3u32)
+                cell.retire(self.allocator, context, |token, allocator, _, _context| {
+                    #[cfg(test)]
+                    let event = super::failure_tests::before_leaf(token, allocator, _context);
+                    buffer::cleanup_token(self.types, token, allocator).map_err(|_| 3u32)?;
+                    #[cfg(test)]
+                    super::failure_tests::after_leaf(event)?;
+                    Ok(())
                 })
                 .map_err(|_| 4u32)?;
                 cell.recycle(self.allocator).map_err(|_| 5u32)?;

@@ -13,6 +13,8 @@ use std::{
 };
 
 mod calls;
+#[cfg(test)]
+mod failure_tests;
 mod profile;
 mod state;
 mod storage;

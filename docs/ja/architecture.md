@@ -551,6 +551,16 @@ VM testを12件追加し、厳密request／release、自己再帰／相互再帰
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[call driver](../../crates/vm/src/unit/owned/calls.rs)、[activation storage](../../crates/vm/src/unit/owned/storage.rs)、[frame plan](../../crates/runtime/src/layout/frame.rs)、[cleanup ledger](../../crates/runtime/src/cleanup.rs)、[call test](../../tests/support/owned_calls.rs)、[CLI test](../../tests/cli.rs)。2026-10-18 JST更新／確認。受理済みsource／MIR意味論、wire format、C ABIは変更しません。
 
+### Owned failure exitのconformance
+
+2026-10-18 JST実装／確認：V08で、実際のsource由来failure／return CFGをsingle-entry／call driver、本番の初期化ledger、managed Bytesの実retirementへ通して実行します。[入れ子cleanup fixture](../../examples/scripts/cleanup_calls.lang) は通常 `13` を表示し、body panic版は元のpanicとleaf／outer／main stackを報告します。追加VM unit test 10件とCLI test 1件で検証します。Test専用observerは有効tokenのsnapshotで長さを読み、実buffer cleanup後にcleanup error／panicを注入します。Provider storageを無効化せず、公開runtime hookも追加しません。計測用処理とsource解析用dev dependencyは本番実行経路へ入りません。
+
+Traceでrecord fieldの実初期化順の逆順と、元のfield span／slotを確認します。Callee cleanupが失敗しても兄弟をdrainし、未公開resultを破棄し、後続caller effectの前に1つの共有reportを伝播します。Body panic、全provider OOM箇所、全fuel prefixで元のexecution primaryをordered cleanup secondaryより優先し、全admission allocationを1回だけ解放します。通常panicは再利用可能で、cleanup失敗後のentryはpoisonによってcallback前に拒否します。Cleanup panicを封じ込めた場合は、実buffer解放後のhost token 1件を規定どおりquarantineとして記録します。Cleanup途中のinterruptionでもdrainを完了し、次のcaller safe pointで止まります。
+
+再帰fixtureではbody panic後に入れ子leaf 262個をretireします。事前予約した256-record reportにprimaryと順序付きsecondary 255件を保持し、省略7件を数えながら全owner／frameを解放します。Bytesを所有する／Copy source fixtureを使った上限付きconformanceであり、実process OOM、fuzz campaign、native実行の証拠ではありません。G06にはshared／weak service adapterのR02〜R04とnative failure loweringのN05が残り、事前評価した代入先への置換はV09です。V08の有限profileの証拠だけではexit gateを閉じません。
+
+出典：受理済み[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[生成failure CFG](../../crates/mir/src/unit/ownership/failure.rs)、[VM driver](../../crates/vm/src/unit/owned.rs)、[call driver](../../crates/vm/src/unit/owned/calls.rs)、[leaf retirement adapter](../../crates/vm/src/unit/owned/state.rs)、[failure test](../../crates/vm/src/unit/owned/failure_tests.rs)、[CLI test](../../tests/cli.rs)、[source fixture](../../examples/scripts/cleanup_calls.lang)。2026-10-18 JST確認（adapter／test／fixtureは同日更新）。Source意味論、serialized format、公開APIは変更しません。
+
 ### Managedな有限core value
 
 実装／検証日：2026-10-18 JST。Managed reservationに、i64、Bool、Unit、有限core error全6系統を追加確保なしで型検査して読み書きする `read_immediate`／`write_immediate` を追加しました。Errorのcase順はsource MIRに一致し、allocationを含むerrorは入れ子のAllocErrorを、Utf8Errorはi64 payload全体を保持します。読み出しではBoolの非canonical byte、不正な外側error tag、不正な入れ子allocation tagを拒否します。書き込みは変更前に型とbyte範囲全体を検証し、paddingと非active error payloadを初期化し、型不一致時はstorageを保持します。Record末尾ちょうどにあるsize 0のUnit fieldも扱えます。

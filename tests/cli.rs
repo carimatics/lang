@@ -35,6 +35,27 @@ fn owned_bytes_new_len_runs_from_source() {
 }
 
 #[test]
+fn nested_cleanup_calls_run_and_preserve_body_panic_stack() {
+    let source = include_str!("../examples/scripts/cleanup_calls.lang");
+    let executed = run(&Files::new(source), &[]);
+    assert!(executed.status.success(), "{}", stderr(&executed));
+    assert_eq!(executed.stdout, b"13\n");
+    assert!(executed.stderr.is_empty());
+    let failed = run(
+        &Files::new(&source.replace("outer(make(7), false)", "outer(make(7), true)")),
+        &[],
+    );
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(failed.stdout.is_empty());
+    let message = stderr(&failed);
+    assert!(message.contains("panic code -1"), "{message}");
+    let leaf = message.find("at leaf").unwrap();
+    let outer = message.find("at outer").unwrap();
+    let main = message.find("at main").unwrap();
+    assert!(leaf < outer && outer < main, "{message}");
+}
+
+#[test]
 fn whole_option_and_result_ownership_extraction_runs_from_source() {
     let files = Files::new(include_str!("../examples/scripts/owned_bytes.lang"));
     let executed = run(&files, &[]);
