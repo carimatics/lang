@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み46件 · 進行中0件 · 残り46件（暫定118 pt）。**
+**検証済み47件 · 進行中0件 · 残り45件（暫定115 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む20件の成果を検証しました。V07着手前にhost wrapper再利用の不足が判明し、V12（`05ebf0b`）でentry前にpoolを準備し、host拡張なしで関数別guest regionをadmit／releaseします。厳密budget、全provider OOM／再試行、cumulative request、callback前拒否を確認しました。未計上の前提2 ptを追加してから完了したため、**残り118 → 120 → 118 pt**、doneは1行増です。V11／V12の前提2件の後は、V07のowned source guest-call fixtureを実行する成果へ進みます。Fixtureのcheckは成功しますが、実行はeffect前に `Call` を拒否します。G06／G08の広い実行／service成果、G07のV09代入とN03 native evidence、G14／G16のnative／cross-mode conformanceは残します。新たなexit gateは完了扱いにしていません。1002 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む21件の成果を検証しました。V07（`15436f0`）でV11／V12の前提2件の後に必須としたsourceを実行でき、owned-call scriptはBytesの再帰的な移譲とborrowed callを経て `1` を表示します。明示的activationでcaller loanとreturn escrowを保護し、prospective上限、厳密guest allocation／release会計、source failure stackを維持します。自己再帰／相互再帰／1024段再帰、全provider OOM／fuel prefix、投影先変更、再利用が成功しました。**残り118 → 115 pt**、doneは1行増、新たな前提追加はありません。次はV08の生成failure／cleanup conformanceです。G06／G08の広い実行／service成果、G07のV09代入とN03 native evidence、G14／G16のnative／cross-mode conformanceは残します。新たなexit gateは完了扱いにしていません。1015 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning service、REPL／native実行、ownership artifactは各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

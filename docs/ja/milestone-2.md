@@ -6,15 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**46 done · 0 doing · 46 todo · 118 remaining pt**
+**47 done · 0 doing · 45 todo · 115 remaining pt**
 
-**次: M2-V07 → owned source guest call／resultを再帰上限とreturn escrow付きで実行する。**
+**次: M2-V08 → 生成failure exit、cleanup順序、入れ子reportを検証する。**
 
-直近の完了：**M2-V12**（`05ebf0b`）。Host wrapper準備と、再利用するguest frame admissionを分けました。追加pool test 5件でmain／calleeの異なるshapeと固定host capacity／会計、厳密size 0課金、全provider OOMと再試行、逆順rollback、cumulative試行課金、quota／capacity／active状態拒否、別layouts、厳密host budgetを検証します。Frame 11／VM 40／CLI 26 testが成功しています。全体の **71 suite・1002 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。未計上の前提2 ptを追加してから完了したため、**残り118 → 120 → 118 pt**、doneは1行増です。
+直近の完了：**M2-V07**（`15436f0`）。[Owned source call](../../examples/scripts/owned_calls.lang) がBytesの再帰的な移譲とborrowed callを経て `1` を表示します。追加VM test 12件で自己再帰／相互再帰／1024段再帰、Copy interface、owning Result return、allocator loan、投影先変更、frame／cell拒否、全provider OOM／fuel prefix、cleanupと再利用を確認します。CLIでは成功と実際のcallee／main failure stackを確認します。Frame 11／VM 52／CLI 27 testが成功しています。全体の **71 suite・1015 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。V11／V12の前提2件の後に必須としたsource fixtureをV07で実行でき、**残り118 → 115 pt**、doneは1行増、新たな前提追加はありません。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **成功時3.2秒**、全test **132.2秒**、rustdoc **12.8秒**、fuzz Clippy **1.3秒**。初回Clippy **10.3秒**で見つかったtestの不要castを修正して再実行し、全test baselineは1回実行しました。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **14.0秒**、全test **137.7秒**、rustdoc **12.7秒**、fuzz Clippy **1.5秒**、すべて成功です。Focused check後の全test baselineは1回です。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultを経由するowner move、checked loanによる投影先fieldの読み取り／変更、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。次はV07のowned source guest-call fixtureです。G06／G08は広い実行／service成果を残し、G07もV09の代入とN03のnative evidence、G14／G16もnative／cross-mode conformanceが必要です。他owning service、REPL実行、ownership artifactも各gateに残します。未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest callを経由するowner move、checked borrowed parameterによる投影先fieldの読み取り／変更、cleanupで保護したescrow経由のowned return、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。次はV08の広い生成failure／cleanup conformanceです。G06／G08は広い実行／service成果を残し、G07もV09の代入とN03のnative evidence、G14／G16もnative／cross-mode conformanceが必要です。他owning service、REPL実行、ownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -107,7 +107,7 @@ V07着手前の監査（2026-10-18 JST）：[owned-call fixture](../../examples/
 | M2-V05 | done | 0 | M2-V04 | G07 | Text concat／clone／to-bytes／equalityとBytes cloneを実行。独立owner、allocator identity、typed OOM／quota error、fuel／loop cleanupを検証。 | `752a369` |
 | M2-V06 | done | 0 | M2-V03,M2-S03 | G06,G08 | 入れ子Bytes／Text／Copy record／enum／sum ownerとreference projectionを実行。Pack用確保なし、記述逆順の1回限りdrop、OOM／panic／fuel、loop cleanupを検証。 | `92d225a` |
 | M2-V12 | done | 0 | M2-V11 | G06 | Host拡張なしでmain／callee regionをadmit／release。厳密budget、size 0課金、OOM rollback／再試行、cumulative request、callback前拒否を検証。 | `05ebf0b` |
-| M2-V07 | todo | 3 | M2-V06,M2-V11,M2-V12 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | — |
+| M2-V07 | done | 0 | M2-V06,M2-V11,M2-V12 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | `15436f0` |
 | M2-V08 | todo | 3 | M2-V07,M2-D32 | G06 | 生成failure exitでfuel／OOM／body failure、cleanup順序、入れ子reportを実行検証。 | — |
 | M2-V09 | todo | 2 | M2-V04,M2-V06 | G07,G08 | Provisional-read match armとRHS effectをまたぐ事前評価済み代入を実行。 | — |
 | M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPLのownership受け入れ／結果表示をrunに揃え、失敗を分離。 | — |
