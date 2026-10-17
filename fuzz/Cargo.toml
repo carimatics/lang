@@ -13,6 +13,15 @@ lang-runtime = { path = "../crates/runtime" }
 lang-diagnostics = { path = "../crates/diagnostics" }
 lang-syntax = { path = "../crates/syntax" }
 lang-hir = { path = "../crates/hir" }
+lang-bytecode = { path = "../crates/bytecode" }
+lang-mir = { path = "../crates/mir" }
+
+[[bin]]
+name = "portable_bytecode_decoder"
+path = "fuzz_targets/portable_bytecode_decoder.rs"
+test = false
+doc = false
+bench = false
 
 [[bin]]
 name = "typed_source_hir"

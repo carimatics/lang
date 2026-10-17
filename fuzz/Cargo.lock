@@ -54,6 +54,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lang-bytecode"
+version = "0.1.0"
+dependencies = [
+ "lang-mir",
+]
+
+[[package]]
 name = "lang-diagnostics"
 version = "0.1.0"
 
@@ -61,8 +68,10 @@ version = "0.1.0"
 name = "lang-fuzz"
 version = "0.0.0"
 dependencies = [
+ "lang-bytecode",
  "lang-diagnostics",
  "lang-hir",
+ "lang-mir",
  "lang-runtime",
  "lang-syntax",
  "libfuzzer-sys",

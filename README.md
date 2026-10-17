@@ -59,7 +59,9 @@ Milestone 1 now has backend-independent `lang-diagnostics`, `lang-syntax`, and `
 
 `lang-hir::program` checks complete resolved source functions, calls, aggregate operations, patterns, and bounded exhaustiveness into a read-only typed program. It reports missing witnesses and unreachable arms/statements while still checking their bodies. Run `cargo test -p lang-semantics --test program_typing` for source compile-pass/fail, finite-domain oracle, and malformed-IR coverage. MIR/VM execution and source CLI entry points remain unimplemented.
 
-`lang_mir::unit` now defines and validates complete compilation units with source bytes/spans, calls, nominal values, SSA dominance, and bounded allocation/work accounting. Run `cargo test -p lang-mir --test units`. Source lowering and bytecode/VM/native integration remain pending; the unit data structures are not a serialized format.
+`lang_mir::unit` now defines and validates complete compilation units with source bytes/spans, calls, nominal values, SSA dominance, and bounded allocation/work accounting. Run `cargo test -p lang-mir --test units`. Source lowering and VM/native integration remain pending; the unit data structures are not a serialized format.
+
+`lang_bytecode::unit` encodes/decodes canonical schema-1 artifacts with explicit versions/opcodes, ID remapping, UTF-8/span validation, and shared decoder/verifier resource budgets. Run `cargo test -p lang-bytecode --test unit_codec`. The codec includes a fixed golden fixture and malformed-input/fuzz coverage; source VM execution is still pending.
 
 `lang-semantics::lowering` converts that successful primitive HIR to validated typed MIR. Branch assignments merge through typed block parameters; loops carry mutable values over back-edges; early returns and unreachable statements preserve their accepted behavior. Instruction/terminator spans map into the existing bytecode and native debug metadata. Run `cargo test --test hir_lowering` for structured-input VM/JIT differential execution, host-object debug mapping, and lowering-budget checks. These tests establish the HIR-to-MIR path, not end-to-end source compilation.
 

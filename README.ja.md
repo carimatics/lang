@@ -59,7 +59,9 @@ Milestone 1ではbackend非依存の `lang-diagnostics`／`lang-syntax`／`lang-
 
 `lang-hir::program` はresolved sourceのfunction、call、aggregate操作、pattern、上限付きexhaustivenessを検証してread-onlyなtyped programを生成します。Missing witnessとunreachable arm／statementを報告し、到達不能bodyも検証します。`cargo test -p lang-semantics --test program_typing` でsourceのcompile-pass／fail、有限domain oracle、不正IRを検証できます。MIR／VM実行とsource CLI entry pointは未実装です。
 
-`lang_mir::unit` はsource byte／span、call、nominal value、SSA dominance、上限付きallocation／work計数を含むcompilation unitを定義／検証します。`cargo test -p lang-mir --test units` で検証できます。Source loweringとbytecode／VM／native統合は未完了で、unitのdata structureはserialized formatではありません。
+`lang_mir::unit` はsource byte／span、call、nominal value、SSA dominance、上限付きallocation／work計数を含むcompilation unitを定義／検証します。`cargo test -p lang-mir --test units` で検証できます。Source loweringとVM／native統合は未完了で、unitのdata structureはserialized formatではありません。
+
+`lang_bytecode::unit` は明示的なversion／opcode、ID再配置、UTF-8／span検証、decoder／verifier共通のresource budgetを持つcanonical schema 1 artifactをencode／decodeします。`cargo test -p lang-bytecode --test unit_codec` で検証できます。固定golden fixtureと不正input／fuzz検証を含み、source VM実行は未完了です。
 
 `lang-semantics::lowering` は成功したprimitive HIRを検証済みtyped MIRへ変換します。Branch assignmentはtyped block parameterでmergeし、loopはback-edgeを越えてmutable valueを運び、early returnと到達不能statementは受理済みbehaviorを保持します。Instruction／terminator spanを既存bytecodeとnative debug metadataへ対応付けます。`cargo test --test hir_lowering` で構造化inputのVM／JIT differential execution、host-object debug mapping、lowering budgetを検証できます。これらはHIR-to-MIR経路のevidenceであり、end-to-end source compilationではありません。
 

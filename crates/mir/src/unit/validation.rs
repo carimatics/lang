@@ -335,6 +335,9 @@ pub struct VerifiedUnit {
     pub(super) facts: UnitFacts,
 }
 impl VerifiedUnit {
+    pub fn revalidate(&self, budget: &mut Budget) -> Result<(), Error> {
+        validate(&self.unit, budget).map(|_| ())
+    }
     pub fn unit(&self) -> &Unit {
         &self.unit
     }
