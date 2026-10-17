@@ -211,7 +211,7 @@ Guest callのbrand置換とmutation effectは後述のfollow-upで完成しま�
 
 再帰／相互再帰functionを二つの独立した最小固定点で扱います。第一段階は既知の通常returnがない状態から開始し、可能な通常returnとborrowed storageの最終内容を計算します。第二段階はその安定したoutputを使い、終了しないcallの前のstoreも含めて途中の全store制約を増やします。これにより、read-only再帰にwriteを捏造せず、通常returnしないことを証明したcallの後を解析せずに、再帰clearによる確実な消去を維持します。Return経路はlocal cleanupの前に記録し、借用した外部storageだけをexportします。Source診断は収束後に出力し、resource上限は計算中も常に有効です。Canonicalな型付きtemplate、caller input path、summary node／比較、繰り返す全解析visitを既存のwork／allocation／value上限で制限します。
 
-Guest region callの未完了APIは削除しました。読み取り専用 `FunctionRegions` はcaller projectionとparameterの可能なmutationを公開し、成功した `RegionCheckedBodies` も実行可能MIRを構築できません。通常loanのcaller cellへのexport制約はloan passで維持し、user resultにarena brandを含めることも引き続き禁止します。Shared aliasのruntime検査、検証済みownership MIR、cleanup／layout、VM／nativeでのsource operation実行、ownership wire encoding、runtime arena generation／teardownは独立した要件です。
+Guest region callの未完了APIは削除しました。読み取り専用 `FunctionRegions` はcaller projectionとparameterの可能なmutationを公開し、成功した `RegionCheckedBodies` も実行可能MIRを構築できません。通常loanのcaller cellへのexport制約はloan passで維持し、user resultにarena brandを含めることも引き続き禁止します。Shared aliasのruntime検査、検証済みownership MIR、cleanup／layout、VM／nativeでのsource operation実行、ownership wire encoding、runtime arena generation／teardownとのsource統合は独立した要件です。
 
 追加14件のsource testで直接／推移的call store、一時write後のclear、最終値のstrong update、inline field／sum精度、間接target、collection effect、call前swap、再帰clear、相互再帰write、通常returnしない再帰、再解析／source保持、正確なsummary budgetを検証します。20生成programは二つのguest callを経由し、独立lexical-scope oracleと一致して成功／拒否を10件ずつ含みます。追加2件のCLI／query testでcall／callee診断の由来とrevision更新後の復帰を検証します。全682 test、fmt／Clippy／doc、lock済みfuzz compile、instrumentationなし10,000-run HIR smokeが成功しました。Foreign-HIR targetはcaller projection型とmutation spanも検証し、instrumented coverageは主張しません。情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)のloan／regionとcall規則、typed region／summary実装、source／CLI／query test、fuzz target。2026-10-17 JST更新／確認。
 
@@ -302,9 +302,23 @@ Publicationは全endpointと累積node／slot／edge／live-payload-byte上限�
 
 16件のfocused testでretain付きupgrade、alias read、weak back-edge、publication失敗時のsnapshot／count／span、heap provenance、limit／count overflow、slot再利用／枯渇、poison quarantine、15,001 nodeの反復reclamation、独立した推移閉包／count oracleと比較する1,000回の混合publication、64回の逆向き同時publication競合、128回のupgrade／last-release競合を検証します。Deterministic／stress testであり、memory orderingのmodel checkingやsanitizer／fuzz campaignではありません。独自unsafe atomicを使わずRustのmutex同期契約に従います。
 
-このserviceでruntime retain／releaseとatomic publicationのscopeを完了します。Source type／loan lowering、VM／native ownership operation、guest destructor／error／panic cleanup、arena、allocator callback、source heap ABI統合はMilestone 2の個別作業として残ります。現状はhost Rust allocationを使い、fallible Vec reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Live payload計上はprocess／allocator全体のmemory計上ではありません。Source契約を公開する前に、別途受理するallocator／cleanup profileへ適応または置換する必要があります。Poisonしたstateはfail closedとし、Rust hostは他のRust owner同様token／guardを意図的にleakできます。
+このserviceでruntime retain／releaseとatomic publicationのscopeを完了します。Source type／loan lowering、VM／native ownership operation、guest destructor／error／panic cleanup、source arena統合、allocator callback、source heap ABI統合はMilestone 2の個別作業として残ります。現状はhost Rust allocationを使い、fallible Vec reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Live payload計上はprocess／allocator全体のmemory計上ではありません。Source契約を公開する前に、別途受理するallocator／cleanup profileへ適応または置換する必要があります。Poisonしたstateはfail closedとし、Rust hostは他のRust owner同様token／guardを意図的にleakできます。
 
 情報源：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)／[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、runtime実装とtestは2026-10-17 JST更新／確認。Build／test evidenceにはpinしたstableの `rustc 1.99.0 (b940084d7 2026-09-28)` を使い、2026-10-17 JSTに確認しました。外部API文書のinspectionは主張しません。Lock、storage、capacity戦略は実装判断で、performance budgetは主張しません。
+
+### Runtime arena storage
+
+2026-10-17実装：`lang-runtime::arena` は単独の `Arena` owner、retainせずcopyできる `Reference` token、追跡するedgeを持つopaque byte payload、arena全体のread loan、検査付きallocation／replacementを提供します。同じarena内のself-edgeや任意のcycleにnode reference countは不要です。Publicationはarena間、runtime間、shared、weakのedgeをinput消費前に拒否し、失敗時はinputを変更せず返します。Replacementはnode identityとallocation順を維持し、古いpayloadをstate mutexの外でcleanupできるよう返します。Mutex内でuser callbackは実行しません。
+
+非公開runtime provenance、arena slot generation、検証したnode indexにより、stale handleが再利用したstorageを参照することを防ぎます。公開 `Identity` fieldは信頼しない論理識別子であり、wire formatやaddress authorityではありません。Resolveにはowning arenaが必要です。Provenance counterの枯渇はfail closedとし、generationが枯渇したslotは永久にretireします。登録済みreadは別のnode reference経由も含めarena全体のallocation、replacement、通常closeを禁止します。信頼するRust hostはread guardを保持したままownerをdropできます。その場合は終了後のguard accessを拒否し、保持したsnapshotで既に返したRust sliceの安全性を維持します。古いguardは再利用したgenerationのreader登録を解除できません。このhost側の処理はsource loanのlexical arena外へのescapeを許可するものではありません。
+
+終了時はregionをdetachしてaccessを無効にした後、追加allocation不要の `Teardown` iteratorを返します。Iteratorは初期化済みnodeをallocationの逆順で1回ずつ返します。途中のdrainを破棄した場合やhost codeのunwind時も、残るbufferを同じ順序で解放し、cleanupからlock外でheapへ再入できます。`retired_nodes` は論理的retirement数であり、guest destructor呼び出し数ではありません。Read／retired snapshotは最後のstorage ownerのdropまたはcallerへのpayload返却までresident payload／byte／edge計上に残ります。そのためreplacementはhostが保持する古いbufferを控除せず、旧値と新値の合計peakを予約します。Live arena、arena slot、live node、publication work、readerにも上限を設けます。Poisonしたstateはaccess／publicationを拒否します。Poisonしたbudgetは新規publicationを拒否しますが、解放は継続できます。
+
+22件のfocused testで、同一regionのcycle、reference copy、provenanceとstale／forged handle、read conflict、逆順／部分teardown、slot／count枯渇、poison隔離、失敗時に変更されないinput／span／count、保持storageの上限、独立payload／edge oracleで照合する1,000件の生成graph sequence、128件のread解放／close race、20,001 nodeのcycleの反復drain、再入cleanupとhost unwindを検証します。これらはdeterministic／stress testであり、guest destructorやVM／nativeのtrace等価性を示すものではありません。
+
+このengineはhost Rust storageを使います。Fallible Vec metadata reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Resident byte計上にはmetadata capacity、allocator overhead、caller所有のinput、callerへ返却済みpayloadを含めず、process memory sandboxではありません。信頼するhostはguardやdetachしたpayloadを意図的にforgetできますが、engineが保持するstorageは設定上限の計上に残ります。Source allocator callback、typed layout、cleanup／error／panicの挙動、検証済みownership MIR／bytecode、VM／native arena operation、serialized ownership formatはMilestone 2の個別作業として残ります。この実装だけではarena outcomeは完了しません。
+
+出典：受理済み[RFC 0004](../rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](../rfcs/0007-source-ownership-and-core-values.md)、[arena実装](../../crates/runtime/src/arena.rs)、[境界test](../../crates/runtime/src/arena/tests.rs)、[統合test](../../crates/runtime/tests/arena.rs)。更新／検証日：2026-10-17 JST。Storage、lock、quotaの粒度は実装上の選択であり、allocator ABI、performance budget、追加の言語決定は主張しません。
 
 ### Async borrow／cancellation実験
 
