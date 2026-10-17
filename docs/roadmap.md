@@ -8,9 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**38 verified deliveries · 0 in progress · 53 remaining tasks (provisional 136 pt).**
+**39 verified deliveries · 0 in progress · 52 remaining tasks (provisional 134 pt).**
 
-Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). Twelve deliveries landed since the gate score last changed. The source Bytes program now prints `0` through `lang run` with normal/fuel-failure cleanup (`ece8690`). Next resolve owned Option/Result extraction before mutating core operations. The audit adds 8 pt for that explicit RFC/compiler/runtime work and 2 pt for CFG block arguments, after completing V03's 3 pt. REPL, native execution and remaining core operations retain their gates.
+Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). Thirteen deliveries have been verified since the gate score last changed, including the planned follow-up design decision. The source Bytes program prints `0` through `lang run` with normal/fuel-failure cleanup (`ece8690`). [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) now accepts explicit whole Option/Result extraction (`c4cb8b9`); next implement its source/MIR contracts (S02), then execute ownership transfer (S03) before mutating core operations. Completing S01 removes 2 pt: 136 → 134 remaining pt, with no new exit gate closed. REPL, native execution and remaining core operations retain their gates.
 
 The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 

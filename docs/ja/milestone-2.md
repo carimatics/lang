@@ -6,13 +6,13 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**38 done · 0 doing · 53 todo · 136 remaining pt**
+**39 done · 0 doing · 52 todo · 134 remaining pt**
 
-**次: M2-S01 → source所有権取り出しを判断し、変更操作のfixtureを実行可能にする。**
+**次: M2-S02 → 受理済みのsum全体取り出し3操作を型検査してlowerする。**
 
-直近の完了：**M2-V03**（`ece8690`）。検査済みownership MIRと生成failure／cleanup flowで [Bytes source program](../../examples/scripts/bytes.lang) を実行します。結果は `0` で、buffer OOMはtyped Errへ進み、全fuel prefixでstorageを解放します。Source／runtime 8 testとCLI回帰が成功しました。全体の952 test、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功し、rustdocはcodegen metadataのcache再構築後に通りました。
+直近の完了：**M2-S01**（`c4cb8b9`）。[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) でSome／Ok／Err payloadの明示取り出しを受理し、borrowed matchを維持したpanic／cleanup、互換性、検証条件を記録しました。設計行の完了であり、source実装の完了ではありません。Repository consistencyの3 checkが成功（3.02秒）し、guide exampleは現時点で未登録のcore nameまで進みます（`SRC0024`）。直近の実行成果は引き続き **M2-V03**（`ece8690`）で、[Bytes source program](../../examples/scripts/bytes.lang) が `0` を表示し、対象source／runtime 8 testとcode baseline 952 testが成功しています。
 
-現在のsource対応範囲：引数なしi64 mainで、`core::allocator()`、Bytes new／len、borrowed Result match、scalar／Copy命令、shared loan、生成cleanupを実行できます。REPL／native実行と残りownership命令は各gateに残し、未対応命令はprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainで、`core::allocator()`、Bytes new／len、borrowed Result match、scalar／Copy命令、shared loan、生成cleanupを実行できます。新しい取り出し操作、REPL／native実行、残りownership命令は各実装gateに残し、未対応命令はprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -35,17 +35,19 @@
 
 最初の実行fixture後の監査（2026-10-18 JST）：RFC 0007の受理済みmove／match規則では、非Copyのcase bindingは読み取りloanです。生成したBytesをownedなmutable localへbindingすると、`SRC0014`（expected Bytes, found &Bytes）で拒否されることを確認しました。Allocating Option／Resultから変更／消費core命令へ進む経路を妨げるため、V04前にS01〜S03（8 pt）を追加し、明示的で互換性を持つ取り出し設計を判断してからcompiler／runtime contractを実装します。受理済みborrowed matchingを暗黙に変更しません。また新VMはCFG block argumentを明示的に拒否するため、一般guest-call conformance前にV11（2 pt）を追加します。V03で3 ptを減らし、新規4行で10 ptを加えるため、残作業は129から **136 pt**、**53 todo** へ変わります。S02／S03はS01で設計を選ぶまで暫定とし、大きい形式を選んだ場合はcode前に分割／再見積もりします。実行できたsource fixtureは完了成果として維持します。
 
+S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構文を作らず、既存generic-call構文とwhole-value argument規則を使う有限core call 3個を選びました。2 ptの設計行を完了し、残作業は **136 → 134 pt**、todoは **53 → 52件** です。S02はsignature／source／MIR検査の3 pt、S03は対応Bytes／Copy移譲とpanic cleanupの3 ptを維持します。新parser構文、任意enum取り出し、collection、native実行はこの2行の対象外です。Transfer実験まで見積もりは暫定とし、新前提が判明したら実装前に明示／分割します。S02に続くS03で次のsource owner取り出しfixtureを実行してから基盤を拡張します。
+
 - 実装前に1行を選んで `doing` にし、同時進行は最大1件とします。1行は観測可能な1成果、残り1〜3 ptです。それより大きい、または前提が不明なら着手前に分割します。
 - 計画開始から10分経ってもpatchまたは実行可能な実験がなければ、設計を広げる前にtaskを狭めて最小限の有用な実験を実行します。抽象化やhardeningの追加は、選択した成果または受理済み要件に必要な場合に限ります。取得できる検証所要時間を記録し、commit間隔を稼働時間とはみなしません。
 - 直近は2件の前提作業（有限valueと上限付きframe）の後、Bytesソース実行fixtureを必須とします。別の前提が判明したら記録し、基盤作業を追加する前に順序を見直します。Fixtureを暗黙に先送りしません。
-- Doneには実装commitと対象を絞った検証evidenceが必要です。自分自身のcommitを参照できない場合は次の計画更新でcommitを記録し、evidenceが揃うまで仕掛かり状態を正直に保ちます。完了条件を満たすまで待たず、各成果の後にこの表を更新します。
+- Doneには行のoutcomeを満たすcommit（実装、または明示的に計画した設計判断）と対象を絞った検証evidenceが必要です。自分自身のcommitを参照できない場合は次の計画更新でcommitを記録し、evidenceが揃うまで仕掛かり状態を正直に保ちます。完了条件を満たすまで待たず、各成果の後にこの表を更新します。
 - 対象を絞ったcheckから始め、まとまったcode成果ごとに必須full baselineを1回実行します。文書だけのfollow-upはrepository consistencyを確認し、追加code、失敗、未解決の懸念がある場合だけ広いcheckを再実行します。実装／roadmapのcommit順序は維持し、繰り返しの長文追記を行更新に置き換えます。監査記録の追記はscope、見積もり、依存、完了判断が変わった場合に限ります。
 - ソース実行fixtureが増えない前提作業が2件続いたら、基盤の拡張を止め、次のvertical sliceを再検討します。漠然と「見積もりは妥当」とせず、具体的な阻害要因と残taskを報告します。
 - 18件の完了条件を維持します。必要な実機tier-1実行を含め、全evidenceが揃った場合だけ完了にします。Localのobjectや設定済みCI jobはWindows native実行evidenceではありません。未完了のP1 debug作業はexit前に移動先と再見積もりを明示します。
 
 ## 完了済み実装
 
-最初の35行はcommitからM2の実装成果を復元したものです。RFCの受理は完了条件側に残します。以後の成果は計画時のIDを維持してdoneにします。検証の詳細と限界は [architecture](architecture.md) と [roadmapの実装履歴](roadmap.md#milestone-2ownershipとnative-aot) を参照してください。
+最初の35行はcommitからM2の実装成果を復元したものです。元のRFC 0007／0008判断は完了条件側に残します。以後の成果は、明示的に計画したfollow-up設計行を含め、計画時のIDを維持してdoneにし、各行に記したoutcomeだけを満たします。検証の詳細と限界は [architecture](architecture.md) と [roadmapの実装履歴](roadmap.md#milestone-2ownershipとnative-aot) を参照してください。
 
 `Gate` はroadmapのchecklist順にG01〜G18です。1行が複数条件に貢献しても、作業を二重計上しません。
 
@@ -94,7 +96,7 @@
 | M2-V01 | done | 0 | M2-D34 | G08 | Managed Unit／Option／Result／error codec：入れ子往復、tag検証、厳密な上限。 | `71ece57` |
 | M2-V02 | done | 0 | M2-V01 | G06 | 上限付きowned frameの受け入れ時、effect前にvalue／retirement storageを確保し、失敗rollbackを検証。 | `86c23ce` |
 | M2-V03 | done | 0 | M2-V02,M2-D35 | G06,G07 | lang runでBytes new／lenのソースと通常dropを実行し、到達可能な未対応命令はeffect前に拒否。 | `ece8690` |
-| M2-S01 | todo | 2 | M2-V03 | G07,G08,G09,G10 | Borrowed matchingとの互換性を含む、Option／Result全体の所有権取り出しをRFC改訂／follow-upで受理記録にする。 | — |
+| M2-S01 | done | 0 | M2-V03 | G07,G08,G09,G10 | RFC 0009でSome／Ok／Err全体取り出しを受理。Borrowed match維持、明示panic／cleanupと互換性規則。設計のみ。 | `c4cb8b9` |
 | M2-S02 | todo | 3 | M2-S01 | G08 | 受理した取り出し形式のsource typing、affine／loan／region検査、MIR contractをcompile-pass／fail付きで実装。 | — |
 | M2-S03 | todo | 3 | M2-S02 | G06,G08 | 移譲時の新規確保なしにwhole-payload抽出を実行し、move後使用拒否、失敗cleanup、owned Bytes source fixtureを検証。 | — |
 | M2-V04 | todo | 3 | M2-V03,M2-S03 | G07,G08 | Bytes get／set／pushとUTF-8成功／失敗をソースから実行し、bounds／OOMを検証。 | — |

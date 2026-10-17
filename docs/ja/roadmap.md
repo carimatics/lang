@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み38件 · 進行中0件 · 残り53件（暫定136 pt）。**
+**検証済み39件 · 進行中0件 · 残り52件（暫定134 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから12件の実装が完了しました。Bytes sourceは `lang run` で `0` を表示し、通常／fuel failureのcleanupも実行します（`ece8690`）。次は変更core命令の前にowned Option／Result取り出しを解決します。V03の3 ptを完了し、監査で明示したRFC／compiler／runtime作業に8 pt、CFG block argumentに2 ptを追加しました。REPL、native実行、残りcore命令は各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む13件の成果を検証しました。Bytes sourceは `lang run` で `0` を表示し、通常／fuel failureのcleanupも実行します（`ece8690`）。[RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) でOption／Result全体の明示取り出しを受理しました（`c4cb8b9`）。次はsource／MIR contract（S02）、続いてownership移譲の実行（S03）を実装し、その後変更core命令へ進みます。S01完了で2 ptを減らし、残作業は136 → 134 ptです。新たなexit gateは完了扱いにしていません。REPL、native実行、残りcore命令は各gateに残します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
