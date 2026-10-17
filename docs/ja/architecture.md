@@ -115,11 +115,23 @@ Source生成unitは `lang_codegen_clif::unit` により既存native profileへ�
 
 Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと残入力の最小量を検証し、source／register／block／instructionの合計を通算します。Raw stringとoutput byteは共有128 MiBの要求byte budgetへ、structured vectorはさらに8,000,000要素のbudgetへ課金します。Decodeとverificationは1つの `Budget` を使います。Encodeは要求limitでcallerのprogramを再検証し、失敗可能なbudget付き比較でsortし、正確な出力長を割り当て前に計算し、2回目のpassで明示fieldを書き込みます。Verifier workに加え、readerのword／tag、最大1 KiBごとのUTF-8検証chunk、両passのwriter field、sort／index memberを課金します。11件のtestは固定88-byte golden、全opcode、global ID再配置、非連番register／CFG round trip、全切断、不正input、canonical reencode、通算budgetを含みます。`portable_bytecode_decoder` はraw byteとheader以降を変異させた有効payloadをfuzzし、compileとinstrumentationなしの10,000-run smokeが完了しました。Compilation-unit VMがこのartifactを利用します。このsmokeでinstrumented fuzz coverageは主張しません。
 
+### 解決済みownership型の性質
+
+2026-10-17実装：source bindingはRFC 0007のloan／shared／weak／arena prefixと有限の `core` 型群をcompilation単位のconstructor arenaへ解決します。構造的interningにより各annotationのspanとconstructor初出のspanを保持し、childはparentより前に置き、nominal参照の前方参照を許可します。未知core path、不正arity、user generic specializationには `SRC0024` を出します。この表現はin-memory HIRであり、serialized formatやABIを導入しません。
+
+`lang_hir::types::analyze` はCopy／drop、推移的なloan／arena／allocatorの有無、private型の由来を計算します。反復inline dependency探索でindirectionのない再帰layoutを拒否し、上限付き単調worklistで再帰する間接graphへ性質を伝播します。Copy／dropはfieldとOption／Resultを通じて伝播し、owning indirectionは独自の性質を持ちながらstorage／privacy制約を伝播します。通常loan／allocator authorityの格納、result型のescape、arenaを含むshared／weak payload、未対応Map key、public signatureへのprivate型露出を拒否します。ID、source span、member shape、declaration／member／depth／work／diagnostic上限、解析中に要求したallocation byteの通算を検証します。このallocation会計はcaller所有のHIR／source snapshot、allocator bookkeeping／fragmentation、固定の緊急errorを除き、process memory limitではありません。
+
+Source接続済みの11 testはconstructor identity／span、全core error型、間接再帰とinline循環、推移的storage／privacy error、不正foreign HIR、work／allocationの正確な境界、400定義のchain、独立した構造的Copy oracleと比較する200生成型を含みます。解決済みHIRのfuzz targetにも上限付き不正constructor graphを追加しました。型の性質の取得はbodyのmove／loan／region validityやlayoutを保証しません。両program-check entry pointは実行可能な `TypedProgram` の生成前に拡張profileを明示的に拒否します。Ownership body構文は引き続きspan付き `BindingError::UnsupportedSyntax` を返します。Core constructor／operation、move／loan／region flow、ownership MIR、実行は未完了です。
+
+CLIとrevision管理付きtoolingはtype-limit診断とsource snapshotを保持し、2件のintegration testで編集後の復帰と実行用lowering前の拒否も検証します。全fmt／Clippy／test／doc baselineが成功しました（554 test）。Lock済みfuzz workspaceがcompileし、解決済みHIR targetのinstrumentationなし10,000-run smokeが完了しました。Instrumented coverageのevidenceではありません。
+
+情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、`hir`／`semantics` 実装、source test、fuzz target。2026-10-17 JST更新／確認。実装事実と上限の記録であり、追加の言語判断ではありません。
+
 ### Source formatter
 
 2026-10-17に実装したRFC 0007構文拡張：lossless token／CSTで `&T`／`&mut T`、`shared T`／`weak T`／`arena T`、入れ子の組み込みtype argument、`::<...>` call、place borrow、括弧付きdereference、place assignment、allocatorを渡す字句的arena blockを表現します。Generic末尾の `>` は別tokenのままで、`<` 比較と符号付き整数のbehaviorを維持します。Prefix／type argumentの再帰とrecoveryは既存node／depth／list／work上限に従い、formatterはgeneric delimiterと比較を区別して新tokenの全境界間のcommentを保持します。
 
-従来の名前位置のownership予約語、`core` というdeclaration／import／local／pattern bindingには受理済み `SRC0024` を出し、予約module名はfile IOより前に拒否します。通常record fieldの `core` は許可します。Source bindingはwork budget付きで全CST nodeを事前確認し、対応HIRを実装するまでownership／type-argument構文にspan付き `BindingError::UnsupportedSyntax { span }` を返します。Borrowed primitive annotationを無視したり、旧実装のunreachable分岐へ進んだりしません。受理済み `SRC0020`–`SRC0024` の登録は全semantic checkの実装を意味しません。追加10 testで構文／precedence、ownership fixture全prefix、recovery／resource上限、comment保持のformatter／CST往復、migration、span付きbinding拒否を検証します。Ownership HIR／MIR、borrow validity、arena escape解析、組み込み型検査、実行は未完了です。
+従来の名前位置のownership予約語、`core` というdeclaration／import／local／pattern bindingには受理済み `SRC0024` を出し、予約module名はfile IOより前に拒否します。通常record fieldの `core` は許可します。Source bindingはwork budget付きで全CST nodeを事前確認し、対応HIRを実装するまでownership body operationにspan付き `BindingError::UnsupportedSyntax { span }` を返します。Type annotationには上記constructor／property passを使い、borrowed primitiveを通常primitiveへ落としません。受理済み `SRC0020`–`SRC0024` の登録は全semantic checkの実装を意味しません。10件のsyntax／migration testでprecedence、ownership fixture全prefix、recovery／resource上限、comment保持のformatter／CST往復、migration、span付きbinding拒否を検証します。Body ownership HIR／MIR、borrow validity、arena escape flow、core operation、実行は未完了です。
 
 情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、syntax／diagnostic／module／binding実装とtestは2026-10-17 JST更新／確認。受理済みsource profileの実装sliceで、新しい言語判断やownership解析の完了ではありません。
 

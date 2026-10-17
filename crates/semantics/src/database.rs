@@ -665,7 +665,9 @@ impl AnalysisJob {
         failure = match failure {
             Some(AnalysisFailure::Binding(BindingError::Limit(d)))
             | Some(AnalysisFailure::Typing(
-                CheckError::Limit(d) | CheckError::Layout(LayoutError::Limit(d)),
+                CheckError::Limit(d)
+                | CheckError::Layout(LayoutError::Limit(d))
+                | CheckError::Types(lang_hir::types::Error::Limit(d)),
             )) => {
                 diagnostics.push(*d);
                 None

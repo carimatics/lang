@@ -136,14 +136,8 @@ fn validate(sources: &SourceMap, program: &r::Program) {
 }
 
 #[test]
-fn parsed_ownership_forms_fail_with_spans_before_legacy_hir_assumptions() {
+fn ownership_body_forms_fail_with_spans_before_legacy_hir_assumptions() {
     for text in [
-        "fn f(x: &i64) -> i64 { return 0; }",
-        "fn f(x: &mut i64) -> i64 { return 0; }",
-        "fn f(x: shared Item) -> i64 { return 0; }",
-        "fn f(x: weak Item) -> i64 { return 0; }",
-        "fn f(x: arena Item) -> i64 { return 0; }",
-        "fn f(x: core::Vec<i64>) -> i64 { return 0; }",
         "fn f(x: i64) -> i64 { return &x; }",
         "fn f(x: i64) -> i64 { return (*x); }",
         "fn f(x: i64) -> i64 { x.field = 1; return 0; }",
@@ -191,6 +185,432 @@ fn rejects(text: &str, code: lang_diagnostics::DiagnosticCode) {
         "{text}: {:?}",
         analysis.diagnostics
     );
+}
+
+fn type_analysis(text: &str) -> (SourceMap, r::Program, lang_hir::types::Analysis) {
+    let (sources, program) = Files::new(text).program();
+    let analysis = lang_hir::types::analyze(&program, &sources, Default::default()).unwrap();
+    for diagnostic in &analysis.diagnostics {
+        diagnostic.validate(&sources).unwrap();
+    }
+    (sources, program, analysis)
+}
+
+#[test]
+fn source_types_are_interned_structurally_and_keep_each_use_span() {
+    let (sources, program, analysis) = type_analysis(
+        "struct Item { n: i64 } fn f(a: &mut core::Vec<shared Item>, b: &mut core::Vec<shared Item>, c: &Item, d: weak Item, e: arena Item) -> core::Unit { return 0; }",
+    );
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:?}",
+        analysis.diagnostics
+    );
+    let f = &program.functions[0];
+    let a = f.locals[0].annotation.unwrap();
+    let b = f.locals[1].annotation.unwrap();
+    assert_eq!(a.value_type, b.value_type);
+    assert_ne!(a.span, b.span);
+    assert_eq!(
+        sources.slice(a.span).unwrap(),
+        "&mut core::Vec<shared Item>"
+    );
+    let r::Type::Constructed(id) = a.value_type else {
+        panic!()
+    };
+    assert_eq!(program.types[id.0].span, a.span);
+    assert!(matches!(
+        program.types[id.0].constructor,
+        r::TypeConstructor::Loan(r::LoanKind::Exclusive, _)
+    ));
+    for (index, ty) in program.types.iter().enumerate() {
+        sources.slice(ty.span).unwrap();
+        for arg in ty.constructor.arguments() {
+            if let r::Type::Constructed(child) = arg {
+                assert!(child.0 < index);
+            }
+        }
+    }
+}
+
+#[test]
+fn builtin_copy_drop_and_region_properties_follow_the_source_profile() {
+    let (_, program, analysis) = type_analysis(
+        "struct C { x: core::Option<i64>, y: core::Result<bool, core::BoundsError> } struct O { x: core::Option<core::Text> } fn f(a: core::Bytes, b: core::Vec<i64>, c: core::Map<core::Text, bool>, d: shared C, e: weak C, f: arena core::Text, g: &core::Allocator) -> core::Unit { return 0; }",
+    );
+    let facts = analysis.facts.unwrap();
+    let copy = facts.get(r::Type::Nominal(r::DefinitionId(0))).unwrap();
+    let owned = facts.get(r::Type::Nominal(r::DefinitionId(1))).unwrap();
+    assert!(copy.is_copy && !copy.requires_drop);
+    assert!(!owned.is_copy && owned.requires_drop);
+    let f = &program.functions[0];
+    for local in &f.locals[..5] {
+        let properties = facts.get(local.annotation.unwrap().value_type).unwrap();
+        assert!(!properties.is_copy && properties.requires_drop);
+    }
+    let arena = facts
+        .get(f.locals[5].annotation.unwrap().value_type)
+        .unwrap();
+    assert!(arena.is_copy && arena.contains_arena && !arena.requires_drop);
+    let loan = facts
+        .get(f.locals[6].annotation.unwrap().value_type)
+        .unwrap();
+    assert!(loan.contains_loan && loan.contains_allocator && !loan.is_copy && !loan.requires_drop);
+    assert!(facts.get(f.result.value_type).unwrap().is_copy);
+    for name in [
+        "AllocError",
+        "BoundsError",
+        "BufferError",
+        "Utf8Error",
+        "OwnershipError",
+        "ArenaError",
+    ] {
+        let (_, p, a) = type_analysis(&format!("fn f(x: core::{name}) -> i64 {{ return 0; }}"));
+        let properties = a
+            .facts
+            .unwrap()
+            .get(p.functions[0].locals[0].annotation.unwrap().value_type)
+            .unwrap();
+        assert!(properties.is_copy && !properties.requires_drop, "{name}");
+    }
+}
+
+#[test]
+fn unsupported_builtin_specializations_are_source_diagnostics() {
+    for ty in [
+        "core::Unknown",
+        "core::Text<i64>",
+        "core::Vec",
+        "core::Result<i64>",
+        "core::Option<i64, bool>",
+        "core::Map<i64, bool, i64>",
+        "Item<i64>",
+        "core::Vec::Nested<i64>",
+    ] {
+        rejects(
+            &format!("struct Item {{ n: i64 }} fn f(x: {ty}) -> i64 {{ return 0; }}"),
+            codes::UNSUPPORTED_SPECIALIZATION,
+        );
+    }
+}
+
+#[test]
+fn recursive_indirection_is_finite_but_inline_cycles_are_rejected() {
+    for ty in [
+        "core::Vec<Node>",
+        "core::Map<i64, Node>",
+        "shared Node",
+        "weak Node",
+        "arena Node",
+    ] {
+        let (_, _, analysis) = type_analysis(&format!("struct Node {{ next: {ty} }}"));
+        assert!(analysis.facts.is_some(), "{ty}: {:?}", analysis.diagnostics);
+    }
+    for ty in ["Node", "core::Option<Node>", "core::Result<Node, i64>"] {
+        let (_, _, analysis) = type_analysis(&format!("struct Node {{ next: {ty} }}"));
+        assert!(analysis.facts.is_none());
+        assert!(
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == codes::INVALID_SHAPE)
+        );
+    }
+}
+
+#[test]
+fn type_storage_and_return_restrictions_precede_body_typing() {
+    for (text, code) in [
+        ("struct Bad { x: &i64 }", codes::INVALID_OWNERSHIP_TYPE),
+        (
+            "struct Bad { x: core::Vec<&i64> }",
+            codes::INVALID_OWNERSHIP_TYPE,
+        ),
+        (
+            "struct Bad { x: core::Allocator }",
+            codes::INVALID_OWNERSHIP_TYPE,
+        ),
+        (
+            "fn f(x: core::Allocator) -> i64 { return 0; }",
+            codes::INVALID_OWNERSHIP_TYPE,
+        ),
+        ("fn f() -> &i64 { return 0; }", codes::REGION_ESCAPE),
+        (
+            "fn f() -> core::Option<arena i64> { return 0; }",
+            codes::REGION_ESCAPE,
+        ),
+        (
+            "struct Node { children: core::Vec<Node>, token: arena i64 } struct Bad { x: shared Node }",
+            codes::REGION_ESCAPE,
+        ),
+        (
+            "struct Node { children: core::Vec<Node>, token: arena i64 } struct Bad { x: weak Node }",
+            codes::REGION_ESCAPE,
+        ),
+        (
+            "struct Bad { x: core::Map<bool, i64> }",
+            codes::UNSUPPORTED_SPECIALIZATION,
+        ),
+    ] {
+        let (sources, program, analysis) = type_analysis(text);
+        assert!(analysis.facts.is_none(), "{text}");
+        assert!(
+            analysis.diagnostics.iter().any(|d| d.code == code),
+            "{text}: {:?}",
+            analysis.diagnostics
+        );
+        let checked =
+            lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+        assert!(checked.program.is_none());
+    }
+    // Region-bearing owning containers are permitted locally; region-flow
+    // analysis must still prevent escaping a particular arena at body level.
+    let (_, _, good) = type_analysis(
+        "fn f(x: core::Vec<arena i64>, allocator: &core::Allocator) -> i64 { return 0; }",
+    );
+    assert!(good.facts.is_some());
+}
+
+#[test]
+fn nested_private_types_cannot_leak_through_public_signatures() {
+    rejects(
+        "struct Hidden { n: i64 } pub fn f(x: core::Vec<shared Hidden>) -> i64 { return 0; }",
+        codes::MODULE_ERROR,
+    );
+    let (sources, mut program, _) =
+        type_analysis("struct Hidden { n: i64 } struct Public { x: core::Vec<shared Hidden> }");
+    program.definitions[1].public = true;
+    let analysis = lang_hir::types::analyze(&program, &sources, Default::default()).unwrap();
+    assert!(analysis.facts.is_none());
+    let diagnostic = analysis
+        .diagnostics
+        .iter()
+        .find(|d| d.code == codes::MODULE_ERROR)
+        .unwrap();
+    assert_eq!(
+        diagnostic.secondary[0].span,
+        program.definitions[0].name.span
+    );
+}
+
+#[test]
+fn ownership_type_facts_do_not_authorize_executable_programs() {
+    let (sources, program, analysis) = type_analysis("fn f(x: &i64) -> i64 { return 0; }");
+    assert!(analysis.facts.is_some());
+    assert!(matches!(
+        lang_hir::program::check_program(program.clone(), &sources, Default::default()),
+        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+    ));
+    assert!(matches!(
+        lang_hir::program::check_expression_function(
+            program,
+            &sources,
+            Default::default(),
+            r::FunctionId(0)
+        ),
+        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
+    ));
+}
+
+#[test]
+fn source_type_work_allocation_instance_and_depth_limits_are_enforced() {
+    use lang_hir::types::{Error, Limits, analyze};
+    let (sources, program, analysis) = type_analysis(
+        "struct Node { next: core::Vec<Node>, text: core::Text } fn f(x: &Node) -> core::Unit { return 0; }",
+    );
+    let facts = analysis.facts.unwrap();
+    let exact = Limits {
+        work: facts.work_used(),
+        allocations: facts.allocation_bytes(),
+        ..Limits::default()
+    };
+    assert_eq!(
+        analyze(&program, &sources, exact).unwrap().facts.unwrap(),
+        facts
+    );
+    for limits in [
+        Limits {
+            work: facts.work_used() - 1,
+            ..Limits::default()
+        },
+        Limits {
+            allocations: facts.allocation_bytes() - 1,
+            ..Limits::default()
+        },
+        Limits {
+            constructed: program.types.len() - 1,
+            ..Limits::default()
+        },
+        Limits {
+            members: 1,
+            ..Limits::default()
+        },
+        Limits {
+            depth: 1,
+            ..Limits::default()
+        },
+    ] {
+        assert!(matches!(
+            analyze(&program, &sources, limits),
+            Err(Error::Limit(_))
+        ));
+    }
+    let (_, bound) =
+        Files::new("fn f(x: core::Vec<core::Text>) -> i64 { return 0; }").bind(BindingLimits {
+            types: 1,
+            ..BindingLimits::default()
+        });
+    assert!(matches!(bound, Err(BindingError::Limit(_))));
+    let (sources, bad) = Files::new("struct Bad { x: &i64 }").program();
+    assert!(matches!(
+        analyze(
+            &bad,
+            &sources,
+            Limits {
+                diagnostics: 0,
+                ..Limits::default()
+            }
+        ),
+        Err(Error::Limit(_))
+    ));
+}
+
+#[test]
+fn malformed_resolved_type_arenas_fail_structurally() {
+    use lang_hir::types::{Error, InputError, analyze};
+    let (sources, program, _) = type_analysis("fn f(x: core::Vec<i64>) -> i64 { return 0; }");
+    let mut bad = program.clone();
+    bad.types[0].constructor =
+        r::TypeConstructor::Vec(r::Type::Constructed(r::ConstructedTypeId(0)));
+    assert!(matches!(
+        analyze(&bad, &sources, Default::default()),
+        Err(Error::Input {
+            kind: InputError::ForwardConstructed(0),
+            ..
+        })
+    ));
+    bad.types[0].constructor = r::TypeConstructor::Vec(r::Type::Nominal(r::DefinitionId(99)));
+    assert!(matches!(
+        analyze(&bad, &sources, Default::default()),
+        Err(Error::Input {
+            kind: InputError::InvalidDefinition(99),
+            ..
+        })
+    ));
+    bad = program.clone();
+    bad.functions[0].parameters[0] = r::LocalId(99);
+    assert!(matches!(
+        analyze(&bad, &sources, Default::default()),
+        Err(Error::Input {
+            kind: InputError::InvalidParameter(99),
+            ..
+        })
+    ));
+    bad = program.clone();
+    bad.functions[0].module = r::ModuleId(99);
+    assert!(matches!(
+        analyze(&bad, &sources, Default::default()),
+        Err(Error::Input {
+            kind: InputError::InvalidModule(99),
+            ..
+        })
+    ));
+    bad = program.clone();
+    bad.functions[0].name.text = "wrong".into();
+    assert!(matches!(
+        analyze(&bad, &sources, Default::default()),
+        Err(Error::Input {
+            kind: InputError::NameTextMismatch,
+            ..
+        })
+    ));
+    bad = program.clone();
+    bad.types.clear();
+    assert!(matches!(
+        analyze(&bad, &sources, Default::default()),
+        Err(Error::Input {
+            kind: InputError::InvalidConstructed(0),
+            ..
+        })
+    ));
+    assert!(matches!(
+        lang_hir::program::check_program(bad, &sources, Default::default()),
+        Err(lang_hir::program::CheckError::Input {
+            kind: lang_hir::program::CheckInputErrorKind::InvalidConstructed(0),
+            ..
+        })
+    ));
+}
+
+#[test]
+fn long_nominal_property_chains_are_iterative_and_depth_bounded() {
+    let mut text = String::new();
+    for i in 0..400 {
+        text.push_str(&format!(
+            "struct N{i} {{ value: {} }}\n",
+            if i == 399 {
+                "core::Text".into()
+            } else {
+                format!("N{}", i + 1)
+            }
+        ));
+    }
+    let (sources, program) = Files::new(&text).program();
+    assert!(matches!(
+        lang_hir::types::analyze(&program, &sources, Default::default()),
+        Err(lang_hir::types::Error::Limit(_))
+    ));
+    let analysis = lang_hir::types::analyze(
+        &program,
+        &sources,
+        lang_hir::types::Limits {
+            depth: 512,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let facts = analysis.facts.unwrap();
+    assert!(
+        facts
+            .definitions()
+            .iter()
+            .all(|p| !p.is_copy && p.requires_drop)
+    );
+}
+
+#[test]
+fn generated_source_copy_properties_match_an_independent_structural_oracle() {
+    let mut text = String::new();
+    let mut expected = Vec::new();
+    let mut seed = 17u64;
+    for i in 0..200 {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let previous = if i == 0 { 0 } else { (seed as usize) % i };
+        let (ty, copy) = match if i == 0 { 0 } else { (seed >> 32) % 6 } {
+            0 => ("bool".into(), true),
+            1 => ("core::Text".into(), false),
+            2 => (format!("core::Option<N{previous}>"), expected[previous]),
+            3 => (
+                format!("core::Result<N{previous}, core::BoundsError>"),
+                expected[previous],
+            ),
+            4 => (format!("core::Vec<N{previous}>"), false),
+            _ => (format!("shared N{previous}"), false),
+        };
+        text.push_str(&format!("struct N{i} {{ x: {ty} }}\n"));
+        expected.push(copy);
+    }
+    let (_, _, analysis) = type_analysis(&text);
+    let facts = analysis.facts.unwrap();
+    for (properties, copy) in facts.definitions().iter().zip(expected) {
+        assert_eq!(properties.is_copy, copy);
+        assert_eq!(properties.requires_drop, !copy);
+        assert!(
+            !properties.contains_loan
+                && !properties.contains_arena
+                && !properties.contains_allocator
+        );
+    }
 }
 
 #[test]

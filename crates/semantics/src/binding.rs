@@ -25,6 +25,7 @@ pub struct BindingLimits {
     pub blocks: usize,
     pub diagnostics: usize,
     pub depth: usize,
+    pub types: usize,
 }
 impl Default for BindingLimits {
     fn default() -> Self {
@@ -36,6 +37,7 @@ impl Default for BindingLimits {
             blocks: 1_000_000,
             diagnostics: 4096,
             depth: 256,
+            types: 65_536,
         }
     }
 }
@@ -105,6 +107,8 @@ pub fn bind_program(
         functions: BTreeMap::new(),
         imports: BTreeMap::new(),
         significant: Vec::new(),
+        types: Vec::new(),
+        type_ids: BTreeMap::new(),
     };
     // Keep CST ranges lossless, but exclude leading trivia from semantic
     // ranges. Index once so long comment prefixes are not rescanned for every
@@ -121,9 +125,9 @@ pub fn bind_program(
             }
         }
         context.significant.push(starts);
-        // New accepted syntax must not reach RFC 0006-only assumptions (for
-        // example, treating a nested borrowed i64 as an ordinary i64). Keep a
-        // span-bearing failure until the ownership HIR implements each form.
+        // Ownership body operations still require move/loan HIR. Type
+        // constructors are resolved below, but body forms must fail with a
+        // span before reaching RFC 0006-only expression assumptions.
         for node in module.tree().nodes() {
             context
                 .charge(node.span(), 0)
@@ -133,16 +137,7 @@ pub fn bind_program(
                 })?;
             if matches!(
                 node.kind(),
-                S::LoanType
-                    | S::SharedType
-                    | S::WeakType
-                    | S::ArenaType
-                    | S::TypeArguments
-                    | S::SpecializedCall
-                    | S::Borrow
-                    | S::Dereference
-                    | S::PlaceAssign
-                    | S::Arena
+                S::SpecializedCall | S::Borrow | S::Dereference | S::PlaceAssign | S::Arena
             ) {
                 return Err(BindingError::UnsupportedSyntax { span: node.span() });
             }
@@ -209,6 +204,7 @@ pub fn bind_program(
     let program = context.diagnostics.is_empty().then_some(r::Program {
         modules,
         definitions,
+        types: context.types,
         imports,
         functions,
     });
@@ -232,6 +228,8 @@ struct Context<'a> {
     definitions: BTreeMap<ItemId, r::DefinitionId>,
     functions: BTreeMap<ItemId, r::FunctionId>,
     imports: BTreeMap<ItemId, r::ImportId>,
+    types: Vec<r::ConstructedType>,
+    type_ids: BTreeMap<r::TypeConstructor, r::ConstructedTypeId>,
 }
 
 #[derive(Clone, Copy)]
@@ -342,9 +340,68 @@ impl<'a> Context<'a> {
         }
     }
     fn ty(&mut self, module: ModuleId, syntax: NodeId, public: bool) -> BindResult<r::TypeUse> {
+        self.ty_at(module, syntax, public, 0)
+    }
+    fn intern(&mut self, constructor: r::TypeConstructor, span: Span) -> BindResult<r::TypeUse> {
+        self.charge(span, 0)?;
+        let id = if let Some(id) = self.type_ids.get(&constructor) {
+            *id
+        } else {
+            if self.types.len() >= self.limits.types {
+                return Err(self.limit(span, "constructed type instance limit exceeded"));
+            }
+            self.types
+                .try_reserve(1)
+                .map_err(|_| self.limit(span, "constructed type allocation failed"))?;
+            let id = r::ConstructedTypeId(self.types.len());
+            self.types.push(r::ConstructedType { constructor, span });
+            self.type_ids.insert(constructor, id);
+            id
+        };
+        Ok(r::TypeUse {
+            value_type: r::Type::Constructed(id),
+            span,
+        })
+    }
+    fn ty_at(
+        &mut self,
+        module: ModuleId,
+        syntax: NodeId,
+        public: bool,
+        depth: usize,
+    ) -> BindResult<r::TypeUse> {
         let tree = self.tree(module);
         let span = self.semantic_span(module, syntax)?;
-        self.charge(span, 0)?;
+        self.charge(span, depth)?;
+        if let Some(modifier) = child_nodes(tree, syntax).find(|id| {
+            matches!(
+                tree.node(*id).unwrap().kind(),
+                S::LoanType | S::SharedType | S::WeakType | S::ArenaType
+            )
+        }) {
+            let node = tree.node(modifier).unwrap();
+            let inner = child_nodes(tree, modifier)
+                .next()
+                .expect("parsed modifier has a type");
+            let kind = node.kind();
+            let mutable = direct_tokens(tree, modifier).any(|t| t.kind == K::Mut);
+            let inner = self.ty_at(module, inner, public, depth + 1)?.value_type;
+            let constructor = match kind {
+                S::LoanType => r::TypeConstructor::Loan(
+                    if mutable {
+                        r::LoanKind::Exclusive
+                    } else {
+                        r::LoanKind::Shared
+                    },
+                    inner,
+                ),
+                S::SharedType => r::TypeConstructor::Shared(inner),
+                S::WeakType => r::TypeConstructor::Weak(inner),
+                S::ArenaType => r::TypeConstructor::Arena(inner),
+                _ => unreachable!(),
+            };
+            return self.intern(constructor, span);
+        }
         for token in direct_tokens(tree, syntax) {
             match token.kind {
                 K::I64 => {
@@ -363,6 +420,84 @@ impl<'a> Context<'a> {
             }
         }
         let path = first_path(tree, syntax);
+        let arguments =
+            child_nodes(tree, syntax).find(|id| tree.node(*id).unwrap().kind() == S::TypeArguments);
+        let names: Vec<_> = direct_tokens(tree, path)
+            .filter(|t| t.kind == K::Identifier)
+            .map(|t| self.sources.slice(t.span).expect("validated source token"))
+            .collect();
+        if names.first() == Some(&"core") {
+            let name = if let [_, name] = names.as_slice() {
+                *name
+            } else {
+                return self.fail(
+                    codes::UNSUPPORTED_SPECIALIZATION,
+                    span,
+                    "unknown core type path",
+                    None,
+                );
+            };
+            let arity = match name {
+                "Option" | "Vec" => 1,
+                "Result" | "Map" => 2,
+                _ if r::BuiltinType::from_name(name).is_some() => 0,
+                _ => {
+                    return self.fail(
+                        codes::UNSUPPORTED_SPECIALIZATION,
+                        span,
+                        "unknown core type",
+                        None,
+                    );
+                }
+            };
+            let mut parts = [None, None];
+            let mut count = 0usize;
+            if let Some(arguments) = arguments {
+                for node in child_nodes(tree, arguments) {
+                    self.charge(tree.node(node).unwrap().span(), depth)?;
+                    if count >= 2 {
+                        return self.fail(
+                            codes::UNSUPPORTED_SPECIALIZATION,
+                            span,
+                            "invalid built-in type arity",
+                            None,
+                        );
+                    }
+                    parts[count] = Some(node);
+                    count += 1;
+                }
+            }
+            if count != arity || (arity == 0 && arguments.is_some()) {
+                return self.fail(
+                    codes::UNSUPPORTED_SPECIALIZATION,
+                    span,
+                    "invalid built-in type arity",
+                    None,
+                );
+            }
+            let mut values = [r::Type::I64; 2];
+            for i in 0..arity {
+                values[i] = self
+                    .ty_at(module, parts[i].unwrap(), public, depth + 1)?
+                    .value_type;
+            }
+            let constructor = match name {
+                "Option" => r::TypeConstructor::Option(values[0]),
+                "Result" => r::TypeConstructor::Result(values[0], values[1]),
+                "Vec" => r::TypeConstructor::Vec(values[0]),
+                "Map" => r::TypeConstructor::Map(values[0], values[1]),
+                _ => r::TypeConstructor::Builtin(r::BuiltinType::from_name(name).unwrap()),
+            };
+            return self.intern(constructor, span);
+        }
+        if arguments.is_some() {
+            return self.fail(
+                codes::UNSUPPORTED_SPECIALIZATION,
+                span,
+                "only built-in core types take type arguments",
+                None,
+            );
+        }
         let target = self.resolve(module, path)?;
         if let ResolvedName::Item(id) = target
             && let Some(definition) = self.definitions.get(&id).copied()

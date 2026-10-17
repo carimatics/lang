@@ -192,6 +192,7 @@ fn only_the_expression_wrapper_result_is_inferred_from_checked_facts() {
         assert_eq!(
             unit.unit().functions[0].signature.result,
             match expected {
+                r::Type::Constructed(_) => panic!("fixture only covers RFC 0006 types"),
                 r::Type::I64 => m::Type::I64,
                 r::Type::Bool => m::Type::Bool,
                 r::Type::Nominal(_) =>

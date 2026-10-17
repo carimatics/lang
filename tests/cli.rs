@@ -26,6 +26,49 @@ fn stderr(output: &Output) -> String {
 }
 
 #[test]
+fn ownership_source_analysis_preserves_limit_and_type_error_snapshots() {
+    let text = b"fn f(x: &i64) -> i64 { return 0; }";
+    let mut limits = CompileLimits::default();
+    limits.typing.types.work = 0;
+    let limited = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("ownership.lang"),
+        text,
+        None,
+        limits,
+        None,
+    );
+    assert!(matches!(limited.result, Err(AnalysisError::Diagnostics)));
+    assert_eq!(limited.diagnostics[0].code, codes::RESOURCE_LIMIT);
+    limited.diagnostics[0].validate(&limited.sources).unwrap();
+    let rejected = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("ownership.lang"),
+        b"fn f() -> &i64 { return 0; }",
+        None,
+        Default::default(),
+        None,
+    );
+    assert!(matches!(rejected.result, Err(AnalysisError::Diagnostics)));
+    assert_eq!(rejected.diagnostics[0].code, codes::REGION_ESCAPE);
+    rejected.diagnostics[0].validate(&rejected.sources).unwrap();
+    let pending = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("ownership.lang"),
+        text,
+        None,
+        Default::default(),
+        None,
+    );
+    let Err(AnalysisError::Typing(lang_hir::program::CheckError::OwnershipProfile { span })) =
+        pending.result
+    else {
+        panic!()
+    };
+    assert_eq!(pending.sources.slice(span).unwrap(), "&i64");
+}
+
+#[test]
 fn scripts_print_one_signed_value_and_success_is_not_the_return_exit_code() {
     for (source, expected) in [
         ("fn main() -> i64 { return 42; }", "42\n"),

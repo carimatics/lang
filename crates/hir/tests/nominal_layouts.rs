@@ -19,6 +19,7 @@ fn record(sources: &mut SourceMap, name: &str, fields: &[(&str, r::Type)]) -> r:
             r::Type::I64 => "i64",
             r::Type::Bool => "bool",
             r::Type::Nominal(_) => "Other",
+            r::Type::Constructed(_) => "core::Text",
         });
         positions.push((start..end, type_start..text.len(), *ty));
     }

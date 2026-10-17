@@ -158,6 +158,9 @@ impl<'a> Search<'a, '_> {
             return Ok(vec![constructor]);
         }
         match state.types[0] {
+            r::Type::Constructed(_) => Err(CheckError::OwnershipProfile {
+                span: self.function.span,
+            }),
             r::Type::Bool => Ok(vec![
                 Constructor::Boolean(false),
                 Constructor::Boolean(true),

@@ -24,6 +24,7 @@ pub enum LowerError {
     UninitializedLocal(usize),
     Depth,
     Capacity,
+    UnsupportedConstructedType(r::ConstructedTypeId),
 }
 impl From<m::Error> for LowerError {
     fn from(e: m::Error) -> Self {
@@ -86,6 +87,7 @@ fn text(budget: &mut m::Budget, value: &str) -> Result<String> {
 }
 fn ty(program: &r::Program, value: r::Type) -> Result<m::Type> {
     Ok(match value {
+        r::Type::Constructed(id) => return Err(LowerError::UnsupportedConstructedType(id)),
         r::Type::I64 => m::Type::I64,
         r::Type::Bool => m::Type::Bool,
         r::Type::Nominal(d) => match program.definitions[d.0].kind {

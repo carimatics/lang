@@ -1,4 +1,4 @@
-//! Backend-independent, name-resolved input for RFC 0006 program typing.
+//! Backend-independent, name-resolved input for RFC 0006/0007 program analysis.
 //!
 //! This is an in-memory compiler IR, not a serialized or executable artifact.
 //! Types in signatures and annotations name declarations; expression, pattern,
@@ -30,11 +30,101 @@ pub struct PatternId(pub usize);
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct BlockId(pub usize);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Type {
     I64,
     Bool,
     Nominal(DefinitionId),
+    Constructed(ConstructedTypeId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ConstructedTypeId(pub usize);
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum LoanKind {
+    Shared,
+    Exclusive,
+}
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum BuiltinType {
+    Unit,
+    Text,
+    Bytes,
+    Allocator,
+    AllocError,
+    BoundsError,
+    BufferError,
+    Utf8Error,
+    OwnershipError,
+    ArenaError,
+}
+impl BuiltinType {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Unit => "Unit",
+            Self::Text => "Text",
+            Self::Bytes => "Bytes",
+            Self::Allocator => "Allocator",
+            Self::AllocError => "AllocError",
+            Self::BoundsError => "BoundsError",
+            Self::BufferError => "BufferError",
+            Self::Utf8Error => "Utf8Error",
+            Self::OwnershipError => "OwnershipError",
+            Self::ArenaError => "ArenaError",
+        }
+    }
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::Unit,
+            Self::Text,
+            Self::Bytes,
+            Self::Allocator,
+            Self::AllocError,
+            Self::BoundsError,
+            Self::BufferError,
+            Self::Utf8Error,
+            Self::OwnershipError,
+            Self::ArenaError,
+        ]
+        .into_iter()
+        .find(|b| b.name() == name)
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum TypeConstructor {
+    Builtin(BuiltinType),
+    Option(Type),
+    Result(Type, Type),
+    Vec(Type),
+    Map(Type, Type),
+    Shared(Type),
+    Weak(Type),
+    Arena(Type),
+    Loan(LoanKind, Type),
+}
+impl TypeConstructor {
+    pub fn arguments(self) -> impl Iterator<Item = Type> {
+        let pair = match self {
+            Self::Builtin(_) => [None, None],
+            Self::Option(t)
+            | Self::Vec(t)
+            | Self::Shared(t)
+            | Self::Weak(t)
+            | Self::Arena(t)
+            | Self::Loan(_, t) => [Some(t), None],
+            Self::Result(t, e) | Self::Map(t, e) => [Some(t), Some(e)],
+        };
+        pair.into_iter().flatten()
+    }
+}
+/// Interned by constructor identity. The first written occurrence supplies the
+/// constructor span; every individual annotation retains its own TypeUse span.
+/// Constructed arguments refer only to earlier entries; named definitions can
+/// refer forward and may recurse through explicit indirection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ConstructedType {
+    pub constructor: TypeConstructor,
+    pub span: Span,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -247,6 +337,7 @@ pub struct Function {
 pub struct Program {
     pub modules: Vec<Module>,
     pub definitions: Vec<Definition>,
+    pub types: Vec<ConstructedType>,
     pub imports: Vec<HostImport>,
     pub functions: Vec<Function>,
 }

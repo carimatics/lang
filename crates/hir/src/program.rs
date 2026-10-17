@@ -14,11 +14,13 @@ use crate::{
     layout::{LayoutError, LayoutLimits, ValueLayout, analyze_layouts},
     resolved as r,
     source::Name,
+    types,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CheckLimits {
     pub layout: LayoutLimits,
+    pub types: types::Limits,
     pub modules: usize,
     pub functions: usize,
     pub imports: usize,
@@ -36,6 +38,7 @@ impl Default for CheckLimits {
     fn default() -> Self {
         Self {
             layout: LayoutLimits::default(),
+            types: types::Limits::default(),
             modules: 256,
             functions: 4096,
             imports: 4096,
@@ -66,6 +69,7 @@ pub enum CheckInputErrorKind {
     InvalidId { arena: ArenaKind, index: usize },
     InvalidModule(usize),
     InvalidDefinition(usize),
+    InvalidConstructed(usize),
     InvalidFunction(usize),
     InvalidImport(usize),
     InvalidCase(usize),
@@ -88,6 +92,10 @@ pub enum CheckError {
         span: Option<Span>,
     },
     Layout(LayoutError),
+    Types(types::Error),
+    OwnershipProfile {
+        span: Span,
+    },
     Limit(Box<Diagnostic>),
 }
 impl Display for CheckError {
@@ -95,6 +103,10 @@ impl Display for CheckError {
         match self {
             Self::Input { kind, .. } => write!(f, "invalid resolved program: {kind:?}"),
             Self::Layout(e) => Display::fmt(e, f),
+            Self::Types(e) => Display::fmt(e, f),
+            Self::OwnershipProfile { .. } => {
+                f.write_str("ownership source bodies require the pending move/loan checker")
+            }
             Self::Limit(d) => write!(f, "{}: {}", d.code.as_str(), d.message),
         }
     }
@@ -193,6 +205,16 @@ fn check_program_internal(
     limits: CheckLimits,
     infer: Option<r::FunctionId>,
 ) -> Result<ProgramAnalysis, CheckError> {
+    if let Some(first) = source.types.first() {
+        let analysis = types::analyze(&source, sources, limits.types).map_err(CheckError::Types)?;
+        if analysis.facts.is_none() {
+            return Ok(ProgramAnalysis {
+                program: None,
+                diagnostics: analysis.diagnostics,
+            });
+        }
+        return Err(CheckError::OwnershipProfile { span: first.span });
+    }
     let mut context = Context {
         source: &source,
         sources,
@@ -376,6 +398,7 @@ impl<'a> Context<'a> {
             r::Type::I64 => "i64",
             r::Type::Bool => "bool",
             r::Type::Nominal(id) => &self.source.definitions[id.0].qualified_name,
+            r::Type::Constructed(_) => "ownership type",
         }
     }
     fn expect(
@@ -441,6 +464,12 @@ impl<'a> Context<'a> {
         self.within(owner, ty.span)?;
         self.charge(ty.span)?;
         match ty.value_type {
+            r::Type::Constructed(id) => {
+                return Err(input(
+                    CheckInputErrorKind::InvalidConstructed(id.0),
+                    Some(ty.span),
+                ));
+            }
             r::Type::Nominal(id) => {
                 let definition = self.source.definitions.get(id.0).ok_or_else(|| {
                     input(CheckInputErrorKind::InvalidDefinition(id.0), Some(ty.span))

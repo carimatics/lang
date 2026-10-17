@@ -11,6 +11,7 @@ pub mod layout;
 pub mod program;
 pub mod resolved;
 pub mod source;
+pub mod types;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;

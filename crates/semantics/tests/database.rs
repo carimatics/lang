@@ -429,6 +429,27 @@ fn parser_and_module_cache_limits_recover_after_the_input_becomes_small() {
 }
 
 #[test]
+fn ownership_type_limit_is_a_revision_safe_source_diagnostic() {
+    let d = Directory::new();
+    let mut limits = Limits::default();
+    limits.typing.types.work = 0;
+    let mut db = Database::new(None, limits).unwrap();
+    let main = open(
+        &mut db,
+        &d.file("main.lang"),
+        "fn f(x: &i64) -> i64 { return 0; }",
+    );
+    let snapshot = db.analyze(&main).unwrap();
+    assert_eq!(snapshot.status, AnalysisStatus::Diagnostics);
+    assert!(snapshot.error.is_none());
+    assert_eq!(snapshot.diagnostics[0].code, codes::RESOURCE_LIMIT);
+    snapshot.diagnostics[0].validate(&snapshot.sources).unwrap();
+    db.change(&main, Arc::from(&b"fn f() -> i64 { return 0; }"[..]))
+        .unwrap();
+    assert_eq!(db.analyze(&main).unwrap().status, AnalysisStatus::Valid);
+}
+
+#[test]
 fn closing_a_document_releases_cache_capacity_and_retries_previous_resource_failures() {
     let d = Directory::new();
     let mut probe = Database::new(None, Limits::default()).unwrap();

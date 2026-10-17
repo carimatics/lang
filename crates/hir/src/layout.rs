@@ -51,6 +51,7 @@ pub enum LayoutInputErrorKind {
     Source(SourceError),
     NameTextMismatch,
     InvalidDefinition(usize),
+    ConstructedTypeRequiresProgramAnalysis,
     DuplicateQualifiedName,
     SpanOutsideDefinition,
 }
@@ -308,6 +309,12 @@ impl Analyzer<'_> {
             for reference in type_uses(definition) {
                 self.contained(definition.span, reference.span)?;
                 self.charge(reference.span)?;
+                if matches!(reference.value_type, r::Type::Constructed(_)) {
+                    return Err(LayoutError::Input {
+                        kind: LayoutInputErrorKind::ConstructedTypeRequiresProgramAnalysis,
+                        span: reference.span,
+                    });
+                }
                 if let r::Type::Nominal(id) = reference.value_type
                     && id.0 >= self.definitions.len()
                 {
@@ -328,6 +335,7 @@ impl Analyzer<'_> {
         match reference.value_type {
             r::Type::I64 | r::Type::Bool => Some(ValueLayout { cells: 1, depth: 1 }),
             r::Type::Nominal(id) => layouts[id.0],
+            r::Type::Constructed(_) => None,
         }
     }
     fn sum<'a>(
