@@ -18,6 +18,13 @@ lang-mir = { path = "../crates/mir" }
 lang-vm = { path = "../crates/vm" }
 
 [[bin]]
+name = "core_buffers"
+path = "fuzz_targets/core_buffers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "portable_bytecode_decoder"
 path = "fuzz_targets/portable_bytecode_decoder.rs"
 test = false

@@ -2,6 +2,7 @@
 
 pub mod allocation;
 pub mod arena;
+pub mod buffer;
 pub mod cleanup;
 pub mod component;
 pub mod layout;

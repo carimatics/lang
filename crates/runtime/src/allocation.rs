@@ -26,6 +26,30 @@ pub struct Handle {
     generation: u64,
 }
 impl Handle {
+    /// Toolchain-private managed token, never an artifact/ABI encoding.
+    pub(crate) fn token(self) -> [u8; 24] {
+        let mut bytes = [0; 24];
+        bytes[..8].copy_from_slice(&self.allocator.0.to_le_bytes());
+        bytes[8..12].copy_from_slice(&self.slot.to_le_bytes());
+        bytes[16..].copy_from_slice(&self.generation.to_le_bytes());
+        bytes
+    }
+    pub(crate) fn from_token(bytes: [u8; 24]) -> Result<Self, Error> {
+        if bytes[12..16] != [0; 4] {
+            return Err(Error::InvalidStorage);
+        }
+        let allocator = u64::from_le_bytes(bytes[..8].try_into().expect("fixed token"));
+        let slot = u32::from_le_bytes(bytes[8..12].try_into().expect("fixed token"));
+        let generation = u64::from_le_bytes(bytes[16..].try_into().expect("fixed token"));
+        if allocator == 0 || generation == 0 {
+            return Err(Error::StaleHandle);
+        }
+        Ok(Self {
+            allocator: Identity(allocator),
+            slot,
+            generation,
+        })
+    }
     pub const fn allocator(self) -> Identity {
         self.allocator
     }
@@ -413,6 +437,49 @@ impl<P: Provider> Allocator<P> {
     pub fn release(&mut self, handle: Handle) -> Result<(), Error> {
         let index = self.index(handle)?;
         self.release_index(index);
+        Ok(())
+    }
+    /// Copy validated ranges without a temporary guest allocation. Both live
+    /// identities and both ranges are checked before mutation.
+    pub(crate) fn copy_bytes(
+        &mut self,
+        source: Handle,
+        from: usize,
+        target: Handle,
+        to: usize,
+        len: usize,
+    ) -> Result<(), Error> {
+        let source_index = self.index(source)?;
+        let target_index = self.index(target)?;
+        let end = from.checked_add(len).ok_or(Error::Overflow)?;
+        let target_end = to.checked_add(len).ok_or(Error::Overflow)?;
+        if end > self.request(source)?.bytes as usize
+            || target_end > self.request(target)?.bytes as usize
+        {
+            return Err(Error::InvalidStorage);
+        }
+        if len == 0 {
+            return Ok(());
+        }
+        if source_index == target_index {
+            self.bytes_mut(target)?.copy_within(from..end, to);
+        } else {
+            let (source, target) = if source_index < target_index {
+                let (left, right) = self.slots.split_at_mut(target_index);
+                (
+                    left[source_index].as_ref().unwrap(),
+                    right[0].as_mut().unwrap(),
+                )
+            } else {
+                let (left, right) = self.slots.split_at_mut(source_index);
+                (
+                    right[0].as_ref().unwrap(),
+                    left[target_index].as_mut().unwrap(),
+                )
+            };
+            target.region.as_mut().expect("nonzero copy").bytes_mut()[to..target_end]
+                .copy_from_slice(&source.region.as_ref().expect("nonzero copy").bytes()[from..end]);
+        }
         Ok(())
     }
     fn release_index(&mut self, index: usize) {

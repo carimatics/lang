@@ -445,6 +445,26 @@ Fixtureのtokenはhost test registryで実際のshared ownerへ解決します�
 
 出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Layout compiler](../../crates/runtime/src/layout.rs)、[storage予約／retirement](../../crates/runtime/src/layout/storage.rs)、[source／runtime統合test](../../tests/owned_layout.rs)、[ownership type fuzz target](../../fuzz/fuzz_targets/ownership_mir_types.rs)の更新／検証日：2026-10-18 JST。
 
+### Allocatorを使うBytes／Textとtoken cleanup
+
+実装／検証日：2026-10-18 JST。`lang_runtime::buffer`は明示的instance allocatorを通してRFC 0007のBytes／Text runtime operationを提供します。Bufferの24-byte length／capacity／kind headerとpayload capacityをalignment 8の1つのfallible allocationへ置き、headerとcapacityの両方をrequested storageへ計上します。空の値も実際のheader allocationとallocator権限を保持します。Lengthは非負i64に収め、負／範囲外indexを拒否し、byte変更は0..=255以外の整数を切り詰めや部分変更なしで拒否します。
+
+`Bytes::take_text`はUTF-8を検証し、domainの成功／失敗の両方でBytesを消費します。最初の不正sequenceのbyte offsetを報告し、成功時は確保／copyなしで同じstorage／allocator／generationを移譲します。不正入力は一度だけ解放します。Text lengthはbyte数、等価性は正確なUTF-8 byte列で判定し、連結時に正規化しません。明示的host byte入力には`from_slice`を使い、source literal構文は変更しません。回復可能なallocation／bounds／byte／UTF-8 resultと、allocator権限、古いhandle、storageのfaultを区別します。Runtime preflight拒否時は、外側のfailure cleanupが処理できるようownerを保持します。
+
+Pushは元のallocatorで幾何的に増やすreplacement capacityをprepareし、copy／公開前に旧値と新値が同時に生存するrequested storageを予約します。失敗時は元のhandle、length、bytesを維持し、cumulativeの試行課金も維持します。Clone、TextからBytesへのcopy、連結は独立ownerを作ります。同一instance内のmethodは一時guest vectorなしで検査済み範囲をcopyし、明示的な別allocator向けmethodはsource ownerを検証してtarget権限へ課金します。その後のgrow／releaseでもresult固有のallocatorを維持します。
+
+Privateな32-byte managed tokenは、検査するallocator／slot／generation identityとbuffer kindを保持します。変換時はreserved bit、元のrequest size／alignment、headerの範囲とkindを検査し、Text tokenの受け入れではUTF-8も検査します。Preflight成功後にだけtoken bytesを消費し、cleanupはtrusted deallocation前に義務を消費します。これはruntime内部dataであり、artifact encoding、sourceのownership権限、foreign pointer表現ではありません。Move／loan／type proofは引き続き必要で、token bytesのcopyでは代替できません。Rust owner wrapperも暗黙のRust破棄ではなく、entry ledgerによる明示cleanupを使います。
+
+`buffer::cleanup_token`は検査済みBytes／Text leafをinstance allocatorで直接解決します。予約済みaggregate cleanup engineは、従来のshared-owner test registryを使わず実際のbufferを処理できるようになりました。Source生成record／enum layoutは実際のinitializer順／spanとCopy fieldを保持し、共有Contextを使って処理を続け、親のpayload／retirement regionより先にbuffer storageを解放します。Aggregate storageのpreflight失敗時は、評価済みtemporaryを生成failure cleanup経路が処理できる状態に保ちます。
+
+追加13 testは、全buffer operation、不正index／byte、空の値の権限、UTF-8境界と消費するerror、同一storageの移譲、growのOOM／quota時の保持、正確なrequested-byte課金、別allocatorへの明示clone／変換／連結、tokenのkind／別allocator／reserved bit／古いhandleの拒否、実際のsource record／enum cleanupを検証します。独立byte-vector／UTF-8 oracleで128 stepのedit生成列を100件照合します。新しい`core_buffers` fuzz targetは上限付きoperation列、allocation-limitの結果、byte／UTF-8 oracle、破損tokenの拒否を検査します。
+
+検証：workspace全930 testと必須fmt／Clippy／doc baselineが成功しました。Fuzz targetのformat／全bin locked Clippyと、`core_buffers`の非instrumented smoke 10,000回も成功しました。Smokeはsanitizerやcoverage-guidedのevidenceではありません。
+
+Production ownership VM／native dispatch、managedなUnit／Option／Resultのmarshalling、動的Vec／Map／shared／arenaのpayloadとretirement adapter、serialized ownership artifact、cross-mode conformanceは引き続き必要です。既存の`lang run`／REPL実行境界は変えず、このruntime serviceだけでText／Bytes source-operation成果が完了したとはしません。
+
+出典：[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)と[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)の最終更新日：2026-10-17。[Buffer service](../../crates/runtime/src/buffer.rs)、[allocator token／range helper](../../crates/runtime/src/allocation.rs)、[runtime test](../../crates/runtime/tests/buffer.rs)、[source cleanup統合](../../tests/buffer_cleanup.rs)、[buffer fuzz target](../../fuzz/fuzz_targets/core_buffers.rs)の更新／検証日：2026-10-18 JST。
+
 ### Source analysis profileとdriver境界
 
 実装／検証日：2026-10-18 JST。`lang_hir::program::analyze_program`は検査済みCopy program、またはprivateなregion検査済みHIR bodyを保持するownership programを返します。互換entry pointの`check_program`と`check_expression_function`は引き続きCopy execution profileを要求します。成功したownership解析は保持され、再実行したり未対応の言語機能として報告したりしません。
