@@ -36,13 +36,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 0 pt | 113 pt | 0.0% |
+| 2 — ownershipとnative AOT | 8 pt | 113 pt | 7.1% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **298 pt** | **764 pt** | **39.0%** |
+| **全体** | **306 pt** | **764 pt** | **40.1%** |
 
 ## Milestone 0：設計baseline
 
@@ -218,7 +218,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**進捗：0 / 113 pt（0.0%）。**
+**進捗：8 / 113 pt（7.1%）。**
 
 開始条件：RFC 0006の実装済みcopy-value profileとcompatibility fixtureを基準とします。RFC 0004のstate modelはsource構文、production allocation、ABIを規定しません。対応する設計決定を受理してから依存する実装を進め、core-library sliceはRFCで最小要件が定まった時点で再見積もりします。
 
@@ -232,7 +232,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [ ] **P0 — 受理済みsource／allocator profileに従ってallocator-aware standard containerを実装する。** — 8 pt
 - [ ] **P0 — 狭いunsafe boundaryを定義し、FFI validity ruleを強制する。** — 5 pt
 - [ ] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
-- [ ] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
+- [x] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
 - [ ] **P0 — macOS AArch64／Windows x86-64向けownership-aware source-program object generationとnative link／run conformanceを完成させる。** — 8 pt
 - [ ] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
 - [ ] **P0 — 代表的なVM／native differential conformance suiteを構築する。** — 8 pt
@@ -240,6 +240,10 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。
+
+2026-10-17 JSTに確認した実装evidence：commit `926fb3b` はRFC 0006のcopy-value全12命令を扱う `lang-codegen-clif::program` のunit全体JIT／object loweringを追加しました。10件のfocused testでcanonical wire往復、前方／相互call、boolと入れ子aggregateのinterface、structural／literal pattern、loop join／self-edge swap、host評価順序／preflight、不正入力／projection、compile budget／frame capacity、複数fileのspan、Mach-O／COFF生成、macOSでのdirect／response-file link／runを検証します。Fmt／Clippy／test／docのfull baselineは515 testすべてpassしました。従来のscalar／owned compatibility adapterも維持します。新しいWindows native実行、ownership-aware object、公開C ABI／header、完全なsource debug format、production packaging、代表的performance／conformanceは、それぞれの未完了成果として残ります。
+
+このscope後のroadmap確認：113 pt総計と全decision gateは引き続き適切です。今回の受理済みcopy-value実装はsource ownershipの判断に依存せず、その完了によってownership／core-libraryやproduction AOTのtaskを完了扱いにはしません。次は判断可能なownership／core-library profileとcleanup／allocator／FFI profileを定義し、可能な部分では受理済みRFC 0004のruntime作業を独立に進めます。暗黙のacceptance／stabilizationは記録しません。
 
 ## Milestone 3：concurrencyとembedding
 

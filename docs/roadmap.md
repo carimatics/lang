@@ -36,13 +36,13 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 0 pt | 113 pt | 0.0% |
+| 2 — ownership and native AOT | 8 pt | 113 pt | 7.1% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **298 pt** | **764 pt** | **39.0%** |
+| **Overall** | **306 pt** | **764 pt** | **40.1%** |
 
 ## Milestone 0: design baseline
 
@@ -218,7 +218,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 0 / 113 pt (0.0%).**
+**Progress: 8 / 113 pt (7.1%).**
 
 Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFC 0004's state models do not specify source grammar, production allocation, or an ABI. Complete the corresponding decision gate before each dependent implementation; re-estimate the core-library slice after its RFC fixes the minimal requirements.
 
@@ -232,7 +232,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [ ] **P0 — Implement allocator-aware standard containers against the accepted source and allocator profiles.** — 8 pt
 - [ ] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
 - [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
-- [ ] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
+- [x] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
 - [ ] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
 - [ ] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
 - [ ] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
@@ -240,6 +240,10 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
+
+Implementation evidence verified 2026-10-17 JST: commit `926fb3b` adds `lang-codegen-clif::program` whole-unit JIT/object lowering for all twelve RFC 0006 copy-value operations. Ten focused tests cover canonical wire round trips, forward/mutual calls, bool and nested aggregate interfaces, structural/literal patterns, loop joins and self-edge swaps, host evaluation order/preflight, invalid inputs/projections, compile budgets/frame capacity, multi-file spans, both Mach-O/COFF generation, and macOS direct/response-file link/run. The full fmt/Clippy/test/doc baseline passes (515 tests). The original scalar/owned compatibility adapter remains available. New Windows native execution, ownership-aware objects, public C ABI/headers, full source debug formats, production packaging, and representative performance/conformance remain their own unchecked outcomes.
+
+Roadmap review after this scope: the 113-point total and all decision gates remain appropriate. This accepted copy-value implementation was independent of the source-ownership decisions; its completion does not satisfy any ownership/core-library or production-AOT task. Next define decision-ready ownership/core-library and cleanup/allocator/FFI profiles, while progressing accepted RFC 0004 runtime work independently where possible. No implicit acceptance or stabilization is recorded.
 
 ## Milestone 3: concurrency and embedding
 
