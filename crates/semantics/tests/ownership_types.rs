@@ -419,3 +419,37 @@ fn source_place_construction_and_all_verifiers_share_exact_budgets() {
         .is_err()
     );
 }
+
+#[test]
+fn checked_source_owned_return_can_supply_typed_mir_instructions_and_cfg() {
+    use lang_mir::unit::ownership::{bodies as b, places as p};
+    let (sources, checked) =
+        prepare("fn forward(value: core::Text) -> core::Text { return value; }");
+    let places = ownership_types::places::lower(&checked, &sources, p::Limits::default()).unwrap();
+    let place = &places.functions()[0].places[0];
+    let value = place.origin;
+    let span = place.span;
+    let function_span = places.declarations().functions()[0].span;
+    let out = b::BodyTable {
+        places: places.into_table(),
+        functions: vec![b::FunctionBody {
+            loans: 0,
+            blocks: vec![b::Block {
+                parameters: vec![],
+                instructions: vec![b::Instruction {
+                    results: vec![value],
+                    op: b::Op::MovePlace(p::PlaceId(0)),
+                    span,
+                }],
+                terminator: b::Terminator {
+                    kind: m::Term::Return(value),
+                    span: function_span,
+                },
+                span: function_span,
+            }],
+        }],
+    }
+    .verify(b::Limits::default())
+    .unwrap();
+    assert!(out.facts()[0].definitions()[value.0 as usize].is_some());
+}

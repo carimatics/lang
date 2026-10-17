@@ -1204,7 +1204,20 @@ fn function_facts(
             *cursor += 1;
         }
     }
-    let idom = dominators(function, &predecessor_starts, &predecessors, budget)?;
+    let idom = dominators(
+        function.blocks.len(),
+        |block, next| {
+            function.blocks[block]
+                .terminator
+                .kind
+                .targets()
+                .nth(next)
+                .map(|t| t.block.0)
+        },
+        &predecessor_starts,
+        &predecessors,
+        budget,
+    )?;
     let mut owned_uses = if has_owners {
         budget.filled(function.registers.len(), 0_u8)?
     } else {
@@ -1269,13 +1282,13 @@ fn count_owner(
     Ok(())
 }
 
-fn dominators(
-    function: &Function,
+pub(super) fn dominators(
+    count: usize,
+    target_at: impl Fn(usize, usize) -> Option<u32>,
     starts: &[usize],
     predecessors: &[u32],
     budget: &mut Budget,
 ) -> Result<Vec<u32>, Error> {
-    let count = function.blocks.len();
     let mut seen = budget.filled(count, false)?;
     let mut pending = budget.vector(count)?;
     let mut order = budget.vector(count)?;
@@ -1283,16 +1296,11 @@ fn dominators(
     pending.push((0_u32, 0_usize));
     while let Some((block, next)) = pending.last_mut() {
         budget.charge(1)?;
-        if let Some(target) = function.blocks[*block as usize]
-            .terminator
-            .kind
-            .targets()
-            .nth(*next)
-        {
+        if let Some(target) = target_at(*block as usize, *next) {
             *next += 1;
-            if !seen[target.block.0 as usize] {
-                seen[target.block.0 as usize] = true;
-                pending.push((target.block.0, 0));
+            if !seen[target as usize] {
+                seen[target as usize] = true;
+                pending.push((target, 0));
             }
         } else {
             let block = *block;

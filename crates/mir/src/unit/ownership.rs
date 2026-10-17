@@ -8,6 +8,7 @@ use std::error::Error as StdError;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
+pub mod bodies;
 pub mod declarations;
 pub mod places;
 
@@ -189,6 +190,43 @@ pub enum ErrorKind {
     MoveThroughLoan(Type),
     MoveAuthority(Type),
     ReplaceAuthority(Type),
+    LoanLimit {
+        requested: usize,
+        limit: usize,
+    },
+    InvalidLoan(u32),
+    DuplicateLoan(u32),
+    UndefinedLoan(u32),
+    InvalidInitialization(u32),
+    ExpectedBuiltin {
+        expected: Builtin,
+        actual: Type,
+    },
+    ExpectedLoan {
+        kind: LoanKind,
+        referent: Type,
+        actual: Type,
+    },
+    ExpectedVariant(Type),
+    ExpectedOwnedVariant(Type),
+    InvalidCase {
+        ty: Type,
+        case: u32,
+    },
+    InvalidPayloadField {
+        ty: Type,
+        case: u32,
+        field: u32,
+    },
+    CaseGuard,
+    LoanResult {
+        kind: LoanKind,
+        actual: Type,
+    },
+    ValueType {
+        expected: Type,
+        actual: Type,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {
