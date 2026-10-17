@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 46 pt | 89 pt | 51.7% |
+| 1 — frontendとbytecodeのvertical slice（現在） | 56 pt | 89 pt | 62.9% |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **255 pt** | **738 pt** | **34.6%** |
+| **全体** | **265 pt** | **738 pt** | **35.9%** |
 
 ## Milestone 0：設計baseline
 
@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P0：** Resolved sourceのfunction／callとaggregate操作／patternをtype-checkし、exhaustivenessを検証します。受理済みRFC 0006に沿う上限付きnominal layoutは実装済みです。
+- **次の進行中P0：** Typed source programを検証済みの共通MIR unitへloweringし、続いて上限付きVM frameとportable bytecodeで受理済みcall／aggregateを実行します。
 
 ### 優先度順のタスク
 
@@ -137,9 +137,9 @@ Exit達成：受理済み設計baseline、cross-mode prototype、initial backend
 
 ## Milestone 1：frontendとbytecodeのvertical slice（現在）
 
-**進捗：46 / 89 pt（51.7%）。**
+**進捗：56 / 89 pt（62.9%）。**
 
-Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。受理済みの5つの設計gateが16 ptの完了分で、字句規則、module／call、aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを対象にします。Lossless parsing、module loading／namespace、parsed sourceのname／type-path解決は実装済みです。Source全体のtyping、lowering／実行、artifact、tooling統合は別の成果として残ります。
+Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。受理済みの5つの設計gateが16 ptの完了分で、字句規則、module／call、aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを対象にします。Lossless parsing、module loading／resolution、source全体のtyping、nominal layout、pattern exhaustivenessは実装済みです。SourceのMIR／VM／native統合、portable artifact、CLI、toolingは別の成果として残ります。
 
 2026-10-17の見積り89 ptを維持します。Bytecode／REPL受理を2 pt／1 ptのtaskとして明示し、実装scopeを削っていません。Primitive typingを構造化input HIR 3 ptとparser接続済みsource／call conformance 5 pt、loweringをprimitive HIR／MIR 2 ptとparser接続／拡張source conformance 3 ptへ分割しました。これらの完了した基盤は広いfrontend全体の完了ではありません。
 
@@ -153,10 +153,10 @@ Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.
 - [x] **P0 — 明示的source root内のmoduleを上限付きで読み込み、可視性／循環を検証してitem／import namespaceを解決する。** — 3 pt
 - [x] **P0 — Public-signature可視性を含むparsed local／pattern scopeとtype pathをsource HIRへ解決する。** — 2 pt
 - [x] **P0 — 構造化したRFC 0002 function inputをspan保持HIRへ解決／type-checkし、上限付きanalysisと診断testを追加する。** — 3 pt
-- [ ] **P0 — Parsed sourceをHIRへ接続し、受理済みcall signatureを含むsource function／control flowをcompile-pass／fail fixtureでtype-checkする。** — 5 pt
+- [x] **P0 — Parsed sourceをHIRへ接続し、受理済みcall signatureを含むsource function／control flowをcompile-pass／fail fixtureでtype-checkする。** — 5 pt
 - [x] **P0 — Record／variant／pattern／exhaustivenessの意味論、typed MIR／value表現、互換性fixtureを受理する。** — 5 pt
 - [x] **P0 — Copy専用nominal定義のshapeを検証し、再帰型の循環を拒否し、checkedなvalue-cell／depth layoutと不正input testを実装する。** — 3 pt
-- [ ] **P0 — Record／variant構築、field、pattern、exhaustivenessをsource HIRへtype-checkする。** — 5 pt
+- [x] **P0 — Record／variant構築、field、pattern、exhaustivenessをsource HIRへtype-checkする。** — 5 pt
 - [x] **P0 — 受理済みprimitive HIRをCFG block argument／source map付きvalidated typed MIRへloweringし、VM／JIT differential testを追加する。** — 2 pt
 - [ ] **P0 — 受理済みcall／aggregateとsource-span conformanceを含むparser接続済みHIR-to-MIR loweringを完成させる。** — 3 pt
 - [x] **P0 — Portable bytecode schemaと上限付きdecoding／verificationの契約を受理する。** — 2 pt
@@ -190,15 +190,17 @@ Commit `844aad0` はparsed scope、nominal type path、forward／mutual call、h
 
 Commit `1d5fa88` は `lang-hir` に上限付きnominal layout analysisを追加しました。ID／name／spanの検証、member重複／空enumの拒否、反復処理の循環検出、record cell／enum最大payload cellのchecked計算、guest割り当て前のdepth／work／構造上限を実装します。10件のHIR testと2件のparsed-source testで循環、overflow、depth 64／65とcell 4096／4097の境界、明示的な深いstack、不正input、small budgetを検証します。全体のbaseline（331 test）は成功しています。元のaggregate-typing 8 ptを、検証済みlayout成果3 ptと、aggregate操作／pattern typing・exhaustiveness 5 ptへ分割しました。全scopeと89 ptの総計を保持し、layoutによるtyped bodyや実行の成立は主張しません。
 
+Commit `ef95dc0` はprimitive／control flow、guest／host call、厳密なnominal aggregate／field、pattern binding／shape、return経路、上限付きexhaustivenessのsource全体HIR typingを完了しました。成功後だけimmutableなtype／field／order／flow factsを公開し、warningではartifactを維持し、semantic errorや不正IRをloweringへ渡しません。24件の統合testはcompile-pass／fail source、有限domain oracleとの1,458件の照合、256-field直積、moduleから有効なmissing witness、不正ID／tree／scope／budget境界を含みます。両fuzz targetはcompileでき、新しい `typed_source_hir` targetのinstrumentationなしの10,000-run smokeも完了しました。Sanitizer／coverage-guided evidenceは主張しません。全体のbaseline（355 test）は成功しています。元のsource／call typingとaggregate／pattern typing成果を完了し、MIR loweringやsource実行の完了は主張しません。
+
 ### 残る依存関係の監査（2026-10-17）
 
-Owner受理、sourceの名前解決、nominal layout実装後のchecklistには未完了の実装9項目、合計43 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
+Owner受理とsource全体のtyping後のchecklistには未完了の実装7項目、合計33 ptがあります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
 
 | 受理済みRFC 0006契約 | 残る依存先の成果 |
 | --- | --- |
-| 字句仕様 | Parser接続済みtyping、formatter round trip、不完全sourceのLSP診断 |
-| Module／function-call意味論 | Source／call typing、guest frame／recursion、typed host execution、parser接続済みsource／HIR／MIR conformance |
-| Record／variant／pattern意味論と表現 | Aggregate操作／pattern typing、exhaustiveness、aggregateのsource／HIR／MIR／VM conformance |
+| 字句仕様 | Formatter round trip、不完全sourceのLSP診断 |
+| Module／function-call意味論 | Guest frame／recursion、typed host execution、source／HIR／MIR／VM／native conformance |
+| Record／variant／pattern意味論と表現 | Aggregateのsource／HIR／MIR／VM conformance |
 | Portable bytecode契約 | Version付きencoding／decodingと上限付きverification |
 | Script／REPL契約 | Deterministicなscript entry／outputとtransactional REPL execution |
 
