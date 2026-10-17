@@ -33,14 +33,14 @@ Progress snapshot verified against this repository state on 2026-10-17 (JST):
 | Milestone | Completed | Total | Progress |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontend and bytecode vertical slice (current) | 85 pt | 89 pt | 95.5% |
+| 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrency and embedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **294 pt** | **738 pt** | **39.8%** |
+| **Overall** | **298 pt** | **738 pt** | **40.4%** |
 
 ## Milestone 0: design baseline
 
@@ -64,7 +64,7 @@ Completion state at this snapshot:
 
 - **Completed dispositions:** the repository owner accepted RFC 0003 and then RFC 0001 on 2026-10-17; RFC 0002, RFC 0004, and RFC 0005 were already accepted on the same date.
 - **Completed architecture decision:** Cranelift 0.136.3 is the initial native JIT/AOT backend; frontend and artifact contracts remain backend-neutral, and LLVM is deferred unless later release evidence justifies it.
-- **Next active P1:** complete parser/module queries and the LSP prototype, including document lifecycle and revision-safe diagnostics.
+- **Milestone 1 exit:** all P0/P1 implementation is complete; record the final capability guide and completion audit.
 
 ### Tasks in priority order
 
@@ -135,15 +135,15 @@ Verified 2026-10-17: RFCs 0001–0005 are accepted, while source compilation and
 
 Exit achieved: accepted design baselines, cross-mode prototypes, and initial backend evidence. Later milestones must supply source-level and production conformance.
 
-## Milestone 1: frontend and bytecode vertical slice (current)
+## Milestone 1: frontend and bytecode vertical slice (complete)
 
-**Progress: 85 / 89 pt (95.5%).**
+**Progress: 89 / 89 pt (100.0%).**
 
-The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five accepted design gates account for 16 completed points across lexical rules, modules/calls, aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Lossless parsing, module loading/resolution, source-wide typing, nominal layouts, patterns, source MIR, portable artifacts, bounded VM execution, and initial scalar native conformance are implemented. CLI/REPL, formatter, and LSP integration remain required outcomes.
+The owner accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) on 2026-10-17; commit `031575e` records the disposition in both languages. Its five accepted design gates account for 16 completed points across lexical rules, modules/calls, aggregates/patterns, bytecode schema 1, bounded frames, and script/REPL behavior. Lossless parsing, module loading/resolution, source-wide typing, nominal layouts, patterns, source MIR, portable artifacts, bounded VM execution, and initial scalar native conformance are implemented. CLI/REPL, formatter, and LSP integration are also implemented and verified.
 
-The 2026-10-17 estimate remains 89 points: it exposed bytecode/REPL acceptance as 2-point/1-point tasks without dropping implementation scope. Primitive typing was split into 3 points of structured-input HIR and 5 points of parser-connected source/call conformance; lowering into 2 points of primitive HIR/MIR and 3 points of parser-connected/extended-source conformance. These completed foundations do not complete the broader frontend.
+The 2026-10-17 estimate remains 89 points: it exposed bytecode/REPL acceptance as 2-point/1-point tasks without dropping implementation scope. Primitive typing was split into 3 points of structured-input HIR and 5 points of parser-connected source/call conformance; lowering into 2 points of primitive HIR/MIR and 3 points of parser-connected/extended-source conformance. Foundations were counted separately from the broader parser-connected outcomes; the final audit verifies their integration.
 
-The 8-point incremental-tooling task is likewise split into 3 points of shared graph/cache infrastructure, 1 point of protocol diagnostic/position conversion, and 4 points of parser/module-query and LSP-prototype integration. The first two outcomes were tested using structured diagnostics and accepted structured-input HIR before lexical acceptance. They do not replace automatic dependency discovery, incomplete-source diagnostics, document-close publication, encoding/capability negotiation, or LSP transport in the remaining integration task. The 8-point parser task is now split into 3 points of lossless tokenization/input validation and 5 points of syntax-tree construction/recovery; its original scope and the 89-point total are preserved.
+The 8-point incremental-tooling outcome comprises the shared graph/cache core (3 pt), protocol diagnostic/position conversion (1 pt), and parser/module-query plus LSP-prototype integration (4 pt), all complete. Lossless tokenization (3 pt) and syntax-tree construction/recovery (5 pt) likewise preserve the parser's full scope and the 89-point total.
 
 - [x] **P0 — Establish structured source diagnostics with stable codes, labels, and fix-its.** — 5 pt
 - [x] **P0 — Accept the RFC 0002 lexical specification: identifier/keyword rules, whitespace/comments, signed-literal tokenization, source encoding, and malformed-token diagnostics, with fixtures.** — 3 pt
@@ -168,7 +168,11 @@ The 8-point incremental-tooling task is likewise split into 3 points of shared g
 - [x] **P1 — Implement the formatter and parser/formatter round-trip tests.** — 5 pt
 - [x] **P1 — Implement a bounded revisioned query graph/cache with transitive invalidation, stale-result guards, and structured HIR diagnostic-cache tests.** — 3 pt
 - [x] **P1 — Map structured diagnostics to bounded UTF-16 LSP data with protocol line endings, related labels, and position tests.** — 1 pt
-- [ ] **P1 — Integrate parser/module queries with an LSP prototype, including incomplete-source diagnostics, protocol transport/capabilities, and revision-safe publication.** — 4 pt
+- [x] **P1 — Integrate parser/module queries with an LSP prototype, including incomplete-source diagnostics, protocol transport/capabilities, and revision-safe publication.** — 4 pt
+
+### Implementation evidence history
+
+The records below describe each commit's state; the final completion audit supersedes their then-remaining work.
 
 Evidence verified 2026-10-17 (JST): commit `a4f135c` adds `lang-diagnostics` with immutable source snapshots, UTF-8-validated spans, Unicode/UTF-16 positions, accepted `SRC0001`–`SRC0007` identities, primary/secondary labels, notes, and atomic fix previews. Five focused tests cover positions, stale/foreign snapshots, code identities, cross-file rendering, edit conflicts, and control-character escaping. The full fmt/Clippy/test/doc baseline passes. Parser-connected diagnostic conformance remains implementation work. Commit `40a56cb` supplied the English/Japanese RFC 0006 proposal and compatibility-fixture tables; commit `031575e` records subsequent explicit owner acceptance. The complete records/variants/calls/tooling scope remains in this 89-point plan.
 
@@ -196,28 +200,19 @@ Commit `e6b6987` adds the accepted compilation-unit MIR model and a budgeted ver
 
 Commit `b5b83b7` completes portable schema-1 bytecode encoding/decoding and shared-budget verification. Eleven tests cover an 88-byte fixed fixture, all twelve operations, canonical global table sorting and ID relocation, byte-identical reencoding, truncation/malformed inputs, and cumulative byte/count/allocation/work limits. The decoder fuzz target compiles and completed an uninstrumented 10,000-run smoke. The full fmt/Clippy/test/doc baseline passes (381 tests). This closes the 5-point portable-artifact outcome; execution remains separate.
 
-### Remaining dependency audit (2026-10-17)
+### Completion audit (2026-10-17)
 
-Commit `cb3312d` connects typed source HIR to shared verified MIR; `b1964e7` adds nine native scalar conformance tests, including parsed-source VM/JIT equivalence and macOS AArch64 direct/response-file AOT link/run. Commit `d041598` completes source-driven compilation-unit execution: seventeen source-to-canonical-wire-to-VM tests cover calls, 2,000-level recursion, mutual calls, aggregates/patterns, typed qualified host imports, ordered effects, frame release, exact failure counters, and source stacks. Seven hand-built unit tests include 324 independent simultaneous-copy comparisons, malformed values, maximum enum storage, owned identity, and checked-projection traps. The full baseline passes (422 tests); the decoder/VM fuzz target compiles and completed an uninstrumented 10,000-run smoke. These integrated outcomes close lowering (3 pt), guest frames/calls (8 pt), and typed source VM execution (5 pt).
+All 24 Milestone 1 outcomes are complete: **89 / 89 pt**, including both P1 tooling outcomes. No scope was removed or moved to obtain this result. The overall roadmap is **298 / 738 pt (40.4%)**; Milestones 2–7 retain their original unchecked scope.
 
-The current checklist has 1 unchecked P1 implementation item totaling 4 points. The formatter closes its 5-point outcome with nine semantic CST/comment/idempotence/invalid-input tests and two source VM/native equivalence tests. The full 467-test baseline passes; the source parser/formatter fuzz target completed an uninstrumented 10,000-run smoke. CLI formatter-command integration remains in Milestone 4. This table is a dependency view, not additional scope or completion credit.
+Commit `402a5dc` completes the final 4-point LSP integration. Twelve protocol/stdio integration tests cover lifecycle/capabilities, UTF-16 ranges, incomplete source, increasing/stale versions, close/reopen and clearing, parent-context module overlays, closed-dependency routing, watched files, local-root authority, malformed framing/JSON, bounded output/recovery, and canonical formatting. Commit `d419df9` separately verifies automatic parser/module/diagnostic queries and stale-publication rejection with twelve database tests. The complete fmt/Clippy/test/doc baseline passes **497 tests** on macOS AArch64.
 
-The preparsed-module provider now reuses actual parser/source snapshot pointers in module resolution, with six focused tests and a passing 473-test baseline. Cached-policy/cumulative-limit checks and duplicate-file preflight remain enforced. This is the integration prerequisite for automatic query recipes; document lifecycle, revision-safe publication, and LSP transport remain in the final unchecked task, without partial completion credit.
+Source execution evidence includes `cb3312d` (typed source to verified MIR), `b1964e7` (nine scalar VM/JIT/native conformance tests and local direct/response-file AOT link/run), and `d041598` (portable VM, seventeen source-to-wire execution tests and seven unit tests with 324 independent simultaneous-copy comparisons). `77287e7` and `bbc1f3d` complete scripts and transactional REPL sessions, with ten CLI tests, sixteen session/CLI tests, and a local TTY smoke. `2d3a3ff` completes the formatter with nine CST/comment/idempotence tests and two source VM/native round trips. Earlier evidence above records parsing, resolution, typing, layouts, and portable schema-1 verification.
 
-Commit `d419df9` completes the automatic parser/module/semantic-diagnostic query adapter. Twelve tests cover real cache reuse, selective reverse invalidation, stale jobs after edits/close/reopen/newer work, incomplete-source snapshots, disk/overlay transitions, missing/watched modules, authority/symlinks, and host resource recovery. The full 485-test baseline passes. Wire transport, capability negotiation, versioned editor publication, and close-diagnostic clearing remain required before closing the final 4-point item.
+Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) and implemented [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md), last updated 2026-10-17 JST, define this completed profile. Native guest calls/aggregates remain explicitly unsupported until Milestone 2; production ownership/concurrency and complete developer tooling remain later scope. Local source-native evidence does not claim a new Windows CI run, sanitizer campaign, coverage-guided fuzz result, stable ABI, or production sandbox.
 
-Commit `e62b33b` added virtual root analysis with explicit file authority, isolated expression-result typing, and library lowering without automatic main selection. Eight tests and the full 430-test baseline passed. No completion credit was awarded at that prerequisite boundary; the later `bbc1f3d` session integration completes the 3-point script/REPL outcome.
+The final bilingual capability guide is the remaining documentation deliverable after this exit audit; it does not replace or reduce any implementation requirement.
 
-| Accepted RFC 0006 contract | Remaining dependent outcomes |
-| --- | --- |
-| Lexical specification | Incomplete-source LSP diagnostics and shared parser queries |
-| Module/source snapshots | Parser/module queries, reverse-dependency invalidation, and editor document lifecycle |
-
-All five decision areas are accepted in RFC 0006. Commit `77287e7` adds deterministic `lang run`, script entry diagnostics, exit contracts, explicit limits, and ten CLI tests. Transactional sessions now complete the paired script/REPL outcome: sixteen tests cover successful/failed definitions, duplicate/reset behavior, canonical values, original submission diagnostics/fixes/stacks, fresh execution budgets, host effects, file authority, malformed input, limits, buffering, and piped recovery/EOF. A TTY smoke verified continuation/quit. The full baseline passes (456 tests). Both remaining P1 tooling tasks are still required before Milestone 1 exits.
-
-The previous owner-decision blocker is resolved by the explicit 2026-10-17 acceptance, recorded in `031575e`. Accepted [RFC 0002](rfcs/0002-prototype-control-flow.md) and [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md) now provide the implementation contract (last updated 2026-10-17 JST). Acceptance completes only the five decision checkboxes. No implementation completion, scope reduction, or Milestone 1 exit is inferred. The final Milestone 1 capability guide remains due after the actual source-driven milestone is complete.
-
-Exit: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
+Exit verified: small programs run as scripts with deterministic behavior and useful IDE diagnostics.
 
 ## Milestone 2: ownership and native AOT
 

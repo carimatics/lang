@@ -33,14 +33,14 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | Milestone | 完了 | 総計 | 進捗 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
-| 1 — frontendとbytecodeのvertical slice（現在） | 85 pt | 89 pt | 95.5% |
+| 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 0 pt | 92 pt | 0.0% |
 | 3 — concurrencyとembedding | 0 pt | 91 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **294 pt** | **738 pt** | **39.8%** |
+| **全体** | **298 pt** | **738 pt** | **40.4%** |
 
 ## Milestone 0：設計baseline
 
@@ -64,7 +64,7 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 - **完了済みdisposition：** Repository ownerは2026-10-17にRFC 0003をacceptし、続けてRFC 0001をacceptしました。RFC 0002、RFC 0004、RFC 0005も同日にaccept済みです。
 - **完了済みarchitecture decision：** Cranelift 0.136.3をinitial native JIT／AOT backendとします。Frontend／artifact contractはbackend-neutralのまま維持し、後続release evidenceが正当化するまでLLVMをdeferします。
-- **次の進行中P1：** Document lifecycleとrevision-safe診断を含むparser／module queryとLSP prototypeを完成させます。
+- **Milestone 1 exit：** 全P0／P1実装が完了しました。最終capability guideと完了監査を記録します。
 
 ### 優先度順のタスク
 
@@ -135,15 +135,15 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 Exit達成：受理済み設計baseline、cross-mode prototype、initial backend evidence。以後のmilestoneでsource-level／production conformanceを満たします。
 
-## Milestone 1：frontendとbytecodeのvertical slice（現在）
+## Milestone 1：frontendとbytecodeのvertical slice（完了）
 
-**進捗：85 / 89 pt（95.5%）。**
+**進捗：89 / 89 pt（100.0%）。**
 
-Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。受理済みの5つの設計gateが16 ptの完了分で、字句規則、module／call、aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを対象にします。Lossless parsing、module loading／resolution、source全体のtyping、nominal layout、pattern、source MIR、portable artifact、上限付きVM実行、初期scalar native conformanceは実装済みです。CLI／REPL、formatter、LSP統合は必須成果として残ります。
+Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)を受理し、commit `031575e` に英日両方のdispositionを記録しました。受理済みの5つの設計gateが16 ptの完了分で、字句規則、module／call、aggregate／pattern、bytecode schema 1、上限付きframe、script／REPL behaviorを対象にします。Lossless parsing、module loading／resolution、source全体のtyping、nominal layout、pattern、source MIR、portable artifact、上限付きVM実行、初期scalar native conformanceは実装済みです。CLI／REPL、formatter、LSP統合も実装／検証済みです。
 
-2026-10-17の見積り89 ptを維持します。Bytecode／REPL受理を2 pt／1 ptのtaskとして明示し、実装scopeを削っていません。Primitive typingを構造化input HIR 3 ptとparser接続済みsource／call conformance 5 pt、loweringをprimitive HIR／MIR 2 ptとparser接続／拡張source conformance 3 ptへ分割しました。これらの完了した基盤は広いfrontend全体の完了ではありません。
+2026-10-17の見積り89 ptを維持します。Bytecode／REPL受理を2 pt／1 ptのtaskとして明示し、実装scopeを削っていません。Primitive typingを構造化input HIR 3 ptとparser接続済みsource／call conformance 5 pt、loweringをprimitive HIR／MIR 2 ptとparser接続／拡張source conformance 3 ptへ分割しました。基盤と広いparser接続成果は別々に計上し、最終監査で統合を検証します。
 
-同様に8 ptのincremental-tooling taskを、shared graph／cache基盤3 pt、protocol診断／位置変換1 pt、parser／module query・LSP-prototype統合4 ptへ分割しました。前2つは字句仕様の受理前にstructured diagnosticと受理済みの構造化input HIRで検証しました。残る統合taskに含まれる自動dependency検出、不完全source診断、document-close publication、encoding／capability negotiation、LSP transportを置き換えるものではありません。Parser taskの8 ptは、lossless tokenization／input検証3 ptとsyntax-tree構築／recovery 5 ptへ分割しました。元のscopeと89 ptの総計を保持しています。
+Incremental toolingの8 ptは共有graph／cache core 3 pt、protocol診断／位置変換1 pt、parser／module queryとLSP prototype統合4 ptに分割し、すべて完了しました。Lossless tokenization 3 ptとsyntax-tree構築／recovery 5 ptも完了し、89 ptの総計と全scopeを維持します。
 
 - [x] **P0 — Stable code、label、fix-itを持つstructured source diagnosticsを確立する。** — 5 pt
 - [x] **P0 — Identifier／keyword、空白／comment、signed-literal tokenization、source encoding、不正token診断をfixture付きで定めるRFC 0002の字句仕様を受理する。** — 3 pt
@@ -168,7 +168,11 @@ Ownerは2026-10-17に[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.
 - [x] **P1 — Formatterとparser／formatter round-trip testを実装する。** — 5 pt
 - [x] **P1 — 推移的invalidation、古い結果の拒否、構造化HIR診断cache testを持つ上限付きrevisioned query graph／cacheを実装する。** — 3 pt
 - [x] **P1 — Protocolの改行、related label、位置testを備え、structured diagnosticを上限付きUTF-16 LSP dataへ変換する。** — 1 pt
-- [ ] **P1 — 不完全source診断、protocol transport／capability、revision-safe publicationを含め、parser／module queryをLSP prototypeへ統合する。** — 4 pt
+- [x] **P1 — 不完全source診断、protocol transport／capability、revision-safe publicationを含め、parser／module queryをLSP prototypeへ統合する。** — 4 pt
+
+### 実装evidenceの履歴
+
+以下は各commit時点の記録であり、当時の残作業は末尾の完了監査で更新します。
 
 2026-10-17（JST）検証済みevidence：commit `a4f135c` は `lang-diagnostics` にimmutableなsource snapshot、UTF-8検証済みspan、Unicode／UTF-16位置、受理済み `SRC0001`–`SRC0007` identity、primary／secondary label、note、atomic fix previewを追加しました。5つの集中testが位置、古い／別mapのsnapshot、code identity、複数fileの表示、edit競合、制御文字のescapeを検証します。全体のfmt／Clippy／test／doc baselineは成功しています。Parser接続済み診断conformanceは実装作業として残ります。Commit `40a56cb` は英日RFC 0006提案と互換性fixture表を追加し、commit `031575e` はその後のownerの明示受理を記録しました。89 ptの計画はrecord／variant／call／toolingの全scopeを維持します。
 
@@ -196,28 +200,19 @@ Commit `e6b6987` は受理済みcompilation-unit MIR modelとbudget付きverifie
 
 Commit `b5b83b7` はportable schema 1 bytecodeのencode／decodeと共通budgetによるverificationを完了しました。11件のtestは88-byte固定fixture、全12 operation、global tableのcanonical sortとID再配置、byte一致reencode、切断／不正input、通算byte／count／allocation／work limitを検証します。Decoder fuzz targetのcompileとinstrumentationなしの10,000-run smokeも完了しました。全体のfmt／Clippy／test／doc baseline（381 test）は成功しています。Portable artifactの成果5 ptを完了し、実行は別成果として残します。
 
-### 残る依存関係の監査（2026-10-17）
+### 完了監査（2026-10-17）
 
-Commit `cb3312d` はtyped source HIRを共有verified MIRへ接続し、`b1964e7` はparsed-source VM／JIT一致とmacOS AArch64のdirect／response-file AOT link／runを含む9件のnative scalar conformance testを追加しました。Commit `d041598` はsource駆動compilation-unit実行を完了します。17件のsource→canonical wire→VM testはcall、2,000段recursion、mutual call、aggregate／pattern、typed qualified host import、副作用順、frame解放、厳密なfailure計数、source stackを検証します。7件のhand-built unit testは同時copy oracleとの独立324比較、不正value、最大enum storage、owned identity、checked-projection trapを含みます。全体のbaseline（422 test）が成功し、decoder／VM fuzz targetのcompileとinstrumentationなしの10,000-run smokeも完了しました。この統合成果でlowering 3 pt、guest frame／call 8 pt、typed source VM実行5 ptを完了します。
+Milestone 1の全24成果が完了し、P1 toolingの両成果を含め **89 / 89 pt** です。この結果のためにscopeを削除／移動していません。Roadmap全体は **298 / 738 pt（40.4%）** で、Milestone 2–7の未完了scopeは維持しています。
 
-現在のchecklistには未完了のP1実装1項目、合計4 ptがあります。Formatterはsemantic CST／comment／冪等性／不正inputの9件とsource VM／native一致の2件のtestにより成果5 ptを完了します。全体の467-test baselineが成功し、source parser／formatter fuzz targetのinstrumentationなしの10,000-run smokeも完了しました。CLI formatter command統合はMilestone 4に残ります。この表は依存関係の表示であり、scopeや完了点の追加ではありません。
+Commit `402a5dc` が最後のLSP統合4 ptを完了します。12件のprotocol／stdio integration testはlifecycle／capability、UTF-16 range、不完全source、増加／古いversion、close／reopenと消去、親文脈のmodule overlay、closed dependencyのrouting、watched file、local-root権限、不正framing／JSON、出力上限／回復、canonical formattingを検証します。`d419df9` はparser／module／診断query自動実行と古いpublication拒否を12件のdatabase testで別途検証します。macOS AArch64でfmt／Clippy／test／doc baselineの **497 test** がすべて成功しています。
 
-Preparsed-module providerは実際のparser／source snapshot pointerをmodule解決で再利用し、6件の集中testと473-test baselineが成功しています。Cache policy／通算limit検証と重複fileのpreflightも維持します。Query recipe自動実行への統合prerequisiteであり、document lifecycle、revision-safe publication、LSP transportは最後の未完了taskに残し、部分完了点を付けません。
+Source実行のevidenceは `cb3312d`（typed source→verified MIR）、`b1964e7`（9件のscalar VM／JIT／native conformance testとlocal direct／response-file AOT link／run）、`d041598`（portable VM、17件のsource→wire実行test、独立した同時copy比較324回を含む7件のunit test）です。`77287e7` と `bbc1f3d` がscriptとtransactional REPLを完了し、10件のCLI test、16件のsession／CLI test、local TTY smokeで検証します。`2d3a3ff` がformatterを完了し、9件のCST／comment／冪等性testと2件のsource VM／native round tripで検証します。Parsing、resolution、typing、layout、portable schema-1 verificationは上記の過去evidenceへ記録しています。
 
-Commit `d419df9` はparser／module／semantic診断queryの自動adapterを完了します。12件のtestは実cache再利用、選択的reverse invalidation、edit／close／reopen／新work後のstale job、不完全source snapshot、disk／overlay切替、missing／watched module、権限／symlink、host resource回復を検証します。全体の485-test baselineが成功しています。最後の4 pt itemを完了する前に、wire transport、capability negotiation、version付きeditor publication、close診断消去を満たす必要があります。
+受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)と実装済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)が、この完了profileを定義します（最終更新2026-10-17 JST）。Native guest call／aggregateはMilestone 2まで明示的に非対応です。Production ownership／concurrencyと完全なdeveloper toolingは後続scopeです。Local source-native evidenceから新しいWindows CI run、sanitizer campaign、coverage-guided fuzz結果、stable ABI、production sandboxを主張しません。
 
-Commit `e62b33b` は明示file権限付きvirtual root analysis、分離したexpression結果typing、mainを自動選択しないlibrary loweringを追加しました。8件のtestと全体の430-test baselineが成功しました。そのprerequisite境界では完了点を付けず、後続の `bbc1f3d` によるsession統合でscript／REPLの成果3 ptを完了します。
+このexit audit後、最終的な英日capability guideが残るdocumentation成果物です。実装要件を代替／縮小するものではありません。
 
-| 受理済みRFC 0006契約 | 残る依存先の成果 |
-| --- | --- |
-| 字句仕様 | 不完全sourceのLSP診断と共通parser query |
-| Module／source snapshot | Parser／module query、reverse-dependency invalidation、editor document lifecycle |
-
-5つの判断領域はすべてRFC 0006で受理済みです。Commit `77287e7` はdeterministicな `lang run`、script entry診断、exit契約、明示limit、10件のCLI testを追加しました。Transactional sessionでscript／REPLの対となる成果を完了します。16件のtestは成功／失敗定義、重複／reset、canonical value、元submissionの診断／fix／stack、fresh execution budget、host副作用、file権限、不正input、上限、buffering、pipe回復／EOFを検証します。TTY smokeで継続入力／quitを確認し、全体のbaseline（456 test）も成功しています。Milestone 1のexitまで、残るP1 tooling 2 taskの両方が引き続き必須です。
-
-以前のowner判断blockerは2026-10-17の明示受理で解消し、`031575e` に記録しました。受理済み[RFC 0002](rfcs/0002-prototype-control-flow.md)と[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)が実装契約を提供します（最終更新2026-10-17 JST）。受理によって完了するのは5つの判断checkboxだけです。実装完了、scope縮小、Milestone 1 exitを推定しません。Milestone 1の最終capability guideは、実際のsource駆動milestoneが完了した後の成果物として残ります。
-
-Exit：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがある。
+Exit確認済み：小さなprogramをscriptとして実行でき、deterministic behaviorと有用なIDE diagnosticsがあります。
 
 ## Milestone 2：ownershipとnative AOT
 

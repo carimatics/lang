@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0006-source-frontend-and-portable-programs.md)
 
-- ステータス: accepted
+- ステータス: implemented
 - Authors: Codex（repository ownerのreview向け）
 - 作成日: 2026-10-17
 - 最終更新日: 2026-10-17
@@ -14,13 +14,13 @@
 
 ## 概要
 
-Milestone 1の契約を定めます。字句規則、module／call、copy専用record／variantと網羅的pattern、portable register-bytecode encoding、上限付きVM frame、transactional REPL sessionです。RFC 0002のwrapping addition、signed comparison、statementの順序、明示的returnは維持します。Repository ownerは2026-10-17にこのRFCを受理し、3つのsource設計gateとbytecode／REPLの前提を満たしました。受理は実装taskの完了ではありません。
+Milestone 1の契約を定めます。字句規則、module／call、copy専用record／variantと網羅的pattern、portable register-bytecode encoding、上限付きVM frame、transactional REPL sessionです。RFC 0002のwrapping addition、signed comparison、statementの順序、明示的returnは維持します。Repository ownerは2026-10-17にこのRFCを受理し、3つのsource設計gateとbytecode／REPLの前提を満たしました。実装とMilestone 1 exit auditは2026-10-17に完了しました。
 
-これは受理済みのproject設計契約であり、実装済みbehaviorの説明や他言語に関する事実の主張ではありません。以下のexampleと互換性fixtureは実装を規定します。受理は実装やstabilizationではありません。
+この実装済みproject設計契約は、以下のexampleと互換性fixtureを規定します。実装はstabilizationや他言語に関する主張ではありません。
 
 ## 動機
 
-受理済みgrammarには `IDENT`、comment、encoding、signed-literal境界の未規定部分があります。Call、module、aggregateは意図的に対象外です。現在のbytecode `Program` は1 functionを表し、portable encodingはありません。VMにはguest call stackがありません。Lexer、CLI、backend内で個別にこれらを決めると意味が不整合になります。1つの意味論契約によりfrontend、VM、formatter、editor prototypeで同じevidenceを共有できます。
+実装前の課題は次のとおりでした。受理済みgrammarには `IDENT`、comment、encoding、signed-literal境界の未規定部分があります。Call、module、aggregateは意図的に対象外です。現在のbytecode `Program` は1 functionを表し、portable encodingはありません。VMにはguest call stackがありません。Lexer、CLI、backend内で個別にこれらを決めると意味が不整合になります。1つの意味論契約によりfrontend、VM、formatter、editor prototypeで同じevidenceを共有できます。
 
 ## 目標
 
@@ -251,10 +251,11 @@ Decision：repository ownerは「RFC 0006 を受理します」と明示し、**
 
 Optional follow-up：Unicode identifier、通常のimmutable binding、import alias、型推論、expression match、generic／再帰data、豊富なhost signature、全新操作のnative supportです。実装中にprofileを黙って変更してはいけません。
 
-受理前のreview outcomeは **ready for decision** でした。受理後も実装、互換性fixture、resource-limit evidence、Milestone 1 exit auditが必要です。
+受理前のreview outcomeは **ready for decision** でした。現在は **implemented** で、2026-10-17に497-test fmt／Clippy／test／doc baselineとMilestone 1完了監査で検証しました。Evidenceは `b5b83b7`（portable codec）、`cb3312d`（source lowering）、`b1964e7`（scalar native conformance）、`d041598`（上限付きVM）、`bbc1f3d`（transactional REPL）、`2d3a3ff`（formatter）、`d419df9`（query database）、`402a5dc`（stdio LSP）です。Stabilizationは主張しません。
 
 ## 情報源
 
+- [Milestone 1完了監査](../roadmap.md#完了監査2026-10-17)、実装evidence。最終更新／確認2026-10-17 JST。
 - `docs/roadmap.md`、scopeと依存gate。最終更新2026-10-17 JST、commit `f596e2c`。
 - `docs/rfcs/0001-project-charter.md`、受理済みgovernance、backend制約、互換性。最終変更2026-10-17 JST、確認2026-10-17 JST。
 - `docs/rfcs/0002-prototype-control-flow.md`、受理済みscalar／CFG grammarとcode。最終変更2026-10-17 JST、確認2026-10-17 JST。

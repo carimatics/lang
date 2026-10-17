@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0006-source-frontend-and-portable-programs.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex (for repository-owner review)
 - Created: 2026-10-17
 - Last updated: 2026-10-17
@@ -14,13 +14,13 @@
 
 ## Summary
 
-Specify the Milestone 1 contracts: lexical rules, modules and calls, copy-only records/variants and exhaustive patterns, portable register-bytecode encoding, bounded VM frames, and transactional REPL sessions. RFC 0002 wrapping addition, signed comparison, statement ordering, and explicit returns remain in force. The repository owner accepted this RFC on 2026-10-17, satisfying the three source-design gates and the bytecode/REPL prerequisites. Acceptance does not complete their implementation tasks.
+Specify the Milestone 1 contracts: lexical rules, modules and calls, copy-only records/variants and exhaustive patterns, portable register-bytecode encoding, bounded VM frames, and transactional REPL sessions. RFC 0002 wrapping addition, signed comparison, statement ordering, and explicit returns remain in force. The repository owner accepted this RFC on 2026-10-17, satisfying the three source-design gates and the bytecode/REPL prerequisites. The implementation and Milestone 1 exit audit completed on 2026-10-17.
 
-This is an accepted project design contract, not an account of implemented behavior or a claim about another language. The examples and compatibility fixtures below govern implementation; acceptance is not implementation or stabilization.
+This implemented project design contract governs the examples and compatibility fixtures below. Implementation is not stabilization or a claim about another language.
 
 ## Motivation
 
-The accepted grammar leaves `IDENT`, comments, encoding, and signed-literal boundaries unspecified. It intentionally excludes calls, modules, and aggregates. The current bytecode `Program` represents one function and has no portable encoding. The VM has no guest call stack. Choosing these behaviors independently inside a lexer, CLI, or backend would create incompatible meanings. A single semantic contract lets the frontend, VM, formatter, and editor prototype share the same evidence.
+The pre-implementation gap was as follows. The accepted grammar leaves `IDENT`, comments, encoding, and signed-literal boundaries unspecified. It intentionally excludes calls, modules, and aggregates. The current bytecode `Program` represents one function and has no portable encoding. The VM has no guest call stack. Choosing these behaviors independently inside a lexer, CLI, or backend would create incompatible meanings. A single semantic contract lets the frontend, VM, formatter, and editor prototype share the same evidence.
 
 ## Goals
 
@@ -251,10 +251,11 @@ Decision: **accepted on 2026-10-17** by the repository owner, explicitly stating
 
 Optional follow-ups: Unicode identifiers, immutable ordinary bindings, import aliases, inferred types, expression match, generic/recursive data, richer host signatures, and native support for all new operations. None may silently change this profile during implementation.
 
-The pre-decision review outcome was **ready for decision**. Implementation, compatibility fixtures, resource-limit evidence, and the Milestone 1 exit audit remain required after acceptance.
+The pre-decision review outcome was **ready for decision**. Implementation is now **implemented**, verified 2026-10-17 by the 497-test fmt/Clippy/test/doc baseline and the Milestone 1 completion audit. Evidence includes `b5b83b7` (portable codec), `cb3312d` (source lowering), `b1964e7` (scalar native conformance), `d041598` (bounded VM), `bbc1f3d` (transactional REPL), `2d3a3ff` (formatter), `d419df9` (query database), and `402a5dc` (stdio LSP). No stabilization is claimed.
 
 ## Sources
 
+- [Milestone 1 completion audit](../roadmap.md#completion-audit-2026-10-17), implementation evidence; last updated and verified 2026-10-17 JST.
 - `docs/roadmap.md`, scope and dependency gates; last updated 2026-10-17 JST, commit `f596e2c`.
 - `docs/rfcs/0001-project-charter.md`, accepted governance, backend restrictions, and compatibility; last changed 2026-10-17 JST, verified 2026-10-17 JST.
 - `docs/rfcs/0002-prototype-control-flow.md`, accepted scalar/CFG grammar and codes; last changed 2026-10-17 JST, verified 2026-10-17 JST.
