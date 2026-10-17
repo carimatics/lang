@@ -257,6 +257,8 @@ Decision gateの準備（2026-10-17 JST）：提案[RFC 0008](rfcs/0008-cleanup-
 
 Source typeのfollow-up（2026-10-17 JST）：commit `81fab15` はRFC 0007のtype constructorをspan保持・構造的interning付きHIRへ解決し、再帰する間接型の上限付きCopy／drop／storage／privacy解析を追加しました。11件のsource testで受理済み型群、不正storage／return／specialization、source identity、不正HIR、正確な上限、反復depth、独立した生成型oracleを検証し、2件のCLI／query integration testでsource診断と復帰を保持します。解決済みHIRのfuzz targetがcompileし、instrumentationなしの10,000-run smokeが完了しました。全554 testとfmt／Clippy／docのfull baselineがpassしました。両program-check entry pointは拡張profileの実行用typing前に意図的に停止し、move／loan／region flow、core operation typing、ownership MIR／lowering／実行、cleanup、wire encodingは未完了です。Reviewでは21/113 pt、元の総113 pt、残る全gateを維持します。型の性質は未完了HIR／MIR ownership outcome内の前提進捗です。RFC 0008の明示owner判断を待つ間、RFC 0007に従ってsource body／placeとownership flowの実装を進めます。
 
+Source bodyのfollow-up（2026-10-17 JST）：commit `f6e0edb` は通常loan、明示dereference、place assignmentを既存expression arena内の専用place IDへbindし、字句的なcompiler-created arena ownerも追加しました。6件のsource testで正確なroot／span、temporary拒否、owner visibility／名前規則、到達不能codeの診断、通算expression／local／block／depth上限、ownership annotationがなくても実行用checkで拒否する境界を検証します。全560 test、fmt／Clippy／doc、lock済みfuzz compileが成功しました。Bindingが保証するのは名前とplace shapeのみで、mutability、move、loan flow、allocator authority、region escape、core signature、cleanup、ownership MIR／VM／native動作は未完了です。Reviewでは完了21/113 ptと元のoutcome／見積もりを維持します。次は受理済み有限core signatureとownership body checkingを接続し、RFC 0008の判断とownership serializationは独立gateとして残します。
+
 ## Milestone 3：concurrencyとembedding
 
 **進捗：0 / 96 pt（0.0%）。**
