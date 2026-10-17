@@ -22,7 +22,7 @@ cargo test --workspace --all-targets --all-features
 
 ## Required checks
 
-Before submitting a change, run:
+Before submitting a code change, run:
 
 ```bash
 cargo fmt --all --check
@@ -30,6 +30,12 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
+
+For a documentation-only planning follow-up, run `cargo test --test repository_consistency`. Reuse the successful full baseline from the unchanged implementation; rerun broader checks when code, failures or unresolved concerns require them.
+
+## Planning a delivery
+
+Use the [M2 delivery board](docs/milestone-2.md) for current work. Select one observable 1–3-point task, keep at most one task doing, and record the implementation commit and validation before marking it done. Update its translation and the roadmap's short current-status snapshot together. A newly discovered prerequisite changes the plan before it changes the code. Keep the original exit gates separate from completed implementation slices. After two prerequisite deliveries without new source execution evidence, review the next vertical slice. Avoid repeating historical narrative and unchanged estimate claims after each commit.
 
 ## When an RFC is required
 

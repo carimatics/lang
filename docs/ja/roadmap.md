@@ -6,13 +6,21 @@
 
 このロードマップはrisk reductionの順に並んでいます。Milestoneはcalendar commitmentではなくexit criteriaです。
 
+## 現在のM2実装状況
+
+**検証済み35件 · 進行中0件 · 残り52件（暫定134 pt）。**
+
+現在のTodo、commit evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから9件の実装が完了しました。次は有限value codec → 上限付きframe → `lang run` でBytesソース実行です。Ownershipの検査は可能ですが、実行はまだ未対応です。
+
+従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
+
 ## タスク管理
 
 未規定のsource、ABI、package、serialized behaviorを導入する実装taskは、そのbehavior実装前に受理済みRFCを必要とします。Decision taskはownerまたは[RFC 0001の実験段階の委任](rfcs/0001-project-charter.md#実験段階のrfc判断)に従うagentのdisposition記録で完了し、設計が拒否された場合は依存実装を完了扱いにせず再計画します。各成果に応じたcompile-pass／fail、不正入力／resource-limit、VM／native差分testを実行します。非信頼環境へ公開する前にdecoder／verifierのCPU・allocation budgetが必要です。
 
 各milestone内のtaskはdependencyを考慮した優先度順に並べます。すべての `P0` taskがcheck済みで、exit evidenceが記録されるまでmilestoneはexitできません。未完了の `P1` taskはexit前に移動先とcostを明示的に再設定し、暗黙に消してはいけません。Check済みtaskは完了です。前のmilestoneで完了したprototype groundworkだけでは、後続milestoneのより広いtaskを完了扱いにしません。
 
-Costは経過時間の約束ではなく相対的なeffort pointです。`1`はごく小さい変更、`2`は小、`3`は中、`5`は大、`8`は非常に大です。未完了taskはそれぞれ独立して検証可能な1つの成果を持ち、それより大きなprogramはdependencyまたはacceptance boundaryで分割します。進捗は `完了point / 全point × 100` を小数第1位へ丸めて算出します。長期見積りはplanning valueであり、そのmilestoneがcurrentになったとき、またはscopeやevidenceが変わったときに再見積りします。
+以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中のM2では、実装Todoで独立検証可能な残り1〜3 ptのtaskに分解します。
 
 2026-10-16のroadmap全体監査で、3つの構造的問題を修正しました。Source frontendを必要とするproduction作業がdesign baselineへ誤って含まれていたこと、複数の独立してship可能な成果を1つにまとめたtaskがあったこと、後続milestoneで必要なregistry、bootstrap、interoperability作業が欠けていたことです。改訂後のlistは、その監査時点で完了済みだったevidence 80 ptを維持し、production hardeningを依存先のmilestoneへ移し、大きな複合項目を1 taskとして扱わず、隠れていた作業を明示しました。Component workstreamのfollow-up監査では、in-memory compatibility negotiation、scalar execution-prototype integration、backend-neutral resource-adapter behavior、boundary-cost measurementを分離しました。従来の単一cross-mode scalar／resource taskはこれらのacceptance boundaryを混在させ、Milestone 3のproduction IDL／adapter implementationとも重複していました。Schema 18後の監査では、native debug-metadata実装とcross-platform debug-quality validationがbackend選定のprerequisiteとして本文にだけ記載されていることを発見したため、backend選定前の5 pt／3 pt taskとして明示しました。Host-value follow-up監査では、host-value identity bridge、general instantiation、VM／JIT／AOT resource／failure conformanceという3つのacceptance boundaryをなお混在させていた別の8 pt項目を分割しました。分割後も元の8 pt総計を維持し、各成果を独立してcheckできるようにしました。Repository ownerのacceptanceを必要としたdecision taskは、ownerがacceptするまで未完了のままevidence prerequisiteの後ろへ配置しました。Checklistはdependency順を記録するものであり、外部gateをlocalで実行可能とみなすものではありません。Owner decisionまたはremote runnerが利用できない場合は、優先度を変更せず次のunblocked P0へ進みます。
 
@@ -30,9 +38,9 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 2026-10-17のrepository reviewで、source ownership／core-library構文とproduction component profileの開始gate欠落を明確にし、既存copy-value profileのnative compilationをownership-aware AOTから分離しました。Milestone 2に未完了21 pt、Milestone 3に未完了5 ptを追加し、完了済み298 ptは維持します。全体進捗の低下は隠れていた作業の明示によるものです。Source／core-library基盤を代表的workload／self-hostingより先に整備し、C embeddingのstable化はconformance／resource enforcement確認後に行います。
 
-このrepository stateに対して2026-10-18（JST）に確認した進捗snapshot：
+2026-10-18（JST）に確認した受入条件の重みのsnapshotです。全体の計算は履歴上の重みの集計であり、全体作業量の見積もりではありません。現在のM2実装状況は上記とリンク先のTodoを参照してください。
 
-| Milestone | 完了 | 総計 | 進捗 |
+| Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
@@ -218,9 +226,11 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**進捗：34 / 113 pt（30.1%）。**
+**完了条件：18件中5件完了、履歴上の重み：34 / 113 pt（30.1%）。**
 
-開始条件：RFC 0006の実装済みcopy-value profileとcompatibility fixtureを基準とします。RFC 0004のstate modelはsource構文、production allocation、ABIを規定しません。対応する設計決定を受理してから依存する実装を進め、core-library sliceはRFCで最小要件が定まった時点で再見積もりします。
+**実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
+
+開始条件：RFC 0006の実装済みcopy-value profileとcompatibility fixtureを基準とします。RFC 0004のstate modelだけでは欠けていたsource／core、cleanup、allocator、C境界の受理済み要件は、現在RFC 0007／0008で規定しています。新たな設計決定が必要なbehaviorは受理後に実装します。実装Todoに2026-10-18の残作業積み上げ見直しを記録しました。
 
 - [x] **P0 — Sourceのownership／borrow／arena profile、Copy分類、最小core-library型表面（text／byte、collection利用、必要なgeneric構文を含む）を受理する。** — 5 pt
 - [x] **P0 — 未規定のerror／panic cleanup、unsafe／FFI validity、allocator contractを公開interface実装前に受理する。** — 5 pt
@@ -242,6 +252,10 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。
+
+### 実装evidence履歴
+
+以下は各commit時点の記録です。「113 ptの見積もりは引き続き妥当」という繰り返しの判断は2026-10-18の [進捗管理監査](milestone-2.md#従来の数値が止まった理由) で置き換えました。履歴evidenceとして保持し、今後の通常報告は長文追記ではなく現在のTodo行を更新します。
 
 Ownerの判断（2026-10-17 JST）：RFC 0008をacceptedとして作業を続ける明示指示に従い、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)を受理しました。Cleanup／allocator／unsafe／C-validity decision gateは完了し、5 ptを加算してM2は26 / 113 pt（23.0%）、全18成果中4成果完了となりました。受理により規定実装を進めますが、cleanup、guest allocation、unsafe／FFI強制、C adapter、platform conformanceは完了扱いにしません。以下の過去follow-upは各commit時点の状態を記録しており、RFC 0008のproposed／受理待ちという記述は履歴です。現在のstatusは受理済みRFCとこの判断記録を参照してください。
 

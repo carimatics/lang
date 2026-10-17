@@ -19,6 +19,7 @@
   - `docs/roadmap.md` と `docs/ja/roadmap.md`
   - `docs/benchmarks.md` と `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` と `docs/ja/milestone-1.md`
+  - `docs/milestone-2.md` と `docs/ja/milestone-2.md`
   - `docs/review-2026-10-17.md` と `docs/ja/review-2026-10-17.md`
   - `docs/rfcs/0000-template.md` と `docs/ja/rfcs/0000-template.md`
   - `docs/rfcs/` の各番号付きRFCと `docs/ja/rfcs/` の同名ミラー
@@ -77,6 +78,14 @@ cargo doc --workspace --no-deps
 - 実験的な初期開発の間は、[RFC 0001](docs/ja/rfcs/0001-project-charter.md)に記録した2026-10-17 JSTのownerの委任を適用し、ある程度妥当と判断できるRFCを個別のユーザー承認なしで受理し、判断理由と未検証の仮定を記録して作業を続けてください。
 - 受理済み設計を変更して実装する前に、対象RFCの改訂またはfollow-upで変更理由と互換性への影響を記録し、英日対訳を同時に更新してください。
 - 構文、ABI、package metadata、serialized artifactの変更には移行と互換性への影響を含めてください。
+
+## 進行中milestoneの追跡
+
+- 実装作業には [M2実装Todo](docs/ja/milestone-2.md) を使います。Roadmapの大きな完了条件の重みは、実装残作業の予測ではありません。
+- Code着手前に観測可能な1〜3 ptの成果を1件選び、doingにします。同時進行は最大1件です。新たな前提作業は実装前に明示して再見積もりし、残taskを確認せず見積もりを妥当と繰り返し判断しません。
+- 計画開始から10分経ってもpatchまたは実行可能な実験がなければ、設計を続ける前にtaskを狭めて最小限の有用な実験を実行します。抽象化／hardeningの追加は、選択した成果または受理済み要件に必要な場合に限ります。
+- 成果ごとに実装／検証evidence付きで英日Todoを更新します。前提作業の完了と完了条件の達成を分離します。横方向の基盤追加より次のソース実行fixtureを優先し、実行fixtureが増えない前提作業が2件続いたら順序を見直します。
+- 計画更新は行と現在の件数を中心に簡潔にします。監査本文はscope、依存、見積もり、完了判断が変わった場合に追加します。文書だけの計画更新ではrepository consistencyを確認し、変更のないcompiler baseline全体は再実行しません。
 
 ## セキュリティ
 

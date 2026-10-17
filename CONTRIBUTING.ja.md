@@ -22,7 +22,7 @@ cargo test --workspace --all-targets --all-features
 
 ## 必須チェック
 
-変更を提出する前に、次を実行してください。
+Code変更を提出する前に、次を実行してください。
 
 ```bash
 cargo fmt --all --check
@@ -30,6 +30,12 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
+
+文書だけの計画follow-upは `cargo test --test repository_consistency` を実行してください。変更のない実装の成功済みfull baselineを再利用し、code変更、失敗、未解決の懸念がある場合に広いcheckを再実行します。
+
+## 成果の計画
+
+現在の作業には [M2実装Todo](docs/ja/milestone-2.md) を使います。観測可能な1〜3 ptのtaskを選び、doingは最大1件とし、doneの前に実装commitと検証を記録してください。対訳とroadmap冒頭の現在値も同時更新します。新たな前提作業はcodeの前に計画へ反映します。従来の完了条件と実装sliceの完了は分けます。新たなソース実行evidenceが増えない前提作業が2件続いたら、次のvertical sliceを見直します。Commitごとに履歴本文や根拠のない同じ見積もり判断を繰り返しません。
 
 ## RFCが必要な場合
 

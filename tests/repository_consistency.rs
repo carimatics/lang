@@ -1,5 +1,6 @@
 //! Keep planning arithmetic and translation metadata executable, not hand-maintained promises.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -100,6 +101,123 @@ fn roadmap_totals_and_mirrored_task_states_agree() {
         english, japanese,
         "task order, state, priority and cost must agree"
     );
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct Delivery<'a> {
+    id: &'a str,
+    state: &'a str,
+    remaining: u32,
+    needs: Vec<&'a str>,
+    gates: Vec<u32>,
+    evidence: &'a str,
+}
+
+fn delivery_board(document: &str) -> Vec<Delivery<'_>> {
+    let rows: Vec<_> = document
+        .lines()
+        .filter(|line| line.starts_with("| M2-"))
+        .map(|line| {
+            let cells: Vec<_> = line.split('|').map(str::trim).collect();
+            assert_eq!(cells.len(), 9, "seven delivery columns: {line}");
+            assert!(!cells[6].is_empty(), "observable acceptance outcome");
+            Delivery {
+                id: cells[1],
+                state: cells[2],
+                remaining: cells[3].parse().expect("remaining integer points"),
+                needs: if cells[4] == "—" {
+                    Vec::new()
+                } else {
+                    cells[4].split(',').collect()
+                },
+                gates: cells[5]
+                    .split(',')
+                    .map(|gate| gate.strip_prefix('G').unwrap().parse().unwrap())
+                    .collect(),
+                evidence: cells[7],
+            }
+        })
+        .collect();
+    assert!(!rows.is_empty());
+    let by_id: BTreeMap<_, _> = rows.iter().map(|row| (row.id, row)).collect();
+    assert_eq!(by_id.len(), rows.len(), "unique delivery IDs");
+    for row in &rows {
+        assert!(row.gates.iter().all(|gate| (1..=18).contains(gate)));
+        assert!(matches!(row.state, "done" | "doing" | "todo"));
+        if row.state == "done" {
+            assert_eq!(row.remaining, 0, "no remaining effort for done deliveries");
+            let commit = row.evidence.trim_matches('`');
+            assert!((7..=40).contains(&commit.len()));
+            assert!(commit.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        } else {
+            assert!((1..=3).contains(&row.remaining), "split large deliveries");
+            assert_eq!(
+                row.evidence, "—",
+                "incomplete delivery has no done evidence"
+            );
+        }
+        for dependency in &row.needs {
+            let prerequisite = by_id.get(dependency).expect("known prerequisite ID");
+            if matches!(row.state, "done" | "doing") {
+                assert_eq!(prerequisite.state, "done", "prerequisites before work");
+            }
+        }
+    }
+    let mut reachable = BTreeSet::new();
+    loop {
+        let before = reachable.len();
+        for row in &rows {
+            if row.needs.iter().all(|id| reachable.contains(id)) {
+                reachable.insert(row.id);
+            }
+        }
+        if reachable.len() == before {
+            break;
+        }
+    }
+    assert_eq!(reachable.len(), rows.len(), "acyclic delivery dependencies");
+    let done = rows.iter().filter(|row| row.state == "done").count();
+    let doing = rows.iter().filter(|row| row.state == "doing").count();
+    let todo = rows.len() - done - doing;
+    let remaining: u32 = rows.iter().map(|row| row.remaining).sum();
+    assert!(doing <= 1, "one work item in progress");
+    assert!(document.contains(&format!(
+        "**{done} done · {doing} doing · {todo} todo · {remaining} remaining pt**"
+    )));
+    let next = document
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix("**Next: ")
+                .or_else(|| line.strip_prefix("**次: "))
+        })
+        .expect("visible next delivery")
+        .split_whitespace()
+        .next()
+        .unwrap();
+    let next = by_id.get(next).expect("next delivery exists");
+    assert_ne!(next.state, "done");
+    assert!(next.needs.iter().all(|id| by_id[id].state == "done"));
+    rows
+}
+
+#[test]
+fn m2_delivery_evidence_estimates_dependencies_and_translations_agree() {
+    let english = delivery_board(include_str!("../docs/milestone-2.md"));
+    let japanese = delivery_board(include_str!("../docs/ja/milestone-2.md"));
+    assert_eq!(
+        english, japanese,
+        "delivery metadata and evidence must agree"
+    );
+    let done = english.iter().filter(|row| row.state == "done").count();
+    let doing = english.iter().filter(|row| row.state == "doing").count();
+    let todo = english.len() - done - doing;
+    let remaining: u32 = english.iter().map(|row| row.remaining).sum();
+    assert!(include_str!("../docs/roadmap.md").contains(&format!(
+        "**{done} verified deliveries · {doing} in progress · {todo} remaining tasks (provisional {remaining} pt).**"
+    )));
+    assert!(include_str!("../docs/ja/roadmap.md").contains(&format!(
+        "**検証済み{done}件 · 進行中{doing}件 · 残り{todo}件（暫定{remaining} pt）。**"
+    )));
 }
 
 fn metadata<'a>(document: &'a str, field: &str) -> &'a str {

@@ -6,13 +6,21 @@
 
 The roadmap is ordered by risk reduction. Milestones are exit criteria, not calendar commitments.
 
+## Active M2 delivery status
+
+**35 verified deliveries · 0 in progress · 52 remaining tasks (provisional 134 pt).**
+
+Use the [M2 delivery board](milestone-2.md) for the current Todo list, commit evidence and remaining estimates (updated 2026-10-18 JST). Nine deliveries landed since the gate score last changed. Next: finite value codecs → bounded frames → a source Bytes program through `lang run`. Ownership checking works; ownership execution is still unavailable.
+
+The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
+
 ## Task tracking
 
 All implementation tasks that introduce unspecified source, ABI, package, or serialized behavior require an accepted RFC before that behavior is implemented. A decision task is complete when the owner or the agent acting under [RFC 0001's experimental delegation](rfcs/0001-project-charter.md#experimental-rfc-decisions) records a disposition; a rejected design requires replanning, not checking its dependent implementation. Run compile-pass/fail, malformed-input/resource-limit, and VM/native differential tests appropriate to each outcome. Decoder/verifier CPU and allocation budgets are required before untrusted deployment.
 
 Tasks are listed in dependency-aware priority order within each milestone. A milestone can exit only when every `P0` task is checked and its exit evidence is recorded. Any unfinished `P1` task must be explicitly moved and re-estimated before exit; it cannot silently disappear. A checked task is complete; prototype groundwork completed in an earlier milestone does not complete a broader task in a later milestone.
 
-Cost uses relative effort points rather than elapsed-time promises: `1` is a very small change, `2` is small, `3` is medium, `5` is large, and `8` is very large. Each unchecked task has one independently verifiable outcome; larger programs are split at dependency or acceptance boundaries. Progress is `completed points / total points × 100`, rounded to one decimal place. Long-horizon estimates are planning values and must be re-estimated when their milestone becomes current or when scope or evidence changes.
+The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For active M2 work, the delivery board replaces these broad items with independently verifiable 1–3-point remaining tasks.
 
 The 2026-10-16 whole-roadmap audit corrected three structural problems. Production work that requires the source frontend was incorrectly included in the design baseline; several tasks combined independently shippable outcomes; and later milestones omitted required registry, bootstrap, and interoperability work. The revised list preserved the 80 points of evidence completed at that audit, moved production hardening to its dependent milestone, and exposed previously hidden work rather than treating a large compound item as one task. A follow-up component-workstream audit separated in-memory compatibility negotiation, scalar execution-prototype integration, backend-neutral resource-adapter behavior, and boundary-cost measurement. The previous single cross-mode scalar/resource task mixed those acceptance boundaries and overlapped Milestone 3's production IDL and adapter implementation. A post-schema-18 audit found that native debug-metadata implementation and cross-platform debug-quality validation were named as backend-selection prerequisites only in prose; they became explicit 5-point and 3-point tasks before backend selection. A host-value follow-up audit split another 8-point item that still combined three acceptance boundaries: the host-value identity bridge, general instantiation, and VM/JIT/AOT resource/failure conformance. The split preserved the original 8-point total while making each outcome independently checkable. Decision tasks that required repository-owner acceptance were kept unchecked and ordered after their evidence prerequisites until the owner accepted them. The checklist records dependency order, not a claim that an external gate is locally executable: when an owner decision or remote runner is unavailable, work proceeds to the next unblocked P0 without changing priority.
 
@@ -30,9 +38,9 @@ The representative-application task is also complete at its prototype boundary. 
 
 The 2026-10-17 repository review exposed missing entry gates for source ownership/core-library syntax and the production component profile, and separated native compilation of the existing copy-value profile from ownership-aware AOT. It adds 21 pending points to Milestone 2 and 5 to Milestone 3; completed work remains 298 points. The lower overall percentage reflects newly explicit work. Source/core-library foundations must precede representative workloads and self-hosting; C embedding stabilization follows conformance and resource enforcement.
 
-Progress snapshot verified against this repository state on 2026-10-18 (JST):
+Exit-gate weight snapshot verified on 2026-10-18 (JST). Overall arithmetic aggregates historical gate weights; it is not an overall effort estimate. Current M2 delivery progress is above and in the linked board.
 
-| Milestone | Completed | Total | Progress |
+| Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
@@ -218,9 +226,11 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Progress: 34 / 113 pt (30.1%).**
+**Exit gates: 5 / 18 complete; historical weight: 34 / 113 pt (30.1%).**
 
-Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFC 0004's state models do not specify source grammar, production allocation, or an ABI. Complete the corresponding decision gate before each dependent implementation; re-estimate the core-library slice after its RFC fixes the minimal requirements.
+**Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
+
+Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures are the baseline. RFCs 0007/0008 now supply the accepted source/core, cleanup, allocator and C-boundary requirements missing from RFC 0004's state models. Complete any new decision gate before dependent behavior; the delivery board records the 2026-10-18 bottom-up remaining-work review.
 
 - [x] **P0 — Accept the source ownership/borrow/arena profile, Copy classification, and minimal core-library type surface (including text/bytes, collection use, and any required generic syntax).** — 5 pt
 - [x] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
@@ -242,6 +252,10 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
+
+### Implementation evidence history
+
+The entries below record their commit-time state. The 2026-10-18 [tracking audit](milestone-2.md#why-the-previous-number-stopped) supersedes their repeated claims that the 113-point estimate remained appropriate. Preserve these as historical evidence; update current Todo rows instead of appending another routine report.
 
 Owner decision (2026-10-17 JST): [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md) is accepted following the owner's explicit instruction to accept it and continue. The cleanup/allocator/unsafe/C-validity decision gate is complete, adding 5 pt; M2 is now 26 / 113 pt (23.0%), with 4 of 18 outcomes complete. Acceptance authorizes the specified implementation but does not complete cleanup, guest allocation, unsafe/FFI enforcement, C adapters, or platform conformance. Earlier follow-up entries below record the state at their respective commits; their references to RFC 0008 being proposed or awaiting acceptance are historical. The accepted RFC and this decision record give its current status.
 

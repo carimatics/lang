@@ -19,6 +19,7 @@ These instructions apply to the entire repository.
   - `docs/roadmap.md` and `docs/ja/roadmap.md`
   - `docs/benchmarks.md` and `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` and `docs/ja/milestone-1.md`
+  - `docs/milestone-2.md` and `docs/ja/milestone-2.md`
   - `docs/review-2026-10-17.md` and `docs/ja/review-2026-10-17.md`
   - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
   - Every numbered RFC in `docs/rfcs/` and its same-named mirror in `docs/ja/rfcs/`
@@ -77,6 +78,14 @@ Add focused tests for behavior changes. Compiler work should use the appropriate
 - During experimental early development, apply the owner's 2026-10-17 JST delegation in [RFC 0001](docs/rfcs/0001-project-charter.md): accept reasonably sound RFCs without individual user approval, record the rationale and unverified assumptions, and continue work.
 - Revise the affected RFC or write a follow-up with the change rationale and compatibility consequences before implementing a changed accepted design; update its translation pair together.
 - Include migration and compatibility consequences for changes to syntax, ABI, package metadata, or serialized artifacts.
+
+## Active milestone tracking
+
+- Use the [M2 delivery board](docs/milestone-2.md) for implementation work; the roadmap's broad exit-gate weights are not a remaining-effort forecast.
+- Before coding, select one observable 1–3-point delivery and mark it doing. Keep at most one doing row. Expose and re-estimate a new prerequisite before implementing it; never repeatedly retain an estimate without checking the remaining task list.
+- If planning produces no patch or executable experiment within 10 minutes, narrow the task and run the smallest useful experiment before further design. Add abstractions/hardening only for the selected outcome or accepted requirements.
+- Update the bilingual board with implementation/validation evidence after each delivery. Keep exit-gate completion separate from completed prerequisites. Prefer the next source execution fixture over additional horizontal scaffolding; review the sequence after two prerequisite deliveries without a new execution fixture.
+- Keep planning updates short: update rows and current counts. Add narrative audits for changed scope, dependencies, estimates or exit decisions. Documentation-only planning updates require repository consistency checks, not another unchanged full compiler baseline.
 
 ## Security
 
