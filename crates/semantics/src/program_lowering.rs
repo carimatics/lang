@@ -648,19 +648,26 @@ impl<'a> Lowerer<'a, '_> {
                 }
                 r::StatementKind::Match { scrutinee, arms } => {
                     let value = self.expression(*scrutinee, &exit, 0)?;
-                    let mut continuing = self.context.budget.vector(arms.len())?;
+                    let mut reachable = self.context.budget.vector(arms.len())?;
+                    for arm in arms {
+                        self.context.budget.charge(1)?;
+                        if !self.facts.arm_is_unreachable(arm.pattern) {
+                            reachable.push(arm);
+                        }
+                    }
+                    let mut continuing = self.context.budget.vector(reachable.len())?;
                     let mut current = exit.block;
-                    for (index, arm) in arms.iter().enumerate() {
+                    for (index, arm) in reachable.iter().enumerate() {
                         let mut selected = Exit {
                             block: current,
                             environment: self.environment(&exit.environment)?,
                         };
-                        let last = index + 1 == arms.len();
+                        let last = index + 1 == reachable.len();
                         let failure = if last { None } else { Some(self.block()?) };
                         self.pattern(arm.pattern, value, &mut selected, failure, 0)?;
                         if let Some(failure) = failure {
-                            // A wildcard/product of bindings still has a structural false
-                            // edge so later warning-only arms remain verifier-reachable.
+                            // Keep the selected body and continuation as explicit
+                            // blocks. Coverage-pruned arms are omitted above.
                             let yes = self.emit(
                                 selected.block,
                                 m::Type::Bool,

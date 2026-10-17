@@ -68,7 +68,8 @@ impl Analysis {
             | AnalysisError::Typing(
                 CheckError::Limit(d)
                 | CheckError::Layout(LayoutError::Limit(d))
-                | CheckError::Types(lang_hir::types::Error::Limit(d)),
+                | CheckError::Types(lang_hir::types::Error::Limit(d))
+                | CheckError::Moves(lang_hir::moves::Error::Limit(d)),
             ) => {
                 diagnostics.push(*d);
                 AnalysisError::Diagnostics

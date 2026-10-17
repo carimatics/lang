@@ -867,10 +867,14 @@ fn type_only_facts_do_not_authorize_move_validity_or_executable_lowering() {
     let types =
         lang_hir::program::analyze_bodies(program.clone(), &sources, Default::default()).unwrap();
     assert!(types.bodies.is_some(), "{:?}", types.diagnostics);
-    assert!(matches!(
-        lang_hir::program::check_program(program, &sources, Default::default()),
-        Err(lang_hir::program::CheckError::OwnershipProfile { .. })
-    ));
+    let checked = lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+    assert!(checked.program.is_none());
+    assert!(
+        checked
+            .diagnostics
+            .iter()
+            .any(|d| d.code == codes::INVALID_OWNER_USE)
+    );
 }
 
 #[test]

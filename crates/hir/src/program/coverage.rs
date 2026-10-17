@@ -42,6 +42,7 @@ pub(super) fn check_match<'a>(
     context: &mut Context<'a>,
     function: &'a r::Function,
     fields: &BTreeMap<r::PatternId, Vec<r::PatternId>>,
+    unreachable: &mut BTreeSet<r::PatternId>,
     ty: r::Type,
     arms: &[r::Arm],
     span: Span,
@@ -58,6 +59,7 @@ pub(super) fn check_match<'a>(
             .useful(&previous, Cell::Pattern(arm.pattern), ty)?
             .is_none()
         {
+            unreachable.insert(arm.pattern);
             let mut diagnostic = Diagnostic::new(
                 codes::UNREACHABLE_ARM,
                 Severity::Warning,

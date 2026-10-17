@@ -10,6 +10,27 @@ mod source;
 use source::Files;
 
 #[test]
+fn redundant_fallthrough_match_arm_does_not_change_return_flow_or_execution() {
+    let unit =
+        Files::new("fn sample(x: i64) -> i64 { match x { _ => { return 7; }, 0 => {}, } }").unit();
+    let scalar =
+        native::scalar_function(&unit, m::FunctionId(0), &[], m::Limits::default()).unwrap();
+    let bytecode = lang_bytecode::lower(&scalar).unwrap();
+    let jit = native::compile(
+        &unit,
+        m::FunctionId(0),
+        &[],
+        &HostFunctionRegistry::new(),
+        m::Limits::default(),
+    )
+    .unwrap();
+    for value in [0, -1, i64::MAX] {
+        assert_eq!(lang_vm::execute(&bytecode, &[value]).unwrap(), 7);
+        assert_eq!(jit.invoke_i64_1(value).unwrap(), 7);
+    }
+}
+
+#[test]
 fn parsed_wrapping_and_signed_branch_results_match_vm_and_jit() {
     let u = Files::new(
         "fn sample(a: i64, b: i64) -> i64 { if a < b { return a + b; } else { return a + -1; } }",

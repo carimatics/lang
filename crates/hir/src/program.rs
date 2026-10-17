@@ -15,7 +15,7 @@ use lang_diagnostics::{
 use crate::{
     core,
     layout::{LayoutError, LayoutLimits, ValueLayout, analyze_layouts},
-    resolved as r,
+    moves, resolved as r,
     source::Name,
     types,
 };
@@ -24,6 +24,7 @@ use crate::{
 pub struct CheckLimits {
     pub layout: LayoutLimits,
     pub types: types::Limits,
+    pub moves: moves::Limits,
     pub modules: usize,
     pub functions: usize,
     pub imports: usize,
@@ -43,6 +44,7 @@ impl Default for CheckLimits {
         Self {
             layout: LayoutLimits::default(),
             types: types::Limits::default(),
+            moves: moves::Limits::default(),
             modules: 256,
             functions: 4096,
             imports: 4096,
@@ -99,6 +101,7 @@ pub enum CheckError {
     },
     Layout(LayoutError),
     Types(types::Error),
+    Moves(moves::Error),
     OwnershipProfile {
         span: Span,
     },
@@ -110,6 +113,7 @@ impl Display for CheckError {
             Self::Input { kind, .. } => write!(f, "invalid resolved program: {kind:?}"),
             Self::Layout(e) => Display::fmt(e, f),
             Self::Types(e) => Display::fmt(e, f),
+            Self::Moves(e) => Display::fmt(e, f),
             Self::OwnershipProfile { .. } => {
                 f.write_str("ownership source bodies require the pending move/loan checker")
             }
@@ -134,6 +138,7 @@ pub struct FunctionFacts {
     fields: BTreeMap<r::ExpressionId, usize>,
     records: BTreeMap<r::ExpressionId, Vec<usize>>,
     pattern_fields: BTreeMap<r::PatternId, Vec<r::PatternId>>,
+    unreachable_arms: BTreeSet<r::PatternId>,
     calls: BTreeMap<r::ExpressionId, CallFacts>,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -166,6 +171,9 @@ impl FunctionFacts {
     }
     pub fn call(&self, id: r::ExpressionId) -> Option<&CallFacts> {
         self.calls.get(&id)
+    }
+    pub fn arm_is_unreachable(&self, pattern: r::PatternId) -> bool {
+        self.unreachable_arms.contains(&pattern)
     }
 }
 
@@ -222,10 +230,19 @@ fn check_program_internal(
 ) -> Result<ProgramAnalysis, CheckError> {
     if let Some(span) = source.types.first().map(|first| first.span) {
         let analysis = analyze_bodies(source, sources, limits)?;
-        if analysis.bodies.is_none() {
+        let Some(bodies) = analysis.bodies else {
             return Ok(ProgramAnalysis {
                 program: None,
                 diagnostics: analysis.diagnostics,
+            });
+        };
+        let mut diagnostics = analysis.diagnostics;
+        let moved = moves::analyze(bodies, sources, limits.moves).map_err(CheckError::Moves)?;
+        diagnostics.extend(moved.diagnostics);
+        if moved.bodies.is_none() {
+            return Ok(ProgramAnalysis {
+                program: None,
+                diagnostics,
             });
         }
         return Err(CheckError::OwnershipProfile { span });
@@ -855,6 +872,7 @@ struct FunctionChecker<'a, 'b> {
     fields: BTreeMap<r::ExpressionId, usize>,
     records: BTreeMap<r::ExpressionId, Vec<usize>>,
     pattern_fields: BTreeMap<r::PatternId, Vec<r::PatternId>>,
+    unreachable_arms: BTreeSet<r::PatternId>,
     calls: BTreeMap<r::ExpressionId, CallFacts>,
     borrow_match: bool,
 }
@@ -887,6 +905,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             fields: BTreeMap::new(),
             records: BTreeMap::new(),
             pattern_fields: BTreeMap::new(),
+            unreachable_arms: BTreeSet::new(),
             calls: BTreeMap::new(),
             borrow_match: false,
         }
@@ -978,6 +997,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             fields: self.fields,
             records: self.records,
             pattern_fields: self.pattern_fields,
+            unreachable_arms: self.unreachable_arms,
             calls: self.calls,
         }))
     }
@@ -1234,13 +1254,12 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     None
                 };
                 let mut valid = ty.is_some();
-                let mut all_return = !arms.is_empty();
                 for arm in arms {
                     self.context.within(statement.span, arm.span)?;
                     self.context.enter(arm.span, depth + 1)?;
                     self.scopes.push(Vec::new());
                     valid &= self.pattern(arm.pattern, ty, depth + 2)?;
-                    all_return &= self.block(arm.body, depth + 2)? == Flow::Returns;
+                    self.block(arm.body, depth + 2)?;
                     self.leave_scope();
                 }
                 if valid {
@@ -1248,10 +1267,15 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                         self.context,
                         self.function,
                         &self.pattern_fields,
+                        &mut self.unreachable_arms,
                         ty.unwrap(),
                         arms,
                         statement.span,
                     )?;
+                    let all_return = arms
+                        .iter()
+                        .filter(|arm| !self.unreachable_arms.contains(&arm.pattern))
+                        .all(|arm| self.blocks[arm.body.0] == Some(Flow::Returns));
                     if exhaustive && all_return {
                         self.borrow_match = previous_borrow_match;
                         return Ok(Flow::Returns);

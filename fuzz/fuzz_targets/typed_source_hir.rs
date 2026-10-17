@@ -4,6 +4,7 @@ use lang_diagnostics::SourceMap;
 use lang_hir::{
     core::{Case, Operation},
     layout::{LayoutError, LayoutLimits},
+    moves,
     program::{CheckError, CheckLimits, analyze_bodies, check_program},
     resolved as r,
     source::Name,
@@ -277,6 +278,14 @@ fuzz_target!(|bytes: &[u8]| {
         functions: vec![function],
     };
     let limits = CheckLimits {
+        moves: moves::Limits {
+            functions: 8,
+            locals: 64,
+            depth: 16,
+            work: 16_384,
+            allocations: 1024 * 1024,
+            diagnostics: 32,
+        },
         types: types::Limits {
             constructed: 32,
             definitions: 8,
@@ -329,17 +338,43 @@ fuzz_target!(|bytes: &[u8]| {
                         assert!(bodies.properties(*ty).is_some());
                     }
                 }
+                match moves::analyze(bodies, &sources, limits.moves) {
+                    Ok(analysis) => {
+                        for diagnostic in analysis.diagnostics {
+                            diagnostic.validate(&sources).unwrap();
+                        }
+                        if let Some(checked) = analysis.bodies {
+                            assert_eq!(checked.bodies().source(), &program);
+                            for (function, facts) in checked
+                                .bodies()
+                                .source()
+                                .functions
+                                .iter()
+                                .zip(checked.functions())
+                            {
+                                for access in facts.accesses() {
+                                    assert!(access.expression.0 < function.expressions.len());
+                                    assert!(access.local.0 < function.locals.len());
+                                }
+                            }
+                        }
+                    }
+                    Err(moves::Error::Limit(d)) => d.validate(&sources).unwrap(),
+                    Err(moves::Error::Source(_) | moves::Error::AllocationFailed { .. }) => {}
+                }
             }
         }
         Err(
             CheckError::Limit(d)
             | CheckError::Layout(LayoutError::Limit(d))
-            | CheckError::Types(types::Error::Limit(d)),
+            | CheckError::Types(types::Error::Limit(d))
+            | CheckError::Moves(moves::Error::Limit(d)),
         ) => d.validate(&sources).unwrap(),
         Err(
             CheckError::Input { .. }
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
+            | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
             | CheckError::OwnershipProfile { .. },
         ) => {}
     }
@@ -358,7 +393,8 @@ fuzz_target!(|bytes: &[u8]| {
         Err(
             CheckError::Limit(d)
             | CheckError::Layout(LayoutError::Limit(d))
-            | CheckError::Types(types::Error::Limit(d)),
+            | CheckError::Types(types::Error::Limit(d))
+            | CheckError::Moves(moves::Error::Limit(d)),
         ) => {
             d.validate(&sources).unwrap();
         }
@@ -366,6 +402,7 @@ fuzz_target!(|bytes: &[u8]| {
             CheckError::Input { .. }
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
+            | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
             | CheckError::OwnershipProfile { .. },
         ) => {}
     }

@@ -483,6 +483,29 @@ fn ownership_body_type_diagnostics_are_cached_and_invalidated_with_source_revisi
 }
 
 #[test]
+fn move_diagnostics_preserve_origin_spans_and_recover_after_revision_changes() {
+    let d = Directory::new();
+    let mut db = Database::new(None, Default::default()).unwrap();
+    let text = "fn bad(text: core::Text) -> i64 { let mut moved: core::Text = text; return core::text_len(text); }";
+    let main = open(&mut db, &d.file("main.lang"), text);
+    let snapshot = db.analyze(&main).unwrap();
+    assert_eq!(snapshot.status, AnalysisStatus::Diagnostics);
+    assert!(snapshot.error.is_none());
+    let d = snapshot
+        .diagnostics
+        .iter()
+        .find(|d| d.code == codes::INVALID_OWNER_USE)
+        .unwrap();
+    assert_eq!(snapshot.sources.slice(d.primary.span).unwrap(), "text");
+    assert_eq!(snapshot.sources.slice(d.secondary[0].span).unwrap(), "text");
+    assert!(d.secondary[0].span.range().start < d.primary.span.range().start);
+    db.change(&main, Arc::from(&b"fn main() -> i64 { return 0; }"[..]))
+        .unwrap();
+    assert_eq!(db.analyze(&main).unwrap().status, AnalysisStatus::Valid);
+    assert_eq!(snapshot.sources.slice(d.primary.span).unwrap(), "text");
+}
+
+#[test]
 fn closing_a_document_releases_cache_capacity_and_retries_previous_resource_failures() {
     let d = Directory::new();
     let mut probe = Database::new(None, Limits::default()).unwrap();
