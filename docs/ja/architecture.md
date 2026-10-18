@@ -916,6 +916,18 @@ Getter成功ごとにMIR loanへruntime leaseを1つ登録します。Projection
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[VM adapter](../../crates/vm/src/unit/owned/state/vectors.rs)、[service admission](../../crates/vm/src/unit/owned/profile.rs)、[source test](../../tests/support/owned_vec.rs)、[failure injection](../../crates/vm/src/unit/owned/failure_tests.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Source構文、source／C ABI、serialized formatは変更しません。Native、ownership artifact、cross-service統合、indirect result previewは各gateに維持します。
 
+### Allocator-backed Map storage and registered lookup
+
+2026-10-18 JST実装・検証（C04）：`lang-runtime::map::Map` は型付きkey／value、initializer span／order、再利用するretirement stack、read登録table全体をinstance allocatorへ保存します。168-byte headerと設定read slotあたり16 byte（既定256）でallocator generation、両方の型、準備済みlayout identityを検証します。Guest操作中に拡張するhost collectionは作りません。現在のlookupは非公開の線形走査で、RFC 0007はhash順序や計算量上限を約束していません。性能は主張しません。
+
+整数keyは数値で比較し、Text keyは空、埋込NUL、合成済み／分解済みの別文字列も含め、厳密なUTF-8 byte列で比較します。Text ownerのidentityはequalityへ影響しません。各lookupはUTF-8走査やbyte比較の前に設定work上限を計上します。Key観測はownerをretain／transferしません。`publish_if_absent` はstorage publication primitiveです。不在時はmetadata／key／valueのgrowth plan全体をpreflight・確保してからowning inputを消費します。既存keyは検証済みentryを返し、C05へ両incoming義務を保持します。Copy inputは再利用できます。部分OOMで確保済み予約を解放し、既存entryと両inputを保持してretryできます。認可済み累積要求は計上したままです。
+
+`borrow` 成功時にshared readを1件登録し、不在keyは登録しません。Projection、case／scalar／token read、Copy転送ごとに厳密なowner／layout／version／slot／serial／index登録を検証します。複数readは共存できますが、live read中はpublication、owner移動、通常cleanupを拒否します。`end` は登録を1回だけ消費し、serial枯渇時もwrapしません。Host abortはretirement前に放置登録を失効させ、locator再利用後も古いviewを拒否します。Cleanupはcallback前にownerを失効させ、entryを初期化の逆順、各entryはvalueからkeyの順にdrainします。Field spanを保持し、child失敗／panicをcontainして事前認可済みworkのみを使います。Loan、allocator authority、arena ownerはvalue storage型として禁止し、入れ子serviceのedge／brand admissionと反復cleanupはC07へ残します。
+
+Unit 3 testとintegration 11 testで、growth／重複を含む独立した整数／Text lookup oracle、重複input保持、UTF-8 work境界／不正token、全constructor／growth OOMとretry、callback前のallocation予算の厳密値／1不足、read pool枯渇／再利用、不正／stale lease、serial／version overflow、abortとallocator／layout provenance、zero-size値、entry間projection拒否、型付きowning Option／record／Bytesのretirement、child失敗／panic後の実span／順序traceを検証します。完了した各実行で全guest storageを解放します。C05にsource insert／replacement／removalの所有権意味論（等しい元keyの保持を含む）を残し、その後C06で全5種のsource Map操作を実行してから次の基盤作業へ進みます。このstorageでVM Map profileは有効にしません。Native、preview、artifactは各gateを維持します。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[Map storage](../../crates/runtime/src/map.rs)、[登録付きread](../../crates/runtime/src/map/access.rs)、[test](../../crates/runtime/tests/map.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Header、growth、lookup表現は非公開の実装判断であり、source構文、source／C ABI、serialized formatは変更しません。
+
 ### Async borrow／cancellation実験
 
 `crates/semantics` の実行可能modelはRFC 0005のstrict baselineと、未受理の制限を緩めたpolicyを比較します。

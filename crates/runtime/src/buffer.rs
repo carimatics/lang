@@ -7,6 +7,23 @@ use crate::allocation::{self as a, Allocator, Handle, Provider, Request};
 use std::fmt::{Display, Formatter};
 
 const HEADER: usize = 24;
+/// Validate token/header provenance without scanning text. Callers must charge
+/// their byte-work budget before UTF-8 validation or comparison of this view.
+pub(crate) fn text_token_bytes<P: Provider>(
+    token: [u8; 32],
+    allocator: &Allocator<P>,
+) -> Result<&[u8], Fault> {
+    if word(&token, 24)? != Kind::Text as u64 {
+        return Err(Fault::WrongKind);
+    }
+    Buffer {
+        handle: Some(Handle::from_token(
+            token[..24].try_into().expect("fixed token"),
+        )?),
+        kind: Kind::Text,
+    }
+    .view(allocator)
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Kind {
     Bytes = 0,

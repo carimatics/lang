@@ -6,6 +6,7 @@ pub mod buffer;
 pub mod cleanup;
 pub mod component;
 pub mod layout;
+pub mod map;
 pub mod shared;
 pub mod vector;
 
