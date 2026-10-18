@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み62件 · 進行中0件 · 残り39件（暫定100 pt）。**
+**検証済み63件 · 進行中0件 · 残り38件（暫定97 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む36件の成果を検証しました。R03（`20ade1f`）で実際のguest-backed shared／weak／read登録を型付きstorage、cycle／custody proof、検証済みborrowed field access、反復的な子孫cleanupへ接続しました。追加15 testに1024-node teardown、独立oracleと比較する128 publication、OOM／quota境界、失敗／panic後の継続を含み、全体baselineの78 suite・1157 test、fmt／Clippy／docが成功しました。Interaction監査で入れ子collection／graphの検証とcleanupをC07の3 ptとして明示し、R03の3 ptを完了したため、**残り100 → 103 → 100 pt**、done 62行、計101行です。C07はV13／V17とnative N04の前提とし、受理済みgeneric payload scopeを維持します。次は完了済みR03／V08を前提とする必須のR04 source shared／weak fixtureで、基盤2件のR02／R03は完了です。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む37件の成果を検証しました。R04（`830dc26`）でsource shared／weak全7操作を実行し、scalar fixtureは9、owning graph fixtureはstrong cycle拒否とguest call越しの入れ子readを経て13を表示します。Source 14 testとcleanup injection 4 testで寿命／loan／return境界、全provider OOM／retryと全fuel prefix、中断、失敗／panic時の解放を検証し、全体baselineの78 suite・1175 testとfmt／Clippy／docが成功しました。R02／R03後に必須としたsource fixtureを完了し、**残り100 → 97 pt**、done 63行、計101行です。次はC01のguest-backed Vec storage／new／len／push growthで、前提D33／D34は完了し、最初のallocation／growth実験までは暫定3 ptを維持します。C02、C03と進め、追加基盤作業の前にsource Vec fixtureを実行します。C07はV13／V17とnative N04の前提として残し、受理済みの入れ子generic scopeを維持します。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

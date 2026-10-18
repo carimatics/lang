@@ -6,15 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**62 done · 0 doing · 39 todo · 100 remaining pt**
+**63 done · 0 doing · 38 todo · 97 remaining pt**
 
-**次: M2-R04 → upgrade、cycle拒否、rollbackを含むsource shared／weak fixtureを実行する。**
+**次: M2-C01 → allocator-awareなVec storage／new／len／pushのgrowthと失敗時rollbackを実装する。**
 
-直近の完了：**M2-R03**（`20ade1f`）。実際のguest-backed strong／weak／read ticketを型付きshared storageへ接続し、custody／型／generation検証、上限付きcycle proof、depth-firstな子孫retirementを実装しました。Stored fieldはliveなchecked viewから余分なownerなしにclone／read／replaceでき、Copy operandも再利用できます。追加15 testで1024-node cleanup、oracleと比較する128 publication、全publication OOM／retry、pool／quota境界、不正／古いtoken、子の失敗／panicのcontainを検証しました。SharedとarenaのUTF-8検証もText byte長をworkへ計上します。全体baselineの **78 suite・1157 test** とfmt／Clippy／docが成功しました。必要な入れ子collection統合をC07の3 ptとして明示し、R03の3 ptを完了したため、**残り100 → 103 → 100 pt**、done 62行、計101行です。R04の前提R03／V08は完了し、次の成果でsource fixtureの実行を必須にします。Native／artifact gateは未完了です。
+直近の完了：**M2-R04**（`830dc26`）。Sourceのshared／weak全7操作を型付きgraph serviceへ接続しました。`shared.lang` は **9**、`shared_owned.lang` はstrong cycle拒否と入れ子read loan越しのborrowed guest callを含め **13** を表示します。Source 14 testとfailure injection 4 testでweak失効、Copy再利用、alias競合、保護したreturn、再帰frame、全provider OOM／retryと全fuel prefix、中断、実descendant span、cleanup失敗／panicのcontainを検証しました。全体baselineの **78 suite・1175 test** とfmt／Clippy／docが成功しました。R02／R03後に必須としたsource fixtureを完了し、**残り100 → 97 pt**、done 63行、計101行です。Native、C07、artifactのgateは未完了です。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **24.0秒**、全test **261.0秒**（log作成から最終書き込みまで）、rustdoc **15.7秒**、すべて成功です。Shared／arena／storageのfocused検証とmanaged graph 15 test全体の後、全baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **23.2秒**、全test **255.9秒**（log作成から最終書き込みまで）、rustdoc **11.6秒**、すべて成功です。Source／shared cleanupのfocused検証とowned execution 96 test全体の後、全baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作と検証済みarena allocation／read／replace／teardown、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R03はruntime serviceであり、source shared／weak dispatchはR04に残ります。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはR04／C07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04でBytes／Text／inline payloadを持つ再帰shared／weak shapeに対応し、Vec／Map統合はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+
+次の着手条件（2026-10-18 JST）：C01の前提D33／D34は完了しています。Runtimeにはguest allocation／layout serviceがありますがVec storage serviceはなく、最初のallocation／growth実験までC01は暫定3 ptを維持します。C02に要素read／take／replacement、C03にsource fixtureを残します。C01／C02の基盤2件後は、追加基盤作業の前にC03でsource Vec操作を実行し、新たな前提が必要なら実装前に明示します。受理済みの入れ子service scopeはC07に維持します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -138,7 +140,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-R01 | done | 0 | M2-D24,M2-R08,M2-R09,M2-R10 | G05 | Failure／実行admission前に独立MIR arena-brand／call-effect proofを必須化し、構造化span診断と偽造入力／resource／fuzz conformanceを維持。 | `dd0b006` |
 | M2-R02 | done | 0 | M2-D02,M2-D33 | G06 | 型付きshared control／payload storageをguest fallible allocationに接続し、payload／retirement全領域のpreflight／rollbackを会計。Graph／source統合はR03／R04へ続く。 | `15834b9` |
 | M2-R03 | done | 0 | M2-R02,M2-D34 | G06 | Production shared／weak token、上限付きgraph／read registry、cycle検証を型付きstorageへ統合し、test registryなしに子孫を反復retire。 | `20ade1f` |
-| M2-R04 | todo | 3 | M2-R03,M2-V08 | G06,G14 | Shared／weakソース命令、upgrade、cycle拒否、rollbackを実行。 | — |
+| M2-R04 | done | 0 | M2-R03,M2-V08 | G06,G14 | Shared／weakソース命令、upgrade、cycle拒否、rollbackを実行。 | `830dc26` |
 | M2-R05 | done | 0 | M2-D15,M2-D33 | G05,G06 | Arena payload allocationと子孫retirementにguest budgetと失敗rollbackを適用。 | `cb7a72b` |
 | M2-R06 | done | 0 | M2-R01,M2-R05,M2-V08 | G05 | Arena allocation／read／replace／region再enter（reset）／teardownをソースから実行し、stale referenceと逆順dropを検証。 | `e0f6bb4` |
 | M2-R07 | done | 0 | M2-R06,M2-V07 | G05 | Guest callを通じ、arena escape／call-brandのcompile-failとruntime結果を照合。 | `cecd6e8` |
