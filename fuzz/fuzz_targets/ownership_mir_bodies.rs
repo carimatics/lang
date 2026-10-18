@@ -6,8 +6,12 @@ use lang_mir::unit::{
 };
 use libfuzzer_sys::fuzz_target;
 
+#[path = "ownership_mir_bodies/regions.rs"]
+mod region_cases;
+
 // This is a bounded test-input generator, not an ownership wire decoder.
 fuzz_target!(|bytes: &[u8]| {
+    region_cases::exercise(bytes);
     let byte = |i: usize| bytes.get(i).copied().unwrap_or(0);
     let span = m::Span {
         source: m::SourceId(0),
@@ -509,8 +513,18 @@ fuzz_target!(|bytes: &[u8]| {
                         allocations: 2 * 1024 * 1024,
                         elements: 100_000,
                         nodes: 4096,
+                        regions: failure::RegionLimits {
+                            type_nodes: 256,
+                            paths: 256,
+                            edges: 4096,
+                            analysis_nodes: 512,
+                            state_cells: 4096,
+                            depth: 16,
+                        },
                     };
                     if let Ok(flow) = failure::elaborate(checked, limits) {
+                        assert!(flow.region_usage().work >= flow.source().work_used());
+                        assert!(flow.work_used() >= flow.region_usage().work);
                         assert_eq!(
                             failure::elaborate(flow.source().clone(), limits).unwrap(),
                             flow

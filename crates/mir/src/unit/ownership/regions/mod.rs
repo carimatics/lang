@@ -1,6 +1,6 @@
 //! Bounded, source-independent region preparation and local/call analyses.
 //! A Plan records shapes and paths, not a proof or execution/serialization
-//! permission. Mandatory failure/execution admission remains a later stage.
+//! permission. Failure admission requires the complete local/call analysis.
 use super::{super as m, *};
 use std::fmt::{Display, Formatter};
 

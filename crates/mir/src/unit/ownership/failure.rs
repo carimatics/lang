@@ -1,8 +1,8 @@
-//! Explicit status/failure control flow derived from fully loan-checked MIR.
+//! Explicit status/failure flow derived from loan- and region/call-checked MIR.
 //! Source instruction identities and spans are retained. This is in-memory
 //! backend-neutral IR, not an ownership wire encoding or executable layout.
 //! Typed guest Err values follow success edges; execution status is separate.
-use super::{bodies as b, loans};
+use super::{bodies as b, loans, regions};
 use crate::unit as m;
 use std::fmt::{Display, Formatter};
 
@@ -157,6 +157,7 @@ pub struct Elaborated {
     work: usize,
     bytes: usize,
     elements: usize,
+    region_usage: m::Usage,
 }
 impl Elaborated {
     pub fn source(&self) -> &loans::LoanCheckedBodies {
@@ -174,6 +175,34 @@ impl Elaborated {
     pub const fn elements_used(&self) -> usize {
         self.elements
     }
+    /// Cumulative usage after mandatory region/call validation, before flow
+    /// nodes are constructed. The source and completed flow remain immutable.
+    pub const fn region_usage(&self) -> m::Usage {
+        self.region_usage
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionLimits {
+    pub type_nodes: usize,
+    pub paths: usize,
+    pub edges: usize,
+    pub analysis_nodes: usize,
+    pub state_cells: usize,
+    pub depth: usize,
+}
+impl Default for RegionLimits {
+    fn default() -> Self {
+        let preparation = regions::Limits::default();
+        let analysis = regions::local::Limits::default();
+        Self {
+            type_nodes: preparation.nodes,
+            paths: preparation.paths,
+            edges: preparation.edges,
+            analysis_nodes: analysis.nodes,
+            state_cells: analysis.state_cells,
+            depth: analysis.depth,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {
@@ -181,6 +210,8 @@ pub struct Limits {
     pub allocations: usize,
     pub elements: usize,
     pub nodes: usize,
+    /// Stage-specific graph quotas; work/bytes/elements use the outer totals.
+    pub regions: RegionLimits,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -190,6 +221,7 @@ impl Default for Limits {
             allocations: limits.allocations,
             elements: limits.elements,
             nodes: 1_000_000,
+            regions: RegionLimits::default(),
         }
     }
 }
@@ -197,6 +229,8 @@ impl Default for Limits {
 pub enum ErrorKind {
     Resource(m::ErrorKind),
     Nodes { requested: usize, limit: usize },
+    RegionPreparation(regions::Error),
+    Regions(regions::local::Error),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {
@@ -220,7 +254,45 @@ impl Display for Error {
         )
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.kind {
+            ErrorKind::RegionPreparation(e) => Some(e),
+            ErrorKind::Regions(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl Error {
+    pub fn is_resource(&self) -> bool {
+        fn resource(k: &m::ErrorKind) -> bool {
+            matches!(
+                k,
+                m::ErrorKind::Limit { .. }
+                    | m::ErrorKind::AllocationFailed
+                    | m::ErrorKind::ArithmeticOverflow
+            )
+        }
+        match &self.kind {
+            ErrorKind::Resource(k) => resource(k),
+            ErrorKind::Nodes { .. } => true,
+            ErrorKind::RegionPreparation(e) => match &e.kind {
+                regions::ErrorKind::Resource(k) => resource(k),
+                regions::ErrorKind::Nodes { .. }
+                | regions::ErrorKind::Paths { .. }
+                | regions::ErrorKind::Edges { .. } => true,
+                _ => false,
+            },
+            ErrorKind::Regions(e) => match &e.kind {
+                regions::local::ErrorKind::Resource(k) => resource(k),
+                regions::local::ErrorKind::Nodes { .. }
+                | regions::local::ErrorKind::StateCells { .. }
+                | regions::local::ErrorKind::Depth { .. } => true,
+                _ => false,
+            },
+        }
+    }
+}
 fn add(a: usize, b: usize) -> Result<usize, Error> {
     a.checked_add(b)
         .ok_or_else(|| m::Error::new(m::ErrorKind::ArithmeticOverflow).into())
@@ -274,6 +346,41 @@ fn block_count(block: &b::Block, budget: &mut m::Budget) -> Result<usize, Error>
     Ok(count)
 }
 pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Elaborated, Error> {
+    // No failure nodes, execution layout, or guest effects are admitted before
+    // the complete independent proof. Temporary reports borrow immutable input.
+    let region_usage = {
+        let plan = regions::prepare(
+            &source,
+            regions::Limits {
+                work: limits.work,
+                allocations: limits.allocations,
+                elements: limits.elements,
+                nodes: limits.regions.type_nodes,
+                paths: limits.regions.paths,
+                edges: limits.regions.edges,
+            },
+        )
+        .map_err(|e| Error {
+            primary: e.span,
+            kind: ErrorKind::RegionPreparation(e),
+        })?;
+        let checked = regions::calls::analyze(
+            &plan,
+            regions::local::Limits {
+                work: limits.work,
+                allocations: limits.allocations,
+                elements: limits.elements,
+                nodes: limits.regions.analysis_nodes,
+                state_cells: limits.regions.state_cells,
+                depth: limits.regions.depth,
+            },
+        )
+        .map_err(|e| Error {
+            primary: e.primary,
+            kind: ErrorKind::Regions(e),
+        })?;
+        checked.usage()
+    };
     let mut budget = m::Budget::with_usage(
         m::Limits {
             work: limits.work,
@@ -281,11 +388,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
             elements: limits.elements,
             ..Default::default()
         },
-        m::Usage {
-            work: source.work_used(),
-            allocation_bytes: source.requested_bytes(),
-            elements: source.elements_used(),
-        },
+        region_usage,
     )?;
     let typed = source.activity().moved().typed();
     let mut functions = budget.vector(typed.functions().len())?;
@@ -483,6 +586,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
         work: budget.work_used(),
         bytes: budget.allocation_bytes(),
         elements: budget.elements_used(),
+        region_usage,
     })
 }
 fn push(

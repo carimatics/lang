@@ -41,7 +41,9 @@ fn loaned(table: b::BodyTable) -> loans::LoanCheckedBodies {
     loans::analyze(active, Default::default()).unwrap()
 }
 fn forged_destination(source: &str) -> loans::LoanCheckedBodies {
-    let mut table = table(source);
+    redirect_destination(table(source))
+}
+fn redirect_destination(mut table: b::BodyTable) -> loans::LoanCheckedBodies {
     let index = table
         .places
         .declarations
@@ -67,6 +69,62 @@ fn forged_destination(source: &str) -> loans::LoanCheckedBodies {
     }
     assert_eq!(edits, 1);
     loaned(table)
+}
+
+#[test]
+fn mandatory_region_diagnostics_map_original_snapshots_and_both_call_store_labels() {
+    let mut sources = SourceMap::new();
+    let old = sources.add("region-calls.lang", "old revision").unwrap();
+    let unrelated = sources.add("other.lang", "unrelated snapshot").unwrap();
+    let analysis = frontend::analyze_virtual(
+        sources,
+        Path::new("region-calls.lang"),
+        TRANSIENT.as_bytes(),
+        None,
+        CompileLimits::default(),
+        None,
+    );
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:?}",
+        analysis.diagnostics
+    );
+    let Program::Ownership(program) = analysis.result.unwrap() else {
+        panic!("ownership source")
+    };
+    let source = program.hir().loaned().moved().bodies().source();
+    let original = source.modules[0].span.source();
+    assert_ne!(original, old);
+    assert_ne!(original, unrelated);
+    let input = redirect_destination(
+        program
+            .mir()
+            .activity()
+            .moved()
+            .typed()
+            .clone()
+            .into_table(),
+    );
+    let error = o::failure::elaborate(input, Default::default()).unwrap_err();
+    assert!(!error.is_resource());
+    let diagnostic = lang_semantics::analysis::Error::Failure(error)
+        .region_diagnostic(source, &analysis.sources)
+        .unwrap();
+    assert_eq!(diagnostic.code, lang_diagnostics::codes::REGION_ESCAPE);
+    assert_eq!(diagnostic.primary.span.source(), original);
+    assert_eq!(
+        analysis.sources.slice(diagnostic.primary.span).unwrap(),
+        "store(inside,token)"
+    );
+    assert_eq!(diagnostic.secondary.len(), 1);
+    assert_eq!(diagnostic.secondary[0].span.source(), original);
+    assert!(
+        analysis
+            .sources
+            .slice(diagnostic.secondary[0].span)
+            .unwrap()
+            .contains("Some(input)")
+    );
 }
 #[test]
 fn overwritten_store_still_requires_the_callers_storage_lifetime() {
@@ -110,9 +168,14 @@ fn overwritten_store_still_requires_the_callers_storage_lifetime() {
     assert_eq!(*store, secondary);
     drop(local);
     drop(plan);
-    // R01 must make this complete proof mandatory in the existing admission
-    // path; success here records the remaining integration boundary.
-    o::failure::elaborate(input, Default::default()).unwrap();
+    let error = o::failure::elaborate(input, Default::default()).unwrap_err();
+    assert!(matches!(
+        error.kind,
+        o::failure::ErrorKind::Regions(g::local::Error {
+            kind: g::local::ErrorKind::CallStore { .. },
+            ..
+        })
+    ));
 }
 
 #[test]

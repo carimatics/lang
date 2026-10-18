@@ -94,6 +94,51 @@ fn resource(kind: &m::ErrorKind) -> bool {
     )
 }
 impl Error {
+    /// Use the exact resolved program that ownership lowering consumed.
+    /// MIR source ordinals follow first distinct module snapshots, never paths
+    /// or the current contents of an editor buffer with the same file name.
+    pub fn region_diagnostic(
+        &self,
+        program: &r::Program,
+        sources: &SourceMap,
+    ) -> Option<Diagnostic> {
+        let Self::Failure(error) = self else {
+            return None;
+        };
+        let o::failure::ErrorKind::Regions(region) = &error.kind else {
+            return None;
+        };
+        use o::regions::local::ErrorKind as K;
+        let message = match region.kind {
+            K::CrossArena { .. } => "arena value belongs to a different region",
+            K::ExpiredArena(_) => "arena value is used after its region ended",
+            K::Escape { .. } | K::CallStore { .. } => "arena value would outlive its region",
+            K::ReturnEscape { .. } => "arena values cannot escape as function results",
+            K::SharedStorage { .. } => "arena values cannot be stored in shared storage",
+            K::LocalReferenceEscape => "callee references cannot escape into caller storage",
+            K::ArenaState(_) => "arena lifetime is not valid on every path",
+            _ => return None,
+        };
+        let primary = original_span(program, sources, region.primary?)?;
+        let mut diagnostic = Diagnostic::new(
+            codes::REGION_ESCAPE,
+            Severity::Error,
+            message,
+            Label::new(primary, message),
+        );
+        if let Some(related) = region.secondary {
+            let span = original_span(program, sources, related)?;
+            diagnostic.secondary.push(Label::new(
+                span,
+                if matches!(region.kind, K::CallStore { .. }) {
+                    "callee store requires this value to outlive the destination"
+                } else {
+                    "related arena or caller declaration"
+                },
+            ));
+        }
+        Some(diagnostic)
+    }
     /// MIR resource bounds describe this compilation, rather than a source
     /// semantic failure. Use the original root span, never remapped MIR IDs.
     pub fn resource_diagnostic(&self, root: Span) -> Option<Diagnostic> {
@@ -124,10 +169,7 @@ impl Error {
                     o::loans::ErrorKind::Nodes { .. } | o::loans::ErrorKind::StateWords { .. }
                 ) || matches!(&e.kind, o::loans::ErrorKind::Resource(k) if resource(k))
             }
-            Self::Failure(e) => {
-                matches!(&e.kind, o::failure::ErrorKind::Nodes { .. })
-                    || matches!(&e.kind, o::failure::ErrorKind::Resource(k) if resource(k))
-            }
+            Self::Failure(e) => e.is_resource(),
         };
         exhausted.then(|| {
             Diagnostic::new(
@@ -141,6 +183,25 @@ impl Error {
             )
         })
     }
+}
+fn original_span(program: &r::Program, sources: &SourceMap, span: m::Span) -> Option<Span> {
+    let mut ordinal = 0usize;
+    for (index, module) in program.modules.iter().enumerate() {
+        let source = module.span.source();
+        if program.modules[..index]
+            .iter()
+            .any(|m| m.span.source() == source)
+        {
+            continue;
+        }
+        if ordinal == span.source.0 as usize {
+            return sources
+                .span(source, span.start as usize..span.end as usize)
+                .ok();
+        }
+        ordinal += 1;
+    }
+    None
 }
 pub fn analyze(
     source: r::Program,
@@ -192,6 +253,11 @@ fn finish(
                 Ok(flow) => Some(Program::Ownership(Box::new(OwnershipProgram { hir, flow }))),
                 Err(e) => {
                     if let Some(d) = root.and_then(|root| e.resource_diagnostic(root)) {
+                        diagnostics.push(d);
+                        None
+                    } else if let Some(d) = e
+                        .region_diagnostic(hir.bodies().loaned().moved().bodies().source(), sources)
+                    {
                         diagnostics.push(d);
                         None
                     } else {

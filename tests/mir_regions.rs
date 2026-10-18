@@ -112,10 +112,16 @@ fn source_rejection_and_mir_region_preparation_have_distinct_contracts() {
         "{error:?}"
     );
     assert!(error.primary.is_some() && error.secondary.is_some());
-    // Local analysis now rejects the forgery. R10/R01 still have to derive
-    // call effects and make the complete proof mandatory at admission.
+    // The complete proof is mandatory at the failure/execution boundary too.
     drop(plan);
-    o::failure::elaborate(loaned, Default::default()).unwrap();
+    let error = o::failure::elaborate(loaned, Default::default()).unwrap_err();
+    assert!(matches!(
+        error.kind,
+        o::failure::ErrorKind::Regions(g::local::Error {
+            kind: g::local::ErrorKind::CrossArena { .. },
+            ..
+        })
+    ));
 }
 
 #[test]
@@ -324,6 +330,159 @@ fn local_transfer_uses_exact_cumulative_budgets_and_reuses_the_prepared_input() 
             )
             .is_none()
     );
+}
+
+#[test]
+fn mandatory_admission_uses_one_global_budget_and_exact_region_graph_limits() {
+    use o::failure as f;
+    let input = loaned(table());
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let proof = g::calls::analyze(&plan, Default::default()).unwrap();
+    let counts = plan.counts();
+    let region_limits = f::RegionLimits {
+        type_nodes: counts.nodes,
+        paths: counts.paths,
+        edges: counts.edges,
+        analysis_nodes: proof.nodes_used(),
+        state_cells: proof.state_cells(),
+        depth: 64,
+    };
+    let flow = f::elaborate(input.clone(), Default::default()).unwrap();
+    assert_eq!(flow.region_usage(), proof.usage());
+    assert!(flow.region_usage().work > input.work_used());
+    assert!(flow.work_used() > flow.region_usage().work);
+    assert!(flow.requested_bytes() > flow.region_usage().allocation_bytes);
+    assert!(flow.elements_used() > flow.region_usage().elements);
+    let exact = f::Limits {
+        work: flow.work_used(),
+        allocations: flow.requested_bytes(),
+        elements: flow.elements_used(),
+        nodes: flow.functions().iter().map(|f| f.nodes().len()).sum(),
+        regions: region_limits,
+    };
+    assert_eq!(f::elaborate(input.clone(), exact).unwrap(), flow);
+    for limits in [
+        f::Limits {
+            work: exact.work - 1,
+            ..exact
+        },
+        f::Limits {
+            allocations: exact.allocations - 1,
+            ..exact
+        },
+        f::Limits {
+            elements: exact.elements - 1,
+            ..exact
+        },
+    ] {
+        assert!(
+            f::elaborate(input.clone(), limits)
+                .unwrap_err()
+                .is_resource()
+        );
+    }
+    for regions in [
+        f::RegionLimits {
+            type_nodes: region_limits.type_nodes - 1,
+            ..region_limits
+        },
+        f::RegionLimits {
+            paths: region_limits.paths - 1,
+            ..region_limits
+        },
+        f::RegionLimits {
+            edges: region_limits.edges - 1,
+            ..region_limits
+        },
+        f::RegionLimits {
+            analysis_nodes: region_limits.analysis_nodes - 1,
+            ..region_limits
+        },
+        f::RegionLimits {
+            state_cells: region_limits.state_cells - 1,
+            ..region_limits
+        },
+        f::RegionLimits {
+            depth: 0,
+            ..region_limits
+        },
+    ] {
+        let error = f::elaborate(input.clone(), f::Limits { regions, ..exact }).unwrap_err();
+        assert!(error.is_resource(), "{error:?}");
+        assert!(matches!(
+            error.kind,
+            f::ErrorKind::RegionPreparation(_) | f::ErrorKind::Regions(_)
+        ));
+    }
+    assert_eq!(f::elaborate(input, exact).unwrap(), flow);
+}
+
+#[test]
+fn all_region_admission_quotas_become_resource_diagnostics_on_the_original_snapshot() {
+    use o::failure as f;
+    let source = "fn f(out: &mut core::Option<arena i64>) -> i64 { let mut copied: core::Option<arena i64> = (*out); return 0; }";
+    for regions in [
+        f::RegionLimits {
+            type_nodes: 0,
+            ..Default::default()
+        },
+        f::RegionLimits {
+            paths: 0,
+            ..Default::default()
+        },
+        f::RegionLimits {
+            edges: 0,
+            ..Default::default()
+        },
+        f::RegionLimits {
+            analysis_nodes: 0,
+            ..Default::default()
+        },
+        f::RegionLimits {
+            state_cells: 0,
+            ..Default::default()
+        },
+        f::RegionLimits {
+            depth: 0,
+            ..Default::default()
+        },
+    ] {
+        let mut limits = CompileLimits::default();
+        limits.ownership.failure.regions = regions;
+        let mut sources = SourceMap::new();
+        let old = sources.add("limits.lang", "old snapshot").unwrap();
+        let analysis = frontend::analyze_virtual(
+            sources,
+            Path::new("limits.lang"),
+            source.as_bytes(),
+            None,
+            limits,
+            None,
+        );
+        assert!(
+            matches!(analysis.result, Err(frontend::AnalysisError::Diagnostics)),
+            "{:?}",
+            analysis.result
+        );
+        let diagnostic = analysis
+            .diagnostics
+            .iter()
+            .find(|d| d.code == lang_diagnostics::codes::RESOURCE_LIMIT)
+            .unwrap();
+        assert_ne!(diagnostic.primary.span.source(), old);
+        assert_eq!(
+            analysis
+                .sources
+                .file(diagnostic.primary.span.source())
+                .unwrap()
+                .text(),
+            source
+        );
+        assert_eq!(
+            analysis.sources.slice(diagnostic.primary.span).unwrap(),
+            source
+        );
+    }
 }
 
 #[test]
