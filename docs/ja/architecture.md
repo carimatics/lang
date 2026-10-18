@@ -119,6 +119,12 @@ Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと
 
 2026-10-18 JST受理（A01）：[RFC 0011](rfcs/0011-ownership-artifacts.md)でCopy schema 1を維持したまま、明示的ownership schema 2を追加する決定をしました。Ownership 33 opcode、core-operation 37 tag、順序付きraw type／declaration／place／CFG table、必須spanを規定します。Loadはdecode／検証の累積予算内でmove／loan／region／failure proofを独立再構築しなければなりません。Live owner、allocator instance、host binding、proof certificateは保存しません。決定だけであり、A02／A03でcodec／load／CLIを実装し、owned Bytes artifact、不正入力／budget境界、直接／loadした実行の一致を検証します。Native／platform／artifact exit gateは未完了です。情報源：RFC 0011と同RFCにlinkした共有契約実装。2026-10-18 JST更新・検証。
 
+### Ownership artifact codec
+
+2026-10-18 JST実装・検証（A02）：[`lang-bytecode::ownership`](../../crates/bytecode/src/ownership.rs)がRFC 0011のraw ownership tableをencodeし、decode後にtype／place／CFG、move、loan activity／provenance、region／call、failureを独立検証します。Schema 1は維持します。Source／span、table／初期化順序、明示的optional entry IDを保持し、reencodeはbyte単位で一致します。Encodeはraw tableをconsumeして失敗不能なtable cloneなしに再検証し、decode済みprogramのconsumeでもproof certificateを残さずraw tableを復元できます。各操作全体で予算を共有し、decode／string／vector buffer、全proof stage、writer両pass、出力reservationを通算します。Phase上限を狭めるとload全体の共通上限も狭まります。Workにはenvelope 4 field、各scalar／tag／vector member、空／終端chunkも含むstringの`len / 1024 + 1` chunkを追加課金します。
+
+独立した212-byte scalarと、Bytesをallocate／dropする443-byte vectorでwire契約を固定します。全33 opcodeのoperand配置と37 core tag、未sortのglobal順序／entry identity、CFG引数、元／修正した長さでの全切断、canonical mutation、不正name／path／span／tag／count、厳密な累積work／byte／element境界を検証します。Source 19 fixtureで入れ子collection／graphやarena値を含むraw tableと元spanを保持します。Signature偽造、二重drop、loan終了の反復byteは各独立stageで失敗し、正しい埋め込みsourceを残したcross-arena tokenの差し替えもregion proofで拒否します。新[fuzz target](../../fuzz/fuzz_targets/ownership_artifact_decoder.rs)はguest実行やhost authorityなしにraw byteと両vectorのmutationをfuzzし、locked Clippyとinstrumentationなしの10,000-run smokeが成功しました。Instrumented coverageの証拠ではありません。A03でcompile／load／CLI実行と最初のload済みowned Bytes fixtureを接続する必要があり、native／platformとartifact実行／conformance gateは未完了です。情報源：受理済み[RFC 0011](rfcs/0011-ownership-artifacts.md)、[wire test](../../crates/bytecode/src/ownership/tests.rs)、[source test](../../tests/ownership_artifacts.rs)。2026-10-18 JST更新・検証。
+
 ### 解決済みownership型の性質
 
 2026-10-17実装：source bindingはRFC 0007のloan／shared／weak／arena prefixと有限の `core` 型群をcompilation単位のconstructor arenaへ解決します。構造的interningにより各annotationのspanとconstructor初出のspanを保持し、childはparentより前に置き、nominal参照の前方参照を許可します。未知core path、不正arity、user generic specializationには `SRC0024` を出します。この表現はin-memory HIRであり、serialized formatやABIを導入しません。

@@ -32,6 +32,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "ownership_artifact_decoder"
+path = "fuzz_targets/ownership_artifact_decoder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "typed_source_hir"
 path = "fuzz_targets/typed_source_hir.rs"
 test = false

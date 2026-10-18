@@ -160,6 +160,11 @@ pub struct Elaborated {
     region_usage: m::Usage,
 }
 impl Elaborated {
+    /// Consume derived failure/region data and recover the checked source.
+    /// No proof or execution authority is attached to any later raw table.
+    pub fn into_source(self) -> loans::LoanCheckedBodies {
+        self.source
+    }
     pub fn source(&self) -> &loans::LoanCheckedBodies {
         &self.source
     }
