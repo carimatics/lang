@@ -4,6 +4,9 @@
 use crate::allocation;
 use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_LAYOUT: AtomicU64 = AtomicU64::new(1);
 
 mod storage;
 pub use storage::{
@@ -15,7 +18,7 @@ pub use frame::{FramePlan, FrameStorage};
 
 const ORDER_HEADER: u64 = 8;
 const ORDER_ENTRY: u64 = 24;
-const WORK_ENTRY: u64 = 40;
+pub(crate) const WORK_ENTRY: u64 = 40;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
@@ -112,6 +115,7 @@ impl Layout {
 }
 
 pub struct Layouts<'types> {
+    identity: u64,
     types: &'types o::VerifiedTypes,
     entries: Vec<Option<Layout>>,
     usage: m::Usage,
@@ -180,6 +184,9 @@ impl<'types> Layouts<'types> {
             }
         }
         Ok(Self {
+            identity: NEXT_LAYOUT
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+                .map_err(|_| Error::Overflow)?,
             types,
             entries,
             usage: m::Usage {
@@ -197,6 +204,10 @@ impl<'types> Layouts<'types> {
     }
     pub const fn types(&self) -> &'types o::VerifiedTypes {
         self.types
+    }
+    /// Private execution identity; never serialized or exposed as source/ABI data.
+    pub(crate) const fn identity(&self) -> u64 {
+        self.identity
     }
     pub(crate) fn span_valid(&self, span: m::Span) -> bool {
         self.types

@@ -70,6 +70,13 @@ pub struct Reservation<'layouts, 'types> {
     top: usize,
     outstanding: bool,
     state: State,
+    slice: Option<Slice>,
+}
+#[derive(Clone, Copy)]
+struct Slice {
+    offset: u64,
+    metadata: u64,
+    work: u64,
 }
 impl<'layouts, 'types> Reservation<'layouts, 'types> {
     pub const fn layouts(&self) -> &'layouts Layouts<'types> {
@@ -120,14 +127,21 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             top: 0,
             outstanding: false,
             state: State::Prepared,
+            slice: None,
         })
     }
     pub const fn root(&self) -> Location {
         Location {
             owner: self.data,
             ty: self.ty,
-            offset: 0,
-            metadata: 0,
+            offset: match self.slice {
+                Some(s) => s.offset,
+                None => 0,
+            },
+            metadata: match self.slice {
+                Some(s) => s.metadata,
+                None => 0,
+            },
             parent: None,
         }
     }
@@ -153,9 +167,25 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         if location.owner != self.data {
             return Err(Error::ForeignLocation);
         }
-        self.layouts
+        let layout = self
+            .layouts
             .get(location.ty)
-            .ok_or(Error::InvalidType(location.ty))
+            .ok_or(Error::InvalidType(location.ty))?;
+        if let Some(slice) = self.slice {
+            let root = self
+                .layouts
+                .get(self.ty)
+                .ok_or(Error::InvalidType(self.ty))?;
+            if location.offset < slice.offset
+                || add(location.offset, layout.size)? > add(slice.offset, root.size)?
+                || location.metadata < slice.metadata
+                || add(location.metadata, layout.metadata_bytes)?
+                    > add(slice.metadata, root.metadata_bytes)?
+            {
+                return Err(Error::ForeignLocation);
+            }
+        }
+        Ok(layout)
     }
     fn aggregate<'a, P: Provider>(
         layouts: &'a Layouts<'_>,
@@ -407,7 +437,10 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         if self.top as u64 >= root.work_slots {
             return Err(Error::State);
         }
-        let index = add(root.metadata_bytes, mul(self.top as u64, WORK_ENTRY)?)? as usize;
+        let index = add(
+            self.slice.map_or(root.metadata_bytes, |s| s.work),
+            mul(self.top as u64, WORK_ENTRY)?,
+        )? as usize;
         let bytes = allocator.bytes_mut(self.metadata)?;
         write_u64(
             bytes,
@@ -429,7 +462,10 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             .layouts
             .get(self.ty)
             .ok_or(Error::InvalidType(self.ty))?;
-        let index = add(root.metadata_bytes, mul(self.top as u64, WORK_ENTRY)?)? as usize;
+        let index = add(
+            self.slice.map_or(root.metadata_bytes, |s| s.work),
+            mul(self.top as u64, WORK_ENTRY)?,
+        )? as usize;
         let bytes = allocator.bytes(self.metadata)?;
         let ty = type_at(
             self.layouts.types,
@@ -459,8 +495,8 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             self.push(
                 Work {
                     ty: self.ty,
-                    offset: 0,
-                    metadata: 0,
+                    offset: self.root().offset,
+                    metadata: self.root().metadata,
                     span,
                 },
                 allocator,
@@ -632,13 +668,13 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         }
         allocator.request(self.data)?;
         allocator.request(self.metadata)?;
-        allocator.bytes_mut(self.data)?.fill(0);
-        allocator.bytes_mut(self.metadata)?.fill(0);
+        self.clear(allocator)?;
         self.state = State::Prepared;
         Ok(())
     }
     pub(super) fn check_release<P: Provider>(&self, allocator: &Allocator<P>) -> Result<(), Error> {
         if self.state == State::Released
+            || self.slice.is_some()
             || self.outstanding
             || (self.state == State::Draining && self.top != 0)
         {
@@ -658,6 +694,53 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         allocator.release(self.data)?;
         allocator.release(self.metadata)?;
         self.state = State::Released;
+        Ok(())
+    }
+}
+
+impl<'l, 't> Reservation<'l, 't> {
+    /// Internal non-owning view of an admitted array element. Only its owning
+    /// collection may release the shared storage. Scratch is reused serially.
+    pub(crate) fn element(
+        layouts: &'l Layouts<'t>,
+        ty: o::Type,
+        data: Handle,
+        metadata: Handle,
+        offset: u64,
+        meta: u64,
+        work: u64,
+    ) -> Self {
+        Self {
+            layouts,
+            ty,
+            data,
+            metadata,
+            top: 0,
+            outstanding: false,
+            state: State::Prepared,
+            slice: Some(Slice {
+                offset,
+                metadata: meta,
+                work,
+            }),
+        }
+    }
+    fn clear<P: Provider>(&self, allocator: &mut Allocator<P>) -> Result<(), Error> {
+        if let Some(slice) = self.slice {
+            let layout = self
+                .layouts
+                .get(self.ty)
+                .ok_or(Error::InvalidType(self.ty))?;
+            allocator.bytes_mut(self.data)?
+                [slice.offset as usize..(slice.offset + layout.size) as usize]
+                .fill(0);
+            allocator.bytes_mut(self.metadata)?
+                [slice.metadata as usize..(slice.metadata + layout.metadata_bytes) as usize]
+                .fill(0);
+        } else {
+            allocator.bytes_mut(self.data)?.fill(0);
+            allocator.bytes_mut(self.metadata)?.fill(0);
+        }
         Ok(())
     }
 }

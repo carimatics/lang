@@ -198,8 +198,7 @@ impl Reservation<'_, '_> {
         // With exclusive allocator access and all ranges admitted above, these
         // writes cannot invoke a provider or encounter a new resource failure.
         // Copy only construction metadata, never the source retirement stack.
-        allocator.bytes_mut(self.data)?.fill(0);
-        allocator.bytes_mut(self.metadata)?.fill(0);
+        self.clear(allocator)?;
         self.top = 0;
         Ok(())
     }

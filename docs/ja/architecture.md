@@ -880,6 +880,18 @@ Compile-failで、より長生きするcaller storageへの一時／非return st
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[source test](../../tests/arena_calls.rs)、[MIR call test](../../tests/mir_region_calls.rs)、[managed-arena test](../../crates/runtime/tests/managed_arena.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。
 
+### Allocator-backed typed Vec storage
+
+2026-10-18 JST実装・検証（C01）：`lang-runtime::vector::Vector` は88-byte owner header、連続した型付き要素capacity、要素ごとのinitializer order／span、直列に再利用するretirement stackをinstance allocatorへ保存します。固定Rust wrapperはguest操作中に拡張するhost vectorを作りません。Headerと非公開32-byte owner tokenでallocator／generation、要素型、準備済みlayout固有のexecution identityを空Vecでも検証します。Identityは非公開runtime dataであり、sourceやserialized typeの識別子ではありません。
+
+`new`、`len`、`capacity`、`push_from`、`push_copy` がstorage境界を提供します。Growthはmetadata／workとpayloadの要求全体をprovider callback前にpreflightし、両領域の確保後にだけinputをmoveします。Live data／orderを新capacityへコピーし、header公開後に旧storageを解放します。部分OOMでは確保済み予約を解放し、既存要素とincoming義務を保持します。認可済み累積要求は計上したままです。Source adapterは拒否時に評価済みowning引数をcleanupする必要があります。Copy operandは再利用でき、capacity再利用ではprovider要求を追加しません。非所有element viewは事前認可したscratchを共有し、当該要素外のlocationを拒否して、collection領域の解放もできません。
+
+Cleanupはcallback前にheaderを失効させ、appendの逆順で要素を、実際のinitializerの逆順でfieldをretireします。Source spanを維持し、containした失敗／panic後も独立leafを処理します。全drainで予約済みwork領域を使います。Element storageはloan、allocator authority、arena ownerを禁止します。Cross-service edge／brand admissionと反復的nested-service drainはC07へ残し、このstorageだけで入れ子cycleやregion safetyを証明しません。Guest read／mutable-read／take／replacementはC02、source実行はC03、native／artifact対応も個別gateです。Source Vec操作は引き続きpreflightで拒否し、source／C ABIやserialized formatは変更しません。
+
+Unit 2 testとintegration 8 testで、Copy値17個のcapacity 32へのgrowth、owningな入れ子Option／record／Bytes、全constructor／growth OOMとretry、callback前の要求／live／cumulative／count予算の厳密値／1不足、確保なしのcapacity再利用、実spanと逆順cleanup、child失敗／panic後の継続、Copy aggregate／zero-size値、要素間location、不正input／span／型／layoutのadmission、token消費／provenance／stale、表現不能な要求算術を検証します。Deterministicなstorage testであり、source／native実行やfuzz campaignではありません。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[Vec storage](../../crates/runtime/src/vector.rs)、[要素予約](../../crates/runtime/src/layout/storage.rs)、[test](../../crates/runtime/tests/vector.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Header／capacity戦略、倍増growth、scratchの直列再利用は非公開の実装判断であり、性能保証は主張しません。
+
 ### Async borrow／cancellation実験
 
 `crates/semantics` の実行可能modelはRFC 0005のstrict baselineと、未受理の制限を緩めたpolicyを比較します。

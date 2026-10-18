@@ -7,6 +7,7 @@ pub mod cleanup;
 pub mod component;
 pub mod layout;
 pub mod shared;
+pub mod vector;
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
