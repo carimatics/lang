@@ -6,31 +6,33 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**84 done · 0 doing · 24 todo · 57 remaining pt**
+**85 done · 0 doing · 24 todo · 57 remaining pt**
 
-**次: M2-N04 → collection／call越しのread custodyと入れ子brand検査を含め、native shared／arenaの実装前確認。**
+**次: M2-N04 → read custodyと入れ子brand検査を維持し、native arenaの字句ownerと操作を接続。**
 
-N03見積もり・依存関係監査（2026-10-19 JST）：keyの借用・消費、旧所有値の結果保護、切り離したkeyと拒否入力の解放の接続が必要なため、実装前にN03を **1 → 3点**、残りを **58 → 60点**、追加分合計を **51 → 53点** へ再見積もりしました。初回sourceはVMで49、nativeでUnsupportedとなり、現在はnativeでも成功します。最後の3点を完了し **60 → 57点**、108行は不変です。N04はN12／N03に依存し、collection／call越しのread custodyと入れ子brand検査を明示して維持します。次はshared／arenaの実装前確認で、N05と元のplatform／FFI／performance／debug・guide全要件を残します。
+N04分割・完了監査（2026-10-19 JST）：初回shared／arena sourceはVMで9を返し、nativeではshared core操作とarena字句開始が別々に未対応でした。旧N04合計3点をN13 shared／weak（**初期3点**、今回完了）とN04 arena 3点へ分割・再見積もりし、**108 → 109行**、完了前の残りを **57 → 60点**、追加分合計を **53 → 56点** としました。N13の3点完了で **60 → 57点** です。Sourceの排他アクセス規則は変えず、custody fixtureは所有clone経由で置換します。N04にはarenaの字句lifecycle、collection／call越しのread custody、入れ子brandを残し、service／payload全組合せと設定可能なbyte-work admissionはN05に維持します。
+
+N03見積もり・依存関係監査（2026-10-19 JST）：keyの借用・消費、旧所有値の結果保護、切り離したkeyと拒否入力の解放の接続が必要なため、実装前にN03を **1 → 3点**、残りを **58 → 60点**、追加分合計を **51 → 53点** へ再見積もりしました。初回sourceはVMで49、nativeでUnsupportedとなり、現在はnativeでも成功します。最後の3点を完了し **60 → 57点**、108行は不変です。N04はN12／N03に依存し、collection／call越しのread custodyと入れ子brand検査を明示して維持します。N05と元のplatform／FFI／performance／debug・guide全要件を残します。
 
 N12見積もり・依存関係監査（2026-10-19 JST）：当初のnative参照先はframe cellとallocator権限だけでした。Vector-backed projection／変更／置換と入れ子cleanupの接続が必要なため、実装前にN12を **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。初回sourceはVMで9、nativeでUnsupportedとなり、現在はnativeでも成功します。最後の見積もり3点を完了し **61 → 58点**、108行は不変です。N05にはN02／N11／V08に加えN12／N03／N04の依存を明示し、受理済みservice／payloadの全組合せ、順序付きexit、設定可能なbyte-work admissionを維持します。
 
-**直近の完了 — N03**（`2e6a441`、2026-10-19 JST）：native Mapのnew／len／insert／get／removeで、i64／Text keyの4つのsource fixtureがVMと一致しました（49／33／2／1）。所有値の結果、Map／Vecの入れ子、借用Text検索を含みます。切り離したkeyのcleanup前に結果ownerを保護し、全fuel／provider拒否prefixとcleanup poisonでも実regionを解放します。再検証した同一i64入力もVM／native双方で3を返します。Mach-O／COFFの2型引数metadataとbudget厳密境界も成功しました。全 **85 suite・1365 test** とfmt／Clippy／docが成功しました。**83 → 84 done · 60 → 57 remaining pt**、**task総数108件は不変** です。元の完了条件は **18件中5件完了** のままです。
+**直近の完了 — N13**（`4e2c8d6`、2026-10-19 JST）：native shared／weakのnew／clone／read／replace／upgradeをmanaged heapと反復retirementへ接続しました。入れ子cycle拒否、Map／Vec／callのcustody、alias観測、weakのguest return後のExpiredWeakを含む5 sourceがVMと一致します（9／13／21／24／1）。全fuel／provider拒否prefix、cleanup poison、Mach-O／COFF generic metadataとbudget厳密境界も成功し、heap close前にpayload・weak metadata・参照登録を解放します。全 **85 suite・1369 test** とfmt／Clippy／docが成功しました。**84 → 85 done · 60 → 57 remaining pt**。分割で作業一覧は **108 → 109 task**、元の完了条件は **18件中5件完了** のままです。
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 84件（+49件）**、作業一覧は **87 → 108件（+21件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 85件（+50件）**、作業一覧は **87 → 109件（+22件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +53 pt | −130 pt | 57 pt |
+| 134 pt | +56 pt | −133 pt | 57 pt |
 
-**134 + 53 − 130 = 57 pt**
+**134 + 56 − 133 = 57 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり130点分を取り除く一方、前提作業の可視化と再見積もりで53点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り57点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり133点分を取り除く一方、前提作業の可視化と再見積もりで56点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り57点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-N03は実装前に1 → 3点へ再見積もりし、最後の見積もり3点を完了しました。**58 + 2 − 3 = 57 pt** です。追加・再見積もりの差分合計は **53点**、完了で取り除いた見積もりは **130点** です。以前のN12の1 → 3点監査、N11／N09の初期見積もり各1点も保持します。Taskも元の要件も削除していません。
+N13の導入と完了は同じ計画更新なので、**初期見積もり3点** を分割監査に保持します。旧N04合計3点をN13 shared／weak 3点とN04 arena 3点へ分け、**57 + 3 − 3 = 57 pt** です。追加分合計は **56点**、完了で取り除いた見積もりは **133点** です。以前のN03／N12の1 → 3点監査、N11／N09の初期見積もり各1点も保持します。元の要件は削除していません。
 
-直近code baselineの実測（2026-10-19 JST）：workspace Clippy **27.8秒**、全test **350.5秒**、rustdoc **14.1秒** の実時間（shell time）。Cargo報告のtest compileは **24.7秒**、suite時間合計は **87.2秒** です。境界36 testのfocused実行は **10.95秒** で、collection失敗matrixはcompile済みcodeを再利用し、runtimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
+直近code baselineの実測（2026-10-19 JST）：workspace Clippy **28.3秒**、全test **362.5秒**、rustdoc **14.2秒** の実時間（shell time）。Cargo報告のtest compileは **24.4秒**、suite時間合計は **87.2秒** です。Native境界suiteは **40 test・10.77秒** で成功し、service失敗matrixはcompile済みcodeを再利用してruntimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
@@ -201,8 +203,9 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N11 | done | 0 | M2-N02,M2-C03 | G07,G08,G14 | Native allocator／Bytes／Text操作を共有runtimeへ接続し、source VM fixtureと一致させる。 | `1acb73a` |
 | M2-N12 | done | 0 | M2-N11,M2-C03 | G09,G14 | Native Vec操作とscope付き要素loanをVM fixtureに一致させる。 | `649aa08` |
 | M2-N03 | done | 0 | M2-N12,M2-C06 | G10,G14 | Native Map操作とscope付きvalue loanをVM fixtureに一致させる。 | `2e6a441` |
-| M2-N04 | todo | 3 | M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared／arena dispatchでlifecycle、collection／call projection越しのread custody、入れ子のbrand検査を維持。 | — |
-| M2-N05 | todo | 3 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N04,M2-V08 | G06,G14 | 設定可能なservice byte-work admissionを含め、受理済みservice／payloadの組合せ全体でnativeの生成failure／return exitをVMのcleanup順序とfuel behaviorに一致させる。 | — |
+| M2-N13 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared／weak操作でheap lifecycle、cycle拒否、collection／call projection越しのread custodyとcleanupを維持。 | `4e2c8d6` |
+| M2-N04 | todo | 3 | M2-N13,M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Native arenaの字句ownerと操作を接続し、collection／call projection越しのread custodyと入れ子brand検査を維持。 | — |
+| M2-N05 | todo | 3 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08 | G06,G14 | 設定可能なservice byte-work admissionを含め、受理済みservice／payloadの組合せ全体でnativeの生成failure／return exitをVMのcleanup順序とfuel behaviorに一致させる。 | — |
 | M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | — |
 | M2-N07 | todo | 2 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
