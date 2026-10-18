@@ -160,6 +160,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
             if unit.store.borrow().loans[id].vector_read.is_some() {
                 return Err(bad());
             }
+            let custody = shared::custody(unit, places::referent(unit, arg(0))?)?;
             let mut owner = owner(unit, arg(0), ty)?;
             let index = values::read_scalar(unit, arg(1))?;
             let kind = if site.operation == Op::VecGetMut {
@@ -177,6 +178,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                             .root()
                     };
                     unit.store.borrow_mut().loans[id].vector_read = Some(read);
+                    unit.store.borrow_mut().loans[id].custody = custody;
                     let token = places::register_token(
                         unit,
                         loan,

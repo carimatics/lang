@@ -1,0 +1,17 @@
+// A returned weak owner retains metadata after the callee's strong owner drops.
+fn main() -> i64 {
+    let mut expired: weak i64 = make();
+    let mut copy: weak i64 = core::result_unwrap::<weak i64, core::OwnershipError>(core::weak_clone::<i64>(expired));
+    match core::weak_upgrade::<i64>(copy) {
+        core::Result::Ok(_) => { return -1; },
+        core::Result::Err(error) => { match error {
+            core::OwnershipError::ExpiredWeak => { return 1; },
+            _ => { return -2; },
+        } },
+    }
+}
+
+fn make() -> weak i64 {
+    let mut owner: shared i64 = core::result_unwrap::<shared i64, core::OwnershipError>(core::shared_new::<i64>(core::allocator(), 9));
+    return core::result_unwrap::<weak i64, core::OwnershipError>(core::weak_new::<i64>(owner));
+}

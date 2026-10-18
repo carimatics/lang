@@ -1,0 +1,34 @@
+// Shared -> Map -> Vec -> shared projections retain the publication customer.
+fn main() -> i64 {
+    let mut child: shared i64 = core::result_unwrap::<shared i64, core::OwnershipError>(core::shared_new::<i64>(core::allocator(), 7));
+    let mut weak_child: weak i64 = core::result_unwrap::<weak i64, core::OwnershipError>(core::weak_new::<i64>(child));
+    let mut edge: shared i64 = core::result_unwrap::<shared i64, core::OwnershipError>(core::shared_clone::<i64>(child));
+    let mut values: core::Vec<shared i64> = core::result_unwrap::<core::Vec<shared i64>, core::AllocError>(core::vec_new::<shared i64>(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<shared i64>(values, edge));
+    let mut table: core::Map<i64, core::Vec<shared i64>> = core::result_unwrap::<core::Map<i64, core::Vec<shared i64>>, core::AllocError>(core::map_new::<i64, core::Vec<shared i64>>(core::allocator()));
+    let mut inserted: core::Option<core::Vec<shared i64>> = core::result_unwrap::<core::Option<core::Vec<shared i64>>, core::AllocError>(core::map_insert::<i64, core::Vec<shared i64>>(table, 0, values));
+    let mut owner: shared core::Map<i64, core::Vec<shared i64>> = core::result_unwrap::<shared core::Map<i64, core::Vec<shared i64>>, core::OwnershipError>(core::shared_new::<core::Map<i64, core::Vec<shared i64>>>(core::allocator(), table));
+    let mut query: i64 = 0;
+    match core::shared_read::<core::Map<i64, core::Vec<shared i64>>>(owner) {
+        core::Result::Ok(view) => { match core::map_get::<i64, core::Vec<shared i64>>(view, query) {
+            core::Option::Some(row) => { match core::vec_get::<shared i64>(row, 0) {
+                core::Result::Ok(link) => {
+                    let mut copy: shared i64 = core::result_unwrap::<shared i64, core::OwnershipError>(core::shared_clone::<i64>(link));
+                    let mut upgraded: shared i64 = core::result_unwrap::<shared i64, core::OwnershipError>(core::weak_upgrade::<i64>(weak_child));
+                    let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::OwnershipError>(core::shared_replace::<i64>(copy, 8));
+                    return read(link) + read(copy) + read(upgraded);
+                },
+                core::Result::Err(_) => { return -1; },
+            } },
+            core::Option::None => { return -2; },
+        } },
+        core::Result::Err(_) => { return -3; },
+    }
+}
+
+fn read(owner: &shared i64) -> i64 {
+    match core::shared_read::<i64>(owner) {
+        core::Result::Ok(value) => { return (*value); },
+        core::Result::Err(_) => { return -4; },
+    }
+}

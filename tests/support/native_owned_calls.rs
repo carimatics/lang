@@ -5,6 +5,8 @@ mod core;
 mod maps;
 #[path = "native_places.rs"]
 mod places;
+#[path = "native_shared.rs"]
+mod shared;
 #[path = "native_owned_values.rs"]
 mod values;
 #[path = "native_vectors.rs"]
@@ -42,6 +44,7 @@ struct Store<'a, 'l> {
     types: &'l m::ownership::VerifiedTypes,
     layouts: &'l l::Layouts<'l>,
     retirement: lang_runtime::retirement::Drain<'l, 'l>,
+    heap: Option<lang_runtime::shared::managed::Heap<'l, 'l>>,
 }
 impl Store<'_, '_> {
     fn transfer(&mut self, from: Physical, to: Physical) -> n::ResultStep {
@@ -88,14 +91,35 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
                     loans,
                     layouts,
                     allocator,
+                    heap,
+                    retirement,
+                    types,
                     ..
                 } = &mut *storage;
-                loans[*id].target = None;
+                let target = loans[*id].target.take();
+                loans[*id].custody = None;
                 if let Some(mut read) = loans[*id].vector_read.take() {
                     read.end(layouts, allocator).map_err(|_| 98u32)?;
                 }
                 if let Some(mut read) = loans[*id].map_read.take() {
                     read.end(layouts, allocator).map_err(|_| 99u32)?;
+                }
+                if let Some(read) = loans[*id].shared_read.take() {
+                    let Some(places::Target::Shared { ty, .. }) = target else {
+                        return Err(100);
+                    };
+                    retirement
+                        .end_read(
+                            read,
+                            ty,
+                            heap.as_mut().ok_or(101u32)?,
+                            allocator,
+                            context,
+                            |token, allocator, _, _| {
+                                buffer::cleanup_token(types, token, allocator).map_err(|_| 94u32)
+                            },
+                        )
+                        .map_err(|_| 102u32)?;
                 }
                 return Ok(());
             }
@@ -109,6 +133,7 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
             refuse_cleanup,
             types,
             retirement,
+            heap,
             ..
         } = &mut *storage;
         let cell = pools[physical.frame]
@@ -116,9 +141,15 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
             .map_err(|_| 90u32)?;
         cell.retire(allocator, context, |token, allocator, _, context| {
             if expected.is_empty() {
-                retirement.token(token, None, allocator, context, |leaf, allocator, _, _| {
-                    buffer::cleanup_token(types, leaf, allocator).map_err(|_| 94u32)
-                })?;
+                retirement.token(
+                    token,
+                    heap.as_mut(),
+                    allocator,
+                    context,
+                    |leaf, allocator, _, _| {
+                        buffer::cleanup_token(types, leaf, allocator).map_err(|_| 94u32)
+                    },
+                )?;
                 return if *refuse_cleanup { Err(95) } else { Ok(()) };
             }
             let mut value =
@@ -309,7 +340,9 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         places::discard(self, id)
     }
     fn core_call(&mut self, site: &n::CoreSite) -> n::ResultStep {
-        if maps::supports(site.operation) {
+        if shared::supports(site.operation) {
+            shared::call(self, site)
+        } else if maps::supports(site.operation) {
             maps::call(self, site)
         } else if vectors::supports(site.operation) {
             vectors::call(self, site)
@@ -677,6 +710,24 @@ fn execute_prepared<'l>(
     }
     let trace = Rc::new(RefCell::new(Trace::default()));
     let mut allocator = a::Allocator::new(Provider(trace.clone()), Default::default()).unwrap();
+    let heap = if types.table().constructed.iter().any(|ty| {
+        matches!(
+            ty.constructor,
+            m::ownership::Constructor::Shared(_) | m::ownership::Constructor::Weak(_)
+        )
+    }) {
+        let heap = lang_runtime::shared::managed::Heap::prepare(
+            layouts,
+            Default::default(),
+            Default::default(),
+            usage,
+        )
+        .unwrap();
+        usage = heap.usage();
+        Some(heap)
+    } else {
+        None
+    };
     let retirement =
         lang_runtime::retirement::Drain::prepare(layouts, &allocator, Default::default(), usage)
             .unwrap();
@@ -710,6 +761,7 @@ fn execute_prepared<'l>(
         types,
         layouts,
         retirement,
+        heap,
     });
     let mut cleanup_instance = c::Instance::default();
     let ledger = cleanup_instance
@@ -767,7 +819,9 @@ fn execute_prepared<'l>(
     assert!(
         state.loans.iter().all(|loan| loan.target.is_none()
             && loan.vector_read.is_none()
-            && loan.map_read.is_none()),
+            && loan.map_read.is_none()
+            && loan.shared_read.is_none()
+            && loan.custody.is_none()),
         "all registrations retire before frame release"
     );
     assert!(
@@ -810,6 +864,11 @@ fn execute_prepared<'l>(
         Some(bytes)
     });
     state.pools[0].release(state.allocator).unwrap();
+    if let Some(heap) = &mut state.heap
+        && heap.is_open()
+    {
+        heap.close(state.allocator).unwrap();
+    }
     assert_eq!(state.allocator.stats().live_allocations, 0);
     let trace = trace.borrow();
     assert_eq!(trace.allocated, trace.released);

@@ -169,6 +169,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                     return Err(bad());
                 }
             }
+            let custody = shared::custody(unit, places::referent(unit, site.arguments[0])?)?;
             let mut owner = owner(unit, site)?;
             let key = key(unit, site)?;
             let borrowed = owner
@@ -182,6 +183,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                         .root()
                 };
                 unit.store.borrow_mut().loans[id].map_read = Some(read);
+                unit.store.borrow_mut().loans[id].custody = custody;
                 Some(places::register_token(
                     unit,
                     loan,

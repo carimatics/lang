@@ -408,7 +408,7 @@ fn source_unused_owner_cleanup_precedes_native_return_publication() {
 
 #[test]
 fn unsupported_source_is_rejected_at_its_original_span() {
-    let program = source(include_str!("../examples/scripts/shared.lang"));
+    let program = source(include_str!("../examples/scripts/arena.lang"));
     let flow = program.failure_flow();
     let types = flow
         .source()

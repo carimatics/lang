@@ -1052,6 +1052,13 @@ fn prepare<'a>(
                                 | o::core::Operation::TextLen
                                 | o::core::Operation::TextBytes
                                 | o::core::Operation::TextEqual
+                                | o::core::Operation::SharedNew
+                                | o::core::Operation::SharedClone
+                                | o::core::Operation::SharedRead
+                                | o::core::Operation::SharedReplace
+                                | o::core::Operation::WeakNew
+                                | o::core::Operation::WeakClone
+                                | o::core::Operation::WeakUpgrade
                                 | o::core::Operation::MapNew
                                 | o::core::Operation::MapLen
                                 | o::core::Operation::MapInsert
