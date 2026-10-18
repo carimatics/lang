@@ -8,9 +8,11 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**82 verified deliveries · 0 in progress · 26 remaining tasks (provisional 59 pt).**
+**83 verified deliveries · 0 in progress · 25 remaining tasks (provisional 58 pt).**
 
-Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N11 is done (`1acb73a`; native allocator/Bytes/Text match five VM source fixtures, all fuel/provider refusal prefixes and Mach-O/COFF metadata; 1356 tests / 85 suites and fmt/Clippy/doc pass). Split N03's 3 points into N11 (initial 1, now done), N12 Vec (1), and N03 Map (1): **106 → 108 tasks** with no net estimate addition. N11 completion changes **60 → 59 remaining pt**, **81 → 82 done**. Next is N12; configured byte-work admission remains explicit in N05. Preserve every native/FFI/platform/performance/debug obligation and the final bilingual guide.
+N12 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** before native element-view integration, **59 → 61 remaining pt**, net additions **49 → 51 pt**. N12 delivery retires its last 3 points: **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 in addition to N02/N11/V08 before full accepted service/payload, ordered-exit and configured byte-work admission conformance. No requirement was removed.
+
+Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N12 is done (`649aa08`; native Vec and managed element projections/mutation/replacement match four VM source fixtures, all fuel/provider refusal prefixes, cleanup poison and Mach-O/COFF generic metadata; 1360 tests / 85 suites and fmt/Clippy/doc pass). **82 → 83 done**, **108 tasks unchanged**. Next is M2-N03 Map readiness. Preserve every native/FFI/platform/performance/debug obligation and the final bilingual guide.
 
 The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 

@@ -6,29 +6,31 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**82 done · 0 doing · 26 todo · 59 remaining pt**
+**83 done · 0 doing · 25 todo · 58 remaining pt**
 
-**Next: M2-N12 → bind native Vec operations and scoped element loans, then compare source VM fixtures.**
+**Next: M2-N03 → verify native Map readiness, then bind typed keys, operations and scoped value loans.**
 
-**Latest delivery — N11** (`1acb73a`, 2026-10-19 JST): native allocator/Bytes/Text intrinsics execute five source fixtures matching the VM. Every fuel prefix and provider refusal retires real buffers; bounds/value/UTF-8 errors, cleanup poison, Mach-O/COFF operands/spans and exact compilation budgets pass. All **1356 tests / 85 suites**, fmt/Clippy/doc pass. **81 → 82 done · 60 → 59 remaining pt**. Splitting N03 adds two rows with no net estimate increase: **106 → 108 tasks**. Original exit gates are unchanged.
+N12 estimate/dependency audit (2026-10-19 JST): initial native targets covered frame cells and allocator authority. Vector-backed projections/mutation/replacement and nested cleanup required re-estimating N12 **1 → 3 pt before implementation**: **59 → 61 pt**, net additions **49 → 51 pt**. The initial source returned VM 9 and native Unsupported; it now passes natively. N12 completes its last 3-point estimate, **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 as well as N02/N11/V08, preserving all accepted service/payload combinations, ordered exits and configured byte-work admission. No active row remains; Map readiness is next.
+
+**Latest delivery — N12** (`649aa08`, 2026-10-19 JST): native Vec new/len/push/pop/shared-or-mutable reads execute scalar, owning-pair, nested-vector and error source fixtures matching the VM (9/12/3/7). Vector-backed projections, buffer mutation, prepared replacement and iterative cleanup pass every fuel/provider failure prefix and cleanup poison. Mach-O/COFF generic types/operands/spans and exact budgets pass. All **1360 tests / 85 suites**, fmt/Clippy/doc pass. **82 → 83 done · 61 → 58 remaining pt**; **108 tasks unchanged**. Original exit gates remain open where full profile/platform evidence is missing.
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 82 (+47)**, and the task inventory increased **87 → 108 (+21)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 83 (+48)**, and the task inventory increased **87 → 108 (+21)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +49 pt | −124 pt | 59 pt |
+| 134 pt | +51 pt | −127 pt | 58 pt |
 
-**134 + 49 − 124 = 59 pt**
+**134 + 51 − 127 = 58 pt**
 
-This separates delivered work from newly recognized work: completion retired 124 estimated points, while exposed prerequisites and re-estimation added 49. These are planning units, not hours or measured actual effort. The remaining 59 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 127 estimated points, while exposed prerequisites and re-estimation added 51. These are planning units, not hours or measured actual effort. The remaining 58 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-N11 retires its initial 1-point estimate: **60 − 1 = 59 pt**. Its introduction and completion share this plan update, so preserve that initial estimate in the split audit. The former N03 3-point row becomes N11 (1), N12 (1), and N03 (1), with no net addition. Preserve N09's earlier initial 1-point estimate too. No task or original requirement was removed.
+N12 retires its last 3-point estimate after a pre-implementation 1 → 3 re-estimate: **59 + 2 − 3 = 58 pt**. Net added/re-estimated work is **51 pt** and estimates retired at completion are **127 pt**. Preserve N11 and N09's initial 1-point estimates from their earlier introduction/completion audits. No task or original requirement was removed.
 
-Measured last code baseline (2026-10-19 JST): workspace Clippy **27.6 s**, full tests **344.0 s**, rustdoc **15.6 s** wall time (shell time). Cargo reports test compilation **23.5 s**; summed suite timings are **86.9 s**. Twenty-seven focused boundary tests pass in **10.58 s**. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
+Measured last code baseline (2026-10-19 JST): workspace Clippy **27.6 s**, full tests **356.1 s**, rustdoc **14.1 s** wall time (shell time). Cargo reports test compilation **25.4 s**; summed suite timings are **86.8 s**. Thirty-one focused boundary tests pass in **11.00 s**; Vec failure matrices reuse compiled code with fresh runtimes. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
-Current source capability: a zero-parameter i64 main executes Bytes/Text, arena allocation/read/replace/teardown, shared/weak allocation/clone/read/replace/upgrade, Vec new/len/push/pop/shared-or-mutable reads, and Map new/len/insert/get/remove with exact i64/Text keys. Storable payloads compose through nested collections, inline records/enums/Option/Result and recursive guest calls. Shared publication checks transitive strong edges, arena stores check nested brands, and reads preserve custody through projections/calls. Owners move through cleanup-protected returns and prepared replacement, with iterative normal/failure teardown. Ordinary loans, allocator authority and arena owners remain unstorable; cross-region/shared-heap edges and arena escapes are rejected. Borrowed matching and partial-move prohibition are unchanged. V16/V15/V10 support the existing managed preview/inference/REPL profile; V13 verifies provisional-read loan endings within the documented source coverage, while indirect previews remain V17. V11 supports in-memory CFG arguments; current ownership source lowering does not emit them. Native N12/N03/N04/N05 and ownership artifacts still require evidence; source integration alone closes no exit gate.
+Current source capability: a zero-parameter i64 main executes Bytes/Text, arena allocation/read/replace/teardown, shared/weak allocation/clone/read/replace/upgrade, Vec new/len/push/pop/shared-or-mutable reads, and Map new/len/insert/get/remove with exact i64/Text keys. Storable payloads compose through nested collections, inline records/enums/Option/Result and recursive guest calls. Shared publication checks transitive strong edges, arena stores check nested brands, and reads preserve custody through projections/calls. Owners move through cleanup-protected returns and prepared replacement, with iterative normal/failure teardown. Ordinary loans, allocator authority and arena owners remain unstorable; cross-region/shared-heap edges and arena escapes are rejected. Borrowed matching and partial-move prohibition are unchanged. V16/V15/V10 support the existing managed preview/inference/REPL profile; V13 verifies provisional-read loan endings within the documented source coverage, while indirect previews remain V17. V11 supports in-memory CFG arguments; current ownership source lowering does not emit them. Native N03/N04/N05 and ownership artifacts still require evidence; source integration alone closes no exit gate.
 
 Readiness/split audit (2026-10-19 JST): the initial Bytes source returned 1 in the VM and exposed missing native allocator/Bytes binding. Public buffer APIs supply the storage operations; collections additionally need managed loan views. Split N03's 3 points into N11 allocator/Bytes/Text (initial 1, now done), N12 Vec (1), and N03 Map (1): **106 → 108 tasks**, **60 pt unchanged before the 1-point N11 delivery**. N05 retains RFC 0012's configured service byte-work admission and depends on N11 before full exit conformance. Preserve all native/FFI/platform/conformance/performance/debug outcomes, V17 and Z01's bilingual guide.
 
@@ -195,10 +197,10 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N10 | done | 0 | M2-N09 | G14 | Native scalar/control and sum construction, inspection and whole-payload extraction match VM fixtures. | `5d335a9` |
 | M2-N02 | done | 0 | M2-N10 | G14 | Native place/loan projections and prepared replacement, plus combined owner move/record/sum/loan VM conformance. | `a3478bd` |
 | M2-N11 | done | 0 | M2-N02,M2-C03 | G07,G08,G14 | Bind native allocator/Bytes/Text operations to the shared runtime and match source VM fixtures. | `1acb73a` |
-| M2-N12 | todo | 1 | M2-N11,M2-C03 | G09,G14 | Native Vec operations and scoped element loans match VM fixtures. | — |
+| M2-N12 | done | 0 | M2-N11,M2-C03 | G09,G14 | Native Vec operations and scoped element loans match VM fixtures. | `649aa08` |
 | M2-N03 | todo | 1 | M2-N12,M2-C06 | G10,G14 | Native Map operations and scoped value loans match VM fixtures. | — |
 | M2-N04 | todo | 3 | M2-N02,M2-N11,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared/arena dispatch preserves lifecycle and brand checks. | — |
-| M2-N05 | todo | 3 | M2-N02,M2-N11,M2-V08 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior, including configured service byte-work admission. | — |
+| M2-N05 | todo | 3 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N04,M2-V08 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior across accepted service/payload combinations, including configured service byte-work admission. | — |
 | M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | — |
 | M2-N07 | todo | 2 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
