@@ -3,6 +3,9 @@ use lang_runtime::{allocation as a, cleanup as c};
 use lang_vm::{InterruptionFlag, unit::owned as engine};
 use std::rc::Rc;
 
+#[path = "provisional_reads.rs"]
+mod reads;
+
 const FRESH: &str = "fn fresh_bytes() -> core::Bytes { return core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())); }";
 const BYTE: &str = "fn byte() -> core::Bytes { let mut bytes: core::Bytes = fresh_bytes(); let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(&mut bytes, 65)); return bytes; }";
 const FAIL: &str = "fn fail() -> core::Bytes { let mut kept: core::Bytes = fresh_bytes(); let mut none: core::Option<core::Bytes> = core::Option::None; return core::option_unwrap::<core::Bytes>(none); }";

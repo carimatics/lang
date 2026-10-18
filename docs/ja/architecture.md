@@ -986,6 +986,16 @@ Source 10 testで各経路、parent破棄後も使えるclone、格納済みexpi
 
 情報源：受理済み [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md) と [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[shared graph走査](../../crates/runtime/src/shared/managed/graph.rs)、[custody access検証](../../crates/runtime/src/shared/managed/access.rs)、[VM service cleanup](../../crates/vm/src/unit/owned/state/shared.rs)、[arena走査](../../crates/vm/src/unit/owned/state/arenas.rs)、[source test](../../tests/support/owned_nested.rs)、[失敗注入](../../crates/vm/src/unit/owned/failure_tests/nested.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。ABIやserialized formatは変更しません。
 
+### Provisional core read conformance
+
+2026-10-18 JST検証（V13）：[source VM／REPL matrix](../../tests/support/provisional_reads.rs)は、Vecのshared／mutable read、Map lookup、shared read、arena readを14 fixtureで実行します。成功した名前付きbindingはarm末尾までloanを保持し、arm終了後は変更と新たなreadが成功します。成功bindingのwildcardと結果全体のwildcardはarm本体の前にprovisional loanを終了し、arm内の変更を許可します。Vecのbounds-error armとMapのkey不在armでも変更できます。対照となる5 fixtureは、未使用でも**名前付き**read中の変更を`SRC0021`で拒否します。失敗したREPL定義は既存定義を保持し、providerを呼びません。
+
+再帰shared-read fixtureはproductionのreader枠256件を保持し、次のreadで`OwnershipError::Allocation(AllocError::Limit)`を観測します。巻き戻し中も外側のreadを使い、その後ownerを置換して再readします。直接VM実行とREPL反復実行はいずれも`265`を返し、全allocationを正確に1回解放し、続くREPL式も実行できます。このfixtureだけ実行frame上限を512へ上げます。通常の14 fixtureはコンパイラ／実行の既定上限を使います。
+
+Coverageの制限：257重のmatchでarenaのreader枠を枯渇させる試みは、parse上限の指定を上げてもパーサー内部のdepth上限256により実行前に拒否されました。V13はこのarena error armのsource VM／REPL実行を主張しません。既存の[managed arena境界test](../../crates/runtime/tests/managed_arena.rs)はreader容量拒否と変更排他を独立に検証します。Source構文、production上限、受理済みsemanticsは維持します。
+
+情報源：受理済み[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、上記conformance／runtime test、[parser depth検査](../../crates/syntax/src/parser.rs)。2026-10-18 JST検証。Indirect preview、native実行、ownership artifactは別のdelivery行とexit gateを維持します。
+
 ### Async borrow／cancellation実験
 
 `crates/semantics` の実行可能modelはRFC 0005のstrict baselineと、未受理の制限を緩めたpolicyを比較します。

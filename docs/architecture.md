@@ -986,6 +986,16 @@ Ten source tests cover those paths, an escaped clone that survives parent retire
 
 Sources: accepted [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md) and [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md) (updated 2026-10-17 JST), [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) and [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md) (updated 2026-10-18 JST), [shared graph inspection](../crates/runtime/src/shared/managed/graph.rs), [checked custody access](../crates/runtime/src/shared/managed/access.rs), [VM service cleanup](../crates/vm/src/unit/owned/state/shared.rs), [arena inspection](../crates/vm/src/unit/owned/state/arenas.rs), [source tests](../tests/support/owned_nested.rs), [failure injection](../crates/vm/src/unit/owned/failure_tests/nested.rs) and [delivery board](milestone-2.md), updated/verified 2026-10-18 JST. No ABI or serialized format change.
 
+### Provisional core read conformance
+
+Verified 2026-10-18 JST (V13): [the source VM/REPL matrix](../tests/support/provisional_reads.rs) executes 14 fixtures for Vec shared/mutable reads, Map lookup, shared reads and arena reads. Successful named bindings retain their loan through the arm; after the arm, mutation and a fresh read succeed. Wildcard success bindings and a whole-result wildcard end the provisional loan before the arm body, allowing mutation there. Vec bounds-error and Map absent-key arms also permit mutation. Five contrasting fixtures reject mutation under an unused **named** read with `SRC0021`; failed REPL definitions leave the committed definitions intact and make no provider calls.
+
+A recursive shared-read fixture retains all 256 production reader slots, observes `OwnershipError::Allocation(AllocError::Limit)` on the next read, uses the enclosing reads while unwinding, then replaces and rereads the owner. Direct VM and repeated REPL execution both return `265`; every allocated region is released exactly once and later REPL expressions still work. Only this fixture raises the execution frame limit to 512. The ordinary 14 fixtures use default compiler and execution limits.
+
+Coverage limit: an attempted arena reader-exhaustion fixture with 257 nested matches is rejected by the parser's hard depth cap of 256 before execution, even with a higher requested parse limit. V13 does not claim source VM/REPL execution of that arena error arm. Existing [managed arena boundary tests](../crates/runtime/tests/managed_arena.rs) independently cover reader-capacity refusal and mutation exclusion. Source syntax, production limits and accepted semantics are unchanged.
+
+Sources: accepted [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) (updated 2026-10-18 JST), the linked conformance/runtime tests and [parser depth enforcement](../crates/syntax/src/parser.rs), verified 2026-10-18 JST. Indirect previews, native execution and ownership artifacts retain their separate delivery rows and exit gates.
+
 ### Async borrow and cancellation experiment
 
 The executable model in `crates/semantics` compares the RFC 0005 strict baseline with one unaccepted, less restrictive policy:
