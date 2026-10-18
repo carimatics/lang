@@ -451,12 +451,12 @@ fn every_recursive_call_fuel_prefix_retires_parameters_results_and_loans() {
 
 #[test]
 fn reachable_callee_preflight_rejects_unsupported_effects_but_unused_functions_do_not() {
-    let prefix = "fn length(value: &core::Bytes) -> i64 { return core::bytes_len(value); } fn bad() -> core::Map<i64, i64> { return core::result_unwrap::<core::Map<i64, i64>, core::AllocError>(core::map_new::<i64, i64>(core::allocator())); } fn main() -> i64 { let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())); let mut n: i64 = length(bytes);";
+    let prefix = "fn length(value: &core::Bytes) -> i64 { return core::bytes_len(value); } fn bad() -> core::Map<i64, core::Vec<i64>> { return core::result_unwrap::<core::Map<i64, core::Vec<i64>>, core::AllocError>(core::map_new::<i64, core::Vec<i64>>(core::allocator())); } fn main() -> i64 { let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())); let mut n: i64 = length(bytes);";
     for invoked in [false, true] {
         let source = format!(
             "{prefix} {} return n; }}",
             if invoked {
-                "let mut bad_value: core::Map<i64, i64> = bad();"
+                "let mut bad_value: core::Map<i64, core::Vec<i64>> = bad();"
             } else {
                 ""
             }

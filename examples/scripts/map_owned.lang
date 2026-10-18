@@ -1,0 +1,37 @@
+struct Pair { left: core::Bytes, right: core::Bytes }
+
+fn make(count: i64) -> core::Bytes {
+    let mut value: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut index: i64 = 0;
+    while index < count {
+        let mut pushed: core::Result<core::Unit, core::BufferError> = core::bytes_push(value, 65);
+        index = index + 1;
+    }
+    return value;
+}
+fn key(byte: i64) -> core::Text {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Result<core::Unit, core::BufferError> = core::bytes_push(bytes, byte);
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes));
+}
+fn width(value: &Pair) -> i64 { return core::bytes_len(value.left) + core::bytes_len(value.right); }
+fn lookup(values: &core::Map<core::Text, Pair>, query: &core::Text) -> i64 {
+    match core::map_get::<core::Text, Pair>(values, query) {
+        core::Option::Some(value) => { return width(value); },
+        core::Option::None => { return -1; },
+    }
+}
+fn main() -> i64 {
+    let mut values: core::Map<core::Text, Pair> = core::result_unwrap::<core::Map<core::Text, Pair>, core::AllocError>(core::map_new::<core::Text, Pair>(core::allocator()));
+    let mut index: i64 = 0;
+    while index < 5 {
+        let mut added: core::Result<core::Option<Pair>, core::AllocError> = core::map_insert::<core::Text, Pair>(values, key(97 + index), Pair { right: make(2), left: make(1) });
+        index = index + 1;
+    }
+    let mut replaced: core::Result<core::Option<Pair>, core::AllocError> = core::map_insert::<core::Text, Pair>(values, key(97), Pair { right: make(7), left: make(6) });
+    let mut old: Pair = core::option_unwrap::<Pair>(core::result_unwrap::<core::Option<Pair>, core::AllocError>(replaced));
+    let mut query: core::Text = key(97);
+    let mut observed: i64 = lookup(values, query);
+    let mut removed: Pair = core::option_unwrap::<Pair>(core::map_remove::<core::Text, Pair>(values, query));
+    return width(old) + observed + width(removed) + core::map_len::<core::Text, Pair>(values);
+}

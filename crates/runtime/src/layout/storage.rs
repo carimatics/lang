@@ -151,6 +151,29 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         }
         Ok(allocator.bytes(self.data)?)
     }
+    /// Internal read view for the one scalar Copy key/value alias. Its wrapper
+    /// owns no storage; i64 has no retirement work and the Map adapter only reads
+    /// this view while preserving the actual input reservation.
+    pub(crate) fn i64_view(&self) -> Result<Self, Error> {
+        self.validate_location(self.root())?;
+        if self.ty != o::Type::I64 {
+            return Err(Error::InvalidType(self.ty));
+        }
+        Ok(Self {
+            layouts: self.layouts,
+            ty: self.ty,
+            data: self.data,
+            metadata: self.metadata,
+            top: 0,
+            outstanding: false,
+            state: State::Prepared,
+            slice: Some(Slice {
+                offset: self.root().offset,
+                metadata: self.root().metadata,
+                work: 0,
+            }),
+        })
+    }
     pub fn data_mut<'a, P: Provider>(
         &self,
         allocator: &'a mut Allocator<P>,

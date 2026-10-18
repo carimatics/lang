@@ -63,6 +63,50 @@ impl<'l, 't> StackStorage<'l, 't> {
         self.active[depth] = true;
         Ok(())
     }
+    pub fn three_cells_mut(
+        &mut self,
+        ids: [usize; 3],
+    ) -> Result<[&mut l::Reservation<'l, 't>; 3], l::Error> {
+        let [a, b, c] = ids.map(|id| id / self.stride);
+        for (id, frame) in ids.into_iter().zip([a, b, c]) {
+            if frame >= self.frames.len() {
+                return Err(l::Error::InvalidCell(id));
+            }
+        }
+        let [x, y, z] = ids.map(|id| id % self.stride);
+        if a == b && b == c {
+            return self.frames[a].three_cells_mut([x, y, z]);
+        }
+        if a == b {
+            let [ab, c] = self
+                .frames
+                .get_disjoint_mut([a, c])
+                .map_err(|_| l::Error::State)?;
+            let (x, y) = ab.two_cells_mut(x, y)?;
+            return Ok([x, y, c.cell_mut(z)?]);
+        }
+        if a == c {
+            let [ac, b] = self
+                .frames
+                .get_disjoint_mut([a, b])
+                .map_err(|_| l::Error::State)?;
+            let (x, z) = ac.two_cells_mut(x, z)?;
+            return Ok([x, b.cell_mut(y)?, z]);
+        }
+        if b == c {
+            let [a, bc] = self
+                .frames
+                .get_disjoint_mut([a, b])
+                .map_err(|_| l::Error::State)?;
+            let (y, z) = bc.two_cells_mut(y, z)?;
+            return Ok([a.cell_mut(x)?, y, z]);
+        }
+        let [a, b, c] = self
+            .frames
+            .get_disjoint_mut([a, b, c])
+            .map_err(|_| l::Error::State)?;
+        Ok([a.cell_mut(x)?, b.cell_mut(y)?, c.cell_mut(z)?])
+    }
     pub fn release_frame<P: a::Provider>(
         &mut self,
         depth: usize,

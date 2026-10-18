@@ -9,6 +9,8 @@ use lang_semantics::{
 };
 use std::path::Path;
 
+mod maps;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Event {
     length: i64,

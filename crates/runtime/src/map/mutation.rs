@@ -35,6 +35,22 @@ fn detach_key<P: a::Provider>(
 }
 
 impl<'l, 't> Map<'l, 't> {
+    /// One checked Copy i64 operand may supply both key and value in MIR. A
+    /// non-owning scalar view avoids an extra guest reservation or mutable alias.
+    pub fn insert_repeated_integer_into<P: a::Provider>(
+        &mut self,
+        value: &mut l::Reservation<'l, 't>,
+        spans: Spans,
+        destination: &l::Reservation<'l, 't>,
+        target: l::Location,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<Option<Displaced>, Error> {
+        if self.key != o::Type::I64 || self.value != o::Type::I64 {
+            return Err(Error::WrongKey);
+        }
+        let mut key = value.i64_view()?;
+        self.insert_into(&mut key, value, spans, destination, target, allocator)
+    }
     fn entry_spans<P: a::Provider>(
         &self,
         h: Header,

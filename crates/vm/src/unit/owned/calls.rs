@@ -580,6 +580,7 @@ fn execute_with<P: a::Provider>(
             arena_read: None,
             shared_read: None,
             vector_read: None,
+            map_read: None,
         });
     }
     let mut prepared = budget

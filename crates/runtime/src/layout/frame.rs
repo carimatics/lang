@@ -355,6 +355,21 @@ impl<'layouts, 'types> FrameStorage<'layouts, 'types> {
             Ok((&mut right[0], &mut left[second]))
         }
     }
+    /// Borrow three distinct admitted cells without allocating wrapper storage.
+    pub fn three_cells_mut(
+        &mut self,
+        ids: [usize; 3],
+    ) -> Result<[&mut Reservation<'layouts, 'types>; 3], Error> {
+        if self.released {
+            return Err(Error::State);
+        }
+        for id in ids {
+            if id >= self.cells.len() {
+                return Err(Error::InvalidCell(id));
+            }
+        }
+        self.cells.get_disjoint_mut(ids).map_err(|_| Error::State)
+    }
     /// Cancel unpublished cells or release fully retired storage. The execution
     /// ledger must discharge live owners first. Preflight every cell/handle so a
     /// pending retirement or foreign allocator cannot release a valid prefix.

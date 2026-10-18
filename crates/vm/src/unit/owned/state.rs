@@ -3,6 +3,7 @@ use o::places::{Place, ProjectionKind, Root};
 
 mod arenas;
 mod buffers;
+mod maps;
 mod replacement;
 mod shared;
 mod vectors;
@@ -18,10 +19,18 @@ pub(super) enum ArenaTransfer {
     Rejected,
     Replaced(Option<m::Span>),
 }
+pub(super) struct MapTransfer {
+    pub published: bool,
+    pub key: Option<l::Token>,
+}
 
 #[derive(Clone, Copy)]
 pub(super) enum Target {
     Allocator,
+    Map {
+        read: usize,
+        location: l::Location,
+    },
     Vector {
         read: usize,
         location: l::Location,
@@ -53,6 +62,7 @@ pub(super) struct Loan {
     pub arena_read: Option<(usize, g::Read)>,
     pub shared_read: Option<sh::Read>,
     pub vector_read: Option<v::Loan>,
+    pub map_read: Option<mm::Loan>,
 }
 pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub allocator: &'a mut a::Allocator<P>,
@@ -72,7 +82,7 @@ pub(super) type Step<T> = Result<T, c::ExecutionFailure>;
 pub(super) fn invariant<T>(_: T) -> c::ExecutionFailure {
     c::ExecutionFailure::Invariant
 }
-fn cleanup_leaf<P: a::Provider>(
+pub(super) fn cleanup_leaf<P: a::Provider>(
     types: &o::VerifiedTypes,
     token: &mut l::Token,
     allocator: &mut a::Allocator<P>,
@@ -108,6 +118,12 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         })
     }
     pub fn read(&self, target: Target) -> Step<l::Immediate> {
+        if let Target::Map { read, location } = target {
+            return self
+                .map_view(read)?
+                .read_immediate(location, self.allocator)
+                .map_err(invariant);
+        }
         if let Target::Vector { read, location } = target {
             return self
                 .vector_view(read)?
@@ -200,6 +216,10 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         }
         let target = loan.target.ok_or(c::ExecutionFailure::Invariant)?;
         let valid = match target {
+            Target::Map { read, location } => {
+                self.map_view(read).is_ok()
+                    && self.types.equivalent(location.ty(), pointee) == Some(true)
+            }
             Target::Vector { read, location } => {
                 self.vector_view(read).is_ok()
                     && self.types.equivalent(location.ty(), pointee) == Some(true)
@@ -258,6 +278,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(target)
     }
     pub fn field(&self, target: Target, field: u32) -> Step<Target> {
+        if let Target::Map { read, location } = target {
+            let location = self
+                .map_view(read)?
+                .child(location, field, self.allocator)
+                .map_err(invariant)?;
+            return Ok(Target::Map { read, location });
+        }
         if let Target::Vector { read, location } = target {
             let location = self
                 .vector_view(read)?
@@ -302,6 +329,12 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(Target::Data { cell, location })
     }
     pub fn case(&self, target: Target) -> Step<u32> {
+        if let Target::Map { read, location } = target {
+            return self
+                .map_view(read)?
+                .case(location, self.allocator)
+                .map_err(invariant);
+        }
         if let Target::Vector { read, location } = target {
             return self
                 .vector_view(read)?
@@ -367,6 +400,24 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(token)
     }
     pub fn copy(&mut self, from: Target, destination: usize) -> Step<()> {
+        if let Target::Map { read, location } = from {
+            let loan = self.loans[read]
+                .map_read
+                .as_ref()
+                .ok_or(c::ExecutionFailure::Invariant)?;
+            let target = self
+                .storage
+                .as_ref()
+                .unwrap()
+                .cell(self.cells[destination].physical)
+                .map_err(invariant)?;
+            loan.view(self.layouts, self.allocator)
+                .map_err(invariant)?
+                .copy_into(location, target, target.root(), self.allocator)
+                .map_err(invariant)?;
+            self.cells[destination].live = true;
+            return Ok(());
+        }
         if let Target::Vector { read, location } = from {
             let loan = self.loans[read]
                 .vector_read
@@ -695,6 +746,9 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         match *ticket {
             Ticket::Loan(id) => {
                 let target = self.loans[id].target.take();
+                if let Some(mut read) = self.loans[id].map_read.take() {
+                    read.end(self.layouts, self.allocator).map_err(|_| 13u32)?;
+                }
                 if let Some(mut read) = self.loans[id].vector_read.take() {
                     read.end(self.layouts, self.allocator).map_err(|_| 11u32)?;
                 }

@@ -1,0 +1,17 @@
+fn read(values: &core::Map<i64, i64>, key: &i64) -> i64 {
+    match core::map_get::<i64, i64>(values, key) {
+        core::Option::Some(value) => { return (*value); },
+        core::Option::None => { return -1; },
+    }
+}
+fn main() -> i64 {
+    let mut made: core::Result<core::Map<i64, i64>, core::AllocError> = core::map_new::<i64, i64>(core::allocator());
+    let mut values: core::Map<i64, i64> = core::result_unwrap::<core::Map<i64, i64>, core::AllocError>(made);
+    let mut key: i64 = 1;
+    let mut first: core::Result<core::Option<i64>, core::AllocError> = core::map_insert::<i64, i64>(values, key, 9);
+    let mut replaced: core::Result<core::Option<i64>, core::AllocError> = core::map_insert::<i64, i64>(values, key, 20);
+    let mut old: i64 = core::option_unwrap::<i64>(core::result_unwrap::<core::Option<i64>, core::AllocError>(replaced));
+    let mut observed: i64 = read(values, key);
+    let mut removed: i64 = core::option_unwrap::<i64>(core::map_remove::<i64, i64>(values, key));
+    return old + observed + removed + core::map_len::<i64, i64>(values);
+}

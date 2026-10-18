@@ -83,6 +83,11 @@ impl Payloads {
     pub fn vector(&self, ty: o::Type) -> bool {
         self.accepts(Flavor::Vector, ty)
     }
+    pub fn map(&self, types: &o::VerifiedTypes, key: o::Type, value: o::Type) -> bool {
+        // Vec and Map share this closed value profile until C07 integrates
+        // nested services. Key admission remains the exact RFC 0007 policy.
+        map_key(types, key) && self.vector(value)
+    }
     pub fn shared(&self, ty: o::Type) -> bool {
         self.accepts(Flavor::Shared, ty)
     }
@@ -115,6 +120,10 @@ enum Shape {
     Leaf,
     Branch(Flavor),
 }
+fn map_key(types: &o::VerifiedTypes, ty: o::Type) -> bool {
+    ty == o::Type::I64
+        || matches!(ty, o::Type::Constructed(id) if types.table().constructed[id.0 as usize].constructor == o::Constructor::Builtin(o::Builtin::Text))
+}
 fn shape(types: &o::VerifiedTypes, ty: o::Type, flavor: Flavor) -> Shape {
     let properties = types.properties(ty).unwrap();
     if matches!(flavor, Flavor::Vector | Flavor::Shared)
@@ -141,6 +150,11 @@ fn shape(types: &o::VerifiedTypes, ty: o::Type, flavor: Flavor) -> Shape {
                 Shape::Branch(Flavor::Shared)
             }
             o::Constructor::Vec(_) if matches!(flavor, Flavor::Root) => {
+                Shape::Branch(Flavor::Vector)
+            }
+            o::Constructor::Map(key, _)
+                if matches!(flavor, Flavor::Root) && map_key(types, key) =>
+            {
                 Shape::Branch(Flavor::Vector)
             }
             _ => Shape::Unsupported,
@@ -181,6 +195,7 @@ fn children(types: &o::VerifiedTypes, ty: o::Type) -> impl Iterator<Item = o::Ty
         o::Type::Constructed(id) => match types.table().constructed[id.0 as usize].constructor {
             o::Constructor::Option(t) => [Some(t), None],
             o::Constructor::Result(t, e) => [Some(t), Some(e)],
+            o::Constructor::Map(k, v) => [Some(k), Some(v)],
             o::Constructor::Loan(_, t)
             | o::Constructor::Shared(t)
             | o::Constructor::Weak(t)

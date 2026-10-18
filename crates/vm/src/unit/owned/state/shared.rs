@@ -27,6 +27,14 @@ pub(super) fn cleanup_services<P: a::Provider>(
         _ => None,
     };
     match constructor {
+        Some(o::Constructor::Map(key, value)) => {
+            let mut map = mm::Map::from_token(layouts, key, value, &mut token.bytes, allocator)
+                .map_err(|_| 13u32)?;
+            map.cleanup(allocator, context, |token, allocator, _, context| {
+                cleanup_leaf(types, token, allocator, context)
+            })
+            .map_err(|_| 14u32)
+        }
         Some(o::Constructor::Vec(ty)) => {
             let mut vector = v::Vector::from_token(layouts, ty, &mut token.bytes, allocator)
                 .map_err(|_| 11u32)?;

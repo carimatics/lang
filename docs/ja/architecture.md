@@ -940,6 +940,20 @@ Non-Copyの `Displaced` packetはdetachしたkey義務1件と旧valueのspanを�
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[Map mutation](../../crates/runtime/src/map/mutation.rs)、[型付きretirement](../../crates/runtime/src/layout/storage.rs)、[mutation test](../../crates/runtime/tests/support/map_mutation.rs)、[失敗test](../../crates/runtime/tests/support/map_mutation_failures.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Compaction、order link、detachしたcleanup packetは非公開execution詳細であり、source構文、source／C ABI、serialized formatは変更しません。
 
+### Source Map execution
+
+2026-10-18 JST実装・検証（C06）：owned VMの `map_new`、`map_len`、`map_insert`、`map_get`、`map_remove` をallocator-backed Map serviceへ接続しました。Keyは厳密にi64／Textとし、valueはVecと同じ閉じたCopy／Bytes／Text／inline aggregate profileを使います。Root Mapはrecord、guest parameter、cleanupで保護した再帰return越しに移動できます。入れ子collection／shared／arena payloadはinactive shapeも含めprovider callback前に拒否し、C07へ残します。Shared／arena admissionへroot Map対応を波及させません。
+
+Getter成功時にMIR loanへruntime Map readを1件登録します。`Target::Map` でowner／entry／登録identityを保持し、projection、enum case、scalar／token read、Copy転送、guest reborrowへ渡します。Mutable getterは追加しません。不在／未使用armは登録を残さず、queryは別Mapのvalueを所有せずborrowできます。Owner teardown前に全登録を終了します。Move済みkey／valueの再利用と、返却readが有効な間のmutationは引き続きsource compileで拒否します。
+
+Insertは新entryまたは事前認可済みResult／Option outputへ旧valueをpublishします。Move済み引数を消費扱いにしてoutput ownerをframeへ登録してから、`Frame::retire_detached` でdetachした等価Text keyをcleanupします。追加ledger slotなしで既存report／poison stateを共有します。Removalも格納keyのcleanup前にoutputを保護し、queryは保持します。Insert拒否では評価済みowning引数を逆順cleanupし、move済み変数は復元しません。元key／value initializer spanを保護したoutputとcleanupへ維持します。Activation storageを跨いでも、事前認可済みの異なる3 cellをwrapper確保なしでborrowできます。独立再検証MIRで、同じCopy i64 registerをkey／valueに使う合法例を検出したため、非所有i64 viewでmutable aliasやguest確保なしに対応しました。
+
+[`map.lang`](../../examples/scripts/map.lang) は `49`、[`map_owned.lang`](../../examples/scripts/map_owned.lang) はText key付きowning pair 5件のgrowth、等価key置換、guest call越しのread、置換valueの削除を経て `33` を表示します。Source 18 testで、独立した39操作のbyte-key oracle（空／NUL／合成済み・分解済みUTF-8）、Copy aggregate、inline enum、field owner、別Mapのquery、allocator reborrow、再帰return／frame拒否、保護したclone、read枯渇、全provider OOM／retryとfuel prefix、中断、副作用前の入れ子service拒否を検証します。Oracleは全操作を保持し、生成functionを分割して既定analysis予算内で実行します。言語文法や予算の既定値は変更しません。Ownership source suiteは129 test成功です。
+
+VM injection 5 testで元key／返却value span、publication後のkey失敗／panic、旧valueの保護、後続source effect前の停止、body panic優先、再entry前のpoison、中断後の完全drain、Map 260 valueのretireでreport 256件と省略4件を記録しながら全storageを解放することを検証します。C04／C05後に必須としたsource fixtureを完了しました。DeterministicなVM／storage testであり、C07、native conformance、indirect preview、serialized ownership formatは各gateを維持します。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[VM Map adapter](../../crates/vm/src/unit/owned/state/maps.rs)、[profile admission](../../crates/vm/src/unit/owned/profile.rs)、[共通cleanup context](../../crates/runtime/src/cleanup.rs)、[source test](../../tests/support/owned_map.rs)、[失敗注入](../../crates/vm/src/unit/owned/failure_tests/maps.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Source構文、source／C ABI、serialized formatは変更しません。
+
 ### Async borrow／cancellation実験
 
 `crates/semantics` の実行可能modelはRFC 0005のstrict baselineと、未受理の制限を緩めたpolicyを比較します。

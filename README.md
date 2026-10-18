@@ -80,6 +80,8 @@ cargo run -- run examples/scripts/shared.lang
 cargo run -- run examples/scripts/shared_owned.lang
 cargo run -- run examples/scripts/vec.lang
 cargo run -- run examples/scripts/vec_owned.lang
+cargo run -- run examples/scripts/map.lang
+cargo run -- run examples/scripts/map_owned.lang
 cargo run -- repl
 cargo run --quiet -- repl < examples/repl/owned.repl
 cargo run --quiet -- lsp
@@ -90,6 +92,8 @@ Source arenas execute allocation, checked reads, replacement and lexical teardow
 Source shared/weak values execute explicit cloning, checked reads, replacement, weak creation/cloning/upgrades and cleanup for Copy values, Bytes/Text and inline aggregates, including recursive shared shapes. `shared.lang` prints `9`; `shared_owned.lang` prints `13` after rejecting a strong cycle and reading nested owning nodes through a borrowed guest call. Weak owners preserve metadata after payload expiration. Live reads exclude alias replacement; failed publications release incoming owners. Vec/Map payloads, indirect result previews, native execution and ownership artifacts retain their separate gates. See [source shared execution](docs/architecture.md#source-shared-and-weak-execution), updated/verified 2026-10-18 JST.
 
 Source Vec values execute new/len/push/pop and checked shared/mutable element reads for Copy values, Bytes/Text and inline records/enums/Option/Result. `vec.lang` prints `9`; `vec_owned.lang` prints `12` after growing owning pairs, mutating a buffer, replacing a field, popping a value and forwarding a read through guest calls. Live element loans exclude push/pop; failed push cleans its evaluated owning argument. Nested collections/shared/arena payload integration, indirect previews, native execution and ownership artifacts retain their gates. See [source Vec execution](docs/architecture.md#source-vec-execution), updated/verified 2026-10-18 JST.
+
+Source Map values execute new/len/insert/get/remove with i64 or exact UTF-8-byte Text keys and Copy values, Bytes/Text and inline aggregates. `map.lang` prints `49`; `map_owned.lang` prints `33` after growing owning pairs, replacing an equal Text key, reading through guest calls and removing a value. Replacement preserves the original key and returns the old value; evaluated incoming owners are cleaned on refusal. Live reads exclude mutation. Nested service payloads, indirect previews, native execution and ownership artifacts retain their gates. See [source Map execution](docs/architecture.md#source-map-execution), updated/verified 2026-10-18 JST.
 
 `check` validates Copy or RFC 0007/0009 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile with allocator authority, Bytes new/len/get/set/push/clone, consuming UTF-8 conversion, Text byte length/clone/concat/to-bytes/equality, nested Bytes/Text/Copy records/enums and Option/Result construction/extraction, lexical loans and cleanup. The answer script prints `42`; `bytes.lang` and `owned_bytes.lang` print `0`, the extraction/mutation example prints `1`, `utf8.lang` prints the byte length `3`, and `text.lang` prints `2` after checking independent clones and conversions. `owned_aggregate.lang` prints `9` after moving nested owners and reading projected references. Storage is released before printing the result. Extraction checks its case and reports a source-located guest panic on mismatch. Unsupported operations/payloads fail preflight.
 

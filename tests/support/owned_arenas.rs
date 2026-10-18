@@ -118,7 +118,7 @@ fn unused_provisional_arena_read_ends_before_the_next_mutation() {
 fn unsupported_reachable_container_after_arena_allocation_rejects_before_callbacks() {
     let source = r#"fn main() -> i64 { arena graph(core::allocator()) {
         let mut token: arena i64 = core::result_unwrap::<arena i64, core::ArenaError>(core::arena_new::<i64>(graph, 7));
-        let mut pending: core::Result<core::Map<i64, i64>, core::AllocError> = core::map_new::<i64, i64>(core::allocator());
+        let mut pending: core::Result<core::Map<i64, core::Vec<i64>>, core::AllocError> = core::map_new::<i64, core::Vec<i64>>(core::allocator());
         return 0;
     } }"#;
     let program = checked(source);

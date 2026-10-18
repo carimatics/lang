@@ -498,6 +498,29 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
         self.destroy(slot, payload, span, Reason::Replacement);
         self.running()
     }
+    /// Consume an already detached child through the same bounded report and
+    /// poison state, without allocating another ledger slot. `slot` is its
+    /// diagnostic anchor; protect any output owner in the ledger first. Even
+    /// after a prior failure, this consumes the child before reporting failure.
+    pub fn retire_detached<U, D: Cleaner<U>>(
+        &mut self,
+        slot: Slot,
+        value: U,
+        span: Option<Span>,
+        reason: Reason,
+        cleaner: &mut D,
+    ) -> Result<(), StateError> {
+        let span = span.or_else(|| self.slots.get(slot.0).and_then(|v| v.span));
+        let mut context = Context {
+            instance: &mut *self.instance,
+            report: &mut self.report,
+            slot,
+            span,
+            reason,
+        };
+        context.field(value, span, cleaner);
+        self.running()
+    }
     pub fn drop_value(&mut self, slot: Slot) -> Result<(), StateError> {
         self.running()?;
         self.value(slot)?;

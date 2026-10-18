@@ -6,8 +6,8 @@ use lang_mir::unit::{
     ownership::{self as o, bodies as b, failure as f},
 };
 use lang_runtime::{
-    allocation as a, arena::managed as g, buffer, cleanup as c, layout as l, shared::managed as sh,
-    vector as v,
+    allocation as a, arena::managed as g, buffer, cleanup as c, layout as l, map as mm,
+    shared::managed as sh, vector as v,
 };
 use std::{
     cell::RefCell,
@@ -204,6 +204,14 @@ fn supported(
                         | o::core::Operation::VecGet
                         | o::core::Operation::VecGetMut
                 ) && call.type_arguments.iter().all(|t| payloads.vector(t.ty)))
+                || (matches!(
+                    call.operation,
+                    o::core::Operation::MapNew
+                        | o::core::Operation::MapLen
+                        | o::core::Operation::MapInsert
+                        | o::core::Operation::MapGet
+                        | o::core::Operation::MapRemove
+                ) && payloads.map(types, call.type_arguments[0].ty, call.type_arguments[1].ty))
         }
         b::Op::Record { .. } | b::Op::Variant { .. } => {
             result.is_some_and(|ty| payloads.supports(ty))
@@ -432,6 +440,7 @@ fn execute_single<P: a::Provider>(
             arena_read: None,
             shared_read: None,
             vector_read: None,
+            map_read: None,
         });
     }
     let shared = Rc::new(RefCell::new(State {
@@ -1186,6 +1195,93 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             }
         }
         b::Op::CoreCall(call) => match call.operation {
+            o::core::Operation::MapNew => {
+                shared.borrow_mut().map_new(call, values, result()?, span)?
+            }
+            o::core::Operation::MapLen => shared.borrow_mut().map_len(call, values, result()?)?,
+            o::core::Operation::MapGet => {
+                if shared.borrow_mut().map_get(call, values, result()?, span)? {
+                    register_loan(
+                        frame,
+                        call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize,
+                    )?;
+                }
+            }
+            op @ (o::core::Operation::MapInsert | o::core::Operation::MapRemove) => {
+                let destination = result()?;
+                let key;
+                let mut published = false;
+                if op == o::core::Operation::MapInsert {
+                    for source in call.arguments[1..].iter().map(|r| value(*r)) {
+                        if !shared.borrow().is_copy(source) {
+                            frame.value(address.slot(source)).map_err(invariant)?;
+                        }
+                    }
+                    let transfer =
+                        shared
+                            .borrow_mut()
+                            .map_insert(call, values, destination, span)?;
+                    published = transfer.published;
+                    key = transfer.key;
+                    if published {
+                        for source in call.arguments[1..].iter().map(|r| value(*r)) {
+                            if !shared.borrow().is_copy(source) {
+                                let _ =
+                                    frame.take_owner(address.slot(source)).map_err(invariant)?;
+                            }
+                        }
+                    }
+                } else {
+                    key = shared
+                        .borrow_mut()
+                        .map_remove(call, values, destination, span)?;
+                }
+                // Publish the old value's frame obligation before any key or
+                // rejected-input cleanup can fail and begin exit unwinding.
+                let (owning, physical) = {
+                    let s = shared.borrow();
+                    (!s.is_copy(destination), s.cells[destination].physical)
+                };
+                if owning {
+                    frame
+                        .initialize(
+                            address.slot(destination),
+                            Ticket::Cell(physical),
+                            Some(span),
+                        )
+                        .map_err(invariant)?;
+                }
+                if let Some(token) = key {
+                    let source = token.leaf.span;
+                    let mut cleaner = c::Contextual::new(
+                        |token: &mut l::Token, _, context: &mut c::Context<'_>| {
+                            let mut s = shared.borrow_mut();
+                            let types = s.types;
+                            state::cleanup_leaf(types, token, s.allocator, context)
+                        },
+                    );
+                    frame
+                        .retire_detached(
+                            address.slot(value(call.arguments[0])),
+                            token,
+                            source,
+                            if op == o::core::Operation::MapInsert {
+                                c::Reason::Replacement
+                            } else {
+                                c::Reason::Explicit
+                            },
+                            &mut cleaner,
+                        )
+                        .map_err(invariant)?;
+                }
+                if op == o::core::Operation::MapInsert && !published {
+                    for source in call.arguments[1..].iter().rev().map(|r| value(*r)) {
+                        if !shared.borrow().is_copy(source) {
+                            frame.drop_value(address.slot(source)).map_err(invariant)?;
+                        }
+                    }
+                }
+            }
             op @ (o::core::Operation::ArenaNew
             | o::core::Operation::ArenaReplace
             | o::core::Operation::SharedNew
