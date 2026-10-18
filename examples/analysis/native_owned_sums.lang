@@ -1,0 +1,9 @@
+// Owned sum construction and whole-payload extraction in native code.
+// Check: cargo run -- check examples/analysis/native_owned_sums.lang
+// Execute: cargo test --test native_owned_boundary source_owned_option_constructs
+fn relay(value: core::Bytes, unused: core::Bytes) -> core::Bytes {
+    return leaf(core::Option::Some(value), unused);
+}
+fn leaf(value: core::Option<core::Bytes>, unused: core::Bytes) -> core::Bytes {
+    return core::option_unwrap::<core::Bytes>(value);
+}

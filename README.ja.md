@@ -132,7 +132,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-Rustのnative embedding境界で [sourceのBytes引数／返り値](examples/analysis/native_owned_boundary.lang)、[ownerを渡すguest call](examples/analysis/native_owned_calls.lang)、[owned recordの構築](examples/analysis/native_owned_records.lang) が生成機械コードで実行できます。`cargo test --test native_owned_boundary` で実value、VM／nativeのrecord解放順、call／return、失敗時cleanup、admission、poison、compile budgetを検証できます。Whole-unit dispatchはlogical frameと共有managed storageを使い、object APIは対応するMach-O／COFF codeとメモリ上のmetadataを出力します。汎用native operation、service、objectのlink／実行、CLI driverはmilestoneの残作業です。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
+Rustのnative embedding境界で [sourceのBytes引数／返り値](examples/analysis/native_owned_boundary.lang)、[ownerを渡すguest call](examples/analysis/native_owned_calls.lang)、[owned record](examples/analysis/native_owned_records.lang)、[sumのpayload全体抽出](examples/analysis/native_owned_sums.lang) が生成機械コードで実行できます。Scalar演算、Copy enum pattern、分岐、CFG引数の同時転送もlowerします。`cargo test --test native_owned_boundary` でVM／native比較、失敗時cleanup、admission、poison、compile budgetを検証できます。Object APIは対応するMach-O／COFF codeとメモリ上のmetadataを出力します。Loan／projection、準備済み置換、core service、objectのlink／実行、CLI driverは残作業です。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
 
 ## 設計プロセス
 

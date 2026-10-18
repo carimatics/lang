@@ -1,4 +1,6 @@
 use super::*;
+#[path = "native_owned_values.rs"]
+mod values;
 use n::{CallSite, CompiledProgram, Transition};
 
 #[derive(Clone, Copy)]
@@ -22,17 +24,23 @@ impl Store<'_, '_> {
             let (source, target) = pools[from.frame]
                 .two_cells_mut(from.cell, to.cell)
                 .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
-            source.move_root_into(target, target.root(), allocator)
+            source
+                .move_root_into(target, target.root(), allocator)
+                .and_then(|()| source.recycle(allocator))
         } else if from.frame < to.frame {
             let (left, right) = pools.split_at_mut(to.frame);
             let source = left[from.frame].cell_mut(from.cell).unwrap();
             let target = right[0].cell(to.cell).unwrap();
-            source.move_root_into(target, target.root(), allocator)
+            source
+                .move_root_into(target, target.root(), allocator)
+                .and_then(|()| source.recycle(allocator))
         } else {
             let (left, right) = pools.split_at_mut(from.frame);
             let source = right[0].cell_mut(from.cell).unwrap();
             let target = left[to.frame].cell(to.cell).unwrap();
-            source.move_root_into(target, target.root(), allocator)
+            source
+                .move_root_into(target, target.root(), allocator)
+                .and_then(|()| source.recycle(allocator))
         };
         result.map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))
     }
@@ -53,23 +61,24 @@ impl c::Cleaner<Physical> for Drain<'_, '_, '_> {
             retired,
             refuse_cleanup,
         } = &mut *storage;
-        pools[physical.frame]
+        let cell = pools[physical.frame]
             .cell_mut(physical.cell)
-            .map_err(|_| 90u32)?
-            .retire(allocator, context, |token, allocator, _, _| {
-                let mut value =
-                    buffer::Bytes::from_token(&mut token.bytes, allocator).map_err(|_| 91u32)?;
-                let data = value.as_slice(allocator).map_err(|_| 92u32)?;
-                let index = expected
-                    .iter()
-                    .position(|candidate| *candidate == data)
-                    .ok_or(93u32)?;
-                assert!(retired.len() < retired.capacity());
-                retired.push(index);
-                value.release(allocator).map_err(|_| 94u32)?;
-                if *refuse_cleanup { Err(95) } else { Ok(()) }
-            })
-            .map_err(|_| 96u32)
+            .map_err(|_| 90u32)?;
+        cell.retire(allocator, context, |token, allocator, _, _| {
+            let mut value =
+                buffer::Bytes::from_token(&mut token.bytes, allocator).map_err(|_| 91u32)?;
+            let data = value.as_slice(allocator).map_err(|_| 92u32)?;
+            let index = expected
+                .iter()
+                .position(|candidate| *candidate == data)
+                .ok_or(93u32)?;
+            assert!(retired.len() < retired.capacity());
+            retired.push(index);
+            value.release(allocator).map_err(|_| 94u32)?;
+            if *refuse_cleanup { Err(95) } else { Ok(()) }
+        })
+        .map_err(|_| 96u32)?;
+        cell.recycle(allocator).map_err(|_| 97u32)
     }
 }
 #[derive(Clone, Copy)]
@@ -185,72 +194,34 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             .map_err(invariant)
     }
     fn construct_record(&mut self, record: &n::RecordSite) -> n::ResultStep {
-        let target = Physical {
-            frame: self.depth(),
-            cell: record.result,
-        };
-        let base = self.depth() * self.stride;
-        let ledger = self.ledger.as_mut().unwrap();
-        let mut store = self.store.borrow_mut();
-        let Store {
-            pools, allocator, ..
-        } = &mut *store;
-        let types = self
-            .program
-            .layout(self.stack.last().unwrap().function)
-            .unwrap()
-            .source()
-            .source()
-            .activity()
-            .moved()
-            .typed()
-            .places()
-            .declarations()
-            .types();
-        // Check every source and target before writing order or consuming any
-        // owner. The following storage moves have no external failure point.
-        for (field, slot) in record.fields.iter().enumerate() {
-            let source = *ledger.value(c::Slot(base + slot)).map_err(invariant)?;
-            if source.frame != target.frame {
-                return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
-            }
-            let input = pools[source.frame]
-                .cell(source.cell)
-                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
-            let output = pools[target.frame].cell(target.cell).unwrap();
-            let child = output
-                .child(output.root(), field as u32, allocator)
-                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
-            if types.equivalent(input.root().ty(), child.ty()) != Some(true) {
-                return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
-            }
-        }
-        let output = pools[target.frame].cell(target.cell).unwrap();
-        output
-            .initialize_order(
-                output.root(),
-                record.initialization_order.iter().copied(),
-                allocator,
-            )
-            .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
-        for (field, slot) in record.fields.iter().enumerate() {
-            let source = *ledger.value(c::Slot(base + slot)).map_err(invariant)?;
-            let (input, output) = pools[target.frame]
-                .two_cells_mut(source.cell, target.cell)
-                .unwrap();
-            let child = output
-                .child(output.root(), field as u32, allocator)
-                .unwrap();
-            input
-                .move_root_into(output, child, allocator)
-                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
-            ledger.take_owner(c::Slot(base + slot)).map_err(invariant)?;
-        }
-        ledger
-            .initialize(c::Slot(base + record.result), target, Some(record.span))
-            .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))
+        values::aggregate(self, record, None)
+    }
+    fn read_scalar(&mut self, cell: usize) -> Result<i64, c::Cause> {
+        values::read_scalar(self, cell)
+    }
+    fn write_scalar(&mut self, cell: usize, bits: i64, span: m::Span) -> n::ResultStep {
+        values::write_scalar(self, cell, bits, span)
+    }
+    fn copy_slot(&mut self, from: usize, to: usize, span: m::Span) -> n::ResultStep {
+        values::copy_slot(self, from, to, span)
+    }
+    fn variant_case(&mut self, cell: usize) -> Result<u32, c::Cause> {
+        values::case(self, cell)
+    }
+    fn construct_variant(&mut self, site: &n::VariantSite) -> n::ResultStep {
+        values::aggregate(self, &site.payload, Some(site.case))
+    }
+    fn extract_variant(&mut self, site: &n::ExtractSite) -> n::ResultStep {
+        values::extract(self, site)
+    }
+    fn copy_case_field(&mut self, site: &n::CaseFieldSite) -> n::ResultStep {
+        values::copy_field(self, site)
+    }
+    fn transfer(&mut self, site: &n::TransferSite) -> n::ResultStep {
+        values::transfer(self, site)
     }
     fn stage_return(&mut self, slot: usize, _: m::Span) -> n::ResultStep {
+        let copied = values::is_copy(self, slot);
         let slot = self.slot(slot);
         let source = *self
             .ledger
@@ -262,7 +233,11 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             frame: self.depth(),
             cell: self.plan().return_cell(),
         };
-        self.store.borrow_mut().transfer(source, target)?;
+        if copied {
+            values::copy_physical(&mut self.store.borrow_mut(), source, target)?;
+        } else {
+            self.store.borrow_mut().transfer(source, target)?;
+        }
         let ledger = self.ledger.as_mut().unwrap();
         *ledger.value_mut(slot).map_err(invariant)? = target;
         ledger.stage_return(Some(slot)).map_err(invariant)
@@ -363,6 +338,11 @@ impl Runtime for Unit<'_, '_, '_, '_> {
                 .admit(target.frame(), allocator)
                 .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Fault))?;
         }
+        let caller_layout = self
+            .program
+            .layout(self.stack.last().unwrap().function)
+            .unwrap();
+        let types = typed.places().declarations().types();
         let caller_base = self.depth() * self.stride;
         let ledger = self.ledger.as_mut().unwrap();
         ledger.open_call().map_err(invariant)?;
@@ -376,8 +356,16 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             let source = *ledger.value(slot).map_err(invariant)?;
             let cell = target.frame().local(*parameter).unwrap();
             let destination = Physical { frame: depth, cell };
-            self.store.borrow_mut().transfer(source, destination)?;
-            ledger.take_owner(slot).map_err(invariant)?;
+            let copied = types
+                .properties(caller_layout.frame().cell_type(*argument).unwrap().ty)
+                .unwrap()
+                .is_copy;
+            if copied {
+                values::copy_physical(&mut self.store.borrow_mut(), source, destination)?;
+            } else {
+                self.store.borrow_mut().transfer(source, destination)?;
+                ledger.take_owner(slot).map_err(invariant)?;
+            }
             ledger
                 .initialize(
                     c::Slot(depth * self.stride + cell),
@@ -436,6 +424,7 @@ impl Runtime for Unit<'_, '_, '_, '_> {
 
 struct Seen {
     value: Option<Vec<u8>>,
+    scalar: Option<i64>,
     retired: Vec<usize>,
     fuel: u64,
     peak: usize,
@@ -454,7 +443,25 @@ fn execute_unit(
     refuse_cleanup: bool,
 ) -> Seen {
     let source = source(text);
-    let flow = source.failure_flow();
+    execute_flow(
+        source.failure_flow(),
+        inputs,
+        fuel,
+        max_frames,
+        cells,
+        refuse,
+        refuse_cleanup,
+    )
+}
+fn execute_flow(
+    flow: &m::ownership::failure::Elaborated,
+    inputs: &[&[u8]],
+    fuel: Option<u64>,
+    max_frames: usize,
+    cells: usize,
+    refuse: Option<usize>,
+    refuse_cleanup: bool,
+) -> Seen {
     let types = flow
         .source()
         .activity()
@@ -556,11 +563,22 @@ fn execute_unit(
     };
     drop(instance);
     let mut state = store.into_inner();
-    let value = completion.value.map(|physical| {
+    let mut scalar = None;
+    let value = completion.value.and_then(|physical| {
         assert_eq!(
             (physical.frame, physical.cell),
             (0, root.frame().return_cell())
         );
+        if root.frame().cell_type(physical.cell).unwrap().ty == m::ownership::Type::I64 {
+            let cell = state.pools[0].cell(physical.cell).unwrap();
+            let l::Immediate::I64(value) =
+                cell.read_immediate(cell.root(), state.allocator).unwrap()
+            else {
+                panic!("i64 result")
+            };
+            scalar = Some(value);
+            return None;
+        }
         let mut token: [u8; 32] = state.pools[0]
             .cell(physical.cell)
             .unwrap()
@@ -577,7 +595,7 @@ fn execute_unit(
             .fill(0);
         let bytes = value.as_slice(state.allocator).unwrap().to_vec();
         value.release(state.allocator).unwrap();
-        bytes
+        Some(bytes)
     });
     state.pools[0].release(state.allocator).unwrap();
     assert_eq!(state.allocator.stats().live_allocations, 0);
@@ -585,6 +603,7 @@ fn execute_unit(
     assert_eq!(trace.allocated, trace.released);
     Seen {
         value,
+        scalar,
         retired: state.retired,
         fuel,
         peak,
@@ -831,7 +850,7 @@ fn recursive_native_calls_use_logical_frames_and_contain_the_frame_limit() {
 
 #[test]
 fn owned_native_objects_keep_matching_call_layout_and_source_metadata() {
-    for text in [CALLS, RECORDS] {
+    for text in [CALLS, RECORDS, values::SUMS] {
         check_native_object_metadata(text);
     }
 }
@@ -854,6 +873,8 @@ fn check_native_object_metadata(text: &str) {
             n::emit_object_for_target(flow, &layouts, &target, Default::default(), 1000).unwrap();
         let object = object::File::parse(&*artifact.bytes).unwrap();
         let mut record_sites = 0;
+        let mut variant_sites = 0;
+        let mut extract_sites = 0;
         for index in 0..flow.functions().len() {
             let function = artifact.function(m::FunctionId(index as u32)).unwrap();
             let metadata = function.metadata();
@@ -901,6 +922,21 @@ fn check_native_object_metadata(text: &str) {
                         assert_eq!(&text[span.start as usize..span.end as usize], expected);
                     }
                 }
+                if let Some(variant) = function.variant_site(node as u32) {
+                    variant_sites += 1;
+                    assert_eq!(variant.case, 1);
+                    assert_eq!(variant.payload.span, source.span);
+                    assert_eq!(variant.payload.fields.len(), 1);
+                    let (field, span) = variant.payload.initialization_order[0];
+                    assert_eq!(field, 0);
+                    assert_eq!(&text[span.start as usize..span.end as usize], "value");
+                }
+                if let Some(extract) = function.extract_site(node as u32) {
+                    extract_sites += 1;
+                    assert_eq!(extract.case, 1);
+                    assert_eq!(extract.guard, None);
+                    assert_eq!(extract.panic_code, Some(-1));
+                }
             }
         }
         let root = artifact.function(m::FunctionId(0)).unwrap();
@@ -913,6 +949,8 @@ fn check_native_object_metadata(text: &str) {
         assert!(root.continuations().contains(&calls[0].resume));
         assert!(root.continuations().contains(&calls[0].failure));
         assert_eq!(record_sites, usize::from(text == RECORDS));
+        assert_eq!(variant_sites, usize::from(text == values::SUMS));
+        assert_eq!(extract_sites, usize::from(text == values::SUMS));
         let usage = artifact.usage();
         for (exact, short) in [
             (

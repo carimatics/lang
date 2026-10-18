@@ -2,7 +2,7 @@
 //! runtime layouts; packets contain only an invocation context and frame IDs.
 use lang_mir::unit::{
     self as m,
-    ownership::{bodies as b, failure as f},
+    ownership::{self as o, bodies as b, failure as f},
 };
 use lang_runtime::layout::{self as l, FramePlan, Layouts};
 use std::{
@@ -11,7 +11,9 @@ use std::{
 };
 
 use super::OwnedJitModule;
-use cranelift_codegen::ir::{AbiParam, InstBuilder, MemFlagsData, SourceLoc, types};
+use cranelift_codegen::ir::{
+    AbiParam, Block, InstBuilder, MemFlagsData, SigRef, SourceLoc, Value, types,
+};
 use cranelift_codegen::settings::Configurable;
 use cranelift_codegen::{isa, settings};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
@@ -50,6 +52,32 @@ pub struct RecordSite {
     pub initialization_order: Vec<(u32, m::Span)>,
     pub span: m::Span,
 }
+pub struct VariantSite {
+    pub case: u32,
+    pub payload: RecordSite,
+}
+pub struct ExtractSite {
+    pub source: usize,
+    pub result: usize,
+    pub case: u32,
+    pub guard: Option<usize>,
+    pub panic_code: Option<i64>,
+}
+pub struct CaseFieldSite {
+    pub source: usize,
+    pub result: usize,
+    pub case: u32,
+    pub field: u32,
+    pub guard: usize,
+}
+pub struct TransferMove {
+    pub source: usize,
+    pub scratch: usize,
+    pub target: usize,
+}
+pub struct TransferSite {
+    pub moves: Vec<TransferMove>,
+}
 
 /// Trusted prepared-frame primitives, not an instruction interpreter. Methods
 /// receive statically lowered slots/ranges. Implementations supply the shared
@@ -80,6 +108,36 @@ pub trait Runtime {
     fn construct_record(&mut self, _: &RecordSite) -> ResultStep {
         Err(c::Cause::Execution(c::ExecutionFailure::Invariant))
     }
+    /// Return i64 bits, canonical 0/1 for bool, or zero for Unit. Reads must
+    /// validate the active typed cell; arithmetic is emitted as native code.
+    fn read_scalar(&mut self, _: usize) -> Result<i64, c::Cause> {
+        missing()
+    }
+    fn write_scalar(&mut self, _: usize, _: i64, _: m::Span) -> ResultStep {
+        missing()
+    }
+    fn copy_slot(&mut self, _: usize, _: usize, _: m::Span) -> ResultStep {
+        missing()
+    }
+    fn variant_case(&mut self, _: usize) -> Result<u32, c::Cause> {
+        missing()
+    }
+    fn construct_variant(&mut self, _: &VariantSite) -> ResultStep {
+        missing()
+    }
+    /// Extract a complete Option/Result payload. Copy containers remain
+    /// available; an owning container transfers its single payload atomically.
+    fn extract_variant(&mut self, _: &ExtractSite) -> ResultStep {
+        missing()
+    }
+    fn copy_case_field(&mut self, _: &CaseFieldSite) -> ResultStep {
+        missing()
+    }
+    /// Capture all arguments into admitted scratch cells before publishing
+    /// any block parameter. Copy fanout and affine cycles must be simultaneous.
+    fn transfer(&mut self, _: &TransferSite) -> ResultStep {
+        missing()
+    }
     fn frame_identity(&self) -> u64 {
         0
     }
@@ -103,6 +161,9 @@ pub trait Runtime {
     fn validate_transition(&self, _: Transition) -> bool {
         false
     }
+}
+fn missing<T>() -> Result<T, c::Cause> {
+    Err(c::Cause::Execution(c::ExecutionFailure::Invariant))
 }
 
 /// Owns the adapter together with the native boundary's permanent panic state.
@@ -148,10 +209,12 @@ pub struct Failure {
     pub function: m::FunctionId,
     pub reason: Reason,
     pub span: m::Span,
+    /// Source core panic payload, retained with the first failing function/span.
+    pub panic_code: Option<i64>,
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 15;
+const HELPERS: usize = 24;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -164,6 +227,19 @@ enum Action {
     Cleanup,
     Call,
     Record,
+    Constant(usize, i64),
+    Binary(Binary, usize, usize, usize),
+    Copy(usize, usize),
+    IsCase(usize, u32, usize),
+    Variant,
+    Extract,
+    CaseField,
+}
+#[derive(Clone, Copy)]
+enum Binary {
+    Add,
+    Less,
+    Equal,
 }
 struct Node {
     span: m::Span,
@@ -172,6 +248,10 @@ struct Node {
     raised: Option<c::ExecutionFailure>,
     call: Option<CallSite>,
     record: Option<RecordSite>,
+    variant: Option<VariantSite>,
+    extract: Option<ExtractSite>,
+    case_field: Option<CaseFieldSite>,
+    transfer: Option<TransferSite>,
 }
 
 /// Native call boundary for whole-owner forwarding and record construction.
@@ -333,6 +413,7 @@ impl<'a> CompiledProgram<'a> {
             function,
             reason: Reason::Runtime(c::Cause::Execution(c::ExecutionFailure::Invariant)),
             span: self.functions[0].nodes[0].span,
+            panic_code: None,
         })?;
         run(entry, Some(self), instance)
     }
@@ -347,6 +428,7 @@ fn run<'c, 'a, R: Runtime>(
         function: entry.layout.function,
         reason,
         span: entry.nodes[0].span,
+        panic_code: None,
     };
     if instance.is_poisoned() {
         return Err(rejected(Reason::Poisoned));
@@ -359,6 +441,7 @@ fn run<'c, 'a, R: Runtime>(
                 continuation: 0,
             },
             frame: instance.runtime.frame_identity(),
+            scalar: 0,
         },
         compiled: entry,
         program,
@@ -384,6 +467,15 @@ fn run<'c, 'a, R: Runtime>(
             after_return::<R>,
             after_failure::<R>,
             construct_record::<R>,
+            read_scalar::<R>,
+            write_scalar::<R>,
+            copy_slot::<R>,
+            variant_case::<R>,
+            construct_variant::<R>,
+            extract_variant::<R>,
+            transfer::<R>,
+            panic::<R>,
+            copy_case_field::<R>,
         ],
     };
     let mut continuation = 0;
@@ -479,6 +571,18 @@ impl<'a> ObjectFunction<'a> {
     }
     pub fn record_site(&self, node: u32) -> Option<&RecordSite> {
         self.nodes.get(node as usize)?.record.as_ref()
+    }
+    pub fn variant_site(&self, node: u32) -> Option<&VariantSite> {
+        self.nodes.get(node as usize)?.variant.as_ref()
+    }
+    pub fn transfer_site(&self, node: u32) -> Option<&TransferSite> {
+        self.nodes.get(node as usize)?.transfer.as_ref()
+    }
+    pub fn extract_site(&self, node: u32) -> Option<&ExtractSite> {
+        self.nodes.get(node as usize)?.extract.as_ref()
+    }
+    pub fn case_field_site(&self, node: u32) -> Option<&CaseFieldSite> {
+        self.nodes.get(node as usize)?.case_field.as_ref()
     }
     pub fn cleanup(&self, node: u32) -> Option<&[(usize, m::Span)]> {
         self.nodes.get(node as usize).map(|n| n.cleanup.as_slice())
@@ -620,6 +724,10 @@ fn prepare<'a>(
             raised: None,
             call: None,
             record: None,
+            variant: None,
+            extract: None,
+            case_field: None,
+            transfer: None,
         };
         match node.kind {
             f::Kind::Execute { site, .. } => {
@@ -632,6 +740,13 @@ fn prepare<'a>(
                     .ok_or_else(|| unsupported(node.span))?;
                 let value = |v| layout.frame.value(v).map_err(Error::from);
                 let local = |v| layout.frame.local(v).map_err(Error::from);
+                let copied = |slot| {
+                    layouts
+                        .types()
+                        .properties(layout.frame.cell_type(slot).unwrap().ty)
+                        .unwrap()
+                        .is_copy
+                };
                 let mut one = |slot, span| -> Result<(), Error> {
                     data.cleanup = budget.vector(1)?;
                     data.cleanup.push((slot, span));
@@ -639,6 +754,91 @@ fn prepare<'a>(
                     Ok(())
                 };
                 data.action = match &i.op {
+                    b::Op::I64(bits) => Some(Action::Constant(value(i.results[0])?, *bits)),
+                    b::Op::Bool(bits) => {
+                        Some(Action::Constant(value(i.results[0])?, i64::from(*bits)))
+                    }
+                    b::Op::Unit => Some(Action::Constant(value(i.results[0])?, 0)),
+                    b::Op::Add(a, b) | b::Op::LessThan(a, b) | b::Op::EqualI64(a, b) => {
+                        let op = match i.op {
+                            b::Op::Add(..) => Binary::Add,
+                            b::Op::LessThan(..) => Binary::Less,
+                            _ => Binary::Equal,
+                        };
+                        Some(Action::Binary(
+                            op,
+                            value(*a)?,
+                            value(*b)?,
+                            value(i.results[0])?,
+                        ))
+                    }
+                    b::Op::Copy(from) => Some(Action::Copy(value(*from)?, value(i.results[0])?)),
+                    b::Op::Variant { case, payload } => {
+                        let mut fields = budget.vector(payload.len())?;
+                        let mut order = budget.vector(payload.len())?;
+                        let values = &typed(flow).places().functions()[function.0 as usize].values;
+                        for (field, v) in payload.iter().enumerate() {
+                            budget.charge(1)?;
+                            fields.push(value(*v)?);
+                            order.push((field as u32, values[v.0 as usize].span));
+                        }
+                        data.variant = Some(VariantSite {
+                            case: *case,
+                            payload: RecordSite {
+                                result: value(i.results[0])?,
+                                fields,
+                                initialization_order: order,
+                                span: i.span,
+                            },
+                        });
+                        Some(Action::Variant)
+                    }
+                    b::Op::IsCase { value: from, case } => {
+                        Some(Action::IsCase(value(*from)?, *case, value(i.results[0])?))
+                    }
+                    b::Op::CopyCaseField {
+                        value: from,
+                        case,
+                        field,
+                        guard,
+                    } => {
+                        data.case_field = Some(CaseFieldSite {
+                            source: value(*from)?,
+                            result: value(i.results[0])?,
+                            case: *case,
+                            field: *field,
+                            guard: value(*guard)?,
+                        });
+                        Some(Action::CaseField)
+                    }
+                    b::Op::UnpackVariant {
+                        value: from,
+                        case,
+                        guard,
+                    } if i.results.len() == 1
+                        && matches!(typed(flow).places().functions()[function.0 as usize].values[from.0 as usize].ty,
+                        o::Type::Constructed(id) if matches!(layouts.types().table().constructed[id.0 as usize].constructor, o::Constructor::Option(_) | o::Constructor::Result(..))) =>
+                    {
+                        data.extract = Some(ExtractSite {
+                            source: value(*from)?,
+                            result: value(i.results[0])?,
+                            case: *case,
+                            guard: Some(value(*guard)?),
+                            panic_code: None,
+                        });
+                        Some(Action::Extract)
+                    }
+                    b::Op::CoreCall(call) if call.operation.extraction().is_some() => {
+                        let contract = call.operation.extraction().unwrap();
+                        data.extract = Some(ExtractSite {
+                            source: value(call.arguments[0])?,
+                            result: value(i.results[0])?,
+                            case: contract.case,
+                            guard: None,
+                            panic_code: Some(contract.panic_code),
+                        });
+                        Some(Action::Extract)
+                    }
                     b::Op::Record {
                         fields,
                         initialization_order,
@@ -663,8 +863,15 @@ fn prepare<'a>(
                         });
                         Some(Action::Record)
                     }
-                    b::Op::Move(from) => Some(Action::Move(value(*from)?, value(i.results[0])?)),
-                    b::Op::MovePlace(place) => {
+                    b::Op::Move(from) => {
+                        let from = value(*from)?;
+                        Some(if copied(from) {
+                            Action::Copy(from, value(i.results[0])?)
+                        } else {
+                            Action::Move(from, value(i.results[0])?)
+                        })
+                    }
+                    b::Op::MovePlace(place) | b::Op::CopyPlace(place) => {
                         let place = &typed(flow).places().functions()[function.0 as usize].places
                             [place.0 as usize];
                         if !place.projections.is_empty() {
@@ -674,12 +881,23 @@ fn prepare<'a>(
                             m::ownership::places::Root::Local(l) => local(l)?,
                             m::ownership::places::Root::Value(v) => value(v)?,
                         };
-                        Some(Action::Move(from, value(i.results[0])?))
+                        Some(if copied(from) {
+                            Action::Copy(from, value(i.results[0])?)
+                        } else {
+                            Action::Move(from, value(i.results[0])?)
+                        })
                     }
                     b::Op::Initialize {
                         local: to,
                         value: from,
-                    } => Some(Action::Move(value(*from)?, local(*to)?)),
+                    } => {
+                        let from = value(*from)?;
+                        Some(if copied(from) {
+                            Action::Copy(from, local(*to)?)
+                        } else {
+                            Action::Move(from, local(*to)?)
+                        })
+                    }
                     b::Op::Call {
                         function: callee,
                         arguments,
@@ -727,8 +945,27 @@ fn prepare<'a>(
                     _ => return Err(unsupported(i.span)),
                 };
             }
-            f::Kind::Branch { .. } | f::Kind::Transfer { .. } => {
-                return Err(unsupported(node.span));
+            f::Kind::Transfer { block, arm, .. } => {
+                let target = body.blocks[block.0 as usize]
+                    .terminator
+                    .kind
+                    .targets()
+                    .nth(arm as usize)
+                    .ok_or_else(|| unsupported(node.span))?;
+                let parameters = &body.blocks[target.block.0 as usize].parameters;
+                let mut moves = budget.vector(parameters.len())?;
+                for (argument, parameter) in target.arguments.iter().zip(parameters) {
+                    budget.charge(1)?;
+                    moves.push(TransferMove {
+                        source: layout.frame.value(*argument)?,
+                        scratch: layout
+                            .frame
+                            .scratch_cell(*parameter)
+                            .ok_or_else(|| unsupported(node.span))?,
+                        target: layout.frame.value(*parameter)?,
+                    });
+                }
+                data.transfer = Some(TransferSite { moves });
             }
             f::Kind::Raise { failure, .. } => data.raised = Some(failure),
             _ => {}
@@ -753,6 +990,7 @@ fn backend(e: impl Display) -> Error {
 struct DispatchState {
     next: Output,
     frame: u64,
+    scalar: i64,
 }
 
 #[repr(C)]
@@ -777,6 +1015,7 @@ impl<R: Runtime> Invocation<'_, '_, R> {
             function: self.compiled.layout.function,
             reason: Reason::Runtime(cause),
             span,
+            panic_code: None,
         });
     }
     fn apply(
@@ -894,6 +1133,89 @@ helper!(construct_record, ctx, _a, _b, node, {
             .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
         r.construct_record(record)
     })
+});
+helper!(read_scalar, ctx, a, _b, node, {
+    match ctx.evaluate(node, |r, _, _| r.read_scalar(a as usize)) {
+        Ok(value) => {
+            ctx.dispatch.scalar = value;
+            0
+        }
+        Err(()) => 2,
+    }
+});
+helper!(write_scalar, ctx, a, b, node, {
+    ctx.apply(node, |r, _, span| {
+        r.write_scalar(a as usize, b as i64, span)
+    })
+});
+helper!(copy_slot, ctx, a, b, node, {
+    ctx.apply(node, |r, _, span| r.copy_slot(a as usize, b as usize, span))
+});
+helper!(variant_case, ctx, a, _b, node, {
+    match ctx.evaluate(node, |r, _, _| r.variant_case(a as usize)) {
+        Ok(case) => {
+            ctx.dispatch.scalar = i64::from(case);
+            0
+        }
+        Err(()) => 2,
+    }
+});
+helper!(construct_variant, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.construct_variant(
+            p.nodes[node as usize]
+                .variant
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(extract_variant, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.extract_variant(
+            p.nodes[node as usize]
+                .extract
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(copy_case_field, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.copy_case_field(
+            p.nodes[node as usize]
+                .case_field
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(transfer, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.transfer(
+            p.nodes[node as usize]
+                .transfer
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(panic, ctx, _a, _b, node, {
+    let info = &ctx.compiled.nodes[node as usize];
+    let code = info.extract.as_ref().and_then(|e| e.panic_code);
+    let first = ctx.fault.is_none();
+    ctx.note(
+        c::Cause::Execution(if code.is_some() {
+            c::ExecutionFailure::Panic
+        } else {
+            c::ExecutionFailure::Invariant
+        }),
+        info.span,
+    );
+    if first {
+        ctx.fault.as_mut().unwrap().panic_code = code;
+    }
+    2
 });
 helper!(cleanup, ctx, _a, _b, node, {
     ctx.apply(node, |r, p, _| r.cleanup(&p.nodes[node as usize].cleanup))
@@ -1064,36 +1386,101 @@ fn emit<M: Module>(
             budget.charge(1)?;
             b.switch_to_block(blocks[index]);
             b.set_srcloc(SourceLoc::new(u32::try_from(index).map_err(backend)?));
-            let mut call = |which: usize, a: usize, c: usize| {
-                let header = b.ins().load(pointer, MemFlagsData::new(), input, 0);
-                let data = b.ins().load(
-                    pointer,
-                    MemFlagsData::new(),
-                    header,
-                    offset_of!(Header, data) as i32,
-                );
-                let address = b.ins().load(
-                    pointer,
-                    MemFlagsData::new(),
-                    header,
-                    (offset_of!(Header, helpers) + which * 8) as i32,
-                );
-                let a = b.ins().iconst(types::I64, a as i64);
-                let c = b.ins().iconst(types::I64, c as i64);
-                let n = b.ins().iconst(types::I64, index as i64);
-                let instruction = b.ins().call_indirect(sig, address, &[data, a, c, n]);
-                b.inst_results(instruction)[0]
-            };
+            macro_rules! call {
+                ($which:expr, $a:expr, $c:expr) => {
+                    native_helper_imm(&mut b, sig, input, index, $which, $a, $c)
+                };
+            }
             let conditional = match node.kind {
-                f::Kind::Entry { next, failure } => Some((call(0, 0, 0), next, failure)),
-                f::Kind::Fuel { next, failure, .. } => Some((call(1, 0, 0), next, failure)),
+                f::Kind::Entry { next, failure } => Some((call!(0, 0, 0), next, failure)),
+                f::Kind::Fuel { next, failure, .. } => Some((call!(1, 0, 0), next, failure)),
                 f::Kind::Execute { next, failure, .. } => {
                     match nodes[index].action.expect("preflighted instruction") {
-                        Action::Move(from, to) => Some((call(2, from, to), next, failure)),
-                        Action::Cleanup => Some((call(3, 0, 0), next, failure)),
-                        Action::Record => Some((call(14, 0, 0), next, failure)),
+                        Action::Move(from, to) => Some((call!(2, from, to), next, failure)),
+                        Action::Cleanup => Some((call!(3, 0, 0), next, failure)),
+                        Action::Record => Some((call!(14, 0, 0), next, failure)),
+                        Action::Constant(to, bits) => {
+                            let to = b.ins().iconst(types::I64, to as i64);
+                            let bits = b.ins().iconst(types::I64, bits);
+                            Some((
+                                native_helper(&mut b, sig, input, index, 16, to, bits),
+                                next,
+                                failure,
+                            ))
+                        }
+                        Action::Copy(from, to) => Some((call!(17, from, to), next, failure)),
+                        Action::Variant => Some((call!(19, 0, 0), next, failure)),
+                        Action::Binary(op, left, right, to) => {
+                            let failed = blocks[failure.0 as usize];
+                            let left = native_read(&mut b, sig, input, index, 15, left, failed);
+                            let right = native_read(&mut b, sig, input, index, 15, right, failed);
+                            let result = match op {
+                                Binary::Add => b.ins().iadd(left, right),
+                                Binary::Less | Binary::Equal => {
+                                    let predicate = if matches!(op, Binary::Less) {
+                                        IntCC::SignedLessThan
+                                    } else {
+                                        IntCC::Equal
+                                    };
+                                    let bit = b.ins().icmp(predicate, left, right);
+                                    b.ins().uextend(types::I64, bit)
+                                }
+                            };
+                            let to = b.ins().iconst(types::I64, to as i64);
+                            Some((
+                                native_helper(&mut b, sig, input, index, 16, to, result),
+                                next,
+                                failure,
+                            ))
+                        }
+                        Action::IsCase(from, case, to) => {
+                            let actual = native_read(
+                                &mut b,
+                                sig,
+                                input,
+                                index,
+                                18,
+                                from,
+                                blocks[failure.0 as usize],
+                            );
+                            let bit = b.ins().icmp_imm_u(IntCC::Equal, actual, i64::from(case));
+                            let result = b.ins().uextend(types::I64, bit);
+                            let to = b.ins().iconst(types::I64, to as i64);
+                            Some((
+                                native_helper(&mut b, sig, input, index, 16, to, result),
+                                next,
+                                failure,
+                            ))
+                        }
+                        Action::Extract | Action::CaseField => {
+                            let (source, case, guard, helper) =
+                                if let Some(extract) = &nodes[index].extract {
+                                    (extract.source, extract.case, extract.guard, 20)
+                                } else {
+                                    let field = nodes[index].case_field.as_ref().unwrap();
+                                    (field.source, field.case, Some(field.guard), 23)
+                                };
+                            let failed = blocks[failure.0 as usize];
+                            let actual = native_read(&mut b, sig, input, index, 18, source, failed);
+                            let mut valid =
+                                b.ins().icmp_imm_u(IntCC::Equal, actual, i64::from(case));
+                            if let Some(guard) = guard {
+                                let guard =
+                                    native_read(&mut b, sig, input, index, 15, guard, failed);
+                                let guarded = b.ins().icmp_imm_u(IntCC::Equal, guard, 1);
+                                valid = b.ins().band(valid, guarded);
+                            }
+                            let success = b.create_block();
+                            let mismatch = b.create_block();
+                            b.ins().brif(valid, success, &[], mismatch, &[]);
+                            b.switch_to_block(mismatch);
+                            call!(22, 0, 0);
+                            b.ins().jump(failed, &[]);
+                            b.switch_to_block(success);
+                            Some((call!(helper, 0, 0), next, failure))
+                        }
                         Action::Call => {
-                            let status = call(11, 0, 0);
+                            let status = call!(11, 0, 0);
                             let dispatch = b.create_block();
                             let valid = b.ins().icmp_imm_u(IntCC::Equal, status, 1);
                             b.ins()
@@ -1108,10 +1495,38 @@ fn emit<M: Module>(
                     value,
                     next,
                     failure,
-                } => Some((call(4, layout.frame.value(value)?, 0), next, failure)),
-                f::Kind::RetireReturn { next, failure } => Some((call(5, 0, 0), next, failure)),
+                } => Some((call!(4, layout.frame.value(value)?, 0), next, failure)),
+                f::Kind::Transfer {
+                    target, failure, ..
+                } => Some((call!(21, 0, 0), target, failure)),
+                f::Kind::Branch {
+                    condition,
+                    then_node,
+                    else_node,
+                    failure,
+                } => {
+                    let condition = native_read(
+                        &mut b,
+                        sig,
+                        input,
+                        index,
+                        15,
+                        layout.frame.value(condition)?,
+                        blocks[failure.0 as usize],
+                    );
+                    let bit = b.ins().icmp_imm_u(IntCC::Equal, condition, 1);
+                    b.ins().brif(
+                        bit,
+                        blocks[then_node.0 as usize],
+                        &[],
+                        blocks[else_node.0 as usize],
+                        &[],
+                    );
+                    None
+                }
+                f::Kind::RetireReturn { next, failure } => Some((call!(5, 0, 0), next, failure)),
                 f::Kind::PublishReturn => {
-                    let status = call(12, 0, 0);
+                    let status = call!(12, 0, 0);
                     let success = b.create_block();
                     let maybe_dispatch = b.create_block();
                     let dispatch = b.create_block();
@@ -1138,27 +1553,27 @@ fn emit<M: Module>(
                     None
                 }
                 f::Kind::Raise { next, .. } => {
-                    call(10, 0, 0);
+                    call!(10, 0, 0);
                     b.ins().jump(blocks[next.0 as usize], &[]);
                     None
                 }
                 f::Kind::RecordFailure { next } => {
-                    call(7, 0, 0);
+                    call!(7, 0, 0);
                     b.ins().jump(blocks[next.0 as usize], &[]);
                     None
                 }
                 f::Kind::RetireFailure { next } => {
-                    call(8, 0, 0);
+                    call!(8, 0, 0);
                     b.ins().jump(blocks[next.0 as usize], &[]);
                     None
                 }
                 f::Kind::DiscardResult { next } => {
-                    call(9, 0, 0);
+                    call!(9, 0, 0);
                     b.ins().jump(blocks[next.0 as usize], &[]);
                     None
                 }
                 f::Kind::PropagateFailure => {
-                    let status = call(13, 0, 0);
+                    let status = call!(13, 0, 0);
                     let dispatch = b.create_block();
                     let failed = b.create_block();
                     let valid = b.ins().icmp_imm_u(IntCC::Equal, status, 1);
@@ -1169,12 +1584,6 @@ fn emit<M: Module>(
                     let status = b.ins().iconst(types::I32, 2);
                     b.ins().return_(&[status]);
                     None
-                }
-                _ => {
-                    return Err(Error::Unsupported {
-                        function: layout.function,
-                        span: node.span,
-                    });
                 }
             };
             if let Some((status, next, failure)) = conditional {
@@ -1216,6 +1625,75 @@ fn emit<M: Module>(
             source_ranges: ranges,
         },
     ))
+}
+
+fn native_helper_imm(
+    b: &mut FunctionBuilder<'_>,
+    sig: SigRef,
+    input: Value,
+    node: usize,
+    which: usize,
+    a: usize,
+    c: usize,
+) -> Value {
+    let a = b.ins().iconst(types::I64, a as i64);
+    let c = b.ins().iconst(types::I64, c as i64);
+    native_helper(b, sig, input, node, which, a, c)
+}
+fn native_helper(
+    b: &mut FunctionBuilder<'_>,
+    sig: SigRef,
+    input: Value,
+    node: usize,
+    which: usize,
+    a: Value,
+    c: Value,
+) -> Value {
+    let header = b.ins().load(types::I64, MemFlagsData::new(), input, 0);
+    let data = b.ins().load(
+        types::I64,
+        MemFlagsData::new(),
+        header,
+        offset_of!(Header, data) as i32,
+    );
+    let address = b.ins().load(
+        types::I64,
+        MemFlagsData::new(),
+        header,
+        (offset_of!(Header, helpers) + which * 8) as i32,
+    );
+    let n = b.ins().iconst(types::I64, node as i64);
+    let call = b.ins().call_indirect(sig, address, &[data, a, c, n]);
+    b.inst_results(call)[0]
+}
+fn native_read(
+    b: &mut FunctionBuilder<'_>,
+    sig: SigRef,
+    input: Value,
+    node: usize,
+    which: usize,
+    slot: usize,
+    failure: Block,
+) -> Value {
+    use cranelift_codegen::ir::condcodes::IntCC;
+    let status = native_helper_imm(b, sig, input, node, which, slot, 0);
+    let valid = b.ins().icmp_imm_u(IntCC::Equal, status, 0);
+    let success = b.create_block();
+    b.ins().brif(valid, success, &[], failure, &[]);
+    b.switch_to_block(success);
+    let header = b.ins().load(types::I64, MemFlagsData::new(), input, 0);
+    let data = b.ins().load(
+        types::I64,
+        MemFlagsData::new(),
+        header,
+        offset_of!(Header, data) as i32,
+    );
+    b.ins().load(
+        types::I64,
+        MemFlagsData::new(),
+        data,
+        offset_of!(DispatchState, scalar) as i32,
+    )
 }
 
 fn emit_packet(
