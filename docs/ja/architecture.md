@@ -335,7 +335,7 @@ Storage scopeはactiveなarena下の明示MIR初期化／破棄から導出し�
 
 準備の累積work／byte／element budgetを引き継ぎ、intern node、block／scratch state cell、再帰depthも個別に制限します。失敗時は結果を公開せずplanを再利用できます。構造化errorは操作spanと関連arena／parameter宣言を保持します。Call-site ordinalとarena spanはMIRの1始まりの命令 `Site` に統一します。全guest callとregion関連importを **未完了のcall義務** として返し、plain callでも正常returnの制御解析を要求します。その関数のentryは暫定値で最終診断も保留し、mutationや正常に戻らないcall前の古い状態で妥当なsourceを拒否しません。後述のcall解析でsummaryを適用して未完了関数を再検証します。必須failure admissionはその完全解析を要求し、このlocal結果だけをadmission witnessとはしません。
 
-追加8件のsource由来testで、同一arenaの受理とpending call、解析fixture、product／sum／reference／containerの精度、source loop、偽造した捕捉storeとCFG joinのescape、同一site再生成、CFG引数backedge、pending call越しの妥当な変更、通算limitの厳密値／1不足を検証します。従来の偽造token probeも、このlocal解析と必須failure admissionの両方で拒否します。Body fuzz targetも上限付きlocal転送を呼びます。R06後は [arena source fixture](../../examples/analysis/arena.lang) のCLI `check` と `run` が両方成功します。後述のVM fixtureでは、より広いR07 guest-call／brand監査とnative／artifact exit evidenceを維持します。
+追加8件のsource由来testで、同一arenaの受理とpending call、解析fixture、product／sum／reference／containerの精度、source loop、偽造した捕捉storeとCFG joinのescape、同一site再生成、CFG引数backedge、pending call越しの妥当な変更、通算limitの厳密値／1不足を検証します。従来の偽造token probeも、このlocal解析と必須failure admissionの両方で拒否します。Body fuzz targetも上限付きlocal転送を呼びます。R06後は [arena source fixture](../../examples/analysis/arena.lang) のCLI `check` と `run` が両方成功します。R07のguest-call／brand監査は後述し、native／artifact exit evidenceは未完了です。
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[local解析](../../crates/mir/src/unit/ownership/regions/local.rs)、[value／place graph](../../crates/mir/src/unit/ownership/regions/local/values.rs)、[転送](../../crates/mir/src/unit/ownership/regions/local/transfer.rs)、[test](../../tests/mir_regions.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・確認。受理済み意味論内の実装上の選択であり、ABIやserialized formatは導入しません。
 
@@ -349,7 +349,7 @@ Callerへのstoreは公開前に実際のdestination lifetimeを検証します�
 
 Work／要求byte／elementは準備prefix、全summary round、最終replayを通算します。Intern済みvalue／path／summary／effect node、entry／scratch／output／call-snapshot state cell、再帰projection／template走査も個別quotaで制限します。全明示vectorは拡張前にadmitします。Budget不足では途中reportを公開せず、planを再利用できます。Algorithm、template、quotaはRFC 0007内の実装上の選択であり、source ABIやserialized tagは導入しません。
 
-Source由来13 testで、上書きされるstore、call／store spanの実際のsource slice、local-region storeの操作span、正常output、product／sum input projection、入れ子reference target、Vec／Map変更、provisional element転送、同時output、再帰的な確定clear、相互／非return再帰、plain非return callの到達性、累積quotaの厳密値／1不足、先行loan境界を検証します。偽造MIRは先行type／move／activity／loan stageを通りますが、完全call解析はlifetime escapeを拒否します。Body fuzz targetも上限付きcall解析を呼びます。同じ偽造callerを必須 `failure::elaborate` admissionでも拒否するようになりました。Runtime／storage統合は後述のR05／R06へ記載し、R07 guest-call／brand conformance、native実行、ownership artifactには全exit evidenceが必要です。
+Source由来13 testで、上書きされるstore、call／store spanの実際のsource slice、local-region storeの操作span、正常output、product／sum input projection、入れ子reference target、Vec／Map変更、provisional element転送、同時output、再帰的な確定clear、相互／非return再帰、plain非return callの到達性、累積quotaの厳密値／1不足、先行loan境界を検証します。偽造MIRは先行type／move／activity／loan stageを通りますが、完全call解析はlifetime escapeを拒否します。Body fuzz targetも上限付きcall解析を呼びます。同じ偽造callerを必須 `failure::elaborate` admissionでも拒否するようになりました。Runtime／storage統合とR07のsource guest-call conformanceは後述し、native実行とownership artifactには引き続き全exit evidenceが必要です。
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[call解析](../../crates/mir/src/unit/ownership/regions/local/calls.rs)、[共通転送](../../crates/mir/src/unit/ownership/regions/local/transfer.rs)、[source由来conformance](../../tests/mir_region_calls.rs)、[上限付きfuzz target](../../fuzz/fuzz_targets/ownership_mir_bodies.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・確認。
 
@@ -363,7 +363,7 @@ Source診断はlowering対象programで最初に出現する異なるmodule snap
 
 Body fuzz targetに、type／move／activity／loan検証を通ってから必須admissionへ進む標準arena caseを追加します。同じregion、異なるlive region、同一site再enter後の失効token、妥当な一時的callee store、後からclearするcallerへのescapeです。各inputはquotaゼロでの拒否も検証します。Commit対象5 seedで、上限付きstable smokeを10,000回・8秒実行し、crashはありませんでした。Coverage／sanitizer instrumentationは使っていません。Locked fuzz Clippyも成功しました。
 
-R05／R06でguest storageとsource VM adapterを統合し、既存の [arena source fixture](../../examples/analysis/arena.lang) のCLI `check` と `run` が両方成功します。Shared allocator reborrow lowering不足もR06で修正しました。静的proofとこれらの実行fixtureだけでは、より広いR07 call／brand監査、native conformance、ownership artifactのgateを完了しません。
+R05／R06でguest storageとsource VM adapterを統合し、既存の [arena source fixture](../../examples/analysis/arena.lang) のCLI `check` と `run` が両方成功します。Shared allocator reborrow lowering不足もR06で修正しました。R07のsource call／brand監査は後述し、native conformanceとownership artifactのgateは未完了です。
 
 情報源：[必須admission](../../crates/mir/src/unit/ownership/failure.rs)、[source診断](../../crates/semantics/src/analysis.rs)、[region test](../../tests/mir_regions.rs)、[call／store label](../../tests/mir_region_calls.rs)、[標準fuzz case](../../fuzz/fuzz_targets/ownership_mir_bodies/regions.rs)、[seed](../../fuzz/seeds/ownership_mir_bodies/)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。
 
@@ -812,7 +812,7 @@ Publicationは全endpointと累積node／slot／edge／live-payload-byte上限�
 
 Exitはaccessを失効させてからnodeをallocationの逆順でdetachします。予約済みの反復cleanupがentryの共通cleanup contextを使い、initializer／node spanを保ち、子の失敗／panicをcontainして、retirement storageを追加確保せず独立した子孫／nodeを処理し続けます。Headerはdrain後に解放します。Managed buffer／value wrapperと同様、信頼するwrapperを破棄するだけではguest cleanupを呼びません。実行adapterがallocator authorityを解放する前に義務をdrainする必要があります。Tokenは非公開in-memory dataであり、source／C ABIやserialized formatは変更しません。
 
-Focused 11 testで、実際のstorage／peak会計、各payload予約のOOMとretry、owner OOM、guest／host-pool quotaの厳密値／1不足、拒否時に不変のinput／replacement、入れ子のcross-region／失効／偽造reference、同一region cycle、逆順の子cleanup、read排他とabort／再利用、不正Copy値／span／shared edge、indirect serviceの明示拒否とbudget共有、確保／retryなしのcleanup失敗／panicを検証します。Runtime testとworkspace Clippyが成功しました。後述のsource VM adapterでR06を実装しました。より広いguest-call／brand conformanceはR07へ残し、native／artifact gateも維持します。
+Focused 11 testで、実際のstorage／peak会計、各payload予約のOOMとretry、owner OOM、guest／host-pool quotaの厳密値／1不足、拒否時に不変のinput／replacement、入れ子のcross-region／失効／偽造reference、同一region cycle、逆順の子cleanup、read排他とabort／再利用、不正Copy値／span／shared edge、indirect serviceの明示拒否とbudget共有、確保／retryなしのcleanup失敗／panicを検証します。Runtime testとworkspace Clippyが成功しました。Source VM adapterとR07のguest-call／brand conformanceは後述し、native／artifact gateは未完了です。
 
 情報源：受理済み [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[managed arena](../../crates/runtime/src/arena/managed.rs)、[typed reservation](../../crates/runtime/src/layout/storage.rs)、[allocator](../../crates/runtime/src/allocation.rs)、[test](../../crates/runtime/tests/managed_arena.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Pool size、要求／header表現、操作quotaは実装上の選択であり、性能保証ではありません。
 
@@ -826,9 +826,19 @@ Read成功時はruntime readと独立MIR loan ticketを登録します。Core Re
 
 Arena allocatorのloweringにHIRが要求するshared allocator loanと通常のimplicit reborrow経路を使い、shared allocator parameterの再利用とdereferenceしたallocator placeにも対応します。Nested regionとloop再enterは異なるlive generationを維持します。RuntimeのCopy確保／置換、checked viewからのCopy転送、厳密pool見積もり、detachしたreplacement spanでadapterを支えます。Source構文、source／C ABI、serialized ownership formatは追加しません。
 
-追加17 testの内訳はsource実行11件、VM failure injection 4件、runtime境界2件です。Scalar／owning cycle、nested read／arena、allocator reborrow、再enter、再帰frame limit、protected owning return、未使用provisional read、型付きallocation error、全provider OOM位置、全fuel prefix、実際の逆順cleanup span／順序、子の失敗／panicのcontain、teardown中の中断とcaller effect前の停止を検証します。既存のowned execution（82件）、failure exit（19件）、managed arena（13件）、ownership lowering（33件）、fmt、workspace Clippyも成功しました。到達可能な未対応serviceはprovider callback前に拒否します。より広いsource guest-call／brand conformanceの監査はR07に残し、arena／native／artifact exit gateには全要件のevidenceが必要です。
+追加17 testの内訳はsource実行11件、VM failure injection 4件、runtime境界2件です。Scalar／owning cycle、nested read／arena、allocator reborrow、再enter、再帰frame limit、protected owning return、未使用provisional read、型付きallocation error、全provider OOM位置、全fuel prefix、実際の逆順cleanup span／順序、子の失敗／panicのcontain、teardown中の中断とcaller effect前の停止を検証します。既存のowned execution（82件）、failure exit（19件）、managed arena（13件）、ownership lowering（33件）、fmt、workspace Clippyも成功しました。到達可能な未対応serviceはprovider callback前に拒否します。R07のsource guest-call／brand監査は後述し、arena／native／artifact exit gateには引き続き全要件のevidenceが必要です。
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[VM dispatch](../../crates/vm/src/unit/owned.rs)、[arena adapter](../../crates/vm/src/unit/owned/state/arenas.rs)、[activation pool](../../crates/vm/src/unit/owned/calls.rs)、[allocator lowering](../../crates/semantics/src/ownership_types/bodies.rs)、[runtime](../../crates/runtime/src/arena/managed.rs)、[source test](../../tests/support/owned_arenas.rs)、[failure injection](../../crates/vm/src/unit/owned/failure_tests.rs)、[runtime test](../../crates/runtime/tests/managed_arena.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。
+
+### Source arena guest-call conformance
+
+2026-10-18 JST検証（R07）：追加した [source test](../../tests/arena_calls.rs) 11件で、検証済みownership／failure pipelineとowned VMを通します。Bytesを所有するnodeのread loan転送と、callerのOptionへ保存したtokenは `9` を返します。再帰的field変更でも2つのlive arena brandとruntime targetを区別し（`70`）、inactive sum payloadはcallerをclearし（`7`）、相互再帰は一時storeをclearし（`8`）、入れ子reference引数は元のcellを更新します（`12`）。非return再帰storeは設定したframe limitで停止し、正常exitと同様にguest allocationとbyteをすべて解放します。
+
+Compile-failで、より長生きするcaller storageへの一時／非return store、caller fieldのcross-arena再利用、後でpopするcollection store、brandを含む通常関数の戻り値、shared／weak arena payloadを `SRC0022` で拒否します。転送したreadは後続arena変更を `SRC0021` で禁止します。同一pathの古いsnapshotと無関係なfileがあっても、診断labelを現在のimmutable source snapshotで解決します。既存の [独立MIR call test](../../tests/mir_region_calls.rs) は偽造入力、再帰summary、構造化caller／store診断を引き続き検証します。Production修正や意味論変更なしに、sourceとMIRのfocused suiteが成功しました。
+
+同一region cycle、再enter、失効generation、逆順cleanup、失敗注入はR06／runtime fixtureに根拠を保持します。上記collection／shared／weakのcompile-failで未実装VM adapterを有効にしたとはしません。R07のsource conformance行は完了ですが、G05にはN04を含むnative arena全体のevidenceが必要で、serialized ownership formatも固有gateを維持します。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[source test](../../tests/arena_calls.rs)、[MIR call test](../../tests/mir_region_calls.rs)、[managed-arena test](../../crates/runtime/tests/managed_arena.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。
 
 ### Async borrow／cancellation実験
 
