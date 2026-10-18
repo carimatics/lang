@@ -6,25 +6,25 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**76 done · 0 doing · 27 todo · 66 remaining pt**
+**77 done · 0 doing · 27 todo · 66 remaining pt**
 
-**次: M2-N01 → native ownershipのcall／layout契約を監査し、最初のnative実験を実行。**
+**次: M2-N01 → 本番packet／context bridgeとsource Bytes引数／返り値fixtureを実装。**
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 76件（+41件）**、作業一覧は **87 → 103件（+16件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 77件（+42件）**、作業一覧は **87 → 104件（+17件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +44 pt | −112 pt | 66 pt |
+| 134 pt | +46 pt | −114 pt | 66 pt |
 
-**134 + 44 − 112 = 66 pt**
+**134 + 46 − 114 = 66 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり112点分を取り除く一方、前提作業の可視化と再見積もりで44点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り66点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり114点分を取り除く一方、前提作業の可視化と再見積もりで46点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り66点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-直近の完了：**M2-A03**（`2dfea13`）。Schema 1／2の明示的compile／load CLI実行、消費型ownership export、検証済みentry ID dispatchを追加し、最初のload済みBytes fixtureが **0** を表示しました。CLI 8 testでowned 19 fixture、両adapter／profile、削除したUnicode／複数file snapshot、不正入力／option、quota、出力保持を検証しました。Service 10 fixtureで全provider拒否位置／fuel prefixと中断／再利用を比較し、解放順序と元failure reportも一致します。全体 **84 suite・1326 test** とfmt／Clippy／docが成功し、**残り69 → 66 pt**、done 76行、計103行です。RFC 0011を実装済みにし、A01／A02後の必須source成果を完了しました。Native、V17、backendを組み合わせたconformance全体は各gateを維持します。
+直近の完了：**M2-N08**（`dc3df29`）。[RFC 0012](rfcs/0012-native-ownership-continuations.md) をacceptedとし、native継続packetを検証しました。2つの生成関数で1,000回のcall／return列を実行し、各列で42を計算し、不活性な32 byte dataを維持し、不正継続をstate／output effectの前に拒否します。Mach-O／COFF objectに両compiled symbolがあります。全 **84 suite・1329 test** とfmt／Clippy／docが成功しました。前提作業2点の追加と完了を明示し、**残り66 → 68 → 66 pt**、**done 76 → 77件**、**計103 → 104行**です。ABIの実現性を示すもので、live ownership／source loweringと実Windows実行は未完了です。N01では実sourceのBytes引数／返り値境界を届けてからnative基盤を追加します。
 
-直近code baselineの実測（2026-10-18 JST）：最終workspace Clippy **25.6秒**、成功した全test **393.3秒**（新log作成から最終書き込みまで）、rustdoc **16.4秒**。Cargoが報告するtest compileは**22.0秒**、suite時間合計は**77.6秒**です。初回baselineは広すぎる未使用import guardによるREPL回帰で**265.5秒**後に停止しました。Guardを取り除いて受理済みのREPL／到達可能性規則を保ち、focused回帰検証と最終baselineが成功しました。新12 testはCLI 8件とloaded／proof実行4件です。検証所要時間であり、全稼働時間やruntime benchmarkではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **24.8秒**、全testの実時間 **286.1秒**（shell time）、rustdoc **13.7秒**。Cargoが報告するtest compileは**21.6秒**、suite時間合計は**77.2秒**です。新しい試作3 testはfocused実行で**0.01秒**で成功しました。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では既存 `repository_consistency` suiteを実行します。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
@@ -72,6 +72,8 @@ R01着手前の監査（2026-10-18 JST）：検証済みarena-tokenの `CopyPlac
 R02 storage／次sliceの監査（2026-10-18 JST）：[型付きstorage実験](../../crates/runtime/tests/shared_storage.rs) で3つのOOM位置、quota境界、detach後のcleanupが成功しました。当初のhost Arc／opaque-edge engineでは型付きsource valueやguest-backed control／read metadataを直接扱えません。R03でtoken identity、上限付きgraph／read registry、cycle proof、反復child dispatchを新storageへ明示統合する必要があるため、実装前に **2 → 3 pt** へ再見積もりします。R02完了で **残り102 → 99 pt**、調整後は **100 pt**、**61 done／0 doing／39 todo** で、新規行はありません。R03の前提R02／D34は完了です。基盤2件のR02／R03後はR04のsource shared／weak fixtureを必須にし、新たな前提を追加する前にsource経路を見直します。G05／G06にはnative／source全体のevidenceが引き続き必要で、ownership artifact gateも未完了です。
 
 R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probeはshared／weak fieldとBytes子孫を扱いますが、activeなVec／Map tokenは明示拒否します。Containerの再帰cleanup callbackから同じborrow中のheapへ安全に再enterすることもできず、入れ子edge／brand検証全体と共通の反復service drainには、実際のcollection adapter後に固有の統合が必要です。直接shared fieldを受理済みpayload全体とみなさず、C03／C06／R04／R06後の **C07（3 pt）** を明示します。V13／V17とN04もC07へ依存させます。既存のgeneric value scopeを維持し、**残り100 → 103 pt**、1行追加（計101行）、**61 done／1 doing／39 todo** です。C07は最初の実container／graph実験まで暫定です。直近はR03 → R04 source実行の順を維持し、元のgateは完了扱いにしません。
+
+N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUnit` cellのみを受け取り、ownershipはruntime `Layouts` と別管理の初期化／retirement metadataを使います。RFC 0008は2 pointer／statusのconventionを維持しますが、ownership context、返り値escrow、frame admissionを定めていません。明示的な決定と機械コード試作の **N08（2 pt）** を追加し、**残り66 → 68 pt**、**計103 → 104行**とします。元のN01〜N07の成果範囲はすべて維持します。今回と次の基盤成果の後は、ownership source fixtureを届けてからnative基盤を追加します。
 
 ## 完了済み実装
 
@@ -185,7 +187,8 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 
 | ID | State | Remaining pt | Needs | Gate | 成果／受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M2-N01 | todo | 3 | M2-V07,M2-A02 | G14 | Owned function／returnのmachine conventionとmanaged-value object layoutをemit。 | — |
+| M2-N08 | done | 0 | M2-V07,M2-A02 | G14 | private native ownership call／context／公開契約を決定し、機械コードのABI試作を実行。 | `dc3df29` |
+| M2-N01 | todo | 3 | M2-V07,M2-A02,M2-N08 | G14 | Owned call／return conventionとmanaged layoutをemitし、source Bytes引数／返り値fixtureを含める。 | — |
 | M2-N02 | todo | 3 | M2-N01 | G14 | Nativeのowner move、aggregate／sum命令、loan projectionをVM fixtureに一致させる。 | — |
 | M2-N03 | todo | 3 | M2-N02,M2-C03,M2-C06 | G07,G08,G09,G10,G14 | Native core dispatchで同じBytes／Text／Vec／Map fixtureを実行。 | — |
 | M2-N04 | todo | 3 | M2-N02,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared／arena dispatchでlifecycleとbrand検査を保持。 | — |
@@ -211,4 +214,5 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 - 詳細Todoの履歴 `8605416..926ccfe`：2026-10-18 JST付の48 revisionを2026-10-18 JSTに再監査。行の状態変化だけでは完了107点／追加39点になります。V14とR08は最初のcommitでdoneでしたが、V10／R01の実装前監査に2／3点の見積もりが残っているため、両側に5点を加えて完了112点／追加44点としました。新たな成果41件をすべて含み、削除された行はありません。導入と完了が同じ更新でも、その見積もりを保持します。
 - Local Git履歴 `926fb3b`〜`0c2c012` と差分 `367218e..0c2c012`：commit日は2026-10-17／18 JST、確認日は2026-10-18 JST。
 - [Architecture](architecture.md)、[roadmap](roadmap.md)、そこから参照する実装／test：更新・確認日2026-10-18 JST。930 testは今回の監査前の実装checkpointであり、この計画変更で増えたtest数ではありません。
-- 受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)：最終更新日は両方とも2026-10-17、今回のtask一覧のため2026-10-18 JSTに確認しました。Web調査や外部の生産性benchmarkは使用していません。
+- 受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)：最終更新2026-10-18、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)：最終更新2026-10-17、両方を今回のtask一覧のため2026-10-18 JSTに確認しました。Web調査や外部の生産性benchmarkは使用していません。
+- [RFC 0012](rfcs/0012-native-ownership-continuations.md) と [native ABI実験](../../crates/codegen-clif/src/owned_abi_probe.rs)（`dc3df29`）：更新・検証2026-10-18 JST。N08の明示的見積もり2点を今回の更新で追加・完了し、見積もり収支は追加46点／完了114点になりました。

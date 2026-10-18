@@ -6,25 +6,25 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**76 done · 0 doing · 27 todo · 66 remaining pt**
+**77 done · 0 doing · 27 todo · 66 remaining pt**
 
-**Next: M2-N01 → audit the native ownership call/layout contract and run the first native experiment.**
+**Next: M2-N01 → emit the production packet/context bridge and execute a source Bytes parameter/return fixture.**
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 76 (+41)**, and the task inventory increased **87 → 103 (+16)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 77 (+42)**, and the task inventory increased **87 → 104 (+17)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +44 pt | −112 pt | 66 pt |
+| 134 pt | +46 pt | −114 pt | 66 pt |
 
-**134 + 44 − 112 = 66 pt**
+**134 + 46 − 114 = 66 pt**
 
-This separates delivered work from newly recognized work: completion retired 112 estimated points, while exposed prerequisites and re-estimation added 44. These are planning units, not hours or measured actual effort. The remaining 66 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 114 estimated points, while exposed prerequisites and re-estimation added 46. These are planning units, not hours or measured actual effort. The remaining 66 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-Latest delivery: **M2-A03** (`2dfea13`) adds explicit compile/load CLI execution for schemas 1/2, consuming ownership export and checked-entry-ID dispatch. The first loaded Bytes fixture prints **0**. Eight CLI tests cover 19 owned fixtures, both adapters/profiles, removed Unicode/multi-file snapshots, malformed inputs/options, quotas and output preservation. Ten service fixtures agree at every provider refusal/fuel prefix plus interruption/reuse, including ordered release and original failure reports. All **1326 tests / 84 suites**, fmt/Clippy/doc pass: **69 → 66 remaining pt**, 76 done rows and 103 total. RFC 0011 is implemented; A01/A02's required source delivery is complete. Native, V17 and complete mixed-backend conformance retain their gates.
+Latest delivery: **M2-N08** (`dc3df29`) accepts [RFC 0012](rfcs/0012-native-ownership-continuations.md) and validates native continuation packets. Two generated functions execute 1,000 call/return sequences, compute 42 per sequence, preserve inert 32-byte data and reject bad continuations before state/output effects. Mach-O/COFF objects contain both compiled symbols. All **1329 tests / 84 suites**, fmt/Clippy/doc pass. The 2-point prerequisite is added and retired explicitly: **66 → 68 → 66 remaining pt**, **76 → 77 done**, **103 → 104 rows**. This proves ABI feasibility; live ownership/source lowering and actual Windows execution remain open. N01 must deliver a real source Bytes parameter/return boundary before further native foundation work.
 
-Measured last code baseline (2026-10-18 JST): final workspace Clippy **25.6 s**, successful full tests **393.3 s** (new log creation to final write), rustdoc **16.4 s**. Cargo reports **22.0 s** for test compilation; summed suite timings are **77.6 s**. The first baseline stopped after **265.5 s** on an overbroad unused-import guard; it was removed to preserve the accepted REPL/reachability rule, and focused regressions plus the final baseline pass. Twelve new tests cover eight CLI cases and four loaded/proof execution cases. These are validation durations, not total work time or runtime benchmarks. Documentation-only planning updates run the existing `repository_consistency` suite.
+Measured last code baseline (2026-10-18 JST): workspace Clippy **24.8 s**, full tests **286.1 s** wall time (shell time), rustdoc **13.7 s**. Cargo reports test compilation **21.6 s**; summed suite timings are **77.2 s**. The three new prototype tests pass in **0.01 s** focused execution. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run the existing `repository_consistency` suite.
 
 Current source capability: a zero-parameter i64 main executes Bytes/Text, arena allocation/read/replace/teardown, shared/weak allocation/clone/read/replace/upgrade, Vec new/len/push/pop/shared-or-mutable reads, and Map new/len/insert/get/remove with exact i64/Text keys. Storable payloads compose through nested collections, inline records/enums/Option/Result and recursive guest calls. Shared publication checks transitive strong edges, arena stores check nested brands, and reads preserve custody through projections/calls. Owners move through cleanup-protected returns and prepared replacement, with iterative normal/failure teardown. Ordinary loans, allocator authority and arena owners remain unstorable; cross-region/shared-heap edges and arena escapes are rejected. Borrowed matching and partial-move prohibition are unchanged. V16/V15/V10 support the existing managed preview/inference/REPL profile; V13 verifies provisional-read loan endings within the documented source coverage, while indirect previews remain V17. V11 supports in-memory CFG arguments; current ownership source lowering does not emit them. Native N03/N04/N05 and ownership artifacts still require evidence; source integration alone closes no exit gate.
 
@@ -72,6 +72,8 @@ R01 readiness audit (2026-10-18 JST): changing only a checked arena-token `CopyP
 R02 storage/next-slice audit (2026-10-18 JST): the [typed storage experiment](../crates/runtime/tests/shared_storage.rs) passes all three OOM positions, quota boundaries and detached cleanup. The original host Arc/opaque-edge engine cannot directly store typed source values or provide guest-backed control/read metadata. R03 must explicitly integrate token identity, bounded graph/read registries, cycle proof and iterative child dispatch with the new storage, so re-estimate it **2 → 3 pt** before implementation. R02 completion reduces **102 → 99 pt** and this adjustment gives **100 pt**, with **61 done / 0 doing / 39 todo** and no new rows. R03's R02/D34 prerequisites are done. After the two foundation deliveries R02/R03, require the R04 source shared/weak fixture; review the source path before adding another prerequisite. G05/G06 still need their full native/source evidence, and ownership artifact gates remain open.
 
 R03 interaction audit (2026-10-18 JST): the executable typed graph probe handles shared/weak fields and Bytes descendants, but its active Vec/Map tokens explicitly reject. A container's recursive cleanup callback also cannot safely reenter the same borrowed heap; complete nested edge/brand inspection and a shared iterative service drain need their own integration after real collection adapters exist. Expose **C07 (3 pt)** after C03/C06/R04/R06 rather than silently treating direct shared fields as all accepted payloads. V13/V17 and N04 now depend on C07. This preserves the existing generic value scope: **100 → 103 remaining pt**, one new row (101 total), **61 done / 1 doing / 39 todo**. C07 remains provisional until the first actual container/graph experiment. R03 → R04 source execution stays the immediate sequence; no original gate closes.
+
+N01 readiness audit (2026-10-18 JST): the native API accepts only Copy `VerifiedUnit` cells; ownership uses runtime `Layouts` and separate initialization/retirement metadata. RFC 0008 preserves the two-pointer/status convention but leaves the ownership context, return escrow and frame admission unspecified. Add **N08 (2 pt)** for an explicit decision and machine-code prototype: **66 → 68 remaining pt**, **103 → 104 rows**. All original N01–N07 outcomes remain. After this and the next foundation delivery, require an ownership source fixture before further native foundation work.
 
 ## Completed deliveries
 
@@ -185,7 +187,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 | ID | State | Remaining pt | Needs | Gate | Outcome / acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M2-N01 | todo | 3 | M2-V07,M2-A02 | G14 | Emit owned function/return machine conventions and managed-value object layouts. | — |
+| M2-N08 | done | 0 | M2-V07,M2-A02 | G14 | Decide the private native ownership call/context/publication contract and execute a machine-code ABI prototype. | `dc3df29` |
+| M2-N01 | todo | 3 | M2-V07,M2-A02,M2-N08 | G14 | Emit owned call/return conventions and managed layouts, including a source Bytes parameter/return fixture. | — |
 | M2-N02 | todo | 3 | M2-N01 | G14 | Native owner moves, aggregate/sum operations and loan projections match VM fixtures. | — |
 | M2-N03 | todo | 3 | M2-N02,M2-C03,M2-C06 | G07,G08,G09,G10,G14 | Native core dispatch executes the same Bytes/Text/Vec/Map fixtures. | — |
 | M2-N04 | todo | 3 | M2-N02,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared/arena dispatch preserves lifecycle and brand checks. | — |
@@ -211,4 +214,5 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 - Detailed-board history `8605416..926ccfe`: 48 board revisions dated 2026-10-18 JST, re-audited 2026-10-18 JST. Row transitions alone record 107 pt retired / 39 pt added. V14 and R08 were first committed as done; the V10/R01 readiness audits preserve their 2/3-point estimates, so add 5 pt to both sides: 112 retired / 44 added. All 41 new deliveries are included; no rows were removed. Preserve such estimates even when introduction and completion share an update.
 - Local Git history `926fb3b`–`0c2c012` and diff `367218e..0c2c012`: commits dated 2026-10-17/18 JST; verified 2026-10-18 JST.
 - [Architecture](architecture.md), [roadmap](roadmap.md), and their implementation/test references: updated/verified 2026-10-18 JST. The 930-test baseline is the pre-audit implementation checkpoint, not a claim about tests added by this planning change.
-- Accepted [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) and [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md): both last updated 2026-10-17; reviewed for this task inventory on 2026-10-18 JST. No web research or external productivity benchmark was used.
+- Accepted [RFC 0007](rfcs/0007-source-ownership-and-core-values.md): last updated 2026-10-18; [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md): last updated 2026-10-17; both reviewed for this task inventory on 2026-10-18 JST. No web research or external productivity benchmark was used.
+- [RFC 0012](rfcs/0012-native-ownership-continuations.md) and its [native ABI experiment](../crates/codegen-clif/src/owned_abi_probe.rs) (`dc3df29`): updated/verified 2026-10-18 JST. N08 adds and retires its explicit 2-point estimate in this update; the reconciliation is now 46 pt added / 114 pt completed.
