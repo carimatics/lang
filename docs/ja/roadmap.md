@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み52件 · 進行中0件 · 残り45件（暫定116 pt）。**
+**検証済み53件 · 進行中0件 · 残り44件（暫定113 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む26件の成果を検証しました。V15（`3ecef3b`）は検証済み生成ownership式wrapperを通常HIRと独立MIR検証越しに推論し、V16の全retirementを使ってBytes／Text／入れ子／core／scalar resultを実行します。追加5 source testでannotation、move／loan／region検証、wrapper受入条件、resource診断を維持し、全体baselineの71 suite・1056 testとfmt／Clippy／doc／fuzz compile checkが成功しました。旧Copy APIの診断順序の回帰を修正してから再実行で成功しています。既存3 pt行の完了で **残り119 → 116 pt**、doneが1行増え、計97行で、新たな前提taskはありません。次はV10で計画済みのsession dispatch、明示allocator authority、元sourceへのfailure mapping、CLI統合です。REPLは引き続きCopy専用です。Indirect previewはV17、provisional readはV13へ残します。G06にはR02〜R04／N05、G07にはN03、G08にはservice／REPL成果、G14／G16にはnative／cross-mode evidenceが必要です。新exit gateは完了扱いにしていません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む27件の成果を検証しました。V10（`834abe8`）でownership item／式をREPL／CLIへ接続し、明示allocator authority、sourceだけの永続化、result全解放、元sourceのpanic／cleanup reportを実装しました。[Owned transcript](../../examples/repl/owned.repl) でBytes／Text／入れ子Result表示とreset／復帰が成功します。追加integration 7 testとreport-adapter unit test 1件で解放、上限、OOM／interruption、累積quota、source authority／snapshot、Copy host effectを検証し、全体baselineの71 suite・1064 testとfmt／Clippy／doc／fuzz compile checkが成功しました。計画済み3 pt行の完了で **残り116 → 113 pt**、doneが1行増え、計97行で、新たな前提taskはありません。次はrisk順で最初に着手可能なR01の独立MIR arena-brand／call-effect検証です。Indirect previewはV17、provisional readはV13へ残します。G06にはR02〜R04／N05、G07にはN03、G08には他service／read／indirect-preview成果、G14／G16にはnative／cross-mode evidenceが必要です。新exit gateは完了扱いにしていません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

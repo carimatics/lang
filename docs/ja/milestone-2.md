@@ -6,15 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**52 done · 0 doing · 45 todo · 116 remaining pt**
+**53 done · 0 doing · 44 todo · 113 remaining pt**
 
-**次: M2-V10 → 明示allocator authorityと元sourceへのfailure mappingを保ち、ownership item／式をREPL sessionとCLIへ接続する。**
+**次: M2-R01 → MIRのarena brand／call effectを独立検証し、明示budget下で偽造escapeを拒否する。**
 
-直近の完了：**M2-V15**（`3ecef3b`）。検証済み生成ownership式のresultを通常HIRと独立MIR検証越しに推論し、V16 preview adapterでBytes／Text／入れ子Result、finite error、Unit、scalarを実行します。追加5 testで実行／解放、通常annotation／move／loan／region失敗、曖昧なsum、wrapper受入条件、resource診断を検証し、旧Copy APIの拒否順序とREPL 17 testも維持します。全体baselineの **71 suite・1056 test** とfmt／Clippy／doc／fuzz compile checkが成功しました。既存3 pt行の完了で **残り119 → 116 pt**、doneが1行増え、計97行で、新たな前提taskやexit gate完了はありません。V10着手前の確認で、残るsession dispatch、allocator authority、元sourceのfailure mappingは既存計画の範囲内と確認しました。Ownership REPL統合は未実装です。
+直近の完了：**M2-V10**（`834abe8`）。Ownership定義／式をREPL sessionとCLIへ接続し、[pipe transcript](../../examples/repl/owned.repl) でBytes／Text／入れ子Resultの表示、reset後の再評価が成功します。`submit_with_allocator` でauthorityを明示し、source定義だけを保持し、表示前にresult／storageを解放し、元sourceのpanic／cleanup reportはreset後も有効です。新integration 7 test、authorityの更新test、report transportのunit test 1件で解放、quota／fuel／display／OOM／interruption、未対応preflight、module、Copy host effect、CLI復帰を検証します。全体baselineの **71 suite・1064 test** とfmt／Clippy／doc／fuzz compile checkが成功しました。計画済み3 pt行の完了で **残り116 → 113 pt**、doneが1行増え、計97行で、新たな前提taskはありません。R01はrisk順queueの最初の着手可能行で、検証済みsource HIRがあっても独立MIR arena検証は必要です。G08には他service、provisional read、indirect previewが残り、新exit gateは完了扱いにしません。
 
-直近code baselineの実測（2026-10-18 JST）：最終workspace Clippy **19.3秒**、成功した全test **206.8秒**（log作成から最終書き込みまで）、rustdoc **11.9秒**、fuzz Clippy **0.9秒**、すべて成功です。初回の全test（**158.5秒**）で旧Copy APIの診断順序の回帰が1件見つかり、修正とfocused check後の再実行で成功しました。検証所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **10.7秒**、全test **127.6秒**（log作成から最終書き込みまで）、rustdoc **7.9秒**、fuzz Clippy **0.03秒**、すべて成功です。Focused check後の全baselineは1回です。検証所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16ではembedding APIで検証済みnamedな引数なしcurrent-profile resultをpreviewし、V15ではprivateな生成式wrapperを通常HIR／MIR検証越しに推論できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。REPLはまだCopy専用です。V10のsession／CLI統合、後続indirect previewのV17、provisional core readのV13を残します。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。後続indirect previewはV17、provisional core readはV13へ残します。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -118,7 +118,7 @@ V10着手前の監査（2026-10-18 JST）：pipeしたREPL実験で妥当なowni
 | M2-V14 | done | 0 | M2-V08,M2-V09 | G08 | 委任でRFC 0010を受理。Owned REPL preview形式、result lifetime、明示allocator authority、上限出力、failure優先順位を決定しsource contractを検証。実装は未完了。 | `b09cc46` |
 | M2-V16 | done | 0 | M2-V14,M2-V08,M2-V09 | G08 | Namedな引数なしowned resultを上限付きmanaged previewとresult全retirementで実行し、source fixtureと失敗根拠を示す。 | `040c082` |
 | M2-V15 | done | 0 | M2-V14 | G08 | 生成ownership式wrapperの具体的resultを通常のHIR／MIR move／loan／region検証越しに推論し、user関数の推論は追加しない。 | `3ecef3b` |
-| M2-V10 | todo | 3 | M2-V08,M2-V09,M2-V15,M2-V16 | G08 | REPL ownership item／式、明示allocator authority、元sourceへのfailure mapping、cleanupで分離したcanonical resultをscript実行意味論へ統合。 | — |
+| M2-V10 | done | 0 | M2-V08,M2-V09,M2-V15,M2-V16 | G08 | REPL ownership item／式、明示allocator authority、元sourceへのfailure mapping、cleanupで分離したcanonical resultをscript実行意味論へ統合。 | `834abe8` |
 | M2-V17 | todo | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-R04,M2-R06 | G08 | 明示follow-upを判断してindirect-service resultの上限付きpreviewを実装し、Map順序とshared／weak／arena access制約を維持。VM／REPL根拠を示す。 | — |
 | M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | 上限付きadmission済みsnapshotでCopy／affine CFG argumentを同時転送。Cycle／fan-out／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを検証。 | `1dcf260` |
 
