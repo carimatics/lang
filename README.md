@@ -76,12 +76,16 @@ cargo run -- run examples/scripts/owned_replace.lang
 cargo run -- run examples/scripts/owned_aggregate.lang
 cargo run -- run examples/scripts/arena.lang
 cargo run -- run examples/scripts/arena_owned.lang
+cargo run -- run examples/scripts/shared.lang
+cargo run -- run examples/scripts/shared_owned.lang
 cargo run -- repl
 cargo run --quiet -- repl < examples/repl/owned.repl
 cargo run --quiet -- lsp
 ```
 
 Source arenas execute allocation, checked reads, replacement and lexical teardown for Copy values, Bytes/Text, inline aggregates and same-region references. `arena.lang` prints `9` after replacing and reading a value; `arena_owned.lang` prints `5` after following a cycle of nodes with owning Bytes payloads. Region re-entry creates fresh generations. Reads end before mutation/exit; teardown releases nodes in reverse allocation order and their fields in reverse initialization order. See [source arena execution](docs/architecture.md#source-arena-execution), updated/verified 2026-10-18 JST.
+
+Source shared/weak values execute explicit cloning, checked reads, replacement, weak creation/cloning/upgrades and cleanup for Copy values, Bytes/Text and inline aggregates, including recursive shared shapes. `shared.lang` prints `9`; `shared_owned.lang` prints `13` after rejecting a strong cycle and reading nested owning nodes through a borrowed guest call. Weak owners preserve metadata after payload expiration. Live reads exclude alias replacement; failed publications release incoming owners. Vec/Map payloads, indirect result previews, native execution and ownership artifacts retain their separate gates. See [source shared execution](docs/architecture.md#source-shared-and-weak-execution), updated/verified 2026-10-18 JST.
 
 `check` validates Copy or RFC 0007/0009 ownership source through its applicable HIR/MIR analyses and exits 0 on success; it executes no guest code and does not require `main` or host bindings. `run` supports the Copy profile and an initial ownership profile with allocator authority, Bytes new/len/get/set/push/clone, consuming UTF-8 conversion, Text byte length/clone/concat/to-bytes/equality, nested Bytes/Text/Copy records/enums and Option/Result construction/extraction, lexical loans and cleanup. The answer script prints `42`; `bytes.lang` and `owned_bytes.lang` print `0`, the extraction/mutation example prints `1`, `utf8.lang` prints the byte length `3`, and `text.lang` prints `2` after checking independent clones and conversions. `owned_aggregate.lang` prints `9` after moving nested owners and reading projected references. Storage is released before printing the result. Extraction checks its case and reports a source-located guest panic on mismatch. Unsupported operations/payloads fail preflight.
 

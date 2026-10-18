@@ -21,6 +21,8 @@ mod inference;
 mod preview;
 #[path = "support/owned_replace.rs"]
 mod replacement;
+#[path = "support/owned_shared.rs"]
+mod shared_values;
 
 const SOURCE: &str = include_str!("../examples/scripts/bytes.lang");
 const OWNED_SOURCE: &str = include_str!("../examples/scripts/owned_bytes.lang");
@@ -1481,9 +1483,9 @@ fn unsupported_core_operations_are_rejected_before_earlier_source_allocations() 
             "vec_new",
         ),
         (
-            "let mut converted: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(core::result_unwrap::<core::Bytes, core::AllocError>(first))); let mut later: core::Result<shared core::Text, core::OwnershipError> = core::shared_new::<core::Text>(core::allocator(), converted);",
-            Some(Operation::SharedNew),
-            "shared_new",
+            "let mut later: core::Result<core::Map<i64, i64>, core::AllocError> = core::map_new::<i64, i64>(core::allocator());",
+            Some(Operation::MapNew),
+            "map_new",
         ),
         (
             "let mut later: core::Option<core::Vec<i64>> = core::Option::None;",

@@ -4,6 +4,7 @@ use o::places::{Place, ProjectionKind, Root};
 mod arenas;
 mod buffers;
 mod replacement;
+mod shared;
 
 #[derive(Clone, Copy)]
 pub(super) enum Capture {
@@ -29,6 +30,11 @@ pub(super) enum Target {
         read: usize,
         location: l::Location,
     },
+    Shared {
+        read: usize,
+        ty: o::Type,
+        location: l::Location,
+    },
 }
 pub(super) struct Cell {
     pub physical: usize,
@@ -40,6 +46,7 @@ pub(super) struct Loan {
     pub generation: u64,
     pub target: Option<Target>,
     pub arena_read: Option<(usize, g::Read)>,
+    pub shared_read: Option<sh::Read>,
 }
 pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub allocator: &'a mut a::Allocator<P>,
@@ -50,6 +57,7 @@ pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub loans: Vec<Loan>,
     pub prepared: Vec<Option<Capture>>,
     pub arenas: Vec<Option<g::Arena<'layouts, 'types>>>,
+    pub shared_heap: Option<sh::Heap<'layouts, 'types>>,
     pub panic_code: Option<i64>,
     pub current: Address,
 }
@@ -93,6 +101,12 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         })
     }
     pub fn read(&self, target: Target) -> Step<l::Immediate> {
+        if let Target::Shared { read, ty, location } = target {
+            return self
+                .shared_view(read, ty)?
+                .read_immediate(location, self.allocator)
+                .map_err(invariant);
+        }
         if let Target::Arena {
             owner,
             read,
@@ -173,6 +187,10 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         }
         let target = loan.target.ok_or(c::ExecutionFailure::Invariant)?;
         let valid = match target {
+            Target::Shared { read, ty, location } => {
+                self.shared_view(read, ty).is_ok()
+                    && self.types.equivalent(location.ty(), pointee) == Some(true)
+            }
             Target::Arena {
                 owner,
                 read,
@@ -223,6 +241,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(target)
     }
     pub fn field(&self, target: Target, field: u32) -> Step<Target> {
+        if let Target::Shared { read, ty, location } = target {
+            let location = self
+                .shared_view(read, ty)?
+                .child(location, field, self.allocator)
+                .map_err(invariant)?;
+            return Ok(Target::Shared { read, ty, location });
+        }
         if let Target::Arena {
             owner,
             read,
@@ -253,6 +278,12 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(Target::Data { cell, location })
     }
     pub fn case(&self, target: Target) -> Step<u32> {
+        if let Target::Shared { read, ty, location } = target {
+            return self
+                .shared_view(read, ty)?
+                .case(location, self.allocator)
+                .map_err(invariant);
+        }
         if let Target::Arena {
             owner,
             read,
@@ -306,6 +337,26 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(token)
     }
     pub fn copy(&mut self, from: Target, destination: usize) -> Step<()> {
+        if let Target::Shared { read, ty, location } = from {
+            let value = self.loans[read]
+                .shared_read
+                .ok_or(c::ExecutionFailure::Invariant)?;
+            let target = self
+                .storage
+                .as_ref()
+                .unwrap()
+                .cell(self.cells[destination].physical)
+                .map_err(invariant)?;
+            self.shared_heap
+                .as_ref()
+                .unwrap()
+                .view(value, ty, self.allocator)
+                .map_err(invariant)?
+                .copy_to(location, target, target.root(), self.allocator)
+                .map_err(invariant)?;
+            self.cells[destination].live = true;
+            return Ok(());
+        }
         if let Target::Arena {
             owner,
             read,
@@ -595,13 +646,31 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
     ) -> Result<(), u32> {
         match *ticket {
             Ticket::Loan(id) => {
-                self.loans[id].target = None;
+                let target = self.loans[id].target.take();
                 if let Some((owner, mut read)) = self.loans[id].arena_read.take() {
                     self.arenas[owner]
                         .as_mut()
                         .ok_or(6u32)?
                         .end_read(&mut read, self.allocator)
                         .map_err(|_| 7u32)?;
+                }
+                if let Some(read) = self.loans[id].shared_read.take() {
+                    let Some(Target::Shared { ty, .. }) = target else {
+                        return Err(9u32);
+                    };
+                    self.shared_heap
+                        .as_mut()
+                        .ok_or(9u32)?
+                        .end_read(
+                            read,
+                            ty,
+                            self.allocator,
+                            context,
+                            |token, allocator, _, context| {
+                                cleanup_leaf(self.types, token, allocator, context)
+                            },
+                        )
+                        .map_err(|_| 10u32)?;
                 }
             }
             Ticket::Cell(physical) => {
@@ -625,7 +694,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                             self.allocator,
                             context,
                             |token, allocator, _, context| {
-                                cleanup_leaf(self.types, token, allocator, context)
+                                shared::cleanup_services(
+                                    self.types,
+                                    &mut self.shared_heap,
+                                    token,
+                                    allocator,
+                                    context,
+                                )
                             },
                         )
                         .map_err(|_| 4u32)?;
@@ -638,7 +713,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                     .cell_mut(physical)
                     .map_err(|_| 2u32)?;
                 cell.retire(self.allocator, context, |token, allocator, _, context| {
-                    cleanup_leaf(self.types, token, allocator, context)
+                    shared::cleanup_services(
+                        self.types,
+                        &mut self.shared_heap,
+                        token,
+                        allocator,
+                        context,
+                    )
                 })
                 .map_err(|_| 4u32)?;
                 cell.recycle(self.allocator).map_err(|_| 5u32)?;

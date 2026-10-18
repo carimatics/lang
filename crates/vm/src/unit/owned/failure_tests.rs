@@ -989,6 +989,148 @@ fn cleanup_failure_after_real_retirement_runs_the_generated_call_exit() {
 }
 
 const ARENA: &str = include_str!("../../../../../examples/scripts/arena_owned.lang");
+const SHARED: &str = include_str!("../../../../../examples/scripts/shared_owned.lang");
+
+#[test]
+fn shared_replacement_rejection_and_reverse_descendant_cleanup_keep_real_initializer_spans() {
+    let program = checked(SHARED);
+    let _guard = install(Injection::default());
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let outcome = execute_entry(
+        program.failure_flow(),
+        &mut c::Instance::default(),
+        Some(&mut allocator),
+        control(),
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 13);
+    assert_eq!(lengths(), [1, 0, 2, 1]);
+    assert_eq!(events()[0].reason, c::Reason::Replacement);
+    for (event, expected) in events()
+        .into_iter()
+        .zip(["bytes", "rejected_bytes", "bytes", "bytes"])
+    {
+        let span = event.span.unwrap();
+        assert_eq!(&SHARED[span.start as usize..span.end as usize], expected);
+    }
+    assert_empty(&allocator);
+}
+
+#[test]
+fn shared_child_cleanup_failure_and_panic_drain_all_tickets_and_poison_before_reentry() {
+    let program = checked(SHARED);
+    for (fail, panic) in [(Some(2), None), (Some(2), Some(3)), (None, Some(2))] {
+        let _guard = install(Injection {
+            fail: fail.into_iter().collect(),
+            panic,
+            ..Default::default()
+        });
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut instance = c::Instance::default();
+        let failure = execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            control(),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(lengths(), [1, 0, 2, 1]);
+        let report = failure.report.as_ref().unwrap();
+        assert_eq!(
+            report.primary().unwrap().kind,
+            if fail.is_some() {
+                c::FailureKind::Cleanup(1002)
+            } else {
+                c::FailureKind::CleanupPanic
+            }
+        );
+        if panic == Some(3) {
+            assert_eq!(report.secondary()[0].kind, c::FailureKind::CleanupPanic);
+        }
+        assert!(instance.is_poisoned());
+        assert_empty(&allocator);
+        let before = allocator.stats();
+        assert!(matches!(
+            execute_entry(
+                program.failure_flow(),
+                &mut instance,
+                Some(&mut allocator),
+                control()
+            )
+            .err()
+            .unwrap()
+            .reason,
+            Reason::Poisoned
+        ));
+        assert_eq!(allocator.stats(), before);
+    }
+}
+
+#[test]
+fn shared_body_panic_stays_primary_while_real_payload_cleanup_failure_still_releases_every_region()
+{
+    let program = checked(
+        r#"struct Payload { bytes: core::Bytes }
+    fn fail(owner: shared Payload) -> i64 { let mut absent: core::Option<i64> = core::Option::None; return core::option_unwrap::<i64>(absent); }
+    fn main() -> i64 { let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+        let mut pushed: core::Result<core::Unit, core::BufferError> = core::bytes_push(bytes, 65);
+        let mut owner: shared Payload = core::result_unwrap::<shared Payload, core::OwnershipError>(core::shared_new::<Payload>(core::allocator(), Payload { bytes: bytes })); return fail(owner); }"#,
+    );
+    let _guard = install(Injection {
+        all: true,
+        only_failure: true,
+        ..Default::default()
+    });
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let failure = execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+    )
+    .err()
+    .unwrap();
+    let report = failure.report.as_ref().unwrap();
+    assert_eq!(
+        report.primary().unwrap().kind,
+        c::FailureKind::Execution(c::ExecutionFailure::Panic)
+    );
+    assert_eq!(failure.panic_code, Some(-1));
+    assert_eq!(lengths(), [1]);
+    assert_records(report.secondary(), &events());
+    assert!(instance.is_poisoned());
+    assert_empty(&allocator);
+}
+
+#[test]
+fn shared_replacement_cleanup_interruption_prevents_later_guest_effects_and_drains_published_nodes()
+{
+    let program = checked(SHARED);
+    let flag = Rc::new(crate::InterruptionFlag::new());
+    let _guard = install(Injection {
+        interrupt: Some(flag.clone()),
+        ..Default::default()
+    });
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let failure = execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control().and_interruption(&flag),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(
+        failure.report.as_ref().unwrap().primary().unwrap().kind,
+        c::FailureKind::Execution(c::ExecutionFailure::Interrupted)
+    );
+    assert_eq!(lengths(), [1, 2, 1]);
+    assert!(!instance.is_poisoned());
+    assert_empty(&allocator);
+}
 #[test]
 fn arena_cycle_replacement_and_reverse_teardown_preserve_real_leaf_spans() {
     let program = checked(ARENA);

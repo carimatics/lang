@@ -2,6 +2,13 @@ use super::*;
 
 impl<P: a::Provider> State<'_, '_, '_, P> {
     pub(super) fn token(&self, target: Target) -> Step<[u8; 32]> {
+        if let Target::Shared { read, ty, location } = target {
+            return self
+                .shared_view(read, ty)?
+                .read_token(location, self.allocator)
+                .map(|t| t.bytes)
+                .map_err(invariant);
+        }
         if let Target::Arena {
             owner,
             read,

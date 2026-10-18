@@ -607,7 +607,7 @@ VM testを12件追加し、厳密request／release、自己再帰／相互再帰
 
 Traceでrecord fieldの実初期化順の逆順と、元のfield span／slotを確認します。Callee cleanupが失敗しても兄弟をdrainし、未公開resultを破棄し、後続caller effectの前に1つの共有reportを伝播します。Body panic、全provider OOM箇所、全fuel prefixで元のexecution primaryをordered cleanup secondaryより優先し、全admission allocationを1回だけ解放します。通常panicは再利用可能で、cleanup失敗後のentryはpoisonによってcallback前に拒否します。Cleanup panicを封じ込めた場合は、実buffer解放後のhost token 1件を規定どおりquarantineとして記録します。Cleanup途中のinterruptionでもdrainを完了し、次のcaller safe pointで止まります。
 
-再帰fixtureではbody panic後に入れ子leaf 262個をretireします。事前予約した256-record reportにprimaryと順序付きsecondary 255件を保持し、省略7件を数えながら全owner／frameを解放します。Bytesを所有する／Copy source fixtureを使った上限付きconformanceであり、実process OOM、fuzz campaign、native実行の証拠ではありません。型付きshared storageは後述のR02で実装し、G06にはshared／weak service adapterのR03〜R04とnative failure loweringのN05が残ります。事前評価した代入先への置換はV09で実装済みです。V08の有限profileの証拠だけではexit gateを閉じません。
+再帰fixtureではbody panic後に入れ子leaf 262個をretireします。事前予約した256-record reportにprimaryと順序付きsecondary 255件を保持し、省略7件を数えながら全owner／frameを解放します。Bytesを所有する／Copy source fixtureを使った上限付きconformanceであり、実process OOM、fuzz campaign、native実行の証拠ではありません。型付きshared storage、graph service、source adapterは後述のR02〜R04で実装し、G06には入れ子collection統合のC07とnative failure loweringのN05が残ります。事前評価した代入先への置換はV09で実装済みです。V08の有限profileの証拠だけではexit gateを閉じません。
 
 出典：受理済み[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[生成failure CFG](../../crates/mir/src/unit/ownership/failure.rs)、[VM driver](../../crates/vm/src/unit/owned.rs)、[call driver](../../crates/vm/src/unit/owned/calls.rs)、[leaf retirement adapter](../../crates/vm/src/unit/owned/state.rs)、[failure test](../../crates/vm/src/unit/owned/failure_tests.rs)、[CLI test](../../tests/cli.rs)、[source fixture](../../examples/scripts/cleanup_calls.lang)。2026-10-18 JST確認（adapter／test／fixtureは同日更新）。Source意味論、serialized format、公開APIは変更しません。
 
@@ -784,7 +784,7 @@ Publicationは全endpointと累積node／slot／edge／live-payload-byte上限�
 
 16件のfocused testでretain付きupgrade、alias read、weak back-edge、publication失敗時のsnapshot／count／span、heap provenance、limit／count overflow、slot再利用／枯渇、poison quarantine、15,001 nodeの反復reclamation、独立した推移閉包／count oracleと比較する1,000回の混合publication、64回の逆向き同時publication競合、128回のupgrade／last-release競合を検証します。Deterministic／stress testであり、memory orderingのmodel checkingやsanitizer／fuzz campaignではありません。独自unsafe atomicを使わずRustのmutex同期契約に従います。
 
-このserviceで当初のruntime retain／releaseとatomic publicationのmodel scopeを完了します。Opaqueなhost engineはconcurrency／topology oracleとして維持します。Fallible Vec reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Live payload計上はprocess／allocator全体のmemory計上ではありません。型付きguest-backed storageとgraph／token serviceは後述のR02／R03で実装し、source shared／weak実行はR04、入れ子collection統合はC07へ残します。Source操作を公開する前に各adapterで受理済みallocator／cleanup profileを満たす必要があります。Poisonしたmodel stateはfail closedとし、Rust hostは他のRust owner同様token／guardを意図的にleakできます。
+このserviceで当初のruntime retain／releaseとatomic publicationのmodel scopeを完了します。Opaqueなhost engineはconcurrency／topology oracleとして維持します。Fallible Vec reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Live payload計上はprocess／allocator全体のmemory計上ではありません。型付きguest-backed storage、graph／token service、source shared／weak実行は後述のR02〜R04で実装し、入れ子collection統合はC07へ残します。Source adapterは受理済みallocator／cleanup profileを使います。Poisonしたmodel stateはfail closedとし、Rust hostは他のRust owner同様token／guardを意図的にleakできます。
 
 情報源：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)／[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、runtime実装とtestは2026-10-17 JST更新／確認。Build／test evidenceにはpinしたstableの `rustc 1.99.0 (b940084d7 2026-09-28)` を使い、2026-10-17 JSTに確認しました。外部API文書のinspectionは主張しません。Lock、storage、capacity戦略は実装判断で、performance budgetは主張しません。
 
@@ -796,7 +796,7 @@ Publicationは全endpointと累積node／slot／edge／live-payload-byte上限�
 
 Count遷移は実際のguest制御byteを読み書きします。Retainしたread leaseがexternal owner消失後もpayloadを保持し、replacementを禁止します。Read／countの両更新前にoverflowを確認します。最後のstrong releaseでaccessを失効させてからretirement義務を返し、以降のweak upgradeはexpirationを報告します。`detach` は制御blockを参照可能に保ちつつ、owning payloadをgraph lockの外でdrainし、callbackでweak countも解放できます。非公開の完了receiptにより、全childとdata／order／work予約のdrain後にだけ最終retirementを認可します。Weak ownerが残る間は制御blockだけを保持し、最後のreleaseで解放します。共通cleanup contextで子の失敗／panicをcontainし、initializer逆順spanを保持して、新たなretirement要求なしに独立leafを処理し続けます。
 
-Focused 10 testで、全予約のOOM／retry、既存値不変、実際の会計／制御byte、callback前のlive／cumulative／count予算の厳密値／1不足、read保持／排他、count拒否、detach後の制御寿命、型付きreplacement／旧値cleanup、Copy再利用、不正span／型／allocator authority、失敗／panic時のspan順と完全解放を検証します。後述のR03でgraph全体のtoken identity、上限付きtopology／read registry、反復child dispatchを接続し、従来opaque engineをsource heapとして暗黙に有効化しません。Source VM dispatchはR04、入れ子collection統合はC07、native実行はN04／N05、ownership serializationも個別gateです。Source／C ABIやserialized formatは変更しません。
+Focused 10 testで、全予約のOOM／retry、既存値不変、実際の会計／制御byte、callback前のlive／cumulative／count予算の厳密値／1不足、read保持／排他、count拒否、detach後の制御寿命、型付きreplacement／旧値cleanup、Copy再利用、不正span／型／allocator authority、失敗／panic時のspan順と完全解放を検証します。後述のR03でgraph全体のtoken identity、上限付きtopology／read registry、反復child dispatchを接続し、従来opaque engineをsource heapとして暗黙に有効化しません。後述のR04でsource VM dispatchを接続します。入れ子collection統合はC07、native実行はN04／N05、ownership serializationも個別gateを維持します。Source／C ABIやserialized formatは変更しません。
 
 情報源：受理済み [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[shared storage](../../crates/runtime/src/shared/storage.rs)、[typed reservation](../../crates/runtime/src/layout/storage.rs)、[test](../../crates/runtime/tests/shared_storage.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。制御表現は非公開の実装判断であり、安定handleや性能契約ではありません。
 
@@ -812,9 +812,21 @@ Read viewは検証済みprojectionを公開し、変更操作は公開しませ�
 
 追加15 testでproduction registry、provider要求を増やさない1024-node depth-first cleanup、独立reachability／count oracleと比較する128 publication、cycle拒否snapshot／span、weak back-edge、self weak retirement、read保持／再利用、count厳密上限でのborrowed field操作、不変のCopy RHS、全publication OOM／retryとopen OOM、累積host poolの厳密値／1不足、guest操作／count／ticket上限、重複／foreign／異kind／型token、未対応service、Text byte-work admission、cleanup失敗／panic後の継続を検証します。Deterministic testであり、fuzz／sanitizer campaignではありません。
 
-ActiveなVec／Map payloadは引き続き拒否します。Cross-service検証と反復cleanupは実collection adapter後のC07へ明示し、受理済みgeneric payload scopeは狭めません。次のR04でsource shared／weak fixtureの実行を必須にします。Native N04／N05、provisional-read／preview統合、ownership artifactも各gateを維持します。Source構文、source／C ABI、serialized formatは変更しません。
+ActiveなVec／Map payloadは引き続き拒否します。Cross-service検証と反復cleanupは実collection adapter後のC07へ明示し、受理済みgeneric payload scopeは狭めません。後述のR04でsource shared／weak fixtureを実行します。Native N04／N05、provisional-read／preview統合、ownership artifactも各gateを維持します。Source構文、source／C ABI、serialized formatは変更しません。
 
 情報源：受理済み [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[service](../../crates/runtime/src/shared/managed.rs)、[graph proof](../../crates/runtime/src/shared/managed/graph.rs)、[read access](../../crates/runtime/src/shared/managed/access.rs)、[retirement](../../crates/runtime/src/shared/managed/retirement.rs)、[storage](../../crates/runtime/src/shared/storage.rs)、[test](../../crates/runtime/tests/managed_shared.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Ticket layout、pool size、work会計は非公開の実装判断であり、安定wire／embedding interfaceや性能保証ではありません。
+
+### Source shared and weak execution
+
+2026-10-18 JST実装・検証（R04）：owned VMの `shared_new`、`shared_clone`、`shared_read`、`shared_replace`、`weak_new`、`weak_clone`、`weak_upgrade` を準備済み型付きgraph serviceへ接続します。到達可能な操作に応じてguest entry前に上限付きheapを1つ準備し、guest metadataは最初の確保時に遅延openします。Heapはguest callをまたいで維持し、entryの全ownerと登録readのretire後にcloseします。返却ownerはcallee cleanupを越えて保持します。明示allocator parameterは同じauthorityをreborrowします。
+
+Source payload profileはCopy値、Bytes／Text、inline record／enum／Option／Result、再帰的shared／weak shapeを受け入れます。上限付き逆依存worklistにより再帰shapeでも未対応childを伝播し、inactive enum caseを含めprovider callback前に拒否します。Vec／Map payloadはC07、ownership artifact、native実行、indirect previewも別作業として維持し、受理済みpayload scopeや言語規則を削除しません。
+
+成功したreadごとにMIR loanへretain付きruntime leaseを1つ登録します。Projection、reborrow、borrowed guest parameterは元登録を保持し、loan endで1回だけ解放します。Stored shared／weak fieldは独立owner tokenではなく、検証済みlive viewを使います。Alias経由のread中に別aliasから置換すると `BorrowConflict` を返します。成功して未使用のprovisional readは後続変更前に終了し、失敗armではleaseを作りません。Owning allocation／replacementは成功時のみinputを消費し、拒否したinputは後続guest effect前にcleanupします。Copy operandは再利用でき、置換成功時は新値公開後に旧値をcleanupします。
+
+[`shared.lang`](../../examples/scripts/shared.lang) は `9` を表示します。[`shared_owned.lang`](../../examples/scripts/shared_owned.lang) は明示strong／weak操作、strong cycle拒否、入れ子read、borrowed guest callを経て `13` を表示します。Source 14 testでは、失効upgrade（`17`）、Text read、Copy再利用、alias競合、allocator reborrow、64-node owning chain、returnを越えて保護するpayload clone、frame拒否／再利用、全provider OOM／retryと全fuel prefix、payload teardown中断も検証します。正常／失敗の各実行でlive guest allocationがゼロになることを確認します。Failure injection 4 testでは、実initializer spanと逆順descendant cleanup、child失敗／panic後の継続、body panic優先、reentry前のpoison、置換cleanupの中断が後続guest effectを防ぐことを検証します。Deterministic injectionはprocess OOM、fuzz、native conformanceの証拠ではありません。
+
+情報源：受理済み [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md) と [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[VM adapter](../../crates/vm/src/unit/owned/state/shared.rs)、[payload admission](../../crates/vm/src/unit/owned/profile.rs)、[source test](../../tests/support/owned_shared.rs)、[cleanup injection test](../../crates/vm/src/unit/owned/failure_tests.rs)。2026-10-18 JST更新・検証。Service準備、token保存、frame戦略は非公開の実装判断です。
 
 ### Runtime arena storage
 

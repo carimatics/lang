@@ -17,54 +17,59 @@ impl Payloads {
         let mut budget = m::Budget::new(limits);
         let mut states = budget.vector(count)?;
         states.resize(count, 0u8);
+        let leaf = |ty| {
+            types.properties(ty).unwrap().is_copy
+                || matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Builtin(o::Builtin::Bytes|o::Builtin::Text)|o::Constructor::ArenaOwner(_)))
+        };
+        let compound = |ty| {
+            matches!(ty, o::Type::Nominal(_))
+                || matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Option(_)|o::Constructor::Result(..)|o::Constructor::Loan(..)|o::Constructor::Shared(_)|o::Constructor::Weak(_)))
+        };
         let mut edges = 0usize;
-        for index in 0..count {
+        for (index, state) in states.iter_mut().enumerate() {
             budget.charge(1)?;
-            for _ in children(types, type_at(definitions, index)) {
+            let ty = type_at(definitions, index);
+            let depends = !leaf(ty) && compound(ty);
+            *state = if leaf(ty) || compound(ty) { 2 } else { 3 };
+            for _ in children(types, ty) {
                 budget.charge(1)?;
-                edges = edges.checked_add(1).ok_or(l::Error::Overflow)?;
+                if depends {
+                    edges = edges.checked_add(1).ok_or(l::Error::Overflow)?;
+                }
             }
         }
-        let mut stack = budget.vector(count.checked_add(edges).ok_or(l::Error::Overflow)?)?;
-        for root in 0..count {
-            stack.push((root, false));
-            while let Some((index, expanded)) = stack.pop() {
+        let mut heads = budget.vector(count)?;
+        heads.resize(count, usize::MAX);
+        let mut parents = budget.vector(edges)?;
+        let mut pending = budget.vector(count)?;
+        for (index, state) in states.iter().enumerate() {
+            budget.charge(1)?;
+            let ty = type_at(definitions, index);
+            if *state == 3 {
+                pending.push(index);
+            }
+            if leaf(ty) || !compound(ty) {
+                continue;
+            }
+            for child in children(types, ty) {
                 budget.charge(1)?;
-                if states[index] >= 2 {
-                    continue;
+                let child = type_index(definitions, child);
+                parents.push((index, heads[child]));
+                heads[child] = parents.len() - 1;
+            }
+        }
+        // Cycles of supported indirect shapes are valid. Unsupported children
+        // reject every dependent shape, including inactive enum payloads.
+        while let Some(child) = pending.pop() {
+            let mut edge = heads[child];
+            while edge != usize::MAX {
+                budget.charge(1)?;
+                let (parent, next) = parents[edge];
+                if states[parent] == 2 {
+                    states[parent] = 3;
+                    pending.push(parent);
                 }
-                let ty = type_at(definitions, index);
-                if expanded {
-                    let supported = children(types, ty)
-                        .all(|child| states[type_index(definitions, child)] == 2);
-                    states[index] = if supported { 2 } else { 3 };
-                } else if types.properties(ty).unwrap().is_copy
-                    || matches!(
-                        ty,
-                        o::Type::Constructed(id)
-                            if matches!(types.table().constructed[id.0 as usize].constructor,
-                                o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text) | o::Constructor::ArenaOwner(_))
-                    )
-                {
-                    states[index] = 2;
-                } else if matches!(ty, o::Type::Nominal(_))
-                    || matches!(ty, o::Type::Constructed(id)
-                        if matches!(types.table().constructed[id.0 as usize].constructor,
-                            o::Constructor::Option(_) | o::Constructor::Result(..) | o::Constructor::Loan(..)))
-                {
-                    // Verified inline types are acyclic; indirect services are
-                    // leaves and cannot bring their recursive payloads here.
-                    if states[index] == 1 {
-                        return Err(l::Error::InvalidType(ty));
-                    }
-                    states[index] = 1;
-                    stack.push((index, true));
-                    for child in children(types, ty) {
-                        stack.push((type_index(definitions, child), false));
-                    }
-                } else {
-                    states[index] = 3;
-                }
+                edge = next;
             }
         }
         Ok(Self {
@@ -110,7 +115,9 @@ fn children(types: &o::VerifiedTypes, ty: o::Type) -> impl Iterator<Item = o::Ty
         o::Type::Constructed(id) => match types.table().constructed[id.0 as usize].constructor {
             o::Constructor::Option(t) => [Some(t), None],
             o::Constructor::Result(t, e) => [Some(t), Some(e)],
-            o::Constructor::Loan(_, t) => [Some(t), None],
+            o::Constructor::Loan(_, t) | o::Constructor::Shared(t) | o::Constructor::Weak(t) => {
+                [Some(t), None]
+            }
             _ => [None, None],
         },
         _ => [None, None],

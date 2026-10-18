@@ -1,0 +1,42 @@
+struct Node { bytes: core::Bytes, next: core::Option<shared Node>, back: core::Option<weak Node> }
+
+fn make(value: i64) -> shared Node {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Result<core::Unit, core::BufferError> = core::bytes_push(bytes, value);
+    return core::result_unwrap::<shared Node, core::OwnershipError>(core::shared_new::<Node>(core::allocator(), Node { bytes: bytes, next: core::Option::None, back: core::Option::None }));
+}
+
+fn width(owner: &shared Node) -> i64 {
+    match core::shared_read::<Node>(owner) {
+        core::Result::Ok(node) => { return core::bytes_len(node.bytes); },
+        core::Result::Err(_) => { return -10; },
+    }
+}
+
+fn main() -> i64 {
+    let mut left: shared Node = make(65);
+    let mut right: shared Node = make(66);
+    let mut left_edge: shared Node = core::result_unwrap::<shared Node, core::OwnershipError>(core::shared_clone::<Node>(left));
+    let mut weak_left: weak Node = core::result_unwrap::<weak Node, core::OwnershipError>(core::weak_new::<Node>(left));
+    let mut back: weak Node = core::result_unwrap::<weak Node, core::OwnershipError>(core::weak_clone::<Node>(weak_left));
+    let mut upgraded: shared Node = core::result_unwrap::<shared Node, core::OwnershipError>(core::weak_upgrade::<Node>(weak_left));
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut first: core::Result<core::Unit, core::BufferError> = core::bytes_push(bytes, 67);
+    let mut second: core::Result<core::Unit, core::BufferError> = core::bytes_push(bytes, 68);
+    let mut changed: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<Node>(right, Node { bytes: bytes, next: core::Option::Some(left_edge), back: core::Option::Some(back) });
+    let mut right_edge: shared Node = core::result_unwrap::<shared Node, core::OwnershipError>(core::shared_clone::<Node>(right));
+    let mut rejected_bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut cycle: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<Node>(left, Node { bytes: rejected_bytes, next: core::Option::Some(right_edge), back: core::Option::None });
+    let mut score: i64 = 0;
+    match cycle {
+        core::Result::Ok(_) => { return -1; },
+        core::Result::Err(error) => { match error { core::OwnershipError::StrongCycle => { score = 10; }, _ => { return -2; }, } },
+    }
+    match core::shared_read::<Node>(right) {
+        core::Result::Ok(node) => { match node.next {
+            core::Option::Some(next) => { return score + core::bytes_len(node.bytes) + width(next); },
+            core::Option::None => { return -3; },
+        } },
+        core::Result::Err(_) => { return -4; },
+    }
+}

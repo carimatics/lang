@@ -5,7 +5,9 @@ use lang_mir::unit::{
     self as m,
     ownership::{self as o, bodies as b, failure as f},
 };
-use lang_runtime::{allocation as a, arena::managed as g, buffer, cleanup as c, layout as l};
+use lang_runtime::{
+    allocation as a, arena::managed as g, buffer, cleanup as c, layout as l, shared::managed as sh,
+};
 use std::{
     cell::RefCell,
     fmt::{Display, Formatter},
@@ -120,6 +122,28 @@ fn rejected(reason: Reason, function: Option<m::FunctionId>, fault: Option<m::Sp
         stack: Vec::new(),
     }
 }
+fn shared_operation(operation: o::core::Operation) -> bool {
+    matches!(
+        operation,
+        o::core::Operation::SharedNew
+            | o::core::Operation::SharedClone
+            | o::core::Operation::SharedRead
+            | o::core::Operation::SharedReplace
+            | o::core::Operation::WeakNew
+            | o::core::Operation::WeakClone
+            | o::core::Operation::WeakUpgrade
+    )
+}
+fn prepare_shared<'l, 't>(
+    layouts: &'l l::Layouts<'t>,
+    limits: m::Limits,
+    initial: m::Usage,
+) -> Result<sh::Heap<'l, 't>, l::Error> {
+    sh::Heap::prepare(layouts, Default::default(), limits, initial).map_err(|e| match e.kind {
+        sh::Kind::Layout(e) => e,
+        _ => l::Error::State,
+    })
+}
 fn supported(
     instruction: &b::Instruction,
     payloads: &profile::Payloads,
@@ -159,6 +183,13 @@ fn supported(
                     o::core::Operation::ArenaNew
                         | o::core::Operation::ArenaRead
                         | o::core::Operation::ArenaReplace
+                        | o::core::Operation::SharedNew
+                        | o::core::Operation::SharedRead
+                        | o::core::Operation::SharedReplace
+                        | o::core::Operation::SharedClone
+                        | o::core::Operation::WeakNew
+                        | o::core::Operation::WeakClone
+                        | o::core::Operation::WeakUpgrade
                 ) && call.type_arguments.iter().all(|t| payloads.supports(t.ty)))
         }
         b::Op::Record { .. } | b::Op::Variant { .. } => {
@@ -335,6 +366,20 @@ fn execute_single<P: a::Provider>(
     };
     let mut budget =
         m::Budget::with_usage(limits, initial).map_err(|e| fail(Reason::Preparation(e.into())))?;
+    let shared_heap = if body
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .any(|i| matches!(&i.op,b::Op::CoreCall(c)if shared_operation(c.operation)))
+    {
+        let heap = prepare_shared(&layouts, limits, budget_usage(&budget))
+            .map_err(|e| fail(Reason::Preparation(e)))?;
+        budget = m::Budget::with_usage(limits, heap.usage())
+            .map_err(|e| fail(Reason::Preparation(e.into())))?;
+        Some(heap)
+    } else {
+        None
+    };
     let mut cells = budget
         .vector(plan.cell_count())
         .map_err(|e| fail(Reason::Preparation(e.into())))?;
@@ -372,6 +417,7 @@ fn execute_single<P: a::Provider>(
             generation: 0,
             target: None,
             arena_read: None,
+            shared_read: None,
         });
     }
     let shared = Rc::new(RefCell::new(State {
@@ -383,6 +429,7 @@ fn execute_single<P: a::Provider>(
         loans,
         prepared,
         arenas: Vec::new(),
+        shared_heap,
         panic_code: None,
         current: Address::entry(function),
     }));
@@ -612,8 +659,15 @@ fn execute_single<P: a::Provider>(
     let mut state = shared.borrow_mut();
     let panic_code = state.panic_code;
     let State {
-        allocator, storage, ..
+        allocator,
+        storage,
+        shared_heap,
+        ..
     } = &mut *state;
+    if let Some(heap) = shared_heap.as_mut().filter(|h| h.is_open()) {
+        heap.close(allocator)
+            .map_err(|_| fail(Reason::Preparation(l::Error::State)))?;
+    }
     if let Err(error) = storage
         .as_mut()
         .expect("admitted storage")
@@ -1098,16 +1152,24 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             }
         }
         b::Op::CoreCall(call) => match call.operation {
-            op @ (o::core::Operation::ArenaNew | o::core::Operation::ArenaReplace) => {
+            op @ (o::core::Operation::ArenaNew
+            | o::core::Operation::ArenaReplace
+            | o::core::Operation::SharedNew
+            | o::core::Operation::SharedReplace) => {
                 let source = value(*call.arguments.last().unwrap());
                 let owning = !shared.borrow().is_copy(source);
                 if owning {
                     frame.value(address.slot(source)).map_err(invariant)?;
                 }
-                let transferred =
+                let transferred = if shared_operation(op) {
                     shared
                         .borrow_mut()
-                        .arena_store(op, call, values, result()?, span)?;
+                        .shared_store(op, call, values, result()?, span)?
+                } else {
+                    shared
+                        .borrow_mut()
+                        .arena_store(op, call, values, result()?, span)?
+                };
                 if owning {
                     match transferred {
                         state::ArenaTransfer::Moved => {
@@ -1133,6 +1195,25 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                         call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize,
                     )?;
                 }
+            }
+            o::core::Operation::SharedRead => {
+                if shared
+                    .borrow_mut()
+                    .shared_read(call, values, result()?, span)?
+                {
+                    register_loan(
+                        frame,
+                        call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize,
+                    )?;
+                }
+            }
+            o::core::Operation::SharedClone
+            | o::core::Operation::WeakNew
+            | o::core::Operation::WeakClone
+            | o::core::Operation::WeakUpgrade => {
+                shared
+                    .borrow_mut()
+                    .shared_owner_call(call, values, result()?, span)?;
             }
             o::core::Operation::Allocator => {
                 let id = call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize;

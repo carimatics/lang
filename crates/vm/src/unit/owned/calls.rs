@@ -326,6 +326,7 @@ fn execute_with<P: a::Provider>(
     seen[entry] = true;
     let mut cursor = 0;
     let mut edges = 0usize;
+    let mut uses_shared = false;
     while cursor < reachable.len() {
         let current = reachable[cursor];
         cursor += 1;
@@ -334,6 +335,9 @@ fn execute_with<P: a::Provider>(
                 budget
                     .charge(1)
                     .map_err(|e| fail(Reason::Preparation(e.into())))?;
+                if let b::Op::CoreCall(call) = &instruction.op {
+                    uses_shared |= shared_operation(call.operation);
+                }
                 if let b::Op::Call {
                     function: callee, ..
                 } = instruction.op
@@ -468,6 +472,15 @@ fn execute_with<P: a::Provider>(
     } else {
         None
     };
+    let shared_heap = if uses_shared {
+        let heap = prepare_shared(&layouts, limits, budget_usage(&budget))
+            .map_err(|e| fail(Reason::Preparation(e)))?;
+        budget = m::Budget::with_usage(limits, heap.usage())
+            .map_err(|e| fail(Reason::Preparation(e.into())))?;
+        Some(heap)
+    } else {
+        None
+    };
     let maximum = *reachable
         .iter()
         .max_by_key(|id| plans[**id].as_ref().unwrap().cell_count())
@@ -565,6 +578,7 @@ fn execute_with<P: a::Provider>(
             generation: 0,
             target: None,
             arena_read: None,
+            shared_read: None,
         });
     }
     let mut prepared = budget
@@ -628,6 +642,7 @@ fn execute_with<P: a::Provider>(
         loans,
         prepared,
         arenas,
+        shared_heap,
         panic_code: None,
         current: Address::entry(function),
     }));
@@ -1087,8 +1102,15 @@ fn execute_with<P: a::Provider>(
     let mut state = shared.borrow_mut();
     let panic_code = state.panic_code;
     let State {
-        storage, allocator, ..
+        storage,
+        allocator,
+        shared_heap,
+        ..
     } = &mut *state;
+    if let Some(heap) = shared_heap.as_mut().filter(|h| h.is_open()) {
+        heap.close(allocator)
+            .map_err(|_| fail(Reason::Preparation(l::Error::State)))?;
+    }
     storage
         .as_mut()
         .unwrap()
