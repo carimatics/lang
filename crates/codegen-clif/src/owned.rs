@@ -12,9 +12,12 @@ use std::{
 
 use super::OwnedJitModule;
 use cranelift_codegen::ir::{AbiParam, InstBuilder, MemFlagsData, SourceLoc, types};
+use cranelift_codegen::settings::Configurable;
+use cranelift_codegen::{isa, settings};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, default_libcall_names};
+use cranelift_object::{ObjectBuilder, ObjectModule};
 use lang_runtime::cleanup as c;
 use std::{
     mem::offset_of,
@@ -22,6 +25,22 @@ use std::{
 };
 
 pub type ResultStep = Result<(), c::Cause>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Transition {
+    pub frame: u64,
+    pub function: m::FunctionId,
+    pub continuation: u32,
+}
+
+pub struct CallSite {
+    pub function: m::FunctionId,
+    pub arguments: Vec<usize>,
+    pub result: usize,
+    pub resume: u32,
+    pub failure: u32,
+    pub span: m::Span,
+}
 
 /// Trusted prepared-frame primitives, not an instruction interpreter. Methods
 /// receive statically lowered slots/ranges. Implementations supply the shared
@@ -46,6 +65,29 @@ pub trait Runtime {
     fn record_failure(&mut self, cause: c::Cause, span: m::Span) -> ResultStep;
     fn retire_failure(&mut self) -> ResultStep;
     fn discard_result(&mut self) -> ResultStep;
+    fn frame_identity(&self) -> u64 {
+        0
+    }
+    /// The adapter reserves/adopts the callee before consuming caller owners.
+    fn prepare_call(
+        &mut self,
+        _: &CallSite,
+        _: &FunctionLayout<'_>,
+    ) -> Result<Transition, c::Cause> {
+        Err(c::Cause::Execution(c::ExecutionFailure::Invariant))
+    }
+    /// Called after successful result publication, when the callee is retired.
+    fn after_return(&mut self) -> Result<Option<Transition>, c::Cause> {
+        Ok(None)
+    }
+    /// Unwind one logical call and choose its caller's failure continuation.
+    fn after_failure(&mut self) -> Result<Option<Transition>, c::Cause> {
+        Ok(None)
+    }
+    /// Validate against the adapter's prepared transition and live frame state.
+    fn validate_transition(&self, _: Transition) -> bool {
+        false
+    }
 }
 
 /// Owns the adapter together with the native boundary's permanent panic state.
@@ -94,7 +136,7 @@ pub struct Failure {
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 11;
+const HELPERS: usize = 14;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -105,12 +147,14 @@ struct Header {
 enum Action {
     Move(usize, usize),
     Cleanup,
+    Call,
 }
 struct Node {
     span: m::Span,
     action: Option<Action>,
     cleanup: Vec<(usize, m::Span)>,
     raised: Option<c::ExecutionFailure>,
+    call: Option<CallSite>,
 }
 
 /// Initial production call boundary for straight-line whole-owner forwarding.
@@ -124,6 +168,14 @@ pub struct CompiledFunction<'a> {
     nodes: Vec<Node>,
     usage: m::Usage,
     metadata: super::program::FunctionCode,
+    continuations: Vec<u32>,
+    failure_node: u32,
+}
+
+#[derive(Clone, Copy)]
+enum CompileScope {
+    Function,
+    Unit,
 }
 
 impl<'a> CompiledFunction<'a> {
@@ -134,99 +186,37 @@ impl<'a> CompiledFunction<'a> {
         limits: m::Limits,
         cells: usize,
     ) -> Result<Self, Error> {
-        let layout = FunctionLayout::compile(flow, layouts, function, limits, cells)?;
-        let body = &typed(flow).functions()[function.0 as usize];
-        let unsupported = |span| Error::Unsupported { function, span };
+        Self::compile_after(
+            flow,
+            layouts,
+            function,
+            limits,
+            cells,
+            None,
+            CompileScope::Function,
+        )
+    }
+    fn compile_after(
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        function: m::FunctionId,
+        limits: m::Limits,
+        cells: usize,
+        prefix: Option<m::Usage>,
+        scope: CompileScope,
+    ) -> Result<Self, Error> {
+        let Prepared {
+            layout,
+            nodes,
+            continuations,
+            mut budget,
+        } = prepare(flow, layouts, function, limits, cells, prefix, scope)?;
         let graph = &flow.functions()[function.0 as usize];
-        if body.loans != 0 || body.prepared != 0 {
-            return Err(unsupported(graph.nodes()[0].span));
-        }
-        let mut budget = m::Budget::with_usage(limits, layout.frame.usage())?;
-        let mut nodes = budget.vector(graph.nodes().len())?;
-        for node in graph.nodes() {
-            budget.charge(1)?;
-            let mut data = Node {
-                span: node.span,
-                action: None,
-                cleanup: Vec::new(),
-                raised: None,
-            };
-            match node.kind {
-                f::Kind::Execute { site, .. } => {
-                    // Order zero names block parameters; source instructions
-                    // use one-based definition order.
-                    let i = site
-                        .order
-                        .checked_sub(1)
-                        .and_then(|order| {
-                            body.blocks[site.block.0 as usize].instructions.get(order)
-                        })
-                        .ok_or_else(|| unsupported(node.span))?;
-                    let value = |v| layout.frame.value(v).map_err(Error::from);
-                    let local = |v| layout.frame.local(v).map_err(Error::from);
-                    let mut one = |slot, span| -> Result<(), Error> {
-                        data.cleanup = budget.vector(1)?;
-                        data.cleanup.push((slot, span));
-                        data.action = Some(Action::Cleanup);
-                        Ok(())
-                    };
-                    data.action = match &i.op {
-                        b::Op::Move(from) => {
-                            Some(Action::Move(value(*from)?, value(i.results[0])?))
-                        }
-                        b::Op::MovePlace(place) => {
-                            let place = &typed(flow).places().functions()[function.0 as usize]
-                                .places[place.0 as usize];
-                            if !place.projections.is_empty() {
-                                return Err(unsupported(i.span));
-                            }
-                            let from = match place.root {
-                                m::ownership::places::Root::Local(l) => local(l)?,
-                                m::ownership::places::Root::Value(v) => value(v)?,
-                            };
-                            Some(Action::Move(from, value(i.results[0])?))
-                        }
-                        b::Op::Initialize {
-                            local: to,
-                            value: from,
-                        } => Some(Action::Move(value(*from)?, local(*to)?)),
-                        b::Op::DropLocalIfInitialized(l) | b::Op::DropLocal(l) => {
-                            one(local(*l)?, i.span)?;
-                            data.action
-                        }
-                        b::Op::DropValueIfAvailable(v) | b::Op::DropValue(v) => {
-                            one(value(*v)?, i.span)?;
-                            data.action
-                        }
-                        b::Op::Cleanup(range) => {
-                            data.cleanup = budget.vector(range.steps.len())?;
-                            for step in &range.steps {
-                                budget.charge(1)?;
-                                let slot = match step.target {
-                                    b::CleanupTarget::Local(l) => local(l)?,
-                                    b::CleanupTarget::Value(v) => value(v)?,
-                                    _ => return Err(unsupported(step.span)),
-                                };
-                                data.cleanup.push((slot, step.span));
-                            }
-                            Some(Action::Cleanup)
-                        }
-                        _ => return Err(unsupported(i.span)),
-                    };
-                }
-                f::Kind::Branch { .. } | f::Kind::Transfer { .. } => {
-                    return Err(unsupported(node.span));
-                }
-                f::Kind::Raise { failure, .. } => data.raised = Some(failure),
-                _ => {}
-            }
-            nodes.push(data);
-        }
         let mut owner = OwnedJitModule(Some(JITModule::new(
             JITBuilder::new(default_libcall_names()).map_err(backend)?,
         )));
         let module = owner.0.as_mut().expect("new module");
-        let (id, metadata) = emit(module, graph, &layout, &nodes, &mut budget)?;
+        let (id, metadata) = emit(module, graph, &layout, &nodes, &continuations, &mut budget)?;
         module.finalize_definitions().map_err(backend)?;
         let code = module.get_finalized_function(id);
         let usage = m::Usage {
@@ -241,6 +231,8 @@ impl<'a> CompiledFunction<'a> {
             nodes,
             usage,
             metadata,
+            continuations,
+            failure_node: graph.failure().0,
         })
     }
 
@@ -258,78 +250,474 @@ impl<'a> CompiledFunction<'a> {
     }
 
     pub fn invoke<R: Runtime>(&self, instance: &mut RuntimeInstance<R>) -> Result<(), Failure> {
-        let span = self.nodes[0].span;
-        let failure = |reason| Failure {
-            function: self.layout.function,
-            reason,
-            span,
-        };
-        if instance.is_poisoned() {
-            return Err(failure(Reason::Poisoned));
+        run(self, None, instance)
+    }
+}
+
+/// Whole-unit native continuations share one cumulative preparation budget.
+/// Dispatch selects compiled addresses and never evaluates a MIR operation.
+pub struct CompiledProgram<'a> {
+    functions: Vec<CompiledFunction<'a>>,
+    usage: m::Usage,
+}
+impl<'a> CompiledProgram<'a> {
+    pub fn compile(
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        limits: m::Limits,
+        cells: usize,
+    ) -> Result<Self, Error> {
+        if flow.functions().is_empty() {
+            return Err(Error::InvalidFunction(m::FunctionId(0)));
         }
-        let mut context = Invocation {
-            compiled: self,
-            instance,
-            fault: None,
+        if !std::ptr::eq(layouts.types(), typed(flow).places().declarations().types()) {
+            return Err(Error::Layout(l::Error::ForeignLocation));
+        }
+        let mut budget = m::Budget::with_usage(limits, FunctionLayout::base_usage(flow, layouts)?)?;
+        let mut functions = budget.vector(flow.functions().len())?;
+        let mut usage = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
         };
-        let mut header = Header {
-            data: (&mut context as *mut Invocation<'_, '_, R>).cast(),
-            helpers: [
-                entry::<R>,
-                charge::<R>,
-                move_slot::<R>,
-                cleanup::<R>,
-                stage::<R>,
-                retire::<R>,
-                publish::<R>,
-                record::<R>,
-                retire_failure::<R>,
-                discard::<R>,
-                raise::<R>,
-            ],
-        };
+        for index in 0..flow.functions().len() {
+            let function = CompiledFunction::compile_after(
+                flow,
+                layouts,
+                m::FunctionId(index as u32),
+                limits,
+                cells,
+                Some(usage),
+                CompileScope::Unit,
+            )?;
+            usage = function.usage;
+            functions.push(function);
+        }
+        Ok(Self { functions, usage })
+    }
+    fn compiled(&self, function: m::FunctionId) -> Option<&CompiledFunction<'a>> {
+        self.functions.get(function.0 as usize)
+    }
+    pub fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>> {
+        self.compiled(function).map(|f| &f.layout)
+    }
+    pub fn metadata(&self, function: m::FunctionId) -> Option<&super::program::FunctionCode> {
+        self.compiled(function).map(|f| &f.metadata)
+    }
+    pub const fn usage(&self) -> m::Usage {
+        self.usage
+    }
+    pub fn invoke<R: Runtime>(
+        &self,
+        function: m::FunctionId,
+        instance: &mut RuntimeInstance<R>,
+    ) -> Result<(), Failure> {
+        let entry = self.compiled(function).ok_or(Failure {
+            function,
+            reason: Reason::Runtime(c::Cause::Execution(c::ExecutionFailure::Invariant)),
+            span: self.functions[0].nodes[0].span,
+        })?;
+        run(entry, Some(self), instance)
+    }
+}
+
+fn run<'c, 'a, R: Runtime>(
+    entry: &'c CompiledFunction<'a>,
+    program: Option<&'c CompiledProgram<'a>>,
+    instance: &'c mut RuntimeInstance<R>,
+) -> Result<(), Failure> {
+    let rejected = |reason| Failure {
+        function: entry.layout.function,
+        reason,
+        span: entry.nodes[0].span,
+    };
+    if instance.is_poisoned() {
+        return Err(rejected(Reason::Poisoned));
+    }
+    let mut context = Invocation {
+        dispatch: DispatchState {
+            next: Output {
+                frame: 0,
+                function: 0,
+                continuation: 0,
+            },
+            frame: instance.runtime.frame_identity(),
+        },
+        compiled: entry,
+        program,
+        instance,
+        fault: None,
+        report_recorded: false,
+    };
+    let mut header = Header {
+        data: (&mut context as *mut Invocation<'_, '_, R>).cast(),
+        helpers: [
+            entry_helper::<R>,
+            charge::<R>,
+            move_slot::<R>,
+            cleanup::<R>,
+            stage::<R>,
+            retire::<R>,
+            publish::<R>,
+            record::<R>,
+            retire_failure::<R>,
+            discard::<R>,
+            raise::<R>,
+            prepare_call::<R>,
+            after_return::<R>,
+            after_failure::<R>,
+        ],
+    };
+    let mut continuation = 0;
+    loop {
         let input = Input {
             context: (&mut header as *mut Header).cast(),
-            frame: 0,
-            continuation: 0,
+            frame: context.dispatch.frame,
+            continuation,
             reserved: 0,
         };
         let mut output = Output {
-            frame: 0,
-            function: 0,
-            continuation: 0,
+            frame: u64::MAX,
+            function: u32::MAX,
+            continuation: u32::MAX,
         };
-        // SAFETY: emit uses precisely the target-native two-pointer/i32 C ABI.
-        // Both packets and the header have the repr(C) extents used by lowering.
-        // The opaque pointer borrows this exact live Invocation<R>; callbacks
-        // are monomorphized for R and contain all Rust panics. Nothing retains
-        // packet/context pointers. The executable owner outlives the call.
+        // SAFETY: emit produces precisely this target-native C signature. Both
+        // packets/header and the repr(C) DispatchState prefix have the exact
+        // extents used by lowering. The opaque pointer borrows this Invocation
+        // with matching R callbacks; callbacks contain all Rust panics and
+        // retain nothing. Every code owner remains borrowed throughout the loop.
         let status = unsafe {
             let call: unsafe extern "C" fn(*const Input, *mut Output) -> i32 =
-                std::mem::transmute(self.code);
+                std::mem::transmute(context.compiled.code);
             call(&input, &mut output)
         };
-        match (status, context.fault) {
+        if status == 1 {
+            let next = Transition {
+                frame: output.frame,
+                function: m::FunctionId(output.function),
+                continuation: output.continuation,
+            };
+            if output != context.dispatch.next
+                || !valid_target(program, next, context.fault.is_some())
+            {
+                context.note(
+                    c::Cause::Execution(c::ExecutionFailure::Invariant),
+                    context.compiled.nodes[0].span,
+                );
+                return Err(context.fault.expect("protocol failure"));
+            }
+            context.compiled = program
+                .and_then(|p| p.compiled(next.function))
+                .expect("sealed target");
+            context.dispatch.frame = next.frame;
+            continuation = next.continuation;
+            // Poison blocks new outer entries, while admitted failure exits
+            // continue dispatching until every logical caller is retired.
+            continue;
+        }
+        return match (status, context.fault) {
             (0, None) => Ok(()),
             (_, Some(fault)) => Err(fault),
             _ => {
                 context.instance.poisoned = true;
-                Err(failure(Reason::Runtime(c::Cause::Execution(
+                Err(rejected(Reason::Runtime(c::Cause::Execution(
                     c::ExecutionFailure::Invariant,
                 ))))
             }
-        }
+        };
     }
+}
+
+fn valid_target(program: Option<&CompiledProgram<'_>>, target: Transition, failure: bool) -> bool {
+    program
+        .and_then(|p| p.compiled(target.function))
+        .is_some_and(|f| {
+            f.continuations.contains(&target.continuation)
+                && (!failure || target.continuation == f.failure_node)
+        })
+}
+
+pub struct ObjectFunction<'a> {
+    layout: FunctionLayout<'a>,
+    nodes: Vec<Node>,
+    continuations: Vec<u32>,
+    metadata: super::program::FunctionCode,
+}
+impl<'a> ObjectFunction<'a> {
+    pub const fn layout(&self) -> &FunctionLayout<'a> {
+        &self.layout
+    }
+    pub const fn metadata(&self) -> &super::program::FunctionCode {
+        &self.metadata
+    }
+    pub fn continuations(&self) -> &[u32] {
+        &self.continuations
+    }
+    pub fn span(&self, node: u32) -> Option<m::Span> {
+        self.nodes.get(node as usize).map(|n| n.span)
+    }
+    pub fn call_site(&self, node: u32) -> Option<&CallSite> {
+        self.nodes.get(node as usize)?.call.as_ref()
+    }
+    pub fn cleanup(&self, node: u32) -> Option<&[(usize, m::Span)]> {
+        self.nodes.get(node as usize).map(|n| n.cleanup.as_slice())
+    }
+}
+
+/// Native object bytes and their matching in-memory invocation metadata. The
+/// metadata is not a Rust-layout wire format or a self-contained runtime image.
+pub struct ObjectArtifact<'a> {
+    pub bytes: Vec<u8>,
+    functions: Vec<ObjectFunction<'a>>,
+    usage: m::Usage,
+}
+impl<'a> ObjectArtifact<'a> {
+    pub fn function(&self, function: m::FunctionId) -> Option<&ObjectFunction<'a>> {
+        self.functions.get(function.0 as usize)
+    }
+    pub const fn usage(&self) -> m::Usage {
+        self.usage
+    }
+}
+
+pub fn emit_object_for_target<'a>(
+    flow: &'a f::Elaborated,
+    layouts: &'a Layouts<'a>,
+    target: &crate::Triple,
+    limits: m::Limits,
+    cells: usize,
+) -> Result<ObjectArtifact<'a>, Error> {
+    if !std::ptr::eq(layouts.types(), typed(flow).places().declarations().types()) {
+        return Err(Error::Layout(l::Error::ForeignLocation));
+    }
+    let mut flags = settings::builder();
+    flags.set("is_pic", "true").map_err(backend)?;
+    let isa = isa::lookup(target.clone())
+        .map_err(backend)?
+        .finish(settings::Flags::new(flags))
+        .map_err(backend)?;
+    let mut module = ObjectModule::new(
+        ObjectBuilder::new(isa, "lang-owned-r1", default_libcall_names()).map_err(backend)?,
+    );
+    let mut budget = m::Budget::with_usage(limits, FunctionLayout::base_usage(flow, layouts)?)?;
+    let mut functions = budget.vector(flow.functions().len())?;
+    let mut usage = m::Usage {
+        work: budget.work_used(),
+        allocation_bytes: budget.allocation_bytes(),
+        elements: budget.elements_used(),
+    };
+    for index in 0..flow.functions().len() {
+        let function = m::FunctionId(index as u32);
+        let Prepared {
+            layout,
+            nodes,
+            continuations,
+            mut budget,
+        } = prepare(
+            flow,
+            layouts,
+            function,
+            limits,
+            cells,
+            Some(usage),
+            CompileScope::Unit,
+        )?;
+        let (_, metadata) = emit(
+            &mut module,
+            &flow.functions()[index],
+            &layout,
+            &nodes,
+            &continuations,
+            &mut budget,
+        )?;
+        usage = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        functions.push(ObjectFunction {
+            layout,
+            nodes,
+            continuations,
+            metadata,
+        });
+    }
+    let bytes = module.finish().emit().map_err(backend)?;
+    Ok(ObjectArtifact {
+        bytes,
+        functions,
+        usage,
+    })
+}
+
+struct Prepared<'a> {
+    layout: FunctionLayout<'a>,
+    nodes: Vec<Node>,
+    continuations: Vec<u32>,
+    budget: m::Budget,
+}
+fn prepare<'a>(
+    flow: &'a f::Elaborated,
+    layouts: &'a Layouts<'a>,
+    function: m::FunctionId,
+    limits: m::Limits,
+    cells: usize,
+    prefix: Option<m::Usage>,
+    scope: CompileScope,
+) -> Result<Prepared<'a>, Error> {
+    let layout = FunctionLayout::compile_after(flow, layouts, function, limits, cells, prefix)?;
+    let body = &typed(flow).functions()[function.0 as usize];
+    let unsupported = |span| Error::Unsupported { function, span };
+    let graph = &flow.functions()[function.0 as usize];
+    if body.loans != 0 || body.prepared != 0 {
+        return Err(unsupported(graph.nodes()[0].span));
+    }
+    let mut budget = m::Budget::with_usage(limits, layout.frame.usage())?;
+    let mut nodes = budget.vector(graph.nodes().len())?;
+    budget.charge(graph.nodes().len())?;
+    let call_count = body
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|i| matches!(i.op, b::Op::Call { .. }))
+        .count();
+    let capacity = call_count
+        .checked_mul(2)
+        .and_then(|n| n.checked_add(2))
+        .ok_or(Error::Layout(l::Error::Overflow))?;
+    let mut continuations = budget.vector(capacity)?;
+    continuations.push(graph.entry().0);
+    if matches!(scope, CompileScope::Unit) {
+        continuations.push(graph.failure().0);
+    }
+    for node in graph.nodes() {
+        budget.charge(1)?;
+        let mut data = Node {
+            span: node.span,
+            action: None,
+            cleanup: Vec::new(),
+            raised: None,
+            call: None,
+        };
+        match node.kind {
+            f::Kind::Execute { site, .. } => {
+                // Order zero names block parameters; source instructions
+                // use one-based definition order.
+                let i = site
+                    .order
+                    .checked_sub(1)
+                    .and_then(|order| body.blocks[site.block.0 as usize].instructions.get(order))
+                    .ok_or_else(|| unsupported(node.span))?;
+                let value = |v| layout.frame.value(v).map_err(Error::from);
+                let local = |v| layout.frame.local(v).map_err(Error::from);
+                let mut one = |slot, span| -> Result<(), Error> {
+                    data.cleanup = budget.vector(1)?;
+                    data.cleanup.push((slot, span));
+                    data.action = Some(Action::Cleanup);
+                    Ok(())
+                };
+                data.action = match &i.op {
+                    b::Op::Move(from) => Some(Action::Move(value(*from)?, value(i.results[0])?)),
+                    b::Op::MovePlace(place) => {
+                        let place = &typed(flow).places().functions()[function.0 as usize].places
+                            [place.0 as usize];
+                        if !place.projections.is_empty() {
+                            return Err(unsupported(i.span));
+                        }
+                        let from = match place.root {
+                            m::ownership::places::Root::Local(l) => local(l)?,
+                            m::ownership::places::Root::Value(v) => value(v)?,
+                        };
+                        Some(Action::Move(from, value(i.results[0])?))
+                    }
+                    b::Op::Initialize {
+                        local: to,
+                        value: from,
+                    } => Some(Action::Move(value(*from)?, local(*to)?)),
+                    b::Op::Call {
+                        function: callee,
+                        arguments,
+                    } if matches!(scope, CompileScope::Unit) => {
+                        let f::Kind::Execute { next, failure, .. } = node.kind else {
+                            unreachable!()
+                        };
+                        let mut cells = budget.vector(arguments.len())?;
+                        for argument in arguments {
+                            budget.charge(1)?;
+                            cells.push(value(*argument)?);
+                        }
+                        data.call = Some(CallSite {
+                            function: *callee,
+                            arguments: cells,
+                            result: value(i.results[0])?,
+                            resume: next.0,
+                            failure: failure.0,
+                            span: i.span,
+                        });
+                        continuations.extend([next.0, failure.0]);
+                        Some(Action::Call)
+                    }
+                    b::Op::DropLocalIfInitialized(l) | b::Op::DropLocal(l) => {
+                        one(local(*l)?, i.span)?;
+                        data.action
+                    }
+                    b::Op::DropValueIfAvailable(v) | b::Op::DropValue(v) => {
+                        one(value(*v)?, i.span)?;
+                        data.action
+                    }
+                    b::Op::Cleanup(range) => {
+                        data.cleanup = budget.vector(range.steps.len())?;
+                        for step in &range.steps {
+                            budget.charge(1)?;
+                            let slot = match step.target {
+                                b::CleanupTarget::Local(l) => local(l)?,
+                                b::CleanupTarget::Value(v) => value(v)?,
+                                _ => return Err(unsupported(step.span)),
+                            };
+                            data.cleanup.push((slot, step.span));
+                        }
+                        Some(Action::Cleanup)
+                    }
+                    _ => return Err(unsupported(i.span)),
+                };
+            }
+            f::Kind::Branch { .. } | f::Kind::Transfer { .. } => {
+                return Err(unsupported(node.span));
+            }
+            f::Kind::Raise { failure, .. } => data.raised = Some(failure),
+            _ => {}
+        }
+        nodes.push(data);
+    }
+    continuations.sort_unstable();
+    continuations.dedup();
+    Ok(Prepared {
+        layout,
+        nodes,
+        continuations,
+        budget,
+    })
 }
 
 fn backend(e: impl Display) -> Error {
     Error::Backend(e.to_string())
 }
 
+#[repr(C)]
+struct DispatchState {
+    next: Output,
+    frame: u64,
+}
+
+#[repr(C)]
 struct Invocation<'c, 'a, R> {
+    // The non-generic prefix is read by native code only between callbacks.
+    dispatch: DispatchState,
     compiled: &'c CompiledFunction<'a>,
+    program: Option<&'c CompiledProgram<'a>>,
     instance: &'c mut RuntimeInstance<R>,
     fault: Option<Failure>,
+    report_recorded: bool,
 }
 impl<R: Runtime> Invocation<'_, '_, R> {
     fn note(&mut self, cause: c::Cause, span: m::Span) {
@@ -350,6 +738,17 @@ impl<R: Runtime> Invocation<'_, '_, R> {
         node: u64,
         action: impl FnOnce(&mut R, &CompiledFunction<'_>, m::Span) -> ResultStep,
     ) -> i32 {
+        if self.evaluate(node, action).is_ok() {
+            0
+        } else {
+            2
+        }
+    }
+    fn evaluate<T>(
+        &mut self,
+        node: u64,
+        action: impl FnOnce(&mut R, &CompiledFunction<'_>, m::Span) -> Result<T, c::Cause>,
+    ) -> Result<T, ()> {
         let Some(info) = usize::try_from(node)
             .ok()
             .and_then(|index| self.compiled.nodes.get(index))
@@ -358,14 +757,14 @@ impl<R: Runtime> Invocation<'_, '_, R> {
                 c::Cause::Execution(c::ExecutionFailure::Invariant),
                 self.compiled.nodes[0].span,
             );
-            return 2;
+            return Err(());
         };
         let span = info.span;
         let outcome = catch_unwind(AssertUnwindSafe(|| {
             action(&mut self.instance.runtime, self.compiled, span)
         }));
         let cause = match outcome {
-            Ok(Ok(())) => return 0,
+            Ok(Ok(value)) => return Ok(value),
             Ok(Err(cause)) => cause,
             Err(payload) => {
                 // A panic payload can itself panic in Drop. Contain disposal
@@ -379,7 +778,41 @@ impl<R: Runtime> Invocation<'_, '_, R> {
             }
         };
         self.note(cause, span);
-        2
+        Err(())
+    }
+    fn transition(
+        &mut self,
+        node: u64,
+        action: impl FnOnce(
+            &mut R,
+            &CompiledFunction<'_>,
+            m::Span,
+        ) -> Result<Option<Transition>, c::Cause>,
+    ) -> i32 {
+        let program = self.program;
+        let failed = self.fault.is_some();
+        match self.evaluate(node, |r, p, span| {
+            let target = action(r, p, span)?;
+            if let Some(target) = target
+                && (!valid_target(program, target, failed)
+                    || !r.validate_transition(target)
+                    || r.frame_identity() != target.frame)
+            {
+                return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
+            }
+            Ok(target)
+        }) {
+            Ok(Some(target)) => {
+                self.dispatch.next = Output {
+                    frame: target.frame,
+                    function: target.function.0,
+                    continuation: target.continuation,
+                };
+                1
+            }
+            Ok(None) => 0,
+            Err(()) => 2,
+        }
     }
 }
 
@@ -398,7 +831,7 @@ macro_rules! helper {
         }
     };
 }
-helper!(entry, ctx, _a, _b, node, {
+helper!(entry_helper, ctx, _a, _b, node, {
     ctx.apply(node, |r, p, _| r.enter(&p.layout))
 });
 helper!(charge, ctx, _a, _b, node, {
@@ -420,14 +853,19 @@ helper!(publish, ctx, _a, _b, node, {
     ctx.apply(node, |r, _, _| r.publish_return())
 });
 helper!(record, ctx, _a, _b, node, {
-    let cause = ctx
-        .fault
-        .and_then(|f| match f.reason {
-            Reason::Runtime(cause) => Some(cause),
-            Reason::Poisoned => None,
-        })
-        .unwrap_or(c::Cause::Execution(c::ExecutionFailure::Invariant));
-    ctx.apply(node, |r, _, s| r.record_failure(cause, s))
+    let cause = if ctx.report_recorded {
+        c::Cause::Reported
+    } else {
+        ctx.fault
+            .and_then(|f| match f.reason {
+                Reason::Runtime(cause) => Some(cause),
+                Reason::Poisoned => None,
+            })
+            .unwrap_or(c::Cause::Execution(c::ExecutionFailure::Invariant))
+    };
+    let status = ctx.apply(node, |r, _, s| r.record_failure(cause, s));
+    ctx.report_recorded = true;
+    status
 });
 helper!(retire_failure, ctx, _a, _b, node, {
     ctx.apply(node, |r, _, _| r.retire_failure())
@@ -444,12 +882,36 @@ helper!(raise, ctx, _a, _b, node, {
     );
     0
 });
+helper!(prepare_call, ctx, _a, _b, node, {
+    let program = ctx.program;
+    ctx.transition(node, |r, p, _| {
+        let call = p.nodes[node as usize]
+            .call
+            .as_ref()
+            .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+        let target = program
+            .and_then(|p| p.compiled(call.function))
+            .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+        r.prepare_call(call, &target.layout).map(Some)
+    })
+});
+helper!(after_return, ctx, _a, _b, node, {
+    let status = ctx.apply(node, |r, _, _| r.publish_return());
+    if status != 0 {
+        return status;
+    }
+    ctx.transition(node, |r, _, _| r.after_return())
+});
+helper!(after_failure, ctx, _a, _b, node, {
+    ctx.transition(node, |r, _, _| r.after_failure())
+});
 
 fn emit<M: Module>(
     module: &mut M,
     graph: &f::Function,
     layout: &FunctionLayout<'_>,
     nodes: &[Node],
+    continuations: &[u32],
     budget: &mut m::Budget,
 ) -> Result<(cranelift_module::FuncId, super::program::FunctionCode), Error> {
     let pointer = module.target_config().pointer_type();
@@ -489,6 +951,7 @@ fn emit<M: Module>(
         b.append_block_params_for_function_params(guard);
         b.switch_to_block(guard);
         let input = b.block_params(guard)[0];
+        let output = b.block_params(guard)[1];
         let frame = b.ins().load(
             types::I64,
             MemFlagsData::new(),
@@ -507,12 +970,41 @@ fn emit<M: Module>(
             input,
             offset_of!(Input, reserved) as i32,
         );
-        let bits = b.ins().bor(pc, reserved);
-        let bits = b.ins().uextend(types::I64, bits);
-        let bits = b.ins().bor(frame, bits);
-        let valid = b.ins().icmp_imm_u(IntCC::Equal, bits, 0);
-        b.ins()
-            .brif(valid, blocks[graph.entry().0 as usize], &[], invalid, &[]);
+        let header = b.ins().load(pointer, MemFlagsData::new(), input, 0);
+        let data = b.ins().load(
+            pointer,
+            MemFlagsData::new(),
+            header,
+            offset_of!(Header, data) as i32,
+        );
+        let expected = b.ins().load(
+            types::I64,
+            MemFlagsData::new(),
+            data,
+            offset_of!(DispatchState, frame) as i32,
+        );
+        let frame_valid = b.ins().icmp(IntCC::Equal, frame, expected);
+        let reserved_valid = b.ins().icmp_imm_u(IntCC::Equal, reserved, 0);
+        let valid = b.ins().band(frame_valid, reserved_valid);
+        let select = b.create_block();
+        b.ins().brif(valid, select, &[], invalid, &[]);
+        b.switch_to_block(select);
+        for (index, continuation) in continuations.iter().enumerate() {
+            budget.charge(1)?;
+            let fallback = if index + 1 == continuations.len() {
+                invalid
+            } else {
+                b.create_block()
+            };
+            let selected = b
+                .ins()
+                .icmp_imm_u(IntCC::Equal, pc, i64::from(*continuation));
+            b.ins()
+                .brif(selected, blocks[*continuation as usize], &[], fallback, &[]);
+            if fallback != invalid {
+                b.switch_to_block(fallback);
+            }
+        }
         for (index, node) in graph.nodes().iter().enumerate() {
             budget.charge(1)?;
             b.switch_to_block(blocks[index]);
@@ -541,11 +1033,20 @@ fn emit<M: Module>(
                 f::Kind::Entry { next, failure } => Some((call(0, 0, 0), next, failure)),
                 f::Kind::Fuel { next, failure, .. } => Some((call(1, 0, 0), next, failure)),
                 f::Kind::Execute { next, failure, .. } => {
-                    let status = match nodes[index].action.expect("preflighted instruction") {
-                        Action::Move(from, to) => call(2, from, to),
-                        Action::Cleanup => call(3, 0, 0),
-                    };
-                    Some((status, next, failure))
+                    match nodes[index].action.expect("preflighted instruction") {
+                        Action::Move(from, to) => Some((call(2, from, to), next, failure)),
+                        Action::Cleanup => Some((call(3, 0, 0), next, failure)),
+                        Action::Call => {
+                            let status = call(11, 0, 0);
+                            let dispatch = b.create_block();
+                            let valid = b.ins().icmp_imm_u(IntCC::Equal, status, 1);
+                            b.ins()
+                                .brif(valid, dispatch, &[], blocks[failure.0 as usize], &[]);
+                            b.switch_to_block(dispatch);
+                            emit_packet(&mut b, input, output);
+                            None
+                        }
+                    }
                 }
                 f::Kind::StageReturn {
                     value,
@@ -554,11 +1055,23 @@ fn emit<M: Module>(
                 } => Some((call(4, layout.frame.value(value)?, 0), next, failure)),
                 f::Kind::RetireReturn { next, failure } => Some((call(5, 0, 0), next, failure)),
                 f::Kind::PublishReturn => {
-                    let status = call(6, 0, 0);
+                    let status = call(12, 0, 0);
                     let success = b.create_block();
+                    let maybe_dispatch = b.create_block();
+                    let dispatch = b.create_block();
                     let valid = b.ins().icmp_imm_u(IntCC::Equal, status, 0);
-                    b.ins()
-                        .brif(valid, success, &[], blocks[graph.failure().0 as usize], &[]);
+                    b.ins().brif(valid, success, &[], maybe_dispatch, &[]);
+                    b.switch_to_block(maybe_dispatch);
+                    let valid = b.ins().icmp_imm_u(IntCC::Equal, status, 1);
+                    b.ins().brif(
+                        valid,
+                        dispatch,
+                        &[],
+                        blocks[graph.failure().0 as usize],
+                        &[],
+                    );
+                    b.switch_to_block(dispatch);
+                    emit_packet(&mut b, input, output);
                     b.switch_to_block(success);
                     let status = b.ins().iconst(types::I32, 0);
                     b.ins().return_(&[status]);
@@ -589,6 +1102,14 @@ fn emit<M: Module>(
                     None
                 }
                 f::Kind::PropagateFailure => {
+                    let status = call(13, 0, 0);
+                    let dispatch = b.create_block();
+                    let failed = b.create_block();
+                    let valid = b.ins().icmp_imm_u(IntCC::Equal, status, 1);
+                    b.ins().brif(valid, dispatch, &[], failed, &[]);
+                    b.switch_to_block(dispatch);
+                    emit_packet(&mut b, input, output);
+                    b.switch_to_block(failed);
                     let status = b.ins().iconst(types::I32, 2);
                     b.ins().return_(&[status]);
                     None
@@ -639,6 +1160,36 @@ fn emit<M: Module>(
             source_ranges: ranges,
         },
     ))
+}
+
+fn emit_packet(
+    b: &mut FunctionBuilder<'_>,
+    input: cranelift_codegen::ir::Value,
+    output: cranelift_codegen::ir::Value,
+) {
+    let header = b.ins().load(types::I64, MemFlagsData::new(), input, 0);
+    let data = b.ins().load(
+        types::I64,
+        MemFlagsData::new(),
+        header,
+        offset_of!(Header, data) as i32,
+    );
+    for (offset, ty) in [
+        (offset_of!(Output, frame), types::I64),
+        (offset_of!(Output, function), types::I32),
+        (offset_of!(Output, continuation), types::I32),
+    ] {
+        let value = b.ins().load(
+            ty,
+            MemFlagsData::new(),
+            data,
+            (offset_of!(DispatchState, next) + offset) as i32,
+        );
+        b.ins()
+            .store(MemFlagsData::new(), value, output, offset as i32);
+    }
+    let status = b.ins().iconst(types::I32, 1);
+    b.ins().return_(&[status]);
 }
 
 #[repr(C)]
@@ -701,11 +1252,38 @@ impl<'a> FunctionLayout<'a> {
         limits: m::Limits,
         cells: usize,
     ) -> Result<Self, Error> {
+        Self::compile_after(flow, layouts, function, limits, cells, None)
+    }
+    fn compile_after(
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        function: m::FunctionId,
+        limits: m::Limits,
+        cells: usize,
+        prefix: Option<m::Usage>,
+    ) -> Result<Self, Error> {
         let typed = flow.source().activity().moved().typed();
-        let types = typed.places().declarations().types();
         if typed.functions().get(function.0 as usize).is_none() {
             return Err(Error::InvalidFunction(function));
         }
+        let base = Self::base_usage(flow, layouts)?;
+        let initial = prefix.unwrap_or(base);
+        if initial.work < base.work
+            || initial.allocation_bytes < base.allocation_bytes
+            || initial.elements < base.elements
+        {
+            return Err(Error::Layout(l::Error::State));
+        }
+        let frame = FramePlan::compile_after(layouts, typed, function, limits, cells, initial)?;
+        Ok(Self {
+            function,
+            frame,
+            source: flow,
+            layouts,
+        })
+    }
+    fn base_usage(flow: &f::Elaborated, layouts: &Layouts<'_>) -> Result<m::Usage, Error> {
+        let types = typed(flow).places().declarations().types();
         fn combine(a: usize, extra: usize, common: usize) -> Result<usize, Error> {
             extra
                 .checked_sub(common)
@@ -713,7 +1291,7 @@ impl<'a> FunctionLayout<'a> {
                 .ok_or(Error::Layout(l::Error::Overflow))
         }
         let existing = layouts.usage();
-        let initial = m::Usage {
+        Ok(m::Usage {
             work: combine(flow.work_used(), existing.work, types.work_used())?,
             allocation_bytes: combine(
                 flow.requested_bytes(),
@@ -725,13 +1303,6 @@ impl<'a> FunctionLayout<'a> {
                 existing.elements,
                 types.elements_used(),
             )?,
-        };
-        let frame = FramePlan::compile_after(layouts, typed, function, limits, cells, initial)?;
-        Ok(Self {
-            function,
-            frame,
-            source: flow,
-            layouts,
         })
     }
     pub const fn function(&self) -> m::FunctionId {

@@ -132,7 +132,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-Rustのnative embedding境界で [sourceのBytes引数／返り値fixture](examples/analysis/native_owned_boundary.lang) が生成機械コードで実行できます。`cargo test --test native_owned_boundary` で実value、fuel／cleanup、poison、compile budgetを検証できます。信頼されたruntime adapterは共有managed layoutと既存cleanup ledgerを使います。Whole-unit native dispatchとobject統合はN01に残り、汎用native実行とCLI driverは各milestone gateを維持します。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
+Rustのnative embedding境界で [sourceのBytes引数／返り値](examples/analysis/native_owned_boundary.lang) と [ownerを渡すguest call](examples/analysis/native_owned_calls.lang) が生成機械コードで実行できます。`cargo test --test native_owned_boundary` で実value、call／return、失敗時cleanup、admission、poison、compile budgetを検証できます。Whole-unit dispatchはlogical frameと共有managed storageを使い、object APIは対応するMach-O／COFF codeとメモリ上のmetadataを出力します。汎用native operation、service、objectのlink／実行、CLI driverはmilestoneの残作業です。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
 
 ## 設計プロセス
 

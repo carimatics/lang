@@ -33,12 +33,16 @@ struct Trace {
     requests: usize,
     allocated: usize,
     released: usize,
+    refuse: Option<usize>,
 }
 struct Provider(Rc<RefCell<Trace>>);
 impl a::Provider for Provider {
     type Region = a::Storage;
     fn allocate(&mut self, request: a::Request) -> Option<a::Storage> {
         self.0.borrow_mut().requests += 1;
+        if self.0.borrow().refuse == Some(self.0.borrow().requests) {
+            return None;
+        }
         let storage = a::Storage::try_new(request).ok()?;
         self.0.borrow_mut().allocated += 1;
         Some(storage)
@@ -367,6 +371,9 @@ fn execute(
 
 const FORWARD: &str = include_str!("../examples/analysis/native_owned_boundary.lang");
 
+#[path = "support/native_owned_calls.rs"]
+mod calls;
+
 #[test]
 fn source_bytes_cross_the_native_parameter_and_return_boundary() {
     let input: &[u8] = &[0, 65, 0xfe, 0xff];
@@ -444,6 +451,8 @@ struct Panicking {
     discarded: usize,
     unexpected: usize,
     payload_panics: bool,
+    transition: Option<n::Transition>,
+    prepared: usize,
 }
 impl Runtime for Panicking {
     fn is_poisoned(&self) -> bool {
@@ -451,6 +460,9 @@ impl Runtime for Panicking {
     }
     fn enter(&mut self, _: &n::FunctionLayout<'_>) -> n::ResultStep {
         self.entered += 1;
+        if self.transition.is_some() {
+            return Ok(());
+        }
         if self.payload_panics {
             std::panic::panic_any(PanicPayload);
         }
@@ -481,7 +493,14 @@ impl Runtime for Panicking {
         Ok(())
     }
     fn record_failure(&mut self, cause: c::Cause, _: m::Span) -> n::ResultStep {
-        assert_eq!(cause, c::Cause::Execution(c::ExecutionFailure::HostPanic));
+        assert_eq!(
+            cause,
+            c::Cause::Execution(if self.transition.is_some() {
+                c::ExecutionFailure::Invariant
+            } else {
+                c::ExecutionFailure::HostPanic
+            })
+        );
         self.recorded += 1;
         Ok(())
     }
@@ -492,6 +511,76 @@ impl Runtime for Panicking {
     fn discard_result(&mut self) -> n::ResultStep {
         self.discarded += 1;
         Ok(())
+    }
+    fn prepare_call(
+        &mut self,
+        _: &n::CallSite,
+        _: &n::FunctionLayout<'_>,
+    ) -> Result<n::Transition, c::Cause> {
+        self.prepared += 1;
+        Ok(self.transition.unwrap())
+    }
+    fn validate_transition(&self, _: n::Transition) -> bool {
+        true
+    }
+}
+
+#[test]
+fn native_dispatch_independently_rejects_bad_function_frame_and_continuation() {
+    let program = source(
+        "fn outer(value: core::Bytes) -> core::Bytes { return inner(value); } fn inner(value: core::Bytes) -> core::Bytes { return value; }",
+    );
+    let flow = program.failure_flow();
+    let types = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+    let compiled = n::CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+    for target in [
+        n::Transition {
+            frame: 0,
+            function: m::FunctionId(u32::MAX),
+            continuation: 0,
+        },
+        n::Transition {
+            frame: 7,
+            function: m::FunctionId(1),
+            continuation: 0,
+        },
+        n::Transition {
+            frame: 0,
+            function: m::FunctionId(1),
+            continuation: u32::MAX,
+        },
+    ] {
+        let mut instance = RuntimeInstance::new(Panicking {
+            transition: Some(target),
+            ..Default::default()
+        });
+        let failure = compiled
+            .invoke(m::FunctionId(0), &mut instance)
+            .unwrap_err();
+        assert_eq!(
+            failure.reason,
+            n::Reason::Runtime(c::Cause::Execution(c::ExecutionFailure::Invariant))
+        );
+        assert!(instance.is_poisoned());
+        let runtime = instance.runtime();
+        assert_eq!(
+            (
+                runtime.entered,
+                runtime.prepared,
+                runtime.recorded,
+                runtime.retired,
+                runtime.discarded
+            ),
+            (1, 1, 1, 1, 1)
+        );
     }
 }
 

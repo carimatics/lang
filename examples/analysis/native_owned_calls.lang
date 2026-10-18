@@ -1,0 +1,11 @@
+// Check: cargo run -- check examples/analysis/native_owned_calls.lang
+// Execute natively: cargo test --test native_owned_boundary calls::
+// The embedding fixture supplies three real Bytes owners. The leaf retires
+// child_unused; relay retires parent_unused before publishing the kept owner.
+fn relay(value: core::Bytes, child_unused: core::Bytes, parent_unused: core::Bytes) -> core::Bytes {
+    return leaf(value, child_unused);
+}
+
+fn leaf(value: core::Bytes, unused: core::Bytes) -> core::Bytes {
+    return value;
+}
