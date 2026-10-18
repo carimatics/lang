@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み72件 · 進行中0件 · 残り31件（暫定76 pt）。**
+**検証済み73件 · 進行中0件 · 残り30件（暫定74 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから46件の成果を検証しました。C07（`f89b323`）で上限付きcycle／brand検査、格納read custody、反復cleanupを実sourceへ接続し、入れ子CLIは8／21／4／6、保存したVec循環probeは23を返します。Source 10 testで5 fixtureの全OOM／retry・fuel prefix、入れ子変更／guest return／weak／escapeを検証し、VM injection 3 testとbrand境界probeも成功しました。全体82 suite・1297 testとfmt／Clippy／docが成功し、**残り79 → 76 pt**、done 72行、計103行です。C08／C09後の必須source成果を完了しました。次はV13のVM／REPL provisional-read conformanceです。Native N03／N04／N05、indirect preview、ownership artifact、両tier-1実行・性能・debugと最終日英guideの要件を保持し、新exit gateは閉じません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから47件の成果を検証しました。V13（`9d9d2ac`）でsource VMとREPL反復実行のprovisional readを検証し、実行14 fixture、transactionalな復旧を伴う名前付きloanの拒否5件、shared reader枯渇と外側loanの生存・厳密な解放を確認しました。257重のmatchによるarena枯渇試験はparserで実行前に拒否され、このsource error armは実行済みとしません。全体82 suite・1300 testとfmt／Clippy／docが成功し、**残り76 → 74 pt**、done 73行、計103行です。次はA02とnative N01の前提となるA01のownership artifact決定です。Native N03／N04／N05、indirect preview、ownership artifact、両tier-1実行・性能・debugと最終日英guideの要件を保持し、新exit gateは閉じません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**72 done · 0 doing · 31 todo · 76 remaining pt**
+**73 done · 0 doing · 30 todo · 74 remaining pt**
 
-**次: M2-V13 → source VM／REPL越しのprovisional core readとloan終了を検証。**
+**次: M2-A01 → native実装の前提となるownership artifactのversionとencodingを決定。**
 
-直近の完了：**M2-C07**（`f89b323`）。上限付き推移的cycle／brand検査、guest call越しのsealed read custody、C09 retirementを接続し、入れ子Vec／Map／shared／weak／arena値を実行します。CLI fixtureは **8／21／4／6**、保存したVec循環probeは23を表示します。Source 10 testで入れ子read／変更／return、expired weak、static escape、5 fixture全体の全OOM／retryとfuel prefixを確認しました。VM injection 3 testと実runtime値を使うVM境界probeでcleanup順序／span、失敗／panic／中断、poison、publish前のforeign brand／shared edge／work拒否を検証しました。全体 **82 suite・1297 test** とfmt／Clippy／docが成功し、**残り79 → 76 pt**、done 72行、計103行です。C08／C09後に必須としたsource成果を完了しました。V13／V17、native、ownership artifactは各gateを維持します。
+直近の完了：**M2-V13**（`9d9d2ac`）。Source VMとREPL反復実行でprovisional readを検証しました。成功／未使用／Vec error／Map不在の14 fixture、transactionalなsession復旧を伴う名前付きloanのcompile failure 5件、shared reader枯渇と外側loanの生存、その後の置換／read・厳密な解放を確認しました。全体 **82 suite・1300 test** とfmt／Clippy／docが成功し、**残り76 → 74 pt**、done 73行、計103行です。257重のarena read枯渇試験は構文のhard depth上限で実行前に拒否され、このarena error armの実行は主張しません。独立した既存runtime reader境界testをevidenceとして維持します。V17、native、ownership artifactは各gateを維持します。
 
-直近code baselineの実測（2026-10-18 JST）：test moduleを専用fileへ移した後の成功したworkspace Clippy **21.2秒**、全test **349.2秒**（新log作成から最終書き込みまで）、rustdoc **17.5秒**、すべて成功です。Ownership source suiteは入れ子source 10 testを含む139 test、新VM cleanup injection 3 testと入れ子brand境界probeも成功しました。Focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **1.6秒**、全test **30.8秒**（新log作成から最終書き込みまで）、rustdoc **12.0秒**、すべて成功です。V13のmatrix／境界3 testを含む全REPL 27 testが成功しました。Focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応しますが、indirect previewはV17、provisional readのVM／REPL conformance全体はV13です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
-次の着手条件（2026-10-18 JST）：C07でC08／C09後に必須とした入れ子source実行を完了し、CLI／source 5 fixtureとcleanup／failure全体を検証しました。V13の前提C03／C06／C07／R04／R06／V10が揃ったため、次は2 ptのVM／REPL provisional-read成功／未使用／失敗armとloan終了のconformanceを選びます。V17は実装前に明示的indirect-preview follow-upが必要です。Gate監査ではG07／G08／G09／G10にN03、G05にN04、G06にN05を維持し、artifact／platform／conformance／性能／debug要件全体を残します。従来成果とZ01の最終日英capability guideを保持し、新exit gateは閉じません。
+次の着手条件（2026-10-18 JST）：V13で対象範囲のconformanceを検証しました。A01の前提V08は完了済みで、A02がN01以降のnative作業を阻むため、次は2 ptのartifact version／encoding決定を選びます。V17は実装前に明示的indirect-preview follow-upが必要です。Gate監査ではG07／G08／G09／G10にN03、G05にN04、G06にN05を維持し、artifact／platform／conformance／性能／debug要件全体を残します。従来成果とZ01の最終日英capability guideを保持し、新exit gateは閉じません。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -122,7 +122,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-V07 | done | 0 | M2-V06,M2-V11,M2-V12 | G06 | Owned guest call／resultを再帰上限とreturn escrow付きで実行。 | `15436f0` |
 | M2-V08 | done | 0 | M2-V07,M2-D32 | G06 | Single／callの生成failure exitで、body／fuel／OOM／interruptionとcleanup error／panic注入時の入れ子drop順序／span、保護return、順序付き上限report、poison／再利用、全解放を検証。 | `a7af470` |
 | M2-V09 | done | 0 | M2-V04,M2-V06 | G07,G08 | Root／投影先置換でRHS effect越しに確定済みtargetを保持し、移譲用allocationなしでold cleanup前に公開。Caller所有権、field順序／span、失敗cleanup、再試行を維持。 | `0311bd0` |
-| M2-V13 | todo | 2 | M2-C03,M2-C06,M2-C07,M2-R04,M2-R06,M2-V10 | G08 | Provisional core readの成功／未使用／失敗armとloan終了をsource VM／REPL実行で検証。 | — |
+| M2-V13 | done | 0 | M2-C03,M2-C06,M2-C07,M2-R04,M2-R06,M2-V10 | G08 | Provisional core readの成功／未使用／失敗armとloan終了をsource VM／REPL実行で検証。 | `9d9d2ac` |
 | M2-V14 | done | 0 | M2-V08,M2-V09 | G08 | 委任でRFC 0010を受理。Owned REPL preview形式、result lifetime、明示allocator authority、上限出力、failure優先順位を決定しsource contractを検証。実装は未完了。 | `b09cc46` |
 | M2-V16 | done | 0 | M2-V14,M2-V08,M2-V09 | G08 | Namedな引数なしowned resultを上限付きmanaged previewとresult全retirementで実行し、source fixtureと失敗根拠を示す。 | `040c082` |
 | M2-V15 | done | 0 | M2-V14 | G08 | 生成ownership式wrapperの具体的resultを通常のHIR／MIR move／loan／region検証越しに推論し、user関数の推論は追加しない。 | `3ecef3b` |
