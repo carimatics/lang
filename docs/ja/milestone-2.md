@@ -6,13 +6,13 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**53 done · 0 doing · 44 todo · 113 remaining pt**
+**54 done · 0 doing · 46 todo · 118 remaining pt**
 
-**次: M2-R01 → MIRのarena brand／call effectを独立検証し、明示budget下で偽造escapeを拒否する。**
+**次: M2-R09 → 関数内MIRとCFG join／loopでarena brand、reference／capture path、storage lifetimeを転送する。**
 
-直近の完了：**M2-V10**（`834abe8`）。Ownership定義／式をREPL sessionとCLIへ接続し、[pipe transcript](../../examples/repl/owned.repl) でBytes／Text／入れ子Resultの表示、reset後の再評価が成功します。`submit_with_allocator` でauthorityを明示し、source定義だけを保持し、表示前にresult／storageを解放し、元sourceのpanic／cleanup reportはreset後も有効です。新integration 7 test、authorityの更新test、report transportのunit test 1件で解放、quota／fuel／display／OOM／interruption、未対応preflight、module、Copy host effect、CLI復帰を検証します。全体baselineの **71 suite・1064 test** とfmt／Clippy／doc／fuzz compile checkが成功しました。計画済み3 pt行の完了で **残り116 → 113 pt**、doneが1行増え、計97行で、新たな前提taskはありません。R01はrisk順queueの最初の着手可能行で、検証済みsource HIRがあっても独立MIR arena検証は必要です。G08には他service、provisional read、indirect previewが残り、新exit gateは完了扱いにしません。
+直近の完了：**M2-R08**（`24fb835`）。通算work／storage／elementとgraph quota下で、source非依存の有限MIR region shape、typed root／projection path、arena-owner symbol、call境界を準備し、再帰型は展開せずgraph edgeとして保持します。追加5 testでsource由来のtrust-boundary probe、厳密limit、field／loan／case／callの区別、再帰type identityを検証し、拡張fuzz targetも投影型を検証済みplace factsと比較します。全体baselineの **73 suite・1069 test** とfmt／Clippy／doc／fuzz compile checkが成功しました。R01着手前に3つの前提不足が判明し、元3 ptを計11 ptへ分割して **残り113 → 121 pt**、3行追加、計100行です。R08の3 pt完了で **118 pt**、doneが1行増えました。R08は構造の準備でregion proofではなく、probeは既存MIR admissionをまだ通ります。Local転送、call effect、必須proof admissionはR09／R10／R01、nested allocator reborrowのsource修正はR06／R07へ残します。元の成果やexit gateは削除せず、実装済みowned REPLも維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **10.7秒**、全test **127.6秒**（log作成から最終書き込みまで）、rustdoc **7.9秒**、fuzz Clippy **0.03秒**、すべて成功です。Focused check後の全baselineは1回です。検証所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **26.6秒**、全test **309.3秒**（log作成から最終書き込みまで）、rustdoc **19.4秒**、fuzz Clippy **3.1秒**、すべて成功です。Focused check後の全baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。後続indirect previewはV17、provisional core readはV13へ残します。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
@@ -52,6 +52,8 @@ V07着手前の監査（2026-10-18 JST）：[owned-call fixture](../../examples/
 V09着手前の監査（2026-10-18 JST）：provisional core readには未完了のVec／Map／shared／arena source adapterが必要ですが、C03／C06は既にV09へ依存しており、従来の複合行に依存cycleが隠れていました。Prepared replacementをV09へ残し、不足しているallocationなしのroot／field storage交換と、old cleanup前のpublication adapterを含めて **2 → 3 pt** へ再見積もりします。Provisional-readの成功／未使用／失敗armとVM／REPLのloan conformanceは、C03／C06／R04／R06／V10後の **V13（2 pt）** へ移します。両成果を維持し、**残り112 → 115 pt**、1行追加（計93行）、**48 done／1 doing／44 todo** です。V09では基盤を増やす前に実際のsource replacement fixtureを実行する成果を必須にし、元のexit gateは維持します。
 
 V10着手前の監査（2026-10-18 JST）：pipeしたREPL実験で妥当なowning関数の定義が拒否され、その呼び出しがunknownになりました。後続のCopy式は `3` を表示します。`src/frontend.rs` はwrapper推論をCopy checkerへ固定し、`src/repl.rs` はitem commit前にownershipを拒否し、owned VM entryは引数なしi64 main専用です。RFC 0006にはCopy aggregate表示がありますが、RFC 0007／0008にはBytes／Textのpreview構文や表示後のresult retirementがありません。その判断を **V14（2 pt）**、上限付きmanaged-result preview／実行を **V16（3 pt）**、独立検証するownership式推論を **V15（3 pt）** として明示します。V10のsession／CLI／authority／error統合は **2 → 3 pt** へ再見積もりします。Bytes／TextをM2の全result familyと暗黙に扱わず、後続indirect-service resultのpreview設計／実装も実adapter後の **V17（3 pt）** へ明示します。**残り112 → 124 pt**、4行追加（計97行）、**49 done／1 doing／47 todo** です。順序はV14 → V16のsource実行 → V15 → V10とし、判断後はcompiler基盤を増やす前にowned-result fixtureを実行します。従来の成果とexit gateを維持し、この監査で新実装の完成は主張しません。
+
+R01着手前の監査（2026-10-18 JST）：検証済みarena-tokenの `CopyPlace` だけを別のlive arenaの値へ差し替えた [source由来probe](../../tests/mir_regions.rs) が、type／move／loan-activity／loan／failure-CFG検証を通りました。同じsourceはHIRで拒否されますが、独立MIR region stageはありません。Loan topologyは意図的にnon-loan record fieldをopaqueに扱い、region value graphとcall-effect summaryを提供しません。3 ptのR01に4成果が隠れていたため、上限shape／path／owner／call境界の **R08（3 pt）**、関数内brand／loan／store／CFG転送の **R09（3 pt）**、再帰caller-projection／mutation／transient-store summaryの **R10（3 pt）** を明示します。3件の後に必須pipeline admission、構造化診断、偽造入力／resource／fuzz conformanceを行う **R01（2 pt）** を残し、元の拒否成果は維持します。**残り113 → 121 pt**、3行追加（計100行）、**53 done／1 doing／46 todo** です。R08は準備であり、region proofやarena実行／artifact有効化ではありません。R08／R09後は基盤拡張前にsource arena経路を再確認します。Probeではnested arenaでshared allocator parameterを再利用するとloweringでmoveされる不足も見つかったため、R06／R07のsource conformanceに修正を残します。新exit gateは完了扱いにしません。
 
 ## 完了済み実装
 
@@ -126,7 +128,10 @@ V10着手前の監査（2026-10-18 JST）：pipeしたREPL実験で妥当なowni
 
 | ID | State | Remaining pt | Needs | Gate | 成果／受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M2-R01 | todo | 3 | M2-D24 | G05 | MIR arena-brand／call-effectを独立検証し、偽造escapeをbudget付き診断で拒否。 | — |
+| M2-R08 | done | 0 | M2-D24 | G05 | 通算budget下で有限region type／slot／projection topology、arena-owner identity、region関連call境界をadmit。再帰shape edgeを展開せず保持し、region proofは行わない。 | `24fb835` |
+| M2-R09 | todo | 3 | M2-R08 | G05 | Local MIR操作、core value、CFG join／loopでarena brand、reference／capture path、storage lifetimeを独立転送し、直接のcross-region／escapeを拒否。 | — |
+| M2-R10 | todo | 3 | M2-R09 | G05 | Caller projection、正常return時mutation、全transient storeの再帰guest-call summaryをHIR factsなしで導出し、推移的／循環call escapeを拒否。 | — |
+| M2-R01 | todo | 2 | M2-D24,M2-R08,M2-R09,M2-R10 | G05 | Failure／実行admission前に独立MIR arena-brand／call-effect proofを必須化し、構造化span診断と偽造入力／resource／fuzz conformanceを維持。 | — |
 | M2-R02 | todo | 3 | M2-D02,M2-D33 | G06 | Shared storageをguest fallible allocationに接続し、payload／retirement全領域のpreflight／rollbackを会計。 | — |
 | M2-R03 | todo | 2 | M2-R02,M2-D34 | G06 | 本番shared／weak token adapterで所有権を検証し、test registryなしでpayload子孫をretire。 | — |
 | M2-R04 | todo | 3 | M2-R03,M2-V08 | G06,G14 | Shared／weakソース命令、upgrade、cycle拒否、rollbackを実行。 | — |
