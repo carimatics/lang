@@ -408,9 +408,7 @@ fn source_unused_owner_cleanup_precedes_native_return_publication() {
 
 #[test]
 fn unsupported_source_is_rejected_at_its_original_span() {
-    let program = source(
-        "fn make() -> core::Map<i64, i64> { return core::result_unwrap::<core::Map<i64, i64>, core::AllocError>(core::map_new::<i64, i64>(core::allocator())); }",
-    );
+    let program = source(include_str!("../examples/scripts/shared.lang"));
     let flow = program.failure_flow();
     let types = flow
         .source()

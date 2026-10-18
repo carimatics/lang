@@ -1,0 +1,44 @@
+// Map and Vec read leases compose; owning maps also cross guest returns.
+fn main() -> i64 {
+    let mut rows: core::Vec<core::Map<i64, core::Bytes>> = core::result_unwrap::<core::Vec<core::Map<i64, core::Bytes>>, core::AllocError>(core::vec_new::<core::Map<i64, core::Bytes>>(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<core::Map<i64, core::Bytes>>(rows, make()));
+    let mut outer: core::Map<i64, core::Vec<core::Map<i64, core::Bytes>>> = core::result_unwrap::<core::Map<i64, core::Vec<core::Map<i64, core::Bytes>>>, core::AllocError>(core::map_new::<i64, core::Vec<core::Map<i64, core::Bytes>>>(core::allocator()));
+    let mut inserted: core::Option<core::Vec<core::Map<i64, core::Bytes>>> = core::result_unwrap::<core::Option<core::Vec<core::Map<i64, core::Bytes>>>, core::AllocError>(core::map_insert::<i64, core::Vec<core::Map<i64, core::Bytes>>>(outer, 7, rows));
+    let mut query: i64 = 7;
+    let mut inner_key: i64 = 3;
+    let mut observed: i64 = 0;
+    match core::map_get::<i64, core::Vec<core::Map<i64, core::Bytes>>>(outer, query) {
+        core::Option::Some(row) => {
+            match core::vec_get::<core::Map<i64, core::Bytes>>(row, 0) {
+                core::Result::Ok(inner) => {
+                    match core::map_get::<i64, core::Bytes>(inner, inner_key) {
+                        core::Option::Some(value) => { observed = core::bytes_len(value); },
+                        core::Option::None => { return -1; },
+                    }
+                },
+                core::Result::Err(_) => { return -2; },
+            }
+        },
+        core::Option::None => { return -3; },
+    }
+    let mut removed: core::Vec<core::Map<i64, core::Bytes>> = core::option_unwrap::<core::Vec<core::Map<i64, core::Bytes>>>(core::map_remove::<i64, core::Vec<core::Map<i64, core::Bytes>>>(outer, query));
+    let mut last: core::Map<i64, core::Bytes> = core::option_unwrap::<core::Map<i64, core::Bytes>>(core::vec_pop::<core::Map<i64, core::Bytes>>(removed));
+    let mut bytes: core::Bytes = core::option_unwrap::<core::Bytes>(core::map_remove::<i64, core::Bytes>(last, inner_key));
+    match core::map_remove::<i64, core::Bytes>(last, inner_key) {
+        core::Option::Some(_) => { return -4; },
+        core::Option::None => {},
+    }
+    match core::map_get::<i64, core::Bytes>(last, inner_key) {
+        core::Option::Some(_) => { return -5; },
+        core::Option::None => {},
+    }
+    return observed + core::bytes_len(bytes) + core::map_len::<i64, core::Vec<core::Map<i64, core::Bytes>>>(outer) + core::vec_len::<core::Map<i64, core::Bytes>>(removed) + core::map_len::<i64, core::Bytes>(last);
+}
+
+fn make() -> core::Map<i64, core::Bytes> {
+    let mut result: core::Map<i64, core::Bytes> = core::result_unwrap::<core::Map<i64, core::Bytes>, core::AllocError>(core::map_new::<i64, core::Bytes>(core::allocator()));
+    let mut value: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(value, 65));
+    let mut added: core::Option<core::Bytes> = core::result_unwrap::<core::Option<core::Bytes>, core::AllocError>(core::map_insert::<i64, core::Bytes>(result, 3, value));
+    return result;
+}

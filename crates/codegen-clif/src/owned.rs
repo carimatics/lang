@@ -1052,6 +1052,11 @@ fn prepare<'a>(
                                 | o::core::Operation::TextLen
                                 | o::core::Operation::TextBytes
                                 | o::core::Operation::TextEqual
+                                | o::core::Operation::MapNew
+                                | o::core::Operation::MapLen
+                                | o::core::Operation::MapInsert
+                                | o::core::Operation::MapGet
+                                | o::core::Operation::MapRemove
                                 | o::core::Operation::VecNew
                                 | o::core::Operation::VecLen
                                 | o::core::Operation::VecPush

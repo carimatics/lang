@@ -1,6 +1,8 @@
 use super::*;
 #[path = "native_core.rs"]
 mod core;
+#[path = "native_maps.rs"]
+mod maps;
 #[path = "native_places.rs"]
 mod places;
 #[path = "native_owned_values.rs"]
@@ -91,6 +93,9 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
                 loans[*id].target = None;
                 if let Some(mut read) = loans[*id].vector_read.take() {
                     read.end(layouts, allocator).map_err(|_| 98u32)?;
+                }
+                if let Some(mut read) = loans[*id].map_read.take() {
+                    read.end(layouts, allocator).map_err(|_| 99u32)?;
                 }
                 return Ok(());
             }
@@ -304,7 +309,9 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         places::discard(self, id)
     }
     fn core_call(&mut self, site: &n::CoreSite) -> n::ResultStep {
-        if vectors::supports(site.operation) {
+        if maps::supports(site.operation) {
+            maps::call(self, site)
+        } else if vectors::supports(site.operation) {
             vectors::call(self, site)
         } else {
             core::call(self, site)
@@ -758,10 +765,9 @@ fn execute_prepared<'l>(
     drop(instance);
     let mut state = store.into_inner();
     assert!(
-        state
-            .loans
-            .iter()
-            .all(|loan| loan.target.is_none() && loan.vector_read.is_none()),
+        state.loans.iter().all(|loan| loan.target.is_none()
+            && loan.vector_read.is_none()
+            && loan.map_read.is_none()),
         "all registrations retire before frame release"
     );
     assert!(

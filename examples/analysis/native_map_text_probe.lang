@@ -1,0 +1,27 @@
+// A borrowed Map value can itself serve as an exact Text lookup key.
+fn main() -> i64 {
+    let mut values: core::Map<core::Text, core::Text> = core::result_unwrap::<core::Map<core::Text, core::Text>, core::AllocError>(core::map_new::<core::Text, core::Text>(core::allocator()));
+    let mut first: core::Option<core::Text> = core::result_unwrap::<core::Option<core::Text>, core::AllocError>(core::map_insert::<core::Text, core::Text>(values, key(65), key(66)));
+    let mut second: core::Option<core::Text> = core::result_unwrap::<core::Option<core::Text>, core::AllocError>(core::map_insert::<core::Text, core::Text>(values, key(66), key(67)));
+    let mut query: core::Text = key(65);
+    let mut missing: core::Text = key(68);
+    match core::map_get::<core::Text, core::Text>(values, missing) {
+        core::Option::Some(_) => { return -1; },
+        core::Option::None => {},
+    }
+    match core::map_get::<core::Text, core::Text>(values, query) {
+        core::Option::Some(next) => {
+            match core::map_get::<core::Text, core::Text>(values, next) {
+                core::Option::Some(found) => { return core::text_len(found); },
+                core::Option::None => { return -2; },
+            }
+        },
+        core::Option::None => { return -3; },
+    }
+}
+
+fn key(byte: i64) -> core::Text {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, byte));
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes));
+}
