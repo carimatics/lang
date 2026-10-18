@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み56件 · 進行中0件 · 残り44件（暫定112 pt）。**
+**検証済み57件 · 進行中0件 · 残り43件（暫定110 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む30件の成果を検証しました。R10（`28f2080`）で独立MIR caller projection、正常return時の変更、全transient store要件を導出し、上書きされるstoreや相互／非return再帰も扱います。1つのcall前value／path snapshotで精密なfield／case、同時output、再帰的なclearを保ち、全guest callのreturn制御を解析します。追加13件のsource由来testで偽造escape、入れ子reference、Vec／Map／provisional binding、span、到達性、厳密limitを検証しました。全体baselineの74 suite・1090 testとfmt／Clippy／doc／fuzz compile checkが成功しました。R10の3 pt完了で **残り115 → 112 pt**、done 56行、計100行です。完全call解析は偽造callerを拒否しますが既存failure entryはまだ通るため、次のR01でfailure／実行admission前のproofを必須化します。Arena fixtureはVM admissionでまだ停止し、allocation／実行／reborrowはR05／R06／R07へ残し、元のarena／native／artifact gateも未完了です。Owned REPL、V17のindirect preview、V13のprovisional readは従来の状態を維持し、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む31件の成果を検証しました。R01（`dd0b006`）でfailure CFG構築とowned実行admission前に独立region／call proofの完了を必須化しました。偽造tokenとtransient-store escapeを共通入口で拒否し、通算budget、6種のregion quota、元snapshotのcall／store診断を検証しました。追加3 testと上限付き・非instrumentのstable fuzz smoke 10,000回が成功しました。全体baselineの74 suite・1093 testとfmt／Clippy／doc／locked fuzz checkも成功しました。R01の2 pt完了で **残り112 → 110 pt**、done 57行、計100行です。Source arena fixtureはeffect前のVM admissionでまだ停止するため、次はR05のguest payload確保／retirement、続いてR06のsource実行です。Shared allocator reborrow修正はR06／R07へ維持し、元のarena／native／artifact gateも未完了です。Owned REPL、V17のindirect preview、V13のprovisional readは従来の状態を維持し、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
