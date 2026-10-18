@@ -8,7 +8,7 @@
 
 ## 現在のM2実装状況
 
-**検証済み67件 · 進行中0件 · 残り34件（暫定85 pt）。**
+**検証済み67件 · 進行中1件 · 残り33件（暫定85 pt）。**
 
 現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む41件の成果を検証しました。C04（`348dc42`）でallocator-backed Map storage、数値／UTF-8 byte単位の厳密な等価判定、登録付きread lookupを追加しました。Unit 3 testとintegration 11 testで独立equality oracle、OOM／retry前後の所有権、allocation／work上限、lease寿命／競合、provenance、失敗／panic後の逆順cleanupと完全解放を検証しました。全体baselineの80 suite・1230 testとfmt／Clippy／docが成功し、**残り88 → 85 pt**、done 67行、計101行です。現在のsource VM Map dispatchはC06へ残します。次のC05はfailure-atomicなinsert／replacement／removalで、旧記述に欠けていた受理済みの `map_remove` も明記しました。等しい元keyの保持、入力した等価keyのretire、置換valueの返却を含み、実replacement／removal実験までは暫定3 ptとします。C04／C05の基盤2件後は、追加基盤作業より先にC06で全5種のsource Map操作を実行します。入れ子統合全体はV13／V17とnative N04の前提C07に維持します。Native、collection、provisional-read／preview、artifactのevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 

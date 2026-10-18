@@ -6,7 +6,7 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**67 done · 0 doing · 34 todo · 85 remaining pt**
+**67 done · 1 doing · 33 todo · 85 remaining pt**
 
 **Next: M2-C05 → failure-atomic Map insert/replacement/removal, preserving equal stored keys and displaced ownership.**
 
@@ -147,8 +147,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-C01 | done | 0 | M2-D33,M2-D34 | G09 | Vec storage/new/len/push growth is allocator-aware and failure-atomic. | `78a422a` |
 | M2-C02 | done | 0 | M2-C01 | G09 | Vec read/mutable-read/take/replacement retire moved or replaced elements exactly once. | `1271ad8` |
 | M2-C03 | done | 0 | M2-C02,M2-V09 | G09 | Execute source Vec operations with move/loan/growth/failure fixtures and service-specific payload preflight before effects. | `3dca725` |
-| M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage and registered read lookup implement exact accepted key equality under allocation budgets. | `348dc42`; 3 unit + 11 integration tests; full baseline 1230/80, fmt/Clippy/doc. |
-| M2-C05 | todo | 3 | M2-C04 | G10 | Map insert/replacement/removal is failure-atomic, preserves equal stored keys and retires displaced keys/values exactly once. | — |
+| M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage and registered read lookup implement exact accepted key equality under allocation budgets. | `348dc42` |
+| M2-C05 | doing | 3 | M2-C04 | G10 | Map insert/replacement/removal is failure-atomic, preserves equal stored keys and retires displaced keys/values exactly once. | — |
 | M2-C06 | todo | 3 | M2-C05,M2-V09 | G10 | Execute source Map operations with independent equality/replacement/failure oracles. | — |
 | M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06 | G05,G06,G09,G10 | Integrate nested Vec/Map/shared/arena values through bounded cross-service edge/brand inspection and iterative cleanup; verify source cycle/escape, reverse-drop and failure cases. | — |
 

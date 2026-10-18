@@ -84,8 +84,8 @@ Add focused tests for behavior changes. Compiler work should use the appropriate
 - Use the [M2 delivery board](docs/milestone-2.md) for implementation work; the roadmap's broad exit-gate weights are not a remaining-effort forecast.
 - Before coding, select one observable 1–3-point delivery and mark it doing. Keep at most one doing row. Expose and re-estimate a new prerequisite before implementing it; never repeatedly retain an estimate without checking the remaining task list.
 - If planning produces no patch or executable experiment within 10 minutes, narrow the task and run the smallest useful experiment before further design. Add abstractions/hardening only for the selected outcome or accepted requirements.
-- Update the bilingual board with implementation/validation evidence after each delivery. Keep exit-gate completion separate from completed prerequisites. Prefer the next source execution fixture over additional horizontal scaffolding; review the sequence after two prerequisite deliveries without a new execution fixture.
-- Keep planning updates short: update rows and current counts. Add narrative audits for changed scope, dependencies, estimates or exit decisions. Documentation-only planning updates require repository consistency checks, not another unchanged full compiler baseline.
+- Update the bilingual board with implementation/validation evidence after each delivery. Evidence cells contain only the code commit hash; put validation details in the delivery note. Keep exit-gate completion separate from completed prerequisites. Prefer the next source execution fixture over additional horizontal scaffolding; review the sequence after two prerequisite deliveries without a new execution fixture.
+- Keep planning updates short: update rows and current counts. Add narrative audits for changed scope, dependencies, estimates or exit decisions. For documentation-only planning updates, run `cargo test --test repository_consistency`; use this existing validator rather than a separate partial check or another unchanged full compiler baseline.
 
 ## Security
 

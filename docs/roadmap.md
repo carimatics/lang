@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**67 verified deliveries · 0 in progress · 34 remaining tasks (provisional 85 pt).**
+**67 verified deliveries · 1 in progress · 33 remaining tasks (provisional 85 pt).**
 
 Use the [M2 delivery board](milestone-2.md) for current Todo rows, evidence and remaining estimates (updated 2026-10-18 JST). There have been 41 verified deliveries since the gate score last changed, including planned follow-up design decisions. C04 (`348dc42`) adds allocator-backed Map storage, exact numeric/UTF-8-byte equality and registered read lookup. Three unit and eleven integration tests cover independent equality oracles, ownership across OOM/retry, allocation/work limits, lease lifetime/conflicts, provenance and reverse cleanup after failure/panic with full release. The full baseline of 1230 tests in 80 suites passes with fmt/Clippy/doc: **88 → 85 remaining pt**, 67 done rows and 101 total. Current source VM Map dispatch remains C06. Next C05 includes failure-atomic insert/replacement/removal; accepted `map_remove` was missing from its old description and is now explicit. Preserve the equal stored key, retire incoming equal keys and return displaced values; its 3 pt remains provisional until a real replacement/removal experiment. After C04/C05's two foundations, C06 must execute all five source Map operations before more foundation work. C07 retains full nested integration before V13/V17 and native N04. Native, collection, provisional-read/preview and artifact evidence remains necessary; no new exit gate closes.
 

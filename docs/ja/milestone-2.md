@@ -6,7 +6,7 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**67 done · 0 doing · 34 todo · 85 remaining pt**
+**67 done · 1 doing · 33 todo · 85 remaining pt**
 
 **次: M2-C05 → Map insert／replacement／removalをfailure-atomicにし、等しい元keyと置換した所有権を保持する。**
 
@@ -147,8 +147,8 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-C01 | done | 0 | M2-D33,M2-D34 | G09 | Vec storage／new／len／push growthをallocator-awareかつfailure-atomicに実装。 | `78a422a` |
 | M2-C02 | done | 0 | M2-C01 | G09 | Vec read／mutable-read／take／replacementで移動／置換elementを正確に1回retire。 | `1271ad8` |
 | M2-C03 | done | 0 | M2-C02,M2-V09 | G09 | Vecソース命令をmove／loan／growth／failure fixtureと副作用前のservice別payload preflightで実行。 | `3dca725` |
-| M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage／登録付きread lookupで受理済みの厳密key equalityとallocation budgetを実装。 | `348dc42`; 3 unit + 11 integration tests; full baseline 1230/80, fmt/Clippy/doc. |
-| M2-C05 | todo | 3 | M2-C04 | G10 | Map insert／replacement／removalをfailure-atomicにし、同値の既存keyを保持して旧key／valueを1回だけretire。 | — |
+| M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage／登録付きread lookupで受理済みの厳密key equalityとallocation budgetを実装。 | `348dc42` |
+| M2-C05 | doing | 3 | M2-C04 | G10 | Map insert／replacement／removalをfailure-atomicにし、同値の既存keyを保持して旧key／valueを1回だけretire。 | — |
 | M2-C06 | todo | 3 | M2-C05,M2-V09 | G10 | Mapソース命令を独立したequality／replacement／failure oracleで検証。 | — |
 | M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06 | G05,G06,G09,G10 | 上限付きcross-service edge／brand検証と反復cleanupで入れ子Vec／Map／shared／arena値を統合し、source cycle／escape、逆順drop、失敗caseを検証。 | — |
 
