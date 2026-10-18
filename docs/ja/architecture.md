@@ -317,6 +317,16 @@ Reference cellの借用と、その内容へのaccessは別操作として扱い
 
 出典：受理済み[RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[provenance／access checker](../../crates/mir/src/unit/ownership/loans/mod.rs)、[test](../../crates/mir/tests/ownership_loans.rs)、[prepare済みfield regression](../../crates/mir/tests/ownership_prepared.rs)、[source組み立てfixture](../../crates/semantics/tests/ownership_types.rs)。更新／検証日：2026-10-17 JST。Cell topology、bit matrix、無効化表現は受理済みprofile内の実装上の選択です。
 
+### Independent MIR region preparation
+
+2026-10-18 JST実装・確認：`lang_mir::unit::ownership::regions::prepare` はloan検証済みMIRから読み取り専用 `Plan` をadmitします。Scalar／nominal／constructed型のidentity、source span、推移的propertyを保持し、recordは宣言順field、nominal enumとOption／Result sumは別々のpayload、loan／collection／shared／weak／arena型は明示edgeを保持します。再帰indirect型をcellとして再帰展開せず、有限graph cycleとして表します。Function planはtyped local／SSA root、すべてのfield／dereference stepとspan、arena core-callの具体owner symbol、引数にarena値やowner authorityを含み得るguest／import call境界を保持します。HIR region facts、backend型、runtime pointer、allocator callbackは使いません。
+
+準備は入力の累積work／要求byte／element会計を再開します。Plan公開前に個別node／path／edge quotaを検証し、全明示vectorをadmitし、反復走査を行い、失敗後もimmutableな入力を再利用できます。Node IDは1つのplan内のmetadataであり、storageやauthorityではありません。範囲外IDへのqueryは失敗します。これは構造の準備だけであり、brand推論、storage lifetimeやcall effectの証明、failure／VM admissionの変更は行いません。R09／R10／R01へその成果を残し、arena実行とownership artifactのgateは維持します。
+
+着手前のprobeは検証済みsourceから始め、tokenの `CopyPlace` だけを別のlive arenaのtokenへ差し替え、既存MIR type／move／activity／loan／failure検証が通る一方、同等sourceはHIRで拒否されることを確認します。R08は異なるtoken rootと要求arena-owner symbolを後続proofで使えるよう保持しますが、その不足を修正したとはしません。Source由来3 testはfield／loan／case／callの区別と、全準備quotaの厳密値／1不足を検証します。MIR 2 testは有限な再帰Vec／Map shape、type／span identity、functionなしgraph、公開前limitを検証します。Body fuzz targetも上限付きplanを準備し、投影結果型を独立した検証済みplace factsと比較します。Locked fuzz compileを確認し、fuzz campaignは主張しません。追加で見つかったnested arenaのshared allocator reborrow lowering不足はR06／R07のsource conformanceへ記録しています。
+
+情報源：[受理済みarena意味論](rfcs/0007-source-ownership-and-core-values.md)、[準備](../../crates/mir/src/unit/ownership/regions/mod.rs)、[type graph](../../crates/mir/src/unit/ownership/regions/types.rs)、[source由来probe／test](../../tests/mir_regions.rs)、[再帰graph test](../../crates/mir/tests/region_topology.rs)、[fuzz target](../../fuzz/fuzz_targets/ownership_mir_bodies.rs)、[着手前の監査](milestone-2.md)。2026-10-18 JST更新・確認。表現とcost上限は実装上の選択であり、source／ABI／wire契約や性能主張は変更しません。
+
 ### Ownership MIR core-call contracts
 
 2026-10-17実装：`lang_mir::unit::ownership::core` は受理済みRFC 0007の全34 operationを独立に規定します。`CoreCall` は具体type argumentのspanと記述したoperand順を保持します。Typed body検証は正確な引数／結果形状、storable／map-key／shared-payload制約、必須result-loan identity、arena operationの具体的な字句的owner authorityを確認します。Frontendの網羅的adapterはHIR型をMIR APIへ公開せずsource operation identityを対応付けます。HIR／MIR testはどちらかの実装から期待値を生成せず、独立した共通RFC signature fixtureを使います。

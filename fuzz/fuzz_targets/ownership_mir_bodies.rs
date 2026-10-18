@@ -436,7 +436,40 @@ fuzz_target!(|bytes: &[u8]| {
                         loans::analyze(checked.clone().into_activity(), limits).unwrap(),
                         checked
                     );
-                    use lang_mir::unit::ownership::failure;
+                    use lang_mir::unit::ownership::{failure, regions};
+                    if let Ok(plan) = regions::prepare(
+                        &checked,
+                        regions::Limits {
+                            work: 100_000,
+                            allocations: 2 * 1024 * 1024,
+                            elements: 100_000,
+                            nodes: 256,
+                            paths: 256,
+                            edges: 4096,
+                        },
+                    ) {
+                        let typed = checked.activity().moved().typed();
+                        let places = typed.places();
+                        assert_eq!(plan.nodes().len(), plan.counts().nodes);
+                        assert_eq!(plan.functions().len(), typed.functions().len());
+                        assert!(plan.usage().work >= checked.work_used());
+                        for (index, function) in plan.functions().iter().enumerate() {
+                            for (position, path) in function.paths().iter().enumerate() {
+                                let actual = plan.node(path.result()).unwrap().ty;
+                                let expected = places
+                                    .facts(
+                                        m::FunctionId(index as u32),
+                                        o::places::PlaceId(position as u32),
+                                    )
+                                    .unwrap()
+                                    .value_type;
+                                assert_eq!(
+                                    places.declarations().types().equivalent(actual, expected),
+                                    Some(true)
+                                );
+                            }
+                        }
+                    }
                     let limits = failure::Limits {
                         work: 100_000,
                         allocations: 2 * 1024 * 1024,
