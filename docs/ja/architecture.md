@@ -321,7 +321,7 @@ Reference cellの借用と、その内容へのaccessは別操作として扱い
 
 2026-10-18 JST実装・確認：`lang_mir::unit::ownership::regions::prepare` はloan検証済みMIRから読み取り専用 `Plan` をadmitします。Scalar／nominal／constructed型のidentity、source span、推移的propertyを保持し、recordは宣言順field、nominal enumとOption／Result sumは別々のpayload、loan／collection／shared／weak／arena型は明示edgeを保持します。再帰indirect型をcellとして再帰展開せず、有限graph cycleとして表します。Function planはtyped local／SSA root、すべてのfield／dereference stepとspan、arena core-callの具体owner symbol、引数にarena値やowner authorityを含み得るguest／import call境界を保持します。HIR region facts、backend型、runtime pointer、allocator callbackは使いません。
 
-準備は入力の累積work／要求byte／element会計を再開します。Plan公開前に個別node／path／edge quotaを検証し、全明示vectorをadmitし、反復走査を行い、失敗後もimmutableな入力を再利用できます。Node IDは1つのplan内のmetadataであり、storageやauthorityではありません。範囲外IDへのqueryは失敗します。準備自体はbrand推論、storage lifetimeやcall effectの証明、failure／VM admissionの変更を行いません。後述のlocal転送がR09に対応し、再帰call effectと必須admissionはR10／R01へ残します。Arena実行とownership artifactのgateは維持します。
+準備は入力の累積work／要求byte／element会計を再開します。Plan公開前に個別node／path／edge quotaを検証し、全明示vectorをadmitし、反復走査を行い、失敗後もimmutableな入力を再利用できます。Node IDは1つのplan内のmetadataであり、storageやauthorityではありません。範囲外IDへのqueryは失敗します。準備自体はbrand推論、storage lifetimeやcall effectの証明、failure／VM admissionの変更を行いません。後述のlocal／call解析がR09／R10に対応し、必須admissionはR01へ残します。Arena実行とownership artifactのgateは維持します。
 
 着手前のprobeは検証済みsourceから始め、tokenの `CopyPlace` だけを別のlive arenaのtokenへ差し替え、既存MIR type／move／activity／loan／failure検証が通る一方、同等sourceはHIRで拒否されることを確認します。R08は異なるtoken rootと要求arena-owner symbolを後続proofで使えるよう保持しますが、その不足を修正したとはしません。Source由来3 testはfield／loan／case／callの区別と、全準備quotaの厳密値／1不足を検証します。MIR 2 testは有限な再帰Vec／Map shape、type／span identity、functionなしgraph、公開前limitを検証します。Body fuzz targetも上限付きplanを準備し、投影結果型を独立した検証済みplace factsと比較します。Locked fuzz compileを確認し、fuzz campaignは主張しません。追加で見つかったnested arenaのshared allocator reborrow lowering不足はR06／R07のsource conformanceへ記録しています。
 
@@ -333,11 +333,25 @@ Reference cellの借用と、その内容へのaccessは別操作として扱い
 
 Storage scopeはactiveなarena下の明示MIR初期化／破棄から導出し、source文字列や信頼済みfrontend注釈には依存しません。Local arena brandを、より長く生きるlocalやcaller cellへstoreできません。Arena操作は独立に型検証したownerと、それに一致する推移的token／payload brandを要求します。Arena終了で値とstorage scopeを失効させ、同じstatic ownerの再enterでも古いtokenやstorageを復活させません。Move、sum全体の抽出、core read投影、Vec／Map更新、cleanup、prepared replacement、return escapeへ適用します。Loan provenanceとexclusive accessは先行loan proofの義務です。
 
-準備の累積work／byte／element budgetを引き継ぎ、intern node、block／scratch state cell、再帰depthも個別に制限します。失敗時は結果を公開せずplanを再利用できます。構造化errorは操作spanと関連arena／parameter宣言を保持します。Call-site ordinalとarena spanもMIRの1始まりの命令 `Site` に統一しました。Region関連guest／import siteは **未完了のcall義務** として明示的に返し、mutationやtransient storeのsummaryはまだ導出しません。その関数のentryは暫定値で最終診断も保留し、変更前の古い状態で妥当なsourceを拒否しません。R10でsummary適用後に未完了関数全体を再検証します。結果はadmission witnessではなく、failure／VM admissionへも未接続です。Arena実行前にR10／R01で義務を解消する必要があります。
+準備の累積work／byte／element budgetを引き継ぎ、intern node、block／scratch state cell、再帰depthも個別に制限します。失敗時は結果を公開せずplanを再利用できます。構造化errorは操作spanと関連arena／parameter宣言を保持します。Call-site ordinalとarena spanはMIRの1始まりの命令 `Site` に統一します。全guest callとregion関連importを **未完了のcall義務** として返し、plain callでも正常returnの制御解析を要求します。その関数のentryは暫定値で最終診断も保留し、mutationや正常に戻らないcall前の古い状態で妥当なsourceを拒否しません。後述のcall解析でsummaryを適用して未完了関数を再検証します。Failure／VMでの必須admissionはR01へ残し、このlocal結果だけをadmission witnessとはしません。
 
 追加8件のsource由来testで、同一arenaの受理とpending call、解析fixture、product／sum／reference／containerの精度、source loop、偽造した捕捉storeとCFG joinのescape、同一site再生成、CFG引数backedge、pending call越しの妥当な変更、通算limitの厳密値／1不足を検証します。従来の偽造token probeも、このlocal解析は拒否しますが既存admission経路はまだ受け入れます。Body fuzz targetも上限付きlocal転送を呼び、locked fuzz compileのみ確認します。[Arena source fixture](../../examples/analysis/arena.lang) のCLI `check` は成功し、`run` はownership VM admissionでまだ失敗します。R08／R09後の再点検により、arena gateを閉じず、call proof／統合（R10／R01）、guest payload allocation（R05）、source実行（R06／R07）、shared allocator reborrow lowering修正を維持します。
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[local解析](../../crates/mir/src/unit/ownership/regions/local.rs)、[value／place graph](../../crates/mir/src/unit/ownership/regions/local/values.rs)、[転送](../../crates/mir/src/unit/ownership/regions/local/transfer.rs)、[test](../../tests/mir_regions.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・確認。受理済み意味論内の実装上の選択であり、ABIやserialized formatは導入しません。
+
+### Independent MIR guest-call region effects
+
+2026-10-18 JST実装・検証：`regions::calls::analyze` はHIR regionやmutation summaryを使わず、loan検証済みMIR planからguest-call summaryを導出します。Typed function resultはarena brandやordinary loanを含めないため、outputはcaller storageの変更を表します。Symbolic input projectionはparameter、入れ子dereference、record field、enum／Option／Result case、保守的なcontainer elementのidentityを保持します。正常return時のoutputと、各transient storeのincoming brand／元source spanを別々に保持し、後からclearしても先のstore要件を消しません。
+
+正常に戻らないsummaryを初期値として、会計するfixed-point roundを進めます。Callが正常returnできなくてもstore要件は適用します。正常returnだけがoutput変更やCFG後続に寄与し、region引数がないものも含め全guest callを解析します。収束後に安定したeffectで全関数を再検証します。正常output値とdestination／reference pathを、公開前に1つの不変なcall前snapshotから解決し、複数outputで既に変更したinput cellを読みません。最終function reportのguest callは未完了で残らず、到達不能blockのqueryはfactsを返しません。Region関連importはeffect contract不足の構造化errorで拒否します。
+
+Callerへのstoreは公開前に実際のdestination lifetimeを検証します。Product／caseの精度と再帰的な確定clearを保ち、Vec／Map storeと成功したprovisional element bindingにも同じlocal転送を使います。先行する独立loan proofがreference provenance、access排他、callee referenceをforeign reference cellへ格納する禁止を引き続き保証します。Call解析は新しいborrow authorityを作りません。Errorはcaller callのspanと元callee storeのspanを保持し、再帰経由の要件も同様です。
+
+Work／要求byte／elementは準備prefix、全summary round、最終replayを通算します。Intern済みvalue／path／summary／effect node、entry／scratch／output／call-snapshot state cell、再帰projection／template走査も個別quotaで制限します。全明示vectorは拡張前にadmitします。Budget不足では途中reportを公開せず、planを再利用できます。Algorithm、template、quotaはRFC 0007内の実装上の選択であり、source ABIやserialized tagは導入しません。
+
+Source由来13 testで、上書きされるstore、call／store spanの実際のsource slice、local-region storeの操作span、正常output、product／sum input projection、入れ子reference target、Vec／Map変更、provisional element転送、同時output、再帰的な確定clear、相互／非return再帰、plain非return callの到達性、累積quotaの厳密値／1不足、先行loan境界を検証します。偽造MIRは先行type／move／activity／loan stageを通りますが、完全call解析はlifetime escapeを拒否します。Body fuzz targetも上限付きcall解析を呼び、locked fuzz compileのみ確認します。同じ偽造callerは既存の `failure::elaborate` entryをまだ通り、R01の必須admissionが残っている根拠になります。R10はarenaのVM／native実行やownership artifactを有効にせず、R05／R06／R07と従来gateを維持します。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[call解析](../../crates/mir/src/unit/ownership/regions/local/calls.rs)、[共通転送](../../crates/mir/src/unit/ownership/regions/local/transfer.rs)、[source由来conformance](../../tests/mir_region_calls.rs)、[上限付きfuzz target](../../fuzz/fuzz_targets/ownership_mir_bodies.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・確認。
 
 ### Ownership MIR core-call contracts
 

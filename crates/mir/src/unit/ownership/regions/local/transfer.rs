@@ -5,7 +5,7 @@ use crate::unit::ownership::core;
 // mode explicit. Propagation and the final check use the identical operations.
 #[allow(clippy::too_many_arguments)]
 impl Engine {
-    fn error(
+    pub(super) fn error(
         &self,
         plan: &Plan<'_>,
         index: usize,
@@ -55,7 +55,7 @@ impl Engine {
         }
         Ok(())
     }
-    fn storage(
+    pub(super) fn storage(
         &mut self,
         plan: &Plan<'_>,
         index: usize,
@@ -88,7 +88,7 @@ impl Engine {
         }
         Ok(())
     }
-    fn consume(&mut self, plan: &Plan<'_>, row: &mut [usize], value: m::Register) {
+    pub(super) fn consume(&mut self, plan: &Plan<'_>, row: &mut [usize], value: m::Register) {
         let root = self.value_root(value);
         if !plan.nodes[self.roots[root].node.0].properties.is_copy {
             row[root] = 0;
@@ -134,7 +134,7 @@ impl Engine {
         }
         Ok(out)
     }
-    fn read_locations(
+    pub(super) fn read_locations(
         &mut self,
         plan: &Plan<'_>,
         row: &[usize],
@@ -204,7 +204,7 @@ impl Engine {
             self.intern(Data::Sum(cases), admit)
         }
     }
-    fn store(
+    pub(super) fn store(
         &mut self,
         plan: &Plan<'_>,
         index: usize,
@@ -217,7 +217,15 @@ impl Engine {
     ) -> Result<()> {
         for place in places {
             let (root, path) = self.place_parts(*place, admit)?;
-            self.storage(plan, index, row, root, value, span, admit, check)?;
+            let foreign = self.record && matches!(self.roots[root].kind, RootKind::Caller { .. });
+            // Foreign storage always outlives this frame's local arenas. This
+            // check is independent of incomplete recursive output summaries.
+            self.storage(plan, index, row, root, value, span, admit, check || foreign)?;
+            if foreign {
+                let brands = self.collect(row, value, admit, 0)?;
+                self.record_store(root, brands, span, admit)?;
+                self.wrote[root] = true;
+            }
             let node = self.roots[root].node;
             let new = self.update(plan, row, row[root], node, &path, value, admit, 0)?;
             row[root] = if places.len() > 1 {
@@ -228,7 +236,7 @@ impl Engine {
         }
         Ok(())
     }
-    fn result(
+    pub(super) fn result(
         &mut self,
         row: &mut [usize],
         root: usize,
@@ -517,16 +525,26 @@ impl Engine {
         site: bodies::Site,
         admit: &mut Admission,
         check: bool,
-    ) -> Result<()> {
+        summaries: Option<&[calls::Summary]>,
+    ) -> Result<bool> {
         use bodies::Op;
         admit.budget.charge(1)?;
         // Destruction does not dereference a token. Cleanup may deliberately
         // retire storage after revoking an arena, including failure paths.
         if let Op::Cleanup(c) = &i.op {
             for step in &c.steps {
-                self.operation(plan, index, row, &step.instruction(), site, admit, check)?;
+                self.operation(
+                    plan,
+                    index,
+                    row,
+                    &step.instruction(),
+                    site,
+                    admit,
+                    check,
+                    summaries,
+                )?;
             }
-            return Ok(());
+            return Ok(true);
         }
         if !matches!(i.op, Op::DropValue(_) | Op::DropValueIfAvailable(_)) {
             for v in i.op.operands() {
@@ -542,6 +560,51 @@ impl Engine {
             }
         }
         let output = i.results.first().map(|v| self.value_root(*v));
+        if let (
+            Some(summaries),
+            Op::Call {
+                function,
+                arguments,
+            },
+        ) = (summaries, &i.op)
+        {
+            let returns = self.apply_call(
+                plan,
+                index,
+                row,
+                *function,
+                arguments,
+                &summaries[function.0 as usize],
+                i.span,
+                admit,
+                check,
+            )?;
+            for argument in arguments {
+                self.consume(plan, row, *argument);
+            }
+            if returns && let Some(output) = output {
+                self.result(row, output, 0, admit)?;
+            }
+            return Ok(returns);
+        }
+        if summaries.is_some()
+            && let Op::Import { import, arguments } = &i.op
+        {
+            for argument in arguments {
+                if plan.nodes[self.roots[self.value_root(*argument)].node.0]
+                    .properties
+                    .contains_arena
+                {
+                    return Err(self.error(
+                        plan,
+                        index,
+                        ErrorKind::ImportEffectsRequired(*import),
+                        i.span,
+                        None,
+                    ));
+                }
+            }
+        }
         let mut result = 0;
         match &i.op {
             Op::Copy(v) | Op::Move(v) => {
@@ -686,7 +749,7 @@ impl Engine {
                 for (out, value) in i.results.iter().zip(snapshot) {
                     self.result(row, self.value_root(*out), value, admit)?;
                 }
-                return Ok(());
+                return Ok(true);
             }
             Op::CoreCall(call) => {
                 result = self.core(plan, index, row, i, call, site, admit, check)?;
@@ -752,7 +815,7 @@ impl Engine {
         if let Some(out) = output {
             self.result(row, out, result, admit)?;
         }
-        Ok(())
+        Ok(true)
     }
     pub fn block(
         &mut self,
@@ -763,26 +826,32 @@ impl Engine {
         block: &bodies::Block,
         admit: &mut Admission,
         check: bool,
-    ) -> Result<()> {
+        summaries: Option<&[calls::Summary]>,
+    ) -> Result<bool> {
         for (order, i) in block.instructions.iter().enumerate() {
-            self.operation(
-                plan,
-                index,
-                row,
-                i,
-                bodies::Site {
-                    block: m::BlockId(block_id as u32),
-                    order: order + 1,
-                },
-                admit,
-                check,
-            )
-            .map_err(|mut e| {
-                if e.primary.is_none() {
-                    e.primary = Some(i.span);
-                }
-                e
-            })?;
+            let returns = self
+                .operation(
+                    plan,
+                    index,
+                    row,
+                    i,
+                    bodies::Site {
+                        block: m::BlockId(block_id as u32),
+                        order: order + 1,
+                    },
+                    admit,
+                    check,
+                    summaries,
+                )
+                .map_err(|mut e| {
+                    if e.primary.is_none() {
+                        e.primary = Some(i.span);
+                    }
+                    e
+                })?;
+            if !returns {
+                return Ok(false);
+            }
         }
         if check {
             for v in block.terminator.kind.operands() {
@@ -801,7 +870,10 @@ impl Engine {
                 self.valid(plan, index, row, value, block.terminator.span, admit, true)?;
             }
         }
-        Ok(())
+        if self.record && matches!(block.terminator.kind, bodies::Term::Return(_)) {
+            self.capture_outputs(plan, row, admit)?;
+        }
+        Ok(true)
     }
     pub fn edge(
         &mut self,

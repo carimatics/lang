@@ -467,6 +467,26 @@ fuzz_target!(|bytes: &[u8]| {
                             assert_eq!(local.functions().len(), plan.functions().len());
                             assert!(local.usage().work >= plan.usage().work);
                         }
+                        if let Ok(calls) = regions::calls::analyze(
+                            &plan,
+                            regions::local::Limits {
+                                work: 100_000,
+                                allocations: 2 * 1024 * 1024,
+                                elements: 100_000,
+                                depth: 16,
+                                nodes: 512,
+                                state_cells: 4096,
+                            },
+                        ) {
+                            assert_eq!(calls.functions().len(), plan.functions().len());
+                            assert!(calls.usage().work >= plan.usage().work);
+                            assert!(
+                                calls
+                                    .functions()
+                                    .iter()
+                                    .all(|f| f.pending_calls().is_empty())
+                            );
+                        }
                         for (index, function) in plan.functions().iter().enumerate() {
                             for (position, path) in function.paths().iter().enumerate() {
                                 let actual = plan.node(path.result()).unwrap().ty;

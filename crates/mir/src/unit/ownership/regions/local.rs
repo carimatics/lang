@@ -1,7 +1,8 @@
 //! Intra-function region transfer over checked MIR. This is not an admission
-//! witness: region-relevant guest calls still require interprocedural effects.
+//! witness: guest calls still require interprocedural effects/return control.
 use super::{super::flow, *};
 
+pub mod calls;
 mod transfer;
 mod values;
 use values::{Data, Engine, Projection, ProjectionKind, RootKind};
@@ -12,7 +13,7 @@ pub struct Limits {
     pub allocations: usize,
     pub elements: usize,
     pub depth: usize,
-    /// Cumulative interned values, places and roots, across all functions.
+    /// Cumulative interned values/places/roots and call-summary/effect entries.
     pub nodes: usize,
     /// Cumulative block entries and scratch state cells.
     pub state_cells: usize,
@@ -76,6 +77,13 @@ pub enum ErrorKind {
     SharedStorage {
         incoming: Brand,
     },
+    ImportEffectsRequired(m::ImportId),
+    CallStore {
+        callee: FunctionId,
+        store: Span,
+        incoming: Brand,
+    },
+    LocalReferenceEscape,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {
@@ -107,7 +115,8 @@ pub struct FunctionAnalysis {
     entries: Vec<usize>,
     width: usize,
     blocks: usize,
-    /// These sites have NOT had their mutation/store effects checked.
+    reached: Vec<bool>,
+    /// These sites have NOT had mutation/store/normal-return effects checked.
     pending: Vec<bodies::Site>,
 }
 impl FunctionAnalysis {
@@ -118,9 +127,10 @@ impl FunctionAnalysis {
     /// retain their structure internally; this query does not flatten them.
     /// Entries of a function with pending calls are provisional: unknown
     /// mutations have not been applied and its final diagnostics are deferred.
+    /// Unreachable blocks and invalid indices have no entry facts.
     pub fn direct_brands(&self, block: m::BlockId, slot: moves::Slot) -> Option<&[Brand]> {
         let root = self.engine.slot(slot)?;
-        if block.0 as usize >= self.blocks {
+        if block.0 as usize >= self.blocks || !self.reached[block.0 as usize] {
             return None;
         }
         let id = self.entries[block.0 as usize * self.width + root];
@@ -241,7 +251,7 @@ pub fn analyze<'p, 'a>(plan: &'p Plan<'a>, limits: Limits) -> Result<Analysis<'p
     };
     let mut functions = admit.budget.vector(plan.functions().len())?;
     for index in 0..plan.functions().len() {
-        let result = function(plan, index, &mut admit).map_err(|mut e| {
+        let result = function(plan, index, &mut admit, None, false).map_err(|mut e| {
             e.function = Some(FunctionId(index as u32));
             if e.primary.is_none() {
                 e.primary = Some(
@@ -272,7 +282,13 @@ pub fn analyze<'p, 'a>(plan: &'p Plan<'a>, limits: Limits) -> Result<Analysis<'p
     })
 }
 
-fn function(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<FunctionAnalysis> {
+fn function(
+    plan: &Plan<'_>,
+    index: usize,
+    admit: &mut Admission,
+    summaries: Option<&[calls::Summary]>,
+    final_check: bool,
+) -> Result<FunctionAnalysis> {
     let typed = plan.source.activity().moved().typed();
     let body = &typed.functions()[index];
     let declaration = &typed.places().declarations().functions()[index];
@@ -285,6 +301,12 @@ fn function(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<Func
         admit.push(&mut seeds, (root, value))?;
     }
     engine.read_roots(plan, index, admit)?;
+    engine.record = summaries.is_some();
+    if engine.record {
+        admit.cells(roots_checked_mul(engine.roots.len(), 2)?)?;
+        engine.outputs = flow::filled(&mut admit.budget, engine.roots.len(), 0usize)?;
+        engine.wrote = flow::filled(&mut admit.budget, engine.roots.len(), false)?;
+    }
     let roots = engine.roots.len();
     let width = add(
         add(roots, roots)?,
@@ -301,7 +323,7 @@ fn function(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<Func
         entries[roots + root] = 0;
     }
     for (root, metadata) in engine.roots.iter().enumerate() {
-        if matches!(metadata.kind, RootKind::Caller) {
+        if matches!(metadata.kind, RootKind::Caller { .. }) {
             entries[roots + root] = 0;
             entries[root] = metadata.seed;
         }
@@ -320,7 +342,7 @@ fn function(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<Func
         queued[block] = false;
         admit.budget.charge(width)?;
         row.copy_from_slice(&entries[block * width..(block + 1) * width]);
-        engine.block(
+        if !engine.block(
             plan,
             index,
             &mut row,
@@ -328,7 +350,10 @@ fn function(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<Func
             &body.blocks[block],
             admit,
             false,
-        )?;
+            summaries,
+        )? {
+            continue;
+        }
         for target in body.blocks[block].terminator.kind.targets() {
             admit.budget.charge(width)?;
             edge.copy_from_slice(&row);
@@ -354,18 +379,23 @@ fn function(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<Func
     let mut pending = admit.budget.vector(plan.functions[index].calls.len())?;
     for call in &plan.functions[index].calls {
         admit.budget.charge(1)?;
-        if call.effects == Effects::Regions {
+        if summaries.is_none()
+            && (call.effects == Effects::Regions || matches!(call.target, Target::Guest(_)))
+        {
             pending.push(call.site);
         }
     }
     // The provisional entries above do not apply unknown mutations. Never
     // reject a valid body using stale pre-call facts. R10 must apply summaries
     // and rerun the final check for the entire pending function.
-    if pending.is_empty() {
+    if (summaries.is_none() && pending.is_empty()) || final_check {
         for (block, source) in body.blocks.iter().enumerate() {
+            if !reached[block] {
+                continue;
+            }
             admit.budget.charge(width)?;
             row.copy_from_slice(&entries[block * width..(block + 1) * width]);
-            engine.block(plan, index, &mut row, block, source, admit, true)?;
+            engine.block(plan, index, &mut row, block, source, admit, true, summaries)?;
         }
     }
     Ok(FunctionAnalysis {
@@ -373,6 +403,7 @@ fn function(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<Func
         entries,
         width,
         blocks: body.blocks.len(),
+        reached,
         pending,
     })
 }

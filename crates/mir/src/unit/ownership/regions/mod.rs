@@ -1,12 +1,13 @@
-//! Bounded, source-independent region analysis preparation. A Plan records
-//! shapes and paths, NOT a region proof or permission to execute/serialize MIR.
-//! Brand transfer, call summaries and mandatory admission remain later stages.
+//! Bounded, source-independent region preparation and local/call analyses.
+//! A Plan records shapes and paths, not a proof or execution/serialization
+//! permission. Mandatory failure/execution admission remains a later stage.
 use super::{super as m, *};
 use std::fmt::{Display, Formatter};
 
 mod types;
 pub use types::{Kind, Node, NodeId};
 pub mod local;
+pub use local::calls;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {

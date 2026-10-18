@@ -51,7 +51,7 @@ struct Place {
 #[derive(Clone, Copy)]
 pub(super) enum RootKind {
     Slot,
-    Caller,
+    Caller { input: usize },
     Read(bodies::Site),
 }
 pub(super) struct Root {
@@ -66,6 +66,11 @@ pub(super) struct Engine {
     locals: usize,
     slots: usize,
     region_nodes: Vec<bool>,
+    pub record: bool,
+    pub stores: Vec<calls::Store>,
+    pub outputs: Vec<usize>,
+    pub wrote: Vec<bool>,
+    pub returns: bool,
 }
 impl Engine {
     pub fn new(plan: &Plan<'_>, index: usize, admit: &mut Admission) -> Result<Self> {
@@ -82,6 +87,11 @@ impl Engine {
             locals: f.locals,
             slots: f.roots.len(),
             region_nodes,
+            record: false,
+            stores: Vec::new(),
+            outputs: Vec::new(),
+            wrote: Vec::new(),
+            returns: false,
         };
         out.intern(Data::Empty, admit)?;
         for root in &f.roots {
@@ -135,7 +145,7 @@ impl Engine {
         admit.push(&mut self.values, data)?;
         Ok(id)
     }
-    fn data(&self, id: usize, admit: &mut Admission) -> Result<Data> {
+    pub(super) fn data(&self, id: usize, admit: &mut Admission) -> Result<Data> {
         admit.budget.charge(1)?;
         Ok(match &self.values[id] {
             Data::Empty => Data::Empty,
@@ -482,7 +492,7 @@ impl Engine {
                 &mut self.roots,
                 Root {
                     node: target,
-                    kind: RootKind::Caller,
+                    kind: RootKind::Caller { input: place },
                     seed: 0,
                 },
             )?;
