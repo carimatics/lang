@@ -8,7 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み87件 · 進行中0件 · 残り23件（暫定54 pt）。**
+**検証済み88件 · 進行中0件 · 残り23件（暫定54 pt）。**
+
+N15決定監査（2026-10-19 JST）：[RFC 0013](rfcs/0013-service-byte-work-budget.md) を実験段階の委任でacceptedとしました（`0a38beb`）。共通の累積event、構造化拒否、既知の依存costの一括確保、必須cleanupの課金免除、互換性規則を定義します。Map 20 testの成功は局所的な実現性の裏付けで、global実装／conformanceはN05の3点に維持します。N15の **初期見積もり1点** を同じ更新で追加・完了し、**110 → 111行**、**54 + 1 − 1 = 54 pt**、追加分合計 **59 → 60 pt**、完了分 **139 → 140 pt** です。元の要件は削除しません。
 
 N05分割／N14完了監査（2026-10-19 JST）：着手前testでUTF-8の最大cell数がnative 49／VM 57と異なり、loan登録とreturn escrowが抜けていました。失敗の比較testではprimary spanも関数全体になっていました。N14（**初期見積もり3点**、完了）でcontrol／usageを共通化し、両不具合を修正し、未対応の準備済み容量設定をeffect前に拒否します。旧N05合計3点をN14制御3点と残るN05 service 3点へ分割し、完了前は **109 → 110行**、**54 → 57 pt**、追加分合計 **56 → 59 pt** です。N14の3点を完了し **57 → 54 pt** になりました。順序付きservice／payload全体のconformanceと設定可能なbyte-work admissionはN05に維持し、具体的なservice-work契約を実装前に設計文書で定義します。
 
@@ -20,7 +22,7 @@ N03見積もり・依存関係監査（2026-10-19 JST）：key／所有値結果
 
 N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接続の前に **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。N12完了で最後の3点を取り除き **61 → 58点**、108行は維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformance前に、N05の依存へN02／N11／V08に加えN12／N03／N04を明示しました。要件は削除していません。
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N14は完了です（`a40e6eb`、VM／nativeでcontrolとusageを共有し、loan／escrowのcell数と失敗spanを修正。5 source familyの全fuel prefix、frame／cell境界、provider割込み、未対応設定のeffect前拒否が成功。85 suite・1380 testとfmt／Clippy／doc成功）。**86 → 87 done**、分割で **109 → 110 task** です。次はN05のservice byte-work契約と全体conformanceです。Native／FFI／platform／performance／debugの全要件と最後の英日capability guideは維持します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N15は完了です（`0a38beb`、RFC 0013 accepted、既存Map 20 testと文書整合性3 test成功）。**87 → 88 done**、**110 → 111 task** です。次はN05で共通service meterを実装し、全service／payloadの有限予算を検証します。実行機能はまだ未実装です。直前のcode baselineは1380 test／85 suiteとfmt／Clippy／doc成功です。Native／FFI／platform／performance／debugの全要件と最後の英日capability guideを維持します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
