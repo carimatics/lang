@@ -1,6 +1,8 @@
 use super::*;
 #[path = "native_arenas.rs"]
 mod arenas;
+#[path = "native_control.rs"]
+mod control;
 #[path = "native_core.rs"]
 mod core;
 #[path = "native_maps.rs"]
@@ -13,6 +15,7 @@ mod shared;
 mod values;
 #[path = "native_vectors.rs"]
 mod vectors;
+use lang_runtime::execution as e;
 use n::{CallSite, CompiledProgram, Transition};
 
 #[derive(Clone, Copy)]
@@ -244,12 +247,10 @@ struct Unit<'i, 's, 'a, 'l> {
     maximum_frames: usize,
     cell_limit: usize,
     live_cells: usize,
-    peak_frames: usize,
-    peak_cells: usize,
+    usage: e::Usage,
+    control: e::Control<'s>,
     handle: u64,
     pending: Option<Transition>,
-    fuel: u64,
-    fuel_limit: Option<u64>,
     published: bool,
 }
 impl Unit<'_, '_, '_, '_> {
@@ -327,11 +328,7 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         Ok(())
     }
     fn charge(&mut self, _: m::Span) -> n::ResultStep {
-        if self.fuel_limit.is_some_and(|limit| self.fuel >= limit) {
-            return Err(c::Cause::Execution(c::ExecutionFailure::FuelLimit));
-        }
-        self.fuel += 1;
-        Ok(())
+        self.control.charge(&mut self.usage).map_err(control_cause)
     }
     fn move_slot(&mut self, source: usize, target: usize, span: m::Span) -> n::ResultStep {
         values::move_value(self, source, target, span)
@@ -466,7 +463,11 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         ledger
             .publish_staged_to(Some(c::Slot((depth - 1) * self.stride + parent.result)))
             .map_err(invariant)?;
-        self.live_cells -= self.plan().cell_count();
+        self.live_cells -= self
+            .program
+            .layout(self.stack.last().unwrap().function)
+            .unwrap()
+            .control_cells();
         self.stack.pop();
         self.pending = Some(Transition {
             frame: self.frame_identity(),
@@ -507,17 +508,18 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
         }
         let target = stable;
+        self.control.check().map_err(control_cause)?;
         let depth = self.stack.len();
         let next_handle = self
             .handle
             .checked_add(1)
             .ok_or(c::Cause::Execution(c::ExecutionFailure::CounterOverflow))?;
-        if depth == self.maximum_frames {
+        if depth >= self.maximum_frames {
             return Err(c::Cause::Execution(c::ExecutionFailure::FrameLimit));
         }
         let live = self
             .live_cells
-            .checked_add(target.frame().cell_count())
+            .checked_add(target.control_cells())
             .ok_or(c::Cause::Execution(c::ExecutionFailure::CounterOverflow))?;
         if live > self.cell_limit {
             return Err(c::Cause::Execution(c::ExecutionFailure::CellLimit));
@@ -596,8 +598,8 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             }),
         });
         self.live_cells = live;
-        self.peak_frames = self.peak_frames.max(self.stack.len());
-        self.peak_cells = self.peak_cells.max(live);
+        self.usage.peak_frames = self.usage.peak_frames.max(self.stack.len());
+        self.usage.peak_live_cells = self.usage.peak_live_cells.max(live);
         let next = Transition {
             frame: self.handle,
             function: call.function,
@@ -619,7 +621,11 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             .unwrap()
             .propagate_call_failure()
             .map_err(invariant)?;
-        self.live_cells -= self.plan().cell_count();
+        self.live_cells -= self
+            .program
+            .layout(self.stack.last().unwrap().function)
+            .unwrap()
+            .control_cells();
         self.stack.pop();
         let next = Transition {
             frame: self.frame_identity(),
@@ -642,6 +648,28 @@ struct Seen {
     failure: Option<n::Failure>,
     report: c::Report,
     requests: usize,
+    total_requests: usize,
+    usage: e::Usage,
+}
+
+#[test]
+fn native_control_usage_includes_loans_and_return_escrow() {
+    let text = include_str!("../../examples/scripts/utf8.lang");
+    let native = execute_unit(text, &[], None, 8, 1000, None, false);
+    let source = source(text);
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let vm = lang_vm::unit::owned::execute_entry(
+        source.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(native.scalar, Some(vm.value));
+    assert_eq!(native.fuel, vm.usage.fuel);
+    assert_eq!(native.peak, vm.usage.peak_frames);
+    assert_eq!(native.peak_cells, vm.usage.peak_live_cells);
 }
 fn execute_unit(
     text: &str,
@@ -710,9 +738,67 @@ fn execute_prepared<'l>(
     program: &CompiledProgram<'l>,
     run: Run<'_>,
 ) -> Seen {
+    let control = e::Control::with_limits(e::Limits {
+        fuel: run.fuel,
+        host_calls: Some(0),
+        frames: Some(run.max_frames),
+        live_cells: Some(run.cells),
+    });
+    execute_controlled(flow, layouts, program, run, control, None)
+}
+fn control_cause(error: e::Failure) -> c::Cause {
+    c::Cause::Execution(match error {
+        e::Failure::Interrupted => c::ExecutionFailure::Interrupted,
+        e::Failure::DeadlineExceeded => c::ExecutionFailure::DeadlineExceeded,
+        e::Failure::FuelExhausted => c::ExecutionFailure::FuelLimit,
+        e::Failure::HostCallLimit => c::ExecutionFailure::HostCallLimit,
+        e::Failure::CounterOverflow => c::ExecutionFailure::CounterOverflow,
+    })
+}
+fn rejected_control(entry: m::FunctionId, span: m::Span, reason: n::Reason) -> Seen {
+    let mut instance = c::Instance::default();
+    let report = instance
+        .enter(
+            c::Limits {
+                slots: 0,
+                scopes: 1,
+                failure_records: 1,
+            },
+            |_: &mut (), _| Ok(()),
+        )
+        .unwrap()
+        .finish(c::Exit::Return(None))
+        .report;
+    Seen {
+        value: None,
+        scalar: None,
+        retired: Vec::new(),
+        fuel: 0,
+        peak: 0,
+        peak_cells: 0,
+        failure: Some(n::Failure {
+            function: entry,
+            reason,
+            span,
+            panic_code: None,
+        }),
+        report,
+        requests: 0,
+        total_requests: 0,
+        usage: e::Usage::default(),
+    }
+}
+fn execute_controlled<'l>(
+    flow: &'l m::ownership::failure::Elaborated,
+    layouts: &'l l::Layouts<'l>,
+    program: &CompiledProgram<'l>,
+    run: Run<'_>,
+    control: e::Control<'_>,
+    interrupt: Option<(usize, Rc<e::InterruptionFlag>)>,
+) -> Seen {
     let Run {
         inputs,
-        fuel,
+        fuel: _,
         max_frames,
         cells,
         refuse,
@@ -729,6 +815,41 @@ fn execute_prepared<'l>(
             .position(|f| f.name == "main")
             .unwrap_or(0) as u32,
     );
+    let signature = typed.places().declarations().functions()[entry.0 as usize].signature_span;
+    let denied = n::ControlCapacity {
+        frames: max_frames,
+        live_cells: cells,
+    }
+    .admit(control)
+    .err()
+    .map(n::Reason::UnsupportedControl)
+    .or_else(|| {
+        control
+            .check()
+            .err()
+            .map(control_cause)
+            .map(n::Reason::Runtime)
+    })
+    .or_else(|| {
+        if control.limits().frames == Some(0) {
+            Some(n::Reason::Runtime(c::Cause::Execution(
+                c::ExecutionFailure::FrameLimit,
+            )))
+        } else if control
+            .limits()
+            .live_cells
+            .is_some_and(|limit| program.layout(entry).unwrap().control_cells() > limit)
+        {
+            Some(n::Reason::Runtime(c::Cause::Execution(
+                c::ExecutionFailure::CellLimit,
+            )))
+        } else {
+            None
+        }
+    });
+    if let Some(reason) = denied {
+        return rejected_control(entry, signature, reason);
+    }
     let largest = (0..flow.functions().len())
         .map(|f| program.layout(m::FunctionId(f as u32)).unwrap().frame())
         .max_by_key(|p| p.cell_count())
@@ -770,6 +891,7 @@ fn execute_prepared<'l>(
         pools.push(pool);
     }
     let trace = Rc::new(RefCell::new(Trace::default()));
+    trace.borrow_mut().interrupt = interrupt;
     let mut allocator = a::Allocator::new(Provider(trace.clone()), Default::default()).unwrap();
     let heap = if types.table().constructed.iter().any(|ty| {
         matches!(
@@ -887,23 +1009,26 @@ fn execute_prepared<'l>(
         ledger: Some(ledger),
         stack,
         stride,
-        maximum_frames: max_frames,
-        cell_limit: cells,
-        live_cells: root.frame().cell_count(),
-        peak_frames: 1,
-        peak_cells: root.frame().cell_count(),
+        maximum_frames: control.limits().frames.unwrap(),
+        cell_limit: control.limits().live_cells.unwrap(),
+        live_cells: root.control_cells(),
+        usage: e::Usage {
+            peak_frames: 1,
+            peak_live_cells: root.control_cells(),
+            ..Default::default()
+        },
+        control,
         handle: 1,
         pending: None,
-        fuel: 0,
-        fuel_limit: fuel,
         published: false,
     });
     let result = program.invoke(entry, &mut instance);
     assert_eq!(instance.runtime().published, result.is_ok());
     assert_eq!(instance.is_poisoned(), refuse_cleanup, "{result:?}");
-    let fuel = instance.runtime().fuel;
-    let peak = instance.runtime().peak_frames;
-    let peak_cells = instance.runtime().peak_cells;
+    let usage = instance.runtime().usage;
+    let fuel = usage.fuel;
+    let peak = usage.peak_frames;
+    let peak_cells = usage.peak_live_cells;
     assert_eq!(
         instance.runtime().stack.len(),
         1,
@@ -988,6 +1113,8 @@ fn execute_prepared<'l>(
         failure: result.err(),
         report: completion.report,
         requests: trace.requests - initial_requests,
+        total_requests: trace.requests,
+        usage,
     }
 }
 

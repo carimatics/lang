@@ -323,6 +323,7 @@ fn execute_selected<P: a::Provider>(
     }
     control
         .check()
+        .map_err(super::Reason::from)
         .map_err(|e| rejected(Reason::Control(e), None, None))?;
     let function = function.ok_or_else(|| rejected(Reason::Entry, None, None))?;
     let typed = flow.source().activity().moved().typed();
@@ -357,6 +358,7 @@ fn execute_single<P: a::Provider>(
     }
     control
         .check()
+        .map_err(super::Reason::from)
         .map_err(|e| rejected(Reason::Control(e), None, None))?;
     let typed = flow.source().activity().moved().typed();
     let declarations = typed.places().declarations();
@@ -396,7 +398,7 @@ fn execute_single<P: a::Provider>(
             }
         }
     }
-    if control.limits.frames == Some(0) {
+    if control.limits().frames == Some(0) {
         return Err(fail(Reason::Control(super::Reason::FrameLimit)));
     }
     let allocator = allocator.ok_or_else(|| fail(Reason::MissingAllocator))?;
@@ -407,7 +409,7 @@ fn execute_single<P: a::Provider>(
         typed,
         function,
         limits,
-        control.limits.live_cells.unwrap_or(usize::MAX),
+        control.limits().live_cells.unwrap_or(usize::MAX),
     )
     .map_err(|e| fail(Reason::Preparation(e)))?;
     let extra = |a: usize, b: usize, common: usize| a.checked_add(b.checked_sub(common)?);
@@ -626,16 +628,7 @@ fn execute_single<P: a::Provider>(
         node = match current.kind {
             f::Kind::Entry { next, .. } => next,
             f::Kind::Fuel { next, failure, .. } => {
-                let charged = control.check().and_then(|()| {
-                    if control.limits.fuel.is_some_and(|n| usage.fuel >= n) {
-                        return Err(super::Reason::FuelExhausted);
-                    }
-                    usage.fuel = usage
-                        .fuel
-                        .checked_add(1)
-                        .ok_or(super::Reason::CounterOverflow)?;
-                    Ok(())
-                });
+                let charged = control.charge(&mut usage).map_err(super::Reason::from);
                 match charged {
                     Ok(()) => next,
                     Err(error) => {

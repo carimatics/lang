@@ -2,10 +2,11 @@
 
 pub mod unit;
 
+pub use lang_runtime::execution::InterruptionFlag;
+
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use lang_bytecode::{BlockId, BlockTarget, Instruction, Program, Terminator, VerificationError};
@@ -140,27 +141,6 @@ impl ExecutionLimits {
 impl Default for ExecutionLimits {
     fn default() -> Self {
         Self::unbounded()
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct InterruptionFlag {
-    interrupted: AtomicBool,
-}
-
-impl InterruptionFlag {
-    pub const fn new() -> Self {
-        Self {
-            interrupted: AtomicBool::new(false),
-        }
-    }
-
-    pub fn interrupt(&self) {
-        self.interrupted.store(true, Ordering::Release);
-    }
-
-    pub fn is_interrupted(&self) -> bool {
-        self.interrupted.load(Ordering::Acquire)
     }
 }
 

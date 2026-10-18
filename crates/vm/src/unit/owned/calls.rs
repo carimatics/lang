@@ -270,6 +270,7 @@ fn execute_with<P: a::Provider>(
     }
     control
         .check()
+        .map_err(crate::unit::Reason::from)
         .map_err(|e| rejected(Reason::Control(e), None, None))?;
     let typed = flow.source().activity().moved().typed();
     let declarations = typed.places().declarations();
@@ -289,7 +290,7 @@ fn execute_with<P: a::Provider>(
     {
         return Err(fail(Reason::Entry));
     }
-    if control.limits.frames == Some(0) {
+    if control.limits().frames == Some(0) {
         return Err(fail(Reason::Control(super::super::Reason::FrameLimit)));
     }
     let limits = m::Limits::default();
@@ -445,7 +446,7 @@ fn execute_with<P: a::Provider>(
             .map_err(|e| fail(Reason::Preparation(e.into())))?;
         plans[id] = Some(plan);
     }
-    if let Some(limit) = control.limits.live_cells {
+    if let Some(limit) = control.limits().live_cells {
         let cells = plans[entry].as_ref().unwrap().cleanup_slots() + 1;
         if cells > limit {
             return Err(fail(Reason::Preparation(l::Error::CellLimit {
@@ -556,7 +557,7 @@ fn execute_with<P: a::Provider>(
     // A disabled frame counter does not disable preparation budgets. Find the
     // exact largest pool those budgets admit without allocating trial buffers.
     let desired = control
-        .limits
+        .limits()
         .frames
         .unwrap_or(limits.elements)
         .min(limits.elements)
@@ -754,16 +755,9 @@ fn execute_with<P: a::Provider>(
         let next = match node.kind {
             f::Kind::Entry { next, .. } => next,
             f::Kind::Fuel { next, failure, .. } => {
-                let checked = control.check().and_then(|()| {
-                    if control.limits.fuel.is_some_and(|limit| usage.fuel >= limit) {
-                        return Err(super::super::Reason::FuelExhausted);
-                    }
-                    usage.fuel = usage
-                        .fuel
-                        .checked_add(1)
-                        .ok_or(super::super::Reason::CounterOverflow)?;
-                    Ok(())
-                });
+                let checked = control
+                    .charge(&mut usage)
+                    .map_err(crate::unit::Reason::from);
                 match checked {
                     Ok(()) => next,
                     Err(error) => {
@@ -787,19 +781,23 @@ fn execute_with<P: a::Provider>(
                     let depth = stack.len();
                     let callee_plan = plans[callee.0 as usize].as_ref().unwrap();
                     let cells = live_cells.checked_add(callee_plan.cleanup_slots() + 1);
-                    let checked = control.check().map_err(execution_reason).and_then(|()| {
-                        if control.limits.frames.is_some_and(|n| depth >= n) {
-                            return Err(c::ExecutionFailure::FrameLimit);
-                        }
-                        let cells = cells.ok_or(c::ExecutionFailure::CounterOverflow)?;
-                        if control.limits.live_cells.is_some_and(|n| cells > n) {
-                            return Err(c::ExecutionFailure::CellLimit);
-                        }
-                        if depth >= capacity {
-                            return Err(c::ExecutionFailure::AllocationLimit);
-                        }
-                        Ok(cells)
-                    });
+                    let checked = control
+                        .check()
+                        .map_err(crate::unit::Reason::from)
+                        .map_err(execution_reason)
+                        .and_then(|()| {
+                            if control.limits().frames.is_some_and(|n| depth >= n) {
+                                return Err(c::ExecutionFailure::FrameLimit);
+                            }
+                            let cells = cells.ok_or(c::ExecutionFailure::CounterOverflow)?;
+                            if control.limits().live_cells.is_some_and(|n| cells > n) {
+                                return Err(c::ExecutionFailure::CellLimit);
+                            }
+                            if depth >= capacity {
+                                return Err(c::ExecutionFailure::AllocationLimit);
+                            }
+                            Ok(cells)
+                        });
                     let prepared = checked.and_then(|cells| {
                         let admitted = {
                             let mut state = shared.borrow_mut();

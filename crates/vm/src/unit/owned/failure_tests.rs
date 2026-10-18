@@ -677,8 +677,10 @@ fn every_fuel_prefix_keeps_the_original_failure_ahead_of_cleanup_errors() {
         });
         let (mut allocator, trace) = allocator();
         let mut instance = c::Instance::default();
-        let mut control = control();
-        control.limits.fuel = Some(prefix);
+        let control = Control::with_limits(super::super::Limits {
+            fuel: Some(prefix),
+            ..control().limits()
+        });
         let failure = execute_entry(
             program.failure_flow(),
             &mut instance,
@@ -712,8 +714,10 @@ fn recursive_nested_failure_report_is_bounded_without_skipping_retirement() {
     });
     let (mut allocator, trace) = allocator();
     let mut instance = c::Instance::default();
-    let mut control = control();
-    control.limits.frames = Some(256);
+    let control = Control::with_limits(super::super::Limits {
+        frames: Some(256),
+        ..control().limits()
+    });
     let failure = execute_entry(
         program.failure_flow(),
         &mut instance,

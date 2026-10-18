@@ -34,12 +34,21 @@ struct Trace {
     allocated: usize,
     released: usize,
     refuse: Option<usize>,
+    interrupt: Option<(usize, Rc<lang_runtime::execution::InterruptionFlag>)>,
 }
 struct Provider(Rc<RefCell<Trace>>);
 impl a::Provider for Provider {
     type Region = a::Storage;
     fn allocate(&mut self, request: a::Request) -> Option<a::Storage> {
         self.0.borrow_mut().requests += 1;
+        {
+            let trace = self.0.borrow();
+            if let Some((request, flag)) = &trace.interrupt
+                && *request == trace.requests
+            {
+                flag.interrupt();
+            }
+        }
         if self.0.borrow().refuse == Some(self.0.borrow().requests) {
             return None;
         }
@@ -364,7 +373,9 @@ fn execute(
         fuel,
         failure: result.err().map(|f| match f.reason {
             n::Reason::Runtime(cause) => cause,
-            n::Reason::Poisoned => panic!("fresh instance"),
+            n::Reason::Poisoned | n::Reason::UnsupportedControl(_) => {
+                panic!("fresh admitted instance")
+            }
         }),
     }
 }

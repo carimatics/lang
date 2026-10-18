@@ -6,15 +6,14 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::time::Instant;
 
 use lang_bytecode::unit::Program;
 use lang_mir::{HostFunctionId, ResourceTypeId, unit as m};
 use lang_runtime::{HostFunctionRegistry, I64HostFunction};
 
-use crate::InterruptionFlag;
-
 pub mod owned;
+
+pub use lang_runtime::execution::{Control, Limits, Usage};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Value {
@@ -71,75 +70,6 @@ impl Value {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Limits {
-    pub fuel: Option<u64>,
-    pub host_calls: Option<u64>,
-    pub frames: Option<usize>,
-    pub live_cells: Option<usize>,
-}
-impl Default for Limits {
-    fn default() -> Self {
-        Self {
-            fuel: Some(1_000_000),
-            host_calls: Some(1_000),
-            frames: Some(256),
-            live_cells: Some(1_000_000),
-        }
-    }
-}
-impl Limits {
-    pub const fn unbounded() -> Self {
-        Self {
-            fuel: None,
-            host_calls: None,
-            frames: None,
-            live_cells: None,
-        }
-    }
-}
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Control<'a> {
-    limits: Limits,
-    interruption: Option<&'a InterruptionFlag>,
-    deadline: Option<Instant>,
-}
-impl<'a> Control<'a> {
-    pub const fn with_limits(limits: Limits) -> Self {
-        Self {
-            limits,
-            interruption: None,
-            deadline: None,
-        }
-    }
-    pub const fn and_interruption(mut self, flag: &'a InterruptionFlag) -> Self {
-        self.interruption = Some(flag);
-        self
-    }
-    pub fn and_deadline(mut self, deadline: Instant) -> Self {
-        self.deadline = Some(deadline);
-        self
-    }
-    pub const fn limits(self) -> Limits {
-        self.limits
-    }
-    fn check(self) -> Result<(), Reason> {
-        if self
-            .interruption
-            .is_some_and(InterruptionFlag::is_interrupted)
-        {
-            return Err(Reason::Interrupted);
-        }
-        if self
-            .deadline
-            .is_some_and(|deadline| Instant::now() >= deadline)
-        {
-            return Err(Reason::DeadlineExceeded);
-        }
-        Ok(())
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 pub struct HostBindings {
     names: BTreeMap<String, HostFunctionId>,
@@ -172,18 +102,23 @@ impl Display for DuplicateBinding {
 }
 impl Error for DuplicateBinding {}
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Usage {
-    pub fuel: u64,
-    pub host_calls: u64,
-    pub peak_frames: usize,
-    pub peak_live_cells: usize,
-}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Outcome {
     pub value: Value,
     pub usage: Usage,
 }
+impl From<lang_runtime::execution::Failure> for Reason {
+    fn from(error: lang_runtime::execution::Failure) -> Self {
+        match error {
+            lang_runtime::execution::Failure::Interrupted => Self::Interrupted,
+            lang_runtime::execution::Failure::DeadlineExceeded => Self::DeadlineExceeded,
+            lang_runtime::execution::Failure::FuelExhausted => Self::FuelExhausted,
+            lang_runtime::execution::Failure::HostCallLimit => Self::HostCallLimit,
+            lang_runtime::execution::Failure::CounterOverflow => Self::CounterOverflow,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Reason {
     MissingEntry,
@@ -569,14 +504,14 @@ impl Machine<'_> {
             .len()
             .checked_add(1)
             .ok_or(Reason::CounterOverflow)?;
-        if self.control.limits.frames.is_some_and(|n| depth > n) {
+        if self.control.limits().frames.is_some_and(|n| depth > n) {
             return Err(Reason::FrameLimit);
         }
         let cells = self
             .live_cells
             .checked_add(self.verified.facts().functions()[function.0 as usize].cells())
             .ok_or(Reason::CounterOverflow)?;
-        if self.control.limits.live_cells.is_some_and(|n| cells > n) {
+        if self.control.limits().live_cells.is_some_and(|n| cells > n) {
             return Err(Reason::LiveCellLimit);
         }
         Ok(())
@@ -592,37 +527,12 @@ impl Machine<'_> {
         Ok(())
     }
     fn charge(&mut self) -> Result<(), Reason> {
-        self.control.check()?;
-        if self
-            .control
-            .limits
-            .fuel
-            .is_some_and(|n| self.usage.fuel >= n)
-        {
-            return Err(Reason::FuelExhausted);
-        }
-        self.usage.fuel = self
-            .usage
-            .fuel
-            .checked_add(1)
-            .ok_or(Reason::CounterOverflow)?;
-        Ok(())
+        self.control.charge(&mut self.usage).map_err(Reason::from)
     }
     fn host_call(&mut self, function: I64HostFunction, argument: i64) -> Result<i64, Reason> {
-        self.control.check()?;
-        if self
-            .control
-            .limits
-            .host_calls
-            .is_some_and(|n| self.usage.host_calls >= n)
-        {
-            return Err(Reason::HostCallLimit);
-        }
-        self.usage.host_calls = self
-            .usage
-            .host_calls
-            .checked_add(1)
-            .ok_or(Reason::CounterOverflow)?;
+        self.control
+            .charge_host_call(&mut self.usage)
+            .map_err(Reason::from)?;
         Ok(function(argument))
     }
     fn run(&mut self) -> Result<Value, Reason> {

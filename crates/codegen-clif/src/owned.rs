@@ -28,6 +28,47 @@ use std::{
 
 pub type ResultStep = Result<(), c::Cause>;
 
+/// Prepared host capacity for the instrumented ownership profile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ControlCapacity {
+    pub frames: usize,
+    pub live_cells: usize,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ControlLimit {
+    Frames,
+    LiveCells,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct UnsupportedControl {
+    pub limit: ControlLimit,
+    pub requested: Option<usize>,
+    pub capacity: usize,
+}
+impl ControlCapacity {
+    /// Reject unsupported bounds before guest allocation or ownership transfer.
+    /// An unbounded request cannot be satisfied by a finite prepared pool.
+    pub fn admit(
+        self,
+        control: lang_runtime::execution::Control<'_>,
+    ) -> Result<(), UnsupportedControl> {
+        let limits = control.limits();
+        for (limit, requested, capacity) in [
+            (ControlLimit::Frames, limits.frames, self.frames),
+            (ControlLimit::LiveCells, limits.live_cells, self.live_cells),
+        ] {
+            if !requested.is_some_and(|requested| requested <= capacity) {
+                return Err(UnsupportedControl {
+                    limit,
+                    requested,
+                    capacity,
+                });
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Transition {
     pub frame: u64,
@@ -281,6 +322,7 @@ impl<R: Runtime> RuntimeInstance<R> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Reason {
     Poisoned,
+    UnsupportedControl(UnsupportedControl),
     Runtime(c::Cause),
 }
 
@@ -350,10 +392,9 @@ struct Node {
     arena: Option<ArenaSite>,
 }
 
-/// Native call boundary for whole-owner forwarding and record construction.
-/// Other operations are diagnosed before invocation; this is not the complete
-/// ownership native execution mode. General moves/loans/core/control retain the
-/// M2-N02–N05 implementation and conformance obligations.
+/// Machine-code lowering for supported owned MIR and trusted runtime hooks.
+/// Unsupported operations are diagnosed before invocation. Full service
+/// conformance, production drivers and linked execution remain milestone work.
 pub struct CompiledFunction<'a> {
     _owner: OwnedJitModule,
     code: *const u8,
@@ -1644,11 +1685,14 @@ helper!(record, ctx, _a, _b, node, {
         ctx.fault
             .and_then(|f| match f.reason {
                 Reason::Runtime(cause) => Some(cause),
-                Reason::Poisoned => None,
+                Reason::Poisoned | Reason::UnsupportedControl(_) => None,
             })
             .unwrap_or(c::Cause::Execution(c::ExecutionFailure::Invariant))
     };
-    let status = ctx.apply(node, |r, _, s| r.record_failure(cause, s));
+    let fault_span = ctx.fault.map(|fault| fault.span);
+    let status = ctx.apply(node, |r, _, span| {
+        r.record_failure(cause, fault_span.unwrap_or(span))
+    });
     ctx.report_recorded = true;
     status
 });
@@ -2200,6 +2244,12 @@ pub struct FunctionLayout<'a> {
     slots: usize,
 }
 impl<'a> FunctionLayout<'a> {
+    /// Logical cell admission includes loan registrations and the return escrow,
+    /// matching the VM's instrumented profile independently of physical storage.
+    pub fn control_cells(&self) -> usize {
+        self.frame.cleanup_slots() + 1
+    }
+
     pub fn compile(
         flow: &'a f::Elaborated,
         layouts: &'a Layouts<'a>,
