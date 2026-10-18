@@ -10,6 +10,18 @@ Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
 **Next: M2-N01 → audit the native ownership call/layout contract and run the first native experiment.**
 
+## Progress and estimate changes
+
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 76 (+41)**, and the task inventory increased **87 → 103 (+16)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+
+| Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
+| ---: | ---: | ---: | ---: |
+| 134 pt | +44 pt | −112 pt | 66 pt |
+
+**134 + 44 − 112 = 66 pt**
+
+This separates delivered work from newly recognized work: completion retired 112 estimated points, while exposed prerequisites and re-estimation added 44. These are planning units, not hours or measured actual effort. The remaining 66 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+
 Latest delivery: **M2-A03** (`2dfea13`) adds explicit compile/load CLI execution for schemas 1/2, consuming ownership export and checked-entry-ID dispatch. The first loaded Bytes fixture prints **0**. Eight CLI tests cover 19 owned fixtures, both adapters/profiles, removed Unicode/multi-file snapshots, malformed inputs/options, quotas and output preservation. Ten service fixtures agree at every provider refusal/fuel prefix plus interruption/reuse, including ordered release and original failure reports. All **1326 tests / 84 suites**, fmt/Clippy/doc pass: **69 → 66 remaining pt**, 76 done rows and 103 total. RFC 0011 is implemented; A01/A02's required source delivery is complete. Native, V17 and complete mixed-backend conformance retain their gates.
 
 Measured last code baseline (2026-10-18 JST): final workspace Clippy **25.6 s**, successful full tests **393.3 s** (new log creation to final write), rustdoc **16.4 s**. Cargo reports **22.0 s** for test compilation; summed suite timings are **77.6 s**. The first baseline stopped after **265.5 s** on an overbroad unused-import guard; it was removed to preserve the accepted REPL/reachability rule, and focused regressions plus the final baseline pass. Twelve new tests cover eight CLI cases and four loaded/proof execution cases. These are validation durations, not total work time or runtime benchmarks. Documentation-only planning updates run the existing `repository_consistency` suite.
@@ -195,6 +207,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 ## Sources and verification dates
 
+- Detailed-board history `8605416..926ccfe`: 48 board revisions dated 2026-10-18 JST, re-audited 2026-10-18 23:03 JST. Row transitions alone record 107 pt retired / 39 pt added. V14 and R08 were first committed as done; the V10/R01 readiness audits preserve their 2/3-point estimates, so add 5 pt to both sides: 112 retired / 44 added. All 41 new deliveries are included; no rows were removed. Preserve such estimates even when introduction and completion share an update.
 - Local Git history `926fb3b`–`0c2c012` and diff `367218e..0c2c012`: commits dated 2026-10-17/18 JST; verified 2026-10-18 JST.
 - [Architecture](architecture.md), [roadmap](roadmap.md), and their implementation/test references: updated/verified 2026-10-18 JST. The 930-test baseline is the pre-audit implementation checkpoint, not a claim about tests added by this planning change.
 - Accepted [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) and [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md): both last updated 2026-10-17; reviewed for this task inventory on 2026-10-18 JST. No web research or external productivity benchmark was used.

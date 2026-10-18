@@ -10,6 +10,18 @@
 
 **次: M2-N01 → native ownershipのcall／layout契約を監査し、最初のnative実験を実行。**
 
+## 進捗と見積もり変更
+
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 76件（+41件）**、作業一覧は **87 → 103件（+16件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+
+| 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
+| ---: | ---: | ---: | ---: |
+| 134 pt | +44 pt | −112 pt | 66 pt |
+
+**134 + 44 − 112 = 66 pt**
+
+完了した作業と新たに判明した作業を分離しました。完了により見積もり112点分を取り除く一方、前提作業の可視化と再見積もりで44点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り66点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+
 直近の完了：**M2-A03**（`2dfea13`）。Schema 1／2の明示的compile／load CLI実行、消費型ownership export、検証済みentry ID dispatchを追加し、最初のload済みBytes fixtureが **0** を表示しました。CLI 8 testでowned 19 fixture、両adapter／profile、削除したUnicode／複数file snapshot、不正入力／option、quota、出力保持を検証しました。Service 10 fixtureで全provider拒否位置／fuel prefixと中断／再利用を比較し、解放順序と元failure reportも一致します。全体 **84 suite・1326 test** とfmt／Clippy／docが成功し、**残り69 → 66 pt**、done 76行、計103行です。RFC 0011を実装済みにし、A01／A02後の必須source成果を完了しました。Native、V17、backendを組み合わせたconformance全体は各gateを維持します。
 
 直近code baselineの実測（2026-10-18 JST）：最終workspace Clippy **25.6秒**、成功した全test **393.3秒**（新log作成から最終書き込みまで）、rustdoc **16.4秒**。Cargoが報告するtest compileは**22.0秒**、suite時間合計は**77.6秒**です。初回baselineは広すぎる未使用import guardによるREPL回帰で**265.5秒**後に停止しました。Guardを取り除いて受理済みのREPL／到達可能性規則を保ち、focused回帰検証と最終baselineが成功しました。新12 testはCLI 8件とloaded／proof実行4件です。検証所要時間であり、全稼働時間やruntime benchmarkではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
@@ -195,6 +207,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 
 ## 情報源と確認日
 
+- 詳細Todoの履歴 `8605416..926ccfe`：2026-10-18 JST付の48 revisionを2026-10-18 23:03 JSTに再監査。行の状態変化だけでは完了107点／追加39点になります。V14とR08は最初のcommitでdoneでしたが、V10／R01の実装前監査に2／3点の見積もりが残っているため、両側に5点を加えて完了112点／追加44点としました。新たな成果41件をすべて含み、削除された行はありません。導入と完了が同じ更新でも、その見積もりを保持します。
 - Local Git履歴 `926fb3b`〜`0c2c012` と差分 `367218e..0c2c012`：commit日は2026-10-17／18 JST、確認日は2026-10-18 JST。
 - [Architecture](architecture.md)、[roadmap](roadmap.md)、そこから参照する実装／test：更新・確認日2026-10-18 JST。930 testは今回の監査前の実装checkpointであり、この計画変更で増えたtest数ではありません。
 - 受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)：最終更新日は両方とも2026-10-17、今回のtask一覧のため2026-10-18 JSTに確認しました。Web調査や外部の生産性benchmarkは使用していません。

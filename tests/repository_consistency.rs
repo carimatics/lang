@@ -200,6 +200,36 @@ fn delivery_board(document: &str) -> Vec<Delivery<'_>> {
     rows
 }
 
+fn remaining_work_accounting(document: &str) -> [u32; 4] {
+    let equations: Vec<_> = document
+        .lines()
+        .filter_map(|line| line.strip_prefix("**")?.strip_suffix(" pt**"))
+        .filter(|line| line.contains(" + ") && line.contains(" − "))
+        .collect();
+    assert_eq!(
+        equations.len(),
+        1,
+        "one visible remaining-work reconciliation"
+    );
+    let parts: Vec<_> = equations[0].split_whitespace().collect();
+    assert_eq!(parts.len(), 7);
+    assert_eq!([parts[1], parts[3], parts[5]], ["+", "−", "="]);
+    let values = [parts[0], parts[2], parts[4], parts[6]]
+        .map(|part| part.parse::<u32>().expect("integer planning estimate"));
+    let [initial, added, completed, remaining] = values;
+    assert_eq!(
+        initial
+            .checked_add(added)
+            .and_then(|sum| sum.checked_sub(completed)),
+        Some(remaining),
+        "separate work delivered from changes to the estimate"
+    );
+    assert!(document.contains(&format!(
+        "| {initial} pt | +{added} pt | −{completed} pt | {remaining} pt |"
+    )));
+    values
+}
+
 #[test]
 fn m2_delivery_evidence_estimates_dependencies_and_translations_agree() {
     let english = delivery_board(include_str!("../docs/milestone-2.md"));
@@ -212,6 +242,33 @@ fn m2_delivery_evidence_estimates_dependencies_and_translations_agree() {
     let doing = english.iter().filter(|row| row.state == "doing").count();
     let todo = english.len() - done - doing;
     let remaining: u32 = english.iter().map(|row| row.remaining).sum();
+    let accounting = remaining_work_accounting(include_str!("../docs/milestone-2.md"));
+    assert_eq!(
+        accounting,
+        remaining_work_accounting(include_str!("../docs/ja/milestone-2.md")),
+        "estimate changes and completed work agree across translations"
+    );
+    assert_eq!(
+        accounting[3], remaining,
+        "accounting agrees with open tasks"
+    );
+    assert!(include_str!("../docs/milestone-2.md").contains(&format!(
+        "**35 → {done} (+{})**",
+        done.checked_sub(35).expect("preserve completed deliveries")
+    )));
+    assert!(include_str!("../docs/ja/milestone-2.md").contains(&format!(
+        "**35 → {done}件（+{}件）**",
+        done.checked_sub(35).unwrap()
+    )));
+    let added_tasks = english.len().checked_sub(87).expect("preserve task scope");
+    assert!(
+        include_str!("../docs/milestone-2.md")
+            .contains(&format!("**87 → {} (+{added_tasks})**", english.len()))
+    );
+    assert!(
+        include_str!("../docs/ja/milestone-2.md")
+            .contains(&format!("**87 → {}件（+{added_tasks}件）**", english.len()))
+    );
     assert!(include_str!("../docs/roadmap.md").contains(&format!(
         "**{done} verified deliveries · {doing} in progress · {todo} remaining tasks (provisional {remaining} pt).**"
     )));
