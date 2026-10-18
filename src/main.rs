@@ -10,7 +10,7 @@ use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
 enum Command {
     Check {
         file: PathBuf,
@@ -19,6 +19,15 @@ enum Command {
     Run {
         file: PathBuf,
         root: Option<PathBuf>,
+        limits: Limits,
+    },
+    Compile {
+        file: PathBuf,
+        root: Option<PathBuf>,
+        output: PathBuf,
+    },
+    RunArtifact {
+        file: PathBuf,
         limits: Limits,
     },
     Repl {
@@ -75,7 +84,8 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
     }
     let repl = first == "repl";
     let check = first == "check";
-    if first != "run" && !repl && !check {
+    let compile = first == "compile";
+    if first != "run" && !repl && !check && !compile {
         if arguments.len() != 2 {
             return Err(usage("expected a command or two integers"));
         }
@@ -86,6 +96,8 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
     }
     let mut file = None;
     let mut root = None;
+    let mut output = None;
+    let mut artifact = false;
     let mut limits = Limits::default();
     let mut seen = std::collections::BTreeSet::new();
     let mut arguments = arguments.into_iter().skip(1);
@@ -94,13 +106,24 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
             return Ok(Command::Help);
         }
         if let Some(flag) = argument.to_str().filter(|s| s.starts_with("--")) {
+            if flag == "--artifact" && !check && !repl && !compile {
+                if !seen.insert(flag.to_owned()) {
+                    return Err(usage(format!("duplicate option {flag}")));
+                }
+                artifact = true;
+                continue;
+            }
             if check && flag != "--source-root" {
                 return Err(usage(format!("unknown check option {flag}")));
             }
+            if compile && !matches!(flag, "--source-root" | "--output") {
+                return Err(usage(format!("unknown compile option {flag}")));
+            }
             if !matches!(
                 flag,
-                "--source-root" | "--fuel" | "--host-calls" | "--frames" | "--cells"
-            ) {
+                "--source-root" | "--fuel" | "--host-calls" | "--frames" | "--cells" | "--output"
+            ) || (flag == "--output" && !compile)
+            {
                 return Err(usage(format!("unknown option {flag}")));
             }
             if !seen.insert(flag.to_owned()) {
@@ -111,6 +134,7 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
                 .ok_or_else(|| usage(format!("missing value for {flag}")))?;
             match flag {
                 "--source-root" => root = Some(PathBuf::from(value)),
+                "--output" => output = Some(PathBuf::from(value)),
                 "--fuel" => limits.fuel = Some(number(&value, flag)?),
                 "--host-calls" => limits.host_calls = Some(number(&value, flag)?),
                 "--frames" => limits.frames = Some(number(&value, flag)?),
@@ -130,6 +154,22 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
         return Ok(Command::Check {
             file: file.ok_or_else(|| usage("missing root file"))?,
             root,
+        });
+    }
+    if compile {
+        return Ok(Command::Compile {
+            file: file.ok_or_else(|| usage("missing root file"))?,
+            root,
+            output: output.ok_or_else(|| usage("missing --output"))?,
+        });
+    }
+    if artifact {
+        if root.is_some() {
+            return Err(usage("--source-root is only valid for source input"));
+        }
+        return Ok(Command::RunArtifact {
+            file: file.ok_or_else(|| usage("missing artifact file"))?,
+            limits,
         });
     }
     Ok(Command::Run {
@@ -163,6 +203,8 @@ fn run() -> Result<u8, CliError> {
         }
         Command::Check { file, root } => check_source(file, root),
         Command::Run { file, root, limits } => run_script(file, root, limits),
+        Command::Compile { file, root, output } => compile_source(file, root, output),
+        Command::RunArtifact { file, limits } => run_artifact(file, limits),
         Command::Repl { root, limits } => run_repl(root, limits),
     }
 }
@@ -420,73 +462,8 @@ fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8
         Err(error) => return Err(failure(error)),
     };
     if let lang_semantics::analysis::Program::Ownership(program) = &typed {
-        let mut instance = lang_runtime::cleanup::Instance::default();
-        let mut allocator = lang_runtime::allocation::Allocator::new(
-            lang_runtime::allocation::System,
-            Default::default(),
-        )
-        .map_err(failure)?;
-        return match vm::owned::execute_entry(
-            program.failure_flow(),
-            &mut instance,
-            Some(&mut allocator),
-            Control::with_limits(limits),
-        ) {
-            Ok(outcome) => {
-                writeln!(io::stdout().lock(), "{}", outcome.value).map_err(failure)?;
-                Ok(0)
-            }
-            Err(error) => {
-                writeln!(
-                    stderr,
-                    "error[runtime]: {error} (fuel {}, host calls {})",
-                    error.usage.fuel, error.usage.host_calls
-                )
-                .map_err(failure)?;
-                {
-                    let declarations = program
-                        .mir()
-                        .activity()
-                        .moved()
-                        .typed()
-                        .places()
-                        .declarations();
-                    let frames = error.stack.iter().copied().chain(
-                        error
-                            .function
-                            .filter(|_| error.stack.is_empty())
-                            .map(|function| vm::StackFrame {
-                                function,
-                                span: error.fault,
-                            }),
-                    );
-                    for frame in frames {
-                        let name = declarations
-                            .functions()
-                            .get(frame.function.0 as usize)
-                            .map_or("<invalid>", |f| f.name.as_str());
-                        let Some(span) = frame.span else {
-                            writeln!(stderr, "  at {name}").map_err(failure)?;
-                            continue;
-                        };
-                        if let Some(source) = declarations
-                            .types()
-                            .table()
-                            .sources
-                            .get(span.source.0 as usize)
-                            && let Some(prefix) = source.text.get(..span.start as usize)
-                        {
-                            let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
-                            let column =
-                                prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
-                            writeln!(stderr, "  at {name} ({:?}:{line}:{column})", source.path)
-                                .map_err(failure)?;
-                        }
-                    }
-                }
-                Ok(1)
-            }
-        };
+        drop(stderr);
+        return run_owned(program.failure_flow(), OwnedEntry::Main, limits);
     }
     let typed = frontend::copy_executable(&typed).map_err(failure)?;
     let program = match frontend::compile_script(typed, &analysis.sources, compile) {
@@ -504,8 +481,24 @@ fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8
         }
         Err(error) => return Err(failure(error)),
     };
+    drop(stderr);
+    run_copy(&program, limits)
+}
+
+fn run_copy(program: &lang_bytecode::unit::Program, limits: Limits) -> Result<u8, CliError> {
+    let mut stderr = io::stderr().lock();
+    let unit = program.verified().unit();
+    let entry = unit
+        .entry
+        .ok_or_else(|| failure("artifact has no script entry"))?;
+    let signature = &unit.functions[entry.0 as usize].signature;
+    if !signature.parameters.is_empty() || signature.result != lang_mir::unit::Type::I64 {
+        return Err(failure(
+            "script entry must have zero parameters and return i64",
+        ));
+    }
     match vm::execute_entry(
-        &program,
+        program,
         &HostFunctionRegistry::new(),
         &HostBindings::new(),
         Control::with_limits(limits),
@@ -543,4 +536,221 @@ fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8
             Ok(1)
         }
     }
+}
+
+enum OwnedEntry {
+    Main,
+    Function(lang_mir::unit::FunctionId),
+}
+fn run_owned(
+    flow: &lang_mir::unit::ownership::failure::Elaborated,
+    entry: OwnedEntry,
+    limits: Limits,
+) -> Result<u8, CliError> {
+    let mut instance = lang_runtime::cleanup::Instance::default();
+    let mut allocator = lang_runtime::allocation::Allocator::new(
+        lang_runtime::allocation::System,
+        Default::default(),
+    )
+    .map_err(failure)?;
+    let control = Control::with_limits(limits);
+    let result = match entry {
+        OwnedEntry::Main => {
+            vm::owned::execute_entry(flow, &mut instance, Some(&mut allocator), control)
+        }
+        OwnedEntry::Function(id) => {
+            vm::owned::execute_function(flow, id, &mut instance, Some(&mut allocator), control)
+        }
+    };
+    match result {
+        Ok(outcome) => {
+            writeln!(io::stdout().lock(), "{}", outcome.value).map_err(failure)?;
+            Ok(0)
+        }
+        Err(error) => {
+            let mut stderr = io::stderr().lock();
+            writeln!(
+                stderr,
+                "error[runtime]: {error} (fuel {}, host calls {})",
+                error.usage.fuel, error.usage.host_calls
+            )
+            .map_err(failure)?;
+            let declarations = flow
+                .source()
+                .activity()
+                .moved()
+                .typed()
+                .places()
+                .declarations();
+            let frames = error.stack.iter().copied().chain(
+                error
+                    .function
+                    .filter(|_| error.stack.is_empty())
+                    .map(|function| vm::StackFrame {
+                        function,
+                        span: error.fault,
+                    }),
+            );
+            for frame in frames {
+                let name = declarations
+                    .functions()
+                    .get(frame.function.0 as usize)
+                    .map_or("<invalid>", |f| f.name.as_str());
+                let Some(span) = frame.span else {
+                    writeln!(stderr, "  at {name}").map_err(failure)?;
+                    continue;
+                };
+                if let Some(source) = declarations
+                    .types()
+                    .table()
+                    .sources
+                    .get(span.source.0 as usize)
+                    && let Some(prefix) = source.text.get(..span.start as usize)
+                {
+                    let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
+                    let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                    writeln!(stderr, "  at {name} ({:?}:{line}:{column})", source.path)
+                        .map_err(failure)?;
+                }
+            }
+            Ok(1)
+        }
+    }
+}
+
+fn compile_source(file: PathBuf, root: Option<PathBuf>, output: PathBuf) -> Result<u8, CliError> {
+    let root = source_root(&file, root);
+    let limits = CompileLimits::default();
+    let analysis = frontend::analyze_file(&file, &root, limits);
+    for diagnostic in &analysis.diagnostics {
+        io::stderr()
+            .lock()
+            .write_all(
+                diagnostic
+                    .render(&analysis.sources)
+                    .map_err(failure)?
+                    .as_bytes(),
+            )
+            .map_err(failure)?;
+    }
+    let program = match analysis.result {
+        Ok(p) => p,
+        Err(AnalysisError::Diagnostics) => return Ok(1),
+        Err(e) => return Err(failure(e)),
+    };
+    let bytes = match lang::artifact::compile(
+        program,
+        &analysis.sources,
+        limits,
+        lang::artifact::Limits::default(),
+    ) {
+        Ok(bytes) => bytes,
+        Err(lang::artifact::CompileError::Script(ScriptError::Entry(d))) => {
+            io::stderr()
+                .lock()
+                .write_all(d.render(&analysis.sources).map_err(failure)?.as_bytes())
+                .map_err(failure)?;
+            return Ok(1);
+        }
+        Err(error) => return Err(failure(error)),
+    };
+    if let (Ok(input), Ok(target)) = (std::fs::canonicalize(&file), std::fs::canonicalize(&output))
+        && input == target
+    {
+        return Err(failure("artifact output must differ from the source input"));
+    }
+    write_artifact(&output, &bytes).map_err(|e| failure(format!("{output:?}: {e}")))?;
+    Ok(0)
+}
+
+fn run_artifact(file: PathBuf, limits: Limits) -> Result<u8, CliError> {
+    let format = lang::artifact::Limits::default();
+    let bytes =
+        read_artifact(&file, format.bytes).map_err(|e| failure(format!("{file:?}: {e}")))?;
+    let program = lang::artifact::decode(&bytes, format).map_err(failure)?;
+    drop(bytes);
+    match program {
+        lang::artifact::Program::Copy(program) => run_copy(&program, limits),
+        lang::artifact::Program::Ownership(program) => {
+            let entry = program
+                .entry()
+                .ok_or_else(|| failure("artifact has no script entry"))?;
+            run_owned(program.flow(), OwnedEntry::Function(entry), limits)
+        }
+    }
+}
+
+// The CLI's initial input buffer is bounded separately by the artifact byte
+// cap. Decoder-retained copies and all verification buffers use its own ledger.
+fn read_artifact(path: &std::path::Path, maximum: usize) -> io::Result<Vec<u8>> {
+    let mut input = std::fs::File::open(path)?;
+    let mut bytes = Vec::new();
+    let mut chunk = [0_u8; 8192];
+    loop {
+        let allowance = maximum
+            .saturating_sub(bytes.len())
+            .saturating_add(1)
+            .min(chunk.len());
+        let count = match input.read(&mut chunk[..allowance]) {
+            Ok(n) => n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        };
+        if count == 0 {
+            return Ok(bytes);
+        }
+        let required = bytes
+            .len()
+            .checked_add(count)
+            .ok_or_else(|| io::Error::other("artifact input size overflow"))?;
+        if required > maximum {
+            return Err(io::Error::other(format!(
+                "artifact exceeds {maximum} bytes"
+            )));
+        }
+        if required > bytes.capacity() {
+            let capacity = bytes
+                .capacity()
+                .saturating_mul(2)
+                .max(chunk.len())
+                .max(required)
+                .min(maximum);
+            bytes
+                .try_reserve_exact(capacity - bytes.len())
+                .map_err(|_| io::Error::other("artifact input allocation failed"))?;
+        }
+        bytes.extend_from_slice(&chunk[..count]);
+    }
+}
+
+fn write_artifact(path: &std::path::Path, bytes: &[u8]) -> io::Result<()> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(std::path::Path::new("."));
+    for attempt in 0..16 {
+        let temporary = parent.join(format!(".lang-{}-{attempt}.tmp", std::process::id()));
+        let mut file = match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+        {
+            Ok(file) => file,
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        };
+        let result = (|| {
+            file.write_all(bytes)?;
+            file.flush()?;
+            drop(file);
+            std::fs::rename(&temporary, path)
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+        }
+        return result;
+    }
+    Err(io::Error::other(
+        "cannot reserve an artifact output temporary file",
+    ))
 }

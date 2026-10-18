@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0011-ownership-artifacts.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
 - Last updated: 2026-10-18
@@ -215,7 +215,7 @@ A03 compares direct/loaded source results and original-span failure/cleanup trac
 
 ## Open questions
 
-No unresolved semantic blocker is intended for A01. Unverified implementation assumptions: current stage APIs can share a cumulative admission ledger, complete accepted raw tables can be encoded within useful configured budgets, and loaded/direct execution can preserve identical cleanup diagnostics. A02/A03 must prove these or explicitly revise the RFC and plan. Performance and native/platform support remain unverified.
+The A01 assumptions are verified for the implemented VM profile by A02/A03: the load ledger survives all independent proof stages, representative accepted raw tables fit the configured budgets, and loaded/direct results, failure spans, release order, fuel and recovery agree. This is conformance evidence within the stated limits, not a universal performance claim. Native/platform support and benchmark/debug acceptance remain unverified in their separate rows. Explicitly revise the RFC before changing its contract.
 
 ## Decision
 
@@ -223,5 +223,8 @@ No unresolved semantic blocker is intended for A01. Unverified implementation as
 
 ## Sources
 
+Implementation recorded 2026-10-18 JST (A02/A03): schema 2, independent verification, explicit compile/load commands and checked-entry VM dispatch are implemented. The first loaded Bytes fixture returns `0`; ten service fixtures compare all provider refusals and fuel prefixes plus interruption/reuse, and CLI tests cover both versions, metadata/entry rejection, input/output bounds and deleted multi-file snapshots. Status `implemented` covers this format/current VM contract, not stabilization or the native/platform exit gates.
+
 - Project decisions: [RFC 0001 delegation/compatibility](0001-project-charter.md) and [RFC 0006 schema 1](0006-source-frontend-and-portable-programs.md), updated 2026-10-17 JST; [RFC 0008 cleanup/authority](0008-cleanup-allocators-and-c-boundaries.md), updated 2026-10-17 JST; [RFC 0007](0007-source-ownership-and-core-values.md) and [RFC 0009](0009-whole-sum-ownership-extraction.md), updated 2026-10-18 JST.
-- Implementation evidence: [schema-1 codec](../../crates/bytecode/src/unit/codec.rs), [ownership types](../../crates/mir/src/unit/ownership.rs), [places](../../crates/mir/src/unit/ownership/places.rs), [bodies](../../crates/mir/src/unit/ownership/bodies.rs), [core signatures](../../crates/mir/src/unit/ownership/core/mod.rs), [mandatory region/failure proof](../../crates/mir/src/unit/ownership/failure.rs) and [source analysis pipeline](../../crates/semantics/src/analysis.rs), verified at `9d9d2ac` on 2026-10-18 JST. The numeric wire contract above is this RFC's project decision, not an existing implementation or an external standard.
+- Design-stage evidence: [schema-1 codec](../../crates/bytecode/src/unit/codec.rs), [ownership types](../../crates/mir/src/unit/ownership.rs), [places](../../crates/mir/src/unit/ownership/places.rs), [bodies](../../crates/mir/src/unit/ownership/bodies.rs), [core signatures](../../crates/mir/src/unit/ownership/core/mod.rs), [mandatory region/failure proof](../../crates/mir/src/unit/ownership/failure.rs) and [source analysis pipeline](../../crates/semantics/src/analysis.rs), verified at `9d9d2ac` on 2026-10-18 JST. Numeric wire assignments originate in this project decision, not an external standard.
+- Current implementation: [schema-2 codec](../../crates/bytecode/src/ownership.rs), [compile/load dispatch](../../src/artifact.rs), [CLI](../../src/main.rs), [checked-entry execution](../../crates/vm/src/unit/owned.rs), [CLI tests](../../tests/artifact_cli.rs) and [differential execution](../../tests/support/artifact_execution.rs), updated/verified 2026-10-18 JST.

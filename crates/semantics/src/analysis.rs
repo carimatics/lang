@@ -24,6 +24,11 @@ pub struct OwnershipProgram {
     flow: o::failure::Elaborated,
 }
 impl OwnershipProgram {
+    /// Consume frontend-only data while preserving the shared, independently
+    /// verified ownership contract and its original source snapshots.
+    pub fn into_failure_flow(self) -> o::failure::Elaborated {
+        self.flow
+    }
     pub fn hir(&self) -> &lang_hir::regions::RegionCheckedBodies {
         self.hir.bodies()
     }

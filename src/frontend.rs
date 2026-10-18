@@ -178,16 +178,19 @@ pub fn compile_script(
     sources: &SourceMap,
     limits: CompileLimits,
 ) -> Result<Program, ScriptError> {
-    let main = typed
-        .source()
-        .functions
-        .iter()
-        .find(|f| f.qualified_name == "main");
+    check_script_entry(typed.source(), sources)?;
+    program_lowering::lower(typed, sources, limits.mir)
+        .map(Program::from_verified)
+        .map_err(ScriptError::Lower)
+}
+
+pub fn check_script_entry(source: &r::Program, sources: &SourceMap) -> Result<(), ScriptError> {
+    let main = source.functions.iter().find(|f| f.qualified_name == "main");
     if !main.is_some_and(|f| f.parameters.is_empty() && f.result.value_type == r::Type::I64) {
         let span = if let Some(main) = main {
             main.signature_span
         } else {
-            let root = typed.source().modules[0].span;
+            let root = source.modules[0].span;
             sources
                 .span(root.source(), root.range().end..root.range().end)
                 .expect("checked root span")
@@ -199,9 +202,7 @@ pub fn compile_script(
             Label::new(span, "missing or invalid script entry"),
         ))));
     }
-    program_lowering::lower(typed, sources, limits.mir)
-        .map(Program::from_verified)
-        .map_err(ScriptError::Lower)
+    Ok(())
 }
 
 /// The Copy VM/native/REPL pipeline requires this profile. Source CLI ownership

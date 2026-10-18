@@ -188,7 +188,7 @@ fn relocate<P: a::Provider, C: c::Cleaner<Ticket>>(
 }
 
 enum Selection {
-    Script,
+    Script(m::FunctionId),
     Preview {
         function: m::FunctionId,
         bytes: usize,
@@ -205,6 +205,7 @@ struct Execution {
 }
 pub(super) fn execute<P: a::Provider>(
     flow: &f::Elaborated,
+    function: m::FunctionId,
     instance: &mut c::Instance,
     allocator: Option<&mut a::Allocator<P>>,
     control: Control<'_>,
@@ -213,7 +214,13 @@ pub(super) fn execute<P: a::Provider>(
         value,
         usage,
         allocations,
-    } = execute_with(flow, instance, allocator, control, Selection::Script)?;
+    } = execute_with(
+        flow,
+        instance,
+        allocator,
+        control,
+        Selection::Script(function),
+    )?;
     let Value::Scalar(value) = value else {
         return Err(rejected(Reason::Entry, None, None));
     };
@@ -268,11 +275,7 @@ fn execute_with<P: a::Provider>(
     let declarations = typed.places().declarations();
     let types = declarations.types();
     let entry = match selection {
-        Selection::Script => declarations
-            .functions()
-            .iter()
-            .position(|f| f.name == "main"),
-        Selection::Preview { function, .. } => {
+        Selection::Script(function) | Selection::Preview { function, .. } => {
             ((function.0 as usize) < declarations.functions().len()).then_some(function.0 as usize)
         }
     }
@@ -281,7 +284,7 @@ fn execute_with<P: a::Provider>(
     let signature = declarations.functions()[entry].signature_span;
     let fail = |reason| rejected(reason, Some(function), Some(signature));
     if !declarations.functions()[entry].parameters.is_empty()
-        || (matches!(selection, Selection::Script)
+        || (matches!(selection, Selection::Script(_))
             && declarations.functions()[entry].result.ty != o::Type::I64)
     {
         return Err(fail(Reason::Entry));

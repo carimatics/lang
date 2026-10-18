@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0011-ownership-artifacts.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
 - Last updated: 2026-10-18
@@ -215,7 +215,7 @@ A03はBytes／Text／Vec／Map／shared／arena、provider OOM、fuel、中断�
 
 ## Open questions
 
-A01のsemantics上の未解決blockerは想定していません。未検証の実装仮定は、現stage APIで累積admission ledgerを共有できること、有用な設定予算内で受理済みraw table全体をencodeできること、load／直接実行で同じcleanup診断を保持できることです。A02／A03で証明するか、RFCと計画を明示改訂します。性能とnative／platform対応は未検証です。
+A01の仮定は、実装したVM profileに対してA02／A03で検証しました。Load ledgerが全独立proof stageを通じて保持され、代表的な受理済みraw tableが設定予算内に収まり、load／直接実行の結果、failure span、解放順序、fuel、復旧が一致します。明記した上限内のconformance証拠であり、一般的な性能の主張ではありません。Native／platform対応、benchmark／debugの受入は別行で未検証のままです。契約変更の前にはRFCを明示改訂します。
 
 ## Decision
 
@@ -223,5 +223,8 @@ A01のsemantics上の未解決blockerは想定していません。未検証の�
 
 ## Sources
 
+2026-10-18 JST実装記録（A02／A03）：schema 2、独立検証、明示的compile／load command、検証済みentryによるVM dispatchを実装しました。最初のload済みBytes fixtureは`0`を返します。Service 10 fixtureで全provider拒否位置／fuel prefixと中断／再利用を比較し、CLI testで両version、metadata／entry拒否、入出力上限、削除した複数fileのsnapshotを検証します。`implemented`は本format／現VM契約に対する状態であり、安定化やnative／platform exit gateの完了ではありません。
+
 - Project決定：[RFC 0001の委任／互換性](0001-project-charter.md)と[RFC 0006 schema 1](0006-source-frontend-and-portable-programs.md)は2026-10-17 JST更新、[RFC 0008 cleanup／authority](0008-cleanup-allocators-and-c-boundaries.md)は2026-10-17 JST更新、[RFC 0007](0007-source-ownership-and-core-values.md)と[RFC 0009](0009-whole-sum-ownership-extraction.md)は2026-10-18 JST更新。
-- 実装証拠：[schema-1 codec](../../../crates/bytecode/src/unit/codec.rs)、[ownership type](../../../crates/mir/src/unit/ownership.rs)、[place](../../../crates/mir/src/unit/ownership/places.rs)、[body](../../../crates/mir/src/unit/ownership/bodies.rs)、[core signature](../../../crates/mir/src/unit/ownership/core/mod.rs)、[必須region／failure proof](../../../crates/mir/src/unit/ownership/failure.rs)、[source analysis pipeline](../../../crates/semantics/src/analysis.rs)。`9d9d2ac`時点で2026-10-18 JST検証。上の数値wire契約は本RFCのproject決定であり、既存実装や外部標準ではありません。
+- 設計時点の証拠：[schema-1 codec](../../../crates/bytecode/src/unit/codec.rs)、[ownership type](../../../crates/mir/src/unit/ownership.rs)、[place](../../../crates/mir/src/unit/ownership/places.rs)、[body](../../../crates/mir/src/unit/ownership/bodies.rs)、[core signature](../../../crates/mir/src/unit/ownership/core/mod.rs)、[必須region／failure proof](../../../crates/mir/src/unit/ownership/failure.rs)、[source analysis pipeline](../../../crates/semantics/src/analysis.rs)。`9d9d2ac`時点で2026-10-18 JST検証。数値wire割当は本project決定に由来し、外部標準ではありません。
+- 現実装：[schema-2 codec](../../../crates/bytecode/src/ownership.rs)、[compile／load dispatch](../../../src/artifact.rs)、[CLI](../../../src/main.rs)、[検証済みentryの実行](../../../crates/vm/src/unit/owned.rs)、[CLI test](../../../tests/artifact_cli.rs)、[差分実行](../../../tests/support/artifact_execution.rs)。2026-10-18 JST更新・検証。

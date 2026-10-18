@@ -53,7 +53,7 @@
 - [RFC 0008：Cleanup、allocator authority、C boundary（accepted）](docs/ja/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 - [RFC 0009：Option／Result全体のownership取り出し（accepted）](docs/ja/rfcs/0009-whole-sum-ownership-extraction.md)
 - [RFC 0010：所有値を返すREPL結果のpreview（accepted・current-profile REPL実装済み）](docs/ja/rfcs/0010-owned-repl-previews.md)
-- [RFC 0011：Portable ownership artifact（accepted・codec実装済み、CLIは未完了）](docs/ja/rfcs/0011-ownership-artifacts.md)
+- [RFC 0011：Portable ownership artifact（implemented）](docs/ja/rfcs/0011-ownership-artifacts.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
@@ -68,6 +68,8 @@ cargo run -- check examples/analysis/extraction.lang
 cargo run -- run examples/scripts/answer.lang
 cargo run -- run examples/scripts/bytes.lang
 cargo run -- run examples/scripts/owned_bytes.lang
+cargo run -- compile --output target/owned-bytes.lbc examples/scripts/owned_bytes.lang
+cargo run -- run --artifact target/owned-bytes.lbc
 cargo run -- run examples/analysis/extraction.lang
 cargo run -- run examples/scripts/utf8.lang
 cargo run -- run examples/scripts/text.lang
@@ -94,11 +96,13 @@ cargo run --quiet -- lsp
 
 Source arenaでCopy値、Bytes／Text、inline aggregate、同一region referenceを持つ入れ子Vec／Mapのallocation、checked read、replacement、lexical teardownを実行できます。`arena.lang` は値の置換と読み取り後に `9`、`arena_owned.lang` はowning Bytes payloadを持つnodeのcycleを辿って `5` を表示します。Region再enterでは新しいgenerationを使います。変更／exit前にreadを終了し、teardownでnodeはallocationの逆順、各fieldは初期化の逆順に解放します。[Source arena実行](docs/ja/architecture.md#source-arena-execution)を参照してください。2026-10-18 JST更新・確認。
 
-Sourceのshared／weak値で入れ子Vec／Mapと再帰的shared shapeを含むstorable値の明示clone、checked read、replacement、weak生成／clone／upgrade、cleanupを実行できます。`shared.lang` は `9`、`shared_owned.lang` はstrong cycleを拒否し、borrowed guest call越しに入れ子owning nodeを読んで `13` を表示します。Weak ownerはpayload失効後もmetadataを保持します。Live readはalias経由の置換を禁止し、publication失敗時はincoming ownerを解放します。Indirect result preview、native実行、ownership artifactは個別gateを維持します。[Source shared実行](docs/ja/architecture.md#source-shared-and-weak-execution)を参照してください。2026-10-18 JST更新・確認。
+`compile --output ARTIFACT SOURCE`はsource／format検証後にCopy schema 1またはownership schema 2を出力します。`run --artifact ARTIFACT`は独立検証後に明示的entry IDを実行し、埋め込んだmodule snapshotによりsource file削除後も診断を保持します。上のBytes commandは`0`を表示します。Binary入力は64 MiBを上限とし、compile成功後にtemporary file経由で出力を公開します。Entryなしのlibrary artifactはscript実行できません。CLIはowned実行へallocator authorityを与え、host importは登録せず、artifact入力と`--source-root`の併用を拒否します。現owned adapterは到達するhost callをpreflightで拒否し、未使用宣言は実行しません。現在のVM profileの実装であり、native／platformと組合せconformanceは別作業です。[Artifact実行](docs/ja/architecture.md#ownership-artifact-cli-and-execution)を参照してください。2026-10-18 JST更新・確認。
 
-Source Vecで入れ子collection、shared／weak値、同一regionのarena referenceを含むstorable値のnew／len／push／popと、検証済みshared／mutable element readを実行できます。`vec.lang` は `9`、`vec_owned.lang` はowning pairのgrowth、buffer変更、field置換、値のpop、guest call越しのreadを経て `12` を表示します。Live element loan中はpush／popを禁止し、push失敗時は評価済みowning引数をcleanupします。Indirect preview、native実行、ownership artifactは各gateを維持します。[Source Vec実行](docs/ja/architecture.md#source-vec-execution)を参照してください。2026-10-18 JST更新・確認。
+Sourceのshared／weak値で入れ子Vec／Mapと再帰的shared shapeを含むstorable値の明示clone、checked read、replacement、weak生成／clone／upgrade、cleanupを実行できます。`shared.lang` は `9`、`shared_owned.lang` はstrong cycleを拒否し、borrowed guest call越しに入れ子owning nodeを読んで `13` を表示します。Weak ownerはpayload失効後もmetadataを保持します。Live readはalias経由の置換を禁止し、publication失敗時はincoming ownerを解放します。Indirect result preview、native実行、VM／nativeの組合せconformanceは個別gateを維持します。[Source shared実行](docs/ja/architecture.md#source-shared-and-weak-execution)を参照してください。2026-10-18 JST更新・確認。
 
-Source Mapでi64またはUTF-8 byte単位の厳密なText keyと、storableな入れ子valueのnew／len／insert／get／removeを実行できます。`map.lang` は `49`、`map_owned.lang` はowning pairのgrowth、等価Text keyの置換、guest call越しのread、value削除を経て `33` を表示します。置換で元keyを保持し、旧valueを返します。拒否時は評価済みincoming ownerをcleanupし、live read中はmutationを禁止します。Indirect preview、native実行、ownership artifactは各gateを維持します。[Source Map実行](docs/ja/architecture.md#source-map-execution)を参照してください。2026-10-18 JST更新・確認。
+Source Vecで入れ子collection、shared／weak値、同一regionのarena referenceを含むstorable値のnew／len／push／popと、検証済みshared／mutable element readを実行できます。`vec.lang` は `9`、`vec_owned.lang` はowning pairのgrowth、buffer変更、field置換、値のpop、guest call越しのreadを経て `12` を表示します。Live element loan中はpush／popを禁止し、push失敗時は評価済みowning引数をcleanupします。Indirect preview、native実行、VM／nativeの組合せconformanceは各gateを維持します。[Source Vec実行](docs/ja/architecture.md#source-vec-execution)を参照してください。2026-10-18 JST更新・確認。
+
+Source Mapでi64またはUTF-8 byte単位の厳密なText keyと、storableな入れ子valueのnew／len／insert／get／removeを実行できます。`map.lang` は `49`、`map_owned.lang` はowning pairのgrowth、等価Text keyの置換、guest call越しのread、value削除を経て `33` を表示します。置換で元keyを保持し、旧valueを返します。拒否時は評価済みincoming ownerをcleanupし、live read中はmutationを禁止します。Indirect preview、native実行、VM／nativeの組合せconformanceは各gateを維持します。[Source Map実行](docs/ja/architecture.md#source-map-execution)を参照してください。2026-10-18 JST更新・確認。
 
 入れ子serviceを接続する [example](docs/ja/architecture.md#nested-service-source-execution) は `8`（shared→Vec→Map越しのclone／weak／read）、`21`（container越しの循環拒否）、`4`（arena→Map→Vecの同一region循環）、`6`（入れ子mutable置換／削除）を表示します。Strong edgeとarena brandをcontainer越しに検査し、元spanを維持して反復cleanupします。Ordinary loan、allocator authority、arena ownerは格納不可で、別arena・shared heap間のedge、region越しの生存を拒否します。2026-10-18 JST更新・確認。
 
@@ -114,7 +118,7 @@ REPLは検証に成功したitem定義をcommitし、submissionごとに1つのe
 
 `cargo build` 後、LSP clientに `target/debug/lang lsp` を設定します。Stdio profileはinitialize／shutdown／exit、UTF-16位置、full document同期、version付き診断、watched-file refresh、canonicalな4-space document formattingに対応します。Initializeで明示するlocal workspace rootは最大1つで、省略時はopen bufferだけを利用します。Code action、completion、navigation、debugger統合は後続作業です。[Architectureとprotocol情報源](docs/ja/architecture.md#diagnosticslspdebugging)を参照してください。
 
-共有APIは `lang::frontend`、`lang::repl::Session`、`lang_semantics::analysis`、`lang_semantics::database`、`lang_syntax::format`、MIR／bytecode／VM／Cranelift crateの `unit` moduleです。Source解析は明示的なCopy／ownership programを返し、ownership variantは検証済みHIR／MIRを保持します。Compiler／codec／cache budgetを設定できます。VM既定値はfuel 1,000,000、host call 1,000、guest frame 256、live value cell 1,000,000です。Interruption／deadlineはguest safe pointで作用し、trusted native callbackはpreemptできず、unwindは禁止です。
+共有host APIには `lang::frontend`、`lang::artifact`、`lang::repl::Session`、`lang_semantics::analysis`、`lang_semantics::database`、`lang_syntax::format`、MIR／bytecode／VM／Cranelift crateの `unit` moduleがあります。Source解析は明示的なCopy／ownership programを返し、ownership variantは検証済みHIR／MIRを保持します。Compiler／codec／cache budgetを設定できます。VM既定値はfuel 1,000,000、host call 1,000、guest frame 256、live value cell 1,000,000です。Interruption／deadlineはguest safe pointで作用し、trusted native callbackはpreemptできず、unwindは禁止です。
 
 `lang_codegen_clif::program` のunit全体native APIは、guest call、boolean interface、record／enum、patternを含むRFC 0006 Copy profileを扱います。Ownership-aware native lowering、公開C adapter、production native packagingはMilestone 2の残作業です。`cargo run -- 20 22` は以前のscalar VM／JIT比較を保持します。初期native backendはCranelift 0.136.3です。Native linker／debug evidenceと過去のplatform計測は[architecture](docs/ja/architecture.md)、[benchmarks](docs/ja/benchmarks.md)、[roadmap](docs/ja/roadmap.md)へ記録しています。2026-10-17のlocal source-conformance実行環境はmacOS AArch64で、Windows実行にはCI evidenceが必要です。
 

@@ -7,6 +7,40 @@ use std::path::Path;
 
 const BYTES: &str = include_str!("../examples/scripts/owned_bytes.lang");
 
+#[path = "support/artifact_execution.rs"]
+mod execution;
+
+#[test]
+fn compiled_bytes_execute_from_the_decoded_entry_identity() {
+    let raw = table(BYTES);
+    let entry = raw
+        .places
+        .declarations
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .map(|i| m::FunctionId(i as u32))
+        .unwrap();
+    let bytes = wire::encode(raw, Some(entry), wire::CodecLimits::default()).unwrap();
+    let loaded = wire::decode(&bytes, wire::CodecLimits::default()).unwrap();
+    let mut allocator = lang_runtime::allocation::Allocator::new(
+        lang_runtime::allocation::System,
+        Default::default(),
+    )
+    .unwrap();
+    let outcome = lang_vm::unit::owned::execute_function(
+        loaded.flow(),
+        loaded.entry().unwrap(),
+        &mut lang_runtime::cleanup::Instance::default(),
+        Some(&mut allocator),
+        lang_vm::unit::Control::default(),
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 0);
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert_eq!(allocator.stats().live_bytes, 0);
+}
+
 fn table(source: &str) -> o::bodies::BodyTable {
     let analysis = frontend::analyze_virtual(
         SourceMap::new(),

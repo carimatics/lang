@@ -264,7 +264,7 @@ fn budget_usage(budget: &m::Budget) -> m::Usage {
 }
 
 /// Zero-argument i64 script entry with bounded guest activations. Ownership MIR
-/// remains in-memory; filesystem/network/FFI host capabilities are not granted.
+/// may come from source or a reverified artifact; host capabilities stay explicit.
 #[allow(
     clippy::result_large_err,
     reason = "Return the completed cleanup report inline; boxing it after OOM could allocate during failure handling."
@@ -282,17 +282,63 @@ pub fn execute_entry<P: a::Provider>(
         .functions()
         .iter()
         .position(|f| f.name == "main");
-    let has_calls = entry.is_some_and(|i| {
-        typed.functions()[i].blocks.iter().any(|b| {
-            b.instructions
-                .iter()
-                .any(|i| matches!(i.op, b::Op::Call { .. } | b::Op::ArenaEnter { .. }))
-        })
+    execute_selected(
+        flow,
+        entry.map(|i| m::FunctionId(i as u32)),
+        instance,
+        allocator,
+        control,
+    )
+}
+
+/// Execute an explicitly checked artifact function identity as a zero-argument
+/// i64 script, without selecting or renaming a source function called main.
+#[allow(
+    clippy::result_large_err,
+    reason = "Preserve inline failure reports after OOM."
+)]
+pub fn execute_function<P: a::Provider>(
+    flow: &f::Elaborated,
+    function: m::FunctionId,
+    instance: &mut c::Instance,
+    allocator: Option<&mut a::Allocator<P>>,
+    control: Control<'_>,
+) -> Result<Outcome, Failure> {
+    execute_selected(flow, Some(function), instance, allocator, control)
+}
+
+#[allow(
+    clippy::result_large_err,
+    reason = "Preserve inline failure reports after OOM."
+)]
+fn execute_selected<P: a::Provider>(
+    flow: &f::Elaborated,
+    function: Option<m::FunctionId>,
+    instance: &mut c::Instance,
+    allocator: Option<&mut a::Allocator<P>>,
+    control: Control<'_>,
+) -> Result<Outcome, Failure> {
+    if instance.is_poisoned() {
+        return Err(rejected(Reason::Poisoned, None, None));
+    }
+    control
+        .check()
+        .map_err(|e| rejected(Reason::Control(e), None, None))?;
+    let function = function.ok_or_else(|| rejected(Reason::Entry, None, None))?;
+    let typed = flow.source().activity().moved().typed();
+    let body = typed
+        .functions()
+        .get(function.0 as usize)
+        .ok_or_else(|| rejected(Reason::Entry, None, None))?;
+    let has_calls = body.blocks.iter().any(|b| {
+        b.instructions
+            .iter()
+            .any(|i| matches!(i.op, b::Op::Call { .. } | b::Op::ArenaEnter { .. }))
     });
     if has_calls {
-        calls::execute(flow, instance, allocator, control)
+        calls::execute(flow, function, instance, allocator, control)
     } else {
-        execute_single(flow, instance, allocator, control)
+        execute_single(flow, function, instance, allocator, control)
     }
 }
 #[allow(
@@ -301,6 +347,7 @@ pub fn execute_entry<P: a::Provider>(
 )]
 fn execute_single<P: a::Provider>(
     flow: &f::Elaborated,
+    function: m::FunctionId,
     instance: &mut c::Instance,
     allocator: Option<&mut a::Allocator<P>>,
     control: Control<'_>,
@@ -313,13 +360,11 @@ fn execute_single<P: a::Provider>(
         .map_err(|e| rejected(Reason::Control(e), None, None))?;
     let typed = flow.source().activity().moved().typed();
     let declarations = typed.places().declarations();
-    let index = declarations
+    let index = function.0 as usize;
+    let declaration = declarations
         .functions()
-        .iter()
-        .position(|f| f.name == "main")
+        .get(index)
         .ok_or_else(|| rejected(Reason::Entry, None, None))?;
-    let function = m::FunctionId(index as u32);
-    let declaration = &declarations.functions()[index];
     let span = Some(declaration.signature_span);
     let fail = |reason| rejected(reason, Some(function), span);
     if !declaration.parameters.is_empty() || declaration.result.ty != o::Type::I64 {
