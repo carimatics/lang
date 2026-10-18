@@ -81,7 +81,7 @@ fn target(block: u32, arguments: impl IntoIterator<Item = m::Register>) -> m::Ta
         arguments: arguments.into_iter().collect(),
     }
 }
-fn flow(table: b::BodyTable) -> o::failure::Elaborated {
+pub(super) fn flow(table: b::BodyTable) -> o::failure::Elaborated {
     let typed = table.verify(Default::default()).unwrap();
     let moved = o::moves::analyze(typed, Default::default()).unwrap();
     let active = o::loan_activity::analyze(moved, Default::default()).unwrap();
@@ -287,9 +287,10 @@ fn physical(unit: &Unit<'_, '_, '_, '_>, cell: usize) -> Result<Physical, c::Cau
         .unwrap()
         .value(unit.slot(cell))
         .copied()
-        .map_err(invariant)
+        .map_err(invariant)?
+        .physical()
 }
-fn publish(
+pub(super) fn publish(
     unit: &mut Unit<'_, '_, '_, '_>,
     cell: usize,
     value: Physical,
@@ -299,13 +300,30 @@ fn publish(
     let slot = unit.slot(cell);
     let ledger = unit.ledger.as_mut().unwrap();
     if ledger.value(slot).is_ok() {
-        if !copied {
+        let ty = unit
+            .program
+            .layout(unit.stack.last().unwrap().function)
+            .unwrap()
+            .frame()
+            .cell_type(cell)
+            .unwrap()
+            .ty;
+        let dropping = unit
+            .program
+            .layout(unit.stack.last().unwrap().function)
+            .unwrap()
+            .layouts()
+            .types()
+            .properties(ty)
+            .unwrap()
+            .requires_drop;
+        if !copied && dropping {
             return Err(bad());
         }
         ledger.take_owner(slot).map_err(invariant)?;
     }
     ledger
-        .initialize(slot, value, Some(span))
+        .initialize(slot, Ticket::Value(value), Some(span))
         .map_err(|_| bad())
 }
 fn immediate(unit: &Unit<'_, '_, '_, '_>, cell: usize) -> Result<l::Immediate, c::Cause> {
@@ -391,16 +409,6 @@ pub(super) fn copy_slot(
     copy_physical(&mut unit.store.borrow_mut(), input, target)?;
     publish(unit, to, target, span)
 }
-pub(super) fn case(unit: &mut Unit<'_, '_, '_, '_>, cell: usize) -> Result<u32, c::Cause> {
-    let value = physical(unit, cell)?;
-    let store = unit.store.borrow();
-    let source = store.pools[value.frame]
-        .cell(value.cell)
-        .map_err(|_| bad())?;
-    source
-        .case(source.root(), store.allocator)
-        .map_err(|_| bad())
-}
 pub(super) fn aggregate(
     unit: &mut Unit<'_, '_, '_, '_>,
     record: &n::RecordSite,
@@ -462,7 +470,10 @@ pub(super) fn aggregate(
             .map_err(|_| bad())?;
     }
     for (field, slot) in record.fields.iter().enumerate() {
-        let source = *ledger.value(c::Slot(base + slot)).map_err(invariant)?;
+        let source = ledger
+            .value(c::Slot(base + slot))
+            .map_err(invariant)?
+            .physical()?;
         if source.frame != target.frame {
             return Err(bad());
         }
@@ -482,7 +493,10 @@ pub(super) fn aggregate(
         )
         .map_err(|_| bad())?;
     for (field, slot) in record.fields.iter().enumerate() {
-        let source = *ledger.value(c::Slot(base + slot)).map_err(invariant)?;
+        let source = ledger
+            .value(c::Slot(base + slot))
+            .map_err(invariant)?
+            .physical()?;
         let (input, output) = pools[target.frame]
             .two_cells_mut(source.cell, target.cell)
             .map_err(|_| bad())?;
@@ -542,32 +556,6 @@ pub(super) fn extract(unit: &mut Unit<'_, '_, '_, '_>, site: &n::ExtractSite) ->
     let span = unit.plan().cell_type(site.result).unwrap().span;
     publish(unit, site.result, target, span)
 }
-pub(super) fn copy_field(
-    unit: &mut Unit<'_, '_, '_, '_>,
-    site: &n::CaseFieldSite,
-) -> n::ResultStep {
-    let source = physical(unit, site.source)?;
-    let target = Physical {
-        frame: unit.depth(),
-        cell: site.result,
-    };
-    {
-        let mut store = unit.store.borrow_mut();
-        let Store {
-            pools, allocator, ..
-        } = &mut *store;
-        let input = pools[source.frame].cell(source.cell).map_err(|_| bad())?;
-        let output = pools[target.frame].cell(target.cell).map_err(|_| bad())?;
-        let child = input
-            .child(input.root(), site.field, allocator)
-            .map_err(|_| bad())?;
-        output
-            .copy_from(output.root(), input, child, allocator)
-            .map_err(|_| bad())?;
-    }
-    let span = unit.plan().cell_type(site.result).unwrap().span;
-    publish(unit, site.result, target, span)
-}
 pub(super) fn transfer(unit: &mut Unit<'_, '_, '_, '_>, site: &n::TransferSite) -> n::ResultStep {
     for step in &site.moves {
         relocate(unit, step.source, step.scratch)?;
@@ -577,22 +565,48 @@ pub(super) fn transfer(unit: &mut Unit<'_, '_, '_, '_>, site: &n::TransferSite) 
     }
     Ok(())
 }
-fn relocate(unit: &mut Unit<'_, '_, '_, '_>, from: usize, to: usize) -> n::ResultStep {
+pub(super) fn relocate(unit: &mut Unit<'_, '_, '_, '_>, from: usize, to: usize) -> n::ResultStep {
     let span = unit.plan().cell_type(to).unwrap().span;
+    move_value(unit, from, to, span)
+}
+pub(super) fn move_value(
+    unit: &mut Unit<'_, '_, '_, '_>,
+    from: usize,
+    to: usize,
+    span: m::Span,
+) -> n::ResultStep {
     if is_copy(unit, from) {
         return copy_slot(unit, from, to, span);
     }
+    let source_slot = unit.slot(from);
+    let target_slot = unit.slot(to);
     let source = physical(unit, from)?;
     let target = Physical {
         frame: unit.depth(),
         cell: to,
     };
+    let dropping = {
+        let layout = unit
+            .program
+            .layout(unit.stack.last().unwrap().function)
+            .unwrap();
+        layout
+            .layouts()
+            .types()
+            .properties(layout.frame().cell_type(to).unwrap().ty)
+            .unwrap()
+            .requires_drop
+    };
+    let ledger = unit.ledger.as_mut().unwrap();
+    if ledger.value(target_slot).is_ok() {
+        if dropping {
+            return Err(bad());
+        }
+        ledger.take_owner(target_slot).map_err(invariant)?;
+    }
     unit.store.borrow_mut().transfer(source, target)?;
-    let slot = unit.slot(from);
-    unit.ledger
-        .as_mut()
-        .unwrap()
-        .take_owner(slot)
-        .map_err(invariant)?;
-    publish(unit, to, target, span)
+    *ledger.value_mut(source_slot).map_err(invariant)? = Ticket::Value(target);
+    ledger
+        .move_value(source_slot, target_slot)
+        .map_err(invariant)
 }

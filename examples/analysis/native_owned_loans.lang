@@ -1,0 +1,15 @@
+// Borrow a scalar field while retaining an owned record in the caller.
+// Check: cargo run -- check examples/analysis/native_owned_loans.lang
+// Execute: cargo test --test native_owned_boundary native_borrowed_field_mutation
+struct State { count: i64, owner: core::Bytes }
+fn relay(owner: core::Bytes, success: core::Bytes, failure: core::Bytes) -> core::Bytes {
+    let mut state: State = State { owner: owner, count: 1 };
+    let mut after: i64 = bump(state.count);
+    if state.count < 3 { return failure; }
+    if after < 3 { return failure; }
+    return success;
+}
+fn bump(value: &mut i64) -> i64 {
+    (*value) = (*value) + 2;
+    return (*value);
+}

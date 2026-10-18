@@ -1,4 +1,6 @@
 use super::*;
+#[path = "native_places.rs"]
+mod places;
 #[path = "native_owned_values.rs"]
 mod values;
 use n::{CallSite, CompiledProgram, Transition};
@@ -8,12 +10,29 @@ struct Physical {
     frame: usize,
     cell: usize,
 }
+#[derive(Clone, Copy)]
+enum Ticket {
+    Value(Physical),
+    Loan(usize),
+}
+impl Ticket {
+    fn physical(self) -> Result<Physical, c::Cause> {
+        match self {
+            Self::Value(value) => Ok(value),
+            Self::Loan(_) => Err(c::Cause::Execution(c::ExecutionFailure::Invariant)),
+        }
+    }
+}
 struct Store<'a, 'l> {
     pools: Vec<l::FrameStorage<'l, 'l>>,
     allocator: &'a mut a::Allocator<Provider>,
     expected: &'a [&'a [u8]],
     retired: Vec<usize>,
     refuse_cleanup: bool,
+    loans: Vec<places::Loan>,
+    prepared: Vec<Option<places::Capture>>,
+    loan_stride: usize,
+    prepared_stride: usize,
 }
 impl Store<'_, '_> {
     fn transfer(&mut self, from: Physical, to: Physical) -> n::ResultStep {
@@ -46,20 +65,28 @@ impl Store<'_, '_> {
     }
 }
 struct Drain<'s, 'a, 'l>(&'s RefCell<Store<'a, 'l>>);
-impl c::Cleaner<Physical> for Drain<'_, '_, '_> {
+impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
     fn cleanup(
         &mut self,
-        physical: &mut Physical,
+        ticket: &mut Ticket,
         _: c::Reason,
         context: &mut c::Context<'_>,
     ) -> Result<(), u32> {
         let mut storage = self.0.borrow_mut();
+        let physical = match ticket {
+            Ticket::Loan(id) => {
+                storage.loans[*id].target = None;
+                return Ok(());
+            }
+            Ticket::Value(value) => value,
+        };
         let Store {
             pools,
             allocator,
             expected,
             retired,
             refuse_cleanup,
+            ..
         } = &mut *storage;
         let cell = pools[physical.frame]
             .cell_mut(physical.cell)
@@ -95,7 +122,7 @@ struct Active {
 struct Unit<'i, 's, 'a, 'l> {
     program: &'s CompiledProgram<'l>,
     store: &'s RefCell<Store<'a, 'l>>,
-    ledger: Option<c::Frame<'i, Physical, Drain<'s, 'a, 'l>>>,
+    ledger: Option<c::Frame<'i, Ticket, Drain<'s, 'a, 'l>>>,
     stack: Vec<Active>,
     stride: usize,
     maximum_frames: usize,
@@ -157,13 +184,25 @@ impl Runtime for Unit<'_, '_, '_, '_> {
                     .map_err(invariant)?;
             }
             let typed = layout.source().source().activity().moved().typed();
+            for loan in 0..typed.functions()[active.function.0 as usize].loans {
+                ledger
+                    .declare(
+                        c::Slot(
+                            layout
+                                .loan_slot(m::ownership::bodies::LoanId(loan as u32))
+                                .unwrap(),
+                        ),
+                        c::Kind::Borrow,
+                    )
+                    .map_err(invariant)?;
+            }
             let function = &typed.places().declarations().functions()[active.function.0 as usize];
             for parameter in &function.parameters {
                 let cell = layout.frame().local(*parameter).unwrap();
                 ledger
                     .initialize(
                         c::Slot(cell),
-                        Physical { frame: 0, cell },
+                        Ticket::Value(Physical { frame: 0, cell }),
                         Some(function.locals[parameter.0 as usize].span),
                     )
                     .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
@@ -178,13 +217,8 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         self.fuel += 1;
         Ok(())
     }
-    fn move_slot(&mut self, source: usize, target: usize, _: m::Span) -> n::ResultStep {
-        let (source, target) = (self.slot(source), self.slot(target));
-        self.ledger
-            .as_mut()
-            .unwrap()
-            .move_value(source, target)
-            .map_err(invariant)
+    fn move_slot(&mut self, source: usize, target: usize, span: m::Span) -> n::ResultStep {
+        values::move_value(self, source, target, span)
     }
     fn cleanup(&mut self, slots: &[(usize, m::Span)]) -> n::ResultStep {
         let base = self.depth() * self.stride;
@@ -206,7 +240,7 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         values::copy_slot(self, from, to, span)
     }
     fn variant_case(&mut self, cell: usize) -> Result<u32, c::Cause> {
-        values::case(self, cell)
+        places::variant_case(self, cell)
     }
     fn construct_variant(&mut self, site: &n::VariantSite) -> n::ResultStep {
         values::aggregate(self, &site.payload, Some(site.case))
@@ -215,20 +249,46 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         values::extract(self, site)
     }
     fn copy_case_field(&mut self, site: &n::CaseFieldSite) -> n::ResultStep {
-        values::copy_field(self, site)
+        places::copy_field(self, site)
     }
     fn transfer(&mut self, site: &n::TransferSite) -> n::ResultStep {
         values::transfer(self, site)
     }
+    fn load_place(&mut self, site: &n::PlaceLoad) -> n::ResultStep {
+        places::load(self, site)
+    }
+    fn borrow_place(&mut self, site: &n::BorrowSite) -> n::ResultStep {
+        places::borrow(self, site)
+    }
+    fn borrow_case(&mut self, site: &n::BorrowCaseSite) -> n::ResultStep {
+        places::borrow_case(self, site)
+    }
+    fn end_borrow(
+        &mut self,
+        loan: m::ownership::bodies::LoanId,
+        mode: m::ownership::bodies::EndMode,
+    ) -> n::ResultStep {
+        places::end(self, loan, mode)
+    }
+    fn prepare_place(&mut self, site: &n::PreparedSite) -> n::ResultStep {
+        places::prepare(self, site)
+    }
+    fn replace_place(&mut self, site: &n::ReplaceSite) -> n::ResultStep {
+        places::replace(self, site)
+    }
+    fn discard_prepared(&mut self, id: Option<m::ownership::bodies::PreparedPlaceId>) {
+        places::discard(self, id)
+    }
     fn stage_return(&mut self, slot: usize, _: m::Span) -> n::ResultStep {
         let copied = values::is_copy(self, slot);
         let slot = self.slot(slot);
-        let source = *self
+        let source = self
             .ledger
             .as_ref()
             .unwrap()
             .value(slot)
-            .map_err(invariant)?;
+            .map_err(invariant)?
+            .physical()?;
         let target = Physical {
             frame: self.depth(),
             cell: self.plan().return_cell(),
@@ -239,7 +299,7 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             self.store.borrow_mut().transfer(source, target)?;
         }
         let ledger = self.ledger.as_mut().unwrap();
-        *ledger.value_mut(slot).map_err(invariant)? = target;
+        *ledger.value_mut(slot).map_err(invariant)? = Ticket::Value(target);
         ledger.stage_return(Some(slot)).map_err(invariant)
     }
     fn retire_return(&mut self) -> n::ResultStep {
@@ -256,20 +316,21 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             self.pending = None;
             return Ok(());
         };
-        let source = *self
+        let source = self
             .ledger
             .as_mut()
             .unwrap()
             .staged_value_mut()
             .map_err(invariant)?
-            .unwrap();
+            .unwrap()
+            .physical()?;
         let target = Physical {
             frame: depth - 1,
             cell: parent.result,
         };
         self.store.borrow_mut().transfer(source, target)?;
         let ledger = self.ledger.as_mut().unwrap();
-        *ledger.staged_value_mut().map_err(invariant)?.unwrap() = target;
+        *ledger.staged_value_mut().map_err(invariant)?.unwrap() = Ticket::Value(target);
         ledger
             .publish_staged_to(Some(c::Slot((depth - 1) * self.stride + parent.result)))
             .map_err(invariant)?;
@@ -315,6 +376,10 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         }
         let target = stable;
         let depth = self.stack.len();
+        let next_handle = self
+            .handle
+            .checked_add(1)
+            .ok_or(c::Cause::Execution(c::ExecutionFailure::CounterOverflow))?;
         if depth == self.maximum_frames {
             return Err(c::Cause::Execution(c::ExecutionFailure::FrameLimit));
         }
@@ -351,9 +416,22 @@ impl Runtime for Unit<'_, '_, '_, '_> {
                 .declare(c::Slot(depth * self.stride + slot), c::Kind::Owner)
                 .map_err(invariant)?;
         }
+        for loan in 0..typed.functions()[target.function().0 as usize].loans {
+            ledger
+                .declare(
+                    c::Slot(
+                        depth * self.stride
+                            + target
+                                .loan_slot(m::ownership::bodies::LoanId(loan as u32))
+                                .unwrap(),
+                    ),
+                    c::Kind::Borrow,
+                )
+                .map_err(invariant)?;
+        }
         for (argument, parameter) in call.arguments.iter().zip(&function.parameters) {
             let slot = c::Slot(caller_base + argument);
-            let source = *ledger.value(slot).map_err(invariant)?;
+            let source = ledger.value(slot).map_err(invariant)?.physical()?;
             let cell = target.frame().local(*parameter).unwrap();
             let destination = Physical { frame: depth, cell };
             let copied = types
@@ -369,12 +447,12 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             ledger
                 .initialize(
                     c::Slot(depth * self.stride + cell),
-                    destination,
+                    Ticket::Value(destination),
                     Some(function.locals[parameter.0 as usize].span),
                 )
                 .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
         }
-        self.handle += 1;
+        self.handle = next_handle;
         assert!(self.stack.len() < self.stack.capacity());
         self.stack.push(Active {
             handle: self.handle,
@@ -476,7 +554,33 @@ fn execute_flow(
         .map(|f| program.layout(m::FunctionId(f as u32)).unwrap().frame())
         .max_by_key(|p| p.cell_count())
         .unwrap();
-    let stride = largest.cell_count();
+    let stride = (0..flow.functions().len())
+        .map(|f| {
+            program
+                .layout(m::FunctionId(f as u32))
+                .unwrap()
+                .slot_count()
+        })
+        .max()
+        .unwrap();
+    let bodies = flow.source().activity().moved().typed();
+    let loan_stride = bodies
+        .functions()
+        .iter()
+        .map(|f| f.loans)
+        .max()
+        .unwrap()
+        .max(1);
+    let prepared_stride = bodies
+        .functions()
+        .iter()
+        .map(|f| f.prepared)
+        .max()
+        .unwrap()
+        .max(1);
+    // All host descriptors exist before root ownership or provider effects.
+    let loans = vec![places::Loan::default(); loan_stride * max_frames];
+    let prepared = vec![None; prepared_stride * max_frames];
     let mut usage = program.usage();
     let mut pools = Vec::with_capacity(max_frames);
     for _ in 0..max_frames {
@@ -509,6 +613,10 @@ fn execute_flow(
         expected: inputs,
         retired: Vec::with_capacity(inputs.len()),
         refuse_cleanup,
+        loans,
+        prepared,
+        loan_stride,
+        prepared_stride,
     });
     let mut cleanup_instance = c::Instance::default();
     let ledger = cleanup_instance
@@ -563,8 +671,17 @@ fn execute_flow(
     };
     drop(instance);
     let mut state = store.into_inner();
+    assert!(
+        state.loans.iter().all(|loan| loan.target.is_none()),
+        "all registrations retire before frame release"
+    );
+    assert!(
+        state.prepared.iter().all(Option::is_none),
+        "all captures retire before frame release"
+    );
     let mut scalar = None;
-    let value = completion.value.and_then(|physical| {
+    let value = completion.value.and_then(|ticket| {
+        let physical = ticket.physical().unwrap();
         assert_eq!(
             (physical.frame, physical.cell),
             (0, root.frame().return_cell())
@@ -850,7 +967,7 @@ fn recursive_native_calls_use_logical_frames_and_contain_the_frame_limit() {
 
 #[test]
 fn owned_native_objects_keep_matching_call_layout_and_source_metadata() {
-    for text in [CALLS, RECORDS, values::SUMS] {
+    for text in [CALLS, RECORDS, values::SUMS, places::LOANS] {
         check_native_object_metadata(text);
     }
 }
@@ -875,6 +992,9 @@ fn check_native_object_metadata(text: &str) {
         let mut record_sites = 0;
         let mut variant_sites = 0;
         let mut extract_sites = 0;
+        let mut borrow_sites = 0;
+        let mut prepared_sites = 0;
+        let mut replacement_sites = 0;
         for index in 0..flow.functions().len() {
             let function = artifact.function(m::FunctionId(index as u32)).unwrap();
             let metadata = function.metadata();
@@ -890,7 +1010,11 @@ fn check_native_object_metadata(text: &str) {
                     .get(plan.cell_type(plan.return_cell()).unwrap().ty)
                     .unwrap()
                     .size,
-                32
+                if plan.cell_type(plan.return_cell()).unwrap().ty == m::ownership::Type::I64 {
+                    8
+                } else {
+                    32
+                }
             );
             assert!(!metadata.source_ranges.is_empty());
             for range in &metadata.source_ranges {
@@ -916,9 +1040,12 @@ fn check_native_object_metadata(text: &str) {
                             .collect::<Vec<_>>(),
                         [1, 0]
                     );
-                    for ((_, span), expected) in
-                        record.initialization_order.iter().zip(["second", "first"])
-                    {
+                    let names = if text == places::LOANS {
+                        ["owner", "1"]
+                    } else {
+                        ["second", "first"]
+                    };
+                    for ((_, span), expected) in record.initialization_order.iter().zip(names) {
                         assert_eq!(&text[span.start as usize..span.end as usize], expected);
                     }
                 }
@@ -937,6 +1064,36 @@ fn check_native_object_metadata(text: &str) {
                     assert_eq!(extract.guard, None);
                     assert_eq!(extract.panic_code, Some(-1));
                 }
+                if let Some(borrow) = function.borrow_site(node as u32) {
+                    borrow_sites += 1;
+                    assert_eq!(borrow.kind, m::ownership::LoanKind::Exclusive);
+                    assert_eq!(borrow.span, source.span);
+                    assert_eq!(borrow.place.projections.len(), 1);
+                    assert!(matches!(
+                        borrow.place.projections[0].kind,
+                        m::ownership::places::ProjectionKind::Field(0)
+                    ));
+                    let slot = function.layout().loan_slot(borrow.loan).unwrap();
+                    assert!(slot >= plan.cell_count() && slot < function.layout().slot_count());
+                }
+                if let Some(prepared) = function.prepared_site(node as u32) {
+                    prepared_sites += 1;
+                    assert_eq!(prepared.destination.0, 0);
+                    assert!(matches!(
+                        prepared.place.projections[0].kind,
+                        m::ownership::places::ProjectionKind::Dereference
+                    ));
+                }
+                if let Some(replace) = function.replace_site(node as u32) {
+                    replacement_sites += 1;
+                    assert!(
+                        matches!(replace.destination, n::ReplacementDestination::Prepared(id) if id.0 == 0)
+                    );
+                    assert_eq!(
+                        &text[replace.span.start as usize..replace.span.end as usize],
+                        "(*value) + 2"
+                    );
+                }
             }
         }
         let root = artifact.function(m::FunctionId(0)).unwrap();
@@ -945,12 +1102,21 @@ fn check_native_object_metadata(text: &str) {
             .collect();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].function, m::FunctionId(1));
-        assert_eq!(calls[0].arguments.len(), 2);
+        assert_eq!(
+            calls[0].arguments.len(),
+            if text == places::LOANS { 1 } else { 2 }
+        );
         assert!(root.continuations().contains(&calls[0].resume));
         assert!(root.continuations().contains(&calls[0].failure));
-        assert_eq!(record_sites, usize::from(text == RECORDS));
+        assert_eq!(
+            record_sites,
+            usize::from(text == RECORDS || text == places::LOANS)
+        );
         assert_eq!(variant_sites, usize::from(text == values::SUMS));
         assert_eq!(extract_sites, usize::from(text == values::SUMS));
+        assert_eq!(borrow_sites, usize::from(text == places::LOANS));
+        assert_eq!(prepared_sites, usize::from(text == places::LOANS));
+        assert_eq!(replacement_sites, usize::from(text == places::LOANS));
         let usage = artifact.usage();
         for (exact, short) in [
             (

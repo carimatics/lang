@@ -78,6 +78,41 @@ pub struct TransferMove {
 pub struct TransferSite {
     pub moves: Vec<TransferMove>,
 }
+pub struct PlaceSite {
+    pub root: usize,
+    pub projections: Vec<o::places::Projection>,
+    pub span: m::Span,
+}
+pub struct PlaceLoad {
+    pub place: PlaceSite,
+    pub result: usize,
+}
+pub struct BorrowSite {
+    pub loan: b::LoanId,
+    pub kind: o::LoanKind,
+    pub place: PlaceSite,
+    pub result: usize,
+    pub span: m::Span,
+}
+pub struct BorrowCaseSite {
+    pub loan: b::LoanId,
+    pub kind: o::LoanKind,
+    pub field: CaseFieldSite,
+    pub span: m::Span,
+}
+pub struct PreparedSite {
+    pub destination: b::PreparedPlaceId,
+    pub place: PlaceSite,
+}
+pub enum ReplacementDestination {
+    Prepared(b::PreparedPlaceId),
+    Place(PlaceSite),
+}
+pub struct ReplaceSite {
+    pub destination: ReplacementDestination,
+    pub value: usize,
+    pub span: m::Span,
+}
 
 /// Trusted prepared-frame primitives, not an instruction interpreter. Methods
 /// receive statically lowered slots/ranges. Implementations supply the shared
@@ -138,6 +173,27 @@ pub trait Runtime {
     fn transfer(&mut self, _: &TransferSite) -> ResultStep {
         missing()
     }
+    fn load_place(&mut self, _: &PlaceLoad) -> ResultStep {
+        missing()
+    }
+    fn borrow_place(&mut self, _: &BorrowSite) -> ResultStep {
+        missing()
+    }
+    fn borrow_case(&mut self, _: &BorrowCaseSite) -> ResultStep {
+        missing()
+    }
+    fn end_borrow(&mut self, _: b::LoanId, _: b::EndMode) -> ResultStep {
+        missing()
+    }
+    fn prepare_place(&mut self, _: &PreparedSite) -> ResultStep {
+        missing()
+    }
+    fn replace_place(&mut self, _: &ReplaceSite) -> ResultStep {
+        missing()
+    }
+    /// Drop one capture or every capture in the current frame. This must not
+    /// allocate or run guest effects, including while unwinding a failure.
+    fn discard_prepared(&mut self, _: Option<b::PreparedPlaceId>) {}
     fn frame_identity(&self) -> u64 {
         0
     }
@@ -214,7 +270,7 @@ pub struct Failure {
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 24;
+const HELPERS: usize = 31;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -234,6 +290,13 @@ enum Action {
     Variant,
     Extract,
     CaseField,
+    PlaceLoad,
+    Borrow,
+    BorrowCase,
+    EndBorrow(b::LoanId, b::EndMode),
+    Prepare,
+    Replace,
+    DiscardPrepared(b::PreparedPlaceId),
 }
 #[derive(Clone, Copy)]
 enum Binary {
@@ -252,6 +315,11 @@ struct Node {
     extract: Option<ExtractSite>,
     case_field: Option<CaseFieldSite>,
     transfer: Option<TransferSite>,
+    place: Option<PlaceLoad>,
+    borrow: Option<BorrowSite>,
+    borrow_case: Option<BorrowCaseSite>,
+    prepared: Option<PreparedSite>,
+    replace: Option<ReplaceSite>,
 }
 
 /// Native call boundary for whole-owner forwarding and record construction.
@@ -476,6 +544,13 @@ fn run<'c, 'a, R: Runtime>(
             transfer::<R>,
             panic::<R>,
             copy_case_field::<R>,
+            borrow_place::<R>,
+            load_place::<R>,
+            end_borrow::<R>,
+            prepare_place::<R>,
+            replace_place::<R>,
+            discard_prepared::<R>,
+            borrow_case::<R>,
         ],
     };
     let mut continuation = 0;
@@ -583,6 +658,27 @@ impl<'a> ObjectFunction<'a> {
     }
     pub fn case_field_site(&self, node: u32) -> Option<&CaseFieldSite> {
         self.nodes.get(node as usize)?.case_field.as_ref()
+    }
+    pub fn place_site(&self, node: u32) -> Option<&PlaceLoad> {
+        self.nodes.get(node as usize)?.place.as_ref()
+    }
+    pub fn borrow_site(&self, node: u32) -> Option<&BorrowSite> {
+        self.nodes.get(node as usize)?.borrow.as_ref()
+    }
+    pub fn borrow_case_site(&self, node: u32) -> Option<&BorrowCaseSite> {
+        self.nodes.get(node as usize)?.borrow_case.as_ref()
+    }
+    pub fn prepared_site(&self, node: u32) -> Option<&PreparedSite> {
+        self.nodes.get(node as usize)?.prepared.as_ref()
+    }
+    pub fn replace_site(&self, node: u32) -> Option<&ReplaceSite> {
+        self.nodes.get(node as usize)?.replace.as_ref()
+    }
+    pub fn end_borrow_site(&self, node: u32) -> Option<(b::LoanId, b::EndMode)> {
+        match self.nodes.get(node as usize)?.action {
+            Some(Action::EndBorrow(loan, mode)) => Some((loan, mode)),
+            _ => None,
+        }
     }
     pub fn cleanup(&self, node: u32) -> Option<&[(usize, m::Span)]> {
         self.nodes.get(node as usize).map(|n| n.cleanup.as_slice())
@@ -694,9 +790,6 @@ fn prepare<'a>(
     let body = &typed(flow).functions()[function.0 as usize];
     let unsupported = |span| Error::Unsupported { function, span };
     let graph = &flow.functions()[function.0 as usize];
-    if body.loans != 0 || body.prepared != 0 {
-        return Err(unsupported(graph.nodes()[0].span));
-    }
     let mut budget = m::Budget::with_usage(limits, layout.frame.usage())?;
     let mut nodes = budget.vector(graph.nodes().len())?;
     budget.charge(graph.nodes().len())?;
@@ -728,6 +821,11 @@ fn prepare<'a>(
             extract: None,
             case_field: None,
             transfer: None,
+            place: None,
+            borrow: None,
+            borrow_case: None,
+            prepared: None,
+            replace: None,
         };
         match node.kind {
             f::Kind::Execute { site, .. } => {
@@ -754,6 +852,85 @@ fn prepare<'a>(
                     Ok(())
                 };
                 data.action = match &i.op {
+                    b::Op::Borrow { loan, kind, place } => {
+                        data.borrow = Some(BorrowSite {
+                            loan: *loan,
+                            kind: *kind,
+                            place: prepare_place_site(&layout, *place, &mut budget)?,
+                            result: value(i.results[0])?,
+                            span: i.span,
+                        });
+                        Some(Action::Borrow)
+                    }
+                    b::Op::BorrowCaseField {
+                        loan,
+                        value: from,
+                        case,
+                        field,
+                        guard,
+                    } => {
+                        let result = value(i.results[0])?;
+                        let o::Type::Constructed(id) = layout.frame.cell_type(result).unwrap().ty
+                        else {
+                            return Err(unsupported(i.span));
+                        };
+                        let o::Constructor::Loan(kind, _) =
+                            layouts.types().table().constructed[id.0 as usize].constructor
+                        else {
+                            return Err(unsupported(i.span));
+                        };
+                        data.borrow_case = Some(BorrowCaseSite {
+                            loan: *loan,
+                            kind,
+                            field: CaseFieldSite {
+                                source: value(*from)?,
+                                result,
+                                case: *case,
+                                field: *field,
+                                guard: value(*guard)?,
+                            },
+                            span: i.span,
+                        });
+                        Some(Action::BorrowCase)
+                    }
+                    b::Op::EndBorrow { loan, mode } => Some(Action::EndBorrow(*loan, *mode)),
+                    b::Op::PreparePlace { destination, place } => {
+                        data.prepared = Some(PreparedSite {
+                            destination: *destination,
+                            place: prepare_place_site(&layout, *place, &mut budget)?,
+                        });
+                        Some(Action::Prepare)
+                    }
+                    b::Op::ReplacePrepared {
+                        destination,
+                        value: from,
+                    } => {
+                        data.replace = Some(ReplaceSite {
+                            destination: ReplacementDestination::Prepared(*destination),
+                            value: value(*from)?,
+                            span: typed(flow).places().functions()[function.0 as usize].values
+                                [from.0 as usize]
+                                .span,
+                        });
+                        Some(Action::Replace)
+                    }
+                    b::Op::Replace { place, value: from } => {
+                        data.replace = Some(ReplaceSite {
+                            destination: ReplacementDestination::Place(prepare_place_site(
+                                &layout,
+                                *place,
+                                &mut budget,
+                            )?),
+                            value: value(*from)?,
+                            span: typed(flow).places().functions()[function.0 as usize].values
+                                [from.0 as usize]
+                                .span,
+                        });
+                        Some(Action::Replace)
+                    }
+                    b::Op::DiscardPrepared(destination) => {
+                        Some(Action::DiscardPrepared(*destination))
+                    }
                     b::Op::I64(bits) => Some(Action::Constant(value(i.results[0])?, *bits)),
                     b::Op::Bool(bits) => {
                         Some(Action::Constant(value(i.results[0])?, i64::from(*bits)))
@@ -871,7 +1048,14 @@ fn prepare<'a>(
                             Action::Move(from, value(i.results[0])?)
                         })
                     }
-                    b::Op::MovePlace(place) | b::Op::CopyPlace(place) => {
+                    b::Op::CopyPlace(place) => {
+                        data.place = Some(PlaceLoad {
+                            place: prepare_place_site(&layout, *place, &mut budget)?,
+                            result: value(i.results[0])?,
+                        });
+                        Some(Action::PlaceLoad)
+                    }
+                    b::Op::MovePlace(place) => {
                         let place = &typed(flow).places().functions()[function.0 as usize].places
                             [place.0 as usize];
                         if !place.projections.is_empty() {
@@ -936,6 +1120,9 @@ fn prepare<'a>(
                             let slot = match step.target {
                                 b::CleanupTarget::Local(l) => local(l)?,
                                 b::CleanupTarget::Value(v) => value(v)?,
+                                b::CleanupTarget::Loan(loan) => layout
+                                    .loan_slot(loan)
+                                    .ok_or_else(|| unsupported(step.span))?,
                                 _ => return Err(unsupported(step.span)),
                             };
                             data.cleanup.push((slot, step.span));
@@ -979,6 +1166,29 @@ fn prepare<'a>(
         nodes,
         continuations,
         budget,
+    })
+}
+
+fn prepare_place_site(
+    layout: &FunctionLayout<'_>,
+    place: o::places::PlaceId,
+    budget: &mut m::Budget,
+) -> Result<PlaceSite, Error> {
+    let p = &typed(layout.source).places().functions()[layout.function.0 as usize].places
+        [place.0 as usize];
+    let root = match p.root {
+        o::places::Root::Local(id) => layout.frame.local(id)?,
+        o::places::Root::Value(id) => layout.frame.value(id)?,
+    };
+    let mut projections = budget.vector(p.projections.len())?;
+    for projection in &p.projections {
+        budget.charge(1)?;
+        projections.push(*projection);
+    }
+    Ok(PlaceSite {
+        root,
+        projections,
+        span: p.span,
     })
 }
 
@@ -1200,6 +1410,74 @@ helper!(transfer, ctx, _a, _b, node, {
         )
     })
 });
+helper!(borrow_place, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.borrow_place(
+            p.nodes[node as usize]
+                .borrow
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(load_place, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.load_place(
+            p.nodes[node as usize]
+                .place
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(end_borrow, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        let Some(Action::EndBorrow(loan, mode)) = p.nodes[node as usize].action else {
+            return missing();
+        };
+        r.end_borrow(loan, mode)
+    })
+});
+helper!(prepare_place, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.prepare_place(
+            p.nodes[node as usize]
+                .prepared
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(replace_place, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.replace_place(
+            p.nodes[node as usize]
+                .replace
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
+helper!(discard_prepared, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        let destination = match p.nodes[node as usize].action {
+            Some(Action::DiscardPrepared(id)) => Some(id),
+            _ => None,
+        };
+        r.discard_prepared(destination);
+        Ok(())
+    })
+});
+helper!(borrow_case, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.borrow_case(
+            p.nodes[node as usize]
+                .borrow_case
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
 helper!(panic, ctx, _a, _b, node, {
     let info = &ctx.compiled.nodes[node as usize];
     let code = info.extract.as_ref().and_then(|e| e.panic_code);
@@ -1410,6 +1688,12 @@ fn emit<M: Module>(
                         }
                         Action::Copy(from, to) => Some((call!(17, from, to), next, failure)),
                         Action::Variant => Some((call!(19, 0, 0), next, failure)),
+                        Action::PlaceLoad => Some((call!(25, 0, 0), next, failure)),
+                        Action::Borrow => Some((call!(24, 0, 0), next, failure)),
+                        Action::EndBorrow(..) => Some((call!(26, 0, 0), next, failure)),
+                        Action::Prepare => Some((call!(27, 0, 0), next, failure)),
+                        Action::Replace => Some((call!(28, 0, 0), next, failure)),
+                        Action::DiscardPrepared(_) => Some((call!(29, 0, 0), next, failure)),
                         Action::Binary(op, left, right, to) => {
                             let failed = blocks[failure.0 as usize];
                             let left = native_read(&mut b, sig, input, index, 15, left, failed);
@@ -1452,10 +1736,13 @@ fn emit<M: Module>(
                                 failure,
                             ))
                         }
-                        Action::Extract | Action::CaseField => {
+                        Action::Extract | Action::CaseField | Action::BorrowCase => {
                             let (source, case, guard, helper) =
                                 if let Some(extract) = &nodes[index].extract {
                                     (extract.source, extract.case, extract.guard, 20)
+                                } else if let Some(borrow) = &nodes[index].borrow_case {
+                                    let field = &borrow.field;
+                                    (field.source, field.case, Some(field.guard), 30)
                                 } else {
                                     let field = nodes[index].case_field.as_ref().unwrap();
                                     (field.source, field.case, Some(field.guard), 23)
@@ -1549,6 +1836,7 @@ fn emit<M: Module>(
                     None
                 }
                 f::Kind::DiscardPrepared { next } => {
+                    call!(29, 0, 0);
                     b.ins().jump(blocks[next.0 as usize], &[]);
                     None
                 }
@@ -1777,6 +2065,7 @@ pub struct FunctionLayout<'a> {
     frame: FramePlan<'a, 'a>,
     source: &'a f::Elaborated,
     layouts: &'a Layouts<'a>,
+    slots: usize,
 }
 impl<'a> FunctionLayout<'a> {
     pub fn compile(
@@ -1809,11 +2098,16 @@ impl<'a> FunctionLayout<'a> {
             return Err(Error::Layout(l::Error::State));
         }
         let frame = FramePlan::compile_after(layouts, typed, function, limits, cells, initial)?;
+        let slots = frame
+            .cell_count()
+            .checked_add(typed.functions()[function.0 as usize].loans)
+            .ok_or(Error::Layout(l::Error::Overflow))?;
         Ok(Self {
             function,
             frame,
             source: flow,
             layouts,
+            slots,
         })
     }
     fn base_usage(flow: &f::Elaborated, layouts: &Layouts<'_>) -> Result<m::Usage, Error> {
@@ -1844,6 +2138,15 @@ impl<'a> FunctionLayout<'a> {
     }
     pub const fn frame(&self) -> &FramePlan<'a, 'a> {
         &self.frame
+    }
+    /// Typed cells use their FramePlan indices; borrow registrations follow
+    /// them in a disjoint logical cleanup-slot range.
+    pub const fn slot_count(&self) -> usize {
+        self.slots
+    }
+    pub fn loan_slot(&self, loan: b::LoanId) -> Option<usize> {
+        let slot = self.frame.cell_count().checked_add(loan.0 as usize)?;
+        (slot < self.slots).then_some(slot)
     }
     pub const fn source(&self) -> &'a f::Elaborated {
         self.source
