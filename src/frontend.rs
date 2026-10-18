@@ -3,7 +3,7 @@ use lang_bytecode::unit::Program;
 use lang_diagnostics::{Diagnostic, Label, Severity, SourceMap, codes};
 use lang_hir::{
     layout::LayoutError,
-    program::{CheckError, CheckLimits, TypedProgram, check_expression_function},
+    program::{CheckError, CheckLimits, TypedProgram},
     resolved as r,
 };
 use lang_mir::unit as m;
@@ -135,12 +135,13 @@ fn finish(
         else {
             return Analysis::failure(sources, diagnostics, AnalysisError::MissingWrapper);
         };
-        check_expression_function(program, &sources, limits.typing, r::FunctionId(index))
-            .map(|checked| analysis::Analysis {
-                program: checked.program.map(CheckedProgram::Copy),
-                diagnostics: checked.diagnostics,
-            })
-            .map_err(analysis::Error::Hir)
+        analysis::analyze_expression_function(
+            program,
+            &sources,
+            limits.typing,
+            limits.ownership,
+            r::FunctionId(index),
+        )
     } else {
         analysis::analyze(program, &sources, limits.typing, limits.ownership)
     };

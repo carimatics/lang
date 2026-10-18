@@ -137,9 +137,9 @@ Previewでfilesystem／network／process／environment／FFIやhost-call authori
 
 Review結果：ownerのRFC 0001の委任に従い、**2026-10-18 JSTにexperimental delegationでaccepted** とします。User関数の推論、source literal、loan escape、execution authorityを変更せず、具体的なREPL境界の不足を埋めます。保護resultの消費とrender failureの優先順位はRFC 0008と整合し、対応profileの境界とV17によってM2の残りresult familyも維持します。このprofileに意味論上のblockerはありません。
 
-根拠：当初のREPL境界実験では妥当なowning定義が拒否されます。V16では [named-result library](../../../examples/analysis/repl_preview.lang) を `lang_vm::unit::owned::execute_preview` で実行し、result／storage解放後にだけBytes、Text、入れ子Resultのpreviewを返します。Source、managed storage、fault-injection testで厳密な出力、上限付き準備、深い反復traversal、OOM／fuel失敗、不正値、cleanup優先順位を検証します。[実装根拠](../architecture.md#owned-result-previews)を参照してください。VM adapterの実行であり、wrapper推論やsession統合ではありません。
+根拠：当初のREPL境界実験では妥当なowning定義が拒否されます。V16は [named-result library](../../../examples/analysis/repl_preview.lang) を `lang_vm::unit::owned::execute_preview` で実行し、result／storage解放後にだけBytes、Text、入れ子Resultのpreviewを返します。Source、managed storage、fault-injection testで厳密な出力、上限付き準備、深い反復traversal、OOM／fuel失敗、不正値、cleanup優先順位を検証します。V15では検証済みownership wrapperのresultを共有HIRと独立MIR pipelineで推論して同adapterで実行し、通常annotation、move／loan／region制約、wrapper受け入れ条件、resource診断も検証します。[Preview](../architecture.md#owned-result-previews)と[推論の根拠](../architecture.md#ownership-expression-inference)を参照してください。Session統合は未完了です。
 
-実装は **一部完了** です。V16はcurrent-profile VMのpreview／retirement adapterを提供します。V15／V10／V17と元のM2 gateは未完了です。準備costと混在sessionのcompile costは未計測で、indirect形式／native previewも未検証です。受理済みcontractを後に変更する場合は、実装前に明示revision／follow-upを行い、両言語を同時更新します。
+実装は **一部完了** です。V16はcurrent-profile VMのpreview／retirement adapter、V15は生成wrapperの推論経路を提供します。V10／V17は未完了で、元のM2完了要件は維持します。準備costと混在sessionのcompile costは未計測で、indirect形式／native previewも未検証です。受理済みcontractを後に変更する場合は、実装前に明示revision／follow-upを行い、両言語を同時更新します。
 
 ## 情報源
 
@@ -147,6 +147,7 @@ Review結果：ownerのRFC 0001の委任に従い、**2026-10-18 JSTにexperimen
 - [RFC 0006](0006-source-frontend-and-portable-programs.md)：transactional Copy REPL、canonical value、counter。2026-10-17最終更新、2026-10-18 JST確認。
 - [RFC 0007](0007-source-ownership-and-core-values.md)：owned result、厳密byte／UTF-8、通常のloan／storage／region規則、明示allocator authority。2026-10-18 JST最終更新。
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md)：保護return、優先順位、上限report、poison。2026-10-17最終更新、2026-10-18 JST確認。
-- [REPL](../../../src/repl.rs)、[frontend wrapper dispatch](../../../src/frontend.rs)、[HIR推論境界](../../../crates/hir/src/program.rs)、[owned entry](../../../crates/vm/src/unit/owned.rs)、[REPL test](../../../tests/repl.rs)：`5c32e25` とpipeした境界実験で2026-10-18 JST確認。現状の不足を示し、この提案の実装ではありません。
+- [REPL](../../../src/repl.rs)、[frontend wrapper dispatch](../../../src/frontend.rs)、[HIR推論境界](../../../crates/hir/src/program.rs)、[owned entry](../../../crates/vm/src/unit/owned.rs)、[REPL test](../../../tests/repl.rs)：当初の境界根拠を `5c32e25` とpipeした実験で2026-10-18 JST確認。その後のV16／V15実装根拠は以下に記録します。
 - [Managed preview](../../../crates/runtime/src/layout/storage/preview.rs)、[VM adapter](../../../crates/vm/src/unit/owned/calls.rs)、[source test](../../../tests/support/owned_preview.rs)、[storage test](../../../crates/runtime/tests/support/preview.rs)、[cleanup fault test](../../../crates/vm/src/unit/owned/failure_tests.rs)：V16実装。2026-10-18 JST更新・確認。
+- [HIR推論](../../../crates/hir/src/program.rs)、[body検証](../../../crates/hir/src/program/bodies.rs)、[semantic解析](../../../crates/semantics/src/analysis.rs)、[推論test](../../../tests/support/owned_inference.rs)：V15実装。2026-10-18 JST更新・確認。
 - [実装Todo](../milestone-2.md)：scope／依存／暫定見積もり。2026-10-18 JST更新・確認。本RFCはprojectのtooling判断であり、外部言語や性能の主張は行いません。

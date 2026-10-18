@@ -637,7 +637,7 @@ Frontendの`Analysis.result`は共通の`Program` enumを保持します。Copy 
 
 2026-10-18 JST受理：[RFC 0010](rfcs/0010-owned-repl-previews.md) でguest valueを永続化せずownership定義／式へこのcontractを広げます。生成wrapperのresult推論、明示allocator authority、Bytes／ASCII escapeしたTextと入れ子current-profile previewのcanonical形式を定めます。通常return cleanupと上限付きrendering中はresultを保護し、消費と全guest storage解放後に完成stringを公開します。Render失敗はresult cleanup secondaryより先のprimaryとして維持します。User display callback、guest clone、新source literal、raw address出力は追加しません。
 
-REPLは引き続きCopy専用です。当初のpipe実験ではowning itemがcommit前に拒否され、呼び出しがunknownになり、後続のCopy式は `3` を表示します。V16では下記adapterでnamed owned resultを実行でき、V15でownership式推論、V10でsession／CLIを統合します。後続indirect-service previewの設計／実装はV17へ残し、G08をBytes／Textへ縮小しません。[RFCの判断](rfcs/0010-owned-repl-previews.md#判断と実装状態)に委任、理由、未検証costを記録しています。出典：RFC 0010／source contractは2026-10-18 JST更新。[REPL](../../src/repl.rs)、[frontend](../../src/frontend.rs)、[HIR推論](../../crates/hir/src/program.rs)は `5c32e25` と境界／source-check実験で2026-10-18 JST確認。
+REPLは引き続きCopy専用です。当初のpipe実験ではowning itemがcommit前に拒否され、呼び出しがunknownになり、後続のCopy式は `3` を表示します。下記adapterでV16はnamed owned resultを実行し、V15は生成した式のresultを推論します。V10のsession／CLI統合は未完了です。後続indirect-service previewの設計／実装はV17へ残し、G08をBytes／Textへ縮小しません。[RFCの判断](rfcs/0010-owned-repl-previews.md#判断と実装状態)に委任、理由、未検証costを記録しています。出典：RFC 0010／source contractは2026-10-18 JST更新。[REPL](../../src/repl.rs)、[frontend](../../src/frontend.rs)、[HIR推論](../../crates/hir/src/program.rs)は当初 `5c32e25` と境界／source-check実験で2026-10-18 JST確認。
 
 ### Owned result previews
 
@@ -648,6 +648,14 @@ REPLは引き続きCopy専用です。当初のpipe実験ではowning itemがcom
 6件のsource testはscalar／nominal／core／sumのcanonical出力、全256 byte、Unicode／control escape、厳密値／1不足／0の上限、authority不足、未対応result、entry前host quota、fixtureの全fuel prefixとprovider OOM、解放・再試行を検証します。3件のruntime testは読み取り専用token保持、不正token／bool、通算準備budget境界、深さ1,024のsize 0 Copy recordを検証します。3件のVM fault testはformatting前の通常return失敗、format成功後のresult cleanup失敗、format失敗をcleanup secondaryより優先、poison後の再entry拒否、262 ownerのresultで上限reportがtruncateされても全cleanupを続けることを検証します。Native／session統合、fuzz campaign、速度、process OOMの結果は主張しません。
 
 情報源：[renderer](../../crates/runtime/src/layout/storage/preview.rs)、[VM adapter](../../crates/vm/src/unit/owned/calls.rs)、[entry result消費](../../crates/runtime/src/cleanup.rs)、[source test](../../tests/support/owned_preview.rs)、[storage test](../../crates/runtime/tests/support/preview.rs)、[fault test](../../crates/vm/src/unit/owned/failure_tests.rs)。2026-10-18 JST更新・確認。
+
+### Ownership expression inference
+
+2026-10-18 JST実装・確認：共有frontendは選択した生成expression wrapperについて、i64をexpected typeにせずcurrent-profile ownership resultを推論できます。`lang_hir::program::analyze_expression_function` はいずれの検証済みprofileも保持し、`lang_semantics::analysis::analyze_expression_function` は通常の独立MIR type／move／loan／activity／failure pipelineを適用します。既存のHIR Copy専用check APIも維持します。推論できるのは選択したprivate rootの `__repl_eval_…` functionだけで、local／parameter／patternなし、単一blockとreturn式、生成したi64 placeholderが必要です。自分自身を含め、どのfunctionからも呼べません。似た名前だけでは推論を有効にせず、通常user annotationは明示・検証を維持します。
+
+Ownership body checkerは上限付きtype arenaで推論し、body検証成功後にだけresult signatureを更新し、通常signatureと同じ返却制約を適用します。Loan、arenaを含む値、allocator authorityのreturnを特別扱いしません。推論signatureとexpression factsは新しく具体化したcore sumを含むtyped body arenaを参照し、immutable source byte／spanと元のresolved type prefixを保持します。その後も通常HIR move／loan／region解析と独立MIR検証を行います。曖昧な `core::Option::None` は推測せず、provisional resultのためにtemporary ownerをborrow可能なplaceとして扱うこともありません。
+
+追加した5件のsource testは推論したBytes、Text、入れ子Result、Unit、finite error、scalarをV16 adapterで実行し、全解放を確認します。通常annotation／move／loan／region失敗、式の元位置の診断、両profileで不正wrapper形状とcaller、HIR／type／MIR resource診断も検証します。Frontend推論から実行までの根拠であり、REPL session transactionとCLI ownership評価はV10へ残します。情報源：[HIR dispatch](../../crates/hir/src/program.rs)、[body推論](../../crates/hir/src/program/bodies.rs)、[共有return制約](../../crates/hir/src/types.rs)、[MIR解析](../../crates/semantics/src/analysis.rs)、[frontend](../../src/frontend.rs)、[source test](../../tests/support/owned_inference.rs)。2026-10-18 JST更新・確認。
 
 ### Incremental architecture
 

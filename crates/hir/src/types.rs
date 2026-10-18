@@ -83,6 +83,21 @@ pub struct Properties {
     pub contains_allocator: bool,
 }
 impl Properties {
+    pub(crate) fn result_restriction(self) -> Option<(DiagnosticCode, &'static str)> {
+        if self.contains_loan || self.contains_arena {
+            Some((
+                codes::REGION_ESCAPE,
+                "ordinary loans and arena-bearing values cannot be returned",
+            ))
+        } else if self.contains_allocator {
+            Some((
+                codes::INVALID_OWNERSHIP_TYPE,
+                "allocator authority is usable only through a loan",
+            ))
+        } else {
+            None
+        }
+    }
     fn bits(bits: u8) -> Self {
         Self {
             is_copy: bits & NONCOPY == 0,
@@ -375,13 +390,10 @@ impl Context<'_> {
             )?;
         }
         let outer_loan = matches!(ty.value_type, r::Type::Constructed(id) if matches!(self.program.types[id.0].constructor, r::TypeConstructor::Loan(..)));
-        if position == Position::Result && flags & (LOAN | ARENA) != 0 {
-            self.report(
-                codes::REGION_ESCAPE,
-                ty.span,
-                "ordinary loans and arena-bearing values cannot be returned",
-                None,
-            )?;
+        if position == Position::Result
+            && let Some((code, message)) = Properties::bits(flags).result_restriction()
+        {
+            self.report(code, ty.span, message, None)?;
         } else if flags & ALLOCATOR != 0 && (!outer_loan || position == Position::Field) {
             self.report(
                 codes::INVALID_OWNERSHIP_TYPE,

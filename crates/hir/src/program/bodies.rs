@@ -21,8 +21,9 @@ impl BodyTypes {
     pub fn source(&self) -> &r::Program {
         &self.source
     }
-    /// Typed facts refer to this arena. The resolved source arena remains its
-    /// original prefix; compiler-created provisional loan sums live only here.
+    /// Typed facts, including an inferred private wrapper result, refer to this
+    /// arena. The resolved source type arena remains its original prefix;
+    /// compiler-created provisional loan sums live only here.
     pub fn types(&self) -> &[r::ConstructedType] {
         &self.types
     }
@@ -54,6 +55,15 @@ pub fn analyze_bodies(
     sources: &SourceMap,
     limits: CheckLimits,
 ) -> Result<BodyAnalysis, CheckError> {
+    analyze_bodies_with_expression(source, sources, limits, None)
+}
+
+pub(super) fn analyze_bodies_with_expression(
+    mut source: r::Program,
+    sources: &SourceMap,
+    limits: CheckLimits,
+    infer: Option<r::FunctionId>,
+) -> Result<BodyAnalysis, CheckError> {
     let analysis = types::analyze(&source, sources, limits.types).map_err(CheckError::Types)?;
     let Some(properties) = analysis.facts else {
         return Ok(BodyAnalysis {
@@ -74,10 +84,17 @@ pub fn analyze_bodies(
         types: Some(store),
     };
     context.metadata()?;
+    let expression = infer.map(|id| context.expression_wrapper(id)).transpose()?;
     let mut functions = Vec::new();
     for (index, function) in source.functions.iter().enumerate() {
         functions.push(
-            FunctionChecker::new(&mut context, function, false, r::FunctionId(index)).check()?,
+            FunctionChecker::new(
+                &mut context,
+                function,
+                infer == Some(r::FunctionId(index)),
+                r::FunctionId(index),
+            )
+            .check()?,
         );
     }
     if context.errors != 0 {
@@ -90,8 +107,32 @@ pub fn analyze_bodies(
         .into_iter()
         .collect::<Option<Vec<_>>>()
         .ok_or_else(|| input(CheckInputErrorKind::IncompleteTyping, None))?;
+    let inferred = if let (Some(wrapper), Some(expression)) = (infer, expression) {
+        let ty = functions[wrapper.0].expressions[expression.0];
+        let span = source.functions[wrapper.0].expressions[expression.0].span;
+        context.charge(span)?;
+        if let Some((code, message)) = context
+            .types
+            .as_ref()
+            .unwrap()
+            .properties(ty, span)?
+            .result_restriction()
+        {
+            context.error(code, span, message, None)?;
+            return Ok(BodyAnalysis {
+                bodies: None,
+                diagnostics: context.diagnostics,
+            });
+        }
+        Some((wrapper, ty))
+    } else {
+        None
+    };
     let store = context.types.take().unwrap();
     let diagnostics = context.diagnostics;
+    if let Some((wrapper, ty)) = inferred {
+        source.functions[wrapper.0].result.value_type = ty;
+    }
     Ok(BodyAnalysis {
         bodies: Some(BodyTypes {
             source,

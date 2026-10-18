@@ -276,6 +276,8 @@ pub fn check_program(
 /// root function with no locals/parameters and exactly one return expression;
 /// no expression anywhere may call it, so provisional signatures cannot leak
 /// into recursive calls or other function facts.
+/// This compatibility entry point requires Copy output; use
+/// `analyze_expression_function` to retain either checked source profile.
 pub fn check_expression_function(
     source: r::Program,
     sources: &SourceMap,
@@ -286,15 +288,44 @@ pub fn check_expression_function(
         source,
         sources,
         limits,
-        Some(wrapper),
+        Some(ExpressionInference::Copy(wrapper)),
     )?)
+}
+
+/// Analyze the generated expression wrapper in either source profile. The
+/// same private single-return/no-caller restrictions apply to both profiles.
+pub fn analyze_expression_function(
+    source: r::Program,
+    sources: &SourceMap,
+    limits: CheckLimits,
+    wrapper: r::FunctionId,
+) -> Result<SourceAnalysis, CheckError> {
+    check_program_internal(
+        source,
+        sources,
+        limits,
+        Some(ExpressionInference::Source(wrapper)),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ExpressionInference {
+    Copy(r::FunctionId),
+    Source(r::FunctionId),
+}
+impl ExpressionInference {
+    fn function(self) -> r::FunctionId {
+        match self {
+            Self::Copy(id) | Self::Source(id) => id,
+        }
+    }
 }
 
 fn check_program_internal(
     mut source: r::Program,
     sources: &SourceMap,
     limits: CheckLimits,
-    infer: Option<r::FunctionId>,
+    infer: Option<ExpressionInference>,
 ) -> Result<SourceAnalysis, CheckError> {
     let mut context = Context {
         source: &source,
@@ -353,7 +384,13 @@ fn check_program_internal(
         }
     }
     if let Some(span) = ownership_span {
-        let analysis = analyze_bodies(source, sources, limits)?;
+        // The compatibility checker retains its original profile refusal and
+        // diagnostic ordering. Only the source-profile API opts into inference.
+        let wrapper = match infer {
+            Some(ExpressionInference::Source(id)) => Some(id),
+            _ => None,
+        };
+        let analysis = bodies::analyze_bodies_with_expression(source, sources, limits, wrapper)?;
         let Some(bodies) = analysis.bodies else {
             return Ok(SourceAnalysis {
                 program: None,
@@ -396,43 +433,8 @@ fn check_program_internal(
             diagnostics,
         });
     }
-    let expression = if let Some(id) = infer {
-        let invalid = || input(CheckInputErrorKind::InvalidExpressionFunction, None);
-        let function = source.functions.get(id.0).ok_or_else(invalid)?;
-        if function.module != r::ModuleId(0)
-            || function.public
-            || !function.name.text.starts_with("__repl_eval_")
-            || !function.parameters.is_empty()
-            || !function.locals.is_empty()
-            || !function.patterns.is_empty()
-            || function.blocks.len() != 1
-            || function.body != r::BlockId(0)
-            || function.result.value_type != r::Type::I64
-        {
-            return Err(invalid());
-        }
-        let [
-            r::Statement {
-                kind: r::StatementKind::Return(expression),
-                ..
-            },
-        ] = function.blocks[0].statements.as_slice()
-        else {
-            return Err(invalid());
-        };
-        for f in &source.functions {
-            for e in &f.expressions {
-                context.charge(e.span)?;
-                if matches!(e.kind,r::ExpressionKind::Call {callee:r::Callable::Guest(target),..} if target==id)
-                {
-                    return Err(invalid());
-                }
-            }
-        }
-        Some(*expression)
-    } else {
-        None
-    };
+    let infer = infer.map(ExpressionInference::function);
+    let expression = infer.map(|id| context.expression_wrapper(id)).transpose()?;
     let layout =
         analyze_layouts(&source.definitions, sources, limits.layout).map_err(CheckError::Layout)?;
     for diagnostic in layout.diagnostics {
@@ -497,6 +499,42 @@ struct Context<'a> {
     errors: usize,
 }
 impl<'a> Context<'a> {
+    fn expression_wrapper(&mut self, id: r::FunctionId) -> Result<r::ExpressionId, CheckError> {
+        let source = self.source;
+        let invalid = || input(CheckInputErrorKind::InvalidExpressionFunction, None);
+        let function = source.functions.get(id.0).ok_or_else(invalid)?;
+        if function.module != r::ModuleId(0)
+            || function.public
+            || !function.name.text.starts_with("__repl_eval_")
+            || !function.parameters.is_empty()
+            || !function.locals.is_empty()
+            || !function.patterns.is_empty()
+            || function.blocks.len() != 1
+            || function.body != r::BlockId(0)
+            || function.result.value_type != r::Type::I64
+        {
+            return Err(invalid());
+        }
+        let [
+            r::Statement {
+                kind: r::StatementKind::Return(expression),
+                ..
+            },
+        ] = function.blocks[0].statements.as_slice()
+        else {
+            return Err(invalid());
+        };
+        for f in &source.functions {
+            for e in &f.expressions {
+                self.charge(e.span)?;
+                if matches!(e.kind, r::ExpressionKind::Call { callee: r::Callable::Guest(target), .. } if target == id)
+                {
+                    return Err(invalid());
+                }
+            }
+        }
+        Ok(*expression)
+    }
     fn constructor(&self, ty: r::Type) -> Option<r::TypeConstructor> {
         self.types.as_ref().and_then(|types| types.constructor(ty))
     }

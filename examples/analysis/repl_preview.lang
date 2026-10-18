@@ -1,6 +1,7 @@
 // RFC 0010 library: execute_preview selects each zero-argument function by ID.
 // cargo test --test owned_execution preview::named_owned
-// REPL wrapper/session integration remains M2-V15/V10; run still needs i64 main.
+// Generated-wrapper inference: cargo test --test owned_execution inference::
+// REPL session integration remains M2-V10; run still needs i64 main.
 struct PreviewMessage { bytes: core::Bytes, text: core::Text, count: i64 }
 fn fresh_bytes() -> core::Bytes {
     return core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));

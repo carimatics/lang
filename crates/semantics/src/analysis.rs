@@ -150,6 +150,30 @@ pub fn analyze(
 ) -> Result<Analysis, Error> {
     let root = source.modules.first().map(|m| m.span);
     let checked = h::analyze_program(source, sources, typing).map_err(Error::Hir)?;
+    finish(checked, sources, limits, root)
+}
+
+/// Infer only a validated host-generated expression wrapper, then apply the
+/// same independent ownership MIR pipeline as annotated source functions.
+pub fn analyze_expression_function(
+    source: r::Program,
+    sources: &SourceMap,
+    typing: h::CheckLimits,
+    limits: OwnershipLimits,
+    wrapper: r::FunctionId,
+) -> Result<Analysis, Error> {
+    let root = source.modules.first().map(|m| m.span);
+    let checked =
+        h::analyze_expression_function(source, sources, typing, wrapper).map_err(Error::Hir)?;
+    finish(checked, sources, limits, root)
+}
+
+fn finish(
+    checked: h::SourceAnalysis,
+    sources: &SourceMap,
+    limits: OwnershipLimits,
+    root: Option<Span>,
+) -> Result<Analysis, Error> {
     let mut diagnostics = checked.diagnostics;
     let program = match checked.program {
         None => None,
