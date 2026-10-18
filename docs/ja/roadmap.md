@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み58件 · 進行中0件 · 残り42件（暫定107 pt）。**
+**検証済み59件 · 進行中0件 · 残り41件（暫定104 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む32件の成果を検証しました。R05（`cb7a72b`）で型付きarena payload、node記録、read登録を実際のguest allocator storageへ置き、全体preflight、transactionalなOOM rollback、累積要求会計を実装しました。Checked readは変更を禁止し、exitはaccess失効後にnode／子孫を逆順cleanupします。子の失敗／panicでも追加確保／retryせず処理を続けます。追加11 testと全体baselineの75 suite・1104 test、fmt／Clippy／docが成功しました。R05の3 pt完了で **残り110 → 107 pt**、done 58行、計100行です。Source arena fixtureはeffect前のVM admissionでまだ停止するため、次のR06でsource allocation／read／replaceとregion再enter／teardownを接続します。前提R01／R05／V08は完了しています。Shared allocator reborrow修正はR06／R07へ維持し、元のarena／native／artifact gateも未完了です。Owned REPL、V17のindirect preview、V13のprovisional readは従来の状態を維持し、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む33件の成果を検証しました。R06（`e0f6bb4`）でowned VMからsource arenaのallocation／read／replaceと再enter／teardownを実行します。新scalar／owning-cycle scriptは9／5、元fixtureは0を表示します。Read登録、上限付きactivation pool、正確なreplacement／逆順cleanup、型付きOOM、owning return、allocator reborrowを検証しました。追加17 testと全体baselineの75 suite・1121 test、fmt／Clippy／docが成功しました。R06の3 pt完了で **残り107 → 104 pt**、done 59行、計100行です。次はR07のsource guest-call／brand conformance監査で、前提R06／V07は完了しています。Shared allocator reborrowの不具合も修正しました。Arena／native／artifactの全exit evidenceは引き続き必要です。Owned REPL、V17のindirect preview、V13のprovisional readは従来の状態を維持し、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
