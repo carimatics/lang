@@ -6,9 +6,9 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**69 done · 0 doing · 32 todo · 79 remaining pt**
+**69 done · 1 doing · 33 todo · 85 remaining pt**
 
-**次: M2-C07 → Vec／Map／shared／arena間で上限付きの入れ子edge／brand検査と反復cleanupを検証する。**
+**次: M2-C08 → 上限付きread-only入れ子collection走査。C09 retirement後にC07 source fixtureを検証。**
 
 直近の完了：**M2-C06**（`fb13cfd`）。全5種のsource Map操作を実行し、CLI fixtureは **49** と **33** を表示します。Source 18 testで39操作の独立oracleと比較する厳密UTF-8等価判定、Copy／owning値、検証済みreadとguest call、合法MIR register再利用、全OOM／retryとfuel prefix、登録枯渇、完全解放を検証しました。VM injection 5 testで旧valueの保護、元key／value span、失敗／panic優先、poison、中断、省略付きreportを検証しました。全体baselineの **80 suite・1264 test** とfmt／Clippy／docが成功し、**残り82 → 79 pt**、done 69行、計101行です。C04／C05後に必須としたsource fixtureを完了し、C07、native、preview、artifactは各gateに維持します。
 
@@ -16,7 +16,7 @@
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable element readとi64／Text keyのMap new／len／insert／get／remove、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04／C03／C06でBytes／Text／inline payloadを持つclosedなshared／weak、Vec、Map profileに対応し、入れ子collection／graph統合全体はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。Service統合全体とownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
-次の着手条件（2026-10-18 JST）：C07のsource adapter前提C03／C06／R04／R06が揃いました。Collection／shared／arena payload profileは入れ子serviceを除外したままで、現container cleanup callbackはbuffer leafを扱い、arena境界はVec／Map検査をcallbackへ委譲します。C07では最初に実collection／graph実験を行い、上限付きの推移的strong-edge／brand検査と反復cross-service retirementを実証してからprofileを開きます。その実験までは暫定3 ptとし、新たな前提は実装前に明示・再見積もりして、受理済み入れ子service scope全体を保持します。Native、provisional read／preview、artifactは個別gateに維持します。
+C07着手実験（2026-10-18 JST）：Vec<shared Node>越しの循環を作るsourceは全source／MIR検証を通り、実行はeffect前（fuel 0）にVecNew未対応として拒否します。Shared graph検査はactive Vec／Map tokenを拒否したままで、Vecだけにindex付きhost観測があり、Mapには列挙境界がなく、callback cleanupは借用中の同じheapへ再入できません。元initializer spanを保持する上限付きread-only推移的collection走査を **C08（3 pt）**、事前admission済み反復cross-service retirementを **C09（3 pt）** として明示します。両方の後にgraph／arena admissionと入れ子source cycle／escape／逆順drop／失敗fixture全体を実装する **C07（3 pt）** を残し、**残り79 → 85 pt**、2行追加（計103行）、**69 done／1 doing／33 todo** です。C08→C09後は前提作業の追加より先にC07 source実行を検証します。統合が実証されるまでclosed VM profileと既存gateを維持します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -150,7 +150,9 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage／登録付きread lookupで受理済みの厳密key equalityとallocation budgetを実装。 | `348dc42` |
 | M2-C05 | done | 0 | M2-C04 | G10 | Map insert／replacement／removalをfailure-atomicにし、同値の既存keyを保持して旧key／valueを1回だけretire。 | `677bb66` |
 | M2-C06 | done | 0 | M2-C05,M2-V09 | G10 | Mapソース命令を独立したequality／replacement／failure oracleで検証。 | `fb13cfd` |
-| M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06 | G05,G06,G09,G10 | 上限付きcross-service edge／brand検証と反復cleanupで入れ子Vec／Map／shared／arena値を統合し、source cycle／escape、逆順drop、失敗caseを検証。 | — |
+| M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06,M2-C08,M2-C09 | G05,G06,G09,G10 | 上限付きcross-service edge／brand検証と反復cleanupで入れ子Vec／Map／shared／arena値を統合し、source cycle／escape、逆順drop、失敗caseを検証。 | — |
+| M2-C08 | doing | 3 | M2-C03,M2-C06 | G05,G06,G09,G10 | 元initializer spanを保持する上限付きread-only入れ子Vec／Map走査を実装し、改ざん／work・depth制限／無effectを検証。 | — |
+| M2-C09 | todo | 3 | M2-C08,M2-R03,M2-R05 | G05,G06,G09,G10 | 再入・host再帰・guest中のhost pool拡張なしにサービス間の反復cleanupを実装し、逆順／失敗を検証。 | — |
 
 ## Ownership artifactとC境界
 

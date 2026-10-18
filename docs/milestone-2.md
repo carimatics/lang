@@ -6,9 +6,9 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**69 done · 0 doing · 32 todo · 79 remaining pt**
+**69 done · 1 doing · 33 todo · 85 remaining pt**
 
-**Next: M2-C07 → prove bounded nested-service edge/brand inspection and iterative cleanup across Vec/Map/shared/arena values.**
+**Next: M2-C08 → bounded read-only nested collection traversal; C09 retirement, then the C07 source fixture.**
 
 Latest delivery: **M2-C06** (`fb13cfd`) executes all five source Map operations; CLI fixtures print **49** and **33**. Eighteen source tests cover exact UTF-8 equality against a 39-operation independent oracle, Copy/owning values, checked reads and guest calls, legal MIR register reuse, every OOM/retry and fuel prefix, registration exhaustion and full release. Five VM injection tests verify protected old values, original key/value spans, failure/panic priority, poison, interruption and report truncation. The full baseline passes **1264 tests in 80 suites**, with fmt/Clippy/doc passing: **82 → 79 remaining pt**, 69 done rows and 101 total. The required source fixture after C04/C05 is delivered; C07, native, previews and artifacts retain their gates.
 
@@ -16,7 +16,7 @@ Measured last code baseline (2026-10-18 JST): workspace Clippy **27.9 s**, full 
 
 Current source capability: a zero-parameter i64 main can use Bytes/Text operations, checked arena allocation/read/replace/teardown and shared/weak allocation/clone/read/replace/upgrade and Vec new/len/push/pop/shared-or-mutable element reads and Map new/len/insert/get/remove with i64/Text keys, move owners through nested records/enums/Option/Result and recursive guest calls, read or mutate checked borrowed fields, replace whole/projected values after RHS effects, run mutable scalar loops, return through cleanup-protected escrow, and clean normal/failure exits. V16 previews named current-profile results, V15 infers private generated expression wrappers through normal HIR/MIR checks, and V10 connects them to isolated REPL/CLI evaluation with explicit allocator authority and original-source failures. Borrowed matching and the partial-move prohibition are unchanged. V11 adds in-memory MIR CFG argument execution; current ownership source lowering does not generate those parameters. R04/C03/C06 support their closed shared/weak, Vec and Map profiles with Bytes/Text/inline payloads; full nested collection/graph integration remains C07. Later indirect previews remain V17 and provisional core reads V13, both after C07. G06 still needs C07/N05, G07 needs N03 native evidence, G08 retains service/REPL/read outcomes, and G14/G16 require native/cross-mode conformance. Full service integration and ownership artifacts retain their gates. Unsupported reachable operations/payloads fail before provider callbacks.
 
-Next readiness (2026-10-18 JST): C07's source adapters C03/C06/R04/R06 are delivered. Collection/shared/arena payload profiles still exclude nested services, and current container cleanup callbacks handle buffer leaves; the arena boundary delegates Vec/Map inspection to a callback. C07 must first run a real collection/graph experiment, then prove bounded transitive strong-edge/brand inspection and iterative cross-service retirement before opening those profiles. Keep its 3 pt provisional until that experiment, expose/re-estimate any new prerequisite before coding it, and preserve the full accepted nested-service scope. Native, provisional reads/previews and artifacts retain their separate gates.
+C07 readiness experiment (2026-10-18 JST): a source Vec<shared Node> cycle probe passes all source/MIR admission, but execution rejects VecNew before effects (fuel 0). Shared graph inspection still rejects active Vec/Map tokens; only Vec exposes indexed host observations, Map lacks an enumeration boundary, and callback cleanup cannot reenter the same borrowed heap. Expose **C08 (3 pt)** for bounded read-only transitive collection traversal with original initializer spans and **C09 (3 pt)** for admitted iterative cross-service retirement. Keep **C07 (3 pt)** for graph/arena admission and the full nested source cycle/escape/reverse-drop/failure fixture after both: **79 → 85 remaining pt**, two new rows (103 total), **69 done / 1 doing / 33 todo**. C08 then C09 must be followed by C07 source execution before more prerequisites. Closed VM profiles and all existing gates remain until integration is proven.
 
 The original exit gates remain **5 / 18 complete**. Completed deliveries include compiler/runtime prerequisites and the initial source execution fixture; they do not assert that entire core-library or backend features are complete.
 
@@ -150,7 +150,9 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage and registered read lookup implement exact accepted key equality under allocation budgets. | `348dc42` |
 | M2-C05 | done | 0 | M2-C04 | G10 | Map insert/replacement/removal is failure-atomic, preserves equal stored keys and retires displaced keys/values exactly once. | `677bb66` |
 | M2-C06 | done | 0 | M2-C05,M2-V09 | G10 | Execute source Map operations with independent equality/replacement/failure oracles. | `fb13cfd` |
-| M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06 | G05,G06,G09,G10 | Integrate nested Vec/Map/shared/arena values through bounded cross-service edge/brand inspection and iterative cleanup; verify source cycle/escape, reverse-drop and failure cases. | — |
+| M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06,M2-C08,M2-C09 | G05,G06,G09,G10 | Integrate nested Vec/Map/shared/arena values through bounded cross-service edge/brand inspection and iterative cleanup; verify source cycle/escape, reverse-drop and failure cases. | — |
+| M2-C08 | doing | 3 | M2-C03,M2-C06 | G05,G06,G09,G10 | Implement bounded read-only nested Vec/Map traversal with original initializer spans; verify forged inputs, work/depth limits and no effects. | — |
+| M2-C09 | todo | 3 | M2-C08,M2-R03,M2-R05 | G05,G06,G09,G10 | Implement iterative cross-service cleanup without reentry, host recursion or host-pool growth during guest execution; verify reverse order and failures. | — |
 
 ## Ownership artifacts and C boundaries
 
