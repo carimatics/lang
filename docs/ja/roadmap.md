@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み71件 · 進行中0件 · 残り32件（暫定79 pt）。**
+**検証済み72件 · 進行中0件 · 残り31件（暫定76 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから45件の成果を検証しました。C09（`559b176`）で入れ子Vec／Map／sharedを反復drainし、最後のreadとarena teardownを接続しました。Integration 7 testとstorage境界のcustody fixture 1件で順序／span／失敗／poison／上限／完全解放を検証し、全体82 suite・1284 testとfmt／Clippy／docが成功しました。**残り82 → 79 pt**、done 71行、計103行です。C08／C09の2前提後はC07でproduction graph／brand検査とVM drainを接続し、保存した期待値23の循環probeと入れ子source fixture全体を実行します。Storageだけのshared→container fixtureをsourceやgraph publicationの証明にはせず、別foundationより先にsource実行を必須とします。Native、provisional-read／preview、artifactを含む従来gateを維持します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから46件の成果を検証しました。C07（`f89b323`）で上限付きcycle／brand検査、格納read custody、反復cleanupを実sourceへ接続し、入れ子CLIは8／21／4／6、保存したVec循環probeは23を返します。Source 10 testで5 fixtureの全OOM／retry・fuel prefix、入れ子変更／guest return／weak／escapeを検証し、VM injection 3 testとbrand境界probeも成功しました。全体82 suite・1297 testとfmt／Clippy／docが成功し、**残り79 → 76 pt**、done 72行、計103行です。C08／C09後の必須source成果を完了しました。次はV13のVM／REPL provisional-read conformanceです。Native N03／N04／N05、indirect preview、ownership artifact、両tier-1実行・性能・debugと最終日英guideの要件を保持し、新exit gateは閉じません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**71 done · 0 doing · 32 todo · 79 remaining pt**
+**72 done · 0 doing · 31 todo · 76 remaining pt**
 
-**次: M2-C07 → graph／brand検査とservice drainを接続し、入れ子source fixtureを実行。**
+**次: M2-V13 → source VM／REPL越しのprovisional core readとloan終了を検証。**
 
-直近の完了：**M2-C09**（`559b176`）。事前admission済みcursorと単一の反復drainでVec／Map／sharedの入れ子descendantを破棄し、最後のretained readとarena teardownにも対応します。Integration 7 testで逆順と元／fallback span、失敗／panic／body優先、poison、厳密admission／別identity拒否、128 KiB host stackで再帰node 513件、guest retirement追加確保なし、260件の失敗／report省略後の完全解放を検証しました。Storage境界のunit fixture 1件でshared→Map→Vec→sharedのcustodyを分離検証し、production graph publicationはC07へ残します。全体 **82 suite・1284 test** とfmt／Clippy／docが成功し、**残り82 → 79 pt**、done 71行、計103行です。C08／C09がC06後の2前提となり、次はC07 source実行を必須とします。Exit gateは閉じません。
+直近の完了：**M2-C07**（`f89b323`）。上限付き推移的cycle／brand検査、guest call越しのsealed read custody、C09 retirementを接続し、入れ子Vec／Map／shared／weak／arena値を実行します。CLI fixtureは **8／21／4／6**、保存したVec循環probeは23を表示します。Source 10 testで入れ子read／変更／return、expired weak、static escape、5 fixture全体の全OOM／retryとfuel prefixを確認しました。VM injection 3 testと実runtime値を使うVM境界probeでcleanup順序／span、失敗／panic／中断、poison、publish前のforeign brand／shared edge／work拒否を検証しました。全体 **82 suite・1297 test** とfmt／Clippy／docが成功し、**残り79 → 76 pt**、done 72行、計103行です。C08／C09後に必須としたsource成果を完了しました。V13／V17、native、ownership artifactは各gateを維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **31.1秒**、全test **264.7秒**（新log作成から最終書き込みまで）、rustdoc **17.0秒**、すべて成功です。Focused runtime検証は新integration 7 testと格納custodyのunit fixtureを含む14 suite・274 testが成功し、focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
+直近code baselineの実測（2026-10-18 JST）：test moduleを専用fileへ移した後の成功したworkspace Clippy **21.2秒**、全test **349.2秒**（新log作成から最終書き込みまで）、rustdoc **17.5秒**、すべて成功です。Ownership source suiteは入れ子source 10 testを含む139 test、新VM cleanup injection 3 testと入れ子brand境界probeも成功しました。Focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable element readとi64／Text keyのMap new／len／insert／get／remove、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04／C03／C06でBytes／Text／inline payloadを持つclosedなshared／weak、Vec、Map profileに対応し、入れ子collection／graph統合全体はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。Service統合全体とownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応しますが、indirect previewはV17、provisional readのVM／REPL conformance全体はV13です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
-次の着手条件（2026-10-18 JST）：C08走査とC09反復retirementを完了しました。C09の保守的poolはallocatorのlive-allocation上限を使い、各active service frameが異なるlive header／control blockを保持します。入れ子custody／span／失敗fixtureは完全解放を検証済みです。Shared→container fixtureはstorage境界のretirementを意図的に分離したもので、production graphやsourceの証拠ではありません。次のC07でC08を推移的strong-edge／cycle・arena-brand検査へ接続し、VM adapterでC09をadmitして使い、保存した入れ子循環source probe（期待値23）と受理済みVec／Map／shared／arena入れ子全体のcycle／escape／逆順drop／失敗fixtureを実行します。Policyとdrainを接続するまでVM profileを閉じたままにします。この2前提後は別のfoundationより先にsource実行を完了します。Native、provisional read／preview、artifactと従来の全exit要件を保持します。
+次の着手条件（2026-10-18 JST）：C07でC08／C09後に必須とした入れ子source実行を完了し、CLI／source 5 fixtureとcleanup／failure全体を検証しました。V13の前提C03／C06／C07／R04／R06／V10が揃ったため、次は2 ptのVM／REPL provisional-read成功／未使用／失敗armとloan終了のconformanceを選びます。V17は実装前に明示的indirect-preview follow-upが必要です。Gate監査ではG07／G08／G09／G10にN03、G05にN04、G06にN05を維持し、artifact／platform／conformance／性能／debug要件全体を残します。従来成果とZ01の最終日英capability guideを保持し、新exit gateは閉じません。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -150,7 +150,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage／登録付きread lookupで受理済みの厳密key equalityとallocation budgetを実装。 | `348dc42` |
 | M2-C05 | done | 0 | M2-C04 | G10 | Map insert／replacement／removalをfailure-atomicにし、同値の既存keyを保持して旧key／valueを1回だけretire。 | `677bb66` |
 | M2-C06 | done | 0 | M2-C05,M2-V09 | G10 | Mapソース命令を独立したequality／replacement／failure oracleで検証。 | `fb13cfd` |
-| M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06,M2-C08,M2-C09 | G05,G06,G09,G10 | 上限付きcross-service edge／brand検証と反復cleanupで入れ子Vec／Map／shared／arena値を統合し、source cycle／escape、逆順drop、失敗caseを検証。 | — |
+| M2-C07 | done | 0 | M2-C03,M2-C06,M2-R04,M2-R06,M2-C08,M2-C09 | G05,G06,G09,G10 | 上限付きcross-service edge／brand検証と反復cleanupで入れ子Vec／Map／shared／arena値を統合し、source cycle／escape、逆順drop、失敗caseを検証。 | `f89b323` |
 | M2-C08 | done | 0 | M2-C03,M2-C06 | G05,G06,G09,G10 | 元initializer spanを保持する上限付きread-only入れ子Vec／Map走査を実装し、改ざん／work・depth制限／無effectを検証。 | `cb698d9` |
 | M2-C09 | done | 0 | M2-C08,M2-R03,M2-R05 | G05,G06,G09,G10 | 再入・host再帰・guest中のhost pool拡張なしにサービス間の反復cleanupを実装し、逆順／失敗を検証。 | `559b176` |
 
