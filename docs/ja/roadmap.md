@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み54件 · 進行中0件 · 残り46件（暫定118 pt）。**
+**検証済み55件 · 進行中0件 · 残り45件（暫定115 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む28件の成果を検証しました。R01のsource由来probeで、HIRが拒否する別arenaのtokenを既存MIR proofが受け入れると確認しました。不足していたregion topology、local CFG転送、再帰call summaryをR08／R09／R10（各3 pt）、最後の統合／conformanceをR01（2 pt）へ明示し、**残り113 → 121 pt**、3行追加、計100行です。R08（`24fb835`）で上限付きの有限shape／path／owner／call準備を完了し、**残り118 pt**、doneが1行増えました。追加5 testと上限付きfuzz準備で再帰graph、厳密quota、type／spanの区別を検証し、全体baselineの73 suite・1069 testとfmt／Clippy／doc／fuzz compile checkが成功しました。R08はregion proofやarena実行権限を与えず、次はR09、call effect／admissionはR10／R01へ残します。Nested allocator reborrow loweringの修正はR06／R07へ残し、owned REPLも維持します。Indirect previewはV17、provisional readはV13で、従来のservice／native／cross-mode gateは維持します。新exit gateは完了扱いにしていません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む29件の成果を検証しました。R09（`ee5b12e`）でlocal arena／caller brand、精密なproduct／sum／reference path、捕捉destination、storage lifetime、CFG join／backedgeを独立転送します。直接の偽造token／storeを拒否し、同一siteのarena再生成にまたがる値／storageを失効させます。Region関連callは未完了effectとし、妥当なmutationの回帰testを含め関数の最終診断を保留します。R10で再帰summaryを適用し、R01で完全proofを必須化する必要があります。追加8件でsource由来region testは11件、全体baselineの73 suite・1077 testとfmt／Clippy／doc／fuzz compile checkが成功しました。R09の3 pt完了で **残り118 → 115 pt**、done 55行、計100行です。追加したarena fixtureのCLI `check` は成功しますが、fuel 0／host calls 0のVM admissionで停止します。R08／R09後の再点検によりallocation／実行／reborrowをR05／R06／R07へ残し、従来のarena／native／artifact gateを維持します。Owned REPL、V17のindirect preview、V13のprovisional readも従来の状態を維持し、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
