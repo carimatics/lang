@@ -2,6 +2,10 @@ use lang_mir::unit::{self as m, ownership as o};
 use lang_runtime::{allocation as a, buffer, cleanup as c, layout as l, map};
 use std::{cell::RefCell, rc::Rc};
 
+#[path = "support/map_mutation.rs"]
+mod mutation;
+#[path = "support/map_mutation_failures.rs"]
+mod mutation_failures;
 #[path = "support/map_storage.rs"]
 mod storage;
 
@@ -36,6 +40,9 @@ fn model() -> o::VerifiedTypes {
             o::Constructor::Option(o::Type::Nominal(m::DefinitionId(0))),
             o::Constructor::Loan(o::LoanKind::Shared, o::Type::I64),
             o::Constructor::Builtin(o::Builtin::Allocator),
+            o::Constructor::Option(o::Type::I64),
+            o::Constructor::Option(ty(0)),
+            o::Constructor::Option(ty(3)),
         ]
         .into_iter()
         .map(|constructor| o::Constructed {

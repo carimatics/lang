@@ -6,7 +6,9 @@ use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 
 mod access;
+mod mutation;
 pub use access::{Borrowed, Loan};
+pub use mutation::Displaced;
 #[cfg(test)]
 mod tests;
 

@@ -1,5 +1,171 @@
 use super::*;
 
+fn scalar_model() -> o::VerifiedTypes {
+    o::TypeTable {
+        sources: vec![m::Source {
+            path: "map.lang".into(),
+            text: "abcdef".into(),
+        }],
+        ..Default::default()
+    }
+    .verify(Default::default())
+    .unwrap()
+}
+fn span(start: u32) -> m::Span {
+    m::Span {
+        source: m::SourceId(0),
+        start,
+        end: start + 1,
+    }
+}
+
+#[test]
+fn replacement_and_removal_version_exhaustion_preserve_map_inputs_and_output() {
+    let types = scalar_model();
+    let layouts = l::Layouts::compile(&types, Default::default()).unwrap();
+    let mut a = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut map = Map::new(&layouts, o::Type::I64, o::Type::I64, &mut a).unwrap();
+    let mut k = l::Reservation::allocate(&layouts, o::Type::I64, &mut a).unwrap();
+    let mut v = l::Reservation::allocate(&layouts, o::Type::I64, &mut a).unwrap();
+    let mut out = l::Reservation::allocate(&layouts, o::Type::I64, &mut a).unwrap();
+    v.write_immediate(v.root(), l::Immediate::I64(9), &mut a)
+        .unwrap();
+    map.publish_if_absent(
+        &mut k,
+        &mut v,
+        Spans {
+            key: Some(span(0)),
+            value: Some(span(1)),
+        },
+        &mut a,
+    )
+    .unwrap();
+    v.write_immediate(v.root(), l::Immediate::I64(20), &mut a)
+        .unwrap();
+    out.write_immediate(out.root(), l::Immediate::I64(77), &mut a)
+        .unwrap();
+    put(a.bytes_mut(map.owner.unwrap()).unwrap(), 160, u64::MAX);
+    let before = a.stats();
+    assert!(matches!(
+        map.insert_into(
+            &mut k,
+            &mut v,
+            Spans {
+                key: Some(span(0)),
+                value: Some(span(2))
+            },
+            &out,
+            out.root(),
+            &mut a
+        ),
+        Err(Error::Allocation(a::Error::Overflow))
+    ));
+    assert!(matches!(
+        map.remove_into(Key::I64(0), &out, out.root(), &mut a),
+        Err(Error::Allocation(a::Error::Overflow))
+    ));
+    assert_eq!(a.stats(), before);
+    assert_eq!(
+        out.read_immediate(out.root(), &a).unwrap(),
+        l::Immediate::I64(77)
+    );
+    assert_eq!(
+        v.read_immediate(v.root(), &a).unwrap(),
+        l::Immediate::I64(20)
+    );
+    let entry = map.lookup(Key::I64(0), &a).unwrap().unwrap();
+    let view = map.view(entry, &a).unwrap();
+    assert_eq!(
+        view.read_immediate(view.root()).unwrap(),
+        l::Immediate::I64(9)
+    );
+    k.release_storage(&mut a).unwrap();
+    v.release_storage(&mut a).unwrap();
+    out.release_storage(&mut a).unwrap();
+    drain(&mut map, &mut a);
+    assert_eq!(a.stats().live_allocations, 0);
+}
+
+#[test]
+fn malformed_existing_key_value_spans_or_order_links_are_rejected_before_value_transfer() {
+    let types = scalar_model();
+    let layouts = l::Layouts::compile(&types, Default::default()).unwrap();
+    for bad in 0..3 {
+        let mut a = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut map = Map::new(&layouts, o::Type::I64, o::Type::I64, &mut a).unwrap();
+        let mut k = l::Reservation::allocate(&layouts, o::Type::I64, &mut a).unwrap();
+        let mut v = l::Reservation::allocate(&layouts, o::Type::I64, &mut a).unwrap();
+        let mut out = l::Reservation::allocate(&layouts, o::Type::I64, &mut a).unwrap();
+        v.write_immediate(v.root(), l::Immediate::I64(9), &mut a)
+            .unwrap();
+        map.publish_if_absent(
+            &mut k,
+            &mut v,
+            Spans {
+                key: Some(span(0)),
+                value: Some(span(1)),
+            },
+            &mut a,
+        )
+        .unwrap();
+        v.write_immediate(v.root(), l::Immediate::I64(20), &mut a)
+            .unwrap();
+        out.write_immediate(out.root(), l::Immediate::I64(77), &mut a)
+            .unwrap();
+        let h = map.inspect(&a).unwrap();
+        let at = map.record(h, 0).unwrap();
+        let saved = a.bytes(h.metadata.unwrap()).unwrap().to_vec();
+        let bytes = a.bytes_mut(h.metadata.unwrap()).unwrap();
+        match bad {
+            0 => store_span(bytes, at, Some(span(100))),
+            1 => store_span(bytes, at + 16, Some(span(100))),
+            _ => put(bytes, at + 32, 0),
+        }
+        let before = a.stats();
+        assert!(
+            map.insert_into(
+                &mut k,
+                &mut v,
+                Spans {
+                    key: Some(span(0)),
+                    value: Some(span(2))
+                },
+                &out,
+                out.root(),
+                &mut a
+            )
+            .is_err()
+        );
+        assert!(
+            map.remove_into(Key::I64(0), &out, out.root(), &mut a)
+                .is_err()
+        );
+        assert_eq!(a.stats(), before);
+        assert_eq!(
+            out.read_immediate(out.root(), &a).unwrap(),
+            l::Immediate::I64(77)
+        );
+        assert_eq!(
+            v.read_immediate(v.root(), &a).unwrap(),
+            l::Immediate::I64(20)
+        );
+        let entry = map.lookup(Key::I64(0), &a).unwrap().unwrap();
+        let view = map.view(entry, &a).unwrap();
+        assert_eq!(
+            view.read_immediate(view.root()).unwrap(),
+            l::Immediate::I64(9)
+        );
+        a.bytes_mut(h.metadata.unwrap())
+            .unwrap()
+            .copy_from_slice(&saved);
+        k.release_storage(&mut a).unwrap();
+        v.release_storage(&mut a).unwrap();
+        out.release_storage(&mut a).unwrap();
+        drain(&mut map, &mut a);
+        assert_eq!(a.stats().live_allocations, 0);
+    }
+}
+
 pub(super) fn drain(map: &mut Map<'_, '_>, allocator: &mut a::Allocator<a::System>) {
     let mut instance = c::Instance::default();
     let mut frame = instance

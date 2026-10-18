@@ -609,6 +609,17 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
         self.outstanding = false;
         Ok(())
     }
+    /// Clear a fully detached root while keeping it drained. The trusted
+    /// adapter now owns each yielded token and must not recreate its obligation.
+    pub(crate) fn clear_drained<P: Provider>(
+        &mut self,
+        allocator: &mut Allocator<P>,
+    ) -> Result<(), Error> {
+        if self.state != State::Draining || self.outstanding || self.top != 0 {
+            return Err(Error::State);
+        }
+        self.clear(allocator)
+    }
     /// Drain every indirect token through the entry's shared cleanup context.
     /// Individual failure/panic is contained and reported without preventing
     /// independent leaf cleanup. The callback must consume its token obligation

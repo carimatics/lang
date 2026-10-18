@@ -924,9 +924,21 @@ Getter成功ごとにMIR loanへruntime leaseを1つ登録します。Projection
 
 `borrow` 成功時にshared readを1件登録し、不在keyは登録しません。Projection、case／scalar／token read、Copy転送ごとに厳密なowner／layout／version／slot／serial／index登録を検証します。複数readは共存できますが、live read中はpublication、owner移動、通常cleanupを拒否します。`end` は登録を1回だけ消費し、serial枯渇時もwrapしません。Host abortはretirement前に放置登録を失効させ、locator再利用後も古いviewを拒否します。Cleanupはcallback前にownerを失効させ、entryを初期化の逆順、各entryはvalueからkeyの順にdrainします。Field spanを保持し、child失敗／panicをcontainして事前認可済みworkのみを使います。Loan、allocator authority、arena ownerはvalue storage型として禁止し、入れ子serviceのedge／brand admissionと反復cleanupはC07へ残します。
 
-Unit 3 testとintegration 11 testで、growth／重複を含む独立した整数／Text lookup oracle、重複input保持、UTF-8 work境界／不正token、全constructor／growth OOMとretry、callback前のallocation予算の厳密値／1不足、read pool枯渇／再利用、不正／stale lease、serial／version overflow、abortとallocator／layout provenance、zero-size値、entry間projection拒否、型付きowning Option／record／Bytesのretirement、child失敗／panic後の実span／順序traceを検証します。完了した各実行で全guest storageを解放します。C05にsource insert／replacement／removalの所有権意味論（等しい元keyの保持を含む）を残し、その後C06で全5種のsource Map操作を実行してから次の基盤作業へ進みます。このstorageでVM Map profileは有効にしません。Native、preview、artifactは各gateを維持します。
+Unit 3 testとintegration 11 testで、growth／重複を含む独立した整数／Text lookup oracle、重複input保持、UTF-8 work境界／不正token、全constructor／growth OOMとretry、callback前のallocation予算の厳密値／1不足、read pool枯渇／再利用、不正／stale lease、serial／version overflow、abortとallocator／layout provenance、zero-size値、entry間projection拒否、型付きowning Option／record／Bytesのretirement、child失敗／panic後の実span／順序traceを検証します。完了した各実行で全guest storageを解放します。後述C05でinsert／replacement／removalの所有権移動（等しい元keyの保持を含む）を提供し、その後C06で全5種のsource Map操作を実行してから次の基盤作業へ進みます。このstorageでVM Map profileは有効にしません。Native、preview、artifactは各gateを維持します。
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[Map storage](../../crates/runtime/src/map.rs)、[登録付きread](../../crates/runtime/src/map/access.rs)、[test](../../crates/runtime/tests/map.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Header、growth、lookup表現は非公開の実装判断であり、source構文、source／C ABI、serialized formatは変更しません。
+
+### Map insert, replacement and removal ownership
+
+2026-10-18 JST実装・検証（C05）：`Map::insert_into` は新entryをpublishするか、旧valueを事前認可済みの空root／Option payloadへ移します。Replacementで元のkey tokenとkey initializer spanを厳密に保持し、入力された等価Text keyをdetachして、新valueとinitializer spanをpublishします。Copy key／value operandは再利用でき、owning operandはdrain済みになります。置換成功を最新entry初期化として記録します。不在insertはC04のplan全体の確保／OOM rollbackを再利用し、未使用outputは変更しません。
+
+`remove_into` はqueryをborrowし、不在時はoutput／versionを変更せず、存在時はvalueを元spanとともに事前認可済みoutputへ移します。格納されたText keyをdetachし、entryをunlinkして、物理上最後の行を空いた位置へ移します。両order linkを修復し、空いたkey／value／metadata行を消去します。Capacityは再利用でき、replacement／removalでprovider要求は追加しません。Live read登録中はmutationを拒否し、mutation成功で従来entry観測を失効させます。Version枯渇、不正input／output location／型／span、既存span／order linkの破損、lookup work枯渇は所有権移動前に拒否します。枯渇したretirement rootを復活させず内部で消去できるようにし、detachしたkeyをdrain済みのまま保持します。
+
+Non-Copyの `Displaced` packetはdetachしたkey義務1件と旧valueのspanを持ち、value自体はすでにoutputが所有します。Execution adapterはoutputを保護し、entry共通cleanup contextでkeyを厳密に1回cleanupして、cleanup失敗時は後続guest effect前に停止する必要があります。同じcontextで独立ownerを続けてdrainします。Insert拒否時も評価済みincoming引数はadapterが所有し、cleanupする必要があります。Move済みsource変数は復元しません。このruntime storage API自体ではsource操作のdispatchや入れ子serviceのadmissionは提供しません。
+
+追加unit 2 testとintegration 9 testで、数値／owning replacement、厳密な元key保持、Copy operand再利用、owning Optionの投影output、全insert-growth OOMでretryまたは1回のincoming逆順cleanup、live-read競合、不正output／型／location／spanとwork上限の拒否時snapshot、version overflow、zero-size値、3 entryの全削除順序とcapacity再利用を検証します。独立した値／key／span／order oracleと128回の操作を比較し、replacement／removal／compaction／growthを検証します。共通contextへの注入ではkey失敗／panic前のpublication、元key／value span、旧value cleanupのsecondary失敗、retirement確保なしの完全解放を確認します。C04のtestも成功を維持します。基盤2件C04／C05後はC06で全5種のMap操作をsource実行することを必須の次taskとし、C07、native、preview、artifactは各gateを維持します。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[Map mutation](../../crates/runtime/src/map/mutation.rs)、[型付きretirement](../../crates/runtime/src/layout/storage.rs)、[mutation test](../../crates/runtime/tests/support/map_mutation.rs)、[失敗test](../../crates/runtime/tests/support/map_mutation_failures.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Compaction、order link、detachしたcleanup packetは非公開execution詳細であり、source構文、source／C ABI、serialized formatは変更しません。
 
 ### Async borrow／cancellation実験
 
