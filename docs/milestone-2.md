@@ -6,9 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**85 done · 0 doing · 24 todo · 57 remaining pt**
+**86 done · 0 doing · 23 todo · 54 remaining pt**
 
-**Next: M2-N04 → bind native lexical arena owners and operations, retaining read custody and nested brand checks.**
+**Next: M2-N05 → compare ordered native/VM failure exits and probe configured byte-work admission before widening fixtures.**
+
+N04 delivery audit (2026-10-19 JST): lexical arena owners, operations, collection/call read custody and nested brand inspection pass the native/VM fixtures. Scope remains 3 pt with no new tasks or added estimate: **57 → 54 pt**, **109 rows unchanged**. N05 retains full ordered failure/control and service/payload conformance, including configured byte-work admission.
 
 N04 split/delivery audit (2026-10-19 JST): initial shared and arena sources returned VM 9 while native separately rejected shared core operations and lexical arena entry. Split/re-estimate former N04 total 3 into N13 shared/weak (**initial 3**, now done) and N04 arena (3): **108 → 109 rows**, **57 → 60 pt** before delivery, net additions **53 → 56 pt**. N13 retires 3, giving **60 → 57 pt**. Source exclusive-access rules are unchanged; the custody fixture replaces through an owned clone. N04 still owns lexical arena lifecycle, collection/call read custody and nested brands; N05 retains full service/payload combinations and configured byte-work admission.
 
@@ -16,21 +18,23 @@ N03 estimate/dependency audit (2026-10-19 JST): borrowed/consumed keys, displace
 
 N12 estimate/dependency audit (2026-10-19 JST): initial native targets covered frame cells and allocator authority. Vector-backed projections/mutation/replacement and nested cleanup required re-estimating N12 **1 → 3 pt before implementation**: **59 → 61 pt**, net additions **49 → 51 pt**. The initial source returned VM 9 and native Unsupported; it now passes natively. N12 completes its last 3-point estimate, **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 as well as N02/N11/V08, preserving all accepted service/payload combinations, ordered exits and configured byte-work admission.
 
-**Latest delivery — N13** (`4e2c8d6`, 2026-10-19 JST): native shared/weak new/clone/read/replace/upgrade use the managed heap and iterative retirement. Five sources match VM results (9/13/21/24/1), including nested cycle rejection, Map/Vec/call custody, alias observation and ExpiredWeak after an owned weak guest return. Every fuel/provider refusal prefix, cleanup poison and Mach-O/COFF generic metadata/exact budgets pass; heap payloads, weak metadata and registrations retire before close. All **1369 tests / 85 suites**, fmt/Clippy/doc pass. **84 → 85 done · 60 → 57 remaining pt**. The split changes inventory **108 → 109 tasks**; original exit gates remain **5 / 18**.
+**Latest delivery — N04** (`ea15b05`, 2026-10-19 JST): native lexical arena entry/exit and new/read/replace use prepared managed owners and iterative cleanup. Five sources match VM results (9/5/4/3/40), including slot reopening, nested arenas, collection projections and guest-call reads. The source checker preserves SRC0022; a direct runtime callback test rejects foreign arena/shared-heap indirect values without consuming input. Every fuel/provider prefix, cleanup poison, Mach-O/COFF owner metadata and exact budgets pass, with no live allocations after exit. All **85 suites / 1374 tests**, fmt, Clippy and docs pass.
+
+N04 validation observations: focused arena tests 2.05 s; the all-feature native suite 45 tests / 11.47 s; full-suite Cargo compilation 36.33 s, summed test-reported time 89.16 s, and log creation-to-last-write interval 485.45 s; Clippy 40.08 s; docs 19.20 s. Validation intervals and commit intervals are not active work-time measurements.
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 85 (+50)**, and the task inventory increased **87 → 109 (+22)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 86 (+51)**, and the task inventory increased **87 → 109 (+22)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +56 pt | −133 pt | 57 pt |
+| 134 pt | +56 pt | −136 pt | 54 pt |
 
-**134 + 56 − 133 = 57 pt**
+**134 + 56 − 136 = 54 pt**
 
-This separates delivered work from newly recognized work: completion retired 133 estimated points, while exposed prerequisites and re-estimation added 56. These are planning units, not hours or measured actual effort. The remaining 57 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 136 estimated points, while exposed prerequisites and re-estimation added 56. These are planning units, not hours or measured actual effort. The remaining 54 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-N13 is introduced and completed in this plan update; preserve its **initial 3-point estimate** in the split audit. Former N04's total 3 points becomes N13 shared/weak (3) plus N04 arena (3): **57 + 3 − 3 = 57 pt**. Net additions are **56 pt** and estimates retired at completion are **133 pt**. Preserve the earlier N03/N12 1 → 3 audits and N11/N09 initial 1-point estimates. No original requirement was removed.
+Preserve N13's **initial 3-point estimate** and the prior split audit (57 + 3 − 3 = 57 pt). This N04 delivery retires 3 without re-estimation: **57 − 3 = 54 pt**. Net additions remain **56 pt** and estimates retired at completion are **136 pt**. Preserve the earlier N03/N12 1 → 3 audits and N11/N09 initial 1-point estimates. No original requirement was removed.
 
 Measured last code baseline (2026-10-19 JST): workspace Clippy **28.3 s**, full tests **362.5 s**, rustdoc **14.2 s** wall time (shell time). Cargo reports test compilation **24.4 s**; summed suite timings are **87.2 s**. The native boundary suite passes **40 tests in 10.77 s**; service failure matrices reuse compiled code with fresh runtimes. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
@@ -204,7 +208,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N12 | done | 0 | M2-N11,M2-C03 | G09,G14 | Native Vec operations and scoped element loans match VM fixtures. | `649aa08` |
 | M2-N03 | done | 0 | M2-N12,M2-C06 | G10,G14 | Native Map operations and scoped value loans match VM fixtures. | `2e6a441` |
 | M2-N13 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared/weak operations preserve heap lifecycle, cycle rejection, collection/call read custody and cleanup. | `4e2c8d6` |
-| M2-N04 | todo | 3 | M2-N13,M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Bind native lexical arena owners/operations, preserving collection/call read custody and nested brand checks. | — |
+| M2-N04 | done | 0 | M2-N13,M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Bind native lexical arena owners/operations, preserving collection/call read custody and nested brand checks. | `ea15b05` |
 | M2-N05 | todo | 3 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior across accepted service/payload combinations, including configured service byte-work admission. | — |
 | M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | — |
 | M2-N07 | todo | 2 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | — |
