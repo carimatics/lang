@@ -9,7 +9,7 @@
 - Created: 2026-10-19
 - Last updated: 2026-10-19
 - Accepted: 2026-10-19
-- Tracking issue: M2-N15, M2-N05
+- Tracking issue: M2-N15, M2-N05, M2-N18
 - Supersedes: None; elaborates RFC 0012's configured service admission
 - Superseded by: None
 
@@ -116,8 +116,10 @@ This complements fuel, memory and local inspection quotas; it does not bound all
 ## Implementation plan
 
 1. N15 decides the RFC using current service/failure boundaries and compatibility evidence.
-2. N05 adds shared meter/builder/usage/failure data and driver configuration, then wires buffer and all managed service events while preserving local quotas. Reject finite configuration for incomplete profiles.
+2. N16 adds meter/builder/usage/failure data, N17 buffer metering, and N18 CLI configuration/report-format audit. N05 wires every managed service event while preserving local quotas. Reject finite configuration for incomplete units.
 3. N05 verifies full success/refusal/panic/cleanup and migration coverage. N06/N07 still require actual target object link/run evidence. Do not introduce frontend/backend coupling or new serialized IR.
+
+Implementation status (2026-10-19 JST): N16/N17/N18 subsets are implemented, including finite-budget source/artifact/REPL CLI execution. CLI options exist only in the execution context; no tag/field is added to Copy schema 1 / ownership schema 2 artifacts. REPL failures retain numeric data in existing Rust values and add usage to unversioned display text. No new versioned report encoding is introduced. All managed families, native driver/object execution and full conformance remain unfinished; this RFC stays accepted.
 
 ## Test plan
 
@@ -147,6 +149,7 @@ Accepted under experimental delegation after reviewing the buffer integration pr
 The normative choices above are project decisions. These local facts were verified 2026-10-19 JST; no external language or performance claim is used.
 
 - [RFC 0007](0007-source-ownership-and-core-values.md), updated 2026-10-18; [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md), updated 2026-10-17; [RFC 0012](0012-native-ownership-continuations.md), updated 2026-10-18.
-- [Shared controls](../../crates/runtime/src/execution.rs), last committed 2026-10-19; [buffer](../../crates/runtime/src/buffer.rs) and [Map work](../../crates/runtime/src/map.rs), last committed 2026-10-18.
+- [Shared controls](../../crates/runtime/src/execution.rs) and [buffer](../../crates/runtime/src/buffer.rs), last committed 2026-10-19; [Map work](../../crates/runtime/src/map.rs), last committed 2026-10-18.
 - [Map storage tests](../../crates/runtime/tests/support/map_storage.rs) and [mutation refusal tests](../../crates/runtime/tests/support/map_mutation_failures.rs), last committed 2026-10-18. Readiness command cargo test -p lang-runtime --test map: 20 pass, 0.06 s.
 - [Failure domain](../../crates/mir/src/unit/ownership/failure.rs) and [artifact codec](../../src/artifact.rs), last committed 2026-10-18. Repeat the serializer audit during N05.
+- [CLI](../../src/main.rs), [REPL transport](../../src/repl/owned.rs) and [CLI conformance](../../tests/service_work_cli.rs), updated/verified 2026-10-19. N18 audits the existing source/artifact/REPL configuration and report surfaces; it does not establish complete native/managed or future wire-format conformance.

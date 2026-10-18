@@ -9,7 +9,7 @@
 - Created: 2026-10-19
 - Last updated: 2026-10-19
 - Accepted: 2026-10-19
-- Tracking issue: M2-N15, M2-N05
+- Tracking issue: M2-N15, M2-N05, M2-N18
 - Supersedes: None; elaborates RFC 0012's configured service admission
 - Superseded by: None
 
@@ -116,8 +116,10 @@ Fuel・memory・局所inspection quotaを補完し、CPU work全体、allocator�
 ## 実装計画
 
 1. N15で既存service／failure境界と互換性のevidenceを使って本RFCを決定する。
-2. N05でmeter／builder／usage／failure dataとdriver設定を追加し、bufferと全managed serviceを局所quotaを残して接続する。未完のprofileは有限設定を拒否する。
+2. N16でmeter／builder／usage／failure data、N17でbuffer計量、N18でCLI設定とreport format監査を追加する。N05で全managed serviceを局所quotaを残して接続する。未完のunitは有限設定を拒否する。
 3. N05で全成功／拒否／panic／cleanupと移行を検証する。N06／N07の実target object link／runも必要なままで、frontend／backend結合や新serialized IRは導入しない。
+
+実装状況（2026-10-19 JST）：N16／N17／N18の部分成果を実装し、source／artifact／REPLのCLIで有限予算を利用できます。CLIのoptionは実行contextだけに存在し、artifactのCopy schema 1／ownership schema 2に新tag／fieldを追加しません。REPL failureは既存のRust値で数値を保持し、versionを持たない表示にusageを追加します。新しいversion付きreport encodingは導入しません。N05のmanaged family全体、native driver／object実行と全体conformanceは未完で、本RFCはacceptedのままです。
 
 ## テスト計画
 
@@ -147,6 +149,7 @@ Buffer統合prototypeのレビュー後、実験段階の委任に基づきaccep
 規範部分はprojectの決定で、以下はlocal実装の事実です。すべて2026-10-19 JST確認。外部言語／性能の主張は使いません。
 
 - [RFC 0007](0007-source-ownership-and-core-values.md)：更新2026-10-18、[RFC 0008](0008-cleanup-allocators-and-c-boundaries.md)：2026-10-17、[RFC 0012](0012-native-ownership-continuations.md)：2026-10-18。
-- [共通control](../../../crates/runtime/src/execution.rs)：最終commit 2026-10-19。[Buffer](../../../crates/runtime/src/buffer.rs)、[Map work](../../../crates/runtime/src/map.rs)：最終commit 2026-10-18。
+- [共通control](../../../crates/runtime/src/execution.rs)、[Buffer](../../../crates/runtime/src/buffer.rs)：最終commit 2026-10-19。[Map work](../../../crates/runtime/src/map.rs)：最終commit 2026-10-18。
 - [Map storage test](../../../crates/runtime/tests/support/map_storage.rs)、[mutation拒否test](../../../crates/runtime/tests/support/map_mutation_failures.rs)：最終commit 2026-10-18。着手前command cargo test -p lang-runtime --test map：20件成功、0.06秒。
 - [Failure domain](../../../crates/mir/src/unit/ownership/failure.rs)、[artifact codec](../../../src/artifact.rs)：最終commit 2026-10-18。N05でserializerを再監査します。
+- [CLI](../../../src/main.rs)、[REPL transport](../../../src/repl/owned.rs)、[CLI conformance](../../../tests/service_work_cli.rs)：2026-10-19更新・確認。N18は既存source／artifact／REPLの設定・report面を監査し、native／managed全体や将来のwire formatのconformance完了は示しません。

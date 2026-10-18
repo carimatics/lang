@@ -112,7 +112,7 @@ Source Mapでi64またはUTF-8 byte単位の厳密なText keyと、storableな�
 
 Ownership profileはCopy／owned parameterとresult、borrowed parameterを持つguest functionを自己再帰／相互再帰も含めて実行します。`owned_calls.lang` はBytesの再帰的な移譲とborrowed callを経て `1`、`cleanup_calls.lang` は入れ子aggregate／callのcleanupを経て `13` を表示します。`owned_replace.lang` はowner全体／fieldの置換とscalar loopを経て `3` を表示します。代入先をRHSより先に確定し、新しい値を公開してから古い値をcleanupします。返却値をcallee cleanup成功まで保護し、失敗時は実際に入ったsource call stackを示します。2026-10-18 JST確認。[Call](docs/ja/architecture.md#owned-guest-callとreturn)、[failure exit](docs/ja/architecture.md#owned-failure-exitのconformance)、[置換の根拠](docs/ja/architecture.md#prepared-ownership-replacement)を参照してください。
 
-Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応します。REPLはcurrent-profile ownership定義／式とBytes／Text／入れ子resultの上限付きpreviewを扱い、評価ごとにfreshなallocatorとcleanup instanceを使います。CLIはhost importを登録しません。検証日：2026-10-18 JST。
+Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--service-work`、`--host-calls`、`--frames`、`--cells` に対応します。REPLはcurrent-profile ownership定義／式とBytes／Text／入れ子resultの上限付きpreviewを扱い、評価ごとにfreshなallocatorとcleanup instanceを使います。CLIはhost importを登録しません。検証日：2026-10-19 JST。
 
 Embedding APIの `lang_vm::unit::owned::execute_preview` は検証済みIDでnamedな引数なしownership functionを実行し、Bytes／Text／入れ子resultを上限付きで表示し、全guest storage解放後にstringを返します。[Source library](examples/analysis/repl_preview.lang) は `cargo test --test owned_execution preview::named_owned` で実行します。Frontendも、検証済みの生成ownership wrapperのresultを通常のHIR／MIR検証越しに推論し、`cargo test --test owned_execution inference::` でその結果を実行します。Embedding sessionは `Session::submit_with_allocator` でownership式のauthorityを明示し、従来の `submit` はallocator authorityを与えません。定義は実行せずcommitし、callerはallocatorの累積quotaを意図的に再利用できます。[Preview](docs/ja/architecture.md#owned-result-previews)、[推論](docs/ja/architecture.md#ownership-expression-inference)、[sessionの根拠](docs/ja/architecture.md#ownership-repl-sessions)。2026-10-18 JST更新・確認。
 
@@ -135,7 +135,15 @@ cargo doc --workspace --no-deps
 
 Rustのnative embedding境界で [sourceのBytes引数／返り値](examples/analysis/native_owned_boundary.lang)、[ownerを渡すguest call](examples/analysis/native_owned_calls.lang)、[record](examples/analysis/native_owned_records.lang)、[sumのpayload全体抽出](examples/analysis/native_owned_sums.lang)、[借用fieldの変更](examples/analysis/native_owned_loans.lang)、allocator／buffer／collection／shared／weak／字句arena service（既存の [shared](examples/scripts/shared_owned.lang)、[Map](examples/scripts/map_owned.lang)、[Vec](examples/scripts/vec_owned.lang)、[Text](examples/scripts/text.lang) と [UTF-8](examples/scripts/utf8.lang) の例）、[入れ子arena ownerとguest call越しのread](examples/analysis/native_arena_regions.lang)、[ownerの再open](examples/analysis/native_arena_reuse.lang) が生成機械コードで実行できます。Scalar／Copyの制御、place projection、通常のloan、準備済み置換、CFG引数の同時転送もlowerします。VMとnative adapterはinstrumented controlとusageを共有し、nativeの報告にもloan／escrowのcell数と元の失敗位置を保持します。`cargo test --test native_owned_boundary` でVM／native比較、失敗時cleanup、admission、poison、compile budgetを検証できます。対応Mach-O／COFF codeとメモリ上のmetadataを出力し、exit conformance全体、objectのlink／実行、CLI driverは残作業です。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
 
-有限のservice-work予算で、serviceがallocator handle、Bytes、Textに限られる検証済みunit全体を受理できるようになりました。Payload copy、Text token復号を含むUTF-8 scan、byteアクセス、同長比較を、VM／nativeのguest callを通じて共通runtimeで計量します。[Buffer workの例](examples/analysis/native_buffer_work.lang) は37単位を使い67を返します。未使用関数内でも未計量familyがあれば、unitをeffect前に拒否します。Managed familyの計量、exit conformance全体、driver／report統合はN05の残作業で、CLI flagは未実装です。
+有限のservice-work予算で、serviceがallocator handle、Bytes、Textに限られる検証済みunit全体を受理できるようになりました。Payload copy、Text token復号を含むUTF-8 scan、byteアクセス、同長比較を、VM／nativeのguest callを通じて共通runtimeで計量します。[Buffer workの例](examples/analysis/native_buffer_work.lang) は37単位を使い67を返します。未使用関数内でも未計量familyがあれば、unitをeffect前に拒否します。Managed familyの計量とexit conformance全体はN05、nativeのdriver／object実行はN06／N07に残ります。
+
+
+
+CLIのsource、保存artifact、REPLで `--service-work N` を使えます。省略時は無制限、0は無償の操作だけを許し、範囲はu64です。上限はartifactへ保存せず実行時に設定し、REPLでは投稿ごとにresetします。Runtime errorにはservice workのusageと拒否のlimit／used／requestedを表示します。引数不正はexit 2、scriptの予算拒否はexit 1、REPLはruntime error後も継続します。CLI実行はVMで、native実行への置換を意味しません。2026-10-19 JST検証。
+
+```bash
+cargo run --bin lang -- run --service-work 37 examples/analysis/native_buffer_work.lang
+```
 
 ## 設計プロセス
 

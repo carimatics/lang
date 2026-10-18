@@ -10,7 +10,18 @@ use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang run [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
+#[derive(Clone, Copy, Default)]
+struct ExecutionOptions {
+    limits: Limits,
+    service_work: Option<u64>,
+}
+impl ExecutionOptions {
+    fn control(self) -> Control<'static> {
+        Control::with_limits(self.limits).and_service_work(self.service_work)
+    }
+}
+
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
 enum Command {
     Check {
         file: PathBuf,
@@ -19,7 +30,7 @@ enum Command {
     Run {
         file: PathBuf,
         root: Option<PathBuf>,
-        limits: Limits,
+        limits: ExecutionOptions,
     },
     Compile {
         file: PathBuf,
@@ -28,11 +39,11 @@ enum Command {
     },
     RunArtifact {
         file: PathBuf,
-        limits: Limits,
+        limits: ExecutionOptions,
     },
     Repl {
         root: Option<PathBuf>,
-        limits: Limits,
+        limits: ExecutionOptions,
     },
     Lsp,
     Prototype(i64, i64),
@@ -98,7 +109,7 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
     let mut root = None;
     let mut output = None;
     let mut artifact = false;
-    let mut limits = Limits::default();
+    let mut limits = ExecutionOptions::default();
     let mut seen = std::collections::BTreeSet::new();
     let mut arguments = arguments.into_iter().skip(1);
     while let Some(argument) = arguments.next() {
@@ -121,7 +132,13 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
             }
             if !matches!(
                 flag,
-                "--source-root" | "--fuel" | "--host-calls" | "--frames" | "--cells" | "--output"
+                "--source-root"
+                    | "--fuel"
+                    | "--service-work"
+                    | "--host-calls"
+                    | "--frames"
+                    | "--cells"
+                    | "--output"
             ) || (flag == "--output" && !compile)
             {
                 return Err(usage(format!("unknown option {flag}")));
@@ -135,10 +152,11 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
             match flag {
                 "--source-root" => root = Some(PathBuf::from(value)),
                 "--output" => output = Some(PathBuf::from(value)),
-                "--fuel" => limits.fuel = Some(number(&value, flag)?),
-                "--host-calls" => limits.host_calls = Some(number(&value, flag)?),
-                "--frames" => limits.frames = Some(number(&value, flag)?),
-                "--cells" => limits.live_cells = Some(number(&value, flag)?),
+                "--fuel" => limits.limits.fuel = Some(number(&value, flag)?),
+                "--service-work" => limits.service_work = Some(number(&value, flag)?),
+                "--host-calls" => limits.limits.host_calls = Some(number(&value, flag)?),
+                "--frames" => limits.limits.frames = Some(number(&value, flag)?),
+                "--cells" => limits.limits.live_cells = Some(number(&value, flag)?),
                 _ => unreachable!(),
             }
         } else if repl {
@@ -209,7 +227,7 @@ fn run() -> Result<u8, CliError> {
     }
 }
 
-fn run_repl(root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
+fn run_repl(root: Option<PathBuf>, limits: ExecutionOptions) -> Result<u8, CliError> {
     let root = root
         .map(std::fs::canonicalize)
         .transpose()
@@ -287,20 +305,14 @@ fn submit_repl(
     bytes: &[u8],
     hosts: &HostFunctionRegistry,
     bindings: &HostBindings,
-    limits: Limits,
+    limits: ExecutionOptions,
 ) -> Result<Report, CliError> {
     let mut allocator = lang_runtime::allocation::Allocator::new(
         lang_runtime::allocation::System,
         Default::default(),
     )
     .map_err(failure)?;
-    Ok(session.submit_with_allocator(
-        bytes,
-        hosts,
-        bindings,
-        &mut allocator,
-        Control::with_limits(limits),
-    ))
+    Ok(session.submit_with_allocator(bytes, hosts, bindings, &mut allocator, limits.control()))
 }
 fn print_repl_report(report: &Report) -> Result<(), CliError> {
     let mut stderr = io::stderr().lock();
@@ -320,8 +332,8 @@ fn print_repl_report(report: &Report) -> Result<(), CliError> {
         Err(ReplError::Runtime(error)) => {
             writeln!(
                 stderr,
-                "error[runtime]: {:?} (fuel {}, host calls {})",
-                error.reason, error.usage.fuel, error.usage.host_calls
+                "error[runtime]: {:?} (fuel {}, host calls {}) (service work {})",
+                error.reason, error.usage.fuel, error.usage.host_calls, error.usage.service_work
             )
             .map_err(failure)?;
             for frame in &error.stack {
@@ -439,7 +451,11 @@ fn check_source(file: PathBuf, root: Option<PathBuf>) -> Result<u8, CliError> {
         Err(error) => Err(failure(error)),
     }
 }
-fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
+fn run_script(
+    file: PathBuf,
+    root: Option<PathBuf>,
+    limits: ExecutionOptions,
+) -> Result<u8, CliError> {
     // CLI is the host choosing compiler inputs. Child modules use this
     // source root; source execution itself acquires no file authority.
     let root = source_root(&file, root);
@@ -485,7 +501,10 @@ fn run_script(file: PathBuf, root: Option<PathBuf>, limits: Limits) -> Result<u8
     run_copy(&program, limits)
 }
 
-fn run_copy(program: &lang_bytecode::unit::Program, limits: Limits) -> Result<u8, CliError> {
+fn run_copy(
+    program: &lang_bytecode::unit::Program,
+    limits: ExecutionOptions,
+) -> Result<u8, CliError> {
     let mut stderr = io::stderr().lock();
     let unit = program.verified().unit();
     let entry = unit
@@ -501,7 +520,7 @@ fn run_copy(program: &lang_bytecode::unit::Program, limits: Limits) -> Result<u8
         program,
         &HostFunctionRegistry::new(),
         &HostBindings::new(),
-        Control::with_limits(limits),
+        limits.control(),
     ) {
         Ok(outcome) => {
             writeln!(
@@ -515,8 +534,8 @@ fn run_copy(program: &lang_bytecode::unit::Program, limits: Limits) -> Result<u8
         Err(error) => {
             writeln!(
                 stderr,
-                "error[runtime]: {:?} (fuel {}, host calls {})",
-                error.reason, error.usage.fuel, error.usage.host_calls
+                "error[runtime]: {:?} (fuel {}, host calls {}) (service work {})",
+                error.reason, error.usage.fuel, error.usage.host_calls, error.usage.service_work
             )
             .map_err(failure)?;
             for frame in &error.stack {
@@ -545,7 +564,7 @@ enum OwnedEntry {
 fn run_owned(
     flow: &lang_mir::unit::ownership::failure::Elaborated,
     entry: OwnedEntry,
-    limits: Limits,
+    limits: ExecutionOptions,
 ) -> Result<u8, CliError> {
     let mut instance = lang_runtime::cleanup::Instance::default();
     let mut allocator = lang_runtime::allocation::Allocator::new(
@@ -553,7 +572,7 @@ fn run_owned(
         Default::default(),
     )
     .map_err(failure)?;
-    let control = Control::with_limits(limits);
+    let control = limits.control();
     let result = match entry {
         OwnedEntry::Main => {
             vm::owned::execute_entry(flow, &mut instance, Some(&mut allocator), control)
@@ -571,8 +590,8 @@ fn run_owned(
             let mut stderr = io::stderr().lock();
             writeln!(
                 stderr,
-                "error[runtime]: {error} (fuel {}, host calls {})",
-                error.usage.fuel, error.usage.host_calls
+                "error[runtime]: {error} (fuel {}, host calls {}) (service work {})",
+                error.usage.fuel, error.usage.host_calls, error.usage.service_work
             )
             .map_err(failure)?;
             let declarations = flow
@@ -663,7 +682,7 @@ fn compile_source(file: PathBuf, root: Option<PathBuf>, output: PathBuf) -> Resu
     Ok(0)
 }
 
-fn run_artifact(file: PathBuf, limits: Limits) -> Result<u8, CliError> {
+fn run_artifact(file: PathBuf, limits: ExecutionOptions) -> Result<u8, CliError> {
     let format = lang::artifact::Limits::default();
     let bytes =
         read_artifact(&file, format.bytes).map_err(|e| failure(format!("{file:?}: {e}")))?;

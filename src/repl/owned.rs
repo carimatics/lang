@@ -83,8 +83,8 @@ impl Display for OwnedRuntimeFailure {
         }
         write!(
             f,
-            " (fuel {}, host calls {})",
-            self.usage.fuel, self.usage.host_calls
+            " (fuel {}, host calls {}) (service work {})",
+            self.usage.fuel, self.usage.host_calls, self.usage.service_work
         )
     }
 }
