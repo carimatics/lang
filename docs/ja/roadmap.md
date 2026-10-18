@@ -8,11 +8,13 @@
 
 ## 現在のM2実装状況
 
-**検証済み83件 · 進行中0件 · 残り25件（暫定58 pt）。**
+**検証済み84件 · 進行中0件 · 残り24件（暫定57 pt）。**
+
+N03見積もり・依存関係監査（2026-10-19 JST）：key／所有値結果／cleanup接続の前に **1 → 3点**、残りを **58 → 60点**、追加分合計を **51 → 53点** へ再見積もりしました。N03完了で最後の3点を取り除き **60 → 57点**、108行は維持します。N04はN12／N03に依存し、collection／call越しのread custodyと入れ子brand検査を維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformanceはN05です。要件は削除していません。
 
 N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接続の前に **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。N12完了で最後の3点を取り除き **61 → 58点**、108行は維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformance前に、N05の依存へN02／N11／V08に加えN12／N03／N04を明示しました。要件は削除していません。
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N12は完了です（`649aa08`、native Vecとmanaged要素のprojection／変更／置換が4つのVM source fixtureと一致し、全fuel／provider拒否prefix、cleanup poison、Mach-O／COFF generic metadataも成功。85 suite・1360 testとfmt／Clippy／doc成功）。**82 → 83 done**、**108 taskは不変** です。次はM2-N03 Mapの実装前確認です。Native／FFI／platform／performance／debug全要件と最終英日guideを維持します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N03は完了です（`2e6a441`、native Mapのi64／Text key、所有値・入れ子の結果、値loan、切り離したkeyのcleanupがVM fixtureと一致し、全fuel／provider拒否prefix、cleanup poison、Mach-O／COFF generic metadataも成功。85 suite・1365 testとfmt／Clippy／doc成功）。**83 → 84 done**、**108 taskは不変** です。次はM2-N04 shared／arenaの実装前確認です。Native／FFI／platform／performance／debug全要件と最終英日guideを維持します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

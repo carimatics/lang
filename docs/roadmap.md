@@ -8,11 +8,13 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**83 verified deliveries · 0 in progress · 25 remaining tasks (provisional 58 pt).**
+**84 verified deliveries · 0 in progress · 24 remaining tasks (provisional 57 pt).**
+
+N03 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** before key/owning-result/cleanup integration, **58 → 60 remaining pt**, net additions **51 → 53 pt**. N03 delivery retires its last 3 points: **60 → 57 pt**, with 108 rows unchanged. N04 now depends on N12/N03 and retains collection/call read custody and nested brand checks; N05 still owns full accepted service/payload, ordered-exit and configured byte-work admission conformance. No requirement was removed.
 
 N12 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** before native element-view integration, **59 → 61 remaining pt**, net additions **49 → 51 pt**. N12 delivery retires its last 3 points: **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 in addition to N02/N11/V08 before full accepted service/payload, ordered-exit and configured byte-work admission conformance. No requirement was removed.
 
-Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N12 is done (`649aa08`; native Vec and managed element projections/mutation/replacement match four VM source fixtures, all fuel/provider refusal prefixes, cleanup poison and Mach-O/COFF generic metadata; 1360 tests / 85 suites and fmt/Clippy/doc pass). **82 → 83 done**, **108 tasks unchanged**. Next is M2-N03 Map readiness. Preserve every native/FFI/platform/performance/debug obligation and the final bilingual guide.
+Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N03 is done (`2e6a441`; native Map i64/Text keys, owning/nested results, scoped value loans and detached-key cleanup match VM fixtures; every fuel/provider refusal prefix, cleanup poison and Mach-O/COFF generic metadata pass; 1365 tests / 85 suites and fmt/Clippy/doc pass). **83 → 84 done**, **108 tasks unchanged**. Next is M2-N04 shared/arena readiness. Preserve every native/FFI/platform/performance/debug obligation and the final bilingual guide.
 
 The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 
