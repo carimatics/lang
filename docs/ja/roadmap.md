@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み75件 · 進行中0件 · 残り28件（暫定69 pt）。**
+**検証済み76件 · 進行中0件 · 残り27件（暫定66 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから49件の成果を検証しました。A02（`1311acd`）でschema-2 ownershipのencode／decode、type／move／loan／region／failureの独立検証、累積予算を実装しました。独立vector 2件、33 opcode配置、37 core tag、source 19件の往復、CFG／entry／順序、quota境界、操作／loan／arena token偽造を検証しました。全83 suite・1314 testとfmt／Clippy／doc、locked fuzz Clippy、instrumentationなしの10,000-run smokeが成功し、**残り72 → 69 pt**、done 75行、計103行です。次はA03でfrontendの消費型export、検証済みentry ID dispatch、上限付きcompile／load CLI実行を接続し、artifact基盤をさらに広げる前に最初のload済みowned Bytes fixtureを必須とします。Native N03／N04／N05、indirect preview、artifact conformance全体、両tier-1実行・性能・debugと最終日英guideの要件を保持し、新exit gateは閉じません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから50件の成果を検証しました。A03（`2dfea13`）でschema 1／2のcompile／load CLI実行と検証済みentry dispatchを接続し、最初のload済みBytes fixtureが0を表示しました。CLI 8 testでowned 19 fixture、両profile／adapter、削除済みmodule snapshot、入出力／limit失敗を確認し、service 10 fixtureは全provider拒否位置／fuel prefixと中断／再利用で一致します。広すぎる未使用import guardを修正し、全84 suite・1326 testとfmt／Clippy／docが成功しました。**残り69 → 66 pt**、done 76行、計103行です。RFC 0011を実装済みにし、A01／A02後の必須source成果を完了しました。次はN01のownership native call／layout bridgeを実装前に監査・prototypeします。Native／FFI、indirect preview、backendを組み合わせたconformance全体、両tier-1実行・性能・debug、最終日英guideの要件を保持し、新exit gateは閉じません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

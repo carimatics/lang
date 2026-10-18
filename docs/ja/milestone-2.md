@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**75 done · 0 doing · 28 todo · 69 remaining pt**
+**76 done · 0 doing · 27 todo · 66 remaining pt**
 
-**次: M2-A03 → 最初のcompile／load済みowned Bytes artifactをCLIで実行。**
+**次: M2-N01 → native ownershipのcall／layout契約を監査し、最初のnative実験を実行。**
 
-直近の完了：**M2-A02**（`1311acd`）。Ownership schema 2のencode／decodeを実装し、type／move／loan／region／failureの独立検証全体と予算を通算します。独立byte vector 2件、全33 opcode配置／37 core tag、source 19件の往復、CFG／entry／順序、厳密なquota境界、操作／loan／arena偽造の拒否を検証しました。全体 **83 suite・1314 test** とfmt／Clippy／doc、locked fuzz Clippy、instrumentationなしの10,000-run smokeが成功し、**残り72 → 69 pt**、done 75行、計103行です。Schema 1は維持します。Compile／load／CLI実行はA03で、V17、native、artifact conformance全体は各gateを維持します。
+直近の完了：**M2-A03**（`2dfea13`）。Schema 1／2の明示的compile／load CLI実行、消費型ownership export、検証済みentry ID dispatchを追加し、最初のload済みBytes fixtureが **0** を表示しました。CLI 8 testでowned 19 fixture、両adapter／profile、削除したUnicode／複数file snapshot、不正入力／option、quota、出力保持を検証しました。Service 10 fixtureで全provider拒否位置／fuel prefixと中断／再利用を比較し、解放順序と元failure reportも一致します。全体 **84 suite・1326 test** とfmt／Clippy／docが成功し、**残り69 → 66 pt**、done 76行、計103行です。RFC 0011を実装済みにし、A01／A02後の必須source成果を完了しました。Native、V17、backendを組み合わせたconformance全体は各gateを維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **52.8秒**、全test **434.0秒**（新log作成から最終書き込みまで）、rustdoc **31.1秒**、すべて成功です。Cargoが報告するtest compileは**53.9秒**、各suiteが報告する実行時間の合計は**19.5秒**で、残る経過時間のoverheadは原因別に配分していません。新14 testはwire 10件とsource／proof 4件です。Focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
+直近code baselineの実測（2026-10-18 JST）：最終workspace Clippy **25.6秒**、成功した全test **393.3秒**（新log作成から最終書き込みまで）、rustdoc **16.4秒**。Cargoが報告するtest compileは**22.0秒**、suite時間合計は**77.6秒**です。初回baselineは広すぎる未使用import guardによるREPL回帰で**265.5秒**後に停止しました。Guardを取り除いて受理済みのREPL／到達可能性規則を保ち、focused回帰検証と最終baselineが成功しました。新12 testはCLI 8件とloaded／proof実行4件です。検証所要時間であり、全稼働時間やruntime benchmarkではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
-次の着手条件（2026-10-18 JST）：A02で追加前提なしに累積admissionを実証しました。A03にはfrontendからの消費型MIR export、検証済みentry IDによるVM dispatch（現script adapterは`main`を選択）、両schemaの上限付きcompile／load I/Oと元source診断が必要です。最初のload fixture実験までは暫定3 ptとし、独立したblockerは実装前に公開・再見積もりします。A01／A02はartifact前提2成果なので、次は基盤をさらに広げる前に最初のcompile／load済みowned Bytes fixtureを実行しなければなりません。V17は明示的preview follow-upが必要です。G07／G08／G09／G10にN03、G05にN04、G06にN05、全platform／conformance／性能／debug要件とZ01の日英guideを維持し、新exit gateは閉じません。
+次の着手条件（2026-10-18 JST）：A03でA01／A02後に必須としたloaded source fixtureを完了しました。N01の前提V07／A02は完了済みです。現native全体入口はCopyの`VerifiedUnit`をprivateな2 pointer／i32 status conventionで受け取り、ownership failure MIRには未対応です。次は受理済みABI／runtime layout契約を監査し、最小の生成native call／layout実験を行います。その結果まではN01を暫定3 ptとし、必要なら実装前に明示的RFC決定と独立bridge前提の公開・再見積もりを行います。V17はpreview follow-upが必要です。Native／FFI／platform／conformance／性能／debug全成果とZ01の日英guideを維持し、新exit gateは閉じません。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -160,7 +160,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | --- | --- | ---: | --- | --- | --- | --- |
 | M2-A01 | done | 0 | M2-V08 | G14,G16 | Ownership artifactのversion／encodingを互換性と検証上限付きでRFC受理記録にする。 | `6c9f12b` |
 | M2-A02 | done | 0 | M2-A01 | G14,G16 | Ownership型／命令のencode／decodeに不正入力budgetとfuzz targetを追加。 | `1311acd` |
-| M2-A03 | todo | 3 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | — |
+| M2-A03 | done | 0 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | `2dfea13` |
 | M2-F01 | todo | 2 | M2-D27 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
 | M2-F03 | todo | 3 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | — |
