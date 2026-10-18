@@ -990,6 +990,179 @@ fn cleanup_failure_after_real_retirement_runs_the_generated_call_exit() {
 
 const ARENA: &str = include_str!("../../../../../examples/scripts/arena_owned.lang");
 const SHARED: &str = include_str!("../../../../../examples/scripts/shared_owned.lang");
+const VECTOR: &str = include_str!("../../../../../examples/scripts/vec_owned.lang");
+
+#[test]
+fn vec_source_replacement_pop_and_reverse_elements_keep_real_leaf_initializer_spans() {
+    let program = checked(VECTOR);
+    let _guard = install(Injection::default());
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let outcome = execute_entry(
+        program.failure_flow(),
+        &mut c::Instance::default(),
+        Some(&mut allocator),
+        control(),
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 12);
+    assert_eq!(lengths(), [2, 1, 2, 1, 2, 1, 2, 1, 2, 3, 2]);
+    assert_eq!(events()[0].reason, c::Reason::Replacement);
+    for (event, expected) in events().into_iter().zip([
+        "make(2)", "make(1)", "make(2)", "make(1)", "make(2)", "make(1)", "make(2)", "make(1)",
+        "make(2)", "make(3)", "make(1)",
+    ]) {
+        let span = event.span.unwrap();
+        assert_eq!(&VECTOR[span.start as usize..span.end as usize], expected);
+    }
+    assert_empty(&allocator);
+}
+
+#[test]
+fn vec_source_child_failure_and_panic_drain_all_elements_and_poison_before_reentry() {
+    let program = checked(VECTOR);
+    for (fail, panic) in [(Some(3), None), (Some(3), Some(7)), (None, Some(3))] {
+        let _guard = install(Injection {
+            fail: fail.into_iter().collect(),
+            panic,
+            ..Default::default()
+        });
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut instance = c::Instance::default();
+        let error = execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            control(),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(lengths(), [2, 1, 2, 1, 2, 1, 2, 1, 2, 3, 2]);
+        let report = error.report.as_ref().unwrap();
+        assert_eq!(
+            report.primary().unwrap().kind,
+            if fail.is_some() {
+                c::FailureKind::Cleanup(1001)
+            } else {
+                c::FailureKind::CleanupPanic
+            }
+        );
+        if panic == Some(7) {
+            assert_eq!(report.secondary()[0].kind, c::FailureKind::CleanupPanic);
+        }
+        assert!(instance.is_poisoned());
+        assert_empty(&allocator);
+        let before = allocator.stats();
+        assert!(matches!(
+            execute_entry(
+                program.failure_flow(),
+                &mut instance,
+                Some(&mut allocator),
+                control()
+            )
+            .err()
+            .unwrap()
+            .reason,
+            Reason::Poisoned
+        ));
+        assert_eq!(allocator.stats(), before);
+    }
+}
+
+#[test]
+fn vec_source_body_panic_keeps_priority_over_descendant_failures() {
+    let source=VECTOR.replace("return core::vec_len::<Pair>(values) + width(first) + width(last);","let mut absent: core::Option<i64> = core::Option::None; return core::option_unwrap::<i64>(absent);");
+    let program = checked(&source);
+    let _guard = install(Injection {
+        all: true,
+        only_failure: true,
+        ..Default::default()
+    });
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let error = execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+    )
+    .err()
+    .unwrap();
+    let report = error.report.as_ref().unwrap();
+    assert_eq!(
+        report.primary().unwrap().kind,
+        c::FailureKind::Execution(c::ExecutionFailure::Panic)
+    );
+    assert_eq!(error.panic_code, Some(-1));
+    assert_eq!(lengths(), [2, 1, 2, 1, 2, 1, 2, 1, 2, 3, 2]);
+    assert_records(report.secondary(), &events()[1..]);
+    assert!(instance.is_poisoned());
+    assert_empty(&allocator);
+}
+
+#[test]
+fn vec_source_replacement_cleanup_interruption_stops_later_effects_and_still_drains_all_nodes() {
+    let program = checked(VECTOR);
+    let flag = Rc::new(crate::InterruptionFlag::new());
+    let _guard = install(Injection {
+        interrupt: Some(flag.clone()),
+        ..Default::default()
+    });
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let error = execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control().and_interruption(&flag),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(
+        error.report.as_ref().unwrap().primary().unwrap().kind,
+        c::FailureKind::Execution(c::ExecutionFailure::Interrupted)
+    );
+    assert_eq!(lengths(), [2, 1, 2, 1, 2, 1, 2, 1, 2, 3, 2]);
+    assert_eq!(events()[1].reason, c::Reason::Failure);
+    assert!(!instance.is_poisoned());
+    assert_empty(&allocator);
+}
+
+#[test]
+fn vec_source_cleanup_report_truncation_never_skips_retirement_of_remaining_elements() {
+    let program = checked(
+        r#"fn main() -> i64 {
+        let mut values: core::Vec<core::Bytes> = core::result_unwrap::<core::Vec<core::Bytes>, core::AllocError>(core::vec_new::<core::Bytes>(core::allocator()));
+        let mut index: i64 = 0; while index < 260 {
+            let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+            let mut added: core::Result<core::Unit, core::AllocError> = core::vec_push::<core::Bytes>(values, bytes); index = index + 1;
+        } return 0;
+    }"#,
+    );
+    let _guard = install(Injection {
+        all: true,
+        ..Default::default()
+    });
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let error = execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+    )
+    .err()
+    .unwrap();
+    let report = error.report.as_ref().unwrap();
+    assert_eq!(
+        report.primary().unwrap().kind,
+        c::FailureKind::Cleanup(1000)
+    );
+    assert_eq!(report.secondary().len(), 255);
+    assert_eq!(report.truncated(), 4);
+    assert_eq!(lengths(), vec![0; 260]);
+    assert!(instance.is_poisoned());
+    assert_empty(&allocator);
+}
 
 #[test]
 fn shared_replacement_rejection_and_reverse_descendant_cleanup_keep_real_initializer_spans() {

@@ -579,6 +579,7 @@ fn execute_with<P: a::Provider>(
             target: None,
             arena_read: None,
             shared_read: None,
+            vector_read: None,
         });
     }
     let mut prepared = budget
@@ -637,6 +638,7 @@ fn execute_with<P: a::Provider>(
             stride: cell_stride,
         }),
         types,
+        layouts: &layouts,
         cells,
         inverse,
         loans,

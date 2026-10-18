@@ -2,6 +2,13 @@ use super::*;
 
 impl<P: a::Provider> State<'_, '_, '_, P> {
     pub(super) fn token(&self, target: Target) -> Step<[u8; 32]> {
+        if let Target::Vector { read, location } = target {
+            return self
+                .vector_view(read)?
+                .read_token(location, self.allocator)
+                .map(|t| t.bytes)
+                .map_err(invariant);
+        }
         if let Target::Shared { read, ty, location } = target {
             return self
                 .shared_view(read, ty)?
@@ -52,6 +59,14 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             .map_err(invariant)
     }
     fn store_token(&mut self, target: Target, token: [u8; 32]) -> Step<()> {
+        if let Target::Vector { read, location } = target {
+            return self.loans[read]
+                .vector_read
+                .as_ref()
+                .ok_or(c::ExecutionFailure::Invariant)?
+                .write_buffer_token(self.layouts, location, token, self.allocator)
+                .map_err(invariant);
+        }
         let Target::Data { cell, location } = target else {
             return Err(c::ExecutionFailure::Invariant);
         };
@@ -79,7 +94,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             .map_err(|_| c::ExecutionFailure::Fault)?;
         Ok((target, bytes))
     }
-    fn immediate_result(
+    pub(super) fn immediate_result(
         &mut self,
         destination: usize,
         outcome: Result<l::Immediate, l::Immediate>,

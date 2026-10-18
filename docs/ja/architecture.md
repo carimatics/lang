@@ -886,7 +886,7 @@ Compile-failで、より長生きするcaller storageへの一時／非return st
 
 `new`、`len`、`capacity`、`push_from`、`push_copy` がstorage境界を提供します。Growthはmetadata／workとpayloadの要求全体をprovider callback前にpreflightし、両領域の確保後にだけinputをmoveします。Live data／orderを新capacityへコピーし、header公開後に旧storageを解放します。部分OOMでは確保済み予約を解放し、既存要素とincoming義務を保持します。認可済み累積要求は計上したままです。Source adapterは拒否時に評価済みowning引数をcleanupする必要があります。Copy operandは再利用でき、capacity再利用ではprovider要求を追加しません。非所有element viewは事前認可したscratchを共有し、当該要素外のlocationを拒否して、collection領域の解放もできません。
 
-Cleanupはcallback前にheaderを失効させ、要素と各fieldを実際の初期化の逆順でretireします。Source spanを維持し、containした失敗／panic後も独立leafを処理します。全drainで予約済みwork領域を使います。Element storageはloan、allocator authority、arena ownerを禁止します。Cross-service edge／brand admissionと反復的nested-service drainはC07へ残し、このstorageだけで入れ子cycleやregion safetyを証明しません。後述C02で登録付きelement loan／pop／replacementを接続し、source実行C03、native／artifact対応は個別gateを維持します。Source Vec操作は引き続きpreflightで拒否し、source／C ABIやserialized formatは変更しません。
+Cleanupはcallback前にheaderを失効させ、要素と各fieldを実際の初期化の逆順でretireします。Source spanを維持し、containした失敗／panic後も独立leafを処理します。全drainで予約済みwork領域を使います。Element storageはloan、allocator authority、arena ownerを禁止します。Cross-service edge／brand admissionと反復的nested-service drainはC07へ残し、このstorageだけで入れ子cycleやregion safetyを証明しません。後述C02で登録付きelement loan／pop／replacement、C03でsource実行を接続し、native／artifact対応は個別gateを維持します。未対応の入れ子service payloadは引き続きpreflightで拒否し、source／C ABIやserialized formatは変更しません。
 
 C01のunit 2 testとintegration 8 testで、Copy値17個のcapacity 32へのgrowth、owningな入れ子Option／record／Bytes、全constructor／growth OOMとretry、callback前の要求／live／cumulative／count予算の厳密値／1不足、確保なしのcapacity再利用、実spanと逆順cleanup、child失敗／panic後の継続、Copy aggregate／zero-size値、要素間location、不正input／span／型／layoutのadmission、token消費／provenance／stale、表現不能な要求算術を検証します。Deterministicなstorage testであり、source／native実行やfuzz campaignではありません。
 
@@ -900,9 +900,21 @@ Shared element loanは共存でき、exclusive element loanは他accessを禁止
 
 `pop_into` は論理上最後の要素を事前認可済みの空storageやOption payloadへ移し、他要素を保持します。空の場合は出力先を変更しません。Owning replacementはincoming予約と交換し、先にpublishしてから、置換した値と元initializer spanを共通contextで後からcleanupできるよう返します。Copy replacementはoperandを保持します。要素全体の置換は最新の要素初期化となり、field置換は当該要素のfield ledgerだけを更新します。上限付きintrusive order link（各要素の16-byte spanに加えて16 byte）で、置換、pop、その後のgrowthを越えて実際のretirement順序を保持します。これらの操作は事前認可済みworkを再利用し、追加確保しません。
 
-追加unit 2 testとintegration 9 testで、read／replace／popの連続実行、shared／exclusive競合とpool再利用、constructor metadata予算の厳密値／1不足とOOM、zero-slot／overflow上限、不正／stale／異kind lease、serial枯渇、abort後の古いview、owning Option／record／Bytesの移動とfield置換、拒否時snapshotとspan保持、旧payload cleanup失敗／panic時の完全drain、独立した値／初期化順oracleと比較する96回のpush／pop／置換を検証します。完了した各実行で全guest storageを解放します。Runtimeの証拠であり、基盤2件のC01／C02後は次のC03でsource Vec fixtureの実行を必須にします。C07、native、preview、artifact統合は未完了です。
+追加unit 2 testとintegration 9 testで、read／replace／popの連続実行、shared／exclusive競合とpool再利用、constructor metadata予算の厳密値／1不足とOOM、zero-slot／overflow上限、不正／stale／異kind lease、serial枯渇、abort後の古いview、owning Option／record／Bytesの移動とfield置換、拒否時snapshotとspan保持、旧payload cleanup失敗／panic時の完全drain、独立した値／初期化順oracleと比較する96回のpush／pop／置換を検証します。完了した各実行で全guest storageを解放します。後述C03で基盤2件C01／C02後のsource adapterを接続します。C07、native、preview、artifact統合は未完了です。
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[登録付きaccess](../../crates/runtime/src/vector/access.rs)、[storage](../../crates/runtime/src/vector.rs)、[test](../../crates/runtime/tests/support/vector_access.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。登録上限、header表現、order linkは非公開の実装判断であり、source構文、source／C ABI、serialized formatは変更しません。
+
+### Source Vec execution
+
+2026-10-18 JST実装・検証（C03）：owned VMの `vec_new`、`vec_len`、`vec_push`、`vec_pop`、`vec_get`、`vec_get_mut` を型付きVec storageへ接続します。Guest callを越えて1つの準備済みlayout identityを維持し、allocator parameterは同じauthorityをreborrowして、Vec／element owner全体をcleanupで保護したreturn越しに保持します。Pushはpublication成功後だけowning inputをmoveし、拒否した評価済みinputを後続guest effect前にcleanupします。Copy operandは保持し、空popはNone、不正indexは登録なしでBoundsErrorを返します。
+
+Provider callback前に、上限付き逆依存worklistで通常value、Vec element、shared payload、arena payloadの4つのclosed profileを検証します。Indirect constructorで各serviceのprofileへ切り替え、再帰／inactive enum shapeにも適用します。Vecはarena brandを含まないCopy値、Bytes／Text、inline record／enum／Option／Resultを受け入れます。入れ子Vec／Map／shared／weak／arena値はC07へ残します。Root Vecの有効化でshared／arena操作内の未対応Vec payloadを有効にせず、既存shared再帰とarena操作も固有のadmission規則を維持します。受理済みgeneric scopeは残るgateへ維持します。
+
+Getter成功ごとにMIR loanへruntime leaseを1つ登録します。Projection、borrowed match、guest callのreborrowは元登録を維持し、owner cleanup前に1回だけ終了します。未使用／失敗armは登録を残しません。確定済みmutable element／fieldへの代入はexclusive lease経由で先にpublishし、元spanを伴う旧inputを後からretireします。In-place Bytes growthは検証済みのowning field tokenを更新し、2つ目の義務を作らずinitializer順も変えません。VMはruntime既定のVecあたり256登録を使い、枯渇時は構造化したallocation-limit failure edgeで既存frame／lease全体をunwindします。
+
+[`vec.lang`](../../examples/scripts/vec.lang) は `9` を表示します。[`vec_owned.lang`](../../examples/scripts/vec_owned.lang) はowning pair 5個のgrowth、buffer field変更、field置換、ownerのpop、guest call越しのlive readを経て `12` を表示します。Source 15 testでCopy再利用（`19`）、bounds／空／未使用arm（`119`）、owning全体置換（`16`）、Text clone、inline enumのborrow／pop（`2`）、保護したclone返却、Vecの再帰return／frame拒否、allocator reborrow、inactive shapeのservice別事前拒否、全provider OOM／retryと全fuel prefix、中断、登録枯渇も検証します。完了した各実行で全guest storageを解放します。Failure injection 5 testで実initializer span／順序、child失敗／panic後の継続、body panic優先、reentry前のpoison、後続effect前の中断、260要素のdrainでreport 256件を保持し、省略4件を数えながら全要素をretireすることを検証します。DeterministicなVM testであり、native実行、fuzz、性能の証拠ではありません。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[VM adapter](../../crates/vm/src/unit/owned/state/vectors.rs)、[service admission](../../crates/vm/src/unit/owned/profile.rs)、[source test](../../tests/support/owned_vec.rs)、[failure injection](../../crates/vm/src/unit/owned/failure_tests.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Source構文、source／C ABI、serialized formatは変更しません。Native、ownership artifact、cross-service統合、indirect result previewは各gateに維持します。
 
 ### Async borrow／cancellation実験
 

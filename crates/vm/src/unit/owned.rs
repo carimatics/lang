@@ -7,6 +7,7 @@ use lang_mir::unit::{
 };
 use lang_runtime::{
     allocation as a, arena::managed as g, buffer, cleanup as c, layout as l, shared::managed as sh,
+    vector as v,
 };
 use std::{
     cell::RefCell,
@@ -183,14 +184,26 @@ fn supported(
                     o::core::Operation::ArenaNew
                         | o::core::Operation::ArenaRead
                         | o::core::Operation::ArenaReplace
-                        | o::core::Operation::SharedNew
+                ) && call.type_arguments.iter().all(|t| payloads.arena(t.ty)))
+                || (matches!(
+                    call.operation,
+                    o::core::Operation::SharedNew
                         | o::core::Operation::SharedRead
                         | o::core::Operation::SharedReplace
                         | o::core::Operation::SharedClone
                         | o::core::Operation::WeakNew
                         | o::core::Operation::WeakClone
                         | o::core::Operation::WeakUpgrade
-                ) && call.type_arguments.iter().all(|t| payloads.supports(t.ty)))
+                ) && call.type_arguments.iter().all(|t| payloads.shared(t.ty)))
+                || (matches!(
+                    call.operation,
+                    o::core::Operation::VecNew
+                        | o::core::Operation::VecLen
+                        | o::core::Operation::VecPush
+                        | o::core::Operation::VecPop
+                        | o::core::Operation::VecGet
+                        | o::core::Operation::VecGetMut
+                ) && call.type_arguments.iter().all(|t| payloads.vector(t.ty)))
         }
         b::Op::Record { .. } | b::Op::Variant { .. } => {
             result.is_some_and(|ty| payloads.supports(ty))
@@ -418,12 +431,14 @@ fn execute_single<P: a::Provider>(
             target: None,
             arena_read: None,
             shared_read: None,
+            vector_read: None,
         });
     }
     let shared = Rc::new(RefCell::new(State {
         allocator,
         storage: None,
         types,
+        layouts: &layouts,
         cells,
         inverse,
         loans,
@@ -756,6 +771,25 @@ fn replace<P: a::Provider, C: c::Cleaner<Ticket>>(
     source: usize,
     span: m::Span,
 ) -> Step<()> {
+    if let state::Capture::Path(target @ Target::Vector { .. }) = capture {
+        let (copy, slot) = {
+            let state = shared.borrow();
+            (
+                state.is_copy(source),
+                state.cells[source]
+                    .slot
+                    .ok_or(c::ExecutionFailure::Invariant)?,
+            )
+        };
+        if !copy {
+            frame.value(slot).map_err(invariant)?;
+        }
+        let old = shared.borrow_mut().vector_replace(target, source, span)?;
+        if !copy {
+            frame.retire_replaced(slot, old).map_err(invariant)?;
+        }
+        return Ok(());
+    }
     let (
         logical,
         target,
@@ -1155,13 +1189,18 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             op @ (o::core::Operation::ArenaNew
             | o::core::Operation::ArenaReplace
             | o::core::Operation::SharedNew
-            | o::core::Operation::SharedReplace) => {
+            | o::core::Operation::SharedReplace
+            | o::core::Operation::VecPush) => {
                 let source = value(*call.arguments.last().unwrap());
                 let owning = !shared.borrow().is_copy(source);
                 if owning {
                     frame.value(address.slot(source)).map_err(invariant)?;
                 }
-                let transferred = if shared_operation(op) {
+                let transferred = if op == o::core::Operation::VecPush {
+                    shared
+                        .borrow_mut()
+                        .vector_push(call, values, result()?, span)?
+                } else if shared_operation(op) {
                     shared
                         .borrow_mut()
                         .shared_store(op, call, values, result()?, span)?
@@ -1200,6 +1239,30 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 if shared
                     .borrow_mut()
                     .shared_read(call, values, result()?, span)?
+                {
+                    register_loan(
+                        frame,
+                        call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize,
+                    )?;
+                }
+            }
+            o::core::Operation::VecNew => {
+                shared
+                    .borrow_mut()
+                    .vector_new(call, values, result()?, span)?;
+            }
+            o::core::Operation::VecLen => {
+                shared.borrow_mut().vector_len(call, values, result()?)?;
+            }
+            o::core::Operation::VecPop => {
+                shared
+                    .borrow_mut()
+                    .vector_pop(call, values, result()?, span)?;
+            }
+            o::core::Operation::VecGet | o::core::Operation::VecGetMut => {
+                if shared
+                    .borrow_mut()
+                    .vector_get(call, values, result()?, span)?
                 {
                     register_loan(
                         frame,

@@ -23,6 +23,8 @@ mod preview;
 mod replacement;
 #[path = "support/owned_shared.rs"]
 mod shared_values;
+#[path = "support/owned_vec.rs"]
+mod vectors;
 
 const SOURCE: &str = include_str!("../examples/scripts/bytes.lang");
 const OWNED_SOURCE: &str = include_str!("../examples/scripts/owned_bytes.lang");
@@ -420,7 +422,7 @@ fn nested_exclusive_projections_restore_grown_tokens_to_the_aggregate_owner() {
 #[test]
 fn inactive_unsupported_user_enum_payloads_are_rejected_before_provider_callbacks() {
     let program = checked(
-        "enum Pending { Empty, Full(core::Vec<i64>) } fn main() -> i64 { let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); let mut later: Pending = Pending::Empty; return 0; }",
+        "enum Pending { Empty, Full(core::Map<i64, i64>) } fn main() -> i64 { let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); let mut later: Pending = Pending::Empty; return 0; }",
     );
     let (mut allocator, trace) = allocator();
     let error = vm::execute_entry(
@@ -1478,9 +1480,9 @@ fn every_fuel_prefix_cleans_source_owners_and_ends_loans_without_poisoning() {
 fn unsupported_core_operations_are_rejected_before_earlier_source_allocations() {
     for (later, expected, spelling) in [
         (
-            "let mut later: core::Result<core::Vec<i64>, core::AllocError> = core::vec_new::<i64>(core::allocator());",
-            Some(Operation::VecNew),
-            "vec_new",
+            "let mut later: core::Result<core::Map<core::Text, i64>, core::AllocError> = core::map_new::<core::Text, i64>(core::allocator());",
+            Some(Operation::MapNew),
+            "map_new",
         ),
         (
             "let mut later: core::Result<core::Map<i64, i64>, core::AllocError> = core::map_new::<i64, i64>(core::allocator());",
@@ -1488,7 +1490,7 @@ fn unsupported_core_operations_are_rejected_before_earlier_source_allocations() 
             "map_new",
         ),
         (
-            "let mut later: core::Option<core::Vec<i64>> = core::Option::None;",
+            "let mut later: core::Option<core::Map<i64, i64>> = core::Option::None;",
             None,
             "Option::None",
         ),

@@ -5,6 +5,7 @@ use super::*;
 pub(super) struct Payloads {
     states: Vec<u8>,
     definitions: usize,
+    count: usize,
     pub usage: m::Usage,
 }
 impl Payloads {
@@ -15,45 +16,42 @@ impl Payloads {
             .and_then(|n| n.checked_add(2))
             .ok_or(l::Error::Overflow)?;
         let mut budget = m::Budget::new(limits);
-        let mut states = budget.vector(count)?;
-        states.resize(count, 0u8);
-        let leaf = |ty| {
-            types.properties(ty).unwrap().is_copy
-                || matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Builtin(o::Builtin::Bytes|o::Builtin::Text)|o::Constructor::ArenaOwner(_)))
-        };
-        let compound = |ty| {
-            matches!(ty, o::Type::Nominal(_))
-                || matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Option(_)|o::Constructor::Result(..)|o::Constructor::Loan(..)|o::Constructor::Shared(_)|o::Constructor::Weak(_)))
-        };
+        let total = count.checked_mul(4).ok_or(l::Error::Overflow)?;
+        let mut states = budget.vector(total)?;
+        states.resize(total, 0u8);
         let mut edges = 0usize;
         for (index, state) in states.iter_mut().enumerate() {
             budget.charge(1)?;
-            let ty = type_at(definitions, index);
-            let depends = !leaf(ty) && compound(ty);
-            *state = if leaf(ty) || compound(ty) { 2 } else { 3 };
-            for _ in children(types, ty) {
-                budget.charge(1)?;
-                if depends {
+            let ty = type_at(definitions, index % count);
+            let shape = shape(types, ty, Flavor::at(index / count));
+            *state = if matches!(shape, Shape::Unsupported) {
+                3
+            } else {
+                2
+            };
+            if let Shape::Branch(_) = shape {
+                for _ in children(types, ty) {
+                    budget.charge(1)?;
                     edges = edges.checked_add(1).ok_or(l::Error::Overflow)?;
                 }
             }
         }
-        let mut heads = budget.vector(count)?;
-        heads.resize(count, usize::MAX);
+        let mut heads = budget.vector(total)?;
+        heads.resize(total, usize::MAX);
         let mut parents = budget.vector(edges)?;
-        let mut pending = budget.vector(count)?;
+        let mut pending = budget.vector(total)?;
         for (index, state) in states.iter().enumerate() {
             budget.charge(1)?;
-            let ty = type_at(definitions, index);
+            let ty = type_at(definitions, index % count);
             if *state == 3 {
                 pending.push(index);
             }
-            if leaf(ty) || !compound(ty) {
+            let Shape::Branch(flavor) = shape(types, ty, Flavor::at(index / count)) else {
                 continue;
-            }
+            };
             for child in children(types, ty) {
                 budget.charge(1)?;
-                let child = type_index(definitions, child);
+                let child = flavor as usize * count + type_index(definitions, child);
                 parents.push((index, heads[child]));
                 heads[child] = parents.len() - 1;
             }
@@ -75,11 +73,79 @@ impl Payloads {
         Ok(Self {
             states,
             definitions,
+            count,
             usage: budget_usage(&budget),
         })
     }
     pub fn supports(&self, ty: o::Type) -> bool {
-        self.states[type_index(self.definitions, ty)] == 2
+        self.accepts(Flavor::Root, ty)
+    }
+    pub fn vector(&self, ty: o::Type) -> bool {
+        self.accepts(Flavor::Vector, ty)
+    }
+    pub fn shared(&self, ty: o::Type) -> bool {
+        self.accepts(Flavor::Shared, ty)
+    }
+    pub fn arena(&self, ty: o::Type) -> bool {
+        self.accepts(Flavor::Arena, ty)
+    }
+    fn accepts(&self, flavor: Flavor, ty: o::Type) -> bool {
+        self.states[flavor as usize * self.count + type_index(self.definitions, ty)] == 2
+    }
+}
+#[derive(Clone, Copy)]
+enum Flavor {
+    Root,
+    Vector,
+    Shared,
+    Arena,
+}
+impl Flavor {
+    fn at(n: usize) -> Self {
+        match n {
+            0 => Self::Root,
+            1 => Self::Vector,
+            2 => Self::Shared,
+            _ => Self::Arena,
+        }
+    }
+}
+enum Shape {
+    Unsupported,
+    Leaf,
+    Branch(Flavor),
+}
+fn shape(types: &o::VerifiedTypes, ty: o::Type, flavor: Flavor) -> Shape {
+    let properties = types.properties(ty).unwrap();
+    if matches!(flavor, Flavor::Vector | Flavor::Shared)
+        && (properties.contains_arena
+            || properties.contains_loan
+            || properties.contains_allocator
+            || properties.contains_owner)
+    {
+        return Shape::Unsupported;
+    }
+    if properties.is_copy {
+        return Shape::Leaf;
+    }
+    match ty {
+        o::Type::Nominal(_) => Shape::Branch(flavor),
+        o::Type::Constructed(id) => match types.table().constructed[id.0 as usize].constructor {
+            o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text) => Shape::Leaf,
+            o::Constructor::ArenaOwner(_) if matches!(flavor, Flavor::Root) => Shape::Leaf,
+            o::Constructor::Option(_) | o::Constructor::Result(..) => Shape::Branch(flavor),
+            o::Constructor::Loan(..) if matches!(flavor, Flavor::Root) => Shape::Branch(flavor),
+            o::Constructor::Shared(_) | o::Constructor::Weak(_)
+                if !matches!(flavor, Flavor::Vector) =>
+            {
+                Shape::Branch(Flavor::Shared)
+            }
+            o::Constructor::Vec(_) if matches!(flavor, Flavor::Root) => {
+                Shape::Branch(Flavor::Vector)
+            }
+            _ => Shape::Unsupported,
+        },
+        _ => Shape::Unsupported,
     }
 }
 fn type_index(definitions: usize, ty: o::Type) -> usize {
@@ -115,9 +181,10 @@ fn children(types: &o::VerifiedTypes, ty: o::Type) -> impl Iterator<Item = o::Ty
         o::Type::Constructed(id) => match types.table().constructed[id.0 as usize].constructor {
             o::Constructor::Option(t) => [Some(t), None],
             o::Constructor::Result(t, e) => [Some(t), Some(e)],
-            o::Constructor::Loan(_, t) | o::Constructor::Shared(t) | o::Constructor::Weak(t) => {
-                [Some(t), None]
-            }
+            o::Constructor::Loan(_, t)
+            | o::Constructor::Shared(t)
+            | o::Constructor::Weak(t)
+            | o::Constructor::Vec(t) => [Some(t), None],
             _ => [None, None],
         },
         _ => [None, None],

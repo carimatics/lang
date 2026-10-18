@@ -128,6 +128,40 @@ pub struct Borrowed<'a, 'l, 't> {
     value: l::Reservation<'l, 't>,
 }
 impl Loan {
+    /// Trusted buffer-growth adapter: publish the validated replacement token
+    /// for the same owning leaf, without creating another cleanup obligation.
+    pub fn write_buffer_token<P: a::Provider>(
+        &self,
+        layouts: &l::Layouts<'_>,
+        at: l::Location,
+        mut token: [u8; 32],
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Error> {
+        let vector = self.vector(layouts);
+        let h = vector.check_loan(self, allocator)?;
+        if self.kind != o::LoanKind::Exclusive {
+            return Err(Error::BorrowConflict);
+        }
+        let value = vector.element(h, self.index)?;
+        value.read_token(at, allocator)?;
+        let o::Type::Constructed(id) = at.ty() else {
+            return Err(l::Error::InvalidType(at.ty()).into());
+        };
+        let encoded = token;
+        match layouts.types().table().constructed[id.0 as usize].constructor {
+            o::Constructor::Builtin(o::Builtin::Bytes) => {
+                crate::buffer::Bytes::from_token(&mut token, allocator)
+                    .map_err(|_| Error::State)?;
+            }
+            o::Constructor::Builtin(o::Builtin::Text) => {
+                crate::buffer::Text::from_token(&mut token, allocator).map_err(|_| Error::State)?;
+            }
+            _ => return Err(l::Error::InvalidType(at.ty()).into()),
+        }
+        let start = at.offset() as usize;
+        value.data_mut(allocator)?[start..start + 32].copy_from_slice(&encoded);
+        Ok(())
+    }
     /// Mutate through the registered exclusive lease without recreating an
     /// owning vector token. The displaced obligation remains in `input`.
     pub fn replace_from<'l, 't, P: a::Provider>(

@@ -15,17 +15,27 @@ fn outcome<T>(value: Result<T, sh::Error>) -> Step<Result<T, l::OwnershipError>>
     }
 }
 pub(super) fn cleanup_services<P: a::Provider>(
-    types: &o::VerifiedTypes,
+    layouts: &l::Layouts<'_>,
     heap: &mut Option<sh::Heap<'_, '_>>,
     token: &mut l::Token,
     allocator: &mut a::Allocator<P>,
     context: &mut c::Context<'_>,
 ) -> Result<(), u32> {
+    let types = layouts.types();
     let constructor = match token.leaf.ty {
         o::Type::Constructed(id) => Some(types.table().constructed[id.0 as usize].constructor),
         _ => None,
     };
     match constructor {
+        Some(o::Constructor::Vec(ty)) => {
+            let mut vector = v::Vector::from_token(layouts, ty, &mut token.bytes, allocator)
+                .map_err(|_| 11u32)?;
+            vector
+                .cleanup(allocator, context, |token, allocator, _, context| {
+                    cleanup_leaf(types, token, allocator, context)
+                })
+                .map_err(|_| 12u32)
+        }
         Some(o::Constructor::Shared(ty)) => {
             let value = sh::Strong::from_token(&mut token.bytes).map_err(|_| 9u32)?;
             heap.as_mut()
