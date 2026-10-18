@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**66 done · 0 doing · 35 todo · 88 remaining pt**
+**67 done · 0 doing · 34 todo · 85 remaining pt**
 
-**次: M2-C04 → allocator-backedなMap storageとi64／Text keyの厳密な等価判定を使うlookupを実装する。**
+**次: M2-C05 → Map insert／replacement／removalをfailure-atomicにし、等しい元keyと置換した所有権を保持する。**
 
-直近の完了：**M2-C03**（`3dca725`）。登録付きloan経由でsource Vec全6操作、mutable element／field置換、cleanupを実行します。CLI fixtureはowning growth、buffer field変更、pop、borrowed guest callを含め **9** と **12** を表示します。4つのclosed payload profileで未対応の入れ子service shapeを副作用前に拒否します。Source 15 testとcleanup injection 5 testで所有権／loan／return境界、全provider OOM／retryと全fuel prefix、登録枯渇、span、中断、poison、省略付きreportと完全解放を検証しました。全体baselineの **79 suite・1216 test** とfmt／Clippy／docが成功しました。C01／C02後に必須としたsource fixtureを完了し、**残り91 → 88 pt**、done 66行、計101行です。Native、C07、preview、artifactは各gateに維持します。
+直近の完了：**M2-C04**（`348dc42`）。Allocator-backedな型付きMap storageと、i64の数値等価／UTF-8 byte単位の厳密なText等価による登録付きread lookupを追加しました。Owner identityの独立性、Unicodeの区別、readの寿命／競合、全growth OOM／retry、plan全体の予算、owning cleanupの逆順をunit 3 testとintegration 11 testで検証しました。全体baselineの **80 suite・1230 test** とfmt／Clippy／docが成功し、**残り88 → 85 pt**、done 67行、計101行です。Source Map実行はC05のinsert／replacement／removal後のC06へ残し、C07、native、preview、artifactも各gateに維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **26.3秒** と最終incremental確認 **0.8秒**、全test **230.4秒**（log作成から最終書き込みまで）、rustdoc **17.8秒**、すべて成功です。Source／cleanupのfocused検証と追加inline enum実験の後、全test baselineは1回です。Ownership source suiteは111 test成功となりました。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **28.0秒**、全test **310.8秒**（log作成から最終書き込みまで）、rustdoc **17.4秒**、すべて成功です。Map storage／read／cleanupのfocused検証後、全test baselineは1回です。未変更のownership source suiteは111 test成功を維持します。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable element read、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04／C03でBytes／Text／inline payloadを持つclosedなshared／weakとVec profileに対応し、入れ子collection／graph統合全体はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
-次の着手条件（2026-10-18 JST）：C04の前提D34／D35は完了し、型付きlayout／retirementとallocator-backed Bytes／Textがありますが、runtimeにMap storage serviceはありません。RFC 0007はi64の数値等価とUTF-8 byte単位の厳密なText key等価を要求し、正規化や観測可能なhash順序は導入しません。両key種の最初の確保／lookup実験までC04を暫定3 ptとします。C05にfailure-atomicなinsert／replacementと置換した所有権を残し、基盤2件C04／C05後は追加基盤作業より先にC06でsource Map fixtureを実行します。新たな前提が必要なら実装前に明示します。受理済み入れ子service scopeはC07、native、preview、artifactも各gateに維持します。
+次の着手条件（2026-10-18 JST）：C04で両key種の最初の実確保／lookup実験が成功し、登録付きreadと失敗／retirement testも確認しました。C05はこのstorage、key／value span、既存の型付きroot exchangeを再利用できますが、replacementとremovalは未実装です。元のC05記述から受理済みの `map_remove` が抜けていたため、両言語の行で明記し、等しい元keyの保持、入力した等価keyのretire、置換valueの所有権も維持します。Removalではstored keyを共通contextでcleanupできるようdetachし、後続effect前にvalueを事前認可済みoutputへ移す必要があります。新たな基盤行やpointは追加しません。最初の実replacement／removal実験までC05を暫定3 ptとし、新たな前提は実装前に明示します。基盤2件C04／C05後は、追加基盤作業より先にC06で全5種のsource Map操作を実行します。受理済み入れ子service scope全体はC07、native、preview、artifactも各gateに維持します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -147,8 +147,8 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-C01 | done | 0 | M2-D33,M2-D34 | G09 | Vec storage／new／len／push growthをallocator-awareかつfailure-atomicに実装。 | `78a422a` |
 | M2-C02 | done | 0 | M2-C01 | G09 | Vec read／mutable-read／take／replacementで移動／置換elementを正確に1回retire。 | `1271ad8` |
 | M2-C03 | done | 0 | M2-C02,M2-V09 | G09 | Vecソース命令をmove／loan／growth／failure fixtureと副作用前のservice別payload preflightで実行。 | `3dca725` |
-| M2-C04 | todo | 3 | M2-D35,M2-D34 | G10 | Map storage／lookupで受理済みの厳密key equalityとallocation budgetを実装。 | — |
-| M2-C05 | todo | 3 | M2-C04 | G10 | Map insert／replacementをfailure-atomicにし、置換valueを1回だけretire。 | — |
+| M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage／登録付きread lookupで受理済みの厳密key equalityとallocation budgetを実装。 | `348dc42`; 3 unit + 11 integration tests; full baseline 1230/80, fmt/Clippy/doc. |
+| M2-C05 | todo | 3 | M2-C04 | G10 | Map insert／replacement／removalをfailure-atomicにし、同値の既存keyを保持して旧key／valueを1回だけretire。 | — |
 | M2-C06 | todo | 3 | M2-C05,M2-V09 | G10 | Mapソース命令を独立したequality／replacement／failure oracleで検証。 | — |
 | M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06 | G05,G06,G09,G10 | 上限付きcross-service edge／brand検証と反復cleanupで入れ子Vec／Map／shared／arena値を統合し、source cycle／escape、逆順drop、失敗caseを検証。 | — |
 
