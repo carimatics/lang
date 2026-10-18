@@ -23,7 +23,8 @@ mod state;
 mod storage;
 use state::{State, Step, Target, invariant};
 use storage::StackStorage;
-/// Finite budgets stay unavailable until all owned service events are wired.
+/// Full-family support remains incomplete; use the shared whole-unit predicate
+/// in `lang_runtime::execution::service_work_supported` for partial admission.
 pub const SERVICE_WORK_SUPPORTED: bool = false;
 
 #[derive(Debug)]
@@ -345,7 +346,7 @@ fn execute_selected<P: a::Provider>(
         .get(function.0 as usize)
         .ok_or_else(|| rejected(Reason::Entry, None, None))?;
     control
-        .check_service_work_support(SERVICE_WORK_SUPPORTED)
+        .check_service_work_support(lang_runtime::execution::service_work_supported(flow))
         .map_err(|error| {
             rejected(
                 Reason::UnsupportedServiceWork(error),
@@ -543,6 +544,10 @@ fn execute_single<P: a::Provider>(
         });
     }
     let shared = Rc::new(RefCell::new(State {
+        service_control: Control::with_limits(super::Limits::unbounded())
+            .and_service_work(control.service_work_limit()),
+        service_usage: Usage::default(),
+        service_metering: lang_runtime::execution::service_work_supported(flow),
         allocator,
         storage: None,
         types,
@@ -773,6 +778,7 @@ fn execute_single<P: a::Provider>(
         };
     };
     let mut state = shared.borrow_mut();
+    usage.service_work = state.service_usage.service_work;
     let panic_code = state.panic_code;
     let State {
         allocator,
@@ -1495,14 +1501,14 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                     .write(result()?, l::Immediate::I64(len))?;
             }
             o::core::Operation::TextLen => {
-                let len = shared.borrow().text_len(value(call.arguments[0]))?;
+                let len = shared.borrow_mut().text_len(value(call.arguments[0]))?;
                 shared
                     .borrow_mut()
                     .write(result()?, l::Immediate::I64(len))?;
             }
             o::core::Operation::TextEqual => {
                 let equal = shared
-                    .borrow()
+                    .borrow_mut()
                     .text_equal(value(call.arguments[0]), value(call.arguments[1]))?;
                 shared
                     .borrow_mut()

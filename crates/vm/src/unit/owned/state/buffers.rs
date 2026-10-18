@@ -139,10 +139,14 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         span: m::Span,
     ) -> Step<()> {
         let (_, bytes) = self.borrowed_bytes(reference)?;
-        let outcome = match bytes.get(self.allocator, index) {
+        let raw = {
+            let (allocator, mut work) = self.buffer_service();
+            bytes.get_metered(allocator, index, &mut work)
+        };
+        let outcome = match raw {
             Ok(value) => Ok(l::Immediate::I64(value)),
             Err(buffer::Failure::Error(error)) => Err(l::Immediate::Bounds(error)),
-            Err(buffer::Failure::Fault(_)) => return Err(c::ExecutionFailure::Fault),
+            Err(buffer::Failure::Fault(error)) => return Err(buffer_fault(error)),
         };
         self.immediate_result(destination, outcome, span)
     }
@@ -163,7 +167,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let outcome = match outcome {
             Ok(()) => Ok(l::Immediate::Unit),
             Err(buffer::Failure::Error(error)) => Err(l::Immediate::Buffer(error)),
-            Err(buffer::Failure::Fault(_)) => return Err(c::ExecutionFailure::Fault),
+            Err(buffer::Failure::Fault(error)) => return Err(buffer_fault(error)),
         };
         self.immediate_result(destination, outcome, span)
     }
@@ -175,7 +179,10 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         span: m::Span,
     ) -> Step<()> {
         let (target, mut bytes) = self.borrowed_bytes(reference)?;
-        let outcome = bytes.push(self.allocator, value);
+        let outcome = {
+            let (allocator, mut work) = self.buffer_service();
+            bytes.push_metered(allocator, value, &mut work)
+        };
         self.finish_write(target, bytes, outcome, destination, span)
     }
     pub fn bytes_set(
@@ -187,13 +194,17 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         span: m::Span,
     ) -> Step<()> {
         let (target, mut bytes) = self.borrowed_bytes(reference)?;
-        let outcome = bytes.set(self.allocator, index, value);
+        let outcome = {
+            let (allocator, mut work) = self.buffer_service();
+            bytes.set_metered(allocator, index, value, &mut work)
+        };
         self.finish_write(target, bytes, outcome, destination, span)
     }
-    fn borrowed_text(&self, reference: usize) -> Step<buffer::Text> {
+    fn borrowed_text(&mut self, reference: usize) -> Step<buffer::Text> {
         let target = self.reference(self.root(reference)?)?;
-        buffer::Text::from_token(&mut self.token(target)?, self.allocator)
-            .map_err(|_| c::ExecutionFailure::Fault)
+        let mut token = self.token(target)?;
+        let (allocator, mut work) = self.buffer_service();
+        buffer::Text::from_token_metered(&mut token, allocator, &mut work).map_err(buffer_fault)
     }
     pub fn require_allocator(&self, reference: usize) -> Step<()> {
         match self.reference(self.root(reference)?)? {
@@ -201,16 +212,17 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             _ => Err(c::ExecutionFailure::Invariant),
         }
     }
-    pub fn text_len(&self, reference: usize) -> Step<i64> {
+    pub fn text_len(&mut self, reference: usize) -> Step<i64> {
         let text = self.borrowed_text(reference)?;
         text.len(self.allocator)
             .map_err(|_| c::ExecutionFailure::Fault)
     }
-    pub fn text_equal(&self, left: usize, right: usize) -> Step<bool> {
+    pub fn text_equal(&mut self, left: usize, right: usize) -> Step<bool> {
         let left = self.borrowed_text(left)?;
         let right = self.borrowed_text(right)?;
-        left.equal(&right, self.allocator)
-            .map_err(|_| c::ExecutionFailure::Fault)
+        let (allocator, mut work) = self.buffer_service();
+        left.equal_metered(&right, allocator, &mut work)
+            .map_err(buffer_fault)
     }
     pub fn allocate_buffer(
         &mut self,
@@ -226,43 +238,52 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let outcome = match operation {
             o::core::Operation::BytesClone => {
                 let (_, bytes) = self.borrowed_bytes(reference)?;
-                bytes.try_clone(self.allocator).and_then(|mut value| {
-                    value
-                        .take_token(self.allocator)
-                        .map_err(buffer::Failure::Fault)
-                })
+                {
+                    let (allocator, mut work) = self.buffer_service();
+                    bytes
+                        .try_clone_metered(allocator, &mut work)
+                        .and_then(|mut value| {
+                            value.take_token(allocator).map_err(buffer::Failure::Fault)
+                        })
+                }
             }
             o::core::Operation::TextClone => {
                 let text = self.borrowed_text(reference)?;
-                text.try_clone(self.allocator).and_then(|mut value| {
-                    value
-                        .take_token(self.allocator)
-                        .map_err(buffer::Failure::Fault)
-                })
+                {
+                    let (allocator, mut work) = self.buffer_service();
+                    text.try_clone_metered(allocator, &mut work)
+                        .and_then(|mut value| {
+                            value.take_token(allocator).map_err(buffer::Failure::Fault)
+                        })
+                }
             }
             o::core::Operation::TextBytes => {
                 let text = self.borrowed_text(reference)?;
-                text.to_bytes(self.allocator).and_then(|mut value| {
-                    value
-                        .take_token(self.allocator)
-                        .map_err(buffer::Failure::Fault)
-                })
+                {
+                    let (allocator, mut work) = self.buffer_service();
+                    text.to_bytes_metered(allocator, &mut work)
+                        .and_then(|mut value| {
+                            value.take_token(allocator).map_err(buffer::Failure::Fault)
+                        })
+                }
             }
             o::core::Operation::TextConcat => {
                 let left = self.borrowed_text(reference)?;
                 let right = self.borrowed_text(other.ok_or(c::ExecutionFailure::Invariant)?)?;
-                left.concat(&right, self.allocator).and_then(|mut value| {
-                    value
-                        .take_token(self.allocator)
-                        .map_err(buffer::Failure::Fault)
-                })
+                {
+                    let (allocator, mut work) = self.buffer_service();
+                    left.concat_metered(&right, allocator, &mut work)
+                        .and_then(|mut value| {
+                            value.take_token(allocator).map_err(buffer::Failure::Fault)
+                        })
+                }
             }
             _ => return Err(c::ExecutionFailure::Invariant),
         };
         let case = match &outcome {
             Ok(_) => 0,
             Err(buffer::Failure::Error(_)) => 1,
-            Err(buffer::Failure::Fault(_)) => return Err(c::ExecutionFailure::Fault),
+            Err(buffer::Failure::Fault(error)) => return Err(buffer_fault(*error)),
         };
         let cell = self
             .storage
@@ -305,7 +326,10 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let input = self.root(source)?;
         let mut bytes = buffer::Bytes::from_token(&mut self.token(input)?, self.allocator)
             .map_err(|_| c::ExecutionFailure::Fault)?;
-        let outcome = bytes.take_text(self.allocator);
+        let outcome = {
+            let (allocator, mut work) = self.buffer_service();
+            bytes.take_text_metered(allocator, &mut work)
+        };
         let cell = self
             .storage
             .as_ref()
@@ -335,7 +359,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                     .map_err(invariant)?;
             }
             // Buffer preflight faults preserve the source owner for cleanup.
-            Err(buffer::Failure::Fault(_)) => return Err(c::ExecutionFailure::Fault),
+            Err(buffer::Failure::Fault(error)) => return Err(buffer_fault(error)),
         }
         let cell = self
             .storage

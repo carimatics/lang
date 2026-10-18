@@ -89,6 +89,8 @@ Opaque trusted host callbacks retain host-call charging; arbitrary host work is 
 
 Default unbounded execution retains source behavior/fuel positions apart from defined counter overflow. No syntax, type, package, edition or typed-source artifact change is needed. Store the limit privately in Control so existing Limits literals remain valid. Exhaustive Rust Usage literals must initialize service_work or use Default.
 
+Metered buffer entry points are additive; existing buffer methods retain their unmetered host/cleanup behavior. Buffer Fault::ServiceWork carries the shared structured failure, so exhaustive Rust matches on Fault need that branch. It has no new serialized representation in this stage.
+
 Add ServiceWorkLimit with numeric fields to the shared dynamic failure domain, without reusing another identity. Current artifacts store pre-failure-elaboration data, not dynamic execution causes. N05 must audit serializers again: versioned reports/interfaces encoding new usage/errors require a format bump or support negotiation and migration fixtures. Never append tags/fields under an unchanged closed schema. Private revision-1 native packets remain unchanged; Rust context layouts are not a public C ABI. FFI/component mappings remain independently versioned.
 
 ## Diagnostics and tooling

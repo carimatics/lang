@@ -89,6 +89,8 @@ Opaqueなtrusted host callbackはhost-call課金を残し、引数から任意wo
 
 省略時の無制限実行は、定義済みcounter overflowを除きsource挙動／fuel位置を維持します。構文・型・package・edition・typed-source artifactの変更は不要です。上限はControlのprivate fieldに置き、既存Limits literalを維持します。全fieldを列挙するRust Usage literalはservice_workの初期化かDefault利用へ移行します。
 
+計量付きbuffer entry pointは追加APIで、既存buffer methodは課金しないhost／cleanup用の挙動を維持します。BufferのFault::ServiceWorkが共通の構造化failureを保持するため、Faultを全列挙するRust matchにはこの分岐が必要です。この段階では新しいserialized表現を追加しません。
+
 既存identityを流用せず、数値付きServiceWorkLimitを共通の動的failure domainへ追加します。現在のartifactはfailure elaboration前のdataを保存し、動的execution causeを含みません。N05でserializerを再監査し、新usage／errorをencodeするversion付きreport／interfaceにはformat更新かsupport negotiationと移行fixtureを要求します。同じ閉じたschema versionへtag／fieldを追加してはいけません。Private revision-1 native packetは不変で、Rust context layoutは公開C ABIではありません。FFI／component mappingのversionは独立です。
 
 ## 診断とツール

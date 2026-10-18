@@ -291,7 +291,7 @@ fn execute_with<P: a::Provider>(
         return Err(fail(Reason::Entry));
     }
     control
-        .check_service_work_support(SERVICE_WORK_SUPPORTED)
+        .check_service_work_support(lang_runtime::execution::service_work_supported(flow))
         .map_err(|error| fail(Reason::UnsupportedServiceWork(error)))?;
     if control.limits().frames == Some(0) {
         return Err(fail(Reason::Control(super::super::Reason::FrameLimit)));
@@ -669,6 +669,10 @@ fn execute_with<P: a::Provider>(
         arenas.push(arena);
     }
     let shared = Rc::new(RefCell::new(State {
+        service_control: Control::with_limits(super::super::Limits::unbounded())
+            .and_service_work(control.service_work_limit()),
+        service_usage: Usage::default(),
+        service_metering: lang_runtime::execution::service_work_supported(flow),
         allocator,
         storage: Some(StackStorage {
             frames: pools,
@@ -1139,6 +1143,7 @@ fn execute_with<P: a::Provider>(
         stack.last_mut().unwrap().node = next;
     };
     let mut state = shared.borrow_mut();
+    usage.service_work = state.service_usage.service_work;
     let panic_code = state.panic_code;
     let State {
         storage,

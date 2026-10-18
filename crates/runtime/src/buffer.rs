@@ -51,6 +51,7 @@ pub enum Utf8Error {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Fault {
+    ServiceWork(crate::execution::Failure),
     Allocator(a::Error),
     Consumed,
     InvalidStorage,
@@ -194,6 +195,14 @@ impl Buffer {
         kind: Kind,
         allocator: &Allocator<P>,
     ) -> Result<Self, Fault> {
+        Self::take_token_metered(bytes, kind, allocator, &mut |_| Ok(()))
+    }
+    fn take_token_metered<P: Provider>(
+        bytes: &mut [u8; 32],
+        kind: Kind,
+        allocator: &Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Result<Self, Fault> {
         if word(bytes, 24)? != kind as u64 {
             return Err(Fault::WrongKind);
         }
@@ -203,8 +212,11 @@ impl Buffer {
             kind,
         };
         let data = result.view(allocator)?;
-        if kind == Kind::Text && std::str::from_utf8(data).is_err() {
-            return Err(Fault::InvalidStorage);
+        if kind == Kind::Text {
+            work(data.len() as u64).map_err(Fault::ServiceWork)?;
+            if std::str::from_utf8(data).is_err() {
+                return Err(Fault::InvalidStorage);
+            }
         }
         bytes.fill(0);
         Ok(result)
@@ -214,7 +226,16 @@ impl Buffer {
         allocator: &mut Allocator<P>,
         kind: Kind,
     ) -> Outcome<Self, AllocError> {
+        self.copy_metered(allocator, kind, &mut |_| Ok(()))
+    }
+    fn copy_metered<P: Provider>(
+        &self,
+        allocator: &mut Allocator<P>,
+        kind: Kind,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Self, AllocError> {
         let header = self.inspect(allocator).map_err(Failure::Fault)?;
+        work(header.len as u64).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
         let mut result = Self::allocate(allocator, kind, header.len, header.len)?;
         if let Err(error) = allocator.copy_bytes(
             self.handle().map_err(Failure::Fault)?,
@@ -234,7 +255,17 @@ impl Buffer {
         target: &mut Allocator<Q>,
         kind: Kind,
     ) -> Outcome<Self, AllocError> {
+        self.copy_in_metered(source, target, kind, &mut |_| Ok(()))
+    }
+    fn copy_in_metered<P: Provider, Q: Provider>(
+        &self,
+        source: &Allocator<P>,
+        target: &mut Allocator<Q>,
+        kind: Kind,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Self, AllocError> {
         let data = self.view(source).map_err(Failure::Fault)?;
+        work(data.len() as u64).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
         let result = Self::allocate(target, kind, data.len(), data.len())?;
         target
             .bytes_mut(result.handle().map_err(Failure::Fault)?)
@@ -281,13 +312,21 @@ impl Bytes {
         allocator: &Allocator<P>,
         index: i64,
     ) -> Outcome<i64, BoundsError> {
+        self.get_metered(allocator, index, &mut |_| Ok(()))
+    }
+    pub fn get_metered<P: Provider>(
+        &self,
+        allocator: &Allocator<P>,
+        index: i64,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<i64, BoundsError> {
         let bytes = self.0.view(allocator).map_err(Failure::Fault)?;
         let index = usize::try_from(index).map_err(|_| Failure::Error(BoundsError::OutOfBounds))?;
-        Ok(i64::from(
-            *bytes
-                .get(index)
-                .ok_or(Failure::Error(BoundsError::OutOfBounds))?,
-        ))
+        let byte = bytes
+            .get(index)
+            .ok_or(Failure::Error(BoundsError::OutOfBounds))?;
+        work(1).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
+        Ok(i64::from(*byte))
     }
     pub fn set<P: Provider>(
         &mut self,
@@ -295,12 +334,22 @@ impl Bytes {
         index: i64,
         value: i64,
     ) -> Outcome<(), BufferError> {
+        self.set_metered(allocator, index, value, &mut |_| Ok(()))
+    }
+    pub fn set_metered<P: Provider>(
+        &mut self,
+        allocator: &mut Allocator<P>,
+        index: i64,
+        value: i64,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<(), BufferError> {
         let header = self.0.inspect(allocator).map_err(Failure::Fault)?;
         let index = usize::try_from(index)
             .ok()
             .filter(|&i| i < header.len)
             .ok_or(Failure::Error(BufferError::Bounds))?;
         let value = u8::try_from(value).map_err(|_| Failure::Error(BufferError::InvalidByte))?;
+        work(1).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
         allocator
             .bytes_mut(self.0.handle().map_err(Failure::Fault)?)
             .map_err(|e| Failure::Fault(e.into()))?[HEADER + index] = value;
@@ -310,6 +359,14 @@ impl Bytes {
         &mut self,
         allocator: &mut Allocator<P>,
         value: i64,
+    ) -> Outcome<(), BufferError> {
+        self.push_metered(allocator, value, &mut |_| Ok(()))
+    }
+    pub fn push_metered<P: Provider>(
+        &mut self,
+        allocator: &mut Allocator<P>,
+        value: i64,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
     ) -> Outcome<(), BufferError> {
         let header = self.0.inspect(allocator).map_err(Failure::Fault)?;
         let value = u8::try_from(value).map_err(|_| Failure::Error(BufferError::InvalidByte))?;
@@ -333,6 +390,7 @@ impl Bytes {
                     .ok_or(Failure::Error(BufferError::Allocation(
                         AllocError::Overflow,
                     )))?;
+            work(len as u64).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
             let mut handle = self.0.handle().map_err(Failure::Fault)?;
             allocator
                 .resize(&mut handle, size as u64)
@@ -345,6 +403,9 @@ impl Bytes {
                 8,
                 capacity as u64,
             );
+        }
+        if len <= header.capacity {
+            work(1).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
         }
         let bytes = allocator
             .bytes_mut(self.0.handle().map_err(Failure::Fault)?)
@@ -359,6 +420,13 @@ impl Bytes {
     ) -> Outcome<Self, AllocError> {
         Ok(Self(self.0.copy(allocator, Kind::Bytes)?))
     }
+    pub fn try_clone_metered<P: Provider>(
+        &self,
+        allocator: &mut Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Self, AllocError> {
+        Ok(Self(self.0.copy_metered(allocator, Kind::Bytes, work)?))
+    }
     pub fn try_clone_in<P: Provider, Q: Provider>(
         &self,
         source: &Allocator<P>,
@@ -366,13 +434,34 @@ impl Bytes {
     ) -> Outcome<Self, AllocError> {
         Ok(Self(self.0.copy_in(source, target, Kind::Bytes)?))
     }
+    pub fn try_clone_in_metered<P: Provider, Q: Provider>(
+        &self,
+        source: &Allocator<P>,
+        target: &mut Allocator<Q>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Self, AllocError> {
+        Ok(Self(self.0.copy_in_metered(
+            source,
+            target,
+            Kind::Bytes,
+            work,
+        )?))
+    }
     /// Consume on either domain outcome, with no allocation. Runtime preflight
     /// faults preserve the owner so the enclosing failure cleanup can retire it.
     pub fn take_text<P: Provider>(
         &mut self,
         allocator: &mut Allocator<P>,
     ) -> Outcome<Text, Utf8Error> {
+        self.take_text_metered(allocator, &mut |_| Ok(()))
+    }
+    pub fn take_text_metered<P: Provider>(
+        &mut self,
+        allocator: &mut Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Text, Utf8Error> {
         let bytes = self.0.view(allocator).map_err(Failure::Fault)?;
+        work(bytes.len() as u64).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
         if let Err(error) = std::str::from_utf8(bytes) {
             let offset = error.valid_up_to() as i64;
             self.0.release(allocator).map_err(Failure::Fault)?;
@@ -413,20 +502,50 @@ impl Text {
         Ok(self.0.inspect(allocator)?.len as i64)
     }
     pub fn as_str<'a, P: Provider>(&self, allocator: &'a Allocator<P>) -> Result<&'a str, Fault> {
-        std::str::from_utf8(self.0.view(allocator)?).map_err(|_| Fault::InvalidStorage)
+        self.as_str_metered(allocator, &mut |_| Ok(()))
+    }
+    pub fn as_str_metered<'a, P: Provider>(
+        &self,
+        allocator: &'a Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Result<&'a str, Fault> {
+        let bytes = self.0.view(allocator)?;
+        work(bytes.len() as u64).map_err(Fault::ServiceWork)?;
+        std::str::from_utf8(bytes).map_err(|_| Fault::InvalidStorage)
     }
     pub fn equal<P: Provider>(
         &self,
         other: &Self,
         allocator: &Allocator<P>,
     ) -> Result<bool, Fault> {
-        Ok(self.0.view(allocator)? == other.0.view(allocator)?)
+        self.equal_metered(other, allocator, &mut |_| Ok(()))
+    }
+    pub fn equal_metered<P: Provider>(
+        &self,
+        other: &Self,
+        allocator: &Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Result<bool, Fault> {
+        let left = self.0.view(allocator)?;
+        let right = other.0.view(allocator)?;
+        if left.len() != right.len() {
+            return Ok(false);
+        }
+        work(left.len() as u64).map_err(Fault::ServiceWork)?;
+        Ok(left == right)
     }
     pub fn try_clone<P: Provider>(
         &self,
         allocator: &mut Allocator<P>,
     ) -> Outcome<Self, AllocError> {
         Ok(Self(self.0.copy(allocator, Kind::Text)?))
+    }
+    pub fn try_clone_metered<P: Provider>(
+        &self,
+        allocator: &mut Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Self, AllocError> {
+        Ok(Self(self.0.copy_metered(allocator, Kind::Text, work)?))
     }
     pub fn try_clone_in<P: Provider, Q: Provider>(
         &self,
@@ -435,11 +554,31 @@ impl Text {
     ) -> Outcome<Self, AllocError> {
         Ok(Self(self.0.copy_in(source, target, Kind::Text)?))
     }
+    pub fn try_clone_in_metered<P: Provider, Q: Provider>(
+        &self,
+        source: &Allocator<P>,
+        target: &mut Allocator<Q>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Self, AllocError> {
+        Ok(Self(self.0.copy_in_metered(
+            source,
+            target,
+            Kind::Text,
+            work,
+        )?))
+    }
     pub fn to_bytes<P: Provider>(
         &self,
         allocator: &mut Allocator<P>,
     ) -> Outcome<Bytes, AllocError> {
         Ok(Bytes(self.0.copy(allocator, Kind::Bytes)?))
+    }
+    pub fn to_bytes_metered<P: Provider>(
+        &self,
+        allocator: &mut Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Bytes, AllocError> {
+        Ok(Bytes(self.0.copy_metered(allocator, Kind::Bytes, work)?))
     }
     pub fn to_bytes_in<P: Provider, Q: Provider>(
         &self,
@@ -448,17 +587,40 @@ impl Text {
     ) -> Outcome<Bytes, AllocError> {
         Ok(Bytes(self.0.copy_in(source, target, Kind::Bytes)?))
     }
+    pub fn to_bytes_in_metered<P: Provider, Q: Provider>(
+        &self,
+        source: &Allocator<P>,
+        target: &mut Allocator<Q>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Bytes, AllocError> {
+        Ok(Bytes(self.0.copy_in_metered(
+            source,
+            target,
+            Kind::Bytes,
+            work,
+        )?))
+    }
     pub fn concat<P: Provider>(
         &self,
         other: &Self,
         allocator: &mut Allocator<P>,
+    ) -> Outcome<Self, AllocError> {
+        self.concat_metered(other, allocator, &mut |_| Ok(()))
+    }
+    pub fn concat_metered<P: Provider>(
+        &self,
+        other: &Self,
+        allocator: &mut Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
     ) -> Outcome<Self, AllocError> {
         let left = self.0.inspect(allocator).map_err(Failure::Fault)?;
         let right = other.0.inspect(allocator).map_err(Failure::Fault)?;
         let len = left
             .len
             .checked_add(right.len)
+            .filter(|&len| len <= i64::MAX as usize)
             .ok_or(Failure::Error(AllocError::Overflow))?;
+        work(len as u64).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
         let mut result = Buffer::allocate(allocator, Kind::Text, len, len)?;
         let copy = allocator
             .copy_bytes(
@@ -490,12 +652,24 @@ impl Text {
         other_source: &Allocator<Q>,
         target: &mut Allocator<R>,
     ) -> Outcome<Self, AllocError> {
+        self.concat_in_metered(source, other, other_source, target, &mut |_| Ok(()))
+    }
+    pub fn concat_in_metered<P: Provider, Q: Provider, R: Provider>(
+        &self,
+        source: &Allocator<P>,
+        other: &Self,
+        other_source: &Allocator<Q>,
+        target: &mut Allocator<R>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Outcome<Self, AllocError> {
         let left = self.0.view(source).map_err(Failure::Fault)?;
         let right = other.0.view(other_source).map_err(Failure::Fault)?;
         let len = left
             .len()
             .checked_add(right.len())
+            .filter(|&len| len <= i64::MAX as usize)
             .ok_or(Failure::Error(AllocError::Overflow))?;
+        work(len as u64).map_err(|error| Failure::Fault(Fault::ServiceWork(error)))?;
         let result = Buffer::allocate(target, Kind::Text, len, len)?;
         let data = target
             .bytes_mut(result.handle().map_err(Failure::Fault)?)
@@ -515,6 +689,18 @@ impl Text {
         allocator: &Allocator<P>,
     ) -> Result<Self, Fault> {
         Ok(Self(Buffer::take_token(bytes, Kind::Text, allocator)?))
+    }
+    pub fn from_token_metered<P: Provider>(
+        bytes: &mut [u8; 32],
+        allocator: &Allocator<P>,
+        work: &mut impl FnMut(u64) -> Result<(), crate::execution::Failure>,
+    ) -> Result<Self, Fault> {
+        Ok(Self(Buffer::take_token_metered(
+            bytes,
+            Kind::Text,
+            allocator,
+            work,
+        )?))
     }
 }
 

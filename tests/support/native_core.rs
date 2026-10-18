@@ -7,6 +7,13 @@ fn bad() -> c::Cause {
 fn fault<T>(_: T) -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Fault)
 }
+fn buffer_fault(error: buffer::Fault) -> c::Cause {
+    match error {
+        buffer::Fault::ServiceWork(error) => control_cause(error),
+        _ => fault(error),
+    }
+}
+
 pub(super) enum Payload {
     Token([u8; 32]),
     Immediate(l::Immediate),
@@ -56,9 +63,12 @@ fn bytes(
         buffer::Bytes::from_token(&mut token, unit.store.borrow().allocator).map_err(fault)?;
     Ok((target, value))
 }
-fn text(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<buffer::Text, c::Cause> {
+fn text(unit: &mut Unit<'_, '_, '_, '_>, slot: usize) -> Result<buffer::Text, c::Cause> {
     let (_, mut token) = places::buffer_token(unit, slot)?;
-    buffer::Text::from_token(&mut token, unit.store.borrow().allocator).map_err(fault)
+    let store = unit.store;
+    let mut work = unit.work();
+    buffer::Text::from_token_metered(&mut token, store.borrow().allocator, &mut work)
+        .map_err(buffer_fault)
 }
 fn allocated(
     unit: &mut Unit<'_, '_, '_, '_>,
@@ -70,7 +80,7 @@ fn allocated(
         Err(buffer::Failure::Error(error)) => {
             result(unit, site, Err(l::Immediate::Allocation(error)))
         }
-        Err(buffer::Failure::Fault(error)) => Err(fault(error)),
+        Err(buffer::Failure::Fault(error)) => Err(buffer_fault(error)),
     }
 }
 pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
@@ -105,13 +115,17 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
         Op::BytesGet => {
             let index = values::read_scalar(unit, arg(1))?;
             let (_, bytes) = bytes(unit, arg(0))?;
-            let outcome = bytes.get(unit.store.borrow().allocator, index);
+            let outcome = {
+                let store = unit.store;
+                let mut work = unit.work();
+                bytes.get_metered(store.borrow().allocator, index, &mut work)
+            };
             match outcome {
                 Ok(value) => result(unit, site, Ok(Payload::Immediate(l::Immediate::I64(value)))),
                 Err(buffer::Failure::Error(error)) => {
                     result(unit, site, Err(l::Immediate::Bounds(error)))
                 }
-                Err(buffer::Failure::Fault(error)) => Err(fault(error)),
+                Err(buffer::Failure::Fault(error)) => Err(buffer_fault(error)),
             }
         }
         Op::BytesPush | Op::BytesSet => {
@@ -123,11 +137,13 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
             };
             let (target, mut bytes) = bytes(unit, arg(0))?;
             let (outcome, token) = {
-                let mut store = unit.store.borrow_mut();
+                let store = unit.store;
+                let mut work = unit.work();
+                let mut store = store.borrow_mut();
                 let outcome = if site.operation == Op::BytesSet {
-                    bytes.set(store.allocator, index, value)
+                    bytes.set_metered(store.allocator, index, value, &mut work)
                 } else {
-                    bytes.push(store.allocator, value)
+                    bytes.push_metered(store.allocator, value, &mut work)
                 };
                 let token = bytes.take_token(store.allocator).map_err(fault)?;
                 (outcome, token)
@@ -138,7 +154,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                 Err(buffer::Failure::Error(error)) => {
                     result(unit, site, Err(l::Immediate::Buffer(error)))
                 }
-                Err(buffer::Failure::Fault(error)) => Err(fault(error)),
+                Err(buffer::Failure::Fault(error)) => Err(buffer_fault(error)),
             }
         }
         Op::BytesClone | Op::TextClone | Op::TextBytes | Op::TextConcat => {
@@ -148,40 +164,53 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
             let outcome = match site.operation {
                 Op::BytesClone => {
                     let (_, bytes) = bytes(unit, arg(1))?;
-                    let mut store = unit.store.borrow_mut();
-                    bytes.try_clone(store.allocator).and_then(|mut value| {
-                        value
-                            .take_token(store.allocator)
-                            .map_err(buffer::Failure::Fault)
-                    })
+                    let store = unit.store;
+                    let mut work = unit.work();
+                    let mut store = store.borrow_mut();
+                    bytes
+                        .try_clone_metered(store.allocator, &mut work)
+                        .and_then(|mut value| {
+                            value
+                                .take_token(store.allocator)
+                                .map_err(buffer::Failure::Fault)
+                        })
                 }
                 Op::TextClone => {
                     let text = text(unit, arg(1))?;
-                    let mut store = unit.store.borrow_mut();
-                    text.try_clone(store.allocator).and_then(|mut value| {
-                        value
-                            .take_token(store.allocator)
-                            .map_err(buffer::Failure::Fault)
-                    })
+                    let store = unit.store;
+                    let mut work = unit.work();
+                    let mut store = store.borrow_mut();
+                    text.try_clone_metered(store.allocator, &mut work)
+                        .and_then(|mut value| {
+                            value
+                                .take_token(store.allocator)
+                                .map_err(buffer::Failure::Fault)
+                        })
                 }
                 Op::TextBytes => {
                     let text = text(unit, arg(1))?;
-                    let mut store = unit.store.borrow_mut();
-                    text.to_bytes(store.allocator).and_then(|mut value| {
-                        value
-                            .take_token(store.allocator)
-                            .map_err(buffer::Failure::Fault)
-                    })
+                    let store = unit.store;
+                    let mut work = unit.work();
+                    let mut store = store.borrow_mut();
+                    text.to_bytes_metered(store.allocator, &mut work)
+                        .and_then(|mut value| {
+                            value
+                                .take_token(store.allocator)
+                                .map_err(buffer::Failure::Fault)
+                        })
                 }
                 Op::TextConcat => {
                     let left = text(unit, arg(1))?;
                     let right = text(unit, arg(2))?;
-                    let mut store = unit.store.borrow_mut();
-                    left.concat(&right, store.allocator).and_then(|mut value| {
-                        value
-                            .take_token(store.allocator)
-                            .map_err(buffer::Failure::Fault)
-                    })
+                    let store = unit.store;
+                    let mut work = unit.work();
+                    let mut store = store.borrow_mut();
+                    left.concat_metered(&right, store.allocator, &mut work)
+                        .and_then(|mut value| {
+                            value
+                                .take_token(store.allocator)
+                                .map_err(buffer::Failure::Fault)
+                        })
                 }
                 _ => unreachable!(),
             };
@@ -195,9 +224,12 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
         Op::TextEqual => {
             let left = text(unit, arg(0))?;
             let right = text(unit, arg(1))?;
-            let equal = left
-                .equal(&right, unit.store.borrow().allocator)
-                .map_err(fault)?;
+            let equal = {
+                let store = unit.store;
+                let mut work = unit.work();
+                left.equal_metered(&right, store.borrow().allocator, &mut work)
+                    .map_err(buffer_fault)?
+            };
             values::write_scalar(unit, site.result, i64::from(equal), site.span)
         }
         Op::TextFromUtf8 => {
@@ -210,7 +242,9 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                 .map_err(invariant)?
                 .physical()?;
             let outcome = {
-                let mut store = unit.store.borrow_mut();
+                let store = unit.store;
+                let mut work = unit.work();
+                let mut store = store.borrow_mut();
                 let Store {
                     pools, allocator, ..
                 } = &mut *store;
@@ -220,11 +254,11 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                     .map_err(fault)?
                     .bytes;
                 let mut bytes = buffer::Bytes::from_token(&mut token, allocator).map_err(fault)?;
-                let outcome = bytes.take_text(allocator);
+                let outcome = bytes.take_text_metered(allocator, &mut work);
                 match outcome {
                     Ok(mut text) => Ok(Payload::Token(text.take_token(allocator).map_err(fault)?)),
                     Err(buffer::Failure::Error(error)) => Err(l::Immediate::Utf8(error)),
-                    Err(buffer::Failure::Fault(error)) => return Err(fault(error)),
+                    Err(buffer::Failure::Fault(error)) => return Err(buffer_fault(error)),
                 }
             };
             {
@@ -282,6 +316,66 @@ fn native_bytes_and_text_match_vm_source_results() {
         .unwrap();
         assert_eq!(vm.value, expected);
         assert_eq!(allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn finite_buffer_work_matches_vm_at_every_budget_prefix() {
+    let fixture = include_str!("../../examples/analysis/native_buffer_work.lang");
+    for text in EXAMPLES.into_iter().map(|(text, _)| text).chain([fixture]) {
+        let source = source(text);
+        let flow = source.failure_flow();
+        assert!(e::service_work_supported(flow));
+        let types = flow
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types();
+        let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+        let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+        let normal = control::native(
+            flow,
+            &layouts,
+            &program,
+            e::Control::with_limits(control::limits()),
+            None,
+        );
+        let (expected, requests) =
+            control::vm(flow, e::Control::with_limits(control::limits()), None);
+        control::same(&normal, &expected);
+        assert_eq!(normal.total_requests, requests);
+        if text == fixture {
+            assert_eq!(normal.scalar, Some(67));
+            assert_eq!(normal.usage.service_work, 37);
+        }
+        for limit in 0..=normal.usage.service_work + 1 {
+            let configured =
+                e::Control::with_limits(control::limits()).and_service_work(Some(limit));
+            let actual = control::native(flow, &layouts, &program, configured, None);
+            let (expected, requests) = control::vm(flow, configured, None);
+            control::same(&actual, &expected);
+            assert_eq!(actual.total_requests, requests);
+            if let Some(failure) = actual.failure {
+                let n::Reason::Runtime(c::Cause::Execution(
+                    c::ExecutionFailure::ServiceWorkLimit {
+                        limit: bound,
+                        used,
+                        requested,
+                    },
+                )) = failure.reason
+                else {
+                    panic!("unexpected budget refusal: {failure:?}")
+                };
+                assert_eq!(bound, limit);
+                assert_eq!(used, actual.usage.service_work);
+                assert!(used <= bound && requested > bound - used);
+            } else {
+                assert!(limit >= normal.usage.service_work);
+            }
+        }
     }
 }
 

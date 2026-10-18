@@ -1,0 +1,28 @@
+// Payload work is 37 units, shared across the main and clone_text activations.
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut first: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 65));
+    let mut second: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 66));
+    let mut copy: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_clone(core::allocator(), bytes));
+    let mut original: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(
+        core::text_from_utf8(bytes));
+    let mut length: i64 = core::text_len(original);
+    let mut cloned: core::Text = clone_text(original);
+    if core::text_equal(original, cloned) {} else { return -1; }
+    let mut joined: core::Text = core::result_unwrap::<core::Text, core::AllocError>(
+        core::text_concat(core::allocator(), original, cloned));
+    let mut flat: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::text_bytes(core::allocator(), joined));
+    let mut head: i64 = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(copy, 0));
+    let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_set(copy, 1, 67));
+    return head + length;
+}
+fn clone_text(value: &core::Text) -> core::Text {
+    return core::result_unwrap::<core::Text, core::AllocError>(
+        core::text_clone(core::allocator(), value));
+}

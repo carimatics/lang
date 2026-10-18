@@ -136,6 +136,43 @@ pub struct UnsupportedServiceWork {
     pub limit: u64,
 }
 
+/// Check the whole verified unit before effects; only completely metered
+/// operation families may participate in a finite-budget program.
+pub fn service_work_supported(flow: &lang_mir::unit::ownership::failure::Elaborated) -> bool {
+    use lang_mir::unit::ownership::{bodies::Op, core::Operation as C};
+    let typed = flow.source().activity().moved().typed();
+    typed.functions().iter().all(|function| {
+        function.blocks.iter().all(|block| {
+            block
+                .instructions
+                .iter()
+                .all(|instruction| match &instruction.op {
+                    Op::CoreCall(call) => {
+                        call.operation.extraction().is_some()
+                            || matches!(
+                                call.operation,
+                                C::Allocator
+                                    | C::BytesNew
+                                    | C::BytesLen
+                                    | C::BytesGet
+                                    | C::BytesSet
+                                    | C::BytesPush
+                                    | C::BytesClone
+                                    | C::TextFromUtf8
+                                    | C::TextLen
+                                    | C::TextEqual
+                                    | C::TextClone
+                                    | C::TextBytes
+                                    | C::TextConcat
+                            )
+                    }
+                    Op::ArenaEnter { .. } | Op::ArenaExit { .. } => false,
+                    _ => true,
+                })
+        })
+    })
+}
+
 impl From<Failure> for crate::cleanup::ExecutionFailure {
     fn from(error: Failure) -> Self {
         match error {

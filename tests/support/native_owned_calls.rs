@@ -252,8 +252,22 @@ struct Unit<'i, 's, 'a, 'l> {
     handle: u64,
     pending: Option<Transition>,
     published: bool,
+    service_metering: bool,
 }
 impl Unit<'_, '_, '_, '_> {
+    fn work(&mut self) -> impl FnMut(u64) -> Result<(), e::Failure> + '_ {
+        let control = self.control;
+        let enabled = self.service_metering;
+        let usage = &mut self.usage;
+        move |cost| {
+            if enabled {
+                control.charge_service_work(usage, cost)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
     fn depth(&self) -> usize {
         self.stack.len() - 1
     }
@@ -826,7 +840,7 @@ fn execute_controlled<'l>(
     })
     .or_else(|| {
         control
-            .check_service_work_support(n::SERVICE_WORK_SUPPORTED)
+            .check_service_work_support(e::service_work_supported(flow))
             .err()
             .map(n::Reason::UnsupportedServiceWork)
     })
@@ -1021,6 +1035,7 @@ fn execute_controlled<'l>(
         handle: 1,
         pending: None,
         published: false,
+        service_metering: e::service_work_supported(flow),
     });
     let result = program.invoke(entry, &mut instance);
     assert_eq!(instance.runtime().published, result.is_ok());

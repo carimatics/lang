@@ -5,6 +5,9 @@ use lang_runtime::{
 };
 use std::{cell::RefCell, rc::Rc};
 
+#[path = "support/buffer_work.rs"]
+mod work;
+
 #[derive(Default)]
 struct Trace {
     calls: usize,

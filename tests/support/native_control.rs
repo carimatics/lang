@@ -8,7 +8,7 @@ const EXAMPLES: [&str; 5] = [
     include_str!("../../examples/analysis/native_shared_custody.lang"),
     include_str!("../../examples/analysis/native_arena_regions.lang"),
 ];
-fn limits() -> e::Limits {
+pub(super) fn limits() -> e::Limits {
     e::Limits {
         fuel: None,
         host_calls: Some(0),
@@ -16,7 +16,7 @@ fn limits() -> e::Limits {
         live_cells: Some(1000),
     }
 }
-fn native(
+pub(super) fn native(
     flow: &m::ownership::failure::Elaborated,
     layouts: &l::Layouts<'_>,
     program: &CompiledProgram<'_>,
@@ -42,10 +42,16 @@ fn native(
 type VmResult = Result<lang_vm::unit::owned::Outcome, lang_vm::unit::owned::Failure>;
 
 #[test]
-fn finite_service_work_profiles_reject_before_provider_effects() {
-    for text in [EXAMPLES[0], EXAMPLES[4]] {
+fn unmetered_service_profiles_reject_before_provider_effects() {
+    let unused = format!(
+        "{}\n{}",
+        EXAMPLES[0],
+        EXAMPLES[1].replacen("fn main()", "fn unused()", 1)
+    );
+    for text in [EXAMPLES[1], EXAMPLES[2], EXAMPLES[3], EXAMPLES[4], &unused] {
         let source = source(text);
         let flow = source.failure_flow();
+        assert!(!e::service_work_supported(flow));
         let types = flow
             .source()
             .activity()
@@ -97,7 +103,7 @@ fn finite_service_work_profiles_reject_before_provider_effects() {
         }
     }
 }
-fn vm(
+pub(super) fn vm(
     flow: &m::ownership::failure::Elaborated,
     control: e::Control<'_>,
     interrupt: Option<(usize, Rc<e::InterruptionFlag>)>,
@@ -116,7 +122,7 @@ fn vm(
     assert_eq!(trace.allocated, trace.released);
     (result, trace.requests)
 }
-fn same(native: &Seen, vm: &VmResult) {
+pub(super) fn same(native: &Seen, vm: &VmResult) {
     match vm {
         Ok(vm) => {
             assert!(native.failure.is_none(), "{:?}", native.failure);
