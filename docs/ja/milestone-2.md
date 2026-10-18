@@ -6,13 +6,13 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**57 done · 0 doing · 43 todo · 110 remaining pt**
+**58 done · 0 doing · 42 todo · 107 remaining pt**
 
-**次: M2-R05 → guest budgetと失敗rollbackを伴うarena payload確保／子孫retirementを実装し、続くR06でsource arena fixtureを実行する。**
+**次: M2-R06 → source arenaのallocation／read／replaceとregion再enter／teardownをVMで実行し、失効referenceと逆順dropのfixtureを検証する。**
 
-直近の完了：**M2-R01**（`dd0b006`）。Failure CFG構築とowned実行admissionの前に、独立MIR region／call解析の完了を必須化しました。従来通っていた偽造tokenとcallerへのescapeを共通入口で拒否します。全proof stageとCFG構築でbudgetを通算し、6種のregion quotaを明示します。Source診断は元snapshotのidentityとcall／store両labelを保持します。追加3 testで厳密limit、resource診断、同名の古いsource revisionを検証しました。標準fuzz case 5種が先行MIR proof後にこの境界へ到達し、coverage／sanitizer instrumentationなしの上限付きstable smoke 10,000回も成功しました。全体baselineの **74 suite・1093 test** とfmt／Clippy／doc／locked fuzz checkが成功しました。R01完了で **残り112 → 110 pt**、done 57行、計100行です。Arena fixtureの `check` は成功しますがVM実行はeffect前に拒否されるため、次の利用可能な経路はR05 → R06です。Arena runtime／native／artifactのgateは維持します。
+直近の完了：**M2-R05**（`cb7a72b`）。型付きarena payload、nodeのidentity／span／publication記録、read登録を実際のguest allocator領域に保持します。固定host poolはentry前のwrapper／走査scratchだけを保持します。Storage全体のpreflightと3段階OOM rollbackでinputと既存nodeを維持し、認可済み累積要求は残します。Checked readは変更を禁止し、closeはaccess失効後にnode／子孫を逆順cleanupします。子の失敗／panicでも追加確保／retryせず処理を続けます。追加11 testで実際のbudget、cycle、失効／cross-region token、replacement、read、不正入力、indirect serviceの明示検証を確認しました。全体baselineの **75 suite・1104 test** とfmt／Clippy／docが成功しました。R05完了で **残り110 → 107 pt**、done 58行、計100行です。Arena fixtureはeffect前のVM admissionでまだ拒否されるため、次のR06でこのruntimeをsource実行へ接続します。Container service、native conformance、ownership artifactのgateは維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **31.9秒**、全test **339.8秒**（log作成から最終書き込みまで）、rustdoc **23.7秒**、incremental locked fuzz Clippy **0.2秒**、すべて成功です。Focused check後の全baselineは1回、別の上限付きfuzz smokeは **8秒** でした。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：最終workspace Clippy **20.3秒**、全test **220.2秒**（log作成から最終書き込みまで）、rustdoc **16.6秒**、すべて成功です。全testは2回です。前の **221.6秒** の実行開始後、reviewでread／node metadataを実際のguest allocationへ移したため、実装変更後に最終実行が必要になりました。Clippyのarray走査への機械的な修正後、Clippyとfocused arena全11 testも成功しました。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。後続indirect previewはV17、provisional core readはV13へ残します。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
@@ -55,7 +55,7 @@ V10着手前の監査（2026-10-18 JST）：pipeしたREPL実験で妥当なowni
 
 R01着手前の監査（2026-10-18 JST）：検証済みarena-tokenの `CopyPlace` だけを別のlive arenaの値へ差し替えた [source由来probe](../../tests/mir_regions.rs) が、type／move／loan-activity／loan／failure-CFG検証を通りました。同じsourceはHIRで拒否されますが、独立MIR region stageはありません。Loan topologyは意図的にnon-loan record fieldをopaqueに扱い、region value graphとcall-effect summaryを提供しません。3 ptのR01に4成果が隠れていたため、上限shape／path／owner／call境界の **R08（3 pt）**、関数内brand／loan／store／CFG転送の **R09（3 pt）**、再帰caller-projection／mutation／transient-store summaryの **R10（3 pt）** を明示します。3件の後に必須pipeline admission、構造化診断、偽造入力／resource／fuzz conformanceを行う **R01（2 pt）** を残し、元の拒否成果は維持します。**残り113 → 121 pt**、3行追加（計100行）、**53 done／1 doing／46 todo** です。R08は準備であり、region proofやarena実行／artifact有効化ではありません。R08／R09後は基盤拡張前にsource arena経路を再確認します。Probeではnested arenaでshared allocator parameterを再利用するとloweringでmoveされる不足も見つかったため、R06／R07のsource conformanceに修正を残します。新exit gateは完了扱いにしません。
 
-R10／R01後のsource経路再点検（2026-10-18 JST）：2つのproof前提作業の後に [arena fixture](../../examples/analysis/arena.lang) を再確認し、CLI `check` は成功しますが、`run` は **fuel 0／host calls 0** のownership VM admissionで `Unsupported { core: None }` として停止します。後から上書きするtransient storeも含め、独立call proofを必須化しました。残る障害はguest arena payload確保／子孫retirement（R05）、続いてsource実行adapter（R06）です。R05のallocatorとretained arenaの前提D33／D15は完了しています。3 ptは最初の確保／rollback実験まで暫定見積もりとします。失効／逆順drop conformanceとnested shared allocator reborrow lowering修正はR06／R07へ維持します。従来のarena／native／artifact gateは未完了のままです。
+R05後のsource経路再点検（2026-10-18 JST）：必須proofとguest storage統合の後に [arena fixture](../../examples/analysis/arena.lang) を再確認し、CLI `check` は成功しますが、`run` は **fuel 0／host calls 0** のownership VM admissionで `Unsupported { core: None }` として停止します。R06の前提R01／R05／V08はすべて完了しています。次はこのsource実行経路を成果とし、さらに基盤作業を追加する前に実行します。3 ptは最初のarena enter／core／read-loan／exit adapter実験まで暫定見積もりとします。Rowには受理済みreplacementとregion再enter（reset）を明記し、新しいreset APIは導入しません。失効／逆順drop conformanceとnested shared allocator reborrow lowering修正はR06／R07へ維持します。従来のarena／native／artifact gateは未完了のままです。
 
 ## 完了済み実装
 
@@ -137,8 +137,8 @@ R10／R01後のsource経路再点検（2026-10-18 JST）：2つのproof前提作
 | M2-R02 | todo | 3 | M2-D02,M2-D33 | G06 | Shared storageをguest fallible allocationに接続し、payload／retirement全領域のpreflight／rollbackを会計。 | — |
 | M2-R03 | todo | 2 | M2-R02,M2-D34 | G06 | 本番shared／weak token adapterで所有権を検証し、test registryなしでpayload子孫をretire。 | — |
 | M2-R04 | todo | 3 | M2-R03,M2-V08 | G06,G14 | Shared／weakソース命令、upgrade、cycle拒否、rollbackを実行。 | — |
-| M2-R05 | todo | 3 | M2-D15,M2-D33 | G05,G06 | Arena payload allocationと子孫retirementにguest budgetと失敗rollbackを適用。 | — |
-| M2-R06 | todo | 3 | M2-R01,M2-R05,M2-V08 | G05 | Arena allocation／read／reset／teardownをソースから実行し、stale referenceと逆順dropを検証。 | — |
+| M2-R05 | done | 0 | M2-D15,M2-D33 | G05,G06 | Arena payload allocationと子孫retirementにguest budgetと失敗rollbackを適用。 | `cb7a72b` |
+| M2-R06 | todo | 3 | M2-R01,M2-R05,M2-V08 | G05 | Arena allocation／read／replace／region再enter（reset）／teardownをソースから実行し、stale referenceと逆順dropを検証。 | — |
 | M2-R07 | todo | 2 | M2-R06,M2-V07 | G05 | Guest callを通じ、arena escape／call-brandのcompile-failとruntime結果を照合。 | — |
 | M2-C01 | todo | 3 | M2-D33,M2-D34 | G09 | Vec storage／new／len／push growthをallocator-awareかつfailure-atomicに実装。 | — |
 | M2-C02 | todo | 3 | M2-C01 | G09 | Vec read／mutable-read／take／replacementで移動／置換elementを正確に1回retire。 | — |
