@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み60件 · 進行中0件 · 残り40件（暫定102 pt）。**
+**検証済み61件 · 進行中0件 · 残り39件（暫定100 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む34件の成果を検証しました。R07（`cecd6e8`）でowned VM越しのsource arena caller store、read loan転送、再帰projection／変更、非return cleanupを検証しました。Runtime caseは9／70／7／8／12を返し、compile-failでcross-arena／より長生きするstorage／active read違反を拒否して現在sourceのlabelを確認します。追加11 testと全体baselineの76 suite・1132 test、fmt／Clippy／docが成功しました。R07の2 pt完了で **残り104 → 102 pt**、done 60行、計100行です。次は完了済みD02／D33を前提とするR02のguest fallible shared storage、その後R03 → R04でsource shared／weak実行です。見積もりはallocation／rollback実験まで暫定とします。Arena／native／artifactの全evidenceは引き続き必要です。Owned REPL、V17のindirect preview、V13のprovisional readは従来の状態を維持し、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む35件の成果を検証しました。R02（`15834b9`）で実際のguest-backedな型付きshared control／payload storageを実装し、全planのpreflight、OOM rollback、read lease、detach後のcleanup、weakだけが残るmetadata寿命を検証しました。追加10 testと全体baselineの77 suite・1142 test、fmt／Clippy／docが成功しました。R02で3 ptを減らし、R03の型付きtoken／graph／read／child統合を明示して **2 → 3 pt** へ再見積もりし、**残り102 → 100 pt**、done 61行、計100行です。次は完了済みR02／D34を前提とするR03、その後は基盤2件を受けて必須のR04 source shared／weak fixtureです。旧host Arc engineはmodelとして維持し、production token／graphとsource dispatchは未完了です。Arena／native／artifact全体のevidenceも引き続き必要です。V17のindirect preview、V13のprovisional readは状態を維持し、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
