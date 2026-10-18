@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み59件 · 進行中0件 · 残り41件（暫定104 pt）。**
+**検証済み60件 · 進行中0件 · 残り40件（暫定102 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む33件の成果を検証しました。R06（`e0f6bb4`）でowned VMからsource arenaのallocation／read／replaceと再enter／teardownを実行します。新scalar／owning-cycle scriptは9／5、元fixtureは0を表示します。Read登録、上限付きactivation pool、正確なreplacement／逆順cleanup、型付きOOM、owning return、allocator reborrowを検証しました。追加17 testと全体baselineの75 suite・1121 test、fmt／Clippy／docが成功しました。R06の3 pt完了で **残り107 → 104 pt**、done 59行、計100行です。次はR07のsource guest-call／brand conformance監査で、前提R06／V07は完了しています。Shared allocator reborrowの不具合も修正しました。Arena／native／artifactの全exit evidenceは引き続き必要です。Owned REPL、V17のindirect preview、V13のprovisional readは従来の状態を維持し、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む34件の成果を検証しました。R07（`cecd6e8`）でowned VM越しのsource arena caller store、read loan転送、再帰projection／変更、非return cleanupを検証しました。Runtime caseは9／70／7／8／12を返し、compile-failでcross-arena／より長生きするstorage／active read違反を拒否して現在sourceのlabelを確認します。追加11 testと全体baselineの76 suite・1132 test、fmt／Clippy／docが成功しました。R07の2 pt完了で **残り104 → 102 pt**、done 60行、計100行です。次は完了済みD02／D33を前提とするR02のguest fallible shared storage、その後R03 → R04でsource shared／weak実行です。見積もりはallocation／rollback実験まで暫定とします。Arena／native／artifactの全evidenceは引き続き必要です。Owned REPL、V17のindirect preview、V13のprovisional readは従来の状態を維持し、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
