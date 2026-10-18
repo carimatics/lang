@@ -882,15 +882,27 @@ Compile-failで、より長生きするcaller storageへの一時／非return st
 
 ### Allocator-backed typed Vec storage
 
-2026-10-18 JST実装・検証（C01）：`lang-runtime::vector::Vector` は88-byte owner header、連続した型付き要素capacity、要素ごとのinitializer order／span、直列に再利用するretirement stackをinstance allocatorへ保存します。固定Rust wrapperはguest操作中に拡張するhost vectorを作りません。Headerと非公開32-byte owner tokenでallocator／generation、要素型、準備済みlayout固有のexecution identityを空Vecでも検証します。Identityは非公開runtime dataであり、sourceやserialized typeの識別子ではありません。
+2026-10-18 JST実装・検証（C01、後述C02で拡張）：`lang-runtime::vector::Vector` はowner header、連続した型付き要素capacity、要素ごとのinitializer order／span、直列に再利用するretirement stackをinstance allocatorへ保存します。固定Rust wrapperはguest操作中に拡張するhost vectorを作りません。Headerと非公開32-byte owner tokenでallocator／generation、要素型、準備済みlayout固有のexecution identityを空Vecでも検証します。Identityは非公開runtime dataであり、sourceやserialized typeの識別子ではありません。
 
 `new`、`len`、`capacity`、`push_from`、`push_copy` がstorage境界を提供します。Growthはmetadata／workとpayloadの要求全体をprovider callback前にpreflightし、両領域の確保後にだけinputをmoveします。Live data／orderを新capacityへコピーし、header公開後に旧storageを解放します。部分OOMでは確保済み予約を解放し、既存要素とincoming義務を保持します。認可済み累積要求は計上したままです。Source adapterは拒否時に評価済みowning引数をcleanupする必要があります。Copy operandは再利用でき、capacity再利用ではprovider要求を追加しません。非所有element viewは事前認可したscratchを共有し、当該要素外のlocationを拒否して、collection領域の解放もできません。
 
-Cleanupはcallback前にheaderを失効させ、appendの逆順で要素を、実際のinitializerの逆順でfieldをretireします。Source spanを維持し、containした失敗／panic後も独立leafを処理します。全drainで予約済みwork領域を使います。Element storageはloan、allocator authority、arena ownerを禁止します。Cross-service edge／brand admissionと反復的nested-service drainはC07へ残し、このstorageだけで入れ子cycleやregion safetyを証明しません。Guest read／mutable-read／take／replacementはC02、source実行はC03、native／artifact対応も個別gateです。Source Vec操作は引き続きpreflightで拒否し、source／C ABIやserialized formatは変更しません。
+Cleanupはcallback前にheaderを失効させ、要素と各fieldを実際の初期化の逆順でretireします。Source spanを維持し、containした失敗／panic後も独立leafを処理します。全drainで予約済みwork領域を使います。Element storageはloan、allocator authority、arena ownerを禁止します。Cross-service edge／brand admissionと反復的nested-service drainはC07へ残し、このstorageだけで入れ子cycleやregion safetyを証明しません。後述C02で登録付きelement loan／pop／replacementを接続し、source実行C03、native／artifact対応は個別gateを維持します。Source Vec操作は引き続きpreflightで拒否し、source／C ABIやserialized formatは変更しません。
 
-Unit 2 testとintegration 8 testで、Copy値17個のcapacity 32へのgrowth、owningな入れ子Option／record／Bytes、全constructor／growth OOMとretry、callback前の要求／live／cumulative／count予算の厳密値／1不足、確保なしのcapacity再利用、実spanと逆順cleanup、child失敗／panic後の継続、Copy aggregate／zero-size値、要素間location、不正input／span／型／layoutのadmission、token消費／provenance／stale、表現不能な要求算術を検証します。Deterministicなstorage testであり、source／native実行やfuzz campaignではありません。
+C01のunit 2 testとintegration 8 testで、Copy値17個のcapacity 32へのgrowth、owningな入れ子Option／record／Bytes、全constructor／growth OOMとretry、callback前の要求／live／cumulative／count予算の厳密値／1不足、確保なしのcapacity再利用、実spanと逆順cleanup、child失敗／panic後の継続、Copy aggregate／zero-size値、要素間location、不正input／span／型／layoutのadmission、token消費／provenance／stale、表現不能な要求算術を検証します。Deterministicなstorage testであり、source／native実行やfuzz campaignではありません。
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[Vec storage](../../crates/runtime/src/vector.rs)、[要素予約](../../crates/runtime/src/layout/storage.rs)、[test](../../crates/runtime/tests/vector.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Header／capacity戦略、倍増growth、scratchの直列再利用は非公開の実装判断であり、性能保証は主張しません。
+
+### Registered Vec element loans, pop and replacement
+
+2026-10-18 JST実装・検証（C02）：constructor admissionで128-byte headerと、設定したloan slotあたり24 byteを予約します（既定256、0も有効）。各登録に非ゼロserial、element index、shared／exclusive kindを保持します。`Loan` はCopy／Cloneではなく、`end` は厳密な登録を確認して1回だけ消費します。Borrowed accessごとにallocator／header generation、layout identity、slot／serial／index／kind、active stateを検証します。Slot再利用やserial枯渇でも古いleaseは復活せず、read／変更に新たなprovider要求は不要です。
+
+Shared element loanは共存でき、exclusive element loanは他accessを禁止します。Live loan中はpush、pop、owner移動、通常cleanupを拒否します。`Borrowed` は要素の所有権を与えず、検証済みprojection、scalar／case／token read、Copy transferを提供します。Exclusiveな `Loan` は別ownerを作らず、guest adapterのreborrow越しでも要素全体や投影fieldを直接置換できます。Hostの `abort_cleanup` は放置したleaseをretirement前に失効させ、既存borrowed viewもlivenessを再確認して拒否します。
+
+`pop_into` は論理上最後の要素を事前認可済みの空storageやOption payloadへ移し、他要素を保持します。空の場合は出力先を変更しません。Owning replacementはincoming予約と交換し、先にpublishしてから、置換した値と元initializer spanを共通contextで後からcleanupできるよう返します。Copy replacementはoperandを保持します。要素全体の置換は最新の要素初期化となり、field置換は当該要素のfield ledgerだけを更新します。上限付きintrusive order link（各要素の16-byte spanに加えて16 byte）で、置換、pop、その後のgrowthを越えて実際のretirement順序を保持します。これらの操作は事前認可済みworkを再利用し、追加確保しません。
+
+追加unit 2 testとintegration 9 testで、read／replace／popの連続実行、shared／exclusive競合とpool再利用、constructor metadata予算の厳密値／1不足とOOM、zero-slot／overflow上限、不正／stale／異kind lease、serial枯渇、abort後の古いview、owning Option／record／Bytesの移動とfield置換、拒否時snapshotとspan保持、旧payload cleanup失敗／panic時の完全drain、独立した値／初期化順oracleと比較する96回のpush／pop／置換を検証します。完了した各実行で全guest storageを解放します。Runtimeの証拠であり、基盤2件のC01／C02後は次のC03でsource Vec fixtureの実行を必須にします。C07、native、preview、artifact統合は未完了です。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[登録付きaccess](../../crates/runtime/src/vector/access.rs)、[storage](../../crates/runtime/src/vector.rs)、[test](../../crates/runtime/tests/support/vector_access.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。登録上限、header表現、order linkは非公開の実装判断であり、source構文、source／C ABI、serialized formatは変更しません。
 
 ### Async borrow／cancellation実験
 

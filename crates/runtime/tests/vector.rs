@@ -2,6 +2,9 @@ use lang_mir::unit::{self as m, ownership as o};
 use lang_runtime::{allocation as a, buffer, cleanup as c, layout as l, vector as v};
 use std::{cell::RefCell, rc::Rc};
 
+#[path = "support/vector_access.rs"]
+mod access;
+
 fn span(start: u32) -> m::Span {
     m::Span {
         source: m::SourceId(0),
@@ -265,7 +268,8 @@ fn budget_scenario(limits: a::Limits, count: i64, expected: Option<a::Limit>) ->
     let layouts = l::Layouts::compile(&types, Default::default()).unwrap();
     let (mut a, t) = allocator(limits);
     let mut source = l::Reservation::allocate(&layouts, o::Type::I64, &mut a).unwrap();
-    let mut vector = v::Vector::new(&layouts, o::Type::I64, &mut a).unwrap();
+    let mut vector =
+        v::Vector::new_with_limits(&layouts, o::Type::I64, v::Limits { loans: 0 }, &mut a).unwrap();
     for _ in 0..count {
         vector.push_copy(&mut source, None, &mut a).unwrap();
     }

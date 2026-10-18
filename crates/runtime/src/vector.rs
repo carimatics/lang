@@ -6,7 +6,12 @@ use crate::{allocation as a, cleanup as c, layout as l};
 use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 
-const HEADER: u64 = 88;
+mod access;
+pub use access::{Borrowed, Limits, Loan};
+
+const HEADER: u64 = 128;
+const LOAN_ENTRY: u64 = 24;
+const NONE: u64 = u64::MAX;
 const LIVE: u64 = 0x7665_6374_6f72_3031;
 const RETIRING: u64 = LIVE + 1;
 
@@ -16,6 +21,9 @@ pub enum Error {
     Layout(l::Error),
     Unavailable,
     State,
+    BorrowConflict,
+    LoanLimit,
+    Bounds(crate::buffer::BoundsError),
 }
 impl From<a::Error> for Error {
     fn from(e: a::Error) -> Self {
@@ -43,6 +51,11 @@ struct Header {
     capacity: u64,
     data: Option<a::Handle>,
     metadata: Option<a::Handle>,
+    tail: u64,
+    loans: u64,
+    active: u64,
+    exclusive: u64,
+    serial: u64,
 }
 struct Plan {
     requests: [a::Request; 2],
@@ -63,7 +76,7 @@ fn plan(layout: &l::Layout, capacity: u64) -> Result<Plan, Error> {
         return Err(a::Error::Overflow.into());
     }
     let stride = add(layout.size, layout.alignment - 1)? & !(layout.alignment - 1);
-    let metadata_stride = add(layout.metadata_bytes, 16)?;
+    let metadata_stride = add(layout.metadata_bytes, 32)?;
     let work = mul(metadata_stride, capacity)?;
     Ok(Plan {
         requests: [
@@ -132,6 +145,14 @@ impl<'l, 't> Vector<'l, 't> {
         ty: o::Type,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Self, Error> {
+        Self::new_with_limits(layouts, ty, Limits::default(), allocator)
+    }
+    pub fn new_with_limits<P: a::Provider>(
+        layouts: &'l l::Layouts<'t>,
+        ty: o::Type,
+        limits: Limits,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<Self, Error> {
         let properties = layouts
             .types()
             .properties(ty)
@@ -140,12 +161,18 @@ impl<'l, 't> Vector<'l, 't> {
             return Err(l::Error::InvalidType(ty).into());
         }
         layouts.get(ty).ok_or(l::Error::InvalidType(ty))?;
-        let header = allocator.allocate(a::Request::new(HEADER, 8)?)?;
+        let header = allocator.allocate(a::Request::new(
+            add(HEADER, mul(limits.loans as u64, LOAN_ENTRY)?)?,
+            8,
+        )?)?;
         let bytes = allocator.bytes_mut(header)?;
         bytes.fill(0);
         put(bytes, 0, LIVE);
         put(bytes, 8, key(ty));
         put(bytes, 80, layouts.identity());
+        put(bytes, 88, limits.loans as u64);
+        put(bytes, 112, 1);
+        put(bytes, 120, NONE);
         Ok(Self {
             layouts,
             ty,
@@ -157,7 +184,8 @@ impl<'l, 't> Vector<'l, 't> {
     }
     fn inspect<P: a::Provider>(&self, allocator: &a::Allocator<P>) -> Result<Header, Error> {
         let owner = self.header.ok_or(Error::Unavailable)?;
-        if allocator.request(owner)? != a::Request::new(HEADER, 8)? {
+        if allocator.request(owner)?.bytes() < HEADER || allocator.request(owner)?.alignment() != 8
+        {
             return Err(Error::State);
         }
         let bytes = allocator.bytes(owner)?;
@@ -169,6 +197,19 @@ impl<'l, 't> Vector<'l, 't> {
         }
         let len = word(bytes, 16)?;
         let capacity = word(bytes, 24)?;
+        let loans = word(bytes, 88)?;
+        let active = word(bytes, 96)?;
+        let exclusive = word(bytes, 104)?;
+        let serial = word(bytes, 112)?;
+        let tail = word(bytes, 120)?;
+        if allocator.request(owner)? != a::Request::new(add(HEADER, mul(loans, LOAN_ENTRY)?)?, 8)?
+            || active > loans
+            || (exclusive != 0 && active != 1)
+            || (len == 0 && tail != NONE)
+            || (len != 0 && tail >= len)
+        {
+            return Err(Error::State);
+        }
         if len > capacity || capacity > i64::MAX as u64 {
             return Err(Error::State);
         }
@@ -181,6 +222,11 @@ impl<'l, 't> Vector<'l, 't> {
                 capacity,
                 data: None,
                 metadata: None,
+                tail,
+                loans,
+                active,
+                exclusive,
+                serial,
             });
         }
         let data = a::Handle::from_token(bytes[32..56].try_into().unwrap())?;
@@ -199,16 +245,29 @@ impl<'l, 't> Vector<'l, 't> {
             capacity,
             data: Some(data),
             metadata: Some(metadata),
+            tail,
+            loans,
+            active,
+            exclusive,
+            serial,
         })
     }
     pub fn len<P: a::Provider>(&self, allocator: &a::Allocator<P>) -> Result<i64, Error> {
-        Ok(self.inspect(allocator)?.len as i64)
+        let h = self.inspect(allocator)?;
+        if h.exclusive != 0 {
+            return Err(Error::BorrowConflict);
+        }
+        Ok(h.len as i64)
     }
     pub fn is_empty<P: a::Provider>(&self, allocator: &a::Allocator<P>) -> Result<bool, Error> {
         Ok(self.len(allocator)? == 0)
     }
     pub fn capacity<P: a::Provider>(&self, allocator: &a::Allocator<P>) -> Result<i64, Error> {
-        Ok(self.inspect(allocator)?.capacity as i64)
+        let h = self.inspect(allocator)?;
+        if h.exclusive != 0 {
+            return Err(Error::BorrowConflict);
+        }
+        Ok(h.capacity as i64)
     }
     fn element(&self, header: Header, index: u64) -> Result<l::Reservation<'l, 't>, Error> {
         if index >= header.capacity {
@@ -231,6 +290,9 @@ impl<'l, 't> Vector<'l, 't> {
         allocator: &'a a::Allocator<P>,
     ) -> Result<View<'a, 'l, 't, P>, Error> {
         let h = self.inspect(allocator)?;
+        if h.exclusive != 0 {
+            return Err(Error::BorrowConflict);
+        }
         let index = u64::try_from(index).map_err(|_| Error::State)?;
         if index >= h.len {
             return Err(Error::State);
@@ -278,6 +340,9 @@ impl<'l, 't> Vector<'l, 't> {
         }
         input.validate_retirement(allocator)?;
         let old = self.inspect(allocator)?;
+        if old.active != 0 {
+            return Err(Error::BorrowConflict);
+        }
         let len = add(old.len, 1)?;
         if len > i64::MAX as u64 {
             return Err(a::Error::Overflow.into());
@@ -317,6 +382,7 @@ impl<'l, 't> Vector<'l, 't> {
             };
         }
         let destination = self.element(next, old.len)?;
+        self.check_tail(old, allocator)?;
         let result = if copy {
             destination.copy_from(destination.root(), input, input.root(), allocator)
         } else {
@@ -339,6 +405,7 @@ impl<'l, 't> Vector<'l, 't> {
             bytes[8..12].copy_from_slice(&s.end.to_le_bytes());
             bytes[12..].copy_from_slice(&1u32.to_le_bytes());
         }
+        self.append_order(next, old.len, allocator)?;
         let bytes = allocator.bytes_mut(self.header.unwrap())?;
         put(bytes, 16, len);
         put(bytes, 24, next.capacity);
@@ -359,7 +426,9 @@ impl<'l, 't> Vector<'l, 't> {
         &mut self,
         allocator: &a::Allocator<P>,
     ) -> Result<[u8; 32], Error> {
-        self.inspect(allocator)?;
+        if self.inspect(allocator)?.active != 0 {
+            return Err(Error::BorrowConflict);
+        }
         let mut bytes = [0; 32];
         bytes[..24].copy_from_slice(&self.header.take().unwrap().token());
         bytes[24..].copy_from_slice(&key(self.ty).to_le_bytes());
@@ -400,10 +469,18 @@ impl<'l, 't> Vector<'l, 't> {
         ) -> Result<(), u32>,
     ) -> Result<(), Error> {
         let h = self.inspect(allocator)?;
+        if h.active != 0 {
+            return Err(Error::BorrowConflict);
+        }
         put(allocator.bytes_mut(self.header.unwrap())?, 0, RETIRING);
-        for index in (0..h.len).rev() {
+        let mut index = h.tail;
+        for remaining in (0..h.len).rev() {
+            if index >= h.len {
+                return Err(Error::State);
+            }
             let p = plan(self.layout(), h.capacity)?;
             let offset = (mul(index, p.metadata_stride)? + self.layout().metadata_bytes) as usize;
+            let previous = word(allocator.bytes(h.metadata.unwrap())?, offset + 16)?;
             let bytes = &allocator.bytes(h.metadata.unwrap())?[offset..offset + 16];
             let get = |at| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
             let span = match get(12) {
@@ -417,7 +494,7 @@ impl<'l, 't> Vector<'l, 't> {
             };
             let mut value = self.element(h, index)?;
             value.begin_retirement(span, allocator)?;
-            put(allocator.bytes_mut(self.header.unwrap())?, 16, index);
+            put(allocator.bytes_mut(self.header.unwrap())?, 16, remaining);
             while let Some(leaf) = value.next_leaf(allocator)? {
                 let offset = leaf.offset as usize;
                 let token = l::Token {
@@ -437,6 +514,10 @@ impl<'l, 't> Vector<'l, 't> {
                 );
                 value.complete_leaf()?;
             }
+            index = previous;
+        }
+        if index != NONE {
+            return Err(Error::State);
         }
         if let Some(h) = h.data {
             allocator.release(h)?;
