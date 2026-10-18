@@ -53,6 +53,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0008: Cleanup, allocator authority, and C boundaries (accepted)](docs/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 - [RFC 0009: Whole Option/Result ownership extraction (accepted)](docs/rfcs/0009-whole-sum-ownership-extraction.md)
 - [RFC 0010: Owned REPL result previews (accepted; current-profile REPL implemented)](docs/rfcs/0010-owned-repl-previews.md)
+- [RFC 0011: Portable ownership artifacts (accepted; implementation pending)](docs/rfcs/0011-ownership-artifacts.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

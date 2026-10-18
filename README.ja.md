@@ -53,6 +53,7 @@
 - [RFC 0008：Cleanup、allocator authority、C boundary（accepted）](docs/ja/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 - [RFC 0009：Option／Result全体のownership取り出し（accepted）](docs/ja/rfcs/0009-whole-sum-ownership-extraction.md)
 - [RFC 0010：所有値を返すREPL結果のpreview（accepted・current-profile REPL実装済み）](docs/ja/rfcs/0010-owned-repl-previews.md)
+- [RFC 0011：Portable ownership artifact（accepted・実装は未完了）](docs/ja/rfcs/0011-ownership-artifacts.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

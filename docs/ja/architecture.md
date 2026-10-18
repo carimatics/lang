@@ -115,6 +115,10 @@ Source生成unitは `lang_codegen_clif::unit` により既存native profileへ�
 
 Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと残入力の最小量を検証し、source／register／block／instructionの合計を通算します。Raw stringとoutput byteは共有128 MiBの要求byte budgetへ、structured vectorはさらに8,000,000要素のbudgetへ課金します。Decodeとverificationは1つの `Budget` を使います。Encodeは要求limitでcallerのprogramを再検証し、失敗可能なbudget付き比較でsortし、正確な出力長を割り当て前に計算し、2回目のpassで明示fieldを書き込みます。Verifier workに加え、readerのword／tag、最大1 KiBごとのUTF-8検証chunk、両passのwriter field、sort／index memberを課金します。11件のtestは固定88-byte golden、全opcode、global ID再配置、非連番register／CFG round trip、全切断、不正input、canonical reencode、通算budgetを含みます。`portable_bytecode_decoder` はraw byteとheader以降を変異させた有効payloadをfuzzし、compileとinstrumentationなしの10,000-run smokeが完了しました。Compilation-unit VMがこのartifactを利用します。このsmokeでinstrumented fuzz coverageは主張しません。
 
+### Ownership artifact schema decision
+
+2026-10-18 JST受理（A01）：[RFC 0011](rfcs/0011-ownership-artifacts.md)でCopy schema 1を維持したまま、明示的ownership schema 2を追加する決定をしました。Ownership 33 opcode、core-operation 37 tag、順序付きraw type／declaration／place／CFG table、必須spanを規定します。Loadはdecode／検証の累積予算内でmove／loan／region／failure proofを独立再構築しなければなりません。Live owner、allocator instance、host binding、proof certificateは保存しません。決定だけであり、A02／A03でcodec／load／CLIを実装し、owned Bytes artifact、不正入力／budget境界、直接／loadした実行の一致を検証します。Native／platform／artifact exit gateは未完了です。情報源：RFC 0011と同RFCにlinkした共有契約実装。2026-10-18 JST更新・検証。
+
 ### 解決済みownership型の性質
 
 2026-10-17実装：source bindingはRFC 0007のloan／shared／weak／arena prefixと有限の `core` 型群をcompilation単位のconstructor arenaへ解決します。構造的interningにより各annotationのspanとconstructor初出のspanを保持し、childはparentより前に置き、nominal参照の前方参照を許可します。未知core path、不正arity、user generic specializationには `SRC0024` を出します。この表現はin-memory HIRであり、serialized formatやABIを導入しません。
