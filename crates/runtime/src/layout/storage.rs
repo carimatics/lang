@@ -3,7 +3,9 @@
 use super::*;
 use allocation::{Allocator, Handle, Provider};
 
+mod observe;
 mod preview;
+pub(crate) use observe::ReadView;
 mod transfer;
 mod value;
 pub use preview::{Preview, PreviewError};

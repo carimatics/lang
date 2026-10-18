@@ -5,6 +5,7 @@ pub mod arena;
 pub mod buffer;
 pub mod cleanup;
 pub mod component;
+pub mod inspection;
 pub mod layout;
 pub mod map;
 pub mod shared;

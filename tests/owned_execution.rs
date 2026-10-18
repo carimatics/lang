@@ -19,6 +19,8 @@ mod edges;
 mod inference;
 #[path = "support/owned_map.rs"]
 mod maps;
+#[path = "support/owned_nested.rs"]
+mod nested;
 #[path = "support/owned_preview.rs"]
 mod preview;
 #[path = "support/owned_replace.rs"]

@@ -302,6 +302,36 @@ impl<'l, 't> Vector<'l, 't> {
             allocator,
         })
     }
+    pub(crate) fn observation<P: a::Provider>(
+        &self,
+        index: u64,
+        allocator: &a::Allocator<P>,
+    ) -> Result<(l::ReadView<'l, 't>, Option<m::Span>), Error> {
+        let h = self.inspect(allocator)?;
+        if h.exclusive != 0 {
+            return Err(Error::BorrowConflict);
+        }
+        if index >= h.len {
+            return Err(Error::State);
+        }
+        let p = plan(self.layout(), h.capacity)?;
+        let at = add(mul(index, p.metadata_stride)?, self.layout().metadata_bytes)? as usize;
+        let bytes = allocator.bytes(h.metadata.ok_or(Error::State)?)?;
+        let get = |offset| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+        let span = match get(at + 12) {
+            0 => None,
+            1 => Some(m::Span {
+                source: m::SourceId(get(at)),
+                start: get(at + 4),
+                end: get(at + 8),
+            }),
+            _ => return Err(Error::State),
+        };
+        if span.is_some_and(|span| !self.layouts.span_valid(span)) {
+            return Err(l::Error::InvalidSpan.into());
+        }
+        Ok((self.element(h, index)?.observe()?, span))
+    }
     /// Move an admitted whole owning value only after all growth reservations
     /// succeed. Refusal preserves the collection and the incoming obligation;
     /// the source adapter must retire the evaluated argument on that error edge.

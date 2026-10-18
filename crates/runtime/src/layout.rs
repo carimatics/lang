@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT_LAYOUT: AtomicU64 = AtomicU64::new(1);
 
 mod storage;
+pub(crate) use storage::ReadView;
 pub use storage::{
     ArenaError, Immediate, Leaf, Location, OwnershipError, Preview, PreviewError, Reservation,
     Token,

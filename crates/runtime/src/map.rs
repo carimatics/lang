@@ -89,7 +89,7 @@ pub struct Spans {
     pub value: Option<m::Span>,
 }
 #[derive(Clone, Copy)]
-enum Part {
+pub(crate) enum Part {
     Key,
     Value,
 }
@@ -469,6 +469,23 @@ impl<'l, 't> Map<'l, 't> {
             value: self.element(h, entry.index, Part::Value)?,
             allocator,
         })
+    }
+    pub(crate) fn observation<P: a::Provider>(
+        &self,
+        index: u64,
+        part: Part,
+        allocator: &a::Allocator<P>,
+    ) -> Result<(l::ReadView<'l, 't>, Option<m::Span>), Error> {
+        let h = self.inspect(allocator)?;
+        if index >= h.len {
+            return Err(Error::State);
+        }
+        let at = self.record(h, index)? + if matches!(part, Part::Value) { 16 } else { 0 };
+        let span = read_span(allocator.bytes(h.metadata.ok_or(Error::State)?)?, at)?;
+        if span.is_some_and(|span| !self.layouts.span_valid(span)) {
+            return Err(l::Error::InvalidSpan.into());
+        }
+        Ok((self.element(h, index, part)?.observe()?, span))
     }
     fn check_entry<P: a::Provider>(
         &self,

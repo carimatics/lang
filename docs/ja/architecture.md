@@ -954,6 +954,16 @@ VM injection 5 testで元key／返却value span、publication後のkey失敗／p
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md) と [RFC 0009](rfcs/0009-whole-sum-ownership-extraction.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[VM Map adapter](../../crates/vm/src/unit/owned/state/maps.rs)、[profile admission](../../crates/vm/src/unit/owned/profile.rs)、[共通cleanup context](../../crates/runtime/src/cleanup.rs)、[source test](../../tests/support/owned_map.rs)、[失敗注入](../../crates/vm/src/unit/owned/failure_tests/maps.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Source構文、source／C ABI、serialized formatは変更しません。
 
+### Bounded nested collection inspection
+
+2026-10-18 JST実装・検証（C08）：`lang_runtime::inspection::Inspector` は実行前に固定host work poolをadmitし、allocatorの不変borrow下でinline reservationまたはborrowed Vec／Map tokenを走査します。検証済みprivate read座標と再開可能な要素cursorを使い、host再帰は使いません。幅の大きいcontainerでも要素ごとのhost slotは不要です。Caller所有の単一 `Work` 予算で走査全体とcaller固有のleaf検査を数え、workやscratch cellが不足すれば値、owner count、guest確保を変えず停止します。途中のreadを捨てて同じinspectorを再利用できます。
+
+Scalar値、active enum tag、空caseを含む重複のない完全な初期化field順序、container handleの生存とlayout identity、要素extent、保存したinitializer spanを検証します。Mapはprivateな物理格納順でkeyとvalueを両方調べ、source iteration順序は規定しません。元field／key／value spanを外側のfallbackより優先します。返す `Observation` bytesは既存tokenのborrowで、retain、transfer、cleanup義務を作りません。Shared／weak／arena identity、buffer内容、推移的graph所有権／循環、arena brandは引き続き各serviceの検査が必要です。C07でそのpolicyを接続し、C09で反復cross-service retirementを用意してからsource profileを開きます。
+
+Integration 9 testで、Text keyのMap／Vec／record入れ子fixtureを独立したleaf内容／span期待値と比較し、全work prefixとretry、2 cursor cellでscalar 1万要素、128 KiB host stackで再帰shape 513段を走査します。厳密host admissionとdepth拒否、実shared／weak tokenの保持、stale／改ざんtoken、不正scalar／enum／header state、別layoutの拒否、exclusive要素loan終了後のretryも検証します。Unit 2 probeで重複initializer entryとVec／Map span marker／extent改ざんをchild公開前に拒否し、拒否後のstorage不変を確認します。全fixtureを解放します。[入れ子循環source probe](../../examples/analysis/nested_services.lang) はHIR／MIR検証を通りますが、実行はprovider effect前に拒否したままです。C07の成功期待値は23です。着手実験の記録であり、入れ子source機能の完了ではありません。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[inspector](../../crates/runtime/src/inspection.rs)、[private read view](../../crates/runtime/src/layout/storage/observe.rs)、[runtime test](../../crates/runtime/tests/inspection.rs)、[source preflight test](../../tests/support/owned_nested.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。言語、ABI、serialized formatは変更しません。
+
 ### Async borrow／cancellation実験
 
 `crates/semantics` の実行可能modelはRFC 0005のstrict baselineと、未受理の制限を緩めたpolicyを比較します。
