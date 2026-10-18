@@ -1181,6 +1181,16 @@ Accepted 2026-10-18: [RFC 0012](rfcs/0012-native-ownership-continuations.md) pre
 
 The test-only `codegen-clif::owned_abi_probe` executes actual native arithmetic across two continuations, checks invalid-continuation publication, and emits Mach-O/COFF symbols. It uses inert payload bits and proves only boundary feasibility. Production ownership lowering, instrumented limits/cleanup, service adapters, C boundaries, tier-1 execution/performance and source stepping/logical backtraces remain M2-N/F/Q/B/G work; neither the prototype nor RFC acceptance closes G14.
 
+### Native whole-owner boundary
+
+In progress, verified 2026-10-19 JST: `lang-codegen-clif::owned::CompiledFunction` lowers a selected ownership function's verified failure graph into native control flow and statically bound runtime primitives. `FunctionLayout` combines completed proof usage with the shared layouts, counts the type graph once, and reserves the existing frame/return-escrow shape. Trusted `Runtime` adapters receive that exact source/layout identity before admitting parameters. Generated functions use RFC 0012's private signature and reject unsupported source operations before invocation. This first boundary accepts straight-line whole-owner moves, initialization, cleanup and return; source guest-call dispatch and object integration remain in N01, and broader operations remain N02–N05.
+
+The [Bytes library fixture](../examples/analysis/native_owned_boundary.lang) executes through real JIT code with live allocator-backed Bytes, shared managed storage and the existing cleanup ledger. Five [boundary tests](../tests/native_owned_boundary.rs) cover every fuel prefix, unused-owner cleanup before result publication, cleanup-failure poisoning, rejected poisoned re-entry, callback/panic-payload panic containment, original source spans, foreign layouts and exact cumulative compilation budgets. Cleanup traces reserve capacity before entry. Native metadata retains machine ranges and original spans; DWARF/CodeView and actual debugger evidence remain separate work. No VM body evaluator is used by the fixture's runtime callbacks.
+
+The low-level `Runtime` interface is a trusted embedding boundary, not a general native CLI driver. Its adapter owns prepared arguments, admission/control, typed storage and failure reports. It must preserve existing reports with `Cause::Reported` and expose the shared instance's poison state. Callback panics permanently poison the native boundary; secondary panic payloads that cannot be safely disposed are counted and quarantined. `cleanup::Frame::is_poisoned` exposes the underlying state while the frame's exclusive instance borrow is live. General native execution, multi-frame conformance, native object/link/run, services and complete failure-report integration remain open; this checkpoint does not finish N01 or G14.
+
+Sources: [RFC 0012](rfcs/0012-native-ownership-continuations.md), last updated 2026-10-18; [native boundary](../crates/codegen-clif/src/owned.rs), [cleanup observation](../crates/runtime/src/cleanup.rs), fixture and tests above, updated/verified 2026-10-19 JST. This is executable boundary evidence, not a runtime performance measurement.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.

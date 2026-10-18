@@ -132,6 +132,8 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
+The Rust native embedding boundary now executes [a source Bytes parameter/return fixture](examples/analysis/native_owned_boundary.lang) through generated machine code. Run `cargo test --test native_owned_boundary` for the live-value, fuel/cleanup, poison and compilation-budget checks. Its trusted runtime adapter uses shared managed layouts and the existing cleanup ledger. Whole-unit native dispatch and object integration remain N01 work; general native execution and the CLI driver retain their milestone gates. See [the boundary's scope](docs/architecture.md#native-whole-owner-boundary), updated/verified 2026-10-19 JST.
+
 ## Design process
 
 Changes to syntax, type semantics, memory safety, concurrency, ABI, package compatibility, or the plugin boundary require an RFC. Use the repository skill `$language-design-rfc` or start from `docs/rfcs/0000-template.md`.

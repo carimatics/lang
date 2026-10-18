@@ -132,6 +132,8 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
+Rustのnative embedding境界で [sourceのBytes引数／返り値fixture](examples/analysis/native_owned_boundary.lang) が生成機械コードで実行できます。`cargo test --test native_owned_boundary` で実value、fuel／cleanup、poison、compile budgetを検証できます。信頼されたruntime adapterは共有managed layoutと既存cleanup ledgerを使います。Whole-unit native dispatchとobject統合はN01に残り、汎用native実行とCLI driverは各milestone gateを維持します。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
+
 ## 設計プロセス
 
 構文、型意味論、メモリ安全性、並行処理、ABI、パッケージ互換性、プラグイン境界を変更する場合はRFCが必要です。リポジトリSkillの `$language-design-rfc` を使用するか、`docs/ja/rfcs/0000-template.md` から開始してください。

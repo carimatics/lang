@@ -1181,6 +1181,16 @@ Native rangeは複数moduleを含む元のsource IDとinstruction／terminator�
 
 Test専用の `codegen-clif::owned_abi_probe` は2つの継続で実native算術を実行し、不正継続での公開を検査し、Mach-O／COFF symbolを出力します。不活性なpayload bitを使う境界の実現性実験です。本番ownership lowering、limit計測／cleanup、service adapter、C境界、tier-1実行／performance、source step／logical backtraceはM2-N／F／Q／B／Gに残ります。試作やRFC受理ではG14を完了しません。
 
+### Native whole-ownerの境界
+
+進行中、2026-10-19 JST検証：`lang-codegen-clif::owned::CompiledFunction` は、選択したownership関数の検証済みfailure graphをnative制御flowと静的に結び付けたruntime primitiveへlowerします。`FunctionLayout` は完了済みproofのusageと共有layoutを合算し、型グラフを一度だけ計上して既存frame／返り値escrowの形を予約します。信頼された `Runtime` adapterは、そのsource／layout identityを受け取ってから引数をadmitします。生成関数はRFC 0012のprivate signatureを使い、未対応source operationをinvocation前に拒否します。最初の境界は直線的なwhole-owner move、初期化、cleanup、returnに対応します。Source guest-call dispatchとobject統合はN01、広いoperation対応はN02〜N05に残ります。
+
+[Bytes library fixture](../../examples/analysis/native_owned_boundary.lang) は、実allocator-backed Bytes、共有managed storage、既存cleanup ledgerを使い、実JIT codeで動きます。[境界test](../../tests/native_owned_boundary.rs) 5件で全fuel prefix、結果公開前の未使用owner cleanup、cleanup失敗によるpoison、poison後の再entry拒否、callback／panic payloadのpanic封じ込め、元source span、別layout拒否、累積compile budgetの厳密境界を検証します。Cleanup traceの容量はentry前に予約します。Native metadataは機械code範囲と元spanを保持し、DWARF／CodeViewと実debugger evidenceは別作業です。Fixtureのruntime callbackはVMのbody evaluatorを使いません。
+
+低レベルの `Runtime` interfaceは信頼されたembedding境界であり、汎用native CLI driverではありません。Adapterが準備済み引数、admission／control、型付きstorage、failure reportを所有します。既存reportを `Cause::Reported` で維持し、共有instanceのpoison状態を公開する必要があります。Callback panicはnative境界を恒久的にpoisonし、安全に破棄できない二次panic payloadを数えて隔離します。`cleanup::Frame::is_poisoned` でframeがinstanceを排他borrow中も基礎状態を観測できます。汎用native実行、複数frame conformance、native object／link／run、service、failure report全体の統合は未完了です。このcheckpointでN01やG14は完了しません。
+
+情報源：[RFC 0012](../rfcs/0012-native-ownership-continuations.md)、最終更新2026-10-18。[Native境界](../../crates/codegen-clif/src/owned.rs)、[cleanup状態の観測](../../crates/runtime/src/cleanup.rs)、上記fixture／testは2026-10-19 JST更新・検証。実行可能な境界のevidenceであり、runtime performance計測ではありません。
+
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。

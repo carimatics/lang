@@ -17,6 +17,7 @@ use lang_runtime::HostFunctionRegistry;
 pub use target_lexicon::Triple;
 
 mod debug;
+pub mod owned;
 pub mod program;
 pub mod unit;
 

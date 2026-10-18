@@ -333,6 +333,10 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
     pub fn report(&self) -> &Report {
         &self.report
     }
+    /// Observe the shared instance while its exclusive frame borrow is live.
+    pub const fn is_poisoned(&self) -> bool {
+        self.instance.poisoned
+    }
     pub fn value(&self, slot: Slot) -> Result<&T, StateError> {
         self.declared(slot)?
             .payload

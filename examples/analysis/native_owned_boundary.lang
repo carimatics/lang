@@ -1,0 +1,8 @@
+// Check: cargo run -- check examples/analysis/native_owned_boundary.lang
+// Execute natively: cargo test --test native_owned_boundary
+// The embedding test supplies a live Bytes owner and receives it after cleanup.
+// This library fixture has no script entry; general native execution is pending.
+fn forward(value: core::Bytes) -> core::Bytes {
+    let mut moved: core::Bytes = value;
+    return moved;
+}
