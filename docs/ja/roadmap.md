@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み70件 · 進行中0件 · 残り33件（暫定82 pt）。**
+**検証済み71件 · 進行中0件 · 残り32件（暫定79 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから44件の成果を検証しました。C08（`cb698d9`）で元initializer spanを保持する上限付きread-only入れ子Vec／Map走査を実装し、独立内容／span oracle、全work prefix、1万要素／2 cursor cell、128 KiB stack／513段shape、改ざん／stale／loan／上限を検証しました。Source循環probeは解析を通り、実行はeffect前に拒否したままです。全体81 suite・1276 testとfmt／Clippy／docが成功し、C07実験で前提2行を明示した79 → 85 ptからC08完了で **85 → 82 pt**、done 70行、計103行です。次はC09の反復cross-service retirement、続いてC07のgraph／brand admissionと入れ子source実行を必須とします。Native、provisional-read／preview、artifactを含む従来gateを維持します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから45件の成果を検証しました。C09（`559b176`）で入れ子Vec／Map／sharedを反復drainし、最後のreadとarena teardownを接続しました。Integration 7 testとstorage境界のcustody fixture 1件で順序／span／失敗／poison／上限／完全解放を検証し、全体82 suite・1284 testとfmt／Clippy／docが成功しました。**残り82 → 79 pt**、done 71行、計103行です。C08／C09の2前提後はC07でproduction graph／brand検査とVM drainを接続し、保存した期待値23の循環probeと入れ子source fixture全体を実行します。Storageだけのshared→container fixtureをsourceやgraph publicationの証明にはせず、別foundationより先にsource実行を必須とします。Native、provisional-read／preview、artifactを含む従来gateを維持します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
