@@ -1175,6 +1175,12 @@ Native ranges preserve original source IDs and byte spans for every emitted inst
 
 Sources: accepted [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md), MIR layout/verifier and native implementation/tests, all updated/verified 2026-10-17 JST. Locked Cranelift 0.136.3 installed source supplies stack-slot, memory-flag, module, and executable-release APIs; no publication/update date is stated in those source files, verified 2026-10-17 JST. Cell layout and capacity limits here are project implementation choices.
 
+### Native ownership call decision
+
+Accepted 2026-10-18: [RFC 0012](rfcs/0012-native-ownership-continuations.md) preserves the two-pointer/i32-status machine convention for ownership units, using context/frame/continuation packets and a bounded driver that dispatches compiled addresses. Managed payloads, initialization/retirement metadata, loans and return escrow remain in prepared runtime frames. Generated code performs scalar operations and control flow; runtime helpers supply bounded typed storage/service operations. Logical recursion does not grow the native guest call stack. The Copy native profile remains unchanged.
+
+The test-only `codegen-clif::owned_abi_probe` executes actual native arithmetic across two continuations, checks invalid-continuation publication, and emits Mach-O/COFF symbols. It uses inert payload bits and proves only boundary feasibility. Production ownership lowering, instrumented limits/cleanup, service adapters, C boundaries, tier-1 execution/performance and source stepping/logical backtraces remain M2-N/F/Q/B/G work; neither the prototype nor RFC acceptance closes G14.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.

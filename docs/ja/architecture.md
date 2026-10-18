@@ -1175,6 +1175,12 @@ Native rangeは複数moduleを含む元のsource IDとinstruction／terminator�
 
 情報源：受理済み[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)、MIR layout／verifier、native実装／testはすべて2026-10-17 JST更新／確認。Lock済みCranelift 0.136.3のinstall済みsourceでstack-slot、memory-flag、module、実行memory解放APIを確認しました。各source fileに公開／更新日の明記はなく、確認日は2026-10-17 JSTです。Cell layoutとcapacity limitはprojectの実装判断です。
 
+### Native ownership callの決定
+
+2026-10-18受理：[RFC 0012](../rfcs/0012-native-ownership-continuations.md) はownership unitにも2 pointer／i32 statusのmachine conventionを維持し、context／frame／continuation packetとcompiled addressをdispatchする上限付きdriverを使います。Managed payload、初期化／retirement metadata、loan、返り値escrowは予約済みruntime frameに保持します。生成codeがscalar operationと制御flowを実行し、runtime helperが上限付きの型付きstorage／service操作を担います。Logical再帰でnative guest call stackは増えません。Copy native profileは変更しません。
+
+Test専用の `codegen-clif::owned_abi_probe` は2つの継続で実native算術を実行し、不正継続での公開を検査し、Mach-O／COFF symbolを出力します。不活性なpayload bitを使う境界の実現性実験です。本番ownership lowering、limit計測／cleanup、service adapter、C境界、tier-1実行／performance、source step／logical backtraceはM2-N／F／Q／B／Gに残ります。試作やRFC受理ではG14を完了しません。
+
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。

@@ -54,6 +54,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0009: Whole Option/Result ownership extraction (accepted)](docs/rfcs/0009-whole-sum-ownership-extraction.md)
 - [RFC 0010: Owned REPL result previews (accepted; current-profile REPL implemented)](docs/rfcs/0010-owned-repl-previews.md)
 - [RFC 0011: Portable ownership artifacts (implemented)](docs/rfcs/0011-ownership-artifacts.md)
+- [RFC 0012: Native ownership continuations and managed frames (accepted)](docs/rfcs/0012-native-ownership-continuations.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

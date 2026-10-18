@@ -20,6 +20,9 @@ mod debug;
 pub mod program;
 pub mod unit;
 
+#[cfg(all(test, target_pointer_width = "64"))]
+mod owned_abi_probe;
+
 pub struct CompiledFunction {
     _module: OwnedJitModule,
     code: *const u8,
