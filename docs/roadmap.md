@@ -8,7 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**88 verified deliveries · 0 in progress · 23 remaining tasks (provisional 54 pt).**
+**89 verified deliveries · 0 in progress · 23 remaining tasks (provisional 53 pt).**
+
+N16 delivery/allocation audit (2026-10-19 JST): preserve former N05 total 3 as N16 meter/guards (**initial 1 pt**, now done, `06c8e1d`) plus N05 full service wiring/conformance (**2 pt provisional**). **111 → 112 rows**, no estimate added (**60 pt unchanged**), delivery **54 → 53 pt**. The shared API admits exact/atomic batches and retains numeric failure through cleanup; VM entry/preview/native reject finite incomplete profiles before provider effects. RFC 0013 events, driver/report migration and all VM/native service obligations remain N05.
 
 N15 decision audit (2026-10-19 JST): [RFC 0013](rfcs/0013-service-byte-work-budget.md) is accepted under experimental delegation (`0a38beb`), with shared cumulative events, structured refusal, batched known dependent costs, mandatory cleanup exemption and compatibility rules. The 20 passing Map tests establish local feasibility only; global implementation/conformance remains N05 at 3 pt. N15's **initial 1 pt** is added and retired in this update: **110 → 111 rows**, **54 + 1 − 1 = 54 pt**, net additions **59 → 60 pt**, estimates retired **139 → 140 pt**. No original outcome is removed.
 
@@ -22,7 +24,7 @@ N03 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** befor
 
 N12 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** before native element-view integration, **59 → 61 remaining pt**, net additions **49 → 51 pt**. N12 delivery retires its last 3 points: **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 in addition to N02/N11/V08 before full accepted service/payload, ordered-exit and configured byte-work admission conformance. No requirement was removed.
 
-Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N15 is done (`0a38beb`; RFC 0013 accepted; 20 existing Map tests and three document consistency tests pass). **87 → 88 done**, **110 → 111 tasks**. Next is N05's shared meter implementation and finite-budget conformance across all services/payloads; runtime functionality is not implemented yet. The preceding code baseline is 1380 tests / 85 suites and fmt/Clippy/doc pass. Preserve all native/FFI/platform/performance/debug obligations and the final bilingual guide.
+Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N16 is done (`06c8e1d`; shared meter, batch/overflow boundaries, numeric failure/cleanup and finite-budget rejection for incomplete profiles; 1385 tests / 85 suites and fmt/Clippy/doc pass). **88 → 89 done**, **111 → 112 tasks**; allocating former N05 total 3 as 1 + 2 gives **54 → 53 pt** after delivery. Next is N05's full service event wiring, driver/report migration and finite-budget conformance. Preserve all native/FFI/platform/performance/debug obligations and the final bilingual guide.
 
 The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 

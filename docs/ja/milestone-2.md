@@ -6,9 +6,11 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**88 done · 0 doing · 23 todo · 54 remaining pt**
+**89 done · 0 doing · 23 todo · 53 remaining pt**
 
-**次: M2-N05 → RFC 0013の共通meterを実装し、全service／payloadの有限予算を検証する。**
+**次: M2-N05 → RFC 0013のservice eventを接続し、driver／report移行と全payloadの有限予算を検証する。**
+
+N16完了／配分監査（2026-10-19 JST）：旧N05合計3点をN16のmeter／guard（**初期見積もり1点**、完了、`06c8e1d`）と、N05の全service接続／conformance（**暫定2点**）に配分します。**111 → 112行**、見積もり追加なし（追加分合計 **60点は不変**）、完了で **54 → 53 pt** です。共通APIで厳密／atomicなbatch課金とcleanup後のfailure数値を検証し、VM entry／preview／nativeで未完profileの有限予算をprovider effect前に拒否します。RFC 0013全event、driver／report移行、全VM／native service検証はN05に残します。
 
 N15決定監査（2026-10-19 JST）：[RFC 0013](rfcs/0013-service-byte-work-budget.md) を実験段階の委任でacceptedとしました（`0a38beb`）。共通の累積event、構造化拒否、既知の依存costの一括確保、必須cleanupの課金免除、互換性規則を定義します。Map 20 testの成功は局所的な実現性の裏付けで、global実装／conformanceはN05の3点に維持します。N15の **初期見積もり1点** を同じ更新で追加・完了し、**110 → 111行**、**54 + 1 − 1 = 54 pt**、追加分合計 **59 → 60 pt**、完了分 **139 → 140 pt** です。元の要件は削除しません。
 
@@ -22,23 +24,23 @@ N03見積もり・依存関係監査（2026-10-19 JST）：keyの借用・消費
 
 N12見積もり・依存関係監査（2026-10-19 JST）：当初のnative参照先はframe cellとallocator権限だけでした。Vector-backed projection／変更／置換と入れ子cleanupの接続が必要なため、実装前にN12を **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。初回sourceはVMで9、nativeでUnsupportedとなり、現在はnativeでも成功します。最後の見積もり3点を完了し **61 → 58点**、108行は不変です。N05にはN02／N11／V08に加えN12／N03／N04の依存を明示し、受理済みservice／payloadの全組合せ、順序付きexit、設定可能なbyte-work admissionを維持します。
 
-**直近の完了 — N15**（`0a38beb`、2026-10-19 JST）：RFC 0013を英日でacceptedとし、課金単位、入力非消費の拒否、provider prefix、grow／copyの一括確保、failure数値／span、cleanup、Rust／reportの互換性を定義しました。Mapの実装20 test（0.06秒）と文書整合性3 testが成功しました。実行時のmeter接続は未実装で、N05に維持します。直前のcode baselineは1380 test／85 suite、fmt／Clippy／doc成功です。
+**直近の完了 — N16**（`06c8e1d`、2026-10-19 JST）：Controlのservice-work設定、Usage counter、checkedなatomic batch、数値付き動的failureと共通変換を実装しました。Runtime 4 testで厳密／overflow／batchの拒否、polling／fuel不変、mandatory cleanup後のprimary数値とsecondaryを確認します。Entry／preview／nativeの有限予算0／1／u64::MAXは、service未接続の間はprovider effect・usageなしで拒否します。全 **85 suite・1385 test**、fmt／Clippy／doc成功。Service event接続はN05のままです。
 
-N14検証時間：制御の重点regression 6件で3.37秒、all-feature native suite 51 test／11.14秒、全体suiteのCargo compile 39.10秒・test内の報告時間合計88.19秒・ログ作成から最終書込まで505.93秒、最後に成功したClippy実行1.34秒、doc 18.63秒です。これらは実作業時間の計測値ではありません。
+N16検証時間：runtime重点4 testは報告値0.00秒、profile拒否の重点1 testは0.15秒、all-feature native suite 52 test／11.25秒。全体suiteのCargo compile 61秒、test報告時間合計88.29秒、ログ作成から最終書込まで752.13秒。Clippy 68秒、doc 28.71秒です。検証区間は実作業時間の計測値ではありません。
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 88件（+53件）**、作業一覧は **87 → 111件（+24件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 89件（+54件）**、作業一覧は **87 → 112件（+25件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +60 pt | −140 pt | 54 pt |
+| 134 pt | +60 pt | −141 pt | 53 pt |
 
-**134 + 60 − 140 = 54 pt**
+**134 + 60 − 141 = 53 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり140点分を取り除く一方、前提作業の可視化と再見積もりで60点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り54点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり141点分を取り除く一方、前提作業の可視化と再見積もりで60点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り53点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-N13／N14の **初期見積もり各3点** とN15の **初期見積もり1点** を保持します。N15の追加と完了は同じ更新なので、**54 + 1 − 1 = 54 pt** です。追加分合計は **60点**、完了で取り除いた見積もりは **140点** です。以前のN03／N12の1 → 3点監査、N11／N09の初期見積もり各1点も保持します。元の要件は削除していません。
+N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **60点**、完了で取り除いた見積もりは **141点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
 直近code baselineの実測（2026-10-19 JST）：workspace Clippy **28.3秒**、全test **362.5秒**、rustdoc **14.2秒** の実時間（shell time）。Cargo報告のtest compileは **24.4秒**、suite時間合計は **87.2秒** です。Native境界suiteは **40 test・10.77秒** で成功し、service失敗matrixはcompile済みcodeを再利用してruntimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
 
@@ -215,7 +217,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N04 | done | 0 | M2-N13,M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Native arenaの字句ownerと操作を接続し、collection／call projection越しのread custodyと入れ子brand検査を維持。 | `ea15b05` |
 | M2-N14 | done | 0 | M2-N04,M2-N13,M2-N02,M2-N11,M2-N12,M2-N03,M2-V08 | G06,G14 | Nativeの実行上限・割込み・deadline・usageと所有値の失敗cleanupがVMの制御契約に一致。 | `a40e6eb` |
 | M2-N15 | done | 0 | M2-N14 | G06,G14 | Service byte-workの課金・失敗・所有権・互換性をRFCで決定し、実現性を確認。 | `0a38beb` |
-| M2-N05 | todo | 3 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15 | G06,G14 | 設定可能なservice byte-work admissionを含め、受理済みservice／payloadの組合せ全体でnativeの生成failure／return exitをVMのcleanup順序とfuel behaviorに一致させる。 | — |
+| M2-N16 | done | 0 | M2-N15,M2-N14 | G06,G14 | 共通service-workのcounter・batch課金・構造化failure・未対応profileの事前拒否を実装。 | `06c8e1d` |
+| M2-N05 | todo | 2 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16 | G06,G14 | 設定可能なservice byte-work admissionを含め、受理済みservice／payloadの組合せ全体でnativeの生成failure／return exitをVMのcleanup順序とfuel behaviorに一致させる。 | — |
 | M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | — |
 | M2-N07 | todo | 2 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |

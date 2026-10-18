@@ -6,9 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**88 done · 0 doing · 23 todo · 54 remaining pt**
+**89 done · 0 doing · 23 todo · 53 remaining pt**
 
-**Next: M2-N05 → implement RFC 0013 shared metering and verify finite budgets across all services/payloads.**
+**Next: M2-N05 → wire RFC 0013 service events, migrate drivers/reports and verify finite budgets across all payloads.**
+
+N16 delivery/allocation audit (2026-10-19 JST): preserve former N05 total 3 as N16 meter/guards (**initial 1 pt**, now done, `06c8e1d`) plus N05 full service wiring/conformance (**2 pt provisional**). **111 → 112 rows**, no estimate added (**60 pt unchanged**), delivery **54 → 53 pt**. The shared API admits exact/atomic batches and retains numeric failure through cleanup; VM entry/preview/native reject finite incomplete profiles before provider effects. RFC 0013 events, driver/report migration and all VM/native service obligations remain N05.
 
 N15 decision audit (2026-10-19 JST): [RFC 0013](rfcs/0013-service-byte-work-budget.md) is accepted under experimental delegation (`0a38beb`), with shared cumulative events, structured refusal, batched known dependent costs, mandatory cleanup exemption and compatibility rules. The 20 passing Map tests establish local feasibility only; global implementation/conformance remains N05 at 3 pt. N15's **initial 1 pt** is added and retired in this update: **110 → 111 rows**, **54 + 1 − 1 = 54 pt**, net additions **59 → 60 pt**, estimates retired **139 → 140 pt**. No original outcome is removed.
 
@@ -22,23 +24,23 @@ N03 estimate/dependency audit (2026-10-19 JST): borrowed/consumed keys, displace
 
 N12 estimate/dependency audit (2026-10-19 JST): initial native targets covered frame cells and allocator authority. Vector-backed projections/mutation/replacement and nested cleanup required re-estimating N12 **1 → 3 pt before implementation**: **59 → 61 pt**, net additions **49 → 51 pt**. The initial source returned VM 9 and native Unsupported; it now passes natively. N12 completes its last 3-point estimate, **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 as well as N02/N11/V08, preserving all accepted service/payload combinations, ordered exits and configured byte-work admission.
 
-**Latest delivery — N15** (`0a38beb`, 2026-10-19 JST): bilingual RFC 0013 is accepted, defining event units, non-consuming refusal, provider prefixes, batched growth/copy costs, numeric failure/span, cleanup and Rust/report compatibility. Existing Map implementation tests pass (20 / 0.06 s), as do three document consistency tests. Runtime meter integration is not implemented; N05 retains it. The preceding code baseline remains 1380 tests / 85 suites and fmt/Clippy/doc pass.
+**Latest delivery — N16** (`06c8e1d`, 2026-10-19 JST): shared Control configuration, Usage counter, checked atomic batches, structured numeric failure and common conversion are implemented. Four runtime tests cover exact/overflow/batch refusal, unchanged polling/fuel and primary numeric details through mandatory cleanup/secondaries. Entry/preview/native finite limits 0/1/u64::MAX reject with no provider effects or usage while services remain unmetered. All **85 suites / 1385 tests**, fmt, Clippy and docs pass. Service event wiring remains N05.
 
-N14 validation observations: six focused control regressions 3.37 s; all-feature native suite 51 tests / 11.14 s; full-suite Cargo compilation 39.10 s, summed test-reported time 88.19 s, log creation-to-last-write interval 505.93 s; final successful Clippy run 1.34 s; docs 18.63 s. These observations do not measure active work time.
+N16 validation observations: four focused runtime tests report 0.00 s; profile preflight test 0.15 s; all-feature native suite 52 tests / 11.25 s. Full-suite Cargo compilation 61 s, summed test-reported time 88.29 s, log creation-to-last-write interval 752.13 s; Clippy 68 s; docs 28.71 s. Validation intervals do not measure active work time.
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 88 (+53)**, and the task inventory increased **87 → 111 (+24)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 89 (+54)**, and the task inventory increased **87 → 112 (+25)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +60 pt | −140 pt | 54 pt |
+| 134 pt | +60 pt | −141 pt | 53 pt |
 
-**134 + 60 − 140 = 54 pt**
+**134 + 60 − 141 = 53 pt**
 
-This separates delivered work from newly recognized work: completion retired 140 estimated points, while exposed prerequisites and re-estimation added 60. These are planning units, not hours or measured actual effort. The remaining 54 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 141 estimated points, while exposed prerequisites and re-estimation added 60. These are planning units, not hours or measured actual effort. The remaining 53 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-Preserve N13/N14's **initial 3-point estimates** and N15's **initial 1-point estimate**. N15's addition and delivery share this update: **54 + 1 − 1 = 54 pt**. Net additions are **60 pt** and estimates retired at completion are **140 pt**. Preserve the earlier N03/N12 1 → 3 audits and N11/N09 initial 1-point estimates. No original requirement was removed.
+Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions remain **60 pt** and estimates retired at completion are **141 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
 Measured last code baseline (2026-10-19 JST): workspace Clippy **28.3 s**, full tests **362.5 s**, rustdoc **14.2 s** wall time (shell time). Cargo reports test compilation **24.4 s**; summed suite timings are **87.2 s**. The native boundary suite passes **40 tests in 10.77 s**; service failure matrices reuse compiled code with fresh runtimes. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
@@ -215,7 +217,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N04 | done | 0 | M2-N13,M2-N02,M2-N11,M2-N12,M2-N03,M2-C07,M2-R04,M2-R07 | G05,G14 | Bind native lexical arena owners/operations, preserving collection/call read custody and nested brand checks. | `ea15b05` |
 | M2-N14 | done | 0 | M2-N04,M2-N13,M2-N02,M2-N11,M2-N12,M2-N03,M2-V08 | G06,G14 | Native execution limits, interruption, deadlines, usage and owned failure cleanup match the VM control contract. | `a40e6eb` |
 | M2-N15 | done | 0 | M2-N14 | G06,G14 | Decide service byte-work charging, failure, ownership and compatibility in an RFC with feasibility evidence. | `0a38beb` |
-| M2-N05 | todo | 3 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior across accepted service/payload combinations, including configured service byte-work admission. | — |
+| M2-N16 | done | 0 | M2-N15,M2-N14 | G06,G14 | Shared service-work counter, atomic batch admission, structured failure and incomplete-profile preflight. | `06c8e1d` |
+| M2-N05 | todo | 2 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior across accepted service/payload combinations, including configured service byte-work admission. | — |
 | M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | — |
 | M2-N07 | todo | 2 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
