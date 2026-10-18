@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み69件 · 進行中1件 · 残り33件（暫定85 pt）。**
+**検証済み70件 · 進行中0件 · 残り33件（暫定82 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。直近C06（`fb13cfd`）はMapの全5種source操作とCLI 49／33を検証し、全体1264 test・80 suiteとfmt／Clippy／docが成功しました。C07着手実験（2026-10-18 JST）：Vec<shared Node>越しの循環を作るsourceは全source／MIR検証を通り、実行はeffect前（fuel 0）にVecNew未対応として拒否します。Shared graph検査はactive Vec／Map tokenを拒否したままで、Vecだけにindex付きhost観測があり、Mapには列挙境界がなく、callback cleanupは借用中の同じheapへ再入できません。元initializer spanを保持する上限付きread-only推移的collection走査を **C08（3 pt）**、事前admission済み反復cross-service retirementを **C09（3 pt）** として明示します。両方の後にgraph／arena admissionと入れ子source cycle／escape／逆順drop／失敗fixture全体を実装する **C07（3 pt）** を残し、**残り79 → 85 pt**、2行追加（計103行）、**69 done／1 doing／33 todo** です。C08→C09後は前提作業の追加より先にC07 source実行を検証します。統合が実証されるまでclosed VM profileと既存gateを維持します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから44件の成果を検証しました。C08（`cb698d9`）で元initializer spanを保持する上限付きread-only入れ子Vec／Map走査を実装し、独立内容／span oracle、全work prefix、1万要素／2 cursor cell、128 KiB stack／513段shape、改ざん／stale／loan／上限を検証しました。Source循環probeは解析を通り、実行はeffect前に拒否したままです。全体81 suite・1276 testとfmt／Clippy／docが成功し、C07実験で前提2行を明示した79 → 85 ptからC08完了で **85 → 82 pt**、done 70行、計103行です。次はC09の反復cross-service retirement、続いてC07のgraph／brand admissionと入れ子source実行を必須とします。Native、provisional-read／preview、artifactを含む従来gateを維持します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
