@@ -964,6 +964,16 @@ Integration 9 testで、Text keyのMap／Vec／record入れ子fixtureを独立�
 
 情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[inspector](../../crates/runtime/src/inspection.rs)、[private read view](../../crates/runtime/src/layout/storage/observe.rs)、[runtime test](../../crates/runtime/tests/inspection.rs)、[source preflight test](../../tests/support/owned_nested.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。言語、ABI、serialized formatは変更しません。
 
+### Iterative cross-service retirement
+
+2026-10-18 JST実装・検証（C09）：`lang_runtime::retirement::Drain` は中断中のVec、Map、shared payloadのretirementを単一の深さ優先loopで調整します。Vec／Mapはchild tokenを返す前にaccessを無効化し、要素／entryの逆順と実field初期化順を保持し、全descendant完了までheaderとbacking storageを維持します。既存callback cleanup APIも同じ新cursorを使います。Shared heapはticketを消費し、heap操作終了後にchildを1件返します。継承したcustodian identityをcontainer越しに変えず渡します。Shared markerはcontainerと新shared child markerが完了してから再開します。最後のretained read終了も同じdrainを使います。Arena teardownはdetachした各payloadのtokenをdrainへ渡し、node全体の完了後に次の逆割当順nodeへ進めます。
+
+Host admissionでguestの最大live allocation数ごとにinline service frameを1枠確保し、allocator identityとheapの厳密なlayoutへpoolを結びます。各active service frameは完了まで異なるlive guest header／control blockを保持するため、妥当で一意な所有権の下では事前admission済みpoolが枯渇しません。保守的なmemory上限であり、性能計測ではありません。Cleanup中のhost pool拡張やguest retirement storage確保は不要です。Child tokenは元の共通cleanup contextを通り、元leaf spanを保存したparent fallbackより優先します。失敗／panicの優先とpoisonを維持し、上限付きreportが省略されても破棄を継続し、guest bodyは呼びません。Publicationには引き続きadapterによる別のownership／cycle／region証明が必要です。
+
+Integration 7 testでMap→Vec→shared payloadの順序／span、child失敗／panicとbody failure優先・poison後再入拒否、最後のread／weak失効、厳密host admissionと消費前の別allocator／layout拒否、span fallbackを伴うarena→Map→Vec teardown、128 KiB host stackで再帰value 513 node、shared descendant 260件のcleanup失敗とreport省略4件・完全解放を検証します。Cleanupでproviderへの新たな確保要求はありません。Shared-service unit fixture 1件で、最後のreadとleaf失敗の有無ごとにshared→Map→Vec→sharedの格納custodyを検証します。このfixtureは妥当と分かるgraphをstorage境界から設定してretirementを分離検証します。Generic graph publicationはC07に残し、productionの入れ子admissionを証明した扱いにはしません。C08／C09がC06後の2前提です。次は別の前提成果より先に、C07でgraph／brand検査、retirement、入れ子source操作を接続し、それまでVM profileを閉じたままにします。
+
+情報源：受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)（2026-10-18 JST更新）、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)（2026-10-17 JST更新）、[service drain](../../crates/runtime/src/retirement.rs)、[Vec cursor](../../crates/runtime/src/vector/retirement.rs)、[Map cursor](../../crates/runtime/src/map/retirement.rs)、[shared stepとcustody fixture](../../crates/runtime/src/shared/managed/retirement.rs)、[integration test](../../crates/runtime/tests/retirement.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。言語、ABI、serialized formatは変更しません。
+
 ### Async borrow／cancellation実験
 
 `crates/semantics` の実行可能modelはRFC 0005のstrict baselineと、未受理の制限を緩めたpolicyを比較します。

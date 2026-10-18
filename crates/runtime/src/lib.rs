@@ -8,6 +8,7 @@ pub mod component;
 pub mod inspection;
 pub mod layout;
 pub mod map;
+pub mod retirement;
 pub mod shared;
 pub mod vector;
 

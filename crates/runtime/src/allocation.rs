@@ -277,6 +277,9 @@ impl<P: Provider> Allocator<P> {
     pub const fn stats(&self) -> Stats {
         self.stats
     }
+    pub const fn limits(&self) -> Limits {
+        self.limits
+    }
     pub fn revoke(&mut self) -> Result<P, Error> {
         if self.stats.live_allocations != 0 {
             return Err(Error::InUse {

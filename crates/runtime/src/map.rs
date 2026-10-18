@@ -7,8 +7,10 @@ use std::fmt::{Display, Formatter};
 
 mod access;
 mod mutation;
+mod retirement;
 pub use access::{Borrowed, Loan};
 pub use mutation::Displaced;
+pub(crate) use retirement::Retired;
 #[cfg(test)]
 mod tests;
 
@@ -666,52 +668,19 @@ impl<'l, 't> Map<'l, 't> {
             &mut c::Context<'_>,
         ) -> Result<(), u32>,
     ) -> Result<(), Error> {
-        let h = self.inspect(allocator)?;
-        if h.active != 0 {
-            return Err(Error::BorrowConflict);
+        let mut retired = self.retire(allocator)?;
+        while let Some(token) = retired.next(allocator)? {
+            let span = token.leaf.span;
+            context.field(
+                token,
+                span,
+                &mut c::Contextual::new(
+                    |token: &mut l::Token, reason, context: &mut c::Context<'_>| {
+                        cleaner(token, allocator, reason, context)
+                    },
+                ),
+            );
         }
-        put(allocator.bytes_mut(self.owner.unwrap())?, 0, MAGIC + 1);
-        let mut index = h.tail;
-        for remaining in (0..h.len).rev() {
-            if index >= h.len {
-                return Err(Error::State);
-            }
-            let at = self.record(h, index)?;
-            let previous = word(allocator.bytes(h.metadata.unwrap())?, at + 32)?;
-            put(allocator.bytes_mut(self.owner.unwrap())?, 32, remaining);
-            for (part, span_at) in [(Part::Value, at + 16), (Part::Key, at)] {
-                let span = read_span(allocator.bytes(h.metadata.unwrap())?, span_at)?;
-                let mut cell = self.element(h, index, part)?;
-                cell.begin_retirement(span, allocator)?;
-                while let Some(leaf) = cell.next_leaf(allocator)? {
-                    let offset = leaf.offset as usize;
-                    let token = l::Token {
-                        leaf,
-                        bytes: cell.data(allocator)?[offset..offset + 32]
-                            .try_into()
-                            .unwrap(),
-                    };
-                    context.field(
-                        token,
-                        leaf.span,
-                        &mut c::Contextual::new(
-                            |token: &mut l::Token, reason, context: &mut c::Context<'_>| {
-                                cleaner(token, allocator, reason, context)
-                            },
-                        ),
-                    );
-                    cell.complete_leaf()?;
-                }
-            }
-            index = previous;
-        }
-        if index != NONE {
-            return Err(Error::State);
-        }
-        for handle in [h.keys, h.values, h.metadata].into_iter().flatten() {
-            allocator.release(handle)?;
-        }
-        allocator.release(self.owner.take().unwrap())?;
         Ok(())
     }
 }

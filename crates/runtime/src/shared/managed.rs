@@ -213,6 +213,9 @@ pub struct Heap<'l, 't> {
     usage: m::Usage,
 }
 impl<'l, 't> Heap<'l, 't> {
+    pub(crate) fn uses_layouts(&self, layouts: &l::Layouts<'_>) -> bool {
+        std::ptr::eq(self.layouts, layouts)
+    }
     /// Exact fixed-pool admission without allocating trial wrapper vectors.
     pub fn preparation_usage(
         layouts: &'l l::Layouts<'t>,

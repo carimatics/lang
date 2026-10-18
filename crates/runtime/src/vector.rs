@@ -7,7 +7,9 @@ use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 
 mod access;
+mod retirement;
 pub use access::{Borrowed, Limits, Loan};
+pub(crate) use retirement::Retired;
 
 const HEADER: u64 = 128;
 const LOAN_ENTRY: u64 = 24;
@@ -498,64 +500,19 @@ impl<'l, 't> Vector<'l, 't> {
             &mut c::Context<'_>,
         ) -> Result<(), u32>,
     ) -> Result<(), Error> {
-        let h = self.inspect(allocator)?;
-        if h.active != 0 {
-            return Err(Error::BorrowConflict);
+        let mut retired = self.retire(allocator)?;
+        while let Some(token) = retired.next(allocator)? {
+            let span = token.leaf.span;
+            context.field(
+                token,
+                span,
+                &mut c::Contextual::new(
+                    |token: &mut l::Token, reason, context: &mut c::Context<'_>| {
+                        cleaner(token, allocator, reason, context)
+                    },
+                ),
+            );
         }
-        put(allocator.bytes_mut(self.header.unwrap())?, 0, RETIRING);
-        let mut index = h.tail;
-        for remaining in (0..h.len).rev() {
-            if index >= h.len {
-                return Err(Error::State);
-            }
-            let p = plan(self.layout(), h.capacity)?;
-            let offset = (mul(index, p.metadata_stride)? + self.layout().metadata_bytes) as usize;
-            let previous = word(allocator.bytes(h.metadata.unwrap())?, offset + 16)?;
-            let bytes = &allocator.bytes(h.metadata.unwrap())?[offset..offset + 16];
-            let get = |at| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
-            let span = match get(12) {
-                0 => None,
-                1 => Some(m::Span {
-                    source: m::SourceId(get(0)),
-                    start: get(4),
-                    end: get(8),
-                }),
-                _ => return Err(Error::State),
-            };
-            let mut value = self.element(h, index)?;
-            value.begin_retirement(span, allocator)?;
-            put(allocator.bytes_mut(self.header.unwrap())?, 16, remaining);
-            while let Some(leaf) = value.next_leaf(allocator)? {
-                let offset = leaf.offset as usize;
-                let token = l::Token {
-                    leaf,
-                    bytes: value.data(allocator)?[offset..offset + 32]
-                        .try_into()
-                        .unwrap(),
-                };
-                context.field(
-                    token,
-                    leaf.span,
-                    &mut c::Contextual::new(
-                        |token: &mut l::Token, reason, context: &mut c::Context<'_>| {
-                            cleaner(token, allocator, reason, context)
-                        },
-                    ),
-                );
-                value.complete_leaf()?;
-            }
-            index = previous;
-        }
-        if index != NONE {
-            return Err(Error::State);
-        }
-        if let Some(h) = h.data {
-            allocator.release(h)?;
-        }
-        if let Some(h) = h.metadata {
-            allocator.release(h)?;
-        }
-        allocator.release(self.header.take().unwrap())?;
         Ok(())
     }
 }
