@@ -6,13 +6,13 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**55 done · 0 doing · 45 todo · 115 remaining pt**
+**56 done · 0 doing · 44 todo · 112 remaining pt**
 
-**次: M2-R10 → caller projection、正常return時mutation、transient storeの再帰summaryを導出し、適用後に未完了関数を再検証する。**
+**次: M2-R01 → failure／実行admission前に独立region／call proofを必須化し、構造化診断と不正入力／resource／fuzz conformanceを検証する。**
 
-直近の完了：**M2-R09**（`ee5b12e`）。HIR factsなしで有限product／sum／reference／container値、捕捉destination、storage scope、CFG join／backedgeを通じてarena／caller brandを転送します。Arena終了で古い値とstorageを失効させ、同じstatic ownerの再生成で復活させません。Local転送は偽造token、捕捉store、joinのprobeを拒否します。Region関連callを持つ関数は未完了effectを明示して最終診断を保留し、妥当なcaller mutationの回帰testで変更前の古い状態によるsource拒否を防ぎます。追加8件でsource由来region testは11件、全体baselineの **73 suite・1077 test** とfmt／Clippy／doc／上限付きfuzz compile checkが成功しました。R09完了で **残り118 → 115 pt**、done 55行、計100行です。Arena fixtureのCLI `check` は成功しますが、`run` はfuel 0／host calls 0のadmissionで停止します。Call proofと必須admissionはR10／R01、allocation、実行、allocator reborrow修正はR05／R06／R07へ残し、元の成果とexit gateは維持します。
+直近の完了：**M2-R10**（`28f2080`）。MIRだけから精密なcaller input projection、正常return時の変更、全transient store要件を導出し、return前に上書きされたstoreも保持します。会計するfixed-point roundで相互／非return再帰を扱い、全guest callのreturn制御を解析します。Outputとdestinationを1つのcall前snapshotから解決し、field／caseの精度、同時更新、確定clearを維持します。追加13件のsource由来testで偽造escape、Vec／Map／provisional binding、入れ子reference、厳密limit、操作／call／store spanを検証しました。全体baselineの **74 suite・1090 test** とfmt／Clippy／doc／上限付きfuzz compile checkが成功しました。R10完了で **残り115 → 112 pt**、done 56行、計100行です。完全解析は偽造callerを拒否しますが、既存 `failure::elaborate` はまだ通るため、R01でproofを必須化する必要があります。Arena allocation／実行／reborrowはR05／R06／R07、元のexit gateも維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **28.6秒**、最終全test **347.1秒**（log作成から最終書き込みまで）、rustdoc **20.1秒**、fuzz Clippy **0.8秒**、すべて成功です。全baselineは2回実行し、初回1076 test（**318.1秒**）の後、レビューで見つかったpending mutationの回帰test／診断保留修正を加えて最終実行しました。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **31.3秒**、全test **323.7秒**（log作成から最終書き込みまで）、rustdoc **21.6秒**、fuzz Clippy **1.3秒**、すべて成功です。Focused check後の全baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。後続indirect previewはV17、provisional core readはV13へ残します。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
@@ -132,7 +132,7 @@ R08／R09後のsource経路再点検（2026-10-18 JST）：[arena fixture](../..
 | --- | --- | ---: | --- | --- | --- | --- |
 | M2-R08 | done | 0 | M2-D24 | G05 | 通算budget下で有限region type／slot／projection topology、arena-owner identity、region関連call境界をadmit。再帰shape edgeを展開せず保持し、region proofは行わない。 | `24fb835` |
 | M2-R09 | done | 0 | M2-R08 | G05 | Local MIR操作、core value、CFG join／loopでarena brand、reference／capture path、storage lifetimeを独立転送し、直接のcross-region／escapeを拒否。 | `ee5b12e` |
-| M2-R10 | todo | 3 | M2-R09 | G05 | Caller projection、正常return時mutation、全transient storeの再帰guest-call summaryをHIR factsなしで導出し、推移的／循環call escapeを拒否。 | — |
+| M2-R10 | done | 0 | M2-R09 | G05 | Caller projection、正常return時mutation、全transient storeの再帰guest-call summaryをHIR factsなしで導出し、推移的／循環call escapeを拒否。 | `28f2080` |
 | M2-R01 | todo | 2 | M2-D24,M2-R08,M2-R09,M2-R10 | G05 | Failure／実行admission前に独立MIR arena-brand／call-effect proofを必須化し、構造化span診断と偽造入力／resource／fuzz conformanceを維持。 | — |
 | M2-R02 | todo | 3 | M2-D02,M2-D33 | G06 | Shared storageをguest fallible allocationに接続し、payload／retirement全領域のpreflight／rollbackを会計。 | — |
 | M2-R03 | todo | 2 | M2-R02,M2-D34 | G06 | 本番shared／weak token adapterで所有権を検証し、test registryなしでpayload子孫をretire。 | — |
