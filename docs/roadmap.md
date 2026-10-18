@@ -8,7 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**86 verified deliveries · 0 in progress · 23 remaining tasks (provisional 54 pt).**
+**87 verified deliveries · 0 in progress · 23 remaining tasks (provisional 54 pt).**
+
+N05 split/N14 delivery audit (2026-10-19 JST): the readiness test found native peak cells 49 versus VM 57 for UTF-8, with loan registrations/return escrow missing, and differential failure tests exposed a function-wide primary span. N14 (**initial 3 pt**, now done) shares controls/usage, corrects both bugs and rejects unsupported prepared bounds before effects. Splitting former N05 total 3 into N14 control (3) plus retained N05 services (3) gives **109 → 110 rows**, **54 → 57 pt** before delivery, net additions **56 → 59 pt**. N14 retires 3: **57 → 54 pt**. N05 retains full ordered service/payload conformance and configured byte-work admission; its concrete service-work contract needs a documented design before implementation.
 
 N04 delivery audit (2026-10-19 JST): lexical arena owners, operations, collection/call read custody and nested brand inspection pass the native/VM fixtures. Scope remains 3 pt with no new tasks or added estimate: **57 → 54 pt**, **109 rows unchanged**. N05 retains full ordered failure/control and service/payload conformance, including configured byte-work admission.
 
@@ -18,7 +20,7 @@ N03 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** befor
 
 N12 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** before native element-view integration, **59 → 61 remaining pt**, net additions **49 → 51 pt**. N12 delivery retires its last 3 points: **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 in addition to N02/N11/V08 before full accepted service/payload, ordered-exit and configured byte-work admission conformance. No requirement was removed.
 
-Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N04 is done (`ea15b05`; lexical arena owners/operations, slot reopening, nested brands and collection/call reads match five VM fixtures; every fuel/provider prefix, cleanup poison and Mach-O/COFF metadata/budgets pass; 1374 tests / 85 suites and fmt/Clippy/doc pass). **85 → 86 done**, **109 tasks unchanged**. Next is N05's ordered failure-exit and configured byte-work admission experiment. Preserve every native/FFI/platform/performance/debug obligation and the final bilingual guide.
+Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N14 is done (`a40e6eb`; shared VM/native controls/usage, corrected loan/escrow cell accounting and failure spans; all fuel prefixes across five source families, frame/cell boundaries, provider interruption and unsupported-configuration preflight pass; 1380 tests / 85 suites and fmt/Clippy/doc pass). **86 → 87 done**, **109 → 110 tasks** after the split. Next is N05's service byte-work contract and full conformance. Preserve every native/FFI/platform/performance/debug obligation and the final bilingual guide.
 
 The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 
