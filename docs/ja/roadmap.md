@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み78件 · 進行中0件 · 残り26件（暫定63 pt）。**
+**検証済み79件 · 進行中0件 · 残り27件（暫定65 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N01は完了です。`0ff2618` で実sourceのBytes guest call／returnと失敗unwindがnative code／共有storageで動き、遷移を検証し、対応するMach-O／COFF objectとmetadataを出力します。全 **85 suite・1339 test** とfmt／Clippy／docが成功しました。**77 → 78件完了 · 66 → 63 remaining pt**、task総数104件は不変で、収支は **134 + 46 − 117 = 63 pt** です。次はN02の最小aggregate／loan source実験をVMと比較して実装scopeを確定します。完了78行（受入条件の数値が最後に動いてから52件）、元のnative／FFI／platform／performance／debug要件、最終英日guideは維持します。G14と元の完了条件の数値は変更しません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N09は完了です（`f199b19`）。Nativeのrecord構築とrecord全体のcallが入れ子field順を保持し、VMの実cleanupと一致しました。全 **85 suite・1341 test** とfmt／Clippy／docが成功しました。N02の3点をN09 1点、N10 2点、N02 3点に分割して追加3点を可視化し、N09完了で1点減らしました。**63 → 66 → 65 remaining pt**、**104 → 106 task**、**78 → 79 done**、収支は **134 + 49 − 118 = 65 pt** です。次はN10の最小scalar／sum source実験をVMと比較します。Native／FFI／platform／performance／debug全要件と最終英日guideを維持します。完了79行（受入条件の数値が最後に動いてから53件）によって元の完了条件は新たに閉じず、G14は未完了です。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
