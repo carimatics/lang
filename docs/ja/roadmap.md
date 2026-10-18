@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み49件 · 進行中0件 · 残り44件（暫定112 pt）。**
+**検証済み50件 · 進行中0件 · 残り47件（暫定122 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む23件の成果を検証しました。V09（`0311bd0`）でprepared root／field replacement、scalar loop、caller所有値の更新を実行でき、source fixtureは `3` を表示します。RHSのreference cell付け替え越しにcaptureを保持し、allocationなしのstorage交換を使ってold cleanup前に正しいfield順序／spanで公開します。不正storage／再試行、move済みroot、入れ子Text、全fuel／OOM prefix、公開後cleanup失敗を検証しました。着手前にC03／C06との依存cycleを分割し、V09を3 ptとし、service adapter後のprovisional-read VM／REPL conformanceをV13へ残しました。先に3 ptを追加し、V09の3 ptを完了したため、**残り112 → 115 → 112 pt**、doneは1行増、計93行です。次はV10のownership REPL実行です。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／provisional-read成果、G14／G16にはnative／cross-mode conformanceが残ります。新たなexit gateは完了扱いにしていません。1039 testとfmt／Clippy／docが成功し、検証時間の実測はTodoに記録しました。他owning serviceとownership artifactは各gateに残します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む24件の成果を検証しました。V10着手前にCopy専用の推論／session境界、i64専用owned VM entry、未規定のowning preview／lifetimeが判明しました。Code前にV14／V16／V15／V17を追加し、V10を再見積もりして **残り112 → 124 pt**、4行増、計97行です。V14（`b09cc46`）で委任に基づきRFC 0010を受理し、現在のprofileのcanonical preview、明示allocator authority、保護result消費、上限、failure優先順位を定めました。2 ptの設計判断完了後は **122 pt**、doneは1行増です。Source contractのcheckとconsistency 3 testが成功しました。Ownership REPL実行は未実装で、次はV16の実owned-result source preview、その後V15推論とV10 session／CLI統合です。Indirection previewはV17、provisional readはV13へ残します。G06にはR02〜R04／N05、G07にはN03、G08にはこれらのservice／REPL成果、G14／G16にはnative／cross-mode evidenceが必要です。新exit gateは完了扱いにしていません。直近code baselineの1039 testとfmt／Clippy／doc／fuzz check成功は維持し、文書のみの作業では再実行していません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

@@ -6,15 +6,15 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**49 done · 0 doing · 44 todo · 112 remaining pt**
+**50 done · 0 doing · 47 todo · 122 remaining pt**
 
-**次: M2-V10 → ownership REPL submissionの受け入れ・結果表示・失敗分離をrunと揃える。**
+**次: M2-V16 → 実際のowned-result source previewを上限付き出力とresult全retirement付きで実行する。**
 
-直近の完了：**M2-V09**（`0311bd0`）。[Prepared root／field replacement](../../examples/scripts/owned_replace.lang) がcaller fieldの更新とscalar loop代入を経て `3` を表示します。RHS effect越しに元の代入先を保持し、追加の移譲allocationなしでold cleanupより先に公開します。追加VM integration 8件、managed 2件、VM fault 2件、CLI 1件でCopy／owned／loan／Text、move済みroot再初期化、reference cell付け替え、field順序／span、拒否／再試行、全fuel／OOM prefix、公開後cleanup失敗を検証します。VM integration 60／managed 9／CLI 29 testが成功しています。全体の **71 suite・1039 test**、fmt／Clippy／doc、fuzz workspaceのfmt／全bin locked Clippyも成功しています。着手前の分割・再見積もりでV13と3 ptを追加し、V09の3 ptを完了したため、**残り112 → 115 → 112 pt**、doneは1行増、計93行です。Provisional core-readのVM／REPL conformanceはV13へ明示して残します。
+直近の完了：**M2-V14**（`b09cc46`）。実験的委任に基づいて[RFC 0010](rfcs/0010-owned-repl-previews.md)を受理し、現在のprofileのowned REPL preview構文、wrapper推論境界、明示allocator authority、保護result lifetime、上限rendering、failure優先順位を定めました。現状のREPL境界の失敗を再現し、[named-result source contract](../../examples/analysis/repl_preview.lang) の `lang check` とrepository consistency 3 testが成功しています。計画済み設計判断の完了であり、ownership REPL実装の完成ではありません。実装前の監査でV14／V16／V15／V17を明示し、V10を再見積もりして **残り112 → 124 pt**、V14の2 pt完了後は **122 pt**、doneは1行増、計97行です。V16で実owned-result sourceを実行してからcompiler基盤を増やします。直近code baselineの **71 suite・1039 test** とfmt／Clippy／doc／fuzz compile成功は維持し、この文書／source contract判断のためには再実行していません。
 
 直近code baselineの実測（2026-10-18 JST）：workspace Clippy **14.9秒**、全test **144.6秒**、rustdoc **12.9秒**、fuzz Clippy **2.1秒**、すべて成功です。Focused check後の全test baselineは1回です。Command所要時間であり、全稼働時間ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。次はV10のownership REPL実行で、service adapter後のprovisional core-read conformanceはV13へ残します。G06にはshared／weak統合のR02〜R04とnative failure loweringのN05、G07にはN03 native evidenceが残ります。G08には広いservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。REPLはまだCopy専用です。RFC 0010は受理済みですがV16／V15／V10の実行／推論／session統合が未完了で、後続indirect previewはV17、provisional core readはV13へ残します。G06にはR02〜R04／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -50,6 +50,8 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 V07着手前の監査（2026-10-18 JST）：[owned-call fixture](../../examples/scripts/owned_calls.lang) はsource解析が通りますが、実行はeffect前に `Call` を拒否します。現在の `FramePlan::reserve_after` は呼び出しごとに新しいhost wrapper vectorを確保し、最外guest entry前にhost poolを用意する既存実装contractを満たしません。V07前に再利用するwrapperのadmission／cancel用 **M2-V12（2 pt）** を追加します。**残り118 → 120 pt**、新規1行で **45 done／1 doing／46 todo** です。V07のowned／loan source call、再帰上限、return escrowは暫定3 ptで維持し、新たな前提はcode前に明示します。V11とV12で前提作業が2件続くため、その後は基盤を増やす前にV07のsource fixtureを実行する成果を必須にします。
 
 V09着手前の監査（2026-10-18 JST）：provisional core readには未完了のVec／Map／shared／arena source adapterが必要ですが、C03／C06は既にV09へ依存しており、従来の複合行に依存cycleが隠れていました。Prepared replacementをV09へ残し、不足しているallocationなしのroot／field storage交換と、old cleanup前のpublication adapterを含めて **2 → 3 pt** へ再見積もりします。Provisional-readの成功／未使用／失敗armとVM／REPLのloan conformanceは、C03／C06／R04／R06／V10後の **V13（2 pt）** へ移します。両成果を維持し、**残り112 → 115 pt**、1行追加（計93行）、**48 done／1 doing／44 todo** です。V09では基盤を増やす前に実際のsource replacement fixtureを実行する成果を必須にし、元のexit gateは維持します。
+
+V10着手前の監査（2026-10-18 JST）：pipeしたREPL実験で妥当なowning関数の定義が拒否され、その呼び出しがunknownになりました。後続のCopy式は `3` を表示します。`src/frontend.rs` はwrapper推論をCopy checkerへ固定し、`src/repl.rs` はitem commit前にownershipを拒否し、owned VM entryは引数なしi64 main専用です。RFC 0006にはCopy aggregate表示がありますが、RFC 0007／0008にはBytes／Textのpreview構文や表示後のresult retirementがありません。その判断を **V14（2 pt）**、上限付きmanaged-result preview／実行を **V16（3 pt）**、独立検証するownership式推論を **V15（3 pt）** として明示します。V10のsession／CLI／authority／error統合は **2 → 3 pt** へ再見積もりします。Bytes／TextをM2の全result familyと暗黙に扱わず、後続indirect-service resultのpreview設計／実装も実adapter後の **V17（3 pt）** へ明示します。**残り112 → 124 pt**、4行追加（計97行）、**49 done／1 doing／47 todo** です。順序はV14 → V16のsource実行 → V15 → V10とし、判断後はcompiler基盤を増やす前にowned-result fixtureを実行します。従来の成果とexit gateを維持し、この監査で新実装の完成は主張しません。
 
 ## 完了済み実装
 
@@ -113,7 +115,11 @@ V09着手前の監査（2026-10-18 JST）：provisional core readには未完了
 | M2-V08 | done | 0 | M2-V07,M2-D32 | G06 | Single／callの生成failure exitで、body／fuel／OOM／interruptionとcleanup error／panic注入時の入れ子drop順序／span、保護return、順序付き上限report、poison／再利用、全解放を検証。 | `a7af470` |
 | M2-V09 | done | 0 | M2-V04,M2-V06 | G07,G08 | Root／投影先置換でRHS effect越しに確定済みtargetを保持し、移譲用allocationなしでold cleanup前に公開。Caller所有権、field順序／span、失敗cleanup、再試行を維持。 | `0311bd0` |
 | M2-V13 | todo | 2 | M2-C03,M2-C06,M2-R04,M2-R06,M2-V10 | G08 | Provisional core readの成功／未使用／失敗armとloan終了をsource VM／REPL実行で検証。 | — |
-| M2-V10 | todo | 2 | M2-V08,M2-V09 | G08 | REPLのownership受け入れ／結果表示をrunに揃え、失敗を分離。 | — |
+| M2-V14 | done | 0 | M2-V08,M2-V09 | G08 | 委任でRFC 0010を受理。Owned REPL preview形式、result lifetime、明示allocator authority、上限出力、failure優先順位を決定しsource contractを検証。実装は未完了。 | `b09cc46` |
+| M2-V16 | todo | 3 | M2-V14,M2-V08,M2-V09 | G08 | Namedな引数なしowned resultを上限付きmanaged previewとresult全retirementで実行し、source fixtureと失敗根拠を示す。 | — |
+| M2-V15 | todo | 3 | M2-V14 | G08 | 生成ownership式wrapperの具体的resultを通常のHIR／MIR move／loan／region検証越しに推論し、user関数の推論は追加しない。 | — |
+| M2-V10 | todo | 3 | M2-V08,M2-V09,M2-V15,M2-V16 | G08 | REPL ownership item／式、明示allocator authority、元sourceへのfailure mapping、cleanupで分離したcanonical resultをscript実行意味論へ統合。 | — |
+| M2-V17 | todo | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-R04,M2-R06 | G08 | 明示follow-upを判断してindirect-service resultの上限付きpreviewを実装し、Map順序とshared／weak／arena access制約を維持。VM／REPL根拠を示す。 | — |
 | M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | 上限付きadmission済みsnapshotでCopy／affine CFG argumentを同時転送。Cycle／fan-out／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを検証。 | `1dcf260` |
 
 ## Shared、arena、collection
