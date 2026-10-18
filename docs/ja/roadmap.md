@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み51件 · 進行中0件 · 残り46件（暫定119 pt）。**
+**検証済み52件 · 進行中0件 · 残り45件（暫定116 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む25件の成果を検証しました。V16（`040c082`）ではnamedなsource Bytes／Text／入れ子resultを上限付きでpreviewし、result／storage全解放後にだけstringを返します。Source、runtime、cleanup fault testでcanonical出力、上限、解放、failure優先順位を検証し、全体baselineの71 suite・1051 testとfmt／Clippy／doc／fuzz compile checkが成功しました。既存3 pt行の完了で **残り122 → 119 pt**、doneが1行増え、計97行で、新たな前提taskはありません。次はV15 wrapper推論、その後V10 session／CLI統合です。REPLは引き続きCopy専用です。Indirect previewはV17、provisional readはV13へ残します。G06にはR02〜R04／N05、G07にはN03、G08にはservice／REPL成果、G14／G16にはnative／cross-mode evidenceが必要です。新exit gateは完了扱いにしていません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む26件の成果を検証しました。V15（`3ecef3b`）は検証済み生成ownership式wrapperを通常HIRと独立MIR検証越しに推論し、V16の全retirementを使ってBytes／Text／入れ子／core／scalar resultを実行します。追加5 source testでannotation、move／loan／region検証、wrapper受入条件、resource診断を維持し、全体baselineの71 suite・1056 testとfmt／Clippy／doc／fuzz compile checkが成功しました。旧Copy APIの診断順序の回帰を修正してから再実行で成功しています。既存3 pt行の完了で **残り119 → 116 pt**、doneが1行増え、計97行で、新たな前提taskはありません。次はV10で計画済みのsession dispatch、明示allocator authority、元sourceへのfailure mapping、CLI統合です。REPLは引き続きCopy専用です。Indirect previewはV17、provisional readはV13へ残します。G06にはR02〜R04／N05、G07にはN03、G08にはservice／REPL成果、G14／G16にはnative／cross-mode evidenceが必要です。新exit gateは完了扱いにしていません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
