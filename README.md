@@ -55,6 +55,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0010: Owned REPL result previews (accepted; current-profile REPL implemented)](docs/rfcs/0010-owned-repl-previews.md)
 - [RFC 0011: Portable ownership artifacts (implemented)](docs/rfcs/0011-ownership-artifacts.md)
 - [RFC 0012: Native ownership continuations and managed frames (accepted)](docs/rfcs/0012-native-ownership-continuations.md)
+- [RFC 0013: Service byte-work budget (accepted; implementation pending)](docs/rfcs/0013-service-byte-work-budget.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

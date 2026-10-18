@@ -1211,6 +1211,8 @@ The low-level `Runtime` interface is a trusted embedding boundary. Its adapter o
 
 Sources: [RFC 0012](rfcs/0012-native-ownership-continuations.md), last updated 2026-10-18; [native boundary](../crates/codegen-clif/src/owned.rs), [cleanup observation](../crates/runtime/src/cleanup.rs), fixture and tests above, updated/verified 2026-10-19 JST. This is executable boundary evidence, not a runtime performance measurement.
 
+Accepted 2026-10-19: [RFC 0013](rfcs/0013-service-byte-work-budget.md) specifies cumulative service-work admission shared by VM/native, structured exhaustion with numeric details, batched known copy/growth costs and unmetered mandatory cleanup. Implementation remains N05: current Control has no service-work setting. The existing 20 Map tests establish local admission feasibility, not global profile conformance. The RFC records cost events, Rust usage migration and versioned-report obligations; it does not change source syntax or instruction fuel. Source updated/verified 2026-10-19 JST.
+
 ## Diagnostics, LSP, and debugging
 
 Diagnostics are structured values containing stable codes, primary/secondary spans, notes, fix-its, and machine-readable fields.

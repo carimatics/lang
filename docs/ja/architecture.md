@@ -1211,6 +1211,8 @@ Record構築では、静的に準備したfield slot、sourceの初期化順、�
 
 情報源：[RFC 0012](../rfcs/0012-native-ownership-continuations.md)、最終更新2026-10-18。[Native境界](../../crates/codegen-clif/src/owned.rs)、[cleanup状態の観測](../../crates/runtime/src/cleanup.rs)、上記fixture／testは2026-10-19 JST更新・検証。実行可能な境界のevidenceであり、runtime performance計測ではありません。
 
+2026-10-19受理：[RFC 0013](../rfcs/0013-service-byte-work-budget.md) はVM／nativeで共有する累積service-work admission、数値付きの枯渇failure、既知のcopy／grow costの一括確保、必須cleanupの課金免除を定義します。実装はN05に残り、現在のControlにはservice-work設定がありません。既存Map 20 testは局所admissionの実現性を示し、global profileのconformanceは未検証です。RFCにevent、Rust usageの移行、version付きreportの要件を記録し、source構文や命令fuelは変更しません。情報源は2026-10-19 JST更新・検証。
+
 ## Diagnostics、LSP、debugging
 
 Diagnosticsは、stable code、primary／secondary span、note、fix-it、machine-readable fieldを持つstructured valueです。
