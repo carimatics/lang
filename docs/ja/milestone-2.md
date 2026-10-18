@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**63 done · 0 doing · 38 todo · 97 remaining pt**
+**64 done · 0 doing · 37 todo · 94 remaining pt**
 
-**次: M2-C01 → allocator-awareなVec storage／new／len／pushのgrowthと失敗時rollbackを実装する。**
+**次: M2-C02 → Vecの検証済みelement loan、pop／take、置換と正確に1回のretirementを実装する。**
 
-直近の完了：**M2-R04**（`830dc26`）。Sourceのshared／weak全7操作を型付きgraph serviceへ接続しました。`shared.lang` は **9**、`shared_owned.lang` はstrong cycle拒否と入れ子read loan越しのborrowed guest callを含め **13** を表示します。Source 14 testとfailure injection 4 testでweak失効、Copy再利用、alias競合、保護したreturn、再帰frame、全provider OOM／retryと全fuel prefix、中断、実descendant span、cleanup失敗／panicのcontainを検証しました。全体baselineの **78 suite・1175 test** とfmt／Clippy／docが成功しました。R02／R03後に必須としたsource fixtureを完了し、**残り100 → 97 pt**、done 63行、計101行です。Native、C07、artifactのgateは未完了です。
+直近の完了：**M2-C01**（`78a422a`）。Guest-backedな型付きVec storage、new／len／push、failure-atomicなgrowthを実装しました。実行可能なstorage fixtureでCopy値 **17個** をcapacity **32** まで追加し、owningな入れ子Option／record／Bytesでもinitializer spanと逆順cleanupを保持します。追加10 testでconstructor／growth OOMとretry、callback前の予算の厳密値／1不足、capacity再利用、token／layout provenance、要素境界、child失敗／panic後の継続を検証しました。全体baselineの **79 suite・1185 test** とfmt／Clippy／docが成功しました。C01の3 ptを完了し、**残り97 → 94 pt**、done 64行、計101行です。Vecの基盤2件のうち1件目であり、source Vec実行はC03に残します。Exit gateの完了は増やしません。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **23.2秒**、全test **255.9秒**（log作成から最終書き込みまで）、rustdoc **11.6秒**、すべて成功です。Source／shared cleanupのfocused検証とowned execution 96 test全体の後、全baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **20.0秒**、全test **252.4秒**（log作成から最終書き込みまで）、rustdoc **16.6秒**、すべて成功です。Vec matrixとshared／arena／valueの回帰5 suite（132 test）の後、全baselineは1回です。既存のownership source実行96 testも成功しています。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04でBytes／Text／inline payloadを持つ再帰shared／weak shapeに対応し、Vec／Map統合はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
-次の着手条件（2026-10-18 JST）：C01の前提D33／D34は完了しています。Runtimeにはguest allocation／layout serviceがありますがVec storage serviceはなく、最初のallocation／growth実験までC01は暫定3 ptを維持します。C02に要素read／take／replacement、C03にsource fixtureを残します。C01／C02の基盤2件後は、追加基盤作業の前にC03でsource Vec操作を実行し、新たな前提が必要なら実装前に明示します。受理済みの入れ子service scopeはC07に維持します。
+次の着手条件（2026-10-18 JST）：C02の前提C01は完了しています。Storageに上限付きelement viewと事前認可済みretirement scratchがありますが、guest loan登録とatomicなpop／exchange adapterは未実装です。最初のlive element loan／pop／replacement実験までC02は暫定3 ptを維持します。C01／C02の基盤2件後は、追加基盤作業の前にC03でsource Vec操作を実行し、新たな前提が必要なら実装前に明示します。受理済みの入れ子service scopeはC07、nativeとartifactも各gateに維持します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -144,7 +144,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-R05 | done | 0 | M2-D15,M2-D33 | G05,G06 | Arena payload allocationと子孫retirementにguest budgetと失敗rollbackを適用。 | `cb7a72b` |
 | M2-R06 | done | 0 | M2-R01,M2-R05,M2-V08 | G05 | Arena allocation／read／replace／region再enter（reset）／teardownをソースから実行し、stale referenceと逆順dropを検証。 | `e0f6bb4` |
 | M2-R07 | done | 0 | M2-R06,M2-V07 | G05 | Guest callを通じ、arena escape／call-brandのcompile-failとruntime結果を照合。 | `cecd6e8` |
-| M2-C01 | todo | 3 | M2-D33,M2-D34 | G09 | Vec storage／new／len／push growthをallocator-awareかつfailure-atomicに実装。 | — |
+| M2-C01 | done | 0 | M2-D33,M2-D34 | G09 | Vec storage／new／len／push growthをallocator-awareかつfailure-atomicに実装。 | `78a422a` |
 | M2-C02 | todo | 3 | M2-C01 | G09 | Vec read／mutable-read／take／replacementで移動／置換elementを正確に1回retire。 | — |
 | M2-C03 | todo | 3 | M2-C02,M2-V09 | G09 | Vecソース命令をmove／loan／growth／failure fixtureで実行。 | — |
 | M2-C04 | todo | 3 | M2-D35,M2-D34 | G10 | Map storage／lookupで受理済みの厳密key equalityとallocation budgetを実装。 | — |

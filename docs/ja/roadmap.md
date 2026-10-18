@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み63件 · 進行中0件 · 残り38件（暫定97 pt）。**
+**検証済み64件 · 進行中0件 · 残り37件（暫定94 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む37件の成果を検証しました。R04（`830dc26`）でsource shared／weak全7操作を実行し、scalar fixtureは9、owning graph fixtureはstrong cycle拒否とguest call越しの入れ子readを経て13を表示します。Source 14 testとcleanup injection 4 testで寿命／loan／return境界、全provider OOM／retryと全fuel prefix、中断、失敗／panic時の解放を検証し、全体baselineの78 suite・1175 testとfmt／Clippy／docが成功しました。R02／R03後に必須としたsource fixtureを完了し、**残り100 → 97 pt**、done 63行、計101行です。次はC01のguest-backed Vec storage／new／len／push growthで、前提D33／D34は完了し、最初のallocation／growth実験までは暫定3 ptを維持します。C02、C03と進め、追加基盤作業の前にsource Vec fixtureを実行します。C07はV13／V17とnative N04の前提として残し、受理済みの入れ子generic scopeを維持します。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む38件の成果を検証しました。C01（`78a422a`）でguest-backedな型付きVec storage／new／len／pushとfailure-atomicなgrowthを追加しました。FixtureはCopy値17個をcapacity 32まで追加し、入れ子owning値でもspanと逆順cleanupを保持します。追加10 testで全constructor／growth OOM／retry、callback前の予算の厳密値／1不足、capacity再利用、element／token／layout境界、child失敗／panic後の継続を検証しました。全体baselineの79 suite・1185 testとfmt／Clippy／docが成功し、**残り97 → 94 pt**、done 64行、計101行です。次は完了済みC01を前提とするC02の検証済みelement loan／pop／replacementで、最初の操作実験までは暫定3 ptを維持します。C01はVecの基盤2件のうち1件目であり、その後は追加基盤作業より先にC03でsource fixtureを実行します。C07はV13／V17とnative N04の前提として残し、受理済みの入れ子generic scopeを維持します。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
