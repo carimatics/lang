@@ -7,6 +7,9 @@ use lang_runtime::shared::{Payload, SharedHeap, Strong};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+#[path = "support/service_work.rs"]
+mod service_work;
+
 type Trace = Rc<RefCell<Vec<(u32, Reason)>>>;
 type Drops = Rc<RefCell<Vec<u32>>>;
 

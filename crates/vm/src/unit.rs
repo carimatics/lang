@@ -115,6 +115,15 @@ impl From<lang_runtime::execution::Failure> for Reason {
             lang_runtime::execution::Failure::FuelExhausted => Self::FuelExhausted,
             lang_runtime::execution::Failure::HostCallLimit => Self::HostCallLimit,
             lang_runtime::execution::Failure::CounterOverflow => Self::CounterOverflow,
+            lang_runtime::execution::Failure::ServiceWorkLimit {
+                limit,
+                used,
+                requested,
+            } => Self::ServiceWorkLimit {
+                limit,
+                used,
+                requested,
+            },
         }
     }
 }
@@ -142,6 +151,11 @@ pub enum Reason {
     FrameLimit,
     LiveCellLimit,
     CounterOverflow,
+    ServiceWorkLimit {
+        limit: u64,
+        used: u64,
+        requested: u64,
+    },
     AllocationFailed,
     InvalidVariantProjection {
         expected: u32,

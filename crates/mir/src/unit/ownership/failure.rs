@@ -15,6 +15,11 @@ pub enum ExecutionFailure {
     DeadlineExceeded,
     HostCallLimit,
     CounterOverflow,
+    ServiceWorkLimit {
+        limit: u64,
+        used: u64,
+        requested: u64,
+    },
     FrameLimit,
     CellLimit,
     AllocationLimit,

@@ -184,6 +184,8 @@ pub struct CoreSite {
 /// underlying shared cleanup instance, not only the native panic flag. Adapter
 /// bookkeeping must be reserved before entry; callbacks must mark consumed
 /// cleanup attempts before any external effect that can fail or panic.
+/// Check configured service-work support before guest ownership/effects using
+/// the shared Control guard and the canonical profile capability.
 pub trait Runtime {
     fn is_poisoned(&self) -> bool;
     fn enter(&mut self, layout: &FunctionLayout<'_>) -> ResultStep;
@@ -319,10 +321,14 @@ impl<R: Runtime> RuntimeInstance<R> {
     }
 }
 
+/// The canonical owned profile is not yet completely metered.
+pub const SERVICE_WORK_SUPPORTED: bool = false;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Reason {
     Poisoned,
     UnsupportedControl(UnsupportedControl),
+    UnsupportedServiceWork(lang_runtime::execution::UnsupportedServiceWork),
     Runtime(c::Cause),
 }
 
@@ -1685,7 +1691,9 @@ helper!(record, ctx, _a, _b, node, {
         ctx.fault
             .and_then(|f| match f.reason {
                 Reason::Runtime(cause) => Some(cause),
-                Reason::Poisoned | Reason::UnsupportedControl(_) => None,
+                Reason::Poisoned
+                | Reason::UnsupportedControl(_)
+                | Reason::UnsupportedServiceWork(_) => None,
             })
             .unwrap_or(c::Cause::Execution(c::ExecutionFailure::Invariant))
     };

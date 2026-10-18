@@ -23,8 +23,12 @@ mod state;
 mod storage;
 use state::{State, Step, Target, invariant};
 use storage::StackStorage;
+/// Finite budgets stay unavailable until all owned service events are wired.
+pub const SERVICE_WORK_SUPPORTED: bool = false;
+
 #[derive(Debug)]
 pub enum Reason {
+    UnsupportedServiceWork(lang_runtime::execution::UnsupportedServiceWork),
     Entry,
     Unsupported { core: Option<o::core::Operation> },
     BlockArguments,
@@ -252,6 +256,15 @@ fn execution_reason(reason: super::Reason) -> c::ExecutionFailure {
         super::Reason::DeadlineExceeded => c::ExecutionFailure::DeadlineExceeded,
         super::Reason::FuelExhausted => c::ExecutionFailure::FuelLimit,
         super::Reason::CounterOverflow => c::ExecutionFailure::CounterOverflow,
+        super::Reason::ServiceWorkLimit {
+            limit,
+            used,
+            requested,
+        } => c::ExecutionFailure::ServiceWorkLimit {
+            limit,
+            used,
+            requested,
+        },
         _ => c::ExecutionFailure::Invariant,
     }
 }
@@ -331,6 +344,15 @@ fn execute_selected<P: a::Provider>(
         .functions()
         .get(function.0 as usize)
         .ok_or_else(|| rejected(Reason::Entry, None, None))?;
+    control
+        .check_service_work_support(SERVICE_WORK_SUPPORTED)
+        .map_err(|error| {
+            rejected(
+                Reason::UnsupportedServiceWork(error),
+                Some(function),
+                Some(typed.places().declarations().functions()[function.0 as usize].signature_span),
+            )
+        })?;
     let has_calls = body.blocks.iter().any(|b| {
         b.instructions
             .iter()

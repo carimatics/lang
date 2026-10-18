@@ -40,6 +40,63 @@ fn native(
     )
 }
 type VmResult = Result<lang_vm::unit::owned::Outcome, lang_vm::unit::owned::Failure>;
+
+#[test]
+fn finite_service_work_profiles_reject_before_provider_effects() {
+    for text in [EXAMPLES[0], EXAMPLES[4]] {
+        let source = source(text);
+        let flow = source.failure_flow();
+        let types = flow
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types();
+        let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+        let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+        for limit in [0, 1, u64::MAX] {
+            let control = e::Control::with_limits(limits()).and_service_work(Some(limit));
+            let actual = native(flow, &layouts, &program, control, None);
+            let (expected, requests) = vm(flow, control, None);
+            let expected = expected.err().unwrap();
+            let error = e::UnsupportedServiceWork { limit };
+            assert!(
+                matches!(expected.reason, lang_vm::unit::owned::Reason::UnsupportedServiceWork(value) if value == error)
+            );
+            let failure = actual.failure.unwrap();
+            assert_eq!(failure.reason, n::Reason::UnsupportedServiceWork(error));
+            assert_eq!(Some(failure.span), expected.fault);
+            assert_eq!(Some(failure.function), expected.function);
+            assert_eq!(actual.usage, e::Usage::default());
+            assert_eq!(expected.usage, e::Usage::default());
+            assert_eq!(actual.total_requests, 0);
+            assert_eq!(requests, 0);
+            assert!(actual.report.primary().is_none());
+            let trace = Rc::new(RefCell::new(Trace::default()));
+            let mut allocator =
+                a::Allocator::new(Provider(trace.clone()), Default::default()).unwrap();
+            let mut instance = c::Instance::default();
+            let preview = lang_vm::unit::owned::execute_preview(
+                flow,
+                failure.function,
+                &mut instance,
+                Some(&mut allocator),
+                control,
+                32,
+            )
+            .err()
+            .unwrap();
+            assert!(
+                matches!(preview.reason, lang_vm::unit::owned::Reason::UnsupportedServiceWork(value) if value == error)
+            );
+            assert_eq!(preview.usage, e::Usage::default());
+            assert_eq!(trace.borrow().requests, 0);
+            assert!(!instance.is_poisoned());
+        }
+    }
+}
 fn vm(
     flow: &m::ownership::failure::Elaborated,
     control: e::Control<'_>,

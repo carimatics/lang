@@ -290,6 +290,9 @@ fn execute_with<P: a::Provider>(
     {
         return Err(fail(Reason::Entry));
     }
+    control
+        .check_service_work_support(SERVICE_WORK_SUPPORTED)
+        .map_err(|error| fail(Reason::UnsupportedServiceWork(error)))?;
     if control.limits().frames == Some(0) {
         return Err(fail(Reason::Control(super::super::Reason::FrameLimit)));
     }

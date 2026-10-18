@@ -747,13 +747,7 @@ fn execute_prepared<'l>(
     execute_controlled(flow, layouts, program, run, control, None)
 }
 fn control_cause(error: e::Failure) -> c::Cause {
-    c::Cause::Execution(match error {
-        e::Failure::Interrupted => c::ExecutionFailure::Interrupted,
-        e::Failure::DeadlineExceeded => c::ExecutionFailure::DeadlineExceeded,
-        e::Failure::FuelExhausted => c::ExecutionFailure::FuelLimit,
-        e::Failure::HostCallLimit => c::ExecutionFailure::HostCallLimit,
-        e::Failure::CounterOverflow => c::ExecutionFailure::CounterOverflow,
-    })
+    c::Cause::Execution(error.into())
 }
 fn rejected_control(entry: m::FunctionId, span: m::Span, reason: n::Reason) -> Seen {
     let mut instance = c::Instance::default();
@@ -829,6 +823,12 @@ fn execute_controlled<'l>(
             .err()
             .map(control_cause)
             .map(n::Reason::Runtime)
+    })
+    .or_else(|| {
+        control
+            .check_service_work_support(n::SERVICE_WORK_SUPPORTED)
+            .err()
+            .map(n::Reason::UnsupportedServiceWork)
     })
     .or_else(|| {
         if control.limits().frames == Some(0) {
