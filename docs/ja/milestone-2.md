@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**73 done · 0 doing · 30 todo · 74 remaining pt**
+**74 done · 0 doing · 29 todo · 72 remaining pt**
 
-**次: M2-A01 → native実装の前提となるownership artifactのversionとencodingを決定。**
+**次: M2-A02 → 累積budget admissionを実証し、受理済みownership artifactのencode／decodeを実装。**
 
-直近の完了：**M2-V13**（`9d9d2ac`）。Source VMとREPL反復実行でprovisional readを検証しました。成功／未使用／Vec error／Map不在の14 fixture、transactionalなsession復旧を伴う名前付きloanのcompile failure 5件、shared reader枯渇と外側loanの生存、その後の置換／read・厳密な解放を確認しました。全体 **82 suite・1300 test** とfmt／Clippy／docが成功し、**残り76 → 74 pt**、done 73行、計103行です。257重のarena read枯渇試験は構文のhard depth上限で実行前に拒否され、このarena error armの実行は主張しません。独立した既存runtime reader境界testをevidenceとして維持します。V17、native、ownership artifactは各gateを維持します。
+直近の完了：**M2-A01**（`6c9f12b`）。実験段階の委任で[RFC 0011](rfcs/0011-ownership-artifacts.md)を受理し、Copy schema 1を維持したownership schema 2、33 opcode、37 core tag、必須span、順序付きraw table、独立したload全体の検証／予算を規定しました。日英heading／link／tag網羅とrepository整合性3 testが成功しました。計画済みの設計決定でありcodec／loader実装ではありません。**残り74 → 72 pt**、done 74行、計103行です。直近実装のV13（`9d9d2ac`）は全体 **82 suite・1300 test** と対象範囲のsource VM／REPL conformanceが成功し、arena枯渇probeはparser depth上限で止まるためそのsource error armは実行済みとしません。V17、native、ownership artifactは各gateを維持します。
 
 直近code baselineの実測（2026-10-18 JST）：workspace Clippy **1.6秒**、全test **30.8秒**（新log作成から最終書き込みまで）、rustdoc **12.0秒**、すべて成功です。V13のmatrix／境界3 testを含む全REPL 27 testが成功しました。Focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
-次の着手条件（2026-10-18 JST）：V13で対象範囲のconformanceを検証しました。A01の前提V08は完了済みで、A02がN01以降のnative作業を阻むため、次は2 ptのartifact version／encoding決定を選びます。V17は実装前に明示的indirect-preview follow-upが必要です。Gate監査ではG07／G08／G09／G10にN03、G05にN04、G06にN05を維持し、artifact／platform／conformance／性能／debug要件全体を残します。従来成果とZ01の最終日英capability guideを保持し、新exit gateは閉じません。
+次の着手条件（2026-10-18 JST）：A01の受理でA02を開始できます。まず既存`verify_with_budget`と引き継ぐusageでdecode→typed／proofの累積budget admissionを実証します。その実験まではA02を暫定3 ptとし、独立した不足前提は実装前に公開・再見積もりします。A02 codecの後は、artifact基盤をさらに広げる前にA03の最初のload済みowned Bytes実行を必須とします。V17は明示的indirect-preview follow-upが必要です。G07／G08／G09／G10にN03、G05にN04、G06にN05を残し、artifact／platform／conformance／性能／debug全要件とZ01の日英guideを維持します。新exit gateは閉じません。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -158,7 +158,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 
 | ID | State | Remaining pt | Needs | Gate | 成果／受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M2-A01 | todo | 2 | M2-V08 | G14,G16 | Ownership artifactのversion／encodingを互換性と検証上限付きでRFC受理記録にする。 | — |
+| M2-A01 | done | 0 | M2-V08 | G14,G16 | Ownership artifactのversion／encodingを互換性と検証上限付きでRFC受理記録にする。 | `6c9f12b` |
 | M2-A02 | todo | 3 | M2-A01 | G14,G16 | Ownership型／命令のencode／decodeに不正入力budgetとfuzz targetを追加。 | — |
 | M2-A03 | todo | 3 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | — |
 | M2-F01 | todo | 2 | M2-D27 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | — |

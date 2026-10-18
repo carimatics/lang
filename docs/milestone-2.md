@@ -6,17 +6,17 @@
 
 Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
 
-**73 done · 0 doing · 30 todo · 74 remaining pt**
+**74 done · 0 doing · 29 todo · 72 remaining pt**
 
-**Next: M2-A01 → decide the ownership artifact version and encoding required by native implementation.**
+**Next: M2-A02 → prove cumulative budget admission, then encode/decode the accepted ownership artifact.**
 
-Latest delivery: **M2-V13** (`9d9d2ac`) verifies provisional reads in source VM and repeated REPL execution: 14 success/unused/Vec-error/Map-absence fixtures, five named-loan compile failures with transactional session recovery, and shared reader exhaustion with surviving outer loans, later replacement/read and exact release. All **1300 tests / 82 suites** and fmt/Clippy/doc pass: **76 → 74 remaining pt**, 73 done rows and 103 total. The attempted 257-nested arena read exhaustion is rejected by the hard syntax depth cap before execution; execution of that arena error arm is not claimed. Existing runtime reader-boundary tests remain independent evidence. V17, native and ownership artifacts retain their gates.
+Latest delivery: **M2-A01** (`6c9f12b`) accepts [RFC 0011](rfcs/0011-ownership-artifacts.md) under experimental delegation: explicit ownership schema 2 beside unchanged Copy schema 1, 33 ownership opcodes, 37 core tags, mandatory spans, ordered raw tables and independent load-wide validation/budgets. Bilingual headings/links/tag coverage and all three repository consistency tests pass. This is a planned design decision, not an implemented codec/loader: **74 → 72 remaining pt**, 74 done rows and 103 total. The last implementation delivery V13 (`9d9d2ac`) passes the full **1300-test / 82-suite** baseline and scoped source VM/REPL conformance; its arena exhaustion probe stops at the parser depth cap, so that source error arm is not claimed. V17, native and ownership artifacts retain their gates.
 
 Measured last code baseline (2026-10-18 JST): workspace Clippy **1.6 s**, full tests **30.8 s** (new log creation to final write), rustdoc **12.0 s**, all passing. All 27 REPL tests pass, including V13's three matrix/boundary tests. The full baseline ran once after focused checks. These are validation durations, not total working time or runtime performance measurements. Documentation-only planning updates run the existing `repository_consistency` suite.
 
 Current source capability: a zero-parameter i64 main executes Bytes/Text, arena allocation/read/replace/teardown, shared/weak allocation/clone/read/replace/upgrade, Vec new/len/push/pop/shared-or-mutable reads, and Map new/len/insert/get/remove with exact i64/Text keys. Storable payloads compose through nested collections, inline records/enums/Option/Result and recursive guest calls. Shared publication checks transitive strong edges, arena stores check nested brands, and reads preserve custody through projections/calls. Owners move through cleanup-protected returns and prepared replacement, with iterative normal/failure teardown. Ordinary loans, allocator authority and arena owners remain unstorable; cross-region/shared-heap edges and arena escapes are rejected. Borrowed matching and partial-move prohibition are unchanged. V16/V15/V10 support the existing managed preview/inference/REPL profile; V13 verifies provisional-read loan endings within the documented source coverage, while indirect previews remain V17. V11 supports in-memory CFG arguments; current ownership source lowering does not emit them. Native N03/N04/N05 and ownership artifacts still require evidence; source integration alone closes no exit gate.
 
-Next readiness (2026-10-18 JST): V13's scoped conformance is verified. A01's V08 prerequisite is done; select its 2-point artifact version/encoding decision next because A02 blocks N01 and the native chain. V17 still requires its explicit indirect-preview follow-up before implementation. The gate audit retains N03 for G07/G08/G09/G10, N04 for G05 and N05 for G06, plus the full artifacts/platform/conformance/performance/debug requirements. Keep all original outcomes and the final bilingual capability guide in Z01; no new exit gate closes.
+Next readiness (2026-10-18 JST): A01's accepted decision enables A02. First prove decode-to-typed/proof cumulative budget admission using existing `verify_with_budget` and carried usage; A02 remains provisionally 3 pt until that experiment. Expose/re-estimate any independent missing prerequisite before implementation. The sequence is A02 codec then A03's first loaded owned Bytes execution before further artifact infrastructure. V17 still requires its explicit indirect-preview follow-up. Retain N03 for G07/G08/G09/G10, N04 for G05 and N05 for G06, plus all artifacts/platform/conformance/performance/debug requirements and Z01's bilingual guide; no new exit gate closes.
 
 The original exit gates remain **5 / 18 complete**. Completed deliveries include compiler/runtime prerequisites and the initial source execution fixture; they do not assert that entire core-library or backend features are complete.
 
@@ -158,7 +158,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 | ID | State | Remaining pt | Needs | Gate | Outcome / acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M2-A01 | todo | 2 | M2-V08 | G14,G16 | Record an accepted ownership artifact version/encoding decision with compatibility and validation limits. | — |
+| M2-A01 | done | 0 | M2-V08 | G14,G16 | Record an accepted ownership artifact version/encoding decision with compatibility and validation limits. | `6c9f12b` |
 | M2-A02 | todo | 3 | M2-A01 | G14,G16 | Encode/decode ownership types/operations with malformed-input budgets and a fuzz target. | — |
 | M2-A03 | todo | 3 | M2-A02 | G16 | Load, independently verify and execute owned source artifacts; round-trip behavior agrees. | — |
 | M2-F01 | todo | 2 | M2-D27 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | — |
