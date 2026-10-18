@@ -4,11 +4,13 @@
 
 [日本語版](ja/milestone-2.md) · [Exit gates](roadmap.md#milestone-2-ownership-and-native-aot)
 
-Updated and verified: **2026-10-18 JST**. Initial audit checkpoint: `0c2c012`.
+Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**77 done · 0 doing · 27 todo · 66 remaining pt**
+**77 done · 1 doing · 26 todo · 66 remaining pt**
 
-**Next: M2-N01 → emit the production packet/context bridge and execute a source Bytes parameter/return fixture.**
+**Next: M2-N01 → complete whole-unit context/dispatch and object binding after the verified source Bytes boundary.**
+
+**Working now — N01** (`41d7e67`, 2026-10-19 JST): a real source Bytes argument/return executes through generated native code and shared runtime storage/cleanup. Five new tests cover fuel prefixes, cleanup-before-publication, poison/re-entry, callback/panic-payload containment, source ranges and exact compile budgets. All **1334 tests / 85 suites**, fmt/Clippy/doc pass. **N01 remains doing**: whole-unit prepared-context/transition validation, guest-call/return dispatch and matching object/metadata emission still need implementation. Its 3 remaining points are provisional for those concrete tasks; use the next two-function native experiment to re-estimate or expose an independent prerequisite before coding it. The required ownership source fixture is now demonstrated; no implementation row or exit gate is closed by this checkpoint.
 
 ## Progress and estimate changes
 
@@ -24,7 +26,7 @@ This separates delivered work from newly recognized work: completion retired 114
 
 Latest delivery: **M2-N08** (`dc3df29`) accepts [RFC 0012](rfcs/0012-native-ownership-continuations.md) and validates native continuation packets. Two generated functions execute 1,000 call/return sequences, compute 42 per sequence, preserve inert 32-byte data and reject bad continuations before state/output effects. Mach-O/COFF objects contain both compiled symbols. All **1329 tests / 84 suites**, fmt/Clippy/doc pass. The 2-point prerequisite is added and retired explicitly: **66 → 68 → 66 remaining pt**, **76 → 77 done**, **103 → 104 rows**. This proves ABI feasibility; live ownership/source lowering and actual Windows execution remain open. N01 must deliver a real source Bytes parameter/return boundary before further native foundation work.
 
-Measured last code baseline (2026-10-18 JST): workspace Clippy **24.8 s**, full tests **286.1 s** wall time (shell time), rustdoc **13.7 s**. Cargo reports test compilation **21.6 s**; summed suite timings are **77.2 s**. The three new prototype tests pass in **0.01 s** focused execution. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run the existing `repository_consistency` suite.
+Measured last code baseline (2026-10-19 JST): workspace Clippy **26.5 s**, full tests **427.2 s** wall time (shell time), rustdoc **17.9 s**. Cargo reports test compilation **32.6 s**; summed suite timings are **76.7 s**. The five new source-boundary tests pass in **0.04 s** focused execution. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run the existing `repository_consistency` suite.
 
 Current source capability: a zero-parameter i64 main executes Bytes/Text, arena allocation/read/replace/teardown, shared/weak allocation/clone/read/replace/upgrade, Vec new/len/push/pop/shared-or-mutable reads, and Map new/len/insert/get/remove with exact i64/Text keys. Storable payloads compose through nested collections, inline records/enums/Option/Result and recursive guest calls. Shared publication checks transitive strong edges, arena stores check nested brands, and reads preserve custody through projections/calls. Owners move through cleanup-protected returns and prepared replacement, with iterative normal/failure teardown. Ordinary loans, allocator authority and arena owners remain unstorable; cross-region/shared-heap edges and arena escapes are rejected. Borrowed matching and partial-move prohibition are unchanged. V16/V15/V10 support the existing managed preview/inference/REPL profile; V13 verifies provisional-read loan endings within the documented source coverage, while indirect previews remain V17. V11 supports in-memory CFG arguments; current ownership source lowering does not emit them. Native N03/N04/N05 and ownership artifacts still require evidence; source integration alone closes no exit gate.
 
@@ -188,7 +190,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | ID | State | Remaining pt | Needs | Gate | Outcome / acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M2-N08 | done | 0 | M2-V07,M2-A02 | G14 | Decide the private native ownership call/context/publication contract and execute a machine-code ABI prototype. | `dc3df29` |
-| M2-N01 | todo | 3 | M2-V07,M2-A02,M2-N08 | G14 | Emit owned call/return conventions and managed layouts, including a source Bytes parameter/return fixture. | — |
+| M2-N01 | doing | 3 | M2-V07,M2-A02,M2-N08 | G14 | Emit owned call/return conventions and managed layouts, including a source Bytes parameter/return fixture. | — |
 | M2-N02 | todo | 3 | M2-N01 | G14 | Native owner moves, aggregate/sum operations and loan projections match VM fixtures. | — |
 | M2-N03 | todo | 3 | M2-N02,M2-C03,M2-C06 | G07,G08,G09,G10,G14 | Native core dispatch executes the same Bytes/Text/Vec/Map fixtures. | — |
 | M2-N04 | todo | 3 | M2-N02,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared/arena dispatch preserves lifecycle and brand checks. | — |
@@ -210,6 +212,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 ## Sources and verification dates
 
+- [Native source boundary](../crates/codegen-clif/src/owned.rs), [fixture](../examples/analysis/native_owned_boundary.lang) and [tests](../tests/native_owned_boundary.rs) (`41d7e67`): updated/verified 2026-10-19 JST. This is N01 work in progress; incomplete row evidence remains empty and no points are retired.
 - [Progress validator](../tests/repository_consistency.rs) (`00cff53`): updated/verified 2026-10-18 JST; checks the estimate equation against open rows, delivery/task deltas, roadmap totals and English/Japanese agreement. All 1326 workspace tests, fmt, Clippy and rustdoc passed; this maintenance change does not complete an M2 implementation row.
 - Detailed-board history `8605416..926ccfe`: 48 board revisions dated 2026-10-18 JST, re-audited 2026-10-18 JST. Row transitions alone record 107 pt retired / 39 pt added. V14 and R08 were first committed as done; the V10/R01 readiness audits preserve their 2/3-point estimates, so add 5 pt to both sides: 112 retired / 44 added. All 41 new deliveries are included; no rows were removed. Preserve such estimates even when introduction and completion share an update.
 - Local Git history `926fb3b`–`0c2c012` and diff `367218e..0c2c012`: commits dated 2026-10-17/18 JST; verified 2026-10-18 JST.
