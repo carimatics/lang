@@ -1,0 +1,16 @@
+// One lexical owner position reopens with a fresh brand on each loop iteration.
+fn main() -> i64 {
+    let mut total: i64 = 0;
+    let mut index: i64 = 0;
+    while index < 3 {
+        arena scratch(core::allocator()) {
+            let mut reference: arena i64 = core::result_unwrap::<arena i64, core::ArenaError>(core::arena_new::<i64>(scratch, index));
+            match core::arena_read::<i64>(scratch, reference) {
+                core::Result::Ok(value) => { total = total + (*value); },
+                core::Result::Err(_) => { return -1; },
+            }
+        }
+        index = index + 1;
+    }
+    return total;
+}

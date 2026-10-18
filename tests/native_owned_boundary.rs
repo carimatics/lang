@@ -408,7 +408,9 @@ fn source_unused_owner_cleanup_precedes_native_return_publication() {
 
 #[test]
 fn unsupported_source_is_rejected_at_its_original_span() {
-    let program = source(include_str!("../examples/scripts/arena.lang"));
+    let program = source(
+        "extern fn missing(x:i64)->i64; fn main()->i64 { let mut unused: core::Option<core::Bytes> = core::Option::None; return missing(1); }",
+    );
     let flow = program.failure_flow();
     let types = flow
         .source()

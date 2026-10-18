@@ -1,4 +1,6 @@
 use super::*;
+#[path = "native_arenas.rs"]
+mod arenas;
 #[path = "native_core.rs"]
 mod core;
 #[path = "native_maps.rs"]
@@ -45,6 +47,10 @@ struct Store<'a, 'l> {
     layouts: &'l l::Layouts<'l>,
     retirement: lang_runtime::retirement::Drain<'l, 'l>,
     heap: Option<lang_runtime::shared::managed::Heap<'l, 'l>>,
+    arena: Vec<Option<lang_runtime::arena::managed::Arena<'l, 'l>>>,
+    arena_live: Vec<bool>,
+    arena_stride: usize,
+    inspection: Option<lang_runtime::inspection::Inspector<'l, 'l>>,
 }
 impl Store<'_, '_> {
     fn transfer(&mut self, from: Physical, to: Physical) -> n::ResultStep {
@@ -94,6 +100,7 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
                     heap,
                     retirement,
                     types,
+                    arena,
                     ..
                 } = &mut *storage;
                 let target = loans[*id].target.take();
@@ -103,6 +110,13 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
                 }
                 if let Some(mut read) = loans[*id].map_read.take() {
                     read.end(layouts, allocator).map_err(|_| 99u32)?;
+                }
+                if let Some((owner, mut read)) = loans[*id].arena_read.take() {
+                    arena[owner]
+                        .as_mut()
+                        .ok_or(103u32)?
+                        .end_read(&mut read, allocator)
+                        .map_err(|_| 104u32)?;
                 }
                 if let Some(read) = loans[*id].shared_read.take() {
                     let Some(places::Target::Shared { ty, .. }) = target else {
@@ -134,8 +148,50 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
             types,
             retirement,
             heap,
+            arena,
+            arena_live,
+            arena_stride,
             ..
         } = &mut *storage;
+        let owner_type = pools[physical.frame]
+            .cell(physical.cell)
+            .map_err(|_| 90u32)?
+            .root()
+            .ty();
+        if matches!(owner_type, m::ownership::Type::Constructed(id)
+            if matches!(types.table().constructed[id.0 as usize].constructor, m::ownership::Constructor::ArenaOwner(_)))
+        {
+            let id = physical.frame * *arena_stride + physical.cell;
+            if !arena_live[id] {
+                return Err(105);
+            }
+            arena[id]
+                .as_mut()
+                .ok_or(106u32)?
+                .cleanup(
+                    if context.reason() == c::Reason::Failure {
+                        lang_runtime::arena::managed::Exit::Abort
+                    } else {
+                        lang_runtime::arena::managed::Exit::Normal
+                    },
+                    allocator,
+                    context,
+                    |token, allocator, _, context| {
+                        retirement.token(
+                            token,
+                            heap.as_mut(),
+                            allocator,
+                            context,
+                            |leaf, allocator, _, _| {
+                                buffer::cleanup_token(types, leaf, allocator).map_err(|_| 94u32)
+                            },
+                        )
+                    },
+                )
+                .map_err(|_| 107u32)?;
+            arena_live[id] = false;
+            return if *refuse_cleanup { Err(95) } else { Ok(()) };
+        }
         let cell = pools[physical.frame]
             .cell_mut(physical.cell)
             .map_err(|_| 90u32)?;
@@ -339,8 +395,13 @@ impl Runtime for Unit<'_, '_, '_, '_> {
     fn discard_prepared(&mut self, id: Option<m::ownership::bodies::PreparedPlaceId>) {
         places::discard(self, id)
     }
+    fn enter_arena(&mut self, site: &n::ArenaSite) -> n::ResultStep {
+        arenas::enter(self, site)
+    }
     fn core_call(&mut self, site: &n::CoreSite) -> n::ResultStep {
-        if shared::supports(site.operation) {
+        if arenas::supports(site.operation) {
+            arenas::call(self, site)
+        } else if shared::supports(site.operation) {
             shared::call(self, site)
         } else if maps::supports(site.operation) {
             maps::call(self, site)
@@ -728,6 +789,42 @@ fn execute_prepared<'l>(
     } else {
         None
     };
+    let mut arena: Vec<Option<lang_runtime::arena::managed::Arena<'_, '_>>> =
+        std::iter::repeat_with(|| None)
+            .take(stride * max_frames)
+            .collect();
+    let mut has_arena = false;
+    for depth in 0..max_frames {
+        for cell in 0..largest.cell_count() {
+            let owner = (0..flow.functions().len()).any(|function| {
+                program.layout(m::FunctionId(function as u32)).unwrap().frame().cell_type(cell)
+                    .is_some_and(|cell| matches!(cell.ty, m::ownership::Type::Constructed(id)
+                        if matches!(types.table().constructed[id.0 as usize].constructor, m::ownership::Constructor::ArenaOwner(_))))
+            });
+            if owner {
+                let prepared = lang_runtime::arena::managed::Arena::prepare(
+                    layouts,
+                    Default::default(),
+                    Default::default(),
+                    usage,
+                )
+                .unwrap();
+                usage = prepared.usage();
+                arena[depth * stride + cell] = Some(prepared);
+                has_arena = true;
+            }
+        }
+    }
+    let inspection = if has_arena {
+        let prepared =
+            lang_runtime::inspection::Inspector::prepare(layouts, 4096, Default::default(), usage)
+                .unwrap();
+        usage = prepared.usage();
+        Some(prepared)
+    } else {
+        None
+    };
+    let arena_live = vec![false; stride * max_frames];
     let retirement =
         lang_runtime::retirement::Drain::prepare(layouts, &allocator, Default::default(), usage)
             .unwrap();
@@ -762,6 +859,10 @@ fn execute_prepared<'l>(
         layouts,
         retirement,
         heap,
+        arena,
+        arena_live,
+        arena_stride: stride,
+        inspection,
     });
     let mut cleanup_instance = c::Instance::default();
     let ledger = cleanup_instance
@@ -821,8 +922,13 @@ fn execute_prepared<'l>(
             && loan.vector_read.is_none()
             && loan.map_read.is_none()
             && loan.shared_read.is_none()
-            && loan.custody.is_none()),
+            && loan.custody.is_none()
+            && loan.arena_read.is_none()),
         "all registrations retire before frame release"
+    );
+    assert!(
+        state.arena_live.iter().all(|live| !live),
+        "every arena owner retires before frame release"
     );
     assert!(
         state.prepared.iter().all(Option::is_none),

@@ -1,0 +1,30 @@
+// Distinct lexical owners retain their own brands through an indirect value.
+fn main() -> i64 {
+    let mut score: i64 = 0;
+    arena outer(core::allocator()) {
+        let mut reference: arena i64 = core::result_unwrap::<arena i64, core::ArenaError>(core::arena_new::<i64>(outer, 17));
+        arena inner(core::allocator()) {
+            let mut inner_reference: arena i64 = core::result_unwrap::<arena i64, core::ArenaError>(core::arena_new::<i64>(inner, 23));
+            let mut values: core::Vec<arena i64> = core::result_unwrap::<core::Vec<arena i64>, core::AllocError>(core::vec_new::<arena i64>(core::allocator()));
+            let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<arena i64>(values, inner_reference));
+            let mut container: arena core::Vec<arena i64> = core::result_unwrap::<arena core::Vec<arena i64>, core::ArenaError>(core::arena_new::<core::Vec<arena i64>>(inner, values));
+            match core::arena_read::<core::Vec<arena i64>>(inner, container) {
+                core::Result::Ok(row) => { match core::vec_get::<arena i64>(row, 0) {
+                    core::Result::Ok(element) => { match core::arena_read::<i64>(inner, (*element)) {
+                        core::Result::Ok(value) => { score = load(value); },
+                        core::Result::Err(_) => { return -1; },
+                    } },
+                    core::Result::Err(_) => { return -2; },
+                } },
+                core::Result::Err(_) => { return -3; },
+            }
+        }
+        match core::arena_read::<i64>(outer, reference) {
+            core::Result::Ok(retained) => { score = score + load(retained); },
+            core::Result::Err(_) => { return -4; },
+        }
+    }
+    return score;
+}
+
+fn load(value: &i64) -> i64 { return (*value); }

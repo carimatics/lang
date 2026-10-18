@@ -133,6 +133,15 @@ pub struct View<'a, 'l, 't> {
     payload: &'a l::Reservation<'l, 't>,
 }
 impl<'l, 't> View<'_, 'l, 't> {
+    /// Read a token through the same validated location contract as other managed views.
+    pub fn read_token<P: a::Provider>(
+        &self,
+        location: l::Location,
+        allocator: &a::Allocator<P>,
+    ) -> Result<l::Token, l::Error> {
+        self.payload.read_token(location, allocator)
+    }
+
     pub fn copy_into<P: a::Provider>(
         &self,
         from: l::Location,

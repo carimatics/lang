@@ -350,6 +350,25 @@ pub(super) fn check_metadata(text: &str) {
                     })
             }));
             for (index, node) in flow.functions()[function_index].nodes().iter().enumerate() {
+                if let Some(arena) = function.arena_site(index as u32) {
+                    let m::ownership::failure::Kind::Execute { site: origin, .. } = node.kind
+                    else {
+                        panic!("arena execute")
+                    };
+                    let instruction = &typed.functions()[function_index].blocks
+                        [origin.block.0 as usize]
+                        .instructions[origin.order - 1];
+                    let m::ownership::bodies::Op::ArenaEnter { owner, allocator } = instruction.op
+                    else {
+                        panic!("arena enter")
+                    };
+                    assert_eq!(arena.owner, function.layout().frame().local(owner).unwrap());
+                    assert_eq!(
+                        arena.allocator,
+                        function.layout().frame().value(allocator).unwrap()
+                    );
+                    assert_eq!(arena.span, instruction.span);
+                }
                 let Some(site) = function.core_site(index as u32) else {
                     continue;
                 };

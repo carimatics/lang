@@ -113,6 +113,13 @@ pub struct ReplaceSite {
     pub value: usize,
     pub span: m::Span,
 }
+/// A lexical arena admission bound to typed frame slots before code generation.
+pub struct ArenaSite {
+    pub owner: usize,
+    pub allocator: usize,
+    pub span: m::Span,
+}
+
 /// A statically bound core intrinsic and its typed operands, not a MIR opcode
 /// stream. Trusted adapters must enforce allocator authority and configured
 /// byte-work admission before invoking allocation or scanning services.
@@ -205,6 +212,9 @@ pub trait Runtime {
     /// Drop one capture or every capture in the current frame. This must not
     /// allocate or run guest effects, including while unwinding a failure.
     fn discard_prepared(&mut self, _: Option<b::PreparedPlaceId>) {}
+    fn enter_arena(&mut self, _: &ArenaSite) -> ResultStep {
+        missing()
+    }
     fn core_call(&mut self, _: &CoreSite) -> ResultStep {
         missing()
     }
@@ -284,7 +294,7 @@ pub struct Failure {
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 32;
+const HELPERS: usize = 33;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -312,6 +322,7 @@ enum Action {
     Replace,
     DiscardPrepared(b::PreparedPlaceId),
     Core,
+    ArenaEnter,
 }
 #[derive(Clone, Copy)]
 enum Binary {
@@ -336,6 +347,7 @@ struct Node {
     prepared: Option<PreparedSite>,
     replace: Option<ReplaceSite>,
     core: Option<CoreSite>,
+    arena: Option<ArenaSite>,
 }
 
 /// Native call boundary for whole-owner forwarding and record construction.
@@ -568,6 +580,7 @@ fn run<'c, 'a, R: Runtime>(
             discard_prepared::<R>,
             borrow_case::<R>,
             core_call::<R>,
+            enter_arena::<R>,
         ],
     };
     let mut continuation = 0;
@@ -696,6 +709,9 @@ impl<'a> ObjectFunction<'a> {
             Some(Action::EndBorrow(loan, mode)) => Some((loan, mode)),
             _ => None,
         }
+    }
+    pub fn arena_site(&self, node: u32) -> Option<&ArenaSite> {
+        self.nodes.get(node as usize)?.arena.as_ref()
     }
     pub fn core_site(&self, node: u32) -> Option<&CoreSite> {
         self.nodes.get(node as usize)?.core.as_ref()
@@ -847,6 +863,7 @@ fn prepare<'a>(
             prepared: None,
             replace: None,
             core: None,
+            arena: None,
         };
         match node.kind {
             f::Kind::Execute { site, .. } => {
@@ -873,6 +890,18 @@ fn prepare<'a>(
                     Ok(())
                 };
                 data.action = match &i.op {
+                    b::Op::ArenaEnter { owner, allocator } => {
+                        data.arena = Some(ArenaSite {
+                            owner: local(*owner)?,
+                            allocator: value(*allocator)?,
+                            span: i.span,
+                        });
+                        Some(Action::ArenaEnter)
+                    }
+                    b::Op::ArenaExit { owner } => {
+                        one(local(*owner)?, i.span)?;
+                        Some(Action::Cleanup)
+                    }
                     b::Op::Borrow { loan, kind, place } => {
                         data.borrow = Some(BorrowSite {
                             loan: *loan,
@@ -1052,6 +1081,9 @@ fn prepare<'a>(
                                 | o::core::Operation::TextLen
                                 | o::core::Operation::TextBytes
                                 | o::core::Operation::TextEqual
+                                | o::core::Operation::ArenaNew
+                                | o::core::Operation::ArenaRead
+                                | o::core::Operation::ArenaReplace
                                 | o::core::Operation::SharedNew
                                 | o::core::Operation::SharedClone
                                 | o::core::Operation::SharedRead
@@ -1195,12 +1227,13 @@ fn prepare<'a>(
                         for step in &range.steps {
                             budget.charge(1)?;
                             let slot = match step.target {
-                                b::CleanupTarget::Local(l) => local(l)?,
+                                b::CleanupTarget::Local(l) | b::CleanupTarget::Arena(l) => {
+                                    local(l)?
+                                }
                                 b::CleanupTarget::Value(v) => value(v)?,
                                 b::CleanupTarget::Loan(loan) => layout
                                     .loan_slot(loan)
                                     .ok_or_else(|| unsupported(step.span))?,
-                                _ => return Err(unsupported(step.span)),
                             };
                             data.cleanup.push((slot, step.span));
                         }
@@ -1419,6 +1452,16 @@ helper!(construct_record, ctx, _a, _b, node, {
             .as_ref()
             .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
         r.construct_record(record)
+    })
+});
+helper!(enter_arena, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.enter_arena(
+            p.nodes[node as usize]
+                .arena
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
     })
 });
 helper!(read_scalar, ctx, a, _b, node, {
@@ -1777,6 +1820,7 @@ fn emit<M: Module>(
                         Action::Variant => Some((call!(19, 0, 0), next, failure)),
                         Action::PlaceLoad => Some((call!(25, 0, 0), next, failure)),
                         Action::Core => Some((call!(31, 0, 0), next, failure)),
+                        Action::ArenaEnter => Some((call!(32, 0, 0), next, failure)),
                         Action::Borrow => Some((call!(24, 0, 0), next, failure)),
                         Action::EndBorrow(..) => Some((call!(26, 0, 0), next, failure)),
                         Action::Prepare => Some((call!(27, 0, 0), next, failure)),

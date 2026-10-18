@@ -185,10 +185,16 @@ pub(super) enum Target {
         ty: o::Type,
         location: l::Location,
     },
+    Arena {
+        owner: usize,
+        read: usize,
+        location: l::Location,
+    },
 }
 fn data(target: Target) -> Result<DataTarget, c::Cause> {
     match target {
         Target::Data(value) => Ok(value),
+        Target::Arena { .. } => Err(bad()),
         Target::Allocator | Target::Vector { .. } | Target::Map { .. } | Target::Shared { .. } => {
             Err(bad())
         }
@@ -202,6 +208,7 @@ pub(super) struct Loan {
     pub map_read: Option<lang_runtime::map::Loan>,
     pub shared_read: Option<lang_runtime::shared::managed::Read>,
     pub custody: Option<lang_runtime::shared::managed::Custody>,
+    pub arena_read: Option<(usize, lang_runtime::arena::managed::Read)>,
 }
 #[derive(Clone, Copy)]
 pub(super) enum Capture {
@@ -284,6 +291,21 @@ fn child_target(
                 .map_err(fault)?;
             Ok(Target::Shared { read, ty, location })
         }
+        Target::Arena {
+            owner,
+            read,
+            location,
+        } => {
+            let store = unit.store.borrow();
+            let location = arenas::view(&store, owner, read)?
+                .child(location, field, store.allocator)
+                .map_err(fault)?;
+            Ok(Target::Arena {
+                owner,
+                read,
+                location,
+            })
+        }
         Target::Allocator => Err(bad()),
     }
 }
@@ -341,6 +363,16 @@ fn dereference(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> Result<Target
         }
         Target::Shared { read, ty, location } => {
             shared::view(&store, read, ty)?;
+            if types.equivalent(referent, location.ty()) != Some(true) {
+                return Err(bad());
+            }
+        }
+        Target::Arena {
+            owner,
+            read,
+            location,
+        } => {
+            arenas::view(&store, owner, read)?;
             if types.equivalent(referent, location.ty()) != Some(true) {
                 return Err(bad());
             }
@@ -456,6 +488,31 @@ fn copy_target(
                     .copy_to(location, destination, destination.root(), allocator)
                     .map_err(fault)?;
             }
+            Target::Arena {
+                owner,
+                read,
+                location,
+            } => {
+                let Store {
+                    pools,
+                    allocator,
+                    loans,
+                    arena,
+                    ..
+                } = &mut *store;
+                let (expected, read) = loans[read].arena_read.as_ref().ok_or_else(bad)?;
+                if *expected != owner {
+                    return Err(bad());
+                }
+                let destination = pools[output.frame].cell(output.cell).map_err(fault)?;
+                arena[owner]
+                    .as_ref()
+                    .ok_or_else(bad)?
+                    .payload(read, allocator)
+                    .map_err(|_| bad())?
+                    .copy_into(location, destination, destination.root(), allocator)
+                    .map_err(fault)?;
+            }
             Target::Allocator => return Err(bad()),
         }
     }
@@ -485,6 +542,13 @@ pub(super) fn variant_case(unit: &mut Unit<'_, '_, '_, '_>, slot: usize) -> Resu
             .case(location, store.allocator)
             .map_err(maps::fault),
         Target::Shared { read, ty, location } => shared::view(&store, read, ty)?
+            .case(location, store.allocator)
+            .map_err(fault),
+        Target::Arena {
+            owner,
+            read,
+            location,
+        } => arenas::view(&store, owner, read)?
             .case(location, store.allocator)
             .map_err(fault),
         Target::Allocator => Err(bad()),
@@ -712,7 +776,9 @@ pub(super) fn replace(unit: &mut Unit<'_, '_, '_, '_>, site: &n::ReplaceSite) ->
         Capture::Path(Target::Vector { read, location }) => {
             return vectors::replace(unit, read, location, site.value, site.span);
         }
-        Capture::Path(Target::Allocator | Target::Map { .. } | Target::Shared { .. }) => {
+        Capture::Path(
+            Target::Allocator | Target::Map { .. } | Target::Shared { .. } | Target::Arena { .. },
+        ) => {
             return Err(bad());
         }
     };
@@ -806,6 +872,13 @@ pub(super) fn observation(
         Target::Shared { read, ty, location } => shared::view(&store, read, ty)?
             .read_token(location, store.allocator)
             .map_err(fault),
+        Target::Arena {
+            owner,
+            read,
+            location,
+        } => arenas::view(&store, owner, read)?
+            .read_token(location, store.allocator)
+            .map_err(fault),
         Target::Allocator => Err(bad()),
     }
 }
@@ -835,6 +908,13 @@ pub(super) fn scalar(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<i64, c:
         Target::Shared { read, ty, location } => shared::view(&store, read, ty)?
             .read_immediate(location, store.allocator)
             .map_err(fault)?,
+        Target::Arena {
+            owner,
+            read,
+            location,
+        } => arenas::view(&store, owner, read)?
+            .read_immediate(location, store.allocator)
+            .map_err(fault)?,
         Target::Allocator => return Err(bad()),
     };
     if let l::Immediate::I64(value) = value {
@@ -842,6 +922,23 @@ pub(super) fn scalar(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<i64, c:
     } else {
         Err(bad())
     }
+}
+
+pub(super) fn arena_owner(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<usize, c::Cause> {
+    let target = data(referent(unit, slot)?)?;
+    valid(unit, target)?;
+    let store = unit.store.borrow();
+    if target.location.offset() != 0
+        || !matches!(target.location.ty(), o::Type::Constructed(id)
+        if matches!(store.types.table().constructed[id.0 as usize].constructor, o::Constructor::ArenaOwner(_)))
+    {
+        return Err(bad());
+    }
+    let id = target.physical.frame * unit.stride + target.physical.cell;
+    if !store.arena_live.get(id).copied().ok_or_else(bad)? {
+        return Err(bad());
+    }
+    Ok(id)
 }
 pub(super) fn store_token(
     unit: &mut Unit<'_, '_, '_, '_>,
