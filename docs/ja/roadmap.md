@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み61件 · 進行中0件 · 残り39件（暫定100 pt）。**
+**検証済み62件 · 進行中0件 · 残り39件（暫定100 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む35件の成果を検証しました。R02（`15834b9`）で実際のguest-backedな型付きshared control／payload storageを実装し、全planのpreflight、OOM rollback、read lease、detach後のcleanup、weakだけが残るmetadata寿命を検証しました。追加10 testと全体baselineの77 suite・1142 test、fmt／Clippy／docが成功しました。R02で3 ptを減らし、R03の型付きtoken／graph／read／child統合を明示して **2 → 3 pt** へ再見積もりし、**残り102 → 100 pt**、done 61行、計100行です。次は完了済みR02／D34を前提とするR03、その後は基盤2件を受けて必須のR04 source shared／weak fixtureです。旧host Arc engineはmodelとして維持し、production token／graphとsource dispatchは未完了です。Arena／native／artifact全体のevidenceも引き続き必要です。V17のindirect preview、V13のprovisional readは状態を維持し、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む36件の成果を検証しました。R03（`20ade1f`）で実際のguest-backed shared／weak／read登録を型付きstorage、cycle／custody proof、検証済みborrowed field access、反復的な子孫cleanupへ接続しました。追加15 testに1024-node teardown、独立oracleと比較する128 publication、OOM／quota境界、失敗／panic後の継続を含み、全体baselineの78 suite・1157 test、fmt／Clippy／docが成功しました。Interaction監査で入れ子collection／graphの検証とcleanupをC07の3 ptとして明示し、R03の3 ptを完了したため、**残り100 → 103 → 100 pt**、done 62行、計101行です。C07はV13／V17とnative N04の前提とし、受理済みgeneric payload scopeを維持します。次は完了済みR03／V08を前提とする必須のR04 source shared／weak fixtureで、基盤2件のR02／R03は完了です。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
