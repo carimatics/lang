@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み67件 · 進行中1件 · 残り33件（暫定85 pt）。**
+**検証済み68件 · 進行中0件 · 残り33件（暫定82 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む41件の成果を検証しました。C04（`348dc42`）でallocator-backed Map storage、数値／UTF-8 byte単位の厳密な等価判定、登録付きread lookupを追加しました。Unit 3 testとintegration 11 testで独立equality oracle、OOM／retry前後の所有権、allocation／work上限、lease寿命／競合、provenance、失敗／panic後の逆順cleanupと完全解放を検証しました。全体baselineの80 suite・1230 testとfmt／Clippy／docが成功し、**残り88 → 85 pt**、done 67行、計101行です。現在のsource VM Map dispatchはC06へ残します。次のC05はfailure-atomicなinsert／replacement／removalで、旧記述に欠けていた受理済みの `map_remove` も明記しました。等しい元keyの保持、入力した等価keyのretire、置換valueの返却を含み、実replacement／removal実験までは暫定3 ptとします。C04／C05の基盤2件後は、追加基盤作業より先にC06で全5種のsource Map操作を実行します。入れ子統合全体はV13／V17とnative N04の前提C07に維持します。Native、collection、provisional-read／preview、artifactのevidenceは引き続き必要で、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む42件の成果を検証しました。C05（`677bb66`）でMap insert／replacement／removalの所有権移動を追加しました。等しい元keyを保持し、入力／削除keyをdetachして、旧valueを事前認可済みoutputへ返し、追加確保なしに行を詰めます。Unit 2 testとintegration 9 testで厳密なowner／span、独立した混合操作／削除順序oracle、Copy再利用、OOM／拒否境界、共通contextでの失敗／panic後の完全解放を検証しました。全体baselineの80 suite・1241 testとfmt／Clippy／docが成功し、**残り85 → 82 pt**、done 68行、計101行です。`95f8c3c` で前回C04のevidence形式を修正し、文書のみの計画更新後は既存repository-consistency suiteを実行する手順を明記しました。基盤2件C04／C05後は次のC06で全5種のsource Map操作を実行します。現在のVM Map profile／adapterは未実装で、最初のsource実験までは暫定3 ptです。入れ子統合全体はV13／V17とnative N04の前提C07に維持します。Native、collection、provisional-read／preview、artifactのevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
