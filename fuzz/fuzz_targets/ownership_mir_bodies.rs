@@ -453,6 +453,20 @@ fuzz_target!(|bytes: &[u8]| {
                         assert_eq!(plan.nodes().len(), plan.counts().nodes);
                         assert_eq!(plan.functions().len(), typed.functions().len());
                         assert!(plan.usage().work >= checked.work_used());
+                        if let Ok(local) = regions::local::analyze(
+                            &plan,
+                            regions::local::Limits {
+                                work: 100_000,
+                                allocations: 2 * 1024 * 1024,
+                                elements: 100_000,
+                                depth: 16,
+                                nodes: 512,
+                                state_cells: 4096,
+                            },
+                        ) {
+                            assert_eq!(local.functions().len(), plan.functions().len());
+                            assert!(local.usage().work >= plan.usage().work);
+                        }
                         for (index, function) in plan.functions().iter().enumerate() {
                             for (position, path) in function.paths().iter().enumerate() {
                                 let actual = plan.node(path.result()).unwrap().ty;

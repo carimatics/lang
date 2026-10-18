@@ -6,6 +6,7 @@ use std::fmt::{Display, Formatter};
 
 mod types;
 pub use types::{Kind, Node, NodeId};
+pub mod local;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {
@@ -425,7 +426,7 @@ pub fn prepare(source: &loans::LoanCheckedBodies, limits: Limits) -> Result<Plan
                 function.calls.push(Call {
                     site: bodies::Site {
                         block: m::BlockId(id(block)?),
-                        order,
+                        order: order + 1,
                     },
                     target,
                     span: instruction.span,
@@ -440,7 +441,7 @@ pub fn prepare(source: &loans::LoanCheckedBodies, limits: Limits) -> Result<Plan
             admit.budget.charge(1)?;
             if let Some(owner) = fact.checked.arena_owner {
                 let span =
-                    body.blocks[fact.site.block.0 as usize].instructions[fact.site.order].span;
+                    body.blocks[fact.site.block.0 as usize].instructions[fact.site.order - 1].span;
                 function.arenas.push(ArenaCall {
                     site: fact.site,
                     owner,

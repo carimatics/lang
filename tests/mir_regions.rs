@@ -103,10 +103,352 @@ fn source_rejection_and_mir_region_preparation_have_distinct_contracts() {
             .iter()
             .any(|call| call.owner.local == owner)
     );
-    // R08 preserves both inputs but proves no relationship between them.
-    // R09/R10/R01 must reject this forged MIR before arena admission is enabled.
+    let error = match g::local::analyze(&plan, Default::default()) {
+        Ok(_) => panic!("different arena token admitted by local transfer"),
+        Err(error) => error,
+    };
+    assert!(
+        matches!(error.kind, g::local::ErrorKind::CrossArena { .. }),
+        "{error:?}"
+    );
+    assert!(error.primary.is_some() && error.secondary.is_some());
+    // Local analysis now rejects the forgery. R10/R01 still have to derive
+    // call effects and make the complete proof mandatory at admission.
     drop(plan);
     o::failure::elaborate(loaned, Default::default()).unwrap();
+}
+
+#[test]
+fn local_region_transfer_accepts_same_arena_tokens_and_reports_call_obligations() {
+    let input = loaned(table());
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let analysis = g::local::analyze(&plan, Default::default()).unwrap();
+    assert!(analysis.functions()[0].pending_calls().is_empty());
+    let input = loaned(checked_table(
+        "fn inspect(value: arena i64) -> i64 { return 0; } fn f(value: arena i64) -> i64 { return inspect(value); }",
+    ));
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let analysis = g::local::analyze(&plan, Default::default()).unwrap();
+    assert_eq!(analysis.functions()[1].pending_calls().len(), 1);
+    let site = analysis.functions()[1].pending_calls()[0];
+    assert!(matches!(
+        input.activity().moved().typed().functions()[1].blocks[site.block.0 as usize].instructions
+            [site.order - 1]
+            .op,
+        b::Op::Call { .. }
+    ));
+    let input = loaned(checked_table(include_str!(
+        "../examples/analysis/arena.lang"
+    )));
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    g::local::analyze(&plan, Default::default()).unwrap();
+}
+
+#[test]
+fn local_transfer_preserves_aggregate_case_reference_and_loop_precision() {
+    for source in [
+        "struct Pair { left: arena i64, right: arena i64 } fn f() -> i64 { arena one(core::allocator()) { let mut a: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); arena two(core::allocator()) { let mut b: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(two,2)); let mut p: Pair = Pair {left:a,right:b}; let mut r: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(two, p.right, 3); let mut s: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(one, p.left, 4); return 0; } } }",
+        "enum Choice { Left(arena i64), Right(arena i64) } fn f(flag: bool) -> i64 { arena one(core::allocator()) { let mut a: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); arena two(core::allocator()) { let mut b: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(two,2)); let mut choice: Choice = Choice::Left(a); if flag { choice = Choice::Right(b); } match choice { Choice::Left(x) => { let mut r: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(one, x, 3); }, Choice::Right(y) => { let mut s: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(two, y, 3); }, } return 0; } } }",
+        "fn f() -> i64 { let mut count: i64 = 0; while count < 2 { arena one(core::allocator()) { let mut a: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); let mut r: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(one,a,2); } count = count + 1; } return count; }",
+        "fn f(pair: &mut core::Option<arena i64>, input: arena i64) -> i64 { (*pair) = core::Option::Some(input); return 0; }",
+        "struct Entry { token: arena i64, number: i64 } fn f() -> i64 { arena one(core::allocator()) { let mut token: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); let mut entries: core::Vec<Entry> = core::result_unwrap::<core::Vec<Entry>,core::AllocError>(core::vec_new::<Entry>(core::allocator())); let mut pushed: core::Result<core::Unit,core::AllocError> = core::vec_push::<Entry>(entries,Entry {token:token,number:7}); match core::vec_get_mut::<Entry>(entries,0) { core::Result::Ok(item) => { item.number = 8; let mut changed: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(one,item.token,2); }, core::Result::Err(_) => {}, } let mut popped: core::Option<Entry> = core::vec_pop::<Entry>(entries); return 0; } }",
+        "fn f() -> i64 { arena one(core::allocator()) { let mut token: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); let mut entries: core::Map<i64,arena i64> = core::result_unwrap::<core::Map<i64,arena i64>,core::AllocError>(core::map_new::<i64,arena i64>(core::allocator())); let mut inserted: core::Result<core::Option<arena i64>,core::AllocError> = core::map_insert::<i64,arena i64>(entries,1,token); let mut key: i64 = 1; match core::map_get::<i64,arena i64>(entries,key) { core::Option::Some(item) => { let mut changed: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(one,(*item),2); }, core::Option::None => {}, } let mut removed: core::Option<arena i64> = core::map_remove::<i64,arena i64>(entries,key); return 0; } }",
+        "fn f() -> i64 { let mut error: core::ArenaError = core::ArenaError::Allocation(core::AllocError::Overflow); match error { core::ArenaError::Allocation(allocation) => { match allocation { core::AllocError::Limit => {return 1;}, core::AllocError::OutOfMemory => {return 2;}, core::AllocError::Overflow => {return 3;}, } }, core::ArenaError::CrossRegion => {return 4;}, core::ArenaError::Unavailable => {return 5;}, core::ArenaError::BorrowConflict => {return 6;}, } }",
+    ] {
+        let input = loaned(checked_table(source));
+        let plan = g::prepare(&input, Default::default()).unwrap();
+        g::local::analyze(&plan, Default::default()).unwrap();
+        for fact in plan.functions()[0].arena_calls() {
+            let instruction = &input.activity().moved().typed().functions()[0].blocks
+                [fact.site.block.0 as usize]
+                .instructions[fact.site.order - 1];
+            assert_eq!(fact.span, instruction.span);
+            assert!(matches!(instruction.op, b::Op::CoreCall(_)));
+        }
+    }
+}
+
+#[test]
+fn a_captured_destination_cannot_store_an_inner_region_in_an_outer_local() {
+    let source = "fn f() -> i64 { let mut outside: core::Option<arena i64> = core::Option::None; outside = core::Option::None; arena one(core::allocator()) { let mut token: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); let mut inside: core::Option<arena i64> = core::Option::None; inside = core::Option::Some(token); return 0; } }";
+    let mut table = checked_table(source);
+    let locals = &table.places.declarations.functions[0].locals;
+    let find =
+        |name| o::declarations::LocalId(locals.iter().position(|l| l.name == name).unwrap() as u32);
+    let (inside, outside) = (find("inside"), find("outside"));
+    let places = &table.places.functions[0].places;
+    let outside = p::PlaceId(
+        places
+            .iter()
+            .position(|p| p.root == p::Root::Local(outside) && p.projections.is_empty())
+            .unwrap() as u32,
+    );
+    let mut edits = 0;
+    for block in &mut table.functions[0].blocks {
+        for i in &mut block.instructions {
+            if let b::Op::PreparePlace { place, .. } = &mut i.op
+                && places[place.0 as usize].root == p::Root::Local(inside)
+            {
+                *place = outside;
+                edits += 1;
+            }
+        }
+    }
+    assert_eq!(edits, 1);
+    let input = loaned(table);
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let error = g::local::analyze(&plan, Default::default()).err().unwrap();
+    assert!(
+        matches!(error.kind, g::local::ErrorKind::Escape { .. }),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn arena_reentry_does_not_revive_tokens_from_the_previous_activation() {
+    let source = "fn f() -> i64 { arena one(core::allocator()) { let mut token: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); let mut r: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(one,token,2); return 0; } }";
+    let mut table = checked_table(source);
+    let body = &mut table.functions[0];
+    let (owner, allocator) = body
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let b::Op::ArenaEnter { owner, allocator } = i.op {
+                Some((owner, allocator))
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let argument = body
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let b::Op::CoreCall(ref call) = i.op
+                && call.operation == o::core::Operation::ArenaReplace
+            {
+                Some(call.arguments[0])
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let mut edits = 0;
+    for block in &mut body.blocks {
+        if let Some(position) = block
+            .instructions
+            .iter()
+            .position(|i| i.results.contains(&argument))
+        {
+            let span = block.instructions[position].span;
+            block.instructions.splice(
+                position..position,
+                [
+                    b::Instruction {
+                        results: vec![],
+                        op: b::Op::ArenaExit { owner },
+                        span,
+                    },
+                    b::Instruction {
+                        results: vec![],
+                        op: b::Op::ArenaEnter { owner, allocator },
+                        span,
+                    },
+                ],
+            );
+            edits += 1;
+        }
+    }
+    assert_eq!(edits, 1);
+    let input = loaned(table);
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let error = g::local::analyze(&plan, Default::default()).err().unwrap();
+    assert!(
+        matches!(error.kind, g::local::ErrorKind::ExpiredArena(_)),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn local_transfer_uses_exact_cumulative_budgets_and_reuses_the_prepared_input() {
+    let input = loaned(table());
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let analysis = g::local::analyze(&plan, Default::default()).unwrap();
+    let used = analysis.usage();
+    let exact = g::local::Limits {
+        work: used.work,
+        allocations: used.allocation_bytes,
+        elements: used.elements,
+        nodes: analysis.nodes_used(),
+        state_cells: analysis.state_cells(),
+        ..Default::default()
+    };
+    assert!(g::local::analyze(&plan, exact).is_ok());
+    for limits in [
+        g::local::Limits {
+            work: exact.work - 1,
+            ..exact
+        },
+        g::local::Limits {
+            allocations: exact.allocations - 1,
+            ..exact
+        },
+        g::local::Limits {
+            elements: exact.elements - 1,
+            ..exact
+        },
+        g::local::Limits {
+            nodes: exact.nodes - 1,
+            ..exact
+        },
+        g::local::Limits {
+            state_cells: exact.state_cells - 1,
+            ..exact
+        },
+        g::local::Limits { depth: 0, ..exact },
+        g::local::Limits {
+            work: plan.usage().work - 1,
+            ..exact
+        },
+    ] {
+        assert!(g::local::analyze(&plan, limits).is_err());
+    }
+    assert!(g::local::analyze(&plan, exact).is_ok());
+    assert!(
+        analysis.functions()[0]
+            .direct_brands(
+                lang_mir::unit::BlockId(u32::MAX),
+                moves::Slot::Value(lang_mir::unit::Register(u32::MAX))
+            )
+            .is_none()
+    );
+}
+
+#[test]
+fn cfg_arguments_carry_caller_brands_through_a_loop_backedge() {
+    use lang_mir::unit as m;
+    let mut table = checked_table(
+        "fn f(token: arena i64) -> i64 { let mut copied: arena i64 = token; return 0; }",
+    );
+    let body = &mut table.functions[0];
+    assert_eq!(body.blocks.len(), 1);
+    let span = body.blocks[0].span;
+    let source = body.blocks[0]
+        .instructions
+        .iter()
+        .find(|i| matches!(i.op, b::Op::CopyPlace(_)))
+        .unwrap()
+        .results[0];
+    let b::Term::Return(result) = body.blocks[0].terminator.kind else {
+        panic!("return")
+    };
+    let values = &mut table.places.functions[0].values;
+    let phi = m::Register(values.len() as u32);
+    values.push(values[source.0 as usize]);
+    let condition = m::Register(values.len() as u32);
+    values.push(o::TypeUse {
+        ty: o::Type::Bool,
+        span,
+    });
+    body.blocks[0].instructions.push(b::Instruction {
+        results: vec![condition],
+        op: b::Op::Bool(true),
+        span,
+    });
+    body.blocks[0].terminator.kind = b::Term::Jump(m::Target {
+        block: m::BlockId(1),
+        arguments: vec![source],
+    });
+    body.blocks.push(b::Block {
+        parameters: vec![phi],
+        instructions: vec![],
+        terminator: b::Terminator {
+            kind: b::Term::Branch {
+                condition,
+                then_target: m::Target {
+                    block: m::BlockId(1),
+                    arguments: vec![phi],
+                },
+                else_target: m::Target {
+                    block: m::BlockId(2),
+                    arguments: vec![],
+                },
+            },
+            span,
+        },
+        span,
+    });
+    body.blocks.push(b::Block {
+        parameters: vec![],
+        instructions: vec![],
+        terminator: b::Terminator {
+            kind: b::Term::Return(result),
+            span,
+        },
+        span,
+    });
+    let input = loaned(table);
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let local = g::local::analyze(&plan, Default::default()).unwrap();
+    let brands = local.functions()[0]
+        .direct_brands(m::BlockId(1), moves::Slot::Value(phi))
+        .unwrap();
+    assert!(matches!(
+        brands,
+        [g::local::Brand {
+            origin: g::local::Origin::Caller {
+                parameter: o::declarations::LocalId(0),
+                ..
+            },
+            expired: false
+        }]
+    ));
+}
+
+#[test]
+fn pending_mutation_effects_cannot_turn_stale_pre_call_facts_into_a_rejection() {
+    let source = "fn set(target: &mut arena i64, input: arena i64) -> i64 { (*target) = input; return 0; } fn f() -> i64 { arena one(core::allocator()) { let mut a: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); arena two(core::allocator()) { let mut b: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(two,2)); let mut selected: arena i64 = a; let mut called: i64 = set(selected,b); let mut changed: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(two,selected,3); return called; } } }";
+    let input = loaned(checked_table(source));
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let local = g::local::analyze(&plan, Default::default()).unwrap();
+    assert!(local.functions()[0].pending_calls().is_empty());
+    assert_eq!(local.functions()[1].pending_calls().len(), 1);
+}
+
+#[test]
+fn a_cfg_join_keeps_the_possibility_of_a_different_arena_brand() {
+    let source = "fn f(flag: bool) -> i64 { arena one(core::allocator()) { let mut a: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(one,1)); arena two(core::allocator()) { let mut b: arena i64 = core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(two,2)); let mut selected: arena i64 = b; if flag { selected = b; } let mut result: core::Result<core::Unit,core::ArenaError> = core::arena_replace::<i64>(two,selected,3); return 0; } } }";
+    let mut table = checked_table(source);
+    let locals = &table.places.declarations.functions[0].locals;
+    let find =
+        |name| o::declarations::LocalId(locals.iter().position(|l| l.name == name).unwrap() as u32);
+    let (a, b) = (find("a"), find("b"));
+    let places = &mut table.places.functions[0].places;
+    let start = source.find("if flag").unwrap();
+    let end = source.find("let mut result").unwrap();
+    let mut edits = 0;
+    for block in &mut table.functions[0].blocks {
+        for i in &mut block.instructions {
+            if let b::Op::CopyPlace(place) = &mut i.op
+                && places[place.0 as usize].root == p::Root::Local(b)
+                && (i.span.start as usize) >= start
+                && (i.span.end as usize) <= end
+            {
+                places[place.0 as usize].root = p::Root::Local(a);
+                edits += 1;
+            }
+        }
+    }
+    assert_eq!(edits, 1);
+    let input = loaned(table);
+    let plan = g::prepare(&input, Default::default()).unwrap();
+    let error = g::local::analyze(&plan, Default::default()).err().unwrap();
+    assert!(
+        matches!(error.kind, g::local::ErrorKind::CrossArena { .. }),
+        "{error:?}"
+    );
 }
 
 #[test]
