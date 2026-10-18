@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み80件 · 進行中0件 · 残り26件（暫定63 pt）。**
+**検証済み81件 · 進行中0件 · 残り25件（暫定60 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N10は完了です（`5d335a9`）。Native scalar／Copy／controlとOption／Resultのpayload全体抽出を、source VMと独立に検証したMIR fixtureで比較しました。Copyのmapping／選択81 case、affineの置換／反復12 caseで値とcleanupを保持し、panic payloadにも最初のfunction／spanを残します。全 **85 suite・1347 test** とfmt／Clippy／docが成功しました。**79 → 80 done · 65 → 63 remaining pt**、task総数106件は不変、収支は **134 + 49 − 120 = 63 pt** です。次はN02の最小place／loan projectionと準備済み置換のsource fixtureを検証します。Native／FFI／platform／performance／debug全要件と最終英日guideを維持します。完了80行（受入条件の数値が最後に動いてから54件）によって元の完了条件は新たに閉じず、G14は未完了です。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N02は完了です（`a3478bd`）。Nativeのplace／loan projection、借用case field、準備済みroot／field置換が共有cleanupモデルに従います。Guest callを越える変更、owner解放、RHS副作用、再検証済みcapture先変更をVMと比較し、失敗時も解放前に登録／captureを消去します。全 **85 suite・1352 test** とfmt／Clippy／docが成功しました。**80 → 81 done · 63 → 60 remaining pt**、task総数106件は不変、収支は **134 + 49 − 123 = 60 pt** です。次はN03の最小native Bytes割当／変更／長さ取得fixtureからText／Vec／Mapへ進めます。Native／FFI／platform／performance／debug全要件と最終英日guideを維持します。完了81行（受入条件の数値が最後に動いてから55件）によって元の完了条件は新たに閉じず、G14は未完了です。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

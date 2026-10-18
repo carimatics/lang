@@ -6,31 +6,31 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**80 done · 0 doing · 26 todo · 63 remaining pt**
+**81 done · 0 doing · 25 todo · 60 remaining pt**
 
-**Next: M2-N02 → run the smallest borrowed-place/projection and prepared-replacement source experiment before fixing the native loan scope.**
+**Next: M2-N03 → execute the smallest native Bytes allocation/mutation/length fixture, then extend the shared service bridge to Text/Vec/Map.**
 
-**Latest delivery — N10** (`5d335a9`, 2026-10-19 JST): scalar arithmetic/comparisons, Copy enum patterns, branches and whole Option/Result extraction execute as native code. 81 Copy edge cases match VM/snapshot results; 12 affine permutation/round cases preserve real Bytes and cleanup order. Wrong unwraps preserve panic code/function/span; invalid MIR guards are rejected. Mach-O/COFF sum metadata and exact budgets are checked. All **1347 tests / 85 suites**, fmt/Clippy/doc pass. **79 → 80 done · 65 → 63 remaining pt**; **106 tasks unchanged**. G14 remains open.
+**Latest delivery — N02** (`a3478bd`, 2026-10-19 JST): ordinary loans and place/borrowed-case projections cross native guest calls; prepared root/field replacement follows shared storage/cleanup rules. VM comparisons cover borrowed mutation, old/new owner retirement, RHS effects and independently reverified reference retargeting. Fuel/allocation failure clears registrations/captures before frame release. Mach-O/COFF metadata and exact budgets pass. All **1352 tests / 85 suites**, fmt/Clippy/doc pass. **80 → 81 done · 63 → 60 remaining pt**; **106 tasks unchanged**. G14 remains open.
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 80 (+45)**, and the task inventory increased **87 → 106 (+19)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 81 (+46)**, and the task inventory increased **87 → 106 (+19)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +49 pt | −120 pt | 63 pt |
+| 134 pt | +49 pt | −123 pt | 60 pt |
 
-**134 + 49 − 120 = 63 pt**
+**134 + 49 − 123 = 60 pt**
 
-This separates delivered work from newly recognized work: completion retired 120 estimated points, while exposed prerequisites and re-estimation added 49. These are planning units, not hours or measured actual effort. The remaining 63 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 123 estimated points, while exposed prerequisites and re-estimation added 49. These are planning units, not hours or measured actual effort. The remaining 60 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-N10 retires its last 2-point estimate without adding work or tasks: **65 − 2 = 63 pt**. Preserve N09's initial 1-point estimate from the earlier split: its introduction and completion shared one plan update. No task or original requirement was removed.
+N02 retires its last 3-point estimate without adding work or tasks: **63 − 3 = 60 pt**. Preserve N09's initial 1-point estimate from the earlier split: its introduction and completion shared one plan update. No task or original requirement was removed.
 
-Measured last code baseline (2026-10-19 JST): Clippy **26.8 s** initially and **1.0 s** for the final incremental check; full tests **321.5 s**, rustdoc **15.0 s** wall time (shell time). Cargo reports test compilation **23.1 s**; summed suite timings are **78.3 s**. Eighteen focused boundary tests pass in **2.17 s**. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
+Measured last code baseline (2026-10-19 JST): workspace Clippy **26.9 s**, full tests **339.7 s**, rustdoc **15.0 s** wall time (shell time). Cargo reports test compilation **23.7 s**; summed suite timings are **78.7 s**. Twenty-three focused boundary tests pass in **2.37 s**. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
 Current source capability: a zero-parameter i64 main executes Bytes/Text, arena allocation/read/replace/teardown, shared/weak allocation/clone/read/replace/upgrade, Vec new/len/push/pop/shared-or-mutable reads, and Map new/len/insert/get/remove with exact i64/Text keys. Storable payloads compose through nested collections, inline records/enums/Option/Result and recursive guest calls. Shared publication checks transitive strong edges, arena stores check nested brands, and reads preserve custody through projections/calls. Owners move through cleanup-protected returns and prepared replacement, with iterative normal/failure teardown. Ordinary loans, allocator authority and arena owners remain unstorable; cross-region/shared-heap edges and arena escapes are rejected. Borrowed matching and partial-move prohibition are unchanged. V16/V15/V10 support the existing managed preview/inference/REPL profile; V13 verifies provisional-read loan endings within the documented source coverage, while indirect previews remain V17. V11 supports in-memory CFG arguments; current ownership source lowering does not emit them. Native N03/N04/N05 and ownership artifacts still require evidence; source integration alone closes no exit gate.
 
-Readiness audit (2026-10-19 JST): N02's former 3-point estimate was split into N09 record construction (1), N10 scalar/sum/control (2), and N02 loans plus combined VM comparison (3), exposing +3 points and +2 tasks. N09 and N10 are now verified deliveries. N02 retains place/loan projections and prepared replacement: those source bodies are still rejected by native preflight. Run the smallest borrowed scalar/field and replacement fixture before coding or re-estimating its provisional 3 points. Keep V17, all native/FFI/platform/conformance/performance/debug outcomes and Z01's bilingual guide; no exit gate closes.
+Readiness audit (2026-10-19 JST): the former 3-point native-value estimate became N09 record construction (1), N10 scalar/sum/control (2), and N02 loans plus prepared replacement/combined VM comparison (3), exposing +3 points and +2 tasks. All three are verified deliveries. Source still forbids exporting a callee-local ordinary loan into a caller reference; the capture-retarget case uses independently reverified same-frame MIR. N03's general core services remain unsupported; run the smallest Bytes fixture before extending Text/Vec/Map and re-estimate any demonstrated independent prerequisite. Keep V17, every native/FFI/platform/conformance/performance/debug outcome and Z01's bilingual guide; no exit gate closes.
 
 The original exit gates remain **5 / 18 complete**. Completed deliveries include compiler/runtime prerequisites and the initial source execution fixture; they do not assert that entire core-library or backend features are complete.
 
@@ -193,7 +193,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N01 | done | 0 | M2-V07,M2-A02,M2-N08 | G14 | Emit owned call/return conventions and managed layouts, including a source Bytes parameter/return fixture. | `0ff2618` |
 | M2-N09 | done | 0 | M2-N01 | G14 | Native owned record construction, nested field order and whole-record calls preserve cleanup and match shared/VM fixtures. | `f199b19` |
 | M2-N10 | done | 0 | M2-N09 | G14 | Native scalar/control and sum construction, inspection and whole-payload extraction match VM fixtures. | `5d335a9` |
-| M2-N02 | todo | 3 | M2-N10 | G14 | Native place/loan projections and prepared replacement, plus combined owner move/record/sum/loan VM conformance. | — |
+| M2-N02 | done | 0 | M2-N10 | G14 | Native place/loan projections and prepared replacement, plus combined owner move/record/sum/loan VM conformance. | `a3478bd` |
 | M2-N03 | todo | 3 | M2-N02,M2-C03,M2-C06 | G07,G08,G09,G10,G14 | Native core dispatch executes the same Bytes/Text/Vec/Map fixtures. | — |
 | M2-N04 | todo | 3 | M2-N02,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared/arena dispatch preserves lifecycle and brand checks. | — |
 | M2-N05 | todo | 3 | M2-N02,M2-V08 | G06,G14 | Native generated failure/return exits match ordered VM cleanup and fuel behavior. | — |
@@ -214,7 +214,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 ## Sources and verification dates
 
-- [Native scalar/sum lowering](../crates/codegen-clif/src/owned.rs), [source fixture](../examples/analysis/native_owned_sums.lang), [value tests](../tests/support/native_owned_values.rs) and [edge tests](../tests/support/native_value_edges.rs) (`5d335a9`): updated/verified 2026-10-19 JST. N10 retires its existing 2-point estimate; loans, prepared replacement, services and full platform execution remain open.
+- [Native place/loan lowering](../crates/codegen-clif/src/owned.rs), [source fixture](../examples/analysis/native_owned_loans.lang) and [place/VM tests](../tests/support/native_places.rs) (`a3478bd`): updated/verified 2026-10-19 JST. N02 retires its existing 3-point estimate. Core services, complete exit conformance, standalone object execution and platform evidence remain open.
 - [Progress validator](../tests/repository_consistency.rs) (`00cff53`): updated/verified 2026-10-18 JST; checks the estimate equation against open rows, delivery/task deltas, roadmap totals and English/Japanese agreement. All 1326 workspace tests, fmt, Clippy and rustdoc passed; this maintenance change does not complete an M2 implementation row.
 - Detailed-board history `8605416..926ccfe`: 48 board revisions dated 2026-10-18 JST, re-audited 2026-10-18 JST. Row transitions alone record 107 pt retired / 39 pt added. V14 and R08 were first committed as done; the V10/R01 readiness audits preserve their 2/3-point estimates, so add 5 pt to both sides: 112 retired / 44 added. All 41 new deliveries are included; no rows were removed. Preserve such estimates even when introduction and completion share an update.
 - Local Git history `926fb3b`–`0c2c012` and diff `367218e..0c2c012`: commits dated 2026-10-17/18 JST; verified 2026-10-18 JST.
