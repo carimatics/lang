@@ -714,7 +714,30 @@ impl Lowerer<'_, '_, '_> {
                     body,
                 } => {
                     let arena_mark = self.actions.len();
-                    let allocator = self.expression(*allocator, block, depth + 1)?;
+                    // HIR checks this as an implicit shared allocator loan,
+                    // including a dereferenced allocator place. Reborrow using
+                    // that expected type rather than moving the expression.
+                    self.c.budget.charge(self.input.types().len())?;
+                    let expected = self
+                        .input
+                        .types()
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, ty)| {
+                            if let r::TypeConstructor::Loan(
+                                r::LoanKind::Shared,
+                                r::Type::Constructed(target),
+                            ) = ty.constructor
+                                && self.input.types()[target.0].constructor
+                                    == r::TypeConstructor::Builtin(r::BuiltinType::Allocator)
+                            {
+                                Some(r::Type::Constructed(r::ConstructedTypeId(index)))
+                            } else {
+                                None
+                            }
+                        })
+                        .ok_or(Error::Capacity)?;
+                    let allocator = self.argument(*allocator, Some(expected), block, depth + 1)?;
                     let owner = d::LocalId(id(owner.0)?);
                     self.emit(block, None, b::Op::ArenaEnter { owner, allocator }, span)?;
                     self.action(Action::Arena(owner, span))?;

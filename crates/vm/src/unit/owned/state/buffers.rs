@@ -1,7 +1,28 @@
 use super::*;
 
 impl<P: a::Provider> State<'_, '_, '_, P> {
-    fn token(&self, target: Target) -> Step<[u8; 32]> {
+    pub(super) fn token(&self, target: Target) -> Step<[u8; 32]> {
+        if let Target::Arena {
+            owner,
+            read,
+            location,
+        } = target
+        {
+            let view = self.arena_view(owner, read)?;
+            let start = location.offset() as usize;
+            return view
+                .data(self.allocator)
+                .map_err(invariant)?
+                .get(
+                    start
+                        ..start
+                            .checked_add(32)
+                            .ok_or(c::ExecutionFailure::Invariant)?,
+                )
+                .ok_or(c::ExecutionFailure::Invariant)?
+                .try_into()
+                .map_err(invariant);
+        }
         let Target::Data { cell, location } = target else {
             return Err(c::ExecutionFailure::Invariant);
         };

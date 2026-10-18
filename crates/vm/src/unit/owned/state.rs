@@ -1,6 +1,7 @@
 use super::*;
 use o::places::{Place, ProjectionKind, Root};
 
+mod arenas;
 mod buffers;
 mod replacement;
 
@@ -9,11 +10,25 @@ pub(super) enum Capture {
     Root(usize),
     Path(Target),
 }
+pub(super) enum ArenaTransfer {
+    Copy,
+    Moved,
+    Rejected,
+    Replaced(Option<m::Span>),
+}
 
 #[derive(Clone, Copy)]
 pub(super) enum Target {
     Allocator,
-    Data { cell: usize, location: l::Location },
+    Data {
+        cell: usize,
+        location: l::Location,
+    },
+    Arena {
+        owner: usize,
+        read: usize,
+        location: l::Location,
+    },
 }
 pub(super) struct Cell {
     pub physical: usize,
@@ -24,6 +39,7 @@ pub(super) struct Cell {
 pub(super) struct Loan {
     pub generation: u64,
     pub target: Option<Target>,
+    pub arena_read: Option<(usize, g::Read)>,
 }
 pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub allocator: &'a mut a::Allocator<P>,
@@ -33,12 +49,27 @@ pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub inverse: Vec<usize>,
     pub loans: Vec<Loan>,
     pub prepared: Vec<Option<Capture>>,
+    pub arenas: Vec<Option<g::Arena<'layouts, 'types>>>,
     pub panic_code: Option<i64>,
     pub current: Address,
 }
 pub(super) type Step<T> = Result<T, c::ExecutionFailure>;
 pub(super) fn invariant<T>(_: T) -> c::ExecutionFailure {
     c::ExecutionFailure::Invariant
+}
+fn cleanup_leaf<P: a::Provider>(
+    types: &o::VerifiedTypes,
+    token: &mut l::Token,
+    allocator: &mut a::Allocator<P>,
+    context: &mut c::Context<'_>,
+) -> Result<(), u32> {
+    #[cfg(test)]
+    let event = super::failure_tests::before_leaf(token, allocator, context);
+    buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)?;
+    #[cfg(test)]
+    super::failure_tests::after_leaf(event)?;
+    let _ = context;
+    Ok(())
 }
 impl<P: a::Provider> State<'_, '_, '_, P> {
     pub fn root(&self, index: usize) -> Step<Target> {
@@ -62,6 +93,17 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         })
     }
     pub fn read(&self, target: Target) -> Step<l::Immediate> {
+        if let Target::Arena {
+            owner,
+            read,
+            location,
+        } = target
+        {
+            return self
+                .arena_view(owner, read)?
+                .read_immediate(location, self.allocator)
+                .map_err(invariant);
+        }
         let Target::Data { cell, location } = target else {
             return Err(c::ExecutionFailure::Invariant);
         };
@@ -131,6 +173,14 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         }
         let target = loan.target.ok_or(c::ExecutionFailure::Invariant)?;
         let valid = match target {
+            Target::Arena {
+                owner,
+                read,
+                location,
+            } => {
+                self.arena_view(owner, read).is_ok()
+                    && self.types.equivalent(location.ty(), pointee) == Some(true)
+            }
             Target::Data { cell, location } => {
                 self.cells[self.inverse[cell]].live
                     && self.types.equivalent(location.ty(), pointee) == Some(true)
@@ -173,6 +223,22 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(target)
     }
     pub fn field(&self, target: Target, field: u32) -> Step<Target> {
+        if let Target::Arena {
+            owner,
+            read,
+            location,
+        } = target
+        {
+            let location = self
+                .arena_view(owner, read)?
+                .child(location, field, self.allocator)
+                .map_err(invariant)?;
+            return Ok(Target::Arena {
+                owner,
+                read,
+                location,
+            });
+        }
         let Target::Data { cell, location } = target else {
             return Err(c::ExecutionFailure::Invariant);
         };
@@ -187,6 +253,17 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(Target::Data { cell, location })
     }
     pub fn case(&self, target: Target) -> Step<u32> {
+        if let Target::Arena {
+            owner,
+            read,
+            location,
+        } = target
+        {
+            return self
+                .arena_view(owner, read)?
+                .case(location, self.allocator)
+                .map_err(invariant);
+        }
         let Target::Data { cell, location } = target else {
             return Err(c::ExecutionFailure::Invariant);
         };
@@ -200,6 +277,20 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
     }
     pub fn borrow(&mut self, destination: usize, id: usize, target: Target) -> Step<()> {
         let id = self.current.loan + id;
+        let token = self.loan_token(id, target)?;
+        let physical = self.cells[destination].physical;
+        self.storage
+            .as_ref()
+            .ok_or(c::ExecutionFailure::Invariant)?
+            .cell(physical)
+            .map_err(invariant)?
+            .data_mut(self.allocator)
+            .map_err(invariant)?
+            .copy_from_slice(&token);
+        self.cells[destination].live = true;
+        Ok(())
+    }
+    pub(super) fn loan_token(&mut self, id: usize, target: Target) -> Step<[u8; 32]> {
         let loan = &mut self.loans[id];
         if loan.target.is_some() {
             return Err(c::ExecutionFailure::Invariant);
@@ -211,20 +302,40 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let mut token = [0u8; 32];
         token[..8].copy_from_slice(&(id as u64).to_le_bytes());
         token[8..16].copy_from_slice(&loan.generation.to_le_bytes());
-        let physical = self.cells[destination].physical;
-        self.storage
-            .as_ref()
-            .ok_or(c::ExecutionFailure::Invariant)?
-            .cell(physical)
-            .map_err(invariant)?
-            .data_mut(self.allocator)
-            .map_err(invariant)?
-            .copy_from_slice(&token);
         loan.target = Some(target);
-        self.cells[destination].live = true;
-        Ok(())
+        Ok(token)
     }
     pub fn copy(&mut self, from: Target, destination: usize) -> Step<()> {
+        if let Target::Arena {
+            owner,
+            read,
+            location,
+        } = from
+        {
+            let storage = self
+                .storage
+                .as_ref()
+                .ok_or(c::ExecutionFailure::Invariant)?;
+            let to = storage
+                .cell(self.cells[destination].physical)
+                .map_err(invariant)?;
+            let (source, token) = self.loans[read]
+                .arena_read
+                .as_ref()
+                .ok_or(c::ExecutionFailure::Invariant)?;
+            if *source != owner {
+                return Err(c::ExecutionFailure::Invariant);
+            }
+            self.arenas[owner]
+                .as_ref()
+                .ok_or(c::ExecutionFailure::Invariant)?
+                .payload(token, self.allocator)
+                .map_err(invariant)?
+                .copy_into(location, to, to.root(), self.allocator)
+                .map_err(invariant)?;
+            self.cells[destination].live = true;
+            return Ok(());
+        }
         let Target::Data { cell, location } = from else {
             return Err(c::ExecutionFailure::Invariant);
         };
@@ -472,22 +583,8 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(())
     }
     pub fn bytes_len(&self, reference: usize) -> Step<i64> {
-        let Target::Data { cell, location } = self.reference(self.root(reference)?)? else {
-            return Err(c::ExecutionFailure::Invariant);
-        };
-        let start = location.offset() as usize;
-        let mut token = self
-            .storage
-            .as_ref()
-            .ok_or(c::ExecutionFailure::Invariant)?
-            .cell(cell)
-            .map_err(invariant)?
-            .data(self.allocator)
-            .map_err(invariant)?
-            .get(start..start + 32)
-            .ok_or(c::ExecutionFailure::Invariant)?
-            .try_into()
-            .map_err(invariant)?;
+        let target = self.reference(self.root(reference)?)?;
+        let mut token = self.token(target)?;
         let bytes = buffer::Bytes::from_token(&mut token, self.allocator).map_err(invariant)?;
         bytes.len(self.allocator).map_err(invariant)
     }
@@ -499,22 +596,49 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         match *ticket {
             Ticket::Loan(id) => {
                 self.loans[id].target = None;
+                if let Some((owner, mut read)) = self.loans[id].arena_read.take() {
+                    self.arenas[owner]
+                        .as_mut()
+                        .ok_or(6u32)?
+                        .end_read(&mut read, self.allocator)
+                        .map_err(|_| 7u32)?;
+                }
             }
             Ticket::Cell(physical) => {
-                self.cells[self.inverse[physical]].live = false;
+                let logical = self.inverse[physical];
+                self.cells[logical].live = false;
+                let arena_owner = matches!(self.cells[logical].ty, o::Type::Constructed(id)
+                    if matches!(self.types.table().constructed[id.0 as usize].constructor, o::Constructor::ArenaOwner(_)));
+                if arena_owner {
+                    let arena = self
+                        .arenas
+                        .get_mut(physical)
+                        .and_then(Option::as_mut)
+                        .ok_or(8u32)?;
+                    arena
+                        .cleanup(
+                            if context.reason() == c::Reason::Failure {
+                                g::Exit::Abort
+                            } else {
+                                g::Exit::Normal
+                            },
+                            self.allocator,
+                            context,
+                            |token, allocator, _, context| {
+                                cleanup_leaf(self.types, token, allocator, context)
+                            },
+                        )
+                        .map_err(|_| 4u32)?;
+                    return Ok(());
+                }
                 let cell = self
                     .storage
                     .as_mut()
                     .ok_or(1u32)?
                     .cell_mut(physical)
                     .map_err(|_| 2u32)?;
-                cell.retire(self.allocator, context, |token, allocator, _, _context| {
-                    #[cfg(test)]
-                    let event = super::failure_tests::before_leaf(token, allocator, _context);
-                    buffer::cleanup_token(self.types, token, allocator).map_err(|_| 3u32)?;
-                    #[cfg(test)]
-                    super::failure_tests::after_leaf(event)?;
-                    Ok(())
+                cell.retire(self.allocator, context, |token, allocator, _, context| {
+                    cleanup_leaf(self.types, token, allocator, context)
                 })
                 .map_err(|_| 4u32)?;
                 cell.recycle(self.allocator).map_err(|_| 5u32)?;

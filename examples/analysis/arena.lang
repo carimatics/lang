@@ -1,4 +1,4 @@
-// RFC 0007 arena analysis fixture. Execution still requires the M2 arena path.
+// RFC 0007 arena analysis and VM execution fixture.
 fn main() -> i64 {
     arena graph(core::allocator()) {
         let mut token: arena i64 = core::result_unwrap::<arena i64, core::ArenaError>(

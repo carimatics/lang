@@ -43,14 +43,14 @@ impl Payloads {
                         ty,
                         o::Type::Constructed(id)
                             if matches!(types.table().constructed[id.0 as usize].constructor,
-                                o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text))
+                                o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text) | o::Constructor::ArenaOwner(_))
                     )
                 {
                     states[index] = 2;
                 } else if matches!(ty, o::Type::Nominal(_))
                     || matches!(ty, o::Type::Constructed(id)
                         if matches!(types.table().constructed[id.0 as usize].constructor,
-                            o::Constructor::Option(_) | o::Constructor::Result(..)))
+                            o::Constructor::Option(_) | o::Constructor::Result(..) | o::Constructor::Loan(..)))
                 {
                     // Verified inline types are acyclic; indirect services are
                     // leaves and cannot bring their recursive payloads here.
@@ -110,6 +110,7 @@ fn children(types: &o::VerifiedTypes, ty: o::Type) -> impl Iterator<Item = o::Ty
         o::Type::Constructed(id) => match types.table().constructed[id.0 as usize].constructor {
             o::Constructor::Option(t) => [Some(t), None],
             o::Constructor::Result(t, e) => [Some(t), Some(e)],
+            o::Constructor::Loan(_, t) => [Some(t), None],
             _ => [None, None],
         },
         _ => [None, None],

@@ -987,3 +987,142 @@ fn cleanup_failure_after_real_retirement_runs_the_generated_call_exit() {
     assert!(instance.is_poisoned());
     assert_eq!(allocator.stats().live_allocations, 0);
 }
+
+const ARENA: &str = include_str!("../../../../../examples/scripts/arena_owned.lang");
+#[test]
+fn arena_cycle_replacement_and_reverse_teardown_preserve_real_leaf_spans() {
+    let program = checked(ARENA);
+    let _guard = install(Injection::default());
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let outcome = execute_entry(
+        program.failure_flow(),
+        &mut c::Instance::default(),
+        Some(&mut allocator),
+        control(),
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 5);
+    assert_eq!(lengths(), [1, 2, 3]);
+    assert_eq!(events()[0].reason, c::Reason::Replacement);
+    for (event, source) in events().into_iter().zip(["make(1)", "make(2)", "make(3)"]) {
+        let span = event.span.unwrap();
+        assert_eq!(&ARENA[span.start as usize..span.end as usize], source);
+    }
+    assert_empty(&allocator);
+}
+
+#[test]
+fn arena_cleanup_failures_and_panics_drain_the_published_cycle_without_retry() {
+    let program = checked(ARENA);
+    for (fail, panic) in [(Some(0), None), (Some(1), Some(2)), (None, Some(0))] {
+        let _guard = install(Injection {
+            fail: fail.into_iter().collect(),
+            panic,
+            ..Default::default()
+        });
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut instance = c::Instance::default();
+        let failure = execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            control(),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(lengths(), [1, 2, 3]);
+        let report = failure.report.as_ref().unwrap();
+        let expected = match fail {
+            Some(0) => c::FailureKind::Cleanup(1001),
+            Some(1) => c::FailureKind::Cleanup(1002),
+            _ => c::FailureKind::CleanupPanic,
+        };
+        assert_eq!(report.primary().unwrap().kind, expected);
+        assert!(instance.is_poisoned());
+        if fail == Some(1) {
+            assert_eq!(report.secondary()[0].kind, c::FailureKind::CleanupPanic);
+        }
+        assert_empty(&allocator);
+    }
+}
+
+#[test]
+fn every_arena_fuel_prefix_ends_reads_and_keeps_execution_failure_primary() {
+    let program = checked(ARENA);
+    let mut baseline = a::Allocator::new(a::System, Default::default()).unwrap();
+    let fuel = execute_entry(
+        program.failure_flow(),
+        &mut c::Instance::default(),
+        Some(&mut baseline),
+        control(),
+    )
+    .unwrap()
+    .usage
+    .fuel;
+    assert_empty(&baseline);
+    for limit in 0..fuel {
+        let _guard = install(Injection {
+            all: true,
+            only_failure: true,
+            ..Default::default()
+        });
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut instance = c::Instance::default();
+        let failure = execute_entry(
+            program.failure_flow(),
+            &mut instance,
+            Some(&mut allocator),
+            Control::with_limits(super::super::Limits {
+                fuel: Some(limit),
+                frames: Some(8),
+                ..Default::default()
+            }),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(
+            failure.report.as_ref().unwrap().primary().unwrap().kind,
+            c::FailureKind::Execution(c::ExecutionFailure::FuelLimit),
+            "fuel {limit}: {failure:?}"
+        );
+        assert_execution_first(&failure);
+        assert_empty(&allocator);
+    }
+}
+
+#[test]
+fn arena_teardown_interruption_drains_before_the_callers_next_guest_effect() {
+    let inner = ARENA
+        .lines()
+        .filter(|line| !line.contains("let mut changed:"))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .replace("fn main()", "fn inner()");
+    let source = format!(
+        "{inner}\nfn main() -> i64 {{ let mut value: i64 = inner(); let mut later: core::Bytes = make(5); return value; }}"
+    );
+    let program = checked(&source);
+    let flag = Rc::new(crate::InterruptionFlag::default());
+    let _guard = install(Injection {
+        interrupt: Some(flag.clone()),
+        ..Default::default()
+    });
+    let (mut allocator, trace) = allocator();
+    let mut instance = c::Instance::default();
+    let failure = execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        control().and_interruption(&flag),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(lengths(), [2, 1]);
+    assert_eq!(
+        failure.report.as_ref().unwrap().primary().unwrap().kind,
+        c::FailureKind::Execution(c::ExecutionFailure::Interrupted)
+    );
+    assert!(!instance.is_poisoned());
+    assert!(trace.borrow().live.is_empty());
+    assert_empty(&allocator);
+}

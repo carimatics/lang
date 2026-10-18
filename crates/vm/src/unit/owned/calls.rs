@@ -39,14 +39,26 @@ fn base_usage(layouts: &l::Layouts<'_>, typed: &b::TypedBodies) -> Result<m::Usa
         )?,
     })
 }
+#[derive(Clone, Copy)]
+struct PoolShape {
+    cells: usize,
+    loans: usize,
+    prepared: usize,
+    arena_owners: usize,
+}
 fn pool_usage(
     limits: m::Limits,
     initial: m::Usage,
     capacity: usize,
-    cells: usize,
-    loans: usize,
-    prepared: usize,
+    shape: PoolShape,
+    layouts: &l::Layouts<'_>,
 ) -> Result<m::Usage, l::Error> {
+    let PoolShape {
+        cells,
+        loans,
+        prepared,
+        arena_owners,
+    } = shape;
     let mut budget = m::Budget::with_usage(limits, initial)?;
     let cell_count = cells.checked_mul(capacity).ok_or(l::Error::Overflow)?;
     let loan_count = loans.checked_mul(capacity).ok_or(l::Error::Overflow)?;
@@ -61,6 +73,25 @@ fn pool_usage(
     budget.allocate::<super::super::StackFrame>(capacity)?;
     budget.charge(cell_count)?;
     budget.allocate::<l::Reservation<'_, '_>>(cell_count)?;
+    if arena_owners != 0 {
+        budget.allocate::<Option<g::Arena<'_, '_>>>(cell_count)?;
+        for _ in 0..arena_owners
+            .checked_mul(capacity)
+            .ok_or(l::Error::Overflow)?
+        {
+            let usage = g::Arena::preparation_usage(
+                layouts,
+                Default::default(),
+                limits,
+                budget_usage(&budget),
+            )
+            .map_err(|e| match e.kind {
+                g::Kind::Layout(error) => error,
+                _ => l::Error::State,
+            })?;
+            budget = m::Budget::with_usage(limits, usage)?;
+        }
+    }
     Ok(budget_usage(&budget))
 }
 fn capture(trace: &mut Vec<super::super::StackFrame>, stack: &[Activation], span: m::Span) {
@@ -316,11 +347,12 @@ fn execute_with<P: a::Provider>(
                         reachable.push(id);
                     }
                 } else {
-                    let result = instruction
-                        .results
-                        .first()
-                        .map(|v| typed.places().functions()[current].values[v.0 as usize].ty);
-                    if !supported(&instruction.op, &payloads, result) {
+                    if !supported(
+                        instruction,
+                        &payloads,
+                        &typed.places().functions()[current].values,
+                        types,
+                    ) {
                         let core = if let b::Op::CoreCall(c) = &instruction.op {
                             Some(c.operation)
                         } else {
@@ -458,6 +490,24 @@ fn execute_with<P: a::Provider>(
         .map(|id| typed.functions()[*id].prepared)
         .max()
         .unwrap();
+    let mut owner_positions = budget
+        .vector(cell_stride)
+        .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    owner_positions.resize(cell_stride, false);
+    for &id in &reachable {
+        for (index, local) in declarations.functions()[id].locals.iter().enumerate() {
+            if local.kind == o::declarations::LocalKind::ArenaOwner {
+                owner_positions[index] = true;
+            }
+        }
+    }
+    let arena_owners = owner_positions.iter().filter(|p| **p).count();
+    let shape = PoolShape {
+        cells: cell_stride,
+        loans: loan_stride,
+        prepared: prepared_stride,
+        arena_owners,
+    };
     // A disabled frame counter does not disable preparation budgets. Find the
     // exact largest pool those budgets admit without allocating trial buffers.
     let desired = control
@@ -470,31 +520,15 @@ fn execute_with<P: a::Provider>(
     let mut upper = desired;
     while capacity < upper {
         let middle = capacity + (upper - capacity).div_ceil(2);
-        if pool_usage(
-            limits,
-            budget_usage(&budget),
-            middle,
-            cell_stride,
-            loan_stride,
-            prepared_stride,
-        )
-        .is_ok()
-        {
+        if pool_usage(limits, budget_usage(&budget), middle, shape, &layouts).is_ok() {
             capacity = middle;
         } else {
             upper = middle - 1;
         }
     }
     if capacity == 0 {
-        pool_usage(
-            limits,
-            budget_usage(&budget),
-            1,
-            cell_stride,
-            loan_stride,
-            prepared_stride,
-        )
-        .map_err(|e| fail(Reason::Preparation(e)))?;
+        pool_usage(limits, budget_usage(&budget), 1, shape, &layouts)
+            .map_err(|e| fail(Reason::Preparation(e)))?;
         return Err(fail(Reason::Preparation(l::Error::State)));
     }
     let multiply = |n: usize| {
@@ -530,6 +564,7 @@ fn execute_with<P: a::Provider>(
         loans.push(state::Loan {
             generation: 0,
             target: None,
+            arena_read: None,
         });
     }
     let mut prepared = budget
@@ -552,6 +587,34 @@ fn execute_with<P: a::Provider>(
             .map_err(|e| fail(Reason::Preparation(e.into())))?;
         pools.push(pool);
     }
+    let arena_cells = if arena_owners == 0 {
+        0
+    } else {
+        multiply(cell_stride)?
+    };
+    let mut arenas = budget
+        .vector(arena_cells)
+        .map_err(|e| fail(Reason::Preparation(e.into())))?;
+    for physical in 0..arena_cells {
+        let local = physical % cell_stride;
+        let owner = owner_positions[local];
+        let arena = if owner {
+            let arena =
+                g::Arena::prepare(&layouts, Default::default(), limits, budget_usage(&budget))
+                    .map_err(|error| {
+                        fail(Reason::Preparation(match error.kind {
+                            g::Kind::Layout(error) => error,
+                            _ => l::Error::State,
+                        }))
+                    })?;
+            budget = m::Budget::with_usage(limits, arena.usage())
+                .map_err(|e| fail(Reason::Preparation(e.into())))?;
+            Some(arena)
+        } else {
+            None
+        };
+        arenas.push(arena);
+    }
     let shared = Rc::new(RefCell::new(State {
         allocator,
         storage: Some(StackStorage {
@@ -564,6 +627,7 @@ fn execute_with<P: a::Provider>(
         inverse,
         loans,
         prepared,
+        arenas,
         panic_code: None,
         current: Address::entry(function),
     }));

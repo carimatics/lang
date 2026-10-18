@@ -949,3 +949,104 @@ fn indirect_service_validation_must_share_the_walk_budget_and_cannot_skip_unknow
     arena.finish_close(&mut allocator).unwrap();
     assert_eq!(allocator.stats().live_allocations, 0);
 }
+
+#[test]
+fn copy_arena_operations_preserve_the_operand_and_reject_owning_copy_before_callbacks() {
+    let types = model();
+    let layouts = l::Layouts::compile(&types, Default::default()).unwrap();
+    let (mut allocator, trace) = allocator(Default::default());
+    let mut arena = prepare(&layouts, Default::default());
+    arena.open(&mut allocator).unwrap();
+    let mut value = l::Reservation::allocate(&layouts, o::Type::I64, &mut allocator).unwrap();
+    value
+        .write_immediate(value.root(), l::Immediate::I64(7), &mut allocator)
+        .unwrap();
+    let reference = arena
+        .allocate_copy(&mut value, Some(span()), &mut allocator, no_containers)
+        .unwrap();
+    assert_eq!(
+        value.read_immediate(value.root(), &allocator).unwrap(),
+        l::Immediate::I64(7)
+    );
+    value
+        .write_immediate(value.root(), l::Immediate::I64(11), &mut allocator)
+        .unwrap();
+    arena
+        .replace_copy(reference, &mut value, span(), &mut allocator, no_containers)
+        .unwrap();
+    assert_eq!(
+        value.read_immediate(value.root(), &allocator).unwrap(),
+        l::Immediate::I64(11)
+    );
+    let mut read = arena.read(reference, o::Type::I64, &mut allocator).unwrap();
+    let view = arena.payload(&read, &allocator).unwrap();
+    assert_eq!(
+        view.read_immediate(view.root(), &allocator).unwrap(),
+        l::Immediate::I64(11)
+    );
+    view.copy_into(view.root(), &value, value.root(), &mut allocator)
+        .unwrap();
+    arena.end_read(&mut read, &mut allocator).unwrap();
+    value.release_storage(&mut allocator).unwrap();
+    let mut owning = make_node(&layouts, &mut allocator, 1, None);
+    let before = trace.borrow().requests.len();
+    assert_eq!(
+        arena
+            .allocate_copy(&mut owning, Some(span()), &mut allocator, no_containers)
+            .unwrap_err()
+            .kind,
+        g::Kind::Layout(l::Error::InvalidType(node_type()))
+    );
+    assert_eq!(trace.borrow().requests.len(), before);
+    clean_value(&mut owning, &mut allocator, &types);
+    assert!(
+        retire(
+            &mut arena,
+            &mut allocator,
+            g::Exit::Normal,
+            |_, _, _, _| panic!("Copy node has no descendants")
+        )
+        .primary()
+        .is_none()
+    );
+    assert_eq!(allocator.stats().live_allocations, 0);
+}
+
+#[test]
+fn arena_pool_estimation_matches_real_preparation_at_exact_limits() {
+    let types = model();
+    let layouts = l::Layouts::compile(&types, Default::default()).unwrap();
+    let limits = g::Limits {
+        nodes: 4,
+        value_cells: 8,
+        readers: 2,
+        ..Default::default()
+    };
+    let usage =
+        g::Arena::preparation_usage(&layouts, limits, Default::default(), layouts.usage()).unwrap();
+    let exact = m::Limits {
+        work: usage.work,
+        allocations: usage.allocation_bytes,
+        elements: usage.elements,
+        ..Default::default()
+    };
+    assert_eq!(
+        g::Arena::prepare(&layouts, limits, exact, layouts.usage())
+            .unwrap()
+            .usage(),
+        usage
+    );
+    for below in [
+        m::Limits {
+            allocations: exact.allocations - 1,
+            ..exact
+        },
+        m::Limits {
+            elements: exact.elements - 1,
+            ..exact
+        },
+    ] {
+        assert!(g::Arena::preparation_usage(&layouts, limits, below, layouts.usage()).is_err());
+        assert!(g::Arena::prepare(&layouts, limits, below, layouts.usage()).is_err());
+    }
+}

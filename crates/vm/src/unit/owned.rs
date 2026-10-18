@@ -5,7 +5,7 @@ use lang_mir::unit::{
     self as m,
     ownership::{self as o, bodies as b, failure as f},
 };
-use lang_runtime::{allocation as a, buffer, cleanup as c, layout as l};
+use lang_runtime::{allocation as a, arena::managed as g, buffer, cleanup as c, layout as l};
 use std::{
     cell::RefCell,
     fmt::{Display, Formatter},
@@ -120,8 +120,21 @@ fn rejected(reason: Reason, function: Option<m::FunctionId>, fault: Option<m::Sp
         stack: Vec::new(),
     }
 }
-fn supported(op: &b::Op, payloads: &profile::Payloads, result: Option<o::Type>) -> bool {
+fn supported(
+    instruction: &b::Instruction,
+    payloads: &profile::Payloads,
+    values: &[o::TypeUse],
+    types: &o::VerifiedTypes,
+) -> bool {
+    let op = &instruction.op;
+    let result = instruction.results.first().map(|r| values[r.0 as usize].ty);
     match op {
+        b::Op::UnpackVariant { value, .. } => {
+            instruction.results.len() == 1
+                && result.is_some_and(|ty| payloads.supports(ty))
+                && matches!(values[value.0 as usize].ty, o::Type::Constructed(id)
+                if matches!(types.table().constructed[id.0 as usize].constructor, o::Constructor::Option(_) | o::Constructor::Result(..)))
+        }
         b::Op::CoreCall(call) => {
             (call.operation.extraction().is_some()
                 && call.type_arguments.iter().all(|t| payloads.supports(t.ty)))
@@ -141,6 +154,12 @@ fn supported(op: &b::Op, payloads: &profile::Payloads, result: Option<o::Type>) 
                         | o::core::Operation::TextConcat
                         | o::core::Operation::TextEqual
                 )
+                || (matches!(
+                    call.operation,
+                    o::core::Operation::ArenaNew
+                        | o::core::Operation::ArenaRead
+                        | o::core::Operation::ArenaReplace
+                ) && call.type_arguments.iter().all(|t| payloads.supports(t.ty)))
         }
         b::Op::Record { .. } | b::Op::Variant { .. } => {
             result.is_some_and(|ty| payloads.supports(ty))
@@ -168,11 +187,10 @@ fn supported(op: &b::Op, payloads: &profile::Payloads, result: Option<o::Type>) 
         | b::Op::IsCase { .. }
         | b::Op::CopyCaseField { .. }
         | b::Op::BorrowCaseField { .. }
-        | b::Op::Borrow { .. } => true,
-        b::Op::Cleanup(cleanup) => !cleanup
-            .steps
-            .iter()
-            .any(|step| matches!(step.target, b::CleanupTarget::Arena(_))),
+        | b::Op::Borrow { .. }
+        | b::Op::ArenaEnter { .. }
+        | b::Op::ArenaExit { .. }
+        | b::Op::Cleanup(_) => true,
         _ => false,
     }
 }
@@ -216,7 +234,7 @@ pub fn execute_entry<P: a::Provider>(
         typed.functions()[i].blocks.iter().any(|b| {
             b.instructions
                 .iter()
-                .any(|i| matches!(i.op, b::Op::Call { .. }))
+                .any(|i| matches!(i.op, b::Op::Call { .. } | b::Op::ArenaEnter { .. }))
         })
     });
     if has_calls {
@@ -262,11 +280,12 @@ fn execute_single<P: a::Provider>(
         profile::Payloads::compile(types, limits).map_err(|e| fail(Reason::Preparation(e)))?;
     for block in &body.blocks {
         for instruction in &block.instructions {
-            let result = instruction
-                .results
-                .first()
-                .map(|v| typed.places().functions()[index].values[v.0 as usize].ty);
-            if !supported(&instruction.op, &payloads, result) {
+            if !supported(
+                instruction,
+                &payloads,
+                &typed.places().functions()[index].values,
+                types,
+            ) {
                 let core = if let b::Op::CoreCall(call) = &instruction.op {
                     Some(call.operation)
                 } else {
@@ -352,6 +371,7 @@ fn execute_single<P: a::Provider>(
         loans.push(state::Loan {
             generation: 0,
             target: None,
+            arena_read: None,
         });
     }
     let shared = Rc::new(RefCell::new(State {
@@ -362,6 +382,7 @@ fn execute_single<P: a::Provider>(
         inverse,
         loans,
         prepared,
+        arenas: Vec::new(),
         panic_code: None,
         current: Address::entry(function),
     }));
@@ -1033,6 +1054,36 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 }
             }
         }
+        b::Op::UnpackVariant {
+            value: source,
+            case,
+            guard,
+        } => {
+            let source = value(*source);
+            let moved = {
+                let state = shared.borrow();
+                if state.read(state.root(value(*guard))?)? != l::Immediate::Bool(true)
+                    || state.case(state.root(source)?)? != *case
+                {
+                    return Err(c::ExecutionFailure::Invariant);
+                }
+                !state.is_copy(source)
+            };
+            if moved {
+                frame.value(address.slot(source)).map_err(invariant)?;
+            }
+            shared.borrow_mut().extract(
+                source,
+                result()?,
+                o::core::Extraction {
+                    case: *case,
+                    panic_code: 0,
+                },
+            )?;
+            if moved {
+                let _ = frame.take_owner(address.slot(source)).map_err(invariant)?;
+            }
+        }
         b::Op::CoreCall(call) if call.operation.extraction().is_some() => {
             let source = value(call.arguments[0]);
             let moved = !shared.borrow().is_copy(source);
@@ -1047,6 +1098,42 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             }
         }
         b::Op::CoreCall(call) => match call.operation {
+            op @ (o::core::Operation::ArenaNew | o::core::Operation::ArenaReplace) => {
+                let source = value(*call.arguments.last().unwrap());
+                let owning = !shared.borrow().is_copy(source);
+                if owning {
+                    frame.value(address.slot(source)).map_err(invariant)?;
+                }
+                let transferred =
+                    shared
+                        .borrow_mut()
+                        .arena_store(op, call, values, result()?, span)?;
+                if owning {
+                    match transferred {
+                        state::ArenaTransfer::Moved => {
+                            let _ = frame.take_owner(address.slot(source)).map_err(invariant)?;
+                        }
+                        state::ArenaTransfer::Replaced(span) => frame
+                            .retire_replaced(address.slot(source), span)
+                            .map_err(invariant)?,
+                        state::ArenaTransfer::Rejected => {
+                            frame.drop_value(address.slot(source)).map_err(invariant)?
+                        }
+                        state::ArenaTransfer::Copy => return Err(c::ExecutionFailure::Invariant),
+                    }
+                }
+            }
+            o::core::Operation::ArenaRead => {
+                if shared
+                    .borrow_mut()
+                    .arena_read(call, values, result()?, span)?
+                {
+                    register_loan(
+                        frame,
+                        call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize,
+                    )?;
+                }
+            }
             o::core::Operation::Allocator => {
                 let id = call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize;
                 shared
@@ -1140,6 +1227,17 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             }
             _ => return Err(c::ExecutionFailure::Invariant),
         },
+        b::Op::ArenaEnter { owner, allocator } => {
+            let local = address.cell + owner.0 as usize;
+            shared.borrow_mut().arena_enter(local, value(*allocator))?;
+            let physical = shared.borrow().cells[local].physical;
+            frame
+                .initialize(address.slot(local), Ticket::Cell(physical), Some(span))
+                .map_err(invariant)?;
+        }
+        b::Op::ArenaExit { owner } => {
+            drop_cell(shared, frame, address.cell + owner.0 as usize, true)?;
+        }
         b::Op::Cleanup(cleanup) => {
             let cleaned = frame.cleanup_mir(cleanup, mapping);
             let mut state = shared.borrow_mut();

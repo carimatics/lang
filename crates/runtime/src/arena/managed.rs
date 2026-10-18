@@ -122,7 +122,16 @@ pub struct Read {
 pub struct View<'a, 'l, 't> {
     payload: &'a l::Reservation<'l, 't>,
 }
-impl View<'_, '_, '_> {
+impl<'l, 't> View<'_, 'l, 't> {
+    pub fn copy_into<P: a::Provider>(
+        &self,
+        from: l::Location,
+        destination: &l::Reservation<'l, 't>,
+        target: l::Location,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), l::Error> {
+        destination.copy_from(target, self.payload, from, allocator)
+    }
     pub fn root(&self) -> l::Location {
         self.payload.root()
     }
@@ -196,6 +205,41 @@ pub struct Arena<'l, 't> {
     usage: m::Usage,
 }
 impl<'l, 't> Arena<'l, 't> {
+    /// Exact host-pool admission without allocating trial buffers. Execution
+    /// adapters use this while choosing a bounded activation capacity.
+    pub fn preparation_usage(
+        layouts: &'l l::Layouts<'t>,
+        limits: Limits,
+        host_limits: m::Limits,
+        initial: m::Usage,
+    ) -> Result<m::Usage, Error> {
+        let base = layouts.usage();
+        if initial.work < base.work
+            || initial.allocation_bytes < base.allocation_bytes
+            || initial.elements < base.elements
+        {
+            return Err(Error::new(Kind::State));
+        }
+        let mut budget = m::Budget::with_usage(host_limits, initial).map_err(l::Error::from)?;
+        budget
+            .allocate::<Node<'l, 't>>(limits.nodes)
+            .map_err(l::Error::from)?;
+        budget
+            .allocate::<l::Location>(limits.value_cells)
+            .map_err(l::Error::from)?;
+        a::Request::new(
+            (limits.readers as u64)
+                .checked_mul(READ_ENTRY)
+                .and_then(|n| n.checked_add(HEADER))
+                .ok_or(a::Error::Overflow)?,
+            8,
+        )?;
+        Ok(m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        })
+    }
     /// Trusted pre-entry preparation; both host wrapper/walk pools are bounded and
     /// charged to the caller's cumulative preparation budget.
     pub fn prepare(
@@ -435,15 +479,54 @@ impl<'l, 't> Arena<'l, 't> {
         input: &mut l::Reservation<'l, 't>,
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
-        mut inspect: impl FnMut(
+        inspect: impl FnMut(
             &l::Token,
             &Self,
             &a::Allocator<P>,
             &mut PublicationBudget,
         ) -> Result<(), Error>,
     ) -> Result<Reference, Error> {
+        self.allocate(input, span, allocator, inspect, false)
+    }
+    /// Preserve a Copy operand while publishing a node with the copied value.
+    pub fn allocate_copy<P: a::Provider>(
+        &mut self,
+        input: &mut l::Reservation<'l, 't>,
+        span: Option<m::Span>,
+        allocator: &mut a::Allocator<P>,
+        inspect: impl FnMut(
+            &l::Token,
+            &Self,
+            &a::Allocator<P>,
+            &mut PublicationBudget,
+        ) -> Result<(), Error>,
+    ) -> Result<Reference, Error> {
+        self.allocate(input, span, allocator, inspect, true)
+    }
+    fn allocate<P: a::Provider>(
+        &mut self,
+        input: &mut l::Reservation<'l, 't>,
+        span: Option<m::Span>,
+        allocator: &mut a::Allocator<P>,
+        mut inspect: impl FnMut(
+            &l::Token,
+            &Self,
+            &a::Allocator<P>,
+            &mut PublicationBudget,
+        ) -> Result<(), Error>,
+        copy: bool,
+    ) -> Result<Reference, Error> {
         let result = (|| {
             let owner = self.writable(allocator)?;
+            if copy
+                && !self
+                    .layouts
+                    .types()
+                    .properties(input.root().ty())
+                    .is_some_and(|p| p.is_copy)
+            {
+                return Err(l::Error::InvalidType(input.root().ty()).into());
+            }
             if span.is_some_and(|span| !self.layouts.span_valid(span)) {
                 return Err(l::Error::InvalidSpan.into());
             }
@@ -467,7 +550,12 @@ impl<'l, 't> Arena<'l, 't> {
                         return Err(error.into());
                     }
                 };
-            if let Err(error) = input.move_root_into(&payload, payload.root(), allocator) {
+            let transferred = if copy {
+                payload.copy_from(payload.root(), input, input.root(), allocator)
+            } else {
+                input.move_root_into(&payload, payload.root(), allocator)
+            };
+            if let Err(error) = transferred {
                 payload.release_storage(allocator)?;
                 allocator.release(header)?;
                 return Err(error.into());
@@ -493,13 +581,64 @@ impl<'l, 't> Arena<'l, 't> {
         input: &mut l::Reservation<'l, 't>,
         span: m::Span,
         allocator: &mut a::Allocator<P>,
-        mut inspect: impl FnMut(
+        inspect: impl FnMut(
             &l::Token,
             &Self,
             &a::Allocator<P>,
             &mut PublicationBudget,
         ) -> Result<(), Error>,
     ) -> Result<(), Error> {
+        self.replace(reference, input, span, allocator, inspect, false)
+            .map(|_| ())
+    }
+    /// Publish an owning replacement and return the old node's span for its
+    /// detached cleanup obligation, which remains in `input`.
+    pub fn replace_owned<P: a::Provider>(
+        &mut self,
+        reference: Reference,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+        inspect: impl FnMut(
+            &l::Token,
+            &Self,
+            &a::Allocator<P>,
+            &mut PublicationBudget,
+        ) -> Result<(), Error>,
+    ) -> Result<Option<m::Span>, Error> {
+        self.replace(reference, input, span, allocator, inspect, false)
+    }
+    /// Copy replacement has no old owning obligation to retire.
+    pub fn replace_copy<P: a::Provider>(
+        &mut self,
+        reference: Reference,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+        inspect: impl FnMut(
+            &l::Token,
+            &Self,
+            &a::Allocator<P>,
+            &mut PublicationBudget,
+        ) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        self.replace(reference, input, span, allocator, inspect, true)
+            .map(|_| ())
+    }
+    fn replace<P: a::Provider>(
+        &mut self,
+        reference: Reference,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+        mut inspect: impl FnMut(
+            &l::Token,
+            &Self,
+            &a::Allocator<P>,
+            &mut PublicationBudget,
+        ) -> Result<(), Error>,
+        copy: bool,
+    ) -> Result<Option<m::Span>, Error> {
         let result = (|| {
             self.writable(allocator)?;
             if !self.layouts.span_valid(span) {
@@ -508,10 +647,16 @@ impl<'l, 't> Arena<'l, 't> {
             self.resolve(reference, input.root().ty(), allocator)?;
             self.validate(input, allocator, &mut inspect)?;
             let node = &mut self.nodes[reference.node as usize];
-            node.payload
-                .exchange_root_at(node.payload.root(), input, span, allocator)?;
+            let old_span = node_header(node.header, reference, allocator)?;
+            if copy {
+                node.payload
+                    .copy_from(node.payload.root(), input, input.root(), allocator)?;
+            } else {
+                node.payload
+                    .exchange_root_at(node.payload.root(), input, span, allocator)?;
+            }
             store_span(allocator.bytes_mut(node.header)?, Some(span));
-            Ok(())
+            Ok(old_span)
         })();
         result.map_err(|e: Error| e.at(Some(span)))
     }

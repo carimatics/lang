@@ -1,0 +1,14 @@
+// Arena allocation, replacement and a checked read of the resulting value.
+fn main() -> i64 {
+    arena graph(core::allocator()) {
+        let mut token: arena i64 = core::result_unwrap::<arena i64, core::ArenaError>(
+            core::arena_new::<i64>(graph, 7)
+        );
+        let mut changed: core::Result<core::Unit, core::ArenaError> =
+            core::arena_replace::<i64>(graph, token, 9);
+        match core::arena_read::<i64>(graph, token) {
+            core::Result::Ok(value) => { return (*value); },
+            core::Result::Err(error) => { return 1; },
+        }
+    }
+}
