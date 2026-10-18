@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**74 done · 0 doing · 29 todo · 72 remaining pt**
+**75 done · 0 doing · 28 todo · 69 remaining pt**
 
-**次: M2-A02 → 累積budget admissionを実証し、受理済みownership artifactのencode／decodeを実装。**
+**次: M2-A03 → 最初のcompile／load済みowned Bytes artifactをCLIで実行。**
 
-直近の完了：**M2-A01**（`6c9f12b`）。実験段階の委任で[RFC 0011](rfcs/0011-ownership-artifacts.md)を受理し、Copy schema 1を維持したownership schema 2、33 opcode、37 core tag、必須span、順序付きraw table、独立したload全体の検証／予算を規定しました。日英heading／link／tag網羅とrepository整合性3 testが成功しました。計画済みの設計決定でありcodec／loader実装ではありません。**残り74 → 72 pt**、done 74行、計103行です。直近実装のV13（`9d9d2ac`）は全体 **82 suite・1300 test** と対象範囲のsource VM／REPL conformanceが成功し、arena枯渇probeはparser depth上限で止まるためそのsource error armは実行済みとしません。V17、native、ownership artifactは各gateを維持します。
+直近の完了：**M2-A02**（`1311acd`）。Ownership schema 2のencode／decodeを実装し、type／move／loan／region／failureの独立検証全体と予算を通算します。独立byte vector 2件、全33 opcode配置／37 core tag、source 19件の往復、CFG／entry／順序、厳密なquota境界、操作／loan／arena偽造の拒否を検証しました。全体 **83 suite・1314 test** とfmt／Clippy／doc、locked fuzz Clippy、instrumentationなしの10,000-run smokeが成功し、**残り72 → 69 pt**、done 75行、計103行です。Schema 1は維持します。Compile／load／CLI実行はA03で、V17、native、artifact conformance全体は各gateを維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **1.6秒**、全test **30.8秒**（新log作成から最終書き込みまで）、rustdoc **12.0秒**、すべて成功です。V13のmatrix／境界3 testを含む全REPL 27 testが成功しました。Focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **52.8秒**、全test **434.0秒**（新log作成から最終書き込みまで）、rustdoc **31.1秒**、すべて成功です。Cargoが報告するtest compileは**53.9秒**、各suiteが報告する実行時間の合計は**19.5秒**で、残る経過時間のoverheadは原因別に配分していません。新14 testはwire 10件とsource／proof 4件です。Focused検証後の全体baselineは1回です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
-次の着手条件（2026-10-18 JST）：A01の受理でA02を開始できます。まず既存`verify_with_budget`と引き継ぐusageでdecode→typed／proofの累積budget admissionを実証します。その実験まではA02を暫定3 ptとし、独立した不足前提は実装前に公開・再見積もりします。A02 codecの後は、artifact基盤をさらに広げる前にA03の最初のload済みowned Bytes実行を必須とします。V17は明示的indirect-preview follow-upが必要です。G07／G08／G09／G10にN03、G05にN04、G06にN05を残し、artifact／platform／conformance／性能／debug全要件とZ01の日英guideを維持します。新exit gateは閉じません。
+次の着手条件（2026-10-18 JST）：A02で追加前提なしに累積admissionを実証しました。A03にはfrontendからの消費型MIR export、検証済みentry IDによるVM dispatch（現script adapterは`main`を選択）、両schemaの上限付きcompile／load I/Oと元source診断が必要です。最初のload fixture実験までは暫定3 ptとし、独立したblockerは実装前に公開・再見積もりします。A01／A02はartifact前提2成果なので、次は基盤をさらに広げる前に最初のcompile／load済みowned Bytes fixtureを実行しなければなりません。V17は明示的preview follow-upが必要です。G07／G08／G09／G10にN03、G05にN04、G06にN05、全platform／conformance／性能／debug要件とZ01の日英guideを維持し、新exit gateは閉じません。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -159,7 +159,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | ID | State | Remaining pt | Needs | Gate | 成果／受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M2-A01 | done | 0 | M2-V08 | G14,G16 | Ownership artifactのversion／encodingを互換性と検証上限付きでRFC受理記録にする。 | `6c9f12b` |
-| M2-A02 | todo | 3 | M2-A01 | G14,G16 | Ownership型／命令のencode／decodeに不正入力budgetとfuzz targetを追加。 | — |
+| M2-A02 | done | 0 | M2-A01 | G14,G16 | Ownership型／命令のencode／decodeに不正入力budgetとfuzz targetを追加。 | `1311acd` |
 | M2-A03 | todo | 3 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | — |
 | M2-F01 | todo | 2 | M2-D27 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |

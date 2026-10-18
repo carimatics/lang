@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み74件 · 進行中0件 · 残り29件（暫定72 pt）。**
+**検証済み75件 · 進行中0件 · 残り28件（暫定69 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから48件の成果を検証しました。A01（`6c9f12b`）で実験段階の委任に基づきRFC 0011を受理し、明示schema 2、schema 1維持、有限tag、元span、独立した累積検証を規定しました。日英／schema reviewと整合性3 testが成功し、**残り74 → 72 pt**、done 74行、計103行です。計画済みの設計決定でありcodec／loader実装ではありません。直近code baselineはV13の82 suite・1300 testとfmt／Clippy／doc成功で、arena source-error coverageの制限も記録しています。次はA02のbudget admission実証とcodec実装、その後はA03の最初のload済みowned Bytes fixtureを必須とします。Native N03／N04／N05、indirect preview、ownership artifact、両tier-1実行・性能・debugと最終日英guideの要件を保持し、新exit gateは閉じません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから49件の成果を検証しました。A02（`1311acd`）でschema-2 ownershipのencode／decode、type／move／loan／region／failureの独立検証、累積予算を実装しました。独立vector 2件、33 opcode配置、37 core tag、source 19件の往復、CFG／entry／順序、quota境界、操作／loan／arena token偽造を検証しました。全83 suite・1314 testとfmt／Clippy／doc、locked fuzz Clippy、instrumentationなしの10,000-run smokeが成功し、**残り72 → 69 pt**、done 75行、計103行です。次はA03でfrontendの消費型export、検証済みentry ID dispatch、上限付きcompile／load CLI実行を接続し、artifact基盤をさらに広げる前に最初のload済みowned Bytes fixtureを必須とします。Native N03／N04／N05、indirect preview、artifact conformance全体、両tier-1実行・性能・debugと最終日英guideの要件を保持し、新exit gateは閉じません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
