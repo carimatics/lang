@@ -1,0 +1,41 @@
+struct Cell { bytes: core::Bytes }
+
+fn inspect(cell: &shared Cell) -> i64 {
+    let mut alias: shared Cell = core::result_unwrap::<shared Cell, core::OwnershipError>(core::shared_clone::<Cell>(cell));
+    let mut weak_value: weak Cell = core::result_unwrap::<weak Cell, core::OwnershipError>(core::weak_new::<Cell>(cell));
+    let mut weak_alias: weak Cell = core::result_unwrap::<weak Cell, core::OwnershipError>(core::weak_clone::<Cell>(weak_value));
+    let mut upgraded: shared Cell = core::result_unwrap::<shared Cell, core::OwnershipError>(core::weak_upgrade::<Cell>(weak_alias));
+    match core::shared_read::<Cell>(cell) {
+        core::Result::Ok(value) => { return core::bytes_len(value.bytes) + 7; },
+        core::Result::Err(_) => { return -1; },
+    }
+}
+
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Result<core::Unit, core::BufferError> = core::bytes_push(bytes, 65);
+    let mut pushed_ok: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(pushed);
+    let mut cell: shared Cell = core::result_unwrap::<shared Cell, core::OwnershipError>(core::shared_new::<Cell>(core::allocator(), Cell { bytes: bytes }));
+    let mut map: core::Map<i64, shared Cell> = core::result_unwrap::<core::Map<i64, shared Cell>, core::AllocError>(core::map_new::<i64, shared Cell>(core::allocator()));
+    let mut inserted: core::Result<core::Option<shared Cell>, core::AllocError> = core::map_insert::<i64, shared Cell>(map, 0, cell);
+    let mut inserted_ok: core::Option<shared Cell> = core::result_unwrap::<core::Option<shared Cell>, core::AllocError>(inserted);
+    let mut values: core::Vec<core::Map<i64, shared Cell>> = core::result_unwrap::<core::Vec<core::Map<i64, shared Cell>>, core::AllocError>(core::vec_new::<core::Map<i64, shared Cell>>(core::allocator()));
+    let mut added: core::Result<core::Unit, core::AllocError> = core::vec_push::<core::Map<i64, shared Cell>>(values, map);
+    let mut added_ok: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(added);
+    let mut owner: shared core::Vec<core::Map<i64, shared Cell>> = core::result_unwrap::<shared core::Vec<core::Map<i64, shared Cell>>, core::OwnershipError>(core::shared_new::<core::Vec<core::Map<i64, shared Cell>>>(core::allocator(), values));
+    let mut key: i64 = 0;
+    match core::shared_read::<core::Vec<core::Map<i64, shared Cell>>>(owner) {
+        core::Result::Ok(items) => {
+            match core::vec_get::<core::Map<i64, shared Cell>>(items, 0) {
+                core::Result::Ok(table) => {
+                    match core::map_get::<i64, shared Cell>(table, key) {
+                        core::Option::Some(value) => { return inspect(value); },
+                        core::Option::None => { return -2; },
+                    }
+                },
+                core::Result::Err(_) => { return -3; },
+            }
+        },
+        core::Result::Err(_) => { return -4; },
+    }
+}

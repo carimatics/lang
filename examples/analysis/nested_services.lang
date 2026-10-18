@@ -9,10 +9,12 @@ fn main() -> i64 {
     let mut edges: core::Vec<shared Node> = core::result_unwrap::<core::Vec<shared Node>, core::AllocError>(core::vec_new::<shared Node>(core::allocator()));
     let mut left_edge: shared Node = core::result_unwrap::<shared Node, core::OwnershipError>(core::shared_clone::<Node>(left));
     let mut pushed: core::Result<core::Unit, core::AllocError> = core::vec_push::<shared Node>(edges, left_edge);
+    let mut pushed_ok: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(pushed);
     let mut changed: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<Node>(right, Node { edges: edges });
     let mut back: core::Vec<shared Node> = core::result_unwrap::<core::Vec<shared Node>, core::AllocError>(core::vec_new::<shared Node>(core::allocator()));
     let mut right_edge: shared Node = core::result_unwrap::<shared Node, core::OwnershipError>(core::shared_clone::<Node>(right));
     let mut back_pushed: core::Result<core::Unit, core::AllocError> = core::vec_push::<shared Node>(back, right_edge);
+    let mut back_pushed_ok: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(back_pushed);
     let mut cycle: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<Node>(left, Node { edges: back });
     match cycle { core::Result::Ok(_) => { return -1; }, core::Result::Err(error) => {
         match error { core::OwnershipError::StrongCycle => { return 23; }, _ => { return -2; }, }

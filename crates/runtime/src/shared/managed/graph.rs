@@ -64,180 +64,77 @@ enum Value<'a, 'l, 't> {
     Input(&'a l::Reservation<'l, 't>),
     Stored(s::View<'a, 'l, 't>),
 }
-impl Value<'_, '_, '_> {
-    fn root(&self) -> l::Location {
-        match self {
-            Self::Input(v) => v.root(),
-            Self::Stored(v) => v.root(),
-        }
-    }
-    fn data<'a, P: a::Provider>(
-        &self,
-        allocator: &'a a::Allocator<P>,
-    ) -> Result<&'a [u8], l::Error> {
-        match self {
-            Self::Input(v) => v.data(allocator),
-            Self::Stored(v) => v.data(allocator),
-        }
-    }
-    fn child<P: a::Provider>(
-        &self,
-        location: l::Location,
-        index: u32,
-        allocator: &a::Allocator<P>,
-    ) -> Result<l::Location, l::Error> {
-        match self {
-            Self::Input(v) => v.child(location, index, allocator),
-            Self::Stored(v) => v.child(location, index, allocator),
-        }
-    }
-    fn case<P: a::Provider>(
-        &self,
-        location: l::Location,
-        allocator: &a::Allocator<P>,
-    ) -> Result<u32, l::Error> {
-        match self {
-            Self::Input(v) => v.case(location, allocator),
-            Self::Stored(v) => v.case(location, allocator),
-        }
-    }
-    fn immediate<P: a::Provider>(
-        &self,
-        location: l::Location,
-        allocator: &a::Allocator<P>,
-    ) -> Result<l::Immediate, l::Error> {
-        match self {
-            Self::Input(v) => v.read_immediate(location, allocator),
-            Self::Stored(v) => v.read_immediate(location, allocator),
-        }
-    }
-    fn initialized<P: a::Provider>(
-        &self,
-        location: l::Location,
-        rank: u32,
-        allocator: &a::Allocator<P>,
-    ) -> Result<(u32, Option<m::Span>), l::Error> {
-        match self {
-            Self::Input(v) => v.initialized_field(location, rank, allocator),
-            Self::Stored(v) => v.initialized_field(location, rank, allocator),
-        }
-    }
-}
-struct Buffers<'a> {
-    walk: &'a mut Vec<Visit>,
+struct Buffers<'a, 'l, 't> {
+    walk: &'a mut i::Inspector<'l, 't>,
     edges: &'a mut Vec<Edge>,
     span: Option<m::Span>,
 }
-fn collect<P: a::Provider>(
-    registry: Registry<'_, '_, '_>,
-    buffers: Buffers<'_>,
-    value: Value<'_, '_, '_>,
+fn collect<'l, 't, P: a::Provider>(
+    registry: Registry<'_, 'l, 't>,
+    buffers: Buffers<'_, 'l, 't>,
+    value: Value<'_, 'l, 't>,
     customer: u64,
     allocator: &a::Allocator<P>,
     work: &mut Work,
 ) -> Result<(), Error> {
     let Buffers { walk, edges, span } = buffers;
-    walk.clear();
     edges.clear();
-    if registry.limits.value_cells == 0 {
-        return Err(limit());
-    }
-    walk.push(Visit {
-        location: value.root(),
-        span,
-    });
-    while let Some(Visit { location, span }) = walk.pop() {
-        work.charge(1)?;
-        let layout = registry
+    let value = match &value {
+        Value::Input(v) => *v,
+        Value::Stored(v) => v.reservation(),
+    };
+    let mut read = walk.read(value, span, allocator)?;
+    while let Some(observation) = read.next(work)? {
+        let mut bytes = observation.bytes;
+        let l::Kind::Token(constructor) = &registry
             .layouts
-            .get(location.ty())
-            .ok_or(l::Error::InvalidType(location.ty()))?;
-        let fields = match &layout.kind {
-            l::Kind::Scalar | l::Kind::Error { .. } => {
-                value.immediate(location, allocator)?;
-                None
-            }
-            l::Kind::Record(fields) => Some(fields),
-            l::Kind::Enum { cases, .. } => Some(
-                cases
-                    .get(value.case(location, allocator)? as usize)
-                    .ok_or(l::Error::InvalidValue)?,
-            ),
-            l::Kind::Token(constructor) => {
-                let start = location.offset() as usize;
-                let mut bytes: [u8; 32] = value
-                    .data(allocator)?
-                    .get(start..start.checked_add(32).ok_or(l::Error::Overflow)?)
-                    .ok_or(l::Error::State)?
-                    .try_into()
-                    .expect("token extent");
-                match constructor {
-                    o::Constructor::Shared(ty) | o::Constructor::Weak(ty) => {
-                        let kind = if matches!(constructor, o::Constructor::Shared(_)) {
-                            STRONG
-                        } else {
-                            WEAK
-                        };
-                        let reference = Reference::parse(bytes)?;
-                        let node = registry.resolve(reference, kind, *ty, customer, allocator)?;
-                        work.charge(edges.len())?;
-                        if edges.iter().any(|edge| edge.reference == reference) {
-                            return Err(unavailable());
-                        }
-                        if edges.len() == registry.limits.value_cells {
-                            return Err(limit());
-                        }
-                        edges.push(Edge {
-                            reference,
-                            node,
-                            kind,
-                            span,
-                        });
-                    }
-                    o::Constructor::Builtin(o::Builtin::Bytes) => {
-                        buffer::Bytes::from_token(&mut bytes, allocator)
-                            .and_then(|v| v.len(allocator))
-                            .map_err(|e| Error::new(Kind::Buffer(e)))?;
-                    }
-                    o::Constructor::Builtin(o::Builtin::Text) => {
-                        let text = buffer::Text::from_token(&mut bytes, allocator)
-                            .map_err(|e| Error::new(Kind::Buffer(e)))?;
-                        let length = usize::try_from(
-                            text.len(allocator)
-                                .map_err(|e| Error::new(Kind::Buffer(e)))?,
-                        )
-                        .map_err(|_| Error::new(Kind::State))?;
-                        work.charge(length)?;
-                        text.as_str(allocator)
-                            .map_err(|e| Error::new(Kind::Buffer(e)))?;
-                    }
-                    _ => return Err(Error::new(Kind::Unsupported(location.ty()))),
-                }
-                None
-            }
+            .get(observation.ty)
+            .ok_or(l::Error::InvalidType(observation.ty))?
+            .kind
+        else {
+            return Err(Error::new(Kind::State));
         };
-        if let Some(fields) = fields {
-            if walk
-                .len()
-                .checked_add(fields.fields.len())
-                .is_none_or(|n| n > registry.limits.value_cells)
-            {
-                return Err(limit());
-            }
-            work.charge(fields.fields.len())?;
-            for rank in 0..fields.fields.len() {
-                let (field, span) = if layout.metadata_bytes == 0 {
-                    (rank as u32, span)
+        match constructor {
+            o::Constructor::Shared(ty) | o::Constructor::Weak(ty) => {
+                let kind = if matches!(constructor, o::Constructor::Shared(_)) {
+                    STRONG
                 } else {
-                    let (field, child_span) =
-                        value.initialized(location, rank as u32, allocator)?;
-                    (field, child_span.or(span))
+                    WEAK
                 };
-                walk.push(Visit {
-                    location: value.child(location, field, allocator)?,
-                    span,
+                let reference = Reference::parse(bytes)?;
+                let node = registry.resolve(reference, kind, *ty, customer, allocator)?;
+                work.charge(edges.len())?;
+                if edges.iter().any(|edge| edge.reference == reference) {
+                    return Err(unavailable());
+                }
+                if edges.len() == registry.limits.value_cells {
+                    return Err(limit());
+                }
+                edges.push(Edge {
+                    reference,
+                    node,
+                    kind,
+                    span: observation.span,
                 });
             }
+            o::Constructor::Builtin(o::Builtin::Bytes) => {
+                buffer::Bytes::from_token(&mut bytes, allocator)
+                    .and_then(|v| v.len(allocator))
+                    .map_err(|e| Error::new(Kind::Buffer(e)))?;
+            }
+            o::Constructor::Builtin(o::Builtin::Text) => {
+                let text = buffer::Text::from_token(&mut bytes, allocator)
+                    .map_err(|e| Error::new(Kind::Buffer(e)))?;
+                let length = usize::try_from(
+                    text.len(allocator)
+                        .map_err(|e| Error::new(Kind::Buffer(e)))?,
+                )
+                .map_err(|_| Error::new(Kind::State))?;
+                work.charge(length)?;
+                text.as_str(allocator)
+                    .map_err(|e| Error::new(Kind::Buffer(e)))?;
+            }
+            _ => return Err(Error::new(Kind::Unsupported(observation.ty))),
         }
     }
     Ok(())

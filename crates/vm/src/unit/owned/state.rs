@@ -63,6 +63,7 @@ pub(super) struct Loan {
     pub shared_read: Option<sh::Read>,
     pub vector_read: Option<v::Loan>,
     pub map_read: Option<mm::Loan>,
+    pub custody: Option<sh::Custody>,
 }
 pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub allocator: &'a mut a::Allocator<P>,
@@ -75,6 +76,8 @@ pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub prepared: Vec<Option<Capture>>,
     pub arenas: Vec<Option<g::Arena<'layouts, 'types>>>,
     pub shared_heap: Option<sh::Heap<'layouts, 'types>>,
+    pub retirement: Option<r::Drain<'layouts, 'types>>,
+    pub inspection: Option<ins::Inspector<'layouts, 'types>>,
     pub panic_code: Option<i64>,
     pub current: Address,
 }
@@ -97,6 +100,43 @@ pub(super) fn cleanup_leaf<P: a::Provider>(
     Ok(())
 }
 impl<P: a::Provider> State<'_, '_, '_, P> {
+    pub fn custody(&self, target: Target) -> Step<Option<sh::Custody>> {
+        match target {
+            Target::Shared { read, ty, .. } => self
+                .shared_heap
+                .as_ref()
+                .ok_or(c::ExecutionFailure::Invariant)?
+                .custody(
+                    self.loans[read]
+                        .shared_read
+                        .ok_or(c::ExecutionFailure::Invariant)?,
+                    ty,
+                    self.allocator,
+                )
+                .map(Some)
+                .map_err(invariant),
+            Target::Map { read, .. } | Target::Vector { read, .. } => Ok(self.loans[read].custody),
+            _ => Ok(None),
+        }
+    }
+    pub fn observation(&self, target: Target) -> Step<l::Token> {
+        let location = match target {
+            Target::Data { location, .. }
+            | Target::Shared { location, .. }
+            | Target::Arena { location, .. }
+            | Target::Vector { location, .. }
+            | Target::Map { location, .. } => location,
+            Target::Allocator => return Err(c::ExecutionFailure::Invariant),
+        };
+        Ok(l::Token {
+            leaf: l::Leaf {
+                ty: location.ty(),
+                offset: location.offset(),
+                span: None,
+            },
+            bytes: self.token(target)?,
+        })
+    }
     pub fn root(&self, index: usize) -> Step<Target> {
         let cell = self
             .cells
@@ -746,6 +786,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         match *ticket {
             Ticket::Loan(id) => {
                 let target = self.loans[id].target.take();
+                self.loans[id].custody = None;
                 if let Some(mut read) = self.loans[id].map_read.take() {
                     read.end(self.layouts, self.allocator).map_err(|_| 13u32)?;
                 }
@@ -763,12 +804,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                     let Some(Target::Shared { ty, .. }) = target else {
                         return Err(9u32);
                     };
-                    self.shared_heap
+                    self.retirement
                         .as_mut()
                         .ok_or(9u32)?
                         .end_read(
                             read,
                             ty,
+                            self.shared_heap.as_mut().ok_or(9u32)?,
                             self.allocator,
                             context,
                             |token, allocator, _, context| {
@@ -802,6 +844,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                                 shared::cleanup_services(
                                     self.layouts,
                                     &mut self.shared_heap,
+                                    &mut self.retirement,
                                     token,
                                     allocator,
                                     context,
@@ -821,6 +864,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                     shared::cleanup_services(
                         self.layouts,
                         &mut self.shared_heap,
+                        &mut self.retirement,
                         token,
                         allocator,
                         context,

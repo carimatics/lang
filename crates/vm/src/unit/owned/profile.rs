@@ -7,6 +7,7 @@ pub(super) struct Payloads {
     definitions: usize,
     count: usize,
     pub usage: m::Usage,
+    pub needs_drain: bool,
 }
 impl Payloads {
     pub fn compile(types: &o::VerifiedTypes, limits: m::Limits) -> Result<Self, l::Error> {
@@ -20,9 +21,21 @@ impl Payloads {
         let mut states = budget.vector(total)?;
         states.resize(total, 0u8);
         let mut edges = 0usize;
+        let mut needs_drain = false;
         for (index, state) in states.iter_mut().enumerate() {
             budget.charge(1)?;
             let ty = type_at(definitions, index % count);
+            if index < count
+                && let o::Type::Constructed(id) = ty
+            {
+                needs_drain |= matches!(
+                    types.table().constructed[id.0 as usize].constructor,
+                    o::Constructor::Vec(_)
+                        | o::Constructor::Map(..)
+                        | o::Constructor::Shared(_)
+                        | o::Constructor::Weak(_)
+                );
+            }
             let shape = shape(types, ty, Flavor::at(index / count));
             *state = if matches!(shape, Shape::Unsupported) {
                 3
@@ -75,6 +88,7 @@ impl Payloads {
             definitions,
             count,
             usage: budget_usage(&budget),
+            needs_drain,
         })
     }
     pub fn supports(&self, ty: o::Type) -> bool {
@@ -84,8 +98,8 @@ impl Payloads {
         self.accepts(Flavor::Vector, ty)
     }
     pub fn map(&self, types: &o::VerifiedTypes, key: o::Type, value: o::Type) -> bool {
-        // Vec and Map share this closed value profile until C07 integrates
-        // nested services. Key admission remains the exact RFC 0007 policy.
+        // Collections share the storable payload profile. Shared publication
+        // and arena stores additionally prove transitive edges and brands.
         map_key(types, key) && self.vector(value)
     }
     pub fn shared(&self, ty: o::Type) -> bool {
@@ -127,7 +141,7 @@ fn map_key(types: &o::VerifiedTypes, ty: o::Type) -> bool {
 fn shape(types: &o::VerifiedTypes, ty: o::Type, flavor: Flavor) -> Shape {
     let properties = types.properties(ty).unwrap();
     if matches!(flavor, Flavor::Vector | Flavor::Shared)
-        && (properties.contains_arena
+        && ((matches!(flavor, Flavor::Shared) && properties.contains_arena)
             || properties.contains_loan
             || properties.contains_allocator
             || properties.contains_owner)
@@ -144,18 +158,18 @@ fn shape(types: &o::VerifiedTypes, ty: o::Type, flavor: Flavor) -> Shape {
             o::Constructor::ArenaOwner(_) if matches!(flavor, Flavor::Root) => Shape::Leaf,
             o::Constructor::Option(_) | o::Constructor::Result(..) => Shape::Branch(flavor),
             o::Constructor::Loan(..) if matches!(flavor, Flavor::Root) => Shape::Branch(flavor),
-            o::Constructor::Shared(_) | o::Constructor::Weak(_)
-                if !matches!(flavor, Flavor::Vector) =>
-            {
-                Shape::Branch(Flavor::Shared)
-            }
-            o::Constructor::Vec(_) if matches!(flavor, Flavor::Root) => {
-                Shape::Branch(Flavor::Vector)
-            }
-            o::Constructor::Map(key, _)
-                if matches!(flavor, Flavor::Root) && map_key(types, key) =>
-            {
-                Shape::Branch(Flavor::Vector)
+            o::Constructor::Shared(_) | o::Constructor::Weak(_) => Shape::Branch(Flavor::Shared),
+            o::Constructor::Vec(_) => Shape::Branch(if matches!(flavor, Flavor::Arena) {
+                Flavor::Arena
+            } else {
+                Flavor::Vector
+            }),
+            o::Constructor::Map(key, _) if map_key(types, key) => {
+                Shape::Branch(if matches!(flavor, Flavor::Arena) {
+                    Flavor::Arena
+                } else {
+                    Flavor::Vector
+                })
             }
             _ => Shape::Unsupported,
         },

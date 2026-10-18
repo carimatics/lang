@@ -10,6 +10,7 @@ use lang_semantics::{
 use std::path::Path;
 
 mod maps;
+mod nested;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Event {

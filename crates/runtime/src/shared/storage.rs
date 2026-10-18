@@ -147,7 +147,10 @@ impl Retired<'_, '_> {
 pub struct View<'b, 'l, 't> {
     payload: &'b l::Reservation<'l, 't>,
 }
-impl View<'_, '_, '_> {
+impl<'l, 't> View<'_, 'l, 't> {
+    pub(crate) fn reservation(&self) -> &l::Reservation<'l, 't> {
+        self.payload
+    }
     pub fn read_token<P: a::Provider>(
         &self,
         location: l::Location,

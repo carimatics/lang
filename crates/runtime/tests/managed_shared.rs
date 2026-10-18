@@ -998,7 +998,7 @@ fn ticket_reader_node_slot_value_and_work_refusals_precede_provider_calls_or_cou
 }
 
 #[test]
-fn duplicate_foreign_wrong_kind_and_unsupported_payloads_are_rejected_before_publication() {
+fn duplicate_foreign_wrong_kind_and_malformed_container_payloads_are_rejected_before_publication() {
     let mut table = node_table();
     table.definitions.push(o::Definition {
         name: "Pair".into(),
@@ -1107,9 +1107,13 @@ fn duplicate_foreign_wrong_kind_and_unsupported_payloads_are_rejected_before_pub
     .unwrap();
     let mut unsupported = l::Reservation::allocate(&layouts, ct(5), &mut allocator).unwrap();
     let before = allocator.stats();
-    assert!(
-        matches!(heap.allocate_from(&mut unsupported,Some(at(5)),&mut allocator).err().unwrap().kind,g::Kind::Unsupported(ty)if ty==ct(5))
-    );
+    assert!(matches!(
+        heap.allocate_from(&mut unsupported, Some(at(5)), &mut allocator)
+            .err()
+            .unwrap()
+            .kind,
+        g::Kind::Inspection(_)
+    ));
     assert_eq!(allocator.stats(), before);
     unsupported.release_storage(&mut allocator).unwrap();
     release(&mut heap, child, node_type(), &mut allocator);

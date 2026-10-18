@@ -1,7 +1,7 @@
 //! Prepared shared ownership service. Tokens name live guest-backed registry
 //! entries, not unchecked copies of reference counts or host model handles.
 use super::storage as s;
-use crate::{allocation as a, buffer, cleanup as c, layout as l};
+use crate::{allocation as a, buffer, cleanup as c, inspection as i, layout as l};
 use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 mod access;
@@ -45,6 +45,7 @@ pub enum Kind {
     Allocator(a::Error),
     Layout(l::Error),
     Buffer(buffer::Fault),
+    Inspection(i::Error),
     Unsupported(o::Type),
     State,
 }
@@ -99,6 +100,15 @@ impl From<l::Error> for Error {
         match error {
             l::Error::Allocation(error) => error.into(),
             error => Self::new(Kind::Layout(error)),
+        }
+    }
+}
+impl From<i::Error> for Error {
+    fn from(error: i::Error) -> Self {
+        match error {
+            i::Error::Cells | i::Error::Work => limit(),
+            i::Error::Layout(e) => e.into(),
+            e => Self::new(Kind::Inspection(e)),
         }
     }
 }
@@ -157,6 +167,13 @@ owner_token!(Strong);
 owner_token!(Weak);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Read(Reference);
+/// Stored-ticket access tied to a validated, still-live parent read. It is an
+/// observation capability, never an owning ticket or caller-supplied node ID.
+#[derive(Clone, Copy, Debug)]
+pub struct Custody {
+    read: Read,
+    ty: o::Type,
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FieldAction {
     CloneStrong,
@@ -174,11 +191,6 @@ struct Node<'l, 't> {
     ty: o::Type,
 }
 #[derive(Clone, Copy)]
-struct Visit {
-    location: l::Location,
-    span: Option<m::Span>,
-}
-#[derive(Clone, Copy)]
 struct Edge {
     reference: Reference,
     node: usize,
@@ -189,21 +201,13 @@ struct Retirement<'l, 't> {
     index: usize,
     value: s::Retired<'l, 't>,
 }
-struct Work {
-    remaining: usize,
-}
-impl Work {
-    fn charge(&mut self, amount: usize) -> Result<(), Error> {
-        self.remaining = self.remaining.checked_sub(amount).ok_or_else(limit)?;
-        Ok(())
-    }
-}
+type Work = i::Work;
 pub struct Heap<'l, 't> {
     layouts: &'l l::Layouts<'t>,
     limits: Limits,
     owner: Option<a::Handle>,
     nodes: Vec<Option<Node<'l, 't>>>,
-    walk: Vec<Visit>,
+    walk: i::Inspector<'l, 't>,
     incoming: Vec<Edge>,
     old_edges: Vec<Edge>,
     found: Vec<Edge>,
@@ -235,9 +239,17 @@ impl<'l, 't> Heap<'l, 't> {
             .allocate::<Option<Node<'l, 't>>>(limits.slots)
             .map_err(l::Error::from)?;
         budget.charge(limits.slots).map_err(l::Error::from)?;
-        budget
-            .allocate::<Visit>(limits.value_cells)
-            .map_err(l::Error::from)?;
+        let usage = i::Inspector::preparation_usage(
+            layouts,
+            limits.value_cells,
+            host,
+            m::Usage {
+                work: budget.work_used(),
+                allocation_bytes: budget.allocation_bytes(),
+                elements: budget.elements_used(),
+            },
+        )?;
+        budget = m::Budget::with_usage(host, usage).map_err(l::Error::from)?;
         for _ in 0..3 {
             budget
                 .allocate::<Edge>(limits.value_cells)
@@ -277,7 +289,17 @@ impl<'l, 't> Heap<'l, 't> {
         let mut nodes = budget.vector(limits.slots).map_err(l::Error::from)?;
         budget.charge(limits.slots).map_err(l::Error::from)?;
         nodes.resize_with(limits.slots, || None);
-        let walk = budget.vector(limits.value_cells).map_err(l::Error::from)?;
+        let walk = i::Inspector::prepare(
+            layouts,
+            limits.value_cells,
+            host,
+            m::Usage {
+                work: budget.work_used(),
+                allocation_bytes: budget.allocation_bytes(),
+                elements: budget.elements_used(),
+            },
+        )?;
+        budget = m::Budget::with_usage(host, walk.usage()).map_err(l::Error::from)?;
         let incoming = budget.vector(limits.value_cells).map_err(l::Error::from)?;
         let old_edges = budget.vector(limits.value_cells).map_err(l::Error::from)?;
         let found = budget.vector(limits.value_cells).map_err(l::Error::from)?;
@@ -343,9 +365,7 @@ impl<'l, 't> Heap<'l, 't> {
         Ok(owner)
     }
     fn work(&self) -> Work {
-        Work {
-            remaining: self.limits.publication_work,
-        }
+        Work::new(self.limits.publication_work)
     }
     fn vacancy<P: a::Provider>(
         &self,

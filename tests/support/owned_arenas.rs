@@ -115,32 +115,26 @@ fn unused_provisional_arena_read_ends_before_the_next_mutation() {
 }
 
 #[test]
-fn unsupported_reachable_container_after_arena_allocation_rejects_before_callbacks() {
-    let source = r#"fn main() -> i64 { arena graph(core::allocator()) {
+fn source_nested_container_after_arena_allocation_executes_and_releases_all_storage() {
+    let program = checked(
+        r#"fn main() -> i64 { arena graph(core::allocator()) {
         let mut token: arena i64 = core::result_unwrap::<arena i64, core::ArenaError>(core::arena_new::<i64>(graph, 7));
         let mut pending: core::Result<core::Map<i64, core::Vec<i64>>, core::AllocError> = core::map_new::<i64, core::Vec<i64>>(core::allocator());
         return 0;
-    } }"#;
-    let program = checked(source);
+    } }"#,
+    );
     let (mut allocator, trace) = allocator();
     let mut instance = c::Instance::default();
-    let error = vm::execute_entry(
+    let result = vm::execute_entry(
         program.failure_flow(),
         &mut instance,
         Some(&mut allocator),
         Control::default(),
     )
-    .err()
     .unwrap();
-    assert!(matches!(
-        error.reason,
-        vm::Reason::Unsupported {
-            core: Some(Operation::MapNew)
-        }
-    ));
-    assert_eq!(error.usage.fuel, 0);
-    assert!(trace.borrow().requests.is_empty());
-    assert_eq!(allocator.stats().requests, 0);
+    assert_eq!(result.value, 0);
+    assert_all_released(&allocator, &trace.borrow());
+    assert!(!instance.is_poisoned());
 }
 
 #[test]

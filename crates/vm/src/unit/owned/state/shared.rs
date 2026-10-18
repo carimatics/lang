@@ -14,57 +14,24 @@ fn outcome<T>(value: Result<T, sh::Error>) -> Step<Result<T, l::OwnershipError>>
         Err(_) => Err(c::ExecutionFailure::Invariant),
     }
 }
-pub(super) fn cleanup_services<P: a::Provider>(
-    layouts: &l::Layouts<'_>,
-    heap: &mut Option<sh::Heap<'_, '_>>,
+pub(super) fn cleanup_services<'l, 't, P: a::Provider>(
+    layouts: &'l l::Layouts<'t>,
+    heap: &mut Option<sh::Heap<'l, 't>>,
+    retirement: &mut Option<r::Drain<'l, 't>>,
     token: &mut l::Token,
     allocator: &mut a::Allocator<P>,
     context: &mut c::Context<'_>,
 ) -> Result<(), u32> {
-    let types = layouts.types();
-    let constructor = match token.leaf.ty {
-        o::Type::Constructed(id) => Some(types.table().constructed[id.0 as usize].constructor),
-        _ => None,
-    };
-    match constructor {
-        Some(o::Constructor::Map(key, value)) => {
-            let mut map = mm::Map::from_token(layouts, key, value, &mut token.bytes, allocator)
-                .map_err(|_| 13u32)?;
-            map.cleanup(allocator, context, |token, allocator, _, context| {
-                cleanup_leaf(types, token, allocator, context)
-            })
-            .map_err(|_| 14u32)
-        }
-        Some(o::Constructor::Vec(ty)) => {
-            let mut vector = v::Vector::from_token(layouts, ty, &mut token.bytes, allocator)
-                .map_err(|_| 11u32)?;
-            vector
-                .cleanup(allocator, context, |token, allocator, _, context| {
-                    cleanup_leaf(types, token, allocator, context)
-                })
-                .map_err(|_| 12u32)
-        }
-        Some(o::Constructor::Shared(ty)) => {
-            let value = sh::Strong::from_token(&mut token.bytes).map_err(|_| 9u32)?;
-            heap.as_mut()
-                .ok_or(9u32)?
-                .release_strong(
-                    value,
-                    ty,
-                    allocator,
-                    context,
-                    |token, allocator, _, context| cleanup_leaf(types, token, allocator, context),
-                )
-                .map_err(|_| 10u32)
-        }
-        Some(o::Constructor::Weak(ty)) => {
-            let value = sh::Weak::from_token(&mut token.bytes).map_err(|_| 9u32)?;
-            heap.as_mut()
-                .ok_or(9u32)?
-                .release_weak(value, ty, allocator)
-                .map_err(|_| 10u32)
-        }
-        _ => cleanup_leaf(types, token, allocator, context),
+    if let Some(drain) = retirement {
+        drain.token(
+            token,
+            heap.as_mut(),
+            allocator,
+            context,
+            |token, allocator, _, context| cleanup_leaf(layouts.types(), token, allocator, context),
+        )
+    } else {
+        cleanup_leaf(layouts.types(), token, allocator, context)
     }
 }
 impl<P: a::Provider> State<'_, '_, '_, P> {
@@ -128,20 +95,17 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let value = |r: m::Register| self.current.cell + values + r.0 as usize;
         let source = value(*call.arguments.last().unwrap());
         let copy = self.is_copy(source);
-        let ty = call.type_arguments[0].ty;
         let target = if operation == o::core::Operation::SharedReplace {
             Some(self.reference(self.root(value(call.arguments[0]))?)?)
         } else {
             self.require_allocator(value(call.arguments[0]))?;
             None
         };
-        let mut external = match target {
-            Some(Target::Data { .. }) => {
-                let mut token = self.token(target.unwrap())?;
-                Some(sh::Strong::from_token(&mut token).map_err(invariant)?)
-            }
-            _ => None,
-        };
+        let observed = target.map(|target| self.observation(target)).transpose()?;
+        let custody = target
+            .map(|target| self.custody(target))
+            .transpose()?
+            .flatten();
         let heap = self
             .shared_heap
             .as_mut()
@@ -160,50 +124,24 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let result = match ready {
             Err(error) => Err(error),
             Ok(()) => {
-                if let Some(target) = target {
+                if target.is_some() {
                     if copy {
-                        outcome(match target {
-                            Target::Data { .. } => heap.replace_copy(
-                                external.as_ref().unwrap(),
-                                ty,
-                                input,
-                                span,
-                                self.allocator,
-                            ),
-                            Target::Shared { read, ty, location } => heap.replace_field_copy(
-                                self.loans[read]
-                                    .shared_read
-                                    .ok_or(c::ExecutionFailure::Invariant)?,
-                                ty,
-                                location,
-                                input,
-                                span,
-                                self.allocator,
-                            ),
-                            _ => return Err(c::ExecutionFailure::Invariant),
-                        })?
+                        outcome(heap.replace_observed_copy(
+                            observed.as_ref().unwrap(),
+                            custody,
+                            input,
+                            span,
+                            self.allocator,
+                        ))?
                         .map(|_| (None, ArenaTransfer::Copy))
                     } else {
-                        outcome(match target {
-                            Target::Data { .. } => heap.replace_from(
-                                external.as_mut().unwrap(),
-                                ty,
-                                input,
-                                span,
-                                self.allocator,
-                            ),
-                            Target::Shared { read, ty, location } => heap.replace_field_from(
-                                self.loans[read]
-                                    .shared_read
-                                    .ok_or(c::ExecutionFailure::Invariant)?,
-                                ty,
-                                location,
-                                input,
-                                span,
-                                self.allocator,
-                            ),
-                            _ => return Err(c::ExecutionFailure::Invariant),
-                        })?
+                        outcome(heap.replace_observed(
+                            observed.as_ref().unwrap(),
+                            custody,
+                            input,
+                            span,
+                            self.allocator,
+                        ))?
                         .map(|old| (None, ArenaTransfer::Replaced(old)))
                     }
                 } else {
@@ -245,7 +183,6 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
     ) -> Step<()> {
         let argument = self.current.cell + values + call.arguments[0].0 as usize;
         let target = self.reference(self.root(argument)?)?;
-        let ty = call.type_arguments[0].ty;
         let action = match call.operation {
             o::core::Operation::SharedClone => sh::FieldAction::CloneStrong,
             o::core::Operation::WeakNew => sh::FieldAction::NewWeak,
@@ -253,48 +190,14 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             o::core::Operation::WeakUpgrade => sh::FieldAction::UpgradeWeak,
             _ => return Err(c::ExecutionFailure::Invariant),
         };
-        let result = if let Target::Shared { read, ty, location } = target {
-            outcome(
-                self.shared_heap.as_mut().unwrap().retain_field(
-                    self.loans[read]
-                        .shared_read
-                        .ok_or(c::ExecutionFailure::Invariant)?,
-                    ty,
-                    location,
-                    action,
-                    self.allocator,
-                ),
-            )?
-        } else {
-            let mut token = self.token(target)?;
-            let heap = self.shared_heap.as_mut().unwrap();
-            match action {
-                sh::FieldAction::CloneStrong => outcome(heap.clone_strong(
-                    &sh::Strong::from_token(&mut token).map_err(invariant)?,
-                    ty,
-                    self.allocator,
-                ))?
-                .map(sh::Retained::Strong),
-                sh::FieldAction::NewWeak => outcome(heap.downgrade(
-                    &sh::Strong::from_token(&mut token).map_err(invariant)?,
-                    ty,
-                    self.allocator,
-                ))?
-                .map(sh::Retained::Weak),
-                sh::FieldAction::CloneWeak => outcome(heap.clone_weak(
-                    &sh::Weak::from_token(&mut token).map_err(invariant)?,
-                    ty,
-                    self.allocator,
-                ))?
-                .map(sh::Retained::Weak),
-                sh::FieldAction::UpgradeWeak => outcome(heap.upgrade(
-                    &sh::Weak::from_token(&mut token).map_err(invariant)?,
-                    ty,
-                    self.allocator,
-                ))?
-                .map(sh::Retained::Strong),
-            }
-        };
+        let token = self.observation(target)?;
+        let custody = self.custody(target)?;
+        let result = outcome(self.shared_heap.as_mut().unwrap().retain_observed(
+            &token,
+            custody,
+            action,
+            self.allocator,
+        ))?;
         self.shared_result(
             destination,
             result.map(|owner| {
@@ -328,25 +231,13 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             .generation
             .checked_add(1)
             .ok_or(c::ExecutionFailure::CounterOverflow)?;
-        let result = if let Target::Shared { read, ty, location } = target {
-            outcome(
-                self.shared_heap.as_mut().unwrap().read_field(
-                    self.loans[read]
-                        .shared_read
-                        .ok_or(c::ExecutionFailure::Invariant)?,
-                    ty,
-                    location,
-                    self.allocator,
-                ),
-            )?
-        } else {
-            let mut token = self.token(target)?;
-            outcome(self.shared_heap.as_mut().unwrap().read(
-                &sh::Strong::from_token(&mut token).map_err(invariant)?,
-                ty,
-                self.allocator,
-            ))?
-        };
+        let token = self.observation(target)?;
+        let custody = self.custody(target)?;
+        let result = outcome(self.shared_heap.as_mut().unwrap().read_observed(
+            &token,
+            custody,
+            self.allocator,
+        ))?;
         let success = result.is_ok();
         let result = match result {
             Ok(read) => {

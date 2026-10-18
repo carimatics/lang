@@ -450,7 +450,7 @@ fn every_recursive_call_fuel_prefix_retires_parameters_results_and_loans() {
 }
 
 #[test]
-fn reachable_callee_preflight_rejects_unsupported_effects_but_unused_functions_do_not() {
+fn reachable_and_unused_nested_collection_callees_execute_with_complete_cleanup() {
     let prefix = "fn length(value: &core::Bytes) -> i64 { return core::bytes_len(value); } fn bad() -> core::Map<i64, core::Vec<i64>> { return core::result_unwrap::<core::Map<i64, core::Vec<i64>>, core::AllocError>(core::map_new::<i64, core::Vec<i64>>(core::allocator())); } fn main() -> i64 { let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())); let mut n: i64 = length(bytes);";
     for invoked in [false, true] {
         let source = format!(
@@ -470,20 +470,8 @@ fn reachable_callee_preflight_rejects_unsupported_effects_but_unused_functions_d
             Some(&mut allocator),
             control(),
         );
-        if invoked {
-            let error = result.err().unwrap();
-            assert!(matches!(
-                error.reason,
-                vm::Reason::Unsupported {
-                    core: Some(Operation::MapNew)
-                }
-            ));
-            assert_eq!(error.usage.fuel, 0);
-            assert!(trace.borrow().requests.is_empty());
-        } else {
-            assert_eq!(result.unwrap().value, 0);
-            assert_all_released(&allocator, &trace.borrow());
-        }
+        assert_eq!(result.unwrap().value, 0);
+        assert_all_released(&allocator, &trace.borrow());
         assert!(!instance.is_poisoned());
     }
 }

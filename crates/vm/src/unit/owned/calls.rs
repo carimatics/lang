@@ -481,6 +481,35 @@ fn execute_with<P: a::Provider>(
     } else {
         None
     };
+    let retirement = if payloads.needs_drain {
+        let drain =
+            r::Drain::prepare(&layouts, allocator, limits, budget_usage(&budget)).map_err(|e| {
+                fail(Reason::Preparation(match e {
+                    r::Error::Layout(e) => e,
+                    _ => l::Error::State,
+                }))
+            })?;
+        budget = m::Budget::with_usage(limits, drain.usage())
+            .map_err(|e| fail(Reason::Preparation(e.into())))?;
+        Some(drain)
+    } else {
+        None
+    };
+    let inspection = if retirement.is_some() {
+        let inspector =
+            ins::Inspector::prepare(&layouts, limits.value_cells, limits, budget_usage(&budget))
+                .map_err(|e| {
+                    fail(Reason::Preparation(match e {
+                        ins::Error::Layout(e) => e,
+                        _ => l::Error::State,
+                    }))
+                })?;
+        budget = m::Budget::with_usage(limits, inspector.usage())
+            .map_err(|e| fail(Reason::Preparation(e.into())))?;
+        Some(inspector)
+    } else {
+        None
+    };
     let maximum = *reachable
         .iter()
         .max_by_key(|id| plans[**id].as_ref().unwrap().cell_count())
@@ -581,6 +610,7 @@ fn execute_with<P: a::Provider>(
             shared_read: None,
             vector_read: None,
             map_read: None,
+            custody: None,
         });
     }
     let mut prepared = budget
@@ -646,6 +676,8 @@ fn execute_with<P: a::Provider>(
         prepared,
         arenas,
         shared_heap,
+        retirement,
+        inspection,
         panic_code: None,
         current: Address::entry(function),
     }));

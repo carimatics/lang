@@ -194,6 +194,7 @@ impl<'l, 't, P: a::Provider> State<'_, 'l, 't, P> {
         let l::Immediate::I64(index) = self.read(self.root(arg(call.arguments[1]))?)? else {
             return Err(c::ExecutionFailure::Invariant);
         };
+        let custody = self.custody(self.reference(self.root(arg(call.arguments[0]))?)?)?;
         let id =
             self.current.loan + call.result_loan.ok_or(c::ExecutionFailure::Invariant)?.0 as usize;
         if self.loans[id].target.is_some()
@@ -220,6 +221,7 @@ impl<'l, 't, P: a::Provider> State<'_, 'l, 't, P> {
                     .root();
                 let token = self.loan_token(id, Target::Vector { read: id, location })?;
                 self.loans[id].vector_read = Some(read);
+                self.loans[id].custody = custody;
                 (Ok(Some(token)), true)
             }
             Err(v::Error::Bounds(e)) => (Err(l::Immediate::Bounds(e)), false),

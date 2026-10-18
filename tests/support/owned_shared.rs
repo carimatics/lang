@@ -64,23 +64,9 @@ fn source_shared_text_payload_uses_the_same_checked_buffer_read_surface() {
 }
 
 #[test]
-fn unsupported_payload_rejection_propagates_through_recursive_shared_shapes_before_effects() {
-    let program = checked(
-        r#"struct Node { next: core::Option<shared Node>, pending: core::Option<core::Vec<i64>> }
-    fn main() -> i64 { let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); let mut saved: core::Option<shared Node> = core::Option::None; return 0; }"#,
-    );
-    let (mut allocator, trace) = allocator_with_limits(Default::default());
-    let error = vm::execute_entry(
-        program.failure_flow(),
-        &mut c::Instance::default(),
-        Some(&mut allocator),
-        Control::default(),
-    )
-    .err()
-    .unwrap();
-    assert!(matches!(error.reason, vm::Reason::Unsupported { .. }));
-    assert_eq!(allocator.stats(), a::Stats::default());
-    assert!(trace.borrow().requests.is_empty());
+fn recursive_shared_shapes_with_inactive_nested_collections_execute() {
+    assert_eq!(run(r#"struct Node { next: core::Option<shared Node>, pending: core::Option<core::Vec<i64>> }
+    fn main() -> i64 { let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); let mut saved: core::Option<shared Node> = core::Option::None; return 0; }"#).0, 0);
 }
 
 #[test]

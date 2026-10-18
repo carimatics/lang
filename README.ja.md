@@ -82,18 +82,24 @@ cargo run -- run examples/scripts/vec.lang
 cargo run -- run examples/scripts/vec_owned.lang
 cargo run -- run examples/scripts/map.lang
 cargo run -- run examples/scripts/map_owned.lang
+cargo run -- run examples/scripts/nested_collections.lang
+cargo run -- run examples/scripts/nested_cycle.lang
+cargo run -- run examples/scripts/nested_arena.lang
+cargo run -- run examples/scripts/nested_mutation.lang
 cargo run -- repl
 cargo run --quiet -- repl < examples/repl/owned.repl
 cargo run --quiet -- lsp
 ```
 
-Source arenaでCopy値、Bytes／Text、inline aggregate、同一region referenceのallocation、checked read、replacement、lexical teardownを実行できます。`arena.lang` は値の置換と読み取り後に `9`、`arena_owned.lang` はowning Bytes payloadを持つnodeのcycleを辿って `5` を表示します。Region再enterでは新しいgenerationを使います。変更／exit前にreadを終了し、teardownでnodeはallocationの逆順、各fieldは初期化の逆順に解放します。[Source arena実行](docs/ja/architecture.md#source-arena-execution)を参照してください。2026-10-18 JST更新・確認。
+Source arenaでCopy値、Bytes／Text、inline aggregate、同一region referenceを持つ入れ子Vec／Mapのallocation、checked read、replacement、lexical teardownを実行できます。`arena.lang` は値の置換と読み取り後に `9`、`arena_owned.lang` はowning Bytes payloadを持つnodeのcycleを辿って `5` を表示します。Region再enterでは新しいgenerationを使います。変更／exit前にreadを終了し、teardownでnodeはallocationの逆順、各fieldは初期化の逆順に解放します。[Source arena実行](docs/ja/architecture.md#source-arena-execution)を参照してください。2026-10-18 JST更新・確認。
 
-Sourceのshared／weak値でCopy値、Bytes／Text、inline aggregateと再帰的shared shapeの明示clone、checked read、replacement、weak生成／clone／upgrade、cleanupを実行できます。`shared.lang` は `9`、`shared_owned.lang` はstrong cycleを拒否し、borrowed guest call越しに入れ子owning nodeを読んで `13` を表示します。Weak ownerはpayload失効後もmetadataを保持します。Live readはalias経由の置換を禁止し、publication失敗時はincoming ownerを解放します。Vec／Map payload、indirect result preview、native実行、ownership artifactは個別gateを維持します。[Source shared実行](docs/ja/architecture.md#source-shared-and-weak-execution)を参照してください。2026-10-18 JST更新・確認。
+Sourceのshared／weak値で入れ子Vec／Mapと再帰的shared shapeを含むstorable値の明示clone、checked read、replacement、weak生成／clone／upgrade、cleanupを実行できます。`shared.lang` は `9`、`shared_owned.lang` はstrong cycleを拒否し、borrowed guest call越しに入れ子owning nodeを読んで `13` を表示します。Weak ownerはpayload失効後もmetadataを保持します。Live readはalias経由の置換を禁止し、publication失敗時はincoming ownerを解放します。Indirect result preview、native実行、ownership artifactは個別gateを維持します。[Source shared実行](docs/ja/architecture.md#source-shared-and-weak-execution)を参照してください。2026-10-18 JST更新・確認。
 
-Source VecでCopy値、Bytes／Text、inline record／enum／Option／Resultのnew／len／push／popと、検証済みshared／mutable element readを実行できます。`vec.lang` は `9`、`vec_owned.lang` はowning pairのgrowth、buffer変更、field置換、値のpop、guest call越しのreadを経て `12` を表示します。Live element loan中はpush／popを禁止し、push失敗時は評価済みowning引数をcleanupします。入れ子collection／shared／arena payload統合、indirect preview、native実行、ownership artifactは各gateを維持します。[Source Vec実行](docs/ja/architecture.md#source-vec-execution)を参照してください。2026-10-18 JST更新・確認。
+Source Vecで入れ子collection、shared／weak値、同一regionのarena referenceを含むstorable値のnew／len／push／popと、検証済みshared／mutable element readを実行できます。`vec.lang` は `9`、`vec_owned.lang` はowning pairのgrowth、buffer変更、field置換、値のpop、guest call越しのreadを経て `12` を表示します。Live element loan中はpush／popを禁止し、push失敗時は評価済みowning引数をcleanupします。Indirect preview、native実行、ownership artifactは各gateを維持します。[Source Vec実行](docs/ja/architecture.md#source-vec-execution)を参照してください。2026-10-18 JST更新・確認。
 
-Source Mapでi64またはUTF-8 byte単位の厳密なText keyと、Copy値、Bytes／Text、inline aggregateのnew／len／insert／get／removeを実行できます。`map.lang` は `49`、`map_owned.lang` はowning pairのgrowth、等価Text keyの置換、guest call越しのread、value削除を経て `33` を表示します。置換で元keyを保持し、旧valueを返します。拒否時は評価済みincoming ownerをcleanupし、live read中はmutationを禁止します。入れ子service payload、indirect preview、native実行、ownership artifactは各gateを維持します。[Source Map実行](docs/ja/architecture.md#source-map-execution)を参照してください。2026-10-18 JST更新・確認。
+Source Mapでi64またはUTF-8 byte単位の厳密なText keyと、storableな入れ子valueのnew／len／insert／get／removeを実行できます。`map.lang` は `49`、`map_owned.lang` はowning pairのgrowth、等価Text keyの置換、guest call越しのread、value削除を経て `33` を表示します。置換で元keyを保持し、旧valueを返します。拒否時は評価済みincoming ownerをcleanupし、live read中はmutationを禁止します。Indirect preview、native実行、ownership artifactは各gateを維持します。[Source Map実行](docs/ja/architecture.md#source-map-execution)を参照してください。2026-10-18 JST更新・確認。
+
+入れ子serviceを接続する [example](docs/ja/architecture.md#nested-service-source-execution) は `8`（shared→Vec→Map越しのclone／weak／read）、`21`（container越しの循環拒否）、`4`（arena→Map→Vecの同一region循環）、`6`（入れ子mutable置換／削除）を表示します。Strong edgeとarena brandをcontainer越しに検査し、元spanを維持して反復cleanupします。Ordinary loan、allocator authority、arena ownerは格納不可で、別arena・shared heap間のedge、region越しの生存を拒否します。2026-10-18 JST更新・確認。
 
 `check` はCopyまたはRFC 0007／0009 ownership sourceを該当するHIR／MIR解析で検証し、成功時はexit 0です。Guest codeは実行せず、`main` やhost bindingを必要としません。`run` はCopy profileと、allocator authority、Bytes new／len／get／set／push／clone、所有権を消費するUTF-8変換、Text byte長／clone／concat／to-bytes／equality、入れ子Bytes／Text／Copy record／enumとOption／Result構築・取り出し、lexical loan、cleanupを扱う初期ownership profileに対応します。Answer scriptは `42`、`bytes.lang`／`owned_bytes.lang` は `0`、取り出し／変更exampleは `1`、`utf8.lang` はbyte長の `3`、`text.lang` はcloneと変換後の独立性を確認して `2` を表示します。`owned_aggregate.lang` は入れ子ownerを移動し、投影したreferenceを読んで `9` を表示します。表示前にstorageを解放します。取り出しはcaseを確認し、不一致ならsource位置付きguest panicを報告します。未対応命令／payloadはpreflightで拒否します。
 

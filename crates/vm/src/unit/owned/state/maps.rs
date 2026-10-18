@@ -129,6 +129,8 @@ impl<'l, 't, P: a::Provider> State<'_, 'l, 't, P> {
         loan.generation
             .checked_add(1)
             .ok_or(c::ExecutionFailure::CounterOverflow)?;
+        let argument = self.current.cell + values + call.arguments[0].0 as usize;
+        let custody = self.custody(self.reference(self.root(argument)?)?)?;
         let token = match owner.borrow(key, self.allocator).map_err(fault)? {
             Some(read) => {
                 let location = read
@@ -137,6 +139,7 @@ impl<'l, 't, P: a::Provider> State<'_, 'l, 't, P> {
                     .root();
                 let token = self.loan_token(id, Target::Map { read: id, location })?;
                 self.loans[id].map_read = Some(read);
+                self.loans[id].custody = custody;
                 Some(token)
             }
             None => None,

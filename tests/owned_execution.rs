@@ -424,25 +424,20 @@ fn nested_exclusive_projections_restore_grown_tokens_to_the_aggregate_owner() {
 }
 
 #[test]
-fn inactive_unsupported_user_enum_payloads_are_rejected_before_provider_callbacks() {
+fn inactive_user_enum_nested_collection_payloads_execute_without_retaining_owners() {
     let program = checked(
         "enum Pending { Empty, Full(core::Map<i64, core::Vec<i64>>) } fn main() -> i64 { let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); let mut later: Pending = Pending::Empty; return 0; }",
     );
     let (mut allocator, trace) = allocator();
-    let error = vm::execute_entry(
+    let result = vm::execute_entry(
         program.failure_flow(),
         &mut c::Instance::default(),
         Some(&mut allocator),
         control(),
     )
-    .err()
     .unwrap();
-    assert!(matches!(
-        error.reason,
-        vm::Reason::Unsupported { core: None }
-    ));
-    assert_eq!(error.usage.fuel, 0);
-    assert!(trace.borrow().requests.is_empty());
+    assert_eq!(result.value, 0);
+    assert_all_released(&allocator, &trace.borrow());
 }
 
 fn bytes_program(pushes: &[i64], tail: &str) -> String {
@@ -1481,44 +1476,25 @@ fn every_fuel_prefix_cleans_source_owners_and_ends_loans_without_poisoning() {
 }
 
 #[test]
-fn unsupported_core_operations_are_rejected_before_earlier_source_allocations() {
-    for (later, expected, spelling) in [
-        (
-            "let mut later: core::Result<core::Map<core::Text, core::Vec<i64>>, core::AllocError> = core::map_new::<core::Text, core::Vec<i64>>(core::allocator());",
-            Some(Operation::MapNew),
-            "map_new",
-        ),
-        (
-            "let mut later: core::Result<core::Map<i64, core::Vec<i64>>, core::AllocError> = core::map_new::<i64, core::Vec<i64>>(core::allocator());",
-            Some(Operation::MapNew),
-            "map_new",
-        ),
-        (
-            "let mut later: core::Option<core::Map<i64, core::Vec<i64>>> = core::Option::None;",
-            None,
-            "Option::None",
-        ),
+fn nested_map_constructors_and_inactive_values_execute_after_earlier_source_allocations() {
+    for later in [
+        "let mut later: core::Result<core::Map<core::Text, core::Vec<i64>>, core::AllocError> = core::map_new::<core::Text, core::Vec<i64>>(core::allocator());",
+        "let mut later: core::Result<core::Map<i64, core::Vec<i64>>, core::AllocError> = core::map_new::<i64, core::Vec<i64>>(core::allocator());",
+        "let mut later: core::Option<core::Map<i64, core::Vec<i64>>> = core::Option::None;",
     ] {
         let program = checked(&format!(
             "fn main() -> i64 {{ let mut first: core::Result<core::Bytes, core::AllocError> = core::bytes_new(core::allocator()); {later} return 0; }}"
         ));
         let (mut allocator, trace) = allocator();
-        let error = vm::execute_entry(
+        let result = vm::execute_entry(
             program.failure_flow(),
             &mut c::Instance::default(),
             Some(&mut allocator),
             control(),
         )
-        .err()
         .unwrap();
-        assert!(matches!(error.reason, vm::Reason::Unsupported { core } if core == expected));
-        assert_eq!(allocator.stats(), a::Stats::default());
-        assert!(trace.borrow().requests.is_empty());
-        let span = error.fault.unwrap();
-        let typed = program.mir().activity().moved().typed();
-        let text =
-            &typed.places().declarations().types().table().sources[span.source.0 as usize].text;
-        assert!(text[span.start as usize..span.end as usize].contains(spelling));
+        assert_eq!(result.value, 0);
+        assert_all_released(&allocator, &trace.borrow());
     }
 }
 

@@ -1,6 +1,147 @@
 use super::*;
 
 impl<'l, 't> Heap<'l, 't> {
+    pub fn custody<P: a::Provider>(
+        &self,
+        read: Read,
+        ty: o::Type,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Custody, Error> {
+        self.resolve(read.0, READ, ty, allocator)?;
+        Ok(Custody { read, ty })
+    }
+    fn observed<P: a::Provider>(
+        &self,
+        token: &l::Token,
+        custody: Option<Custody>,
+        allocator: &a::Allocator<P>,
+    ) -> Result<(usize, u64, o::Type), Error> {
+        let customer = if let Some(custody) = custody {
+            self.resolve(custody.read.0, READ, custody.ty, allocator)? as u64 + 1
+        } else {
+            0
+        };
+        let o::Type::Constructed(id) = token.leaf.ty else {
+            return Err(unavailable());
+        };
+        let (kind, ty) = match self
+            .layouts
+            .types()
+            .table()
+            .constructed
+            .get(id.0 as usize)
+            .map(|t| t.constructor)
+        {
+            Some(o::Constructor::Shared(ty)) => (STRONG, ty),
+            Some(o::Constructor::Weak(ty)) => (WEAK, ty),
+            _ => return Err(unavailable()),
+        };
+        let index = Registry::new(self.owner, &self.nodes, self.layouts, self.limits).resolve(
+            Reference::parse(token.bytes)?,
+            kind,
+            ty,
+            customer,
+            allocator,
+        )?;
+        Ok((index, kind, ty))
+    }
+    pub fn read_observed<P: a::Provider>(
+        &mut self,
+        token: &l::Token,
+        custody: Option<Custody>,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<Read, Error> {
+        let (index, kind, _) = self.observed(token, custody, allocator)?;
+        if kind != STRONG {
+            return Err(unavailable());
+        }
+        self.read_index(index, allocator)
+    }
+    pub fn replace_observed<P: a::Provider>(
+        &mut self,
+        token: &l::Token,
+        custody: Option<Custody>,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<Option<m::Span>, Error> {
+        let (index, kind, _) = self
+            .observed(token, custody, allocator)
+            .map_err(|e| e.at(Some(span)))?;
+        if kind != STRONG {
+            return Err(unavailable().at(Some(span)));
+        }
+        self.replace_index(index, input, span, allocator)
+    }
+    pub fn replace_observed_copy<P: a::Provider>(
+        &mut self,
+        token: &l::Token,
+        custody: Option<Custody>,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Error> {
+        let (index, kind, _) = self
+            .observed(token, custody, allocator)
+            .map_err(|e| e.at(Some(span)))?;
+        if kind != STRONG {
+            return Err(unavailable().at(Some(span)));
+        }
+        self.replace_copy_index(index, input, span, allocator)
+    }
+    pub fn retain_observed<P: a::Provider>(
+        &mut self,
+        token: &l::Token,
+        custody: Option<Custody>,
+        action: FieldAction,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<Retained, Error> {
+        let (index, kind, _) = self.observed(token, custody, allocator)?;
+        if !matches!(
+            (kind, action),
+            (STRONG, FieldAction::CloneStrong | FieldAction::NewWeak)
+                | (WEAK, FieldAction::CloneWeak | FieldAction::UpgradeWeak)
+        ) {
+            return Err(unavailable());
+        }
+        if action == FieldAction::UpgradeWeak
+            && self.nodes[index]
+                .as_ref()
+                .unwrap()
+                .block
+                .counts(allocator)?
+                .strong
+                == 0
+        {
+            return Err(core(l::OwnershipError::ExpiredWeak));
+        }
+        let reference = self.vacancy(allocator, &mut self.work())?;
+        let block = &mut self.nodes[index].as_mut().unwrap().block;
+        let kind = match action {
+            FieldAction::CloneStrong => {
+                block.retain_strong(self.limits.reference_count, allocator)?;
+                STRONG
+            }
+            FieldAction::NewWeak => {
+                block.downgrade(self.limits.reference_count, allocator)?;
+                WEAK
+            }
+            FieldAction::CloneWeak => {
+                block.retain_weak(self.limits.reference_count, allocator)?;
+                WEAK
+            }
+            FieldAction::UpgradeWeak => {
+                block.upgrade(self.limits.reference_count, allocator)?;
+                STRONG
+            }
+        };
+        self.register(reference, index, kind, allocator)?;
+        Ok(if kind == STRONG {
+            Retained::Strong(Strong(reference))
+        } else {
+            Retained::Weak(Weak(reference))
+        })
+    }
     fn shared_field<P: a::Provider>(
         &self,
         read: Read,

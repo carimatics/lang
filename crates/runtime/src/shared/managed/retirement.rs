@@ -390,9 +390,7 @@ mod tests {
                     .allocate_from(&mut incoming, Some(span(50)), &mut allocator)
                     .unwrap();
                 incoming.release_storage(&mut allocator).unwrap();
-                let root_index = heap.resolve(root.0, STRONG, ty(4), &allocator).unwrap();
                 let mut vector = vector::Vector::new(&layouts, ty(1), &mut allocator).unwrap();
-                let mut edges = Vec::new();
                 for n in 1..=2 {
                     let mut value =
                         l::Reservation::allocate(&layouts, ty(0), &mut allocator).unwrap();
@@ -408,13 +406,6 @@ mod tests {
                         .allocate_from(&mut value, Some(span(10 + u32::from(n))), &mut allocator)
                         .unwrap();
                     value.release_storage(&mut allocator).unwrap();
-                    let node = heap.resolve(strong.0, STRONG, ty(0), &allocator).unwrap();
-                    edges.push(Edge {
-                        reference: strong.0,
-                        node,
-                        kind: STRONG,
-                        span: Some(span(60)),
-                    });
                     let mut value =
                         l::Reservation::allocate(&layouts, ty(1), &mut allocator).unwrap();
                     value
@@ -461,20 +452,50 @@ mod tests {
                 incoming
                     .initialize_order(incoming.root(), [(0, span(62))].into_iter(), &mut allocator)
                     .unwrap();
-                // Storage-level fixture only: generic graph publication is still
-                // C07. Install the validated fixture and its exact stored custody
-                // directly so this test isolates the production retirement path.
-                heap.nodes[root_index]
-                    .as_mut()
-                    .unwrap()
-                    .block
-                    .replace_from(&mut incoming, span(63), &mut allocator)
-                    .unwrap();
-                heap.mark(&edges, root_index as u64 + 1, &mut allocator)
+                // The full production path now collects container edges,
+                // proves cycles/custody, publishes and retires the old value.
+                heap.replace_from(&root, ty(4), &mut incoming, span(63), &mut allocator)
                     .unwrap();
                 incoming.begin_retirement(None, &mut allocator).unwrap();
                 assert!(incoming.next_leaf(&mut allocator).unwrap().is_none());
                 incoming.release_storage(&mut allocator).unwrap();
+                let parent_read = heap.read(&root, ty(4), &mut allocator).unwrap();
+                let custody = heap.custody(parent_read, ty(4), &allocator).unwrap();
+                let observed = {
+                    let view = heap.view(parent_read, ty(4), &allocator).unwrap();
+                    let mut inspector =
+                        i::Inspector::prepare(&layouts, 16, Default::default(), heap.usage())
+                            .unwrap();
+                    let mut read = inspector
+                        .read(view.reservation(), None, &allocator)
+                        .unwrap();
+                    let leaf = read.next(&mut i::Work::new(1000)).unwrap().unwrap();
+                    l::Token {
+                        leaf: l::Leaf {
+                            ty: leaf.ty,
+                            offset: 0,
+                            span: leaf.span,
+                        },
+                        bytes: leaf.bytes,
+                    }
+                };
+                let unchanged = allocator.stats();
+                assert!(heap.read_observed(&observed, None, &mut allocator).is_err());
+                assert!(
+                    heap.retire_read(parent_read, ty(4), &mut allocator)
+                        .unwrap()
+                        .is_none()
+                );
+                assert!(
+                    heap.retain_observed(
+                        &observed,
+                        Some(custody),
+                        FieldAction::CloneStrong,
+                        &mut allocator
+                    )
+                    .is_err()
+                );
+                assert_eq!(allocator.stats(), unchanged);
                 let read = retained_read.then(|| heap.read(&root, ty(4), &mut allocator).unwrap());
                 let mut token = l::Token {
                     leaf: l::Leaf {

@@ -1,16 +1,81 @@
 use super::*;
 
 fn inspect<P: a::Provider>(
+    layouts: &l::Layouts<'_>,
+    inspector: &mut Option<ins::Inspector<'_, '_>>,
     token: &l::Token,
-    _: &g::Arena<'_, '_>,
-    _: &a::Allocator<P>,
-    _: &mut g::PublicationBudget,
+    arena: &g::Arena<'_, '_>,
+    allocator: &a::Allocator<P>,
+    budget: &mut g::PublicationBudget,
 ) -> Result<(), g::Error> {
-    Err(g::Error {
-        kind: g::Kind::Unsupported(token.leaf.ty),
-        span: None,
-    })
+    let mut read = inspector
+        .as_mut()
+        .ok_or(g::Error {
+            kind: g::Kind::State,
+            span: None,
+        })?
+        .token(token, allocator)?;
+    while let Some(observed) = budget.inspect_next(&mut read)? {
+        let mut bytes = observed.bytes;
+        let Some(l::Layout {
+            kind: l::Kind::Token(constructor),
+            ..
+        }) = layouts.get(observed.ty)
+        else {
+            return Err(g::Error {
+                kind: g::Kind::State,
+                span: observed.span,
+            });
+        };
+        match constructor {
+            o::Constructor::Arena(ty) => {
+                arena.resolve(g::Reference::from_token(bytes)?, *ty, allocator)?
+            }
+            o::Constructor::Shared(_) | o::Constructor::Weak(_) => {
+                return Err(g::Error {
+                    kind: g::Kind::Arena(l::ArenaError::CrossRegion),
+                    span: observed.span,
+                });
+            }
+            o::Constructor::Builtin(o::Builtin::Bytes) => {
+                buffer::Bytes::from_token(&mut bytes, allocator)
+                    .and_then(|v| v.len(allocator))
+                    .map_err(|e| g::Error {
+                        kind: g::Kind::Buffer(e),
+                        span: observed.span,
+                    })?;
+            }
+            o::Constructor::Builtin(o::Builtin::Text) => {
+                let text =
+                    buffer::Text::from_token(&mut bytes, allocator).map_err(|e| g::Error {
+                        kind: g::Kind::Buffer(e),
+                        span: observed.span,
+                    })?;
+                let length = usize::try_from(text.len(allocator).map_err(|e| g::Error {
+                    kind: g::Kind::Buffer(e),
+                    span: observed.span,
+                })?)
+                .map_err(|_| g::Error {
+                    kind: g::Kind::State,
+                    span: observed.span,
+                })?;
+                budget.charge(length)?;
+                text.as_str(allocator).map_err(|e| g::Error {
+                    kind: g::Kind::Buffer(e),
+                    span: observed.span,
+                })?;
+            }
+            _ => {
+                return Err(g::Error {
+                    kind: g::Kind::Unsupported(observed.ty),
+                    span: observed.span,
+                });
+            }
+        }
+    }
+    Ok(())
 }
+
 fn outcome<T>(value: Result<T, g::Error>) -> Step<Result<T, l::ArenaError>> {
     match value {
         Ok(value) => Ok(Ok(value)),
@@ -80,6 +145,19 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         let arena = self.arenas[owner]
             .as_mut()
             .ok_or(c::ExecutionFailure::Invariant)?;
+        let inspect = |token: &l::Token,
+                       arena: &g::Arena<'_, '_>,
+                       allocator: &a::Allocator<P>,
+                       budget: &mut g::PublicationBudget| {
+            inspect(
+                self.layouts,
+                &mut self.inspection,
+                token,
+                arena,
+                allocator,
+                budget,
+            )
+        };
         let result = if let Some(reference) = reference {
             if copy {
                 outcome(arena.replace_copy(reference, input, span, self.allocator, inspect))?
@@ -236,3 +314,6 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         Ok(token.is_some())
     }
 }
+
+#[cfg(test)]
+mod tests;

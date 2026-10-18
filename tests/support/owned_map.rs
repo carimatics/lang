@@ -382,7 +382,7 @@ fn source_map_allocator_parameters_reborrow_the_same_explicit_authority() {
 }
 
 #[test]
-fn source_map_and_service_specific_profiles_reject_inactive_nested_services_before_effects() {
+fn source_map_nested_shapes_execute_even_when_cases_are_inactive() {
     for later in [
         "let mut later:core::Option<core::Map<i64,core::Vec<i64>>>=core::Option::None;",
         "let mut later:core::Option<core::Map<i64,shared i64>>=core::Option::None;",
@@ -394,20 +394,7 @@ fn source_map_and_service_specific_profiles_reject_inactive_nested_services_befo
         let source = format!(
             "struct Payload {{values:core::Option<core::Map<i64,i64>>}} fn main()->i64 {{let mut earlier:core::Result<core::Bytes,core::AllocError>=core::bytes_new(core::allocator());{later}return 0;}}"
         );
-        let program = checked(&source);
-        let (mut allocator, trace) = allocator_with_limits(Default::default());
-        let failure = vm::execute_entry(
-            program.failure_flow(),
-            &mut c::Instance::default(),
-            Some(&mut allocator),
-            Control::default(),
-        )
-        .err()
-        .unwrap();
-        assert!(matches!(failure.reason, vm::Reason::Unsupported { .. }));
-        assert_eq!(failure.usage.fuel, 0);
-        assert_eq!(allocator.stats(), a::Stats::default());
-        assert!(trace.borrow().requests.is_empty());
+        assert_eq!(run(&source), 0);
     }
 }
 

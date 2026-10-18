@@ -1,0 +1,38 @@
+struct Node { edges: core::Map<i64, core::Vec<shared Node>> }
+
+fn empty() -> core::Map<i64, core::Vec<shared Node>> {
+    return core::result_unwrap::<core::Map<i64, core::Vec<shared Node>>, core::AllocError>(core::map_new::<i64, core::Vec<shared Node>>(core::allocator()));
+}
+
+fn make() -> shared Node {
+    let mut edges: core::Map<i64, core::Vec<shared Node>> = empty();
+    return core::result_unwrap::<shared Node, core::OwnershipError>(core::shared_new::<Node>(core::allocator(), Node { edges: edges }));
+}
+
+fn link(value: &shared Node) -> core::Map<i64, core::Vec<shared Node>> {
+    let mut edge: shared Node = core::result_unwrap::<shared Node, core::OwnershipError>(core::shared_clone::<Node>(value));
+    let mut values: core::Vec<shared Node> = core::result_unwrap::<core::Vec<shared Node>, core::AllocError>(core::vec_new::<shared Node>(core::allocator()));
+    let mut pushed: core::Result<core::Unit, core::AllocError> = core::vec_push::<shared Node>(values, edge);
+    let mut pushed_ok: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(pushed);
+    let mut table: core::Map<i64, core::Vec<shared Node>> = empty();
+    let mut inserted: core::Result<core::Option<core::Vec<shared Node>>, core::AllocError> = core::map_insert::<i64, core::Vec<shared Node>>(table, 0, values);
+    let mut inserted_ok: core::Option<core::Vec<shared Node>> = core::result_unwrap::<core::Option<core::Vec<shared Node>>, core::AllocError>(inserted);
+    return table;
+}
+
+fn main() -> i64 {
+    let mut left: shared Node = make();
+    let mut right: shared Node = make();
+    let mut forward: core::Map<i64, core::Vec<shared Node>> = link(left);
+    let mut changed: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<Node>(right, Node { edges: forward });
+    let mut backward: core::Map<i64, core::Vec<shared Node>> = link(right);
+    let mut rejected: core::Result<core::Unit, core::OwnershipError> = core::shared_replace::<Node>(left, Node { edges: backward });
+    let mut score: i64 = 0;
+    match changed { core::Result::Ok(_) => {}, core::Result::Err(_) => { return -1; }, }
+    match rejected {
+        core::Result::Ok(_) => { return -2; },
+        core::Result::Err(error) => { match error { core::OwnershipError::StrongCycle => { score = 20; }, _ => { return -3; }, } },
+    }
+    match core::shared_read::<Node>(left) { core::Result::Ok(value) => { score = score + core::map_len::<i64, core::Vec<shared Node>>(value.edges); }, core::Result::Err(_) => { return -4; }, }
+    match core::shared_read::<Node>(right) { core::Result::Ok(last_value) => { return score + core::map_len::<i64, core::Vec<shared Node>>(last_value.edges); }, core::Result::Err(_) => { return -5; }, }
+}

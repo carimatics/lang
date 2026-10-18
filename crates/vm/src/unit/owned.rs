@@ -6,8 +6,8 @@ use lang_mir::unit::{
     ownership::{self as o, bodies as b, failure as f},
 };
 use lang_runtime::{
-    allocation as a, arena::managed as g, buffer, cleanup as c, layout as l, map as mm,
-    shared::managed as sh, vector as v,
+    allocation as a, arena::managed as g, buffer, cleanup as c, inspection as ins, layout as l,
+    map as mm, retirement as r, shared::managed as sh, vector as v,
 };
 use std::{
     cell::RefCell,
@@ -401,6 +401,35 @@ fn execute_single<P: a::Provider>(
     } else {
         None
     };
+    let retirement = if payloads.needs_drain {
+        let drain =
+            r::Drain::prepare(&layouts, allocator, limits, budget_usage(&budget)).map_err(|e| {
+                fail(Reason::Preparation(match e {
+                    r::Error::Layout(e) => e,
+                    _ => l::Error::State,
+                }))
+            })?;
+        budget = m::Budget::with_usage(limits, drain.usage())
+            .map_err(|e| fail(Reason::Preparation(e.into())))?;
+        Some(drain)
+    } else {
+        None
+    };
+    let inspection = if retirement.is_some() {
+        let inspector =
+            ins::Inspector::prepare(&layouts, limits.value_cells, limits, budget_usage(&budget))
+                .map_err(|e| {
+                    fail(Reason::Preparation(match e {
+                        ins::Error::Layout(e) => e,
+                        _ => l::Error::State,
+                    }))
+                })?;
+        budget = m::Budget::with_usage(limits, inspector.usage())
+            .map_err(|e| fail(Reason::Preparation(e.into())))?;
+        Some(inspector)
+    } else {
+        None
+    };
     let mut cells = budget
         .vector(plan.cell_count())
         .map_err(|e| fail(Reason::Preparation(e.into())))?;
@@ -441,6 +470,7 @@ fn execute_single<P: a::Provider>(
             shared_read: None,
             vector_read: None,
             map_read: None,
+            custody: None,
         });
     }
     let shared = Rc::new(RefCell::new(State {
@@ -454,6 +484,8 @@ fn execute_single<P: a::Provider>(
         prepared,
         arenas: Vec::new(),
         shared_heap,
+        retirement,
+        inspection,
         panic_code: None,
         current: Address::entry(function),
     }));

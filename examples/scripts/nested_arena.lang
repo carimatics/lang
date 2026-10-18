@@ -1,0 +1,47 @@
+struct Node { edges: core::Map<i64, core::Vec<arena Node>>, bytes: core::Bytes }
+
+fn main() -> i64 {
+    arena graph(core::allocator()) {
+        let mut empty: core::Map<i64, core::Vec<arena Node>> = core::result_unwrap::<core::Map<i64, core::Vec<arena Node>>, core::AllocError>(core::map_new::<i64, core::Vec<arena Node>>(core::allocator()));
+        let mut first: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+        let mut pushed: core::Result<core::Unit, core::BufferError> = core::bytes_push(first, 65);
+        let mut pushed_ok: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(pushed);
+        let mut seed: arena Node = core::result_unwrap::<arena Node, core::ArenaError>(core::arena_new::<Node>(graph, Node { edges: empty, bytes: first }));
+        let mut links: core::Vec<arena Node> = core::result_unwrap::<core::Vec<arena Node>, core::AllocError>(core::vec_new::<arena Node>(core::allocator()));
+        let mut linked: core::Result<core::Unit, core::AllocError> = core::vec_push::<arena Node>(links, seed);
+        let mut linked_ok: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(linked);
+        let mut edges: core::Map<i64, core::Vec<arena Node>> = core::result_unwrap::<core::Map<i64, core::Vec<arena Node>>, core::AllocError>(core::map_new::<i64, core::Vec<arena Node>>(core::allocator()));
+        let mut inserted: core::Result<core::Option<core::Vec<arena Node>>, core::AllocError> = core::map_insert::<i64, core::Vec<arena Node>>(edges, 0, links);
+        let mut inserted_ok: core::Option<core::Vec<arena Node>> = core::result_unwrap::<core::Option<core::Vec<arena Node>>, core::AllocError>(inserted);
+        let mut second: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+        let mut one: core::Result<core::Unit, core::BufferError> = core::bytes_push(second, 66);
+        let mut one_ok: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(one);
+        let mut two: core::Result<core::Unit, core::BufferError> = core::bytes_push(second, 67);
+        let mut two_ok: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(two);
+        let mut changed: core::Result<core::Unit, core::ArenaError> = core::arena_replace::<Node>(graph, seed, Node { edges: edges, bytes: second });
+        let mut key: i64 = 0;
+        match changed {
+            core::Result::Err(_) => { return -1; },
+            core::Result::Ok(_) => {},
+        }
+        match core::arena_read::<Node>(graph, seed) {
+            core::Result::Ok(node) => {
+                match core::map_get::<i64, core::Vec<arena Node>>(node.edges, key) {
+                    core::Option::Some(values) => {
+                        match core::vec_get::<arena Node>(values, 0) {
+                            core::Result::Ok(next) => {
+                                match core::arena_read::<Node>(graph, (*next)) {
+                                    core::Result::Ok(again) => { return core::bytes_len(again.bytes) + core::vec_len::<arena Node>(values) + core::map_len::<i64, core::Vec<arena Node>>(node.edges); },
+                                    core::Result::Err(_) => { return -2; },
+                                }
+                            },
+                            core::Result::Err(_) => { return -3; },
+                        }
+                    },
+                    core::Option::None => { return -4; },
+                }
+            },
+            core::Result::Err(_) => { return -5; },
+        }
+    }
+}

@@ -3,7 +3,7 @@
 //! real guest reservations. No Arc, lock or host allocation occurs in operations.
 //! Like Reservation, wrapper disposal alone runs no guest cleanup: the adapter
 //! must drain every node/descendant before releasing its allocator authority.
-use crate::{allocation as a, buffer, cleanup as c, layout as l};
+use crate::{allocation as a, buffer, cleanup as c, inspection as i, layout as l};
 use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 
@@ -34,6 +34,7 @@ pub enum Kind {
     Allocator(a::Error),
     Layout(l::Error),
     Buffer(buffer::Fault),
+    Inspection(i::Error),
     Unsupported(o::Type),
     State,
 }
@@ -62,6 +63,15 @@ impl From<l::Error> for Error {
         match error {
             l::Error::Allocation(error) => error.into(),
             error => Self::new(Kind::Layout(error)),
+        }
+    }
+}
+impl From<i::Error> for Error {
+    fn from(error: i::Error) -> Self {
+        match error {
+            i::Error::Cells | i::Error::Work => limit(),
+            i::Error::Layout(e) => e.into(),
+            e => Self::new(Kind::Inspection(e)),
         }
     }
 }
@@ -187,12 +197,17 @@ pub struct Retired<'l, 't> {
 /// Shared by the inline walk and an indirect service's recursive validation.
 /// Services must charge before inspecting each nested value/edge.
 pub struct PublicationBudget {
-    remaining: usize,
+    work: i::Work,
 }
 impl PublicationBudget {
     pub fn charge(&mut self, amount: usize) -> Result<(), Error> {
-        self.remaining = self.remaining.checked_sub(amount).ok_or_else(limit)?;
-        Ok(())
+        self.work.charge(amount).map_err(|_| limit())
+    }
+    pub fn inspect_next<P: a::Provider>(
+        &mut self,
+        read: &mut i::Read<'_, '_, '_, P>,
+    ) -> Result<Option<i::Observation>, Error> {
+        read.next(&mut self.work).map_err(Into::into)
     }
 }
 pub struct Arena<'l, 't> {
@@ -377,7 +392,7 @@ impl<'l, 't> Arena<'l, 't> {
         }
         input.validate_retirement(allocator)?;
         let mut budget = PublicationBudget {
-            remaining: self.limits.publication_work,
+            work: i::Work::new(self.limits.publication_work),
         };
         self.pending.clear();
         if self.limits.value_cells == 0 {

@@ -1,0 +1,43 @@
+struct Holder { values: core::Map<i64, core::Vec<core::Bytes>> }
+
+fn make(count: i64) -> core::Vec<core::Bytes> {
+    let mut data: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut index: i64 = 0;
+    while index < count {
+        let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(data, 65));
+        index = index + 1;
+    }
+    let mut values: core::Vec<core::Bytes> = core::result_unwrap::<core::Vec<core::Bytes>, core::AllocError>(core::vec_new::<core::Bytes>(core::allocator()));
+    let mut added: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<core::Bytes>(values, data));
+    return values;
+}
+
+fn main() -> i64 {
+    let mut first: core::Vec<core::Bytes> = make(1);
+    let mut table: core::Map<i64, core::Vec<core::Bytes>> = core::result_unwrap::<core::Map<i64, core::Vec<core::Bytes>>, core::AllocError>(core::map_new::<i64, core::Vec<core::Bytes>>(core::allocator()));
+    let mut inserted: core::Option<core::Vec<core::Bytes>> = core::result_unwrap::<core::Option<core::Vec<core::Bytes>>, core::AllocError>(core::map_insert::<i64, core::Vec<core::Bytes>>(table, 0, first));
+    let mut holders: core::Vec<Holder> = core::result_unwrap::<core::Vec<Holder>, core::AllocError>(core::vec_new::<Holder>(core::allocator()));
+    let mut added_holder: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<Holder>(holders, Holder { values: table }));
+    let mut key: i64 = 0;
+    match core::vec_get_mut::<Holder>(holders, 0) {
+        core::Result::Ok(holder) => {
+            let mut second: core::Vec<core::Bytes> = make(2);
+            let mut old: core::Vec<core::Bytes> = core::option_unwrap::<core::Vec<core::Bytes>>(core::result_unwrap::<core::Option<core::Vec<core::Bytes>>, core::AllocError>(core::map_insert::<i64, core::Vec<core::Bytes>>(holder.values, 0, second)));
+            let mut score: i64 = core::vec_len::<core::Bytes>(old);
+            match core::vec_get_mut::<core::Bytes>(old, 0) {
+                core::Result::Ok(first_byte) => {
+                    let mut extended: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(first_byte, 66));
+                    score = score + core::bytes_len(first_byte);
+                },
+                core::Result::Err(_) => { return -2; },
+            }
+            let mut removed: core::Vec<core::Bytes> = core::option_unwrap::<core::Vec<core::Bytes>>(core::map_remove::<i64, core::Vec<core::Bytes>>(holder.values, key));
+            score = score + core::vec_len::<core::Bytes>(removed);
+            match core::vec_get::<core::Bytes>(removed, 0) {
+                core::Result::Ok(last_byte) => { return score + core::bytes_len(last_byte) + core::map_len::<i64, core::Vec<core::Bytes>>(holder.values); },
+                core::Result::Err(_) => { return -3; },
+            }
+        },
+        core::Result::Err(_) => { return -1; },
+    }
+}

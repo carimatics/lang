@@ -102,6 +102,29 @@ pub struct Read<'a, 'l, 't, P: a::Provider> {
     allocator: &'a a::Allocator<P>,
 }
 impl<'l, 't> Inspector<'l, 't> {
+    pub fn preparation_usage(
+        layouts: &'l l::Layouts<'t>,
+        cells: usize,
+        limits: m::Limits,
+        initial: m::Usage,
+    ) -> Result<m::Usage, Error> {
+        let base = layouts.usage();
+        if initial.work < base.work
+            || initial.allocation_bytes < base.allocation_bytes
+            || initial.elements < base.elements
+        {
+            return Err(l::Error::State.into());
+        }
+        let mut budget = m::Budget::with_usage(limits, initial).map_err(l::Error::from)?;
+        budget
+            .allocate::<Visit<'l, 't>>(cells)
+            .map_err(l::Error::from)?;
+        Ok(m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        })
+    }
     pub fn prepare(
         layouts: &'l l::Layouts<'t>,
         cells: usize,
