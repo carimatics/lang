@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み81件 · 進行中0件 · 残り25件（暫定60 pt）。**
+**検証済み82件 · 進行中0件 · 残り26件（暫定59 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N02は完了です（`a3478bd`）。Nativeのplace／loan projection、借用case field、準備済みroot／field置換が共有cleanupモデルに従います。Guest callを越える変更、owner解放、RHS副作用、再検証済みcapture先変更をVMと比較し、失敗時も解放前に登録／captureを消去します。全 **85 suite・1352 test** とfmt／Clippy／docが成功しました。**80 → 81 done · 63 → 60 remaining pt**、task総数106件は不変、収支は **134 + 49 − 123 = 60 pt** です。次はN03の最小native Bytes割当／変更／長さ取得fixtureからText／Vec／Mapへ進めます。Native／FFI／platform／performance／debug全要件と最終英日guideを維持します。完了81行（受入条件の数値が最後に動いてから55件）によって元の完了条件は新たに閉じず、G14は未完了です。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N11は完了です（`1acb73a`、native allocator／Bytes／Textが5つのVM source fixtureと一致し、全fuel／provider拒否prefixとMach-O／COFF metadataも成功。85 suite・1356 testとfmt／Clippy／doc成功）。N03の3点をN11（初期1点、今回完了）、N12 Vec（1点）、N03 Map（1点）へ分割し、**106 → 108 task** ですが、見積もりの純増はありません。N11完了で **60 → 59 remaining pt**、**81 → 82 done** です。次はN12で、設定可能なbyte-work admissionはN05に明示して残します。Native／FFI／platform／performance／debug全要件と最終英日guideを維持します。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

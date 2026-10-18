@@ -8,9 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**81 verified deliveries · 0 in progress · 25 remaining tasks (provisional 60 pt).**
+**82 verified deliveries · 0 in progress · 26 remaining tasks (provisional 59 pt).**
 
-Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for current tasks, evidence and estimates (updated 2026-10-19 JST). N02 is done (`a3478bd`): native place/loan projections, borrowed case fields and prepared root/field replacement follow the shared cleanup model. VM comparisons cover cross-call mutation, owner retirement, RHS effects and reverified capture retargeting; failure exits clear registrations/captures before release. All **1352 tests / 85 suites** and fmt/Clippy/doc pass. **80 → 81 done · 63 → 60 remaining pt**, with 106 tasks unchanged; **134 + 49 − 123 = 60 pt**. Next run N03's smallest native Bytes allocation/mutation/length fixture before extending Text/Vec/Map. Keep all native/FFI/platform/performance/debug obligations and the final bilingual guide. The 81 completed rows (55 since the gate score last changed) close no new original exit gate; G14 remains open.
+Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N11 is done (`1acb73a`; native allocator/Bytes/Text match five VM source fixtures, all fuel/provider refusal prefixes and Mach-O/COFF metadata; 1356 tests / 85 suites and fmt/Clippy/doc pass). Split N03's 3 points into N11 (initial 1, now done), N12 Vec (1), and N03 Map (1): **106 → 108 tasks** with no net estimate addition. N11 completion changes **60 → 59 remaining pt**, **81 → 82 done**. Next is N12; configured byte-work admission remains explicit in N05. Preserve every native/FFI/platform/performance/debug obligation and the final bilingual guide.
 
 The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 
