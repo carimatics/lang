@@ -31,6 +31,7 @@ pub enum Reason {
     Preparation(l::Error),
     Enter(c::EnterError),
     Execution(c::FailureKind),
+    Preview(l::PreviewError),
 }
 #[derive(Debug)]
 pub struct Failure {
@@ -58,6 +59,28 @@ pub struct Outcome {
     pub value: i64,
     pub usage: Usage,
     pub allocations: a::Stats,
+}
+pub struct PreviewOutcome {
+    pub value: String,
+    pub usage: Usage,
+    pub allocations: a::Stats,
+}
+/// Execute a checked zero-argument function and expose only its RFC 0010 host
+/// preview after all guest/result storage has been retired. No authority is
+/// supplied implicitly; this does not change the script main/i64 contract.
+#[allow(
+    clippy::result_large_err,
+    reason = "Preserve the completed failure report inline after OOM."
+)]
+pub fn execute_preview<P: a::Provider>(
+    flow: &f::Elaborated,
+    function: m::FunctionId,
+    instance: &mut c::Instance,
+    allocator: Option<&mut a::Allocator<P>>,
+    control: Control<'_>,
+    display_bytes: usize,
+) -> Result<PreviewOutcome, Failure> {
+    calls::preview(flow, function, instance, allocator, control, display_bytes)
 }
 #[derive(Clone, Copy)]
 enum Ticket {

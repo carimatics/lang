@@ -731,6 +731,22 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
         }
         self.running()
     }
+    /// A trusted entry adapter has consumed a read-only preview. Retire the
+    /// protected result normally before publishing any external output.
+    pub fn consume_entry_result(&mut self) -> Result<(), StateError> {
+        self.running()?;
+        let pending = self.pending.as_mut().ok_or(StateError::ExitNotStaged)?;
+        if !pending.retired {
+            return Err(StateError::ExitPending);
+        }
+        if pending.depth != 0 {
+            return Err(StateError::CallBoundary);
+        }
+        if let Some((slot, payload, span)) = pending.returned.take() {
+            self.destroy(slot, payload, span, Reason::ScopeExit);
+        }
+        self.running()
+    }
     pub fn discard_result(&mut self) -> Result<(), StateError> {
         let pending = self.pending.as_mut().ok_or(StateError::ExitNotStaged)?;
         if !pending.retired {

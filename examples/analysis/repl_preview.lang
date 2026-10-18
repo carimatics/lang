@@ -1,5 +1,6 @@
-// Source contract for RFC 0010. Check accepts this library without a main.
-// Named owned-result execution/preview is M2-V16; REPL integration is M2-V10.
+// RFC 0010 library: execute_preview selects each zero-argument function by ID.
+// cargo test --test owned_execution preview::named_owned
+// REPL wrapper/session integration remains M2-V15/V10; run still needs i64 main.
 struct PreviewMessage { bytes: core::Bytes, text: core::Text, count: i64 }
 fn fresh_bytes() -> core::Bytes {
     return core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));

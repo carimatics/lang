@@ -338,6 +338,32 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         if self.cells[destination].live && !self.is_copy(destination) {
             return Err(c::ExecutionFailure::Invariant);
         }
+        if let (Some(case), o::Type::Constructed(id)) = (case, self.cells[destination].ty)
+            && let o::Constructor::Builtin(builtin) =
+                self.types.table().constructed[id.0 as usize].constructor
+            && matches!(
+                builtin,
+                o::Builtin::AllocError
+                    | o::Builtin::BoundsError
+                    | o::Builtin::BufferError
+                    | o::Builtin::Utf8Error
+                    | o::Builtin::OwnershipError
+                    | o::Builtin::ArenaError
+            )
+        {
+            if fields.len() > 1 {
+                return Err(c::ExecutionFailure::Invariant);
+            }
+            let payload = fields
+                .clone()
+                .next()
+                .map(|index| self.root(index).and_then(|target| self.read(target)))
+                .transpose()?;
+            return self.write(
+                destination,
+                l::Immediate::from_case(builtin, case, payload).map_err(invariant)?,
+            );
+        }
         let target = self.cells[destination].physical;
         let output = self
             .storage

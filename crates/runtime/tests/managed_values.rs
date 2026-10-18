@@ -6,6 +6,9 @@ use lang_runtime::{
     layout::{self as l, ArenaError as R, Immediate as V, OwnershipError as O},
 };
 
+#[path = "support/preview.rs"]
+mod preview;
+
 fn span() -> m::Span {
     m::Span {
         source: m::SourceId(0),
@@ -138,7 +141,7 @@ fn finite_error_cases_and_payloads_match_independent_vectors_without_allocation(
     let verified = table.verify(Default::default()).unwrap();
     let layouts = l::Layouts::compile(&verified, Default::default()).unwrap();
     let mut allocator = allocator();
-    for ((_, value, tag, payload), ty) in cases.into_iter().zip(types) {
+    for ((builtin, value, tag, payload), ty) in cases.into_iter().zip(types) {
         let mut cell = l::Reservation::allocate(&layouts, ty, &mut allocator).unwrap();
         let before = allocator.stats();
         cell.data_mut(&mut allocator).unwrap().fill(0xA5);
@@ -148,6 +151,7 @@ fn finite_error_cases_and_payloads_match_independent_vectors_without_allocation(
         assert_eq!(cell.case(cell.root(), &allocator), Ok(tag));
         assert_eq!(value.case(), Some(tag));
         assert_eq!(value.payload(), payload);
+        assert_eq!(V::from_case(builtin, tag, payload), Ok(value));
         let mut expected = vec![0; layouts.get(ty).unwrap().size as usize];
         expected[..4].copy_from_slice(&tag.to_le_bytes());
         match payload {

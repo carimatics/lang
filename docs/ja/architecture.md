@@ -637,7 +637,17 @@ Frontendの`Analysis.result`は共通の`Program` enumを保持します。Copy 
 
 2026-10-18 JST受理：[RFC 0010](rfcs/0010-owned-repl-previews.md) でguest valueを永続化せずownership定義／式へこのcontractを広げます。生成wrapperのresult推論、明示allocator authority、Bytes／ASCII escapeしたTextと入れ子current-profile previewのcanonical形式を定めます。通常return cleanupと上限付きrendering中はresultを保護し、消費と全guest storage解放後に完成stringを公開します。Render失敗はresult cleanup secondaryより先のprimaryとして維持します。User display callback、guest clone、新source literal、raw address出力は追加しません。
 
-受理済み設計であり、REPL対応の実装完了ではありません。現在のpipe実験ではowning itemがcommit前に拒否され、呼び出しがunknownになり、後続のCopy式は `3` を表示します。[Named-result library](../../examples/analysis/repl_preview.lang) のsource checkは成功します。V16で実owned-result previewを実行してからfrontend基盤を増やし、V15でownership式推論、V10でsession／CLIを統合します。後続indirect-service previewの設計／実装はV17へ残し、G08をBytes／Textへ縮小しません。[RFCの判断](rfcs/0010-owned-repl-previews.md#判断と実装状態)に委任、理由、未検証costを記録しています。出典：RFC 0010／source contractは2026-10-18 JST更新。[REPL](../../src/repl.rs)、[frontend](../../src/frontend.rs)、[HIR推論](../../crates/hir/src/program.rs)は `5c32e25` と境界／source-check実験で2026-10-18 JST確認。
+REPLは引き続きCopy専用です。当初のpipe実験ではowning itemがcommit前に拒否され、呼び出しがunknownになり、後続のCopy式は `3` を表示します。V16では下記adapterでnamed owned resultを実行でき、V15でownership式推論、V10でsession／CLIを統合します。後続indirect-service previewの設計／実装はV17へ残し、G08をBytes／Textへ縮小しません。[RFCの判断](rfcs/0010-owned-repl-previews.md#判断と実装状態)に委任、理由、未検証costを記録しています。出典：RFC 0010／source contractは2026-10-18 JST更新。[REPL](../../src/repl.rs)、[frontend](../../src/frontend.rs)、[HIR推論](../../crates/hir/src/program.rs)は `5c32e25` と境界／source-check実験で2026-10-18 JST確認。
+
+### Owned result previews
+
+2026-10-18 JST実装・確認：`lang_vm::unit::owned::execute_preview` は検証済みの引数なしfunctionをIDで選び、明示allocator authorityとhost出力byte上限を受け取り、guest／resultの解放成功後にだけRFC 0010のhost stringを返します。Scriptの `main() -> i64` は変更しません。[Source library](../../examples/analysis/repl_preview.lang) の `fresh_bytes`、`fresh_text`、`preview_message` を実行し、それぞれ `core::Bytes []`、`core::Text ""`、`core::Result::Ok(PreviewMessage { bytes: core::Bytes [], text: core::Text "", count: 7 })` を公開する時点でguest allocationは残りません。Finite core errorのsource直接構築も、入れ子allocation errorを含め、検証済みcase／Copy payload codecを使います。
+
+共有runtimeの `layout::Preview` はinactive caseを含む到達可能な全result型を検証し、guest／provider副作用前に上限付き出力と反復depth stackを予約します。準備は通算compiler／host budgetを共有します。Renderingはcallback、clone、retainなしで検証済みstorage／tokenを読み、全byte値と厳密なASCII escapeしたUTF-8内容をRFC 0010に従って表示します。未対応indirect serviceは副作用前に拒否します。通常return cleanupとrenderingの間はresultを保護し、成功時はScopeExitで消費してからstorageを解放します。Cleanup失敗時はstringを返しません。Formatting／validation失敗をprimaryに維持して未公開resultを破棄し、独立cleanupを継続し、poison／report順序はRFC 0008に従います。
+
+6件のsource testはscalar／nominal／core／sumのcanonical出力、全256 byte、Unicode／control escape、厳密値／1不足／0の上限、authority不足、未対応result、entry前host quota、fixtureの全fuel prefixとprovider OOM、解放・再試行を検証します。3件のruntime testは読み取り専用token保持、不正token／bool、通算準備budget境界、深さ1,024のsize 0 Copy recordを検証します。3件のVM fault testはformatting前の通常return失敗、format成功後のresult cleanup失敗、format失敗をcleanup secondaryより優先、poison後の再entry拒否、262 ownerのresultで上限reportがtruncateされても全cleanupを続けることを検証します。Native／session統合、fuzz campaign、速度、process OOMの結果は主張しません。
+
+情報源：[renderer](../../crates/runtime/src/layout/storage/preview.rs)、[VM adapter](../../crates/vm/src/unit/owned/calls.rs)、[entry result消費](../../crates/runtime/src/cleanup.rs)、[source test](../../tests/support/owned_preview.rs)、[storage test](../../crates/runtime/tests/support/preview.rs)、[fault test](../../crates/vm/src/unit/owned/failure_tests.rs)。2026-10-18 JST更新・確認。
 
 ### Incremental architecture
 

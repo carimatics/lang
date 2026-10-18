@@ -6,7 +6,10 @@ use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 
 mod storage;
-pub use storage::{ArenaError, Immediate, Leaf, Location, OwnershipError, Reservation, Token};
+pub use storage::{
+    ArenaError, Immediate, Leaf, Location, OwnershipError, Preview, PreviewError, Reservation,
+    Token,
+};
 mod frame;
 pub use frame::{FramePlan, FrameStorage};
 

@@ -13,6 +13,8 @@ use std::{cell::RefCell, path::Path, rc::Rc, time::Instant};
 mod calls;
 #[path = "support/owned_edges.rs"]
 mod edges;
+#[path = "support/owned_preview.rs"]
+mod preview;
 #[path = "support/owned_replace.rs"]
 mod replacement;
 

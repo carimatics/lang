@@ -53,10 +53,15 @@ pub(super) fn before_leaf<P: a::Provider>(
     INJECTION.with(|state| {
         state.borrow().as_ref()?;
         let mut bytes = token.bytes;
-        let length = buffer::Bytes::from_token(&mut bytes, allocator)
-            .unwrap()
-            .len(allocator)
-            .unwrap();
+        let length = if let Ok(value) = buffer::Bytes::from_token(&mut bytes, allocator) {
+            value.len(allocator).unwrap()
+        } else {
+            let mut text = token.bytes;
+            buffer::Text::from_token(&mut text, allocator)
+                .unwrap()
+                .len(allocator)
+                .unwrap()
+        };
         Some(Event {
             length,
             span: context.span(),
@@ -166,6 +171,203 @@ fn assert_empty<P: a::Provider>(allocator: &a::Allocator<P>) {
     assert_eq!(stats.live_allocations, 0);
     assert_eq!(stats.live_bytes, 0);
     assert_eq!(stats.allocations, stats.deallocations);
+}
+
+fn preview_function(program: &OwnershipProgram) -> m::FunctionId {
+    m::FunctionId(
+        program
+            .mir()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .functions()
+            .iter()
+            .position(|f| f.name == "value")
+            .unwrap() as u32,
+    )
+}
+
+#[test]
+fn preview_result_retirement_suppresses_output_and_preserves_failure_precedence() {
+    let source = format!(
+        "{} fn value() -> Pair {{ return Pair {{ left: make(1), right: make(2) }}; }}",
+        CALLS.split("fn leaf").next().unwrap()
+    );
+    let program = checked(&source);
+    for (limit, inject) in [(65536, false), (65536, true), (0, true)] {
+        let guard = install(Injection {
+            all: inject,
+            ..Default::default()
+        });
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut instance = c::Instance::default();
+        let outcome = execute_preview(
+            program.failure_flow(),
+            preview_function(&program),
+            &mut instance,
+            Some(&mut allocator),
+            control(),
+            limit,
+        );
+        assert_eq!(lengths(), [2, 1]);
+        let events = events();
+        assert!(events.iter().all(|event| event.reason
+            == if limit == 0 {
+                c::Reason::UnpublishedReturn
+            } else {
+                c::Reason::ScopeExit
+            }));
+        if !inject {
+            assert_eq!(
+                outcome.unwrap().value,
+                "Pair { left: core::Bytes [65], right: core::Bytes [65, 65] }"
+            );
+        } else {
+            let failure = outcome.err().unwrap();
+            let report = failure.report.as_ref().unwrap();
+            if limit == 0 {
+                assert!(matches!(
+                    failure.reason,
+                    Reason::Preview(l::PreviewError::Limit)
+                ));
+                assert_eq!(
+                    report.primary().unwrap().kind,
+                    c::FailureKind::Execution(c::ExecutionFailure::AllocationLimit)
+                );
+                assert_records(report.secondary(), &events);
+            } else {
+                assert!(matches!(
+                    failure.reason,
+                    Reason::Execution(c::FailureKind::Cleanup(1002))
+                ));
+                assert_records(
+                    std::slice::from_ref(report.primary().unwrap()),
+                    &events[..1],
+                );
+                assert_records(report.secondary(), &events[1..]);
+            }
+            assert_eq!(report.truncated(), 0);
+            assert!(instance.is_poisoned());
+            let before = allocator.stats();
+            let refused = execute_preview(
+                program.failure_flow(),
+                preview_function(&program),
+                &mut instance,
+                Some(&mut allocator),
+                control(),
+                65536,
+            )
+            .err()
+            .unwrap();
+            assert!(matches!(refused.reason, Reason::Poisoned));
+            assert_eq!(allocator.stats(), before);
+        }
+        assert_eq!(instance.is_poisoned(), inject);
+        assert_empty(&allocator);
+        drop(guard);
+    }
+}
+
+#[test]
+fn ordinary_return_cleanup_failure_precedes_formatting_and_discards_unpublished_result() {
+    let source = format!(
+        "{} fn value() -> core::Bytes {{ let mut result: core::Bytes = make(1); let mut local: core::Bytes = make(2); return result; }}",
+        CALLS.split("fn leaf").next().unwrap()
+    );
+    let program = checked(&source);
+    let _guard = install(Injection {
+        all: true,
+        ..Default::default()
+    });
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let failure = execute_preview(
+        program.failure_flow(),
+        preview_function(&program),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+        0,
+    )
+    .err()
+    .unwrap();
+    assert!(matches!(
+        failure.reason,
+        Reason::Execution(c::FailureKind::Cleanup(1002))
+    ));
+    assert_eq!(lengths(), [2, 1]);
+    let events = events();
+    assert_eq!(events[0].reason, c::Reason::ScopeExit);
+    assert_eq!(events[1].reason, c::Reason::UnpublishedReturn);
+    let report = failure.report.as_ref().unwrap();
+    assert_records(
+        std::slice::from_ref(report.primary().unwrap()),
+        &events[..1],
+    );
+    assert_records(report.secondary(), &events[1..]);
+    assert!(instance.is_poisoned());
+    assert_empty(&allocator);
+}
+
+#[test]
+fn preview_limit_keeps_primary_and_retires_every_owner_after_report_truncation() {
+    let fields = (0..131)
+        .map(|n| format!("p{n}: Pair"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let values = (0..131)
+        .map(|n| format!("p{n}: Pair {{ left: make(1), right: make(1) }}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let source = format!(
+        "{} struct Many {{ {fields} }} fn value() -> Many {{ return Many {{ {values} }}; }}",
+        CALLS.split("fn leaf").next().unwrap()
+    );
+    let program = checked(&source);
+    let _guard = install(Injection {
+        all: true,
+        ..Default::default()
+    });
+    let mut allocator = a::Allocator::new(
+        a::System,
+        a::Limits {
+            live_allocations: 65536,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut instance = c::Instance::default();
+    let failure = execute_preview(
+        program.failure_flow(),
+        preview_function(&program),
+        &mut instance,
+        Some(&mut allocator),
+        control(),
+        0,
+    )
+    .err()
+    .unwrap();
+    assert!(
+        matches!(failure.reason, Reason::Preview(l::PreviewError::Limit)),
+        "{failure:?}"
+    );
+    assert_eq!(events().len(), 262);
+    assert!(
+        events()
+            .iter()
+            .all(|e| e.reason == c::Reason::UnpublishedReturn)
+    );
+    let report = failure.report.unwrap();
+    assert_eq!(
+        report.primary().unwrap().kind,
+        c::FailureKind::Execution(c::ExecutionFailure::AllocationLimit)
+    );
+    assert_records(report.secondary(), &events()[..255]);
+    assert_eq!(report.truncated(), 7);
+    assert!(instance.is_poisoned());
+    assert_empty(&allocator);
 }
 
 #[test]

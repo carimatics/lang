@@ -156,12 +156,77 @@ fn relocate<P: a::Provider, C: c::Cleaner<Ticket>>(
     }
 }
 
+enum Selection {
+    Script,
+    Preview {
+        function: m::FunctionId,
+        bytes: usize,
+    },
+}
+enum Value {
+    Scalar(i64),
+    Preview(String),
+}
+struct Execution {
+    value: Value,
+    usage: Usage,
+    allocations: a::Stats,
+}
 pub(super) fn execute<P: a::Provider>(
     flow: &f::Elaborated,
     instance: &mut c::Instance,
     allocator: Option<&mut a::Allocator<P>>,
     control: Control<'_>,
 ) -> Result<Outcome, Failure> {
+    let Execution {
+        value,
+        usage,
+        allocations,
+    } = execute_with(flow, instance, allocator, control, Selection::Script)?;
+    let Value::Scalar(value) = value else {
+        return Err(rejected(Reason::Entry, None, None));
+    };
+    Ok(Outcome {
+        value,
+        usage,
+        allocations,
+    })
+}
+pub(super) fn preview<P: a::Provider>(
+    flow: &f::Elaborated,
+    function: m::FunctionId,
+    instance: &mut c::Instance,
+    allocator: Option<&mut a::Allocator<P>>,
+    control: Control<'_>,
+    bytes: usize,
+) -> Result<PreviewOutcome, Failure> {
+    let Execution {
+        value,
+        usage,
+        allocations,
+    } = execute_with(
+        flow,
+        instance,
+        allocator,
+        control,
+        Selection::Preview { function, bytes },
+    )?;
+    let Value::Preview(value) = value else {
+        return Err(rejected(Reason::Entry, None, None));
+    };
+    Ok(PreviewOutcome {
+        value,
+        usage,
+        allocations,
+    })
+}
+fn execute_with<P: a::Provider>(
+    flow: &f::Elaborated,
+    instance: &mut c::Instance,
+    allocator: Option<&mut a::Allocator<P>>,
+    control: Control<'_>,
+    selection: Selection,
+) -> Result<Execution, Failure> {
     if instance.is_poisoned() {
         return Err(rejected(Reason::Poisoned, None, None));
     }
@@ -171,16 +236,22 @@ pub(super) fn execute<P: a::Provider>(
     let typed = flow.source().activity().moved().typed();
     let declarations = typed.places().declarations();
     let types = declarations.types();
-    let entry = declarations
-        .functions()
-        .iter()
-        .position(|f| f.name == "main")
-        .ok_or_else(|| rejected(Reason::Entry, None, None))?;
+    let entry = match selection {
+        Selection::Script => declarations
+            .functions()
+            .iter()
+            .position(|f| f.name == "main"),
+        Selection::Preview { function, .. } => {
+            ((function.0 as usize) < declarations.functions().len()).then_some(function.0 as usize)
+        }
+    }
+    .ok_or_else(|| rejected(Reason::Entry, None, None))?;
     let function = m::FunctionId(entry as u32);
     let signature = declarations.functions()[entry].signature_span;
     let fail = |reason| rejected(reason, Some(function), Some(signature));
     if !declarations.functions()[entry].parameters.is_empty()
-        || declarations.functions()[entry].result.ty != o::Type::I64
+        || (matches!(selection, Selection::Script)
+            && declarations.functions()[entry].result.ty != o::Type::I64)
     {
         return Err(fail(Reason::Entry));
     }
@@ -344,6 +415,27 @@ pub(super) fn execute<P: a::Provider>(
             })));
         }
     }
+    let mut preview = if let Selection::Preview { bytes, .. } = selection {
+        let prepared = l::Preview::prepare(
+            &layouts,
+            declarations.functions()[entry].result.ty,
+            bytes,
+            limits,
+            budget_usage(&budget),
+        )
+        .map_err(|error| {
+            fail(if matches!(error, l::Error::InvalidType(_)) {
+                Reason::Unsupported { core: None }
+            } else {
+                Reason::Preparation(error)
+            })
+        })?;
+        budget = m::Budget::with_usage(limits, prepared.usage())
+            .map_err(|error| fail(Reason::Preparation(error.into())))?;
+        Some(prepared)
+    } else {
+        None
+    };
     let maximum = *reachable
         .iter()
         .max_by_key(|id| plans[**id].as_ref().unwrap().cell_count())
@@ -532,6 +624,7 @@ pub(super) fn execute<P: a::Provider>(
     let mut fault = Some(signature);
     let mut failed_function = function;
     let mut result = None;
+    let mut preview_error = None;
     let completion = loop {
         let activation = *stack.last().unwrap();
         let address = activation.address;
@@ -818,12 +911,55 @@ pub(super) fn execute<P: a::Provider>(
                     stack.last_mut().unwrap().node = to.next;
                     continue;
                 }
+                if let Some(prepared) = preview.take() {
+                    let rendered = {
+                        let state = shared.borrow();
+                        let cell = state
+                            .storage
+                            .as_ref()
+                            .unwrap()
+                            .cell(state.cells[escrow].physical)
+                            .unwrap();
+                        prepared.render(cell, state.allocator)
+                    };
+                    match rendered {
+                        Ok(value) => {
+                            if frame.consume_entry_result().is_err() {
+                                let span = frame
+                                    .report()
+                                    .primary()
+                                    .and_then(|record| record.span)
+                                    .unwrap_or(node.span);
+                                capture(&mut trace, &stack, span);
+                                fault = Some(span);
+                                failed_function = address.function;
+                                break frame.finish_reported_failure();
+                            }
+                            result = Some(Value::Preview(value));
+                            break frame.finish_staged_return();
+                        }
+                        Err(error) => {
+                            let cause = if matches!(error, l::PreviewError::Limit) {
+                                c::ExecutionFailure::AllocationLimit
+                            } else {
+                                c::ExecutionFailure::Invariant
+                            };
+                            capture(&mut trace, &stack, node.span);
+                            fault = Some(node.span);
+                            failed_function = address.function;
+                            preview_error = Some(error);
+                            let _ = frame.begin_failure(c::Cause::Execution(cause), fault);
+                            let _ = frame.discard_result();
+                            break frame.finish_reported_failure();
+                        }
+                    }
+                }
                 let output = {
                     let state = shared.borrow();
                     state.root(escrow).and_then(|root| state.read(root))
                 };
                 if let Ok(l::Immediate::I64(value)) = output {
-                    result = Some(value);
+                    result = Some(Value::Scalar(value));
                     break frame.finish_staged_return();
                 }
                 break frame.finish(c::Exit::Failure {
@@ -896,7 +1032,7 @@ pub(super) fn execute<P: a::Provider>(
         .map_err(|e| fail(Reason::Preparation(e)))?;
     if let Some(primary) = completion.report.primary() {
         return Err(Failure {
-            reason: Reason::Execution(primary.kind),
+            reason: preview_error.map_or(Reason::Execution(primary.kind), Reason::Preview),
             usage,
             function: Some(failed_function),
             fault: primary.span.or(fault),
@@ -905,7 +1041,7 @@ pub(super) fn execute<P: a::Provider>(
             stack: trace,
         });
     }
-    Ok(Outcome {
+    Ok(Execution {
         value: result.ok_or_else(|| {
             fail(Reason::Execution(c::FailureKind::Execution(
                 c::ExecutionFailure::Invariant,

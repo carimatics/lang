@@ -3,8 +3,10 @@
 use super::*;
 use allocation::{Allocator, Handle, Provider};
 
+mod preview;
 mod transfer;
 mod value;
+pub use preview::{Preview, PreviewError};
 pub use value::{ArenaError, Immediate, OwnershipError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

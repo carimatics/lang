@@ -84,6 +84,8 @@ Ownership profileはCopy／owned parameterとresult、borrowed parameterを持�
 
 Compile／runtime errorはexit 1、usage errorはexit 2で、scriptの結果はexit codeではありません。`--source-root DIR` がfile authorityを選び、省略時はcheck／scriptのroot fileの親を使い、REPLにはfile-module authorityを与えません。`run` と `repl` は `--fuel`、`--host-calls`、`--frames`、`--cells` に対応し、REPLは引き続きCopy専用です。CLIはhost importを登録せず、owned実行instanceにはbudget付きallocatorを明示的に供給します。検証日：2026-10-18 JST。
 
+Embedding APIの `lang_vm::unit::owned::execute_preview` は検証済みIDでnamedな引数なしownership functionを実行し、Bytes／Text／入れ子resultを上限付きで表示し、全guest storage解放後にstringを返します。[Source library](examples/analysis/repl_preview.lang) は `cargo test --test owned_execution preview::named_owned` で実行します。このadapterは実装済みで、ownership wrapper推論とREPL統合は未完了です。[Previewの根拠](docs/ja/architecture.md#owned-result-previews)。2026-10-18 JST更新・確認。
+
 REPLは検証に成功したitem定義をcommitし、submissionごとに1つのexpressionを新しいVM counterで評価します。Scalarまたはqualified aggregate valueを表示し、複数行入力と `:reset`／`:quit` に対応します。失敗したsubmissionは以前の定義を保持し、host副作用はrollbackしません。
 
 `cargo build` 後、LSP clientに `target/debug/lang lsp` を設定します。Stdio profileはinitialize／shutdown／exit、UTF-16位置、full document同期、version付き診断、watched-file refresh、canonicalな4-space document formattingに対応します。Initializeで明示するlocal workspace rootは最大1つで、省略時はopen bufferだけを利用します。Code action、completion、navigation、debugger統合は後続作業です。[Architectureとprotocol情報源](docs/ja/architecture.md#diagnosticslspdebugging)を参照してください。

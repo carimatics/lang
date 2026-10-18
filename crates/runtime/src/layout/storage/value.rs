@@ -55,6 +55,46 @@ fn alloc_value(tag: u32) -> Result<AllocError, Error> {
     }
 }
 impl Immediate {
+    /// Build a finite core error from its checked source case and Copy payload.
+    /// Wrong arity/payload/tag fails before any managed destination is written.
+    pub fn from_case(builtin: o::Builtin, case: u32, payload: Option<Self>) -> Result<Self, Error> {
+        use o::Builtin as T;
+        let count = match builtin {
+            T::AllocError | T::BufferError => 3,
+            T::BoundsError | T::Utf8Error => 1,
+            T::OwnershipError => 6,
+            T::ArenaError => 4,
+            _ => return Err(Error::InvalidValue),
+        };
+        if case >= count {
+            return Err(Error::InvalidCase(case));
+        }
+        Ok(match (builtin, case, payload) {
+            (T::AllocError, case, None) => Self::Allocation(alloc_value(case)?),
+            (T::BoundsError, 0, None) => Self::Bounds(BoundsError::OutOfBounds),
+            (T::BufferError, 0, None) => Self::Buffer(BufferError::Bounds),
+            (T::BufferError, 1, None) => Self::Buffer(BufferError::InvalidByte),
+            (T::BufferError, 2, Some(Self::Allocation(error))) => {
+                Self::Buffer(BufferError::Allocation(error))
+            }
+            (T::Utf8Error, 0, Some(Self::I64(offset))) => Self::Utf8(Utf8Error::Invalid(offset)),
+            (T::OwnershipError, 0, Some(Self::Allocation(error))) => {
+                Self::Ownership(OwnershipError::Allocation(error))
+            }
+            (T::OwnershipError, 1, None) => Self::Ownership(OwnershipError::StrongCycle),
+            (T::OwnershipError, 2, None) => Self::Ownership(OwnershipError::ExpiredWeak),
+            (T::OwnershipError, 3, None) => Self::Ownership(OwnershipError::BorrowConflict),
+            (T::OwnershipError, 4, None) => Self::Ownership(OwnershipError::Unavailable),
+            (T::OwnershipError, 5, None) => Self::Ownership(OwnershipError::CountOverflow),
+            (T::ArenaError, 0, Some(Self::Allocation(error))) => {
+                Self::Arena(ArenaError::Allocation(error))
+            }
+            (T::ArenaError, 1, None) => Self::Arena(ArenaError::CrossRegion),
+            (T::ArenaError, 2, None) => Self::Arena(ArenaError::Unavailable),
+            (T::ArenaError, 3, None) => Self::Arena(ArenaError::BorrowConflict),
+            _ => return Err(Error::InvalidValue),
+        })
+    }
     /// Source enum case order for finite errors; scalar/Unit leaves have no case.
     pub fn case(self) -> Option<u32> {
         if matches!(self, Self::I64(_) | Self::Bool(_) | Self::Unit) {
