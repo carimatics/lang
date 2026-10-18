@@ -9,8 +9,11 @@ use lang_diagnostics::{
     Diagnostic, Label, Severity, SourceError, SourceId, SourceMap, Span, codes,
 };
 use lang_mir::unit as m;
-use lang_runtime::HostFunctionRegistry;
-use lang_semantics::program_lowering::{self, LowerError};
+use lang_runtime::{HostFunctionRegistry, allocation as a};
+use lang_semantics::{
+    analysis::Program as SourceProgram,
+    program_lowering::{self, LowerError},
+};
 use lang_syntax::{
     InputError, LexError, ParseError, SyntaxElement, TokenKind as K, add_source, lex, parse,
     parse_expression,
@@ -18,6 +21,9 @@ use lang_syntax::{
 use lang_vm::unit::{self as vm, Control, HostBindings, Value};
 
 use crate::frontend::{self, AnalysisError, CompileLimits};
+
+mod owned;
+pub use owned::{CleanupFailure, CleanupReport, OwnedRuntimeFailure};
 
 #[derive(Clone, Copy, Debug)]
 pub struct ReplLimits {
@@ -50,6 +56,7 @@ pub enum ReplError {
     Lex(LexError),
     Lower(LowerError),
     Runtime(Box<RuntimeFailure>),
+    OwnedRuntime(Box<OwnedRuntimeFailure>),
     Allocation,
     DisplayLimit,
 }
@@ -74,6 +81,7 @@ impl Display for ReplError {
                 "{:?} (fuel {}, host calls {})",
                 e.reason, e.usage.fuel, e.usage.host_calls
             ),
+            Self::OwnedRuntime(e) => Display::fmt(e, f),
             Self::Allocation => f.write_str("REPL allocation failed"),
             Self::DisplayLimit => f.write_str("REPL display limit exceeded"),
         }
@@ -163,6 +171,29 @@ impl Session {
         bytes: &[u8],
         hosts: &HostFunctionRegistry,
         bindings: &HostBindings,
+        control: Control<'_>,
+    ) -> Report {
+        self.submit_internal::<a::System>(bytes, hosts, bindings, None, control)
+    }
+    /// Explicitly authorize ownership execution with this allocator's provider
+    /// and cumulative quotas. Each expression has a fresh cleanup instance.
+    /// Items commit after analysis and require no runtime allocator authority.
+    pub fn submit_with_allocator<P: a::Provider>(
+        &mut self,
+        bytes: &[u8],
+        hosts: &HostFunctionRegistry,
+        bindings: &HostBindings,
+        allocator: &mut a::Allocator<P>,
+        control: Control<'_>,
+    ) -> Report {
+        self.submit_internal(bytes, hosts, bindings, Some(allocator), control)
+    }
+    fn submit_internal<P: a::Provider>(
+        &mut self,
+        bytes: &[u8],
+        hosts: &HostFunctionRegistry,
+        bindings: &HostBindings,
+        allocator: Option<&mut a::Allocator<P>>,
         control: Control<'_>,
     ) -> Report {
         let mut sources = SourceMap::new();
@@ -351,19 +382,15 @@ impl Session {
             Ok(typed) => typed,
             Err(e) => return Report::failure(sources, diagnostics, ReplError::Analysis(e)),
         };
-        let typed = match frontend::copy_executable(&typed) {
-            Ok(typed) => typed,
-            Err(e) => {
-                return Report::failure(
-                    sources,
-                    diagnostics,
-                    ReplError::Analysis(AnalysisError::Typing(e)),
-                );
+        let unit = match &typed {
+            SourceProgram::Copy(typed) => {
+                match program_lowering::lower_library(typed, &sources, self.limits.compile.mir) {
+                    Ok(unit) => Some(unit),
+                    Err(e) => return Report::failure(sources, diagnostics, ReplError::Lower(e)),
+                }
             }
-        };
-        let unit = match program_lowering::lower_library(typed, &sources, self.limits.compile.mir) {
-            Ok(unit) => unit,
-            Err(e) => return Report::failure(sources, diagnostics, ReplError::Lower(e)),
+            // Ownership analysis already includes independent MIR validation.
+            SourceProgram::Ownership(_) => None,
         };
         if item {
             if self.items.try_reserve(1).is_err() {
@@ -380,6 +407,18 @@ impl Session {
             };
         }
         let name = wrapper.expect("expression wrapper");
+        if let SourceProgram::Ownership(program) = typed {
+            return owned::Evaluation {
+                program,
+                sources,
+                diagnostics,
+                origins,
+                wrapper: name,
+                display_bytes: self.limits.display_bytes,
+            }
+            .execute(allocator, control);
+        }
+        let unit = unit.expect("Copy library lowering");
         let function = m::FunctionId(
             unit.unit()
                 .functions
@@ -398,21 +437,8 @@ impl Session {
                 Err(e) => Report::failure(sources, diagnostics, e),
             },
             Err(error) => {
-                let mapped = |span: m::Span| {
-                    let path = &program.verified().unit().sources[span.source.0 as usize].path;
-                    let id = sources
-                        .iter()
-                        .filter(|(_, file)| file.name() == path)
-                        .map(|(id, _)| id)
-                        .last()
-                        .expect("snapshot retained");
-                    origins.span(
-                        sources
-                            .span(id, span.start as usize..span.end as usize)
-                            .expect("verified span"),
-                        &sources,
-                    )
-                };
+                let mapped =
+                    |span| origins.mir_span(span, &program.verified().unit().sources, &sources);
                 let mut stack = Vec::new();
                 let trace_complete =
                     error.trace_complete && stack.try_reserve_exact(error.stack.len()).is_ok();
@@ -493,6 +519,21 @@ struct Origins {
     segments: Vec<Segment>,
 }
 impl Origins {
+    fn mir_span(&self, span: m::Span, mir: &[m::Source], sources: &SourceMap) -> Span {
+        let path = &mir[span.source.0 as usize].path;
+        let id = sources
+            .iter()
+            .filter(|(_, file)| file.name() == path)
+            .map(|(id, _)| id)
+            .last()
+            .expect("snapshot retained");
+        self.span(
+            sources
+                .span(id, span.start as usize..span.end as usize)
+                .expect("verified span"),
+            sources,
+        )
+    }
     fn append(&mut self, text: &mut String, value: &str, source: SourceId) {
         let start = text.len();
         text.push_str(value);

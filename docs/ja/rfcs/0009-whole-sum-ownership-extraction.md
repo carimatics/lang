@@ -14,7 +14,7 @@
 
 ## 概要
 
-RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。Source／MIR解析と初期Bytes／Text／Copy VM profileは実装済みで、広いpayload、REPL、native実行は未完了です。Acceptanceと実装完了／stabilizationは別に扱います。
+RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。Source／MIR解析と現在のBytes／Text／Copy VM／REPL profileは実装済みで、広いpayloadとnative実行は未完了です。Acceptanceと実装完了／stabilizationは別に扱います。
 
 | 操作 | Signature | 期待するcase | 別caseのpanic code |
 | --- | --- | --- | ---: |
@@ -149,7 +149,7 @@ Untrusted MIR／artifactがintrinsic名を使って、期待tagの断定、paylo
 
 Decision：**2026-10-18 JSTに実験段階の委任に基づきaccepted**。再現済みの具体的blocker、既存構文／ownership規則を使う追加的で有限なAPI、明示panic／cleanup意味論、RFC 0007／0008に整合する上限付きcompiler／runtime sliceがあるとreviewで判断しました。このscopeのblocking design questionはなく、個別owner approval待ちにはしません。
 
-2026-10-18 JST確認の部分実装：source signature 3種類と独立検証済みMIR callで、move／loan検査と選択payloadのregion伝播を維持します。VMはBytes／Text／Copy valueをrecord／enum／Option／Resultの再帰的な入れ子内でも実行し、Result両branchのowning payload、panic code／span、failure cleanupも扱います。[Owned Bytes](../../../examples/scripts/owned_bytes.lang) は `0`、[guide fixture](../../../examples/analysis/extraction.lang) は `1`、[UTF-8](../../../examples/scripts/utf8.lang) は `3`、[Text操作](../../../examples/scripts/text.lang) は `2`、[入れ子source aggregate](../../../examples/scripts/owned_aggregate.lang) は `9` を表示します。Admission済みtransferは追加guest allocationなしで入れ子の初期化順を維持し、V11でin-memory MIRのblock argument同時転送も実行します。V07でowning／borrowed guest callとescrowで保護した再帰returnを実行し、[call fixture](../../../examples/scripts/owned_calls.lang) は `1` を表示します。V09で現在のprofileのprepared root／field replacementとscalar loop代入を実行し、[置換fixture](../../../examples/scripts/owned_replace.lang) は `3` を表示します。他owning service adapter、provisional core read、REPL、native conformanceは実装gateを維持します。
+2026-10-18 JST確認の部分実装：source signature 3種類と独立検証済みMIR callで、move／loan検査と選択payloadのregion伝播を維持します。VMはBytes／Text／Copy valueをrecord／enum／Option／Resultの再帰的な入れ子内でも実行し、Result両branchのowning payload、panic code／span、failure cleanupも扱います。[Owned Bytes](../../../examples/scripts/owned_bytes.lang) は `0`、[guide fixture](../../../examples/analysis/extraction.lang) は `1`、[UTF-8](../../../examples/scripts/utf8.lang) は `3`、[Text操作](../../../examples/scripts/text.lang) は `2`、[入れ子source aggregate](../../../examples/scripts/owned_aggregate.lang) は `9` を表示します。Admission済みtransferは追加guest allocationなしで入れ子の初期化順を維持し、V11でin-memory MIRのblock argument同時転送も実行します。V07でowning／borrowed guest callとescrowで保護した再帰returnを実行し、[call fixture](../../../examples/scripts/owned_calls.lang) は `1` を表示します。V09で現在のprofileのprepared root／field replacementとscalar loop代入を実行し、[置換fixture](../../../examples/scripts/owned_replace.lang) は `3` を表示します。V10で[RFC 0010](0010-owned-repl-previews.md)に基づくcurrent-profile ownership REPL実行とresult解放を追加しました。他owning service adapter、provisional core read、indirect-service REPL preview、native conformanceは実装gateを維持します。
 
 未検証の仮説：guard後unwrapのergonomicsが初期source workloadに十分なこと、今後対応する全payload adapterをadmission済みmetadataで移譲できること。現testは実際のBytes、Copy value、managedな入れ子の順序／span移譲とfailure cleanupを扱い、全source payload／modeを証明しません。新作業はslice拡大前に明示し、未対応payload／modeのgateを維持します。将来の汎用的な消費matchは別の設計判断であり、borrowed matchを暗黙変更する許可ではありません。
 

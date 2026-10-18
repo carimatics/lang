@@ -52,7 +52,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0007: Source ownership and core values (accepted)](docs/rfcs/0007-source-ownership-and-core-values.md)
 - [RFC 0008: Cleanup, allocator authority, and C boundaries (accepted)](docs/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 - [RFC 0009: Whole Option/Result ownership extraction (accepted)](docs/rfcs/0009-whole-sum-ownership-extraction.md)
-- [RFC 0010: Owned REPL result previews (accepted; implementation pending)](docs/rfcs/0010-owned-repl-previews.md)
+- [RFC 0010: Owned REPL result previews (accepted; current-profile REPL implemented)](docs/rfcs/0010-owned-repl-previews.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
@@ -75,6 +75,7 @@ cargo run -- run examples/scripts/cleanup_calls.lang
 cargo run -- run examples/scripts/owned_replace.lang
 cargo run -- run examples/scripts/owned_aggregate.lang
 cargo run -- repl
+cargo run --quiet -- repl < examples/repl/owned.repl
 cargo run --quiet -- lsp
 ```
 
@@ -82,11 +83,11 @@ cargo run --quiet -- lsp
 
 The ownership profile also executes guest functions with Copy/owned parameters and results and borrowed parameters, including self/mutual recursion. `owned_calls.lang` prints `1` after recursive Bytes transfer and a borrowed call; `cleanup_calls.lang` prints `13` after nested aggregate/call cleanup. `owned_replace.lang` prints `3` after whole-owner/field replacement and a scalar loop. Assignment captures its destination before the RHS and publishes the new value before old-value cleanup. Return values stay protected until callee cleanup succeeds; failures include the entered source call stack. Verified 2026-10-18 JST; see [calls](docs/architecture.md#owned-guest-calls-and-returns), [failure exits](docs/architecture.md#owned-failure-exit-conformance) and [replacement evidence](docs/architecture.md#prepared-ownership-replacement).
 
-Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`; the REPL remains Copy-only. The CLI registers no host imports and explicitly supplies the owned execution instance's budgeted allocator. Verified 2026-10-18 JST.
+Compile/runtime errors exit 1; usage errors exit 2. A script result is not an exit code. `--source-root DIR` selects file authority; otherwise check/scripts use the root file's parent and REPL sessions have no file-module authority. `run` and `repl` accept `--fuel`, `--host-calls`, `--frames`, and `--cells`. The REPL supports current-profile ownership definitions and expressions, including bounded Bytes/Text/nested result previews, with a fresh allocator and cleanup instance per evaluation. The CLI registers no host imports. Verified 2026-10-18 JST.
 
-The embedding API `lang_vm::unit::owned::execute_preview` executes a named zero-argument ownership function by checked ID, renders bounded Bytes/Text/nested results, and releases all guest storage before returning its string. [The source library](examples/analysis/repl_preview.lang) is executed by `cargo test --test owned_execution preview::named_owned`. The frontend also infers a validated generated ownership wrapper's result through normal HIR/MIR checks; `cargo test --test owned_execution inference::` executes these inferred results. REPL session integration remains pending. [Preview](docs/architecture.md#owned-result-previews) and [inference evidence](docs/architecture.md#ownership-expression-inference), updated/verified 2026-10-18 JST.
+The embedding API `lang_vm::unit::owned::execute_preview` executes a named zero-argument ownership function by checked ID, renders bounded Bytes/Text/nested results, and releases all guest storage before returning its string. [The source library](examples/analysis/repl_preview.lang) is executed by `cargo test --test owned_execution preview::named_owned`. The frontend also infers a validated generated ownership wrapper's result through normal HIR/MIR checks; `cargo test --test owned_execution inference::` executes these inferred results. Embedding sessions use `Session::submit_with_allocator` to explicitly authorize ownership expressions; the original `submit` grants no allocator authority. Definitions commit without execution, and callers may intentionally reuse an allocator's cumulative quota. [Preview](docs/architecture.md#owned-result-previews), [inference](docs/architecture.md#ownership-expression-inference) and [session evidence](docs/architecture.md#ownership-repl-sessions), updated/verified 2026-10-18 JST.
 
-The REPL commits successfully checked item definitions and evaluates one expression per submission with fresh VM counters. It prints scalars or qualified aggregate values, accepts multiline input, and supports `:reset` and `:quit`. Failed submissions preserve prior definitions; host effects are not rolled back.
+The REPL commits successfully checked item definitions and evaluates one expression per submission with fresh VM counters. It prints scalars, qualified aggregates and current-profile owned previews, accepts multiline input, and supports `:reset` and `:quit`. Only source definitions persist; every guest result is released before output. Failed submissions preserve prior definitions and original-source diagnostics/stacks; host effects are not rolled back. Unsupported reachable ownership operations/results fail before provider callbacks. Later indirect-service previews remain gated.
 
 Configure an LSP client to execute `target/debug/lang lsp` after `cargo build`. The stdio profile supports initialize/shutdown/exit, UTF-16 positions, full document synchronization, versioned diagnostics, watched-file refresh, and canonical four-space document formatting. Initialization grants at most one explicit local workspace root; without one, only open buffers are available. Code actions, completion, navigation, and debugger integration remain later work. See [architecture and protocol sources](docs/architecture.md#diagnostics-lsp-and-debugging).
 

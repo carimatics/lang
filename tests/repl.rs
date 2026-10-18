@@ -8,6 +8,9 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
 
+#[path = "support/repl_owned.rs"]
+mod owned;
+
 fn submit(session: &mut Session, text: &str) -> Report {
     let report = session.submit(
         text.as_bytes(),
@@ -47,22 +50,45 @@ fn rendered(report: &Report) -> String {
 }
 
 #[test]
-fn analyzed_ownership_items_do_not_commit_to_the_copy_execution_session() {
+fn ownership_items_commit_without_granting_legacy_submission_allocator_authority() {
     let mut session = Session::default();
     commit(&mut session, "fn keep() -> i64 { return 7; }");
     let report = submit(
         &mut session,
         "fn owned(v: core::Text) -> core::Text { return v; }",
     );
-    assert!(matches!(
-        report.result,
-        Err(ReplError::Analysis(lang::frontend::AnalysisError::Typing(
-            lang_hir::program::CheckError::OwnershipProfile { .. }
-        )))
-    ));
+    assert_eq!(report.result.unwrap(), Event::ItemCommitted);
     assert!(report.diagnostics.is_empty());
-    value(&mut session, "keep()", "7");
-    // Reusing the rejected name proves the item was not partially published.
+    assert_eq!(session.definition_count(), 2);
+    let report = submit(&mut session, "keep()");
+    assert!(
+        matches!(report.result, Err(ReplError::OwnedRuntime(ref e)) if matches!(e.reason, lang_vm::unit::owned::Reason::MissingAllocator))
+    );
+    let mut allocator = lang_runtime::allocation::Allocator::new(
+        lang_runtime::allocation::System,
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        session
+            .submit_with_allocator(
+                b"keep()",
+                &HostFunctionRegistry::new(),
+                &HostBindings::new(),
+                &mut allocator,
+                Control::default()
+            )
+            .result
+            .unwrap(),
+        Event::Value("7".into())
+    );
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert!(
+        submit(&mut session, "fn owned() -> i64 { return 9; }")
+            .result
+            .is_err()
+    );
+    assert_eq!(submit(&mut session, ":reset").result.unwrap(), Event::Reset);
     commit(&mut session, "fn owned() -> i64 { return 9; }");
     value(&mut session, "owned()", "9");
 }

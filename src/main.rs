@@ -217,12 +217,7 @@ fn run_repl(root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
             if buffer.bytes().is_empty() {
                 return Ok(0);
             }
-            let report = session.submit(
-                buffer.bytes(),
-                &hosts,
-                &bindings,
-                Control::with_limits(limits),
-            );
+            let report = submit_repl(&mut session, buffer.bytes(), &hosts, &bindings, limits)?;
             let failed = report.result.is_err();
             print_repl_report(&report)?;
             return Ok(u8::from(failed));
@@ -237,18 +232,33 @@ fn run_repl(root: Option<PathBuf>, limits: Limits) -> Result<u8, CliError> {
         if readiness == Readiness::Continue {
             continue;
         }
-        let report = session.submit(
-            buffer.bytes(),
-            &hosts,
-            &bindings,
-            Control::with_limits(limits),
-        );
+        let report = submit_repl(&mut session, buffer.bytes(), &hosts, &bindings, limits)?;
         print_repl_report(&report)?;
         buffer.clear();
         if matches!(report.result, Ok(Event::Quit)) {
             return Ok(0);
         }
     }
+}
+fn submit_repl(
+    session: &mut Session,
+    bytes: &[u8],
+    hosts: &HostFunctionRegistry,
+    bindings: &HostBindings,
+    limits: Limits,
+) -> Result<Report, CliError> {
+    let mut allocator = lang_runtime::allocation::Allocator::new(
+        lang_runtime::allocation::System,
+        Default::default(),
+    )
+    .map_err(failure)?;
+    Ok(session.submit_with_allocator(
+        bytes,
+        hosts,
+        bindings,
+        &mut allocator,
+        Control::with_limits(limits),
+    ))
 }
 fn print_repl_report(report: &Report) -> Result<(), CliError> {
     let mut stderr = io::stderr().lock();
@@ -273,20 +283,41 @@ fn print_repl_report(report: &Report) -> Result<(), CliError> {
             )
             .map_err(failure)?;
             for frame in &error.stack {
-                let name = error.function_name(*frame);
-                if let Some(span) = frame.span {
-                    let source = report.sources.file(span.source()).map_err(failure)?;
-                    let position = source.position(span.range().start).map_err(failure)?;
-                    writeln!(
-                        stderr,
-                        "  at {name} ({:?}:{}:{})",
-                        source.name(),
-                        position.line,
-                        position.column
-                    )
-                    .map_err(failure)?;
-                } else {
-                    writeln!(stderr, "  at {name}").map_err(failure)?;
+                print_repl_frame(
+                    &mut stderr,
+                    &report.sources,
+                    *frame,
+                    error.function_name(*frame),
+                )?;
+            }
+        }
+        Err(ReplError::OwnedRuntime(error)) => {
+            writeln!(stderr, "error[runtime]: {error}").map_err(failure)?;
+            for frame in &error.stack {
+                print_repl_frame(
+                    &mut stderr,
+                    &report.sources,
+                    *frame,
+                    error.function_name(*frame),
+                )?;
+            }
+            if !error.trace_complete {
+                writeln!(stderr, "  stack trace truncated").map_err(failure)?;
+            }
+            if let Some(cleanup) = &error.report {
+                if let Some(primary) = &cleanup.primary {
+                    print_repl_cleanup(&mut stderr, &report.sources, "primary", primary)?;
+                }
+                for secondary in &cleanup.secondary {
+                    print_repl_cleanup(&mut stderr, &report.sources, "secondary", secondary)?;
+                }
+                if cleanup.truncated != 0 {
+                    writeln!(stderr, "  {} additional failure records", cleanup.truncated)
+                        .map_err(failure)?;
+                }
+                if cleanup.quarantined != 0 {
+                    writeln!(stderr, "  {} quarantined host values", cleanup.quarantined)
+                        .map_err(failure)?;
                 }
             }
         }
@@ -294,6 +325,49 @@ fn print_repl_report(report: &Report) -> Result<(), CliError> {
         Ok(_) => {}
     }
     Ok(())
+}
+fn print_repl_frame(
+    stderr: &mut impl Write,
+    sources: &lang_diagnostics::SourceMap,
+    frame: lang::repl::Frame,
+    name: &str,
+) -> Result<(), CliError> {
+    if let Some(span) = frame.span {
+        let source = sources.file(span.source()).map_err(failure)?;
+        let position = source.position(span.range().start).map_err(failure)?;
+        writeln!(
+            stderr,
+            "  at {name} ({:?}:{}:{})",
+            source.name(),
+            position.line,
+            position.column
+        )
+        .map_err(failure)?;
+    } else {
+        writeln!(stderr, "  at {name}").map_err(failure)?;
+    }
+    Ok(())
+}
+fn print_repl_cleanup(
+    stderr: &mut impl Write,
+    sources: &lang_diagnostics::SourceMap,
+    label: &str,
+    record: &lang::repl::CleanupFailure,
+) -> Result<(), CliError> {
+    write!(stderr, "  {label}: {:?}", record.kind).map_err(failure)?;
+    if let Some(span) = record.span {
+        let source = sources.file(span.source()).map_err(failure)?;
+        let position = source.position(span.range().start).map_err(failure)?;
+        write!(
+            stderr,
+            " ({:?}:{}:{})",
+            source.name(),
+            position.line,
+            position.column
+        )
+        .map_err(failure)?;
+    }
+    writeln!(stderr).map_err(failure)
 }
 fn source_root(file: &std::path::Path, root: Option<PathBuf>) -> PathBuf {
     root.unwrap_or_else(|| {

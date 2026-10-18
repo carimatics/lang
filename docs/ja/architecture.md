@@ -637,7 +637,7 @@ Frontendの`Analysis.result`は共通の`Program` enumを保持します。Copy 
 
 2026-10-18 JST受理：[RFC 0010](rfcs/0010-owned-repl-previews.md) でguest valueを永続化せずownership定義／式へこのcontractを広げます。生成wrapperのresult推論、明示allocator authority、Bytes／ASCII escapeしたTextと入れ子current-profile previewのcanonical形式を定めます。通常return cleanupと上限付きrendering中はresultを保護し、消費と全guest storage解放後に完成stringを公開します。Render失敗はresult cleanup secondaryより先のprimaryとして維持します。User display callback、guest clone、新source literal、raw address出力は追加しません。
 
-REPLは引き続きCopy専用です。当初のpipe実験ではowning itemがcommit前に拒否され、呼び出しがunknownになり、後続のCopy式は `3` を表示します。下記adapterでV16はnamed owned resultを実行し、V15は生成した式のresultを推論します。V10のsession／CLI統合は未完了です。後続indirect-service previewの設計／実装はV17へ残し、G08をBytes／Textへ縮小しません。[RFCの判断](rfcs/0010-owned-repl-previews.md#判断と実装状態)に委任、理由、未検証costを記録しています。出典：RFC 0010／source contractは2026-10-18 JST更新。[REPL](../../src/repl.rs)、[frontend](../../src/frontend.rs)、[HIR推論](../../crates/hir/src/program.rs)は当初 `5c32e25` と境界／source-check実験で2026-10-18 JST確認。
+V10でV16のpreview adapterとV15の推論をownership REPL sessionとCLIへ接続しました。詳細は後述します。当初の `5c32e25` のpipe実験ではowning itemがcommit前に拒否され、呼び出しがunknownになり、後続Copy式は `3` を表示しましたが、新owned transcriptは成功します。後続indirect-service previewの設計／実装はV17へ残し、G08をBytes／Textへ縮小しません。[RFCの判断](rfcs/0010-owned-repl-previews.md#判断と実装状態)に委任、理由、未検証costを記録しています。出典：RFC 0010／source contractとsession実装。2026-10-18 JST更新・確認。
 
 ### Owned result previews
 
@@ -655,7 +655,17 @@ REPLは引き続きCopy専用です。当初のpipe実験ではowning itemがcom
 
 Ownership body checkerは上限付きtype arenaで推論し、body検証成功後にだけresult signatureを更新し、通常signatureと同じ返却制約を適用します。Loan、arenaを含む値、allocator authorityのreturnを特別扱いしません。推論signatureとexpression factsは新しく具体化したcore sumを含むtyped body arenaを参照し、immutable source byte／spanと元のresolved type prefixを保持します。その後も通常HIR move／loan／region解析と独立MIR検証を行います。曖昧な `core::Option::None` は推測せず、provisional resultのためにtemporary ownerをborrow可能なplaceとして扱うこともありません。
 
-追加した5件のsource testは推論したBytes、Text、入れ子Result、Unit、finite error、scalarをV16 adapterで実行し、全解放を確認します。通常annotation／move／loan／region失敗、式の元位置の診断、両profileで不正wrapper形状とcaller、HIR／type／MIR resource診断も検証します。Frontend推論から実行までの根拠であり、REPL session transactionとCLI ownership評価はV10へ残します。情報源：[HIR dispatch](../../crates/hir/src/program.rs)、[body推論](../../crates/hir/src/program/bodies.rs)、[共有return制約](../../crates/hir/src/types.rs)、[MIR解析](../../crates/semantics/src/analysis.rs)、[frontend](../../src/frontend.rs)、[source test](../../tests/support/owned_inference.rs)。2026-10-18 JST更新・確認。
+追加した5件のsource testは推論したBytes、Text、入れ子Result、Unit、finite error、scalarをV16 adapterで実行し、全解放を確認します。通常annotation／move／loan／region失敗、式の元位置の診断、両profileで不正wrapper形状とcaller、HIR／type／MIR resource診断も検証します。Frontend推論から実行までの根拠であり、V10のsession／CLI根拠は後述します。情報源：[HIR dispatch](../../crates/hir/src/program.rs)、[body推論](../../crates/hir/src/program/bodies.rs)、[共有return制約](../../crates/hir/src/types.rs)、[MIR解析](../../crates/semantics/src/analysis.rs)、[frontend](../../src/frontend.rs)、[source test](../../tests/support/owned_inference.rs)。2026-10-18 JST更新・確認。
+
+### Ownership REPL sessions
+
+2026-10-18 JST実装・確認：Sessionは独立MIR検証を含む完全な解析後にownership itemをcommitし、実行やallocator authority付与は行いません。不正な定義は以前のsource itemを維持します。`Session::submit_with_allocator` でcallerのproviderと累積quotaを使うownership式実行を明示的に許可し、`submit` はallocator authorityを与えません。評価ごとに検証済みidentityで生成wrapperを選び、新しいcleanup instanceとVM counterを使います。CLIはsubmissionごとにfreshなallocatorを供給します。純Copy sessionは従来のhost binding／effectを維持し、ownership profileのsessionはowned scriptと同じ到達可能操作のgateを使います。未使用の未対応定義はcommitできますが、その呼び出しはprovider／host callback前に拒否します。Source annotation、loan／region制約、scriptのi64 main contractは変更しません。
+
+V16 engineで全guest result／storageを表示・解放してから `Event::Value` でhost stringを公開し、保持するのはsource定義だけです。Panic、display／fuel／frame／allocator limit、OOM、interruptionでも定義を保ち、cleanup成功後の新しい評価へ復帰でき、poisonしたinstanceは再利用しません。Fresh instanceでも再利用したhost allocatorの累積quotaはresetしません。`OwnedRuntimeFailure` はimmutableなsource／program snapshot、元panic code、poison、対応付けたcall frame、順序付きcleanup記録を保持します。診断transportはprimaryをinlineに保持し、secondary／stackの予約失敗時もprimaryを置換せずtruncationを記録します。CLIは生成wrapper名を隠し、frameとcleanup記録のsource位置を表示します。`:reset` 後も返却済みreportは有効です。
+
+REPL suiteはownership test 7件を追加し、初期の拒否testを明示authorityでの受け入れへ置き換えて、計24件です。実provider追跡で内容表示、上限、OOM、interruption、厳密fuelでの反復、累積quota枯渇を通じた各regionの1回限りの解放を検証します。入れ子／core／scalar preview、user main signature、transaction、未対応preflight、source-root authority、import／旧snapshot、Copy host effectを扱います。Report adapterの追加unit test 1件は、実panic／cleanup reportの上限truncationとquarantineを対応付けます。[Pipe transcript](../../examples/repl/owned.repl) はempty Bytes、Result、Text、入れ子Message、`3` を表示し、reset後も `3` を表示します。別CLI testでもpanic／frame失敗後にpromptや生成source名なしで回復します。後続indirect preview（V17）、provisional read（V13）、native実行、性能計測は未完了です。Fuzz campaignや実process OOMの封じ込めは主張しません。
+
+情報源：[session dispatch](../../src/repl.rs)、[owned adapter／report mapping](../../src/repl/owned.rs)、[CLI](../../src/main.rs)、[REPL test](../../tests/repl.rs)、[ownership test](../../tests/support/repl_owned.rs)、[transcript](../../examples/repl/owned.repl)。2026-10-18 JST更新・確認。
 
 ### Incremental architecture
 
