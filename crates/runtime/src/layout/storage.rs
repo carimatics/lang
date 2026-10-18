@@ -72,6 +72,26 @@ pub struct Reservation<'layouts, 'types> {
     state: State,
 }
 impl<'layouts, 'types> Reservation<'layouts, 'types> {
+    pub const fn layouts(&self) -> &'layouts Layouts<'types> {
+        self.layouts
+    }
+    /// Validate the active construction-order/retirement shape without taking
+    /// ownership or changing payload/order bytes. Copy leaves need their normal
+    /// value checks. Reuses the admitted scratch work area.
+    pub fn validate_retirement<P: Provider>(
+        &mut self,
+        allocator: &mut Allocator<P>,
+    ) -> Result<(), Error> {
+        if self.state != State::Prepared {
+            return Err(Error::State);
+        }
+        let result = self.begin_retirement(None, allocator);
+        self.top = 0;
+        if self.state == State::Draining {
+            self.state = State::Prepared;
+        }
+        result
+    }
     pub fn allocate<P: Provider>(
         layouts: &'layouts Layouts<'types>,
         ty: o::Type,

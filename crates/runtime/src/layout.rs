@@ -195,7 +195,10 @@ impl<'types> Layouts<'types> {
     pub const fn usage(&self) -> m::Usage {
         self.usage
     }
-    fn span_valid(&self, span: m::Span) -> bool {
+    pub const fn types(&self) -> &'types o::VerifiedTypes {
+        self.types
+    }
+    pub(crate) fn span_valid(&self, span: m::Span) -> bool {
         self.types
             .table()
             .sources

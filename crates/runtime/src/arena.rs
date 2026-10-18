@@ -5,6 +5,7 @@
 //! may abort; guest cleanup and VM/native/source integration remain separate.
 
 use crate::shared;
+pub mod managed;
 use lang_mir::unit::Span;
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};

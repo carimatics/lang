@@ -798,9 +798,23 @@ Publicationは全endpointと累積node／slot／edge／live-payload-byte上限�
 
 22件のfocused testで、同一regionのcycle、reference copy、provenanceとstale／forged handle、read conflict、逆順／部分teardown、slot／count枯渇、poison隔離、失敗時に変更されないinput／span／count、保持storageの上限、独立payload／edge oracleで照合する1,000件の生成graph sequence、128件のread解放／close race、20,001 nodeのcycleの反復drain、再入cleanupとhost unwindを検証します。これらはdeterministic／stress testであり、guest destructorやVM／nativeのtrace等価性を示すものではありません。
 
-このengineはhost Rust storageを使います。Fallible Vec metadata reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Resident byte計上にはmetadata capacity、allocator overhead、caller所有のinput、callerへ返却済みpayloadを含めず、process memory sandboxではありません。信頼するhostはguardやdetachしたpayloadを意図的にforgetできますが、engineが保持するstorageは設定上限の計上に残ります。Source allocator callback、typed layout、cleanup／error／panicの挙動、検証済みownership MIR／bytecode、VM／native arena operation、serialized ownership formatはMilestone 2の個別作業として残ります。この実装だけではarena outcomeは完了しません。
+このengineはhost Rust storageを使います。Fallible Vec metadata reserveを確認する一方、Arc allocationはhost OOM時にabortし得ます。Resident byte計上にはmetadata capacity、allocator overhead、caller所有のinput、callerへ返却済みpayloadを含めず、process memory sandboxではありません。信頼するhostはguardやdetachしたpayloadを意図的にforgetできますが、engineが保持するstorageは設定上限の計上に残ります。Guest allocatorを使うtyped payloadと子孫cleanupには後述の独立managed engineを使うようになりました。Source VM／native adapterとserialized ownership formatはMilestone 2の個別作業として残ります。このhost engineだけではarena outcomeは完了しません。
 
 出典：受理済み[RFC 0004](../rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](../rfcs/0007-source-ownership-and-core-values.md)、[arena実装](../../crates/runtime/src/arena.rs)、[境界test](../../crates/runtime/src/arena/tests.rs)、[統合test](../../crates/runtime/tests/arena.rs)。更新／検証日：2026-10-17 JST。Storage、lock、quotaの粒度は実装上の選択であり、allocator ABI、performance budget、追加の言語決定は主張しません。
+
+### Allocator-backed typed arena payloads
+
+2026-10-18 JST実装・検証：`arena::managed::Arena` は実行instanceのallocatorで型付き `layout::Reservation` payloadを保持します。`prepare` がguest entry前にnode wrapperと反復inline-value走査の上限付きpoolを予約し、callerの累積compiler／host-pool budgetを共有します。Guest操作はArc、lock、host vectorの拡張を使いません。Openは実際の40-byte region headerと、設定したread slotごとに16 byteを要求し、active readのserialとnode indexを保持します。各nodeの実際の56-byte identity／span／publication記録、inline data、構築順metadata、retirement workも同じallocatorで予約します。Lookupとteardownでこれらの記録を検証・利用し、実際の要求をlive／cumulative／count limitへ含めます。Host poolには固定のlocator wrapperだけを置き、未課金のguest payload／read／node metadataは置きません。
+
+`allocate_from` はoperandを検証し、provider呼出し前にstorage plan全体を検査します。途中OOMでは完了した予約を解放し、live storage／countだけを返して認可済み累積要求を維持し、operandと公開済みnodeを変更しません。成功時はoperand全体を未公開storageへmoveしてからnodeを公開します。`replace_from` は確保なしでroot全体を交換し、node identity／順序を維持して、公開後にcleanupする旧値をincoming reservationへ残します。検証失敗では両値を維持します。
+
+上限付き走査はCopy arena tokenも含め、activeなrecord／enum／Option／Resultの全projectionを辿ります。Referenceはliveなowner allocation／generation、node index、同等payload型を要求します。異なるlive regionとactiveなshared／weak edgeを拒否し、失効／偽造referenceで再利用nodeへアクセスできません。Bytes／Text tokenは実際のbuffer検証を使います。Vec／Map serviceは同じpublication budgetで入れ子の値を明示検証し、未対応serviceは拒否する必要があります。後続container adapterを実装したとはしません。登録readはarena全体の変更と通常exitを禁止します。Serial付きread slotで古い登録解除を防ぎ、checked viewは読み取り操作だけを公開します。Abortは放置したreadとnode accessも失効させます。
+
+Exitはaccessを失効させてからnodeをallocationの逆順でdetachします。予約済みの反復cleanupがentryの共通cleanup contextを使い、initializer／node spanを保ち、子の失敗／panicをcontainして、retirement storageを追加確保せず独立した子孫／nodeを処理し続けます。Headerはdrain後に解放します。Managed buffer／value wrapperと同様、信頼するwrapperを破棄するだけではguest cleanupを呼びません。実行adapterがallocator authorityを解放する前に義務をdrainする必要があります。Tokenは非公開in-memory dataであり、source／C ABIやserialized formatは変更しません。
+
+Focused 11 testで、実際のstorage／peak会計、各payload予約のOOMとretry、owner OOM、guest／host-pool quotaの厳密値／1不足、拒否時に不変のinput／replacement、入れ子のcross-region／失効／偽造reference、同一region cycle、逆順の子cleanup、read排他とabort／再利用、不正Copy値／span／shared edge、indirect serviceの明示拒否とbudget共有、確保／retryなしのcleanup失敗／panicを検証します。Runtime testとworkspace Clippyが成功しました。Source arena実行はR06、guest-call／reborrow conformanceはR07へ残し、native／artifact gateも維持します。
+
+情報源：受理済み [RFC 0004](rfcs/0004-owned-values-and-cyclic-graphs.md)、[RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)、[managed arena](../../crates/runtime/src/arena/managed.rs)、[typed reservation](../../crates/runtime/src/layout/storage.rs)、[allocator](../../crates/runtime/src/allocation.rs)、[test](../../crates/runtime/tests/managed_arena.rs)、[実装Todo](milestone-2.md)。2026-10-18 JST更新・検証。Pool size、要求／header表現、操作quotaは実装上の選択であり、性能保証ではありません。
 
 ### Async borrow／cancellation実験
 
