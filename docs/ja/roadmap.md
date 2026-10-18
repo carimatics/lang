@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み68件 · 進行中0件 · 残り33件（暫定82 pt）。**
+**検証済み69件 · 進行中0件 · 残り32件（暫定79 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む42件の成果を検証しました。C05（`677bb66`）でMap insert／replacement／removalの所有権移動を追加しました。等しい元keyを保持し、入力／削除keyをdetachして、旧valueを事前認可済みoutputへ返し、追加確保なしに行を詰めます。Unit 2 testとintegration 9 testで厳密なowner／span、独立した混合操作／削除順序oracle、Copy再利用、OOM／拒否境界、共通contextでの失敗／panic後の完全解放を検証しました。全体baselineの80 suite・1241 testとfmt／Clippy／docが成功し、**残り85 → 82 pt**、done 68行、計101行です。`95f8c3c` で前回C04のevidence形式を修正し、文書のみの計画更新後は既存repository-consistency suiteを実行する手順を明記しました。基盤2件C04／C05後は次のC06で全5種のsource Map操作を実行します。現在のVM Map profile／adapterは未実装で、最初のsource実験までは暫定3 ptです。入れ子統合全体はV13／V17とnative N04の前提C07に維持します。Native、collection、provisional-read／preview、artifactのevidenceは引き続き必要で、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む43件の成果を検証しました。C06（`fb13cfd`）で全5種のsource Map操作を実行し、CLI fixtureは49と33を表示します。Source 18 testで39操作の独立UTF-8／等価判定／mutation oracle、Copy／owning値、guest read／return、合法MIR register再利用、全OOM／retryとfuel prefix、登録枯渇、完全解放を検証しました。VM injection 5 testでkey cleanup前の旧value保護、span、失敗／panic優先、poison、中断、上限付きreport省略を検証しました。全体baselineの80 suite・1264 testとfmt／Clippy／docが成功し、**残り82 → 79 pt**、done 69行、計101行です。C04／C05後に必須としたsource fixtureを完了しました。次のC07はV13／V17とnative N04の前提として、入れ子Vec／Map／shared／arena統合全体を保持し、最初の実collection／graph実験までは暫定3 ptとします。上限付きedge／brand検査と反復cross-service cleanupを実証するまでclosed profileを維持します。Native、collection、provisional-read／preview、artifactのevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

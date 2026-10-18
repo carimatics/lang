@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**68 done · 0 doing · 33 todo · 82 remaining pt**
+**69 done · 0 doing · 32 todo · 79 remaining pt**
 
-**次: M2-C06 → 検証済みread、所有権移動、共通context cleanup経由で全5種のsource Map操作を実行する。**
+**次: M2-C07 → Vec／Map／shared／arena間で上限付きの入れ子edge／brand検査と反復cleanupを検証する。**
 
-直近の完了：**M2-C05**（`677bb66`）。Map insert／replacement／removalの所有権移動を実装しました。置換で等しい元keyを保持し、入力keyをdetachして旧valueを事前認可済みoutputへ返します。削除で格納keyをdetachし、storageを詰めます。Copy inputは再利用できます。Unit 2 testとintegration 9 testで厳密なowner／span保持、独立oracleと比較する128回の操作、3 entryの全削除順序、OOM／retry、拒否境界、cleanup失敗／panic後の完全解放を検証しました。全体baselineの **80 suite・1241 test** とfmt／Clippy／docが成功し、**残り85 → 82 pt**、done 68行、計101行です。基盤2件C04／C05後の次taskをC06のsource Map実行とし、C07、native、preview、artifactも各gateに維持します。
+直近の完了：**M2-C06**（`fb13cfd`）。全5種のsource Map操作を実行し、CLI fixtureは **49** と **33** を表示します。Source 18 testで39操作の独立oracleと比較する厳密UTF-8等価判定、Copy／owning値、検証済みreadとguest call、合法MIR register再利用、全OOM／retryとfuel prefix、登録枯渇、完全解放を検証しました。VM injection 5 testで旧valueの保護、元key／value span、失敗／panic優先、poison、中断、省略付きreportを検証しました。全体baselineの **80 suite・1264 test** とfmt／Clippy／docが成功し、**残り82 → 79 pt**、done 69行、計101行です。C04／C05後に必須としたsource fixtureを完了し、C07、native、preview、artifactは各gateに維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **28.9秒**、成功した全test **109.2秒**（log作成から最終書き込みまで）、rustdoc **17.2秒**です。全体test初回は **195.5秒** 後、前回C04のevidence欄の形式違反で停止しました。`95f8c3c` でcommit-hashのみの形式へ修正し、文書のみの確認に `cargo test --test repository_consistency` を明記しました。この3 test成功後に全体を再実行しました。Focused Map検証はunit 5件・integration 20件成功です。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **27.9秒**、全test **321.0秒**（log作成から最終書き込みまで）、rustdoc **16.7秒**、すべて成功です。Source／cleanupのfocused検証後、全体baselineは1回です。Ownership source suiteは129 test、新VM injectionは5 test成功です。39操作の生成oracleはfunction分割で既定analysis予算内に収め、文法／予算は変更しません。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。文書のみの計画更新では既存 `repository_consistency` suiteを実行します。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable element read、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04／C03でBytes／Text／inline payloadを持つclosedなshared／weakとVec profileに対応し、入れ子collection／graph統合全体はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable element readとi64／Text keyのMap new／len／insert／get／remove、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04／C03／C06でBytes／Text／inline payloadを持つclosedなshared／weak、Vec、Map profileに対応し、入れ子collection／graph統合全体はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。Service統合全体とownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
-次の着手条件（2026-10-18 JST）：C04／C05でMap storage、登録付きread、failure-atomicなmutation／所有権移動が揃いました。現在のVM Root profileはMapを拒否し、cleanup adapterも未実装です。C06で受理済み全5操作、検証済みread target、保護したoutputと共通contextによるkey cleanupへ接続し、i64／Textのsource fixtureを独立した等価判定／置換／削除／失敗evidence付きで実行します。最初のsource実験までは暫定3 ptとし、このfixtureより前に追加の基盤成果へ進みません。受理済み入れ子service admission／cleanup全体はC07、native、preview、artifactも各gateに維持します。
+次の着手条件（2026-10-18 JST）：C07のsource adapter前提C03／C06／R04／R06が揃いました。Collection／shared／arena payload profileは入れ子serviceを除外したままで、現container cleanup callbackはbuffer leafを扱い、arena境界はVec／Map検査をcallbackへ委譲します。C07では最初に実collection／graph実験を行い、上限付きの推移的strong-edge／brand検査と反復cross-service retirementを実証してからprofileを開きます。その実験までは暫定3 ptとし、新たな前提は実装前に明示・再見積もりして、受理済み入れ子service scope全体を保持します。Native、provisional read／preview、artifactは個別gateに維持します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -149,7 +149,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-C03 | done | 0 | M2-C02,M2-V09 | G09 | Vecソース命令をmove／loan／growth／failure fixtureと副作用前のservice別payload preflightで実行。 | `3dca725` |
 | M2-C04 | done | 0 | M2-D35,M2-D34 | G10 | Map storage／登録付きread lookupで受理済みの厳密key equalityとallocation budgetを実装。 | `348dc42` |
 | M2-C05 | done | 0 | M2-C04 | G10 | Map insert／replacement／removalをfailure-atomicにし、同値の既存keyを保持して旧key／valueを1回だけretire。 | `677bb66` |
-| M2-C06 | todo | 3 | M2-C05,M2-V09 | G10 | Mapソース命令を独立したequality／replacement／failure oracleで検証。 | — |
+| M2-C06 | done | 0 | M2-C05,M2-V09 | G10 | Mapソース命令を独立したequality／replacement／failure oracleで検証。 | `fb13cfd` |
 | M2-C07 | todo | 3 | M2-C03,M2-C06,M2-R04,M2-R06 | G05,G06,G09,G10 | 上限付きcross-service edge／brand検証と反復cleanupで入れ子Vec／Map／shared／arena値を統合し、source cycle／escape、逆順drop、失敗caseを検証。 | — |
 
 ## Ownership artifactとC境界
