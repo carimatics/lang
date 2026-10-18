@@ -1,4 +1,6 @@
 use super::*;
+#[path = "native_core.rs"]
+mod core;
 #[path = "native_places.rs"]
 mod places;
 #[path = "native_owned_values.rs"]
@@ -33,6 +35,7 @@ struct Store<'a, 'l> {
     prepared: Vec<Option<places::Capture>>,
     loan_stride: usize,
     prepared_stride: usize,
+    types: &'l m::ownership::VerifiedTypes,
 }
 impl Store<'_, '_> {
     fn transfer(&mut self, from: Physical, to: Physical) -> n::ResultStep {
@@ -86,12 +89,17 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
             expected,
             retired,
             refuse_cleanup,
+            types,
             ..
         } = &mut *storage;
         let cell = pools[physical.frame]
             .cell_mut(physical.cell)
             .map_err(|_| 90u32)?;
         cell.retire(allocator, context, |token, allocator, _, _| {
+            if expected.is_empty() {
+                buffer::cleanup_token(types, token, allocator).map_err(|_| 94u32)?;
+                return if *refuse_cleanup { Err(95) } else { Ok(()) };
+            }
             let mut value =
                 buffer::Bytes::from_token(&mut token.bytes, allocator).map_err(|_| 91u32)?;
             let data = value.as_slice(allocator).map_err(|_| 92u32)?;
@@ -278,6 +286,9 @@ impl Runtime for Unit<'_, '_, '_, '_> {
     }
     fn discard_prepared(&mut self, id: Option<m::ownership::bodies::PreparedPlaceId>) {
         places::discard(self, id)
+    }
+    fn core_call(&mut self, site: &n::CoreSite) -> n::ResultStep {
+        core::call(self, site)
     }
     fn stage_return(&mut self, slot: usize, _: m::Span) -> n::ResultStep {
         let copied = values::is_copy(self, slot);
@@ -617,6 +628,7 @@ fn execute_flow(
         prepared,
         loan_stride,
         prepared_stride,
+        types,
     });
     let mut cleanup_instance = c::Instance::default();
     let ledger = cleanup_instance
@@ -654,7 +666,7 @@ fn execute_flow(
     });
     let result = program.invoke(m::FunctionId(0), &mut instance);
     assert_eq!(instance.runtime().published, result.is_ok());
-    assert_eq!(instance.is_poisoned(), refuse_cleanup);
+    assert_eq!(instance.is_poisoned(), refuse_cleanup, "{result:?}");
     let fuel = instance.runtime().fuel;
     let peak = instance.runtime().peak_frames;
     let peak_cells = instance.runtime().peak_cells;

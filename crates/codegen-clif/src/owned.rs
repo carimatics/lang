@@ -113,6 +113,17 @@ pub struct ReplaceSite {
     pub value: usize,
     pub span: m::Span,
 }
+/// A statically bound core intrinsic and its typed operands, not a MIR opcode
+/// stream. Trusted adapters must enforce allocator authority and configured
+/// byte-work admission before invoking allocation or scanning services.
+pub struct CoreSite {
+    pub operation: o::core::Operation,
+    pub type_arguments: Vec<o::Type>,
+    pub arguments: Vec<usize>,
+    pub result: usize,
+    pub loan: Option<b::LoanId>,
+    pub span: m::Span,
+}
 
 /// Trusted prepared-frame primitives, not an instruction interpreter. Methods
 /// receive statically lowered slots/ranges. Implementations supply the shared
@@ -194,6 +205,9 @@ pub trait Runtime {
     /// Drop one capture or every capture in the current frame. This must not
     /// allocate or run guest effects, including while unwinding a failure.
     fn discard_prepared(&mut self, _: Option<b::PreparedPlaceId>) {}
+    fn core_call(&mut self, _: &CoreSite) -> ResultStep {
+        missing()
+    }
     fn frame_identity(&self) -> u64 {
         0
     }
@@ -270,7 +284,7 @@ pub struct Failure {
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 31;
+const HELPERS: usize = 32;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -297,6 +311,7 @@ enum Action {
     Prepare,
     Replace,
     DiscardPrepared(b::PreparedPlaceId),
+    Core,
 }
 #[derive(Clone, Copy)]
 enum Binary {
@@ -320,6 +335,7 @@ struct Node {
     borrow_case: Option<BorrowCaseSite>,
     prepared: Option<PreparedSite>,
     replace: Option<ReplaceSite>,
+    core: Option<CoreSite>,
 }
 
 /// Native call boundary for whole-owner forwarding and record construction.
@@ -551,6 +567,7 @@ fn run<'c, 'a, R: Runtime>(
             replace_place::<R>,
             discard_prepared::<R>,
             borrow_case::<R>,
+            core_call::<R>,
         ],
     };
     let mut continuation = 0;
@@ -679,6 +696,9 @@ impl<'a> ObjectFunction<'a> {
             Some(Action::EndBorrow(loan, mode)) => Some((loan, mode)),
             _ => None,
         }
+    }
+    pub fn core_site(&self, node: u32) -> Option<&CoreSite> {
+        self.nodes.get(node as usize)?.core.as_ref()
     }
     pub fn cleanup(&self, node: u32) -> Option<&[(usize, m::Span)]> {
         self.nodes.get(node as usize).map(|n| n.cleanup.as_slice())
@@ -826,6 +846,7 @@ fn prepare<'a>(
             borrow_case: None,
             prepared: None,
             replace: None,
+            core: None,
         };
         match node.kind {
             f::Kind::Execute { site, .. } => {
@@ -1015,6 +1036,44 @@ fn prepare<'a>(
                             panic_code: Some(contract.panic_code),
                         });
                         Some(Action::Extract)
+                    }
+                    b::Op::CoreCall(call)
+                        if matches!(
+                            call.operation,
+                            o::core::Operation::Allocator
+                                | o::core::Operation::BytesNew
+                                | o::core::Operation::BytesClone
+                                | o::core::Operation::BytesLen
+                                | o::core::Operation::BytesGet
+                                | o::core::Operation::BytesSet
+                                | o::core::Operation::BytesPush
+                                | o::core::Operation::TextFromUtf8
+                                | o::core::Operation::TextClone
+                                | o::core::Operation::TextLen
+                                | o::core::Operation::TextBytes
+                                | o::core::Operation::TextEqual
+                                | o::core::Operation::TextConcat
+                        ) =>
+                    {
+                        let mut arguments = budget.vector(call.arguments.len())?;
+                        for arg in &call.arguments {
+                            budget.charge(1)?;
+                            arguments.push(value(*arg)?);
+                        }
+                        let mut type_arguments = budget.vector(call.type_arguments.len())?;
+                        for ty in &call.type_arguments {
+                            budget.charge(1)?;
+                            type_arguments.push(ty.ty);
+                        }
+                        data.core = Some(CoreSite {
+                            operation: call.operation,
+                            type_arguments,
+                            arguments,
+                            result: value(i.results[0])?,
+                            loan: call.result_loan,
+                            span: i.span,
+                        });
+                        Some(Action::Core)
                     }
                     b::Op::Record {
                         fields,
@@ -1478,6 +1537,16 @@ helper!(borrow_case, ctx, _a, _b, node, {
         )
     })
 });
+helper!(core_call, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        r.core_call(
+            p.nodes[node as usize]
+                .core
+                .as_ref()
+                .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?,
+        )
+    })
+});
 helper!(panic, ctx, _a, _b, node, {
     let info = &ctx.compiled.nodes[node as usize];
     let code = info.extract.as_ref().and_then(|e| e.panic_code);
@@ -1689,6 +1758,7 @@ fn emit<M: Module>(
                         Action::Copy(from, to) => Some((call!(17, from, to), next, failure)),
                         Action::Variant => Some((call!(19, 0, 0), next, failure)),
                         Action::PlaceLoad => Some((call!(25, 0, 0), next, failure)),
+                        Action::Core => Some((call!(31, 0, 0), next, failure)),
                         Action::Borrow => Some((call!(24, 0, 0), next, failure)),
                         Action::EndBorrow(..) => Some((call!(26, 0, 0), next, failure)),
                         Action::Prepare => Some((call!(27, 0, 0), next, failure)),

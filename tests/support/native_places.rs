@@ -163,10 +163,21 @@ fn fault(_: l::Error) -> c::Cause {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct Target {
+pub(super) struct DataTarget {
     physical: Physical,
     location: l::Location,
     frame: u64,
+}
+#[derive(Clone, Copy)]
+pub(super) enum Target {
+    Data(DataTarget),
+    Allocator,
+}
+fn data(target: Target) -> Result<DataTarget, c::Cause> {
+    match target {
+        Target::Data(value) => Ok(value),
+        Target::Allocator => Err(bad()),
+    }
 }
 #[derive(Clone, Copy, Default)]
 pub(super) struct Loan {
@@ -180,9 +191,9 @@ pub(super) enum Capture {
         handle: u64,
         slot: usize,
     },
-    Path(Target),
+    Path(DataTarget),
 }
-fn valid(unit: &Unit<'_, '_, '_, '_>, target: Target) -> n::ResultStep {
+fn valid(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> n::ResultStep {
     if unit
         .stack
         .get(target.physical.frame)
@@ -193,7 +204,7 @@ fn valid(unit: &Unit<'_, '_, '_, '_>, target: Target) -> n::ResultStep {
         Err(bad())
     }
 }
-fn root(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<Target, c::Cause> {
+fn root(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<DataTarget, c::Cause> {
     let physical = unit
         .ledger
         .as_ref()
@@ -206,13 +217,17 @@ fn root(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<Target, c::Cause> {
         .cell(physical.cell)
         .map_err(fault)?
         .root();
-    Ok(Target {
+    Ok(DataTarget {
         physical,
         location,
         frame: unit.stack[physical.frame].handle,
     })
 }
-fn child(unit: &Unit<'_, '_, '_, '_>, target: Target, field: u32) -> Result<Target, c::Cause> {
+fn child(
+    unit: &Unit<'_, '_, '_, '_>,
+    target: DataTarget,
+    field: u32,
+) -> Result<DataTarget, c::Cause> {
     valid(unit, target)?;
     let store = unit.store.borrow();
     let location = store.pools[target.physical.frame]
@@ -220,9 +235,9 @@ fn child(unit: &Unit<'_, '_, '_, '_>, target: Target, field: u32) -> Result<Targ
         .map_err(fault)?
         .child(target.location, field, store.allocator)
         .map_err(fault)?;
-    Ok(Target { location, ..target })
+    Ok(DataTarget { location, ..target })
 }
-fn dereference(unit: &Unit<'_, '_, '_, '_>, target: Target) -> Result<Target, c::Cause> {
+fn dereference(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> Result<Target, c::Cause> {
     valid(unit, target)?;
     let store = unit.store.borrow();
     let token = store.pools[target.physical.frame]
@@ -242,7 +257,6 @@ fn dereference(unit: &Unit<'_, '_, '_, '_>, target: Target) -> Result<Target, c:
         return Err(bad());
     }
     let resolved = loan.target.ok_or_else(bad)?;
-    valid(unit, resolved)?;
     let types = unit
         .program
         .layout(unit.stack.last().unwrap().function)
@@ -256,22 +270,40 @@ fn dereference(unit: &Unit<'_, '_, '_, '_>, target: Target) -> Result<Target, c:
     else {
         return Err(bad());
     };
-    if types.equivalent(referent, resolved.location.ty()) != Some(true) {
-        return Err(bad());
+    match resolved {
+        Target::Data(value) => {
+            valid(unit, value)?;
+            if types.equivalent(referent, value.location.ty()) != Some(true) {
+                return Err(bad());
+            }
+        }
+        Target::Allocator => {
+            if !matches!(referent, o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor, o::Constructor::Builtin(o::Builtin::Allocator)))
+            {
+                return Err(bad());
+            }
+        }
     }
     Ok(resolved)
 }
-fn resolve(unit: &Unit<'_, '_, '_, '_>, place: &n::PlaceSite) -> Result<Target, c::Cause> {
-    let mut target = root(unit, place.root)?;
+
+fn resolve(unit: &Unit<'_, '_, '_, '_>, place: &n::PlaceSite) -> Result<DataTarget, c::Cause> {
+    data(resolve_reference(unit, place)?)
+}
+fn resolve_reference(
+    unit: &Unit<'_, '_, '_, '_>,
+    place: &n::PlaceSite,
+) -> Result<Target, c::Cause> {
+    let mut target = Target::Data(root(unit, place.root)?);
     for projection in &place.projections {
         target = match projection.kind {
-            ProjectionKind::Dereference => dereference(unit, target)?,
-            ProjectionKind::Field(field) => child(unit, target, field)?,
+            ProjectionKind::Dereference => dereference(unit, data(target)?)?,
+            ProjectionKind::Field(field) => Target::Data(child(unit, data(target)?, field)?),
         };
     }
     Ok(target)
 }
-fn referent(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<Target, c::Cause> {
+pub(super) fn referent(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<Target, c::Cause> {
     let target = root(unit, slot)?;
     let types = unit
         .program
@@ -283,12 +315,12 @@ fn referent(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<Target, c::Cause
     {
         dereference(unit, target)
     } else {
-        Ok(target)
+        Ok(Target::Data(target))
     }
 }
 fn copy_target(
     unit: &mut Unit<'_, '_, '_, '_>,
-    target: Target,
+    target: DataTarget,
     result: usize,
     span: m::Span,
 ) -> n::ResultStep {
@@ -321,7 +353,7 @@ pub(super) fn load(unit: &mut Unit<'_, '_, '_, '_>, site: &n::PlaceLoad) -> n::R
     )
 }
 pub(super) fn variant_case(unit: &mut Unit<'_, '_, '_, '_>, slot: usize) -> Result<u32, c::Cause> {
-    let target = referent(unit, slot)?;
+    let target = data(referent(unit, slot)?)?;
     let store = unit.store.borrow();
     store.pools[target.physical.frame]
         .cell(target.physical.cell)
@@ -333,18 +365,20 @@ pub(super) fn copy_field(
     unit: &mut Unit<'_, '_, '_, '_>,
     site: &n::CaseFieldSite,
 ) -> n::ResultStep {
-    let target = child(unit, referent(unit, site.source)?, site.field)?;
+    let target = child(unit, data(referent(unit, site.source)?)?, site.field)?;
     let span = unit.plan().cell_type(site.result).unwrap().span;
     copy_target(unit, target, site.result, span)
 }
-fn register(
+pub(super) fn register(
     unit: &mut Unit<'_, '_, '_, '_>,
     loan: b::LoanId,
     target: Target,
     result: usize,
     span: m::Span,
 ) -> n::ResultStep {
-    valid(unit, target)?;
+    if let Target::Data(value) = target {
+        valid(unit, value)?;
+    }
     let physical = Physical {
         frame: unit.depth(),
         cell: result,
@@ -393,7 +427,7 @@ pub(super) fn borrow(unit: &mut Unit<'_, '_, '_, '_>, site: &n::BorrowSite) -> n
     register(
         unit,
         site.loan,
-        resolve(unit, &site.place)?,
+        resolve_reference(unit, &site.place)?,
         site.result,
         site.span,
     )
@@ -402,8 +436,18 @@ pub(super) fn borrow_case(
     unit: &mut Unit<'_, '_, '_, '_>,
     site: &n::BorrowCaseSite,
 ) -> n::ResultStep {
-    let target = child(unit, referent(unit, site.field.source)?, site.field.field)?;
-    register(unit, site.loan, target, site.field.result, site.span)
+    let target = child(
+        unit,
+        data(referent(unit, site.field.source)?)?,
+        site.field.field,
+    )?;
+    register(
+        unit,
+        site.loan,
+        Target::Data(target),
+        site.field.result,
+        site.span,
+    )
 }
 pub(super) fn end(
     unit: &mut Unit<'_, '_, '_, '_>,
@@ -459,7 +503,7 @@ pub(super) fn discard(unit: &mut Unit<'_, '_, '_, '_>, id: Option<b::PreparedPla
         store.prepared[base..base + count].fill(None);
     }
 }
-fn owner_slot(unit: &Unit<'_, '_, '_, '_>, target: Target) -> Result<c::Slot, c::Cause> {
+fn owner_slot(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> Result<c::Slot, c::Cause> {
     valid(unit, target)?;
     let plan = unit
         .program
@@ -517,7 +561,7 @@ pub(super) fn replace(unit: &mut Unit<'_, '_, '_, '_>, site: &n::ReplaceSite) ->
                     .map_err(fault)?
                     .root();
                 (
-                    Target {
+                    DataTarget {
                         physical,
                         location,
                         frame: handle,
@@ -598,4 +642,42 @@ pub(super) fn replace(unit: &mut Unit<'_, '_, '_, '_>, site: &n::ReplaceSite) ->
             .retire_replaced(source_slot, old_span)
             .map_err(invariant)
     }
+}
+
+pub(super) fn buffer_token(
+    unit: &Unit<'_, '_, '_, '_>,
+    slot: usize,
+) -> Result<(Target, [u8; 32]), c::Cause> {
+    let target = referent(unit, slot)?;
+    let view = data(target)?;
+    let store = unit.store.borrow();
+    let token = store.pools[view.physical.frame]
+        .cell(view.physical.cell)
+        .map_err(fault)?
+        .read_token(view.location, store.allocator)
+        .map_err(fault)?
+        .bytes;
+    Ok((target, token))
+}
+pub(super) fn store_token(
+    unit: &mut Unit<'_, '_, '_, '_>,
+    target: Target,
+    token: [u8; 32],
+) -> n::ResultStep {
+    let view = data(target)?;
+    valid(unit, view)?;
+    let mut store = unit.store.borrow_mut();
+    let Store {
+        pools, allocator, ..
+    } = &mut *store;
+    let start = view.location.offset() as usize;
+    pools[view.physical.frame]
+        .cell(view.physical.cell)
+        .map_err(fault)?
+        .data_mut(allocator)
+        .map_err(fault)?
+        .get_mut(start..start + 32)
+        .ok_or_else(bad)?
+        .copy_from_slice(&token);
+    Ok(())
 }

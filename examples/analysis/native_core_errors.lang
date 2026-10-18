@@ -1,0 +1,28 @@
+// Recoverable errors preserve borrowed buffers; UTF-8 conversion consumes them.
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut invalid: core::Result<core::Unit, core::BufferError> = core::bytes_push(bytes, 256);
+    match invalid {
+        core::Result::Ok(_) => { return -1; },
+        core::Result::Err(_) => {},
+    }
+    if core::bytes_len(bytes) < 1 {} else { return -2; }
+    let mut outside: core::Result<i64, core::BoundsError> = core::bytes_get(bytes, -1);
+    match outside {
+        core::Result::Ok(_) => { return -3; },
+        core::Result::Err(_) => {},
+    }
+    let mut changed: core::Result<core::Unit, core::BufferError> = core::bytes_set(bytes, 0, 65);
+    match changed {
+        core::Result::Ok(_) => { return -4; },
+        core::Result::Err(_) => {},
+    }
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 255));
+    let mut text: core::Result<core::Text, core::Utf8Error> = core::text_from_utf8(bytes);
+    match text {
+        core::Result::Ok(_) => { return -5; },
+        core::Result::Err(_) => { return 1; },
+    }
+}

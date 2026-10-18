@@ -409,7 +409,7 @@ fn source_unused_owner_cleanup_precedes_native_return_publication() {
 #[test]
 fn unsupported_source_is_rejected_at_its_original_span() {
     let program = source(
-        "fn make() -> core::Bytes { return core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())); }",
+        "fn make() -> core::Vec<i64> { return core::result_unwrap::<core::Vec<i64>, core::AllocError>(core::vec_new::<i64>(core::allocator())); }",
     );
     let flow = program.failure_flow();
     let types = flow

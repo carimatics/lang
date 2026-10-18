@@ -1,0 +1,6 @@
+// Native core allocation, exclusive mutation, and shared read.
+fn main() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, 65));
+    return core::bytes_len(bytes);
+}
