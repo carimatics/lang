@@ -42,6 +42,15 @@ pub struct CallSite {
     pub span: m::Span,
 }
 
+/// Statically prepared record operands. Fields use declaration order; the
+/// separate initializer ledger preserves source evaluation order and spans.
+pub struct RecordSite {
+    pub result: usize,
+    pub fields: Vec<usize>,
+    pub initialization_order: Vec<(u32, m::Span)>,
+    pub span: m::Span,
+}
+
 /// Trusted prepared-frame primitives, not an instruction interpreter. Methods
 /// receive statically lowered slots/ranges. Implementations supply the shared
 /// runtime's ownership ledger, typed storage, control and cleanup services.
@@ -65,6 +74,12 @@ pub trait Runtime {
     fn record_failure(&mut self, cause: c::Cause, span: m::Span) -> ResultStep;
     fn retire_failure(&mut self) -> ResultStep;
     fn discard_result(&mut self) -> ResultStep;
+    /// Transfer prepared fields (copy Copy values, consume owners) into
+    /// admitted record storage and publish its cleanup obligation without
+    /// allocating or running guest code.
+    fn construct_record(&mut self, _: &RecordSite) -> ResultStep {
+        Err(c::Cause::Execution(c::ExecutionFailure::Invariant))
+    }
     fn frame_identity(&self) -> u64 {
         0
     }
@@ -136,7 +151,7 @@ pub struct Failure {
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 14;
+const HELPERS: usize = 15;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -148,6 +163,7 @@ enum Action {
     Move(usize, usize),
     Cleanup,
     Call,
+    Record,
 }
 struct Node {
     span: m::Span,
@@ -155,9 +171,10 @@ struct Node {
     cleanup: Vec<(usize, m::Span)>,
     raised: Option<c::ExecutionFailure>,
     call: Option<CallSite>,
+    record: Option<RecordSite>,
 }
 
-/// Initial production call boundary for straight-line whole-owner forwarding.
+/// Native call boundary for whole-owner forwarding and record construction.
 /// Other operations are diagnosed before invocation; this is not the complete
 /// ownership native execution mode. General moves/loans/core/control retain the
 /// M2-N02–N05 implementation and conformance obligations.
@@ -366,6 +383,7 @@ fn run<'c, 'a, R: Runtime>(
             prepare_call::<R>,
             after_return::<R>,
             after_failure::<R>,
+            construct_record::<R>,
         ],
     };
     let mut continuation = 0;
@@ -458,6 +476,9 @@ impl<'a> ObjectFunction<'a> {
     }
     pub fn call_site(&self, node: u32) -> Option<&CallSite> {
         self.nodes.get(node as usize)?.call.as_ref()
+    }
+    pub fn record_site(&self, node: u32) -> Option<&RecordSite> {
+        self.nodes.get(node as usize)?.record.as_ref()
     }
     pub fn cleanup(&self, node: u32) -> Option<&[(usize, m::Span)]> {
         self.nodes.get(node as usize).map(|n| n.cleanup.as_slice())
@@ -598,6 +619,7 @@ fn prepare<'a>(
             cleanup: Vec::new(),
             raised: None,
             call: None,
+            record: None,
         };
         match node.kind {
             f::Kind::Execute { site, .. } => {
@@ -617,6 +639,30 @@ fn prepare<'a>(
                     Ok(())
                 };
                 data.action = match &i.op {
+                    b::Op::Record {
+                        fields,
+                        initialization_order,
+                        ..
+                    } => {
+                        let mut operands = budget.vector(fields.len())?;
+                        for field in fields {
+                            budget.charge(1)?;
+                            operands.push(value(*field)?);
+                        }
+                        let mut order = budget.vector(initialization_order.len())?;
+                        let values = &typed(flow).places().functions()[function.0 as usize].values;
+                        for &field in initialization_order {
+                            budget.charge(1)?;
+                            order.push((field, values[fields[field as usize].0 as usize].span));
+                        }
+                        data.record = Some(RecordSite {
+                            result: value(i.results[0])?,
+                            fields: operands,
+                            initialization_order: order,
+                            span: i.span,
+                        });
+                        Some(Action::Record)
+                    }
                     b::Op::Move(from) => Some(Action::Move(value(*from)?, value(i.results[0])?)),
                     b::Op::MovePlace(place) => {
                         let place = &typed(flow).places().functions()[function.0 as usize].places
@@ -840,6 +886,15 @@ helper!(charge, ctx, _a, _b, node, {
 helper!(move_slot, ctx, a, b, node, {
     ctx.apply(node, |r, _, s| r.move_slot(a as usize, b as usize, s))
 });
+helper!(construct_record, ctx, _a, _b, node, {
+    ctx.apply(node, |r, p, _| {
+        let record = p.nodes[node as usize]
+            .record
+            .as_ref()
+            .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+        r.construct_record(record)
+    })
+});
 helper!(cleanup, ctx, _a, _b, node, {
     ctx.apply(node, |r, p, _| r.cleanup(&p.nodes[node as usize].cleanup))
 });
@@ -1036,6 +1091,7 @@ fn emit<M: Module>(
                     match nodes[index].action.expect("preflighted instruction") {
                         Action::Move(from, to) => Some((call(2, from, to), next, failure)),
                         Action::Cleanup => Some((call(3, 0, 0), next, failure)),
+                        Action::Record => Some((call(14, 0, 0), next, failure)),
                         Action::Call => {
                             let status = call(11, 0, 0);
                             let dispatch = b.create_block();

@@ -132,7 +132,7 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-The Rust native embedding boundary executes [source Bytes parameters/returns](examples/analysis/native_owned_boundary.lang) and [owned guest calls](examples/analysis/native_owned_calls.lang) through generated machine code. Run `cargo test --test native_owned_boundary` for live-value, call/return, failure cleanup, admission, poison and compilation-budget checks. Whole-unit dispatch uses logical frames and shared managed storage; the object API emits matching Mach-O/COFF code and in-memory metadata. General native operations, services, object linking/execution and the CLI driver remain milestone work. See [the boundary's scope](docs/architecture.md#native-whole-owner-boundary), updated/verified 2026-10-19 JST.
+The Rust native embedding boundary executes [source Bytes parameters/returns](examples/analysis/native_owned_boundary.lang), [owned guest calls](examples/analysis/native_owned_calls.lang) and [owned record construction](examples/analysis/native_owned_records.lang) through generated machine code. Run `cargo test --test native_owned_boundary` for live values, VM/native record cleanup order, calls/returns, failure cleanup, admission, poison and compilation budgets. Whole-unit dispatch uses logical frames and shared managed storage; the object API emits matching Mach-O/COFF code and in-memory metadata. General native operations, services, object linking/execution and the CLI driver remain milestone work. See [the boundary's scope](docs/architecture.md#native-whole-owner-boundary), updated/verified 2026-10-19 JST.
 
 ## Design process
 

@@ -184,6 +184,72 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             .cleanup_slots(slots.iter().map(|(slot, _)| c::Slot(base + slot)))
             .map_err(invariant)
     }
+    fn construct_record(&mut self, record: &n::RecordSite) -> n::ResultStep {
+        let target = Physical {
+            frame: self.depth(),
+            cell: record.result,
+        };
+        let base = self.depth() * self.stride;
+        let ledger = self.ledger.as_mut().unwrap();
+        let mut store = self.store.borrow_mut();
+        let Store {
+            pools, allocator, ..
+        } = &mut *store;
+        let types = self
+            .program
+            .layout(self.stack.last().unwrap().function)
+            .unwrap()
+            .source()
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types();
+        // Check every source and target before writing order or consuming any
+        // owner. The following storage moves have no external failure point.
+        for (field, slot) in record.fields.iter().enumerate() {
+            let source = *ledger.value(c::Slot(base + slot)).map_err(invariant)?;
+            if source.frame != target.frame {
+                return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
+            }
+            let input = pools[source.frame]
+                .cell(source.cell)
+                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+            let output = pools[target.frame].cell(target.cell).unwrap();
+            let child = output
+                .child(output.root(), field as u32, allocator)
+                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+            if types.equivalent(input.root().ty(), child.ty()) != Some(true) {
+                return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
+            }
+        }
+        let output = pools[target.frame].cell(target.cell).unwrap();
+        output
+            .initialize_order(
+                output.root(),
+                record.initialization_order.iter().copied(),
+                allocator,
+            )
+            .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+        for (field, slot) in record.fields.iter().enumerate() {
+            let source = *ledger.value(c::Slot(base + slot)).map_err(invariant)?;
+            let (input, output) = pools[target.frame]
+                .two_cells_mut(source.cell, target.cell)
+                .unwrap();
+            let child = output
+                .child(output.root(), field as u32, allocator)
+                .unwrap();
+            input
+                .move_root_into(output, child, allocator)
+                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+            ledger.take_owner(c::Slot(base + slot)).map_err(invariant)?;
+        }
+        ledger
+            .initialize(c::Slot(base + record.result), target, Some(record.span))
+            .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))
+    }
     fn stage_return(&mut self, slot: usize, _: m::Span) -> n::ResultStep {
         let slot = self.slot(slot);
         let source = *self
@@ -530,6 +596,166 @@ fn execute_unit(
 }
 
 const CALLS: &str = include_str!("../../examples/analysis/native_owned_calls.lang");
+const RECORDS: &str = include_str!("../../examples/analysis/native_owned_records.lang");
+
+struct MarkerProvider {
+    retired: Rc<RefCell<Vec<usize>>>,
+    trace: Rc<RefCell<Trace>>,
+}
+const RECORD_MARKER: [u8; 7] = [251, 211, 97, 182, 208, 173, 234];
+impl a::Provider for MarkerProvider {
+    type Region = a::Storage;
+    fn allocate(&mut self, request: a::Request) -> Option<a::Storage> {
+        let region = a::Storage::try_new(request).ok()?;
+        self.trace.borrow_mut().allocated += 1;
+        Some(region)
+    }
+    fn deallocate(&mut self, region: a::Storage, _: a::Request) {
+        use a::Region;
+        // Observe complete guest payload tags through the provider boundary;
+        // no buffer-header size, token representation or alignment is assumed.
+        for marker in region
+            .bytes()
+            .windows(8)
+            .filter(|w| w[..7] == RECORD_MARKER)
+        {
+            let mut retired = self.retired.borrow_mut();
+            assert!(retired.len() < retired.capacity());
+            retired.push(usize::from(marker[7]));
+        }
+        self.trace.borrow_mut().released += 1;
+    }
+}
+fn vm_record_order(text: &str, arguments: usize) -> Vec<usize> {
+    let mut wrapped = text.to_owned();
+    wrapped.push_str("\nfn main() -> i64 {\n");
+    for i in 0..arguments {
+        wrapped.push_str(&format!(
+            "let mut v{i}: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));\n",
+        ));
+        for (j, byte) in RECORD_MARKER
+            .into_iter()
+            .chain(std::iter::once(i as u8))
+            .enumerate()
+        {
+            wrapped.push_str(&format!("let mut pushed{i}_{j}: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(v{i}, {byte}));\n"));
+        }
+    }
+    let names = (0..arguments)
+        .map(|i| format!("v{i}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    wrapped.push_str(&format!(
+        "let mut kept: core::Bytes = relay({names}); return core::bytes_len(kept); }}\n"
+    ));
+    let program = source(&wrapped);
+    let retired = Rc::new(RefCell::new(Vec::with_capacity(arguments)));
+    let trace = Rc::new(RefCell::new(Trace::default()));
+    let mut allocator = a::Allocator::new(
+        MarkerProvider {
+            retired: retired.clone(),
+            trace: trace.clone(),
+        },
+        Default::default(),
+    )
+    .unwrap();
+    let mut instance = c::Instance::default();
+    let outcome = lang_vm::unit::owned::execute_entry(
+        program.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 8);
+    assert_eq!(allocator.stats().live_bytes, 0);
+    assert_eq!(trace.borrow().allocated, trace.borrow().released);
+    drop(allocator);
+    Rc::try_unwrap(retired).unwrap().into_inner()
+}
+
+#[test]
+fn source_native_owned_records_keep_initializer_order_through_calls_and_failures() {
+    let values: &[&[u8]] = &[b"first", b"second", b"kept"];
+    let normal = execute_unit(RECORDS, values, None, 4, 1000, None, false);
+    assert_eq!(normal.value.as_deref(), Some(values[2]));
+    assert_eq!(normal.retired, [0, 1], "reverse source initializer order");
+    let mut native_order = normal.retired.clone();
+    native_order.push(2); // The caller releases the returned Bytes last.
+    assert_eq!(native_order, vm_record_order(RECORDS, 3));
+    for fuel in 0..normal.fuel {
+        let failed = execute_unit(RECORDS, values, Some(fuel), 4, 1000, None, false);
+        assert!(failed.value.is_none());
+        assert_eq!(failed.fuel, fuel);
+        let mut retired = failed.retired;
+        retired.sort_unstable();
+        assert_eq!(
+            retired,
+            [0, 1, 2],
+            "every owner is retired once at fuel {fuel}"
+        );
+        assert!(failed.report.secondary().is_empty());
+    }
+    for request in 1..=normal.requests {
+        let failed = execute_unit(RECORDS, values, None, 4, 1000, Some(request), false);
+        let mut retired = failed.retired;
+        retired.sort_unstable();
+        assert_eq!(retired, [0, 1, 2]);
+        assert!(failed.value.is_none());
+    }
+    let failed = execute_unit(RECORDS, values, None, 4, 1000, None, true);
+    assert!(failed.value.is_none());
+    assert_eq!(failed.retired, [0, 1, 2]);
+}
+
+#[test]
+fn nested_native_records_match_vm_for_each_inner_and_outer_initializer_order() {
+    let template = "struct Inner { first: core::Bytes, second: core::Bytes }\n\
+        struct Outer { pair: Inner, third: core::Bytes }\n\
+        fn relay(first: core::Bytes, second: core::Bytes, third: core::Bytes, kept: core::Bytes) -> core::Bytes {\n\
+            return sink(Outer { $OUTER }, kept);\n\
+        }\n\
+        fn sink(unused: Outer, kept: core::Bytes) -> core::Bytes { return kept; }\n";
+    let values: &[&[u8]] = &[b"A", b"B", b"C", b"D"];
+    for inner_reversed in [false, true] {
+        for outer_reversed in [false, true] {
+            let inner = if inner_reversed {
+                "second: second, first: first"
+            } else {
+                "first: first, second: second"
+            };
+            let outer = if outer_reversed {
+                "third: third, pair: Inner { $INNER }"
+            } else {
+                "pair: Inner { $INNER }, third: third"
+            };
+            let text = template.replace("$OUTER", outer).replace("$INNER", inner);
+            let normal = execute_unit(&text, values, None, 4, 1000, None, false);
+            assert_eq!(normal.value.as_deref(), Some(values[3]));
+            let mut expected = if inner_reversed {
+                vec![0, 1]
+            } else {
+                vec![1, 0]
+            };
+            if outer_reversed {
+                expected.push(2);
+            } else {
+                expected.insert(0, 2);
+            }
+            assert_eq!(normal.retired, expected);
+            expected.push(3);
+            assert_eq!(expected, vm_record_order(&text, 4));
+            for fuel in 0..normal.fuel {
+                let failed = execute_unit(&text, values, Some(fuel), 4, 1000, None, false);
+                let mut retired = failed.retired;
+                retired.sort_unstable();
+                assert_eq!(retired, [0, 1, 2, 3]);
+                assert!(failed.value.is_none());
+                assert!(failed.report.secondary().is_empty());
+            }
+        }
+    }
+}
 #[test]
 fn source_owned_guest_calls_return_and_unwind_all_native_continuations() {
     let values: &[&[u8]] = &[b"kept", b"child", b"parent"];
@@ -605,8 +831,13 @@ fn recursive_native_calls_use_logical_frames_and_contain_the_frame_limit() {
 
 #[test]
 fn owned_native_objects_keep_matching_call_layout_and_source_metadata() {
+    for text in [CALLS, RECORDS] {
+        check_native_object_metadata(text);
+    }
+}
+fn check_native_object_metadata(text: &str) {
     use object::{Object, ObjectSymbol};
-    let source = source(CALLS);
+    let source = source(text);
     let flow = source.failure_flow();
     let types = flow
         .source()
@@ -622,6 +853,7 @@ fn owned_native_objects_keep_matching_call_layout_and_source_metadata() {
         let artifact =
             n::emit_object_for_target(flow, &layouts, &target, Default::default(), 1000).unwrap();
         let object = object::File::parse(&*artifact.bytes).unwrap();
+        let mut record_sites = 0;
         for index in 0..flow.functions().len() {
             let function = artifact.function(m::FunctionId(index as u32)).unwrap();
             let metadata = function.metadata();
@@ -651,6 +883,24 @@ fn owned_native_objects_keep_matching_call_layout_and_source_metadata() {
             }
             for (node, source) in flow.functions()[index].nodes().iter().enumerate() {
                 assert_eq!(function.span(node as u32), Some(source.span));
+                if let Some(record) = function.record_site(node as u32) {
+                    record_sites += 1;
+                    assert_eq!(record.span, source.span);
+                    assert_eq!(record.fields.len(), 2);
+                    assert_eq!(
+                        record
+                            .initialization_order
+                            .iter()
+                            .map(|(field, _)| *field)
+                            .collect::<Vec<_>>(),
+                        [1, 0]
+                    );
+                    for ((_, span), expected) in
+                        record.initialization_order.iter().zip(["second", "first"])
+                    {
+                        assert_eq!(&text[span.start as usize..span.end as usize], expected);
+                    }
+                }
             }
         }
         let root = artifact.function(m::FunctionId(0)).unwrap();
@@ -662,6 +912,7 @@ fn owned_native_objects_keep_matching_call_layout_and_source_metadata() {
         assert_eq!(calls[0].arguments.len(), 2);
         assert!(root.continuations().contains(&calls[0].resume));
         assert!(root.continuations().contains(&calls[0].failure));
+        assert_eq!(record_sites, usize::from(text == RECORDS));
         let usage = artifact.usage();
         for (exact, short) in [
             (

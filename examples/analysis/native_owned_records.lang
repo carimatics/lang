@@ -1,0 +1,10 @@
+// Owned record construction and transfer through the native embedding boundary.
+// Check: cargo run -- check examples/analysis/native_owned_records.lang
+// Execute: cargo test --test native_owned_boundary source_native_owned_records
+struct Owners { first: core::Bytes, second: core::Bytes }
+fn relay(first: core::Bytes, second: core::Bytes, kept: core::Bytes) -> core::Bytes {
+    return sink(Owners { second: second, first: first }, kept);
+}
+fn sink(unused: Owners, kept: core::Bytes) -> core::Bytes {
+    return kept;
+}
