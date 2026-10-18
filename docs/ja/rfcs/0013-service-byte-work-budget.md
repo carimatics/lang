@@ -79,7 +79,9 @@ Eventが依存するallocation／copy／scanより先にadmitします。複数�
 
 ## 実行モード
 
-Instrumented VM／native AOT／owned JITはeventとservice_workを共有します。未計量のeventがあるbackendは有限設定をeffect前に拒否し、対応prefixだけの実行やVMへの置換をしてはいけません。Uninstrumented Copyは別API／profileです。
+Instrumented VM／native AOT／owned JITはeventとservice_workを共有します。有限設定では、effect前に検証済みunit全体の完全な計量を確認します。VM／native共通のcapability判定で、未使用関数を含む全関数を調べます。未計量のservice eventが必要なunitは拒否し、対応prefixだけの実行やVMへの置換をしてはいけません。動的service targetは解決して検査するか拒否します。既存のtrustedなopaque host callbackの適用除外は維持します。Uninstrumented Copyは別API／profileです。
+
+段階的な実装では、完全に計量済みのservice familyだけを使うunitを受理できます。Backend全体の対応完了を意味せず、N05では全managed family、全payload、driver／reportの移行、完全なconformance matrixが引き続き必要です。Text tokenの復号はUTF-8検証を行うため、その後の操作がheader参照だけでもscanを課金します。
 
 Opaqueなtrusted host callbackはhost-call課金を残し、引数から任意workを推定しません。同じcontextのowned serviceを使うcallbackはmeterを引き継ぎます。FFI／componentの伝播は明示的なversion付きcontextに限り、このRust APIで別component内部を自動計量しません。
 
@@ -133,6 +135,10 @@ Fuel・memory・局所inspection quotaを補完し、CPU work全体、allocator�
 2026-10-19 JST、実験段階の委任に基づきacceptedとしました。Blockingな設計課題はありません。共通runtime eventで式の分岐を防ぎ、局所check後にcounterをcommitし、既知のgrow／copy依存costをhandle変更前にまとめてadmitし、terminal failure後も必須cleanupを行えます。Rustの移行と閉じたschemaの規則により、source型やfuelを変えずに互換性を扱います。
 
 未検証の仮説は全eventの網羅、全仮resource経路の安全な統合、overheadの測定です。N05で検証し、実装完了／安定化は主張しません。既存Map testは実現性の裏付けに限定します。後で契約を変更する場合は、実装前に明示的なRFC改訂／後続RFCを行います。
+
+### 受理条件の改訂 — 2026-10-19
+
+Buffer統合prototypeのレビュー後、実験段階の委任に基づきacceptedとしました。Unit全体で受理を判断することで、未対応programをeffect前に拒否する規則を保ち、独立して検証可能な進捗を得られます。最後のfamilyの計量まで全unitを拒否する案と比較して、cost契約を弱めずに受理するprogram集合を限定します。全関数の検査により、実行された経路に依存しません。共通判定と有限予算・未使用関数・failure span・cleanupのend-to-end testを実装で要求し、prototypeの実現性だけではN05を完了しません。Source構文、serialized format、cost-profile eventは変更しません。この明示的な改訂をproduction統合commitに先行させます。
 
 ## 情報源
 

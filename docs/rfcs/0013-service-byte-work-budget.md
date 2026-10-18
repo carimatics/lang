@@ -79,7 +79,9 @@ Typing, inference, evaluation order, loans, arena brands, concurrency and capabi
 
 ## Execution modes
 
-Instrumented VM/native AOT/owned JIT share events and service_work. An incompletely metered backend rejects finite configuration before effects, without running a supported prefix or substituting VM execution. Uninstrumented Copy remains a distinct API/profile.
+Instrumented VM/native AOT/owned JIT share events and service_work. Before effects, finite configuration requires complete metering for the entire verified unit: inspect every function, including unused functions, with a shared VM/native capability predicate. Reject a unit that requires any unmetered service event; do not run a supported prefix or substitute VM execution. Dynamic service targets must be resolved and checked or rejected. The existing trusted opaque host-callback exemption remains. Uninstrumented Copy remains a distinct API/profile.
+
+During rollout, a backend may admit a unit using only fully metered service families. This does not establish full backend support: N05 still requires all managed families, all payloads, driver/report migration, and the complete conformance matrix. Text token decoding performs UTF-8 validation and must charge that scan even when the following operation only reads a header.
 
 Opaque trusted host callbacks retain host-call charging; arbitrary host work is not inferred from arguments. Callbacks using owned services in the same context forward the meter. FFI/components propagate budgets only through explicit versioned contexts; this Rust API does not automatically meter another component's internals.
 
@@ -133,6 +135,10 @@ Optional follow-ups: measure event-check overhead and evaluate later cost profil
 Accepted under experimental delegation on 2026-10-19 JST. No blocking design question remains: shared runtime events avoid divergent formulas; local checks precede counter commits; known dependent growth/copy costs are batched before handle mutation; terminal failure leaves mandatory cleanup available. The explicit Rust migration and closed-schema rule cover compatibility without changing source typing or fuel.
 
 Unverified assumptions are implementation coverage, safe integration of every provisional-resource path, and measured overhead. These remain N05 validation obligations, not claims of implementation or stabilization. Existing Map boundary tests support feasibility only. A later contract change requires an explicit RFC revision/follow-up before implementation.
+
+### Admission amendment — 2026-10-19
+
+Accepted under experimental delegation after reviewing the buffer integration prototype. Whole-unit admission permits independently verifiable progress while preserving rejection before effects for unsupported programs. Compared with rejecting every unit until the last family is metered, this narrows the admitted program set without weakening the cost contract. Inspecting all functions avoids dependence on executed paths. The shared predicate and end-to-end finite-budget, unused-function, failure-span, and cleanup tests are implementation obligations; prototype feasibility alone does not close N05. No source syntax, serialized format, or cost-profile event changes. This explicit amendment precedes the production integration commit.
 
 ## Sources
 
