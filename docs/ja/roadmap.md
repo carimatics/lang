@@ -8,7 +8,11 @@
 
 ## 現在のM2実装状況
 
-**検証済み90件 · 進行中0件 · 残り23件（暫定52 pt）。**
+**検証済み91件 · 進行中0件 · 残り23件（暫定54 pt）。**
+
+N18完了監査（2026-10-19 JST）：source／保存artifact／REPLのCLIで--service-work Nを実装（初期1点、419f6ac）。37単位のfixtureは67を返し、拒否時の数値・guest frame・元のsource、REPLの投稿ごとのresetと回復を検証しました。従来のfuel／host-call表示を維持してservice usageを追加し、公開Rust Limitsと既存artifact schemaは変更しません。CLI／reportの現行format監査を完了し、N05にはmanaged全family／payload、native failure／returnと必要なreport移行、完全なconformanceを維持します。関連driver 68 test、新規CLI 4 test、全workspace 1,393 test／86 suite、fmt／Clippy／rustdoc成功。**90 → 91 done、55 → 54 pt**。着手前監査の追加3点と今回の消化1点は別計上し、このiteration全体では **52 + 3 − 1 = 54 pt**、追加分合計63点、完了で取り除いた見積もり143点です。Gateは5/18のままで、native objectのlink／実行やmanaged統合の完了は主張しません。
+
+N05着手前監査／N18分離（2026-10-19 JST）：CLIで--service-work 37を指定するとunknown optionでexit 2となることを実行確認しました。Map／Vec／Shared／Arenaの4 runtime fileだけでも公開methodは74件あり、payloadの走査・copyとVM／nativeの接続、CLI／reportを暫定1点にまとめた見積もりは維持しません。N18のCLI／report監査を初期1点（doing）、N05のmanaged統合と全体conformanceを暫定3点とし、旧合計1 → 4点（+3）へ明示的に見直します。API数は工数の換算率ではありません。**113 → 114行、52 → 55 pt**、追加見積もり**60 → 63点**。N05の全service／payload、nativeのfailure／return、version付きreport移行、完全なVM／native conformance要件は維持し、managed eventの実装前監査を引き続き必要とします。
 
 N17完了監査（2026-10-19 JST）：共通Bytes／Text計量とVM／nativeの有限予算programを実装（初期配分1点、085700c）。RFC 0013のunit全体の受理条件を先に明示改訂（143decc）し、未使用関数も含めた未対応eventをeffect前に拒否します。6 programの全予算prefixとguest callを検証し、fixtureは37単位で67を返します。Runtime境界test 3件、native 53件、全workspace 1389件／85 suite、fmt／Clippy／rustdoc成功。**89 → 90 done、53 → 52 pt**、追加見積もりは**60点のまま**、完了で取り除いた見積もりは**142点**。N05には全managed／payload・driver／CLI／report移行・完全なconformanceを残し、暫定1点は着手前に監査します。元のgateは5/18のままです。
 
