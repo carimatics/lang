@@ -61,6 +61,10 @@ Charge once at the shared runtime boundary; wrappers must not duplicate an event
 
 Both backends use identical events within a cost-profile revision. Event changes require an explicit RFC revision and compatibility note.
 
+For typed transfers, the data extent is the shared runtime Layout::size, including canonical inline padding and inactive variant storage. Separate initialization/order/retirement metadata is excluded. Moving one standalone core token is a fixed handle transfer and costs zero; copying an active collection's bulk data charges active length times its data stride, including stored handles, while spare collection capacity is excluded. A replacement charges each logical typed transfer, without counting an implementation's temporary swap buffer as another transfer. This permits checked whole-batch admission before allocation/publication without first walking payloads to estimate a smaller size.
+
+Managed payload validation/inspection and reads through managed service views charge one unit per observed payload node; fixed cursor/tag/header checks and guest-frame marshalling do not create additional service events. A view's bulk typed copy charges its data extent. Both adapters must select matching logical runtime operations and forward one invocation meter through loans/views. Shared input checks and internal metadata revalidation must not duplicate one logical validation event; distinct publication/graph traversals still charge again. Mandatory retirement and all of its internal views remain unmetered.
+
 ### Admission and failure
 
 Keep existing guest-step polling/fuel positions; the service meter adds no polls. Perform preceding fixed input/header/type/brand/bounds checks, calculate the event's units and admitted + requested with checked arithmetic, then compare the finite limit. Overflow yields CounterOverflow; exceeding the limit yields ServiceWorkLimit { limit, used, requested }. Refusal executes no part of that event and does not increment service_work. Earlier admitted work is not refunded after later refusal, provider failure or a recoverable data error. Unbounded execution still counts work and checks overflow.
@@ -143,6 +147,10 @@ Unverified assumptions are implementation coverage, safe integration of every pr
 ### Admission amendment — 2026-10-19
 
 Accepted under experimental delegation after reviewing the buffer integration prototype. Whole-unit admission permits independently verifiable progress while preserving rejection before effects for unsupported programs. Compared with rejecting every unit until the last family is metered, this narrows the admitted program set without weakening the cost contract. Inspecting all functions avoids dependence on executed paths. The shared predicate and end-to-end finite-budget, unused-function, failure-span, and cleanup tests are implementation obligations; prototype feasibility alone does not close N05. No source syntax, serialized format, or cost-profile event changes. This explicit amendment precedes the production integration commit.
+
+### Typed-transfer amendment — 2026-10-19
+
+Accepted under experimental delegation during N05's runtime audit. Shared typed extents provide a deterministic VM/native cost without an unadmitted active-field prewalk. Charging allocation sizes would include spare capacity/initialization excluded by this RFC; summing active fields would require a separate metered traversal and a more complex transactional plan. The chosen rule preserves the existing buffer events and 37-unit fixture, adds no serialized field/tag, and is recorded before managed finite-budget profiles are enabled. The shared counter/atomic-quota prototype supports feasibility only. Typed copy/growth/replacement boundaries, loan/view propagation, prefix refusal, numeric errors, and VM/native equivalence remain implementation obligations; this amendment does not close N05.
 
 ## Sources
 

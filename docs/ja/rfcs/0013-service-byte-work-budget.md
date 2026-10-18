@@ -61,6 +61,10 @@ Cost profile 1は論理event数で、実時間や物理memory trafficではあ�
 
 同じcost-profile revisionで両backendのeventを一致させます。Event変更には明示的なRFC改訂と互換性注記が必要です。
 
+型付き転送のdata範囲は共通runtimeのLayout::sizeとし、canonicalなinline paddingと未使用variant領域を含めます。別領域の初期化／順序／破棄metadataは除外します。単独のcore tokenの移動は固定handle転送として0単位です。一方、collectionのbulk data copyは格納handleも含む使用中の長さ×data strideを課金し、余剰capacityを除外します。置換では論理的な型付き転送をそれぞれ課金し、実装上のswap用一時bufferを追加の転送として数えません。小さい見積もりのためにpayloadを先に走査せず、allocation／公開前にcheckedなbatch全体を受理できます。
+
+Managed payloadの検証／検査とservice view経由のreadでは、観測したpayload nodeごとに1単位を課金します。固定cursor／tag／headerの検査やguest-frameのmarshallerは追加のservice eventにしません。Viewの型付きbulk copyはdata範囲を課金します。両adapterは一致する論理runtime操作を使い、loan／viewへ同じinvocation meterを引き継ぎます。共通の入力検査と内部metadata再検証で1つの論理検証eventを二重課金せず、別のpublication／graph traversalは再び課金します。必須retirementとその内部viewは課金しません。
+
 ### Admissionとfailure
 
 既存guest-stepのpolling／fuel位置を維持し、service meterでpollを増やしません。先行する固定の入力／header／型／brand／bounds検査を行い、event単位とadmitted + requestedをchecked arithmeticで求め、有限上限と比較します。OverflowはCounterOverflow、上限超過はServiceWorkLimit { limit, used, requested }です。拒否したeventは一部も実行せず、service_workを増やしません。後続拒否、provider failure、recoverable data errorでもadmit済みworkは返金しません。無制限でも計数とoverflow検査を行います。
@@ -143,6 +147,10 @@ Fuel・memory・局所inspection quotaを補完し、CPU work全体、allocator�
 ### 受理条件の改訂 — 2026-10-19
 
 Buffer統合prototypeのレビュー後、実験段階の委任に基づきacceptedとしました。Unit全体で受理を判断することで、未対応programをeffect前に拒否する規則を保ち、独立して検証可能な進捗を得られます。最後のfamilyの計量まで全unitを拒否する案と比較して、cost契約を弱めずに受理するprogram集合を限定します。全関数の検査により、実行された経路に依存しません。共通判定と有限予算・未使用関数・failure span・cleanupのend-to-end testを実装で要求し、prototypeの実現性だけではN05を完了しません。Source構文、serialized format、cost-profile eventは変更しません。この明示的な改訂をproduction統合commitに先行させます。
+
+### 型付き転送の改訂 — 2026-10-19
+
+N05のruntime監査中、実験段階の委任に基づきacceptedとしました。共通の型付き範囲により、受理前のactive-field走査をせずVM／nativeで決定的なcostを得られます。Allocation sizeの課金は本RFCが除外する余剰capacity／初期化を含み、active fieldの合計は別の計量付き走査と複雑なtransaction planを必要とします。本案は既存buffer eventと37単位のfixtureを維持し、serialized field／tagを追加せず、managedの有限予算profileを有効にする前に記録します。共通counterとatomic quotaのprototypeは実現性の裏付けに限定します。型付きcopy／grow／置換境界、loan／viewへの伝播、prefix拒否、数値付きerror、VM／native一致は実装で検証する必要があり、本改訂だけではN05を完了しません。
 
 ## 情報源
 
