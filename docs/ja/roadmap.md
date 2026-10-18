@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み77件 · 進行中1件 · 残り26件（暫定66 pt）。**
+**検証済み78件 · 進行中0件 · 残り26件（暫定63 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N01はdoingです。`41d7e67` で実sourceのBytes引数／返り値境界がnative codeと共有storage／cleanupで動き、新5 testでfuel／cleanup／poison／panic／source範囲／budgetを検証しました。全 **85 suite・1334 test** とfmt／Clippy／docが成功しました。Whole-unit context／遷移検証、guest-call／return dispatch、対応object／metadata出力はN01に残り、暫定3 ptです。次は2関数native実験を実行し、新しい前提が実証されたら実装前に再見積もりします。このcheckpointで必須の最初のownership source fixtureを実証しましたが、N01も完了条件も閉じません。完了77行（受入条件の数値が最後に動いてから51件）、元のnative／FFI／platform／performance／debug要件、最終英日guideは維持します。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N01は完了です。`0ff2618` で実sourceのBytes guest call／returnと失敗unwindがnative code／共有storageで動き、遷移を検証し、対応するMach-O／COFF objectとmetadataを出力します。全 **85 suite・1339 test** とfmt／Clippy／docが成功しました。**77 → 78件完了 · 66 → 63 remaining pt**、task総数104件は不変で、収支は **134 + 46 − 117 = 63 pt** です。次はN02の最小aggregate／loan source実験をVMと比較して実装scopeを確定します。完了78行（受入条件の数値が最後に動いてから52件）、元のnative／FFI／platform／performance／debug要件、最終英日guideは維持します。G14と元の完了条件の数値は変更しません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 

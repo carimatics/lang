@@ -6,31 +6,31 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**77 done · 1 doing · 26 todo · 66 remaining pt**
+**78 done · 0 doing · 26 todo · 63 remaining pt**
 
-**次: M2-N01 → 検証済みsource Bytes境界を基にwhole-unit context／dispatchとobject接続を完了。**
+**次: M2-N02 → 最小のaggregate／loan source fixtureをnative loweringとVMで比較し、実装scopeを確定。**
 
-**現在の作業 — N01**（`41d7e67`、2026-10-19 JST）：実sourceのBytes引数／返り値が、生成native codeと共有runtime storage／cleanupで動きました。新5 testでfuel prefix、公開前cleanup、poison／再entry、callback／panic payloadの封じ込め、source範囲、compile budgetの厳密境界を検証し、全 **85 suite・1334 test** とfmt／Clippy／docが成功しました。**N01はdoingを維持**します。Whole-unitの準備済みcontext／遷移検証、guest-call／return dispatch、対応するobject／metadata出力が残っています。残り3点はこれら具体的な残taskの暫定値で、次の2関数native実験に基づき再見積もりし、独立した前提があれば実装前に明示します。必須ownership source fixtureは実証できましたが、このcheckpointでは実装行も完了条件も閉じません。
+**直近の完了 — N01**（`0ff2618`、2026-10-19 JST）：実sourceのBytesがnative guest call／returnを通り、失敗時も順序を守ってunwindします。Whole-unit dispatchでfunction／frame／continuation identityを検証し、Mach-O／COFF objectに対応するlayout・source metadataを保持します。境界test 10件と全 **85 suite・1339 test**、fmt／Clippy／docが成功しました。**77 → 78 done · 66 → 63 remaining pt**、**task総数104件は不変**です。N01は完了し、native operation／service全体、platformのlink／実行、G14は未完了です。
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 77件（+42件）**、作業一覧は **87 → 104件（+17件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 78件（+43件）**、作業一覧は **87 → 104件（+17件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +46 pt | −114 pt | 66 pt |
+| 134 pt | +46 pt | −117 pt | 63 pt |
 
-**134 + 46 − 114 = 66 pt**
+**134 + 46 − 117 = 63 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり114点分を取り除く一方、前提作業の可視化と再見積もりで46点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り66点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり117点分を取り除く一方、前提作業の可視化と再見積もりで46点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り63点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-直近の完了：**M2-N08**（`dc3df29`）。[RFC 0012](rfcs/0012-native-ownership-continuations.md) をacceptedとし、native継続packetを検証しました。2つの生成関数で1,000回のcall／return列を実行し、各列で42を計算し、不活性な32 byte dataを維持し、不正継続をstate／output effectの前に拒否します。Mach-O／COFF objectに両compiled symbolがあります。全 **84 suite・1329 test** とfmt／Clippy／docが成功しました。前提作業2点の追加と完了を明示し、**残り66 → 68 → 66 pt**、**done 76 → 77件**、**計103 → 104行**です。ABIの実現性を示すもので、live ownership／source loweringと実Windows実行は未完了です。N01では実sourceのBytes引数／返り値境界を届けてからnative基盤を追加します。
+N01はtaskやscopeを増やさず、最後の見積もり3点を完了しました。Task総数は104件を維持します。
 
-直近code baselineの実測（2026-10-19 JST）：workspace Clippy **26.5秒**、全testの実時間 **427.2秒**（shell time）、rustdoc **17.9秒**。Cargoが報告するtest compileは**32.6秒**、suite時間合計は**76.7秒**です。新source境界5 testはfocused実行で**0.04秒**で成功しました。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では既存 `repository_consistency` suiteを実行します。
+直近code baselineの実測（2026-10-19 JST）：Cargo報告のworkspace Clippyは **25.7秒**、全testの実時間は **333.0秒**（shell time）、rustdocは **13.8秒**。Cargoが報告するtest compileは **26.9秒**、suite時間合計は **76.7秒** です。Native境界10 testはfocused実行で **0.20秒** で成功しました。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では既存 `repository_consistency` suiteを実行します。
 
 現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Native N03／N04／N05とownership artifactはevidenceが必要で、source統合だけでexit gateを閉じません。
 
-次の着手条件（2026-10-18 JST）：A03でA01／A02後に必須としたloaded source fixtureを完了しました。N01の前提V07／A02は完了済みです。現native全体入口はCopyの`VerifiedUnit`をprivateな2 pointer／i32 status conventionで受け取り、ownership failure MIRには未対応です。次は受理済みABI／runtime layout契約を監査し、最小の生成native call／layout実験を行います。その結果まではN01を暫定3 ptとし、必要なら実装前に明示的RFC決定と独立bridge前提の公開・再見積もりを行います。V17はpreview follow-upが必要です。Native／FFI／platform／conformance／性能／debug全成果とZ01の日英guideを維持し、新exit gateは閉じません。
+次の着手条件（2026-10-19 JST）：N01のsource call／returnと対応するobject境界は完了しました。N02の実装前に最小のaggregate／sumまたはloan projectionのsource実験をnative loweringとVMで比較し、観測可能な1〜3点のscopeを一つ選びます。N02の3点は暫定値とし、独立した前提が実証されたら実装前に公開・再見積もりします。V17のpreview follow-up、native／FFI／platform／conformance／性能／debug全成果、Z01の日英guideは引き続き必要です。完了条件は閉じません。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -190,7 +190,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | ID | State | Remaining pt | Needs | Gate | 成果／受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M2-N08 | done | 0 | M2-V07,M2-A02 | G14 | private native ownership call／context／公開契約を決定し、機械コードのABI試作を実行。 | `dc3df29` |
-| M2-N01 | doing | 3 | M2-V07,M2-A02,M2-N08 | G14 | Owned call／return conventionとmanaged layoutをemitし、source Bytes引数／返り値fixtureを含める。 | — |
+| M2-N01 | done | 0 | M2-V07,M2-A02,M2-N08 | G14 | Owned call／return conventionとmanaged layoutをemitし、source Bytes引数／返り値fixtureを含める。 | `0ff2618` |
 | M2-N02 | todo | 3 | M2-N01 | G14 | Nativeのowner move、aggregate／sum命令、loan projectionをVM fixtureに一致させる。 | — |
 | M2-N03 | todo | 3 | M2-N02,M2-C03,M2-C06 | G07,G08,G09,G10,G14 | Native core dispatchで同じBytes／Text／Vec／Map fixtureを実行。 | — |
 | M2-N04 | todo | 3 | M2-N02,M2-C07,M2-R04,M2-R07 | G05,G14 | Native shared／arena dispatchでlifecycleとbrand検査を保持。 | — |
@@ -212,10 +212,10 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 
 ## 情報源と確認日
 
-- [Native source境界](../../crates/codegen-clif/src/owned.rs)、[fixture](../../examples/analysis/native_owned_boundary.lang)、[test](../../tests/native_owned_boundary.rs)（`41d7e67`）：2026-10-19 JST更新・検証。N01の進行中の成果であり、未完了行のevidenceは空のままとし、点数は完了分へ移しません。
+- [Native source／call境界](../../crates/codegen-clif/src/owned.rs)、[call fixture](../../examples/analysis/native_owned_calls.lang)、[test](../../tests/native_owned_boundary.rs)（`0ff2618`）：2026-10-19 JST更新・検証。実sourceのBytes call／return、失敗unwind、対応native object／metadataにより、N01の残見積もり3点を完了しました。G14は未完了です。
 - [進捗validator](../../tests/repository_consistency.rs)（`00cff53`）：更新・検証日2026-10-18 JST。見積もり収支と未完了行の一致、成果／task数の差分、roadmap集計、英日一致を検証します。全workspace 1326 testとfmt／Clippy／rustdocが成功しました。この追跡方法の保守をM2実装行の完了には数えません。
 - 詳細Todoの履歴 `8605416..926ccfe`：2026-10-18 JST付の48 revisionを2026-10-18 JSTに再監査。行の状態変化だけでは完了107点／追加39点になります。V14とR08は最初のcommitでdoneでしたが、V10／R01の実装前監査に2／3点の見積もりが残っているため、両側に5点を加えて完了112点／追加44点としました。新たな成果41件をすべて含み、削除された行はありません。導入と完了が同じ更新でも、その見積もりを保持します。
 - Local Git履歴 `926fb3b`〜`0c2c012` と差分 `367218e..0c2c012`：commit日は2026-10-17／18 JST、確認日は2026-10-18 JST。
 - [Architecture](architecture.md)、[roadmap](roadmap.md)、そこから参照する実装／test：更新・確認日2026-10-18 JST。930 testは今回の監査前の実装checkpointであり、この計画変更で増えたtest数ではありません。
 - 受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)：最終更新2026-10-18、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)：最終更新2026-10-17、両方を今回のtask一覧のため2026-10-18 JSTに確認しました。Web調査や外部の生産性benchmarkは使用していません。
-- [RFC 0012](rfcs/0012-native-ownership-continuations.md) と [native ABI実験](../../crates/codegen-clif/src/owned_abi_probe.rs)（`dc3df29`）：更新・検証2026-10-18 JST。N08の明示的見積もり2点を今回の更新で追加・完了し、見積もり収支は追加46点／完了114点になりました。
+- [RFC 0012](rfcs/0012-native-ownership-continuations.md) と [native ABI実験](../../crates/codegen-clif/src/owned_abi_probe.rs)（`dc3df29`）：更新・検証2026-10-18 JST。N08の明示的見積もり2点は、そのcheckpointで追加・完了しました。
