@@ -8,7 +8,11 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**89 verified deliveries · 0 in progress · 23 remaining tasks (provisional 53 pt).**
+**90 verified deliveries · 0 in progress · 23 remaining tasks (provisional 52 pt).**
+
+N17 delivery audit (2026-10-19 JST): shared Bytes/Text metering and finite-budget VM/native programs are implemented (initial allocation 1 pt, 085700c). RFC 0013 whole-unit admission was explicitly amended first (143decc); unmetered events, including unused functions, reject before effects. Six programs compare every budget prefix and guest-call usage; the fixture returns 67 at 37 units. Three runtime boundary tests, 53 native tests, 1389 workspace tests / 85 suites, fmt/Clippy/rustdoc pass. **89 → 90 done, 53 → 52 pt**, added estimates stay **60 pt**, retired estimates are **142 pt**. N05 retains every managed/payload, driver/CLI/report migration and full-conformance obligation; audit its provisional 1 pt before implementation. Original gates stay 5/18.
+
+N05 vertical-slice allocation (2026-10-19 JST): assign the existing 2 pt to N17 shared Bytes/Text service metering and VM/native buffer-program execution (**initial 1 pt**, doing), leaving N05 managed services, drivers/reports and full conformance (**1 pt provisional**). **112 → 113 rows**, **53 pt unchanged**, no additional estimate. Finite budgets remain rejected before effects for programs using incompletely metered services; all accepted RFC 0013 outcomes remain required.
 
 N16 delivery/allocation audit (2026-10-19 JST): preserve former N05 total 3 as N16 meter/guards (**initial 1 pt**, now done, `06c8e1d`) plus N05 full service wiring/conformance (**2 pt provisional**). **111 → 112 rows**, no estimate added (**60 pt unchanged**), delivery **54 → 53 pt**. The shared API admits exact/atomic batches and retains numeric failure through cleanup; VM entry/preview/native reject finite incomplete profiles before provider effects. RFC 0013 events, driver/report migration and all VM/native service obligations remain N05.
 

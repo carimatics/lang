@@ -8,7 +8,11 @@
 
 ## 現在のM2実装状況
 
-**検証済み89件 · 進行中0件 · 残り23件（暫定53 pt）。**
+**検証済み90件 · 進行中0件 · 残り23件（暫定52 pt）。**
+
+N17完了監査（2026-10-19 JST）：共通Bytes／Text計量とVM／nativeの有限予算programを実装（初期配分1点、085700c）。RFC 0013のunit全体の受理条件を先に明示改訂（143decc）し、未使用関数も含めた未対応eventをeffect前に拒否します。6 programの全予算prefixとguest callを検証し、fixtureは37単位で67を返します。Runtime境界test 3件、native 53件、全workspace 1389件／85 suite、fmt／Clippy／rustdoc成功。**89 → 90 done、53 → 52 pt**、追加見積もりは**60点のまま**、完了で取り除いた見積もりは**142点**。N05には全managed／payload・driver／CLI／report移行・完全なconformanceを残し、暫定1点は着手前に監査します。元のgateは5/18のままです。
+
+N05縦slice配分（2026-10-19 JST）：既存2点をN17の共通Bytes／Text計量とVM／nativeのbuffer program実行（**初期見積もり1点**、doing）へ1点、残るN05のmanaged service・driver／report・全体conformanceへ **暫定1点** 配分します。**112 → 113行**、**53 ptは不変**、見積もり追加なしです。計量未完のserviceを使うprogramでは有限予算をeffect前に拒否し、RFC 0013の全成果を維持します。
 
 N16完了／配分監査（2026-10-19 JST）：旧N05合計3点をN16のmeter／guard（**初期見積もり1点**、完了、`06c8e1d`）と、N05の全service接続／conformance（**暫定2点**）に配分します。**111 → 112行**、見積もり追加なし（追加分合計 **60点は不変**）、完了で **54 → 53 pt** です。共通APIで厳密／atomicなbatch課金とcleanup後のfailure数値を検証し、VM entry／preview／nativeで未完profileの有限予算をprovider effect前に拒否します。RFC 0013全event、driver／report移行、全VM／native service検証はN05に残します。
 
