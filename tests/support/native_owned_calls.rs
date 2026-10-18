@@ -5,6 +5,8 @@ mod core;
 mod places;
 #[path = "native_owned_values.rs"]
 mod values;
+#[path = "native_vectors.rs"]
+mod vectors;
 use n::{CallSite, CompiledProgram, Transition};
 
 #[derive(Clone, Copy)]
@@ -36,6 +38,8 @@ struct Store<'a, 'l> {
     loan_stride: usize,
     prepared_stride: usize,
     types: &'l m::ownership::VerifiedTypes,
+    layouts: &'l l::Layouts<'l>,
+    retirement: lang_runtime::retirement::Drain<'l, 'l>,
 }
 impl Store<'_, '_> {
     fn transfer(&mut self, from: Physical, to: Physical) -> n::ResultStep {
@@ -78,7 +82,16 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
         let mut storage = self.0.borrow_mut();
         let physical = match ticket {
             Ticket::Loan(id) => {
-                storage.loans[*id].target = None;
+                let Store {
+                    loans,
+                    layouts,
+                    allocator,
+                    ..
+                } = &mut *storage;
+                loans[*id].target = None;
+                if let Some(mut read) = loans[*id].vector_read.take() {
+                    read.end(layouts, allocator).map_err(|_| 98u32)?;
+                }
                 return Ok(());
             }
             Ticket::Value(value) => value,
@@ -90,14 +103,17 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
             retired,
             refuse_cleanup,
             types,
+            retirement,
             ..
         } = &mut *storage;
         let cell = pools[physical.frame]
             .cell_mut(physical.cell)
             .map_err(|_| 90u32)?;
-        cell.retire(allocator, context, |token, allocator, _, _| {
+        cell.retire(allocator, context, |token, allocator, _, context| {
             if expected.is_empty() {
-                buffer::cleanup_token(types, token, allocator).map_err(|_| 94u32)?;
+                retirement.token(token, None, allocator, context, |leaf, allocator, _, _| {
+                    buffer::cleanup_token(types, leaf, allocator).map_err(|_| 94u32)
+                })?;
                 return if *refuse_cleanup { Err(95) } else { Ok(()) };
             }
             let mut value =
@@ -288,7 +304,11 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         places::discard(self, id)
     }
     fn core_call(&mut self, site: &n::CoreSite) -> n::ResultStep {
-        core::call(self, site)
+        if vectors::supports(site.operation) {
+            vectors::call(self, site)
+        } else {
+            core::call(self, site)
+        }
     }
     fn stage_return(&mut self, slot: usize, _: m::Span) -> n::ResultStep {
         let copied = values::is_copy(self, slot);
@@ -561,6 +581,53 @@ fn execute_flow(
         .types();
     let layouts = l::Layouts::compile(types, Default::default()).unwrap();
     let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+    execute_prepared(
+        flow,
+        &layouts,
+        &program,
+        Run {
+            inputs,
+            fuel,
+            max_frames,
+            cells,
+            refuse,
+            refuse_cleanup,
+        },
+    )
+}
+struct Run<'a> {
+    inputs: &'a [&'a [u8]],
+    fuel: Option<u64>,
+    max_frames: usize,
+    cells: usize,
+    refuse: Option<usize>,
+    refuse_cleanup: bool,
+}
+fn execute_prepared<'l>(
+    flow: &'l m::ownership::failure::Elaborated,
+    layouts: &'l l::Layouts<'l>,
+    program: &CompiledProgram<'l>,
+    run: Run<'_>,
+) -> Seen {
+    let Run {
+        inputs,
+        fuel,
+        max_frames,
+        cells,
+        refuse,
+        refuse_cleanup,
+    } = run;
+    let typed = flow.source().activity().moved().typed();
+    let types = typed.places().declarations().types();
+    let entry = m::FunctionId(
+        typed
+            .places()
+            .declarations()
+            .functions()
+            .iter()
+            .position(|f| f.name == "main")
+            .unwrap_or(0) as u32,
+    );
     let largest = (0..flow.functions().len())
         .map(|f| program.layout(m::FunctionId(f as u32)).unwrap().frame())
         .max_by_key(|p| p.cell_count())
@@ -590,7 +657,9 @@ fn execute_flow(
         .unwrap()
         .max(1);
     // All host descriptors exist before root ownership or provider effects.
-    let loans = vec![places::Loan::default(); loan_stride * max_frames];
+    let loans = std::iter::repeat_with(places::Loan::default)
+        .take(loan_stride * max_frames)
+        .collect();
     let prepared = vec![None; prepared_stride * max_frames];
     let mut usage = program.usage();
     let mut pools = Vec::with_capacity(max_frames);
@@ -601,10 +670,13 @@ fn execute_flow(
     }
     let trace = Rc::new(RefCell::new(Trace::default()));
     let mut allocator = a::Allocator::new(Provider(trace.clone()), Default::default()).unwrap();
-    let root = program.layout(m::FunctionId(0)).unwrap();
+    let retirement =
+        lang_runtime::retirement::Drain::prepare(layouts, &allocator, Default::default(), usage)
+            .unwrap();
+    let root = program.layout(entry).unwrap();
     pools[0].admit(root.frame(), &mut allocator).unwrap();
     let typed = flow.source().activity().moved().typed();
-    let declaration = &typed.places().declarations().functions()[0];
+    let declaration = &typed.places().declarations().functions()[entry.0 as usize];
     for (local, input) in declaration.parameters.iter().zip(inputs) {
         let cell = root.frame().local(*local).unwrap();
         let mut value = buffer::Bytes::from_slice(&mut allocator, input).unwrap();
@@ -629,6 +701,8 @@ fn execute_flow(
         loan_stride,
         prepared_stride,
         types,
+        layouts,
+        retirement,
     });
     let mut cleanup_instance = c::Instance::default();
     let ledger = cleanup_instance
@@ -644,11 +718,11 @@ fn execute_flow(
     let mut stack = Vec::with_capacity(max_frames);
     stack.push(Active {
         handle: 1,
-        function: m::FunctionId(0),
+        function: entry,
         parent: None,
     });
     let mut instance = RuntimeInstance::new(Unit {
-        program: &program,
+        program,
         store: &store,
         ledger: Some(ledger),
         stack,
@@ -664,7 +738,7 @@ fn execute_flow(
         fuel_limit: fuel,
         published: false,
     });
-    let result = program.invoke(m::FunctionId(0), &mut instance);
+    let result = program.invoke(entry, &mut instance);
     assert_eq!(instance.runtime().published, result.is_ok());
     assert_eq!(instance.is_poisoned(), refuse_cleanup, "{result:?}");
     let fuel = instance.runtime().fuel;
@@ -684,7 +758,10 @@ fn execute_flow(
     drop(instance);
     let mut state = store.into_inner();
     assert!(
-        state.loans.iter().all(|loan| loan.target.is_none()),
+        state
+            .loans
+            .iter()
+            .all(|loan| loan.target.is_none() && loan.vector_read.is_none()),
         "all registrations retire before frame release"
     );
     assert!(

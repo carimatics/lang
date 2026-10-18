@@ -7,11 +7,11 @@ fn bad() -> c::Cause {
 fn fault<T>(_: T) -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Fault)
 }
-enum Payload {
+pub(super) enum Payload {
     Token([u8; 32]),
     Immediate(l::Immediate),
 }
-fn result(
+pub(super) fn result(
     unit: &mut Unit<'_, '_, '_, '_>,
     site: &n::CoreSite,
     outcome: Result<Payload, l::Immediate>,
@@ -324,8 +324,11 @@ fn native_core_cleanup_failure_poison_discards_the_scalar_return() {
 
 #[test]
 fn native_core_object_sites_preserve_source_operands_and_exact_budgets() {
+    check_metadata(EXAMPLES[2].0);
+}
+pub(super) fn check_metadata(text: &str) {
     use object::{Object, ObjectSymbol};
-    let source = source(EXAMPLES[2].0);
+    let source = source(text);
     let flow = source.failure_flow();
     let typed = flow.source().activity().moved().typed();
     let types = typed.places().declarations().types();
@@ -334,46 +337,58 @@ fn native_core_object_sites_preserve_source_operands_and_exact_budgets() {
         let target = target.parse().unwrap();
         let artifact =
             n::emit_object_for_target(flow, &layouts, &target, Default::default(), 1000).unwrap();
-        let function = artifact.function(m::FunctionId(0)).unwrap();
-        let object = object::File::parse(&*artifact.bytes).unwrap();
-        assert!(object.symbols().any(|s| {
-            s.is_definition()
-                && s.name()
-                    .is_ok_and(|name| name.trim_start_matches('_') == function.metadata().symbol)
-        }));
         let mut sites = 0;
-        for (index, node) in flow.functions()[0].nodes().iter().enumerate() {
-            let Some(site) = function.core_site(index as u32) else {
-                continue;
-            };
-            let m::ownership::failure::Kind::Execute { site: origin, .. } = node.kind else {
-                panic!("core execute")
-            };
-            let instruction = &typed.functions()[0].blocks[origin.block.0 as usize].instructions
-                [origin.order - 1];
-            let m::ownership::bodies::Op::CoreCall(call) = &instruction.op else {
-                panic!("core call")
-            };
-            assert_eq!(site.operation, call.operation);
-            assert_eq!(site.span, instruction.span);
-            assert_eq!(site.loan, call.result_loan);
-            assert_eq!(
-                site.arguments,
-                call.arguments
-                    .iter()
-                    .map(|arg| function.layout().frame().value(*arg).unwrap())
-                    .collect::<Vec<_>>()
-            );
-            assert_eq!(
-                site.result,
-                function
-                    .layout()
-                    .frame()
-                    .value(instruction.results[0])
-                    .unwrap()
-            );
-            assert!(site.type_arguments.is_empty());
-            sites += 1;
+        for function_index in 0..flow.functions().len() {
+            let function = artifact
+                .function(m::FunctionId(function_index as u32))
+                .unwrap();
+            let object = object::File::parse(&*artifact.bytes).unwrap();
+            assert!(object.symbols().any(|s| {
+                s.is_definition()
+                    && s.name().is_ok_and(|name| {
+                        name.trim_start_matches('_') == function.metadata().symbol
+                    })
+            }));
+            for (index, node) in flow.functions()[function_index].nodes().iter().enumerate() {
+                let Some(site) = function.core_site(index as u32) else {
+                    continue;
+                };
+                let m::ownership::failure::Kind::Execute { site: origin, .. } = node.kind else {
+                    panic!("core execute")
+                };
+                let instruction = &typed.functions()[function_index].blocks
+                    [origin.block.0 as usize]
+                    .instructions[origin.order - 1];
+                let m::ownership::bodies::Op::CoreCall(call) = &instruction.op else {
+                    panic!("core call")
+                };
+                assert_eq!(site.operation, call.operation);
+                assert_eq!(site.span, instruction.span);
+                assert_eq!(site.loan, call.result_loan);
+                assert_eq!(
+                    site.arguments,
+                    call.arguments
+                        .iter()
+                        .map(|arg| function.layout().frame().value(*arg).unwrap())
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(
+                    site.result,
+                    function
+                        .layout()
+                        .frame()
+                        .value(instruction.results[0])
+                        .unwrap()
+                );
+                assert_eq!(
+                    site.type_arguments,
+                    call.type_arguments
+                        .iter()
+                        .map(|ty| ty.ty)
+                        .collect::<Vec<_>>()
+                );
+                sites += 1;
+            }
         }
         assert!(sites >= 13);
         let usage = artifact.usage();

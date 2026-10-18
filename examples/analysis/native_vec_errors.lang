@@ -1,0 +1,22 @@
+// Failed reads register no element lease; mutable Copy replacement survives pop.
+fn main() -> i64 {
+    let mut values: core::Vec<i64> = core::result_unwrap::<core::Vec<i64>, core::AllocError>(core::vec_new::<i64>(core::allocator()));
+    match core::vec_get::<i64>(values, -1) {
+        core::Result::Ok(_) => { return -1; },
+        core::Result::Err(_) => {},
+    }
+    match core::vec_get_mut::<i64>(values, 0) {
+        core::Result::Ok(_) => { return -2; },
+        core::Result::Err(_) => {},
+    }
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<i64>(values, 3));
+    match core::vec_get_mut::<i64>(values, 0) {
+        core::Result::Ok(value) => { (*value) = 7; },
+        core::Result::Err(_) => { return -3; },
+    }
+    let mut last: i64 = core::option_unwrap::<i64>(core::vec_pop::<i64>(values));
+    match core::vec_pop::<i64>(values) {
+        core::Option::Some(_) => { return -4; },
+        core::Option::None => { return last; },
+    }
+}

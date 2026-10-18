@@ -172,17 +172,19 @@ pub(super) struct DataTarget {
 pub(super) enum Target {
     Data(DataTarget),
     Allocator,
+    Vector { read: usize, location: l::Location },
 }
 fn data(target: Target) -> Result<DataTarget, c::Cause> {
     match target {
         Target::Data(value) => Ok(value),
-        Target::Allocator => Err(bad()),
+        Target::Allocator | Target::Vector { .. } => Err(bad()),
     }
 }
-#[derive(Clone, Copy, Default)]
+#[derive(Default)]
 pub(super) struct Loan {
     pub generation: u64,
     pub target: Option<Target>,
+    pub vector_read: Option<lang_runtime::vector::Loan>,
 }
 #[derive(Clone, Copy)]
 pub(super) enum Capture {
@@ -191,7 +193,7 @@ pub(super) enum Capture {
         handle: u64,
         slot: usize,
     },
-    Path(DataTarget),
+    Path(Target),
 }
 fn valid(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> n::ResultStep {
     if unit
@@ -237,6 +239,23 @@ fn child(
         .map_err(fault)?;
     Ok(DataTarget { location, ..target })
 }
+fn child_target(
+    unit: &Unit<'_, '_, '_, '_>,
+    target: Target,
+    field: u32,
+) -> Result<Target, c::Cause> {
+    match target {
+        Target::Data(value) => Ok(Target::Data(child(unit, value, field)?)),
+        Target::Vector { read, location } => {
+            let store = unit.store.borrow();
+            let location = vectors::view(&store, read)?
+                .child(location, field, store.allocator)
+                .map_err(vectors::fault)?;
+            Ok(Target::Vector { read, location })
+        }
+        Target::Allocator => Err(bad()),
+    }
+}
 fn dereference(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> Result<Target, c::Cause> {
     valid(unit, target)?;
     let store = unit.store.borrow();
@@ -277,6 +296,12 @@ fn dereference(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> Result<Target
                 return Err(bad());
             }
         }
+        Target::Vector { read, location } => {
+            vectors::view(&store, read)?;
+            if types.equivalent(referent, location.ty()) != Some(true) {
+                return Err(bad());
+            }
+        }
         Target::Allocator => {
             if !matches!(referent, o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor, o::Constructor::Builtin(o::Builtin::Allocator)))
             {
@@ -287,9 +312,6 @@ fn dereference(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> Result<Target
     Ok(resolved)
 }
 
-fn resolve(unit: &Unit<'_, '_, '_, '_>, place: &n::PlaceSite) -> Result<DataTarget, c::Cause> {
-    data(resolve_reference(unit, place)?)
-}
 fn resolve_reference(
     unit: &Unit<'_, '_, '_, '_>,
     place: &n::PlaceSite,
@@ -298,7 +320,7 @@ fn resolve_reference(
     for projection in &place.projections {
         target = match projection.kind {
             ProjectionKind::Dereference => dereference(unit, data(target)?)?,
-            ProjectionKind::Field(field) => Target::Data(child(unit, data(target)?, field)?),
+            ProjectionKind::Field(field) => child_target(unit, target, field)?,
         };
     }
     Ok(target)
@@ -320,98 +342,111 @@ pub(super) fn referent(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<Targe
 }
 fn copy_target(
     unit: &mut Unit<'_, '_, '_, '_>,
-    target: DataTarget,
+    target: Target,
     result: usize,
     span: m::Span,
 ) -> n::ResultStep {
-    valid(unit, target)?;
     let output = Physical {
         frame: unit.depth(),
         cell: result,
     };
     {
         let mut store = unit.store.borrow_mut();
-        let Store {
-            pools, allocator, ..
-        } = &mut *store;
-        let input = pools[target.physical.frame]
-            .cell(target.physical.cell)
-            .map_err(fault)?;
-        let destination = pools[output.frame].cell(output.cell).map_err(fault)?;
-        destination
-            .copy_from(destination.root(), input, target.location, allocator)
-            .map_err(fault)?;
+        match target {
+            Target::Data(target) => {
+                valid(unit, target)?;
+                let Store {
+                    pools, allocator, ..
+                } = &mut *store;
+                let input = pools[target.physical.frame]
+                    .cell(target.physical.cell)
+                    .map_err(fault)?;
+                let destination = pools[output.frame].cell(output.cell).map_err(fault)?;
+                destination
+                    .copy_from(destination.root(), input, target.location, allocator)
+                    .map_err(fault)?;
+            }
+            Target::Vector { read, location } => {
+                let Store {
+                    pools,
+                    allocator,
+                    loans,
+                    layouts,
+                    ..
+                } = &mut *store;
+                let loan = loans[read].vector_read.as_ref().ok_or_else(bad)?;
+                let destination = pools[output.frame].cell(output.cell).map_err(fault)?;
+                loan.view(layouts, allocator)
+                    .map_err(vectors::fault)?
+                    .copy_into(location, destination, destination.root(), allocator)
+                    .map_err(vectors::fault)?;
+            }
+            Target::Allocator => return Err(bad()),
+        }
     }
     values::publish(unit, result, output, span)
 }
 pub(super) fn load(unit: &mut Unit<'_, '_, '_, '_>, site: &n::PlaceLoad) -> n::ResultStep {
     copy_target(
         unit,
-        resolve(unit, &site.place)?,
+        resolve_reference(unit, &site.place)?,
         site.result,
         site.place.span,
     )
 }
 pub(super) fn variant_case(unit: &mut Unit<'_, '_, '_, '_>, slot: usize) -> Result<u32, c::Cause> {
-    let target = data(referent(unit, slot)?)?;
+    let target = referent(unit, slot)?;
     let store = unit.store.borrow();
-    store.pools[target.physical.frame]
-        .cell(target.physical.cell)
-        .map_err(fault)?
-        .case(target.location, store.allocator)
-        .map_err(fault)
+    match target {
+        Target::Data(target) => store.pools[target.physical.frame]
+            .cell(target.physical.cell)
+            .map_err(fault)?
+            .case(target.location, store.allocator)
+            .map_err(fault),
+        Target::Vector { read, location } => vectors::view(&store, read)?
+            .case(location, store.allocator)
+            .map_err(vectors::fault),
+        Target::Allocator => Err(bad()),
+    }
 }
 pub(super) fn copy_field(
     unit: &mut Unit<'_, '_, '_, '_>,
     site: &n::CaseFieldSite,
 ) -> n::ResultStep {
-    let target = child(unit, data(referent(unit, site.source)?)?, site.field)?;
+    let target = child_target(unit, referent(unit, site.source)?, site.field)?;
     let span = unit.plan().cell_type(site.result).unwrap().span;
     copy_target(unit, target, site.result, span)
 }
-pub(super) fn register(
+pub(super) fn available(unit: &Unit<'_, '_, '_, '_>, loan: b::LoanId) -> Result<usize, c::Cause> {
+    let store = unit.store.borrow();
+    let id = unit.depth() * store.loan_stride + loan.0 as usize;
+    let entry = store.loans.get(id).ok_or_else(bad)?;
+    if entry.target.is_some() {
+        return Err(bad());
+    }
+    entry
+        .generation
+        .checked_add(1)
+        .ok_or(c::Cause::Execution(c::ExecutionFailure::CounterOverflow))?;
+    Ok(id)
+}
+pub(super) fn register_token(
     unit: &mut Unit<'_, '_, '_, '_>,
     loan: b::LoanId,
     target: Target,
-    result: usize,
     span: m::Span,
-) -> n::ResultStep {
+) -> Result<[u8; 32], c::Cause> {
     if let Target::Data(value) = target {
         valid(unit, value)?;
     }
-    let physical = Physical {
-        frame: unit.depth(),
-        cell: result,
-    };
-    let (id, generation) = {
+    let id = available(unit, loan)?;
+    let generation = {
         let mut store = unit.store.borrow_mut();
-        let id = unit.depth() * store.loan_stride + loan.0 as usize;
-        let entry = store.loans.get_mut(id).ok_or_else(bad)?;
-        if entry.target.is_some() {
-            return Err(bad());
-        }
-        entry.generation = entry
-            .generation
-            .checked_add(1)
-            .ok_or(c::Cause::Execution(c::ExecutionFailure::CounterOverflow))?;
+        let entry = &mut store.loans[id];
+        entry.generation += 1;
         entry.target = Some(target);
-        (id, entry.generation)
+        entry.generation
     };
-    {
-        let mut store = unit.store.borrow_mut();
-        let Store {
-            pools, allocator, ..
-        } = &mut *store;
-        let data = pools[physical.frame]
-            .cell(physical.cell)
-            .map_err(fault)?
-            .data_mut(allocator)
-            .map_err(fault)?;
-        data.fill(0);
-        data[..8].copy_from_slice(&(id as u64).to_le_bytes());
-        data[8..16].copy_from_slice(&generation.to_le_bytes());
-    }
-    values::publish(unit, result, physical, span)?;
     let layout = unit
         .program
         .layout(unit.stack.last().unwrap().function)
@@ -421,7 +456,37 @@ pub(super) fn register(
         .as_mut()
         .unwrap()
         .initialize(slot, Ticket::Loan(id), Some(span))
-        .map_err(|_| bad())
+        .map_err(|_| bad())?;
+    let mut token = [0; 32];
+    token[..8].copy_from_slice(&(id as u64).to_le_bytes());
+    token[8..16].copy_from_slice(&generation.to_le_bytes());
+    Ok(token)
+}
+pub(super) fn register(
+    unit: &mut Unit<'_, '_, '_, '_>,
+    loan: b::LoanId,
+    target: Target,
+    result: usize,
+    span: m::Span,
+) -> n::ResultStep {
+    let token = register_token(unit, loan, target, span)?;
+    let physical = Physical {
+        frame: unit.depth(),
+        cell: result,
+    };
+    {
+        let mut store = unit.store.borrow_mut();
+        let Store {
+            pools, allocator, ..
+        } = &mut *store;
+        pools[physical.frame]
+            .cell(physical.cell)
+            .map_err(fault)?
+            .data_mut(allocator)
+            .map_err(fault)?
+            .copy_from_slice(&token);
+    }
+    values::publish(unit, result, physical, span)
 }
 pub(super) fn borrow(unit: &mut Unit<'_, '_, '_, '_>, site: &n::BorrowSite) -> n::ResultStep {
     register(
@@ -436,18 +501,8 @@ pub(super) fn borrow_case(
     unit: &mut Unit<'_, '_, '_, '_>,
     site: &n::BorrowCaseSite,
 ) -> n::ResultStep {
-    let target = child(
-        unit,
-        data(referent(unit, site.field.source)?)?,
-        site.field.field,
-    )?;
-    register(
-        unit,
-        site.loan,
-        Target::Data(target),
-        site.field.result,
-        site.span,
-    )
+    let target = child_target(unit, referent(unit, site.field.source)?, site.field.field)?;
+    register(unit, site.loan, target, site.field.result, site.span)
 }
 pub(super) fn end(
     unit: &mut Unit<'_, '_, '_, '_>,
@@ -483,7 +538,7 @@ fn capture(unit: &Unit<'_, '_, '_, '_>, place: &n::PlaceSite) -> Result<Capture,
             slot: place.root,
         })
     } else {
-        Ok(Capture::Path(resolve(unit, place)?))
+        Ok(Capture::Path(resolve_reference(unit, place)?))
     }
 }
 pub(super) fn prepare(unit: &mut Unit<'_, '_, '_, '_>, site: &n::PreparedSite) -> n::ResultStep {
@@ -572,7 +627,11 @@ pub(super) fn replace(unit: &mut Unit<'_, '_, '_, '_>, site: &n::ReplaceSite) ->
                 return values::relocate(unit, site.value, slot);
             }
         }
-        Capture::Path(target) => (target, owner_slot(unit, target)?),
+        Capture::Path(Target::Data(target)) => (target, owner_slot(unit, target)?),
+        Capture::Path(Target::Vector { read, location }) => {
+            return vectors::replace(unit, read, location, site.value, site.span);
+        }
+        Capture::Path(Target::Allocator) => return Err(bad()),
     };
     valid(unit, target)?;
     let copied = values::is_copy(unit, site.value);
@@ -649,14 +708,24 @@ pub(super) fn buffer_token(
     slot: usize,
 ) -> Result<(Target, [u8; 32]), c::Cause> {
     let target = referent(unit, slot)?;
-    let view = data(target)?;
     let store = unit.store.borrow();
-    let token = store.pools[view.physical.frame]
-        .cell(view.physical.cell)
-        .map_err(fault)?
-        .read_token(view.location, store.allocator)
-        .map_err(fault)?
-        .bytes;
+    let token = match target {
+        Target::Data(view) => {
+            store.pools[view.physical.frame]
+                .cell(view.physical.cell)
+                .map_err(fault)?
+                .read_token(view.location, store.allocator)
+                .map_err(fault)?
+                .bytes
+        }
+        Target::Vector { read, location } => {
+            vectors::view(&store, read)?
+                .read_token(location, store.allocator)
+                .map_err(vectors::fault)?
+                .bytes
+        }
+        Target::Allocator => return Err(bad()),
+    };
     Ok((target, token))
 }
 pub(super) fn store_token(
@@ -664,6 +733,21 @@ pub(super) fn store_token(
     target: Target,
     token: [u8; 32],
 ) -> n::ResultStep {
+    if let Target::Vector { read, location } = target {
+        let mut store = unit.store.borrow_mut();
+        let Store {
+            loans,
+            layouts,
+            allocator,
+            ..
+        } = &mut *store;
+        return loans[read]
+            .vector_read
+            .as_ref()
+            .ok_or_else(bad)?
+            .write_buffer_token(layouts, location, token, allocator)
+            .map_err(vectors::fault);
+    }
     let view = data(target)?;
     valid(unit, view)?;
     let mut store = unit.store.borrow_mut();

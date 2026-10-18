@@ -1052,6 +1052,12 @@ fn prepare<'a>(
                                 | o::core::Operation::TextLen
                                 | o::core::Operation::TextBytes
                                 | o::core::Operation::TextEqual
+                                | o::core::Operation::VecNew
+                                | o::core::Operation::VecLen
+                                | o::core::Operation::VecPush
+                                | o::core::Operation::VecPop
+                                | o::core::Operation::VecGet
+                                | o::core::Operation::VecGetMut
                                 | o::core::Operation::TextConcat
                         ) =>
                     {
