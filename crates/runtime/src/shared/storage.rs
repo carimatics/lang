@@ -71,12 +71,53 @@ pub struct Retired<'l, 't> {
     owner: a::Handle,
     payload: l::Reservation<'l, 't>,
     span: Option<m::Span>,
+    started: bool,
 }
 /// Only a complete drain can authorize final control-block retirement.
 pub struct Completed {
     owner: a::Handle,
 }
 impl Retired<'_, '_> {
+    /// Seed an iterative graph drain once. The adapter can pause after each
+    /// acknowledged leaf to completely retire its child before its next sibling.
+    pub fn begin<P: a::Provider>(&mut self, allocator: &mut a::Allocator<P>) -> Result<(), Error> {
+        if self.started {
+            return Err(Error::State);
+        }
+        allocator.request(self.owner)?;
+        self.payload.begin_retirement(self.span, allocator)?;
+        self.started = true;
+        Ok(())
+    }
+    pub fn next_token<P: a::Provider>(
+        &mut self,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<Option<l::Token>, Error> {
+        if !self.started {
+            return Err(Error::State);
+        }
+        let Some(leaf) = self.payload.next_leaf(allocator)? else {
+            return Ok(None);
+        };
+        let start = leaf.offset as usize;
+        let bytes = self.payload.data(allocator)?[start..start + 32]
+            .try_into()
+            .expect("validated token extent");
+        Ok(Some(l::Token { leaf, bytes }))
+    }
+    pub fn complete_leaf(&mut self) -> Result<(), Error> {
+        Ok(self.payload.complete_leaf()?)
+    }
+    pub fn finish<P: a::Provider>(
+        &mut self,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<Completed, Error> {
+        if !self.started {
+            return Err(Error::State);
+        }
+        self.payload.release_storage(allocator)?;
+        Ok(Completed { owner: self.owner })
+    }
     pub fn cleanup<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
@@ -88,26 +129,18 @@ impl Retired<'_, '_> {
             &mut c::Context<'_>,
         ) -> Result<(), u32>,
     ) -> Result<Completed, Error> {
-        // Validate the original authority before entering any child callback.
-        allocator.request(self.owner)?;
-        let payload = &mut self.payload;
-        payload.begin_retirement(self.span, allocator)?;
-        while let Some(leaf) = payload.next_leaf(allocator)? {
-            let start = leaf.offset as usize;
-            let bytes = payload.data(allocator)?[start..start + 32]
-                .try_into()
-                .expect("validated token extent");
-            let token = l::Token { leaf, bytes };
+        self.begin(allocator)?;
+        while let Some(token) = self.next_token(allocator)? {
+            let span = token.leaf.span;
             let mut callback = c::Contextual::new(
                 |token: &mut l::Token, reason, context: &mut c::Context<'_>| {
                     cleaner(token, allocator, reason, context)
                 },
             );
-            context.field(token, leaf.span, &mut callback);
-            payload.complete_leaf()?;
+            context.field(token, span, &mut callback);
+            self.complete_leaf()?;
         }
-        payload.release_storage(allocator)?;
-        Ok(Completed { owner: self.owner })
+        self.finish(allocator)
     }
 }
 /// Checked read surface; structural locations cannot expose mutable payloads.
@@ -115,6 +148,30 @@ pub struct View<'b, 'l, 't> {
     payload: &'b l::Reservation<'l, 't>,
 }
 impl View<'_, '_, '_> {
+    pub fn read_token<P: a::Provider>(
+        &self,
+        location: l::Location,
+        allocator: &a::Allocator<P>,
+    ) -> Result<l::Token, l::Error> {
+        self.payload.read_token(location, allocator)
+    }
+    pub fn initialized_field<P: a::Provider>(
+        &self,
+        location: l::Location,
+        rank: u32,
+        allocator: &a::Allocator<P>,
+    ) -> Result<(u32, Option<m::Span>), l::Error> {
+        self.payload.initialized_field(location, rank, allocator)
+    }
+    pub fn copy_to<P: a::Provider>(
+        &self,
+        location: l::Location,
+        destination: &l::Reservation<'_, '_>,
+        target: l::Location,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), l::Error> {
+        destination.copy_from(target, self.payload, location, allocator)
+    }
     pub fn root(&self) -> l::Location {
         self.payload.root()
     }
@@ -385,6 +442,24 @@ impl<'l, 't> Block<'l, 't> {
         store_span(allocator.bytes_mut(self.identity()?)?, Some(span));
         Ok(old)
     }
+    pub fn replace_copy<P: a::Provider>(
+        &mut self,
+        input: &l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Error> {
+        self.live(allocator)?;
+        if self.counts(allocator)?.readers != 0 {
+            return Err(Error::BorrowConflict);
+        }
+        let payload = self.payload.as_ref().ok_or(Error::State)?;
+        if !payload.layouts().span_valid(span) {
+            return Err(l::Error::InvalidSpan.into());
+        }
+        payload.copy_from(payload.root(), input, input.root(), allocator)?;
+        store_span(allocator.bytes_mut(self.identity()?)?, Some(span));
+        Ok(())
+    }
     /// Revoke under the graph lock, detach, unlock, drain, then complete. The
     /// control block cannot be reclaimed while the detached payload is pending.
     pub fn detach<P: a::Provider>(
@@ -399,6 +474,7 @@ impl<'l, 't> Block<'l, 't> {
             owner: self.identity()?,
             payload: self.payload.take().ok_or(Error::State)?,
             span,
+            started: false,
         })
     }
     pub fn complete_retirement<P: a::Provider>(

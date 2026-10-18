@@ -212,6 +212,52 @@ impl<'layouts, 'types> Reservation<'layouts, 'types> {
             }),
         })
     }
+    /// Read a validated initializer entry in its actual construction order.
+    /// Copy-only aggregates have no order ledger and return InvalidOrder.
+    pub fn initialized_field<P: Provider>(
+        &self,
+        location: Location,
+        rank: u32,
+        allocator: &Allocator<P>,
+    ) -> Result<(u32, Option<m::Span>), Error> {
+        let layout = self.validate_location(location)?;
+        if layout.metadata_bytes == 0 {
+            return Err(Error::InvalidOrder);
+        }
+        let work = Work {
+            ty: location.ty,
+            offset: location.offset,
+            metadata: location.metadata,
+            span: None,
+        };
+        let (aggregate, _) = Self::aggregate(self.layouts, work, allocator, self.data)?;
+        let case = if matches!(layout.kind, Kind::Enum { .. }) {
+            u64::from(self.case(location, allocator)?)
+        } else {
+            0
+        };
+        if read_u64(allocator.bytes(self.metadata)?, location.metadata as usize)?
+            != (case << 32) | 1
+        {
+            return Err(Error::Uninitialized);
+        }
+        if rank as usize >= aggregate.fields.len() {
+            return Err(Error::InvalidOrder);
+        }
+        let entry = location.metadata as usize
+            + ORDER_HEADER as usize
+            + rank as usize * ORDER_ENTRY as usize;
+        let bytes = allocator.bytes(self.metadata)?;
+        let field = read_u32(bytes, entry)?;
+        if field as usize >= aggregate.fields.len() {
+            return Err(Error::InvalidOrder);
+        }
+        let span = read_span(bytes, entry + 4)?;
+        if span.is_some_and(|span| !self.layouts.span_valid(span)) {
+            return Err(Error::InvalidSpan);
+        }
+        Ok((field, span))
+    }
     /// Record actual initializer order and spans without allocating. A failed
     /// order check leaves this aggregate unpublished/uninitialized for retry.
     pub fn initialize_order<P: Provider>(

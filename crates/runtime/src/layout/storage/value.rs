@@ -165,6 +165,32 @@ impl Immediate {
 }
 
 impl Reservation<'_, '_> {
+    /// Borrow private token bytes from a checked structural location. This
+    /// grants no ownership; the owning service must validate its live ticket.
+    pub fn read_token<P: Provider>(
+        &self,
+        location: Location,
+        allocator: &Allocator<P>,
+    ) -> Result<Token, Error> {
+        let layout = self.validate_location(location)?;
+        if !matches!(layout.kind, Kind::Token(_)) {
+            return Err(Error::InvalidType(location.ty));
+        }
+        let bytes = self
+            .data(allocator)?
+            .get(range(location.offset, 32)?)
+            .ok_or(Error::State)?
+            .try_into()
+            .map_err(|_| Error::State)?;
+        Ok(Token {
+            leaf: Leaf {
+                ty: location.ty,
+                offset: location.offset,
+                span: None,
+            },
+            bytes,
+        })
+    }
     /// Copy a verified Copy value between prepared locations without scratch
     /// allocation. Owning payloads require a separate, checked transfer.
     pub fn copy_from<P: Provider>(

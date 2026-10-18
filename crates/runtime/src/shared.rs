@@ -4,8 +4,9 @@
 //! are opaque, while every strong/weak ownership field is a tracked `Edge`.
 //! Source value lowering, guest destructors and allocator callbacks integrate
 //! separately; Rust allocation failure may still abort at Arc allocation.
-//! `storage` supplies typed guest-backed control/payload blocks for the pending
-//! production graph/token adapter; this opaque engine remains its model.
+//! `storage` supplies typed guest-backed control/payload blocks, and `managed`
+//! connects their production graph/token service. This opaque engine remains
+//! its model; source VM dispatch and nested collection integration are separate.
 
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
@@ -13,6 +14,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use lang_mir::unit::Span;
 
+pub mod managed;
 pub mod storage;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

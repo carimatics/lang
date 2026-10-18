@@ -430,8 +430,15 @@ impl<'l, 't> Arena<'l, 't> {
                                 .map_err(|e| Error::new(Kind::Buffer(e)))?;
                         }
                         o::Constructor::Builtin(o::Builtin::Text) => {
-                            buffer::Text::from_token(&mut bytes, allocator)
-                                .and_then(|value| value.as_str(allocator).map(|text| text.len()))
+                            let text = buffer::Text::from_token(&mut bytes, allocator)
+                                .map_err(|e| Error::new(Kind::Buffer(e)))?;
+                            let length = usize::try_from(
+                                text.len(allocator)
+                                    .map_err(|e| Error::new(Kind::Buffer(e)))?,
+                            )
+                            .map_err(|_| Error::new(Kind::State))?;
+                            budget.charge(length)?;
+                            text.as_str(allocator)
                                 .map_err(|e| Error::new(Kind::Buffer(e)))?;
                         }
                         o::Constructor::Vec(_) | o::Constructor::Map(..) => inspect(

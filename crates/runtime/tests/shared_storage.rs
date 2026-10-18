@@ -488,6 +488,7 @@ fn detached_cleanup_can_release_weak_counts_but_only_a_completed_drain_reclaims_
         Err(s::Error::Unavailable)
     );
     let mut retired = block.detach(&allocator).unwrap();
+    assert!(retired.finish(&mut allocator).is_err());
     assert!(block.detach(&allocator).is_err());
     let header = block.identity().unwrap();
     let calls = trace.borrow().requests.len();
