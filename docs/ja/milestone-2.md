@@ -6,17 +6,17 @@
 
 更新・確認日：**2026-10-18 JST**。初回監査の基準commit：`0c2c012`。
 
-**65 done · 0 doing · 36 todo · 91 remaining pt**
+**66 done · 0 doing · 35 todo · 88 remaining pt**
 
-**次: M2-C03 → move／loan／growth／failureとservice別payload preflightを含むsource Vec fixtureを実行する。**
+**次: M2-C04 → allocator-backedなMap storageとi64／Text keyの厳密な等価判定を使うlookupを実装する。**
 
-直近の完了：**M2-C02**（`1271ad8`）。登録付きshared／exclusive Vec element loan、確保なしのpop／Copy transfer、置換した所有権／spanを返す全体／field replacementを追加しました。実初期化順のlinkで置換、pop、growthを越えて順序を保持し、abortは放置したviewをcleanup前に失効させます。追加11 testでstale／不正lease、serial枯渇、constructor metadata予算／OOM、拒否snapshot、child失敗／panic、独立した値／順序oracleと比較する96回の混合操作を検証しました。全体baselineの **79 suite・1196 test** とfmt／Clippy／docが成功しました。C02の3 ptを完了し、**残り94 → 91 pt**、done 65行、計101行です。Vecの基盤2件C01／C02は完了し、次のC03でsource Vec操作の実行を必須にします。Exit gateの完了は増やしません。
+直近の完了：**M2-C03**（`3dca725`）。登録付きloan経由でsource Vec全6操作、mutable element／field置換、cleanupを実行します。CLI fixtureはowning growth、buffer field変更、pop、borrowed guest callを含め **9** と **12** を表示します。4つのclosed payload profileで未対応の入れ子service shapeを副作用前に拒否します。Source 15 testとcleanup injection 5 testで所有権／loan／return境界、全provider OOM／retryと全fuel prefix、登録枯渇、span、中断、poison、省略付きreportと完全解放を検証しました。全体baselineの **79 suite・1216 test** とfmt／Clippy／docが成功しました。C01／C02後に必須としたsource fixtureを完了し、**残り91 → 88 pt**、done 66行、計101行です。Native、C07、preview、artifactは各gateに維持します。
 
-直近code baselineの実測（2026-10-18 JST）：workspace Clippy **25.9秒**、全test **271.1秒**（log作成から最終書き込みまで）、rustdoc **18.4秒**、すべて成功です。Runtime unit／Vec matrix全体（101 test）の後、全baselineは1回です。既存のownership source実行96 testも成功しています。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
+直近code baselineの実測（2026-10-18 JST）：workspace Clippy **26.3秒** と最終incremental確認 **0.8秒**、全test **230.4秒**（log作成から最終書き込みまで）、rustdoc **17.8秒**、すべて成功です。Source／cleanupのfocused検証と追加inline enum実験の後、全test baselineは1回です。Ownership source suiteは111 test成功となりました。検証所要時間であり、全稼働時間やruntime性能の計測ではありません。Logだけでwall timeの全内訳は特定できません。文書のみの更新はconsistency checkを使います。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04でBytes／Text／inline payloadを持つ再帰shared／weak shapeに対応し、Vec／Map統合はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text操作、検証済みarena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable element read、入れ子record／enum／Option／Resultと再帰guest call越しのowner move、検証済みborrowed fieldの読み取り／変更、RHS effect後の値全体／投影先の置換、mutable scalar loop、cleanupで保護したreturn、正常／失敗exitのcleanupを実行できます。V16でnamedなcurrent-profile resultをpreviewし、V15でprivateな生成式wrapperを通常HIR／MIR検証越しに推論し、V10で明示allocator authorityと元sourceのfailureを伴う独立REPL／CLI評価へ接続します。Borrowed matchとpartial move禁止は維持します。V11でin-memory MIRのCFG argument実行を追加しましたが、現在のownership source loweringはそのparameterを生成しません。R04／C03でBytes／Text／inline payloadを持つclosedなshared／weakとVec profileに対応し、入れ子collection／graph統合全体はC07です。後続indirect previewはV17、provisional core readはV13で、両方C07後です。G06にはC07／N05、G07にはN03 native evidence、G08にはservice／REPL／read成果、G14／G16にはnative／cross-mode conformanceが必要です。他owning serviceとownership artifactも各gateに残します。到達可能な未対応命令／payloadはprovider callback前に拒否します。
 
-次の着手条件（2026-10-18 JST）：C03の前提C02／V09は完了しています。VMはVecNewを副作用前に拒否し、dispatch、登録付きelement target、cleanupの接続が残ります。現在の [payload closure](../../crates/vm/src/unit/owned/profile.rs) と [operation preflight](../../crates/vm/src/unit/owned.rs) はservice間で1つのprofileを共有します。Vecを一律に有効化すると、inactive enum caseを含む未対応Vec payloadもshared／arena操作へ通してしまいます。C03ではsource操作の有効化前にservice別preflightを含め、入れ子service統合全体はC07に維持します。最初の実source実験まではC03を暫定3 ptとし、新たな前提が必要なら実装前に明示します。基盤C01／C02が完了したため、次の成果でそのfixtureの実行を必須にします。Native、preview、artifactも各gateに維持します。
+次の着手条件（2026-10-18 JST）：C04の前提D34／D35は完了し、型付きlayout／retirementとallocator-backed Bytes／Textがありますが、runtimeにMap storage serviceはありません。RFC 0007はi64の数値等価とUTF-8 byte単位の厳密なText key等価を要求し、正規化や観測可能なhash順序は導入しません。両key種の最初の確保／lookup実験までC04を暫定3 ptとします。C05にfailure-atomicなinsert／replacementと置換した所有権を残し、基盤2件C04／C05後は追加基盤作業より先にC06でsource Map fixtureを実行します。新たな前提が必要なら実装前に明示します。受理済み入れ子service scopeはC07、native、preview、artifactも各gateに維持します。
 
 従来の完了条件は **18件中5件完了** です。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
 
@@ -146,7 +146,7 @@ R03 interaction監査（2026-10-18 JST）：実行できた型付きgraph probe�
 | M2-R07 | done | 0 | M2-R06,M2-V07 | G05 | Guest callを通じ、arena escape／call-brandのcompile-failとruntime結果を照合。 | `cecd6e8` |
 | M2-C01 | done | 0 | M2-D33,M2-D34 | G09 | Vec storage／new／len／push growthをallocator-awareかつfailure-atomicに実装。 | `78a422a` |
 | M2-C02 | done | 0 | M2-C01 | G09 | Vec read／mutable-read／take／replacementで移動／置換elementを正確に1回retire。 | `1271ad8` |
-| M2-C03 | todo | 3 | M2-C02,M2-V09 | G09 | Vecソース命令をmove／loan／growth／failure fixtureと副作用前のservice別payload preflightで実行。 | — |
+| M2-C03 | done | 0 | M2-C02,M2-V09 | G09 | Vecソース命令をmove／loan／growth／failure fixtureと副作用前のservice別payload preflightで実行。 | `3dca725` |
 | M2-C04 | todo | 3 | M2-D35,M2-D34 | G10 | Map storage／lookupで受理済みの厳密key equalityとallocation budgetを実装。 | — |
 | M2-C05 | todo | 3 | M2-C04 | G10 | Map insert／replacementをfailure-atomicにし、置換valueを1回だけretire。 | — |
 | M2-C06 | todo | 3 | M2-C05,M2-V09 | G10 | Mapソース命令を独立したequality／replacement／failure oracleで検証。 | — |

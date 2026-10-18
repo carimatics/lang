@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み65件 · 進行中0件 · 残り36件（暫定91 pt）。**
+**検証済み66件 · 進行中0件 · 残り35件（暫定88 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む39件の成果を検証しました。C02（`1271ad8`）で登録付きshared／exclusive Vec element loan、pop／Copy transfer、元spanと実retirement順を保持する全体／field replacementを追加しました。追加11 testでconstructor metadata予算／OOM、stale／不正lease、serial枯渇、abort、旧payload cleanup失敗／panic、独立oracleと比較する96回の混合操作を検証しました。全体baselineの79 suite・1196 testとfmt／Clippy／docが成功し、**残り94 → 91 pt**、done 65行、計101行です。Vecの基盤2件C01／C02が完了し、前提C02／V09も完了した次のC03でsource fixtureの実行を必須にします。未対応の入れ子Vec payloadをshared／arena操作へ副作用前に通さないservice別preflightが必要であり、現在の単一global closureでVecを一律有効化できません。最初の実source実験まではC03を暫定3 ptとします。入れ子統合全体はV13／V17とnative N04の前提C07に維持します。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む40件の成果を検証しました。C03（`3dca725`）でsource Vec全6操作、mutable element／field置換、cleanupを実行し、CLI fixtureは9と12を表示します。4つのclosed payload profileで未対応入れ子serviceを副作用前に拒否します。Source 15 testとcleanup injection 5 testでmove／loan／return境界、全OOM／retryと全fuel prefix、登録枯渇、span、中断、poison、省略付きreportと完全解放を検証しました。全体baselineの79 suite・1216 testとfmt／Clippy／docが成功し、**残り91 → 88 pt**、done 66行、計101行です。C01／C02後に必須としたsource fixtureを完了しました。次は完了済みD34／D35を前提とするC04のMap storage／lookupとi64／Text keyの厳密な等価判定で、最初の確保／lookup実験までは暫定3 ptとします。C04／C05の基盤2件後は、追加基盤作業より先にC06でsource Map操作を実行します。入れ子統合全体はV13／V17とnative N04の前提C07に維持します。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
