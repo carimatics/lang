@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み64件 · 進行中0件 · 残り37件（暫定94 pt）。**
+**検証済み65件 · 進行中0件 · 残り36件（暫定91 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む38件の成果を検証しました。C01（`78a422a`）でguest-backedな型付きVec storage／new／len／pushとfailure-atomicなgrowthを追加しました。FixtureはCopy値17個をcapacity 32まで追加し、入れ子owning値でもspanと逆順cleanupを保持します。追加10 testで全constructor／growth OOM／retry、callback前の予算の厳密値／1不足、capacity再利用、element／token／layout境界、child失敗／panic後の継続を検証しました。全体baselineの79 suite・1185 testとfmt／Clippy／docが成功し、**残り97 → 94 pt**、done 64行、計101行です。次は完了済みC01を前提とするC02の検証済みelement loan／pop／replacementで、最初の操作実験までは暫定3 ptを維持します。C01はVecの基盤2件のうち1件目であり、その後は追加基盤作業より先にC03でsource fixtureを実行します。C07はV13／V17とnative N04の前提として残し、受理済みの入れ子generic scopeを維持します。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む39件の成果を検証しました。C02（`1271ad8`）で登録付きshared／exclusive Vec element loan、pop／Copy transfer、元spanと実retirement順を保持する全体／field replacementを追加しました。追加11 testでconstructor metadata予算／OOM、stale／不正lease、serial枯渇、abort、旧payload cleanup失敗／panic、独立oracleと比較する96回の混合操作を検証しました。全体baselineの79 suite・1196 testとfmt／Clippy／docが成功し、**残り94 → 91 pt**、done 65行、計101行です。Vecの基盤2件C01／C02が完了し、前提C02／V09も完了した次のC03でsource fixtureの実行を必須にします。未対応の入れ子Vec payloadをshared／arena操作へ副作用前に通さないservice別preflightが必要であり、現在の単一global closureでVecを一律有効化できません。最初の実source実験まではC03を暫定3 ptとします。入れ子統合全体はV13／V17とnative N04の前提C07に維持します。Native、collection、provisional-read／preview、artifact全体のevidenceは引き続き必要で、新exit gateは完了扱いにしません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
