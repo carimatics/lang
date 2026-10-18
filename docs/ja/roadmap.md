@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み50件 · 進行中0件 · 残り47件（暫定122 pt）。**
+**検証済み51件 · 進行中0件 · 残り46件（暫定119 pt）。**
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む24件の成果を検証しました。V10着手前にCopy専用の推論／session境界、i64専用owned VM entry、未規定のowning preview／lifetimeが判明しました。Code前にV14／V16／V15／V17を追加し、V10を再見積もりして **残り112 → 124 pt**、4行増、計97行です。V14（`b09cc46`）で委任に基づきRFC 0010を受理し、現在のprofileのcanonical preview、明示allocator authority、保護result消費、上限、failure優先順位を定めました。2 ptの設計判断完了後は **122 pt**、doneは1行増です。Source contractのcheckとconsistency 3 testが成功しました。Ownership REPL実行は未実装で、次はV16の実owned-result source preview、その後V15推論とV10 session／CLI統合です。Indirection previewはV17、provisional readはV13へ残します。G06にはR02〜R04／N05、G07にはN03、G08にはこれらのservice／REPL成果、G14／G16にはnative／cross-mode evidenceが必要です。新exit gateは完了扱いにしていません。直近code baselineの1039 testとfmt／Clippy／doc／fuzz check成功は維持し、文書のみの作業では再実行していません。
+現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md) を参照してください（2026-10-18 JST更新）。受入条件の数値が最後に動いてから、計画済みfollow-up設計判断を含む25件の成果を検証しました。V16（`040c082`）ではnamedなsource Bytes／Text／入れ子resultを上限付きでpreviewし、result／storage全解放後にだけstringを返します。Source、runtime、cleanup fault testでcanonical出力、上限、解放、failure優先順位を検証し、全体baselineの71 suite・1051 testとfmt／Clippy／doc／fuzz compile checkが成功しました。既存3 pt行の完了で **残り122 → 119 pt**、doneが1行増え、計97行で、新たな前提taskはありません。次はV15 wrapper推論、その後V10 session／CLI統合です。REPLは引き続きCopy専用です。Indirect previewはV17、provisional readはV13へ残します。G06にはR02〜R04／N05、G07にはN03、G08にはservice／REPL成果、G14／G16にはnative／cross-mode evidenceが必要です。新exit gateは完了扱いにしていません。
 
 従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
