@@ -8,7 +8,9 @@
 
 **96 done · 1 doing · 19 todo · 48 remaining pt**
 
-**次: M2-F01 → acceptedのC型／unsafeの意味検査とbackend非依存MIR接続を診断・compile-fail fixtureで実装します（暫定3点、着手前に範囲を再確認）。**
+**次: M2-F01 → 検証済みC MIRの識別を保ち、source／HIRのC bindingとlexicalなunsafe検査を診断・compile-fail fixtureとともに仕上げます（進行中、暫定3点）。**
+
+F01実装の中間成果（2026-10-19 JST）：accepted RFC 0008の改訂68240ccに従い、03239a1を実装しました。MIRはHost／C import、Guest／C exportを明示して保持し、有限CopyなC署名と固定profile上限を独立検証し、有効なsource spanを保ちます。VM／JIT／objectとschema 2 encodingは、まだ未対応のC unit全体をprovider／guestの作用より前に拒否し、従来Host／Guestのbytesは維持します。ローカル必須検証は **1,427 tests / 87 suites**、失敗0、手動timing testのみ1件ignored。Nativeは61件・251.74秒で、fmt／Clippy／rustdocも成功です。F01のsource／HIR binding、lexicalなunsafe検査、compile-fail fixtureは未完了のため、**F01はdoing・3点を維持し、96 done / 1 doing / 19 todo / 48 pt、gate 7/18も不変**です。次はsourceから検証済みMIRへの接続であり、この中間成果はC実行、portable C artifact、F02-F07の完了を意味しません。
 
 F01着手前／F08分割監査（2026-10-19 JST）：実行したprobeではunsafeという旧関数名が通り、extern "C"はSRC0008の字句エラーでした。ParserとHIRのHostImportは従来のi64引数1個のhost形式で、HIRにunsafe statementはありません。Accepted RFC 0008にC構文は定義済みで、SRC0024の共用もRFC 0007が明示するため、診断番号の再設計は不要です。Losslessなquoted-C import／exportとunsafe block、formatter、予約語移行、上限付きrecoveryをF08（初期2点、6c32322で完了）として追加します。未実装の意味解析は通常host importとして扱ったり無視したりせず拒否します。F01にはC型／unsafe／sourceとMIRの全要件を暫定3点で維持し、coding前に再度範囲を確認します。**115 → 116行、47 → 50 pt**。追加分は **66 → 69点**、完了で取り除いた **153点** は不変です。元のC／ABI／runtime／platform要件は削除しません。F08／F01のfrontend成果後、境界基盤を増やす前に最初のC source実行経路を確認します。
 
