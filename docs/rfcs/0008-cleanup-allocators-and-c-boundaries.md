@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-17
-- Last updated: 2026-10-17
+- Last updated: 2026-10-19
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -141,6 +141,18 @@ Status codes are `0 success`, `1 invalid argument/context/ABI`, `2 guest panic`,
 Typed HIR/MIR carries initialization order, loan/region identity, drop obligations, failure edges, allocator identity, and source spans independently of any backend. Bytecode VM, JIT, and AOT must agree on values, initialized/moved state, cleanup order, failure precedence, publication atomicity, and allocator outcomes for the same inputs/grants/limits. Native ABI profile 1 does not change the private unit call convention. Pure guest semantic fixtures run in every mode; C header/symbol/pointer-validation fixtures run through native adapters, with VM equivalence checked through typed host bindings. This does not claim a general VM-to-C export API is implemented.
 
 Existing script defaults for fuel, calls, frames and cells remain RFC 0006's. Native interruption is not implied: hosts must declare any uninstrumented native execution restriction; it cannot be presented as a guest allocation/capability sandbox. Ownership operations cannot be serialized under bytecode schema 1. The exact versioned ownership encoding remains an explicit decision before encoder/decoder changes. Constant execution, async cancellation, Wasm mapping, and component resource layout are unchanged/deferred.
+
+### C-aware IR and artifact rollout
+
+Decision accepted under experimental delegation on 2026-10-19 JST, before F01 implementation: HIR and ownership MIR retain explicit import ABI (`Host` or `C`) and function ABI (`Guest` or `CExport`) identities. Names, arity, visibility and an `i64` signature cannot stand in for an ABI identity. The existing host family remains exactly `(i64) -> i64`, with its existing grant and execution behavior. C imports carry typed parameter/result declarations; C exports request an additional C wrapper while retaining the unchanged private guest-call convention for guest-to-guest calls. Public C exports are root-module functions. The independent ownership MIR verifier checks C-valid finite Copy signatures and rejects forged loan/owner/recursive signatures; source checks alone are insufficient.
+
+An unsafe statement is a normal lexical block for initialization, move, loan, region, failure and cleanup analysis. Only the source foreign-call obligation uses its lexical marker. It grants no capability and disables no ordinary check. C interface units select the ownership MIR path even when their values are all Copy, so the Copy-profile path cannot erase their ABI identity. Until typed bindings and native adapters support the complete unit, execution and native object publication reject the unsupported C interface before bindings, guest allocation or guest effects; no legacy-host or VM fallback is allowed.
+
+[RFC 0011](0011-ownership-artifacts.md) explicitly supplies no C-FFI representation in schema 2. Schemas 1 and 2 retain their existing bytes, tags, flags and meanings. Their encoders must reject any C import or C export with a structured unsupported-profile error and a validated location before publishing an artifact, rather than omit the ABI marker or encode a C declaration as an ordinary host import. Decoded old imports/functions explicitly remain Host/Guest. A future portable C-interface artifact needs a separate version/compatibility decision before encoding changes. This preserves the accepted artifact scope; source C execution, native C wrappers and VM equivalence through typed host bindings remain required Milestone 2 work. It does not introduce the general VM-to-C export API excluded above.
+
+Rationale and alternatives: reusing the scalar host family would confuse grants and cannot represent the accepted signatures; keeping ABI metadata only in a backend side table would lose the shared verification boundary. A new wire version now would define a format before its C consumers exist, while silently extending schema 2 would contradict its contract. Choose explicit in-memory ABI identities and explicit codec rejection first. No C calling-cost, pointer-safety or performance claim follows from this decision. C pointer/context/capability preflight, canonical descriptor/header generation and actual adapter execution remain separately validated F02-F07 work.
+
+Evidence, verified 2026-10-19 JST: the [ownership declaration verifier](../../crates/mir/src/unit/ownership/declarations.rs) and its [scalar-host contract test](../../crates/mir/tests/ownership_declarations.rs) admit one `i64` parameter/result and reject a `bool` result; [schema 2's ordered import encoding](0011-ownership-artifacts.md#payload-and-table-identity) contains no ABI discriminator. These repository contracts, rather than an assumed C/Rust layout, determine this amendment. Implementation must add malformed-input, legacy-byte compatibility, static source diagnostic and whole-unit refusal evidence before enabling the corresponding paths.
 
 ## ABI and compatibility
 

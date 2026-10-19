@@ -8,7 +8,7 @@
 
 ## 現在のM2実装状況
 
-**検証済み96件 · 進行中0件 · 残り20件（暫定48 pt）。**
+**検証済み96件 · 進行中1件 · 残り19件（暫定48 pt）。**
 
 F01着手前／F08分割監査（2026-10-19 JST）：実行したprobeではunsafeという旧関数名が通り、extern "C"はSRC0008の字句エラーでした。ParserとHIRのHostImportは従来のi64引数1個のhost形式で、HIRにunsafe statementはありません。Accepted RFC 0008にC構文は定義済みで、SRC0024の共用もRFC 0007が明示するため、診断番号の再設計は不要です。Losslessなquoted-C import／exportとunsafe block、formatter、予約語移行、上限付きrecoveryをF08（初期2点、6c32322で完了）として追加します。未実装の意味解析は通常host importとして扱ったり無視したりせず拒否します。F01にはC型／unsafe／sourceとMIRの全要件を暫定3点で維持し、coding前に再度範囲を確認します。**115 → 116行、47 → 50 pt**。追加分は **66 → 69点**、完了で取り除いた **153点** は不変です。元のC／ABI／runtime／platform要件は削除しません。F08／F01のfrontend成果後、境界基盤を増やす前に最初のC source実行経路を確認します。
 

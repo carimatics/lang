@@ -6,7 +6,7 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**96 done · 0 doing · 20 todo · 48 remaining pt**
+**96 done · 1 doing · 19 todo · 48 remaining pt**
 
 **Next: M2-F01 → implement accepted C-type/unsafe semantic checks and backend-independent MIR admission with diagnostics and compile-fail fixtures (3 pt provisional; review scope before implementation).**
 
@@ -216,7 +216,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-A02 | done | 0 | M2-A01 | G14,G16 | Encode/decode ownership types/operations with malformed-input budgets and a fuzz target. | `1311acd` |
 | M2-A03 | done | 0 | M2-A02 | G16 | Load, independently verify and execute owned source artifacts; round-trip behavior agrees. | `2dfea13` |
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | Parse/format accepted C imports/exports and unsafe blocks losslessly, diagnose reserved names, preserve limits and reject unfinished semantic admission. | `6c32322` |
-| M2-F01 | todo | 3 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | — |
+| M2-F01 | doing | 3 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
 | M2-F03 | todo | 3 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | — |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |

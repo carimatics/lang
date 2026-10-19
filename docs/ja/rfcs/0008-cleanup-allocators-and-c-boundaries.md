@@ -7,7 +7,7 @@
 - ステータス: accepted
 - 著者: Project contributors
 - 作成日: 2026-10-17
-- 最終更新日: 2026-10-17
+- 最終更新日: 2026-10-19
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -141,6 +141,18 @@ Statusはu32値で `0 success`、`1 invalid argument/context/ABI`、`2 guest pan
 Typed HIR／MIRはbackend非依存で初期化順、loan／region、drop obligation、failure edge、allocator identity、spanを保持します。同じinput／grant／limitならVM／JIT／AOTでvalue、初期化／move state、cleanup順、failure優先順位、publication atomicity、allocator結果を一致させます。C profile 1はunit専用call規約を変更しません。Pure guest fixtureは全mode、C header／symbol／pointer検証はnative adapterで実行し、VMはtyped host binding経由で同値性を確認します。汎用VM-to-C export APIの実装は主張しません。
 
 Scriptのfuel／call／frame／cell defaultはRFC 0006のままです。Native interruptionを暗黙追加せず、hostはuninstrumented native実行の制限を明示し、allocation／capability sandboxとして提示しません。Ownership operationをschema 1へserializeせず、正確なversioned encodingはencoder／decoder変更前の別判断です。Constant execution、async cancellation、Wasm mapping、component resource layoutは変更なし／延期です。
+
+### Cを区別するIRとartifactの段階導入
+
+F01の実装前となる2026-10-19 JSTに、実験的委譲のもとでこの判断を受理します。HIRとownership MIRはimport ABI（`Host`／`C`）とfunction ABI（`Guest`／`CExport`）を明示的に保持します。名前、引数数、visibility、`i64` signatureをABI identityの代わりにはしません。従来host familyは正確な`(i64) -> i64`と従来のgrant／実行規則を維持します。C importは型付きparameter／result宣言を持ち、C exportは追加C wrapperを要求しますが、guest間callは従来のprivate規約を維持します。Public C exportはroot moduleの関数です。独立ownership MIR verifierでも有限CopyのC-valid signatureを検証し、偽造loan／owner／再帰signatureを拒否します。Source検査だけには依存しません。
+
+Unsafe statementの初期化、move、loan、region、failure、cleanup解析は通常のlexical blockと同じです。Lexical markerを使うのはsourceのforeign call義務だけで、capabilityを与えたり通常の検査を無効にしたりしません。C interfaceを持つunitは全valueがCopyでもownership MIR経路へ進み、Copy profileでABI identityを消しません。型付きbindingとnative adapterがunit全体を扱えるまでは、binding／guest allocation／guest effectに先立って、実行とnative object公開を未対応C interfaceとして拒否します。従来hostやVMへのfallbackは認めません。
+
+[RFC 0011](0011-ownership-artifacts.md)のschema 2にはC-FFI表現を含めないと明示されています。Schema 1／2のbyte、tag、flag、意味を維持します。EncoderはC import／C exportを見つけた場合、artifact公開前に妥当性確認済みlocation付きの構造化unsupported-profile errorで拒否し、ABI markerを省いたり通常host importとして符号化したりしません。旧形式のdecode結果は明示的にHost／Guestです。将来portableなC interface artifactを追加する場合は、encoding変更前に別のversion／互換性判断が必要です。これは受理済みartifact範囲を保持する判断であり、source C実行、native C wrapper、typed host bindingを通すVM同値性はMilestone 2の必須作業に維持します。上で非対象とした汎用VM-to-C export APIは追加しません。
+
+理由と代替案：scalar host familyの流用はgrantを混同し、受理済みsignatureも表現できません。Backendだけのside tableへABI metadataを置くと共通の検証境界が失われます。現時点のwire version追加はC consumerより先に形式を固定し、schema 2の暗黙拡張は既存契約に反します。まずin-memory ABI identityとcodecの明示的拒否を実装します。この判断からC callのcost、pointer安全性、性能は推定しません。C pointer／context／capability preflight、正規descriptor／header、実adapterはF02-F07で別途検証します。
+
+2026-10-19 JST確認の証拠：[ownership宣言verifier](../../../crates/mir/src/unit/ownership/declarations.rs)と[scalar-host契約test](../../../crates/mir/tests/ownership_declarations.rs)はi64引数／result各1個を許し、bool resultを拒否します。[schema 2の順序付きimport encoding](0011-ownership-artifacts.md#payload-and-table-identity)にABI discriminatorはありません。C／Rust layoutの仮定ではなく、これらのrepository契約に基づく追記です。各経路の有効化前に、malformed input、旧byte互換性、static source診断、unit全体の拒否の証拠を追加します。
 
 ## ABIと互換性
 

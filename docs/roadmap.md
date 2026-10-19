@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**96 verified deliveries · 0 in progress · 20 remaining tasks (provisional 48 pt).**
+**96 verified deliveries · 1 in progress · 19 remaining tasks (provisional 48 pt).**
 
 F01 readiness / F08 split audit (2026-10-19 JST): the executable probes accept an old function named unsafe, while extern "C" fails lexing with SRC0008. The parser and HIR HostImport still encode the legacy one-i64 host form, and HIR has no unsafe statement. Accepted RFC 0008 already specifies the C grammar; SRC0024 sharing is intentional under RFC 0007, so no diagnostic-number redesign is needed. Add F08 (initial 2 pt, delivered in 6c32322) for lossless quoted-C import/export and unsafe-block syntax, formatter, reserved-name migration and bounded recovery; unfinished semantic admission must reject these forms rather than treat them as ordinary host imports or omit them. Retain the full F01 C-type/unsafe/source and MIR obligations at provisional 3 pt, with another readiness review before coding. **115 → 116 rows, 47 → 50 pt**; added estimates **66 → 69 pt**, retired estimates **153 pt** unchanged. No original C/ABI/runtime/platform outcome is removed. After the F08/F01 frontend deliveries, review the first C source execution path before more boundary infrastructure.
 

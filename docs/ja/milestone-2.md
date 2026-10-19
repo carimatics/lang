@@ -6,7 +6,7 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**96 done · 0 doing · 20 todo · 48 remaining pt**
+**96 done · 1 doing · 19 todo · 48 remaining pt**
 
 **次: M2-F01 → acceptedのC型／unsafeの意味検査とbackend非依存MIR接続を診断・compile-fail fixtureで実装します（暫定3点、着手前に範囲を再確認）。**
 
@@ -216,7 +216,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-A02 | done | 0 | M2-A01 | G14,G16 | Ownership型／命令のencode／decodeに不正入力budgetとfuzz targetを追加。 | `1311acd` |
 | M2-A03 | done | 0 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | `2dfea13` |
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | AcceptedのC import／exportとunsafe blockをlosslessにparse／formatし、予約語を診断し、上限を維持して未完成の意味解析を拒否する。 | `6c32322` |
-| M2-F01 | todo | 3 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | — |
+| M2-F01 | doing | 3 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
 | M2-F03 | todo | 3 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | — |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
