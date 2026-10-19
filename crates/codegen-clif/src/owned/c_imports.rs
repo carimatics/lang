@@ -55,7 +55,20 @@ pub struct CCompiledProgram<'a> {
     functions: Vec<Option<usize>>,
 }
 impl<'a> CCompiledProgram<'a> {
+    /// Compatibility spelling for the initial Rust embedding API. It now uses
+    /// the same finite Copy profile as `compile_imports`.
     pub fn compile_scalar_imports(
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        artifact: &abi::Artifact,
+        limits: m::Limits,
+        cells: usize,
+    ) -> Result<Self, CError> {
+        Self::compile_imports(flow, layouts, artifact, limits, cells)
+    }
+    /// Prepare every profile-1 finite Copy import, retaining the private r2
+    /// gateway. External C export wrappers and C object publication are separate.
+    pub fn compile_imports(
         flow: &'a f::Elaborated,
         layouts: &'a Layouts<'a>,
         artifact: &abi::Artifact,
@@ -80,24 +93,6 @@ impl<'a> CCompiledProgram<'a> {
                     .ok_or(CError::Codegen(Error::InvalidFunction(m::FunctionId(0))))?
                     .signature_span,
             });
-        }
-        for function in checked.functions() {
-            if function.direction == abi::Direction::Import
-                && function
-                    .parameters
-                    .iter()
-                    .chain(std::iter::once(&function.result))
-                    .any(|ty| {
-                        !matches!(
-                            checked.types()[ty.0].kind,
-                            abi::Kind::I64 | abi::Kind::Bool | abi::Kind::Unit
-                        )
-                    })
-            {
-                return Err(CError::Profile {
-                    span: function.span,
-                });
-            }
         }
         let mut budget = m::Budget::new(limits);
         let mut functions = budget
@@ -265,6 +260,22 @@ impl<R: Runtime> ImportDispatcher<R> for Dispatcher<'_, '_> {
         let metadata = &self.session.artifact().functions()[function];
         if site.arguments.len() > 256 || site.arguments.len() != metadata.parameters.len() {
             return Err(invariant);
+        }
+        if metadata
+            .parameters
+            .iter()
+            .chain(std::iter::once(&metadata.result))
+            .any(|id| {
+                matches!(
+                    self.session.artifact().types()[id.0].kind,
+                    abi::Kind::Record { .. } | abi::Kind::Enum { .. }
+                )
+            })
+        {
+            *self.session.usage() = runtime.c_usage().ok_or(invariant)?;
+            let result = runtime.c_copy_import(site, function, self.session, self.invoker);
+            runtime.set_c_usage(*self.session.usage())?;
+            return result;
         }
         let mut arguments = [Scalar::Unit; 256];
         for (index, (slot, ty)) in site.arguments.iter().zip(&metadata.parameters).enumerate() {

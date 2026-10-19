@@ -31,6 +31,27 @@ struct Stats {
     frees: Cell<u64>,
     fail: Cell<u32>,
     wrong: Cell<u32>,
+    refuse_at: Cell<u64>,
+}
+#[derive(Clone, Copy)]
+enum Refusal {
+    None,
+    First,
+    At(u64),
+}
+impl From<bool> for Refusal {
+    fn from(value: bool) -> Self {
+        if value { Self::First } else { Self::None }
+    }
+}
+impl Refusal {
+    fn apply(self, stats: &Stats) {
+        match self {
+            Self::None => {}
+            Self::First => stats.fail.set(1),
+            Self::At(at) => stats.refuse_at.set(at),
+        }
+    }
 }
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
@@ -52,6 +73,60 @@ struct Library {
     handle: *mut c_void,
     directory: PathBuf,
 }
+// A whole C struct/union assignment need not preserve inactive storage. The
+// trusted fixture obeys profile 1 on either C compiler by copying active fields
+// and explicitly zeroing unused union bytes; ordinary padding stays irrelevant.
+fn c_copy_fields(
+    artifact: &Artifact,
+    id: lang_runtime::c_abi::TypeId,
+    from: &str,
+    to: &str,
+) -> String {
+    match &artifact.types()[id.0].kind {
+        Kind::I64 | Kind::Bool => format!("{to} = {from}; "),
+        Kind::Unit => format!("{to}.reserved = {from}.reserved; "),
+        Kind::Record { fields, .. } => {
+            if fields.is_empty() {
+                return format!("{to}.reserved = {from}.reserved; ");
+            }
+            fields
+                .iter()
+                .map(|f| {
+                    c_copy_fields(
+                        artifact,
+                        f.ty,
+                        &format!("{from}.f_{}", f.name),
+                        &format!("{to}.f_{}", f.name),
+                    )
+                })
+                .collect()
+        }
+        Kind::Enum { cases, .. } => {
+            let mut code = format!(
+                "{to}.tag = {from}.tag; memset(&{to}.payload, 0, sizeof({to}.payload)); switch ({from}.tag) {{ "
+            );
+            for (tag, case) in cases.iter().enumerate() {
+                code.push_str(&format!("case {tag}: "));
+                if case.payload.is_empty() {
+                    code.push_str(&format!(
+                        "{to}.payload.c{tag}.reserved = {from}.payload.c{tag}.reserved; "
+                    ));
+                }
+                for (index, id) in case.payload.iter().enumerate() {
+                    code.push_str(&c_copy_fields(
+                        artifact,
+                        *id,
+                        &format!("{from}.payload.c{tag}.p{index}"),
+                        &format!("{to}.payload.c{tag}.p{index}"),
+                    ));
+                }
+                code.push_str("break; ");
+            }
+            code.push_str("default: return 1; } ");
+            code
+        }
+    }
+}
 impl Library {
     fn new(artifact: &Artifact) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -65,9 +140,75 @@ impl Library {
             .types()
             .iter()
             .find(|ty| matches!(ty.kind, Kind::Unit))
-            .unwrap();
-        let mut code =
-            include_str!("c_imports.c").replace("UNIT_TYPE", &format!("lang_type_{}", unit.digest));
+            .map(|ty| format!("lang_type_{}", ty.digest));
+        let mut code = if unit.is_none() {
+            "typedef struct { uint8_t reserved; } fixture_unit;\n".into()
+        } else {
+            String::new()
+        };
+        code.push_str(
+            &include_str!("c_imports.c")
+                .replace("UNIT_TYPE", unit.as_deref().unwrap_or("fixture_unit")),
+        );
+        for function in artifact
+            .functions()
+            .iter()
+            .filter(|f| f.name.rsplit("::").next() == Some("inspect"))
+        {
+            let ty = &artifact.types()[function.parameters[0].0];
+            code.push_str(&format!("\nEXPORT uint32_t c_inspect(lang_context *context, void *user, const lang_type_{digest} *value, uint8_t enabled, int64_t *out) {{ if (!context) return 1; ++((fixture_stats *)user)->effects; *out = value->f_number + value->f_flag + enabled; return 0; }}\n",digest=ty.digest));
+        }
+        for function in artifact
+            .functions()
+            .iter()
+            .filter(|f| f.name.rsplit("::").next() == Some("aggregate_many"))
+        {
+            let mut parameters = Vec::new();
+            let mut values = Vec::new();
+            for (i, id) in function.parameters.iter().enumerate() {
+                let ty = &artifact.types()[id.0];
+                let (parameter, value) = match ty.kind {
+                    Kind::I64 => (format!("int64_t v{i}"), format!("v{i}")),
+                    Kind::Bool => (format!("uint8_t v{i}"), format!("v{i}")),
+                    Kind::Unit => (
+                        format!("const lang_type_{} *v{i}", ty.digest),
+                        format!("v{i}->reserved"),
+                    ),
+                    Kind::Record { .. } => (
+                        format!("const lang_type_{} *v{i}", ty.digest),
+                        format!("v{i}->f_number"),
+                    ),
+                    _ => panic!("fixture parameter"),
+                };
+                parameters.push(parameter);
+                values.push(value);
+            }
+            let digest = artifact.types()[function.result.0].digest;
+            code.push_str(&format!("\nEXPORT uint32_t c_aggregate_many(lang_context *context, void *user, {}, lang_type_{digest} *out) {{ if (!context) return 1; ++((fixture_stats *)user)->effects; out->f_number = {}; out->f_flag = 1; return 0; }}\n",parameters.join(", "),values.join(" + ")));
+        }
+        for function in artifact.functions().iter().filter(|f| {
+            f.name
+                .rsplit("::")
+                .next()
+                .is_some_and(|name| name.starts_with("echo"))
+        }) {
+            assert_eq!(function.parameters.len(), 1);
+            assert_eq!(function.parameters[0], function.result);
+            let ty = &artifact.types()[function.result.0];
+            let name = function.name.rsplit("::").next().unwrap();
+            let extra = match name {
+                "echo_bad_bool" => "out->f_flag = 2;",
+                "echo_bad_tag" => "out->tag = UINT32_MAX;",
+                "echo_bad_reserved" => "out->reserved = 1;",
+                "echo_bad_unused" => {
+                    "((unsigned char *)&out->payload)[sizeof(out->payload) - 1] = 1;"
+                }
+                "echo_failure" => "return UINT32_MAX;",
+                _ => "",
+            };
+            let copy = c_copy_fields(artifact, function.result, "(*value)", "(*out)");
+            code.push_str(&format!("\nEXPORT uint32_t c_{name}(lang_context *context, void *user, const lang_type_{digest} *value, lang_type_{digest} *out) {{ if (!context) return 1; ++((fixture_stats *)user)->effects; memset(out, 0xa5, sizeof(*out)); {copy} {extra} return 0; }}\n",digest=ty.digest));
+        }
         for function in artifact
             .functions()
             .iter()
@@ -82,6 +223,19 @@ impl Library {
                 .collect::<Vec<_>>()
                 .join(" + ");
             code.push_str(&format!("\nEXPORT uint32_t c_arity(lang_context *context, void *user, {parameters}, int64_t *out) {{ if (!context) return 1; ++((fixture_stats *)user)->effects; *out = {sum}; return 0; }}\n"));
+        }
+        for function in artifact.functions() {
+            match function.name.rsplit("::").next().unwrap() {
+                "make_pair" => {
+                    let digest = artifact.types()[function.result.0].digest;
+                    code.push_str(&format!("\nEXPORT uint32_t c_make_pair(lang_context *context, void *user, lang_type_{digest} *out) {{ if (!context) return 1; ++((fixture_stats *)user)->effects; out->f_number = 56; out->f_flag = 1; return 0; }}\n"));
+                }
+                "consume_pair" => {
+                    let digest = artifact.types()[function.parameters[0].0].digest;
+                    code.push_str(&format!("\nEXPORT uint32_t c_consume_pair(lang_context *context, void *user, const lang_type_{digest} *value) {{ if (!context || value->f_number != 57 || value->f_flag != 1) return 1; ++((fixture_stats *)user)->effects; return 0; }}\n"));
+                }
+                _ => {}
+            }
         }
         let mut checks = String::new();
         for function in artifact.functions() {
@@ -183,6 +337,286 @@ impl Library {
         }
     }
 }
+
+#[test]
+fn aggregate_c_imports_execute_records_and_sums_from_source() {
+    let cases = [
+        (
+            "pub struct Pair { flag: bool, number: i64 } extern \"C\" fn echo_pair(value: Pair) -> Pair; fn main() -> i64 { unsafe { let mut value: Pair = echo_pair(Pair { number: 42, flag: true }); if value.flag { return value.number; } return 0; } }",
+            42,
+        ),
+        (
+            "pub struct Inner { number: i64, flag: bool } pub struct Outer { empty: core::Unit, inner: Inner, enabled: bool } extern \"C\" fn echo_nested(value: Outer) -> Outer; fn main() -> i64 { unsafe { let mut value: Outer = echo_nested(Outer { enabled: true, inner: Inner { flag: true, number: 43 }, empty: core::Unit {} }); return value.inner.number; } }",
+            43,
+        ),
+        (
+            "pub enum Choice { Empty, Number(i64, bool) } extern \"C\" fn echo_choice(value: Choice) -> Choice; fn main() -> i64 { unsafe { match echo_choice(Choice::Empty) { Choice::Empty => { return 44; }, Choice::Number(_, _) => { return 0; }, } } }",
+            44,
+        ),
+        (
+            "pub enum Choice { Empty, Number(i64, bool) } extern \"C\" fn echo_choice(value: Choice) -> Choice; fn main() -> i64 { unsafe { match echo_choice(Choice::Number(45, true)) { Choice::Empty => { return 0; }, Choice::Number(number, flag) => { if flag { return number; } return 0; }, } } }",
+            45,
+        ),
+        (
+            "extern \"C\" fn echo_option(value: core::Option<i64>) -> core::Option<i64>; fn main() -> i64 { unsafe { match echo_option(core::Option::Some(46)) { core::Option::Some(number) => { return number; }, core::Option::None => { return 0; }, } } }",
+            46,
+        ),
+        (
+            "extern \"C\" fn echo_option(value: core::Option<i64>) -> core::Option<i64>; fn main() -> i64 { unsafe { match echo_option(core::Option::None) { core::Option::Some(_) => { return 0; }, core::Option::None => { return 47; }, } } }",
+            47,
+        ),
+        (
+            "pub struct Pair { number: i64, flag: bool } extern \"C\" fn echo_result(value: core::Result<core::Option<Pair>, core::BufferError>) -> core::Result<core::Option<Pair>, core::BufferError>; fn main() -> i64 { unsafe { match echo_result(core::Result::Ok(core::Option::Some(Pair { number: 48, flag: true }))) { core::Result::Ok(value) => { match value { core::Option::Some(pair) => { if pair.flag { return pair.number; } return 0; }, core::Option::None => { return 0; }, } }, core::Result::Err(_) => { return 0; }, } } }",
+            48,
+        ),
+        (
+            "extern \"C\" fn echo_error(value: core::BufferError) -> core::BufferError; fn main() -> i64 { unsafe { match echo_error(core::BufferError::Allocation(core::AllocError::Overflow)) { core::BufferError::Allocation(error) => { match error { core::AllocError::Overflow => { return 49; }, core::AllocError::Limit => { return 0; }, core::AllocError::OutOfMemory => { return 0; }, } }, core::BufferError::Bounds => { return 0; }, core::BufferError::InvalidByte => { return 0; }, } } }",
+            49,
+        ),
+        (
+            "pub struct Empty {} extern \"C\" fn echo_empty(value: Empty) -> Empty; fn main() -> i64 { unsafe { let mut value: Empty = echo_empty(Empty {}); return 50; } }",
+            50,
+        ),
+        (
+            "extern \"C\" fn echo_utf8(value: core::Utf8Error) -> core::Utf8Error; fn main() -> i64 { unsafe { match echo_utf8(core::Utf8Error::Invalid(51)) { core::Utf8Error::Invalid(offset) => { return offset; }, } } }",
+            51,
+        ),
+        (
+            include_str!("../../examples/analysis/c_aggregate_imports.lang"),
+            84,
+        ),
+        (
+            "pub struct Pair { number: i64, flag: bool } extern \"C\" fn inspect(value: Pair, enabled: bool) -> i64; fn main() -> i64 { unsafe { return inspect(Pair { number: 52, flag: true }, true); } }",
+            54,
+        ),
+        (
+            "pub struct Pair { number: i64, flag: bool } extern \"C\" fn make_pair() -> Pair; fn main() -> i64 { unsafe { let mut result: Pair = make_pair(); if result.flag { return result.number; } return 0; } }",
+            56,
+        ),
+        (
+            "pub struct Pair { number: i64, flag: bool } extern \"C\" fn consume_pair(value: Pair) -> core::Unit; fn main() -> i64 { unsafe { let mut result: core::Unit = consume_pair(Pair { number: 57, flag: true }); return 57; } }",
+            57,
+        ),
+    ];
+    for (text, expected) in cases {
+        let text = if expected == 84 {
+            text.to_owned()
+        } else {
+            format!("{IMPORTS} {text}")
+        };
+        let owner = source(&text);
+        let artifact = artifact(&text, target(), Limits::default()).unwrap();
+        let library = Library::new(&artifact);
+        let normal = observe_vm(&owner, &artifact, &library, e::Control::default(), false);
+        assert_eq!(normal.value, Some(expected), "{normal:?}");
+        let declarations = owner
+            .failure_flow()
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations();
+        let layouts =
+            lang_runtime::layout::Layouts::compile(declarations.types(), Default::default())
+                .unwrap();
+        let compiled = lang_codegen_clif::owned::CCompiledProgram::compile_scalar_imports(
+            owner.failure_flow(),
+            &layouts,
+            &artifact,
+            Default::default(),
+            4096,
+        )
+        .unwrap();
+        assert_eq!(
+            native::observe(&compiled, &artifact, &library, e::Control::default(), false),
+            normal
+        );
+        for fuel in 0..=normal.usage.fuel {
+            let control = e::Control::with_limits(e::Limits {
+                fuel: Some(fuel),
+                ..Default::default()
+            });
+            assert_eq!(
+                native::observe(&compiled, &artifact, &library, control, false),
+                observe_vm(&owner, &artifact, &library, control, false),
+                "fuel {fuel}, expected {expected}"
+            );
+        }
+        for work in 0..=normal.usage.service_work {
+            let control = e::Control::default().and_service_work(Some(work));
+            assert_eq!(
+                native::observe(&compiled, &artifact, &library, control, false),
+                observe_vm(&owner, &artifact, &library, control, false),
+                "work {work}, expected {expected}"
+            );
+        }
+        for at in 1..=3 {
+            let refusal = Refusal::At(at);
+            let vm = observe_vm(&owner, &artifact, &library, e::Control::default(), refusal);
+            assert!(vm.fault.is_some(), "allocation {at}");
+            assert_eq!(vm.effects, 0, "allocation {at}");
+            assert_eq!(
+                native::observe(
+                    &compiled,
+                    &artifact,
+                    &library,
+                    e::Control::default(),
+                    refusal
+                ),
+                vm,
+                "allocation {at}, expected {expected}"
+            );
+        }
+    }
+}
+
+#[test]
+fn aggregate_c_output_refusals_preserve_failure_and_discard_results() {
+    use lang_runtime::c_abi::validation::Error as V;
+    for (name, ty, declaration, value, kind) in [
+        (
+            "echo_bad_bool",
+            "Pair",
+            "pub struct Pair { number: i64, flag: bool }",
+            "Pair { number: 42, flag: true }",
+            0,
+        ),
+        (
+            "echo_bad_tag",
+            "Choice",
+            "pub enum Choice { Empty, Number(i64) }",
+            "Choice::Empty",
+            1,
+        ),
+        (
+            "echo_bad_unused",
+            "Choice",
+            "pub enum Choice { Empty, Number(i64) }",
+            "Choice::Empty",
+            2,
+        ),
+        (
+            "echo_bad_reserved",
+            "Empty",
+            "pub struct Empty {}",
+            "Empty {}",
+            3,
+        ),
+        (
+            "echo_failure",
+            "Pair",
+            "pub struct Pair { number: i64, flag: bool }",
+            "Pair { number: 42, flag: true }",
+            4,
+        ),
+    ] {
+        let text = format!(
+            "{declaration} extern \"C\" fn {name}(value: {ty}) -> {ty}; fn main() -> i64 {{ unsafe {{ let mut value: {ty} = {name}({value}); return 999; }} }}"
+        );
+        let owner = source(&text);
+        let artifact = artifact(&text, target(), Limits::default()).unwrap();
+        let library = Library::new(&artifact);
+        let types = owner
+            .failure_flow()
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types();
+        let layouts = lang_runtime::layout::Layouts::compile(types, Default::default()).unwrap();
+        let compiled = lang_codegen_clif::owned::CCompiledProgram::compile_scalar_imports(
+            owner.failure_flow(),
+            &layouts,
+            &artifact,
+            Default::default(),
+            4096,
+        )
+        .unwrap();
+        let vm = observe_vm(&owner, &artifact, &library, e::Control::default(), false);
+        assert_eq!(vm.value, None);
+        assert_eq!(vm.effects, 1);
+        assert!(!vm.poisoned);
+        assert!(
+            matches!(
+                (kind, vm.fault.unwrap().kind),
+                (0, c::Kind::ForeignValue(V::InvalidBool { .. }))
+                    | (1, c::Kind::ForeignValue(V::InvalidTag { .. }))
+                    | (2, c::Kind::ForeignValue(V::UnusedUnion { .. }))
+                    | (3, c::Kind::ForeignValue(V::Reserved { .. }))
+                    | (
+                        4,
+                        c::Kind::ForeignStatus {
+                            code: u32::MAX,
+                            known: false
+                        }
+                    )
+            ),
+            "{name}: {vm:?}"
+        );
+        assert_eq!(
+            native::observe(&compiled, &artifact, &library, e::Control::default(), false),
+            vm
+        );
+    }
+}
+
+#[test]
+fn c_imports_transfer_256_mixed_scalar_and_aggregate_arguments() {
+    let mut parameters = Vec::new();
+    let mut arguments = Vec::new();
+    let mut expected = 0;
+    for i in 0..256 {
+        let (ty, value, cost) = match i % 4 {
+            0 => (
+                "Pair",
+                format!("Pair {{ number: {}, flag: true }}", i + 1),
+                i + 1,
+            ),
+            1 => ("i64", format!("{}", i + 1), i + 1),
+            2 => ("bool", "true".into(), 1),
+            _ => ("core::Unit", "core::Unit {}".into(), 0),
+        };
+        parameters.push(format!("v{i}: {ty}"));
+        arguments.push(value);
+        expected += cost;
+    }
+    let text = format!(
+        "pub struct Pair {{ number: i64, flag: bool }} extern \"C\" fn aggregate_many({}) -> Pair; fn main() -> i64 {{ unsafe {{ let mut result: Pair = aggregate_many({}); if result.flag {{ return result.number; }} return -1; }} }}",
+        parameters.join(", "),
+        arguments.join(", ")
+    );
+    let owner = source(&text);
+    let artifact = artifact(&text, target(), Limits::default()).unwrap();
+    let library = Library::new(&artifact);
+    let types = owner
+        .failure_flow()
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let layouts = lang_runtime::layout::Layouts::compile(types, Default::default()).unwrap();
+    let compiled = lang_codegen_clif::owned::CCompiledProgram::compile_imports(
+        owner.failure_flow(),
+        &layouts,
+        &artifact,
+        Default::default(),
+        4096,
+    )
+    .unwrap();
+    let vm = observe_vm(&owner, &artifact, &library, e::Control::default(), false);
+    assert_eq!(vm.value, Some(expected));
+    assert_eq!(vm.effects, 1);
+    assert_eq!(
+        native::observe(&compiled, &artifact, &library, e::Control::default(), false),
+        vm
+    );
+}
 impl Drop for Library {
     fn drop(&mut self) {
         // SAFETY: every callback/context/provider declared after this retained
@@ -241,10 +675,10 @@ fn observe_vm(
     artifact: &Artifact,
     library: &Library,
     control: e::Control<'_>,
-    fail_allocation: bool,
+    fail_allocation: impl Into<Refusal>,
 ) -> Observed {
     let stats = Stats::default();
-    stats.fail.set(u32::from(fail_allocation));
+    fail_allocation.into().apply(&stats);
     let flow = owner.failure_flow();
     let program = c::Program::new(
         artifact,

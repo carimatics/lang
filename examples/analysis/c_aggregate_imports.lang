@@ -1,0 +1,21 @@
+// The explicit Rust C context/binding fixture runs this on VM and native.
+pub struct Pair { number: i64, flag: bool }
+
+extern "C" fn echo_result(value: core::Result<core::Option<Pair>, core::BufferError>) -> core::Result<core::Option<Pair>, core::BufferError>;
+
+fn main() -> i64 {
+    unsafe {
+        match echo_result(core::Result::Ok(core::Option::Some(Pair { number: 84, flag: true }))) {
+            core::Result::Ok(value) => {
+                match value {
+                    core::Option::Some(pair) => {
+                        if pair.flag { return pair.number; }
+                        return 0;
+                    },
+                    core::Option::None => { return -1; },
+                }
+            },
+            core::Result::Err(_) => { return -2; },
+        }
+    }
+}

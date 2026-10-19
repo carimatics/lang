@@ -1,13 +1,13 @@
-//! Call-local scalar/Unit C storage shared by VM and native import adapters.
-//! It adds no fuel positions and uses the enclosing Session's F10/control and
-//! failure latch. General finite Copy aggregates remain a separate adapter.
+//! Call-local C storage shared by VM and native import adapters. Scalar/Unit
+//! calls retain their original API; finite Copy objects use the same Session
+//! F10/control and failure latch, without adding fuel positions.
 use super::{AllocatorIdentity, BoundImport, Call, Fault, Kind, Session};
 use crate::c_abi::{
     Digest, Kind as TypeKind,
     validation::{self, Address, Argument, Reader},
 };
 use lang_mir::unit::Span;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 /// One actual call-local profile-1 Unit C object.
 #[repr(C)]
@@ -40,6 +40,50 @@ pub enum Input<'a> {
     I64(i64),
     Bool(u8),
     Unit(&'a Unit),
+    Object(&'a [u8]),
+}
+impl Reader for Input<'_> {
+    fn address(&self) -> Address {
+        match self {
+            Self::Unit(unit) => unit.address(),
+            Self::Object(bytes) => Address::from_slice(bytes),
+            _ => Address {
+                start: 0,
+                extent: 0,
+            },
+        }
+    }
+    fn read(&self, offset: usize, destination: &mut [u8]) -> Result<(), validation::Error> {
+        match self {
+            Self::Unit(unit) => unit.read(offset, destination),
+            Self::Object(bytes) => validation::Bytes(bytes).read(offset, destination),
+            _ => Err(validation::Error::Read {
+                offset,
+                bytes: destination.len(),
+            }),
+        }
+    }
+}
+
+/// Initialized, call-local wire storage, separate from every const input.
+/// Native adapters must restore initialized padding before returning access to
+/// Rust. Only the selected type's initialized fields carry source meaning.
+pub struct ObjectOutput<'a>(RefCell<&'a mut [u8]>);
+impl<'a> ObjectOutput<'a> {
+    pub fn new(bytes: &'a mut [u8]) -> Self {
+        Self(RefCell::new(bytes))
+    }
+    pub fn with_bytes<T>(&self, f: impl FnOnce(&mut [u8]) -> T) -> T {
+        f(&mut self.0.borrow_mut())
+    }
+}
+impl Reader for ObjectOutput<'_> {
+    fn address(&self) -> Address {
+        Address::from_slice(&self.0.borrow())
+    }
+    fn read(&self, offset: usize, destination: &mut [u8]) -> Result<(), validation::Error> {
+        validation::Bytes(&self.0.borrow()).read(offset, destination)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -55,10 +99,12 @@ pub enum Output<'a> {
     I64(&'a Cell<i64>),
     Bool(&'a Cell<u8>),
     Unit,
+    Object(&'a ObjectOutput<'a>),
 }
 impl Reader for Output<'_> {
     fn address(&self) -> Address {
         match self {
+            Self::Object(value) => value.address(),
             Self::I64(value) => Address {
                 start: value.as_ptr().addr(),
                 extent: 8,
@@ -74,6 +120,9 @@ impl Reader for Output<'_> {
         }
     }
     fn read(&self, offset: usize, destination: &mut [u8]) -> Result<(), validation::Error> {
+        if let Self::Object(value) = self {
+            return value.read(offset, destination);
+        }
         let end = offset
             .checked_add(destination.len())
             .ok_or(validation::Error::Overflow)?;
@@ -81,6 +130,7 @@ impl Reader for Output<'_> {
             Self::I64(value) => value.get().to_ne_bytes(),
             Self::Bool(value) => [value.get(), 0, 0, 0, 0, 0, 0, 0],
             Self::Unit => return Err(validation::Error::Shape(validation::Object::Result)),
+            Self::Object(_) => unreachable!(),
         };
         let size = self.address().extent;
         if end > size {
@@ -163,6 +213,7 @@ impl Session<'_> {
                 Input::I64(value) => Argument::I64(value),
                 Input::Bool(value) => Argument::Bool(value),
                 Input::Unit(unit) => Argument::Object(unit),
+                Input::Object(_) => Argument::Object(&inputs[i]),
             });
             let result = if matches!(output, Output::Unit) {
                 None
@@ -184,7 +235,64 @@ impl Session<'_> {
                 Output::I64(value) => Scalar::I64(value.get()),
                 Output::Bool(value) => Scalar::Bool(value.get()),
                 Output::Unit => Scalar::Unit,
+                Output::Object(_) => unreachable!(),
             })
+        })();
+        if let Err(mut fault) = checked {
+            fault.span = span.or(fault.span);
+            self.failure = Some(fault);
+            return Err(fault);
+        }
+        checked
+    }
+}
+
+impl Session<'_> {
+    /// Invoke already marshalled finite Copy objects through the same context
+    /// gate as scalars. The caller retains every input and staged result until
+    /// validation finishes, then translates fields into unpublished typed cells.
+    pub fn invoke_copy(
+        &mut self,
+        function: usize,
+        span: Option<Span>,
+        inputs: &[Input<'_>],
+        output: Output<'_>,
+        invoker: &mut (impl Invoker + ?Sized),
+    ) -> Result<(), Fault> {
+        if let Some(fault) = self.failure {
+            return Err(fault);
+        }
+        let checked = (|| {
+            if invoker.artifact() != self.artifact.digest()
+                || invoker.allocator_identity() != self.allocator_identity
+            {
+                return Err(Fault::new(Kind::WrongProgram));
+            }
+            if inputs.len() > 256 {
+                return Err(Fault::new(Kind::Function(function)));
+            }
+            let arguments: [Argument<'_>; 256] = std::array::from_fn(|i| match inputs.get(i) {
+                Some(Input::I64(value)) => Argument::I64(*value),
+                Some(Input::Bool(value)) => Argument::Bool(*value),
+                Some(input) => Argument::Object(input),
+                None => Argument::I64(0),
+            });
+            let result = if matches!(output, Output::Unit) {
+                None
+            } else {
+                Some(&output as &dyn Reader)
+            };
+            self.invoke(
+                function,
+                Call {
+                    span,
+                    context: invoker.context(),
+                    arguments: &arguments[..inputs.len()],
+                    output: result.map(Reader::address),
+                },
+                result,
+                &mut |binding| invoker.invoke(binding, inputs, output),
+            )
         })();
         if let Err(mut fault) = checked {
             fault.span = span.or(fault.span);

@@ -10,6 +10,7 @@
 typedef struct {
   uint64_t effects, allocations, frees;
   uint32_t fail, wrong;
+  uint64_t refuse_at;
 } fixture_stats;
 typedef struct {
   void *base;
@@ -19,6 +20,7 @@ typedef struct {
 EXPORT void *c_allocate(void *user, uint64_t bytes, uint64_t alignment) {
   fixture_stats *stats = user;
   if (stats->fail) { --stats->fail; return NULL; }
+  if (stats->refuse_at && stats->allocations + 1 == stats->refuse_at) return NULL;
   const size_t a = alignment < sizeof(void *) ? sizeof(void *) : (size_t)alignment;
   void *base = malloc((size_t)bytes + a - 1 + sizeof(fixture_allocation));
   if (!base) return NULL;

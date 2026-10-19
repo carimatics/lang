@@ -98,24 +98,6 @@ impl<'a, 'context> Imports<'a, 'context> {
                 gate::config::InvalidConfig::Artifact,
             ))));
         }
-        for (index, function) in artifact.functions().iter().enumerate() {
-            if function.direction == abi::Direction::Import
-                && function
-                    .parameters
-                    .iter()
-                    .chain(std::iter::once(&function.result))
-                    .any(|ty| {
-                        !matches!(
-                            artifact.types()[ty.0].kind,
-                            abi::Kind::I64 | abi::Kind::Bool | abi::Kind::Unit
-                        )
-                    })
-            {
-                return Err(reject(
-                    gate::Fault::new(gate::Kind::Function(index)).at(function.span),
-                ));
-            }
-        }
         let mut budget = m::Budget::new(m::Limits::default());
         let mut functions = budget
             .vector(declarations.imports().len())
@@ -169,6 +151,20 @@ impl<'a, 'context> Imports<'a, 'context> {
         if arguments.len() > 256 || instruction.results.len() != 1 {
             return Err(c::ExecutionFailure::Invariant);
         }
+        let metadata = &self.session.artifact().functions()[function];
+        if metadata
+            .parameters
+            .iter()
+            .chain(std::iter::once(&metadata.result))
+            .any(|id| {
+                matches!(
+                    self.session.artifact().types()[id.0].kind,
+                    abi::Kind::Record { .. } | abi::Kind::Enum { .. }
+                )
+            })
+        {
+            return self.invoke_copy(function, instruction, values, arguments, shared, usage);
+        }
         let mut scalars = [Scalar::Unit; 256];
         {
             let state = shared.borrow();
@@ -207,9 +203,88 @@ impl<'a, 'context> Imports<'a, 'context> {
             .borrow_mut()
             .write(values + instruction.results[0].0 as usize, result)
     }
+    fn invoke_copy<P: a::Provider>(
+        &mut self,
+        function: usize,
+        instruction: &b::Instruction,
+        values: usize,
+        arguments: &[m::Register],
+        shared: &Rc<RefCell<State<'_, '_, '_, P>>>,
+        usage: &mut Usage,
+    ) -> Step<()> {
+        let mut state = shared.borrow_mut();
+        let call =
+            abi::transfer::CallStorage::reserve(self.session.artifact(), function, state.allocator)
+                .map_err(|error| match error {
+                    l::Error::Allocation(_) => c::ExecutionFailure::AllocationLimit,
+                    error => invariant(error),
+                })?;
+        let result = (|| {
+            for (index, value) in arguments.iter().enumerate() {
+                let logical = values + value.0 as usize;
+                state.root(logical)?;
+                let State {
+                    storage,
+                    cells,
+                    allocator,
+                    ..
+                } = &mut *state;
+                call.encode(
+                    index,
+                    self.session.artifact(),
+                    function,
+                    storage
+                        .as_ref()
+                        .ok_or(c::ExecutionFailure::Invariant)?
+                        .cell(cells[logical].physical)
+                        .map_err(invariant)?,
+                    allocator,
+                )
+                .map_err(invariant)?;
+            }
+            *self.session.usage() = *usage;
+            let result = call.invoke(
+                function,
+                instruction.span,
+                self.session,
+                self.invoker,
+                state.allocator,
+            );
+            *usage = *self.session.usage();
+            result.map_err(|fault| match fault.kind {
+                gate::Kind::Control(error)
+                | gate::Kind::Value(abi::validation::Error::Control(error))
+                | gate::Kind::ForeignValue(abi::validation::Error::Control(error)) => error.into(),
+                gate::Kind::HostPanic => c::ExecutionFailure::HostPanic,
+                _ => c::ExecutionFailure::HostCall,
+            })?;
+            let result = values + instruction.results[0].0 as usize;
+            let State {
+                storage,
+                cells,
+                allocator,
+                ..
+            } = &mut *state;
+            call.decode(
+                self.session.artifact(),
+                function,
+                storage
+                    .as_ref()
+                    .ok_or(c::ExecutionFailure::Invariant)?
+                    .cell(cells[result].physical)
+                    .map_err(invariant)?,
+                allocator,
+            )
+            .map_err(invariant)?;
+            cells[result].live = true;
+            Ok(())
+        })();
+        let release = call.release(state.allocator).map_err(invariant);
+        result.and(release)
+    }
 }
 
-/// Execute source main using only the context's checked scalar/Unit imports.
+/// Execute source main using the context's checked finite Copy imports.
 /// The context Program must retain this exact failure-flow owner, and its
 /// actual allocator cannot be replaced or relaxed. No provider/guest effect
 /// occurs before complete C admission. Result publication still follows cleanup.

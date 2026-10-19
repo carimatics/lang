@@ -1,4 +1,4 @@
-//! A trusted scalar fixture adapter for the production native Runtime API.
+//! A trusted finite Copy fixture adapter for the production native Runtime API.
 //! MIR arithmetic/branches/import nodes execute as generated machine code;
 //! these primitives use the shared typed frame storage and context allocator.
 use super::*;
@@ -23,6 +23,9 @@ fn bad() -> clean::Cause {
     clean::Cause::Execution(clean::ExecutionFailure::Invariant)
 }
 fn storage_error(error: l::Error) -> clean::Cause {
+    if matches!(error, l::Error::Allocation(_)) {
+        return clean::Cause::Execution(clean::ExecutionFailure::AllocationLimit);
+    }
     clean::Cause::Execution(
         e::service_failure(&error)
             .map(Into::into)
@@ -52,14 +55,10 @@ impl<'i, 'pool, 'layout, 'provider, 'control>
             .signature_span;
         let preparation =
             || c::Fault::new(c::Kind::Execution(clean::ExecutionFailure::AllocationLimit)).at(span);
-        // This fixture's main contains only Copy scalar/Unit storage; no owner
-        // cleaner or aggregate-layout substitute is used to claim full F04.
+        // Copy aggregates use the same typed storage as ordinary source values.
         for index in 0..layout.frame().cell_count() {
             let ty = layout.frame().cell_type(index).unwrap().ty;
-            assert!(
-                matches!(ty, o::Type::I64 | o::Type::Bool)
-                    || matches!(ty, o::Type::Constructed(id) if matches!(layout.layouts().types().table().constructed[id.0 as usize].constructor, o::Constructor::Builtin(o::Builtin::Unit)))
-            );
+            assert!(layout.layouts().types().properties(ty).unwrap().is_copy);
         }
         let cleaner: fn(&mut usize, clean::Reason) -> Result<(), u32> = |_, _| Ok(());
         let mut ledger = instance
@@ -114,6 +113,55 @@ impl<'i, 'pool, 'layout, 'provider, 'control>
             .map(|_| ())
             .map_err(|_| bad())
     }
+    fn initialized(&mut self, cell: usize, span: m::Span) -> n::ResultStep {
+        let ledger = self.ledger.as_mut().ok_or_else(bad)?;
+        if ledger.value(clean::Slot(cell)).is_err() {
+            ledger
+                .initialize(clean::Slot(cell), cell, Some(span))
+                .map_err(|_| bad())?;
+        }
+        Ok(())
+    }
+    fn aggregate(&mut self, site: &n::RecordSite, case: Option<u32>) -> n::ResultStep {
+        let output = self.storage.cell(site.result).map_err(storage_error)?;
+        let root = output.root();
+        if let l::Kind::Error { builtin, .. } =
+            output.layouts().get(root.ty()).ok_or_else(bad)?.kind
+        {
+            let payload = site
+                .fields
+                .first()
+                .map(|slot| {
+                    let source = self.storage.cell(*slot).map_err(storage_error)?;
+                    source
+                        .read_immediate(source.root(), self.allocator)
+                        .map_err(storage_error)
+                })
+                .transpose()?;
+            let value = l::Immediate::from_case(builtin, case.ok_or_else(bad)?, payload)
+                .map_err(storage_error)?;
+            output
+                .write_immediate(root, value, self.allocator)
+                .map_err(storage_error)?;
+        } else {
+            if let Some(case) = case {
+                output
+                    .prepare_case(root, case, self.allocator)
+                    .map_err(storage_error)?;
+            }
+            for (field, slot) in site.fields.iter().enumerate() {
+                self.ready(*slot)?;
+                let child = output
+                    .child(root, field as u32, self.allocator)
+                    .map_err(storage_error)?;
+                let source = self.storage.cell(*slot).map_err(storage_error)?;
+                output
+                    .copy_from(child, source, source.root(), self.allocator)
+                    .map_err(storage_error)?;
+            }
+        }
+        self.initialized(site.result, site.span)
+    }
 }
 impl Runtime for RuntimeState<'_, '_, '_, '_, '_> {
     fn c_environment(&self) -> Option<&n::CEnvironment<'_>> {
@@ -128,6 +176,55 @@ impl Runtime for RuntimeState<'_, '_, '_, '_, '_> {
     fn set_c_usage(&mut self, usage: e::Usage) -> n::ResultStep {
         self.usage = usage;
         Ok(())
+    }
+    fn c_copy_import(
+        &mut self,
+        site: &n::ImportSite,
+        function: usize,
+        session: &mut c::Session<'_>,
+        invoker: &mut dyn c::scalar::Invoker,
+    ) -> n::ResultStep {
+        let call = lang_runtime::c_abi::transfer::CallStorage::reserve(
+            session.artifact(),
+            function,
+            self.allocator,
+        )
+        .map_err(storage_error)?;
+        let result = (|| {
+            for (index, slot) in site.arguments.iter().enumerate() {
+                self.ready(*slot)?;
+                call.encode(
+                    index,
+                    session.artifact(),
+                    function,
+                    self.storage.cell(*slot).map_err(storage_error)?,
+                    self.allocator,
+                )
+                .map_err(storage_error)?;
+            }
+            call.invoke(function, site.span, session, invoker, self.allocator)
+                .map_err(|fault| {
+                    clean::Cause::Execution(match fault.kind {
+                        c::Kind::Control(error)
+                        | c::Kind::Value(lang_runtime::c_abi::validation::Error::Control(error))
+                        | c::Kind::ForeignValue(lang_runtime::c_abi::validation::Error::Control(
+                            error,
+                        )) => error.into(),
+                        c::Kind::HostPanic => clean::ExecutionFailure::HostPanic,
+                        _ => clean::ExecutionFailure::HostCall,
+                    })
+                })?;
+            call.decode(
+                session.artifact(),
+                function,
+                self.storage.cell(site.result).map_err(storage_error)?,
+                self.allocator,
+            )
+            .map_err(storage_error)?;
+            self.initialized(site.result, site.span)
+        })();
+        let release = call.release(self.allocator).map_err(storage_error);
+        result.and(release)
     }
     fn is_poisoned(&self) -> bool {
         self.ledger.as_ref().is_some_and(clean::Frame::is_poisoned)
@@ -194,11 +291,91 @@ impl Runtime for RuntimeState<'_, '_, '_, '_, '_> {
         Ok(())
     }
     fn copy_slot(&mut self, from: usize, to: usize, span: m::Span) -> n::ResultStep {
-        let bits = self.read_scalar(from)?;
-        self.write_scalar(to, bits, span)
+        self.ready(from)?;
+        if from != to {
+            let source = self.storage.cell(from).map_err(storage_error)?;
+            let output = self.storage.cell(to).map_err(storage_error)?;
+            output
+                .copy_from(output.root(), source, source.root(), self.allocator)
+                .map_err(storage_error)?;
+        }
+        self.initialized(to, span)
     }
     fn move_slot(&mut self, from: usize, to: usize, span: m::Span) -> n::ResultStep {
         self.copy_slot(from, to, span)
+    }
+    fn construct_record(&mut self, site: &n::RecordSite) -> n::ResultStep {
+        self.aggregate(site, None)
+    }
+    fn construct_variant(&mut self, site: &n::VariantSite) -> n::ResultStep {
+        self.aggregate(&site.payload, Some(site.case))
+    }
+    fn variant_case(&mut self, slot: usize) -> Result<u32, clean::Cause> {
+        self.ready(slot)?;
+        let source = self.storage.cell(slot).map_err(storage_error)?;
+        source
+            .case(source.root(), self.allocator)
+            .map_err(storage_error)
+    }
+    fn copy_case_field(&mut self, site: &n::CaseFieldSite) -> n::ResultStep {
+        if self.variant_case(site.source)? != site.case {
+            return Err(bad());
+        }
+        let source = self.storage.cell(site.source).map_err(storage_error)?;
+        let output = self.storage.cell(site.result).map_err(storage_error)?;
+        if matches!(
+            source
+                .layouts()
+                .get(source.root().ty())
+                .ok_or_else(bad)?
+                .kind,
+            l::Kind::Error { .. }
+        ) {
+            if site.field != 0 {
+                return Err(bad());
+            }
+            let value = source
+                .read_immediate(source.root(), self.allocator)
+                .map_err(storage_error)?
+                .payload()
+                .ok_or_else(bad)?;
+            output
+                .write_immediate(output.root(), value, self.allocator)
+                .map_err(storage_error)?;
+        } else {
+            let input = source
+                .child(source.root(), site.field, self.allocator)
+                .map_err(storage_error)?;
+            output
+                .copy_from(output.root(), source, input, self.allocator)
+                .map_err(storage_error)?;
+        }
+        self.initialized(
+            site.result,
+            self.layout
+                .frame()
+                .cell_type(site.result)
+                .ok_or_else(bad)?
+                .span,
+        )
+    }
+    fn load_place(&mut self, site: &n::PlaceLoad) -> n::ResultStep {
+        self.ready(site.place.root)?;
+        let source = self.storage.cell(site.place.root).map_err(storage_error)?;
+        let mut location = source.root();
+        for projection in &site.place.projections {
+            let o::places::ProjectionKind::Field(field) = projection.kind else {
+                return Err(bad());
+            };
+            location = source
+                .child(location, field, self.allocator)
+                .map_err(storage_error)?;
+        }
+        let output = self.storage.cell(site.result).map_err(storage_error)?;
+        output
+            .copy_from(output.root(), source, location, self.allocator)
+            .map_err(storage_error)?;
+        self.initialized(site.result, site.place.span)
     }
     fn transfer(&mut self, site: &n::TransferSite) -> n::ResultStep {
         for movement in &site.moves {
@@ -271,10 +448,10 @@ pub(super) fn observe(
     artifact: &Artifact,
     library: &Library,
     control: e::Control<'_>,
-    fail_allocation: bool,
+    fail_allocation: impl Into<Refusal>,
 ) -> Observed {
     let stats = Stats::default();
-    stats.fail.set(u32::from(fail_allocation));
+    fail_allocation.into().apply(&stats);
     let program = c::Program::new(
         artifact,
         compiled,

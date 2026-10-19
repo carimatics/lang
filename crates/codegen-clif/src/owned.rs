@@ -208,6 +208,18 @@ pub trait Runtime {
     fn set_c_usage(&mut self, _: lang_runtime::execution::Usage) -> ResultStep {
         missing()
     }
+    /// Transfer finite Copy aggregate arguments/results through the shared
+    /// allocator-backed C bridge. This primitive invokes only the explicitly
+    /// bound callback, never a guest body or a MIR interpreter.
+    fn c_copy_import(
+        &mut self,
+        _: &ImportSite,
+        _: usize,
+        _: &mut lang_runtime::c_abi::context::Session<'_>,
+        _: &mut dyn lang_runtime::c_abi::context::scalar::Invoker,
+    ) -> ResultStep {
+        missing()
+    }
     fn is_poisoned(&self) -> bool;
     fn enter(&mut self, layout: &FunctionLayout<'_>) -> ResultStep;
     fn charge(&mut self, span: m::Span) -> ResultStep;

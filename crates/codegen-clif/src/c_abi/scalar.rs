@@ -1,4 +1,4 @@
-//! Exact native C-signature thunks for the first scalar/Unit import profile.
+//! Exact native C-signature thunks for profile-1 finite Copy imports.
 //! Guest execution still goes through the shared context Session. No callback
 //! symbol lookup occurs here: only its explicitly granted typed code pointer
 //! reaches an indirect call with the verified generated C signature.
@@ -54,7 +54,10 @@ impl<'a> NativeInvoker<'a> {
     /// All context import pointers have the exact generated callback type for
     /// their signature digest. Code/user data remain live for this borrow;
     /// callbacks obey synchronous no-unwind/nonreentry and actual-object rules.
-    /// They treat the context as opaque and do not directly mutate Rust bytes.
+    /// They treat the context as opaque and inputs as readonly. They write
+    /// only the exact output object; success initializes every semantic field,
+    /// explicit reserved byte and unused union byte. Ordinary padding may be
+    /// indeterminate and is restored before any Rust output view resumes.
     pub unsafe fn new(context: &'a Context<'a>, limits: m::Limits) -> Result<Self, Error> {
         let artifact = context.artifact();
         let native = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
@@ -76,19 +79,7 @@ impl<'a> NativeInvoker<'a> {
         // declarations are not an escape from supported-signature admission.
         for (index, function) in artifact.functions().iter().enumerate() {
             budget.charge(1)?;
-            if function.direction == Direction::Import
-                && (function.parameters.len() > 256
-                    || function
-                        .parameters
-                        .iter()
-                        .chain(std::iter::once(&function.result))
-                        .any(|ty| {
-                            !matches!(
-                                artifact.types()[ty.0].kind,
-                                Kind::I64 | Kind::Bool | Kind::Unit
-                            )
-                        }))
-            {
+            if function.direction == Direction::Import && function.parameters.len() > 256 {
                 return Err(Error::Signature(index));
             }
         }
@@ -221,12 +212,48 @@ impl Invoker for NativeInvoker<'_> {
         if arguments.len() != function.parameters.len() || binding.signature() != function.digest {
             return 1;
         }
+        let checked_arguments: [lang_runtime::c_abi::validation::Argument<'_>; 256] =
+            std::array::from_fn(|i| match arguments.get(i) {
+                Some(Input::I64(value)) => lang_runtime::c_abi::validation::Argument::I64(*value),
+                Some(Input::Bool(value)) => lang_runtime::c_abi::validation::Argument::Bool(*value),
+                Some(input) => lang_runtime::c_abi::validation::Argument::Object(input),
+                None => lang_runtime::c_abi::validation::Argument::I64(0),
+            });
+        // Safe direct host calls cannot turn a fabricated slice, tag or bool
+        // into a trusted native argument. This defensive primitive recheck is
+        // not another logical service event; Session meters the boundary once.
+        if lang_runtime::c_abi::validation::call(
+            artifact,
+            binding.index(),
+            self.context(),
+            &checked_arguments[..arguments.len()],
+            if matches!(output, Output::Unit) {
+                None
+            } else {
+                Some(output.address())
+            },
+            &lang_runtime::execution::ServiceWork::new(None),
+            Default::default(),
+        )
+        .is_err()
+        {
+            return 1;
+        }
         let mut words = [0u64; 256];
         for (index, (argument, ty)) in arguments.iter().zip(&function.parameters).enumerate() {
             words[index] = match (argument, &artifact.types()[ty.0].kind) {
                 (Input::I64(value), Kind::I64) => *value as u64,
                 (Input::Bool(value @ 0..=1), Kind::Bool) => u64::from(*value),
                 (Input::Unit(unit), Kind::Unit) => unit.address().start as u64,
+                (Input::Object(bytes), Kind::Unit | Kind::Record { .. } | Kind::Enum { .. })
+                    if bytes.len() >= artifact.types()[ty.0].size as usize
+                        && bytes
+                            .as_ptr()
+                            .addr()
+                            .is_multiple_of(artifact.types()[ty.0].align as usize) =>
+                {
+                    bytes.as_ptr() as u64
+                }
                 _ => return 1,
             };
         }
@@ -234,6 +261,17 @@ impl Invoker for NativeInvoker<'_> {
             (Output::I64(value), Kind::I64) => value.as_ptr().cast(),
             (Output::Bool(value), Kind::Bool) => value.as_ptr().cast(),
             (Output::Unit, Kind::Unit) => std::ptr::null_mut(),
+            (
+                Output::Object(value),
+                Kind::I64 | Kind::Bool | Kind::Record { .. } | Kind::Enum { .. },
+            ) if value.address().extent >= artifact.types()[function.result.0].size as usize
+                && value
+                    .address()
+                    .start
+                    .is_multiple_of(artifact.types()[function.result.0].align as usize) =>
+            {
+                value.with_bytes(|bytes| bytes.as_mut_ptr().cast())
+            }
             _ => return 1,
         };
         // SAFETY: code was emitted with exactly Entry's five native parameters
@@ -243,7 +281,7 @@ impl Invoker for NativeInvoker<'_> {
         // SAFETY: exact binding/profile/shape checks above, initialized local
         // words/output cells and the constructor's code/user/opaque-context
         // contract establish every native argument's lifetime and ABI.
-        unsafe {
+        let status = unsafe {
             entry(
                 binding.function(),
                 (self.context as *const Context<'_>).cast_mut().cast(),
@@ -251,6 +289,25 @@ impl Invoker for NativeInvoker<'_> {
                 words.as_ptr(),
                 result,
             )
+        };
+        if let Output::Object(value) = output {
+            // A C assignment may leave ordinary padding indeterminate. Restore
+            // those bytes with raw writes before ANY Rust slice access. The
+            // callback contract initializes successful fields/reserved/unused
+            // union bytes; failed output is ignored and reset completely.
+            // SAFETY: shape, size and alignment above retain this unique live
+            // region; descriptors are independently compiled, finite/bounded.
+            unsafe {
+                if status == 0 {
+                    super::padding::initialize(artifact, function.result, result.cast());
+                } else {
+                    result
+                        .cast::<u8>()
+                        .write_bytes(0, artifact.types()[function.result.0].size as usize);
+                }
+            }
+            let _ = value; // No access through its slice precedes restoration.
         }
+        status
     }
 }

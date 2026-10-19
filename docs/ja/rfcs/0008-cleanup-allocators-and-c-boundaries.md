@@ -221,6 +221,8 @@ F11のscalar C source実行（2026-10-19 JST実装・確認）：Rust embedding�
 
 ## 情報源
 
+F04実装evidence（2026-10-19 JST更新・確認）：明示VM／contextとnative revision 2のimport APIでfinite Copy aggregateに対応しました。[Field単位の転送](../../../crates/runtime/src/c_abi/transfer.rs)は実allocatorを使い、初期化済みの呼出し中C objectをmanaged storageと分離します。正確なnative thunkはRust byte access再開前に通常paddingを初期化し、不正な正規fieldはF10拒否用に保持します。[実C fixture](../../../tests/support/c_imports.rs)はrecord／空record、enum、入れ子Option／Result／error、scalar result、256混合引数、全有限fuel／work境界、scratch OOMを検証します。[名前付きsource](../../../examples/analysis/c_aggregate_imports.lang)は両modeで84を返します。Raw C factory／export、C object公開、完全native packaging／platform、ownerとCの複合conformanceは未完了で、既定CLI／schema 2のC拒否は不変です。既存の受理済みprofileを実装し、source構文・C digest・private helper／packet revisionを追加しません。
+
 - [RFC 0004](0004-owned-values-and-cyclic-graphs.md)：受理済みlifetime／cycle／arena規則。[RFC 0007](0007-source-ownership-and-core-values.md)：受理済みsource／core／allocator型表面。ともに2026-10-17 JST最終更新、同日確認。
 - [RFC 0003](0003-versioned-component-contracts.md)：component failure／ownership境界。[RFC 0006](0006-source-frontend-and-portable-programs.md)：Copy semantics／resource limit／schema 1。ともに2026-10-17 JST最終更新、同日確認。
 - [Architecture](../architecture.md)、[roadmap](../roadmap.md)、`crates/runtime/src/shared.rs` とtest（`ec16f8a`）、native copy backend／test（`926fb3b`）、ownership grammar（`eb3b16f`）：実装と残作業のevidence。2026-10-17 JST更新、同日確認。

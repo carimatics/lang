@@ -9,6 +9,7 @@ use std::fmt::{Display, Formatter};
 
 pub mod context;
 mod header;
+pub mod transfer;
 pub mod validation;
 pub use header::HeaderOptions;
 
