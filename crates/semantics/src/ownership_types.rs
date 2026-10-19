@@ -358,6 +358,7 @@ fn construct_declarations<'a>(
             span: c.span(import.parameter.span)?,
         });
         out.imports.push(d::Import {
+            abi: d::ImportAbi::Host,
             name: c.text(&import.qualified_name)?,
             span: c.span(import.span)?,
             parameters,
@@ -407,6 +408,7 @@ fn construct_declarations<'a>(
             });
         }
         out.functions.push(d::Function {
+            abi: d::FunctionAbi::Guest,
             name: c.text(&f.qualified_name)?,
             public: f.public,
             span: c.span(f.span)?,

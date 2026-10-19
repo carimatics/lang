@@ -66,6 +66,7 @@ fn base() -> b::BodyTable {
                 },
                 imports: vec![],
                 functions: vec![d::Function {
+                    abi: d::FunctionAbi::Guest,
                     name: "f".into(),
                     public: false,
                     span: span(),

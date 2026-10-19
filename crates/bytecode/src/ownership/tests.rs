@@ -35,6 +35,7 @@ fn scalar() -> b::BodyTable {
                 },
                 imports: vec![],
                 functions: vec![d::Function {
+                    abi: d::FunctionAbi::Guest,
                     name: "main".into(),
                     public: false,
                     span: SPAN,
@@ -171,6 +172,30 @@ fn old_and_new_schemas_reject_each_others_version() {
             .kind,
         crate::unit::CodecErrorKind::Version(2)
     ));
+}
+
+#[test]
+fn schema_two_never_erases_c_import_or_export_identity() {
+    for exporting in [false, true] {
+        let mut raw = scalar();
+        if exporting {
+            raw.places.declarations.functions[0].abi = d::FunctionAbi::CExport;
+            raw.places.declarations.functions[0].public = true;
+        } else {
+            raw.places.declarations.imports.push(d::Import {
+                abi: d::ImportAbi::C,
+                name: "foreign".into(),
+                span: SPAN,
+                parameters: vec![type_use(o::Type::I64)],
+                result: type_use(o::Type::I64),
+            });
+        }
+        let error = encode(raw, Some(m::FunctionId(0)), CodecLimits::default()).unwrap_err();
+        assert!(matches!(
+            error.kind,
+            CodecErrorKind::UnsupportedCInterface { span: SPAN }
+        ));
+    }
 }
 
 #[test]

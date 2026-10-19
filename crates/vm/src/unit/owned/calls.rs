@@ -282,6 +282,7 @@ fn execute_with<P: a::Provider>(
     }
     .ok_or_else(|| rejected(Reason::Entry, None, None))?;
     let function = m::FunctionId(entry as u32);
+    reject_c_interface(flow, Some(function))?;
     let signature = declarations.functions()[entry].signature_span;
     let fail = |reason| rejected(reason, Some(function), Some(signature));
     if !declarations.functions()[entry].parameters.is_empty()

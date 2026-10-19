@@ -102,6 +102,7 @@ fn table(instructions: Vec<b::Instruction>) -> b::BodyTable {
                 },
                 imports: vec![],
                 functions: vec![d::Function {
+                    abi: d::FunctionAbi::Guest,
                     name: "f".into(),
                     public: false,
                     span: span(),

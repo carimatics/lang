@@ -63,6 +63,7 @@ fn table(types: &[o::Type], constructors: &[o::Constructor], result: o::Type) ->
                 },
                 imports: vec![],
                 functions: vec![d::Function {
+                    abi: d::FunctionAbi::Guest,
                     name: "f".into(),
                     public: false,
                     span: span(),
@@ -760,6 +761,7 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
     t.places.declarations.functions.push(f);
     t.places.functions.push(t.places.functions[0].clone());
     t.places.declarations.imports.push(d::Import {
+        abi: d::ImportAbi::Host,
         name: "host".into(),
         span: span(),
         parameters: vec![o::TypeUse {

@@ -174,6 +174,12 @@ impl Writer<'_> {
         self.list(values, |s, v| s.word(v.0))
     }
     fn function(&mut self, value: &d::Function) -> Result<(), CodecError> {
+        if value.abi != d::FunctionAbi::Guest {
+            return Err(error(
+                self.length,
+                CodecErrorKind::UnsupportedCInterface { span: value.span },
+            ));
+        }
         self.string(&value.name)?;
         self.boolean(value.public)?;
         self.span(value.span)?;
@@ -448,6 +454,12 @@ impl Writer<'_> {
         self.list(&types.definitions, Self::definition)?;
         self.list(&types.constructed, Self::constructor)?;
         self.list(declarations.imports(), |s, v| {
+            if v.abi != d::ImportAbi::Host {
+                return Err(error(
+                    s.length,
+                    CodecErrorKind::UnsupportedCInterface { span: v.span },
+                ));
+            }
             s.string(&v.name)?;
             s.span(v.span)?;
             s.list(&v.parameters, Self::type_use)?;

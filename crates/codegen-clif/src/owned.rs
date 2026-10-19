@@ -512,6 +512,7 @@ impl<'a> CompiledProgram<'a> {
         limits: m::Limits,
         cells: usize,
     ) -> Result<Self, Error> {
+        reject_c_interface(flow)?;
         if flow.functions().is_empty() {
             return Err(Error::InvalidFunction(m::FunctionId(0)));
         }
@@ -918,6 +919,7 @@ pub fn emit_object_for_target<'a>(
     limits: m::Limits,
     cells: usize,
 ) -> Result<ObjectArtifact<'a>, Error> {
+    reject_c_interface(flow)?;
     if !std::ptr::eq(layouts.types(), typed(flow).places().declarations().types()) {
         return Err(Error::Layout(l::Error::ForeignLocation));
     }
@@ -998,6 +1000,7 @@ fn prepare<'a>(
     prefix: Option<m::Usage>,
     scope: CompileScope,
 ) -> Result<Prepared<'a>, Error> {
+    reject_c_interface(flow)?;
     let layout = FunctionLayout::compile_after(flow, layouts, function, limits, cells, prefix)?;
     let body = &typed(flow).functions()[function.0 as usize];
     let unsupported = |span| Error::Unsupported { function, span };
@@ -2345,6 +2348,9 @@ struct Output {
 
 #[derive(Debug)]
 pub enum Error {
+    UnsupportedCInterface {
+        span: m::Span,
+    },
     LinkedTarget {
         emitted: crate::Triple,
         host: crate::Triple,
@@ -2368,6 +2374,12 @@ impl Display for Error {
     }
 }
 impl std::error::Error for Error {}
+fn reject_c_interface(flow: &f::Elaborated) -> Result<(), Error> {
+    if let Some(span) = typed(flow).places().declarations().foreign_interface_span() {
+        return Err(Error::UnsupportedCInterface { span });
+    }
+    Ok(())
+}
 impl From<l::Error> for Error {
     fn from(e: l::Error) -> Self {
         Self::Layout(e)

@@ -45,6 +45,7 @@ fn declarations(
         types: table(constructors),
         imports: vec![],
         functions: vec![d::Function {
+            abi: d::FunctionAbi::Guest,
             name: "f".into(),
             public: false,
             span: span(0, 10),
@@ -447,6 +448,7 @@ fn parameter_bijection_names_types_and_spans_are_independently_checked() {
 fn imports_remain_the_rfc0006_scalar_host_contract() {
     let mut a = declarations(&[], &[], o::Type::I64);
     a.imports.push(d::Import {
+        abi: d::ImportAbi::Host,
         name: "host".into(),
         span: span(0, 10),
         parameters: vec![o::TypeUse {
@@ -473,6 +475,174 @@ fn imports_remain_the_rfc0006_scalar_host_contract() {
     assert_eq!(
         a.verify(o::Limits::default()).unwrap_err().kind,
         o::ErrorKind::InvalidHostSignature
+    );
+}
+
+fn foreign_import(
+    constructors: &[o::Constructor],
+    parameters: &[o::Type],
+    result: o::Type,
+) -> d::Declarations {
+    let mut table = declarations(constructors, &[], o::Type::I64);
+    table.imports.push(d::Import {
+        abi: d::ImportAbi::C,
+        name: "foreign".into(),
+        span: span(0, 10),
+        parameters: parameters
+            .iter()
+            .map(|&ty| o::TypeUse {
+                ty,
+                span: span(0, 1),
+            })
+            .collect(),
+        result: o::TypeUse {
+            ty: result,
+            span: span(2, 3),
+        },
+    });
+    table
+}
+
+#[test]
+fn c_signatures_admit_finite_copy_values_without_widening_legacy_hosts() {
+    use o::{Builtin as B, Constructor as C};
+    let constructors = [
+        C::Builtin(B::Unit),
+        C::Builtin(B::AllocError),
+        C::Option(o::Type::Bool),
+        C::Result(c(2), c(1)),
+    ];
+    let mut table = foreign_import(&constructors, &[o::Type::Bool, c(0), c(3), n(0)], c(3));
+    table.types.definitions.push(o::Definition {
+        name: "Pair".into(),
+        public: true,
+        span: span(0, 10),
+        kind: o::DefinitionKind::Record(vec![o::Field {
+            name: "value".into(),
+            span: span(0, 2),
+            ty: o::TypeUse {
+                ty: o::Type::I64,
+                span: span(1, 2),
+            },
+        }]),
+    });
+    assert_eq!(
+        table
+            .clone()
+            .verify(Default::default())
+            .unwrap()
+            .foreign_interface_span(),
+        Some(span(0, 10))
+    );
+    table.imports[0].abi = d::ImportAbi::Host;
+    assert_eq!(
+        table.verify(Default::default()).unwrap_err().kind,
+        o::ErrorKind::InvalidHostSignature
+    );
+    assert!(
+        foreign_import(&[C::Builtin(B::Unit)], &[], c(0))
+            .verify(Default::default())
+            .is_ok()
+    );
+}
+
+#[test]
+fn c_signatures_reject_owners_and_even_copy_loans() {
+    use o::{Builtin as B, Constructor as C};
+    for constructor in [
+        C::Builtin(B::Allocator),
+        C::Builtin(B::Text),
+        C::Builtin(B::Bytes),
+        C::Vec(o::Type::I64),
+        C::Map(o::Type::I64, o::Type::I64),
+        C::Shared(n(0)),
+        C::Weak(n(0)),
+        C::Arena(n(0)),
+        C::Loan(o::LoanKind::Shared, o::Type::I64),
+    ] {
+        let mut table = foreign_import(&[constructor], &[c(0)], o::Type::I64);
+        table.types.definitions.push(nominal("Node", true));
+        let error = table.verify(Default::default()).unwrap_err();
+        assert_eq!(
+            error.kind,
+            o::ErrorKind::InvalidCSignatureType(c(0)),
+            "{constructor:?}"
+        );
+        assert_eq!(error.span, Some(span(0, 1)));
+    }
+    let table = foreign_import(
+        &[C::Loan(o::LoanKind::Shared, o::Type::I64), C::Option(c(0))],
+        &[c(1)],
+        o::Type::I64,
+    );
+    assert_eq!(
+        table.verify(Default::default()).unwrap_err().kind,
+        o::ErrorKind::InvalidCSignatureType(c(1))
+    );
+}
+
+#[test]
+fn c_profile_depth_and_parameter_bounds_remain_hard_with_relaxed_general_limits() {
+    let mut constructors = vec![o::Constructor::Builtin(o::Builtin::Unit)];
+    for i in 0..64 {
+        constructors.push(o::Constructor::Option(c(i)));
+    }
+    let mut limits = o::Limits::default();
+    limits.unit.depth = 128;
+    let boundary = foreign_import(&constructors[..64], &[c(63)], o::Type::I64).verify(limits);
+    assert!(boundary.is_ok(), "{:?}", boundary.err());
+    assert!(matches!(
+        foreign_import(&constructors, &[c(64)], o::Type::I64)
+            .verify(limits)
+            .unwrap_err()
+            .kind,
+        o::ErrorKind::CProfileLimit {
+            kind: o::CProfileLimit::Depth,
+            requested: 65,
+            limit: 64
+        }
+    ));
+    limits.unit.fields = 300;
+    assert!(
+        foreign_import(&[], &vec![o::Type::I64; 256], o::Type::I64)
+            .verify(limits)
+            .is_ok()
+    );
+    assert!(matches!(
+        foreign_import(&[], &vec![o::Type::I64; 257], o::Type::I64)
+            .verify(limits)
+            .unwrap_err()
+            .kind,
+        o::ErrorKind::CProfileLimit {
+            kind: o::CProfileLimit::Parameters,
+            requested: 257,
+            limit: 256
+        }
+    ));
+}
+
+#[test]
+fn c_exports_require_public_root_names_and_valid_signature_spans() {
+    let mut table = declarations(&[], &[o::Type::Bool], o::Type::I64);
+    table.functions[0].abi = d::FunctionAbi::CExport;
+    assert_eq!(
+        table.clone().verify(Default::default()).unwrap_err().kind,
+        o::ErrorKind::InvalidCExport(m::FunctionId(0))
+    );
+    table.functions[0].public = true;
+    assert!(table.clone().verify(Default::default()).is_ok());
+    for name in ["nested::f".to_owned(), "a".repeat(129)] {
+        let mut forged = table.clone();
+        forged.functions[0].name = name;
+        assert_eq!(
+            forged.verify(Default::default()).unwrap_err().kind,
+            o::ErrorKind::InvalidCExport(m::FunctionId(0))
+        );
+    }
+    table.functions[0].result.span = span(3, 4);
+    assert_eq!(
+        table.verify(Default::default()).unwrap_err().kind,
+        o::ErrorKind::SpanOutsideOwner
     );
 }
 

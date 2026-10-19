@@ -163,6 +163,104 @@ fn assert_all_released(allocator: &a::Allocator<Provider>, trace: &Trace) {
 }
 
 #[test]
+fn c_ir_cannot_enter_vm_jit_object_or_schema_two_before_adapters_exist() {
+    use lang_mir::unit::{self as m, ownership as o};
+    use o::declarations as d;
+    for exporting in [false, true] {
+        let source = checked(OWNED_SOURCE);
+        let mut raw = source
+            .into_failure_flow()
+            .into_source()
+            .into_activity()
+            .into_moved()
+            .into_typed()
+            .into_table();
+        let span = raw.places.declarations.functions[0].signature_span;
+        if exporting {
+            raw.places.declarations.functions[0].abi = d::FunctionAbi::CExport;
+            raw.places.declarations.functions[0].public = true;
+        } else {
+            raw.places.declarations.imports.push(d::Import {
+                abi: d::ImportAbi::C,
+                name: "foreign_probe".into(),
+                span,
+                parameters: vec![o::TypeUse {
+                    ty: o::Type::I64,
+                    span,
+                }],
+                result: o::TypeUse {
+                    ty: o::Type::I64,
+                    span,
+                },
+            });
+        }
+        let codec = lang_bytecode::ownership::encode(
+            raw.clone(),
+            Some(m::FunctionId(0)),
+            Default::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            codec.kind,
+            lang_bytecode::ownership::CodecErrorKind::UnsupportedCInterface { .. }
+        ));
+        let typed = raw.verify(Default::default()).unwrap();
+        let moved = o::moves::analyze(typed, Default::default()).unwrap();
+        let activity = o::loan_activity::analyze(moved, Default::default()).unwrap();
+        let loaned = o::loans::analyze(activity, Default::default()).unwrap();
+        let flow = o::failure::elaborate(loaned, Default::default()).unwrap();
+        assert!(!lang_runtime::execution::service_work_supported(&flow));
+        let (mut allocator, trace) = text_allocator();
+        let mut instance = c::Instance::default();
+        let failure = vm::execute_entry(&flow, &mut instance, Some(&mut allocator), control())
+            .err()
+            .expect("unsupported C interface");
+        assert!(matches!(failure.reason, vm::Reason::UnsupportedCInterface));
+        assert_eq!(failure.fault, Some(span));
+        assert!(trace.borrow().requests.is_empty());
+        assert!(!instance.is_poisoned());
+        let layouts = lang_runtime::layout::Layouts::compile(
+            flow.source()
+                .activity()
+                .moved()
+                .typed()
+                .places()
+                .declarations()
+                .types(),
+            Default::default(),
+        )
+        .unwrap();
+        use lang_codegen_clif::owned as native;
+        assert!(matches!(
+            native::CompiledProgram::compile(&flow, &layouts, Default::default(), 1000),
+            Err(native::Error::UnsupportedCInterface { .. })
+        ));
+        assert!(matches!(
+            native::CompiledFunction::compile(
+                &flow,
+                &layouts,
+                m::FunctionId(0),
+                Default::default(),
+                1000
+            ),
+            Err(native::Error::UnsupportedCInterface { .. })
+        ));
+        for target in ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"] {
+            assert!(matches!(
+                native::emit_object_for_target(
+                    &flow,
+                    &layouts,
+                    &target.parse().unwrap(),
+                    Default::default(),
+                    1000
+                ),
+                Err(native::Error::UnsupportedCInterface { .. })
+            ));
+        }
+    }
+}
+
+#[test]
 fn nested_source_owners_move_without_allocation_and_drop_in_reverse_written_order() {
     let program = checked(AGGREGATE_SOURCE);
     let requests = frame_requests(&program);

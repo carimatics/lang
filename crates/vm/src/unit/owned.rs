@@ -29,6 +29,7 @@ pub const SERVICE_WORK_SUPPORTED: bool = true;
 
 #[derive(Debug)]
 pub enum Reason {
+    UnsupportedCInterface,
     UnsupportedServiceWork(lang_runtime::execution::UnsupportedServiceWork),
     Entry,
     Unsupported { core: Option<o::core::Operation> },
@@ -127,6 +128,31 @@ fn rejected(reason: Reason, function: Option<m::FunctionId>, fault: Option<m::Sp
         panic_code: None,
         stack: Vec::new(),
     }
+}
+#[allow(
+    clippy::result_large_err,
+    reason = "Preserve inline failure reporting after allocation failure."
+)]
+fn reject_c_interface(
+    flow: &f::Elaborated,
+    function: Option<m::FunctionId>,
+) -> Result<(), Failure> {
+    if let Some(span) = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .foreign_interface_span()
+    {
+        return Err(rejected(
+            Reason::UnsupportedCInterface,
+            function,
+            Some(span),
+        ));
+    }
+    Ok(())
 }
 fn shared_operation(operation: o::core::Operation) -> bool {
     matches!(
@@ -345,6 +371,7 @@ fn execute_selected<P: a::Provider>(
         .functions()
         .get(function.0 as usize)
         .ok_or_else(|| rejected(Reason::Entry, None, None))?;
+    reject_c_interface(flow, Some(function))?;
     control
         .check_service_work_support(lang_runtime::execution::service_work_supported(flow))
         .map_err(|error| {

@@ -47,6 +47,7 @@ fn table(
             },
             imports: vec![],
             functions: vec![d::Function {
+                abi: d::FunctionAbi::Guest,
                 name: "f".into(),
                 public: false,
                 span: whole(),

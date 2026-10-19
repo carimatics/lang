@@ -210,6 +210,18 @@ pub struct UnsupportedServiceWork {
 /// operation families may participate in a finite-budget program.
 pub fn service_work_supported(flow: &lang_mir::unit::ownership::failure::Elaborated) -> bool {
     use lang_mir::unit::ownership::{bodies::Op, core::Operation as C};
+    if flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .foreign_interface_span()
+        .is_some()
+    {
+        return false;
+    }
     flow.source()
         .activity()
         .moved()

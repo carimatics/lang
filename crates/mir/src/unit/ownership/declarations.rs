@@ -19,8 +19,21 @@ pub struct Local {
     pub kind: LocalKind,
     pub ty: TypeUse,
 }
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ImportAbi {
+    #[default]
+    Host,
+    C,
+}
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FunctionAbi {
+    #[default]
+    Guest,
+    CExport,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
+    pub abi: FunctionAbi,
     pub name: String,
     pub public: bool,
     pub span: Span,
@@ -31,6 +44,7 @@ pub struct Function {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Import {
+    pub abi: ImportAbi,
     pub name: String,
     pub span: Span,
     pub parameters: Vec<TypeUse>,
@@ -60,6 +74,19 @@ impl VerifiedDeclarations {
     }
     pub fn functions(&self) -> &[Function] {
         &self.functions
+    }
+    /// A C interface remains distinct even when unused or scalar-shaped.
+    pub fn foreign_interface_span(&self) -> Option<Span> {
+        self.imports
+            .iter()
+            .find(|import| import.abi == ImportAbi::C)
+            .map(|import| import.span)
+            .or_else(|| {
+                self.functions
+                    .iter()
+                    .find(|function| function.abi == FunctionAbi::CExport)
+                    .map(|function| function.signature_span)
+            })
     }
     /// Check explicit materialized argument types. This proves no move, loan,
     /// liveness, region, capability, or execution transition and infers no borrow.
@@ -192,6 +219,81 @@ struct Check<'a> {
     budget: &'a mut Budget,
 }
 impl Check<'_> {
+    fn c_limit(
+        &self,
+        requested: usize,
+        limit: usize,
+        kind: CProfileLimit,
+        span: Span,
+    ) -> Result<(), Error> {
+        if requested > limit {
+            Err(Error::new(
+                ErrorKind::CProfileLimit {
+                    kind,
+                    requested,
+                    limit,
+                },
+                Some(span),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+    fn c_type(&mut self, ty: Type, root: Span, depth: usize) -> Result<(), Error> {
+        at(self.budget.charge(1), root)?;
+        self.c_limit(depth, 64, CProfileLimit::Depth, root)?;
+        let invalid = || Error::new(ErrorKind::InvalidCSignatureType(ty), Some(root));
+        let properties = self.types.properties(ty).ok_or_else(invalid)?;
+        if !properties.is_copy
+            || properties.contains_loan
+            || properties.contains_arena
+            || properties.contains_allocator
+            || properties.contains_owner
+        {
+            return Err(invalid());
+        }
+        // The independently verified type graph rules out inline recursion;
+        // this walk adds the C profile's hard depth/width bounds and whitelist.
+        let types = self.types;
+        match ty {
+            Type::I64 | Type::Bool => {}
+            Type::Nominal(id) => match &types.table.definitions[id.0 as usize].kind {
+                DefinitionKind::Record(fields) => {
+                    self.c_limit(fields.len(), 256, CProfileLimit::Fields, root)?;
+                    for field in fields {
+                        self.c_type(field.ty.ty, root, depth + 1)?;
+                    }
+                }
+                DefinitionKind::Enum(cases) => {
+                    self.c_limit(cases.len(), 256, CProfileLimit::Cases, root)?;
+                    for case in cases {
+                        self.c_limit(case.payload.len(), 256, CProfileLimit::Payloads, root)?;
+                        for field in &case.payload {
+                            self.c_type(field.ty, root, depth + 1)?;
+                        }
+                    }
+                }
+            },
+            Type::Constructed(_) => match self.constructor(ty).ok_or_else(invalid)? {
+                Constructor::Builtin(
+                    Builtin::Unit
+                    | Builtin::AllocError
+                    | Builtin::BoundsError
+                    | Builtin::BufferError
+                    | Builtin::Utf8Error
+                    | Builtin::OwnershipError
+                    | Builtin::ArenaError,
+                ) => {}
+                Constructor::Option(value) => self.c_type(value, root, depth + 1)?,
+                Constructor::Result(ok, error) => {
+                    self.c_type(ok, root, depth + 1)?;
+                    self.c_type(error, root, depth + 1)?;
+                }
+                _ => return Err(invalid()),
+            },
+        }
+        Ok(())
+    }
     fn within(&mut self, owner: Span, span: Span) -> Result<(), Error> {
         at(
             validation::source_span(&self.types.table.sources, Some(span), self.budget),
@@ -299,7 +401,18 @@ fn validate(
             c.type_use(import.span, *t)?;
         }
         c.type_use(import.span, import.result)?;
-        if import.parameters.len() != 1
+        if import.abi == ImportAbi::C {
+            c.c_limit(
+                import.parameters.len(),
+                256,
+                CProfileLimit::Parameters,
+                import.span,
+            )?;
+            for parameter in &import.parameters {
+                c.c_type(parameter.ty, parameter.span, 1)?;
+            }
+            c.c_type(import.result.ty, import.result.span, 1)?;
+        } else if import.parameters.len() != 1
             || import.parameters[0].ty != Type::I64
             || import.result.ty != Type::I64
         {
@@ -316,6 +429,28 @@ fn validate(
         c.within(f.span, f.signature_span)?;
         at(validation::name(&f.name, true, c.budget), f.span)?;
         names.push(f.name.as_str());
+        if f.abi == FunctionAbi::CExport {
+            if !f.public
+                || f.name.is_empty()
+                || f.name.len() > 128
+                || !f.name.bytes().enumerate().all(|(index, b)| {
+                    b == b'_' || b.is_ascii_alphabetic() || (index > 0 && b.is_ascii_digit())
+                })
+            {
+                return Err(Error::new(
+                    ErrorKind::InvalidCExport(function),
+                    Some(f.signature_span),
+                ));
+            }
+            c.c_limit(
+                f.parameters.len(),
+                256,
+                CProfileLimit::Parameters,
+                f.signature_span,
+            )?;
+            c.within(f.signature_span, f.result.span)?;
+            c.c_type(f.result.ty, f.result.span, 1)?;
+        }
         c.signature(f.signature_span, f.result, true, f.public)?;
         cap(
             f.parameters.len(),
@@ -353,6 +488,10 @@ fn validate(
             }
             seen[id.0 as usize] = true;
             c.within(f.signature_span, local.span)?;
+            if f.abi == FunctionAbi::CExport {
+                c.within(f.signature_span, local.ty.span)?;
+                c.c_type(local.ty.ty, local.ty.span, 1)?;
+            }
             c.signature(f.signature_span, local.ty, false, f.public)?;
         }
         for (i, local) in f.locals.iter().enumerate() {

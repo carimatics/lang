@@ -243,6 +243,7 @@ impl Reader<'_> {
     }
     fn import(&mut self) -> Result<d::Import, CodecError> {
         Ok(d::Import {
+            abi: d::ImportAbi::Host,
             name: self.name()?,
             span: self.span()?,
             parameters: self.list(
@@ -264,6 +265,7 @@ impl Reader<'_> {
     }
     fn function(&mut self) -> Result<d::Function, CodecError> {
         Ok(d::Function {
+            abi: d::FunctionAbi::Guest,
             name: self.name()?,
             public: self.boolean()?,
             span: self.span()?,

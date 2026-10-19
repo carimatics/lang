@@ -134,6 +134,15 @@ impl Default for Limits {
         }
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CProfileLimit {
+    Depth,
+    Parameters,
+    Fields,
+    Cases,
+    Payloads,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     Mir(super::ErrorKind),
@@ -162,6 +171,13 @@ pub enum ErrorKind {
     InvalidLocalType(Type),
     InvalidOwner(ArenaOwner),
     InvalidHostSignature,
+    InvalidCSignatureType(Type),
+    InvalidCExport(FunctionId),
+    CProfileLimit {
+        kind: CProfileLimit,
+        requested: usize,
+        limit: usize,
+    },
     CallArity {
         expected: usize,
         actual: usize,

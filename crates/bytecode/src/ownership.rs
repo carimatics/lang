@@ -119,6 +119,9 @@ pub enum CodecErrorKind {
     IntegerOverflow,
     AllocationFailed,
     InvalidEntry,
+    UnsupportedCInterface {
+        span: m::Span,
+    },
     Budget(m::Error),
     Types(o::Error),
     Moves(o::moves::Error),
