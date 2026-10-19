@@ -1,11 +1,15 @@
 use super::*;
 use lang_codegen_clif::c_abi::{object::ObjectExports, runtime::NativeFactory};
 
+#[path = "c_object_binding.rs"]
+mod binding;
+
 #[test]
 fn linked_c_object_imports_preserve_scalar_unit_aggregate_and_failure_profiles() {
     let aggregate = include_str!("../../examples/analysis/c_aggregate_imports.lang");
     let bad_aggregate = aggregate.replace("echo_result", "echo_bad_tag");
     let foreign = "extern \"C\" fn increment(value: i64) -> i64; fn main() -> i64 { unsafe { return increment(-1); } }";
+    let (many, expected_many) = mixed_import_source();
     for (original, expected) in [
         (
             include_str!("../../examples/analysis/c_scalar_imports.lang"),
@@ -14,6 +18,7 @@ fn linked_c_object_imports_preserve_scalar_unit_aggregate_and_failure_profiles()
         (aggregate, Some(84)),
         (bad_aggregate.as_str(), None),
         (foreign, None),
+        (many.as_str(), Some(expected_many)),
     ] {
         let text = original.replacen("fn main()", "pub extern \"C\" fn entry()", 1);
         let owner = source(&text);

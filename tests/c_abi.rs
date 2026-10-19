@@ -506,31 +506,102 @@ void check_types(lang_callback_{scalar} callback, lang_callback_{inspect} aggreg
     let second_header = second
         .header(HeaderOptions::default(), Limits::default())
         .unwrap();
+    std::fs::write(path.join("fixture.h"), &header).unwrap();
+    std::fs::write(path.join("second.h"), second_header).unwrap();
     let unit = path.join("probe.c");
     std::fs::write(
         &unit,
-        format!("{header}\n{header}\n{second_header}\n{checks}\nint main(void) {{ return 0; }}\n"),
+        format!("#include \"fixture.h\"\n#include \"fixture.h\"\n#include \"second.h\"\n{checks}\nint main(void) {{ return 0; }}\n"),
     )
     .unwrap();
-    let output = if cfg!(all(target_os = "windows", target_env = "msvc")) {
-        std::process::Command::new("cl")
-            .args(["/nologo", "/std:c11", "/W4", "/WX", "/c"])
-            .arg(&unit)
-            .arg(format!("/Fo{}", path.join("probe.obj").display()))
-            .output()
-            .unwrap()
-    } else {
-        std::process::Command::new("cc")
-            .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only"])
-            .arg(&unit)
-            .output()
-            .unwrap()
+    let compile = |source: &Path, object: &Path| {
+        if cfg!(all(target_os = "windows", target_env = "msvc")) {
+            std::process::Command::new("cl")
+                .current_dir(&path)
+                .args(["/nologo", "/std:c11", "/W4", "/WX", "/c"])
+                .arg(source)
+                .arg(format!("/Fo{}", object.display()))
+                .output()
+                .unwrap()
+        } else {
+            std::process::Command::new("cc")
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(source)
+                .arg("-o")
+                .arg(object)
+                .output()
+                .unwrap()
+        }
     };
+    let object = path.join("probe.obj");
+    let output = compile(&unit, &object);
     assert!(
         output.status.success(),
         "{}\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(std::fs::metadata(&object).unwrap().len() > 0);
+    let header_object = std::fs::read(&object).unwrap();
+    use object::Object;
+    let parsed = object::File::parse(header_object.as_slice()).unwrap();
+    assert_eq!(
+        parsed.architecture(),
+        if target == Target::MacosAarch64 {
+            object::Architecture::Aarch64
+        } else {
+            object::Architecture::X86_64
+        }
+    );
+    assert_eq!(
+        parsed.format(),
+        if target == Target::MacosAarch64 {
+            object::BinaryFormat::MachO
+        } else {
+            object::BinaryFormat::Coff
+        }
+    );
+    // A consumer cannot silently build this contract for another target, or
+    // pack its C data differently from the frozen profile-1 layouts.
+    let foreign_target = if target == Target::MacosAarch64 {
+        Target::WindowsX86_64
+    } else {
+        Target::MacosAarch64
+    };
+    let foreign_header = artifact(AGGREGATES, foreign_target, Limits::default())
+        .unwrap()
+        .header(HeaderOptions::default(), Limits::default())
+        .unwrap();
+    std::fs::write(path.join("foreign.h"), foreign_header).unwrap();
+    let incompatible = path.join("incompatible.c");
+    std::fs::write(&incompatible, "#include \"foreign.h\"\n").unwrap();
+    let output = compile(&incompatible, &path.join("incompatible.obj"));
+    let diagnostic = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output.status.success());
+    assert!(
+        diagnostic.contains("incompatible_C_ABI_target"),
+        "{diagnostic}"
+    );
+    let packed = path.join("packed.c");
+    std::fs::write(
+        &packed,
+        "#pragma pack(push, 1)\n#include \"fixture.h\"\n#pragma pack(pop)\n",
+    )
+    .unwrap();
+    let output = compile(&packed, &path.join("packed.obj"));
+    let diagnostic = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output.status.success());
+    assert!(
+        diagnostic.contains("static_assert") || diagnostic.contains("static assertion"),
+        "{diagnostic}"
     );
     #[cfg(target_os = "macos")]
     for (target, triple) in [

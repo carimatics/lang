@@ -21,7 +21,11 @@ fn fields(parts: Vec<Vec<String>>) -> Vec<String> {
     }
     values
 }
-fn cases(artifact: &Artifact, id: lang_runtime::c_abi::TypeId, value: &str) -> Vec<String> {
+pub(super) fn cases(
+    artifact: &Artifact,
+    id: lang_runtime::c_abi::TypeId,
+    value: &str,
+) -> Vec<String> {
     match &artifact.types()[id.0].kind {
         Kind::I64 => ["41", "INT64_MIN", "INT64_MAX"]
             .map(|n| format!("{value} = {n}; "))

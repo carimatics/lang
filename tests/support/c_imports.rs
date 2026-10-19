@@ -283,7 +283,6 @@ impl Library {
             std::fs::write(&path, object.bytes()).unwrap();
             object_arguments.push(path.into_os_string());
             if cfg!(target_os = "windows") {
-                object_arguments.push("/link".into());
                 let mut symbols = vec![object.slot_symbol().to_owned()];
                 symbols.extend(object.support_symbols().iter().cloned());
                 symbols.extend(object.export_symbols().iter().map(|(_, name)| name.clone()));
@@ -293,7 +292,13 @@ impl Library {
                     symbols.push(function.metadata().symbol.clone());
                     i += 1;
                 }
-                object_arguments.extend(symbols.iter().map(|s| format!("/EXPORT:{s}").into()));
+                object_arguments.extend(symbols.iter().map(|s| {
+                    if s == object.slot_symbol() {
+                        format!("/EXPORT:{s},DATA").into()
+                    } else {
+                        format!("/EXPORT:{s}").into()
+                    }
+                }));
             }
             if response {
                 let path = directory.join("object.rsp");
@@ -304,6 +309,11 @@ impl Library {
                     .join("\n");
                 std::fs::write(&path, contents).unwrap();
                 object_arguments = vec![format!("@{}", path.display()).into()];
+            }
+            if cfg!(target_os = "windows") {
+                // Pass the response file to LINK, not to CL's compiler-option
+                // parser. Keep /link outside the file, at the end of CL options.
+                object_arguments.insert(0, "/link".into());
             }
         }
         let output = if cfg!(target_os = "windows") {
@@ -353,7 +363,27 @@ impl Library {
             unsafe { LoadLibraryW(name.as_ptr()) }
         };
         assert!(!handle.is_null());
-        Self { handle, directory }
+        let loaded = Self { handle, directory };
+        if let Some((object, _)) = object {
+            let mut symbols = vec![object.slot_symbol().to_owned()];
+            symbols.extend(object.support_symbols().iter().cloned());
+            symbols.extend(object.export_symbols().iter().map(|(_, name)| name.clone()));
+            symbols.extend(object.thunk_symbols().iter().map(|(_, name)| name.clone()));
+            let mut i = 0;
+            while let Some(function) = object.function(lang_mir::unit::FunctionId(i)) {
+                symbols.push(function.metadata().symbol.clone());
+                i += 1;
+            }
+            for symbol in symbols {
+                assert!(
+                    loaded.address(&symbol).is_some(),
+                    "linked image did not export {symbol}:\n{}\n{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        }
+        loaded
     }
     fn address(&self, name: &str) -> Option<std::ptr::NonNull<c_void>> {
         let name = CString::new(name).unwrap();
@@ -638,8 +668,7 @@ fn aggregate_c_output_refusals_preserve_failure_and_discard_results() {
     }
 }
 
-#[test]
-fn c_imports_transfer_256_mixed_scalar_and_aggregate_arguments() {
+fn mixed_import_source() -> (String, i64) {
     let mut parameters = Vec::new();
     let mut arguments = Vec::new();
     let mut expected = 0;
@@ -663,6 +692,12 @@ fn c_imports_transfer_256_mixed_scalar_and_aggregate_arguments() {
         parameters.join(", "),
         arguments.join(", ")
     );
+    (text, expected)
+}
+
+#[test]
+fn c_imports_transfer_256_mixed_scalar_and_aggregate_arguments() {
+    let (text, expected) = mixed_import_source();
     let owner = source(&text);
     let artifact = artifact(&text, target(), Limits::default()).unwrap();
     let library = Library::new(&artifact);
