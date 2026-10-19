@@ -12,9 +12,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 | Next delivery | Latest verified outcome | Milestone exit |
 | --- | --- | --- |
-| P02: startup/runtime/context distribution and isolated clean install | V17/P01/F07: **109 → 112 deliveries, 31 → 24 remaining pt** (72950d6, 2cf38ca, 15a50bb) | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P02: decide C-aware IR transport, then production distribution/isolated link-run | Metadata preparation separation complete (5324c64); distribution incomplete, so **112 done / 24 pt stay unchanged** | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Next: implement the P02 production distribution.** V17 completes bounded collection/shared/weak REPL previews. Windows run 39306998513 (head 15a50bb, job 118246548342) passes formatting/focused C-linker/Clippy/full tests/rustdoc by 2026-10-19 19:24:45 UTC; the workflow is still recording the prototype benchmark. Required-baseline evidence closes G08/G11/G12. Mac V17 results total 1,529 tests/89 suites after rerunning the corrected legacy Vec-refusal fixture. Retire the existing 7 pt; no tasks or estimates are added.
+**Next: decide the P02 C-aware MIR transport in an RFC.** 5324c64 detaches records from producer IR and reconstructs native runtime plans without machine-code emission. All 1,530 Mac tests/89 suites and fmt/Clippy/rustdoc pass. Existing schemas 2/3 cannot preserve C identities; the format decision, C-context dependencies, production distribution and both-host clean install remain. V17 full Windows run 39312412257 (head 8b4ee47, job 118265129127) succeeds at 2026-10-19 20:00:45 UTC. Scope/tasks/estimates are unchanged at 24 pt.
 
 113 measures fixed exit-gate weights; it is retired as an effort forecast. Delivery counts depend on task size and are not a completion percentage. The [delivery board](milestone-2.md) is the source for current Todo states, estimate changes, execution evidence, validation times and source dates (updated/verified 2026-10-20 JST). Its first view separates current work, the latest completed outcome and the original exit gates; historical reports are collapsed there.
 

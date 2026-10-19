@@ -16,16 +16,22 @@ Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 | --- | --- | --- |
 | P02: production bootstrap/runtime distribution | V17/P01/F07: **109 → 112 done, 31 → 24 pt** | Link/run from an isolated distribution directory without hidden repository or target/deps dependencies |
 
-P02 checkpoints (existing 3 pt):
+P02 checkpoints (existing 3 pt; separate from distribution completion):
 
-- [x] Inspect the existing standalone fixture: it uses repository test source/Rust rlibs and regenerates metadata at startup; that alone is not production distribution evidence.
-- [ ] Run the smallest executable prototype to establish production bootstrap/runtime/C-context dependencies and the metadata preparation boundary. Decide any unspecified package contract in an RFC before implementation.
-- [ ] Generate the distribution and verify isolated clean-install link/run on both tier-1 hosts.
+- [x] Identify repository test-source/Rust-rlib and startup metadata-regeneration dependencies in the existing standalone fixture.
+- [x] Implement detached Rust records and plan reconstruction without machine-code emission (`5324c64`): real native execution after producer IR/layout teardown, preserved code sizes/source ranges, every service-work-prefix VM comparison, and count/foreign-layout/budget refusals.
+- [ ] Decide a C-aware MIR format in an RFC. Current schemas 2/3 refuse C interfaces; schema 3 already belongs to explicit panic and must remain compatible.
+- [ ] Bundle production startup/runtime dependencies, including the C context.
+- [ ] Verify isolated clean-install link/run on both tier-1 hosts without narrowing Copy/ownership/C coverage.
 
-Completed in this scope:
+Latest checkpoint validation: `5324c64` passes all **1,530 macOS tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 18.74s**, native **67 / 279.10s**, fmt/Clippy (**32.93s**)/rustdoc (**18.18s**) pass. Summed suite duration 376.98s is not development time. P02 remains doing; **24 pt, 123 rows and +85 added pt stay unchanged**. No new wire format or production distribution exists yet.
+
+Latest completed deliveries:
+
+
 
 - [x] **V17 (3 pt)**: implement RFC 0016's Vec, key-ordered Map, shared-payload and weak-liveness previews through VM/actual CLI, preserving arena escape rejection. Verify output/host-scratch bounds, custody, weak cycles, cleanup/reuse. Code: `72950d6`.
-- [x] **P01 (2 pt)/F07 (2 pt)**: verify direct LINK invocation, actionable toolchain/output errors and the compact Windows error on both native hosts. P01 code: `0061045`/`2cf38ca`. [Windows run 39306998513](https://github.com/carimatics/lang/actions/runs/39306998513), head `15a50bb`, job `118246548342`: formatting, focused C/linker checks, Clippy, full tests and rustdoc succeed. Required baseline completes at **2026-10-19 19:24:45 UTC**. The workflow itself is still recording the prototype benchmark; do not report workflow completion or count that as G17 Rust/C measurement evidence.
+- [x] **P01 (2 pt)/F07 (2 pt)**: verify direct LINK invocation, actionable toolchain/output errors and the compact Windows error on both native hosts. P01 code: `0061045`/`2cf38ca`. [Windows run 39306998513](https://github.com/carimatics/lang/actions/runs/39306998513), head `15a50bb`, job `118246548342`: formatting, focused C/linker checks, Clippy, full tests and rustdoc succeed. Required baseline completes at **2026-10-19 19:24:45 UTC**. The whole workflow also succeeds at **2026-10-19 19:35:39 UTC**. The later V17 snapshot `8b4ee47` [full Windows run 39312412257](https://github.com/carimatics/lang/actions/runs/39312412257), job 118265129127, succeeds at **20:00:45 UTC**. The prototype benchmark is not G17 Rust/C comparison evidence.
 - [x] **V17 macOS validation**: latest per-suite results total **1,529 tests / 89 suites**, zero failures, one manual timing test ignored. The first full workspace attempt fails only the legacy Vec-refusal fixture; after changing that test input to arena, `cargo test --workspace --exclude lang --all-targets --all-features` reruns the corrected suite and crates skipped by fail-fast. Production code is unchanged afterward; retain successful root/native evidence. C ABI **71 / 17.24s**, native **66 / 280.54s**, owned execution **155 / 5.94s**, REPL **28 / 0.20s**. fmt/Clippy (workspace **30.41s**, runtime after test correction **17.24s**)/rustdoc (**24.25s**) pass. Summed unique suite duration 377.91s is not development time.
 
 Original exit gates: **14/18** (historical weight 84/113). This scope audit closes G08 core/indirect previews and G11/G12 C boundaries/headers/target evidence. **113 is retired as an effort forecast.** Delivery counts are not a completion percentage. The [estimate ledger](#progress-and-estimate-changes) is **134 + 85 − 195 = 24 pt**. **123 rows and +85 added pt stay unchanged**; retire only the existing V17/P01/F07 7 pt. G15–G18 and final guide Z01 remain open.

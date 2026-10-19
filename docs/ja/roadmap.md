@@ -12,9 +12,9 @@
 
 | 次の成果 | 直近の検証済み成果 | Milestone完了条件 |
 | --- | --- | --- |
-| P02：startup／runtime／contextの配布物と隔離clean-install | V17／P01／F07：**完了109 → 112件、残り31 → 24 pt**（72950d6、2cf38ca、15a50bb） | **14/18条件**。過去の重み84/113（74.3%） |
+| P02：C識別を保持するIR形式の判断、その後production配布／隔離link-run | Metadata準備の分離（5324c64）を完了。配布物は未完成のため **112完了・残り24 ptは不変** | **14/18条件**。過去の重み84/113（74.3%） |
 
-**次：P02のproduction配布物を実装します。** V17は有限のcollection／shared／weak REPL表示を完了。P01／F07のWindows run 39306998513（head15a50bb、job118246548342）はfmt／重点C・linker／Clippy／全test／rustdocを2026-10-19 19:24:45 UTCまでに成功し、workflow自体はprototype benchmarkを実行中です。必須baselineの完了を根拠としてG08／G11／G12を閉じます。MacのV17検証は旧Vec拒否fixture修正後の再実行を統合して1,529 tests／89 suites成功。既存7 ptを完了し、task／見積もりを追加しません。
+**次：P02のC対応MIR保存形式をRFCで判断します。** 5324c64で生成元IRから記録を切り離し、機械語生成なしでnative実行計画を再構築できました。Macの全1,530 tests／89 suites、fmt／Clippy／rustdocが成功。現schema 2／3はC識別を保存しないため、形式決定・C context依存・production配布物・両tier-1のclean-installは未完了です。V17の全Windows run 39312412257（head8b4ee47、job118265129127）は2026-10-19 20:00:45 UTCに成功。Scope／task／見積もりを追加せず、残り24 ptを維持します。
 
 113は固定された完了条件の重みで、工数予測としての使用は取りやめています。成果件数はtask粒度に依存し、完成率ではありません。[詳細Todo](milestone-2.md)に現在の状態、見積もりの変更、実行証拠、検証時間、情報源の日付を集約します（2026-10-20 JST更新・確認）。先頭で作業中・直近の完了成果・元のMilestone完了条件を区別し、過去のreportはそこで折りたたみます。
 

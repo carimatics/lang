@@ -16,16 +16,22 @@
 | --- | --- | --- |
 | P02：実際の配布用bootstrap／runtime | V17／P01／F07：**完了109 → 112件、残り31 → 24 pt** | リポジトリやtarget/depsへの隠れた依存がない、別directoryの配布物からのlink/run |
 
-P02の確認点（既存3 pt内）：
+P02の確認点（既存3 pt内。配布完了とは区別）：
 
-- [x] 既存standalone fixtureの依存を調査。Repo内test source／Rust rlibを使い、起動時にmetadataを再生成しているため、それだけでは配布完了の証拠になりません。
-- [ ] 最小の実行実験でproduction bootstrap／runtime／C context依存とmetadata準備の境界を具体化。未規定のpackage契約は実装前にRFCで判断。
-- [ ] 配布物を生成し、隔離したdirectoryからclean-install link/runを両tier-1で検証。
+- [x] 既存standalone fixtureのrepo内test source／Rust rlibと、起動時metadata再生成への依存を確認。
+- [x] 生成元IR／layoutsから独立したRust記録と、機械語生成なしのplan再構築を実装（`5324c64`）。元IR破棄後の実native実行、code size／source range保持、全service-work prefixのVM一致、function数／別layouts／予算不足拒否を確認。
+- [ ] C ABI識別を保持するMIR形式をRFCで判断。現schema 2／3はC interfaceを保存できず、schema 3は既にexplicit panic用のため保持が必要。
+- [ ] C contextを含むproduction startup／runtime依存を配布物にまとめる。
+- [ ] Copy／ownership／Cを狭めず、両tier-1の隔離directoryからclean-install link/runを検証。
 
-今回完了した成果：
+直近checkpoint検証：`5324c64` はmacOS全 **1,530 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／18.74秒**、native **67件／279.10秒**、fmt／Clippy（**32.93秒**）／rustdoc（**18.18秒**）成功。suite合計376.98秒は開発時間ではありません。P02はdoingのまま、**24 pt・123行・追加85点は不変**です。新しいwire形式やproduction配布物はまだありません。
+
+直近の完了成果：
+
+
 
 - [x] **V17（3 pt）**：RFC 0016を実装。Vec、キー順Map、shared内容、weak生存状態をVM／実CLIで表示し、arena脱出禁止を維持。出力／host作業領域の境界、custody、weak cycle、cleanup／再利用を検証。Code：`72950d6`。
-- [x] **P01（2 pt）／F07（2 pt）**：LINK直呼び、具体的なtoolchain／output失敗診断とWindows error縮小修正を両native hostで確認。P01 code：`0061045`／`2cf38ca`。[Windows run 39306998513](https://github.com/carimatics/lang/actions/runs/39306998513)、head `15a50bb`、job `118246548342` はfmt、重点C／linker、Clippy、全test、rustdocが成功。必須baselineは **2026-10-19 19:24:45 UTC** に完了。Workflow自体はprototype benchmarkを実行中であり、workflow完了とは記録しません。これはG17のRust／C測定証拠でもありません。
+- [x] **P01（2 pt）／F07（2 pt）**：LINK直呼び、具体的なtoolchain／output失敗診断とWindows error縮小修正を両native hostで確認。P01 code：`0061045`／`2cf38ca`。[Windows run 39306998513](https://github.com/carimatics/lang/actions/runs/39306998513)、head `15a50bb`、job `118246548342` はfmt、重点C／linker、Clippy、全test、rustdocが成功。必須baselineは **2026-10-19 19:24:45 UTC** に完了。Workflow全体も **2026-10-19 19:35:39 UTC** に成功しました。さらにV17 snapshot `8b4ee47` の[全Windows run 39312412257](https://github.com/carimatics/lang/actions/runs/39312412257)（job118265129127）が **20:00:45 UTC** に成功しました。Prototype benchmarkはG17のRust／C比較証拠には数えません。
 - [x] **V17 macOS検証**：最新suite結果を統合して **1,529 tests / 89 suites** 成功、失敗0、手動timingのみ1件ignored。初回全workspace実行は旧Vec拒否fixtureだけが失敗し、test入力をarenaへ修正後、`cargo test --workspace --exclude lang --all-targets --all-features`で修正suiteと停止後の未実行crateを再実行しました。以降production codeは不変で、成功済みroot／native証拠は保持。C ABI **71件／17.24秒**、native **66件／280.54秒**、owned実行 **155件／5.94秒**、REPL **28件／0.20秒**。fmt／Clippy（全workspace **30.41秒**、test修正後runtime **17.24秒**）／rustdoc（**24.25秒**）成功。重複を除くsuite時間合計377.91秒は開発時間ではありません。
 
 元のMilestone完了条件は **14/18**（過去の重み84/113）。今回のscope監査でG08のcore／間接preview、G11／G12のC境界／header／target証拠を完了としました。**113 ptは工数予測としての使用を取りやめています。** 成果件数も完成率ではありません。[見積もり収支](#進捗と見積もり変更)は **134 + 85 − 195 = 24 pt**。**123行・追加85点は不変**で、既存V17／P01／F07の7 ptだけを取り除きました。G15–G18と最終guide Z01は未完了です。
