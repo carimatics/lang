@@ -12,9 +12,11 @@
 
 | 次の成果 | 直近の検証済み成果 | Milestone完了条件 |
 | --- | --- | --- |
-| P05：Copy／ownershipのsource不要runtime起動 | P03 metadata（5324c64）とP04 C対応schema 4（816b0b6）が完了。配布は残る | **14/18 gates**、過去の重み84/113（74.3%） |
+| P05：具体的owned runtime入口 | **確認点2件を検証**：保存native記録とimage保持付きCopy呼出し（5e0d6a1）。通常ownedのproduction入口が残る | **14/18条件**。過去の重み84/113（74.3%） |
 
-**次：P05のsource不要native起動。** P02の既存3 ptにmetadata、意味論の保存、runtime、C context、SDK組立、両host clean installが隠れていました。[実装Todo](milestone-2.md)でP03–P07を明示し、P02の最終clean-install検証とCopy／ownership／Cの全成果を維持します。**123 → 128行、完了112 → 114件、追加11点／完了で3点を除き、残り24 → 32 pt**。P03／P04は既存commit済みの作業を今回見える形にしたものです。収支は **134 + 96 − 198 = 32**。工数の完成率とはせず、見積りを訂正します。
+**次：P05の通常owned用の具体的runtime入口。** 5e0d6a1でRFC 0018の記録transportと検証付きCopy image保持を実装しました。Copy／managed ownership／panicをfileから読み直してsource分析／機械語生成なしに実行できますが、owned fixtureはまだtest runtimeを提供します。NativeFactoryにはC export／environment／providerが必須で、汎用entry準備、通常provider統合、source結果／control／failure完了が残ります。この一覧を監査してP05は暫定3 ptを維持し、**114完了・残り32 pt・128行は不変**です。SDK、native権限、install完了とは数えません。Mac全1,539 tests／89 suitesとfmt／Clippy／rustdocが成功。現在のWindows証拠と確認点は[実装Todo](milestone-2.md)に記録します。2026-10-20 JST更新・確認。
+
+**P02監査を維持：** P02の既存3 ptにmetadata、意味論の保存、runtime、C context、SDK組立、両host clean installが隠れていました。[実装Todo](milestone-2.md)でP03–P07を明示し、P02の最終clean-install検証とCopy／ownership／Cの全成果を維持します。**123 → 128行、完了112 → 114件、追加11点／完了で3点を除き、残り24 → 32 pt**。P03／P04は既存commit済みの作業を今回見える形にしたものです。収支は **134 + 96 − 198 = 32**。工数の完成率とはせず、見積りを訂正します。
 
 Schema 4でC宣言と明示的panicを保持し、意味論全体を独立検証します。Decode後の実C callbackを明示VM／native contextで実行し、CLI loadではC権限を与えません。816b0b6はMac全1,533 tests／89 suitesとfmt／Clippy／rustdocに成功。Production runtime／context配布、隔離SDK link/run、後続conformance／性能／debug gateは残ります。2026-10-20 JST更新・確認。
 

@@ -8,11 +8,21 @@
 
 **114 done · 1 doing · 13 todo · 32 remaining pt**
 
-**次: M2-P05 → Copy／ownershipのsource不要native runtime起動（暫定3 pt、進行中）。**
+**次: M2-P05 → decode済み記録からの具体的owned runtime入口（暫定3 pt、進行中）。**
+
+**P05：検証済み確認点2件。Production owned入口が残っています。** 確認点の件数であり、工数の完成率ではありません。
 
 | 次の成果 | 直近の完了 | 必須の実行結果 |
 | --- | --- | --- |
-| P05：source不要のruntime起動 | P03／P04：**完了112 → 114件**。配布再監査で **残り24 → 32 pt** | Decodeした意味論とnative記録から、source分析やbackend生成なしにlinked codeを実行 |
+| P05：具体的owned runtime入口 | Native記録transportとimage保持付きCopy呼出しを検証（5e0d6a1）。P05はdoing | Test runtime／source分析／機械語生成なしに、production primitivesと設定controlで元のowned entryを実行 |
+
+P05確認点と残作業の監査（2026-10-20 JST）：
+
+- [x] RFC 0018の上限付きnative記録でtarget／scope、正確なobjectとmetadataを保持し、checksumで意味論／objectのbyteを対応付け。Managed schema 2と明示的panicのschema 3をfileから読み直し、生成元破棄後に元span／work／cleanupを保つlinked実行を確認。
+- [x] Copyの検証付き準備／bindでimageを保持し、JITとcanonical値検査を共有。読み直したfileからrecord／enum／scalarを呼出し。Count／symbol／UTF-8／target／budgetを呼出し前に拒否し、missing symbolではimageを解放。Code：`5e0d6a1`。
+- [ ] 通常owned用の具体的runtime入口。既存NativeFactory／StateはC export選択、必須C environment、context専用の非公開Providerに結合しています。汎用entry準備、provider対応primitives、source結果／control／failure完了の実装と実entry fixtureが残ります。この残作業を確認して**暫定3 ptを維持**し、行／点の追加もP05完了扱いもしません。追加metadata基盤より先に、その実行fixtureを作ります。
+
+直近checkpoint検証：`5e0d6a1` はmacOS **1,539 tests / 89 suites**、失敗0、手動timingのみ1件ignored。Native **68件／276.12秒**、C ABI **71件／22.50秒**、fmt／Clippy（**3.16秒**）／rustdoc（**18.04秒**）成功。Suite合計377.01秒は検証時間で、開発工数ではありません。初回全体検証はstandaloneの直接rustcビルドがtest専用record helperまでcompileし、lang-bytecode externを持たず失敗したため、`cfg(test)`でfixtureを修正し、今回の全体再実行が成功しました。先行schema 4 snapshot `816b0b6` の[Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989)、job118300781642：fmt／重点C・linker／Clippy／全test／rustdocが2026-10-19 21:16:54 UTCまでに成功し、workflow全体も成功（job完了21:26:54 UTC）。Prototype benchmarkはG17のRust／C比較証拠には数えません。Native記録版のWindows snapshot：[run 39328266216](https://github.com/carimatics/lang/actions/runs/39328266216)、head 5e0d6a1は進行中で、今回の版の成功はまだ記録しません。
 
 P02配布監査（2026-10-20 JST）：metadata、意味論の保存、runtime起動、C context統合、SDK組立、両hostのclean installを既存3 ptのまま扱い、独立した成果が隠れていました。P02の最終clean-install検証は3 ptを維持します。P03独立metadata（初期2 pt、5324c64で完了）、P04 C対応artifact（初期1 pt、816b0b6で完了）、P05 runtime起動（3）、P06配布C context（3）、P07 SDK組立（2）を明示します。既存要件の再見積りであり、**scopeは削除しません**。**123 → 128行、追加11点、完了で3点を除き、24 + 11 − 3 = 残り32 pt**。P03／P04の登録を、そのcommit以降の新しい作業とは数えません。次の起動実験ではsource由来のcodeを実行します。
 
@@ -23,7 +33,7 @@ P02配布監査（2026-10-20 JST）：metadata、意味論の保存、runtime起
 - [ ] **P07**：toolchain要件を明示したcompiler／startup／runtime／headerのSDK組立。
 - [ ] **P02**：repo／target/deps外で、Copy／ownership／Cを含む両tier-1のclean-install link/run。
 
-直近検証：`816b0b6` はmacOS **1,533 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／16.98秒**、native **67件／278.18秒**、fmt／Clippy（**23.65秒**）／rustdoc（**21.70秒**）成功。Suite合計374.56秒は検証時間で、開発工数ではありません。先行metadata snapshot 479296bは[Windows run 39317655321](https://github.com/carimatics/lang/actions/runs/39317655321)、job118283210035を追跡：fmt／重点C・linker／Clippy／全test／rustdocが20:39:08 UTCまでに成功し、workflow全体も成功（job完了20:49:28 UTC、2026-10-19）。Prototype benchmarkはG17のRust／C比較には含めません。Schema 4の[Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989)（head 816b0b6）は進行中で、この版の成功はまだ記録しません。
+先行schema 4検証記録：`816b0b6` はmacOS **1,533 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／16.98秒**、native **67件／278.18秒**、fmt／Clippy（**23.65秒**）／rustdoc（**21.70秒**）成功。Suite合計374.56秒は検証時間で、開発工数ではありません。先行metadata snapshot 479296bは[Windows run 39317655321](https://github.com/carimatics/lang/actions/runs/39317655321)、job118283210035を追跡：fmt／重点C・linker／Clippy／全test／rustdocが20:39:08 UTCまでに成功し、workflow全体も成功（job完了20:49:28 UTC、2026-10-19）。Prototype benchmarkはG17のRust／C比較には含めません。Schema 4の[Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989)（head 816b0b6）はその後必須baselineに成功しました。上記の直近checkpointを参照してください。
 
 元の完了条件は **14/18**（過去の重み84/113）のままで、G15–G18と最終guide Z01は未完了です。**113 ptは工数予測として使用しません。** 成果件数も完成率ではありません。[見積もり収支](#進捗と見積もり変更)は **134 + 96 − 198 = 32 pt**。
 

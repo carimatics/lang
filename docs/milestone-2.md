@@ -8,11 +8,21 @@ Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
 **114 done · 1 doing · 13 todo · 32 remaining pt**
 
-**Next: M2-P05 → source-free native runtime bootstrap for Copy and ownership (provisional 3 pt, in progress).**
+**Next: M2-P05 → concrete owned runtime entry from decoded records (provisional 3 pt, in progress).**
+
+**P05: 2 verified checkpoints; the production owned entry remains.** This is a checkpoint count, not an effort percentage.
 
 | Next delivery | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| P05: source-free runtime startup | P03/P04: **112 → 114 done**; remaining distribution audit **24 → 32 pt** | Run linked code from decoded semantics and native records without source analysis or backend emission |
+| P05: concrete owned runtime entry | Native record transport and retained Copy calls verified (5e0d6a1); P05 remains doing | Execute the original owned entry with production primitives and configured controls, without a test runtime/source analysis/backend emission |
+
+P05 checkpoint and remaining-scope audit (2026-10-20 JST):
+
+- [x] RFC 0018 bounded native records preserve target/scope, exact object and metadata; checksums pair semantic/object bytes. Reloaded managed schema-2 and explicit-panic schema-3 files execute linked code after producer teardown, including original spans/work/cleanup.
+- [x] Checked Copy preparation/binding retains its image, shares canonical JIT value checks and executes record/enum/scalar calls from reloaded files. Count/symbol/UTF-8/target/budget refusals precede invocation; missing symbols release the image. Code: `5e0d6a1`.
+- [ ] Concrete ordinary-owned runtime entry. Existing NativeFactory/State is tied to C export selection, a mandatory C environment and sealed context Provider. General entry preparation, provider-compatible primitives and source result/control/failure completion still require implementation and a real entry fixture. These remaining tasks justify retaining the provisional **3 pt** after review; no extra rows/points and no P05 completion are claimed. Run that fixture before further metadata scaffolding.
+
+Latest checkpoint validation: `5e0d6a1` passes **1,539 macOS tests / 89 suites**, zero failures, one manual timing test ignored; native **68 / 276.12s**, C ABI **71 / 22.50s**, fmt/Clippy (**3.16s**)/rustdoc (**18.04s**) pass. Summed suite time 377.01s is validation time, not development effort. The first full attempt failed only the standalone direct-rustc build because test-only record helpers were compiled without their lang-bytecode extern; `cfg(test)` fixes the fixture, and this complete rerun succeeds. Previous schema-4 Windows snapshot `816b0b6` [run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989), job118300781642: fmt/focused C-linker/Clippy/full tests/rustdoc pass by 2026-10-19 21:16:54 UTC; the whole workflow succeeds (job completed 21:26:54 UTC). Its prototype benchmark is not G17 Rust/C comparison evidence. Native-record Windows snapshot: [run 39328266216](https://github.com/carimatics/lang/actions/runs/39328266216), head 5e0d6a1 is in progress; no success is claimed for this snapshot yet.
 
 P02 packaging audit (2026-10-20 JST): retaining its old 3 pt across metadata, semantic transport, runtime startup, C-context integration, SDK assembly and both-host clean installation hid several independent outcomes. Keep P02's final clean-install proof at 3 pt. Expose P03 detached metadata (initial 2 pt, delivered 5324c64) and P04 C-aware artifact transport (initial 1 pt, delivered 816b0b6), plus P05 runtime bootstrap (3), P06 distributed C context (3) and P07 SDK assembly (2). This is an explicit re-estimate of existing requirements, with **no scope removed**: **123 → 128 rows, +11 added pt, 3 retired pt, 24 + 11 − 3 = 32 remaining pt**. Recording P03/P04 now does not claim new work since their commits. The next startup experiment must execute source-derived code.
 
@@ -23,7 +33,7 @@ P02 packaging audit (2026-10-20 JST): retaining its old 3 pt across metadata, se
 - [ ] **P07**: compiler/startup/runtime/header SDK assembly with explicit toolchain requirements.
 - [ ] **P02**: clean-install link/run for Copy, ownership and C on both tier-1 hosts outside the repository/target/deps.
 
-Latest validation: `816b0b6` passes **1,533 macOS tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 16.98s**, native **67 / 278.18s**; fmt/Clippy (**23.65s**)/rustdoc (**21.70s**) pass. Summed suite time 374.56s is validation time, not development effort. Prior metadata snapshot 479296b is tracked by [Windows run 39317655321](https://github.com/carimatics/lang/actions/runs/39317655321), job 118283210035: required fmt/focused C-linker/Clippy/tests/rustdoc pass by 20:39:08 UTC; the whole workflow succeeds (job completed 20:49:28 UTC, 2026-10-19). Its prototype benchmark is not G17 Rust/C comparison evidence. Schema-4 [Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989), head 816b0b6, is in progress; no success is claimed for that snapshot yet.
+Prior schema-4 validation checkpoint: `816b0b6` passes **1,533 macOS tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 16.98s**, native **67 / 278.18s**; fmt/Clippy (**23.65s**)/rustdoc (**21.70s**) pass. Summed suite time 374.56s is validation time, not development effort. Prior metadata snapshot 479296b is tracked by [Windows run 39317655321](https://github.com/carimatics/lang/actions/runs/39317655321), job 118283210035: required fmt/focused C-linker/Clippy/tests/rustdoc pass by 20:39:08 UTC; the whole workflow succeeds (job completed 20:49:28 UTC, 2026-10-19). Its prototype benchmark is not G17 Rust/C comparison evidence. Schema-4 [Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989), head 816b0b6, has since passed the required baseline; see the current checkpoint above.
 
 Original exit gates remain **14/18** (historical weight 84/113); G15–G18 and final guide Z01 remain open. **113 is retired as an effort forecast.** Delivery counts are not a completion percentage. The [estimate ledger](#progress-and-estimate-changes) is **134 + 96 − 198 = 32 pt**.
 
