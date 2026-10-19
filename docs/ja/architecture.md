@@ -188,6 +188,10 @@ Macのlinked fixtureは、生成元破棄後に空白入りpathの意味論／na
 
 情報源：[復元API](../../crates/codegen-clif/src/owned/c_objects.rs)、[共通symbol](../../crates/codegen-clif/src/c_abi/object.rs)、[保存file／両形式の検査](../../tests/support/c_object_records.rs)、[実C context／失敗位置](../../tests/support/c_objects.rs)、[Copy全case](../../tests/support/c_object_binding.rs)。2026-10-20 JST更新・確認。
 
+### Native SDK distribution decision
+
+2026-10-20 JST受理：[RFC 0020](rfcs/0020-native-sdk-and-startup.md)で製品用`native`／`link-native`コマンド、対応Rust SDK、上限付きversion-1 SDK／program manifest、target別build識別、scope付き通常／C起動を定義しました。C profile 1と既存portable／native記録は維持し、C権限を生成せず、初期SDKでは正確なRust toolchainを明示要件とします。SDK compiler／consumerは未実装でP09／P10、組立／両host隔離installはP07／P02です。Repository外の既存libraryとproduction入口によるBytes 42／live allocation 0の準備実験を保存しました。設計の証拠であり、SDK全体・性能・debug完了の証拠には数えません。情報源：[producer](../experiments/sdk-owned-producer.rs)、[consumer](../experiments/sdk-owned-consumer.rs)。2026-10-20 JST更新・確認。
+
 ### C-aware ownership artifact transport
 
 2026-10-20 JST実装・検証：[RFC 0017](rfcs/0017-c-aware-ownership-artifacts.md)で、未使用宣言も含めC importまたはCExport functionがあるunitにschema 4を追加します。ABI byteはimport名とfunction名／public flagの後に置き、Host／Guest = 0、C／CExport = 1、他の値は該当byte offsetで拒否します。Raw table全体を独立検証します。Panic tag 33も有効で、Cを含まないunitはschema 2／3と既存golden byteを維持します。Version選択とwriter両passで累積予算を共有します。未知tag、全切断prefix、不正C署名／visibility、byte／work／allocation／element上限超過を拒否します。

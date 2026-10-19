@@ -73,6 +73,7 @@ Native C runtime（2026-10-20 JST実装・確認）：`lang_codegen_clif::c_abi:
 - [RFC 0017：C対応ownership artifact（implemented・実装済み）](docs/ja/rfcs/0017-c-aware-ownership-artifacts.md)
 - [RFC 0018：Native compiler record（implemented・実装済み）](docs/ja/rfcs/0018-native-compiler-records.md)
 - [RFC 0019：通常owned native entry runtime（implemented・実装済み）](docs/ja/rfcs/0019-owned-native-entry-runtime.md)
+- [RFC 0020：実験段階のnative SDKとscope付き起動（accepted・受理済み）](docs/ja/rfcs/0020-native-sdk-and-startup.md)
 - [RFC 0011：Portable ownership artifact（implemented）](docs/ja/rfcs/0011-ownership-artifacts.md)
 - [RFC 0012：Native ownershipの継続とmanaged frame（accepted）](docs/ja/rfcs/0012-native-ownership-continuations.md)
 - [RFC 0013：Service byte-work budget（accepted・実装予定）](docs/ja/rfcs/0013-service-byte-work-budget.md)

@@ -188,6 +188,10 @@ The existing unsafe bind retains an image linked from the original object and ma
 
 Sources: [restoration API](../crates/codegen-clif/src/owned/c_objects.rs), [shared symbols](../crates/codegen-clif/src/c_abi/object.rs), [persisted-file/both-format checks](../tests/support/c_object_records.rs), [real C context/failure prefixes](../tests/support/c_objects.rs), [finite Copy matrix](../tests/support/c_object_binding.rs), updated/verified 2026-10-20 JST.
 
+### Native SDK distribution decision
+
+Accepted 2026-10-20 JST: [RFC 0020](rfcs/0020-native-sdk-and-startup.md) defines production `native`/`link-native` commands, matching Rust SDK, bounded version-1 SDK/program manifests, target-specific build identity and scoped ordinary/C startup. C profile 1 and existing portable/native records are unchanged; no C authority is created and the initial SDK explicitly requires its exact Rust toolchain. Compiler/consumer implementation remains P09/P10; assembly/both-host isolated install remains P07/P02. The retained readiness probe uses copied libraries and the production entry outside the repository to return Bytes result 42/live allocations 0. It supports the design, not SDK/performance/debug completion. Sources: [producer](experiments/sdk-owned-producer.rs), [consumer](experiments/sdk-owned-consumer.rs), updated/verified 2026-10-20 JST.
+
 ### C-aware ownership artifact transport
 
 Implemented/verified 2026-10-20 JST: [RFC 0017](rfcs/0017-c-aware-ownership-artifacts.md) adds schema 4 when any import is C or function is CExport, including unused declarations. ABI bytes follow each import name and function name/public flag: Host/Guest = 0, C/CExport = 1; other values fail at the exact byte offset. Complete raw tables pass the independent verifier. Panic tag 33 remains valid; C-free units keep schema 2/3 and unchanged golden bytes. Version selection and both writer passes share the cumulative budget. Unknown tags, every truncated prefix, malformed C signatures/visibility and byte/work/allocation/element exhaustion are rejected.

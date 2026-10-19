@@ -73,6 +73,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0017: C-aware ownership artifacts (implemented)](docs/rfcs/0017-c-aware-ownership-artifacts.md)
 - [RFC 0018: Native compiler records (implemented)](docs/rfcs/0018-native-compiler-records.md)
 - [RFC 0019: Ordinary owned native entry runtime (implemented)](docs/rfcs/0019-owned-native-entry-runtime.md)
+- [RFC 0020: Experimental native SDK and scoped startup (accepted)](docs/rfcs/0020-native-sdk-and-startup.md)
 - [RFC 0011: Portable ownership artifacts (implemented)](docs/rfcs/0011-ownership-artifacts.md)
 - [RFC 0012: Native ownership continuations and managed frames (accepted)](docs/rfcs/0012-native-ownership-continuations.md)
 - [RFC 0013: Service byte-work budget (accepted; implementation pending)](docs/rfcs/0013-service-byte-work-budget.md)
