@@ -6,9 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**94 done · 0 doing · 21 todo · 49 remaining pt**
+**94 done · 1 doing · 20 todo · 49 remaining pt**
 
 **Next: M2-N07 → execute the matching owned executable/failure matrix on Windows x86-64 and record successful native CI evidence (2 pt provisional).**
+
+Active N07 validation (2026-10-19 JST): MSVC startup/process-image/export handling is implemented in 698345b and pushed to codex/m2-native-windows-20261019. Local macOS 1,415 tests / 87 suites, native 61, fmt/Clippy/rustdoc pass. [Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974) checks that exact commit: compilation/lint passed and Test is in progress (started 2026-10-19 03:15:29 UTC). Keep N07 doing and G14 open until successful current-commit native execution is inspected. No estimate/task-count change.
 
 Latest delivery (2026-10-19 JST): N06 is done in e7a2bb4, with explicit static-image provenance contracts in 25de18a. Thirty-one source units run as 62 real macOS executables through direct/response-file links, covering work/fuel prefixes, provider refusal, interruption, frame/cell limits, panic, cleanup and returned owner bytes. **93 → 94 done, 51 → 49 pt**; no tasks/estimates added, retired estimates **151 pt**. Workspace **1,415 tests / 87 suites**, native **61**, fmt/Clippy/rustdoc pass. G14 remains open for Windows N07; original gates stay **6/18**.
 
@@ -42,7 +44,7 @@ N16 validation observations: four focused runtime tests report 0.00 s; profile p
 
 N17 validation observations: Focused runtime tests 3 / 0.00 s; finite-buffer prefix test 1 / 0.69 s; full-feature native 53 / 11.29 s. Full-suite Cargo compilation 47.51 s; summed test-reported time 88.20 s; log creation-to-last-write interval 529.91 s. Clippy 45.34 s; rustdoc 19.28 s. These are validation observations, not active work time or runtime benchmarks. Build-cache follow-up: deps held 645,863 entries / 33.05 GiB; inventory scan 12.26 s. Cargo package cleanup removed 439,988 generated files / 21.6 GiB. The same inventory method then observed 228,369 entries / 13.62 GiB in 1.885 s. These single scans establish filesystem inventory cost, not the cause of all validation wall-time residuals or a whole-suite speedup. Two startup-only listings each reported 0.00 s. No source change or full-baseline repeat was needed for cache cleanup; the planning follow-up runs repository consistency only.
 
-N06 validation observations (2026-10-19 JST): full baseline 1,415 tests / 87 suites passes, including 31 standalone units / 62 executables (one timing-only test ignored). Full-test wall time 336.90 s, Cargo compilation 1.09 s, summed suites 330.72 s; native 61 / 251.86 s. Focused cleanup 9 / 0.58 s; Copy/control VM example returns 65. Clippy wall time 0.99 s; rustdoc 10.59 s. These are validation observations under differing compiler/cache conditions, not active work hours or runtime performance. Documentation-only planning validation runs repository_consistency.
+N07 local validation observations (2026-10-19 JST): macOS baseline 1,415 tests / 87 suites passes, native 61 / 255.64 s, one timing-only test ignored. Full-test wall time 337.35 s, Cargo compilation 0.60 s, summed suites 334.29 s. Clippy wall time 1.33 s; rustdoc 10.46 s; linked-image probe 1 / 2.48 s. These are local validation durations, not Windows evidence, active working time or runtime benchmarks. Planning-only changes run repository_consistency.
 
 Next-target evidence check (2026-10-19 JST): the latest existing [Windows success](https://github.com/carimatics/lang/actions/runs/39007443435) is head 88325a5, updated 2026-10-17 05:54:49 UTC. It predates the owned standalone matrix and does not close N07. The configured windows-2025/MSVC workflow is available; N07 must port the startup/image/link handling and obtain matching current-commit native execution evidence.
 
@@ -241,7 +243,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N05 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16,M2-N17,M2-N18 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior across accepted service/payload combinations, including configured service byte-work admission. | `f6d9fc4` |
 | M2-N19 | done | 0 | M2-N05 | G14 | Bind a trusted linked image with its code owner to the checked owned program gateway; execute real linked owned code. | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | `25de18a` |
-| M2-N07 | todo | 2 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | — |
+| M2-N07 | doing | 2 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |

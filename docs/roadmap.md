@@ -8,7 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**94 verified deliveries · 0 in progress · 21 remaining tasks (provisional 49 pt).**
+**94 verified deliveries · 1 in progress · 20 remaining tasks (provisional 49 pt).**
+
+Active N07 validation (2026-10-19 JST): MSVC startup/process-image/export handling is implemented in 698345b and pushed to codex/m2-native-windows-20261019. Local macOS 1,415 tests / 87 suites, native 61, fmt/Clippy/rustdoc pass. [Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974) checks that exact commit: compilation/lint passed and Test is in progress (started 2026-10-19 03:15:29 UTC). Keep N07 doing and G14 open until successful current-commit native execution is inspected. No estimate/task-count change.
 
 Latest delivery (2026-10-19 JST): N06 is done in e7a2bb4, with explicit static-image provenance contracts in 25de18a. Thirty-one source units run as 62 real macOS executables through direct/response-file links, covering work/fuel prefixes, provider refusal, interruption, frame/cell limits, panic, cleanup and returned owner bytes. **93 → 94 done, 51 → 49 pt**; no tasks/estimates added, retired estimates **151 pt**. Workspace **1,415 tests / 87 suites**, native **61**, fmt/Clippy/rustdoc pass. G14 remains open for Windows N07; original gates stay **6/18**.
 

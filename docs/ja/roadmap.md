@@ -8,7 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み94件 · 進行中0件 · 残り21件（暫定49 pt）。**
+**検証済み94件 · 進行中1件 · 残り20件（暫定49 pt）。**
+
+N07の検証状況（2026-10-19 JST）：MSVCのstartup／process image／export処理を698345bで実装し、codex/m2-native-windows-20261019へpushしました。ローカルmacOSは1,415 test／87 suite、native 61件、fmt／Clippy／rustdoc成功。[Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974)は同commitを検証中で、compile／lintが成功し、Testを実行中です（2026-10-19 03:15:29 UTC開始）。現行commitのnative実行成功を確認するまでN07はdoing、G14は未完とします。見積もり・task数は変更しません。
 
 最新の完了成果（2026-10-19 JST）：e7a2bb4でN06を完了し、25de18aでstatic imageのprovenance契約も明示しました。31 source unitを62個のmacOS実executableとしてdirect／response-fileでlink／runし、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteを検証しました。**93 → 94 done、51 → 49 pt**。Task／見積もりは追加せず、完了で取り除いた見積もりは **151点** です。全workspace **1,415 test／87 suite**、native **61件**、fmt／Clippy／rustdoc成功。G14はWindowsのN07が残り未完で、従来gateは **6/18** を維持します。
 

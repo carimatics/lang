@@ -6,9 +6,11 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**94 done · 0 doing · 21 todo · 49 remaining pt**
+**94 done · 1 doing · 20 todo · 49 remaining pt**
 
 **次: M2-N07 → 同じowned executable／failure matrixをWindows x86-64で実行し、native CIの成功証拠を記録（暫定2点）。**
+
+N07の検証状況（2026-10-19 JST）：MSVCのstartup／process image／export処理を698345bで実装し、codex/m2-native-windows-20261019へpushしました。ローカルmacOSは1,415 test／87 suite、native 61件、fmt／Clippy／rustdoc成功。[Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974)は同commitを検証中で、compile／lintが成功し、Testを実行中です（2026-10-19 03:15:29 UTC開始）。現行commitのnative実行成功を確認するまでN07はdoing、G14は未完とします。見積もり・task数は変更しません。
 
 最新の完了成果（2026-10-19 JST）：e7a2bb4でN06を完了し、25de18aでstatic imageのprovenance契約も明示しました。31 source unitを62個のmacOS実executableとしてdirect／response-fileでlink／runし、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteを検証しました。**93 → 94 done、51 → 49 pt**。Task／見積もりは追加せず、完了で取り除いた見積もりは **151点** です。全workspace **1,415 test／87 suite**、native **61件**、fmt／Clippy／rustdoc成功。G14はWindowsのN07が残り未完で、従来gateは **6/18** を維持します。
 
@@ -42,7 +44,7 @@ N16検証時間：runtime重点4 testは報告値0.00秒、profile拒否の重�
 
 N17検証実測：Focused runtime 3件／0.00秒、有限buffer予算prefix 1件／0.69秒、全feature native 53件／11.29秒。全testのCargo compileは47.51秒、test報告時間の合計は88.20秒、log作成から最終書込みまで529.91秒。Clippy 45.34秒、rustdoc 19.28秒。検証の観測値であり、実作業時間やruntime benchmarkではありません。Build cacheの追加調査でdepsに645,863 entry／33.05 GiBがあり、一覧走査は12.26秒でした。Cargoのpackage単位の整理で生成物439,988 file／21.6 GiBを削除しました。同じ集計方法で整理後は228,369 entry／13.62 GiB、走査1.885秒です。各1回の走査はfilesystemの集計costを示し、検証実時間の残差すべての原因やsuite全体の高速化は示しません。起動のみの一覧表示2件は各0.00秒でした。Cache整理によるsource変更とfull baselineの再実行は不要で、plan更新後はrepository consistencyのみ実行します。
 
-N06検証実測（2026-10-19 JST）：standaloneの31 unit／62 executableを含む全baselineは1,415 test／87 suite成功（計測専用1件ignore）。全test実時間336.90秒、Cargo compile 1.09秒、suite報告時間合計330.72秒、native 61件／251.86秒。Focused cleanup 9件／0.58秒、Copy／control例のVM結果65。Clippy実時間0.99秒、rustdoc実時間10.59秒。Compiler／cache条件の異なる検証の観測値であり、実作業時間やruntime性能ではありません。文書だけのplan更新はrepository_consistencyで検証します。
+N07のローカル検証実測（2026-10-19 JST）：macOS baselineは1,415 test／87 suite成功、native 61件／255.64秒、計測専用1件ignore。全test実時間337.35秒、Cargo compile 0.60秒、suite報告時間合計334.29秒。Clippy実時間1.33秒、rustdoc 10.46秒、linked-image probe 1件／2.48秒。ローカル検証の時間で、Windows証拠・実作業時間・runtime benchmarkではありません。Planのみの変更はrepository_consistencyで検証します。
 
 次targetの証拠確認（2026-10-19 JST）：既存の最新[Windows成功run](https://github.com/carimatics/lang/actions/runs/39007443435)はhead 88325a5、最終更新2026-10-17 05:54:49 UTCで、owned standalone matrix以前のためN07を完了とはしません。windows-2025／MSVC workflowは利用可能です。N07でstartup／image／link処理を移植し、対応する現行commitのnative実行証拠を取得します。
 
@@ -241,7 +243,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N05 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16,M2-N17,M2-N18 | G06,G14 | 設定可能なservice byte-work admissionを含め、受理済みservice／payloadの組合せ全体でnativeの生成failure／return exitをVMのcleanup順序とfuel behaviorに一致させる。 | `f6d9fc4` |
 | M2-N19 | done | 0 | M2-N05 | G14 | Linked imageの寿命を保持した信頼済みbindingと既存gatewayによるowned program実行を、実objectで検証する。 | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | `25de18a` |
-| M2-N07 | todo | 2 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | — |
+| M2-N07 | doing | 2 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Startup／runtime／context依存をpackage化し、clean installでlink／run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
