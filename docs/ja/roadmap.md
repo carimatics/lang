@@ -8,9 +8,11 @@
 
 ## 現在のM2実装状況
 
-**検証済み99件 · 進行中1件 · 残り18件（暫定44 pt）。**
+**検証済み100件 · 進行中0件 · 残り18件（暫定42 pt）。**
 
-F02の作業範囲（2026-10-19 JST）：F03／F10を共通context gateへ接続します。Version／size／flags／count／name／digest／grant／limitを要求全体で検証してから必要なsnapshotを所有し、callbackを許可します。Function pointerの型とcaller user-contextのlifetime義務を保ちます。ABI digestだけでなく、保持したcode ownerと個別allocator instanceへcontextを結び付けます。既存cleanup Instanceと実行制御を使い、poison／再入、foreign status／panic containment、error summaryのcopyを扱い、importとexport受入れ／result検査へF10を強制します。Raw C descriptor read、型付きpointer復元、実VM／native call adapter、standalone support公開はF04／F05に維持し、F06／F07で実platform検証を行います。F02を残り **2点** でdoingとし、**99 done / 1 doing / 18 todo / 44 pt**、118行と見積り収支は不変です。
+F02完了（2026-10-19 JST）：7d4fea7で共通config／context gate、code owner／allocator provenance、明示C import grant、F10受入れ／result検査、再入／poison拒否、callback／body／reader panicの上限付きcontainmentを完成しました。16件のfailure／state fixtureでforeign status、primary／callsiteの保持、cleanupの切捨て／件数、summary copyを検証します。必須検証：**1,471 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Nativeは **62件／266.07秒**、fmt、Clippy（**21.57秒**）、rustdoc（**20.93秒**）も成功です。F02の残り **2点** を取り除き、**99 → 100 done、44 → 42 pt** とします。**118行、追加72点は不変、完了で取り除いた見積もりは164点** です。従来gateは **7/18** のままです。Raw C descriptor read、正確なcallback呼出し、foreign allocator bridge、VM／native adapter、output公開はF04／F05、実platform実行はF06／F07に維持します。C実行／object／schema 2の拒否も保ちます。
+
+次の実行成果F04の見直し（2026-10-19 JST）：F03／F10／F02でmetadata、値検査、context検査を揃えたため、次は実C source importを実行する成果とします。Ownership VM／nativeにはOp::Import dispatch、managed値とCのmarshaller、raw allocator provider、正確な署名のC invokerがまだありません。最小の実scalar callback sourceを試し、残る全作業を確認してからF04の暫定3点を維持できるか判断します。Aggregate引数／result、allocation context、両backend、failure statusもF04に維持し、wrapperだけのtestでは完了にしません。Source drop／panicのF09とF05-F07も残します。この着手前の確認では見積もりを変更しません。
 
 F10完了（2026-10-19 JST）：5108069でF03 metadataを使ったpadding安全なC value／address事前検査を完成しました。入力read前にargument／result／context全体のshape、null／alignment／extent／overflow、output overlapを検証します。Readerは初期化済みfield／tag／reserved／unused unionだけを要求し、実C address／lifetimeの有効性はtrusted caller／adapterの義務を維持します。実union extentからenum末尾paddingを除外しunionの丸めを含め、生成C headerでも独立にassertします。正規tag zeroは受理し、未知tag、非正規bool／Unit／reserved／unused byteを拒否します。Padding readを禁止するReader、全address検査後のread、const inputのoverlap、output拒否、共有work、interruption／deadline／read failureを新規10 fixtureで検証しました。最終検証：1,455 tests / 88 suites, zero failures, one manual timing test ignored; native 62 in 265.39s。Fmt／Clippy／rustdocも成功です。**F02から配分した1点** をF10完了で取り除き、**98 → 99 done、45 → 44 pt** とします。118行と追加72点は不変で、完了で取り除いた点数は **162点** です。従来gateは **7/18** のままです。F02にはcontext／config／bindings／provenance／capability／poison／再入／callback containmentを残り2点で維持し、F04／F05で実VM／native C adapterにこの事前検査を強制します。統合まではC unit全体の実行／object／schema 2拒否を保ちます。
 
@@ -56,7 +58,7 @@ N03見積もり・依存関係監査（2026-10-19 JST）：key／所有値結果
 
 N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接続の前に **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。N12完了で最後の3点を取り除き **61 → 58点**、108行は維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformance前に、N05の依存へN02／N11／V08に加えN12／N03／N04を明示しました。要件は削除していません。
 
-現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続は完了し、N06のmacOS standalone object link／runは完了し、次は同等のWindows実行N07です。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
+現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続とN06／N07の両tier-1 hostでのstandalone object実行は完了し、次はF04の実C import実行です。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
 
 G06とG14を完了とし、従来の **完了条件18件中7件完了** です。その **50 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
