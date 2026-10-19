@@ -8,6 +8,8 @@
 
 The project is currently defining semantics and validating architecture. There is no stable syntax, ABI, package format, or release schedule yet.
 
+Explicit source panic (2026-10-19): RFC 0008's `core::panic::<T>(code: i64)` never returns and preserves the signed code, original call span, guest stack and owner cleanup across VM/native execution. See the [example](examples/analysis/explicit_panic_owned.lang) and [versioned contract](docs/rfcs/0014-explicit-source-panic.md). Artifact units containing explicit panic use ownership schema 3; older ownership units retain schema 2. This remains experimental.
+
 ## Vision
 
 The language should combine:

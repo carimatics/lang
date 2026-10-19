@@ -80,7 +80,9 @@ fn signatures_record_result_provenance_and_concrete_argument_restrictions() {
             _ => R::Value,
         };
         assert_eq!(signature.result_binding, expected, "{operation:?}");
-        let rules: &[T] = if operation.name().starts_with("map_") {
+        let rules: &[T] = if operation == Operation::Panic {
+            &[T::ReturnType]
+        } else if operation.name().starts_with("map_") {
             &[T::MapKey, T::Storable]
         } else if operation.name().starts_with("shared_") || operation.name().starts_with("weak_") {
             &[T::SharedPayload]

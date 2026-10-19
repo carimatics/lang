@@ -379,3 +379,45 @@ fn multi_file_copy_and_owned_artifacts_keep_embedded_module_snapshots() {
         same(&direct, &run_loaded(&artifact));
     }
 }
+
+#[test]
+fn explicit_panic_schema_three_preserves_dynamic_code_stack_and_source_snapshot() {
+    let dir = Directory::new();
+    for (name, text, code) in [
+        (
+            "panic",
+            include_str!("../examples/analysis/explicit_panic.lang"),
+            42,
+        ),
+        (
+            "panic-owned",
+            include_str!("../examples/analysis/explicit_panic_owned.lang"),
+            -42,
+        ),
+    ] {
+        let source = dir.source(&format!("{name}.lang"), text);
+        let artifact = dir.file(&format!("{name}.lbc"));
+        ok(&compile(&source, &artifact));
+        let bytes = std::fs::read(&artifact).unwrap();
+        assert_eq!(u16::from_le_bytes(bytes[8..10].try_into().unwrap()), 3);
+        let direct = run_source(&source);
+        assert_eq!(direct.status.code(), Some(1));
+        let stderr = String::from_utf8_lossy(&direct.stderr);
+        assert!(stderr.contains(&format!("panic code {code}")), "{stderr}");
+        assert!(
+            stderr.contains("at fail") && stderr.contains("at main"),
+            "{stderr}"
+        );
+        std::fs::remove_file(&source).unwrap();
+        same(&direct, &run_loaded(&artifact));
+        let loaded = lang::artifact::decode(&bytes, Default::default()).unwrap();
+        let lang::artifact::Program::Ownership(loaded) = loaded else {
+            panic!("ownership schema 3");
+        };
+        let (raw, entry) = loaded.into_parts();
+        assert_eq!(
+            lang_bytecode::ownership::encode(raw, entry, Default::default()).unwrap(),
+            bytes
+        );
+    }
+}

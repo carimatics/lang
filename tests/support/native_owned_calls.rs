@@ -17,6 +17,8 @@ mod linked;
 mod linking_admission;
 #[path = "native_maps.rs"]
 mod maps;
+#[path = "native_panic.rs"]
+mod panic_values;
 #[path = "native_places.rs"]
 mod places;
 #[path = "native_shared.rs"]
@@ -316,6 +318,7 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
 }
 #[derive(Clone, Copy)]
 struct Parent {
+    span: m::Span,
     result: usize,
     resume: u32,
     failure: u32,
@@ -330,6 +333,7 @@ struct Unit<'i, 's, 'a, 'l> {
     store: &'s RefCell<Store<'a, 'l>>,
     ledger: Option<c::Frame<'i, Ticket, Drain<'s, 'a, 'l>>>,
     stack: Vec<Active>,
+    fault_stack: Vec<(m::FunctionId, m::Span)>,
     stride: usize,
     maximum_frames: usize,
     cell_limit: usize,
@@ -571,6 +575,16 @@ impl Runtime for Unit<'_, '_, '_, '_> {
         Ok(())
     }
     fn record_failure(&mut self, cause: c::Cause, span: m::Span) -> n::ResultStep {
+        if self.fault_stack.is_empty() {
+            let mut at = span;
+            for frame in self.stack.iter().rev() {
+                assert!(self.fault_stack.len() < self.fault_stack.capacity());
+                self.fault_stack.push((frame.function, at));
+                if let Some(parent) = frame.parent {
+                    at = parent.span;
+                }
+            }
+        }
         self.ledger
             .as_mut()
             .unwrap()
@@ -685,6 +699,7 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             handle: self.handle,
             function: call.function,
             parent: Some(Parent {
+                span: call.span,
                 result: call.result,
                 resume: call.resume,
                 failure: call.failure,
@@ -739,6 +754,7 @@ struct Seen {
     peak: usize,
     peak_cells: usize,
     failure: Option<n::Failure>,
+    fault_stack: Vec<(m::FunctionId, m::Span)>,
     report: c::Report,
     requests: usize,
     total_requests: usize,
@@ -886,6 +902,7 @@ fn rejected_control(entry: m::FunctionId, span: m::Span, reason: n::Reason) -> S
         .finish(c::Exit::Return(None))
         .report;
     Seen {
+        fault_stack: Vec::new(),
         value: None,
         scalar: None,
         retired: Vec::new(),
@@ -1133,6 +1150,7 @@ fn execute_controlled<'p, 'l: 'p>(
         store: &store,
         ledger: Some(ledger),
         stack,
+        fault_stack: Vec::with_capacity(max_frames),
         stride,
         maximum_frames: control.limits().frames.unwrap(),
         cell_limit: control.limits().live_cells.unwrap(),
@@ -1162,6 +1180,7 @@ fn execute_controlled<'p, 'l: 'p>(
         1,
         "all logical callees unwind"
     );
+    let fault_stack = std::mem::take(&mut instance.runtime_mut().fault_stack);
     let ledger = instance.runtime_mut().ledger.take().unwrap();
     let completion = if result.is_ok() {
         ledger.finish_staged_return()
@@ -1247,6 +1266,7 @@ fn execute_controlled<'p, 'l: 'p>(
             peak,
             peak_cells,
             failure: result.err(),
+            fault_stack,
             report: completion.report,
             requests: trace.requests - initial_requests,
             total_requests: trace.requests,

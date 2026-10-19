@@ -25,6 +25,8 @@ mod inference;
 mod maps;
 #[path = "support/owned_nested.rs"]
 mod nested;
+#[path = "support/owned_panic.rs"]
+mod panic_values;
 #[path = "support/owned_preview.rs"]
 mod preview;
 #[path = "support/owned_replace.rs"]

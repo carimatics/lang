@@ -804,3 +804,76 @@ fn cfg_arguments_preserve_repeated_copy_inputs_and_distinct_target_arities() {
         bytes
     );
 }
+
+#[test]
+fn schema_three_has_an_explicit_terminal_panic_and_preserves_closed_schema_two() {
+    let mut raw = scalar();
+    let block = &mut raw.functions[0].blocks[0];
+    block.instructions.push(b::Instruction {
+        results: vec![],
+        op: b::Op::Panic(m::Register(0)),
+        span: SPAN,
+    });
+    block.terminator.kind = b::Term::Unreachable;
+    let bytes = encode(raw.clone(), Some(m::FunctionId(0)), CodecLimits::default()).unwrap();
+    assert_eq!(u16::from_le_bytes(bytes[8..10].try_into().unwrap()), 3);
+    let decoded = decode(&bytes, CodecLimits::default()).unwrap();
+    assert!(
+        decoded
+            .flow()
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .has_explicit_panic()
+    );
+    let (table, entry) = decoded.into_parts();
+    assert_eq!(table, raw);
+    assert_eq!(encode(table, entry, CodecLimits::default()).unwrap(), bytes);
+    let mut wrong_version = bytes;
+    wrong_version[8] = 2;
+    assert!(matches!(
+        decode(&wrong_version, CodecLimits::default())
+            .err()
+            .unwrap()
+            .kind,
+        CodecErrorKind::InvalidTag {
+            tag: Tag::Instruction,
+            value: 33
+        }
+    ));
+    let mut old = encode(scalar(), Some(m::FunctionId(0)), CodecLimits::default()).unwrap();
+    assert_eq!(old[8], 2);
+    old[8] = 3;
+    assert!(matches!(
+        decode(&old, CodecLimits::default()).err().unwrap().kind,
+        CodecErrorKind::ProfileVersion(3)
+    ));
+    for mode in 0..4 {
+        let mut invalid = raw.clone();
+        let block = &mut invalid.functions[0].blocks[0];
+        match mode {
+            0 => block.terminator.kind = b::Term::Return(m::Register(0)),
+            1 => block.instructions.push(block.instructions[0].clone()),
+            2 => block.instructions[1].results.push(m::Register(0)),
+            _ => {
+                block.instructions[0].op = b::Op::Bool(true);
+                invalid.places.functions[0].values[0].ty = o::Type::Bool;
+            }
+        }
+        let error = encode(invalid, Some(m::FunctionId(0)), CodecLimits::default()).unwrap_err();
+        assert!(matches!(error.kind, CodecErrorKind::Types(_)), "{error:?}");
+        if mode < 2 {
+            assert!(
+                matches!(
+                    error.kind,
+                    CodecErrorKind::Types(o::Error {
+                        kind: o::ErrorKind::InvalidPanicContinuation,
+                        ..
+                    })
+                ),
+                "{error:?}"
+            );
+        }
+    }
+}

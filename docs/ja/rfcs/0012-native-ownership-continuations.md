@@ -12,6 +12,8 @@
 - 置き換えるRFC: なし。RFC 0008のprivate native実行契約を具体化
 - 置き換えたRFC: なし
 
+拡張（2026-10-19）：[RFC 0014](0014-explicit-source-panic.md)は明示的Panicを含むunit全体にprivate revision 3を選びます。packet／statusとhelper index 0–33を保ち、動的panic helper 34を末尾に追加します。それ以外のunitはrevision 1/2を維持します。
+
 ## 概要
 
 Ownership MIRを、既存の2 pointer／i32 statusのmachine conventionを使うnative継続にcompileします。上限付きhost driverがcompile済み関数addressをdispatchし、managed valueはruntimeの予約済みframeに保持します。Guestの算術、分岐、継続選択は機械コードです。DriverはMIR／bytecodeを解釈せず、VMへfallbackしません。

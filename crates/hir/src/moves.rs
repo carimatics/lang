@@ -449,6 +449,19 @@ impl Checker<'_, '_> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<bool, Error> {
         let span = statement.span;
         self.context.budget.enter(span, depth)?;
+        if let Some(id) = statement
+            .kind
+            .operands()
+            .find(|id| self.types.diverges(*id))
+        {
+            if let r::StatementKind::PlaceAssign { place, .. } = statement.kind
+                && place.0 != id.0
+            {
+                self.eval(r::ExpressionId(place.0), Mode::Observe, depth + 1)?;
+            }
+            self.eval(id, Mode::Value, depth + 1)?;
+            return Ok(false);
+        }
         match &statement.kind {
             r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
             r::StatementKind::LetMut { local, initializer } => {
@@ -589,6 +602,24 @@ impl Checker<'_, '_> {
         let span = expression.span;
         self.context.budget.enter(span, depth)?;
         let ty = self.types.expressions()[id.0];
+        if self.types.diverges(id) {
+            for (index, child) in expression.kind.operands().enumerate() {
+                let mode = if self
+                    .types
+                    .call(id)
+                    .is_some_and(|call| self.loan(call.parameters[index]))
+                {
+                    Mode::Observe
+                } else {
+                    Mode::Value
+                };
+                self.eval(child, mode, depth + 1)?;
+                if self.types.diverges(child) {
+                    break;
+                }
+            }
+            return Ok(None);
+        }
         match &expression.kind {
             r::ExpressionKind::Local(local) => {
                 let ready = self.ready(*local, span)?;

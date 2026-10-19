@@ -681,6 +681,66 @@ struct Observed {
     summary: c::ErrorSummary,
     poisoned: bool,
 }
+
+#[test]
+fn explicit_panic_after_a_c_import_preserves_code_and_revision_three_controls() {
+    let text = format!(
+        "{IMPORTS} fn main() -> i64 {{ unsafe {{ return core::panic::<i64>(increment(41)); }} }}"
+    );
+    let owner = source(&text);
+    let flow = owner.failure_flow();
+    let artifact = artifact(&text, target(), Limits::default()).unwrap();
+    let library = Library::new(&artifact);
+    let typed = owner.mir().activity().moved().typed();
+    let layouts = lang_runtime::layout::Layouts::compile(
+        typed.places().declarations().types(),
+        Default::default(),
+    )
+    .unwrap();
+    let compiled = lang_codegen_clif::owned::CCompiledProgram::compile_scalar_imports(
+        flow,
+        &layouts,
+        &artifact,
+        Default::default(),
+        4096,
+    )
+    .unwrap();
+    assert_eq!(
+        compiled
+            .metadata(lang_mir::unit::FunctionId(0))
+            .unwrap()
+            .symbol,
+        "lang_owned_r3_f0"
+    );
+    let normal = observe_vm(&owner, &artifact, &library, e::Control::default(), false);
+    assert!(normal.value.is_none());
+    let fault = normal.fault.unwrap();
+    assert_eq!(fault.status(), c::Status::GuestPanic);
+    assert_eq!(fault.panic_code, 42);
+    assert_eq!(normal.effects, 1);
+    assert!(!normal.poisoned);
+    for fuel in 0..=normal.usage.fuel {
+        let control = e::Control::with_limits(e::Limits {
+            fuel: Some(fuel),
+            ..Default::default()
+        });
+        assert_eq!(
+            native::observe(&compiled, &artifact, &library, control, false),
+            observe_vm(&owner, &artifact, &library, control, false)
+        );
+    }
+    let error = lang_bytecode::ownership::encode(
+        typed.clone().into_table(),
+        Some(lang_mir::unit::FunctionId(0)),
+        Default::default(),
+    )
+    .unwrap_err();
+    assert!(matches!(
+        error.kind,
+        lang_bytecode::ownership::CodecErrorKind::UnsupportedCInterface { .. }
+    ));
+}
+
 fn observe_vm(
     owner: &lang_semantics::analysis::OwnershipProgram,
     artifact: &Artifact,

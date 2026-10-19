@@ -151,7 +151,7 @@ pub fn decode(bytes: &[u8], limits: Limits) -> Result<Program, DecodeError> {
         )
         .map(Program::Copy)
         .map_err(DecodeError::Copy),
-        2 => owned::decode(
+        2 | 3 => owned::decode(
             bytes,
             owned::CodecLimits {
                 bytes: limits.bytes,

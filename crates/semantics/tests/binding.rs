@@ -159,8 +159,8 @@ fn every_core_operation_binds_with_concrete_type_arguments_and_written_value_ord
             _ => panic!(),
         };
         let arguments = ["a", "b", "c"][..signature.parameters.len()].join(", ");
-        // Deliberately only name/arity binding: the subsequent body checker
-        // diagnoses these invalid value types before executable promotion.
+        // Most calls deliberately use invalid value types. Panic's concrete
+        // i64 argument/result is valid and selects the ownership profile.
         let text = format!(
             "fn f(a: i64, b: i64, c: i64) -> i64 {{ return core::{}{specialization}({arguments}); }}",
             operation.name()
@@ -194,7 +194,15 @@ fn every_core_operation_binds_with_concrete_type_arguments_and_written_value_ord
             format!("core::{}", operation.name())
         );
         let checked =
-            lang_hir::program::check_program(program, &sources, Default::default()).unwrap();
+            lang_hir::program::analyze_program(program, &sources, Default::default()).unwrap();
+        if operation == Operation::Panic {
+            assert!(matches!(
+                checked.program,
+                Some(lang_hir::program::CheckedProgram::Ownership(_))
+            ));
+            assert!(checked.diagnostics.is_empty());
+            continue;
+        }
         assert!(checked.program.is_none());
         assert!(
             checked

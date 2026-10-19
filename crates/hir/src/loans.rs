@@ -1008,6 +1008,32 @@ impl Checker<'_, '_> {
         let expression = &self.function.expressions[id.0];
         let span = expression.span;
         self.context.budget.enter(span, depth)?;
+        if self.facts.diverges(id) {
+            for (index, child) in expression.kind.operands().enumerate() {
+                if let Some(expected) = self
+                    .facts
+                    .call(id)
+                    .map(|call| call.parameters[index])
+                    .filter(|ty| self.loan(*ty).is_some())
+                {
+                    let refs = self.argument_reference(child, expected, result_scope, depth + 1)?;
+                    for loan in refs {
+                        self.reserve_contents(
+                            loan,
+                            result_scope,
+                            self.function.expressions[child.0].span,
+                            depth + 1,
+                        )?;
+                    }
+                } else {
+                    self.eval(child, result_scope, depth + 1)?;
+                }
+                if self.facts.diverges(child) {
+                    break;
+                }
+            }
+            return Ok(Value::references(Vec::new()));
+        }
         let ty = self.facts.expressions()[id.0];
         if let Some(kind) = self.loan(ty)
             && !matches!(expression.kind, r::ExpressionKind::CoreCall { .. })
@@ -1189,6 +1215,19 @@ impl Checker<'_, '_> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<bool, Error> {
         let span = statement.span;
         self.context.budget.enter(span, depth)?;
+        if let Some(id) = statement
+            .kind
+            .operands()
+            .find(|id| self.facts.diverges(*id))
+        {
+            if let r::StatementKind::PlaceAssign { place, .. } = statement.kind
+                && place.0 != id.0
+            {
+                self.temporary(r::ExpressionId(place.0), depth + 1)?;
+            }
+            self.temporary(id, depth + 1)?;
+            return Ok(false);
+        }
         match &statement.kind {
             r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
             r::StatementKind::LetMut { local, initializer } => {

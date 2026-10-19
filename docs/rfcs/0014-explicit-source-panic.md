@@ -4,11 +4,12 @@
 
 [日本語版](../ja/rfcs/0014-explicit-source-panic.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
 - Last updated: 2026-10-19
 - Accepted: 2026-10-19
+- Implemented: 2026-10-19
 - Tracking issue: M2-F13
 - Supersedes: None; extends RFC 0011 schema profiles and RFC 0012 private revisions
 - Superseded by: None
@@ -75,12 +76,12 @@ Compile-pass/fail generic, code-type, loan and unreachable cases; nested express
 
 ## Open questions
 
-None blocking the experimental decision. General nested divergence, loan-valued specializations, complete native/platform conformance and performance are implementation assumptions to validate, not evidence of completion. The provisional 3-point estimate is not a time promise.
+Local source divergence, loan-valued specializations, VM/native differential failure/cleanup, schema compatibility and standalone AOT are validated. Windows execution for this snapshot and performance evidence remain tracked by M2-F07 and the benchmark tasks. The initial provisional 3-point estimate is not a time promise; implementation is not stabilization.
 
 ## Sources
 
 - RFC 0008, accepted source panic contract; last updated 2026-10-19; verified 2026-10-19 JST.
-- RFC 0011, closed schema-2 contract; last updated 2026-10-18; verified 2026-10-19 JST.
+- RFC 0011, closed schema-2 contract; last updated 2026-10-19; verified 2026-10-19 JST.
 - RFC 0012, private native continuation revisions; last updated 2026-10-19; verified 2026-10-19 JST.
 - Local source experiment at 0d43a41, 2026-10-19 JST: explicit_panic.lang reports SRC0024.
 

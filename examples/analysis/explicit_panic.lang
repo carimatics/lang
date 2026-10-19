@@ -1,0 +1,7 @@
+fn fail(code: i64) -> i64 {
+    let mut stopped: core::Unit = core::panic::<core::Unit>(code);
+}
+
+fn main() -> i64 {
+    return fail(42);
+}

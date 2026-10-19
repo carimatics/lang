@@ -12,6 +12,8 @@
 - Supersedes: None; elaborates RFC 0008's private native execution contract
 - Superseded by: None
 
+Extension (2026-10-19): [RFC 0014](0014-explicit-source-panic.md) selects private revision 3 for whole units containing explicit Panic. It preserves packets/statuses and helper indices 0–33, appending dynamic panic helper 34. Other units retain revision 1/2.
+
 ## Summary
 
 Compile ownership MIR into native continuations using the existing two-pointer/i32-status machine convention. A bounded host driver dispatches compiled function addresses; managed values remain in the runtime's prepared frames. Guest arithmetic, branches and continuation selection are machine code. The driver does not interpret MIR or bytecode and does not fall back to the VM.

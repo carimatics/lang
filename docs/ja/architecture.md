@@ -6,6 +6,8 @@
 
 ステータス：RFC 0001–0005による**受理済み設計baseline**（2026-10-17）。実装は未完成のprototypeです。受理は安定化を意味しません。意味論はRFCに従い、以下の広範なプロダクト方針は実装前に追加RFCを必要とします。
 
+明示的panic拡張（2026-10-19）：[RFC 0014](rfcs/0014-explicit-source-panic.md)は、Unreachable blockの最終命令として、結果なし・i64 code付きのPanicを追加します。ソースの非復帰はTを捏造せず後続評価を省きます。既存failure elaborationがVM／nativeの必須cleanupを実行します。この命令を含むunitだけがschema 3とprivate native revision 3（helper 34）を選び、それ以外ではschema 2、通常revision 1、C対応revision 2を維持します。packetとhelper prefix 0–33の契約は不変です。C serialization拒否と明示的capability／context gateも引き続き適用します。
+
 ## 目標
 
 - WindowsとmacOSでのnative性能と低レベル制御。

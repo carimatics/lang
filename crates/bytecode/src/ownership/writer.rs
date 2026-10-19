@@ -232,6 +232,10 @@ impl Writer<'_> {
         use b::Op as O;
         self.registers(&value.results)?;
         match &value.op {
+            O::Panic(code) => {
+                self.byte(33)?;
+                self.word(code.0)?;
+            }
             O::I64(v) => {
                 self.byte(0)?;
                 self.bytes(&v.to_le_bytes())?;
@@ -441,7 +445,19 @@ impl Writer<'_> {
     }
     fn unit(&mut self, program: &Program, payload: u32) -> Result<(), CodecError> {
         self.bytes(MAGIC)?;
-        self.bytes(&2_u16.to_le_bytes())?;
+        let version = if program
+            .flow
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .has_explicit_panic()
+        {
+            3_u16
+        } else {
+            2_u16
+        };
+        self.bytes(&version.to_le_bytes())?;
         self.bytes(&0_u16.to_le_bytes())?;
         self.word(payload)?;
         let typed = program.flow.source().activity().moved().typed();

@@ -502,7 +502,12 @@ pub(super) fn observe(
             let native = compiled.invoke(main, session, &mut invoker, &mut runtime);
             value = runtime.runtime().result;
             let report = runtime.runtime_mut().report.take().unwrap();
-            if let Some(fault) = c::Fault::from_report(&report, 0) {
+            let panic_code = native
+                .as_ref()
+                .err()
+                .and_then(|failure| failure.panic_code)
+                .unwrap_or(0);
+            if let Some(fault) = c::Fault::from_report(&report, panic_code) {
                 return Err(fault);
             }
             native.map_err(|failure| match failure.reason {
@@ -609,7 +614,12 @@ fn source_c_callbacks_execute_in_generated_native_code() {
                 let native = compiled.invoke(main, session, &mut invoker, &mut runtime);
                 let scalar = runtime.runtime().result;
                 let report = runtime.runtime_mut().report.take().unwrap();
-                let fault = c::Fault::from_report(&report, 0);
+                let panic_code = native
+                    .as_ref()
+                    .err()
+                    .and_then(|failure| failure.panic_code)
+                    .unwrap_or(0);
+                let fault = c::Fault::from_report(&report, panic_code);
                 saved = Some((scalar, native, report));
                 fault.map_or(Ok(()), Err)
             },

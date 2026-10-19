@@ -4,11 +4,12 @@
 
 [English](../../rfcs/0014-explicit-source-panic.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex（所有者による実験的な委任に基づく）
 - Created: 2026-10-19
 - Last updated: 2026-10-19
 - Accepted: 2026-10-19
+- Implemented: 2026-10-19
 - Tracking issue: M2-F13
 - Supersedes: なし。RFC 0011のschema profileとRFC 0012のprivate revisionを拡張
 - Superseded by: なし
@@ -75,12 +76,12 @@ generic、code型、loan、到達不能のcompile-pass/fail、入れ子式と引
 
 ## 未解決事項
 
-実験的判断を妨げる事項はない。一般の入れ子非復帰、loan結果の特殊化、完全なnative/platform適合、性能は検証すべき実装上の仮定であり、完了根拠ではない。暫定3ポイントは時間の約束ではない。
+ローカルでソースの非復帰、loan結果の特殊化、VM／nativeの失敗・cleanup比較、schema互換性、standalone AOTを検証した。このsnapshotのWindows実行と性能根拠はM2-F07とbenchmark作業で追跡する。初期の暫定3ポイントは時間の約束ではなく、実装済みは安定化を意味しない。
 
 ## 情報源
 
 - RFC 0008、受理済みソースpanic契約。最終更新2026-10-19、確認2026-10-19 JST。
-- RFC 0011、閉じたschema 2契約。最終更新2026-10-18、確認2026-10-19 JST。
+- RFC 0011、閉じたschema 2契約。最終更新2026-10-19、確認2026-10-19 JST。
 - RFC 0012、private native continuation revision。最終更新2026-10-19、確認2026-10-19 JST。
 - 0d43a41でのローカルソース実験、2026-10-19 JST。explicit_panic.langはSRC0024。
 

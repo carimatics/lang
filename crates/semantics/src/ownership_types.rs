@@ -435,7 +435,7 @@ fn construct_declarations<'a>(
 /// Source-only intrinsics return None and must lower to existing MIR primitives.
 pub const fn core_operation(operation: lang_hir::core::Operation) -> Option<o::core::Operation> {
     Some(match operation {
-        lang_hir::core::Operation::Drop => return None,
+        lang_hir::core::Operation::Drop | lang_hir::core::Operation::Panic => return None,
         lang_hir::core::Operation::Allocator => o::core::Operation::Allocator,
         lang_hir::core::Operation::TextFromUtf8 => o::core::Operation::TextFromUtf8,
         lang_hir::core::Operation::TextClone => o::core::Operation::TextClone,

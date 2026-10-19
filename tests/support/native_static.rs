@@ -322,6 +322,18 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
     };
     assert!(output.status.success(), "{output:?}");
     let mut profiles = control::work_profiles();
+    for (label, text) in [
+        (
+            "explicit-panic",
+            include_str!("../../examples/analysis/explicit_panic.lang"),
+        ),
+        (
+            "explicit-panic-owned",
+            include_str!("../../examples/analysis/explicit_panic_owned.lang"),
+        ),
+    ] {
+        profiles.push((label, text.to_owned()));
+    }
     profiles.push((
         "owned-calls",
         include_str!("../../examples/scripts/owned_calls.lang").to_owned(),

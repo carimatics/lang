@@ -1,4 +1,4 @@
-//! RFC 0011 ownership schema 2. Raw tables carry no authority; decoding reruns
+//! RFC 0011/0014 ownership schemas 2 and 3. Raw tables carry no authority; decoding reruns
 //! the complete independent ownership and region/failure verification pipeline.
 #![allow(
     clippy::result_large_err,
@@ -102,6 +102,7 @@ pub enum CodecErrorKind {
     Truncated,
     BadMagic,
     Version(u16),
+    ProfileVersion(u16),
     Flags(u16),
     LengthMismatch,
     TrailingBytes,

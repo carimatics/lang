@@ -141,6 +141,7 @@ pub enum Flow {
 pub struct FunctionFacts {
     locals: Vec<r::Type>,
     expressions: Vec<r::Type>,
+    diverges: Vec<bool>,
     patterns: Vec<r::Type>,
     blocks: Vec<Flow>,
     fields: BTreeMap<r::ExpressionId, usize>,
@@ -160,6 +161,9 @@ impl FunctionFacts {
     }
     pub fn expressions(&self) -> &[r::Type] {
         &self.expressions
+    }
+    pub fn diverges(&self, id: r::ExpressionId) -> bool {
+        self.diverges[id.0]
     }
     pub fn patterns(&self) -> &[r::Type] {
         &self.patterns
@@ -1211,6 +1215,7 @@ struct FunctionChecker<'a, 'b> {
     infer_result: bool,
     locals: Vec<Option<r::Type>>,
     expressions: Vec<Option<r::Type>>,
+    diverges: Vec<bool>,
     patterns: Vec<Option<r::Type>>,
     blocks: Vec<Option<Flow>>,
     expression_visits: Vec<Visit>,
@@ -1245,6 +1250,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 .map(|l| l.annotation.map(|t| t.value_type))
                 .collect(),
             expressions: vec![None; function.expressions.len()],
+            diverges: vec![false; function.expressions.len()],
             patterns: vec![None; function.patterns.len()],
             blocks: vec![None; function.blocks.len()],
             expression_visits: vec![Visit::Unseen; function.expressions.len()],
@@ -1336,6 +1342,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 .into_iter()
                 .collect::<Option<Vec<_>>>()
                 .ok_or_else(incomplete)?,
+            diverges: self.diverges,
             patterns: self
                 .patterns
                 .into_iter()
@@ -1482,7 +1489,11 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 )?;
                 let flow = self.block(*body, depth + 1)?;
                 self.leave_scope();
-                return Ok(flow);
+                return Ok(if self.diverges[allocator.0] {
+                    Flow::Returns
+                } else {
+                    flow
+                });
             }
             r::StatementKind::PlaceAssign { place, value } if self.context.types.is_some() => {
                 self.place(*place, statement.span)?;
@@ -1642,7 +1653,11 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 self.borrow_match = previous_borrow_match;
             }
         }
-        Ok(Flow::FallsThrough)
+        Ok(if statement.kind.operands().any(|id| self.diverges[id.0]) {
+            Flow::Returns
+        } else {
+            Flow::FallsThrough
+        })
     }
     fn definition(&self, id: r::DefinitionId, span: Span) -> Result<&'a r::Definition, CheckError> {
         self.context
@@ -1938,6 +1953,16 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 }
             }
         };
+        self.diverges[id.0] = matches!(
+            expression.kind,
+            r::ExpressionKind::CoreCall {
+                operation: core::Operation::Panic,
+                ..
+            }
+        ) || expression
+            .kind
+            .operands()
+            .any(|child| self.diverges[child.0]);
         self.expression_visits[id.0] = Visit::Done;
         self.expressions[id.0] = ty;
         Ok(ty)
@@ -2171,7 +2196,9 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     .as_ref()
                     .unwrap()
                     .properties(ty.value_type, ty.span)?;
-                if properties.contains_loan || properties.contains_allocator {
+                if *rule != core::TypeArgumentRule::ReturnType
+                    && (properties.contains_loan || properties.contains_allocator)
+                {
                     let code = if *operation == core::Operation::Drop {
                         codes::UNSUPPORTED_SPECIALIZATION
                     } else {

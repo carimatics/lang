@@ -806,6 +806,7 @@ impl Engine {
             | Op::I64(_)
             | Op::Bool(_)
             | Op::Unit
+            | Op::Panic(_)
             | Op::Add(..)
             | Op::LessThan(..)
             | Op::EqualI64(..)

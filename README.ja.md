@@ -8,6 +8,8 @@
 
 現在は意味論の定義とアーキテクチャの検証を進めています。安定した構文、ABI、パッケージ形式、リリース予定はまだ存在しません。
 
+明示的なsource panic（2026-10-19）：RFC 0008の`core::panic::<T>(code: i64)`は復帰せず、符号付きcode、元の呼び出しspan、guest stack、owner cleanupをVM／nativeで保持します。[例](examples/analysis/explicit_panic_owned.lang)と[version付き契約](docs/ja/rfcs/0014-explicit-source-panic.md)を参照してください。明示的panicを含むartifact unitはownership schema 3、従来のownership unitはschema 2を使います。引き続き実験的な実装です。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

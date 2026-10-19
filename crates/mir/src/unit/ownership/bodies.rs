@@ -60,6 +60,8 @@ pub enum Op {
     I64(i64),
     Bool(bool),
     Unit,
+    /// Terminal guest failure; requires an i64 code and an Unreachable block.
+    Panic(m::Register),
     Add(m::Register, m::Register),
     LessThan(m::Register, m::Register),
     EqualI64(m::Register, m::Register),
@@ -164,6 +166,7 @@ impl Op {
             }
             Self::Copy(v)
             | Self::Move(v)
+            | Self::Panic(v)
             | Self::DropValue(v)
             | Self::DropValueIfAvailable(v)
             | Self::Initialize { value: v, .. }
@@ -314,6 +317,7 @@ impl FunctionFacts {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypedBodies {
+    has_panic: bool,
     places: p::VerifiedPlaces,
     functions: Vec<FunctionBody>,
     facts: Vec<FunctionFacts>,
@@ -322,6 +326,9 @@ pub struct TypedBodies {
     elements: usize,
 }
 impl TypedBodies {
+    pub const fn has_explicit_panic(&self) -> bool {
+        self.has_panic
+    }
     pub fn places(&self) -> &p::VerifiedPlaces {
         &self.places
     }
@@ -378,6 +385,7 @@ impl BodyTable {
             .places
             .verify_with_budget(budget, constructed_limit, place_limit)?;
         let mut facts = budget.vector(self.functions.len())?;
+        let mut has_panic = false;
         let (mut blocks, mut instructions, mut loans, mut prepared) =
             (0usize, 0usize, 0usize, 0usize);
         for (f, body) in self.functions.iter().enumerate() {
@@ -406,6 +414,10 @@ impl BodyTable {
             for b in &body.blocks {
                 budget.charge(1)?;
                 instructions = add(instructions, b.instructions.len())?;
+                for i in &b.instructions {
+                    budget.charge(1)?;
+                    has_panic |= matches!(i.op, Op::Panic(_));
+                }
             }
             cap(
                 instructions,
@@ -416,6 +428,7 @@ impl BodyTable {
         }
         allocator_requirements(&self.functions, &mut facts, budget)?;
         Ok(TypedBodies {
+            has_panic,
             places,
             functions: self.functions,
             facts,
@@ -702,6 +715,10 @@ impl Check<'_, '_> {
                     }
                 }
                 Ok(())
+            }
+            Op::Panic(code) => {
+                self.expect(*code, E(Type::I64), s)?;
+                self.void(i)
             }
             Op::I64(_) => self.one(i, E(Type::I64)),
             Op::Bool(_) => self.one(i, E(Type::Bool)),
@@ -1179,6 +1196,15 @@ fn function(
                 block: m::BlockId(b as u32),
                 order: position + 1,
             };
+            if matches!(i.op, Op::Panic(_))
+                && (position + 1 != block.instructions.len()
+                    || !matches!(block.terminator.kind, Term::Unreachable))
+            {
+                return Err(Error::new(
+                    ErrorKind::InvalidPanicContinuation,
+                    Some(i.span),
+                ));
+            }
             c.operation(i, site)?;
             for v in &i.results {
                 c.value(*v, i.span)?;

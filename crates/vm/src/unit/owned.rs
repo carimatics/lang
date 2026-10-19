@@ -253,6 +253,7 @@ fn supported(
         b::Op::I64(_)
         | b::Op::Bool(_)
         | b::Op::Unit
+        | b::Op::Panic(_)
         | b::Op::Add(..)
         | b::Op::LessThan(..)
         | b::Op::EqualI64(..)
@@ -1095,6 +1096,14 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
         }
     }
     match &instruction.op {
+        b::Op::Panic(code) => {
+            let mut state = shared.borrow_mut();
+            let l::Immediate::I64(code) = state.read(state.root(value(*code))?)? else {
+                return Err(c::ExecutionFailure::Invariant);
+            };
+            state.panic_code = Some(code);
+            return Err(c::ExecutionFailure::Panic);
+        }
         b::Op::I64(n) => shared
             .borrow_mut()
             .write(result()?, l::Immediate::I64(*n))?,

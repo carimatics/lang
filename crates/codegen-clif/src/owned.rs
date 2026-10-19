@@ -228,6 +228,9 @@ pub trait Runtime {
     fn stage_return(&mut self, slot: usize, span: m::Span) -> ResultStep;
     fn retire_return(&mut self) -> ResultStep;
     fn publish_return(&mut self) -> ResultStep;
+    /// Record the first fault before any logical frame is retired. Adapters
+    /// retain its innermost-first guest chain and original caller call sites
+    /// in storage reserved before entry; later cleanup must not overwrite it.
     fn record_failure(&mut self, cause: c::Cause, span: m::Span) -> ResultStep;
     fn retire_failure(&mut self) -> ResultStep;
     fn discard_result(&mut self) -> ResultStep;
@@ -376,7 +379,7 @@ pub struct Failure {
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 34;
+const HELPERS: usize = 35;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -390,6 +393,7 @@ enum Action {
     Call,
     Record,
     Constant(usize, i64),
+    Panic(usize),
     Binary(Binary, usize, usize, usize),
     Copy(usize, usize),
     IsCase(usize, u32, usize),
@@ -764,6 +768,7 @@ fn run<'c, 'a, R: Runtime>(
             core_call::<R>,
             enter_arena::<R>,
             import_call::<R>,
+            guest_panic::<R>,
         ],
     };
     let mut continuation = 0;
@@ -1132,6 +1137,7 @@ fn prepare<'a>(
                     Ok(())
                 };
                 data.action = match &i.op {
+                    b::Op::Panic(code) => Some(Action::Panic(value(*code)?)),
                     b::Op::ArenaEnter { owner, allocator } => {
                         data.arena = Some(ArenaSite {
                             owner: local(*owner)?,
@@ -1884,6 +1890,18 @@ helper!(core_call, ctx, _a, _b, node, {
         )
     })
 });
+helper!(guest_panic, ctx, a, _b, node, {
+    let first = ctx.fault.is_none();
+    let mut code = None;
+    let status = ctx.apply(node, |runtime, _, _| {
+        code = Some(runtime.read_scalar(a as usize)?);
+        Err(c::Cause::Execution(c::ExecutionFailure::Panic))
+    });
+    if first && code.is_some() {
+        ctx.fault.as_mut().unwrap().panic_code = code;
+    }
+    status
+});
 helper!(panic, ctx, _a, _b, node, {
     let info = &ctx.compiled.nodes[node as usize];
     let code = info.extract.as_ref().and_then(|e| e.panic_code);
@@ -1996,10 +2014,14 @@ fn emit<M: Module>(
         .params
         .extend([AbiParam::new(types::I64); 4]);
     helper_signature.returns.push(AbiParam::new(types::I32));
-    let symbol = match scope {
-        CompileScope::CUnit => format!("lang_owned_r2_f{}", layout.function.0),
-        CompileScope::Function | CompileScope::Unit => {
-            format!("lang_owned_r1_f{}", layout.function.0)
+    let symbol = if typed(layout.source).has_explicit_panic() {
+        format!("lang_owned_r3_f{}", layout.function.0)
+    } else {
+        match scope {
+            CompileScope::CUnit => format!("lang_owned_r2_f{}", layout.function.0),
+            CompileScope::Function | CompileScope::Unit => {
+                format!("lang_owned_r1_f{}", layout.function.0)
+            }
         }
     };
     let id = module
@@ -2106,6 +2128,7 @@ fn emit<M: Module>(
                         Action::PlaceLoad => Some((call!(25, 0, 0), next, failure)),
                         Action::Core => Some((call!(31, 0, 0), next, failure)),
                         Action::Import => Some((call!(33, 0, 0), next, failure)),
+                        Action::Panic(code) => Some((call!(34, code, 0), next, failure)),
                         Action::ArenaEnter => Some((call!(32, 0, 0), next, failure)),
                         Action::Borrow => Some((call!(24, 0, 0), next, failure)),
                         Action::EndBorrow(..) => Some((call!(26, 0, 0), next, failure)),

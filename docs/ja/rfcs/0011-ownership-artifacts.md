@@ -7,10 +7,12 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-18
+- Last updated: 2026-10-19
 - Tracking issue: [実装Todo](../milestone-2.md) のM2-A01/A02/A03とN01
 - Supersedes: なし。RFC 0006のschema 1と並行してownership schema 2を追加
 - Superseded by:
+
+拡張（2026-10-19）：[RFC 0014](0014-explicit-source-panic.md)は明示的Panicを含むunitにschema 3を選びます。本書のschema 2 profileは閉じたままbyte互換性を保ち、33命令tagと37runtime core tagは変えません。
 
 ## Summary
 

@@ -355,6 +355,9 @@ impl Lowerer<'_, '_, '_> {
         depth: usize,
     ) -> Result<m::Register> {
         self.enter(depth)?;
+        if self.facts.diverges(expression) {
+            return self.expression(expression, block, depth + 1);
+        }
         let actual = self.facts.expressions()[expression.0];
         let span = self.function.expressions[expression.0].span;
         if let Some(expected @ r::Type::Constructed(id)) = expected
@@ -454,6 +457,35 @@ impl Lowerer<'_, '_, '_> {
         let source = &self.function.expressions[expression.0];
         let span = source.span;
         let out = m::Register(id(expression.0)?);
+        if self.facts.diverges(expression) {
+            let mut code = None;
+            for (index, child) in source.kind.operands().enumerate() {
+                let expected = self
+                    .facts
+                    .call(expression)
+                    .map(|call| call.parameters[index]);
+                code = Some(self.argument(child, expected, block, depth + 1)?);
+                if self.facts.diverges(child) {
+                    return Ok(out);
+                }
+            }
+            if matches!(
+                source.kind,
+                r::ExpressionKind::CoreCall {
+                    operation: lang_hir::core::Operation::Panic,
+                    ..
+                }
+            ) {
+                self.emit(
+                    block,
+                    None,
+                    b::Op::Panic(code.ok_or(Error::Capacity)?),
+                    span,
+                )?;
+                self.seal(block, b::Term::Unreachable, span)?;
+            }
+            return Ok(out);
+        }
         let op = match &source.kind {
             r::ExpressionKind::Integer(value) => b::Op::I64(*value),
             r::ExpressionKind::Boolean(value) => b::Op::Bool(*value),
@@ -614,6 +646,9 @@ impl Lowerer<'_, '_, '_> {
             span,
         )?;
         let value = self.expression(value, block, depth + 1)?;
+        if self.blocks[block.0 as usize].terminator.is_some() {
+            return Ok(());
+        }
         self.emit(
             block,
             None,
@@ -634,6 +669,27 @@ impl Lowerer<'_, '_, '_> {
             let Some(block) = current else { break };
             self.c.budget.charge(1)?;
             let span = statement.span;
+            if let Some(expression) = statement
+                .kind
+                .operands()
+                .find(|id| self.facts.diverges(*id))
+            {
+                match statement.kind {
+                    r::StatementKind::PlaceAssign { place, .. } if place.0 != expression.0 => {
+                        let path = self.path(r::ExpressionId(place.0))?;
+                        self.assignment(path, expression, block, span, depth + 1)?;
+                    }
+                    r::StatementKind::Assign { local, .. } => {
+                        let path = self.local_path(local, span)?;
+                        self.assignment(path, expression, block, span, depth + 1)?;
+                    }
+                    _ => {
+                        self.expression(expression, block, depth + 1)?;
+                    }
+                }
+                current = None;
+                continue;
+            }
             match &statement.kind {
                 r::StatementKind::LetMut { local, initializer } => {
                     let value = self.expression(*initializer, block, depth + 1)?;

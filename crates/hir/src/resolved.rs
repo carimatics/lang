@@ -293,6 +293,47 @@ pub enum ExpressionKind {
     },
 }
 
+impl ExpressionKind {
+    /// Evaluated children in source order, independent of backend lowering.
+    pub fn operands(&self) -> impl Iterator<Item = ExpressionId> + '_ {
+        let (fixed, list, fields): ([Option<ExpressionId>; 2], &[ExpressionId], &[FieldValue]) =
+            match self {
+                Self::Borrow { place, .. } => ([Some(ExpressionId(place.0)), None], &[], &[]),
+                Self::Dereference(value)
+                | Self::Field {
+                    receiver: value, ..
+                } => ([Some(*value), None], &[], &[]),
+                Self::Add(a, b) | Self::LessThan(a, b) => ([Some(*a), Some(*b)], &[], &[]),
+                Self::Call { arguments, .. } | Self::CoreCall { arguments, .. } => {
+                    ([None, None], arguments, &[])
+                }
+                Self::CoreCase { payload, .. } => ([None, None], payload, &[]),
+                Self::Record { fields, .. } => ([None, None], &[], fields),
+                _ => ([None, None], &[], &[]),
+            };
+        fixed
+            .into_iter()
+            .flatten()
+            .chain(list.iter().copied())
+            .chain(fields.iter().map(|field| field.value))
+    }
+}
+impl StatementKind {
+    /// Evaluated expressions in source order, including a captured destination.
+    pub fn operands(&self) -> impl Iterator<Item = ExpressionId> {
+        let values = match self {
+            Self::LetMut { initializer, .. } => [Some(*initializer), None],
+            Self::Assign { value, .. } | Self::Return(value) => [Some(*value), None],
+            Self::PlaceAssign { place, value } => [Some(ExpressionId(place.0)), Some(*value)],
+            Self::If { condition, .. } | Self::While { condition, .. } => [Some(*condition), None],
+            Self::Match { scrutinee, .. } => [Some(*scrutinee), None],
+            Self::Arena { allocator, .. } => [Some(*allocator), None],
+            Self::Unsafe { .. } => [None, None],
+        };
+        values.into_iter().flatten()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Expression {
     pub kind: ExpressionKind,

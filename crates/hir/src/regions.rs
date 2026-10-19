@@ -1140,6 +1140,9 @@ impl Checker<'_, '_> {
         parameter: r::Type,
         depth: usize,
     ) -> Result<ValueId, Error> {
+        if self.diverges || self.facts.diverges(id) {
+            return self.eval(id, depth + 1);
+        }
         if self.loan(parameter) == Some(self.facts.expressions()[id.0]) {
             let places = self.locations(id, depth + 1)?;
             self.reference(places, self.function.expressions[id.0].span)
@@ -1155,6 +1158,20 @@ impl Checker<'_, '_> {
         let span = expression.span;
         self.context.budget.enter(span, depth)?;
         let ty = self.facts.expressions()[id.0];
+        if self.facts.diverges(id) {
+            for (index, child) in expression.kind.operands().enumerate() {
+                if let Some(parameter) = self.facts.call(id).map(|call| call.parameters[index]) {
+                    self.argument(child, parameter, depth + 1)?;
+                } else {
+                    self.eval(child, depth + 1)?;
+                }
+                if self.diverges {
+                    break;
+                }
+            }
+            self.diverges = true;
+            return Ok(EMPTY);
+        }
         let value = match &expression.kind {
             r::ExpressionKind::Local(local) => self.get(local.0),
             r::ExpressionKind::Borrow { place, .. } => {
@@ -1270,6 +1287,10 @@ impl Checker<'_, '_> {
         let span = self.function.expressions[id.0].span;
         self.context.budget.enter(span, depth)?;
         match op {
+            O::Panic => {
+                self.diverges = true;
+                Ok(EMPTY)
+            }
             O::OptionUnwrap | O::ResultUnwrap | O::ResultUnwrapErr => {
                 let case = match op {
                     O::OptionUnwrap => core::Case::Some,
@@ -1489,6 +1510,19 @@ impl Checker<'_, '_> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<bool, Error> {
         let span = statement.span;
         self.context.budget.enter(span, depth)?;
+        if let Some(id) = statement
+            .kind
+            .operands()
+            .find(|id| self.facts.diverges(*id))
+        {
+            if let r::StatementKind::PlaceAssign { place, .. } = statement.kind
+                && place.0 != id.0
+            {
+                self.locations(r::ExpressionId(place.0), depth + 1)?;
+            }
+            self.eval(id, depth + 1)?;
+            return Ok(false);
+        }
         match &statement.kind {
             r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
             r::StatementKind::LetMut { local, initializer } => {

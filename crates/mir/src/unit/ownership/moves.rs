@@ -382,7 +382,9 @@ impl Context<'_, '_> {
                 self.read(state, *a, s, mode)?;
                 self.read(state, *z, s, mode)?;
             }
-            Op::Copy(v) | Op::IsCase { value: v, .. } => self.read(state, *v, s, mode)?,
+            Op::Copy(v) | Op::Panic(v) | Op::IsCase { value: v, .. } => {
+                self.read(state, *v, s, mode)?
+            }
             Op::Move(v) | Op::DropValue(v) => self.take(state, *v, s, mode)?,
             Op::DropValueIfAvailable(v) => {
                 let index = self.value(*v);

@@ -153,6 +153,7 @@ pub enum ErrorKind {
     InvalidType(Type),
     ForwardConstructed(ConstructedId),
     SpanOutsideOwner,
+    InvalidPanicContinuation,
     EmptyEnum,
     RecursiveInline(Type),
     InvalidStorage(Type),

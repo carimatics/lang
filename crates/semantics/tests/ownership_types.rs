@@ -413,7 +413,10 @@ fn every_source_core_identity_maps_to_the_independent_mir_contract() {
     let mut seen = std::collections::BTreeSet::new();
     for source in lang_hir::core::Operation::ALL {
         let Some(mir) = ownership_types::core_operation(source) else {
-            assert_eq!(source, lang_hir::core::Operation::Drop);
+            assert!(matches!(
+                source,
+                lang_hir::core::Operation::Drop | lang_hir::core::Operation::Panic
+            ));
             continue;
         };
         assert!(seen.insert(mir));

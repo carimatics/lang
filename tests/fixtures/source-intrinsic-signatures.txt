@@ -1,3 +1,4 @@
 # Implemented RFC 0008 source-only signatures; verified 2026-10-19 JST.
-# These lower to existing MIR primitives, without runtime-core operation tags.
+# These lower to MIR primitives, without runtime-core operation tags.
 drop|1|(T) -> Unit
+panic|1|(i64) -> T

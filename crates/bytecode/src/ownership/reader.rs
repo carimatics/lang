@@ -2,6 +2,8 @@ use super::*;
 use o::{bodies as b, declarations as d, places as p};
 
 struct Reader<'a> {
+    version: u16,
+    seen_panic: bool,
     input: &'a [u8],
     offset: usize,
     limits: CodecLimits,
@@ -330,6 +332,10 @@ impl Reader<'_> {
         let results = self.registers()?;
         let offset = self.offset;
         let op = match self.byte()? {
+            33 if self.version == 3 => {
+                self.seen_panic = true;
+                O::Panic(m::Register(self.word()?))
+            }
             0 => O::I64(self.integer()?),
             1 => O::Bool(self.boolean()?),
             2 => O::Unit,
@@ -561,7 +567,7 @@ pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, Codec
         return Err(error(0, CodecErrorKind::BadMagic));
     }
     let version = u16::from_le_bytes(bytes[8..10].try_into().unwrap());
-    if version != 2 {
+    if !matches!(version, 2 | 3) {
         return Err(error(8, CodecErrorKind::Version(version)));
     }
     let flags = u16::from_le_bytes(bytes[10..12].try_into().unwrap());
@@ -575,6 +581,8 @@ pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, Codec
     }
     let mut reader = Reader {
         input: bytes,
+        version,
+        seen_panic: false,
         offset: HEADER,
         limits,
         budget: m::Budget::new(limits.budget_limits()),
@@ -586,6 +594,9 @@ pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, Codec
     if reader.offset != bytes.len() {
         return Err(reader.fail(CodecErrorKind::TrailingBytes));
     }
+    if (version == 3) != reader.seen_panic {
+        return Err(error(8, CodecErrorKind::ProfileVersion(version)));
+    }
     verify(table, entry, reader.budget, limits, reader.offset)
 }
 
@@ -594,6 +605,8 @@ pub(super) fn instruction_fixture(bytes: &[u8]) -> Result<b::Instruction, CodecE
     let limits = CodecLimits::default();
     let mut reader = Reader {
         input: bytes,
+        version: 3,
+        seen_panic: false,
         offset: 0,
         limits,
         budget: m::Budget::new(limits.budget_limits()),

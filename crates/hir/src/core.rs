@@ -26,6 +26,8 @@ pub enum TypePattern {
 pub enum TypeArgumentRule {
     /// No ordinary loan or allocator authority; arena brands remain tracked.
     Storable,
+    /// Any valid result type; divergence never creates a value of it.
+    ReturnType,
     /// Exactly i64 or core::Text.
     MapKey,
     /// Storable, and contains no arena brands through any referent.
@@ -245,6 +247,8 @@ impl Case {
 pub enum Operation {
     /// Source-only RFC 0008 intrinsic, lowered to ordinary MIR cleanup.
     Drop,
+    /// Source-only terminal intrinsic with a dynamic signed code.
+    Panic,
     Allocator,
     TextFromUtf8,
     TextClone,
@@ -321,8 +325,9 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 38] = [
+    pub const ALL: [Self; 39] = [
         Self::Drop,
+        Self::Panic,
         Self::Allocator,
         Self::TextFromUtf8,
         Self::TextClone,
@@ -365,6 +370,7 @@ impl Operation {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Drop => "drop",
+            Self::Panic => "panic",
             Self::Allocator => "allocator",
             Self::TextFromUtf8 => "text_from_utf8",
             Self::TextClone => "text_clone",
@@ -416,6 +422,7 @@ impl Operation {
         use TypePattern as P;
         let mut sig = match self {
             Self::Drop => signature(ONE, &[T], UNIT),
+            Self::Panic => signature(&[TypeArgumentRule::ReturnType], &[TypePattern::I64], T),
             Self::OptionUnwrap => signature(ONE, &[P::Option(&T)], T),
             Self::ResultUnwrap => signature(TWO, &[P::Result(&T, &V)], T),
             Self::ResultUnwrapErr => signature(TWO, &[P::Result(&T, &V)], V),
