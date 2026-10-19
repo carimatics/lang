@@ -6,9 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**92 done · 0 doing · 22 todo · 51 remaining pt**
+**93 done · 0 doing · 22 todo · 51 remaining pt**
 
-**Next: M2-N06 → audit macOS owned runtime packaging, then execute direct/response-file object link/run conformance (2 pt provisional).**
+**Next: M2-N06 → link/run standalone macOS owned executables directly and through response files, covering the accepted service/payload matrix (2 pt provisional).**
+
+N06 readiness audit (2026-10-19 JST): owned object bytes and matching metadata are emitted, but the checked gateway dispatches only JIT-owned CompiledFunction addresses. Expose M2-N19 (3 pt) for a trusted linked-image binding that retains its code owner and reuses the same checked whole-program gateway, with real linked owned-code execution evidence. N06 retains full macOS direct/response-file object conformance; P02 retains clean-install runtime packaging. No VM fallback, packet/schema change or source subset replaces those outcomes. **114 → 115 rows, 51 → 54 pt**; newly recognized work **63 → 66 pt**, retired estimates **146 pt** unchanged. N19 was marked doing before implementation and is now delivered in d53aac0: linked Mach-O matches VM across 230 budgets; target/symbol/budget refusal and owner release are verified. **92 → 93 done, 54 → 51 pt**; added estimates stay 66, retired estimates are 149. Workspace 1,414 tests / 87 suites, native 60, fmt/Clippy/rustdoc pass (one timing-only test ignored). N06 standalone executable conformance is next, retaining its provisional 2 pt.
 
 N05 delivery / G06 exit audit (2026-10-19 JST): `f6d9fc4` completes current managed service/payload metering across VM/native calls, loans and views. Twenty-four source programs compare every finite budget prefix; mixed controls/provider refusal, guest panic, secondary cleanup and source/artifact CLI checks pass. Numeric errors and mandatory retirement survive exhaustion; Rust context migration and unchanged serialized schemas are documented. **91 → 92 done, 54 → 51 pt**; retire the provisional 3 pt without adding tasks or estimates (**134 + 63 − 146 = 51**). The full baseline passes **1,410 tests / 87 suites** (one manual timing test also passes separately), fmt/Clippy/rustdoc. G06 closes with generated cleanup/order/return evidence from D28–D34, V07/V08, C07 and N05, including 139 owned-execution and 56 native tests. Original gates are now **6/18**; G14 still requires actual macOS/Windows owned-object link/run. Other gates retain their dedicated final evidence reviews.
 
@@ -38,21 +40,21 @@ N16 validation observations: four focused runtime tests report 0.00 s; profile p
 
 N17 validation observations: Focused runtime tests 3 / 0.00 s; finite-buffer prefix test 1 / 0.69 s; full-feature native 53 / 11.29 s. Full-suite Cargo compilation 47.51 s; summed test-reported time 88.20 s; log creation-to-last-write interval 529.91 s. Clippy 45.34 s; rustdoc 19.28 s. These are validation observations, not active work time or runtime benchmarks. Build-cache follow-up: deps held 645,863 entries / 33.05 GiB; inventory scan 12.26 s. Cargo package cleanup removed 439,988 generated files / 21.6 GiB. The same inventory method then observed 228,369 entries / 13.62 GiB in 1.885 s. These single scans establish filesystem inventory cost, not the cause of all validation wall-time residuals or a whole-suite speedup. Two startup-only listings each reported 0.00 s. No source change or full-baseline repeat was needed for cache cleanup; the planning follow-up runs repository consistency only.
 
-N05 validation observations (2026-10-19 JST): the full baseline passes 1,410 tests / 87 suites, with one ignored manual timing test executed separately (2.20 s). Full-test wall time 245.32 s, Cargo compilation 15.74 s, summed suite time 111.84 s; native 56 tests / 33.76 s and CLI 5 / 0.16 s. Clippy initially 15.25 s; the final test-only cached check 0.58 s. Rustdoc wall time 18.51 s. These are validation observations, not active work hours or runtime performance claims. Changes and cache conditions differ from N18; do not assign the wall-time difference to one cause. Documentation-only planning validation runs repository_consistency.
+N19 validation observations (2026-10-19 JST): linked-image 230-budget test 1 / 2.38 s; admission 3 / 0.08 s; focused native 60 / 33.72 s. Full baseline 1,414 tests / 87 suites passes, one timing-only test ignored. Full-test wall time 201.74 s, Cargo compilation 10.04 s, summed suites 110.75 s; full-feature native 60 / 33.35 s. Clippy wall time 10.69 s; rustdoc 14.16 s. These are validation observations, not active work hours or runtime performance claims. Documentation-only planning validation runs repository_consistency.
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 92 (+57)**, and the task inventory increased **87 → 114 (+27)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 93 (+58)**, and the task inventory increased **87 → 115 (+28)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +63 pt | −146 pt | 51 pt |
+| 134 pt | +66 pt | −149 pt | 51 pt |
 
-**134 + 63 − 146 = 51 pt**
+**134 + 66 − 149 = 51 pt**
 
-This separates delivered work from newly recognized work: completion retired 146 estimated points, while exposed prerequisites and re-estimation added 63. These are planning units, not hours or measured actual effort. The remaining 51 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 149 estimated points, while exposed prerequisites and re-estimation added 66. These are planning units, not hours or measured actual effort. The remaining 51 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions remain **63 pt** and estimates retired at completion are **146 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
+Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions remain **66 pt** and estimates retired at completion are **149 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
 Earlier measured code baseline (2026-10-19 JST): workspace Clippy **28.3 s**, full tests **362.5 s**, rustdoc **14.2 s** wall time (shell time). Cargo reports test compilation **24.4 s**; summed suite timings are **87.2 s**. The native boundary suite passes **40 tests in 10.77 s**; service failure matrices reuse compiled code with fresh runtimes. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
@@ -233,7 +235,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N17 | done | 0 | M2-N16 | G06,G14 | Shared Bytes/Text work events execute with matching finite-budget refusal and cleanup in VM/native supported programs. | 085700c |
 | M2-N18 | done | 0 | M2-N17 | G06,G14 | Source/artifact/REPL CLI accepts service-work budgets, preserves numeric failures and audits report-schema compatibility. | 419f6ac |
 | M2-N05 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16,M2-N17,M2-N18 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior across accepted service/payload combinations, including configured service byte-work admission. | `f6d9fc4` |
-| M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | — |
+| M2-N19 | done | 0 | M2-N05 | G14 | Bind a trusted linked image with its code owner to the checked owned program gateway; execute real linked owned code. | `d53aac0` |
+| M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | — |
 | M2-N07 | todo | 2 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
