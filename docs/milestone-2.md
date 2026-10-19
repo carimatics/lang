@@ -4,17 +4,21 @@
 
 [日本語版](ja/milestone-2.md) · [Exit gates](roadmap.md#milestone-2-ownership-and-native-aot)
 
-Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
+Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**106 done · 0 doing · 17 todo · 39 remaining pt**
+**107 done · 0 doing · 16 todo · 36 remaining pt**
 
-**Next: M2-F16 → execute aggregate source exports from real C and integrate typed values/runtime/cleanup (initial 3 pt). Linked objects remain F05.**
+**Next: M2-F05 → decide the private C object/bootstrap contract and execute source exports through real link/run (provisional 3 pt).**
 
 | Next delivery (not started) | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F16: typed value/runtime export integration (initial 3 pt) | F15: real C native source exports, 105 → 106 done, 3 pt retired (c0f9b68) | Real C calls record/enum sources with padding-safe transfers and owner/guest-call body/failure cleanup wiring |
+| F05: C object/bootstrap (provisional 3 pt) | F16: typed native runtime, 106 → 107 done, 39 → 36 pt (4158655) | C calls linked object support/exports, including owner/panic/import results and cleanup |
 
-Last three: F13 (6eb9018) → F14 (17da01b) → F15 (c0f9b68). Original exit gates: **11/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+Last three: F14 (17da01b) → F15 (c0f9b68) → F16 (4158655). Original exit gates: **11/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+
+F16 delivery (2026-10-20 JST): 4158655 connects the reusable NativeFactory to the actual context allocator/cleanup Instance. Real C round-trips records, nested sums, every core error, empty records and scalar extremes; 256 mixed parameters execute native arithmetic and 128 guest calls. Owner recursion/C callbacks/callee panic and ten Bytes/Text/Vec/Map/shared/arena sources match VM values/fuel/work/frame/cell usage. Every fuel/provider refusal prefix preserves output and balances allocations/releases. Baseline: **1,510 tests / 88 suites**, zero failures, one manual timing test ignored. C ABI **62 / 14.13s**, native **66 / 276.96s**, fmt/Clippy (**27.48s**)/rustdoc (**23.43s**) pass. Retire initial **3 pt: 106 → 107 done, 39 → 36 pt**. **123 rows and +85 added pt unchanged; retired estimates 183 pt**. Original gates stay **11/18**; C object/platform/package and the final guide remain.
+
+F15 Windows completion (2026-10-20 JST): [full workflow 39272143078](https://github.com/carimatics/lang/actions/runs/39272143078), head c81e5d2, job 118126939241, succeeded at **2026-10-19 15:13:07 UTC**, including all checks/benchmark. This proves F15; the later F16 native-runtime snapshot is tracked separately.
 
 F15 delivery (2026-10-19 JST): c0f9b68 lets real C call generated native source increment/panic, bool/Unit and callbacks. Five tests cover the original opaque context, reentry, another Program, foreign failure, quota/OOM and host panic/poison. Contexts retain the actual C allocator; result staging uses the same provider/live/cumulative quota and retires on success/failure. Baseline: **1,504 tests / 88 suites**, zero failures, one manual timing test ignored. After the final staging repair, rerun all **56 affected C ABI tests / 12.37s**; other implementation paths are unchanged. Native **66 / 275.69s**, fmt/Clippy (**26.57s**)/rustdoc (**18.01s**) pass. Retire F15 initial **3 pt: 105 → 106 done, 39 → 36 pt**. Show the separate F16 addition below: current **123 rows, +85 added pt, 180 retired pt, 39 remaining pt**. Original gates stay **11/18**; C object delivery is incomplete.
 
@@ -25,7 +29,9 @@ F14 delivery (2026-10-19 JST): 17da01b generates the existing C create/destroy/l
 <details>
 <summary>Remaining FFI integration</summary>
 
-Post-F15 remaining-scope audit (2026-10-19 JST): the executed fixture factory handles i64/bool/Unit; aggregate export C-to-managed transfer/return escrow and owner/guest-call body runtime wiring remain. Separate F16 (initial 3 pt), with a real C record/enum source export as its next execution. Narrow F05 to linked C object/bootstrap, retaining an explicit private bridge decision and actual link/run (provisional 3 pt, to be checked against its object experiment before coding). After retiring F15 this changes **36 → 39 remaining pt, 122 → 123 rows, net additions 82 → 85 pt**; retired estimates stay 180. These expose residual original F05 work, not new value/owner requirements. Bundled runtime, complete body/aggregate/platform/package outcomes and the final guide remain required.
+F05 readiness audit (2026-10-20 JST): F16 completes typed-value/owner-body runtime wiring. The object entry still rejects C units; JIT export/support captures a real Program address and NativeInvoker generates JIT callback thunks. Before F05 implementation, record an explicitly versioned private bridge/symbol/metadata contract, then connect the linked code owner, the same runtime layout access, object-resident typed import thunks and C support/exports through real link/run. Embedding JIT addresses or substituting runtime JIT does not complete AOT. Its 3 pt remain provisional before the object experiment; expose any new prerequisite before coding. This delivery adds no scope or estimate.
+
+Post-F15 remaining-scope audit (2026-10-19 JST): the executed fixture factory handles i64/bool/Unit; aggregate export C-to-managed transfer/return escrow and owner/guest-call body runtime wiring remain. Separate F16 (initial 3 pt), with a real C record/enum source export as its next execution. Narrow F05 to linked C object/bootstrap, retaining an explicit private bridge decision and actual link/run (provisional 3 pt, to be checked against its object experiment before coding). After retiring F15 this changes **36 → 39 remaining pt, 122 → 123 rows, net additions 82 → 85 pt**; retired estimates stay 180. These expose residual original F05 work, not new value/owner requirements. Subsequent runtime/body/aggregate completion is recorded in F16; platform/package outcomes and the final guide remain required.
 
 F05 post-execution scope audit (2026-10-19 JST): the real C → generated native source increment/panic experiment passes. Separate JIT source export context/callback/allocator/result/resource integration into F15 (initial 3 pt, doing); retain F05 for linked C object publication/bootstrap/runtime/cleanup integration (provisional 3 pt). A JIT wrapper capturing an address cannot serve as a portable object, whose explicit bridge contract remains undecided. This changes **121 → 122 rows, 36 → 39 remaining pt, net additions 79 → 82 pt**; retired estimates stay 177. The requirement to execute source before another prerequisite is met. Original aggregate/owner-body/platform/package outcomes remain; F15 does not complete F05 or the C exit gates.
 
@@ -138,15 +144,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 106 (+71)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 107 (+72)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +85 pt | −180 pt | 39 pt |
+| 134 pt | +85 pt | −183 pt | 36 pt |
 
-**134 + 85 − 180 = 39 pt**
+**134 + 85 − 183 = 36 pt**
 
-This separates delivered work from newly recognized work: completion retired 180 estimated points, while exposed prerequisites and re-estimation added 85. These are planning units, not hours or measured actual effort. The remaining 39 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 183 estimated points, while exposed prerequisites and re-estimation added 85. These are planning units, not hours or measured actual effort. The remaining 36 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -312,7 +318,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F04 | done | 0 | M2-F02,M2-F03,M2-F11 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | `cfd0987` |
 | M2-F14 | done | 0 | M2-F02,M2-F03 | G11,G12 | Generated raw C create/query/destroy copies descriptors, preserves output on failure, owns context lifetime and enforces artifact/reentry gates through a real C caller. | 17da01b |
 | M2-F15 | done | 0 | M2-F04,M2-F09,M2-F13,M2-F14 | G12 | Real C calls native source exports with original opaque-context callbacks, allocator integration, atomic results and resource conformance. | c0f9b68 |
-| M2-F16 | todo | 3 | M2-F15,M2-N05 | G12 | Real C calls aggregate source exports with typed transfer/return escrow and owner/guest-call body runtime/cleanup integration. | — |
+| M2-F16 | done | 0 | M2-F15,M2-N05 | G12 | Real C calls aggregate source exports with typed transfer/return escrow and owner/guest-call body runtime/cleanup integration. | 4158655 |
 | M2-F05 | todo | 3 | M2-F16 | G12 | Complete linked C object/bootstrap/runtime integration under an explicit private bridge contract and verify accepted exports through real link/run. | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
@@ -355,6 +361,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 ## Sources and verification dates
 
+- [Native factory](../crates/codegen-clif/src/c_abi/runtime/factory.rs), [typed transfers](../crates/runtime/src/c_abi/transfer.rs), [real C/VM comparisons](../tests/support/c_exports_runtime.rs) and [Copy cases/256 parameters](../tests/support/c_exports_copy_cases.rs) (4158655): updated/verified 2026-10-20 JST. All baseline checks pass above. Linked C object remains F05; the new Windows snapshot and remaining platform/package/guide evidence remain F06/F07/P02/Z01.
 - [Native source exports](../crates/codegen-clif/src/c_abi/exports.rs), [real C caller](../tests/support/c_exports_native.c) and [five execution/boundary tests](../tests/support/c_exports_native.rs) (c0f9b68): updated/verified 2026-10-19 JST. Full baseline plus final affected C ABI rerun above; full typed-runtime/object and the new Windows snapshot remain F16/F05/F07.
 
 - [Raw C context support](../crates/codegen-clif/src/c_abi/context.rs), [field reader/lifecycle](../crates/codegen-clif/src/c_abi/context/raw.rs) and [real C/state fixtures](../tests/support/c_context_native.rs) (`17da01b`): updated/verified 2026-10-19 JST. Full local baseline above; Windows run 39265484004 succeeded. F15 is a later source-export snapshot; C objects remain F05.

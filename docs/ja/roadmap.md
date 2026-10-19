@@ -8,7 +8,13 @@
 
 ## 現在のM2実装状況
 
-**検証済み106件 · 進行中0件 · 残り17件（暫定39 pt）。**
+**検証済み107件 · 進行中0件 · 残り16件（暫定36 pt）。**
+
+F16完了（2026-10-20 JST）：4158655で再利用可能なNativeFactoryを実context allocator／cleanup Instanceへ接続しました。実Cからrecord・入れ子sum・全core error・空record・scalar極値を往復し、256混合引数を演算と128 guest callで処理します。Owner付き再帰・C callback・callee panicと、Bytes／Text／Vec／Map／shared／arenaの10 sourceで値／fuel／work／frame／cellのVM一致を確認しました。全fuel／provider拒否prefixでもoutputを保持し確保／解放数が一致します。必須検証：**1,510 tests / 88 suites**、失敗0、手動timingのみ1件ignored。C ABI **62件／14.13秒**、native **66件／276.96秒**、fmt／Clippy（27.48秒）／rustdoc（23.43秒）成功。初期 **3 pt** を取り除き **106 → 107 done、39 → 36 pt**。**123行・追加85点は不変、完了で取り除いた見積もり183点**。元の完了条件は **11/18** で、C object／platform／package／最終guideを維持します。
+
+F05着手前の監査（2026-10-20 JST）：typed value／owner bodyのruntime接続はF16で完了しました。残るobject入口はC unitを拒否し、JIT export／supportは実Program addressを捕捉し、NativeInvokerはJIT callback thunkを生成します。F05では明示version付きprivate bridge／symbol／metadata契約を先に記録し、linked code owner・同じruntimeのlayout参照・object内の型付きimport thunk・C support／exportを接続して実link／runします。JIT address埋込みや実行時JITへの置換でAOT完了としません。3 ptはobject実験前の暫定値で、新たな前提が判明した場合は実装前に可視化します。今回のscope／見積もり追加は0点です。
+
+F15のWindows確定（2026-10-20 JST）：[全workflow 39272143078](https://github.com/carimatics/lang/actions/runs/39272143078)、head c81e5d2、job 118126939241が **2026-10-19 15:13:07 UTC** に成功しました。F15の全検証／benchmarkの証拠であり、後続F16 native runtimeの新snapshotは別途追跡します。
 
 F15完了（2026-10-19 JST）：c0f9b68で実C callerから生成native source increment／panic、bool／Unitとcallbackを実行します。元opaque contextの保持・再入拒否・別Program・foreign failure・quota／OOM・host panic／poisonを5 testで検証しました。Contextは実C allocatorを保持し、result stagingも同じproviderとlive／累積quotaへ計上して成功・失敗とも解放します。必須検証は **1,504 tests / 88 suites**、失敗0、手動timing 1件のみignored。最後のstaging修正後に影響先C ABI全 **56件／12.37秒** を再実行し、他の実装pathは不変です。Native **66件／275.69秒**、fmt／Clippy（26.57秒）／rustdoc（18.01秒）成功。F15の初期 **3 pt** を取り除き、**105 → 106 done、39 → 36 pt**。下記F16の追加3点と分けて表示し、現在は **123行、追加85点、完了で取り除いた180点、残り39点**。元の完了条件は **11/18** で、C object完了とはしません。
 

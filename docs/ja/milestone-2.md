@@ -4,17 +4,21 @@
 
 [English](../milestone-2.md) · [完了条件](roadmap.md#milestone-2ownershipとnative-aot)
 
-更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
+更新・確認日：**2026-10-20 JST**。初回監査の基準commit：`0c2c012`。
 
-**106 done · 0 doing · 17 todo · 39 remaining pt**
+**107 done · 0 doing · 16 todo · 36 remaining pt**
 
-**次: M2-F16 → 実Cからaggregate source exportを実行し、typed value／runtime／cleanupを統合します（初期3 pt）。Linked objectはF05です。**
+**次: M2-F05 → C object／bootstrapのprivate契約を決め、実link／runでsource exportを実行します（暫定3 pt）。**
 
 | 次の成果（未着手） | 直近の完了 | 必須の実行成果 |
 | --- | --- | --- |
-| F16：typed value／runtime export統合（初期3 pt） | F15：実C native source export、105 → 106件、3 pt完了（c0f9b68） | 実Cからrecord／enum sourceを呼び、padding安全な転送・owner／guest call body・失敗時cleanupを接続 |
+| F05：C object／bootstrap（暫定3 pt） | F16：typed native runtime、106 → 107件、39 → 36 pt（4158655） | C callerがlinked objectのsupport／exportを呼び、owner／panic／importを含む結果とcleanupを検証 |
 
-直近3件：F13（6eb9018）→ F14（17da01b）→ F15（c0f9b68）。従来の完了条件は **11/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
+直近3件：F14（17da01b）→ F15（c0f9b68）→ F16（4158655）。従来の完了条件は **11/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
+
+F16完了（2026-10-20 JST）：4158655で再利用可能なNativeFactoryを実context allocator／cleanup Instanceへ接続しました。実Cからrecord・入れ子sum・全core error・空record・scalar極値を往復し、256混合引数を演算と128 guest callで処理します。Owner付き再帰・C callback・callee panicと、Bytes／Text／Vec／Map／shared／arenaの10 sourceで値／fuel／work／frame／cellのVM一致を確認しました。全fuel／provider拒否prefixでもoutputを保持し確保／解放数が一致します。必須検証：**1,510 tests / 88 suites**、失敗0、手動timingのみ1件ignored。C ABI **62件／14.13秒**、native **66件／276.96秒**、fmt／Clippy（27.48秒）／rustdoc（23.43秒）成功。初期 **3 pt** を取り除き **106 → 107 done、39 → 36 pt**。**123行・追加85点は不変、完了で取り除いた見積もり183点**。元の完了条件は **11/18** で、C object／platform／package／最終guideを維持します。
+
+F15のWindows確定（2026-10-20 JST）：[全workflow 39272143078](https://github.com/carimatics/lang/actions/runs/39272143078)、head c81e5d2、job 118126939241が **2026-10-19 15:13:07 UTC** に成功しました。F15の全検証／benchmarkの証拠であり、後続F16 native runtimeの新snapshotは別途追跡します。
 
 F15完了（2026-10-19 JST）：c0f9b68で実C callerから生成native source increment／panic、bool／Unitとcallbackを実行します。元opaque contextの保持・再入拒否・別Program・foreign failure・quota／OOM・host panic／poisonを5 testで検証しました。Contextは実C allocatorを保持し、result stagingも同じproviderとlive／累積quotaへ計上して成功・失敗とも解放します。必須検証は **1,504 tests / 88 suites**、失敗0、手動timing 1件のみignored。最後のstaging修正後に影響先C ABI全 **56件／12.37秒** を再実行し、他の実装pathは不変です。Native **66件／275.69秒**、fmt／Clippy（26.57秒）／rustdoc（18.01秒）成功。F15の初期 **3 pt** を取り除き、**105 → 106 done、39 → 36 pt**。下記F16の追加3点と分けて表示し、現在は **123行、追加85点、完了で取り除いた180点、残り39点**。元の完了条件は **11/18** で、C object完了とはしません。
 
@@ -25,7 +29,9 @@ F14完了（2026-10-19 JST）：17da01bで実Programへ結び付けた既存C cr
 <details>
 <summary>残るFFI統合</summary>
 
-F15後の残作業監査（2026-10-19 JST）：実行済みfixture factoryはi64／bool／Unitで、aggregate exportのC → managed転送・aggregate return escrowとowner／guest call bodyのruntime接続が残ります。F16（初期3 pt）へ分離し、次は実Cのrecord／enum source exportを動かします。F05はlinked C object／bootstrapに絞り、明示的なprivate bridge契約とlink／runを維持します（暫定3 pt、着手前にobject実験で確認）。F15完了後の **36 → 39残点、122 → 123行、追加82 → 85点** で、完了による180点は不変です。新たなvalue／owner要件の追加ではなく、元のF05から残る実装を可視化しました。Runtime同梱・全body／aggregate・platform／package／最終guideを省きません。
+F05着手前の監査（2026-10-20 JST）：typed value／owner bodyのruntime接続はF16で完了しました。残るobject入口はC unitを拒否し、JIT export／supportは実Program addressを捕捉し、NativeInvokerはJIT callback thunkを生成します。F05では明示version付きprivate bridge／symbol／metadata契約を先に記録し、linked code owner・同じruntimeのlayout参照・object内の型付きimport thunk・C support／exportを接続して実link／runします。JIT address埋込みや実行時JITへの置換でAOT完了としません。3 ptはobject実験前の暫定値で、新たな前提が判明した場合は実装前に可視化します。今回のscope／見積もり追加は0点です。
+
+F15後の残作業監査（2026-10-19 JST）：実行済みfixture factoryはi64／bool／Unitで、aggregate exportのC → managed転送・aggregate return escrowとowner／guest call bodyのruntime接続が残ります。F16（初期3 pt）へ分離し、次は実Cのrecord／enum source exportを動かします。F05はlinked C object／bootstrapに絞り、明示的なprivate bridge契約とlink／runを維持します（暫定3 pt、着手前にobject実験で確認）。F15完了後の **36 → 39残点、122 → 123行、追加82 → 85点** で、完了による180点は不変です。新たなvalue／owner要件の追加ではなく、元のF05から残る実装を可視化しました。Runtime／body／aggregateの後続完了はF16に記録し、platform／package／最終guideも維持します。
 
 F05実行後の範囲監査（2026-10-19 JST）：実C → 生成native source increment／panicの実験が成功しました。JIT source exportのcontext／callback／allocator／result／資源制限統合をF15（初期3 pt、doing）に分離し、F05はlinked C object公開・bootstrap・runtime／cleanup統合（暫定3 pt）として維持します。ポインタを埋め込むJIT wrapperはportable objectには使えず、object側の明示契約が未確定です。**121 → 122行、36 → 39残点、追加79 → 82点**、完了で取り除いた177点は不変です。Source実行の前に別の前提を追加しない条件は満たしました。Aggregate／owner body／platform／packageを含む元要件は残し、F15の成功をF05やC完了条件の完了としません。
 
@@ -138,15 +144,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 106件（+71件）**、作業一覧は **87 → 123件（+36件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 107件（+72件）**、作業一覧は **87 → 123件（+36件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +85 pt | −180 pt | 39 pt |
+| 134 pt | +85 pt | −183 pt | 36 pt |
 
-**134 + 85 − 180 = 39 pt**
+**134 + 85 − 183 = 36 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり180点分を取り除く一方、前提作業の可視化と再見積もりで85点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り39点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり183点分を取り除く一方、前提作業の可視化と再見積もりで85点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り36点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
 N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
@@ -312,7 +318,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F04 | done | 0 | M2-F02,M2-F03,M2-F11 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | `cfd0987` |
 | M2-F14 | done | 0 | M2-F02,M2-F03 | G11,G12 | 生成raw C create／query／destroyを実C callerで実行し、descriptor copy・失敗時output保持・context寿命・artifact／再入gateを強制。 | 17da01b |
 | M2-F15 | done | 0 | M2-F04,M2-F09,M2-F13,M2-F14 | G12 | 実Cからnative source exportを呼び、元opaque contextのcallback・allocator・result原子性・資源制限を検証する。 | c0f9b68 |
-| M2-F16 | todo | 3 | M2-F15,M2-N05 | G12 | 実Cからaggregate source exportを呼び、typed transfer／return escrowとowner／guest call bodyのruntime／cleanup接続を完成する。 | — |
+| M2-F16 | done | 0 | M2-F15,M2-N05 | G12 | 実Cからaggregate source exportを呼び、typed transfer／return escrowとowner／guest call bodyのruntime／cleanup接続を完成する。 | 4158655 |
 | M2-F05 | todo | 3 | M2-F16 | G12 | 明示private bridge契約でlinked C object／bootstrap／runtime統合を完成し、受理済みexportを実link／runで検証する。 | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Headerを独立compileし、native macOSで境界validity fixtureを実行。 | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Native Windowsで対応するC境界fixtureを実行し、成功CI evidenceを記録。 | — |
@@ -355,6 +361,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 
 ## 情報源と確認日
 
+- [Native factory](../../crates/codegen-clif/src/c_abi/runtime/factory.rs)、[typed transfer](../../crates/runtime/src/c_abi/transfer.rs)、[実C／VM比較](../../tests/support/c_exports_runtime.rs)、[全Copy case／256引数](../../tests/support/c_exports_copy_cases.rs)（4158655）：2026-10-20 JST更新・確認。上記全検証が成功。Linked C objectはF05、新Windows snapshotと残るplatform／package／guideはF06／F07／P02／Z01です。
 - [Native source export](../../crates/codegen-clif/src/c_abi/exports.rs)、[実C caller](../../tests/support/c_exports_native.c)、[5実行／境界test](../../tests/support/c_exports_native.rs)（c0f9b68）：2026-10-19 JST更新・確認。全baselineと最後のC ABI再実行は上記。Typed runtime／object全体とWindows新snapshotはF16／F05／F07です。
 
 - [Raw C context support](../../crates/codegen-clif/src/c_abi/context.rs)、[field reader／lifecycle](../../crates/codegen-clif/src/c_abi/context/raw.rs)、[実C／状態fixture](../../tests/support/c_context_native.rs)（`17da01b`）：2026-10-19 JST更新・確認。Local全baselineは上記のとおり成功し、Windows run 39265484004も成功しました。F15は後続のsource export snapshotで、C objectはF05に残ります。
