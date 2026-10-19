@@ -1,0 +1,24 @@
+// Real C enters ordinary owner operations and recursive guest calls.
+extern "C" fn increment(value: i64) -> i64;
+
+fn carry(value: core::Bytes, remaining: i64) -> core::Bytes {
+    if remaining < 1 { return value; }
+    return carry(value, remaining + -1);
+}
+
+fn panic_leaf(value: core::Bytes, code: i64) -> i64 {
+    return core::panic::<i64>(code);
+}
+
+pub extern "C" fn owned(value: i64) -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, value));
+    let mut carried: core::Bytes = carry(bytes, 3);
+    let mut first: i64 = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(carried, 0));
+    unsafe { return increment(first); }
+}
+
+pub extern "C" fn fail_owned(code: i64) -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    return panic_leaf(bytes, code);
+}

@@ -182,6 +182,162 @@ impl CallStorage {
     pub fn release<P: a::Provider>(self, allocator: &mut a::Allocator<P>) -> Result<(), l::Error> {
         allocator.release(self.handle).map_err(Into::into)
     }
+
+    /// Transfer one already-admitted export argument into its managed frame.
+    /// The Export gate must validate all C objects before this method; only
+    /// active fields are read, so ordinary C padding is never materialized.
+    pub fn receive<P: a::Provider>(
+        &self,
+        index: usize,
+        artifact: &Artifact,
+        input: &super::validation::Argument<'_>,
+        target: &l::Reservation<'_, '_>,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), l::Error> {
+        let function = self.export(artifact)?;
+        if !target
+            .layouts()
+            .types()
+            .properties(target.root().ty())
+            .is_some_and(|p| p.is_copy)
+        {
+            return Err(bad());
+        }
+        let id = *function.parameters.get(index).ok_or_else(bad)?;
+        let offset = self.offsets[index];
+        match (&artifact.types()[id.0].kind, input) {
+            (Kind::I64, super::validation::Argument::I64(value)) => {
+                write(allocator, self.handle, offset, &value.to_ne_bytes())?;
+            }
+            (Kind::Bool, super::validation::Argument::Bool(value)) if *value <= 1 => {
+                write(allocator, self.handle, offset, &[*value])?;
+            }
+            (
+                Kind::Unit | Kind::Record { .. } | Kind::Enum { .. },
+                super::validation::Argument::Object(reader),
+            ) => {
+                receive_fields(artifact, id, *reader, 0, self.handle, offset, allocator)?;
+            }
+            _ => return Err(bad()),
+        }
+        decode(
+            artifact,
+            id,
+            target,
+            target.root(),
+            self.handle,
+            offset,
+            allocator,
+        )
+    }
+
+    fn export<'a>(&self, artifact: &'a Artifact) -> Result<&'a super::Function, l::Error> {
+        let function = artifact.functions().get(self.function).ok_or_else(bad)?;
+        if artifact.digest() != self.artifact || function.direction != super::Direction::Export {
+            return Err(bad());
+        }
+        Ok(function)
+    }
+
+    /// Encode a Copy result retained in a managed return escrow after cleanup.
+    /// The output is the wrapper's borrowed actual-allocator staging handle.
+    pub fn write_export_result<P: a::Provider>(
+        artifact: &Artifact,
+        function: usize,
+        source: &l::Reservation<'_, '_>,
+        output: a::Handle,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), l::Error> {
+        let function = artifact.functions().get(function).ok_or_else(bad)?;
+        if function.direction != super::Direction::Export
+            || !source
+                .layouts()
+                .types()
+                .properties(source.root().ty())
+                .is_some_and(|p| p.is_copy)
+            || allocator.bytes(output)?.len() != number(artifact.types()[function.result.0].size)?
+        {
+            return Err(bad());
+        }
+        allocator.bytes_mut(output)?.fill(0);
+        encode(
+            artifact,
+            function.result,
+            source,
+            source.root(),
+            output,
+            0,
+            allocator,
+        )
+    }
+}
+
+fn receive_fields<P: a::Provider>(
+    artifact: &Artifact,
+    id: TypeId,
+    reader: &dyn super::validation::Reader,
+    input: usize,
+    handle: a::Handle,
+    output: usize,
+    allocator: &mut a::Allocator<P>,
+) -> Result<(), l::Error> {
+    let mut bytes = [0; 8];
+    match &artifact.types()[id.0].kind {
+        Kind::I64 | Kind::Bool | Kind::Unit => {
+            let size = number(artifact.types()[id.0].size)?;
+            reader.read(input, &mut bytes[..size]).map_err(|_| bad())?;
+            write(allocator, handle, output, &bytes[..size])
+        }
+        Kind::Record { fields, .. } => {
+            if fields.is_empty() {
+                reader.read(input, &mut bytes[..1]).map_err(|_| bad())?;
+                return write(allocator, handle, output, &bytes[..1]);
+            }
+            for field in fields {
+                let offset = number(field.offset)?;
+                receive_fields(
+                    artifact,
+                    field.ty,
+                    reader,
+                    add(input, offset)?,
+                    handle,
+                    add(output, offset)?,
+                    allocator,
+                )?;
+            }
+            Ok(())
+        }
+        Kind::Enum {
+            cases,
+            payload_offset,
+            ..
+        } => {
+            reader.read(input, &mut bytes[..4]).map_err(|_| bad())?;
+            write(allocator, handle, output, &bytes[..4])?;
+            let tag = u32::from_ne_bytes(bytes[..4].try_into().expect("C tag width"));
+            let case = cases.get(tag as usize).ok_or_else(bad)?;
+            if case.payload.is_empty() {
+                let offset = number(*payload_offset)?;
+                reader
+                    .read(add(input, offset)?, &mut bytes[..1])
+                    .map_err(|_| bad())?;
+                return write(allocator, handle, add(output, offset)?, &bytes[..1]);
+            }
+            for (id, offset) in case.payload.iter().zip(&case.offsets) {
+                let offset = number(*payload_offset + *offset)?;
+                receive_fields(
+                    artifact,
+                    *id,
+                    reader,
+                    add(input, offset)?,
+                    handle,
+                    add(output, offset)?,
+                    allocator,
+                )?;
+            }
+            Ok(())
+        }
+    }
 }
 
 fn write<P: a::Provider>(

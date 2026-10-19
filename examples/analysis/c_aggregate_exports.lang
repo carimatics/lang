@@ -1,0 +1,14 @@
+// Real C calls these bodies through the explicit native embedding API.
+pub struct Pair { number: i64, flag: bool }
+
+pub extern "C" fn increment_pair(value: Pair) -> Pair {
+    return Pair { number: value.number + 1, flag: value.flag };
+}
+
+pub extern "C" fn echo_result(value: core::Result<core::Option<Pair>, core::BufferError>) -> core::Result<core::Option<Pair>, core::BufferError> {
+    return value;
+}
+
+pub extern "C" fn fail_pair(value: Pair) -> Pair {
+    return core::panic::<Pair>(value.number);
+}

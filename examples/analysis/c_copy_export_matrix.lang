@@ -1,0 +1,13 @@
+pub struct Empty {}
+pub struct Errors {
+    alloc: core::AllocError,
+    bounds: core::BoundsError,
+    buffer: core::BufferError,
+    utf8: core::Utf8Error,
+    ownership: core::OwnershipError,
+    arena_issue: core::ArenaError,
+}
+pub enum Choice { Empty, Number(i64), Flags(Empty, bool), Nested(core::Result<core::Option<Errors>, core::ArenaError>) }
+pub struct Envelope { empty: Empty, unit: core::Unit, number: i64, flag: bool, choice: Choice, errors: Errors }
+
+pub extern "C" fn roundtrip(value: Envelope) -> Envelope { return value; }

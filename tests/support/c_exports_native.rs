@@ -16,6 +16,13 @@ struct Probe {
     calls: u64,
 }
 
+#[path = "c_exports_aggregate.rs"]
+mod aggregates;
+#[path = "c_exports_copy_cases.rs"]
+mod copy_cases;
+#[path = "c_exports_runtime.rs"]
+mod runtime_cases;
+
 struct Factory;
 static FACTORY: Factory = Factory;
 

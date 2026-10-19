@@ -5,4 +5,5 @@ pub mod allocator;
 pub mod context;
 pub mod exports;
 mod padding;
+pub mod runtime;
 pub mod scalar;
