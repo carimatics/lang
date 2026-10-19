@@ -2,7 +2,10 @@
 use super::*;
 use std::{cell::Cell, fs, path::PathBuf, process::Command};
 
-pub(crate) fn run(text: &str, original: &[u8]) {
+/// # Safety
+/// The executable must link exactly the supplied object from this source and
+/// toolchain, with its private functions available in the process symbol table.
+pub(crate) unsafe fn run(text: &str, original: &[u8]) {
     let source = source(text);
     let flow = source.failure_flow();
     let types = flow
@@ -186,7 +189,9 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
         let object = unsafe {{ std::ffi::CStr::from_ptr(object) }}.to_str().unwrap();
         let text = std::fs::read_to_string(source).unwrap();
         let bytes = std::fs::read(object).unwrap();
-        boundary::run_static_owned_conformance(&text, &bytes);
+        // SAFETY: the private parent test linked this object into this exact
+        // executable and supplied its matching source/object paths to startup.
+        unsafe {{ boundary::run_static_owned_conformance(&text, &bytes); }}
     }});
     if result.is_ok() {{ 0 }} else {{ 1 }}
 }}

@@ -388,13 +388,21 @@ const FORWARD: &str = include_str!("../examples/analysis/native_owned_boundary.l
 mod calls;
 
 /// Also compiled into the standalone conformance driver's static archive.
+///
+/// # Safety
+/// This executable must contain the exact owned object supplied here, linked
+/// from the same source and toolchain. The private fixture caller owns that
+/// provenance; this entry point does not validate arbitrary native binaries.
 #[cfg(target_os = "macos")]
 #[allow(
     dead_code,
     reason = "Called by the separately compiled standalone driver."
 )]
-pub fn run_static_owned_conformance(text: &str, object: &[u8]) {
-    calls::static_driver::run(text, object);
+pub unsafe fn run_static_owned_conformance(text: &str, object: &[u8]) {
+    // SAFETY: forwarded unchanged from this private entry's caller contract.
+    unsafe {
+        calls::static_driver::run(text, object);
+    }
 }
 
 #[test]
