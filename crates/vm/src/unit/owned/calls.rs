@@ -220,6 +220,36 @@ pub(super) fn execute<P: a::Provider>(
         allocator,
         control,
         Selection::Script(function),
+        None,
+    )?;
+    let Value::Scalar(value) = value else {
+        return Err(rejected(Reason::Entry, None, None));
+    };
+    Ok(Outcome {
+        value,
+        usage,
+        allocations,
+    })
+}
+pub(super) fn execute_c<P: a::Provider>(
+    flow: &f::Elaborated,
+    function: m::FunctionId,
+    instance: &mut c::Instance,
+    allocator: &mut a::Allocator<P>,
+    control: Control<'_>,
+    imports: &mut foreign::Imports<'_, '_>,
+) -> Result<Outcome, Failure> {
+    let Execution {
+        value,
+        usage,
+        allocations,
+    } = execute_with(
+        flow,
+        instance,
+        Some(allocator),
+        control,
+        Selection::Script(function),
+        Some(imports),
     )?;
     let Value::Scalar(value) = value else {
         return Err(rejected(Reason::Entry, None, None));
@@ -248,6 +278,7 @@ pub(super) fn preview<P: a::Provider>(
         allocator,
         control,
         Selection::Preview { function, bytes },
+        None,
     )?;
     let Value::Preview(value) = value else {
         return Err(rejected(Reason::Entry, None, None));
@@ -264,6 +295,7 @@ fn execute_with<P: a::Provider>(
     allocator: Option<&mut a::Allocator<P>>,
     control: Control<'_>,
     selection: Selection,
+    mut imports: Option<&mut foreign::Imports<'_, '_>>,
 ) -> Result<Execution, Failure> {
     if instance.is_poisoned() {
         return Err(rejected(Reason::Poisoned, None, None));
@@ -282,7 +314,9 @@ fn execute_with<P: a::Provider>(
     }
     .ok_or_else(|| rejected(Reason::Entry, None, None))?;
     let function = m::FunctionId(entry as u32);
-    reject_c_interface(flow, Some(function))?;
+    if imports.is_none() {
+        reject_c_interface(flow, Some(function))?;
+    }
     let signature = declarations.functions()[entry].signature_span;
     let fail = |reason| rejected(reason, Some(function), Some(signature));
     if !declarations.functions()[entry].parameters.is_empty()
@@ -292,7 +326,11 @@ fn execute_with<P: a::Provider>(
         return Err(fail(Reason::Entry));
     }
     control
-        .check_service_work_support(lang_runtime::execution::service_work_supported(flow))
+        .check_service_work_support(if imports.is_some() {
+            lang_runtime::execution::service_work_supported_with_c_imports(flow)
+        } else {
+            lang_runtime::execution::service_work_supported(flow)
+        })
         .map_err(|error| fail(Reason::UnsupportedServiceWork(error)))?;
     if control.limits().frames == Some(0) {
         return Err(fail(Reason::Control(super::super::Reason::FrameLimit)));
@@ -359,6 +397,10 @@ fn execute_with<P: a::Provider>(
                         reachable.push(id);
                     }
                 } else {
+                    if matches!(&instruction.op, b::Op::Import { import, .. } if imports.as_ref().is_some_and(|imports| imports.supports(*import)))
+                    {
+                        continue;
+                    }
                     if !supported(
                         instruction,
                         &payloads,
@@ -669,7 +711,10 @@ fn execute_with<P: a::Provider>(
         };
         arenas.push(arena);
     }
-    let service_work = lang_runtime::execution::ServiceWork::new(control.service_work_limit());
+    let service_work = imports
+        .as_ref()
+        .map(|imports| imports.session.work().clone())
+        .unwrap_or_else(|| lang_runtime::execution::ServiceWork::new(control.service_work_limit()));
     let shared_heap = shared_heap.map(|heap| heap.with_service_work(service_work.clone()));
     for arena in &mut arenas {
         if let Some(prepared) = arena.take() {
@@ -703,7 +748,9 @@ fn execute_with<P: a::Provider>(
             c::Limits {
                 slots: multiply(slot_stride)?,
                 scopes: capacity,
-                ..Default::default()
+                failure_records: imports
+                    .as_ref()
+                    .map_or(256, |imports| imports.session.cleanup_records()),
             },
             move |ticket: &mut Ticket, _, context: &mut c::Context<'_>| {
                 let meter = cleaner_state.borrow().service_work.clone();
@@ -746,11 +793,12 @@ fn execute_with<P: a::Provider>(
         returned: None,
     });
     let mut live_cells = entry_plan.cleanup_slots() + 1;
-    let mut usage = Usage {
-        peak_frames: 1,
-        peak_live_cells: live_cells,
-        ..Default::default()
-    };
+    let mut usage = imports
+        .as_mut()
+        .map(|imports| *imports.session.usage())
+        .unwrap_or_default();
+    usage.peak_frames = usage.peak_frames.max(1);
+    usage.peak_live_cells = usage.peak_live_cells.max(live_cells);
     let mut cause = c::Cause::Execution(c::ExecutionFailure::Invariant);
     let mut fault = Some(signature);
     let mut failed_function = function;
@@ -868,6 +916,20 @@ fn execute_with<P: a::Provider>(
                             usage.peak_live_cells = usage.peak_live_cells.max(cells);
                             continue;
                         }
+                        Err(error) => {
+                            failed = Some(error);
+                            failure
+                        }
+                    }
+                } else if let b::Op::Import { import, .. } = instruction.op {
+                    let result = match imports.as_deref_mut() {
+                        Some(imports) => {
+                            imports.invoke(import, instruction, values, &shared, &mut usage)
+                        }
+                        None => Err(c::ExecutionFailure::Invariant),
+                    };
+                    match result {
+                        Ok(()) => next,
                         Err(error) => {
                             failed = Some(error);
                             failure
@@ -1170,7 +1232,15 @@ fn execute_with<P: a::Provider>(
             .map_err(|e| fail(Reason::Preparation(e)))?;
         if let Some(primary) = completion.report.primary() {
             return Err(Failure {
-                reason: preview_error.map_or(Reason::Execution(primary.kind), Reason::Preview),
+                reason: preview_error.map_or_else(
+                    || {
+                        imports
+                            .as_ref()
+                            .and_then(|imports| imports.fault())
+                            .map_or(Reason::Execution(primary.kind), Reason::Foreign)
+                    },
+                    Reason::Preview,
+                ),
                 usage,
                 function: Some(failed_function),
                 fault: primary.span.or(fault),

@@ -7,12 +7,13 @@
 use super::{Artifact, Direction, Kind as TypeKind, validation};
 use crate::{cleanup, execution};
 use lang_mir::unit::ownership::failure::ExecutionFailure;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub mod config;
 mod error;
+pub mod scalar;
 use config::{Allocator, BoundImport, Capacities, CheckedLimits, Config, Snapshot};
 pub use error::{ErrorSummary, Fault, Kind, Status};
 
@@ -52,6 +53,7 @@ impl<'a> Program<'a> {
         Ok(Context {
             program: self,
             allocator_identity: AllocatorIdentity(identity()?),
+            bound_allocator: Cell::new(None),
             snapshot,
             state: RefCell::new(State {
                 instance: cleanup::Instance::default(),
@@ -76,6 +78,7 @@ struct State {
 pub struct Context<'a> {
     program: &'a Program<'a>,
     allocator_identity: AllocatorIdentity,
+    bound_allocator: Cell<Option<crate::allocation::Identity>>,
     snapshot: Snapshot,
     state: RefCell<State>,
 }
@@ -99,6 +102,39 @@ pub enum EntryPoint<'a> {
     },
 }
 impl Context<'_> {
+    /// Bind the actual accounting instance once, before guest entry. Dropping
+    /// and rebuilding an allocator cannot reset one context's cumulative quota.
+    pub fn bind_allocator(&self, identity: crate::allocation::Identity) -> Result<(), Fault> {
+        let state = self
+            .state
+            .try_borrow()
+            .map_err(|_| Fault::new(Kind::Reentry))?;
+        if state.closed {
+            return Err(Fault::new(Kind::Closed));
+        }
+        if state.instance.is_poisoned() {
+            return Err(Fault::new(Kind::Poisoned));
+        }
+        if self
+            .bound_allocator
+            .get()
+            .is_some_and(|bound| bound != identity)
+        {
+            return Err(Fault::new(Kind::WrongProgram));
+        }
+        self.bound_allocator.set(Some(identity));
+        Ok(())
+    }
+    pub fn artifact(&self) -> &Artifact {
+        self.program.artifact
+    }
+    pub fn import(&self, function: usize) -> Option<&BoundImport> {
+        self.snapshot
+            .imports
+            .binary_search_by_key(&function, |binding| binding.index)
+            .ok()
+            .map(|index| &self.snapshot.imports[index])
+    }
     pub const fn allocator(&self) -> Allocator {
         self.snapshot.allocator
     }
@@ -197,6 +233,9 @@ impl Context<'_> {
         }
         state.last = None;
         let mut session = Session {
+            allocator_identity: self.allocator_identity,
+            bound_allocator: self.bound_allocator.get(),
+            code_owner: self.program._owner,
             artifact: self.program.artifact,
             snapshot: &self.snapshot,
             control,
@@ -303,6 +342,9 @@ impl<'b> Entry<'_, 'b> {
     }
 }
 pub struct Session<'a> {
+    allocator_identity: AllocatorIdentity,
+    bound_allocator: Option<crate::allocation::Identity>,
+    code_owner: &'a dyn CodeOwner,
     artifact: &'a Artifact,
     snapshot: &'a Snapshot,
     control: execution::Control<'a>,
@@ -310,8 +352,29 @@ pub struct Session<'a> {
     usage: &'a mut execution::Usage,
     failure: Option<Fault>,
 }
-impl Session<'_> {
-    pub const fn control(&self) -> execution::Control<'_> {
+impl<'a> Session<'a> {
+    pub fn retains_code<T: CodeOwner>(&self, owner: &T) -> bool {
+        std::ptr::addr_eq(self.code_owner as *const dyn CodeOwner, owner as *const T)
+    }
+    pub fn artifact(&self) -> &Artifact {
+        self.artifact
+    }
+    pub const fn allocator_identity(&self) -> AllocatorIdentity {
+        self.allocator_identity
+    }
+    pub const fn bound_allocator(&self) -> Option<crate::allocation::Identity> {
+        self.bound_allocator
+    }
+    pub const fn allocation_limits(&self) -> crate::allocation::Limits {
+        self.snapshot.limits.allocation
+    }
+    pub const fn cleanup_records(&self) -> usize {
+        self.snapshot.limits.cleanup_records
+    }
+    pub const fn failure(&self) -> Option<Fault> {
+        self.failure
+    }
+    pub const fn control(&self) -> execution::Control<'a> {
         self.control
     }
     pub fn work(&self) -> &execution::ServiceWork {

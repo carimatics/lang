@@ -1,0 +1,15 @@
+// Explicit C bindings/context are supplied by tests/c_abi.rs (imports::).
+extern "C" fn increment(value: i64) -> i64;
+extern "C" fn flag(value: bool) -> bool;
+extern "C" fn notify(value: core::Unit) -> core::Unit;
+extern "C" fn combine(a: i64, b: bool, c: core::Unit, d: i64, e: bool, f: i64, g: bool, h: i64, i: i64, j: bool, k: i64, l: bool) -> i64;
+
+fn main() -> i64 {
+    unsafe {
+        let mut notice: core::Unit = notify(core::Unit {});
+        if flag(true) {
+            return combine(3, true, core::Unit {}, 5, false, 7, true, 11, 13, true, 17, false);
+        }
+        return 0;
+    }
+}

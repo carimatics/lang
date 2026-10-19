@@ -274,6 +274,9 @@ impl<P: Provider> Allocator<P> {
     pub const fn identity(&self) -> Identity {
         self.id
     }
+    pub fn provider(&self) -> Option<&P> {
+        self.provider.as_ref()
+    }
     pub const fn stats(&self) -> Stats {
         self.stats
     }

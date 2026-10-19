@@ -12,6 +12,13 @@ mod validation;
 #[path = "support/c_context.rs"]
 mod context;
 
+#[cfg(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "windows", target_arch = "x86_64", target_env = "msvc")
+))]
+#[path = "support/c_imports.rs"]
+mod imports;
+
 fn source(text: &str) -> Box<OwnershipProgram> {
     let analysis = frontend::analyze_virtual(
         SourceMap::new(),

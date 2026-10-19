@@ -79,6 +79,16 @@ impl<'a> Control<'a> {
     pub const fn limits(self) -> Limits {
         self.limits
     }
+    pub fn same_configuration(self, other: Self) -> bool {
+        self.limits == other.limits
+            && self.service_work == other.service_work
+            && self.deadline == other.deadline
+            && match (self.interruption, other.interruption) {
+                (None, None) => true,
+                (Some(a), Some(b)) => std::ptr::eq(a, b),
+                _ => false,
+            }
+    }
     /// Apply embedding bounds without losing interruption, deadline or service
     /// configuration. A caller cannot relax the context's finite limits.
     pub fn constrained(mut self, bounds: Limits) -> Self {
@@ -150,6 +160,9 @@ struct ServiceCounter {
     suspended: Cell<bool>,
 }
 impl ServiceWork {
+    pub fn same_invocation(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
     pub fn new(limit: Option<u64>) -> Self {
         Self(Rc::new(ServiceCounter {
             control: Control::with_limits(Limits::unbounded()).and_service_work(limit),
@@ -226,7 +239,6 @@ pub struct UnsupportedServiceWork {
 /// Check the whole verified unit before effects; only completely metered
 /// operation families may participate in a finite-budget program.
 pub fn service_work_supported(flow: &lang_mir::unit::ownership::failure::Elaborated) -> bool {
-    use lang_mir::unit::ownership::{bodies::Op, core::Operation as C};
     if flow
         .source()
         .activity()
@@ -239,6 +251,14 @@ pub fn service_work_supported(flow: &lang_mir::unit::ownership::failure::Elabora
     {
         return false;
     }
+    service_work_supported_with_c_imports(flow)
+}
+/// The C entry additionally proves the supported import profile and meters its
+/// F10 copies/validation through the same invocation counter before effects.
+pub fn service_work_supported_with_c_imports(
+    flow: &lang_mir::unit::ownership::failure::Elaborated,
+) -> bool {
+    use lang_mir::unit::ownership::{bodies::Op, core::Operation as C};
     flow.source()
         .activity()
         .moved()

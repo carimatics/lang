@@ -26,6 +26,10 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
 };
 
+mod c_imports;
+use c_imports::ImportDispatcher;
+pub use c_imports::{CCompiledProgram, CEnvironment, CError};
+
 pub type ResultStep = Result<(), c::Cause>;
 
 /// Prepared host capacity for the instrumented ownership profile.
@@ -164,6 +168,12 @@ pub struct ArenaSite {
 /// A statically bound core intrinsic and its typed operands, not a MIR opcode
 /// stream. Trusted adapters must enforce allocator authority and configured
 /// byte-work admission before invoking allocation or scanning services.
+pub struct ImportSite {
+    pub import: m::ImportId,
+    pub arguments: Vec<usize>,
+    pub result: usize,
+    pub span: m::Span,
+}
 pub struct CoreSite {
     pub operation: o::core::Operation,
     pub type_arguments: Vec<o::Type>,
@@ -187,6 +197,17 @@ pub struct CoreSite {
 /// Check configured service-work support before guest ownership/effects using
 /// the shared Control guard and the canonical profile capability.
 pub trait Runtime {
+    /// C runtimes must describe the actual bound allocator, controls and shared
+    /// work counter they use. Returning None refuses the explicit C entry.
+    fn c_environment(&self) -> Option<&CEnvironment<'_>> {
+        None
+    }
+    fn c_usage(&self) -> Option<lang_runtime::execution::Usage> {
+        None
+    }
+    fn set_c_usage(&mut self, _: lang_runtime::execution::Usage) -> ResultStep {
+        missing()
+    }
     fn is_poisoned(&self) -> bool;
     fn enter(&mut self, layout: &FunctionLayout<'_>) -> ResultStep;
     fn charge(&mut self, span: m::Span) -> ResultStep;
@@ -326,6 +347,7 @@ pub const SERVICE_WORK_SUPPORTED: bool = true;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Reason {
+    Foreign(lang_runtime::c_abi::context::Fault),
     Poisoned,
     UnsupportedControl(UnsupportedControl),
     UnsupportedServiceWork(lang_runtime::execution::UnsupportedServiceWork),
@@ -342,7 +364,7 @@ pub struct Failure {
 }
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
-const HELPERS: usize = 33;
+const HELPERS: usize = 34;
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -370,6 +392,7 @@ enum Action {
     Replace,
     DiscardPrepared(b::PreparedPlaceId),
     Core,
+    Import,
     ArenaEnter,
 }
 #[derive(Clone, Copy)]
@@ -395,6 +418,7 @@ struct Node {
     prepared: Option<PreparedSite>,
     replace: Option<ReplaceSite>,
     core: Option<CoreSite>,
+    import: Option<ImportSite>,
     arena: Option<ArenaSite>,
 }
 
@@ -412,6 +436,7 @@ pub struct CompiledFunction<'a> {
 enum CompileScope {
     Function,
     Unit,
+    CUnit,
 }
 
 impl<'a> CompiledFunction<'a> {
@@ -452,7 +477,15 @@ impl<'a> CompiledFunction<'a> {
             JITBuilder::new(default_libcall_names()).map_err(backend)?,
         )));
         let module = owner.0.as_mut().expect("new module");
-        let (id, metadata) = emit(module, graph, &layout, &nodes, &continuations, &mut budget)?;
+        let (id, metadata) = emit(
+            module,
+            graph,
+            &layout,
+            &nodes,
+            &continuations,
+            &mut budget,
+            scope,
+        )?;
         module.finalize_definitions().map_err(backend)?;
         let code = module.get_finalized_function(id);
         let usage = m::Usage {
@@ -495,7 +528,7 @@ impl<'a> CompiledFunction<'a> {
     }
 
     pub fn invoke<R: Runtime>(&self, instance: &mut RuntimeInstance<R>) -> Result<(), Failure> {
-        run(self.entry(), None, instance)
+        run(self.entry(), None, instance, None)
     }
 }
 
@@ -512,7 +545,18 @@ impl<'a> CompiledProgram<'a> {
         limits: m::Limits,
         cells: usize,
     ) -> Result<Self, Error> {
-        reject_c_interface(flow)?;
+        Self::compile_scope(flow, layouts, limits, cells, CompileScope::Unit)
+    }
+    fn compile_scope(
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        limits: m::Limits,
+        cells: usize,
+        scope: CompileScope,
+    ) -> Result<Self, Error> {
+        if !matches!(scope, CompileScope::CUnit) {
+            reject_c_interface(flow)?;
+        }
         if flow.functions().is_empty() {
             return Err(Error::InvalidFunction(m::FunctionId(0)));
         }
@@ -534,7 +578,7 @@ impl<'a> CompiledProgram<'a> {
                 limits,
                 cells,
                 Some(usage),
-                CompileScope::Unit,
+                scope,
             )?;
             usage = function.usage;
             functions.push(function);
@@ -564,7 +608,7 @@ impl<'a> CompiledProgram<'a> {
             span: self.functions[0].function.nodes[0].span,
             panic_code: None,
         })?;
-        run(entry.entry(), Some(ProgramRef::Jit(self)), instance)
+        run(entry.entry(), Some(ProgramRef::Jit(self)), instance, None)
     }
 }
 
@@ -635,7 +679,7 @@ impl<'a, Image> LinkedProgram<'a, Image> {
             span: self.artifact.functions[0].nodes[0].span,
             panic_code: None,
         })?;
-        run(entry, Some(ProgramRef::Linked(self)), instance)
+        run(entry, Some(ProgramRef::Linked(self)), instance, None)
     }
 }
 
@@ -643,6 +687,7 @@ fn run<'c, 'a, R: Runtime>(
     entry: FunctionEntry<'c, 'a>,
     program: Option<ProgramRef<'c, 'a>>,
     instance: &'c mut RuntimeInstance<R>,
+    imports: Option<&'c mut dyn ImportDispatcher<R>>,
 ) -> Result<(), Failure> {
     let rejected = |reason| Failure {
         function: entry.layout.function,
@@ -668,6 +713,7 @@ fn run<'c, 'a, R: Runtime>(
         instance,
         fault: None,
         report_recorded: false,
+        imports,
     };
     let mut header = Header {
         data: (&mut context as *mut Invocation<'_, '_, R>).cast(),
@@ -705,6 +751,7 @@ fn run<'c, 'a, R: Runtime>(
             borrow_case::<R>,
             core_call::<R>,
             enter_arena::<R>,
+            import_call::<R>,
         ],
     };
     let mut continuation = 0;
@@ -962,6 +1009,7 @@ pub fn emit_object_for_target<'a>(
             &nodes,
             &continuations,
             &mut budget,
+            CompileScope::Unit,
         )?;
         usage = m::Usage {
             work: budget.work_used(),
@@ -1000,7 +1048,9 @@ fn prepare<'a>(
     prefix: Option<m::Usage>,
     scope: CompileScope,
 ) -> Result<Prepared<'a>, Error> {
-    reject_c_interface(flow)?;
+    if !matches!(scope, CompileScope::CUnit) {
+        reject_c_interface(flow)?;
+    }
     let layout = FunctionLayout::compile_after(flow, layouts, function, limits, cells, prefix)?;
     let body = &typed(flow).functions()[function.0 as usize];
     let unsupported = |span| Error::Unsupported { function, span };
@@ -1020,7 +1070,7 @@ fn prepare<'a>(
         .ok_or(Error::Layout(l::Error::Overflow))?;
     let mut continuations = budget.vector(capacity)?;
     continuations.push(graph.entry().0);
-    if matches!(scope, CompileScope::Unit) {
+    if matches!(scope, CompileScope::Unit | CompileScope::CUnit) {
         continuations.push(graph.failure().0);
     }
     for node in graph.nodes() {
@@ -1042,6 +1092,7 @@ fn prepare<'a>(
             prepared: None,
             replace: None,
             core: None,
+            import: None,
             arena: None,
         };
         match node.kind {
@@ -1304,6 +1355,24 @@ fn prepare<'a>(
                         });
                         Some(Action::Core)
                     }
+                    b::Op::Import { import, arguments } if matches!(scope, CompileScope::CUnit) => {
+                        if typed(flow).places().declarations().imports()[import.0 as usize].abi
+                            != o::declarations::ImportAbi::C
+                        {
+                            return Err(unsupported(i.span));
+                        }
+                        let mut operands = budget.vector(arguments.len())?;
+                        for argument in arguments {
+                            operands.push(value(*argument)?);
+                        }
+                        data.import = Some(ImportSite {
+                            import: *import,
+                            arguments: operands,
+                            result: value(i.results[0])?,
+                            span: i.span,
+                        });
+                        Some(Action::Import)
+                    }
                     b::Op::Record {
                         fields,
                         initialization_order,
@@ -1373,7 +1442,7 @@ fn prepare<'a>(
                     b::Op::Call {
                         function: callee,
                         arguments,
-                    } if matches!(scope, CompileScope::Unit) => {
+                    } if matches!(scope, CompileScope::Unit | CompileScope::CUnit) => {
                         let f::Kind::Execute { next, failure, .. } = node.kind else {
                             unreachable!()
                         };
@@ -1501,6 +1570,7 @@ struct Invocation<'c, 'a, R> {
     instance: &'c mut RuntimeInstance<R>,
     fault: Option<Failure>,
     report_recorded: bool,
+    imports: Option<&'c mut dyn ImportDispatcher<R>>,
 }
 impl<R: Runtime> Invocation<'_, '_, R> {
     fn note(&mut self, cause: c::Cause, span: m::Span) {
@@ -1777,6 +1847,21 @@ helper!(borrow_case, ctx, _a, _b, node, {
         )
     })
 });
+helper!(import_call, ctx, _a, _b, node, {
+    let mut imports = ctx.imports.take();
+    let result = ctx.apply(node, |runtime, compiled, _| {
+        let site = compiled.nodes[node as usize]
+            .import
+            .as_ref()
+            .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+        imports
+            .as_deref_mut()
+            .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?
+            .invoke(runtime, site)
+    });
+    ctx.imports = imports;
+    result
+});
 helper!(core_call, ctx, _a, _b, node, {
     ctx.apply(node, |r, p, _| {
         r.core_call(
@@ -1823,7 +1908,8 @@ helper!(record, ctx, _a, _b, node, {
         ctx.fault
             .and_then(|f| match f.reason {
                 Reason::Runtime(cause) => Some(cause),
-                Reason::Poisoned
+                Reason::Foreign(_)
+                | Reason::Poisoned
                 | Reason::UnsupportedControl(_)
                 | Reason::UnsupportedServiceWork(_) => None,
             })
@@ -1882,6 +1968,7 @@ fn emit<M: Module>(
     nodes: &[Node],
     continuations: &[u32],
     budget: &mut m::Budget,
+    scope: CompileScope,
 ) -> Result<(cranelift_module::FuncId, super::program::FunctionCode), Error> {
     let pointer = module.target_config().pointer_type();
     if pointer != types::I64 {
@@ -1897,12 +1984,14 @@ fn emit<M: Module>(
         .params
         .extend([AbiParam::new(types::I64); 4]);
     helper_signature.returns.push(AbiParam::new(types::I32));
+    let symbol = match scope {
+        CompileScope::CUnit => format!("lang_owned_r2_f{}", layout.function.0),
+        CompileScope::Function | CompileScope::Unit => {
+            format!("lang_owned_r1_f{}", layout.function.0)
+        }
+    };
     let id = module
-        .declare_function(
-            &format!("lang_owned_r1_f{}", layout.function.0),
-            Linkage::Export,
-            &signature,
-        )
+        .declare_function(&symbol, Linkage::Export, &signature)
         .map_err(backend)?;
     let mut context = module.make_context();
     context.func.signature = signature;
@@ -2004,6 +2093,7 @@ fn emit<M: Module>(
                         Action::Variant => Some((call!(19, 0, 0), next, failure)),
                         Action::PlaceLoad => Some((call!(25, 0, 0), next, failure)),
                         Action::Core => Some((call!(31, 0, 0), next, failure)),
+                        Action::Import => Some((call!(33, 0, 0), next, failure)),
                         Action::ArenaEnter => Some((call!(32, 0, 0), next, failure)),
                         Action::Borrow => Some((call!(24, 0, 0), next, failure)),
                         Action::EndBorrow(..) => Some((call!(26, 0, 0), next, failure)),
@@ -2224,7 +2314,7 @@ fn emit<M: Module>(
         id,
         super::program::FunctionCode {
             function: layout.function,
-            symbol: format!("lang_owned_r1_f{}", layout.function.0),
+            symbol,
             code_size: code.code_buffer().len(),
             source_ranges: ranges,
         },

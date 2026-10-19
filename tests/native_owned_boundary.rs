@@ -373,7 +373,8 @@ fn execute(
         fuel,
         failure: result.err().map(|f| match f.reason {
             n::Reason::Runtime(cause) => cause,
-            n::Reason::Poisoned
+            n::Reason::Foreign(_)
+            | n::Reason::Poisoned
             | n::Reason::UnsupportedControl(_)
             | n::Reason::UnsupportedServiceWork(_) => {
                 panic!("fresh admitted instance")

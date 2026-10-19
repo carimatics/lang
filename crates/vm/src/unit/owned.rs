@@ -16,6 +16,8 @@ use std::{
 };
 
 mod calls;
+mod foreign;
+pub use foreign::execute_entry_c;
 #[cfg(test)]
 mod failure_tests;
 mod profile;
@@ -29,6 +31,7 @@ pub const SERVICE_WORK_SUPPORTED: bool = true;
 
 #[derive(Debug)]
 pub enum Reason {
+    Foreign(lang_runtime::c_abi::context::Fault),
     UnsupportedCInterface,
     UnsupportedServiceWork(lang_runtime::execution::UnsupportedServiceWork),
     Entry,
