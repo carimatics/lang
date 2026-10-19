@@ -8,9 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**102 verified deliveries · 1 in progress · 17 remaining tasks (provisional 41 pt).**
+**103 verified deliveries · 0 in progress · 17 remaining tasks (provisional 39 pt).**
 
-F04 (`cfd0987`, 2026-10-19 JST) executes finite Copy C imports from source in VM/native, including nested sums and 256 mixed parameters. Full local baseline: 1,481 tests; fmt/Clippy/rustdoc pass. Next: F09 source drop (2 pt), then F13 source panic and its versioned encoding/contract decision (initial provisional 3 pt) before C export/factory integration. The readiness audit exposes 2 net additional points; the full accepted scope is retained. See the [delivery board](milestone-2.md) for current rows, evidence and the estimate ledger.
+F09 (`59f0f08`, 2026-10-19 JST) implements source drop with Copy preservation and immediate owner cleanup on VM/native and schema 2. Both named sources join the 33-source standalone matrix. Full local baseline: 1,486 tests; fmt/Clippy/rustdoc pass. Next: F13 source panic, with an explicit version/compatibility decision before new encoding/contracts, then C export/factory integration. The [delivery board](milestone-2.md) separates 2 pt exposed by the split from 2 pt retired by drop, so the remaining total stays 39 while deliveries increase.
 
 Original exit gates remain **7/18**; **50/113** is a historical gate-weight score, not an effort forecast. Raw C exports/objects, complete packaging, combined conformance, performance, debug and the final bilingual guide remain required.
 

@@ -6,29 +6,33 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**102 done · 1 doing · 17 todo · 41 remaining pt**
+**103 done · 0 doing · 17 todo · 39 remaining pt**
 
-**Next: M2-F09 → accepted source core::drop, with Copy/move/loan rules and VM/native cleanup (doing, 2 pt).**
+**Next: M2-F13 → decide versioned panic encoding/contracts, then execute accepted source panic on VM/native (provisional 3 pt).**
 
-| Working now | Latest completion | Required execution outcome |
+| Next delivery (not started) | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F09: source drop (2 pt) | F04: finite Copy C imports (cfd0987) | Immediate cleanup, Copy preservation and move/loan diagnostics on both backends |
+| F13: source panic and version decision (provisional 3 pt) | F09: source drop, 102 → 103 done, 41 → 39 pt (59f0f08) | Dynamic code, divergence, spans/stack and cleanup on VM/native |
 
-Last three: F02 (7d4fea7) → F11 (a37b053) → F04 (cfd0987). Original exit gates: **7/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+Last three: F11 (a37b053) → F04 (cfd0987) → F09 (59f0f08). Original exit gates: **7/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
 
-F04 delivery (2026-10-19 JST): cfd0987 executes finite Copy C imports through the actual context allocator in VM/native. Field-wise transfers cover records/empty records, enums, nested Option/Result/core errors, aggregate/scalar/Unit results and 256 mixed parameters. Named source returns 84. Invalid output/status, every finite fuel/work prefix and the first three allocation refusals preserve matching reports, usage, discarded results and balanced original deallocation. Baseline: **1,481 tests / 88 suites**, zero failures, one manual timing test ignored; **44 C ABI tests / 12.15s**, native **62 / 267.18s**; fmt, Clippy and rustdoc (**21.41s**) pass. Retire F04 **3 pt: 101 → 102 done, 42 → 39 pt**. **119 rows, +75 added pt unchanged; retired estimates 170 pt**. Original gates remain **7/18**. Raw C factory/export/object publication, packaging and combined owner/C conformance remain open.
+F09 delivery (2026-10-19 JST): 59f0f08 implements accepted source core::drop through existing DropValue/Unit primitives. Copy originals survive; owner moves, lexical loans and unsupported loan specializations keep their diagnostics. Bytes and last-strong/weak expiry sources return 42 on VM/native and through schema 2. Immediate retirement order, failed-cleanup consumption/secondaries and every finite fuel/work/provider refusal have fixtures. Both named sources join the shared standalone matrix: 33 source units / 66 direct/response executables. Baseline: **1,486 tests / 88 suites**, zero failures, one manual timing test ignored; native **64 / 267.49s**; **44 C ABI tests**, fmt/Clippy/rustdoc (**18.25s**) pass. Retire F09 **2 pt: 102 → 103 done, 41 → 39 pt**. **120 rows and +77 added pt unchanged; retired estimates 172 pt**. Since F04, splitting exposed 2 pt and drop retired 2; the remaining total is therefore unchanged while a source feature shipped. Original gates remain **7/18**. Source panic and its versioned contract/encoding decision remain F13.
 
 <details>
 <summary>Remaining FFI integration</summary>
 
-F09/F13 readiness audit (2026-10-19 JST): source core::drop/panic are not recognized. Existing MIR DropValue and Unit can implement drop without a format change, but ownership Term has no explicit panic and schema 2's instruction/core tables are closed. Split the old provisional 3 pt into F09 drop (2 pt, doing) and F13 panic (initial 3 pt, provisional), including a recorded version/compatibility decision before new panic encoding/native contracts. Retain source divergence, dynamic i64 code/spans/stack and cleanup on VM/native; do not disguise panic as an unrelated unwrap or append unversioned tags. F05 depends on both. This changes 119 → 120 rows, 39 → 41 remaining pt and net additions 75 → 77; retired estimates stay 170. No original requirement is removed.
-
-Remaining FFI audit (2026-10-19 JST): F04 completes typed import transfer. F09 must expose accepted source drop/panic before F05's raw descriptor copies, context factories/error queries/destroy, export wrappers and C-aware object publication. Make that original scope explicit in F05; its 3 pt remain provisional until a real export/factory readiness experiment, not a validated forecast. Preserve F06/F07 target evidence, P02 clean packaging and Q01/Q02 combined managed-owner/C conformance. Z01 now explicitly depends on V17's outstanding indirect previews. No estimate or original outcome is removed.
+Remaining FFI audit (2026-10-19 JST): F09 source drop and F04 typed imports are complete. F13 still requires accepted source panic typing/divergence, dynamic i64 code, original spans/stack and VM/native cleanup, with an explicit version/compatibility decision before encoding or native contract changes. Its initial 3 pt stay provisional until that experiment. Preserve F05 raw descriptor copies/context factories/error queries/destroy, export wrappers and C-aware object publication, F06/F07 target evidence, P02 clean packaging, Q01/Q02 combined owner/C conformance and V17 indirect previews before Z01. No original outcome is removed.
 
 </details>
 
 <details>
 <summary>Historical deliveries, scope audits and validation records</summary>
+
+F04 Windows follow-up (2026-10-19 JST): run 39239925813 at 96593d5 stopped with 43/44 C ABI tests passing; the failure fixture generated two terminal returns and MSVC C4702 under /WX. Fix 876b908 emits one return and enables -Wunreachable-code on macOS. [Full follow-up run 39247826059](https://github.com/carimatics/lang/actions/runs/39247826059), head 876b908, job 118043984510, completed successfully, including fmt/Clippy/tests/docs and the prototype benchmark. This proves F04's typed scalar/aggregate import snapshot, not F09 source drop or F07's complete C export/platform gate.
+
+F09/F13 readiness audit (2026-10-19 JST): source core::drop/panic are not recognized. Existing MIR DropValue and Unit can implement drop without a format change, but ownership Term has no explicit panic and schema 2's instruction/core tables are closed. Split the old provisional 3 pt into F09 drop (2 pt, doing) and F13 panic (initial 3 pt, provisional), including a recorded version/compatibility decision before new panic encoding/native contracts. Retain source divergence, dynamic i64 code/spans/stack and cleanup on VM/native; do not disguise panic as an unrelated unwrap or append unversioned tags. F05 depends on both. This changes 119 → 120 rows, 39 → 41 remaining pt and net additions 75 → 77; retired estimates stay 170. No original requirement is removed.
+
+F04 delivery (2026-10-19 JST): cfd0987 executes finite Copy C imports through the actual context allocator in VM/native. Field-wise transfers cover records/empty records, enums, nested Option/Result/core errors, aggregate/scalar/Unit results and 256 mixed parameters. Named source returns 84. Invalid output/status, every finite fuel/work prefix and the first three allocation refusals preserve matching reports, usage, discarded results and balanced original deallocation. Baseline: **1,481 tests / 88 suites**, zero failures, one manual timing test ignored; **44 C ABI tests / 12.15s**, native **62 / 267.18s**; fmt, Clippy and rustdoc (**21.41s**) pass. Retire F04 **3 pt: 101 → 102 done, 42 → 39 pt**. **119 rows, +75 added pt unchanged; retired estimates 170 pt**. Original gates remain **7/18**. Raw C factory/export/object publication, packaging and combined owner/C conformance remain open.
 
 F11 Windows evidence (2026-10-19 JST): [full run 39234763047](https://github.com/carimatics/lang/actions/runs/39234763047), head 1a8fcad, job 118001054052, completed successfully. This proves the F11/revision-2 scalar source snapshot, not F04 aggregates or the remaining F07/platform gate.
 
@@ -105,15 +109,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 102 (+67)**, and the task inventory increased **87 → 120 (+33)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 103 (+68)**, and the task inventory increased **87 → 120 (+33)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +77 pt | −170 pt | 41 pt |
+| 134 pt | +77 pt | −172 pt | 39 pt |
 
-**134 + 77 − 170 = 41 pt**
+**134 + 77 − 172 = 39 pt**
 
-This separates delivered work from newly recognized work: completion retired 170 estimated points, while exposed prerequisites and re-estimation added 77. These are planning units, not hours or measured actual effort. The remaining 41 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 172 estimated points, while exposed prerequisites and re-estimation added 77. These are planning units, not hours or measured actual effort. The remaining 39 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -148,7 +152,7 @@ S01 decision audit (2026-10-18 JST): RFC 0009 selects three finite core calls us
 
 - Select one row before implementation and mark it `doing`; keep at most one doing row. A row has one observable outcome and 1–3 remaining points. Split it before starting if that outcome is larger or its prerequisites are unknown.
 - If planning produces no patch or executable experiment within 10 minutes, narrow the task and run the smallest useful experiment before extending the design. Add abstractions and hardening only when the selected outcome or accepted requirements need them. Record validation duration when available; commit intervals are not work-time measurements.
-- F04 executes finite Copy C imports. Next deliver F09 source drop/panic before export/factory integration; expose prerequisites with an executable experiment and a remaining-work audit.
+- F09 executes accepted source drop. Next decide F13 versioned panic representation and execute a real panic source before C export/factory integration; expose new prerequisites with an executable experiment and remaining-work audit.
 - Done requires a commit for the row's outcome (implementation or an explicitly planned design decision) and focused validation evidence. Add the commit in the next planning update when it cannot be referenced in its own commit. Keep work-in-progress honest until that evidence exists. Update this board after every delivery; do not wait for an exit gate.
 - Run focused checks first and the required full baseline once for a coherent code delivery. Documentation-only follow-ups run repository consistency checks; repeat broader checks only for new code, failures, or unresolved concerns. Keep the implementation/roadmap commit sequence, but replace repetitive narrative appends with row updates. Append an audit only when scope, estimates, dependencies or an exit decision changes.
 - After two consecutive prerequisite deliveries without a new source execution fixture, stop expanding the foundation and review the next vertical slice. Report the concrete blocker and remaining task, not a generic claim that estimates remain appropriate.
@@ -270,7 +274,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-A03 | done | 0 | M2-A02 | G16 | Load, independently verify and execute owned source artifacts; round-trip behavior agrees. | `2dfea13` |
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | Parse/format accepted C imports/exports and unsafe blocks losslessly, diagnose reserved names, preserve limits and reject unfinished semantic admission. | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | `819ee7c` |
-| M2-F09 | doing | 2 | M2-F01,M2-N07 | G08,G11,G12 | Implement accepted source core::drop typing, Copy/move/loan rules and immediate VM/native cleanup using existing MIR. | — |
+| M2-F09 | done | 0 | M2-F01,M2-N07 | G08,G11,G12 | Implement accepted source core::drop typing, Copy/move/loan rules and immediate VM/native cleanup using existing MIR. | `59f0f08` |
 | M2-F13 | todo | 3 | M2-F09 | G08,G11,G12 | Decide versioned panic encoding/contracts, then implement accepted source core::panic typing/divergence, dynamic code/spans/stack and VM/native cleanup. | — |
 | M2-F10 | done | 0 | M2-F03 | G11,G12 | Preflight C addresses/canonical values without reading padding; reject alignment/extent/overlap and unknown tags/noncanonical bytes before effects, with shared work accounting and failure fixtures. | `5108069` |
 | M2-F02 | done | 0 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | `7d4fea7` |
@@ -318,6 +322,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
 
 ## Sources and verification dates
+
+- [Source drop](../examples/analysis/explicit_drop.lang), [shared/weak expiry](../examples/analysis/explicit_drop_shared.lang), [lowering](../crates/semantics/src/ownership_types/bodies/matching.rs) and [VM/native fixtures](../tests/support/native_drop.rs) (`59f0f08`): updated/verified 2026-10-19 JST. Full local baseline above; source panic/versioning and F09 Windows remain open.
 
 - [F04 finite Copy transfers](../crates/runtime/src/c_abi/transfer.rs), [named source](../examples/analysis/c_aggregate_imports.lang) and [real C fixtures](../tests/support/c_imports.rs) (`cfd0987`): updated/verified 2026-10-19 JST. Full local baseline above; F04 Windows and complete raw C exports remain unverified.
 
