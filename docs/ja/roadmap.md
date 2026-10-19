@@ -8,7 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み99件 · 進行中0件 · 残り19件（暫定44 pt）。**
+**検証済み99件 · 進行中1件 · 残り18件（暫定44 pt）。**
+
+F02の作業範囲（2026-10-19 JST）：F03／F10を共通context gateへ接続します。Version／size／flags／count／name／digest／grant／limitを要求全体で検証してから必要なsnapshotを所有し、callbackを許可します。Function pointerの型とcaller user-contextのlifetime義務を保ちます。ABI digestだけでなく、保持したcode ownerと個別allocator instanceへcontextを結び付けます。既存cleanup Instanceと実行制御を使い、poison／再入、foreign status／panic containment、error summaryのcopyを扱い、importとexport受入れ／result検査へF10を強制します。Raw C descriptor read、型付きpointer復元、実VM／native call adapter、standalone support公開はF04／F05に維持し、F06／F07で実platform検証を行います。F02を残り **2点** でdoingとし、**99 done / 1 doing / 18 todo / 44 pt**、118行と見積り収支は不変です。
 
 F10完了（2026-10-19 JST）：5108069でF03 metadataを使ったpadding安全なC value／address事前検査を完成しました。入力read前にargument／result／context全体のshape、null／alignment／extent／overflow、output overlapを検証します。Readerは初期化済みfield／tag／reserved／unused unionだけを要求し、実C address／lifetimeの有効性はtrusted caller／adapterの義務を維持します。実union extentからenum末尾paddingを除外しunionの丸めを含め、生成C headerでも独立にassertします。正規tag zeroは受理し、未知tag、非正規bool／Unit／reserved／unused byteを拒否します。Padding readを禁止するReader、全address検査後のread、const inputのoverlap、output拒否、共有work、interruption／deadline／read failureを新規10 fixtureで検証しました。最終検証：1,455 tests / 88 suites, zero failures, one manual timing test ignored; native 62 in 265.39s。Fmt／Clippy／rustdocも成功です。**F02から配分した1点** をF10完了で取り除き、**98 → 99 done、45 → 44 pt** とします。118行と追加72点は不変で、完了で取り除いた点数は **162点** です。従来gateは **7/18** のままです。F02にはcontext／config／bindings／provenance／capability／poison／再入／callback containmentを残り2点で維持し、F04／F05で実VM／native C adapterにこの事前検査を強制します。統合まではC unit全体の実行／object／schema 2拒否を保ちます。
 

@@ -6,9 +6,25 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**99 done · 0 doing · 19 todo · 44 remaining pt**
+**99 done · 1 doing · 18 todo · 44 remaining pt**
 
 **Next: M2-F02 → connect complete C configuration/binding/provenance/capability and poison/reentry/callback containment to F10 preflight (remaining 2 pt from initial 3).**
+
+| Working now | Latest completion | Next execution outcome |
+| --- | --- | --- |
+| F02: complete C context preflight and failure containment (2 pt) | F10: padding-safe C values, 98 → 99 done, 45 → 44 pt (5108069) | F04: real C import calls, integrated after F02 |
+ 
+Last three: F01 (819ee7c) → F03 (dee7f34) → F10 (5108069). Original exit gates: **7/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+
+<details>
+<summary>Current F02 scope</summary>
+
+F02 active scope (2026-10-19 JST): consume F03/F10 through a shared context gate. Validate complete version/size/flags/count/name/digest/grant/limit requests before retaining owned snapshots or permitting callbacks; preserve typed function pointers and caller user-context lifetime obligations. Tie each context to a retained code owner and distinct allocator instance, rather than ABI digest alone. Use the existing cleanup Instance and execution controls for poison, reentry, foreign-status/panic containment and copied error summaries; enforce F10 on imports and export admission/result checks. Raw C descriptor reads, typed pointer restoration, real VM/native call adapters and standalone support publication remain mandatory F04/F05 integration, with actual platform evidence in F06/F07. F02 is doing at its remaining **2 pt**; **99 done / 1 doing / 18 todo / 44 pt**, 118 rows and the estimate ledger are unchanged.
+
+</details>
+
+<details>
+<summary>Historical deliveries, scope audits and validation records</summary>
 
 F10 delivery (2026-10-19 JST): 5108069 completes padding-safe C value/address preflight using F03 metadata. All argument/result/context shapes, null/alignment/extent/overflow and output overlap checks precede input reads. The Reader requests only initialized field/tag/reserved/unused-union bytes; actual C address/lifetime validity remains the trusted caller/adapter obligation. Actual union extent excludes enum tail padding and includes union rounding, independently asserted by generated C headers. Canonical tag zero is accepted; unknown tags and noncanonical bool/unit/reserved/unused bytes are rejected. Ten new access/control fixtures include forbidden-padding readers, full-address-before-read refusal, const input overlap, output refusal, shared work, interruption/deadline and read failures. Final baseline: 1,455 tests / 88 suites, zero failures, one manual timing test ignored; native 62 in 265.39s; fmt/Clippy/rustdoc pass. F10 retires its **1 pt allocated from F02**: **98 → 99 done, 45 → 44 pt**; 118 rows and added estimates 72 pt are unchanged, retired estimates **162 pt**. Original gates remain **7/18**. F02 retains its remaining 2 pt for complete context/config/bindings/provenance/capability/poison/reentry/callback containment; F04/F05 must enforce this preflight in actual VM/native C adapters. Whole-C execution/object/schema-2 refusal remains until that integration.
 
@@ -54,7 +70,7 @@ N03 estimate/dependency audit (2026-10-19 JST): borrowed/consumed keys, displace
 
 N12 estimate/dependency audit (2026-10-19 JST): initial native targets covered frame cells and allocator authority. Vector-backed projections/mutation/replacement and nested cleanup required re-estimating N12 **1 → 3 pt before implementation**: **59 → 61 pt**, net additions **49 → 51 pt**. The initial source returned VM 9 and native Unsupported; it now passes natively. N12 completes its last 3-point estimate, **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 as well as N02/N11/V08, preserving all accepted service/payload combinations, ordered exits and configured byte-work admission.
 
-**Latest delivery — N16** (`06c8e1d`, 2026-10-19 JST): shared Control configuration, Usage counter, checked atomic batches, structured numeric failure and common conversion are implemented. Four runtime tests cover exact/overflow/batch refusal, unchanged polling/fuel and primary numeric details through mandatory cleanup/secondaries. Entry/preview/native finite limits 0/1/u64::MAX reject with no provider effects or usage while services remain unmetered. All **85 suites / 1385 tests**, fmt, Clippy and docs pass. Service event wiring remains N05.
+**Historical delivery — N16** (`06c8e1d`, 2026-10-19 JST): shared Control configuration, Usage counter, checked atomic batches, structured numeric failure and common conversion are implemented. Four runtime tests cover exact/overflow/batch refusal, unchanged polling/fuel and primary numeric details through mandatory cleanup/secondaries. Entry/preview/native finite limits 0/1/u64::MAX reject with no provider effects or usage while services remain unmetered. All **85 suites / 1385 tests**, fmt, Clippy and docs pass. Service event wiring remains N05.
 
 N16 validation observations: four focused runtime tests report 0.00 s; profile preflight test 0.15 s; all-feature native suite 52 tests / 11.25 s. Full-suite Cargo compilation 61 s, summed test-reported time 88.29 s, log creation-to-last-write interval 752.13 s; Clippy 68 s; docs 28.71 s. Validation intervals do not measure active work time.
 
@@ -63,6 +79,8 @@ N17 validation observations: Focused runtime tests 3 / 0.00 s; finite-buffer pre
 N07 local validation observations (2026-10-19 JST): macOS baseline 1,415 tests / 87 suites passes, native 61 / 255.64 s, one timing-only test ignored. Full-test wall time 337.35 s, Cargo compilation 0.60 s, summed suites 334.29 s. Clippy wall time 1.33 s; rustdoc 10.46 s; linked-image probe 1 / 2.48 s. These are local validation durations, not Windows evidence, active working time or runtime benchmarks. Planning-only changes run repository_consistency.
 
 N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windows whole-workflow success](https://github.com/carimatics/lang/actions/runs/39007443435), head 88325a5, updated 2026-10-17 05:54:49 UTC, predates the owned standalone matrix. It was not used to close N07; the current implementation 9589022 native Test evidence inspected above supplies that outcome.
+
+</details>
 
 ## Progress and estimate changes
 
@@ -233,7 +251,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | `819ee7c` |
 | M2-F09 | todo | 3 | M2-F01,M2-N07 | G08,G11,G12 | Implement accepted core::drop/panic source typing/divergence and move/loan rules; verify VM/native cleanup and panic code/spans using source fixtures. | — |
 | M2-F10 | done | 0 | M2-F03 | G11,G12 | Preflight C addresses/canonical values without reading padding; reject alignment/extent/overlap and unknown tags/noncanonical bytes before effects, with shared work accounting and failure fixtures. | `5108069` |
-| M2-F02 | todo | 2 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
+| M2-F02 | doing | 2 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
 | M2-F03 | done | 0 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | `dee7f34` |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
 | M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exports return accepted statuses/results and contain nested cleanup failures. | — |

@@ -6,9 +6,25 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**99 done · 0 doing · 19 todo · 44 remaining pt**
+**99 done · 1 doing · 18 todo · 44 remaining pt**
 
 **次: M2-F02 → C config／binding／provenance／capabilityとpoison／再入／callback containmentをF10検査へ接続します（初期3点のうち残り2点）。**
+
+| 現在の作業 | 直近の完了 | 次の実行成果 |
+| --- | --- | --- |
+| F02：C context全体の事前検査・failure containment（2 pt） | F10：padding安全なC値検査、98 → 99件、45 → 44 pt（5108069） | F04：実C import呼出し。F02の後に統合する |
+ 
+直近3件：F01（819ee7c）→ F03（dee7f34）→ F10（5108069）。従来の完了条件は **7/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
+
+<details>
+<summary>現在のF02作業範囲</summary>
+
+F02の作業範囲（2026-10-19 JST）：F03／F10を共通context gateへ接続します。Version／size／flags／count／name／digest／grant／limitを要求全体で検証してから必要なsnapshotを所有し、callbackを許可します。Function pointerの型とcaller user-contextのlifetime義務を保ちます。ABI digestだけでなく、保持したcode ownerと個別allocator instanceへcontextを結び付けます。既存cleanup Instanceと実行制御を使い、poison／再入、foreign status／panic containment、error summaryのcopyを扱い、importとexport受入れ／result検査へF10を強制します。Raw C descriptor read、型付きpointer復元、実VM／native call adapter、standalone support公開はF04／F05に維持し、F06／F07で実platform検証を行います。F02を残り **2点** でdoingとし、**99 done / 1 doing / 18 todo / 44 pt**、118行と見積り収支は不変です。
+
+</details>
+
+<details>
+<summary>過去の成果・範囲監査・検証記録</summary>
 
 F10完了（2026-10-19 JST）：5108069でF03 metadataを使ったpadding安全なC value／address事前検査を完成しました。入力read前にargument／result／context全体のshape、null／alignment／extent／overflow、output overlapを検証します。Readerは初期化済みfield／tag／reserved／unused unionだけを要求し、実C address／lifetimeの有効性はtrusted caller／adapterの義務を維持します。実union extentからenum末尾paddingを除外しunionの丸めを含め、生成C headerでも独立にassertします。正規tag zeroは受理し、未知tag、非正規bool／Unit／reserved／unused byteを拒否します。Padding readを禁止するReader、全address検査後のread、const inputのoverlap、output拒否、共有work、interruption／deadline／read failureを新規10 fixtureで検証しました。最終検証：1,455 tests / 88 suites, zero failures, one manual timing test ignored; native 62 in 265.39s。Fmt／Clippy／rustdocも成功です。**F02から配分した1点** をF10完了で取り除き、**98 → 99 done、45 → 44 pt** とします。118行と追加72点は不変で、完了で取り除いた点数は **162点** です。従来gateは **7/18** のままです。F02にはcontext／config／bindings／provenance／capability／poison／再入／callback containmentを残り2点で維持し、F04／F05で実VM／native C adapterにこの事前検査を強制します。統合まではC unit全体の実行／object／schema 2拒否を保ちます。
 
@@ -63,6 +79,8 @@ N17検証実測：Focused runtime 3件／0.00秒、有限buffer予算prefix 1件
 N07のローカル検証実測（2026-10-19 JST）：macOS baselineは1,415 test／87 suite成功、native 61件／255.64秒、計測専用1件ignore。全test実時間337.35秒、Cargo compile 0.60秒、suite報告時間合計334.29秒。Clippy実時間1.33秒、rustdoc 10.46秒、linked-image probe 1件／2.48秒。ローカル検証の時間で、Windows証拠・実作業時間・runtime benchmarkではありません。Planのみの変更はrepository_consistencyで検証します。
 
 N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全workflow成功run](https://github.com/carimatics/lang/actions/runs/39007443435)はhead 88325a5、最終更新2026-10-17 05:54:49 UTCで、owned standalone matrix以前でした。この旧runをN07完了の証拠には使わず、上記の現行実装9589022のnative Test実行を確認して完了としました。
+
+</details>
 
 ## 進捗と見積もり変更
 
@@ -233,7 +251,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | `819ee7c` |
 | M2-F09 | todo | 3 | M2-F01,M2-N07 | G08,G11,G12 | 受理済みcore::drop／panicのsource型検査・発散・move／loan規則を実装し、VM／nativeのcleanupとpanic code／spanをsource fixtureで検証。 | — |
 | M2-F10 | done | 0 | M2-F03 | G11,G12 | C address／正規value検査でpaddingを読まず、alignment／extent／overlapと未知tag／非正規byteを作用前に拒否し、共有work計上とfailure fixtureを保つ。 | `5108069` |
-| M2-F02 | todo | 2 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
+| M2-F02 | doing | 2 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
 | M2-F03 | done | 0 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | `dee7f34` |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
 | M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exportで規定status／resultを返し、入れ子cleanup failureをcontain。 | — |
