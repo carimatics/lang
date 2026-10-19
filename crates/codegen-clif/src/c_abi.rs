@@ -2,5 +2,6 @@
 //! validity and callback code/user lifetimes are trusted embedding contracts;
 //! the common runtime performs descriptor, capability and value validation.
 pub mod allocator;
+pub mod context;
 mod padding;
 pub mod scalar;

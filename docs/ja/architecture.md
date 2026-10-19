@@ -8,6 +8,8 @@
 
 明示的panic拡張（2026-10-19）：[RFC 0014](rfcs/0014-explicit-source-panic.md)は、Unreachable blockの最終命令として、結果なし・i64 code付きのPanicを追加します。ソースの非復帰はTを捏造せず後続評価を省きます。既存failure elaborationがVM／nativeの必須cleanupを実行します。この命令を含むunitだけがschema 3とprivate native revision 3（helper 34）を選び、それ以外ではschema 2、通常revision 1、C対応revision 2を維持します。packetとhelper prefix 0–33の契約は不変です。C serialization拒否と明示的capability／context gateも引き続き適用します。
 
+Raw C context support（2026-10-19）：native context adapterはheader／address検査後にprofile 1 descriptorのfieldを読み、署名／grant／limit全体の検査と所有snapshotを共有Program／Context gateへ委ねます。生成support入口は実Program登録を捕捉してcodeの借用を保持し、成功時だけopaque host boxを公開します。Queryはoutputの非重複を検査して整数summaryをコピーします。受け入れたdestroyはbox解放前に失効させ、別Programと再入では消費を拒否します。参照先C objectの実際の有効性、owner thread上の同期呼び出し、code／user寿命はcallerの責任です。既存RFC 0008のsupport surfaceを実装し、layout／digest／statusとownership continuation helperは変更しません。Guest export実行・実C allocator／runtime接続・C対応object公開はF05に維持します。
+
 ## 目標
 
 - WindowsとmacOSでのnative性能と低レベル制御。

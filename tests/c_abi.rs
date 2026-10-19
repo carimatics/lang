@@ -12,6 +12,9 @@ mod validation;
 #[path = "support/c_context.rs"]
 mod context;
 
+#[path = "support/c_exports.rs"]
+mod exports;
+
 #[cfg(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "windows", target_arch = "x86_64", target_env = "msvc")

@@ -10,6 +10,8 @@
 
 明示的なsource panic（2026-10-19）：RFC 0008の`core::panic::<T>(code: i64)`は復帰せず、符号付きcode、元の呼び出しspan、guest stack、owner cleanupをVM／nativeで保持します。[例](examples/analysis/explicit_panic_owned.lang)と[version付き契約](docs/ja/rfcs/0014-explicit-source-panic.md)を参照してください。明示的panicを含むartifact unitはownership schema 3、従来のownership unitはschema 2を使います。引き続き実験的な実装です。
 
+Raw C context support（2026-10-19）：Rust埋め込みAPIの`lang_codegen_clif::c_abi::context::ContextSupport`は、登録済みProgram向けのprofile 1 create／destroy／last_error symbolを生成します。実C callerでdescriptorをコピーしたopaque contextを作成し、整数のerror summaryを照会・破棄できます。すべての呼び出しとcontext破棄が終わるまでsupport・登録code・allocator・callback user dataを保持してください。Source export実行とC対応object公開はF05です。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

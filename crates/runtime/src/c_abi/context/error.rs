@@ -132,7 +132,10 @@ impl Fault {
         self.poison |= later.poisons();
         self
     }
-    pub(super) fn host_panic(payload: Box<dyn std::any::Any + Send>) -> Self {
+    /// Contain a trusted adapter's caught host panic, including a bounded
+    /// secondary panic from dropping its payload. Propagate this fault through
+    /// the context gate so the current instance retains its poison state.
+    pub fn host_panic(payload: Box<dyn std::any::Any + Send>) -> Self {
         let mut fault = Self::new(Kind::HostPanic);
         // A malicious panic payload can panic in Drop. Never recursively drop
         // the second panic payload; preserve the primary and bound containment.

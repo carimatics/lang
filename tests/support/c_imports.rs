@@ -127,8 +127,14 @@ fn c_copy_fields(
         }
     }
 }
+#[path = "c_context_native.rs"]
+mod context_support;
+
 impl Library {
     fn new(artifact: &Artifact) -> Self {
+        Self::with_extra(artifact, "")
+    }
+    fn with_extra(artifact: &Artifact, extra: &str) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let directory = std::env::temp_dir().join(format!(
             "lang-c-imports-{}-{}",
@@ -241,8 +247,13 @@ impl Library {
                 _ => {}
             }
         }
+        code.push_str(extra);
         let mut checks = String::new();
-        for function in artifact.functions() {
+        for function in artifact
+            .functions()
+            .iter()
+            .filter(|function| function.direction == lang_runtime::c_abi::Direction::Import)
+        {
             let name = function.name.rsplit("::").next().unwrap();
             checks.push_str(&format!(
                 "lang_callback_{} check_{name} = c_{name};\n",
@@ -650,6 +661,7 @@ fn bindings<'a>(artifact: &'a Artifact, library: &Library, stats: &Stats) -> Vec
     artifact
         .functions()
         .iter()
+        .filter(|function| function.direction == lang_runtime::c_abi::Direction::Import)
         .map(|function| Binding {
             version: 1,
             size: 80,

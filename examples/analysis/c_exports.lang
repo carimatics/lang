@@ -1,0 +1,7 @@
+pub extern "C" fn increment(value: i64) -> i64 {
+    return value + 1;
+}
+
+pub extern "C" fn fail(code: i64) -> i64 {
+    return core::panic::<i64>(code);
+}

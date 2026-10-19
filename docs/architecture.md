@@ -8,6 +8,8 @@ Status: **accepted design baseline** under RFCs 0001–0005 (2026-10-17), with i
 
 Explicit panic extension (2026-10-19): [RFC 0014](rfcs/0014-explicit-source-panic.md) adds result-free, i64-coded Panic as the last instruction of an Unreachable block. Source divergence omits subsequent evaluation without fabricating T. Existing failure elaboration drives mandatory cleanup on VM/native. Only units containing this instruction select schema 3 and private native revision 3 (helper 34); schema 2, ordinary revision 1 and C-aware revision 2 remain unchanged for other units. The packets and helper prefix 0–33 retain their contracts. C serialization refusals and explicit capability/context gates remain in force.
 
+Raw C context support (2026-10-19): the native context adapter reads profile-1 descriptor fields after header/address preflight, then delegates complete signatures/grants/limits and owned snapshots to the shared Program/Context gate. Generated support entries capture the actual Program registration, retain the code borrow and publish an opaque host box only on success. Query validates disjoint output before copying an integer summary. Admitted destroy revokes before releasing the box; wrong Program and reentry refuse consumption. Actual pointed-to C object validity, synchronous owner-thread calls and code/user lifetime remain caller obligations. This implements the existing RFC 0008 support surface without changing its layouts/digests/statuses or ownership continuation helpers. F05 retains guest export execution, actual C allocator/runtime wiring and C-aware object publication.
+
 ## Goals
 
 - Native performance and low-level control on Windows and macOS.

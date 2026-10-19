@@ -10,6 +10,8 @@ The project is currently defining semantics and validating architecture. There i
 
 Explicit source panic (2026-10-19): RFC 0008's `core::panic::<T>(code: i64)` never returns and preserves the signed code, original call span, guest stack and owner cleanup across VM/native execution. See the [example](examples/analysis/explicit_panic_owned.lang) and [versioned contract](docs/rfcs/0014-explicit-source-panic.md). Artifact units containing explicit panic use ownership schema 3; older ownership units retain schema 2. This remains experimental.
 
+Raw C context support (2026-10-19): the Rust embedding API `lang_codegen_clif::c_abi::context::ContextSupport` generates the profile-1 create/destroy/last_error symbols for a registered Program. An actual C caller can create an opaque context from copied descriptors, query its integer error summary and destroy it. Keep the support, registered code, allocator and callback user data alive through all calls and context destruction. Source export execution and C-aware object publication remain F05.
+
 ## Vision
 
 The language should combine:
