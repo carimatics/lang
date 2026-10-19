@@ -290,61 +290,69 @@ fn c_object_binding_refuses_every_missing_symbol_and_wrong_target_before_publica
 }
 
 #[test]
-fn linked_c_object_round_trips_every_finite_copy_case_and_scalar_extreme() {
+fn persisted_c_object_round_trips_every_finite_copy_case_and_scalar_extreme() {
     let text = include_str!("../../examples/analysis/c_copy_export_matrix.lang");
-    let owner = source(text);
-    let types = owner
-        .mir()
+    let records::Stored {
+        decoded,
+        record,
+        library,
+    } = records::stored(
+        text,
+        |artifact| {
+            let index = artifact
+                .functions()
+                .iter()
+                .position(|f| f.name == "roundtrip")
+                .unwrap();
+            let id = artifact.functions()[index].result;
+            let variants = super::super::copy_cases::cases(artifact, id, "input");
+            assert!(
+                variants.len() > 50,
+                "all nested sum cases, not just the default path"
+            );
+            let mut body = String::new();
+            for (index, value) in variants.iter().enumerate() {
+                body.push_str(&format!("memset(&input, 0, sizeof(input)); {value} if (entry(context, &input, &output) != 0 || memcmp(&input, &output, sizeof(input))) return {};\n", 1000+index));
+            }
+            let extra = format!(
+                r#"
+        typedef uint32_t (*fixture_create)(const lang_program_config *, lang_context **);
+        typedef uint32_t (*fixture_destroy)(lang_context *);
+        typedef uint32_t (*fixture_copy)(lang_context *, const lang_type_{digest} *, lang_type_{digest} *);
+        EXPORT uint32_t c_copy_matrix(fixture_create create, fixture_destroy destroy, fixture_copy entry, const lang_program_config *config) {{
+            lang_context *context = NULL;
+            lang_type_{digest} input;
+            lang_type_{digest} output;
+            if (create(config, &context) != 0) return 91;
+            {body}
+            if (destroy(context) != 0) return 92;
+            return 0;
+        }}
+        "#,
+                digest = artifact.types()[id.0].digest
+            );
+            extra
+        },
+        true,
+    );
+    let flow = decoded.flow();
+    let declarations = flow
+        .source()
         .activity()
         .moved()
         .typed()
         .places()
-        .declarations()
-        .types();
-    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
-    let artifact = artifact(text, target(), Limits::default()).unwrap();
+        .declarations();
+    let layouts = l::Layouts::compile(declarations.types(), Default::default()).unwrap();
+    let artifact = Artifact::compile(declarations, target(), Default::default()).unwrap();
     let index = artifact
         .functions()
         .iter()
         .position(|f| f.name == "roundtrip")
         .unwrap();
-    let id = artifact.functions()[index].result;
-    let variants = super::super::copy_cases::cases(&artifact, id, "input");
-    assert!(
-        variants.len() > 50,
-        "all nested sum cases, not just the default path"
-    );
-    let mut body = String::new();
-    for (index, value) in variants.iter().enumerate() {
-        body.push_str(&format!("memset(&input, 0, sizeof(input)); {value} if (entry(context, &input, &output) != 0 || memcmp(&input, &output, sizeof(input))) return {};\n", 1000+index));
-    }
-    let extra = format!(
-        r#"
-typedef uint32_t (*fixture_create)(const lang_program_config *, lang_context **);
-typedef uint32_t (*fixture_destroy)(lang_context *);
-typedef uint32_t (*fixture_copy)(lang_context *, const lang_type_{digest} *, lang_type_{digest} *);
-EXPORT uint32_t c_copy_matrix(fixture_create create, fixture_destroy destroy, fixture_copy entry, const lang_program_config *config) {{
-    lang_context *context = NULL;
-    lang_type_{digest} input;
-    lang_type_{digest} output;
-    if (create(config, &context) != 0) return 91;
-    {body}
-    if (destroy(context) != 0) return 92;
-    return 0;
-}}
-"#,
-        digest = artifact.types()[id.0].digest
-    );
-    let object = n::emit_c_object_for_target(
-        owner.failure_flow(),
-        &layouts,
-        &artifact,
-        &lang_codegen_clif::Triple::host(),
-        Default::default(),
-        4096,
-    )
-    .unwrap();
-    let library = Library::with_object(&artifact, &extra, Some((&object, true)));
+    let object = record
+        .prepare_c(flow, &layouts, &artifact, Default::default(), 4096)
+        .unwrap();
     // SAFETY: exact trusted linked bytes, symbols and retained dependencies.
     let compiled = unsafe {
         object.bind(

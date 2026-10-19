@@ -10,9 +10,9 @@ EXPORT uint32_t c_zero_once(fixture_zero entry, lang_context *context, int64_t *
 }
 "#;
 
-struct Metered<'p> {
-    inner: NativeFactory<'p>,
-    usage: Cell<e::Usage>,
+pub(super) struct Metered<'p> {
+    pub(super) inner: NativeFactory<'p>,
+    pub(super) usage: Cell<e::Usage>,
 }
 impl<'p> ExportRuntime<'p> for Metered<'p> {
     type State<'call>
@@ -47,20 +47,22 @@ impl<'p> ExportRuntime<'p> for Metered<'p> {
     }
 }
 
+pub(super) const MANAGED_SOURCES: [&str; 10] = [
+    include_str!("../../examples/analysis/native_core_bytes.lang"),
+    include_str!("../../examples/scripts/text.lang"),
+    include_str!("../../examples/scripts/utf8.lang"),
+    include_str!("../../examples/analysis/native_vec_nested.lang"),
+    include_str!("../../examples/analysis/native_map_nested.lang"),
+    include_str!("../../examples/scripts/shared_owned.lang"),
+    include_str!("../../examples/scripts/nested_cycle.lang"),
+    include_str!("../../examples/analysis/native_shared_custody.lang"),
+    include_str!("../../examples/scripts/arena_owned.lang"),
+    include_str!("../../examples/analysis/native_arena_regions.lang"),
+];
+
 #[test]
 fn production_c_export_runtime_matches_vm_across_all_managed_service_families() {
-    for original in [
-        include_str!("../../examples/analysis/native_core_bytes.lang"),
-        include_str!("../../examples/scripts/text.lang"),
-        include_str!("../../examples/scripts/utf8.lang"),
-        include_str!("../../examples/analysis/native_vec_nested.lang"),
-        include_str!("../../examples/analysis/native_map_nested.lang"),
-        include_str!("../../examples/scripts/shared_owned.lang"),
-        include_str!("../../examples/scripts/nested_cycle.lang"),
-        include_str!("../../examples/analysis/native_shared_custody.lang"),
-        include_str!("../../examples/scripts/arena_owned.lang"),
-        include_str!("../../examples/analysis/native_arena_regions.lang"),
-    ] {
+    for original in MANAGED_SOURCES {
         let vm_source = source(original);
         let mut vm_allocator = a::Allocator::new(a::System, Default::default()).unwrap();
         let mut vm_instance = clean::Instance::default();

@@ -24,6 +24,46 @@ pub(crate) struct Symbols {
     pub thunks: Vec<(usize, String)>,
 }
 
+impl Symbols {
+    /// Reconstruct the private revision-1 names without creating a backend.
+    pub(crate) fn prepare(artifact: &abi::Artifact, budget: &mut m::Budget) -> Result<Self, Error> {
+        budget.charge(artifact.functions().len() + 4)?;
+        for (index, function) in artifact.functions().iter().enumerate() {
+            if function.parameters.len() > 256 {
+                return Err(Error::Profile(index));
+            }
+        }
+        let slot = format!("lang_c_obj1_slot_{}", artifact.digest());
+        budget.allocate::<u8>(slot.len())?;
+        let support = ["create", "destroy", "last_error"]
+            .map(|name| format!("lang_context_{name}_{}", artifact.digest()));
+        for name in &support {
+            budget.allocate::<u8>(name.len())?;
+        }
+        let mut exports = budget.vector(artifact.functions().len())?;
+        let mut thunks = budget.vector(artifact.functions().len())?;
+        for (index, function) in artifact.functions().iter().enumerate() {
+            match function.direction {
+                abi::Direction::Export => {
+                    budget.allocate::<u8>(function.symbol.len())?;
+                    exports.push((index, function.symbol.clone()));
+                }
+                abi::Direction::Import => {
+                    let symbol = scalar::object_thunk_symbol(artifact, index);
+                    budget.allocate::<u8>(symbol.len())?;
+                    thunks.push((index, symbol));
+                }
+            }
+        }
+        Ok(Self {
+            slot,
+            support,
+            exports,
+            thunks,
+        })
+    }
+}
+
 pub(crate) fn emit(
     module: &mut ObjectModule,
     artifact: &abi::Artifact,
@@ -33,34 +73,24 @@ pub(crate) fn emit(
     if pointer != types::I64 {
         return Err(Error::Target);
     }
-    let slot = format!("lang_c_obj1_slot_{}", artifact.digest());
-    budget.allocate::<u8>(slot.len())?;
+    let symbols = Symbols::prepare(artifact, budget)?;
     let data = module
-        .declare_data(&slot, Linkage::Export, true, false)
+        .declare_data(&symbols.slot, Linkage::Export, true, false)
         .map_err(backend)?;
     let mut description = DataDescription::new();
     description.define_zeroinit(8);
     description.set_align(8);
     module.define_data(data, &description).map_err(backend)?;
-    let support = ["create", "destroy", "last_error"]
-        .map(|name| format!("lang_context_{name}_{}", artifact.digest()));
-    let mut exports = budget.vector(artifact.functions().len())?;
     // (symbol, selected callback offset, source-export ordinal). Support
     // signatures have one or two arguments; exports preserve profile 1 exactly.
     let mut entries = budget.vector(artifact.functions().len() + 3)?;
-    for (i, name) in support.iter().enumerate() {
+    for (i, name) in symbols.support.iter().enumerate() {
         budget.allocate::<u8>(name.len())?;
         entries.push((name.clone(), 16 + i * 8, None));
     }
-    for (index, function) in artifact.functions().iter().enumerate() {
-        if function.direction == abi::Direction::Export {
-            if function.parameters.len() > 256 {
-                return Err(Error::Profile(index));
-            }
-            entries.push((function.symbol.clone(), 40, Some(index)));
-            budget.allocate::<u8>(function.symbol.len())?;
-            exports.push((index, function.symbol.clone()));
-        }
+    for (index, name) in &symbols.exports {
+        budget.allocate::<u8>(name.len())?;
+        entries.push((name.clone(), 40, Some(*index)));
     }
     for (symbol, offset, ordinal) in entries {
         budget.charge(64 + ordinal.map_or(0, |i| artifact.functions()[i].parameters.len() * 4))?;
@@ -192,19 +222,8 @@ pub(crate) fn emit(
         b.finalize(module.target_config());
         module.define_function(id, &mut code).map_err(backend)?;
     }
-    let emitted_thunks =
-        scalar::emit_thunks(module, artifact, budget, scalar::ThunkProfile::Object)
-            .map_err(backend)?;
-    let mut thunks = budget.vector(emitted_thunks.len())?;
-    for (i, _, symbol) in emitted_thunks {
-        thunks.push((i, symbol));
-    }
-    Ok(Symbols {
-        slot,
-        support,
-        exports,
-        thunks,
-    })
+    scalar::emit_thunks(module, artifact, budget, scalar::ThunkProfile::Object).map_err(backend)?;
+    Ok(symbols)
 }
 
 #[repr(C)]

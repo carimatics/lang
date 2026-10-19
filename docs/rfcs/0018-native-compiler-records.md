@@ -20,6 +20,8 @@ Review outcome: **accepted under experimental delegation, 2026-10-20 JST**, befo
 
 Implementation checkpoint (2026-10-20 JST): bounded records, all target/scope tags, canonical golden bytes, checksums/limits and checked retained-image Copy calls are implemented. Serialized-file Copy/managed ownership/explicit-panic linked fixtures execute after producer teardown without source analysis or code emission. This completes record transport and preparation evidence; the concrete owned bootstrap, C/SDK integration and installation remain the separately tracked P05/P06/P07/P02 outcomes.
 
+Runtime/C integration checkpoint (2026-10-20 JST): RFC 0019 supplies the ordinary production entry; `CObjectArtifact::into_recorded` / `RecordedObject::prepare_c` now detach/restore C interface/bridge metadata. Real C callers reload saved files after producer teardown without source analysis, backend emission or JIT, retaining original context/allocator/grants/cleanup. Both-target scope/digest/budget checks, all managed families, aggregate/256-parameter and finite Copy cases, owner recursion/callback/panic and fuel/allocation-failure prefixes are verified. SDK assembly P07 and isolated both-host install P02 remain open.
+
 ## Motivation
 
 RecordedObject currently owns native bytes/metadata but only within one Rust process. The standalone conformance driver still recompiles matching source to reconstruct metadata. An installed runtime needs compiler output as data; source reanalysis and re-emission would retain compiler/startup dependencies. Portable schemas 1/2/3/4 already carry semantic data and original spans. Reuse that contract, with a separate native record rather than a second semantic IR.
@@ -107,6 +109,8 @@ Freeze explicit envelope/tag/layout assignments; round-trip objects and complete
 No blocking record-format question. General runtime entry and SDK distribution may need additional decisions; revise their RFC explicitly before adding wire fields or a public startup ABI.
 
 ## Sources
+
+- [C record restoration](../../crates/codegen-clif/src/owned/c_objects.rs) and [persisted execution/refusal tests](../../tests/support/c_object_records.rs), implemented/verified 2026-10-20 JST.
 
 - [Detached records](../../crates/codegen-clif/src/owned/recorded.rs), implementation 5324c64, 2026-10-20 JST.
 - [Linked execution prototype](../../tests/support/native_linked.rs), inspected/executed 2026-10-20 JST; 2.41s is one focused test duration.

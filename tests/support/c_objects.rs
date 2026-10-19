@@ -4,8 +4,11 @@ use lang_codegen_clif::c_abi::{object::ObjectExports, runtime::NativeFactory};
 #[path = "c_object_binding.rs"]
 mod binding;
 
+#[path = "c_object_records.rs"]
+mod records;
+
 #[test]
-fn linked_c_object_imports_preserve_scalar_unit_aggregate_and_failure_profiles() {
+fn persisted_c_object_imports_preserve_scalar_unit_aggregate_and_failure_profiles() {
     let aggregate = include_str!("../../examples/analysis/c_aggregate_imports.lang");
     let bad_aggregate = aggregate.replace("echo_result", "echo_bad_tag");
     let foreign = "extern \"C\" fn increment(value: i64) -> i64; fn main() -> i64 { unsafe { return increment(-1); } }";
@@ -21,36 +24,38 @@ fn linked_c_object_imports_preserve_scalar_unit_aggregate_and_failure_profiles()
         (many.as_str(), Some(expected_many)),
     ] {
         let text = original.replacen("fn main()", "pub extern \"C\" fn entry()", 1);
-        let owner = source(&text);
-        let artifact = artifact(&text, target(), Limits::default()).unwrap();
-        let types = owner
-            .mir()
+        let records::Stored {
+            decoded,
+            record,
+            library,
+        } = records::stored(
+            &text,
+            |artifact| {
+                let entry = artifact
+                    .functions()
+                    .iter()
+                    .find(|f| f.name == "entry")
+                    .unwrap();
+                format!(
+                    "EXPORT uint32_t c_linked_entry(lang_context *context, int64_t *output) {{ return {}(context, output); }}\n",
+                    entry.symbol
+                )
+            },
+            true,
+        );
+        let flow = decoded.flow();
+        let declarations = flow
+            .source()
             .activity()
             .moved()
             .typed()
             .places()
-            .declarations()
-            .types();
-        let layouts = l::Layouts::compile(types, Default::default()).unwrap();
-        let object = n::emit_c_object_for_target(
-            owner.failure_flow(),
-            &layouts,
-            &artifact,
-            &lang_codegen_clif::Triple::host(),
-            Default::default(),
-            4096,
-        )
-        .unwrap();
-        let entry = artifact
-            .functions()
-            .iter()
-            .find(|f| f.name == "entry")
+            .declarations();
+        let layouts = l::Layouts::compile(declarations.types(), Default::default()).unwrap();
+        let artifact = Artifact::compile(declarations, target(), Default::default()).unwrap();
+        let object = record
+            .prepare_c(flow, &layouts, &artifact, Default::default(), 4096)
             .unwrap();
-        let extra = format!(
-            "EXPORT uint32_t c_linked_entry(lang_context *context, int64_t *output) {{ return {}(context, output); }}\n",
-            entry.symbol
-        );
-        let library = Library::with_object(&artifact, &extra, Some((&object, true)));
         type Entry = unsafe extern "C" fn(*mut c_void, *mut i64) -> u32;
         // SAFETY: actual C definition includes this exact generated prototype.
         let entry: Entry = unsafe { std::mem::transmute(library.function("c_linked_entry")) };
@@ -518,6 +523,90 @@ fn linked_c_object_executes_owner_recursion_original_context_imports_and_panic()
         4096,
     )
     .unwrap();
+    let library = owned_context_library(&artifact, &object);
+    exercise_owned_context(&artifact, object, library);
+}
+
+#[test]
+fn persisted_c_object_restores_original_context_allocator_owner_calls_and_panic() {
+    let (library, names) = {
+        let text = include_str!("../../examples/analysis/c_owned_exports.lang");
+        let owner = source(text);
+        let types = owner
+            .mir()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types();
+        let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+        let artifact = artifact(text, target(), Limits::default()).unwrap();
+        let object = n::emit_c_object_for_target(
+            owner.failure_flow(),
+            &layouts,
+            &artifact,
+            &lang_codegen_clif::Triple::host(),
+            Default::default(),
+            4096,
+        )
+        .unwrap();
+        let library = owned_context_library(&artifact, &object);
+        let names = (
+            object.slot_symbol().to_owned(),
+            object.support_symbols().clone(),
+            object.export_symbols().to_vec(),
+            object.thunk_symbols().to_vec(),
+        );
+        let record = object.into_recorded(Default::default()).unwrap();
+        drop(layouts);
+        let table = owner
+            .into_failure_flow()
+            .into_source()
+            .into_activity()
+            .into_moved()
+            .into_typed()
+            .into_table();
+        let semantic = lang_bytecode::ownership::encode(table, None, Default::default()).unwrap();
+        assert_eq!(&semantic[8..10], &4u16.to_le_bytes());
+        let record = record
+            .into_record()
+            .encode(&semantic, Default::default())
+            .unwrap();
+        std::fs::write(library.directory.join("program.lbc"), semantic).unwrap();
+        std::fs::write(library.directory.join("program.native"), record).unwrap();
+        (library, names)
+    };
+    // All producer IR, layouts, C metadata and object wrappers have been dropped.
+    // The original already-linked image is retained; startup emits no code.
+    let semantic = std::fs::read(library.directory.join("program.lbc")).unwrap();
+    let record = std::fs::read(library.directory.join("program.native")).unwrap();
+    let decoded = lang_bytecode::ownership::decode(&semantic, Default::default()).unwrap();
+    let flow = decoded.flow();
+    let declarations = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations();
+    let layouts = l::Layouts::compile(declarations.types(), Default::default()).unwrap();
+    let artifact = Artifact::compile(declarations, target(), Default::default()).unwrap();
+    let record =
+        lang_codegen_clif::native_record::Record::decode(&record, &semantic, Default::default())
+            .unwrap();
+    let object = n::RecordedObject::from_record(record)
+        .unwrap()
+        .prepare_c(flow, &layouts, &artifact, Default::default(), 4096)
+        .unwrap();
+    assert_eq!(object.slot_symbol(), names.0);
+    assert_eq!(object.support_symbols(), &names.1);
+    assert_eq!(object.export_symbols(), names.2);
+    assert_eq!(object.thunk_symbols(), names.3);
+    exercise_owned_context(&artifact, object, library);
+}
+
+fn owned_context_library(artifact: &Artifact, object: &n::CObjectArtifact<'_>) -> Library {
     assert_eq!(object.thunk_symbols().len(), 1);
     let owned_symbol = &artifact
         .functions()
@@ -529,7 +618,10 @@ fn linked_c_object_executes_owner_recursion_original_context_imports_and_panic()
         "{}\nstatic lang_context *expected_context;\nEXPORT uint32_t c_same_context(lang_context *context, void *user, int64_t value, int64_t *output) {{ if (context != expected_context) return 81; return c_increment(context, user, value, output); }}\nEXPORT uint32_t c_owned_forward(lang_context *context, int64_t value, int64_t *output) {{ expected_context = context; return {owned_symbol}(context, value, output); }}\n",
         include_str!("c_exports_native.c")
     );
-    let library = Library::with_object(&artifact, &extra, Some((&object, true)));
+    Library::with_object(artifact, &extra, Some((object, true)))
+}
+
+fn exercise_owned_context(artifact: &Artifact, object: n::CObjectArtifact<'_>, library: Library) {
     let exercise_address = library.function("c_exports_exercise");
     let callback_address = library.function("c_same_context");
     let owned_address = library.function("c_owned_forward");
@@ -545,12 +637,12 @@ fn linked_c_object_executes_owner_recursion_original_context_imports_and_panic()
     }
     .unwrap();
     let program = c::Program::new(
-        &artifact,
+        artifact,
         &compiled,
         config::Capacities::from_strides(64, 16, 64).unwrap(),
     )
     .unwrap();
-    let factory = NativeFactory::new(&compiled, &artifact, Default::default()).unwrap();
+    let factory = NativeFactory::new(&compiled, artifact, Default::default()).unwrap();
     // SAFETY: owner-thread, no active call/context at binding destruction.
     let exports = unsafe { ObjectExports::new(&program, &compiled, &factory) }.unwrap();
     let limits = config::LimitsDescriptor {
@@ -582,6 +674,28 @@ fn linked_c_object_executes_owner_recursion_original_context_imports_and_panic()
         artifact: artifact.digest().0,
         flags: 0,
     };
+    // Restored metadata grants neither callback authority nor a signature.
+    for denied in [
+        raw::ImportBinding {
+            flags: 0,
+            ..binding
+        },
+        raw::ImportBinding {
+            signature: [0; 32],
+            ..binding
+        },
+    ] {
+        let denied_config = ProgramConfig {
+            imports: &denied,
+            ..config
+        };
+        let mut context = std::ptr::null_mut();
+        // SAFETY: complete live descriptors; only grant/signature is invalid.
+        assert_ne!(unsafe { exports.create()(&denied_config, &mut context) }, 0);
+        assert!(context.is_null());
+        assert_eq!(stats.allocations.get(), 0);
+        assert_eq!(stats.effects.get(), 0);
+    }
     let fail = artifact
         .functions()
         .iter()
@@ -620,7 +734,7 @@ fn linked_c_object_executes_owner_recursion_original_context_imports_and_panic()
 }
 
 #[test]
-fn linked_c_object_retires_every_fuel_and_provider_failure_prefix() {
+fn persisted_c_object_retires_every_fuel_and_provider_failure_prefix() {
     let original = include_str!("../../examples/analysis/native_core_bytes.lang");
     let vm_source = source(original);
     let mut vm_allocator = a::Allocator::new(a::System, Default::default()).unwrap();
@@ -633,34 +747,24 @@ fn linked_c_object_retires_every_fuel_and_provider_failure_prefix() {
     )
     .unwrap();
     let text = original.replacen("fn main()", "pub extern \"C\" fn entry()", 1);
-    let owner = source(&text);
-    let types = owner
-        .mir()
+    let records::Stored {
+        decoded,
+        record,
+        library,
+    } = records::stored(&text, |_| records::ZERO_C.to_owned(), false);
+    let flow = decoded.flow();
+    let declarations = flow
+        .source()
         .activity()
         .moved()
         .typed()
         .places()
-        .declarations()
-        .types();
-    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
-    let artifact = artifact(&text, target(), Limits::default()).unwrap();
-    let object = n::emit_c_object_for_target(
-        owner.failure_flow(),
-        &layouts,
-        &artifact,
-        &lang_codegen_clif::Triple::host(),
-        Default::default(),
-        4096,
-    )
-    .unwrap();
-    let library = Library::with_object(
-        &artifact,
-        r#"
-typedef uint32_t (*fixture_zero)(lang_context *, int64_t *);
-EXPORT uint32_t c_zero_once(fixture_zero entry, lang_context *context, int64_t *output) { return entry(context, output); }
-"#,
-        Some((&object, false)),
-    );
+        .declarations();
+    let layouts = l::Layouts::compile(declarations.types(), Default::default()).unwrap();
+    let artifact = Artifact::compile(declarations, target(), Default::default()).unwrap();
+    let object = record
+        .prepare_c(flow, &layouts, &artifact, Default::default(), 4096)
+        .unwrap();
     let once_address = library.function("c_zero_once");
     let callbacks = Library::new(&artifact);
     // SAFETY: exact matched object image and actual symbol addresses.

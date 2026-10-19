@@ -319,6 +319,12 @@ pub(crate) enum ThunkProfile {
     Jit,
     Object,
 }
+pub(crate) fn object_thunk_symbol(
+    artifact: &lang_runtime::c_abi::Artifact,
+    index: usize,
+) -> String {
+    format!("lang_c_obj1_t{index}_{}", artifact.digest())
+}
 pub(crate) fn emit_thunks<M: Module>(
     module: &mut M,
     artifact: &lang_runtime::c_abi::Artifact,
@@ -366,10 +372,7 @@ pub(crate) fn emit_thunks<M: Module>(
                 format!("lang_c_import_thunk_{}", function.digest),
                 Linkage::Local,
             ),
-            ThunkProfile::Object => (
-                format!("lang_c_obj1_t{index}_{}", artifact.digest()),
-                Linkage::Export,
-            ),
+            ThunkProfile::Object => (object_thunk_symbol(artifact, index), Linkage::Export),
         };
         budget.allocate::<u8>(symbol.len())?;
         let id = module

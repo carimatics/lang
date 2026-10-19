@@ -20,6 +20,12 @@ pub enum CObjectError {
     Preparation(CError),
     Codegen(Error),
     Bridge(bridge::Error),
+    Recorded(RecordedError),
+    RecordScope,
+    ArtifactDigest {
+        expected: abi::Digest,
+        recorded: abi::Digest,
+    },
     Target,
     MissingSymbol(String),
     SlotAlignment,
@@ -36,6 +42,14 @@ pub struct CObjectArtifact<'a> {
     interface: CInterface,
     symbols: bridge::Symbols,
 }
+fn c_object_target(artifact: &abi::Artifact) -> crate::Triple {
+    match artifact.target() {
+        abi::Target::MacosAarch64 => "aarch64-apple-darwin",
+        abi::Target::WindowsX86_64 => "x86_64-pc-windows-msvc",
+    }
+    .parse::<crate::Triple>()
+    .expect("known tier-1 target")
+}
 pub fn emit_c_object_for_target<'a>(
     flow: &'a f::Elaborated,
     layouts: &'a Layouts<'a>,
@@ -44,12 +58,7 @@ pub fn emit_c_object_for_target<'a>(
     limits: m::Limits,
     cells: usize,
 ) -> Result<CObjectArtifact<'a>, CObjectError> {
-    let expected = match artifact.target() {
-        abi::Target::MacosAarch64 => "aarch64-apple-darwin",
-        abi::Target::WindowsX86_64 => "x86_64-pc-windows-msvc",
-    }
-    .parse::<crate::Triple>()
-    .expect("known tier-1 target");
+    let expected = c_object_target(artifact);
     if *target != expected {
         return Err(CObjectError::Target);
     }
@@ -80,6 +89,10 @@ pub fn emit_c_object_for_target<'a>(
     })
 }
 impl<'a> CObjectArtifact<'a> {
+    /// Detach the RFC 0018 C-object record; no live bridge/context is retained.
+    pub fn into_recorded(self, limits: m::Limits) -> Result<RecordedObject, Error> {
+        self.object.into_recorded(limits)
+    }
     pub fn bytes(&self) -> &[u8] {
         &self.object.bytes
     }
@@ -171,6 +184,52 @@ impl<'a> CObjectArtifact<'a> {
             exports,
             thunks,
             usage,
+        })
+    }
+}
+impl RecordedObject {
+    /// Restore checked C interface/bridge metadata from decoded semantics.
+    /// No source analysis, ISA lookup, code emission, JIT or symbol resolution
+    /// occurs here. The result's unsafe binder still requires the exact
+    /// original object, matching toolchain/target and retained trusted image.
+    pub fn prepare_c<'a>(
+        self,
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        artifact: &abi::Artifact,
+        limits: m::Limits,
+        cells: usize,
+    ) -> Result<CObjectArtifact<'a>, CObjectError> {
+        let CompileScope::CObject(recorded) = self.compilation_scope() else {
+            return Err(CObjectError::RecordScope);
+        };
+        if recorded != artifact.digest() {
+            return Err(CObjectError::ArtifactDigest {
+                expected: artifact.digest(),
+                recorded,
+            });
+        }
+        if *self.compilation_target() != c_object_target(artifact) {
+            return Err(CObjectError::Target);
+        }
+        let interface =
+            CInterface::check(flow, artifact, limits).map_err(CObjectError::Preparation)?;
+        let mut object = self
+            .prepare(flow, layouts, limits, cells)
+            .map_err(CObjectError::Recorded)?;
+        let mut budget = m::Budget::with_usage(limits, object.usage)
+            .map_err(|e| CObjectError::Codegen(Error::Resource(e)))?;
+        let symbols =
+            bridge::Symbols::prepare(artifact, &mut budget).map_err(CObjectError::Bridge)?;
+        object.usage = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        Ok(CObjectArtifact {
+            object,
+            interface,
+            symbols,
         })
     }
 }

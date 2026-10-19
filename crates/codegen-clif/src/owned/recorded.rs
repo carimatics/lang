@@ -67,6 +67,12 @@ impl ObjectArtifact<'_> {
     }
 }
 impl RecordedObject {
+    pub(super) fn compilation_scope(&self) -> CompileScope {
+        self.scope
+    }
+    pub(super) fn compilation_target(&self) -> &crate::Triple {
+        &self.target
+    }
     /// Package trusted compiler output as RFC 0018 data. No code is loaded.
     pub fn into_record(self) -> crate::native_record::Record {
         use crate::native_record::{Kind, Record};

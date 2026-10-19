@@ -20,6 +20,8 @@ Review結果：wire実装前の**実験的委任に基づくaccepted、2026-10-2
 
 実装checkpoint（2026-10-20 JST）：上限付き記録、全target／scope tag、canonical golden byte、checksum／上限検査、image保持付きCopy呼出しを実装しました。保存fileのCopy／managed ownership／明示的panicを生成元破棄後にsource分析／機械語生成なしでlinked実行できます。記録transportと準備の証拠であり、具体的owned起動、C／SDK統合、installは別途P05／P06／P07／P02で追跡します。
 
+Runtime／C統合checkpoint（2026-10-20 JST）：RFC 0019の通常production入口と、`CObjectArtifact::into_recorded`／`RecordedObject::prepare_c`によるC interface／bridge metadataの保存・復元を実装しました。生成元破棄後の保存fileから、source分析／backend生成／JITなしで元context／allocator／grant／cleanupを保つ実C callerを実行します。両targetのscope／digest／予算、managed全family、aggregate／256引数、有限Copy全case、owner付き再帰／callback／panic、fuel／割当失敗位置を検証します。SDK組立P07と両host隔離install P02は未完了です。
+
 ## Motivation
 
 RecordedObjectはnative byte／metadataを所有しますが、単一Rust process内に限られます。Standalone conformance driverはmetadata再構築のため同じsourceを再compileしています。導入先runtimeにはcompiler出力をdataとして渡す必要があり、再解析／再生成を残すとcompiler／startup依存が残ります。Portable schema 1／2／3／4は意味論と元spanを既に保持します。第2の意味論IRを作らず、独立native記録で同じ契約を使います。
@@ -107,6 +109,8 @@ Envelope／tag／layoutを固定し、objectと全metadataをround-tripします
 記録形式のblocking questionはありません。汎用runtime入口とSDK配布には追加判断が必要な可能性があり、wire fieldや公開起動ABIの追加前にRFCを明示改訂します。
 
 ## Sources
+
+- [C記録の復元](../../../crates/codegen-clif/src/owned/c_objects.rs)と[保存fileの実行／拒否検査](../../../tests/support/c_object_records.rs)、2026-10-20 JST実装・確認。
 
 - [独立記録](../../../crates/codegen-clif/src/owned/recorded.rs)、実装5324c64、2026-10-20 JST。
 - [Linked実行prototype](../../../tests/support/native_linked.rs)、2026-10-20 JST確認・実行。2.41秒は重点test 1件の時間。
