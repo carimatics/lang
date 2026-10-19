@@ -329,16 +329,18 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 
 ## 情報源と確認日
 
-- [Source drop](../../examples/analysis/explicit_drop.lang)、[shared／weak期限切れ](../../examples/analysis/explicit_drop_shared.lang)、[lowering](../../crates/semantics/src/ownership_types/bodies/matching.rs)、[VM／native fixture](../../tests/support/native_drop.rs)（`59f0f08`）：2026-10-19 JST更新・確認。上記local必須検証に成功し、source panic／version判断とF09 Windowsは未完了です。
+- [Source panic](../../examples/analysis/explicit_panic_owned.lang)、[VM fixture](../../tests/support/owned_panic.rs)、[native fixture](../../tests/support/native_panic.rs)、[RFC 0014](rfcs/0014-explicit-source-panic.md)（`6eb9018`）：2026-10-19 JST更新・確認。全local baseline suiteは上記のとおり完了しています。[Windows run 39258215633](https://github.com/carimatics/lang/actions/runs/39258215633)、head 165ae7d、job 118078789294は実行中で、成功の根拠にはまだ使いません。この追記は情報源のみの変更であり、165ae7dは同じ実装を含みます。
 
-- [F04 finite Copy転送](../../crates/runtime/src/c_abi/transfer.rs)、[名前付きsource](../../examples/analysis/c_aggregate_imports.lang)、[実C fixture](../../tests/support/c_imports.rs)（`cfd0987`）：2026-10-19 JST更新・確認。上記local必須検証に成功し、F04 Windowsと完全なraw C exportは未検証です。
+- [Source drop](../../examples/analysis/explicit_drop.lang)、[shared／weak期限切れ](../../examples/analysis/explicit_drop_shared.lang)、[lowering](../../crates/semantics/src/ownership_types/bodies/matching.rs)、[VM／native fixture](../../tests/support/native_drop.rs)（`59f0f08`）：2026-10-19 JST更新・確認。上記local必須検証に成功し、F09 Windowsはrun 39251972828で確認済みです。Source panicは別のF13成果です。
 
-- [F11 scalar C source](../../examples/analysis/c_scalar_imports.lang)、[C／VM／native fixture](../../tests/support/c_imports.rs)、[revision 2 native gateway](../../crates/codegen-clif/src/owned/c_imports.rs)（`a37b053`）：2026-10-19 JST更新・確認。上記local必須検証を完了し、F11のnative Windowsと汎用C統合は未検証です。
-- [F02 context実装](../../crates/runtime/src/c_abi/context.rs)と[16件のfailure／state fixture](../../tests/support/c_context.rs)（`7d4fea7`）：2026-10-19 JST更新・確認。上記local必須検証を完了し、実C adapterはF04／F05に残します。
-- [Native place／loan lowering](../../crates/codegen-clif/src/owned.rs)、[source fixture](../../examples/analysis/native_owned_loans.lang)、[place／VM test](../../tests/support/native_places.rs)（`a3478bd`）：2026-10-19 JST更新・検証。N02の既存見積もり3点を完了しました。Core service、exit conformance全体、単独object実行、platform evidenceは未完了です。
+- [F04 finite Copy転送](../../crates/runtime/src/c_abi/transfer.rs)、[名前付きsource](../../examples/analysis/c_aggregate_imports.lang)、[実C fixture](../../tests/support/c_imports.rs)（`cfd0987`）：2026-10-19 JST更新・確認。上記local必須検証に成功し、修正後のWindows snapshot 876b908はrun 39247826059を通過しました。完全なraw C exportはF05です。
+
+- [F11 scalar C source](../../examples/analysis/c_scalar_imports.lang)、[C／VM／native fixture](../../tests/support/c_imports.rs)、[revision 2 native gateway](../../crates/codegen-clif/src/owned/c_imports.rs)（`a37b053`）：2026-10-19 JST更新・確認。上記local必須検証を完了し、Windows snapshot 1a8fcadはrun 39234763047を通過しました。Raw C export／objectと完全なplatform検証はF05–F07です。
+- [F02 context実装](../../crates/runtime/src/c_abi/context.rs)と[16件のfailure／state fixture](../../tests/support/c_context.rs)（`7d4fea7`）：2026-10-19 JST更新・確認。上記local必須検証を完了し、その後F11／F04でtyped C import adapterも完成しました。Raw C context／export公開はF05です。
+- N02の過去のcheckpoint：[Native place／loan lowering](../../crates/codegen-clif/src/owned.rs)、[source fixture](../../examples/analysis/native_owned_loans.lang)、[place／VM test](../../tests/support/native_places.rs)（`a3478bd`）：2026-10-19 JST更新・検証。N02の既存見積もり3点を完了しました。これらはa3478bd時点で未完了でした。その後の完了はN03–N07／N11–N19行と上記snapshot根拠に記録しています。
 - [進捗validator](../../tests/repository_consistency.rs)（`00cff53`）：更新・検証日2026-10-18 JST。見積もり収支と未完了行の一致、成果／task数の差分、roadmap集計、英日一致を検証します。全workspace 1326 testとfmt／Clippy／rustdocが成功しました。この追跡方法の保守をM2実装行の完了には数えません。
 - 詳細Todoの履歴 `8605416..926ccfe`：2026-10-18 JST付の48 revisionを2026-10-18 JSTに再監査。行の状態変化だけでは完了107点／追加39点になります。V14とR08は最初のcommitでdoneでしたが、V10／R01の実装前監査に2／3点の見積もりが残っているため、両側に5点を加えて完了112点／追加44点としました。新たな成果41件をすべて含み、削除された行はありません。導入と完了が同じ更新でも、その見積もりを保持します。
 - Local Git履歴 `926fb3b`〜`0c2c012` と差分 `367218e..0c2c012`：commit日は2026-10-17／18 JST、確認日は2026-10-18 JST。
 - [Architecture](architecture.md)、[roadmap](roadmap.md)、そこから参照する実装／test：更新・確認日2026-10-19 JST。初回監査の930 testは過去のbaselineであり、現在の検証済みbaselineは上記に記載しています。
-- 受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)：最終更新2026-10-18、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)：最終更新2026-10-17、両方を今回のtask一覧のため2026-10-18 JSTに確認しました。Web調査や外部の生産性benchmarkは使用していません。
-- [RFC 0012](rfcs/0012-native-ownership-continuations.md) と [native ABI実験](../../crates/codegen-clif/src/owned_abi_probe.rs)（`dc3df29`）：更新・検証2026-10-18 JST。N08の明示的見積もり2点は、そのcheckpointで追加・完了しました。
+- 受理済み [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)：最終更新2026-10-18、[RFC 0008](rfcs/0008-cleanup-allocators-and-c-boundaries.md)：最終更新2026-10-19、両方を今回のtask一覧のため2026-10-19 JSTに確認しました。Web調査や外部の生産性benchmarkは使用していません。
+- [RFC 0012](rfcs/0012-native-ownership-continuations.md) と [native ABI実験](../../crates/codegen-clif/src/owned_abi_probe.rs)（`dc3df29`）：RFCの最終更新・確認は2026-10-19 JST、実験のcheckpointは2026-10-18 JSTです。N08の明示的見積もり2点は、そのcheckpointで追加・完了しました。
