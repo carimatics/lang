@@ -6,25 +6,34 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**108 done · 0 doing · 15 todo · 33 remaining pt**
+**109 done · 0 doing · 14 todo · 31 remaining pt**
 
 
-**Next: M2-F06 → independently compile headers and verify native macOS boundary validity (2 pt, ready).**
+
+**Next: M2-F07 → verify the repaired snapshot's complete native Windows C-boundary run (2 pt, ready).**
 
 | Next delivery | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F06: macOS headers/boundaries | F05: linked C objects without runtime JIT; **107 → 108 done, 36 → 33 pt** (c0eee9a) | Independently compiled headers and actual boundary-validity fixtures pass on native macOS |
+| F07: native Windows evidence | F06: native macOS headers/boundaries; **108 → 109 done, 33 → 31 pt** (adff5d9) | Matching MSVC headers, validity and linked source-object fixtures pass; record the actual run/head/job |
+
+F06 completed checkpoints (same 2 pt; no added tasks):
+
+- [x] Independent C11 header objects; incompatible target and packing refused by the compiler.
+- [x] Slot/symbol/relocation checks for both object formats; all nine missing-symbol refusals; linked finite Copy cases and 256 mixed imports.
+- [x] Native macOS full baseline: **1,519 tests / 88 suites**, zero failures, one manual timing test ignored. C ABI **71 / 20.09s**, native **66 / 279.70s**; fmt/Clippy (**2.81s**)/rustdoc (**13.72s**) pass. Code: `adff5d9`.
+
+Original exit gates: **11/18** (historical weight 68/113). **113 is retired as an effort forecast.** Task counts are not equal units of effort or a milestone completion percentage. The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates. Retire F06's 2 pt with **123 rows and +85 added pt unchanged**; retired estimates become **188 pt**. F07 remains open: the shared MSVC response-file fixture is repaired, but native Windows verification is pending.
+
+<details>
+<summary>Delivery history and platform verification records</summary>
+
+F05 Windows failure (verified 2026-10-20 JST): [run 39288239469](https://github.com/carimatics/lang/actions/runs/39288239469), head 2f8772b, job 118181807851, failed at **2026-10-19 16:53:47 UTC**. C ABI: **64 pass / 4 failures**, all response-file cases missing the private DLL slot; direct-link cases pass. F06 keeps CL's /link outside the response file, passes the file to LINK, exports the slot as DATA and checks all required exports with compiler/linker diagnostics. Native confirmation requires a fresh matching F07 run; this failed snapshot does not close either C exit gate.
 
 F05 completed checkpoints (one delivery; no added tasks/points):
 
 - [x] Accepted private bridge before implementation (RFC 0015, 949f3d8).
 - [x] Actual C object direct/response link/run; aggregates, owner recursion/original-context imports/panic, 256 mixed inputs and every fuel/provider failure prefix (six focused tests).
 - [x] Full workspace: **1,516 tests / 88 suites**, zero failures, one manual timing test ignored. C ABI **68 / 16.67s**, native **66 / 276.60s**; fmt/Clippy (**34.11s**)/rustdoc (**23.75s**) pass. Code: `c0eee9a`.
-
-Original exit gates: **11/18** (historical weight 68/113). **113 is retired as an effort forecast.** Task counts are not equal units of effort or a milestone completion percentage. The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates. This delivery retires 3 pt with **123 rows and +85 added pt unchanged**; retired estimates become **186 pt**.
-
-<details>
-<summary>Delivery history and platform verification records</summary>
 
 F16 delivery (2026-10-20 JST): 4158655 connects the reusable NativeFactory to the actual context allocator/cleanup Instance. Real C round-trips records, nested sums, every core error, empty records and scalar extremes; 256 mixed parameters execute native arithmetic and 128 guest calls. Owner recursion/C callbacks/callee panic and ten Bytes/Text/Vec/Map/shared/arena sources match VM values/fuel/work/frame/cell usage. Every fuel/provider refusal prefix preserves output and balances allocations/releases. Baseline: **1,510 tests / 88 suites**, zero failures, one manual timing test ignored. C ABI **62 / 14.13s**, native **66 / 276.96s**, fmt/Clippy (**27.48s**)/rustdoc (**23.43s**) pass. Retire initial **3 pt: 106 → 107 done, 39 → 36 pt**. **123 rows and +85 added pt unchanged; retired estimates 183 pt**. Original gates stay **11/18**; C object/platform/package and the final guide remain.
 
@@ -156,13 +165,13 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 108 (+73)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 109 (+74)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +85 pt | −186 pt | 33 pt |
+| 134 pt | +85 pt | −188 pt | 31 pt |
 
-**134 + 85 − 186 = 33 pt**
+**134 + 85 − 188 = 31 pt**
 
 This separates delivered work from newly recognized work: completion retired 183 estimated points, while exposed prerequisites and re-estimation added 85. These are planning units, not hours or measured actual effort. The remaining 36 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
@@ -200,7 +209,6 @@ S01 decision audit (2026-10-18 JST): RFC 0009 selects three finite core calls us
 - Keep the roadmap first view to current/next work, the latest completed outcome and original exit gates; keep historical reports on this board behind details. Expose execution/validation checkpoints for a long-running doing row without adding task credit or retiring points early. Documentation-only follow-ups run consistency checks, not an unchanged full code baseline.
 - Select one row before implementation and mark it `doing`; keep at most one doing row. A row has one observable outcome and 1–3 remaining points. Split it before starting if that outcome is larger or its prerequisites are unknown.
 - If planning produces no patch or executable experiment within 10 minutes, narrow the task and run the smallest useful experiment before extending the design. Add abstractions and hardening only when the selected outcome or accepted requirements need them. Record validation duration when available; commit intervals are not work-time measurements.
-- F09 executes accepted source drop. Next decide F13 versioned panic representation and execute a real panic source before C export/factory integration; expose new prerequisites with an executable experiment and remaining-work audit.
 - Done requires a commit for the row's outcome (implementation or an explicitly planned design decision) and focused validation evidence. Add the commit in the next planning update when it cannot be referenced in its own commit. Keep work-in-progress honest until that evidence exists. Update this board after every delivery; do not wait for an exit gate.
 - Run focused checks first and the required full baseline once for a coherent code delivery. Documentation-only follow-ups run repository consistency checks; repeat broader checks only for new code, failures, or unresolved concerns. Keep the implementation/roadmap commit sequence, but replace repetitive narrative appends with row updates. Append an audit only when scope, estimates, dependencies or an exit decision changes.
 - After two consecutive prerequisite deliveries without a new source execution fixture, stop expanding the foundation and review the next vertical slice. Report the concrete blocker and remaining task, not a generic claim that estimates remain appropriate.
@@ -333,7 +341,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F15 | done | 0 | M2-F04,M2-F09,M2-F13,M2-F14 | G12 | Real C calls native source exports with original opaque-context callbacks, allocator integration, atomic results and resource conformance. | c0f9b68 |
 | M2-F16 | done | 0 | M2-F15,M2-N05 | G12 | Real C calls aggregate source exports with typed transfer/return escrow and owner/guest-call body runtime/cleanup integration. | 4158655 |
 | M2-F05 | done | 0 | M2-F16 | G12 | Complete linked C object/bootstrap/runtime integration under an explicit private bridge contract and verify accepted exports through real link/run. | `c0eee9a` |
-| M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |
+| M2-F06 | done | 0 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | `adff5d9` |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
 
 ## Native, packaging and final evidence
@@ -373,6 +381,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
 
 ## Sources and verification dates
+
+- [Independent C11 header objects](../tests/c_abi.rs), [native object/binding/finite Copy fixtures](../tests/support/c_object_binding.rs), [shared VM/JIT/AOT mixed-import oracle and MSVC fixture](../tests/support/c_imports.rs) (`adff5d9`): updated/verified **2026-10-20 JST** on Darwin arm64 / Apple Clang 21.0.0 / pinned Rust 1.99.0. The final baseline above follows the Windows-fixture correction; F07 still requires actual matching native Windows success. Microsoft [/link](https://learn.microsoft.com/en-us/cpp/build/reference/link-pass-options-to-linker?view=msvc-170) and [compiler response files](https://learn.microsoft.com/en-us/cpp/build/reference/at-specify-a-compiler-response-file?view=msvc-170) last updated **2021-08-03**, [linker syntax](https://learn.microsoft.com/en-us/cpp/build/reference/linking?view=msvc-170) **2025-11-05**; verified **2026-10-20 JST**.
 
 - [C object emitter/binding](../crates/codegen-clif/src/c_abi/object.rs), [retained linked metadata](../crates/codegen-clif/src/owned/c_objects.rs), [actual C object tests](../tests/support/c_objects.rs) (`c0eee9a`): updated/verified **2026-10-20 JST**. The six object fixtures and full baseline above pass locally; F06/F07 retain complete target-boundary evidence, P02 standalone packaging and Z01 the final guide. RFC 0015 decision `949f3d8` precedes implementation. No new row/estimate was added by F05.
 
