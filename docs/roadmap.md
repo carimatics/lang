@@ -8,9 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**91 verified deliveries · 0 in progress · 23 remaining tasks (provisional 54 pt).**
+**92 verified deliveries · 0 in progress · 22 remaining tasks (provisional 51 pt).**
 
-N18 delivery audit (2026-10-19 JST): source/loaded-artifact/REPL CLI now accepts --service-work N (initial 1 pt, 419f6ac). The 37-unit fixture returns 67; tests preserve numeric refusals, guest frames/original sources, per-submission reset and recovery. Service usage is appended while retaining the existing fuel/host-call display; public Rust Limits and existing artifact schemas are unchanged. The current CLI/report-format audit is complete. N05 retains all managed families/payloads, native failure/return and any required report migration, and full conformance. Related drivers 68 tests, new CLI 4 tests, workspace 1,393 tests / 86 suites, fmt/Clippy/rustdoc pass. **90 → 91 done, 55 → 54 pt**. Record the readiness addition 3 separately from this retired 1: this iteration is **52 + 3 − 1 = 54 pt**, net added estimates 63 and retired estimates 143. Gates remain 5/18; this does not complete native object link/run or managed integration.
+N05 delivery / G06 exit audit (2026-10-19 JST): `f6d9fc4` completes current managed service/payload metering across VM/native calls, loans and views. Twenty-four source programs compare every finite budget prefix; mixed controls/provider refusal, guest panic, secondary cleanup and source/artifact CLI checks pass. Numeric errors and mandatory retirement survive exhaustion; Rust context migration and unchanged serialized schemas are documented. **91 → 92 done, 54 → 51 pt**; retire the provisional 3 pt without adding tasks or estimates (**134 + 63 − 146 = 51**). The full baseline passes **1,410 tests / 87 suites** (one manual timing test also passes separately), fmt/Clippy/rustdoc. G06 closes with generated cleanup/order/return evidence from D28–D34, V07/V08, C07 and N05, including 139 owned-execution and 56 native tests. Original gates are now **6/18**; G14 still requires actual macOS/Windows owned-object link/run. Other gates retain their dedicated final evidence reviews.
 
 N05 readiness/N18 split audit (2026-10-19 JST): the executable CLI experiment with --service-work 37 exits 2 with unknown option. Four Map/Vec/Shared/Arena runtime files alone expose 74 public methods, with payload scans/copies and VM/native wiring in addition to CLI/report work; the combined provisional 1 pt is not retained. Allocate an initial 1 pt to N18 CLI/report audit (doing), retain N05 managed integration/full conformance at provisional 3 pt, and explicitly re-estimate the former total 1 → 4 pt (+3). API counts are not an effort conversion rate. **113 → 114 rows, 52 → 55 pt**, added estimates **60 → 63 pt**. Preserve all N05 service/payload, native failure/return, versioned-report migration and full VM/native conformance obligations; managed event integration still needs its own readiness audit.
 
@@ -32,9 +32,9 @@ N03 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** befor
 
 N12 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** before native element-view integration, **59 → 61 remaining pt**, net additions **49 → 51 pt**. N12 delivery retires its last 3 points: **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 in addition to N02/N11/V08 before full accepted service/payload, ordered-exit and configured byte-work admission conformance. No requirement was removed.
 
-Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for tasks, evidence and estimates (updated 2026-10-19 JST). N16 is done (`06c8e1d`; shared meter, batch/overflow boundaries, numeric failure/cleanup and finite-budget rejection for incomplete profiles; 1385 tests / 85 suites and fmt/Clippy/doc pass). **88 → 89 done**, **111 → 112 tasks**; allocating former N05 total 3 as 1 + 2 gives **54 → 53 pt** after delivery. Next is N05's full service event wiring, driver/report migration and finite-budget conformance. Preserve all native/FFI/platform/performance/debug obligations and the final bilingual guide.
+Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for current tasks, evidence and remaining estimates (updated 2026-10-19 JST). N05 managed service integration is complete; N06 macOS object link/run is next. Preserve remaining native/FFI/platform/performance/debug obligations and the final bilingual guide.
 
-The original **5 / 18 exit gates** remain unchanged. Their **34 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
+The original **6 / 18 exit gates** include completed G06. Their **42 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 
 ## Task tracking
 
@@ -66,13 +66,13 @@ Exit-gate weight snapshot verified on 2026-10-18 (JST). Overall arithmetic aggre
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 34 pt | 113 pt | 30.1% |
+| 2 — ownership and native AOT | 42 pt | 113 pt | 37.2% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **332 pt** | **764 pt** | **43.5%** |
+| **Overall** | **340 pt** | **764 pt** | **44.5%** |
 
 ## Milestone 0: design baseline
 
@@ -248,7 +248,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 5 / 18 complete; historical weight: 34 / 113 pt (30.1%).**
+**Exit gates: 6 / 18 complete; historical weight: 42 / 113 pt (37.2%).**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -259,7 +259,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
 - [x] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
 - [ ] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
-- [ ] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
+- [x] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
 - [ ] **P0 — Implement RFC 0007 Text/Bytes source operations, UTF-8 validation, checked indices, and allocator-preserving conversions.** — 5 pt
 - [ ] **P0 — Implement RFC 0007 Unit/Option/Result and finite built-in specializations needed by core source operations.** — 3 pt
 - [ ] **P0 — Implement the RFC 0007 allocator-aware Vec source operations with move, loan, growth, and failure conformance.** — 5 pt

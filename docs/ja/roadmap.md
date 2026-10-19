@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み91件 · 進行中0件 · 残り23件（暫定54 pt）。**
+**検証済み92件 · 進行中0件 · 残り22件（暫定51 pt）。**
 
-N18完了監査（2026-10-19 JST）：source／保存artifact／REPLのCLIで--service-work Nを実装（初期1点、419f6ac）。37単位のfixtureは67を返し、拒否時の数値・guest frame・元のsource、REPLの投稿ごとのresetと回復を検証しました。従来のfuel／host-call表示を維持してservice usageを追加し、公開Rust Limitsと既存artifact schemaは変更しません。CLI／reportの現行format監査を完了し、N05にはmanaged全family／payload、native failure／returnと必要なreport移行、完全なconformanceを維持します。関連driver 68 test、新規CLI 4 test、全workspace 1,393 test／86 suite、fmt／Clippy／rustdoc成功。**90 → 91 done、55 → 54 pt**。着手前監査の追加3点と今回の消化1点は別計上し、このiteration全体では **52 + 3 − 1 = 54 pt**、追加分合計63点、完了で取り除いた見積もり143点です。Gateは5/18のままで、native objectのlink／実行やmanaged統合の完了は主張しません。
+N05完了／G06 exit監査（2026-10-19 JST）：`f6d9fc4`で現在の全managed service／payloadの計量をVM／nativeのcall、loan、viewへ接続しました。24件のsource programで有限予算の全prefixを比較し、他control／provider拒否、guest panic、secondary cleanup、source／artifact CLIの検証も成功しました。予算超過後も数値付きerrorと必須retirementを維持し、Rust contextの移行とserialized schemaが不変であることを文書化しました。**91 → 92 done、54 → 51 pt**。暫定3点を消化し、taskや見積もりは追加しません（**134 + 63 − 146 = 51**）。全baseline **1,410 test／87 suite**（手動計測1件は別途成功）、fmt／Clippy／rustdoc成功。D28–D34、V07／V08、C07、N05の生成cleanup・順序・returnの証拠と、owned execution 139件、native 56件に基づきG06を完了とします。従来gateは **6/18** となり、G14のmacOS／Windowsでのowned object実link／runは未完です。他gateはそれぞれの最終evidence reviewを維持します。
 
 N05着手前監査／N18分離（2026-10-19 JST）：CLIで--service-work 37を指定するとunknown optionでexit 2となることを実行確認しました。Map／Vec／Shared／Arenaの4 runtime fileだけでも公開methodは74件あり、payloadの走査・copyとVM／nativeの接続、CLI／reportを暫定1点にまとめた見積もりは維持しません。N18のCLI／report監査を初期1点（doing）、N05のmanaged統合と全体conformanceを暫定3点とし、旧合計1 → 4点（+3）へ明示的に見直します。API数は工数の換算率ではありません。**113 → 114行、52 → 55 pt**、追加見積もり**60 → 63点**。N05の全service／payload、nativeのfailure／return、version付きreport移行、完全なVM／native conformance要件は維持し、managed eventの実装前監査を引き続き必要とします。
 
@@ -32,9 +32,9 @@ N03見積もり・依存関係監査（2026-10-19 JST）：key／所有値結果
 
 N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接続の前に **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。N12完了で最後の3点を取り除き **61 → 58点**、108行は維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformance前に、N05の依存へN02／N11／V08に加えN12／N03／N04を明示しました。要件は削除していません。
 
-現在のTodo、evidence、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N16は完了です（`06c8e1d`、共通meter、batch／overflow境界、数値付きfailureとcleanup、未完profileの有限予算拒否。1385 test／85 suiteとfmt／Clippy／doc成功）。**88 → 89 done**、**111 → 112 task**、N05の旧3点を1＋2点へ配分し **54 → 53 pt** です。次はN05で全service event、driver／report移行、有限予算の全体conformanceを実装・検証します。Native／FFI／platform／performance／debugの全要件と最後の英日guideは維持します。
+現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続は完了し、次はN06のmacOS object link／runです。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
 
-従来の **完了条件18件中5件完了** は維持します。その **34 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
+G06を完了とし、従来の **完了条件18件中6件完了** です。その **42 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
 ## タスク管理
 
@@ -66,13 +66,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 34 pt | 113 pt | 30.1% |
+| 2 — ownershipとnative AOT | 42 pt | 113 pt | 37.2% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **332 pt** | **764 pt** | **43.5%** |
+| **全体** | **340 pt** | **764 pt** | **44.5%** |
 
 ## Milestone 0：設計baseline
 
@@ -248,7 +248,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中5件完了、履歴上の重み：34 / 113 pt（30.1%）。**
+**完了条件：18件中6件完了、履歴上の重み：42 / 113 pt（37.2%）。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -259,7 +259,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — Typed HIR／MIRでowned value、move、lexical borrow checkingを実装する。** — 8 pt
 - [x] **P0 — RFC 0004のshared／weak retain-release、retainを伴うweak upgrade、atomic cycle-preflight／publicationを実装しrollback／race testを追加する。** — 8 pt
 - [ ] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
-- [ ] **P0 — 受理済みのreturn／error／panic cleanup規則に従ってdeterministic dropをelaborateする。** — 8 pt
+- [x] **P0 — 受理済みのreturn／error／panic cleanup規則に従ってdeterministic dropをelaborateする。** — 8 pt
 - [ ] **P0 — RFC 0007のText／Bytes source operation、UTF-8検証、checked index、allocatorを保持する変換を実装する。** — 5 pt
 - [ ] **P0 — Core source operationに必要なRFC 0007のUnit／Option／Resultと有限built-in specializationを実装する。** — 3 pt
 - [ ] **P0 — RFC 0007のallocator-aware Vec source operationをmove／loan／growth／failure conformance付きで実装する。** — 5 pt
