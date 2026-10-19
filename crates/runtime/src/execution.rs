@@ -79,6 +79,23 @@ impl<'a> Control<'a> {
     pub const fn limits(self) -> Limits {
         self.limits
     }
+    /// Apply embedding bounds without losing interruption, deadline or service
+    /// configuration. A caller cannot relax the context's finite limits.
+    pub fn constrained(mut self, bounds: Limits) -> Self {
+        fn lesser<T: Ord>(a: Option<T>, b: Option<T>) -> Option<T> {
+            match (a, b) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            }
+        }
+        self.limits = Limits {
+            fuel: lesser(self.limits.fuel, bounds.fuel),
+            host_calls: lesser(self.limits.host_calls, bounds.host_calls),
+            frames: lesser(self.limits.frames, bounds.frames),
+            live_cells: lesser(self.limits.live_cells, bounds.live_cells),
+        };
+        self
+    }
     pub const fn and_service_work(mut self, limit: Option<u64>) -> Self {
         self.service_work = limit;
         self

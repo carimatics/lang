@@ -121,6 +121,7 @@ pub struct Report {
     limit: usize,
     truncated: usize,
     quarantined: usize,
+    cleanup_failures: usize,
 }
 impl Report {
     pub const fn primary(&self) -> Option<&FailureRecord> {
@@ -136,7 +137,14 @@ impl Report {
     pub const fn quarantined(&self) -> usize {
         self.quarantined
     }
+    /// Includes cleanup failures omitted from the bounded record buffer.
+    pub const fn cleanup_failures(&self) -> usize {
+        self.cleanup_failures
+    }
     fn record(&mut self, record: FailureRecord) {
+        if !matches!(record.kind, FailureKind::Execution(_)) {
+            self.cleanup_failures = self.cleanup_failures.saturating_add(1);
+        }
         if self.primary.is_none() {
             self.primary = Some(record);
         } else if self.secondary.len() < self.limit - 1 {
@@ -200,6 +208,9 @@ impl Instance {
     pub const fn is_poisoned(&self) -> bool {
         self.poisoned
     }
+    pub(crate) fn poison(&mut self) {
+        self.poisoned = true;
+    }
     /// Reservation failure prevents entry; no guest cleanup callback runs.
     pub fn enter<T, C>(&mut self, limits: Limits, cleaner: C) -> Result<Frame<'_, T, C>, EnterError>
     where
@@ -249,6 +260,7 @@ impl Instance {
                 limit: limits.failure_records,
                 truncated: 0,
                 quarantined: 0,
+                cleanup_failures: 0,
             },
             finished: false,
             pending: None,
@@ -923,6 +935,7 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
                 limit: self.report.limit,
                 truncated: self.report.truncated,
                 quarantined: self.report.quarantined,
+                cleanup_failures: self.report.cleanup_failures,
             },
             poisoned: self.instance.poisoned,
         }

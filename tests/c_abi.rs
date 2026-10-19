@@ -9,6 +9,9 @@ use std::path::Path;
 #[path = "support/c_validation.rs"]
 mod validation;
 
+#[path = "support/c_context.rs"]
+mod context;
+
 fn source(text: &str) -> Box<OwnershipProgram> {
     let analysis = frontend::analyze_virtual(
         SourceMap::new(),

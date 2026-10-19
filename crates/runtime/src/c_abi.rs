@@ -1,12 +1,13 @@
 //! RFC 0008 profile-1 C descriptors and layouts. These describe actual C
 //! objects, independently of managed cells and their private storage layout.
-//! This module grants no capability, dereferences no foreign pointer, and
-//! enables no foreign execution. F02/F04 consume its checked metadata.
+//! Descriptor compilation dereferences no foreign pointer. The shared context
+//! gate checks explicit grants; real VM/native C adapters remain separate.
 use lang_mir::unit::{self as m, ownership as o};
 use o::declarations::{FunctionAbi, ImportAbi, VerifiedDeclarations};
 use sha2::{Digest as _, Sha256};
 use std::fmt::{Display, Formatter};
 
+pub mod context;
 mod header;
 pub mod validation;
 pub use header::HeaderOptions;
