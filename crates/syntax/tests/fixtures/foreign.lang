@@ -1,0 +1,13 @@
+pub struct Pair { value: i64, flag: bool, }
+pub enum Choice { Empty, Value(Pair), }
+extern fn legacy(value: i64) -> i64;
+extern /* ABI */ "C" fn exchange(value: Pair, flag: bool) -> core::Option<Choice>;
+extern "C" fn tick() -> core::Unit;
+pub extern "C" fn entry(value: Pair) -> i64 {
+    unsafe {
+        let mut result: core::Option<Choice> = exchange(value, true);
+        unsafe { let mut unit: core::Unit = tick(); }
+    }
+    return legacy(7);
+}
+pub extern "C" fn identity(value: Pair) -> Pair { return value; }

@@ -108,6 +108,20 @@ fn complete_accepted_grammar_round_trips_with_identical_semantic_cst_structure()
 }
 
 #[test]
+fn c_markers_unsafe_blocks_and_legacy_host_forms_round_trip_without_merging() {
+    checked(include_str!("fixtures/foreign.lang"), false);
+    let formatted = checked(
+        "extern\"C\"fn f()->core::Unit;pub extern/* keep */\"C\"fn g()->i64{unsafe/* loan */{unsafe{}}return 1;}",
+        false,
+    );
+    assert!(
+        formatted.contains("extern \"C\" fn f() -> core::Unit;"),
+        "{formatted}"
+    );
+    assert!(formatted.contains("unsafe /* loan */ {"), "{formatted}");
+}
+
+#[test]
 fn ownership_types_loans_generic_calls_and_arenas_round_trip() {
     checked(include_str!("fixtures/ownership.lang"), false);
     let text = "fn f(x:&mut core::Vec<core::Option<i64>>,a:shared Node,b:weak Node)->core::Unit{(*x).field=value;arena graph(core::allocator()){let mut p:arena Node=q;}return core::Unit{};}";

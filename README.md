@@ -62,6 +62,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 The Milestone 1 source pipeline supports multi-file modules, typed functions and recursion, copy-only records/enums, exhaustive patterns, verified portable bytecode, and bounded VM execution. Source spans survive analysis, lowering, artifacts, and runtime stacks. The formatter and stdio LSP prototype use the same lossless parser and revisioned module/diagnostic database.
 
+RFC 0008 C import/export declarations and statement-only `unsafe` blocks now parse and format losslessly; see the [syntax fixture](crates/syntax/tests/fixtures/foreign.lang). The exact `"C"` marker is not a general string literal. These forms currently fail semantic admission/checking with `SRC0025` while typed C binding rules and adapters are unfinished. Existing names spelled `unsafe` report the reserved-name migration `SRC0024`. Legacy one-i64 `extern fn` host imports keep their existing behavior. Verified 2026-10-19 JST.
+
 Requirements: Rust `1.99.0` with rustfmt and Clippy, pinned by `rust-toolchain.toml`; `mise` supplies auxiliary tool versions when needed.
 
 ```bash

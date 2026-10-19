@@ -194,6 +194,114 @@ fn ownership_keywords_in_legacy_name_positions_have_migration_diagnostics() {
 }
 
 #[test]
+fn c_imports_exports_and_unsafe_scopes_are_distinct_and_all_prefixes_are_lossless() {
+    let text = include_str!("fixtures/foreign.lang");
+    let (_, tree) = parsed(text, false);
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    for (kind, count) in [
+        (S::Host, 1),
+        (S::ForeignImport, 2),
+        (S::ForeignExport, 2),
+        (S::UnsafeBlock, 2),
+    ] {
+        assert_eq!(
+            tree.nodes().iter().filter(|n| n.kind() == kind).count(),
+            count
+        );
+    }
+    for end in (0..=text.len()).filter(|i| text.is_char_boundary(*i)) {
+        parsed(&text[..end], false);
+    }
+    for invalid in [
+        "extern \"C\" fn f() -> i64 { return 1; }",
+        "pub extern fn f(x: i64) -> i64;",
+        "extern fn f() -> i64;",
+        "extern fn f(x: bool) -> i64;",
+        "fn f() -> i64 { return unsafe { return 1; }; }",
+        "fn f() -> i64 { return \"C\"; }",
+    ] {
+        assert!(parsed(invalid, false).1.has_errors(), "{invalid}");
+    }
+}
+
+#[test]
+fn unsafe_in_legacy_name_positions_has_the_reserved_name_code_and_span() {
+    for text in [
+        "fn unsafe() -> i64 { return 1; }",
+        "fn f(unsafe: i64) -> i64 { return 1; }",
+        "fn f(value: unsafe) -> i64 { return 1; }",
+        "fn f() -> unsafe { return value; }",
+        "fn f() -> i64 { let mut unsafe: i64 = 1; return 0; }",
+        "fn f() -> i64 { return unsafe(); }",
+        "fn f() -> i64 { unsafe(); return 1; }",
+        "fn f() -> i64 { match 1 { unsafe => { return 1; }, } }",
+    ] {
+        let (sources, tree) = parsed(text, false);
+        let diagnostic = tree
+            .diagnostics()
+            .iter()
+            .find(|d| d.code == codes::UNSUPPORTED_SPECIALIZATION)
+            .unwrap_or_else(|| panic!("{text}: {:?}", tree.diagnostics()));
+        assert_eq!(sources.slice(diagnostic.primary.span).unwrap(), "unsafe");
+        assert!(diagnostic.fixes.is_empty());
+    }
+}
+
+#[test]
+fn foreign_signatures_scopes_and_recovery_obey_existing_parse_limits() {
+    for text in [
+        "extern \"C\" fn f(a: i64, b: bool) -> i64;",
+        "pub extern \"C\" fn f() -> i64 { unsafe { unsafe { return 1; } } }",
+        "pub extern \"C\" fn broken( -> i64 { unsafe { return ; } fn later() -> i64 { return 1; }",
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources.add("foreign.lang", text).unwrap();
+        for limits in [
+            ParseLimits {
+                work: 0,
+                ..Default::default()
+            },
+            ParseLimits {
+                nodes: 1,
+                ..Default::default()
+            },
+            ParseLimits {
+                depth: 1,
+                ..Default::default()
+            },
+        ] {
+            let result = parse(&sources, source, limits);
+            assert!(
+                matches!(result, Err(ParseError::Limit(_))),
+                "{text}, limits: {limits:?}"
+            );
+        }
+    }
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add(
+            "signature.lang",
+            "extern \"C\" fn f(a: i64, b: bool) -> i64;",
+        )
+        .unwrap();
+    for limit in [0, 1, 2] {
+        let result = parse(
+            &sources,
+            source,
+            ParseLimits {
+                list_elements: limit,
+                ..Default::default()
+            },
+        );
+        if limit < 2 {
+            assert!(matches!(result, Err(ParseError::Limit(_))));
+        } else {
+            assert!(!result.unwrap().has_errors());
+        }
+    }
+}
+
+#[test]
 fn ownership_recovery_preserves_later_items_and_reports_bounded_resource_failures() {
     for text in [
         "fn broken(x: core::Vec<) -> i64 { return 0; } fn later() -> i64 { return 1; }",

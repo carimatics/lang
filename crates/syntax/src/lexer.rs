@@ -116,6 +116,8 @@ pub enum TokenKind {
     Pub,
     Root,
     Extern,
+    CAbi,
+    Unsafe,
     Struct,
     Enum,
     Match,
@@ -292,6 +294,11 @@ impl Lexer<'_> {
         if bytes[start..].starts_with(b"/*") {
             return self.block_comment();
         }
+        // RFC 0008's exact ABI marker is a token, not a string literal.
+        if bytes[start..].starts_with(b"\"C\"") {
+            self.cursor += 3;
+            return Ok(TokenKind::CAbi);
+        }
         if byte.is_ascii_alphabetic() || byte == b'_' {
             self.cursor += 1;
             while bytes
@@ -451,6 +458,7 @@ fn keyword(text: &str) -> TokenKind {
         "pub" => TokenKind::Pub,
         "root" => TokenKind::Root,
         "extern" => TokenKind::Extern,
+        "unsafe" => TokenKind::Unsafe,
         "struct" => TokenKind::Struct,
         "enum" => TokenKind::Enum,
         "match" => TokenKind::Match,

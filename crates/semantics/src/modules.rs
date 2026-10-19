@@ -841,9 +841,25 @@ impl Loader<'_, '_> {
         for diagnostic in tree.diagnostics() {
             self.report(diagnostic.clone())?;
         }
+        let syntax_valid = !tree.has_errors();
         let mut paths = BTreeMap::new();
         for (index, node) in tree.nodes().iter().enumerate() {
             self.charge(node.span())?;
+            if syntax_valid
+                && matches!(
+                    node.kind(),
+                    S::ForeignImport | S::ForeignExport | S::UnsafeBlock
+                )
+            {
+                // Syntax support must not silently omit C declarations or
+                // route them through RFC 0006's unrelated host-import ABI.
+                self.report(Diagnostic::new(
+                    codes::FOREIGN_BOUNDARY,
+                    Severity::Error,
+                    "this source profile does not yet support C declarations or unsafe blocks",
+                    Label::new(node.span(), "unsupported foreign source boundary"),
+                ))?;
+            }
             if node.kind() == S::Path {
                 let mut segments = Vec::new();
                 let mut root = false;

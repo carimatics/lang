@@ -62,6 +62,8 @@
 
 Milestone 1のsource pipelineは複数fileのmodule、型付きfunctionと再帰、copy-only record／enum、網羅的pattern、検証済みportable bytecode、上限付きVM実行に対応しています。Source spanはanalysis、lowering、artifact、runtime stackまで保持されます。Formatterとstdio LSP prototypeは同じlossless parserとrevision付きmodule／診断databaseを使います。
 
+RFC 0008のC import／export宣言とstatementのみの`unsafe` blockをlosslessにparse／formatできるようになりました。[構文fixture](crates/syntax/tests/fixtures/foreign.lang)で確認できます。正確な`"C"` markerは一般的なstring literalではありません。型付きC binding規則とadapterは未完成のため、現在これらの形式の意味解析／checkは`SRC0025`で拒否します。従来`unsafe`という名前を使った箇所には予約語移行`SRC0024`を示します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-19 JST確認。
+
 必要な環境は `rust-toolchain.toml` で固定したRust `1.99.0` とrustfmt／Clippyです。補助tool versionが必要な場合は `mise` を使います。
 
 ```bash

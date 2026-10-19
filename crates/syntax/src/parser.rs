@@ -51,6 +51,8 @@ pub enum SyntaxKind {
     Module,
     Import,
     Host,
+    ForeignImport,
+    ForeignExport,
     Type,
     LoanType,
     SharedType,
@@ -59,6 +61,7 @@ pub enum SyntaxKind {
     TypeArguments,
     Path,
     Block,
+    UnsafeBlock,
     Let,
     Assign,
     PlaceAssign,
@@ -471,10 +474,10 @@ impl<'a> Parser<'a> {
         // Only delimiter insertions with an established follow boundary are
         // machine-applicable. Missing names/expressions/types are never guessed.
         let next = self.peek();
-        if kind == K::Identifier && next.is_some_and(ownership_keyword) {
+        if kind == K::Identifier && next.is_some_and(reserved_keyword) {
             self.missing_code(
                 ExpectedSyntax::Token(kind),
-                "ownership keyword is reserved; rename this identifier",
+                "keyword is reserved; rename this identifier",
                 None,
                 codes::UNSUPPORTED_SPECIALIZATION,
             )?;
@@ -560,25 +563,24 @@ impl<'a> Parser<'a> {
     }
 
     fn item(&mut self) -> Result<()> {
-        let kind = if self.peek() == Some(K::Pub) {
-            self.significant
-                .get(self.head + 1)
-                .map(|i| self.tokens[*i].kind)
-        } else {
-            self.peek()
-        };
+        let public = self.peek() == Some(K::Pub);
+        let kind = self.lookahead(usize::from(public));
+        let foreign =
+            kind == Some(K::Extern) && self.lookahead(usize::from(public) + 1) == Some(K::CAbi);
         let node = match kind {
             Some(K::Fn) => SyntaxKind::Function,
             Some(K::Struct) => SyntaxKind::Record,
             Some(K::Enum) => SyntaxKind::Enum,
             Some(K::Mod) => SyntaxKind::Module,
             Some(K::Use) => SyntaxKind::Import,
+            Some(K::Extern) if foreign && public => SyntaxKind::ForeignExport,
+            Some(K::Extern) if foreign => SyntaxKind::ForeignImport,
             Some(K::Extern) => SyntaxKind::Host,
             _ => SyntaxKind::Error,
         };
         self.start(node)?;
         let public = self.eat(K::Pub)?;
-        if public && !matches!(kind, Some(K::Fn | K::Struct | K::Enum | K::Mod)) {
+        if public && !foreign && !matches!(kind, Some(K::Fn | K::Struct | K::Enum | K::Mod)) {
             self.missing(
                 ExpectedSyntax::Item,
                 "pub requires a function, struct, enum, or module",
@@ -613,6 +615,17 @@ impl<'a> Parser<'a> {
                 self.path()?;
                 self.expect(K::Semicolon)?;
             }
+            Some(K::Extern) if foreign => {
+                self.bump()?;
+                self.expect(K::CAbi)?;
+                if public {
+                    self.function()?;
+                } else {
+                    self.expect(K::Fn)?;
+                    self.signature()?;
+                    self.expect(K::Semicolon)?;
+                }
+            }
             Some(K::Extern) => self.host()?,
             _ => {
                 self.missing(
@@ -628,7 +641,12 @@ impl<'a> Parser<'a> {
     }
 
     fn function(&mut self) -> Result<()> {
-        self.bump()?;
+        self.expect(K::Fn)?;
+        self.signature()?;
+        self.block()
+    }
+
+    fn signature(&mut self) -> Result<()> {
         self.expect(K::Identifier)?;
         self.start(SyntaxKind::Parameters)?;
         if self.expect(K::LeftParen)? {
@@ -637,8 +655,7 @@ impl<'a> Parser<'a> {
         }
         self.finish()?;
         self.expect(K::Arrow)?;
-        self.ty()?;
-        self.block()
+        self.ty()
     }
 
     fn host(&mut self) -> Result<()> {
@@ -721,6 +738,15 @@ impl<'a> Parser<'a> {
                 }
                 self.ty()?;
                 self.finish()?;
+            }
+            Some(K::Unsafe) => {
+                self.missing_code(
+                    ExpectedSyntax::Type,
+                    "keyword is reserved; rename this identifier",
+                    None,
+                    codes::UNSUPPORTED_SPECIALIZATION,
+                )?;
+                self.bump()?;
             }
             _ => self.missing(ExpectedSyntax::Type, "expected a type", None)?,
         }
@@ -882,6 +908,7 @@ impl<'a> Parser<'a> {
             Some(K::Identifier) if self.lookahead(1) == Some(K::Equal) => SyntaxKind::Assign,
             Some(K::Identifier | K::LeftParen) => SyntaxKind::PlaceAssign,
             Some(K::Arena) if self.lookahead(1) != Some(K::Equal) => SyntaxKind::Arena,
+            Some(K::Unsafe) if self.lookahead(1) == Some(K::LeftBrace) => SyntaxKind::UnsafeBlock,
             Some(K::If) => SyntaxKind::If,
             Some(K::While) => SyntaxKind::While,
             Some(K::Return) => SyntaxKind::Return,
@@ -938,12 +965,16 @@ impl<'a> Parser<'a> {
                 self.expression(false)?;
                 self.block()?;
             }
+            SyntaxKind::UnsafeBlock => {
+                self.bump()?;
+                self.block()?;
+            }
             SyntaxKind::Match => self.match_statement()?,
             _ => {
-                if self.peek().is_some_and(ownership_keyword) {
+                if self.peek().is_some_and(reserved_keyword) {
                     self.missing_code(
                         ExpectedSyntax::Expression,
-                        "ownership keyword is reserved; rename this identifier",
+                        "keyword is reserved; rename this identifier",
                         None,
                         codes::UNSUPPORTED_SPECIALIZATION,
                     )?;
@@ -1074,10 +1105,10 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 self.start(SyntaxKind::Error)?;
-                if self.peek().is_some_and(ownership_keyword) {
+                if self.peek().is_some_and(reserved_keyword) {
                     self.missing_code(
                         ExpectedSyntax::Expression,
-                        "ownership keyword is reserved; rename this identifier",
+                        "keyword is reserved; rename this identifier",
                         None,
                         codes::UNSUPPORTED_SPECIALIZATION,
                     )?;
@@ -1157,10 +1188,10 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 self.start(SyntaxKind::Error)?;
-                if self.peek().is_some_and(ownership_keyword) {
+                if self.peek().is_some_and(reserved_keyword) {
                     self.missing_code(
                         ExpectedSyntax::Pattern,
-                        "ownership keyword is reserved; rename this identifier",
+                        "keyword is reserved; rename this identifier",
                         None,
                         codes::UNSUPPORTED_SPECIALIZATION,
                     )?;
@@ -1223,7 +1254,7 @@ fn item_start(kind: K) -> bool {
 fn statement_start(kind: K) -> bool {
     matches!(
         kind,
-        K::Let | K::If | K::While | K::Return | K::Match | K::Arena
+        K::Let | K::If | K::While | K::Return | K::Match | K::Arena | K::Unsafe
     )
 }
 fn list_element_start(kind: K) -> bool {
@@ -1245,8 +1276,8 @@ fn list_element_start(kind: K) -> bool {
             | K::Arena
     )
 }
-fn ownership_keyword(kind: K) -> bool {
-    matches!(kind, K::Shared | K::Weak | K::Arena)
+fn reserved_keyword(kind: K) -> bool {
+    matches!(kind, K::Shared | K::Weak | K::Arena | K::Unsafe)
 }
 fn expression_boundary(kind: K) -> bool {
     matches!(

@@ -102,6 +102,30 @@ fn ownership_punctuation_keeps_individual_closers_and_exact_keywords() {
 }
 
 #[test]
+fn c_marker_is_exact_and_does_not_introduce_string_literals() {
+    let (sources, lexed) = tokenize("extern/* ABI */\"C\"fn unsafe unsafe2 Unsafe");
+    assert!(lexed.diagnostics.is_empty());
+    assert_eq!(
+        significant(&lexed),
+        [
+            K::Extern,
+            K::CAbi,
+            K::Fn,
+            K::Unsafe,
+            K::Identifier,
+            K::Identifier
+        ]
+    );
+    let marker = lexed.tokens.iter().find(|t| t.kind == K::CAbi).unwrap();
+    assert_eq!(sources.slice(marker.span).unwrap(), "\"C\"");
+    for invalid in ["\"Rust\"", "\"c\"", "\" C \"", "\"C\\\"", "\"\"", "\""] {
+        let (_, lexed) = tokenize(invalid);
+        assert!(!lexed.diagnostics.is_empty(), "{invalid}");
+        assert!(!significant(&lexed).contains(&K::CAbi), "{invalid}");
+    }
+}
+
+#[test]
 fn punctuation_prefers_two_character_tokens() {
     let (_, lexed) = tokenize("(){}:;,.=+< -> :: => ::: ==> -->");
     assert_eq!(

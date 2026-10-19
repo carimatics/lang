@@ -243,6 +243,7 @@ pub mod codes {
     pub const REGION_ESCAPE: DiagnosticCode = DiagnosticCode("SRC0022");
     pub const INVALID_OWNERSHIP_TYPE: DiagnosticCode = DiagnosticCode("SRC0023");
     pub const UNSUPPORTED_SPECIALIZATION: DiagnosticCode = DiagnosticCode("SRC0024");
+    pub const FOREIGN_BOUNDARY: DiagnosticCode = DiagnosticCode("SRC0025");
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
