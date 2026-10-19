@@ -6,9 +6,11 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**95 done · 0 doing · 20 todo · 47 remaining pt**
+**95 done · 1 doing · 20 todo · 50 remaining pt**
 
-**次: M2-F01 → accepted仕様のunsafe／C source boundaryを診断とcompile-fail fixtureで実装します（暫定2点、着手前に範囲を確認）。**
+**次: M2-F08 → acceptedのquoted-C／unsafe構文、formatter、予約語移行と上限を実装し、未完成の意味解析を拒否します（2点）。**
+
+F01着手前／F08分割監査（2026-10-19 JST）：実行したprobeではunsafeという旧関数名が通り、extern "C"はSRC0008の字句エラーでした。ParserとHIRのHostImportは従来のi64引数1個のhost形式で、HIRにunsafe statementはありません。Accepted RFC 0008にC構文は定義済みで、SRC0024の共用もRFC 0007が明示するため、診断番号の再設計は不要です。Losslessなquoted-C import／exportとunsafe block、formatter、予約語移行、上限付きrecoveryをF08（2点、doing）として追加します。未実装の意味解析は通常host importとして扱ったり無視したりせず拒否します。F01にはC型／unsafe／sourceとMIRの全要件を暫定3点で維持し、coding前に再度範囲を確認します。**115 → 116行、47 → 50 pt**。追加分は **66 → 69点**、完了で取り除いた **153点** は不変です。元のC／ABI／runtime／platform要件は削除しません。F08／F01のfrontend成果後、境界基盤を増やす前に最初のC source実行経路を確認します。
 
 N07のnative証拠（2026-10-19 JST）：実装9589022の[Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229)で1,404 test／87 suiteが成功しました。Native 60件は697.58秒で、31 source／62 executableのdirect／response-file standalone matrixも成功しています。Fmt／Clippy／rustdocも成功しました。Jobは後続のprototype benchmark中に30分上限へ達してcancelledとなり、workflow全体の成功は主張しません。119f9ffに証拠と次回の60分上限を記録し、5fe96deでbuild／実行を分離しました。確認済みnative Test証拠に基づきN07／G14を完了とし、全体CI／性能の証明はQ02／B01-B04へ残します。Task／見積もりは追加しません。
 
@@ -50,17 +52,17 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 95件（+60件）**、作業一覧は **87 → 115件（+28件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 95件（+60件）**、作業一覧は **87 → 116件（+29件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +66 pt | −153 pt | 47 pt |
+| 134 pt | +69 pt | −153 pt | 50 pt |
 
-**134 + 66 − 153 = 47 pt**
+**134 + 69 − 153 = 50 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり153点分を取り除く一方、前提作業の可視化と再見積もりで66点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り47点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり153点分を取り除く一方、前提作業の可視化と再見積もりで69点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り50点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **66点**、完了で取り除いた見積もりは **153点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
+N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **69点**、完了で取り除いた見積もりは **153点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
 以前のcode baselineの実測（2026-10-19 JST）：workspace Clippy **28.3秒**、全test **362.5秒**、rustdoc **14.2秒** の実時間（shell time）。Cargo報告のtest compileは **24.4秒**、suite時間合計は **87.2秒** です。Native境界suiteは **40 test・10.77秒** で成功し、service失敗matrixはcompile済みcodeを再利用してruntimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
 
@@ -213,7 +215,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-A01 | done | 0 | M2-V08 | G14,G16 | Ownership artifactのversion／encodingを互換性と検証上限付きでRFC受理記録にする。 | `6c9f12b` |
 | M2-A02 | done | 0 | M2-A01 | G14,G16 | Ownership型／命令のencode／decodeに不正入力budgetとfuzz targetを追加。 | `1311acd` |
 | M2-A03 | done | 0 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | `2dfea13` |
-| M2-F01 | todo | 2 | M2-D27 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | — |
+| M2-F08 | doing | 2 | M2-D27 | G11,G12 | AcceptedのC import／exportとunsafe blockをlosslessにparse／formatし、予約語を診断し、上限を維持して未完成の意味解析を拒否する。 | — |
+| M2-F01 | todo | 3 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
 | M2-F03 | todo | 3 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | — |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |

@@ -8,7 +8,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**95 verified deliveries · 0 in progress · 20 remaining tasks (provisional 47 pt).**
+**95 verified deliveries · 1 in progress · 20 remaining tasks (provisional 50 pt).**
+
+F01 readiness / F08 split audit (2026-10-19 JST): the executable probes accept an old function named unsafe, while extern "C" fails lexing with SRC0008. The parser and HIR HostImport still encode the legacy one-i64 host form, and HIR has no unsafe statement. Accepted RFC 0008 already specifies the C grammar; SRC0024 sharing is intentional under RFC 0007, so no diagnostic-number redesign is needed. Add F08 (2 pt, doing) for lossless quoted-C import/export and unsafe-block syntax, formatter, reserved-name migration and bounded recovery; unfinished semantic admission must reject these forms rather than treat them as ordinary host imports or omit them. Retain the full F01 C-type/unsafe/source and MIR obligations at provisional 3 pt, with another readiness review before coding. **115 → 116 rows, 47 → 50 pt**; added estimates **66 → 69 pt**, retired estimates **153 pt** unchanged. No original C/ABI/runtime/platform outcome is removed. After the F08/F01 frontend deliveries, review the first C source execution path before more boundary infrastructure.
 
 N07 native evidence (2026-10-19 JST): [Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229), implementation 9589022, passes 1,404 tests / 87 suites, including 60 native tests in 697.58s and the standalone 31-source / 62-executable direct/response-file matrix. Fmt/Clippy/rustdoc pass. The job is cancelled later during the prototype benchmark at its 30-minute limit; this is not a green whole-workflow claim. Evidence and the next-run 60-minute budget are recorded in 119f9ff; 5fe96de separates build/run phases. N07/G14 close on the inspected native Test evidence. Full CI/performance proof remains Q02/B01-B04 work; no task or estimate is added.
 

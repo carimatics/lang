@@ -8,7 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み95件 · 進行中0件 · 残り20件（暫定47 pt）。**
+**検証済み95件 · 進行中1件 · 残り20件（暫定50 pt）。**
+
+F01着手前／F08分割監査（2026-10-19 JST）：実行したprobeではunsafeという旧関数名が通り、extern "C"はSRC0008の字句エラーでした。ParserとHIRのHostImportは従来のi64引数1個のhost形式で、HIRにunsafe statementはありません。Accepted RFC 0008にC構文は定義済みで、SRC0024の共用もRFC 0007が明示するため、診断番号の再設計は不要です。Losslessなquoted-C import／exportとunsafe block、formatter、予約語移行、上限付きrecoveryをF08（2点、doing）として追加します。未実装の意味解析は通常host importとして扱ったり無視したりせず拒否します。F01にはC型／unsafe／sourceとMIRの全要件を暫定3点で維持し、coding前に再度範囲を確認します。**115 → 116行、47 → 50 pt**。追加分は **66 → 69点**、完了で取り除いた **153点** は不変です。元のC／ABI／runtime／platform要件は削除しません。F08／F01のfrontend成果後、境界基盤を増やす前に最初のC source実行経路を確認します。
 
 N07のnative証拠（2026-10-19 JST）：実装9589022の[Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229)で1,404 test／87 suiteが成功しました。Native 60件は697.58秒で、31 source／62 executableのdirect／response-file standalone matrixも成功しています。Fmt／Clippy／rustdocも成功しました。Jobは後続のprototype benchmark中に30分上限へ達してcancelledとなり、workflow全体の成功は主張しません。119f9ffに証拠と次回の60分上限を記録し、5fe96deでbuild／実行を分離しました。確認済みnative Test証拠に基づきN07／G14を完了とし、全体CI／性能の証明はQ02／B01-B04へ残します。Task／見積もりは追加しません。
 

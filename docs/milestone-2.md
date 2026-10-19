@@ -6,9 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**95 done · 0 doing · 20 todo · 47 remaining pt**
+**95 done · 1 doing · 20 todo · 50 remaining pt**
 
-**Next: M2-F01 → enforce accepted unsafe/C source-boundary rules with diagnostics and compile-fail fixtures (2 pt provisional; review scope before implementation).**
+**Next: M2-F08 → implement accepted quoted-C/unsafe syntax, formatter, reserved-name migration and limits, with explicit rejection until semantic admission is ready (2 pt).**
+
+F01 readiness / F08 split audit (2026-10-19 JST): the executable probes accept an old function named unsafe, while extern "C" fails lexing with SRC0008. The parser and HIR HostImport still encode the legacy one-i64 host form, and HIR has no unsafe statement. Accepted RFC 0008 already specifies the C grammar; SRC0024 sharing is intentional under RFC 0007, so no diagnostic-number redesign is needed. Add F08 (2 pt, doing) for lossless quoted-C import/export and unsafe-block syntax, formatter, reserved-name migration and bounded recovery; unfinished semantic admission must reject these forms rather than treat them as ordinary host imports or omit them. Retain the full F01 C-type/unsafe/source and MIR obligations at provisional 3 pt, with another readiness review before coding. **115 → 116 rows, 47 → 50 pt**; added estimates **66 → 69 pt**, retired estimates **153 pt** unchanged. No original C/ABI/runtime/platform outcome is removed. After the F08/F01 frontend deliveries, review the first C source execution path before more boundary infrastructure.
 
 N07 native evidence (2026-10-19 JST): [Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229), implementation 9589022, passes 1,404 tests / 87 suites, including 60 native tests in 697.58s and the standalone 31-source / 62-executable direct/response-file matrix. Fmt/Clippy/rustdoc pass. The job is cancelled later during the prototype benchmark at its 30-minute limit; this is not a green whole-workflow claim. Evidence and the next-run 60-minute budget are recorded in 119f9ff; 5fe96de separates build/run phases. N07/G14 close on the inspected native Test evidence. Full CI/performance proof remains Q02/B01-B04 work; no task or estimate is added.
 
@@ -50,17 +52,17 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 95 (+60)**, and the task inventory increased **87 → 115 (+28)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 95 (+60)**, and the task inventory increased **87 → 116 (+29)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +66 pt | −153 pt | 47 pt |
+| 134 pt | +69 pt | −153 pt | 50 pt |
 
-**134 + 66 − 153 = 47 pt**
+**134 + 69 − 153 = 50 pt**
 
-This separates delivered work from newly recognized work: completion retired 153 estimated points, while exposed prerequisites and re-estimation added 66. These are planning units, not hours or measured actual effort. The remaining 47 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 153 estimated points, while exposed prerequisites and re-estimation added 69. These are planning units, not hours or measured actual effort. The remaining 50 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions remain **66 pt** and estimates retired at completion are **153 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
+Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions are **69 pt** and estimates retired at completion are **153 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
 Earlier measured code baseline (2026-10-19 JST): workspace Clippy **28.3 s**, full tests **362.5 s**, rustdoc **14.2 s** wall time (shell time). Cargo reports test compilation **24.4 s**; summed suite timings are **87.2 s**. The native boundary suite passes **40 tests in 10.77 s**; service failure matrices reuse compiled code with fresh runtimes. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
@@ -213,7 +215,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-A01 | done | 0 | M2-V08 | G14,G16 | Record an accepted ownership artifact version/encoding decision with compatibility and validation limits. | `6c9f12b` |
 | M2-A02 | done | 0 | M2-A01 | G14,G16 | Encode/decode ownership types/operations with malformed-input budgets and a fuzz target. | `1311acd` |
 | M2-A03 | done | 0 | M2-A02 | G16 | Load, independently verify and execute owned source artifacts; round-trip behavior agrees. | `2dfea13` |
-| M2-F01 | todo | 2 | M2-D27 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | — |
+| M2-F08 | doing | 2 | M2-D27 | G11,G12 | Parse/format accepted C imports/exports and unsafe blocks losslessly, diagnose reserved names, preserve limits and reject unfinished semantic admission. | — |
+| M2-F01 | todo | 3 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
 | M2-F03 | todo | 3 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | — |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
