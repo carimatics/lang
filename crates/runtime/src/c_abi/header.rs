@@ -55,6 +55,7 @@ impl Artifact {
                 Kind::Enum {
                     cases,
                     payload_offset,
+                    payload_size,
                     ..
                 } => {
                     for (index, case) in cases.iter().enumerate() {
@@ -86,6 +87,7 @@ impl Artifact {
                     out.add(&format!("  }} payload;\n}} {name};\n"))?;
                     out.offset(&name, "tag", 0)?;
                     out.offset(&name, "payload", *payload_offset)?;
+                    out.add(&format!("_Static_assert(sizeof((({name} *)0)->payload) == UINT64_C({payload_size}), \"{name} union extent\");\n"))?;
                 }
                 Kind::I64 | Kind::Bool => unreachable!(),
             }

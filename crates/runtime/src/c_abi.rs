@@ -8,6 +8,7 @@ use sha2::{Digest as _, Sha256};
 use std::fmt::{Display, Formatter};
 
 mod header;
+pub mod validation;
 pub use header::HeaderOptions;
 
 pub const PROFILE: u16 = 1;
@@ -144,6 +145,8 @@ pub enum Kind {
         name: String,
         cases: Vec<Case>,
         payload_offset: u64,
+        /// Actual union extent, excluding the enclosing struct's tail padding.
+        payload_size: u64,
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -506,6 +509,7 @@ impl<'a> Builder<'a> {
                             name,
                             cases: out,
                             payload_offset: 0,
+                            payload_size: 0,
                         }
                     }
                 }
@@ -537,6 +541,7 @@ impl<'a> Builder<'a> {
                     name: text(&mut self.budget, name)?,
                     cases,
                     payload_offset: 0,
+                    payload_size: 0,
                 }
             }
             Key::Builtin(builtin) => self.builtin(builtin, depth)?,
@@ -611,6 +616,7 @@ impl<'a> Builder<'a> {
             name: text(&mut self.budget, name)?,
             cases,
             payload_offset: 0,
+            payload_size: 0,
         })
     }
     fn intern(&mut self, key: Key, mut kind: Kind) -> Result<TypeId> {
@@ -649,6 +655,7 @@ impl<'a> Builder<'a> {
                 name,
                 cases,
                 payload_offset,
+                payload_size,
             } => {
                 writer.bytes(&[4])?;
                 writer.string(name)?;
@@ -668,6 +675,7 @@ impl<'a> Builder<'a> {
                     alignment = alignment.max(case.align);
                 }
                 *payload_offset = align(4, alignment)?;
+                *payload_size = align(size, alignment)?;
                 (
                     align(
                         payload_offset.checked_add(size).ok_or(Error::Overflow)?,

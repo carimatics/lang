@@ -6,6 +6,9 @@ use lang_runtime::c_abi::{
 use lang_semantics::analysis::{OwnershipProgram, Program};
 use std::path::Path;
 
+#[path = "support/c_validation.rs"]
+mod validation;
+
 fn source(text: &str) -> Box<OwnershipProgram> {
     let analysis = frontend::analyze_virtual(
         SourceMap::new(),
@@ -86,6 +89,8 @@ const AGGREGATES: &str = r#"
 pub struct Empty {}
 pub struct Pair { flag: bool, value: i64 }
 pub enum Choice { Empty, Value(Pair, bool) }
+pub enum Mixed { Small(i64), Wide(core::AllocError, bool) }
+extern "C" fn mixed(value: Mixed) -> Mixed;
 extern "C" fn inspect(value: Choice, unit: core::Unit, empty: Empty) -> core::Result<Pair, core::BufferError>;
 extern "C" fn scalar(flag: bool, value: i64) -> bool;
 extern "C" fn errors(value: core::Utf8Error, owner: core::OwnershipError, region: core::ArenaError) -> core::BoundsError;
