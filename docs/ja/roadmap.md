@@ -8,7 +8,13 @@
 
 ## 現在のM2実装状況
 
-**検証済み100件 · 進行中1件 · 残り18件（暫定45 pt）。**
+**検証済み101件 · 進行中0件 · 残り18件（暫定42 pt）。**
+
+F11完了（2026-10-19 JST）：a37b053でC compiler産の実callbackをsourceからVM／生成native codeで実行します。名前付きscalar／Unit fixtureは59、直接callは42、上限256引数では32,896を返します。Context／code／実allocatorの結び付け、正規output、foreign失敗、共有control／workを強制します。新規7 fixtureには全有限fuel／work境界、OOM、interruption／deadline、同一ABIの別owner／allocator交換の作用前拒否を含みます。RFC 0012改訂43edb9bの後にC対応revision 2を生成し、通常のrevision 1 symbolと外部C profile 1を維持します。必須検証：**1,478 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。**C ABI 41件**、native **62件／262.13秒**、fmt／Clippy／rustdocも成功です（rustdoc **21.29秒**）。F11の **3点** を取り除き、**100 → 101 done、45 → 42 pt** とします。**119行と追加75点は不変、完了で取り除いた見積もりは167点** です。従来gateは **7/18** のままで、汎用aggregate、raw C factory／export／object公開、完全なpackaging／platform検証は未完了です。
+
+F04の残る範囲の監査（2026-10-19 JST）：新source経路はscalar／Unit importに対応し、NativeInvoker、VM import gate、CCompiledProgramはいずれもrecord／enum署名を明示拒否します。Managed値とCのaggregate field／case転送、scratch／result storageは未実装です。F04では入れ子Copy Option／Result／errorやpadding安全なreadを含め、実C allocatorと通常failure cleanupへ両実行モードで統合します。Raw C descriptor／factory／export公開もF04／F05に維持し、F09／F05-F07／P02は不変です。次の実験は受理済みaggregate C source fixtureとし、helperだけの完了を追加しません。F04は暫定3点で、その実験と残る全作業を確認してから維持／改訂を判断します。この監査で見積もりや元の成果は変更しません。
+
+F02のWindows evidence（2026-10-19 JST）：[全run 39222466737](https://github.com/carimatics/lang/actions/runs/39222466737)、head 40e6c34、job 117960765077が成功しました。F11／revision 2より前のsnapshotであり、新しいC source経路や残るF07／platform gateの証拠ではありません。
 
 F02完了（2026-10-19 JST）：7d4fea7で共通config／context gate、code owner／allocator provenance、明示C import grant、F10受入れ／result検査、再入／poison拒否、callback／body／reader panicの上限付きcontainmentを完成しました。16件のfailure／state fixtureでforeign status、primary／callsiteの保持、cleanupの切捨て／件数、summary copyを検証します。必須検証：**1,471 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Nativeは **62件／266.07秒**、fmt、Clippy（**21.57秒**）、rustdoc（**20.93秒**）も成功です。F02の残り **2点** を取り除き、**99 → 100 done、44 → 42 pt** とします。**118行、追加72点は不変、完了で取り除いた見積もりは164点** です。従来gateは **7/18** のままです。Raw C descriptor read、正確なcallback呼出し、foreign allocator bridge、VM／native adapter、output公開はF04／F05、実platform実行はF06／F07に維持します。C実行／object／schema 2の拒否も保ちます。
 
@@ -58,7 +64,7 @@ N03見積もり・依存関係監査（2026-10-19 JST）：key／所有値結果
 
 N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接続の前に **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。N12完了で最後の3点を取り除き **61 → 58点**、108行は維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformance前に、N05の依存へN02／N11／V08に加えN12／N03／N04を明示しました。要件は削除していません。
 
-現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続とN06／N07の両tier-1 hostでのstandalone object実行は完了し、次はF11の最初のscalar／Unit C source実行です。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
+現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続とN06／N07の両tier-1 hostでのstandalone object実行は完了し、F11のscalar／Unit C source実行を完了し、次はF04のaggregate import転送です。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
 
 G06とG14を完了とし、従来の **完了条件18件中7件完了** です。その **50 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
