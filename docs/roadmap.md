@@ -8,11 +8,11 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**104 verified deliveries · 0 in progress · 16 remaining tasks (provisional 36 pt).**
+**105 verified deliveries · 0 in progress · 16 remaining tasks (provisional 36 pt).**
 
-F13 (`6eb9018`, 2026-10-19 JST) executes source panic on VM/native and schema 3, preserving dynamic i64 code, divergence, spans/logical stack and cleanup. The standalone matrix now covers 35 sources / 70 direct/response executables. All 88 suites / 1,493 tests complete successfully after targeted display/signature corrections and continuation; fmt/Clippy/rustdoc pass. The [delivery board](milestone-2.md) retires the existing 3 pt: **39 → 36**, with no added estimate. Next: F05 external C context/export/object experiment and provisional-scope audit.
+F14 (`17da01b`, 2026-10-19 JST) generates the raw C context create/query/destroy support and executes it from a real C caller, preserving owned snapshots, output atomicity, registration, reentry and panic/poison state. All **88 suites / 1,499 tests**, fmt/Clippy/rustdoc pass. Exposing 2 pt then completing them gives **36 + 2 − 2 = 36 pt**, with **104 → 105 deliveries**. Next: actual source export execution and full runtime/result/object integration in F05, before another prerequisite.
 
-Original exit gates remain **7/18**; **50/113** is a historical gate-weight score, not an effort forecast. Raw C exports/objects, complete packaging, combined conformance, performance, debug and the final bilingual guide remain required.
+The [delivery-board core audit](milestone-2.md) closes arena, Text/Bytes, Vec and Map using full source/runtime/VM/native evidence and actual Windows run 39258215633. Original exit gates are **11/18**; **68/113** remains a historical gate-weight score, not an effort forecast. G08 previews, complete C exports/validity, packaging, representative conformance/performance, debug and the final bilingual guide remain required.
 
 <details>
 <summary>Earlier delivery and estimate notes</summary>
@@ -97,19 +97,19 @@ The representative-application task is also complete at its prototype boundary. 
 
 The 2026-10-17 repository review exposed missing entry gates for source ownership/core-library syntax and the production component profile, and separated native compilation of the existing copy-value profile from ownership-aware AOT. It adds 21 pending points to Milestone 2 and 5 to Milestone 3; completed work remains 298 points. The lower overall percentage reflects newly explicit work. Source/core-library foundations must precede representative workloads and self-hosting; C embedding stabilization follows conformance and resource enforcement.
 
-Exit-gate weight snapshot verified on 2026-10-18 (JST). Overall arithmetic aggregates historical gate weights; it is not an overall effort estimate. Current M2 delivery progress is above and in the linked board.
+Exit-gate weight snapshot verified on 2026-10-19 (JST). Overall arithmetic aggregates historical gate weights; it is not an overall effort estimate. Current M2 delivery progress is above and in the linked board.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 50 pt | 113 pt | 44.2% |
+| 2 — ownership and native AOT | 68 pt | 113 pt | 60.2% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **348 pt** | **764 pt** | **45.5%** |
+| **Overall** | **366 pt** | **764 pt** | **47.9%** |
 
 ## Milestone 0: design baseline
 
@@ -285,7 +285,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 7 / 18 complete; historical weight: 50 / 113 pt (44.2%).**
+**Exit gates: 11 / 18 complete; historical weight: 68 / 113 pt (60.2%).**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -295,12 +295,12 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Accept unspecified error/panic cleanup, unsafe/FFI validity, and allocator contracts before implementing their public interfaces.** — 5 pt
 - [x] **P0 — Implement owned values, moves, and lexical borrow checking in typed HIR and MIR.** — 8 pt
 - [x] **P0 — Implement RFC 0004 shared/weak retain-release, retained weak upgrades, and atomic cycle-preflight/publication with rollback and race tests.** — 8 pt
-- [ ] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
+- [x] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
 - [x] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
-- [ ] **P0 — Implement RFC 0007 Text/Bytes source operations, UTF-8 validation, checked indices, and allocator-preserving conversions.** — 5 pt
+- [x] **P0 — Implement RFC 0007 Text/Bytes source operations, UTF-8 validation, checked indices, and allocator-preserving conversions.** — 5 pt
 - [ ] **P0 — Implement RFC 0007 Unit/Option/Result and finite built-in specializations needed by core source operations.** — 3 pt
-- [ ] **P0 — Implement the RFC 0007 allocator-aware Vec source operations with move, loan, growth, and failure conformance.** — 5 pt
-- [ ] **P0 — Implement the RFC 0007 allocator-aware Map source operations with exact key equality and replacement/failure conformance.** — 3 pt
+- [x] **P0 — Implement the RFC 0007 allocator-aware Vec source operations with move, loan, growth, and failure conformance.** — 5 pt
+- [x] **P0 — Implement the RFC 0007 allocator-aware Map source operations with exact key equality and replacement/failure conformance.** — 3 pt
 - [ ] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
 - [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
 - [x] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
@@ -311,6 +311,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
+
 
 ### Implementation evidence history
 

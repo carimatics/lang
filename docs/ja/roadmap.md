@@ -8,11 +8,11 @@
 
 ## 現在のM2実装状況
 
-**検証済み104件 · 進行中0件 · 残り16件（暫定36 pt）。**
+**検証済み105件 · 進行中0件 · 残り16件（暫定36 pt）。**
 
-F13（`6eb9018`、2026-10-19 JST）でsource panicをVM／native・schema 3で実行し、動的i64 code・非復帰・span／論理stack・cleanupを保持します。Standalone matrixは35 source／direct・response合計70 executableです。表示／signatureの修正後に必要な検査を継続し、全88 suite／1,493 test成功、fmt／Clippy／rustdocも通過しました。[実装Todo](milestone-2.md)で既存3点を完了し、見積もりを追加せず **39 → 36 pt** とします。次はF05の外部C context／export／object実験と暫定範囲の監査です。
+F14（`17da01b`、2026-10-19 JST）でraw C contextのcreate／query／destroy supportを生成し、実C callerで実行します。所有snapshot・output原子性・登録identity・再入・panic／poison状態を保持し、**全88 suite／1,499 test**、fmt／Clippy／rustdoc成功です。前提2点の明示と完了により **36 + 2 − 2 = 36 pt**、成果は **104 → 105件** となりました。次はF05の実source export実行とruntime／result／object全統合で、それより前に別の前提作業を追加しません。
 
-従来の完了条件は **7/18** のままで、**50/113** は過去のgate固定重みであり工数予測ではありません。Raw C export／object、完全packaging、複合conformance、性能、debug、最終の日英guideを維持します。
+[実装Todoのcore監査](milestone-2.md)でsource／runtime／VM／native全体の根拠と実Windows run 39258215633を確認し、arena・Text／Bytes・Vec・Mapを完了としました。従来の完了条件は **11/18** で、**68/113** は履歴上のgate重みであり工数予測ではありません。G08 preview、C export／validity全体、packaging、代表conformance／性能、debug、最終の日英guideを維持します。
 
 <details>
 <summary>以前の成果・見積もり記録</summary>
@@ -97,19 +97,19 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 2026-10-17のrepository reviewで、source ownership／core-library構文とproduction component profileの開始gate欠落を明確にし、既存copy-value profileのnative compilationをownership-aware AOTから分離しました。Milestone 2に未完了21 pt、Milestone 3に未完了5 ptを追加し、完了済み298 ptは維持します。全体進捗の低下は隠れていた作業の明示によるものです。Source／core-library基盤を代表的workload／self-hostingより先に整備し、C embeddingのstable化はconformance／resource enforcement確認後に行います。
 
-2026-10-18（JST）に確認した受入条件の重みのsnapshotです。全体の計算は履歴上の重みの集計であり、全体作業量の見積もりではありません。現在のM2実装状況は上記とリンク先のTodoを参照してください。
+2026-10-19（JST）に確認した受入条件の重みのsnapshotです。全体の計算は履歴上の重みの集計であり、全体作業量の見積もりではありません。現在のM2実装状況は上記とリンク先のTodoを参照してください。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 50 pt | 113 pt | 44.2% |
+| 2 — ownershipとnative AOT | 68 pt | 113 pt | 60.2% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **348 pt** | **764 pt** | **45.5%** |
+| **全体** | **366 pt** | **764 pt** | **47.9%** |
 
 ## Milestone 0：設計baseline
 
@@ -285,7 +285,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中7件完了、履歴上の重み：50 / 113 pt（44.2%）。**
+**完了条件：18件中11件完了、履歴上の重み：68 / 113 pt（60.2%）。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -295,12 +295,12 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — 未規定のerror／panic cleanup、unsafe／FFI validity、allocator contractを公開interface実装前に受理する。** — 5 pt
 - [x] **P0 — Typed HIR／MIRでowned value、move、lexical borrow checkingを実装する。** — 8 pt
 - [x] **P0 — RFC 0004のshared／weak retain-release、retainを伴うweak upgrade、atomic cycle-preflight／publicationを実装しrollback／race testを追加する。** — 8 pt
-- [ ] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
+- [x] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
 - [x] **P0 — 受理済みのreturn／error／panic cleanup規則に従ってdeterministic dropをelaborateする。** — 8 pt
-- [ ] **P0 — RFC 0007のText／Bytes source operation、UTF-8検証、checked index、allocatorを保持する変換を実装する。** — 5 pt
+- [x] **P0 — RFC 0007のText／Bytes source operation、UTF-8検証、checked index、allocatorを保持する変換を実装する。** — 5 pt
 - [ ] **P0 — Core source operationに必要なRFC 0007のUnit／Option／Resultと有限built-in specializationを実装する。** — 3 pt
-- [ ] **P0 — RFC 0007のallocator-aware Vec source operationをmove／loan／growth／failure conformance付きで実装する。** — 5 pt
-- [ ] **P0 — RFC 0007のallocator-aware Map source operationを厳密key equalityとreplacement／failure conformance付きで実装する。** — 3 pt
+- [x] **P0 — RFC 0007のallocator-aware Vec source operationをmove／loan／growth／failure conformance付きで実装する。** — 5 pt
+- [x] **P0 — RFC 0007のallocator-aware Map source operationを厳密key equalityとreplacement／failure conformance付きで実装する。** — 3 pt
 - [ ] **P0 — 狭いunsafe boundaryを定義し、FFI validity ruleを強制する。** — 5 pt
 - [ ] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
 - [x] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
@@ -311,6 +311,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。
+
 
 ### 実装evidence履歴
 

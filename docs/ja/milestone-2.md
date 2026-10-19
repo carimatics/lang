@@ -6,27 +6,42 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**104 done · 0 doing · 16 todo · 36 remaining pt**
+**105 done · 0 doing · 16 todo · 36 remaining pt**
 
-**次: M2-F05 → raw C context／export／objectの統合を実験し、暫定3 ptの範囲を確認します。**
+**次: M2-F05 → 実C callerからsource exportを実行し、runtime／result／object統合を完成します（暫定3 pt）。**
 
 | 次の成果（未着手） | 直近の完了 | 必須の実行成果 |
 | --- | --- | --- |
-| F05：raw C context／export／object統合（暫定3 pt） | F13：source panic、103 → 104件、39 → 36 pt（6eb9018） | C callerでcontext作成／破棄・export呼出し・status／result確認・object link |
+| F05：source export／runtime／object統合（暫定3 pt） | F14：raw C context support、104 → 105件、38 → 36 pt（17da01b） | Cからnative source increment／panicを呼び、result原子性とcontext／runtime／object接続を確認 |
 
-直近3件：F04（cfd0987）→ F09（59f0f08）→ F13（6eb9018）。従来の完了条件は **7/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
+直近3件：F09（59f0f08）→ F13（6eb9018）→ F14（17da01b）。従来の完了条件は **11/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
 
-F13完了（2026-10-19 JST）：6eb9018で受理済みsource core::panicを、非復帰の型検査・動的な符号付きi64 code・元のspan／論理stack・owner cleanupとともにVM／native実行できます。RFC 0014の判断036bb97をschema 3／private revision 3より先に記録し、旧profileとC serialization拒否を維持しました。両sourceをstandalone AOTへ追加し、**35 source／direct・response合計70 executable** となりました。検証は **1,493 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Native **66件／276.00秒**、C ABI **45件／12.45秒**、fmt／Clippy／rustdocも成功です。既存の **3点** を取り除き、**103 → 104 done、39 → 36 pt** とします。**120行と追加77点は不変、完了で取り除いた見積もりは175点** です。従来gateは **7/18** のままで、C export／objectとtarget検証はF05–F07に維持します。
+F14完了（2026-10-19 JST）：17da01bで実Programへ結び付けた既存C create／destroy／last_error入口を生成します。実C callerでopaque contextを作成／照会／破棄でき、stack descriptor／name上書き後もsnapshotを保持します。境界／状態5 testで不正要求・output保持・identity／再入／poison・address／重複拒否・有効なゼロ予算を検証しました。必須検証：**1,499 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。C ABI **51件／14.65秒**、native **66件／276.32秒**、fmt／Clippy／rustdoc成功。F14の **2点** を取り除き、**104 → 105 done、38 → 36 pt** とします。**121行、追加79点、完了で取り除いた見積もり177点** です。前提2点の明示と完了が相殺し、前回成果からの総点は同じでも実C supportが増えました。別途core完了条件を監査してG05／G07／G09／G10を完了とし、F05のsource export／objectは維持します。
 
 <details>
 <summary>残るFFI統合</summary>
 
-残るFFIの監査（2026-10-19 JST）：F04 typed import、F09 source drop、F13 source panicはローカルで完了しました。F05はraw descriptor／context factory／error query／destroy、export wrapper、C対応object公開を維持します。外部C callerでの実験まで3 ptは暫定です。F06／F07のtarget検証、P02のclean packaging、Q01／Q02のowner／C複合conformance、V17の間接previewをZ01より前に維持します。元の成果は削除しません。
+残るFFIの監査（2026-10-19 JST）：F04 typed import、F09 drop、F13 panic、F14 raw C context supportはローカルで完了しました。F05にはnative source export実行・callbackでの元opaque context・実allocator／runtime／result staging・C対応object公開を維持します。次の実C source export実験まで3 ptは暫定とし、その実行前に別の前提作業を追加しません。F06／F07のtarget検証、P02 packaging、Q01／Q02 owner／C conformance、V17の間接preview、Z01 guideを維持します。
 
 </details>
 
 <details>
 <summary>過去の成果・範囲監査・検証記録</summary>
+
+Core完了条件の監査（2026-10-19 JST）：**G05／G07／G09／G10** を完了とし、**7 → 11 / 18**、履歴上の重み **50 → 68 / 113** とします。既存実装の完了確認であり、新たな工数見積もりの完了ではありません。各条件のsource／runtime全要件と実VM／native／tier-1根拠を下記で確認しました。Core実装pathは成功済みWindows snapshot 165ae7dから不変で、現macOS全baselineも通過しています。最終capability文書はZ01に維持します。
+
+| Gate | 要件と確認した根拠 |
+| --- | --- |
+| G05 arena | [Source region失敗／call](../../tests/arena_calls.rs)、[独立region解析](../../crates/semantics/tests/region_analysis.rs)、[stale generation／逆順drain](../../crates/runtime/tests/arena.rs)、[入れ子managed検査](../../crates/runtime/tests/managed_arena.rs)。Source VM／native arenaとfailure prefixも通過。 |
+| G07 Text／Bytes | [UTF-8・checked index・元allocatorのbuffer検査](../../crates/runtime/tests/buffer.rs)と[native source比較](../../tests/support/native_core.rs)。確保／fuel／work境界とcleanup／result拒否を含む。 |
+| G09 Vec | [Move／growth／loan／OOM・逆順破棄](../../crates/runtime/tests/vector.rs)、[source実行](../../tests/support/owned_vec.rs)、[native差分／failure fixture](../../tests/support/native_vectors.rs)。 |
+| G10 Map | [Runtime Map検査](../../crates/runtime/tests/map.rs)、[sourceの正確なUTF-8 byte key／置換oracle](../../tests/support/owned_map.rs)、[native owner／入れ子／failure fixture](../../tests/support/native_maps.rs)。 |
+
+4 familyとも[standalone source matrix](../../tests/support/native_static.rs)に入り、direct／response-fileのlink／run、fuel／work／provider／interruption／cleanup全scenarioとVM比較を実行します。[Windows全run 39258215633](https://github.com/carimatics/lang/actions/runs/39258215633)、head 165ae7d、job 118078789294は2026-10-19 13:36:00 UTCに成功しました。G08はV17、G11／G12はC export／validity／target全体、G15–G18はpackaging・代表conformance・測定・実debug根拠のため未完了です。元の成果や最終guideは削除しません。
+
+F13完了（2026-10-19 JST）：6eb9018で受理済みsource core::panicを、非復帰の型検査・動的な符号付きi64 code・元のspan／論理stack・owner cleanupとともにVM／native実行できます。RFC 0014の判断036bb97をschema 3／private revision 3より先に記録し、旧profileとC serialization拒否を維持しました。両sourceをstandalone AOTへ追加し、**35 source／direct・response合計70 executable** となりました。検証は **1,493 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Native **66件／276.00秒**、C ABI **45件／12.45秒**、fmt／Clippy／rustdocも成功です。既存の **3点** を取り除き、**103 → 104 done、39 → 36 pt** とします。**120行と追加77点は不変、完了で取り除いた見積もりは175点** です。従来gateは **7/18** のままで、C export／objectとtarget検証はF05–F07に維持します。
+
+F05の実装前監査（2026-10-19 JST）：受理済みincrement／panic C exportは解析できますが、通常object APIは両targetでUnsupportedCInterfaceとなります。Headerのcreate／destroy／last_errorにraw C実装がなく、現Program／Context APIは借用Rust descriptorだけを受け取ります。Export／objectより前に実C context support用F14（初期2 pt）を明示します。F05はraw export／value／runtime／objectの全要件を暫定3 ptで維持し、C source実行の実験後に監査します。**120 → 121行、36 → 38 remaining pt、追加77 → 79点**、完了で取り除いた見積もり175点は不変です。元の成果を削除しません。F14後は別の前提作業を追加する前にsource exportを実行します。
 
 F13の検証記録（2026-10-19 JST）：最初のworkspace全体実行はdelivery件数／labelの整合性検査で停止しました。表示と既存core signature／bindingの期待値を修正し、repository_consistency・未実行だったroot 3 target・全non-root workspace targetを完了し、bindingも個別再実行しました。Test executable単位で照合し、**全88 suite／1,493 test成功** を確認しています。完了済みstandalone AOT matrixは繰り返していません。追加した最初のfaultの論理stack比較はnative panic 2 testを別途通過しました。最終Clippy **25.09秒**、rustdoc **36.48秒**、fmt成功。成功suiteの合計 **370.82秒** は検証の観測値であり、実作業時間やruntime benchmarkではありません。
 
@@ -115,25 +130,25 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 104件（+69件）**、作業一覧は **87 → 120件（+33件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 105件（+70件）**、作業一覧は **87 → 121件（+34件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +77 pt | −175 pt | 36 pt |
+| 134 pt | +79 pt | −177 pt | 36 pt |
 
-**134 + 77 − 175 = 36 pt**
+**134 + 79 − 177 = 36 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり175点分を取り除く一方、前提作業の可視化と再見積もりで77点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り36点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり177点分を取り除く一方、前提作業の可視化と再見積もりで79点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り36点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
 N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
 以前のcode baselineの実測（2026-10-19 JST）：workspace Clippy **28.3秒**、全test **362.5秒**、rustdoc **14.2秒** の実時間（shell time）。Cargo報告のtest compileは **24.4秒**、suite時間合計は **87.2秒** です。Native境界suiteは **40 test・10.77秒** で成功し、service失敗matrixはcompile済みcodeを再利用してruntimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Nativeの生成exitは累積workのconformanceまで検証済みで、両tier-1のstandalone実行はN06／N07で確認済みで、packaging／FFIの残要件はevidenceが必要です。Source統合だけでexit gateを閉じません。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Nativeの生成exitは累積workのconformanceまで検証済みで、両tier-1のstandalone実行はN06／N07で確認済みで、packaging／FFIの残要件はevidenceが必要です。上記source／runtime／tier-1根拠で4 core gateを完了とし、残る複合機能・preview・最終guideを明示します。
 
 実装前・分割監査（2026-10-19 JST）：初回Bytes sourceはVMで1を返し、native allocator／Bytes接続の不足を確認しました。公開buffer APIがstorage操作を提供し、collectionには別途managed loan viewが必要です。N03の3点をN11 allocator／Bytes／Text（初期1点、今回完了）、N12 Vec（1点）、N03 Map（1点）へ分割しました。**106 → 108 task**、**N11の1点完了前の残り60点は不変** です。N05は設定可能なservice byte-work admissionを引き続き含み、exit conformance全体の前提としてN11に依存します。RFC 0012はVM／nativeで設定済み制御を一致させ、未対応設定を拒否することを要求します。具体的なservice-work契約は実装前に設計文書で定義する必要があります。Native／FFI／platform／conformance／performance／debug全要件、V17、Z01の英日guideを維持します。
 
-従来の完了条件は **18件中7件完了** です。G06のcompiler／VM／canonical native cleanupに加え、G14の両tier-1でのowned source object link／runを完了しました。全workflow成功とFFI、packaging、代表的conformance／性能、debug、最終guideは未完です。
+従来の完了条件は、上記core監査後 **18件中11件完了** です。G08の間接preview、G11／G12のC validity／export全体、G15–G18のpackaging／conformance／性能／debugと最終guide Z01を維持します。
 
 この文書を実装Todoの正本とします。Roadmapには従来の受入条件とその履歴上の重みを残します。件数は独立して検証した成果の数であり、各件の作業量が等しいという意味ではありません。残りpointは積み上げによる暫定見積もりで、native／C／platform統合の確度は低く、時間や完成時期の予測ではありません。完了済み作業に後付けのeffort pointは与えません。完了行の *残り* pointは0です。
 
@@ -287,7 +302,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F03 | done | 0 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | `dee7f34` |
 | M2-F11 | done | 0 | M2-F02,M2-F03 | G12 | 実C codeと共通contextを使い、scalar／Unit importをsourceからVM／nativeで実行しfailureを検証。 | `a37b053` |
 | M2-F04 | done | 0 | M2-F02,M2-F03,M2-F11 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | `cfd0987` |
-| M2-F05 | todo | 3 | M2-F04,M2-F09,M2-F13 | G12 | Raw descriptor／context factory／error／destroyとC export／objectを統合し、受理済みstatus／resultと入れ子cleanup失敗を扱う。 | — |
+| M2-F14 | done | 0 | M2-F02,M2-F03 | G11,G12 | 生成raw C create／query／destroyを実C callerで実行し、descriptor copy・失敗時output保持・context寿命・artifact／再入gateを強制。 | 17da01b |
+| M2-F05 | todo | 3 | M2-F04,M2-F09,M2-F13,M2-F14 | G12 | Raw descriptor／context factory／error／destroyとC export／objectを統合し、受理済みstatus／resultと入れ子cleanup失敗を扱う。 | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Headerを独立compileし、native macOSで境界validity fixtureを実行。 | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Native Windowsで対応するC境界fixtureを実行し、成功CI evidenceを記録。 | — |
 
@@ -329,14 +345,16 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 
 ## 情報源と確認日
 
-- [Source panic](../../examples/analysis/explicit_panic_owned.lang)、[VM fixture](../../tests/support/owned_panic.rs)、[native fixture](../../tests/support/native_panic.rs)、[RFC 0014](rfcs/0014-explicit-source-panic.md)（`6eb9018`）：2026-10-19 JST更新・確認。全local baseline suiteは上記のとおり完了しています。[Windows run 39258215633](https://github.com/carimatics/lang/actions/runs/39258215633)、head 165ae7d、job 118078789294は実行中で、成功の根拠にはまだ使いません。この追記は情報源のみの変更であり、165ae7dは同じ実装を含みます。
+- [Raw C context support](../../crates/codegen-clif/src/c_abi/context.rs)、[field reader／lifecycle](../../crates/codegen-clif/src/c_abi/context/raw.rs)、[実C／状態fixture](../../tests/support/c_context_native.rs)（`17da01b`）：2026-10-19 JST更新・確認。Local全baselineは上記のとおり成功し、この新raw context snapshotには別のWindows runが必要です。F05 source export／objectは未実装です。
+
+- [Source panic](../../examples/analysis/explicit_panic_owned.lang)、[VM fixture](../../tests/support/owned_panic.rs)、[native fixture](../../tests/support/native_panic.rs)、[RFC 0014](rfcs/0014-explicit-source-panic.md)（`6eb9018`）：2026-10-19 JST更新・確認。全local baseline suiteは上記のとおり完了しています。[Windows run 39258215633](https://github.com/carimatics/lang/actions/runs/39258215633)、head 165ae7d、job 118078789294は2026-10-19 13:36:00 UTCに全workflow成功となりました。F14 raw context supportは後続の別実装として追跡します。
 
 - [Source drop](../../examples/analysis/explicit_drop.lang)、[shared／weak期限切れ](../../examples/analysis/explicit_drop_shared.lang)、[lowering](../../crates/semantics/src/ownership_types/bodies/matching.rs)、[VM／native fixture](../../tests/support/native_drop.rs)（`59f0f08`）：2026-10-19 JST更新・確認。上記local必須検証に成功し、F09 Windowsはrun 39251972828で確認済みです。Source panicは別のF13成果です。
 
 - [F04 finite Copy転送](../../crates/runtime/src/c_abi/transfer.rs)、[名前付きsource](../../examples/analysis/c_aggregate_imports.lang)、[実C fixture](../../tests/support/c_imports.rs)（`cfd0987`）：2026-10-19 JST更新・確認。上記local必須検証に成功し、修正後のWindows snapshot 876b908はrun 39247826059を通過しました。完全なraw C exportはF05です。
 
 - [F11 scalar C source](../../examples/analysis/c_scalar_imports.lang)、[C／VM／native fixture](../../tests/support/c_imports.rs)、[revision 2 native gateway](../../crates/codegen-clif/src/owned/c_imports.rs)（`a37b053`）：2026-10-19 JST更新・確認。上記local必須検証を完了し、Windows snapshot 1a8fcadはrun 39234763047を通過しました。Raw C export／objectと完全なplatform検証はF05–F07です。
-- [F02 context実装](../../crates/runtime/src/c_abi/context.rs)と[16件のfailure／state fixture](../../tests/support/c_context.rs)（`7d4fea7`）：2026-10-19 JST更新・確認。上記local必須検証を完了し、その後F11／F04でtyped C import adapterも完成しました。Raw C context／export公開はF05です。
+- [F02 context実装](../../crates/runtime/src/c_abi/context.rs)と[16件のfailure／state fixture](../../tests/support/c_context.rs)（`7d4fea7`）：2026-10-19 JST更新・確認。上記local必須検証を完了し、その後F11／F04でtyped C import adapterも完成しました。Raw C context supportはF14で完了し、source export／runtime／object公開はF05です。
 - N02の過去のcheckpoint：[Native place／loan lowering](../../crates/codegen-clif/src/owned.rs)、[source fixture](../../examples/analysis/native_owned_loans.lang)、[place／VM test](../../tests/support/native_places.rs)（`a3478bd`）：2026-10-19 JST更新・検証。N02の既存見積もり3点を完了しました。これらはa3478bd時点で未完了でした。その後の完了はN03–N07／N11–N19行と上記snapshot根拠に記録しています。
 - [進捗validator](../../tests/repository_consistency.rs)（`00cff53`）：更新・検証日2026-10-18 JST。見積もり収支と未完了行の一致、成果／task数の差分、roadmap集計、英日一致を検証します。全workspace 1326 testとfmt／Clippy／rustdocが成功しました。この追跡方法の保守をM2実装行の完了には数えません。
 - 詳細Todoの履歴 `8605416..926ccfe`：2026-10-18 JST付の48 revisionを2026-10-18 JSTに再監査。行の状態変化だけでは完了107点／追加39点になります。V14とR08は最初のcommitでdoneでしたが、V10／R01の実装前監査に2／3点の見積もりが残っているため、両側に5点を加えて完了112点／追加44点としました。新たな成果41件をすべて含み、削除された行はありません。導入と完了が同じ更新でも、その見積もりを保持します。
