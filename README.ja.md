@@ -62,7 +62,7 @@
 
 Milestone 1のsource pipelineは複数fileのmodule、型付きfunctionと再帰、copy-only record／enum、網羅的pattern、検証済みportable bytecode、上限付きVM実行に対応しています。Source spanはanalysis、lowering、artifact、runtime stackまで保持されます。Formatterとstdio LSP prototypeは同じlossless parserとrevision付きmodule／診断databaseを使います。
 
-RFC 0008のC import／export宣言は、source checkから独立検証済みownership MIRまで型付きC識別を保持します。[check可能なsource例](examples/analysis/c_boundaries.lang)で確認できます。C import呼出しにはlexicalな`unsafe` blockが必要で、通常の名前・型・move・loan・cleanup規則を適用します。不正なC署名／呼出しには`SRC0025`を示します。C実行adapterとportable C artifactは未完成のため、実行／object公開とschema 2 encodingは作用前にC unitを明示拒否します。従来`unsafe`という名前を使った箇所には移行`SRC0024`を示します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-19 JST確認。
+RFC 0008のC import／export宣言は、source checkから独立検証済みownership MIRまで型付きC識別を保持します。[check可能なsource例](examples/analysis/c_boundaries.lang)で確認できます。C import呼出しにはlexicalな`unsafe` blockが必要で、通常の名前・型・move・loan・cleanup規則を適用します。不正なC署名／呼出しには`SRC0025`を示します。lang-runtime::c_abiでC11 headerと正確なdescriptor／digest metadataを生成できます（[compiler検証](tests/c_abi.rs)）。C実行adapterとportable C artifactは未完成のため、実行／object公開とschema 2 encodingは作用前にC unitを明示拒否します。従来`unsafe`という名前を使った箇所には移行`SRC0024`を示します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-19 JST確認。
 
 必要な環境は `rust-toolchain.toml` で固定したRust `1.99.0` とrustfmt／Clippyです。補助tool versionが必要な場合は `mise` を使います。
 

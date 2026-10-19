@@ -3,6 +3,7 @@
 pub mod allocation;
 pub mod arena;
 pub mod buffer;
+pub mod c_abi;
 pub mod cleanup;
 pub mod component;
 pub mod execution;

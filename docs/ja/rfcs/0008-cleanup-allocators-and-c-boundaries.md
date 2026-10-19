@@ -209,6 +209,8 @@ Ownerは明示cleanup／status flow、recoverable budget付きguest allocation�
 
 Review outcome：**cleanup／allocator／unsafe／C-validity semanticsを2026-10-17 JSTに受理済み**。完全なgenerated descriptor fixture、implementation、platform conformance、measurement、stabilizationは主張しません。
 
+F03の製品実装evidenceを2026-10-19 JST確認：[descriptor／layout／header生成](../../../crates/runtime/src/c_abi.rs)は従来scalar vectorを変えず、このprofileからPython struct／hashlibで直接計算した[独立aggregate／type／artifact vector](../../../benchmarks/fixtures/c-abi-profile-1-aggregate-fingerprints.json)とも一致します。[Compiler test](../../../tests/c_abi.rs)で両target・両方向のdescriptor、正確なC field／payload配置、callback／aggregate／Unit署名、headerの再読込み／共有型、曖昧なalias、resource上限、暗黙builtin payloadを含むsource／MIR／展開後Cの一致したdepth境界を検証します。Host C compilerとfreestanding Clangのtarget検査は生成headerの実装evidenceであり、F02 context／事前検査とF04-F07の実行／platform gateは引き続き必要です。SHA-256にはRustCrypto sha2 0.11.1を使います（package metadataを2026-10-19確認。Cargo metadataに公開／更新時刻の記載なし）。
+
 2026-10-17 JST確認のprototype evidence：[layout fixture](../../../benchmarks/fixtures/c-abi-profile-1-layout.c)はApple Clang 21.0.0（`clang-2100.3.34.2`）で `clang --target=arm64-apple-macos -std=c11 -Wall -Wextra -Werror -fsyntax-only` と、同じcommandの `--target=x86_64-pc-windows-msvc` をpassしました。[Fingerprint vector](../../../benchmarks/fixtures/c-abi-profile-1-fingerprints.json)は両direction／targetのscalar descriptor byte／SHA-256を記録します。提案fixtureであり、compiler生成header、native Windows／MSVC実行、source C interoperabilityではなく、上記implementation gateは残ります。
 
 ## 情報源

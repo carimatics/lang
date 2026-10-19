@@ -935,14 +935,20 @@ impl<'a> Context<'a> {
             },
             r::Type::Constructed(_) => match self.constructor(ty) {
                 Some(r::TypeConstructor::Builtin(
-                    r::BuiltinType::Unit
-                    | r::BuiltinType::AllocError
-                    | r::BuiltinType::BoundsError
-                    | r::BuiltinType::BufferError
+                    r::BuiltinType::Unit | r::BuiltinType::AllocError | r::BuiltinType::BoundsError,
+                )) => Ok(()),
+                Some(r::TypeConstructor::Builtin(
+                    r::BuiltinType::BufferError
                     | r::BuiltinType::Utf8Error
                     | r::BuiltinType::OwnershipError
                     | r::BuiltinType::ArenaError,
-                )) => Ok(()),
+                )) => {
+                    // Their canonical C enum encodings have an AllocError or
+                    // i64 payload, despite the atomic source spelling.
+                    self.charge(span)?;
+                    self.c_width(depth + 1, 64, span)?;
+                    Ok(())
+                }
                 Some(r::TypeConstructor::Option(value)) => self.c_type(value, span, depth + 1),
                 Some(r::TypeConstructor::Result(ok, error)) => {
                     self.c_type(ok, span, depth + 1)?;

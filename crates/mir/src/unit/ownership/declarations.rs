@@ -276,14 +276,18 @@ impl Check<'_> {
             },
             Type::Constructed(_) => match self.constructor(ty).ok_or_else(invalid)? {
                 Constructor::Builtin(
-                    Builtin::Unit
-                    | Builtin::AllocError
-                    | Builtin::BoundsError
-                    | Builtin::BufferError
+                    Builtin::Unit | Builtin::AllocError | Builtin::BoundsError,
+                ) => {}
+                Constructor::Builtin(
+                    Builtin::BufferError
                     | Builtin::Utf8Error
                     | Builtin::OwnershipError
                     | Builtin::ArenaError,
-                ) => {}
+                ) => {
+                    // Account for the enum's implicit AllocError/i64 payload.
+                    at(self.budget.charge(1), root)?;
+                    self.c_limit(depth + 1, 64, CProfileLimit::Depth, root)?;
+                }
                 Constructor::Option(value) => self.c_type(value, root, depth + 1)?,
                 Constructor::Result(ok, error) => {
                     self.c_type(ok, root, depth + 1)?;
