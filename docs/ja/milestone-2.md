@@ -6,27 +6,33 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**103 done · 0 doing · 17 todo · 39 remaining pt**
+**104 done · 0 doing · 16 todo · 36 remaining pt**
 
-**次: M2-F13 → version付きpanic encoding／契約を判断し、受理済みsource panicをVM／native実行します（暫定3 pt）。**
+**次: M2-F05 → raw C context／export／objectの統合を実験し、暫定3 ptの範囲を確認します。**
 
 | 次の成果（未着手） | 直近の完了 | 必須の実行成果 |
 | --- | --- | --- |
-| F13：source panic・version判断（暫定3 pt） | F09：source drop、102 → 103件、41 → 39 pt（59f0f08） | 両backendで動的code・非復帰・span／stack・cleanupを検証 |
+| F05：raw C context／export／object統合（暫定3 pt） | F13：source panic、103 → 104件、39 → 36 pt（6eb9018） | C callerでcontext作成／破棄・export呼出し・status／result確認・object link |
 
-直近3件：F11（a37b053）→ F04（cfd0987）→ F09（59f0f08）。従来の完了条件は **7/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
+直近3件：F04（cfd0987）→ F09（59f0f08）→ F13（6eb9018）。従来の完了条件は **7/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
 
-F09完了（2026-10-19 JST）：59f0f08で受理済みsource core::dropを既存DropValue／Unitへ下げます。Copyの元の値を保持し、owner move・lexical loan・未対応loan特殊化の診断を維持します。Bytesと最後のstrong／weak期限切れsourceはVM／native・schema 2で42を返します。即時破棄順、cleanup失敗の一度だけの消費とsecondary、全有限fuel／work／provider拒否を検証し、両sourceを共通standalone matrixへ追加しました（33 source／direct・response合計66 executable）。必須検証：**1,486 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Native **64件／267.49秒**、**C ABI 44件**、fmt／Clippy／rustdoc（**18.25秒**）も成功です。F09の **2点** を取り除き、**102 → 103 done、41 → 39 pt** とします。**120行と追加77点は不変、完了で取り除いた見積もりは172点** です。F04以降は分割で2点を明示し、dropで2点を完了したため、source機能が完成しても残り総点は同じです。従来gateは **7/18** のままで、source panicとversion付き契約／encoding判断はF13に維持します。
+F13完了（2026-10-19 JST）：6eb9018で受理済みsource core::panicを、非復帰の型検査・動的な符号付きi64 code・元のspan／論理stack・owner cleanupとともにVM／native実行できます。RFC 0014の判断036bb97をschema 3／private revision 3より先に記録し、旧profileとC serialization拒否を維持しました。両sourceをstandalone AOTへ追加し、**35 source／direct・response合計70 executable** となりました。検証は **1,493 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Native **66件／276.00秒**、C ABI **45件／12.45秒**、fmt／Clippy／rustdocも成功です。既存の **3点** を取り除き、**103 → 104 done、39 → 36 pt** とします。**120行と追加77点は不変、完了で取り除いた見積もりは175点** です。従来gateは **7/18** のままで、C export／objectとtarget検証はF05–F07に維持します。
 
 <details>
 <summary>残るFFI統合</summary>
 
-残るFFIの監査（2026-10-19 JST）：F09 source dropとF04型付きimportは完成しました。F13では受理済みsource panicの型／非復帰、動的i64 code、元span／stack、VM／native cleanupを維持し、encoding／native契約変更の前にversion／互換性判断を明記します。初期3点は実験まで暫定です。F05のraw descriptor copy／context factory／error query／destroy・export wrapper・C対応object公開、F06／F07 target evidence、P02 clean packaging、Q01／Q02 ownerとCの複合conformance、Z01前のV17 indirect previewをすべて維持します。元の成果は削除しません。
+残るFFIの監査（2026-10-19 JST）：F04 typed import、F09 source drop、F13 source panicはローカルで完了しました。F05はraw descriptor／context factory／error query／destroy、export wrapper、C対応object公開を維持します。外部C callerでの実験まで3 ptは暫定です。F06／F07のtarget検証、P02のclean packaging、Q01／Q02のowner／C複合conformance、V17の間接previewをZ01より前に維持します。元の成果は削除しません。
 
 </details>
 
 <details>
 <summary>過去の成果・範囲監査・検証記録</summary>
+
+F13の検証記録（2026-10-19 JST）：最初のworkspace全体実行はdelivery件数／labelの整合性検査で停止しました。表示と既存core signature／bindingの期待値を修正し、repository_consistency・未実行だったroot 3 target・全non-root workspace targetを完了し、bindingも個別再実行しました。Test executable単位で照合し、**全88 suite／1,493 test成功** を確認しています。完了済みstandalone AOT matrixは繰り返していません。追加した最初のfaultの論理stack比較はnative panic 2 testを別途通過しました。最終Clippy **25.09秒**、rustdoc **36.48秒**、fmt成功。成功suiteの合計 **370.82秒** は検証の観測値であり、実作業時間やruntime benchmarkではありません。
+
+F09のWindows evidence（2026-10-19 JST）：[全run 39251972828](https://github.com/carimatics/lang/actions/runs/39251972828)、head 0d43a41、job 118057726070は2026-10-19 12:59:33 UTCに成功しました。Fmt／Clippy／tests／docsとprototype benchmarkを含みます。Source drop snapshotの根拠であり、F13 panicと完全なC export／platform gateには各snapshotの検証が必要です。
+
+F09完了（2026-10-19 JST）：59f0f08で受理済みsource core::dropを既存DropValue／Unitへ下げます。Copyの元の値を保持し、owner move・lexical loan・未対応loan特殊化の診断を維持します。Bytesと最後のstrong／weak期限切れsourceはVM／native・schema 2で42を返します。即時破棄順、cleanup失敗の一度だけの消費とsecondary、全有限fuel／work／provider拒否を検証し、両sourceを共通standalone matrixへ追加しました（33 source／direct・response合計66 executable）。必須検証：**1,486 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Native **64件／267.49秒**、**C ABI 44件**、fmt／Clippy／rustdoc（**18.25秒**）も成功です。F09の **2点** を取り除き、**102 → 103 done、41 → 39 pt** とします。**120行と追加77点は不変、完了で取り除いた見積もりは172点** です。F04以降は分割で2点を明示し、dropで2点を完了したため、source機能が完成しても残り総点は同じです。従来gateは **7/18** のままで、source panicとversion付き契約／encoding判断はF13に維持します。
 
 F04 Windows follow-up（2026-10-19 JST）：96593d5のrun 39239925813はC ABI 43／44件成功後、失敗fixtureの末尾return重複によるMSVC C4702（/WX）で停止しました。876b908でreturnを1つにし、macOSにも-Wunreachable-codeを追加しました。[後続の全run 39247826059](https://github.com/carimatics/lang/actions/runs/39247826059)、head 876b908、job 118043984510はfmt／Clippy／tests／docs・prototype benchmarkを含む全工程が成功しました。F04の型付きscalar／aggregate import snapshotの証拠であり、F09 source dropやF07の完全なC export／platform gateの証拠ではありません。
 
@@ -109,15 +115,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 103件（+68件）**、作業一覧は **87 → 120件（+33件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 104件（+69件）**、作業一覧は **87 → 120件（+33件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +77 pt | −172 pt | 39 pt |
+| 134 pt | +77 pt | −175 pt | 36 pt |
 
-**134 + 77 − 172 = 39 pt**
+**134 + 77 − 175 = 36 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり172点分を取り除く一方、前提作業の可視化と再見積もりで77点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り39点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり175点分を取り除く一方、前提作業の可視化と再見積もりで77点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り36点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
 N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
@@ -275,7 +281,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | AcceptedのC import／exportとunsafe blockをlosslessにparse／formatし、予約語を診断し、上限を維持して未完成の意味解析を拒否する。 | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | `819ee7c` |
 | M2-F09 | done | 0 | M2-F01,M2-N07 | G08,G11,G12 | 既存MIRで受理済みsource core::dropの型・Copy／move／loan規則と即時VM／native cleanupを実装。 | `59f0f08` |
-| M2-F13 | todo | 3 | M2-F09 | G08,G11,G12 | Panic encoding／契約をversion付きで判断し、受理済みcore::panicの型・非復帰・動的code／span／stack・VM／native cleanupを実装。 | — |
+| M2-F13 | done | 0 | M2-F09 | G08,G11,G12 | Source panicの非復帰・動的i64 code・span／stack・VM／native cleanupをschema 3／private revision 3で保持。 | 6eb9018 |
 | M2-F10 | done | 0 | M2-F03 | G11,G12 | C address／正規value検査でpaddingを読まず、alignment／extent／overlapと未知tag／非正規byteを作用前に拒否し、共有work計上とfailure fixtureを保つ。 | `5108069` |
 | M2-F02 | done | 0 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | `7d4fea7` |
 | M2-F03 | done | 0 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | `dee7f34` |

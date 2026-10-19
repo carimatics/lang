@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み103件 · 進行中0件 · 残り17件（暫定39 pt）。**
+**検証済み104件 · 進行中0件 · 残り16件（暫定36 pt）。**
 
-F09（`59f0f08`、2026-10-19 JST）でCopy保持・owner即時cleanupを伴うsource dropをVM／native・schema 2で実行できます。両sourceを33-source standalone matrixへ追加しました。Local必須検証：1,486 tests、fmt／Clippy／rustdoc成功。次はencoding／契約変更前のversion／互換性判断を含むF13 source panic、その後にC export／factory統合です。[実装Todo](milestone-2.md)で分割による追加2点とdrop完了の2点を分離しており、成果が増えても残り総点は39です。
+F13（`6eb9018`、2026-10-19 JST）でsource panicをVM／native・schema 3で実行し、動的i64 code・非復帰・span／論理stack・cleanupを保持します。Standalone matrixは35 source／direct・response合計70 executableです。表示／signatureの修正後に必要な検査を継続し、全88 suite／1,493 test成功、fmt／Clippy／rustdocも通過しました。[実装Todo](milestone-2.md)で既存3点を完了し、見積もりを追加せず **39 → 36 pt** とします。次はF05の外部C context／export／object実験と暫定範囲の監査です。
 
 従来の完了条件は **7/18** のままで、**50/113** は過去のgate固定重みであり工数予測ではありません。Raw C export／object、完全packaging、複合conformance、性能、debug、最終の日英guideを維持します。
 

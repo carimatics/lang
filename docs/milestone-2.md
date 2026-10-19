@@ -6,27 +6,33 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**103 done · 0 doing · 17 todo · 39 remaining pt**
+**104 done · 0 doing · 16 todo · 36 remaining pt**
 
-**Next: M2-F13 → decide versioned panic encoding/contracts, then execute accepted source panic on VM/native (provisional 3 pt).**
+**Next: M2-F05 → exercise raw C context/export/object integration, then audit its provisional 3 pt.**
 
 | Next delivery (not started) | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F13: source panic and version decision (provisional 3 pt) | F09: source drop, 102 → 103 done, 41 → 39 pt (59f0f08) | Dynamic code, divergence, spans/stack and cleanup on VM/native |
+| F05: raw C context/export/object integration (provisional 3 pt) | F13: source panic, 103 → 104 done, 39 → 36 pt (6eb9018) | C caller creates/destroys contexts, calls exports, observes statuses/results and links emitted objects |
 
-Last three: F11 (a37b053) → F04 (cfd0987) → F09 (59f0f08). Original exit gates: **7/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+Last three: F04 (cfd0987) → F09 (59f0f08) → F13 (6eb9018). Original exit gates: **7/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
 
-F09 delivery (2026-10-19 JST): 59f0f08 implements accepted source core::drop through existing DropValue/Unit primitives. Copy originals survive; owner moves, lexical loans and unsupported loan specializations keep their diagnostics. Bytes and last-strong/weak expiry sources return 42 on VM/native and through schema 2. Immediate retirement order, failed-cleanup consumption/secondaries and every finite fuel/work/provider refusal have fixtures. Both named sources join the shared standalone matrix: 33 source units / 66 direct/response executables. Baseline: **1,486 tests / 88 suites**, zero failures, one manual timing test ignored; native **64 / 267.49s**; **44 C ABI tests**, fmt/Clippy/rustdoc (**18.25s**) pass. Retire F09 **2 pt: 102 → 103 done, 41 → 39 pt**. **120 rows and +77 added pt unchanged; retired estimates 172 pt**. Since F04, splitting exposed 2 pt and drop retired 2; the remaining total is therefore unchanged while a source feature shipped. Original gates remain **7/18**. Source panic and its versioned contract/encoding decision remain F13.
+F13 delivery (2026-10-19 JST): 6eb9018 executes accepted source core::panic with terminal typing, dynamic signed i64 code, original spans/logical stack and owner cleanup on VM/native. RFC 0014 decision 036bb97 precedes schema 3/private revision 3; older profiles and C serialization refusals remain. Both named sources join standalone AOT: **35 source units / 70 direct/response executables**. Validation completes **1,493 tests / 88 suites**, zero failures, one manual timing test ignored; native **66 / 276.00s**, C ABI **45 / 12.45s**, fmt/Clippy/rustdoc pass. Retire the existing **3 pt: 103 → 104 done, 39 → 36 pt**. **120 rows and +77 added pt unchanged; retired estimates 175 pt**. Original gates remain **7/18**. C exports/objects and target evidence remain F05–F07.
 
 <details>
 <summary>Remaining FFI integration</summary>
 
-Remaining FFI audit (2026-10-19 JST): F09 source drop and F04 typed imports are complete. F13 still requires accepted source panic typing/divergence, dynamic i64 code, original spans/stack and VM/native cleanup, with an explicit version/compatibility decision before encoding or native contract changes. Its initial 3 pt stay provisional until that experiment. Preserve F05 raw descriptor copies/context factories/error queries/destroy, export wrappers and C-aware object publication, F06/F07 target evidence, P02 clean packaging, Q01/Q02 combined owner/C conformance and V17 indirect previews before Z01. No original outcome is removed.
+Remaining FFI audit (2026-10-19 JST): F04 typed imports, F09 source drop and F13 source panic are complete locally. F05 retains raw descriptor/context factories/error queries/destroy, export wrappers and C-aware object publication. Its 3 pt remain provisional until the external C caller experiment. Preserve F06/F07 target evidence, P02 clean packaging, Q01/Q02 combined owner/C conformance and V17 indirect previews before Z01. No original outcome is removed.
 
 </details>
 
 <details>
 <summary>Historical deliveries, scope audits and validation records</summary>
+
+F13 validation record (2026-10-19 JST): the initial full workspace run stopped at the delivery-count/label check. After repairing those displays and old core-signature/binding expectations, repository_consistency plus the three unrun root targets and all non-root workspace targets completed; binding was rerun independently. Reconciliation by test executable covers all **88 suites / 1,493 passing tests**, without repeating the completed standalone AOT matrix. The added first-fault logical-stack comparison separately passes both native panic tests. Final Clippy **25.09s**, rustdoc **36.48s** and fmt pass; summed successful suite times **370.82s** are validation observations, not active work time or runtime benchmarks.
+
+F09 Windows evidence (2026-10-19 JST): [full run 39251972828](https://github.com/carimatics/lang/actions/runs/39251972828), head 0d43a41, job 118057726070, completed successfully at 2026-10-19 12:59:33 UTC, including fmt/Clippy/tests/docs and the prototype benchmark. This proves the source-drop snapshot; F13 panic and the complete C export/platform gate still require their own snapshot evidence.
+
+F09 delivery (2026-10-19 JST): 59f0f08 implements accepted source core::drop through existing DropValue/Unit primitives. Copy originals survive; owner moves, lexical loans and unsupported loan specializations keep their diagnostics. Bytes and last-strong/weak expiry sources return 42 on VM/native and through schema 2. Immediate retirement order, failed-cleanup consumption/secondaries and every finite fuel/work/provider refusal have fixtures. Both named sources join the shared standalone matrix: 33 source units / 66 direct/response executables. Baseline: **1,486 tests / 88 suites**, zero failures, one manual timing test ignored; native **64 / 267.49s**; **44 C ABI tests**, fmt/Clippy/rustdoc (**18.25s**) pass. Retire F09 **2 pt: 102 → 103 done, 41 → 39 pt**. **120 rows and +77 added pt unchanged; retired estimates 172 pt**. Since F04, splitting exposed 2 pt and drop retired 2; the remaining total is therefore unchanged while a source feature shipped. Original gates remain **7/18**. Source panic and its versioned contract/encoding decision remain F13.
 
 F04 Windows follow-up (2026-10-19 JST): run 39239925813 at 96593d5 stopped with 43/44 C ABI tests passing; the failure fixture generated two terminal returns and MSVC C4702 under /WX. Fix 876b908 emits one return and enables -Wunreachable-code on macOS. [Full follow-up run 39247826059](https://github.com/carimatics/lang/actions/runs/39247826059), head 876b908, job 118043984510, completed successfully, including fmt/Clippy/tests/docs and the prototype benchmark. This proves F04's typed scalar/aggregate import snapshot, not F09 source drop or F07's complete C export/platform gate.
 
@@ -109,15 +115,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 103 (+68)**, and the task inventory increased **87 → 120 (+33)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 104 (+69)**, and the task inventory increased **87 → 120 (+33)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +77 pt | −172 pt | 39 pt |
+| 134 pt | +77 pt | −175 pt | 36 pt |
 
-**134 + 77 − 172 = 39 pt**
+**134 + 77 − 175 = 36 pt**
 
-This separates delivered work from newly recognized work: completion retired 172 estimated points, while exposed prerequisites and re-estimation added 77. These are planning units, not hours or measured actual effort. The remaining 39 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 175 estimated points, while exposed prerequisites and re-estimation added 77. These are planning units, not hours or measured actual effort. The remaining 36 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -275,7 +281,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | Parse/format accepted C imports/exports and unsafe blocks losslessly, diagnose reserved names, preserve limits and reject unfinished semantic admission. | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | `819ee7c` |
 | M2-F09 | done | 0 | M2-F01,M2-N07 | G08,G11,G12 | Implement accepted source core::drop typing, Copy/move/loan rules and immediate VM/native cleanup using existing MIR. | `59f0f08` |
-| M2-F13 | todo | 3 | M2-F09 | G08,G11,G12 | Decide versioned panic encoding/contracts, then implement accepted source core::panic typing/divergence, dynamic code/spans/stack and VM/native cleanup. | — |
+| M2-F13 | done | 0 | M2-F09 | G08,G11,G12 | Source panic preserves divergence, dynamic i64 code, spans/stack and VM/native cleanup through schema 3/private revision 3. | 6eb9018 |
 | M2-F10 | done | 0 | M2-F03 | G11,G12 | Preflight C addresses/canonical values without reading padding; reject alignment/extent/overlap and unknown tags/noncanonical bytes before effects, with shared work accounting and failure fixtures. | `5108069` |
 | M2-F02 | done | 0 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | `7d4fea7` |
 | M2-F03 | done | 0 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | `dee7f34` |
