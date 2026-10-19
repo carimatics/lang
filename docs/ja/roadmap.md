@@ -8,7 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み97件 · 進行中0件 · 残り19件（暫定45 pt）。**
+**検証済み97件 · 進行中1件 · 残り18件（暫定45 pt）。**
+
+F02／F03着手前監査（2026-10-19 JST）：runtimeのlayout.rsはmanaged／VM向けでC layoutではないと明記しています。製品用のLANGCABI descriptor／header生成器はなく、RFCのscalar fingerprintと手書きC layout fixtureだけがあります。F02には厳密な宣言digestの照合と実C field／reserved storageの検証が必要なため、F03をF02の前提に加え、先に実装します。範囲は上限付きprofile 1のfunction／type／artifact descriptorとSHA-256、target別C layout、layout assertion付きC11 headerで、固定RFC vectorと実C compilerで確認します。検証済みC対応MIRを再利用し、F02のcontext／capability／poison／unwind検査、F04 adapter、F05-F07の全要件を維持します。F03をdoing・3点とし、**97 done / 1 doing / 18 todo / 45 pt** とします。作業数、見積り、収支、元のgateは不変です。
 
 F01完了と最初のC実行の監査（2026-10-19 JST）：819ee7cで、03239a1の明示的なC MIR検証（RFC改訂68240cc）へsource／HIRのC型検査とlexicalなunsafe scopeを接続しました。未使用scalar宣言を含む有効なC宣言は独立検証済みownership MIRへ到達し、unsafe呼出し、型、scope、move、loan、固定profile違反にはsource診断を出します。Unsafeはruntime branchやcapabilityを追加せず通常のcleanupを維持します。ローカル必須検証は **1,437 tests / 87 suites**、失敗0、手動timing testのみ1件ignored。Nativeは62件・255.76秒で、fmt／Clippy／rustdocも成功です。CLIでC例のcheck成功、unsafeなしのC callへのSRC0025と宣言span、C実行のfuel 0／host call 0での拒否を確認しました。**96 → 97 done、48 → 45 pt**。116行と追加分69点は不変で、完了で取り除いた点数は **158点** です。F01はdoneとし、従来gateは **7/18** のままです。最初の実C source callには、F02の明示的なC context／grant／validityとpoison／unwind事前検査、F03の正確なC layout／descriptor／header、続いてF04の型付きimport adapterが必要です。検証済み型graphと既存instance／allocation／controlを再利用し、通常host grantからC bindingは有効にしません。F05のexportとF06／F07のnative platform fixtureを維持し、schema 2もC識別を引き続き拒否します。この監査でscopeや見積りは追加しません。
 

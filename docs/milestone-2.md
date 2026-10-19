@@ -6,9 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**97 done · 0 doing · 19 todo · 45 remaining pt**
+**97 done · 1 doing · 18 todo · 45 remaining pt**
 
-**Next: M2-F02 → implement explicit C context/binding validity, capability and poison preflight with unwind-containment failure fixtures (3 pt provisional; F03/F04 complete the first real C call).**
+**Next: M2-F03 → generate exact C descriptors/digests/layouts/C11 headers and verify frozen RFC vectors plus a real C compiler (in progress, 3 pt provisional).**
+
+F02/F03 readiness audit (2026-10-19 JST): runtime layout.rs explicitly defines managed/VM layouts, not C layouts. No production LANGCABI descriptor/header producer exists; only the RFC scalar fingerprint and hand-written C layout fixtures exist. F02 must match exact declared digests and validate actual C fields/reserved storage, so make F03 a dependency of F02 and implement F03 first. Scope: bounded profile-1 function/type/artifact descriptors with SHA-256, target C layouts and C11 headers with layout assertions, checked against the frozen RFC vectors and a real C compiler. Reuse verified C-aware MIR; keep F02 context/capability/poison/unwind checks, F04 adapters and F05-F07 complete. Mark F03 doing (3 pt); **97 done / 1 doing / 18 todo / 45 pt**. No task, estimate, ledger or original-gate change.
 
 F01 delivery and first-C-execution audit (2026-10-19 JST): 819ee7c completes C source/HIR typing and lexical unsafe scopes on the explicit C MIR proof from 03239a1 (RFC amendment 68240cc). Valid C declarations reach independently verified ownership MIR, including unused scalar declarations; source diagnostics reject unsafe-call, type, scope, move, loan and fixed-profile violations. Unsafe adds no runtime branch or capability and preserves normal cleanup. Local baseline: **1,437 tests / 87 suites**, zero failures, one manual timing test ignored; native 62 in 255.76s; fmt/Clippy/rustdoc pass. CLI checks the C example successfully, rejects an unsafe-free C call with SRC0025 and its declaration span, and refuses C execution with fuel 0 / host calls 0. **96 → 97 done, 48 → 45 pt**; 116 rows and added estimates 69 pt are unchanged; retired estimates **158 pt**. F01 is done; original gates stay **7/18**. The first real C source call still needs F02 explicit C context/grants/validity and poison/unwind preflight, F03 exact C layouts/descriptors/headers, then F04 typed import adapters. Reuse the checked type graph and existing instance/allocation/control machinery; ordinary host grants cannot enable C bindings. F05 exports and F06/F07 native platform fixtures remain intact, and schema 2 still rejects C identity. This audit adds no scope or estimate.
 
@@ -219,8 +221,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-A03 | done | 0 | M2-A02 | G16 | Load, independently verify and execute owned source artifacts; round-trip behavior agrees. | `2dfea13` |
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | Parse/format accepted C imports/exports and unsafe blocks losslessly, diagnose reserved names, preserve limits and reject unfinished semantic admission. | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | `819ee7c` |
-| M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
-| M2-F03 | todo | 3 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | — |
+| M2-F02 | todo | 3 | M2-F01,M2-V08,M2-F03 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
+| M2-F03 | doing | 3 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | — |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
 | M2-F05 | todo | 3 | M2-F04 | G12 | C exports return accepted statuses/results and contain nested cleanup failures. | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |

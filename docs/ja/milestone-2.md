@@ -6,9 +6,11 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**97 done · 0 doing · 19 todo · 45 remaining pt**
+**97 done · 1 doing · 18 todo · 45 remaining pt**
 
-**次: M2-F02 → 明示的なC context／bindingのvalidity・capability・poison事前検査とunwind containmentを失敗fixtureで実装します（暫定3点、F03／F04を経て実C呼出しへ接続）。**
+**次: M2-F03 → 正確なC descriptor／digest／layout／C11 headerを固定RFC vectorと実C compilerで検証します（進行中、暫定3点）。**
+
+F02／F03着手前監査（2026-10-19 JST）：runtimeのlayout.rsはmanaged／VM向けでC layoutではないと明記しています。製品用のLANGCABI descriptor／header生成器はなく、RFCのscalar fingerprintと手書きC layout fixtureだけがあります。F02には厳密な宣言digestの照合と実C field／reserved storageの検証が必要なため、F03をF02の前提に加え、先に実装します。範囲は上限付きprofile 1のfunction／type／artifact descriptorとSHA-256、target別C layout、layout assertion付きC11 headerで、固定RFC vectorと実C compilerで確認します。検証済みC対応MIRを再利用し、F02のcontext／capability／poison／unwind検査、F04 adapter、F05-F07の全要件を維持します。F03をdoing・3点とし、**97 done / 1 doing / 18 todo / 45 pt** とします。作業数、見積り、収支、元のgateは不変です。
 
 F01完了と最初のC実行の監査（2026-10-19 JST）：819ee7cで、03239a1の明示的なC MIR検証（RFC改訂68240cc）へsource／HIRのC型検査とlexicalなunsafe scopeを接続しました。未使用scalar宣言を含む有効なC宣言は独立検証済みownership MIRへ到達し、unsafe呼出し、型、scope、move、loan、固定profile違反にはsource診断を出します。Unsafeはruntime branchやcapabilityを追加せず通常のcleanupを維持します。ローカル必須検証は **1,437 tests / 87 suites**、失敗0、手動timing testのみ1件ignored。Nativeは62件・255.76秒で、fmt／Clippy／rustdocも成功です。CLIでC例のcheck成功、unsafeなしのC callへのSRC0025と宣言span、C実行のfuel 0／host call 0での拒否を確認しました。**96 → 97 done、48 → 45 pt**。116行と追加分69点は不変で、完了で取り除いた点数は **158点** です。F01はdoneとし、従来gateは **7/18** のままです。最初の実C source callには、F02の明示的なC context／grant／validityとpoison／unwind事前検査、F03の正確なC layout／descriptor／header、続いてF04の型付きimport adapterが必要です。検証済み型graphと既存instance／allocation／controlを再利用し、通常host grantからC bindingは有効にしません。F05のexportとF06／F07のnative platform fixtureを維持し、schema 2もC識別を引き続き拒否します。この監査でscopeや見積りは追加しません。
 
@@ -219,8 +221,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-A03 | done | 0 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | `2dfea13` |
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | AcceptedのC import／exportとunsafe blockをlosslessにparse／formatし、予約語を診断し、上限を維持して未完成の意味解析を拒否する。 | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | `819ee7c` |
-| M2-F02 | todo | 3 | M2-F01,M2-V08 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
-| M2-F03 | todo | 3 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | — |
+| M2-F02 | todo | 3 | M2-F01,M2-V08,M2-F03 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
+| M2-F03 | doing | 3 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | — |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
 | M2-F05 | todo | 3 | M2-F04 | G12 | C exportで規定status／resultを返し、入れ子cleanup failureをcontain。 | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Headerを独立compileし、native macOSで境界validity fixtureを実行。 | — |
