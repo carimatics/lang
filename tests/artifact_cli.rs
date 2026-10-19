@@ -421,3 +421,37 @@ fn explicit_panic_schema_three_preserves_dynamic_code_stack_and_source_snapshot(
         );
     }
 }
+
+#[test]
+fn c_aware_schema_four_loads_without_source_or_implicit_c_authority() {
+    let dir = Directory::new();
+    let source = dir.source(
+        "c-caller.lang",
+        include_str!("../examples/analysis/c_scalar_imports.lang"),
+    );
+    let artifact = dir.file("c-caller.lbc");
+    let direct = run_source(&source);
+    assert!(!direct.status.success());
+    ok(&compile(&source, &artifact));
+    let bytes = std::fs::read(&artifact).unwrap();
+    assert_eq!(&bytes[8..10], &4u16.to_le_bytes());
+    std::fs::remove_file(&source).unwrap();
+    let loaded = lang::artifact::decode(&bytes, Default::default()).unwrap();
+    let lang::artifact::Program::Ownership(loaded) = loaded else {
+        panic!("C-aware ownership artifact");
+    };
+    let (raw, _) = loaded.into_parts();
+    assert!(
+        raw.places
+            .declarations
+            .imports
+            .iter()
+            .all(|i| i.abi == lang_mir::unit::ownership::declarations::ImportAbi::C)
+    );
+    let output = run_loaded(&artifact);
+    same(&direct, &output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("UnsupportedCInterface"), "{stderr}");
+    assert!(stderr.contains("fuel 0, host calls 0"), "{stderr}");
+    assert!(stderr.contains("service work 0"), "{stderr}");
+}

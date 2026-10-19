@@ -6,7 +6,7 @@
 
 ステータス：RFC 0001–0005による**受理済み設計baseline**（2026-10-17）。実装は未完成のprototypeです。受理は安定化を意味しません。意味論はRFCに従い、以下の広範なプロダクト方針は実装前に追加RFCを必要とします。
 
-明示的panic拡張（2026-10-19）：[RFC 0014](rfcs/0014-explicit-source-panic.md)は、Unreachable blockの最終命令として、結果なし・i64 code付きのPanicを追加します。ソースの非復帰はTを捏造せず後続評価を省きます。既存failure elaborationがVM／nativeの必須cleanupを実行します。この命令を含むunitだけがschema 3とprivate native revision 3（helper 34）を選び、それ以外ではschema 2、通常revision 1、C対応revision 2を維持します。packetとhelper prefix 0–33の契約は不変です。C serialization拒否と明示的capability／context gateも引き続き適用します。
+明示的panic拡張（2026-10-19）：[RFC 0014](rfcs/0014-explicit-source-panic.md)は、Unreachable blockの最終命令として、結果なし・i64 code付きのPanicを追加します。ソースの非復帰はTを捏造せず後続評価を省きます。既存failure elaborationがVM／nativeの必須cleanupを実行します。Cを含まずこの命令を含むunitはschema 3を、C対応unitはschema 4（RFC 0017）を選びます。明示的panicはprivate native revision 3（helper 34）を選び、それ以外ではschema 2、通常revision 1、C対応revision 2を維持します。packetとhelper prefix 0–33の契約は不変です。明示的capability／context gateは引き続き適用します。Schema 4は実行権限を与えず、従来のC serialization拒否を解除します。
 
 Raw C context support（2026-10-19）：native context adapterはheader／address検査後にprofile 1 descriptorのfieldを読み、署名／grant／limit全体の検査と所有snapshotを共有Program／Context gateへ委ねます。生成support入口は実Program登録を捕捉してcodeの借用を保持し、成功時だけopaque host boxを公開します。Queryはoutputの非重複を検査して整数summaryをコピーします。受け入れたdestroyはbox解放前に失効させ、別Programと再入では消費を拒否します。参照先C objectの実際の有効性、owner thread上の同期呼び出し、code／user寿命はcallerの責任です。既存RFC 0008のsupport surfaceを実装し、layout／digest／statusとownership continuation helperは変更しません。後続F15で明示native export入口と実allocatorを接続しました。C対応object公開と汎用runtime統合はF05に維持します。
 
@@ -161,6 +161,12 @@ Codecの既定artifact上限は64 MiBです。Fallible reservation前にcountと
 2026-10-18 JST実装・検証（A02）：[`lang-bytecode::ownership`](../../crates/bytecode/src/ownership.rs)がRFC 0011のraw ownership tableをencodeし、decode後にtype／place／CFG、move、loan activity／provenance、region／call、failureを独立検証します。Schema 1は維持します。Source／span、table／初期化順序、明示的optional entry IDを保持し、reencodeはbyte単位で一致します。Encodeはraw tableをconsumeして失敗不能なtable cloneなしに再検証し、decode済みprogramのconsumeでもproof certificateを残さずraw tableを復元できます。各操作全体で予算を共有し、decode／string／vector buffer、全proof stage、writer両pass、出力reservationを通算します。Phase上限を狭めるとload全体の共通上限も狭まります。Workにはenvelope 4 field、各scalar／tag／vector member、空／終端chunkも含むstringの`len / 1024 + 1` chunkを追加課金します。
 
 独立した212-byte scalarと、Bytesをallocate／dropする443-byte vectorでwire契約を固定します。全33 opcodeのoperand配置と37 core tag、未sortのglobal順序／entry identity、CFG引数、元／修正した長さでの全切断、canonical mutation、不正name／path／span／tag／count、厳密な累積work／byte／element境界を検証します。Source 19 fixtureで入れ子collection／graphやarena値を含むraw tableと元spanを保持します。Signature偽造、二重drop、loan終了の反復byteは各独立stageで失敗し、正しい埋め込みsourceを残したcross-arena tokenの差し替えもregion proofで拒否します。新[fuzz target](../../fuzz/fuzz_targets/ownership_artifact_decoder.rs)はguest実行やhost authorityなしにraw byteと両vectorのmutationをfuzzし、locked Clippyとinstrumentationなしの10,000-run smokeが成功しました。Instrumented coverageの証拠ではありません。A02時点ではcompile／load／CLI実行と最初のload済みowned Bytes fixtureがA03に残っていました（後述で完了）。native／platformとartifact実行／conformance gateは未完了です。情報源：受理済み[RFC 0011](rfcs/0011-ownership-artifacts.md)、[wire test](../../crates/bytecode/src/ownership/tests.rs)、[source test](../../tests/ownership_artifacts.rs)。2026-10-18 JST更新・検証。
+
+### C-aware ownership artifact transport
+
+2026-10-20 JST実装・検証：[RFC 0017](rfcs/0017-c-aware-ownership-artifacts.md)で、未使用宣言も含めC importまたはCExport functionがあるunitにschema 4を追加します。ABI byteはimport名とfunction名／public flagの後に置き、Host／Guest = 0、C／CExport = 1、他の値は該当byte offsetで拒否します。Raw table全体を独立検証します。Panic tag 33も有効で、Cを含まないunitはschema 2／3と既存golden byteを維持します。Version選択とwriter両passで累積予算を共有します。未知tag、全切断prefix、不正C署名／visibility、byte／work／allocation／element上限超過を拒否します。
+
+Sourceからdecodeしたscalar／Unit／mixed C fixtureは検証済み宣言からC descriptorを再構築し、明示VM／生成native経路で実C callbackを実行します。Foreign status、元context allocator、canonical bool検査、cleanupを保持します。CLIはsource削除後もschema 4をcompile／loadできますが、UnsupportedCInterfaceとfuel／host call／service workの消費ゼロで実行を拒否します。Loadでcontext／binding／capabilityを復元しません。これにより上記F01の過去のcodec拒否を更新し、明示的panicを含むC unitもschema 4にします。Recorded native metadataとproduction runtime／startup／contextの配布は別のP02作業に残ります。情報源：[codec](../../crates/bytecode/src/ownership.rs)、[C実行test](../../tests/support/c_imports.rs)、[native C test](../../tests/support/c_imports_native.rs)、[CLI test](../../tests/artifact_cli.rs)。2026-10-20 JST更新・確認。
 
 ### Ownership artifact CLI and execution
 

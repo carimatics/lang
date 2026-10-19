@@ -2,6 +2,7 @@ use super::*;
 use o::{bodies as b, declarations as d, places as p};
 
 struct Writer<'a> {
+    version: u16,
     output: Option<Vec<u8>>,
     length: usize,
     maximum: usize,
@@ -174,7 +175,7 @@ impl Writer<'_> {
         self.list(values, |s, v| s.word(v.0))
     }
     fn function(&mut self, value: &d::Function) -> Result<(), CodecError> {
-        if value.abi != d::FunctionAbi::Guest {
+        if self.version < 4 && value.abi != d::FunctionAbi::Guest {
             return Err(error(
                 self.length,
                 CodecErrorKind::UnsupportedCInterface { span: value.span },
@@ -182,6 +183,9 @@ impl Writer<'_> {
         }
         self.string(&value.name)?;
         self.boolean(value.public)?;
+        if self.version == 4 {
+            self.byte(tags::function_abi(value.abi))?;
+        }
         self.span(value.span)?;
         self.span(value.signature_span)?;
         self.list(&value.parameters, |s, v| s.word(v.0))?;
@@ -445,19 +449,7 @@ impl Writer<'_> {
     }
     fn unit(&mut self, program: &Program, payload: u32) -> Result<(), CodecError> {
         self.bytes(MAGIC)?;
-        let version = if program
-            .flow
-            .source()
-            .activity()
-            .moved()
-            .typed()
-            .has_explicit_panic()
-        {
-            3_u16
-        } else {
-            2_u16
-        };
-        self.bytes(&version.to_le_bytes())?;
+        self.bytes(&self.version.to_le_bytes())?;
         self.bytes(&0_u16.to_le_bytes())?;
         self.word(payload)?;
         let typed = program.flow.source().activity().moved().typed();
@@ -470,13 +462,16 @@ impl Writer<'_> {
         self.list(&types.definitions, Self::definition)?;
         self.list(&types.constructed, Self::constructor)?;
         self.list(declarations.imports(), |s, v| {
-            if v.abi != d::ImportAbi::Host {
+            if s.version < 4 && v.abi != d::ImportAbi::Host {
                 return Err(error(
                     s.length,
                     CodecErrorKind::UnsupportedCInterface { span: v.span },
                 ));
             }
             s.string(&v.name)?;
+            if s.version == 4 {
+                s.byte(tags::import_abi(v.abi))?;
+            }
             s.span(v.span)?;
             s.list(&v.parameters, Self::type_use)?;
             s.type_use(&v.result)
@@ -503,8 +498,30 @@ impl Writer<'_> {
 pub(super) fn encode(program: Program, limits: CodecLimits) -> Result<Vec<u8>, CodecError> {
     let mut budget = m::Budget::with_usage(limits.budget_limits(), program.usage())
         .map_err(|e| error(0, CodecErrorKind::Budget(e)))?;
+    let typed = program.flow.source().activity().moved().typed();
+    let declarations = typed.places().declarations();
+    budget
+        .charge(declarations.imports().len())
+        .and_then(|()| budget.charge(declarations.functions().len()))
+        .map_err(|e| error(0, CodecErrorKind::Budget(e)))?;
+    let version = if declarations
+        .imports()
+        .iter()
+        .any(|i| i.abi == d::ImportAbi::C)
+        || declarations
+            .functions()
+            .iter()
+            .any(|f| f.abi == d::FunctionAbi::CExport)
+    {
+        4
+    } else if typed.has_explicit_panic() {
+        3
+    } else {
+        2
+    };
     let size = {
         let mut w = Writer {
+            version,
             output: None,
             length: 0,
             maximum: limits.bytes,
@@ -526,6 +543,7 @@ pub(super) fn encode(program: Program, limits: CodecLimits) -> Result<Vec<u8>, C
         .try_reserve_exact(size)
         .map_err(|_| error(0, CodecErrorKind::AllocationFailed))?;
     let mut writer = Writer {
+        version,
         output: Some(output),
         length: 0,
         maximum: size,
@@ -541,6 +559,7 @@ pub(super) fn instruction_fixture(value: &b::Instruction) -> Vec<u8> {
     let mut budget = m::Budget::new(m::Limits::default());
     let size = {
         let mut w = Writer {
+            version: 3,
             output: None,
             length: 0,
             maximum: 4096,
@@ -550,6 +569,7 @@ pub(super) fn instruction_fixture(value: &b::Instruction) -> Vec<u8> {
         w.length
     };
     let mut writer = Writer {
+        version: 3,
         output: Some(Vec::with_capacity(size)),
         length: 0,
         maximum: size,

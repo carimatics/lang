@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0017-c-aware-ownership-artifacts.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -17,6 +17,8 @@
 Add ownership schema **4**, preserving the existing Host/C import and Guest/CExport function identities through checked MIR encoding/decoding. Schema 1 Copy, schema 2 ownership and schema 3 explicit-panic bytes remain unchanged. Decoding supplies data and no FFI authority.
 
 Review outcome: **accepted under experimental delegation**, before implementation. Existing declarations already verify these identities and finite C signatures; the missing transport is a format extension, not new source or C-call semantics. Structural/native re-preparation prototype 5324c64 provides the packaging motivation. Codec implementation and loaded-C execution evidence remain unverified at acceptance. This decision does not complete P02 or define its native distribution container.
+
+Implementation evidence (2026-10-20 JST): the codec selects schema 4 for C declarations, preserves explicit ABI bytes and Panic, and retains legacy golden bytes. Loaded source-derived C calls execute through the existing explicit VM/native context APIs; CLI loading after source deletion grants no C authority. Wire corruption, truncation, finite aggregate signatures and cumulative limits are tested. See the paired architecture document for validation and the delivery board for P02 distribution work.
 
 ## Motivation
 

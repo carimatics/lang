@@ -14,6 +14,12 @@ macro_rules! tags {
         }
     };
 }
+tags!(import_abi, read_import_abi, o::declarations::ImportAbi, Tag::ImportAbi, {
+    0 => o::declarations::ImportAbi::Host, 1 => o::declarations::ImportAbi::C
+});
+tags!(function_abi, read_function_abi, o::declarations::FunctionAbi, Tag::FunctionAbi, {
+    0 => o::declarations::FunctionAbi::Guest, 1 => o::declarations::FunctionAbi::CExport
+});
 tags!(builtin, read_builtin, B, Tag::Builtin, {
     0=>B::Unit, 1=>B::Text, 2=>B::Bytes, 3=>B::Allocator, 4=>B::AllocError,
     5=>B::BoundsError, 6=>B::BufferError, 7=>B::Utf8Error, 8=>B::OwnershipError, 9=>B::ArenaError

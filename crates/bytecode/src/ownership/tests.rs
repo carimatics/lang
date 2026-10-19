@@ -174,27 +174,143 @@ fn old_and_new_schemas_reject_each_others_version() {
     ));
 }
 
+fn c_table(exporting: bool, panic: bool) -> b::BodyTable {
+    let mut raw = scalar();
+    let declarations = &mut raw.places.declarations;
+    declarations.imports = vec![
+        d::Import {
+            abi: d::ImportAbi::C,
+            name: "foreign".into(),
+            span: SPAN,
+            parameters: vec![type_use(o::Type::I64)],
+            result: type_use(o::Type::I64),
+        },
+        d::Import {
+            abi: d::ImportAbi::Host,
+            name: "host".into(),
+            span: SPAN,
+            parameters: vec![type_use(o::Type::I64)],
+            result: type_use(o::Type::I64),
+        },
+    ];
+    if exporting {
+        declarations.functions[0].abi = d::FunctionAbi::CExport;
+        declarations.functions[0].public = true;
+    }
+    let mut helper = declarations.functions[0].clone();
+    helper.name = "helper".into();
+    helper.public = false;
+    helper.abi = d::FunctionAbi::Guest;
+    declarations.functions.push(helper);
+    raw.places.functions.push(raw.places.functions[0].clone());
+    raw.functions.push(raw.functions[0].clone());
+    if panic {
+        let block = &mut raw.functions[0].blocks[0];
+        block.instructions.push(b::Instruction {
+            results: vec![],
+            op: b::Op::Panic(m::Register(0)),
+            span: SPAN,
+        });
+        block.terminator.kind = b::Term::Unreachable;
+    }
+    raw
+}
+
 #[test]
-fn schema_two_never_erases_c_import_or_export_identity() {
+fn schema_four_preserves_mixed_c_and_legacy_identities_and_explicit_panic() {
     for exporting in [false, true] {
-        let mut raw = scalar();
-        if exporting {
-            raw.places.declarations.functions[0].abi = d::FunctionAbi::CExport;
-            raw.places.declarations.functions[0].public = true;
-        } else {
-            raw.places.declarations.imports.push(d::Import {
-                abi: d::ImportAbi::C,
-                name: "foreign".into(),
-                span: SPAN,
-                parameters: vec![type_use(o::Type::I64)],
-                result: type_use(o::Type::I64),
-            });
+        for panic in [false, true] {
+            let raw = c_table(exporting, panic);
+            let encoded =
+                encode(raw.clone(), Some(m::FunctionId(0)), CodecLimits::default()).unwrap();
+            assert_eq!(&encoded[8..10], &4u16.to_le_bytes());
+            for (bytes, allowed) in [(encoded.len(), true), (encoded.len() - 1, false)] {
+                let limits = CodecLimits {
+                    bytes,
+                    ..Default::default()
+                };
+                assert_eq!(
+                    encode(raw.clone(), Some(m::FunctionId(0)), limits).is_ok(),
+                    allowed
+                );
+            }
+
+            let (decoded, entry) = decode(&encoded, CodecLimits::default())
+                .unwrap()
+                .into_parts();
+            assert_eq!(decoded, raw);
+            assert_eq!(entry, Some(m::FunctionId(0)));
+            assert_eq!(
+                encode(decoded, entry, CodecLimits::default()).unwrap(),
+                encoded
+            );
+            for version in [2u16, 3] {
+                let mut wrong = encoded.clone();
+                wrong[8..10].copy_from_slice(&version.to_le_bytes());
+                assert!(decode(&wrong, CodecLimits::default()).is_err());
+            }
+            for end in 0..encoded.len() {
+                assert!(decode(&encoded[..end], CodecLimits::default()).is_err());
+                if end >= HEADER {
+                    let mut prefix = encoded[..end].to_vec();
+                    prefix[12..16].copy_from_slice(&((end - HEADER) as u32).to_le_bytes());
+                    assert!(decode(&prefix, CodecLimits::default()).is_err());
+                }
+            }
         }
-        let error = encode(raw, Some(m::FunctionId(0)), CodecLimits::default()).unwrap_err();
-        assert!(matches!(
-            error.kind,
-            CodecErrorKind::UnsupportedCInterface { span: SPAN }
-        ));
+    }
+    let mut export_only = scalar();
+    export_only.places.declarations.functions[0].abi = d::FunctionAbi::CExport;
+    export_only.places.declarations.functions[0].public = true;
+    let encoded = encode(
+        export_only.clone(),
+        Some(m::FunctionId(0)),
+        CodecLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(encoded[8], 4);
+    assert_eq!(
+        decode(&encoded, CodecLimits::default())
+            .unwrap()
+            .into_parts()
+            .0,
+        export_only
+    );
+}
+
+#[test]
+fn schema_four_rejects_reserved_abi_tags_at_the_exact_byte_offset() {
+    let encoded = encode(
+        c_table(true, false),
+        Some(m::FunctionId(0)),
+        CodecLimits::default(),
+    )
+    .unwrap();
+    for (name, extra, tag, expected) in [
+        (b"foreign".as_slice(), 0usize, Tag::ImportAbi, 1),
+        (b"host".as_slice(), 0, Tag::ImportAbi, 0),
+        (b"main".as_slice(), 1, Tag::FunctionAbi, 1),
+        (b"helper".as_slice(), 1, Tag::FunctionAbi, 0),
+    ] {
+        let mut prefix = (name.len() as u32).to_le_bytes().to_vec();
+        prefix.extend_from_slice(name);
+        let offset = encoded
+            .windows(prefix.len())
+            .position(|v| v == prefix)
+            .unwrap()
+            + prefix.len()
+            + extra;
+        assert_eq!(encoded[offset], expected);
+        for value in [2u8, 255] {
+            let mut invalid = encoded.clone();
+            invalid[offset] = value;
+            let error = decode(&invalid, CodecLimits::default()).err().unwrap();
+            assert_eq!(error.offset, offset);
+            assert!(
+                matches!(error.kind, CodecErrorKind::InvalidTag {tag: actual, value: v}
+                if actual == tag && v == value)
+            );
+        }
     }
 }
 
@@ -526,28 +642,37 @@ fn malformed_envelopes_tags_counts_spans_and_every_truncation_are_refused() {
 
 #[test]
 fn decode_and_all_proofs_share_exact_work_byte_and_element_limits() {
-    let bytes = hex(include_str!("../../tests/fixtures/unit-v2-bytes.hex"));
-    let usage = decode(&bytes, CodecLimits::default()).unwrap().usage();
-    for kind in [
-        m::LimitKind::Work,
-        m::LimitKind::Allocations,
-        m::LimitKind::Elements,
+    for bytes in [
+        hex(include_str!("../../tests/fixtures/unit-v2-bytes.hex")),
+        encode(
+            c_table(true, true),
+            Some(m::FunctionId(0)),
+            CodecLimits::default(),
+        )
+        .unwrap(),
     ] {
-        let exact = match kind {
-            m::LimitKind::Work => usage.work,
-            m::LimitKind::Allocations => usage.allocation_bytes,
-            _ => usage.elements,
-        };
-        for (limit, allowed) in [(exact, true), (exact - 1, false), (0, false)] {
-            let mut cfg = CodecLimits::default();
-            // Tighten only the final phase. It must cap earlier decoding too,
-            // and cannot give each proof stage a fresh allowance.
-            match kind {
-                m::LimitKind::Work => cfg.verification.failure.work = limit,
-                m::LimitKind::Allocations => cfg.verification.failure.allocations = limit,
-                _ => cfg.verification.failure.elements = limit,
+        let usage = decode(&bytes, CodecLimits::default()).unwrap().usage();
+        for kind in [
+            m::LimitKind::Work,
+            m::LimitKind::Allocations,
+            m::LimitKind::Elements,
+        ] {
+            let exact = match kind {
+                m::LimitKind::Work => usage.work,
+                m::LimitKind::Allocations => usage.allocation_bytes,
+                _ => usage.elements,
+            };
+            for (limit, allowed) in [(exact, true), (exact - 1, false), (0, false)] {
+                let mut cfg = CodecLimits::default();
+                // Tighten only the final phase. It must cap earlier decoding too,
+                // and cannot give each proof stage a fresh allowance.
+                match kind {
+                    m::LimitKind::Work => cfg.verification.failure.work = limit,
+                    m::LimitKind::Allocations => cfg.verification.failure.allocations = limit,
+                    _ => cfg.verification.failure.elements = limit,
+                }
+                assert_eq!(decode(&bytes, cfg).is_ok(), allowed, "{kind:?} {limit}");
             }
-            assert_eq!(decode(&bytes, cfg).is_ok(), allowed, "{kind:?} {limit}");
         }
     }
     let mut invalid = bytes_table();
@@ -876,4 +1001,57 @@ fn schema_three_has_an_explicit_terminal_panic_and_preserves_closed_schema_two()
             );
         }
     }
+}
+
+#[test]
+fn schema_four_keeps_finite_aggregate_types_and_rejects_invalid_c_exports() {
+    let mut raw = c_table(true, false);
+    raw.places
+        .declarations
+        .types
+        .definitions
+        .push(o::Definition {
+            name: "Pair".into(),
+            public: true,
+            span: SPAN,
+            kind: o::DefinitionKind::Record(vec![
+                o::Field {
+                    name: "number".into(),
+                    span: SPAN,
+                    ty: type_use(o::Type::I64),
+                },
+                o::Field {
+                    name: "flag".into(),
+                    span: SPAN,
+                    ty: type_use(o::Type::Bool),
+                },
+            ]),
+        });
+    let pair = o::Type::Nominal(m::DefinitionId(0));
+    raw.places.declarations.imports[0].parameters = vec![type_use(pair)];
+    raw.places.declarations.imports[0].result = type_use(pair);
+    let encoded = encode(raw.clone(), Some(m::FunctionId(0)), CodecLimits::default()).unwrap();
+    assert_eq!(
+        decode(&encoded, CodecLimits::default())
+            .unwrap()
+            .into_parts()
+            .0,
+        raw
+    );
+    let mut invalid = raw.clone();
+    invalid.places.declarations.functions[0].public = false;
+    assert!(encode(invalid, Some(m::FunctionId(0)), CodecLimits::default()).is_err());
+    let mut invalid = raw;
+    let id = o::ConstructedId(invalid.places.declarations.types.constructed.len() as u32);
+    invalid
+        .places
+        .declarations
+        .types
+        .constructed
+        .push(o::Constructed {
+            constructor: o::Constructor::Builtin(o::Builtin::Bytes),
+            span: SPAN,
+        });
+    invalid.places.declarations.imports[0].parameters = vec![type_use(o::Type::Constructed(id))];
+    assert!(encode(invalid, Some(m::FunctionId(0)), CodecLimits::default()).is_err());
 }

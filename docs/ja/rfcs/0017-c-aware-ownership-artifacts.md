@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0017-c-aware-ownership-artifacts.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -17,6 +17,8 @@
 既存のHost／C importとGuest／CExport function識別を、検証済みMIRの保存・復元で保持するownership **schema 4**を追加する。Copyのschema 1、ownershipのschema 2、explicit panicのschema 3のbytesは変えない。Decodeはdataを供給するだけでFFI権限を与えない。
 
 Review outcome: 実装前に **実験段階の委任に基づきaccepted**。既存declaration verifierが識別と有限C signatureを検証しており、不足するtransportをformatとして拡張する判断で、sourceやC呼出しの意味は増やさない。Native再準備のprototype 5324c64が配布上の必要性を示す。受理時点ではcodec実装と復元後C実行は未検証。この判断だけではP02を完了せず、native配布containerも定義しない。
+
+実装の証拠（2026-10-20 JST）：codecはC宣言にschema 4を選び、明示ABI byteとPanic、従来golden byteを保持します。Sourceから復元したC callを既存の明示VM／native context APIで実行し、source削除後のCLI loadもC権限を与えません。Wire破損、切断、有限aggregate署名、累積上限を検証します。検証は対訳architecture文書、P02配布作業は実装Todoを参照してください。
 
 ## 動機
 

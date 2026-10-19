@@ -205,11 +205,15 @@ fn c_ir_cannot_enter_vm_jit_object_or_schema_two_before_adapters_exist() {
             Some(m::FunctionId(0)),
             Default::default(),
         )
-        .unwrap_err();
-        assert!(matches!(
-            codec.kind,
-            lang_bytecode::ownership::CodecErrorKind::UnsupportedCInterface { .. }
-        ));
+        .unwrap();
+        assert_eq!(&codec[8..10], &4u16.to_le_bytes());
+        assert_eq!(
+            lang_bytecode::ownership::decode(&codec, Default::default())
+                .unwrap()
+                .into_parts()
+                .0,
+            raw
+        );
         let typed = raw.verify(Default::default()).unwrap();
         let moved = o::moves::analyze(typed, Default::default()).unwrap();
         let activity = o::loan_activity::analyze(moved, Default::default()).unwrap();

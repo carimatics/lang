@@ -122,11 +122,15 @@ fn c_source_supports_copy_aggregates_zero_and_multiple_parameters_and_legacy_hos
         .into_moved()
         .into_typed()
         .into_table();
-    let error = lang_bytecode::ownership::encode(raw, None, Default::default()).unwrap_err();
-    assert!(matches!(
-        error.kind,
-        lang_bytecode::ownership::CodecErrorKind::UnsupportedCInterface { .. }
-    ));
+    let bytes = lang_bytecode::ownership::encode(raw.clone(), None, Default::default()).unwrap();
+    assert_eq!(&bytes[8..10], &4u16.to_le_bytes());
+    assert_eq!(
+        lang_bytecode::ownership::decode(&bytes, Default::default())
+            .unwrap()
+            .into_parts()
+            .0,
+        raw
+    );
 }
 
 #[test]

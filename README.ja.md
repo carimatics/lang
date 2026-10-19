@@ -8,7 +8,9 @@
 
 現在は意味論の定義とアーキテクチャの検証を進めています。安定した構文、ABI、パッケージ形式、リリース予定はまだ存在しません。
 
-明示的なsource panic（2026-10-19）：RFC 0008の`core::panic::<T>(code: i64)`は復帰せず、符号付きcode、元の呼び出しspan、guest stack、owner cleanupをVM／nativeで保持します。[例](examples/analysis/explicit_panic_owned.lang)と[version付き契約](docs/ja/rfcs/0014-explicit-source-panic.md)を参照してください。明示的panicを含むartifact unitはownership schema 3、従来のownership unitはschema 2を使います。引き続き実験的な実装です。
+明示的なsource panic（2026-10-19）：RFC 0008の`core::panic::<T>(code: i64)`は復帰せず、符号付きcode、元の呼び出しspan、guest stack、owner cleanupをVM／nativeで保持します。[例](examples/analysis/explicit_panic_owned.lang)と[version付き契約](docs/ja/rfcs/0014-explicit-source-panic.md)を参照してください。Cを含まない明示的panicのartifact unitはownership schema 3、従来のownership unitはschema 2を使います。C対応unitは明示的panicも含めschema 4を選びます。引き続き実験的な実装です。
+
+C対応artifact transport（2026-10-20）：[RFC 0017](docs/ja/rfcs/0017-c-aware-ownership-artifacts.md)でownership schema 4を追加します。有限aggregate署名と明示的panicを含むHost／C、Guest／CExport宣言全体を独立decode後も保持します。Sourceから復元したfixtureは明示VM／native context経由で実C codeを呼び出し、CLIは消費量ゼロでC実行を拒否します。Native配布はP02に残ります。
 
 Raw C context support（2026-10-19）：Rust埋め込みAPIの`lang_codegen_clif::c_abi::context::ContextSupport`は、登録済みProgram向けのprofile 1 create／destroy／last_error symbolを生成します。実C callerでdescriptorをコピーしたopaque contextを作成し、整数のerror summaryを照会・破棄できます。すべての呼び出しとcontext破棄が終わるまでsupport・登録code・allocator・callback user dataを保持してください。Native source exportの明示embedding入口は下記のF15です。C対応object公開はF05に維持します。
 
@@ -62,6 +64,7 @@ Native C runtime（2026-10-20 JST実装・確認）：`lang_codegen_clif::c_abi:
 - [RFC 0009：Option／Result全体のownership取り出し（accepted）](docs/ja/rfcs/0009-whole-sum-ownership-extraction.md)
 - [RFC 0010：所有値を返すREPL結果のpreview（accepted・current-profile REPL実装済み）](docs/ja/rfcs/0010-owned-repl-previews.md)
 - [RFC 0016：間接値のREPL結果プレビュー（implemented・実装済み）](docs/ja/rfcs/0016-indirect-repl-previews.md)
+- [RFC 0017：C対応ownership artifact（implemented・実装済み）](docs/ja/rfcs/0017-c-aware-ownership-artifacts.md)
 - [RFC 0011：Portable ownership artifact（implemented）](docs/ja/rfcs/0011-ownership-artifacts.md)
 - [RFC 0012：Native ownershipの継続とmanaged frame（accepted）](docs/ja/rfcs/0012-native-ownership-continuations.md)
 - [RFC 0013：Service byte-work budget（accepted・実装予定）](docs/ja/rfcs/0013-service-byte-work-budget.md)
@@ -73,7 +76,7 @@ RFC 0008の`core::drop::<T>(value) -> core::Unit`でownerを即座に破棄し�
 
 Milestone 1のsource pipelineは複数fileのmodule、型付きfunctionと再帰、copy-only record／enum、網羅的pattern、検証済みportable bytecode、上限付きVM実行に対応しています。Source spanはanalysis、lowering、artifact、runtime stackまで保持されます。Formatterとstdio LSP prototypeは同じlossless parserとrevision付きmodule／診断databaseを使います。
 
-RFC 0008のC import／export宣言は、source checkから独立検証済みownership MIRまで型付きC識別を保持します。呼出しにはlexicalな`unsafe`が必要で、通常の型・move・loan・cleanup規則を維持します。不正なC署名／呼出しには`SRC0025`、従来`unsafe`という名前には移行`SRC0024`を示します。明示Rust context／binding APIで[scalar／Unit](examples/analysis/c_scalar_imports.lang)と[finite Copy aggregate import](examples/analysis/c_aggregate_imports.lang)をVM／native実行できます。Record、enum、入れ子Option／Result、core errorはfield単位でC値と変換し、実context allocatorを使用します。生成C11 headerでcallback署名も検査します。`cargo test --test c_abi imports::aggregate_c_imports_execute_records_and_sums_from_source`で確認できます。Raw C context factoryとnative source exportの明示embedding入口は実装済みです（上記F15）。Aggregate／owner bodyの明示native exportは下記F16で検証済みです。C object公開と完全なnative packagingは未完成です。既定CLI／従来実行入口とschema 2 encodingは作用前にC unit全体を拒否します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-19 JST確認。
+RFC 0008のC import／export宣言は、source checkから独立検証済みownership MIRまで型付きC識別を保持します。呼出しにはlexicalな`unsafe`が必要で、通常の型・move・loan・cleanup規則を維持します。不正なC署名／呼出しには`SRC0025`、従来`unsafe`という名前には移行`SRC0024`を示します。明示Rust context／binding APIで[scalar／Unit](examples/analysis/c_scalar_imports.lang)と[finite Copy aggregate import](examples/analysis/c_aggregate_imports.lang)をVM／native実行できます。Record、enum、入れ子Option／Result、core errorはfield単位でC値と変換し、実context allocatorを使用します。生成C11 headerでcallback署名も検査します。`cargo test --test c_abi imports::aggregate_c_imports_execute_records_and_sums_from_source`で確認できます。Raw C context factoryとnative source exportの明示embedding入口は実装済みです（上記F15）。Aggregate／owner bodyの明示native exportは下記F16で検証済みです。C object公開と完全なnative packagingは未完成です。C対応artifactはschema 4を使い、bindingやcapabilityを保存せずC識別を保持します。DecodeだけではC実行権限を与えません。既定CLI／従来実行入口は引き続き作用前にC unit全体を拒否します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-20 JST確認。
 
 必要な環境は `rust-toolchain.toml` で固定したRust `1.99.0` とrustfmt／Clippyです。補助tool versionが必要な場合は `mise` を使います。
 
@@ -111,7 +114,7 @@ cargo run --quiet -- lsp
 
 Source arenaでCopy値、Bytes／Text、inline aggregate、同一region referenceを持つ入れ子Vec／Mapのallocation、checked read、replacement、lexical teardownを実行できます。`arena.lang` は値の置換と読み取り後に `9`、`arena_owned.lang` はowning Bytes payloadを持つnodeのcycleを辿って `5` を表示します。Region再enterでは新しいgenerationを使います。変更／exit前にreadを終了し、teardownでnodeはallocationの逆順、各fieldは初期化の逆順に解放します。[Source arena実行](docs/ja/architecture.md#source-arena-execution)を参照してください。2026-10-18 JST更新・確認。
 
-`compile --output ARTIFACT SOURCE`はsource／format検証後にCopy schema 1またはownership schema 2を出力します。`run --artifact ARTIFACT`は独立検証後に明示的entry IDを実行し、埋め込んだmodule snapshotによりsource file削除後も診断を保持します。上のBytes commandは`0`を表示します。Binary入力は64 MiBを上限とし、compile成功後にtemporary file経由で出力を公開します。Entryなしのlibrary artifactはscript実行できません。CLIはowned実行へallocator authorityを与え、host importは登録せず、artifact入力と`--source-root`の併用を拒否します。現owned adapterは到達するhost callをpreflightで拒否し、未使用宣言は実行しません。現在のVM profileの実装であり、native／platformと組合せconformanceは別作業です。[Artifact実行](docs/ja/architecture.md#ownership-artifact-cli-and-execution)を参照してください。2026-10-18 JST更新・確認。
+`compile --output ARTIFACT SOURCE`はsource／format検証後にCopy schema 1またはownership schema 2／3／4（2は通常、3は明示的panic、4はC対応）を出力します。`run --artifact ARTIFACT`は独立検証後に明示的entry IDを実行し、埋め込んだmodule snapshotによりsource file削除後も診断を保持します。上のBytes commandは`0`を表示します。Binary入力は64 MiBを上限とし、compile成功後にtemporary file経由で出力を公開します。Entryなしのlibrary artifactはscript実行できません。CLIはowned実行へallocator authorityを与え、host importは登録せず、artifact入力と`--source-root`の併用を拒否します。現owned adapterは到達するhost callをpreflightで拒否し、未使用宣言は実行しません。現在のVM profileの実装であり、native／platformと組合せconformanceは別作業です。[Artifact実行](docs/ja/architecture.md#ownership-artifact-cli-and-execution)を参照してください。2026-10-20 JST更新・確認。
 
 Sourceのshared／weak値で入れ子Vec／Mapと再帰的shared shapeを含むstorable値の明示clone、checked read、replacement、weak生成／clone／upgrade、cleanupを実行できます。`shared.lang` は `9`、`shared_owned.lang` はstrong cycleを拒否し、borrowed guest call越しに入れ子owning nodeを読んで `13` を表示します。Weak ownerはpayload失効後もmetadataを保持します。Live readはalias経由の置換を禁止し、publication失敗時はincoming ownerを解放します。間接値previewは[RFC 0016](docs/ja/rfcs/0016-indirect-repl-previews.md)で実装しました。Native実行とVM／nativeの組合せconformanceは個別gateを維持します。[Source shared実行](docs/ja/architecture.md#source-shared-and-weak-execution)を参照してください。2026-10-20 JST更新・確認。
 

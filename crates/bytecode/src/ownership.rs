@@ -1,4 +1,4 @@
-//! RFC 0011/0014 ownership schemas 2 and 3. Raw tables carry no authority; decoding reruns
+//! RFC 0011/0014/0017 ownership schemas 2, 3 and 4. Raw tables carry no authority; decoding reruns
 //! the complete independent ownership and region/failure verification pipeline.
 #![allow(
     clippy::result_large_err,
@@ -79,6 +79,8 @@ pub enum Table {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Tag {
     Definition,
+    ImportAbi,
+    FunctionAbi,
     Type,
     Constructor,
     Builtin,
@@ -240,7 +242,7 @@ pub fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, CodecError> 
     reader::decode(bytes, limits)
 }
 
-/// Consume and independently verify raw tables before publishing schema-2
+/// Consume and independently verify raw tables before publishing schema-2/3/4
 /// bytes. This avoids unchecked/infallible table clones during revalidation.
 pub fn encode(
     table: o::bodies::BodyTable,

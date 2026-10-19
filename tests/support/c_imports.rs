@@ -21,6 +21,25 @@ extern "C" fn flag(value: bool) -> bool;
 extern "C" fn notify(value: core::Unit) -> core::Unit;
 extern "C" fn combine(a: i64, b: bool, c: core::Unit, d: i64, e: bool, f: i64, g: bool, h: i64, i: i64, j: bool, k: i64, l: bool) -> i64;
 "#;
+fn decoded_source(text: &str) -> lang_bytecode::ownership::Program {
+    let producer = source(text);
+    let table = producer
+        .into_failure_flow()
+        .into_source()
+        .into_activity()
+        .into_moved()
+        .into_typed()
+        .into_table();
+    let bytes = lang_bytecode::ownership::encode(
+        table,
+        Some(lang_mir::unit::FunctionId(0)),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(&bytes[8..10], &4u16.to_le_bytes());
+    lang_bytecode::ownership::decode(&bytes, Default::default()).unwrap()
+}
+
 #[path = "c_imports_native.rs"]
 mod native;
 #[repr(C)]
@@ -861,16 +880,25 @@ fn explicit_panic_after_a_c_import_preserves_code_and_revision_three_controls() 
             observe_vm(&owner, &artifact, &library, control, false)
         );
     }
-    let error = lang_bytecode::ownership::encode(
-        typed.clone().into_table(),
+    let raw = typed.clone().into_table();
+    let bytes = lang_bytecode::ownership::encode(
+        raw.clone(),
         Some(lang_mir::unit::FunctionId(0)),
         Default::default(),
     )
-    .unwrap_err();
-    assert!(matches!(
-        error.kind,
-        lang_bytecode::ownership::CodecErrorKind::UnsupportedCInterface { .. }
-    ));
+    .unwrap();
+    assert_eq!(&bytes[8..10], &4u16.to_le_bytes());
+    let decoded = lang_bytecode::ownership::decode(&bytes, Default::default()).unwrap();
+    assert!(
+        decoded
+            .flow()
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .has_explicit_panic()
+    );
+    assert_eq!(decoded.into_parts().0, raw);
 }
 
 fn observe_vm(
@@ -1384,135 +1412,172 @@ fn native_thunks_call_compiler_produced_c_and_preserve_original_allocator() {
 
 #[test]
 fn vm_executes_c_source_and_preserves_foreign_failures_and_allocator_cleanup() {
-    for (body, expected, raw, bad_bool) in [
-        ("unsafe { return increment(41); }", Some(42), None, false),
-        (
-            "unsafe { let mut notice: core::Unit = notify(core::Unit {}); if flag(true) { return combine(3, true, core::Unit {}, 5, false, 7, true, 11, 13, true, 17, false); } return 0; }",
-            Some(59),
-            None,
-            false,
-        ),
-        ("unsafe { return increment(-1); }", None, Some(2), false),
-        (
-            "unsafe { return increment(-2); }",
-            None,
-            Some(u32::MAX),
-            false,
-        ),
-        (
-            "unsafe { if flag(false) { return 1; } return 0; }",
-            None,
-            None,
-            true,
-        ),
-    ] {
-        let text = format!("{IMPORTS} fn main() -> i64 {{ {body} }}");
-        let owner = source(&text);
-        let flow = owner.failure_flow();
-        let artifact = artifact(&text, target(), Limits::default()).unwrap();
-        let library = Library::new(&artifact);
-        let stats = Stats::default();
-        let program = c::Program::new(
-            &artifact,
-            flow,
-            config::Capacities::from_strides(64, 16, 64).unwrap(),
-        )
-        .unwrap();
-        let allocator = library.allocator(&stats);
-        let limits = config::LimitsDescriptor::default();
-        let bindings = bindings(&artifact, &library, &stats);
-        let context = program
-            .create(config::Config {
-                version: 1,
-                size: 80,
-                allocator: Some(&allocator),
-                limits: Some(&limits),
-                imports: Some(&bindings),
-                import_count: bindings.len() as u64,
-                artifact: artifact.digest(),
-                flags: 0,
-            })
+    for loaded in [false, true] {
+        for (body, expected, raw, bad_bool) in [
+            ("unsafe { return increment(41); }", Some(42), None, false),
+            (
+                "unsafe { let mut notice: core::Unit = notify(core::Unit {}); if flag(true) { return combine(3, true, core::Unit {}, 5, false, 7, true, 11, 13, true, 17, false); } return 0; }",
+                Some(59),
+                None,
+                false,
+            ),
+            ("unsafe { return increment(-1); }", None, Some(2), false),
+            (
+                "unsafe { return increment(-2); }",
+                None,
+                Some(u32::MAX),
+                false,
+            ),
+            (
+                "unsafe { if flag(false) { return 1; } return 0; }",
+                None,
+                None,
+                true,
+            ),
+        ] {
+            let text = format!("{IMPORTS} fn main() -> i64 {{ {body} }}");
+            let owner = source(&text);
+            let decoded = loaded.then(|| decoded_source(&text));
+            let flow = decoded
+                .as_ref()
+                .map_or_else(|| owner.failure_flow(), |p| p.flow());
+            let artifact = if loaded {
+                Artifact::compile(
+                    flow.source()
+                        .activity()
+                        .moved()
+                        .typed()
+                        .places()
+                        .declarations(),
+                    target(),
+                    Limits::default(),
+                )
+                .unwrap()
+            } else {
+                artifact(&text, target(), Limits::default()).unwrap()
+            };
+            let library = Library::new(&artifact);
+            let stats = Stats::default();
+            let program = c::Program::new(
+                &artifact,
+                flow,
+                config::Capacities::from_strides(64, 16, 64).unwrap(),
+            )
             .unwrap();
-        // SAFETY: the image's C callbacks were checked against generated C
-        // typedefs, and code/user cells outlive the context and its adapters.
-        let mut invoker = unsafe { NativeInvoker::new(&context, Default::default()) }.unwrap();
-        let mut allocations = unsafe { CAllocator::new(&context) }.unwrap();
-        let mut usage = e::Usage::default();
-        let work = e::ServiceWork::new(Some(100_000));
-        let mut saved = None;
-        let result = context.run(
-            &program,
-            e::Control::default().and_service_work(Some(100_000)),
-            &work,
-            &mut usage,
-            c::EntryPoint::Guest,
-            &mut |entry| {
-                let result = lang_vm::unit::owned::execute_entry_c(
+            let allocator = library.allocator(&stats);
+            let limits = config::LimitsDescriptor::default();
+            let bindings = bindings(&artifact, &library, &stats);
+            let context = program
+                .create(config::Config {
+                    version: 1,
+                    size: 80,
+                    allocator: Some(&allocator),
+                    limits: Some(&limits),
+                    imports: Some(&bindings),
+                    import_count: bindings.len() as u64,
+                    artifact: artifact.digest(),
+                    flags: 0,
+                })
+                .unwrap();
+            // SAFETY: the image's C callbacks were checked against generated C
+            // typedefs, and code/user cells outlive the context and its adapters.
+            let mut invoker = unsafe { NativeInvoker::new(&context, Default::default()) }.unwrap();
+            let mut allocations = unsafe { CAllocator::new(&context) }.unwrap();
+            if loaded {
+                let before = stats.allocations.get();
+                let failure = lang_vm::unit::owned::execute_entry(
                     flow,
-                    entry,
-                    allocations.managed_mut(),
-                    &mut invoker,
-                );
-                let failure = result.as_ref().err().map(|failure| {
-                    failure
-                        .report
-                        .as_ref()
-                        .and_then(|report| {
-                            c::Fault::from_report(report, failure.panic_code.unwrap_or(0))
-                        })
-                        .unwrap_or_else(|| match failure.reason {
-                            lang_vm::unit::owned::Reason::Foreign(fault) => fault,
-                            _ => c::Fault::new(c::Kind::Execution(
-                                lang_runtime::cleanup::ExecutionFailure::Fault,
-                            )),
-                        })
-                });
-                saved = Some(result);
-                failure.map_or(Ok(()), Err)
-            },
-        );
-        if let Some(expected) = expected {
-            assert!(result.is_ok(), "{result:?}");
-            let outcome = saved.unwrap().unwrap();
-            assert_eq!(outcome.value, expected);
-            assert_eq!(outcome.usage, usage);
-            assert_eq!(outcome.usage.service_work, work.used());
-            assert!(usage.fuel > 0);
-            assert!(usage.host_calls > 0);
-        } else {
-            let failure = result.unwrap_err();
-            assert_eq!(failure.status(), c::Status::Runtime);
-            if let Some(code) = raw {
-                assert_eq!(
-                    failure.kind,
-                    c::Kind::ForeignStatus {
-                        code,
-                        known: code <= 6
-                    }
-                );
-            }
-            if bad_bool {
+                    &mut lang_runtime::cleanup::Instance::default(),
+                    Some(allocations.managed_mut()),
+                    e::Control::default(),
+                )
+                .err()
+                .expect("decoding must not supply C execution authority");
                 assert!(matches!(
-                    failure.kind,
-                    c::Kind::ForeignValue(lang_runtime::c_abi::validation::Error::InvalidBool {
-                        value: 2,
-                        ..
-                    })
+                    failure.reason,
+                    lang_vm::unit::owned::Reason::UnsupportedCInterface
                 ));
+                assert_eq!(failure.usage.fuel, 0);
+                assert_eq!(failure.usage.host_calls, 0);
+                assert_eq!(stats.effects.get(), 0);
+                assert_eq!(stats.allocations.get(), before);
             }
-            let vm = saved.unwrap().err().unwrap();
-            assert!(matches!(
-                vm.reason,
-                lang_vm::unit::owned::Reason::Foreign(_)
-            ));
-            assert!(vm.report.is_some());
-            assert!(vm.panic_code.is_none());
-            assert_eq!(vm.usage, usage);
-            assert!(!context.is_poisoned().unwrap());
+            let mut usage = e::Usage::default();
+            let work = e::ServiceWork::new(Some(100_000));
+            let mut saved = None;
+            let result = context.run(
+                &program,
+                e::Control::default().and_service_work(Some(100_000)),
+                &work,
+                &mut usage,
+                c::EntryPoint::Guest,
+                &mut |entry| {
+                    let result = lang_vm::unit::owned::execute_entry_c(
+                        flow,
+                        entry,
+                        allocations.managed_mut(),
+                        &mut invoker,
+                    );
+                    let failure = result.as_ref().err().map(|failure| {
+                        failure
+                            .report
+                            .as_ref()
+                            .and_then(|report| {
+                                c::Fault::from_report(report, failure.panic_code.unwrap_or(0))
+                            })
+                            .unwrap_or_else(|| match failure.reason {
+                                lang_vm::unit::owned::Reason::Foreign(fault) => fault,
+                                _ => c::Fault::new(c::Kind::Execution(
+                                    lang_runtime::cleanup::ExecutionFailure::Fault,
+                                )),
+                            })
+                    });
+                    saved = Some(result);
+                    failure.map_or(Ok(()), Err)
+                },
+            );
+            if let Some(expected) = expected {
+                assert!(result.is_ok(), "{result:?}");
+                let outcome = saved.unwrap().unwrap();
+                assert_eq!(outcome.value, expected);
+                assert_eq!(outcome.usage, usage);
+                assert_eq!(outcome.usage.service_work, work.used());
+                assert!(usage.fuel > 0);
+                assert!(usage.host_calls > 0);
+            } else {
+                let failure = result.unwrap_err();
+                assert_eq!(failure.status(), c::Status::Runtime);
+                if let Some(code) = raw {
+                    assert_eq!(
+                        failure.kind,
+                        c::Kind::ForeignStatus {
+                            code,
+                            known: code <= 6
+                        }
+                    );
+                }
+                if bad_bool {
+                    assert!(matches!(
+                        failure.kind,
+                        c::Kind::ForeignValue(
+                            lang_runtime::c_abi::validation::Error::InvalidBool { value: 2, .. }
+                        )
+                    ));
+                }
+                let vm = saved.unwrap().err().unwrap();
+                assert!(matches!(
+                    vm.reason,
+                    lang_vm::unit::owned::Reason::Foreign(_)
+                ));
+                assert!(vm.report.is_some());
+                assert!(vm.panic_code.is_none());
+                assert_eq!(vm.usage, usage);
+                assert!(!context.is_poisoned().unwrap());
+            }
+            assert_eq!(allocations.managed().stats().live_allocations, 0);
+            assert_eq!(stats.allocations.get(), stats.frees.get());
+            assert!(stats.allocations.get() > 0);
+            assert_eq!(stats.wrong.get(), 0);
         }
-        assert_eq!(allocations.managed().stats().live_allocations, 0);
-        assert_eq!(stats.allocations.get(), stats.frees.get());
-        assert!(stats.allocations.get() > 0);
-        assert_eq!(stats.wrong.get(), 0);
     }
 }

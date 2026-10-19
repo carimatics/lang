@@ -535,125 +535,144 @@ pub(super) fn observe(
 
 #[test]
 fn source_c_callbacks_execute_in_generated_native_code() {
-    for (body, expected, raw) in [
-        ("unsafe { return increment(41); }", Some(42), None),
-        (
-            "unsafe { let mut notice: core::Unit = notify(core::Unit {}); if flag(true) { return combine(3, true, core::Unit {}, 5, false, 7, true, 11, 13, true, 17, false); } return 0; }",
-            Some(59),
-            None,
-        ),
-        ("unsafe { return increment(-1); }", None, Some(2)),
-        ("unsafe { return increment(-2); }", None, Some(u32::MAX)),
-    ] {
-        let text = format!("{IMPORTS} fn main() -> i64 {{ {body} }}");
-        let owner = source(&text);
-        let flow = owner.failure_flow();
-        let types = flow
-            .source()
-            .activity()
-            .moved()
-            .typed()
-            .places()
-            .declarations()
-            .types();
-        let layouts = l::Layouts::compile(types, Default::default()).unwrap();
-        let artifact = artifact(&text, target(), Limits::default()).unwrap();
-        let compiled = n::CCompiledProgram::compile_scalar_imports(
-            flow,
-            &layouts,
-            &artifact,
-            Default::default(),
-            4096,
-        )
-        .unwrap();
-        let library = Library::new(&artifact);
-        let stats = Stats::default();
-        let program = c::Program::new(
-            &artifact,
-            &compiled,
-            config::Capacities::from_strides(64, 16, 64).unwrap(),
-        )
-        .unwrap();
-        let allocator = library.allocator(&stats);
-        let limits = config::LimitsDescriptor::default();
-        let bindings = bindings(&artifact, &library, &stats);
-        let context = program
-            .create(config::Config {
-                version: 1,
-                size: 80,
-                allocator: Some(&allocator),
-                limits: Some(&limits),
-                imports: Some(&bindings),
-                import_count: bindings.len() as u64,
-                artifact: artifact.digest(),
-                flags: 0,
-            })
+    for loaded in [false, true] {
+        for (body, expected, raw) in [
+            ("unsafe { return increment(41); }", Some(42), None),
+            (
+                "unsafe { let mut notice: core::Unit = notify(core::Unit {}); if flag(true) { return combine(3, true, core::Unit {}, 5, false, 7, true, 11, 13, true, 17, false); } return 0; }",
+                Some(59),
+                None,
+            ),
+            ("unsafe { return increment(-1); }", None, Some(2)),
+            ("unsafe { return increment(-2); }", None, Some(u32::MAX)),
+        ] {
+            let text = format!("{IMPORTS} fn main() -> i64 {{ {body} }}");
+            let owner = source(&text);
+            let decoded = loaded.then(|| decoded_source(&text));
+            let flow = decoded
+                .as_ref()
+                .map_or_else(|| owner.failure_flow(), |p| p.flow());
+            let types = flow
+                .source()
+                .activity()
+                .moved()
+                .typed()
+                .places()
+                .declarations()
+                .types();
+            let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+            let artifact = if loaded {
+                Artifact::compile(
+                    flow.source()
+                        .activity()
+                        .moved()
+                        .typed()
+                        .places()
+                        .declarations(),
+                    target(),
+                    Limits::default(),
+                )
+                .unwrap()
+            } else {
+                artifact(&text, target(), Limits::default()).unwrap()
+            };
+            let compiled = n::CCompiledProgram::compile_scalar_imports(
+                flow,
+                &layouts,
+                &artifact,
+                Default::default(),
+                4096,
+            )
             .unwrap();
-        // SAFETY: generated typedef checks prove every fixture C signature;
-        // image, user cells and context outlive both adapters and every call.
-        let mut invoker = unsafe { NativeInvoker::new(&context, Default::default()) }.unwrap();
-        let mut allocations = unsafe { CAllocator::new(&context) }.unwrap();
-        let mut usage = e::Usage::default();
-        let work = e::ServiceWork::new(Some(100_000));
-        let mut saved = None;
-        let result = context.run(
-            &program,
-            e::Control::default().and_service_work(Some(100_000)),
-            &work,
-            &mut usage,
-            c::EntryPoint::Guest,
-            &mut |entry| {
-                let (instance, session) = entry.parts();
-                let environment = compiled.prepare(session, &invoker, allocations.managed())?;
-                let main = m::FunctionId(0);
-                assert_eq!(compiled.metadata(main).unwrap().symbol, "lang_owned_r2_f0");
-                let runtime = RuntimeState::new(
-                    compiled.layout(main).unwrap(),
-                    instance,
-                    allocations.managed_mut(),
-                    environment,
-                )?;
-                let mut runtime = n::RuntimeInstance::new(runtime);
-                let native = compiled.invoke(main, session, &mut invoker, &mut runtime);
-                let scalar = runtime.runtime().result;
-                let report = runtime.runtime_mut().report.take().unwrap();
-                let panic_code = native
-                    .as_ref()
-                    .err()
-                    .and_then(|failure| failure.panic_code)
-                    .unwrap_or(0);
-                let fault = c::Fault::from_report(&report, panic_code);
-                saved = Some((scalar, native, report));
-                fault.map_or(Ok(()), Err)
-            },
-        );
-        let (scalar, native, report) = saved.unwrap();
-        if let Some(expected) = expected {
-            assert!(result.is_ok(), "{result:?}");
-            assert!(native.is_ok(), "{native:?}");
-            assert_eq!(scalar, Some(expected));
-            assert!(report.primary().is_none());
-        } else {
-            let failure = result.unwrap_err();
-            let code = raw.unwrap();
-            assert_eq!(
-                failure.kind,
-                c::Kind::ForeignStatus {
-                    code,
-                    known: code <= 6
-                }
+            let library = Library::new(&artifact);
+            let stats = Stats::default();
+            let program = c::Program::new(
+                &artifact,
+                &compiled,
+                config::Capacities::from_strides(64, 16, 64).unwrap(),
+            )
+            .unwrap();
+            let allocator = library.allocator(&stats);
+            let limits = config::LimitsDescriptor::default();
+            let bindings = bindings(&artifact, &library, &stats);
+            let context = program
+                .create(config::Config {
+                    version: 1,
+                    size: 80,
+                    allocator: Some(&allocator),
+                    limits: Some(&limits),
+                    imports: Some(&bindings),
+                    import_count: bindings.len() as u64,
+                    artifact: artifact.digest(),
+                    flags: 0,
+                })
+                .unwrap();
+            // SAFETY: generated typedef checks prove every fixture C signature;
+            // image, user cells and context outlive both adapters and every call.
+            let mut invoker = unsafe { NativeInvoker::new(&context, Default::default()) }.unwrap();
+            let mut allocations = unsafe { CAllocator::new(&context) }.unwrap();
+            let mut usage = e::Usage::default();
+            let work = e::ServiceWork::new(Some(100_000));
+            let mut saved = None;
+            let result = context.run(
+                &program,
+                e::Control::default().and_service_work(Some(100_000)),
+                &work,
+                &mut usage,
+                c::EntryPoint::Guest,
+                &mut |entry| {
+                    let (instance, session) = entry.parts();
+                    let environment = compiled.prepare(session, &invoker, allocations.managed())?;
+                    let main = m::FunctionId(0);
+                    assert_eq!(compiled.metadata(main).unwrap().symbol, "lang_owned_r2_f0");
+                    let runtime = RuntimeState::new(
+                        compiled.layout(main).unwrap(),
+                        instance,
+                        allocations.managed_mut(),
+                        environment,
+                    )?;
+                    let mut runtime = n::RuntimeInstance::new(runtime);
+                    let native = compiled.invoke(main, session, &mut invoker, &mut runtime);
+                    let scalar = runtime.runtime().result;
+                    let report = runtime.runtime_mut().report.take().unwrap();
+                    let panic_code = native
+                        .as_ref()
+                        .err()
+                        .and_then(|failure| failure.panic_code)
+                        .unwrap_or(0);
+                    let fault = c::Fault::from_report(&report, panic_code);
+                    saved = Some((scalar, native, report));
+                    fault.map_or(Ok(()), Err)
+                },
             );
-            assert_eq!(failure.status(), c::Status::Runtime);
-            assert!(matches!(native.unwrap_err().reason, n::Reason::Foreign(_)));
-            assert!(scalar.is_none());
-            assert!(report.primary().is_some());
+            let (scalar, native, report) = saved.unwrap();
+            if let Some(expected) = expected {
+                assert!(result.is_ok(), "{result:?}");
+                assert!(native.is_ok(), "{native:?}");
+                assert_eq!(scalar, Some(expected));
+                assert!(report.primary().is_none());
+            } else {
+                let failure = result.unwrap_err();
+                let code = raw.unwrap();
+                assert_eq!(
+                    failure.kind,
+                    c::Kind::ForeignStatus {
+                        code,
+                        known: code <= 6
+                    }
+                );
+                assert_eq!(failure.status(), c::Status::Runtime);
+                assert!(matches!(native.unwrap_err().reason, n::Reason::Foreign(_)));
+                assert!(scalar.is_none());
+                assert!(report.primary().is_some());
+            }
+            assert!(usage.fuel > 0);
+            assert!(usage.host_calls > 0);
+            assert_eq!(usage.service_work, work.used());
+            assert_eq!(allocations.managed().stats().live_allocations, 0);
+            assert_eq!(stats.allocations.get(), stats.frees.get());
+            assert_eq!(stats.wrong.get(), 0);
+            assert!(!context.is_poisoned().unwrap());
         }
-        assert!(usage.fuel > 0);
-        assert!(usage.host_calls > 0);
-        assert_eq!(usage.service_work, work.used());
-        assert_eq!(allocations.managed().stats().live_allocations, 0);
-        assert_eq!(stats.allocations.get(), stats.frees.get());
-        assert_eq!(stats.wrong.get(), 0);
-        assert!(!context.is_poisoned().unwrap());
     }
 }

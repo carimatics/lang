@@ -245,8 +245,12 @@ impl Reader<'_> {
     }
     fn import(&mut self) -> Result<d::Import, CodecError> {
         Ok(d::Import {
-            abi: d::ImportAbi::Host,
             name: self.name()?,
+            abi: if self.version == 4 {
+                self.kind(tags::read_import_abi)?
+            } else {
+                d::ImportAbi::Host
+            },
             span: self.span()?,
             parameters: self.list(
                 Table::Fields,
@@ -267,9 +271,13 @@ impl Reader<'_> {
     }
     fn function(&mut self) -> Result<d::Function, CodecError> {
         Ok(d::Function {
-            abi: d::FunctionAbi::Guest,
             name: self.name()?,
             public: self.boolean()?,
+            abi: if self.version == 4 {
+                self.kind(tags::read_function_abi)?
+            } else {
+                d::FunctionAbi::Guest
+            },
             span: self.span()?,
             signature_span: self.span()?,
             parameters: self.list(Table::Fields, self.budget.limits().fields, 4, |s| {
@@ -332,7 +340,7 @@ impl Reader<'_> {
         let results = self.registers()?;
         let offset = self.offset;
         let op = match self.byte()? {
-            33 if self.version == 3 => {
+            33 if self.version >= 3 => {
                 self.seen_panic = true;
                 O::Panic(m::Register(self.word()?))
             }
@@ -514,8 +522,14 @@ impl Reader<'_> {
             14,
             Self::constructor,
         )?;
-        let imports = self.list(Table::Imports, cfg.imports, 33, Self::import)?;
-        let functions = self.list(Table::Functions, cfg.functions, 46, Self::function)?;
+        let abi_byte = usize::from(self.version == 4);
+        let imports = self.list(Table::Imports, cfg.imports, 33 + abi_byte, Self::import)?;
+        let functions = self.list(
+            Table::Functions,
+            cfg.functions,
+            46 + abi_byte,
+            Self::function,
+        )?;
         let places = self.list(Table::Functions, functions.len(), 8, |s| {
             Ok(p::FunctionPlaces {
                 values: s.list(Table::Values, cfg.registers, 13, Self::type_use)?,
@@ -567,7 +581,7 @@ pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, Codec
         return Err(error(0, CodecErrorKind::BadMagic));
     }
     let version = u16::from_le_bytes(bytes[8..10].try_into().unwrap());
-    if !matches!(version, 2 | 3) {
+    if !matches!(version, 2..=4) {
         return Err(error(8, CodecErrorKind::Version(version)));
     }
     let flags = u16::from_le_bytes(bytes[10..12].try_into().unwrap());
@@ -594,7 +608,7 @@ pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, Codec
     if reader.offset != bytes.len() {
         return Err(reader.fail(CodecErrorKind::TrailingBytes));
     }
-    if (version == 3) != reader.seen_panic {
+    if version != 4 && (version == 3) != reader.seen_panic {
         return Err(error(8, CodecErrorKind::ProfileVersion(version)));
     }
     verify(table, entry, reader.budget, limits, reader.offset)
