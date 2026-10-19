@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**116 verified deliveries · 1 in progress · 14 remaining tasks (provisional 33 pt).**
+**117 verified deliveries · 1 in progress · 13 remaining tasks (provisional 32 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P08: experimental SDK/startup contract | **P06 complete**: persisted C interface/bridge and original context execution (2712700) | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P09: production source-native compiler | **P08 complete**: SDK/startup RFC 0020 accepted (bca5f12) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Next: P08 SDK/compiler/startup decision.** P06 reloads schema-4/native files after producer teardown and invokes actual C with the original allocator/context/grants/cleanup, without startup source analysis/backend emission/JIT. Managed families, aggregate/256-parameter imports, finite Copy exports, callbacks/panic and failure/resource boundaries pass. The full macOS baseline passes **1,550 tests / 89 suites**, fmt/Clippy/rustdoc. Exact Windows snapshots are on the [delivery board](milestone-2.md). Updated/verified 2026-10-20 JST.
+**Next: P09 native compiler output from real source.** [RFC 0020](rfcs/0020-native-sdk-and-startup.md) defines the command/manifest/build-identity and scoped Rust startup contract before implementation. A copied-library Mac probe executes production owned code after source removal with result 42 and complete release. It is decision evidence; SDK commands/consumer/assembly/both-host isolated Copy/ownership/C install remain P09/P10/P07/P02. Product `2712700` passes the 1,550-test Mac baseline; matching Windows required checks pass by 2026-10-19 23:32:43 UTC, with the whole prototype-benchmark workflow still in progress. Updated/verified 2026-10-20 JST; details are on the [delivery board](milestone-2.md).
 
-The SDK readiness audit found that the current CLI emits portable artifacts and the native tool only fixed prototypes. Expose P08 contract (1 pt), P09 production source-native compiler command (3), and P10 distributed startup/runtime consumer (3) before P07 SDK assembly (2); retain P02's both-host isolated Copy/ownership/C install (3). P06 retires 3 pt and missing prerequisites add 7: **29 − 3 + 7 = 33 pt**, **128 → 131 rows**. The ledger is **134 + 103 − 204 = 33 pt**. Conformance/performance/debug and final guide Z01 remain. The board exposes verified checkpoints and retains history; 113 is retired as an effort forecast and delivery counts are not a completion percentage.
+P08 retires its initial 1 pt: **33 → 32 remaining pt**, **116 → 117 verified deliveries**. Inventory stays 131 rows and +103 added pt; the ledger is **134 + 103 − 205 = 32 pt**. Retain every Copy/ownership/C, both-host, conformance/performance/debug and final-guide requirement. 113 is retired as an effort forecast; delivery counts are not a completion percentage.
 
 ## Task tracking
 

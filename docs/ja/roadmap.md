@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み116件 · 進行中1件 · 残り14件（暫定33 pt）。**
+**検証済み117件 · 進行中1件 · 残り13件（暫定32 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P08：実験段階のSDK／起動契約 | **P06完了**：保存済みC interface／bridgeと元contextでの実行（2712700） | **14/18条件**。過去の重み84/113（74.3%） |
+| P09：製品用source-native compiler | **P08完了**：SDK／起動のRFC 0020を受理（bca5f12） | **14/18条件**。過去の重み84/113（74.3%） |
 
-**次：P08でSDK／compiler／起動の契約を決定。** P06で生成元破棄後のschema 4／native fileを復元し、元allocator／context／grant／cleanupを保って実Cを呼び出します。起動時のsource分析／backend生成／JITは不要です。Managed全family、aggregate／256引数import、有限Copy export、callback／panic、失敗／資源境界を検証しました。Mac全体baselineは **1,550 tests／89 suites** とfmt／Clippy／rustdocに成功。同一Windows snapshotは[実装Todo](milestone-2.md)に記録します。2026-10-20 JST更新・確認。
+**次：P09で実sourceからnative出力を生成。** [RFC 0020](rfcs/0020-native-sdk-and-startup.md)で、実装前にcommand／manifest／build識別とscope付きRust起動を定義しました。Macのlibraryコピー実験で、元sourceを移動後もproduction owned codeが42を返し全解放を確認しました。判断の証拠で、SDK command／consumer／組立／両host隔離Copy／ownership／C installはP09／P10／P07／P02に残ります。製品`2712700`はMac全1,550 test baselineに成功し、対応Windowsも2026-10-19 23:32:43 UTCまでに必須検証が成功、prototype benchmarkを含むworkflow全体は進行中です。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に詳細を記録します。
 
-SDK監査で、現CLIはportable artifact、nativeツールは固定prototypeだけを出力すると確認しました。P07 SDK組立（2 pt）の前に、P08契約（1）、P09製品用source-native compilerコマンド（3）、P10配布startup／runtime consumer（3）を明示し、P02の両host隔離Copy／ownership／C install（3）を維持します。P06完了で3点を除き、欠落した前提7点を追加して **29 − 3 + 7 = 残り33 pt**、**128 → 131行**です。収支は **134 + 103 − 204 = 33 pt**。Conformance／性能／debugと最終guide Z01は残ります。Todoで検証済み確認点を表示して履歴を保持し、113を工数予測、成果件数を完成率として使用しません。
+P08の初期1 ptを除き、**残り33 → 32 pt**、**検証済み116 → 117件**です。131行と追加103点は不変で、収支は **134 + 103 − 205 = 32 pt**。Copy／ownership／C、両host、conformance／性能／debug、最終guideの全要件を維持します。113を工数予測、成果件数を完成率として使用しません。
 
 ## タスク管理
 
