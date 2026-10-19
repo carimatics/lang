@@ -6,22 +6,26 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**115 done · 1 doing · 12 todo · 29 remaining pt**
+**116 done · 1 doing · 14 todo · 33 remaining pt**
 
-**Next: M2-P06 → distributed C context/import/export startup (provisional 3 pt, in progress).**
+**Next: M2-P08 → decide the experimental SDK/startup contract (initial 1 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P06: restore C bindings from distributed records | **P05 complete**: persisted Copy and concrete ordinary-owned startup (336a91b) | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P08: SDK/compiler/startup contract | **P06 complete**: saved C records restore interface/bridge and original context execution (2712700) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-P05 executes the original zero-parameter i64 entry with production storage/cleanup and the embedding allocator. Reloaded files start linked code after producer teardown without a test runtime, source analysis or backend emission. Ten ownership/panic fixtures and all fuel/work/allocation-failure prefixes match VM values, usage, spans, stacks and cleanup. Invalid entries/control configurations refuse before provider effects; clean failures permit reuse and host panic preserves poison. Code: `336a91b`.
+P06 reconstructs CObject plans/interface/private symbols from decoded schema-4/native files after producer teardown. Real C callers retain the original allocator, opaque context, explicit grants and cleanup, without source analysis/backend emission/JIT at startup. All managed families, aggregate/256-parameter imports, every finite Copy export case, owner recursion/callback/panic and failure prefixes pass. Both object formats reject foreign scope/digest/target/semantics and insufficient preparation budgets; invalid grants/signatures refuse before provider effects.
 
-Validation: **1,547 macOS tests / 89 suites**, zero failures, one manual timing test ignored; native **76 / 279.32s**, C ABI **71 / 18.44s**, fmt/Clippy/rustdoc pass. Windows for this exact source-runtime snapshot: [run 39336016918](https://github.com/carimatics/lang/actions/runs/39336016918), head `336a91b`, job118345577536 in progress (started 2026-10-19 22:35:30 UTC); result pending. Prior native-record snapshot `5e0d6a1` [run 39328266216](https://github.com/carimatics/lang/actions/runs/39328266216), job118319603831, succeeds at **2026-10-19 22:08:42 UTC**; it does not validate later source changes.
+Validation: **1,550 macOS tests / 89 suites**, zero failures, one manual timing test ignored; native **76 / 283.45s**, C ABI **74 / 20.20s**, fmt/Clippy/rustdoc pass. Exact C-startup Windows snapshot: [run 39339364065](https://github.com/carimatics/lang/actions/runs/39339364065), head `2712700`, job118356781634 in progress since 2026-10-19 23:05:35 UTC. Previous P05 Windows evidence is recorded in history below; it does not prove later C-record changes.
 
-**Next execution proof:** reconstruct the C object/interface and bind actual import/export code to the original opaque context, allocator and cleanup. SDK assembly (P07), clean installation on both tier-1 hosts (P02), conformance/performance/debug gates and final guide Z01 remain open. The [estimate ledger](#progress-and-estimate-changes) is **134 + 96 − 201 = 29 pt**. 113 is retired as an effort forecast; delivery counts are not a completion percentage.
+**SDK readiness audit:** `lang compile` currently emits portable artifacts; `prototype-object` emits only fixed prototypes. P07's old 2 pt hid the SDK contract, a production source-native compiler command and a distributable startup/runtime consumer. Expose P08 (1), P09 (3), P10 (3); retain P07 assembly (2) and P02 isolated Copy/ownership/C install on both hosts (3). This preserves the original outcomes: **128 → 131 rows; P06 retires 3 pt, prerequisites add 7 pt; 29 − 3 + 7 = 33 pt**. The [ledger](#progress-and-estimate-changes) is **134 + 103 − 204 = 33 pt**.
+
+P08 must decide the versioned SDK/distribution and matching-toolchain contract before implementing its unspecified public behavior. P09/P10 then precede SDK assembly. Conformance/performance/debug gates and final guide Z01 stay open. 113 is retired as an effort forecast; delivery counts are not a completion percentage.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
+
+P05 production-entry validation (`336a91b`): all 1,547 Mac tests/89 suites, native 76/279.32s, C ABI 71/18.44s, fmt/Clippy (2.18s)/rustdoc (24.94s) pass. Matching Windows [run 39336016918](https://github.com/carimatics/lang/actions/runs/39336016918), job118345577536/head336a91b, passes required fmt/focused C-linker/Clippy/full tests/rustdoc by 2026-10-19 23:02:02 UTC. The whole workflow was still recording its prototype benchmark when checked; this is not later P06 or G17 Rust/C comparison evidence.
 
 P05 completion and prior-checkpoint audit (2026-10-20 JST):
 
@@ -31,12 +35,12 @@ P05 completion and prior-checkpoint audit (2026-10-20 JST):
 
 Prior checkpoint validation: `5e0d6a1` passes **1,539 macOS tests / 89 suites**, zero failures, one manual timing test ignored; native **68 / 276.12s**, C ABI **71 / 22.50s**, fmt/Clippy (**3.16s**)/rustdoc (**18.04s**) pass. Summed suite time 377.01s is validation time, not development effort. The first full attempt failed only the standalone direct-rustc build because test-only record helpers were compiled without their lang-bytecode extern; `cfg(test)` fixes the fixture, and this complete rerun succeeds. Previous schema-4 Windows snapshot `816b0b6` [run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989), job118300781642: fmt/focused C-linker/Clippy/full tests/rustdoc pass by 2026-10-19 21:16:54 UTC; the whole workflow succeeds (job completed 21:26:54 UTC). Its prototype benchmark is not G17 Rust/C comparison evidence. Native-record Windows snapshot: [run 39328266216](https://github.com/carimatics/lang/actions/runs/39328266216), head 5e0d6a1 succeeds (job118319603831, completed 2026-10-19 22:08:42 UTC). This is distinct from the later 336a91b source-runtime snapshot.
 
-P02 packaging audit (2026-10-20 JST): retaining its old 3 pt across metadata, semantic transport, runtime startup, C-context integration, SDK assembly and both-host clean installation hid several independent outcomes. Keep P02's final clean-install proof at 3 pt. Expose P03 detached metadata (initial 2 pt, delivered 5324c64) and P04 C-aware artifact transport (initial 1 pt, delivered 816b0b6), plus P05 runtime bootstrap (3), P06 distributed C context (3) and P07 SDK assembly (2). This is an explicit re-estimate of existing requirements, with **no scope removed**: **123 → 128 rows, +11 added pt, 3 retired pt, 24 + 11 − 3 = 32 remaining pt**. Recording P03/P04 now does not claim new work since their commits. That source startup experiment is complete in P05; P06 next uses the C source fixture.
+P02 packaging audit (2026-10-20 JST): retaining its old 3 pt across metadata, semantic transport, runtime startup, C-context integration, SDK assembly and both-host clean installation hid several independent outcomes. Keep P02's final clean-install proof at 3 pt. Expose P03 detached metadata (initial 2 pt, delivered 5324c64) and P04 C-aware artifact transport (initial 1 pt, delivered 816b0b6), plus P05 runtime bootstrap (3), P06 distributed C context (3) and P07 SDK assembly (2). This is an explicit re-estimate of existing requirements, with **no scope removed**: **123 → 128 rows, +11 added pt, 3 retired pt, 24 + 11 − 3 = 32 remaining pt**. Recording P03/P04 now does not claim new work since their commits. The source startup experiments are complete in P05/P06; SDK prerequisites are separately audited below.
 
 - [x] **P03**: detached Rust native records reconstruct plans after producer IR/layout teardown without machine-code emission; preserve code sizes/source ranges and actual linked work-prefix VM comparisons. Code: `5324c64`.
 - [x] **P04 / RFC 0017**: schema 4 preserves Host/C and Guest/CExport identities, aggregate signatures and explicit panic. Decoded source fixtures invoke actual C through explicit VM/native contexts; the CLI still refuses C execution with zero usage after source deletion. Code: `816b0b6`.
 - [x] **P05**: source-free Copy/ownership startup and native metadata transport. Code: `336a91b`.
-- [ ] **P06**: distributed C context/import/export bindings with original allocator and cleanup.
+- [x] **P06**: distributed C context/import/export bindings with original allocator and cleanup. Code: `2712700`.
 - [ ] **P07**: compiler/startup/runtime/header SDK assembly with explicit toolchain requirements.
 - [ ] **P02**: clean-install link/run for Copy, ownership and C on both tier-1 hosts outside the repository/target/deps.
 
@@ -196,15 +200,17 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 115 (+80)**, and the task inventory increased **87 → 128 (+41)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 116 (+81)**, and the task inventory increased **87 → 131 (+44)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +96 pt | −201 pt | 29 pt |
+| 134 pt | +103 pt | −204 pt | 33 pt |
 
-**134 + 96 − 201 = 29 pt**
+**134 + 103 − 204 = 33 pt**
 
-This separates delivered work from newly recognized work: completion retired 201 estimated points, while exposed prerequisites and re-estimation added 96. These are planning units, not hours or measured actual effort. The remaining 29 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+SDK readiness audit (2026-10-20 JST): The old P07 2 pt concealed a public source-native compiler command, distributed startup/runtime consumer and version/toolchain contract in addition to assembling existing components. `src/main.rs` compile emits portable artifacts only; `prototype-object` accepts fixed MIR prototypes. Expose P08 contract decision (initial 1 pt), P09 production AOT compiler (initial 3 pt) and P10 distributed runtime/startup (initial 3 pt); retain P07 final assembly at 2 and P02 isolated Copy/ownership/C install on both hosts at 3. Separate P06 completion from the re-estimate: **115 → 116 done, 128 → 131 rows, added 96 → 103 pt, retired 201 → 204 pt, 29 − 3 + 7 = 33 remaining pt**. No original M2 outcome is removed; unspecified public behavior must wait for P08 acceptance.
+
+This separates delivered work from newly recognized work: completion retired 204 estimated points, while exposed prerequisites and re-estimation added 103. These are planning units, not hours or measured actual effort. The remaining 33 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -402,8 +408,11 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-P03 | done | 0 | M2-P01,M2-N07 | G15 | Detached native records rebuild checked runtime plans after producer teardown without code emission; linked execution matches VM. | `5324c64` |
 | M2-P04 | done | 0 | M2-P03,M2-F07 | G15 | C-aware schema 4 preserves identities; decoded actual C callbacks execute through explicit VM/native contexts. | `816b0b6` |
 | M2-P05 | done | 0 | M2-P03,M2-P04 | G15 | Persisted Copy/ownership startup uses checked image binding and concrete production entry; original controls, allocator and cleanup survive producer teardown without frontend/code emission. | `336a91b` |
-| M2-P06 | doing | 3 | M2-P05,M2-F07 | G15 | Distributed C context/import/export bindings preserve original allocator and owner cleanup through linked source execution. | — |
-| M2-P07 | todo | 2 | M2-P05,M2-P06 | G15 | Assemble compiler/startup/runtime/header SDK with explicit matching-toolchain requirements. | — |
+| M2-P06 | done | 0 | M2-P05,M2-F07 | G15 | Distributed C context/import/export bindings preserve original allocator and owner cleanup through linked source execution. | `2712700` |
+| M2-P08 | doing | 1 | M2-P05,M2-P06 | G15 | Decide the experimental SDK distribution/startup, compiler output, version/toolchain matching and explicit C authority contract in an RFC. | — |
+| M2-P09 | todo | 3 | M2-P08,M2-P04,M2-P06 | G15 | Production source-native compiler command validates/publishes Copy/ownership/C objects, semantics, records and required headers, preserving existing output on failure. | — |
+| M2-P10 | todo | 3 | M2-P09,M2-P05,M2-P06 | G15 | Distributed runtime/startup consumer runs saved Copy/ownership/C with matching toolchain and original controls/allocator/context/grants/cleanup, without source analysis/backend emission/test runtime. | — |
+| M2-P07 | todo | 2 | M2-P05,M2-P06,M2-P09,M2-P10 | G15 | Assemble compiler/startup/runtime/header SDK with explicit matching-toolchain requirements. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05,M2-P07 | G15 | Clean-install SDK link/run for Copy, ownership and C succeeds on both tier-1 hosts outside repo/target/deps. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
@@ -417,6 +426,9 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
 
 ## Sources and verification dates
+
+- SDK readiness audit: [CLI compile path](../src/main.rs) and [fixed native prototypes](../src/bin/prototype-object.rs), snapshot `2712700` verified 2026-10-20 JST. P08–P10 expose missing prerequisites of existing G15; SDK assembly P07 and both-host isolated installation P02 remain.
+- [P06 restoration API](../crates/codegen-clif/src/owned/c_objects.rs), [persisted-file/both-format/budget checks](../tests/support/c_object_records.rs) and [actual C callers](../tests/support/c_objects.rs) (`2712700`): updated/verified 2026-10-20 JST. Retire its existing 3 pt; all 1,550 tests/89 suites, fmt/Clippy (3.21s)/rustdoc (18.47s) pass. Summed suite time 382.61s is validation time, not development effort.
 
 - [Ordinary production entry](../crates/codegen-clif/src/owned/runtime.rs), [shared primitives/completion](../crates/codegen-clif/src/c_abi/runtime/source.rs), [actual VM/native/persisted-file comparisons](../tests/support/native_entry_runtime.rs) and [RFC 0019](rfcs/0019-owned-native-entry-runtime.md) (`336a91b`): updated/verified 2026-10-20 JST. P05 retires its existing 3 pt; the full baseline and matching Windows snapshot are recorded above.
 

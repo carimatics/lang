@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**115 verified deliveries · 1 in progress · 12 remaining tasks (provisional 29 pt).**
+**116 verified deliveries · 1 in progress · 14 remaining tasks (provisional 33 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P06: distributed C context startup | **P05 complete**: persisted Copy and concrete ordinary-owned execution (336a91b) | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P08: experimental SDK/startup contract | **P06 complete**: persisted C interface/bridge and original context execution (2712700) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Next: P06 C context/import/export bindings.** P05 executes the original owned entry from reloaded native/semantic records using production primitives and the embedding allocator, without a test runtime, source analysis or backend emission. All ownership families, panic, configured limits/failure prefixes, cleanup and poison/reuse pass VM comparisons. The full macOS baseline passes **1,547 tests / 89 suites**, fmt/Clippy/rustdoc. Exact-snapshot Windows status and checkpoint evidence are on the [delivery board](milestone-2.md). Updated/verified 2026-10-20 JST.
+**Next: P08 SDK/compiler/startup decision.** P06 reloads schema-4/native files after producer teardown and invokes actual C with the original allocator/context/grants/cleanup, without startup source analysis/backend emission/JIT. Managed families, aggregate/256-parameter imports, finite Copy exports, callbacks/panic and failure/resource boundaries pass. The full macOS baseline passes **1,550 tests / 89 suites**, fmt/Clippy/rustdoc. Exact Windows snapshots are on the [delivery board](milestone-2.md). Updated/verified 2026-10-20 JST.
 
-The ledger is **134 + 96 − 201 = 29 pt**: P05 retires its provisional 3 pt; 128 rows and the +96 re-estimate stay unchanged. P06 must preserve the original opaque C context, allocator and cleanup; SDK assembly, clean install on both tier-1 hosts, conformance/performance/debug gates and final guide Z01 remain. The board exposes independent outcomes and execution/validation checkpoints; detailed history is collapsed there. 113 measures fixed exit-gate weights and is retired as an effort forecast. Delivery counts are not a completion percentage.
+The SDK readiness audit found that the current CLI emits portable artifacts and the native tool only fixed prototypes. Expose P08 contract (1 pt), P09 production source-native compiler command (3), and P10 distributed startup/runtime consumer (3) before P07 SDK assembly (2); retain P02's both-host isolated Copy/ownership/C install (3). P06 retires 3 pt and missing prerequisites add 7: **29 − 3 + 7 = 33 pt**, **128 → 131 rows**. The ledger is **134 + 103 − 204 = 33 pt**. Conformance/performance/debug and final guide Z01 remain. The board exposes verified checkpoints and retains history; 113 is retired as an effort forecast and delivery counts are not a completion percentage.
 
 ## Task tracking
 

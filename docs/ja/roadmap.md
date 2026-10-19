@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み115件 · 進行中1件 · 残り12件（暫定29 pt）。**
+**検証済み116件 · 進行中1件 · 残り14件（暫定33 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P06：配布C context起動 | **P05完了**：保存済みCopyと具体的な通常owned実行（336a91b） | **14/18条件**。過去の重み84/113（74.3%） |
+| P08：実験段階のSDK／起動契約 | **P06完了**：保存済みC interface／bridgeと元contextでの実行（2712700） | **14/18条件**。過去の重み84/113（74.3%） |
 
-**次：P06のC context／import／export binding。** P05でnative／意味論の保存記録から元のowned entryを復元し、production primitivesと埋込み側allocatorで実行します。Test runtime／source分析／機械語生成は不要です。Ownership全family、panic、設定制限／失敗位置、cleanup、poison／再利用をVMと比較しました。Mac全体baselineは **1,547 tests／89 suites** とfmt／Clippy／rustdocに成功。同一snapshotのWindows状況と確認点の証拠は[実装Todo](milestone-2.md)に記録します。2026-10-20 JST更新・確認。
+**次：P08でSDK／compiler／起動の契約を決定。** P06で生成元破棄後のschema 4／native fileを復元し、元allocator／context／grant／cleanupを保って実Cを呼び出します。起動時のsource分析／backend生成／JITは不要です。Managed全family、aggregate／256引数import、有限Copy export、callback／panic、失敗／資源境界を検証しました。Mac全体baselineは **1,550 tests／89 suites** とfmt／Clippy／rustdocに成功。同一Windows snapshotは[実装Todo](milestone-2.md)に記録します。2026-10-20 JST更新・確認。
 
-収支は **134 + 96 − 201 = 29 pt**。P05の暫定3 ptを完了で除き、128行と再見積り追加96点は不変です。P06では元のopaque C context、allocator、cleanupを保ちます。SDK組立、両tier-1のclean install、conformance／性能／debug条件、最終guide Z01は残ります。Todoで独立した成果と実行／検証の確認点を明示し、詳しい履歴は折り畳みます。113は固定した完了条件の重みで、工数予測として使用しません。成果件数も完成率ではありません。
+SDK監査で、現CLIはportable artifact、nativeツールは固定prototypeだけを出力すると確認しました。P07 SDK組立（2 pt）の前に、P08契約（1）、P09製品用source-native compilerコマンド（3）、P10配布startup／runtime consumer（3）を明示し、P02の両host隔離Copy／ownership／C install（3）を維持します。P06完了で3点を除き、欠落した前提7点を追加して **29 − 3 + 7 = 残り33 pt**、**128 → 131行**です。収支は **134 + 103 − 204 = 33 pt**。Conformance／性能／debugと最終guide Z01は残ります。Todoで検証済み確認点を表示して履歴を保持し、113を工数予測、成果件数を完成率として使用しません。
 
 ## タスク管理
 
