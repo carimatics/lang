@@ -22,6 +22,9 @@ use lang_runtime::HostFunctionRegistry;
 
 use crate::{OwnedJitModule, Triple, host_symbol_name};
 
+mod recorded;
+pub use recorded::{BindError, LinkedProgram, PreparedObject};
+
 // Explicit compiler capacity, independent of MIR's semantic value-cell limit.
 // Large frames require a different lowering strategy, not unchecked offsets.
 const MAX_FRAME_BYTES: usize = 1024 * 1024;
@@ -148,50 +151,58 @@ impl<'a> CompiledProgram<'a> {
         function: m::FunctionId,
         arguments: &[Value],
     ) -> Result<Value, InvokeError> {
-        let f = self
-            .verified
-            .unit()
-            .functions
-            .get(function.0 as usize)
-            .ok_or(InvokeError::InvalidFunction(function))?;
-        if arguments.len() != f.signature.parameters.len() {
+        invoke(self.verified, &self.pointers, function, arguments)
+    }
+}
+
+fn invoke(
+    verified: &m::VerifiedUnit,
+    pointers: &[*const u8],
+    function: m::FunctionId,
+    arguments: &[Value],
+) -> Result<Value, InvokeError> {
+    let f = verified
+        .unit()
+        .functions
+        .get(function.0 as usize)
+        .ok_or(InvokeError::InvalidFunction(function))?;
+    if arguments.len() != f.signature.parameters.len() {
+        return Err(InvokeError::InvalidArguments);
+    }
+    let count = parameter_cells(verified, &f.signature);
+    let mut inputs = Vec::new();
+    inputs
+        .try_reserve_exact(count)
+        .map_err(|_| InvokeError::AllocationFailed)?;
+    for (argument, ty) in arguments.iter().zip(&f.signature.parameters) {
+        if argument.value_type != *ty || !valid_cells(verified, *ty, &argument.cells) {
             return Err(InvokeError::InvalidArguments);
         }
-        let count = parameter_cells(self.verified, &f.signature);
-        let mut inputs = Vec::new();
-        inputs
-            .try_reserve_exact(count)
-            .map_err(|_| InvokeError::AllocationFailed)?;
-        for (argument, ty) in arguments.iter().zip(&f.signature.parameters) {
-            if argument.value_type != *ty || !valid_cells(self.verified, *ty, &argument.cells) {
-                return Err(InvokeError::InvalidArguments);
-            }
-            inputs.extend_from_slice(&argument.cells);
-        }
-        let mut cells = Vec::new();
-        let count = cells_for(self.verified, f.signature.result);
-        cells
-            .try_reserve_exact(count)
-            .map_err(|_| InvokeError::AllocationFailed)?;
-        cells.resize(count, 0);
-        // SAFETY: define() emits precisely extern-C (input *const i64, output
-        // *mut i64) -> i32 for every private symbol. Verified signatures and
-        // canonical values establish exact buffer extents; generated loads and
-        // stores use checked, statically bounded offsets. No pointer escapes or
-        // is retained by guest code. Invocation borrows the executable owner.
-        let status = unsafe {
-            let call: unsafe extern "C" fn(*const i64, *mut i64) -> i32 =
-                std::mem::transmute(self.pointers[function.0 as usize]);
-            call(inputs.as_ptr(), cells.as_mut_ptr())
-        };
-        match status {
-            0 if valid_cells(self.verified, f.signature.result, &cells) => Ok(Value {
-                value_type: f.signature.result,
-                cells,
-            }),
-            1 => Err(InvokeError::InvalidVariantProjection),
-            _ => Err(InvokeError::InvalidNativeResult),
-        }
+        inputs.extend_from_slice(&argument.cells);
+    }
+    let mut cells = Vec::new();
+    let count = cells_for(verified, f.signature.result);
+    cells
+        .try_reserve_exact(count)
+        .map_err(|_| InvokeError::AllocationFailed)?;
+    cells.resize(count, 0);
+    // SAFETY: Both compiled/bound owners retain matching extern-C (input *const i64, output
+    // *mut i64) -> i32 for every private symbol. Verified signatures and
+    // canonical values establish exact buffer extents; generated loads and
+    // stores use checked, statically bounded offsets. No pointer escapes or
+    // is retained by guest code. Invocation borrows the executable owner.
+    let status = unsafe {
+        let call: unsafe extern "C" fn(*const i64, *mut i64) -> i32 =
+            std::mem::transmute(pointers[function.0 as usize]);
+        call(inputs.as_ptr(), cells.as_mut_ptr())
+    };
+    match status {
+        0 if valid_cells(verified, f.signature.result, &cells) => Ok(Value {
+            value_type: f.signature.result,
+            cells,
+        }),
+        1 => Err(InvokeError::InvalidVariantProjection),
+        _ => Err(InvokeError::InvalidNativeResult),
     }
 }
 
@@ -199,6 +210,19 @@ impl<'a> CompiledProgram<'a> {
 pub struct ObjectArtifact {
     pub bytes: Vec<u8>,
     pub functions: Vec<FunctionCode>,
+}
+impl ObjectArtifact {
+    /// Transport these compiler bytes/metadata under RFC 0018. The caller must
+    /// supply their actual target and pair semantics from the same program.
+    /// A validated record supplies data and never authorizes native execution.
+    pub fn into_record(self, target: Triple) -> crate::native_record::Record {
+        crate::native_record::Record::new(
+            target,
+            crate::native_record::Kind::Copy,
+            self.bytes,
+            self.functions,
+        )
+    }
 }
 pub fn emit_host_object(
     verified: &m::VerifiedUnit,

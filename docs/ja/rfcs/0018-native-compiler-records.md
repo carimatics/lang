@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0018-native-compiler-records.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -17,6 +17,8 @@
 Native object byteとcompiler metadataの上限付きversion管理transportを追加し、既存portable意味論artifactのSHA-256と対応させます。独立decode済み意味論から、source分析、ISA検索、機械語生成、JIT構築なしにruntime planを復元します。
 
 Review結果：wire実装前の**実験的委任に基づくaccepted、2026-10-20 JST**。P03の独立記録でnative planを再構築できます。Source由来のmanaged Text／Vec／shared／arena fixtureは、生成元破棄後に意味論をdecodeしてlinked objectを実行できました（重点prototype test 2.41秒）。Consumerはsource分析もbackend生成も行いません。分離の証拠であり、配布完了や性能の主張ではありません。Copy起動、永続記録、汎用runtime起動、C／SDK統合は未検証です。
+
+実装checkpoint（2026-10-20 JST）：上限付き記録、全target／scope tag、canonical golden byte、checksum／上限検査、image保持付きCopy呼出しを実装しました。保存fileのCopy／managed ownership／明示的panicを生成元破棄後にsource分析／機械語生成なしでlinked実行できます。記録transportと準備の証拠であり、具体的owned起動、C／SDK統合、installは別途P05／P06／P07／P02で追跡します。
 
 ## Motivation
 

@@ -12,11 +12,13 @@
 
 C対応artifact transport（2026-10-20）：[RFC 0017](docs/ja/rfcs/0017-c-aware-ownership-artifacts.md)でownership schema 4を追加します。有限aggregate署名と明示的panicを含むHost／C、Guest／CExport宣言全体を独立decode後も保持します。Sourceから復元したfixtureは明示VM／native context経由で実C codeを呼び出し、CLIは消費量ゼロでC実行を拒否します。Native配布はP02に残ります。
 
+Native compiler record（2026-10-20）：[RFC 0018](docs/ja/rfcs/0018-native-compiler-records.md)で元object byte／target／symbol／source rangeをtransportし、正確なportable意味論artifactとの対応を検査します。Rustの`native_record::Record` APIはdecodeを制限し、live addressやcapabilityを保持しません。`Record::prepare_copy`と`program::PreparedObject::bind`で、JITと同じcanonical値検査を持つimage保持付きCopy呼出しを行います。Ownershipは`owned::RecordedObject::from_record`で検証済みplanを再構築します。Macのlinked fixtureは生成元破棄後に意味論／記録fileを読み直し、record／enum呼出し、managed Textのservice work、明示的panicを保持し、起動時にsource分析も機械語生成も行いません。Copy nativeは既存のtrustedな同期・非計量契約を維持します。汎用owned runtime起動、C context／SDK配布、両host clean installはP05／P06／P07／P02に残ります。
+
 Raw C context support（2026-10-19）：Rust埋め込みAPIの`lang_codegen_clif::c_abi::context::ContextSupport`は、登録済みProgram向けのprofile 1 create／destroy／last_error symbolを生成します。実C callerでdescriptorをコピーしたopaque contextを作成し、整数のerror summaryを照会・破棄できます。すべての呼び出しとcontext破棄が終わるまでsupport・登録code・allocator・callback user dataを保持してください。Native source exportの明示embedding入口は下記のF15です。C対応object公開はF05に維持します。
 
 Native C source export（2026-10-19 JST確認）：`lang_codegen_clif::c_abi::exports::NativeExports`と信頼する`ExportRuntime` factoryを`ContextSupport`／`CCompiledProgram`と共に保持すると、実C callerからsource increment／panic、bool／Unit、C callbackを実行できます。生成machine codeがsource bodyを実行し、callbackへ元のopaque contextを渡します。各contextが実C providerと累積quotaを保持し、失敗時はcaller resultを変更しません。`cargo test --test c_abi imports::native::exports`で実行・再入・quota／OOM・host panicを検証します。Factoryは型付きstorage／cleanupを実装する信頼されたhost部品です。後続のF16で再利用可能なnative runtimeとaggregate／owner bodyを接続しました（下記）。Linked C object／standalone公開はF05に残ります。
 
-Native C runtime（2026-10-20 JST実装・確認）：`lang_codegen_clif::c_abi::runtime::NativeFactory::new(&compiled, &artifact, limits)`を`NativeExports`へ渡すと、fixture独自のruntimeを実装せずに型付きnative exportを実行できます。[Record／入れ子sum](examples/analysis/c_aggregate_exports.lang)、[全core error／空record](examples/analysis/c_copy_export_matrix.lang)、[owner付き再帰・C callback・panic](examples/analysis/c_owned_exports.lang)の例があります。I64／bool／Unit／recordを混ぜた256引数も扱います。Bodyは生成machine codeで実行し、Bytes／Text／Vec／Map／shared／arenaとguest callには共有storage／loan／cleanup primitivesを使います。全guest領域を元のC allocatorで計上・解放し、cleanup後に検証済みresultだけを公開します。`cargo test --test c_abi imports::native::exports`で、実C caller・VMとの10 source比較・全fuel／provider失敗prefixを検証します。これは明示JIT embedding APIで、既定CLIやC artifact encodingを有効化しません。Linked C object／bootstrap、全platform証拠、packagingはF05–F07／P02に維持します。
+Native C runtime（2026-10-20 JST実装・確認）：`lang_codegen_clif::c_abi::runtime::NativeFactory::new(&compiled, &artifact, limits)`を`NativeExports`へ渡すと、fixture独自のruntimeを実装せずに型付きnative exportを実行できます。[Record／入れ子sum](examples/analysis/c_aggregate_exports.lang)、[全core error／空record](examples/analysis/c_copy_export_matrix.lang)、[owner付き再帰・C callback・panic](examples/analysis/c_owned_exports.lang)の例があります。I64／bool／Unit／recordを混ぜた256引数も扱います。Bodyは生成machine codeで実行し、Bytes／Text／Vec／Map／shared／arenaとguest callには共有storage／loan／cleanup primitivesを使います。全guest領域を元のC allocatorで計上・解放し、cleanup後に検証済みresultだけを公開します。`cargo test --test c_abi imports::native::exports`で、実C caller・VMとの10 source比較・全fuel／provider失敗prefixを検証します。これは明示JIT embedding APIです。既定CLIのC実行は拒否し、RFC 0017のschema 4では権限を付与せずC識別を保存できます。Linked C objectと両hostの境界検証はF05–F07で記録済みです。Production startup／runtime配布はP05–P07／P02に残ります。
 
 ## ビジョン
 
@@ -65,6 +67,7 @@ Native C runtime（2026-10-20 JST実装・確認）：`lang_codegen_clif::c_abi:
 - [RFC 0010：所有値を返すREPL結果のpreview（accepted・current-profile REPL実装済み）](docs/ja/rfcs/0010-owned-repl-previews.md)
 - [RFC 0016：間接値のREPL結果プレビュー（implemented・実装済み）](docs/ja/rfcs/0016-indirect-repl-previews.md)
 - [RFC 0017：C対応ownership artifact（implemented・実装済み）](docs/ja/rfcs/0017-c-aware-ownership-artifacts.md)
+- [RFC 0018：Native compiler record（implemented・実装済み）](docs/ja/rfcs/0018-native-compiler-records.md)
 - [RFC 0011：Portable ownership artifact（implemented）](docs/ja/rfcs/0011-ownership-artifacts.md)
 - [RFC 0012：Native ownershipの継続とmanaged frame（accepted）](docs/ja/rfcs/0012-native-ownership-continuations.md)
 - [RFC 0013：Service byte-work budget（accepted・実装予定）](docs/ja/rfcs/0013-service-byte-work-budget.md)

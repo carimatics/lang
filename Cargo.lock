@@ -389,6 +389,7 @@ dependencies = [
  "lang-mir",
  "lang-runtime",
  "object",
+ "sha2",
  "target-lexicon",
 ]
 

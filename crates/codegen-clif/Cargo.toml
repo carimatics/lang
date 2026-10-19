@@ -14,4 +14,5 @@ gimli.workspace = true
 lang-mir.workspace = true
 lang-runtime.workspace = true
 object.workspace = true
+sha2.workspace = true
 target-lexicon.workspace = true

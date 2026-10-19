@@ -67,6 +67,42 @@ impl ObjectArtifact<'_> {
     }
 }
 impl RecordedObject {
+    /// Package trusted compiler output as RFC 0018 data. No code is loaded.
+    pub fn into_record(self) -> crate::native_record::Record {
+        use crate::native_record::{Kind, Record};
+        let kind = match self.scope {
+            CompileScope::Function => Kind::OwnershipFunction,
+            CompileScope::Unit => Kind::OwnershipUnit,
+            CompileScope::CUnit => Kind::CUnit,
+            CompileScope::CObject(digest) => Kind::CObject(digest),
+        };
+        Record::new(self.target, kind, self.bytes, self.functions)
+    }
+    /// Recover records from validated data; preparation and the full unsafe
+    /// exact-code/image binding contract remain necessary before execution.
+    pub fn from_record(
+        record: crate::native_record::Record,
+    ) -> Result<Self, crate::native_record::Error> {
+        use crate::native_record::{Error, ErrorKind, Kind};
+        let scope = match record.kind {
+            Kind::Copy => {
+                return Err(Error {
+                    offset: 17,
+                    kind: ErrorKind::Profile,
+                });
+            }
+            Kind::OwnershipFunction => CompileScope::Function,
+            Kind::OwnershipUnit => CompileScope::Unit,
+            Kind::CUnit => CompileScope::CUnit,
+            Kind::CObject(digest) => CompileScope::CObject(digest),
+        };
+        Ok(Self {
+            target: record.target,
+            scope,
+            bytes: record.bytes,
+            functions: record.functions,
+        })
+    }
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }

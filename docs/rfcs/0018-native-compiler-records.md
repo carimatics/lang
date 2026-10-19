@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0018-native-compiler-records.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -17,6 +17,8 @@
 Add a bounded, versioned transport for native object bytes and compiler metadata, paired by SHA-256 with the existing portable semantic artifact. Recover runtime plans from independently decoded semantics without source analysis, ISA lookup, code emission or JIT construction.
 
 Review outcome: **accepted under experimental delegation, 2026-10-20 JST**, before wire implementation. P03's detached records already rebuild native plans. A source-derived managed Text/Vec/shared/arena fixture now executes its linked object from decoded semantics after producer teardown (focused prototype: 2.41s); the consumer does no source analysis or backend emission. This supports the separation, not distribution completion or performance claims. Copy startup, persisted records, general runtime startup and C/SDK integration remain unverified.
+
+Implementation checkpoint (2026-10-20 JST): bounded records, all target/scope tags, canonical golden bytes, checksums/limits and checked retained-image Copy calls are implemented. Serialized-file Copy/managed ownership/explicit-panic linked fixtures execute after producer teardown without source analysis or code emission. This completes record transport and preparation evidence; the concrete owned bootstrap, C/SDK integration and installation remain the separately tracked P05/P06/P07/P02 outcomes.
 
 ## Motivation
 

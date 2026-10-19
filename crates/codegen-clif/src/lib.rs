@@ -18,6 +18,7 @@ pub use target_lexicon::Triple;
 
 pub mod c_abi;
 mod debug;
+pub mod native_record;
 pub mod owned;
 pub mod program;
 pub mod unit;
