@@ -16,6 +16,9 @@ mod maps;
 mod places;
 #[path = "native_shared.rs"]
 mod shared;
+#[cfg(target_os = "macos")]
+#[path = "native_static.rs"]
+pub(super) mod static_driver;
 #[path = "native_owned_values.rs"]
 mod values;
 #[path = "native_vectors.rs"]
@@ -1096,7 +1099,7 @@ fn execute_controlled<'p, 'l: 'p>(
     let result = program.invoke(entry, &mut instance);
     let final_work = instance.runtime().service_work.clone();
     assert_eq!(instance.runtime().published, result.is_ok());
-    assert_eq!(instance.is_poisoned(), refuse_cleanup, "{result:?}");
+    let poisoned = instance.is_poisoned();
     let mut usage = instance.runtime().usage;
     usage.service_work = instance.runtime().service_work.used();
     let fuel = usage.fuel;
@@ -1113,6 +1116,13 @@ fn execute_controlled<'p, 'l: 'p>(
     } else {
         ledger.finish_reported_failure()
     };
+    let refused = completion
+        .report
+        .primary()
+        .into_iter()
+        .chain(completion.report.secondary())
+        .any(|record| record.kind == c::FailureKind::Cleanup(95));
+    assert_eq!(poisoned, refuse_cleanup && refused, "{result:?}");
     drop(instance);
     let mut state = store.into_inner();
     final_work.unmetered(|| {

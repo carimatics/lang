@@ -25,7 +25,7 @@ impl Drop for Directory {
 }
 pub(super) struct Image {
     handle: NonNull<c_void>,
-    _directory: Directory,
+    _directory: Option<Directory>,
     dropped: Rc<Cell<bool>>,
 }
 impl Image {
@@ -56,11 +56,22 @@ impl Image {
             .expect("loads the linked owned image");
         Self {
             handle,
-            _directory: directory,
+            _directory: Some(directory),
             dropped,
         }
     }
-    fn symbol(&self, name: &str) -> Option<NonNull<c_void>> {
+    pub(super) fn current_executable(dropped: Rc<Cell<bool>>) -> Self {
+        // SAFETY: Darwin defines a null path as a handle for this process's
+        // already-linked images. The executable outlives every driver call.
+        let handle = NonNull::new(unsafe { dlopen(std::ptr::null(), 2) })
+            .expect("opens the current executable image");
+        Self {
+            handle,
+            _directory: None,
+            dropped,
+        }
+    }
+    pub(super) fn symbol(&self, name: &str) -> Option<NonNull<c_void>> {
         let name = CString::new(name).unwrap();
         // SAFETY: handle is live, and the terminated name survives the lookup.
         // The binder accepts only this artifact's exact private function names.

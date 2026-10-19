@@ -1,0 +1,37 @@
+// Copy records/enums stored in a managed vector, boolean calls and owner returns.
+enum Choice { A(i64), B }
+struct Flags { ok: bool, choice: Choice }
+
+fn main() -> i64 {
+    let mut result: core::Bytes = relay(make_static(65), make_static(66));
+    return core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(result, 0));
+}
+
+fn make_static(value: i64) -> core::Bytes {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, value));
+    return bytes;
+}
+
+fn relay(value: core::Bytes, unused: core::Bytes) -> core::Bytes {
+    if gate(40 + 2) { return value; }
+    return unused;
+}
+
+fn gate(value: i64) -> bool {
+    let mut values: core::Vec<Flags> = core::result_unwrap::<core::Vec<Flags>, core::AllocError>(core::vec_new::<Flags>(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<Flags>(values, Flags { ok: true, choice: Choice::A(value) }));
+    match core::vec_get::<Flags>(values, 0) {
+        core::Result::Ok(row) => {
+            if row.ok {
+                match row.choice {
+                    Choice::A(42) => { return true; },
+                    Choice::A(_) => { return false; },
+                    Choice::B => { return false; },
+                }
+            }
+            return false;
+        },
+        core::Result::Err(_) => { return false; },
+    }
+}

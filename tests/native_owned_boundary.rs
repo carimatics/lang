@@ -387,6 +387,16 @@ const FORWARD: &str = include_str!("../examples/analysis/native_owned_boundary.l
 #[path = "support/native_owned_calls.rs"]
 mod calls;
 
+/// Also compiled into the standalone conformance driver's static archive.
+#[cfg(target_os = "macos")]
+#[allow(
+    dead_code,
+    reason = "Called by the separately compiled standalone driver."
+)]
+pub fn run_static_owned_conformance(text: &str, object: &[u8]) {
+    calls::static_driver::run(text, object);
+}
+
 #[test]
 fn source_bytes_cross_the_native_parameter_and_return_boundary() {
     let input: &[u8] = &[0, 65, 0xfe, 0xff];

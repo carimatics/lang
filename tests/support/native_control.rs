@@ -175,14 +175,13 @@ fn managed_work_refusal_stays_primary_when_cleanup_also_fails() {
     }
 }
 
-#[test]
-fn managed_work_profiles_match_vm_at_finite_boundaries() {
+pub(super) fn work_profiles() -> Vec<(&'static str, String)> {
     let unused = format!(
         "{}\n{}",
         EXAMPLES[0],
         EXAMPLES[1].replacen("fn main()", "fn unused()", 1)
     );
-    for (label, text) in [
+    [
         ("utf8", EXAMPLES[0]),
         ("vector", EXAMPLES[1]),
         ("map", EXAMPLES[2]),
@@ -255,8 +254,16 @@ fn managed_work_profiles_match_vm_at_finite_boundaries() {
             include_str!("../../examples/analysis/native_core_errors.lang"),
         ),
         ("text", include_str!("../../examples/scripts/text.lang")),
-    ] {
-        let source = source(text);
+    ]
+    .into_iter()
+    .map(|(label, text)| (label, text.to_owned()))
+    .collect()
+}
+
+#[test]
+fn managed_work_profiles_match_vm_at_finite_boundaries() {
+    for (label, text) in work_profiles() {
+        let source = source(&text);
         let flow = source.failure_flow();
         assert!(e::service_work_supported(flow));
         let types = flow
@@ -401,7 +408,7 @@ pub(super) fn vm(
 ) -> (VmResult, usize) {
     vm_with_refusal(flow, control, interrupt, None)
 }
-fn vm_with_refusal(
+pub(super) fn vm_with_refusal(
     flow: &m::ownership::failure::Elaborated,
     control: e::Control<'_>,
     interrupt: Option<(usize, Rc<e::InterruptionFlag>)>,
