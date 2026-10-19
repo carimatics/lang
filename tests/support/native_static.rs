@@ -260,6 +260,38 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
     if cfg!(target_os = "macos") {
         linker.push_argument("-Wl,-export_dynamic");
     }
+    if cfg!(target_env = "msvc") {
+        // Cargo normally supplies this dependency's build-script search path.
+        // The standalone rustc/link.exe pair must retain it explicitly; obtain
+        // the resolved package location rather than assuming a registry layout.
+        let metadata = Command::new(env!("CARGO"))
+            .current_dir(&root)
+            .args([
+                "metadata",
+                "--locked",
+                "--offline",
+                "--format-version=1",
+                "--filter-platform=x86_64-pc-windows-msvc",
+            ])
+            .output()
+            .unwrap();
+        assert!(metadata.status.success(), "{metadata:?}");
+        let metadata: serde_json::Value = serde_json::from_slice(&metadata.stdout).unwrap();
+        let package = metadata["packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|package| package["name"] == "windows_x86_64_msvc")
+            .unwrap();
+        let directory = PathBuf::from(package["manifest_path"].as_str().unwrap())
+            .parent()
+            .unwrap()
+            .join("lib");
+        assert!(directory.is_dir());
+        let mut search = std::ffi::OsString::from("/LIBPATH:");
+        search.push(directory);
+        linker.push_argument(search);
+    }
     for argument in libraries.split_whitespace() {
         linker.push_argument(argument);
     }
@@ -274,7 +306,7 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
         let mut object = std::ffi::OsString::from("/Fo:");
         object.push(&startup_object);
         Command::new("cl.exe")
-            .args(["/nologo", "/O2", "/c"])
+            .args(["/nologo", "/O2", "/MD", "/c"])
             .arg(&startup)
             .arg(object)
             .output()

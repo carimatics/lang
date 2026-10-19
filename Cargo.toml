@@ -21,7 +21,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-cranelift-codegen = { version = "0.136.0", features = ["x86"] }
+cranelift-codegen = { version = "0.136.0", features = ["arm64", "x86"] }
 cranelift-frontend = "0.136.0"
 cranelift-jit = "0.136.0"
 cranelift-module = "0.136.0"
