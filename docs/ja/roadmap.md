@@ -8,19 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み114件 · 進行中1件 · 残り13件（暫定32 pt）。**
+**検証済み115件 · 進行中1件 · 残り12件（暫定29 pt）。**
 
-| 次の成果 | 直近の検証済み成果 | Milestone完了条件 |
+| 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P05：具体的owned runtime入口 | **確認点2件を検証**：保存native記録とimage保持付きCopy呼出し（5e0d6a1）。通常ownedのproduction入口が残る | **14/18条件**。過去の重み84/113（74.3%） |
+| P06：配布C context起動 | **P05完了**：保存済みCopyと具体的な通常owned実行（336a91b） | **14/18条件**。過去の重み84/113（74.3%） |
 
-**次：P05の通常owned用の具体的runtime入口。** 5e0d6a1でRFC 0018の記録transportと検証付きCopy image保持を実装しました。Copy／managed ownership／panicをfileから読み直してsource分析／機械語生成なしに実行できますが、owned fixtureはまだtest runtimeを提供します。NativeFactoryにはC export／environment／providerが必須で、汎用entry準備、通常provider統合、source結果／control／failure完了が残ります。この一覧を監査してP05は暫定3 ptを維持し、**114完了・残り32 pt・128行は不変**です。SDK、native権限、install完了とは数えません。Mac全1,539 tests／89 suitesとfmt／Clippy／rustdocが成功。現在のWindows証拠と確認点は[実装Todo](milestone-2.md)に記録します。2026-10-20 JST更新・確認。
+**次：P06のC context／import／export binding。** P05でnative／意味論の保存記録から元のowned entryを復元し、production primitivesと埋込み側allocatorで実行します。Test runtime／source分析／機械語生成は不要です。Ownership全family、panic、設定制限／失敗位置、cleanup、poison／再利用をVMと比較しました。Mac全体baselineは **1,547 tests／89 suites** とfmt／Clippy／rustdocに成功。同一snapshotのWindows状況と確認点の証拠は[実装Todo](milestone-2.md)に記録します。2026-10-20 JST更新・確認。
 
-**P02監査を維持：** P02の既存3 ptにmetadata、意味論の保存、runtime、C context、SDK組立、両host clean installが隠れていました。[実装Todo](milestone-2.md)でP03–P07を明示し、P02の最終clean-install検証とCopy／ownership／Cの全成果を維持します。**123 → 128行、完了112 → 114件、追加11点／完了で3点を除き、残り24 → 32 pt**。P03／P04は既存commit済みの作業を今回見える形にしたものです。収支は **134 + 96 − 198 = 32**。工数の完成率とはせず、見積りを訂正します。
-
-Schema 4でC宣言と明示的panicを保持し、意味論全体を独立検証します。Decode後の実C callbackを明示VM／native contextで実行し、CLI loadではC権限を与えません。816b0b6はMac全1,533 tests／89 suitesとfmt／Clippy／rustdocに成功。Production runtime／context配布、隔離SDK link/run、後続conformance／性能／debug gateは残ります。2026-10-20 JST更新・確認。
-
-113は固定した完了条件の重みで、工数予測として使用しません。成果件数もtaskの大きさに依存し、完成率ではありません。現在のTodo、見積り変更、証拠、検証時間／情報源の日付は実装Todoに記録し、過去報告は折り畳んでいます。
+収支は **134 + 96 − 201 = 29 pt**。P05の暫定3 ptを完了で除き、128行と再見積り追加96点は不変です。P06では元のopaque C context、allocator、cleanupを保ちます。SDK組立、両tier-1のclean install、conformance／性能／debug条件、最終guide Z01は残ります。Todoで独立した成果と実行／検証の確認点を明示し、詳しい履歴は折り畳みます。113は固定した完了条件の重みで、工数予測として使用しません。成果件数も完成率ではありません。
 
 ## タスク管理
 

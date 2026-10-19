@@ -6,39 +6,42 @@
 
 更新・確認日：**2026-10-20 JST**。初回監査の基準commit：`0c2c012`。
 
-**114 done · 1 doing · 13 todo · 32 remaining pt**
+**115 done · 1 doing · 12 todo · 29 remaining pt**
 
-**次: M2-P05 → decode済み記録からの具体的owned runtime入口（暫定3 pt、進行中）。**
+**次: M2-P06 → 配布記録からのC context／import／export起動（暫定3 pt、進行中）。**
 
-**P05：検証済み確認点2件。Production owned入口が残っています。** 確認点の件数であり、工数の完成率ではありません。
-
-| 次の成果 | 直近の完了 | 必須の実行結果 |
+| 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P05：具体的owned runtime入口 | Native記録transportとimage保持付きCopy呼出しを検証（5e0d6a1）。P05はdoing | Test runtime／source分析／機械語生成なしに、production primitivesと設定controlで元のowned entryを実行 |
+| P06：配布記録からC bindingを復元 | **P05完了**：保存済みCopyと具体的な通常owned起動（336a91b） | **14/18条件**。過去の重み84/113（74.3%） |
 
-P05確認点と残作業の監査（2026-10-20 JST）：
+P05で引数なしi64の元entryをproduction storage／cleanupと埋込み側allocatorにより実行します。生成元破棄後、保存fileを読み直し、test runtime／source分析／機械語生成なしでlinked codeを起動します。Ownership／panicの10 fixtureと全fuel／work／割当失敗位置で、値、消費量、span、stack、cleanupをVMと比較しました。不正entry／control設定はproviderへの作用前に拒否し、正常に後始末できた失敗後は再利用、host panic後はpoisonを維持します。Code：`336a91b`。
+
+検証：macOS **1,547 tests / 89 suites**、失敗0、手動timingのみ1件ignored。Native **76 / 279.32s**、C ABI **71 / 18.44s**、fmt／Clippy／rustdoc成功。今回のsource runtimeと同一snapshotのWindows：[run 39336016918](https://github.com/carimatics/lang/actions/runs/39336016918)、head `336a91b`、job118345577536が進行中（2026-10-19 22:35:30 UTC開始）。結果は未確認。先行native記録版 `5e0d6a1` の[run 39328266216](https://github.com/carimatics/lang/actions/runs/39328266216)（job118319603831）は **2026-10-19 22:08:42 UTC** に成功しました。後続source変更の証拠には数えません。
+
+**次の実行証拠：** C object／interfaceを復元し、実import／export codeを元のopaque context、allocator、cleanupへ接続します。SDK組立（P07）、両tier-1のclean install（P02）、conformance／性能／debug条件、最終guide Z01は未完了です。[見積もり収支](#進捗と見積もり変更)は **134 + 96 − 201 = 29 pt**。113 ptは工数予測として使用せず、成果件数も完成率とはしません。
+
+<details>
+<summary>過去の成果とplatform検証記録</summary>
+
+P05完了と先行checkpointの監査（2026-10-20 JST）：
 
 - [x] RFC 0018の上限付きnative記録でtarget／scope、正確なobjectとmetadataを保持し、checksumで意味論／objectのbyteを対応付け。Managed schema 2と明示的panicのschema 3をfileから読み直し、生成元破棄後に元span／work／cleanupを保つlinked実行を確認。
 - [x] Copyの検証付き準備／bindでimageを保持し、JITとcanonical値検査を共有。読み直したfileからrecord／enum／scalarを呼出し。Count／symbol／UTF-8／target／budgetを呼出し前に拒否し、missing symbolではimageを解放。Code：`5e0d6a1`。
-- [ ] 通常owned用の具体的runtime入口。既存NativeFactory／StateはC export選択、必須C environment、context専用の非公開Providerに結合しています。汎用entry準備、provider対応primitives、source結果／control／failure完了の実装と実entry fixtureが残ります。この残作業を確認して**暫定3 ptを維持**し、行／点の追加もP05完了扱いもしません。追加metadata基盤より先に、その実行fixtureを作ります。
+- [x] 通常owned用の具体的runtime入口。非公開の共通program viewとprovider対応primitivesを共有し、元entry、control、usage、failure、cleanup、poisonを保持。生成元破棄後の保存fileからproduction runtimeで実行し、全fuel／work／provider失敗位置をVMと比較。Code：`336a91b`。P05の残り3 ptを完了で除き、追加point／行はありません。
 
-直近checkpoint検証：`5e0d6a1` はmacOS **1,539 tests / 89 suites**、失敗0、手動timingのみ1件ignored。Native **68件／276.12秒**、C ABI **71件／22.50秒**、fmt／Clippy（**3.16秒**）／rustdoc（**18.04秒**）成功。Suite合計377.01秒は検証時間で、開発工数ではありません。初回全体検証はstandaloneの直接rustcビルドがtest専用record helperまでcompileし、lang-bytecode externを持たず失敗したため、`cfg(test)`でfixtureを修正し、今回の全体再実行が成功しました。先行schema 4 snapshot `816b0b6` の[Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989)、job118300781642：fmt／重点C・linker／Clippy／全test／rustdocが2026-10-19 21:16:54 UTCまでに成功し、workflow全体も成功（job完了21:26:54 UTC）。Prototype benchmarkはG17のRust／C比較証拠には数えません。Native記録版のWindows snapshot：[run 39328266216](https://github.com/carimatics/lang/actions/runs/39328266216)、head 5e0d6a1は進行中で、今回の版の成功はまだ記録しません。
+先行checkpoint検証：`5e0d6a1` はmacOS **1,539 tests / 89 suites**、失敗0、手動timingのみ1件ignored。Native **68件／276.12秒**、C ABI **71件／22.50秒**、fmt／Clippy（**3.16秒**）／rustdoc（**18.04秒**）成功。Suite合計377.01秒は検証時間で、開発工数ではありません。初回全体検証はstandaloneの直接rustcビルドがtest専用record helperまでcompileし、lang-bytecode externを持たず失敗したため、`cfg(test)`でfixtureを修正し、今回の全体再実行が成功しました。先行schema 4 snapshot `816b0b6` の[Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989)、job118300781642：fmt／重点C・linker／Clippy／全test／rustdocが2026-10-19 21:16:54 UTCまでに成功し、workflow全体も成功（job完了21:26:54 UTC）。Prototype benchmarkはG17のRust／C比較証拠には数えません。Native記録版のWindows snapshot：[run 39328266216](https://github.com/carimatics/lang/actions/runs/39328266216)、head 5e0d6a1は成功（job118319603831、2026-10-19 22:08:42 UTC完了）。後続336a91bのsource runtime検証とは区別します。
 
-P02配布監査（2026-10-20 JST）：metadata、意味論の保存、runtime起動、C context統合、SDK組立、両hostのclean installを既存3 ptのまま扱い、独立した成果が隠れていました。P02の最終clean-install検証は3 ptを維持します。P03独立metadata（初期2 pt、5324c64で完了）、P04 C対応artifact（初期1 pt、816b0b6で完了）、P05 runtime起動（3）、P06配布C context（3）、P07 SDK組立（2）を明示します。既存要件の再見積りであり、**scopeは削除しません**。**123 → 128行、追加11点、完了で3点を除き、24 + 11 − 3 = 残り32 pt**。P03／P04の登録を、そのcommit以降の新しい作業とは数えません。次の起動実験ではsource由来のcodeを実行します。
+P02配布監査（2026-10-20 JST）：metadata、意味論の保存、runtime起動、C context統合、SDK組立、両hostのclean installを既存3 ptのまま扱い、独立した成果が隠れていました。P02の最終clean-install検証は3 ptを維持します。P03独立metadata（初期2 pt、5324c64で完了）、P04 C対応artifact（初期1 pt、816b0b6で完了）、P05 runtime起動（3）、P06配布C context（3）、P07 SDK組立（2）を明示します。既存要件の再見積りであり、**scopeは削除しません**。**123 → 128行、追加11点、完了で3点を除き、24 + 11 − 3 = 残り32 pt**。P03／P04の登録を、そのcommit以降の新しい作業とは数えません。そのsource起動実験はP05で完了しました。次はP06のC source fixtureです。
 
 - [x] **P03**：生成元IR／layouts破棄後に独立Rust記録から機械語生成なしでplanを再構築。Code size／source rangeと実linked実行での全work prefixのVM比較を維持。Code：`5324c64`。
 - [x] **P04 / RFC 0017**：schema 4でHost／C、Guest／CExport識別、aggregate署名、明示的panicを保持。復元したsource fixtureで明示VM／native context経由の実C呼出しを確認し、CLIはsource削除後も消費ゼロでC実行を拒否。Code：`816b0b6`。
-- [ ] **P05**：Copy／ownershipのsource不要起動とnative metadataの保存・復元。
+- [x] **P05**：Copy／ownershipのsource不要起動とnative metadataの保存・復元。Code：`336a91b`。
 - [ ] **P06**：元allocator／cleanupを保つ配布C context／import／export binding。
 - [ ] **P07**：toolchain要件を明示したcompiler／startup／runtime／headerのSDK組立。
 - [ ] **P02**：repo／target/deps外で、Copy／ownership／Cを含む両tier-1のclean-install link/run。
 
 先行schema 4検証記録：`816b0b6` はmacOS **1,533 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／16.98秒**、native **67件／278.18秒**、fmt／Clippy（**23.65秒**）／rustdoc（**21.70秒**）成功。Suite合計374.56秒は検証時間で、開発工数ではありません。先行metadata snapshot 479296bは[Windows run 39317655321](https://github.com/carimatics/lang/actions/runs/39317655321)、job118283210035を追跡：fmt／重点C・linker／Clippy／全test／rustdocが20:39:08 UTCまでに成功し、workflow全体も成功（job完了20:49:28 UTC、2026-10-19）。Prototype benchmarkはG17のRust／C比較には含めません。Schema 4の[Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989)（head 816b0b6）はその後必須baselineに成功しました。上記の直近checkpointを参照してください。
 
-元の完了条件は **14/18**（過去の重み84/113）のままで、G15–G18と最終guide Z01は未完了です。**113 ptは工数予測として使用しません。** 成果件数も完成率ではありません。[見積もり収支](#進捗と見積もり変更)は **134 + 96 − 198 = 32 pt**。
-
-<details>
-<summary>過去の成果とplatform検証記録</summary>
 
 先行checkpoint／成果の検証記録：
 
@@ -193,15 +196,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 114件（+79件）**、作業一覧は **87 → 128件（+41件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 115件（+80件）**、作業一覧は **87 → 128件（+41件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +96 pt | −198 pt | 32 pt |
+| 134 pt | +96 pt | −201 pt | 29 pt |
 
-**134 + 96 − 198 = 32 pt**
+**134 + 96 − 201 = 29 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり198点分を取り除く一方、前提作業の可視化と再見積もりで96点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り32点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり201点分を取り除く一方、前提作業の可視化と再見積もりで96点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り29点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
 N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
@@ -398,8 +401,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-P01 | done | 0 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | `2cf38ca` |
 | M2-P03 | done | 0 | M2-P01,M2-N07 | G15 | 元IR破棄後、独立native記録から機械語生成なしにplanを再構築し、linked実行をVMと比較。 | `5324c64` |
 | M2-P04 | done | 0 | M2-P03,M2-F07 | G15 | C対応schema 4で識別を保持し、復元した実C callbackを明示VM／native contextで実行。 | `816b0b6` |
-| M2-P05 | doing | 3 | M2-P03,M2-P04 | G15 | Copy／ownershipのsource不要runtime起動。Frontend分析／機械語生成なしでnative planを再構築。 | — |
-| M2-P06 | todo | 3 | M2-P05,M2-F07 | G15 | 配布C context／import／export bindingで元allocatorとowner cleanupを保つlinked source実行。 | — |
+| M2-P05 | done | 0 | M2-P03,M2-P04 | G15 | 保存済みCopy／ownershipを検証付きimage bindingと具体的production入口で起動。生成元破棄後も元control、allocator、cleanupを保ち、frontend／機械語生成は不要。 | `336a91b` |
+| M2-P06 | doing | 3 | M2-P05,M2-F07 | G15 | 配布C context／import／export bindingで元allocatorとowner cleanupを保つlinked source実行。 | — |
 | M2-P07 | todo | 2 | M2-P05,M2-P06 | G15 | 対応toolchain要件を明示したcompiler／startup／runtime／header SDKを組立。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05,M2-P07 | G15 | Repo／target/deps外でCopy／ownership／Cを含む両tier-1のclean-install SDK link/run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
@@ -414,6 +417,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | 全exit evidenceを監査し、英日M2 capability guideを公開。 | — |
 
 ## 情報源と確認日
+
+- [通常ownedのproduction入口](../../crates/codegen-clif/src/owned/runtime.rs)、[共通primitivesと完了処理](../../crates/codegen-clif/src/c_abi/runtime/source.rs)、[実VM／native／保存file比較](../../tests/support/native_entry_runtime.rs)、[RFC 0019](rfcs/0019-owned-native-entry-runtime.md)（`336a91b`）：2026-10-20 JST更新・確認。P05の既存3 ptを完了。全体baselineとWindowsの対応snapshotは先頭に記載。
 
 - [Linker診断／事前検査](../../src/linker.rs)、[実native成功／失敗fixture](../../tests/linker_failures.rs)、[LINK直呼びC fixture](../../tests/support/c_imports.rs)、[Windowsの先行C／linker検証](../../.github/workflows/windows-x86_64.yml)（`0061045`）：**2026-10-20 JST更新・local確認**。Native macOSで上記全baselineが成功し、P01／F07の対応するnative Windows証拠を引き続き確認します。Local実装だけでeffort pointを前倒し完了しません。
 

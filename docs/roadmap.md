@@ -8,19 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**114 verified deliveries · 1 in progress · 13 remaining tasks (provisional 32 pt).**
+**115 verified deliveries · 1 in progress · 12 remaining tasks (provisional 29 pt).**
 
-| Next delivery | Latest verified outcome | Milestone exit |
+| Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P05: concrete owned runtime entry | **2 checkpoints verified**: persisted native records and checked retained Copy calls (5e0d6a1); ordinary-owned production entry remains | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P06: distributed C context startup | **P05 complete**: persisted Copy and concrete ordinary-owned execution (336a91b) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Next: P05 concrete ordinary-owned runtime entry.** 5e0d6a1 implements RFC 0018 record transport and checked Copy image ownership. Reloaded Copy/managed ownership/panic fixtures run without source analysis/backend emission, but the owned fixture still supplies a test runtime. NativeFactory currently requires a C export/environment/provider; entry preparation, ordinary provider integration and source result/controls/failure completion remain. After auditing that list, P05 remains provisional 3 pt; **114 done / 32 remaining pt and 128 rows stay unchanged**. No SDK, native authority or installation completion is inferred. All 1,539 Mac tests/89 suites and fmt/Clippy/rustdoc pass; current Windows evidence and checkpoints are in the [delivery board](milestone-2.md). Updated/verified 2026-10-20 JST.
+**Next: P06 C context/import/export bindings.** P05 executes the original owned entry from reloaded native/semantic records using production primitives and the embedding allocator, without a test runtime, source analysis or backend emission. All ownership families, panic, configured limits/failure prefixes, cleanup and poison/reuse pass VM comparisons. The full macOS baseline passes **1,547 tests / 89 suites**, fmt/Clippy/rustdoc. Exact-snapshot Windows status and checkpoint evidence are on the [delivery board](milestone-2.md). Updated/verified 2026-10-20 JST.
 
-**P02 audit retained:** P02's old 3 pt concealed metadata, semantic transport, runtime, C context, SDK assembly and both-host clean install. The [delivery board](milestone-2.md) now exposes P03–P07 while retaining P02's final clean-install proof and all Copy/ownership/C outcomes: **123 → 128 rows; 112 → 114 done; +11 added / 3 retired pt; 24 → 32 remaining pt**. P03/P04 are previously committed work, made observable now. The ledger is **134 + 96 − 198 = 32**; this corrects the estimate rather than claiming an effort percentage.
-
-Schema 4 preserves C declarations and explicit panic, independently verifies the complete semantic unit, and executes decoded actual C callbacks through explicit VM/native contexts. CLI loading grants no C authority. 816b0b6 passes all 1,533 Mac tests/89 suites and fmt/Clippy/rustdoc. Production runtime/context distribution, isolated SDK link/run and the later conformance/performance/debug gates remain open. Updated/verified 2026-10-20 JST.
-
-113 measures fixed exit-gate weights; it is retired as an effort forecast. Delivery counts depend on task size and are not a completion percentage. Current Todo states, estimate changes, evidence and validation/source dates are in the delivery board; historical reports are collapsed there.
+The ledger is **134 + 96 − 201 = 29 pt**: P05 retires its provisional 3 pt; 128 rows and the +96 re-estimate stay unchanged. P06 must preserve the original opaque C context, allocator and cleanup; SDK assembly, clean install on both tier-1 hosts, conformance/performance/debug gates and final guide Z01 remain. The board exposes independent outcomes and execution/validation checkpoints; detailed history is collapsed there. 113 measures fixed exit-gate weights and is retired as an effort forecast. Delivery counts are not a completion percentage.
 
 ## Task tracking
 
