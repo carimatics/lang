@@ -208,7 +208,10 @@ impl Instance {
     pub const fn is_poisoned(&self) -> bool {
         self.poisoned
     }
-    pub(crate) fn poison(&mut self) {
+    /// Permanently reject reuse after an unrecoverable trusted-adapter failure.
+    /// This does not retire outstanding owners; the adapter must still finish
+    /// its cleanup ledger and contain independent cleanup failures.
+    pub fn poison(&mut self) {
         self.poisoned = true;
     }
     /// Reservation failure prevents entry; no guest cleanup callback runs.

@@ -37,8 +37,8 @@ pub(super) fn supports(op: Op) -> bool {
             | Op::WeakUpgrade
     )
 }
-pub(super) fn view<'s, 'l>(
-    store: &'s Store<'_, 'l>,
+pub(super) fn view<'s, 'l, P: a::Provider>(
+    store: &'s Store<'_, 'l, P>,
     read: usize,
     ty: o::Type,
 ) -> Result<lang_runtime::shared::storage::View<'s, 'l, 'l>, c::Cause> {
@@ -54,8 +54,8 @@ pub(super) fn view<'s, 'l>(
         .view(read, ty, store.allocator)
         .map_err(service_invariant)
 }
-pub(super) fn custody(
-    unit: &State<'_, '_, '_, '_>,
+pub(super) fn custody<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
     target: places::Target,
 ) -> Result<Option<sh::Custody>, c::Cause> {
     let store = unit.store.borrow();
@@ -76,8 +76,8 @@ pub(super) fn custody(
         _ => Ok(None),
     }
 }
-fn result(
-    unit: &mut State<'_, '_, '_, '_>,
+fn result<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::CoreSite,
     value: Result<Option<[u8; 32]>, l::OwnershipError>,
 ) -> n::ResultStep {
@@ -92,7 +92,10 @@ fn result(
             .map_err(l::Immediate::Ownership),
     )
 }
-pub(super) fn call(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
+pub(super) fn call<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+) -> n::ResultStep {
     if matches!(site.operation, Op::SharedNew | Op::SharedReplace) {
         return store(unit, site);
     }
@@ -190,7 +193,7 @@ enum Transfer {
     Replaced(Option<m::Span>),
     Rejected,
 }
-fn store(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
+fn store<P: a::Provider>(unit: &mut State<'_, '_, '_, '_, P>, site: &n::CoreSite) -> n::ResultStep {
     let source_slot = *site.arguments.last().ok_or_else(bad)?;
     let physical = unit
         .ledger

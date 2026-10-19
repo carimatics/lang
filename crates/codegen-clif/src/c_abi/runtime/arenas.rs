@@ -106,8 +106,8 @@ fn inspect<P: a::Provider>(
 pub(super) fn supports(op: Op) -> bool {
     matches!(op, Op::ArenaNew | Op::ArenaRead | Op::ArenaReplace)
 }
-pub(super) fn view<'s, 'l>(
-    store: &'s Store<'_, 'l>,
+pub(super) fn view<'s, 'l, P: a::Provider>(
+    store: &'s Store<'_, 'l, P>,
     owner: usize,
     read: usize,
 ) -> Result<g::View<'s, 'l, 'l>, c::Cause> {
@@ -125,7 +125,10 @@ pub(super) fn view<'s, 'l>(
         .payload(read, store.allocator)
         .map_err(service_invariant)
 }
-pub(super) fn enter(unit: &mut State<'_, '_, '_, '_>, site: &n::ArenaSite) -> n::ResultStep {
+pub(super) fn enter<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::ArenaSite,
+) -> n::ResultStep {
     if !matches!(
         places::referent(unit, site.allocator)?,
         places::Target::Allocator
@@ -162,8 +165,8 @@ pub(super) fn enter(unit: &mut State<'_, '_, '_, '_>, site: &n::ArenaSite) -> n:
         site.span,
     )
 }
-fn result(
-    unit: &mut State<'_, '_, '_, '_>,
+fn result<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::CoreSite,
     value: Result<Option<g::Reference>, l::ArenaError>,
 ) -> n::ResultStep {
@@ -178,7 +181,10 @@ fn result(
             .map_err(l::Immediate::Arena),
     )
 }
-pub(super) fn call(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
+pub(super) fn call<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+) -> n::ResultStep {
     let owner = places::arena_owner(unit, site.arguments[0])?;
     if site.operation == Op::ArenaRead {
         let reference = g::Reference::from_token(places::buffer_token(unit, site.arguments[1])?.1)
@@ -242,7 +248,11 @@ enum Transfer {
     Replaced(Option<m::Span>),
     Rejected,
 }
-fn store(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite, owner: usize) -> n::ResultStep {
+fn store<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+    owner: usize,
+) -> n::ResultStep {
     let source_slot = *site.arguments.last().ok_or_else(bad)?;
     let source = unit
         .ledger
@@ -276,7 +286,7 @@ fn store(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite, owner: usize) -> 
         let arena = arena[owner].as_mut().ok_or_else(bad)?;
         let inspect = |token: &l::Token,
                        arena: &g::Arena<'_, '_>,
-                       allocator: &a::Allocator<Provider<'_>>,
+                       allocator: &a::Allocator<P>,
                        budget: &mut g::PublicationBudget| {
             inspect(layouts, inspection, token, arena, allocator, budget)
         };

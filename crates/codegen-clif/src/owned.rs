@@ -34,6 +34,7 @@ use c_imports::ImportDispatcher;
 pub use c_imports::{CCompiledProgram, CEnvironment, CError, NativeProgram};
 pub use c_objects::{CLinkedProgram, CObjectArtifact, CObjectError, emit_c_object_for_target};
 pub use recorded::{RecordedError, RecordedObject};
+pub mod runtime;
 
 pub type ResultStep = Result<(), c::Cause>;
 

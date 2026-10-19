@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0019-owned-native-entry-runtime.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -17,6 +17,8 @@
 実際のcompile／link済みcontinuationと既存managed primitivesを使う、通常ownership program用の具体的Rust runtime入口を追加します。引数なし・i64結果の検証済みfunction ID、既存cleanup Instance、計上付きAllocator<P>、上限付き準備／control設定を明示的に受け取ります。値・usage・cleanup report、または元の構造化native／設定／allocation失敗とusage／report／stackを返します。実行中のsource分析、機械語生成、JIT生成、guest MIR評価は行いません。
 
 Review結果：runtime実装前の**実験的委任に基づくaccepted、2026-10-20 JST**。既存C NativeFactoryは全managed service familyを実行し、P03／RFC 0018の記録でもtest runtimeによる通常linked実行ができます。現StateはC専用NativeProgram trait、context Provider、C export result transferに結合しているため、providerを汎用化してprimitives／pool準備を共有し、C dispatchは実際のC特殊化に残します。System providerの通常runtimeと全差分matrixは受理時点で未検証です。
+
+実装の証拠（2026-10-20 JST）：System／汎用providerの通常entryで、managed／panicの10 sourceを実JIT／保存済みlinked continuationから実行できます。全fuel／work／provider拒否prefix、動的control、元stack／report、retry、作用前の拒否、host panic時poisonを検査し、既存C testで元context特殊化を維持します。SDK／C context配布と両host clean installは別作業で、対訳architecture／実装Todoに証拠を記録します。
 
 ## Motivation
 

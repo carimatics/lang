@@ -1,5 +1,8 @@
 //! Trusted tier-1 test image guards; standalone runners own their process image.
 use super::*;
+#[cfg(test)]
+#[path = "native_entry_runtime.rs"]
+mod source_runtime;
 use std::{
     cell::Cell,
     ffi::{CString, c_void},
@@ -559,4 +562,44 @@ fn main() -> i64 { return 42; }
     ));
     drop(linked);
     assert!(dropped.get());
+}
+
+#[test]
+fn source_runtime_executes_bytes_without_test_runtime_or_c_context() {
+    let source = source(include_str!("../../examples/scripts/owned_bytes.lang"));
+    let flow = source.failure_flow();
+    let types = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+    let program = n::CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let control = e::Control::with_limits(control::limits());
+    let expected = control::vm(flow, control, None).0.unwrap();
+    let actual = n::runtime::execute_entry(
+        &program,
+        m::FunctionId(0),
+        &mut instance,
+        &mut allocator,
+        n::runtime::Config {
+            control,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(actual.value, expected.value);
+    assert_eq!(actual.usage, expected.usage);
+    assert!(actual.report.primary().is_none());
+    assert!(!instance.is_poisoned());
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert_eq!(
+        allocator.stats().allocations,
+        allocator.stats().deallocations
+    );
 }

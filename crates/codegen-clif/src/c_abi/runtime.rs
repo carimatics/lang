@@ -12,6 +12,7 @@ mod factory;
 mod maps;
 mod places;
 mod shared;
+pub(crate) mod source;
 mod values;
 mod vectors;
 pub use factory::NativeFactory;
@@ -51,10 +52,10 @@ impl Ticket {
         }
     }
 }
-struct Store<'a, 'l> {
+struct Store<'a, 'l, P: a::Provider = Provider<'l>> {
     pools: Vec<l::FrameStorage<'l, 'l>>,
     live: Vec<bool>,
-    allocator: &'a mut a::Allocator<Provider<'l>>,
+    allocator: &'a mut a::Allocator<P>,
     loans: Vec<places::Loan>,
     prepared: Vec<Option<places::Capture>>,
     loan_stride: usize,
@@ -68,7 +69,7 @@ struct Store<'a, 'l> {
     arena_stride: usize,
     inspection: Option<lang_runtime::inspection::Inspector<'l, 'l>>,
 }
-impl Store<'_, '_> {
+impl<P: a::Provider> Store<'_, '_, P> {
     fn transfer(&mut self, from: Physical, to: Physical) -> n::ResultStep {
         let Store {
             pools, allocator, ..
@@ -98,8 +99,8 @@ impl Store<'_, '_> {
         result.map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))
     }
 }
-struct Drain<'a, 'l>(Rc<RefCell<Store<'a, 'l>>>, e::ServiceWork);
-impl c::Cleaner<Ticket> for Drain<'_, '_> {
+struct Drain<'a, 'l, P: a::Provider = Provider<'l>>(Rc<RefCell<Store<'a, 'l, P>>>, e::ServiceWork);
+impl<P: a::Provider> c::Cleaner<Ticket> for Drain<'_, '_, P> {
     fn cleanup(
         &mut self,
         ticket: &mut Ticket,
@@ -164,10 +165,25 @@ struct Active {
     function: m::FunctionId,
     parent: Option<Parent>,
 }
-pub struct State<'i, 's, 'a, 'l> {
-    program: &'s dyn n::NativeProgram<'l>,
-    store: Rc<RefCell<Store<'a, 'l>>>,
-    ledger: Option<c::Frame<'i, Ticket, Drain<'a, 'l>>>,
+enum EntryMode<'a, 'l> {
+    Ordinary,
+    C {
+        artifact: &'l Artifact,
+        function: usize,
+        environment: n::CEnvironment<'a>,
+    },
+}
+type ForeignImport<'i, 's, 'a, 'l, P> = fn(
+    &mut State<'i, 's, 'a, 'l, P>,
+    &n::ImportSite,
+    usize,
+    &mut gate::Session<'_>,
+    &mut dyn gate::scalar::Invoker,
+) -> n::ResultStep;
+pub struct State<'i, 's, 'a, 'l, P: a::Provider = Provider<'l>> {
+    program: &'s dyn n::runtime::FrameProgram<'l>,
+    store: Rc<RefCell<Store<'a, 'l, P>>>,
+    ledger: Option<c::Frame<'i, Ticket, Drain<'a, 'l, P>>>,
     stack: Vec<Active>,
     fault_stack: Vec<(m::FunctionId, m::Span)>,
     stride: usize,
@@ -180,12 +196,11 @@ pub struct State<'i, 's, 'a, 'l> {
     pending: Option<Transition>,
     published: bool,
     service_work: e::ServiceWork,
-    artifact: &'l Artifact,
-    function: usize,
-    environment: n::CEnvironment<'a>,
+    mode: EntryMode<'a, 'l>,
+    foreign_import: Option<ForeignImport<'i, 's, 'a, 'l, P>>,
 }
-impl State<'_, '_, '_, '_> {
-    fn work(&self) -> impl FnMut(u64) -> Result<(), e::Failure> + use<> {
+impl<P: a::Provider> State<'_, '_, '_, '_, P> {
+    fn work(&self) -> impl FnMut(u64) -> Result<(), e::Failure> + use<P> {
         let meter = self.service_work.clone();
         move |cost| meter.charge(cost)
     }
@@ -198,25 +213,33 @@ impl State<'_, '_, '_, '_> {
     }
     fn plan(&self) -> &l::FramePlan<'_, '_> {
         self.program
-            .layout(self.stack.last().unwrap().function)
+            .frame_layout(self.stack.last().unwrap().function)
             .unwrap()
             .frame()
     }
     fn retire_pool(&mut self, depth: usize) {
         let mut state = self.store.borrow_mut();
         let Store {
-            pools, allocator, ..
+            pools,
+            allocator,
+            live,
+            ..
         } = &mut *state;
+        // Consumption precedes a provider callback; never retry this pool if
+        // its trusted release panics after consuming an allocation handle.
+        live[depth] = false;
         pools[depth].release(allocator).unwrap();
-        state.live[depth] = false;
     }
 }
-impl Runtime for State<'_, '_, '_, '_> {
+impl<P: a::Provider> Runtime for State<'_, '_, '_, '_, P> {
     fn c_environment(&self) -> Option<&n::CEnvironment<'_>> {
-        Some(&self.environment)
+        match &self.mode {
+            EntryMode::C { environment, .. } => Some(environment),
+            EntryMode::Ordinary => None,
+        }
     }
     fn c_usage(&self) -> Option<e::Usage> {
-        Some(e::Usage {
+        self.c_environment().map(|_| e::Usage {
             service_work: self.service_work.used(),
             ..self.usage
         })
@@ -232,69 +255,10 @@ impl Runtime for State<'_, '_, '_, '_> {
         session: &mut gate::Session<'_>,
         invoker: &mut dyn gate::scalar::Invoker,
     ) -> n::ResultStep {
-        let output = Physical {
-            frame: self.depth(),
-            cell: site.result,
-        };
-        let call = transfer::CallStorage::reserve(
-            self.artifact,
-            function,
-            self.store.borrow_mut().allocator,
-        )
-        .map_err(service_invariant)?;
-        let outcome = (|| {
-            for (index, slot) in site.arguments.iter().enumerate() {
-                let source = self
-                    .ledger
-                    .as_ref()
-                    .unwrap()
-                    .value(self.slot(*slot))
-                    .map_err(invariant)?
-                    .physical()?;
-                let mut store = self.store.borrow_mut();
-                let Store {
-                    pools, allocator, ..
-                } = &mut *store;
-                call.encode(
-                    index,
-                    self.artifact,
-                    function,
-                    pools[source.frame]
-                        .cell(source.cell)
-                        .map_err(service_invariant)?,
-                    allocator,
-                )
-                .map_err(service_invariant)?;
-            }
-            let mut store = self.store.borrow_mut();
-            call.invoke(function, site.span, session, invoker, store.allocator)
-                .map_err(|fault| {
-                    c::Cause::Execution(match fault.kind {
-                        gate::Kind::Control(error)
-                        | gate::Kind::Value(v::Error::Control(error))
-                        | gate::Kind::ForeignValue(v::Error::Control(error)) => error.into(),
-                        gate::Kind::HostPanic => c::ExecutionFailure::HostPanic,
-                        _ => c::ExecutionFailure::HostCall,
-                    })
-                })?;
-            let Store {
-                pools, allocator, ..
-            } = &mut *store;
-            call.decode(
-                self.artifact,
-                function,
-                pools[output.frame]
-                    .cell(output.cell)
-                    .map_err(service_invariant)?,
-                allocator,
-            )
-            .map_err(service_invariant)
-        })();
-        let release = call
-            .release(self.store.borrow_mut().allocator)
-            .map_err(service_invariant);
-        outcome.and(release)?;
-        values::publish(self, site.result, output, site.span)
+        let dispatch = self
+            .foreign_import
+            .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
+        dispatch(self, site, function, session, invoker)
     }
     fn is_poisoned(&self) -> bool {
         self.ledger.as_ref().unwrap().is_poisoned()
@@ -310,7 +274,7 @@ impl Runtime for State<'_, '_, '_, '_> {
     fn enter(&mut self, layout: &n::FunctionLayout<'_>) -> n::ResultStep {
         let active = self.stack.last().unwrap();
         if active.function != layout.function()
-            || !std::ptr::eq(self.program.layout(active.function).unwrap(), layout)
+            || !std::ptr::eq(self.program.frame_layout(active.function).unwrap(), layout)
         {
             return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
         }
@@ -486,7 +450,7 @@ impl Runtime for State<'_, '_, '_, '_> {
             .map_err(invariant)?;
         self.live_cells -= self
             .program
-            .layout(self.stack.last().unwrap().function)
+            .frame_layout(self.stack.last().unwrap().function)
             .unwrap()
             .control_cells();
         self.stack.pop();
@@ -534,7 +498,7 @@ impl Runtime for State<'_, '_, '_, '_> {
         call: &CallSite,
         target: &n::FunctionLayout<'_>,
     ) -> Result<Transition, c::Cause> {
-        let stable = self.program.layout(call.function).unwrap();
+        let stable = self.program.frame_layout(call.function).unwrap();
         if !std::ptr::eq(stable, target) {
             return Err(c::Cause::Execution(c::ExecutionFailure::Invariant));
         }
@@ -571,7 +535,7 @@ impl Runtime for State<'_, '_, '_, '_> {
         }
         let caller_layout = self
             .program
-            .layout(self.stack.last().unwrap().function)
+            .frame_layout(self.stack.last().unwrap().function)
             .unwrap();
         let types = typed.places().declarations().types();
         let caller_base = self.depth() * self.stride;
@@ -656,7 +620,7 @@ impl Runtime for State<'_, '_, '_, '_> {
             .map_err(invariant)?;
         self.live_cells -= self
             .program
-            .layout(self.stack.last().unwrap().function)
+            .frame_layout(self.stack.last().unwrap().function)
             .unwrap()
             .control_cells();
         self.stack.pop();
@@ -669,4 +633,77 @@ impl Runtime for State<'_, '_, '_, '_> {
         self.retire_pool(depth);
         Ok(Some(next))
     }
+}
+
+fn c_copy_import(
+    state: &mut State<'_, '_, '_, '_>,
+    site: &n::ImportSite,
+    function: usize,
+    session: &mut gate::Session<'_>,
+    invoker: &mut dyn gate::scalar::Invoker,
+) -> n::ResultStep {
+    let artifact = match &state.mode {
+        EntryMode::C { artifact, .. } => *artifact,
+        EntryMode::Ordinary => return Err(c::Cause::Execution(c::ExecutionFailure::Invariant)),
+    };
+    let output = Physical {
+        frame: state.depth(),
+        cell: site.result,
+    };
+    let call =
+        transfer::CallStorage::reserve(artifact, function, state.store.borrow_mut().allocator)
+            .map_err(service_invariant)?;
+    let outcome = (|| {
+        for (index, slot) in site.arguments.iter().enumerate() {
+            let source = state
+                .ledger
+                .as_ref()
+                .unwrap()
+                .value(state.slot(*slot))
+                .map_err(invariant)?
+                .physical()?;
+            let mut store = state.store.borrow_mut();
+            let Store {
+                pools, allocator, ..
+            } = &mut *store;
+            call.encode(
+                index,
+                artifact,
+                function,
+                pools[source.frame]
+                    .cell(source.cell)
+                    .map_err(service_invariant)?,
+                allocator,
+            )
+            .map_err(service_invariant)?;
+        }
+        let mut store = state.store.borrow_mut();
+        call.invoke(function, site.span, session, invoker, store.allocator)
+            .map_err(|fault| {
+                c::Cause::Execution(match fault.kind {
+                    gate::Kind::Control(error)
+                    | gate::Kind::Value(v::Error::Control(error))
+                    | gate::Kind::ForeignValue(v::Error::Control(error)) => error.into(),
+                    gate::Kind::HostPanic => c::ExecutionFailure::HostPanic,
+                    _ => c::ExecutionFailure::HostCall,
+                })
+            })?;
+        let Store {
+            pools, allocator, ..
+        } = &mut *store;
+        call.decode(
+            artifact,
+            function,
+            pools[output.frame]
+                .cell(output.cell)
+                .map_err(service_invariant)?,
+            allocator,
+        )
+        .map_err(service_invariant)
+    })();
+    let release = call
+        .release(state.store.borrow_mut().allocator)
+        .map_err(service_invariant);
+    outcome.and(release)?;
+    values::publish(state, site.result, output, site.span)
 }

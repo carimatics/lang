@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0019-owned-native-entry-runtime.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -16,7 +16,9 @@
 
 Provide a concrete Rust runtime entry for ordinary ownership programs using their actual compiled/linked continuations and existing managed primitives. Accept an explicit checked function ID with zero parameters and i64 result, an existing cleanup Instance, an accounting Allocator<P>, and bounded preparation/control configuration. Return the value, usage and cleanup report, or structured original native/configuration/allocation failure with usage/report/stack. Do not parse source, emit code, construct JIT code, or evaluate guest MIR during execution.
 
-Review outcome: **accepted under experimental delegation, 2026-10-20 JST**, before runtime implementation. The existing C NativeFactory executes all managed service families; P03/P18 records already execute ordinary linked code with a test runtime. The current concrete State is tied to a C-only NativeProgram trait, context Provider and C export result transfer. Generalize storage over the allocator provider and share the same primitives/pool preparation, retaining C dispatch only in its actual C specialization. The ordinary System-provider runtime and complete differential matrix remain unverified at acceptance.
+Review outcome: **accepted under experimental delegation, 2026-10-20 JST**, before runtime implementation. The existing C NativeFactory executes all managed service families; P03/RFC 0018 records already execute ordinary linked code with a test runtime. The current concrete State is tied to a C-only NativeProgram trait, context Provider and C export result transfer. Generalize storage over the allocator provider and share the same primitives/pool preparation, retaining C dispatch only in its actual C specialization. The ordinary System-provider runtime and complete differential matrix remain unverified at acceptance.
+
+Implementation evidence (2026-10-20 JST): the generic System/provider entry executes all ten managed/panic sources through actual JIT and persisted linked continuations. VM differential fuel/work/provider prefixes, dynamic controls, original stack/report, retry, preflight refusal and host-panic poison are covered. Existing C tests retain the original context specialization. SDK/C-context distribution and both-host clean install remain separate work; see paired architecture/board evidence.
 
 ## Motivation
 

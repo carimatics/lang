@@ -22,8 +22,8 @@ pub(super) enum Payload {
     Token([u8; 32]),
     Immediate(l::Immediate),
 }
-pub(super) fn result(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn result<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::CoreSite,
     outcome: Result<Payload, l::Immediate>,
 ) -> n::ResultStep {
@@ -58,8 +58,8 @@ pub(super) fn result(
     }
     values::publish(unit, site.result, physical, site.span)
 }
-fn bytes(
-    unit: &State<'_, '_, '_, '_>,
+fn bytes<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
     slot: usize,
 ) -> Result<(places::Target, buffer::Bytes), c::Cause> {
     let (target, mut token) = places::buffer_token(unit, slot)?;
@@ -67,15 +67,18 @@ fn bytes(
         buffer::Bytes::from_token(&mut token, unit.store.borrow().allocator).map_err(fault)?;
     Ok((target, value))
 }
-fn text(unit: &mut State<'_, '_, '_, '_>, slot: usize) -> Result<buffer::Text, c::Cause> {
+fn text<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<buffer::Text, c::Cause> {
     let (_, mut token) = places::buffer_token(unit, slot)?;
     let store = &unit.store;
     let mut work = unit.work();
     buffer::Text::from_token_metered(&mut token, store.borrow().allocator, &mut work)
         .map_err(buffer_fault)
 }
-fn allocated(
-    unit: &mut State<'_, '_, '_, '_>,
+fn allocated<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::CoreSite,
     outcome: buffer::Outcome<[u8; 32], buffer::AllocError>,
 ) -> n::ResultStep {
@@ -87,7 +90,10 @@ fn allocated(
         Err(buffer::Failure::Fault(error)) => Err(buffer_fault(error)),
     }
 }
-pub(super) fn call(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
+pub(super) fn call<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+) -> n::ResultStep {
     let arg = |index: usize| site.arguments[index];
     match site.operation {
         Op::Allocator => places::register(

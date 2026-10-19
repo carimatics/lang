@@ -55,7 +55,7 @@ pub(super) mod sealed {
 /// Read-only verified C code metadata shared by JIT and linked execution.
 /// Implementations are sealed; this interface neither executes a guest body
 /// nor grants code, allocator or foreign-call authority.
-pub trait NativeProgram<'a>: sealed::Sealed {
+pub trait NativeProgram<'a>: sealed::Sealed + super::runtime::FrameProgram<'a> {
     fn artifact_digest(&self) -> abi::Digest;
     fn exported_function(&self, index: usize) -> Option<m::FunctionId>;
     fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>>;

@@ -3,10 +3,10 @@ use m::ownership as o;
 fn bad() -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Invariant)
 }
-pub(super) fn is_copy(unit: &State<'_, '_, '_, '_>, cell: usize) -> bool {
+pub(super) fn is_copy<P: a::Provider>(unit: &State<'_, '_, '_, '_, P>, cell: usize) -> bool {
     let layout = unit
         .program
-        .layout(unit.stack.last().unwrap().function)
+        .frame_layout(unit.stack.last().unwrap().function)
         .unwrap();
     let ty = layout.frame().cell_type(cell).unwrap().ty;
     layout
@@ -22,7 +22,10 @@ pub(super) fn is_copy(unit: &State<'_, '_, '_, '_>, cell: usize) -> bool {
         .unwrap()
         .is_copy
 }
-fn physical(unit: &State<'_, '_, '_, '_>, cell: usize) -> Result<Physical, c::Cause> {
+fn physical<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    cell: usize,
+) -> Result<Physical, c::Cause> {
     unit.ledger
         .as_ref()
         .unwrap()
@@ -31,8 +34,8 @@ fn physical(unit: &State<'_, '_, '_, '_>, cell: usize) -> Result<Physical, c::Ca
         .map_err(invariant)?
         .physical()
 }
-pub(super) fn publish(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn publish<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     cell: usize,
     value: Physical,
     span: m::Span,
@@ -43,7 +46,7 @@ pub(super) fn publish(
     if ledger.value(slot).is_ok() {
         let ty = unit
             .program
-            .layout(unit.stack.last().unwrap().function)
+            .frame_layout(unit.stack.last().unwrap().function)
             .unwrap()
             .frame()
             .cell_type(cell)
@@ -51,7 +54,7 @@ pub(super) fn publish(
             .ty;
         let dropping = unit
             .program
-            .layout(unit.stack.last().unwrap().function)
+            .frame_layout(unit.stack.last().unwrap().function)
             .unwrap()
             .layouts()
             .types()
@@ -67,7 +70,10 @@ pub(super) fn publish(
         .initialize(slot, Ticket::Value(value), Some(span))
         .map_err(|_| bad())
 }
-fn immediate(unit: &State<'_, '_, '_, '_>, cell: usize) -> Result<l::Immediate, c::Cause> {
+fn immediate<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    cell: usize,
+) -> Result<l::Immediate, c::Cause> {
     let value = physical(unit, cell)?;
     let store = unit.store.borrow();
     let source = store.pools[value.frame]
@@ -77,7 +83,10 @@ fn immediate(unit: &State<'_, '_, '_, '_>, cell: usize) -> Result<l::Immediate, 
         .read_immediate(source.root(), store.allocator)
         .map_err(service_invariant)
 }
-pub(super) fn read_scalar(unit: &mut State<'_, '_, '_, '_>, cell: usize) -> Result<i64, c::Cause> {
+pub(super) fn read_scalar<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    cell: usize,
+) -> Result<i64, c::Cause> {
     match immediate(unit, cell)? {
         l::Immediate::I64(value) => Ok(value),
         l::Immediate::Bool(value) => Ok(i64::from(value)),
@@ -85,8 +94,8 @@ pub(super) fn read_scalar(unit: &mut State<'_, '_, '_, '_>, cell: usize) -> Resu
         _ => Err(bad()),
     }
 }
-fn write(
-    unit: &mut State<'_, '_, '_, '_>,
+fn write<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     cell: usize,
     value: l::Immediate,
     span: m::Span,
@@ -109,8 +118,8 @@ fn write(
     }
     publish(unit, cell, target, span)
 }
-pub(super) fn write_scalar(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn write_scalar<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     cell: usize,
     bits: i64,
     span: m::Span,
@@ -124,8 +133,8 @@ pub(super) fn write_scalar(
     };
     write(unit, cell, value, span)
 }
-pub(super) fn copy_physical(
-    store: &mut Store<'_, '_>,
+pub(super) fn copy_physical<P: a::Provider>(
+    store: &mut Store<'_, '_, P>,
     from: Physical,
     to: Physical,
 ) -> n::ResultStep {
@@ -140,8 +149,8 @@ pub(super) fn copy_physical(
         .copy_from(output.root(), input, input.root(), allocator)
         .map_err(service_invariant)
 }
-pub(super) fn copy_slot(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn copy_slot<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     from: usize,
     to: usize,
     span: m::Span,
@@ -154,8 +163,8 @@ pub(super) fn copy_slot(
     copy_physical(&mut unit.store.borrow_mut(), input, target)?;
     publish(unit, to, target, span)
 }
-pub(super) fn aggregate(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn aggregate<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     record: &n::RecordSite,
     case: Option<u32>,
 ) -> n::ResultStep {
@@ -165,7 +174,7 @@ pub(super) fn aggregate(
     };
     let layout = unit
         .program
-        .layout(unit.stack.last().unwrap().function)
+        .frame_layout(unit.stack.last().unwrap().function)
         .unwrap();
     let types = layout
         .source()
@@ -267,7 +276,10 @@ pub(super) fn aggregate(
     drop(store);
     publish(unit, record.result, target, record.span)
 }
-pub(super) fn extract(unit: &mut State<'_, '_, '_, '_>, site: &n::ExtractSite) -> n::ResultStep {
+pub(super) fn extract<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::ExtractSite,
+) -> n::ResultStep {
     let copied = is_copy(unit, site.source);
     let source = physical(unit, site.source)?;
     let target = Physical {
@@ -307,7 +319,10 @@ pub(super) fn extract(unit: &mut State<'_, '_, '_, '_>, site: &n::ExtractSite) -
     let span = unit.plan().cell_type(site.result).unwrap().span;
     publish(unit, site.result, target, span)
 }
-pub(super) fn transfer(unit: &mut State<'_, '_, '_, '_>, site: &n::TransferSite) -> n::ResultStep {
+pub(super) fn transfer<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::TransferSite,
+) -> n::ResultStep {
     for step in &site.moves {
         relocate(unit, step.source, step.scratch)?;
     }
@@ -316,12 +331,16 @@ pub(super) fn transfer(unit: &mut State<'_, '_, '_, '_>, site: &n::TransferSite)
     }
     Ok(())
 }
-pub(super) fn relocate(unit: &mut State<'_, '_, '_, '_>, from: usize, to: usize) -> n::ResultStep {
+pub(super) fn relocate<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    from: usize,
+    to: usize,
+) -> n::ResultStep {
     let span = unit.plan().cell_type(to).unwrap().span;
     move_value(unit, from, to, span)
 }
-pub(super) fn move_value(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn move_value<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     from: usize,
     to: usize,
     span: m::Span,
@@ -339,7 +358,7 @@ pub(super) fn move_value(
     let dropping = {
         let layout = unit
             .program
-            .layout(unit.stack.last().unwrap().function)
+            .frame_layout(unit.stack.last().unwrap().function)
             .unwrap();
         layout
             .layouts()

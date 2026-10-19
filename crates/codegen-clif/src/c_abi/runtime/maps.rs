@@ -36,8 +36,8 @@ pub(super) fn supports(op: Op) -> bool {
         Op::MapNew | Op::MapLen | Op::MapInsert | Op::MapGet | Op::MapRemove
     )
 }
-pub(super) fn view<'s, 'l>(
-    store: &'s Store<'_, 'l>,
+pub(super) fn view<'s, 'l, P: a::Provider>(
+    store: &'s Store<'_, 'l, P>,
     read: usize,
 ) -> Result<mm::Borrowed<'s, 'l, 'l>, c::Cause> {
     store
@@ -48,8 +48,8 @@ pub(super) fn view<'s, 'l>(
         .view(store.layouts, store.allocator)
         .map_err(fault)
 }
-fn owner<'l>(
-    unit: &State<'_, '_, '_, 'l>,
+fn owner<'l, P: a::Provider>(
+    unit: &State<'_, '_, '_, 'l, P>,
     site: &n::CoreSite,
 ) -> Result<mm::Map<'l, 'l>, c::Cause> {
     let (_, mut token) = places::buffer_token(unit, site.arguments[0])?;
@@ -64,7 +64,10 @@ fn owner<'l>(
     .map_err(fault)
     .map(|value| value.with_service_work(unit.service_work.clone()))
 }
-fn key(unit: &State<'_, '_, '_, '_>, site: &n::CoreSite) -> Result<mm::Key, c::Cause> {
+fn key<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+) -> Result<mm::Key, c::Cause> {
     if site.type_arguments[0] == o::Type::I64 {
         Ok(mm::Key::I64(places::scalar(unit, site.arguments[1])?))
     } else {
@@ -73,7 +76,10 @@ fn key(unit: &State<'_, '_, '_, '_>, site: &n::CoreSite) -> Result<mm::Key, c::C
         ))
     }
 }
-fn physical(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<Physical, c::Cause> {
+fn physical<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<Physical, c::Cause> {
     unit.ledger
         .as_ref()
         .unwrap()
@@ -81,8 +87,8 @@ fn physical(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<Physical, c::Ca
         .map_err(invariant)?
         .physical()
 }
-fn retire_key(
-    unit: &mut State<'_, '_, '_, '_>,
+fn retire_key<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::CoreSite,
     token: l::Token,
     reason: c::Reason,
@@ -104,8 +110,8 @@ fn retire_key(
         .retire_detached(anchor, token, span, reason, &mut cleaner)
         .map_err(invariant)
 }
-fn option(
-    unit: &mut State<'_, '_, '_, '_>,
+fn option<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::CoreSite,
     token: Option<[u8; 32]>,
 ) -> n::ResultStep {
@@ -132,7 +138,10 @@ fn option(
     }
     values::publish(unit, site.result, output, site.span)
 }
-pub(super) fn call(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
+pub(super) fn call<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+) -> n::ResultStep {
     match site.operation {
         Op::MapNew => {
             if !matches!(
@@ -245,7 +254,10 @@ pub(super) fn call(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::R
         _ => Err(bad()),
     }
 }
-fn insert(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
+fn insert<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+) -> n::ResultStep {
     let mut owner = owner(unit, site)?;
     let key = physical(unit, site.arguments[1])?;
     let value = physical(unit, site.arguments[2])?;

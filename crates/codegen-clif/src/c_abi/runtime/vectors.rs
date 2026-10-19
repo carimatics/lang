@@ -35,8 +35,8 @@ pub(super) fn supports(op: Op) -> bool {
         Op::VecNew | Op::VecLen | Op::VecPush | Op::VecPop | Op::VecGet | Op::VecGetMut
     )
 }
-pub(super) fn view<'s, 'l>(
-    store: &'s Store<'_, 'l>,
+pub(super) fn view<'s, 'l, P: a::Provider>(
+    store: &'s Store<'_, 'l, P>,
     read: usize,
 ) -> Result<v::Borrowed<'s, 'l, 'l>, c::Cause> {
     store
@@ -47,8 +47,8 @@ pub(super) fn view<'s, 'l>(
         .view(store.layouts, store.allocator)
         .map_err(fault)
 }
-fn owner<'l>(
-    unit: &State<'_, '_, '_, 'l>,
+fn owner<'l, P: a::Provider>(
+    unit: &State<'_, '_, '_, 'l, P>,
     slot: usize,
     ty: o::Type,
 ) -> Result<v::Vector<'l, 'l>, c::Cause> {
@@ -58,7 +58,10 @@ fn owner<'l>(
         .map_err(fault)
         .map(|value| value.with_service_work(unit.service_work.clone()))
 }
-fn physical(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<Physical, c::Cause> {
+fn physical<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<Physical, c::Cause> {
     unit.ledger
         .as_ref()
         .unwrap()
@@ -66,7 +69,10 @@ fn physical(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<Physical, c::Ca
         .map_err(invariant)?
         .physical()
 }
-pub(super) fn call(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
+pub(super) fn call<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::CoreSite,
+) -> n::ResultStep {
     let arg = |i: usize| site.arguments[i];
     let ty = *site.type_arguments.first().ok_or_else(bad)?;
     match site.operation {
@@ -200,8 +206,8 @@ pub(super) fn call(unit: &mut State<'_, '_, '_, '_>, site: &n::CoreSite) -> n::R
         _ => Err(bad()),
     }
 }
-pub(super) fn replace(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn replace<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     read: usize,
     location: l::Location,
     value: usize,

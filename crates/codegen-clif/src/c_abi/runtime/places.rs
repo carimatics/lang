@@ -64,7 +64,7 @@ pub(super) enum Capture {
     },
     Path(Target),
 }
-fn valid(unit: &State<'_, '_, '_, '_>, target: DataTarget) -> n::ResultStep {
+fn valid<P: a::Provider>(unit: &State<'_, '_, '_, '_, P>, target: DataTarget) -> n::ResultStep {
     if unit
         .stack
         .get(target.physical.frame)
@@ -75,7 +75,10 @@ fn valid(unit: &State<'_, '_, '_, '_>, target: DataTarget) -> n::ResultStep {
         Err(bad())
     }
 }
-fn root(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<DataTarget, c::Cause> {
+fn root<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<DataTarget, c::Cause> {
     let physical = unit
         .ledger
         .as_ref()
@@ -94,8 +97,8 @@ fn root(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<DataTarget, c::Caus
         frame: unit.stack[physical.frame].handle,
     })
 }
-fn child(
-    unit: &State<'_, '_, '_, '_>,
+fn child<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
     target: DataTarget,
     field: u32,
 ) -> Result<DataTarget, c::Cause> {
@@ -108,8 +111,8 @@ fn child(
         .map_err(fault)?;
     Ok(DataTarget { location, ..target })
 }
-fn child_target(
-    unit: &State<'_, '_, '_, '_>,
+fn child_target<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
     target: Target,
     field: u32,
 ) -> Result<Target, c::Cause> {
@@ -154,7 +157,10 @@ fn child_target(
         Target::Allocator => Err(bad()),
     }
 }
-fn dereference(unit: &State<'_, '_, '_, '_>, target: DataTarget) -> Result<Target, c::Cause> {
+fn dereference<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    target: DataTarget,
+) -> Result<Target, c::Cause> {
     valid(unit, target)?;
     let store = unit.store.borrow();
     let token = store.pools[target.physical.frame]
@@ -176,7 +182,7 @@ fn dereference(unit: &State<'_, '_, '_, '_>, target: DataTarget) -> Result<Targe
     let resolved = loan.target.ok_or_else(bad)?;
     let types = unit
         .program
-        .layout(unit.stack.last().unwrap().function)
+        .frame_layout(unit.stack.last().unwrap().function)
         .unwrap()
         .layouts()
         .types();
@@ -232,8 +238,8 @@ fn dereference(unit: &State<'_, '_, '_, '_>, target: DataTarget) -> Result<Targe
     Ok(resolved)
 }
 
-fn resolve_reference(
-    unit: &State<'_, '_, '_, '_>,
+fn resolve_reference<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
     place: &n::PlaceSite,
 ) -> Result<Target, c::Cause> {
     let mut target = Target::Data(root(unit, place.root)?);
@@ -245,11 +251,14 @@ fn resolve_reference(
     }
     Ok(target)
 }
-pub(super) fn referent(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<Target, c::Cause> {
+pub(super) fn referent<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<Target, c::Cause> {
     let target = root(unit, slot)?;
     let types = unit
         .program
-        .layout(unit.stack.last().unwrap().function)
+        .frame_layout(unit.stack.last().unwrap().function)
         .unwrap()
         .layouts()
         .types();
@@ -260,8 +269,8 @@ pub(super) fn referent(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<Targ
         Ok(Target::Data(target))
     }
 }
-fn copy_target(
-    unit: &mut State<'_, '_, '_, '_>,
+fn copy_target<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     target: Target,
     result: usize,
     span: m::Span,
@@ -363,7 +372,10 @@ fn copy_target(
     }
     values::publish(unit, result, output, span)
 }
-pub(super) fn load(unit: &mut State<'_, '_, '_, '_>, site: &n::PlaceLoad) -> n::ResultStep {
+pub(super) fn load<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::PlaceLoad,
+) -> n::ResultStep {
     copy_target(
         unit,
         resolve_reference(unit, &site.place)?,
@@ -371,7 +383,10 @@ pub(super) fn load(unit: &mut State<'_, '_, '_, '_>, site: &n::PlaceLoad) -> n::
         site.place.span,
     )
 }
-pub(super) fn variant_case(unit: &mut State<'_, '_, '_, '_>, slot: usize) -> Result<u32, c::Cause> {
+pub(super) fn variant_case<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<u32, c::Cause> {
     let target = referent(unit, slot)?;
     let store = unit.store.borrow();
     match target {
@@ -399,15 +414,18 @@ pub(super) fn variant_case(unit: &mut State<'_, '_, '_, '_>, slot: usize) -> Res
         Target::Allocator => Err(bad()),
     }
 }
-pub(super) fn copy_field(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn copy_field<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::CaseFieldSite,
 ) -> n::ResultStep {
     let target = child_target(unit, referent(unit, site.source)?, site.field)?;
     let span = unit.plan().cell_type(site.result).unwrap().span;
     copy_target(unit, target, site.result, span)
 }
-pub(super) fn available(unit: &State<'_, '_, '_, '_>, loan: b::LoanId) -> Result<usize, c::Cause> {
+pub(super) fn available<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    loan: b::LoanId,
+) -> Result<usize, c::Cause> {
     let store = unit.store.borrow();
     let id = unit.depth() * store.loan_stride + loan.0 as usize;
     let entry = store.loans.get(id).ok_or_else(bad)?;
@@ -420,8 +438,8 @@ pub(super) fn available(unit: &State<'_, '_, '_, '_>, loan: b::LoanId) -> Result
         .ok_or(c::Cause::Execution(c::ExecutionFailure::CounterOverflow))?;
     Ok(id)
 }
-pub(super) fn register_token(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn register_token<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     loan: b::LoanId,
     target: Target,
     span: m::Span,
@@ -439,7 +457,7 @@ pub(super) fn register_token(
     };
     let layout = unit
         .program
-        .layout(unit.stack.last().unwrap().function)
+        .frame_layout(unit.stack.last().unwrap().function)
         .unwrap();
     let slot = c::Slot(unit.depth() * unit.stride + layout.loan_slot(loan).ok_or_else(bad)?);
     unit.ledger
@@ -452,8 +470,8 @@ pub(super) fn register_token(
     token[8..16].copy_from_slice(&generation.to_le_bytes());
     Ok(token)
 }
-pub(super) fn register(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn register<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     loan: b::LoanId,
     target: Target,
     result: usize,
@@ -478,7 +496,10 @@ pub(super) fn register(
     }
     values::publish(unit, result, physical, span)
 }
-pub(super) fn borrow(unit: &mut State<'_, '_, '_, '_>, site: &n::BorrowSite) -> n::ResultStep {
+pub(super) fn borrow<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::BorrowSite,
+) -> n::ResultStep {
     register(
         unit,
         site.loan,
@@ -487,15 +508,15 @@ pub(super) fn borrow(unit: &mut State<'_, '_, '_, '_>, site: &n::BorrowSite) -> 
         site.span,
     )
 }
-pub(super) fn borrow_case(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn borrow_case<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     site: &n::BorrowCaseSite,
 ) -> n::ResultStep {
     let target = child_target(unit, referent(unit, site.field.source)?, site.field.field)?;
     register(unit, site.loan, target, site.field.result, site.span)
 }
-pub(super) fn end(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn end<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     loan: b::LoanId,
     mode: b::EndMode,
 ) -> n::ResultStep {
@@ -506,7 +527,7 @@ pub(super) fn end(
     if active {
         let layout = unit
             .program
-            .layout(unit.stack.last().unwrap().function)
+            .frame_layout(unit.stack.last().unwrap().function)
             .unwrap();
         let slot = c::Slot(unit.depth() * unit.stride + layout.loan_slot(loan).ok_or_else(bad)?);
         unit.ledger
@@ -520,7 +541,10 @@ pub(super) fn end(
         Ok(())
     }
 }
-fn capture(unit: &State<'_, '_, '_, '_>, place: &n::PlaceSite) -> Result<Capture, c::Cause> {
+fn capture<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    place: &n::PlaceSite,
+) -> Result<Capture, c::Cause> {
     if place.projections.is_empty() {
         Ok(Capture::Root {
             frame: unit.depth(),
@@ -531,14 +555,20 @@ fn capture(unit: &State<'_, '_, '_, '_>, place: &n::PlaceSite) -> Result<Capture
         Ok(Capture::Path(resolve_reference(unit, place)?))
     }
 }
-pub(super) fn prepare(unit: &mut State<'_, '_, '_, '_>, site: &n::PreparedSite) -> n::ResultStep {
+pub(super) fn prepare<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::PreparedSite,
+) -> n::ResultStep {
     let capture = capture(unit, &site.place)?;
     let mut store = unit.store.borrow_mut();
     let index = unit.depth() * store.prepared_stride + site.destination.0 as usize;
     *store.prepared.get_mut(index).ok_or_else(bad)? = Some(capture);
     Ok(())
 }
-pub(super) fn discard(unit: &mut State<'_, '_, '_, '_>, id: Option<b::PreparedPlaceId>) {
+pub(super) fn discard<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    id: Option<b::PreparedPlaceId>,
+) {
     let mut store = unit.store.borrow_mut();
     let base = unit.depth() * store.prepared_stride;
     if let Some(id) = id {
@@ -548,11 +578,14 @@ pub(super) fn discard(unit: &mut State<'_, '_, '_, '_>, id: Option<b::PreparedPl
         store.prepared[base..base + count].fill(None);
     }
 }
-fn owner_slot(unit: &State<'_, '_, '_, '_>, target: DataTarget) -> Result<c::Slot, c::Cause> {
+fn owner_slot<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    target: DataTarget,
+) -> Result<c::Slot, c::Cause> {
     valid(unit, target)?;
     let plan = unit
         .program
-        .layout(unit.stack[target.physical.frame].function)
+        .frame_layout(unit.stack[target.physical.frame].function)
         .unwrap()
         .frame();
     let base = target.physical.frame * unit.stride;
@@ -566,7 +599,10 @@ fn owner_slot(unit: &State<'_, '_, '_, '_>, target: DataTarget) -> Result<c::Slo
     }
     Err(bad())
 }
-pub(super) fn replace(unit: &mut State<'_, '_, '_, '_>, site: &n::ReplaceSite) -> n::ResultStep {
+pub(super) fn replace<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
+    site: &n::ReplaceSite,
+) -> n::ResultStep {
     let capture = match &site.destination {
         n::ReplacementDestination::Place(place) => capture(unit, place)?,
         n::ReplacementDestination::Prepared(id) => {
@@ -697,8 +733,8 @@ pub(super) fn replace(unit: &mut State<'_, '_, '_, '_>, site: &n::ReplaceSite) -
     }
 }
 
-pub(super) fn observation(
-    unit: &State<'_, '_, '_, '_>,
+pub(super) fn observation<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
     target: Target,
 ) -> Result<l::Token, c::Cause> {
     let store = unit.store.borrow();
@@ -727,15 +763,18 @@ pub(super) fn observation(
         Target::Allocator => Err(bad()),
     }
 }
-pub(super) fn buffer_token(
-    unit: &State<'_, '_, '_, '_>,
+pub(super) fn buffer_token<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
     slot: usize,
 ) -> Result<(Target, [u8; 32]), c::Cause> {
     let target = referent(unit, slot)?;
     Ok((target, observation(unit, target)?.bytes))
 }
 
-pub(super) fn scalar(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<i64, c::Cause> {
+pub(super) fn scalar<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<i64, c::Cause> {
     let target = referent(unit, slot)?;
     let store = unit.store.borrow();
     let value = match target {
@@ -769,7 +808,10 @@ pub(super) fn scalar(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<i64, c
     }
 }
 
-pub(super) fn arena_owner(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<usize, c::Cause> {
+pub(super) fn arena_owner<P: a::Provider>(
+    unit: &State<'_, '_, '_, '_, P>,
+    slot: usize,
+) -> Result<usize, c::Cause> {
     let target = data(referent(unit, slot)?)?;
     valid(unit, target)?;
     let store = unit.store.borrow();
@@ -785,8 +827,8 @@ pub(super) fn arena_owner(unit: &State<'_, '_, '_, '_>, slot: usize) -> Result<u
     }
     Ok(id)
 }
-pub(super) fn store_token(
-    unit: &mut State<'_, '_, '_, '_>,
+pub(super) fn store_token<P: a::Provider>(
+    unit: &mut State<'_, '_, '_, '_, P>,
     target: Target,
     token: [u8; 32],
 ) -> n::ResultStep {
