@@ -8,9 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み102件 · 進行中0件 · 残り17件（暫定39 pt）。**
+**検証済み102件 · 進行中1件 · 残り17件（暫定41 pt）。**
 
-F04（`cfd0987`、2026-10-19 JST）でfinite Copy C importをsourceからVM／native実行できます。入れ子sumと256混合引数を含みます。Local必須検証：1,481 tests、fmt／Clippy／rustdoc成功。次はC export／factory統合に先立つ、受理済みF09 source drop／panicです。[実装Todo](milestone-2.md)で現在の行・evidence・見積もり収支を確認できます。
+F04（`cfd0987`、2026-10-19 JST）でfinite Copy C importをsourceからVM／native実行できます。入れ子sumと256混合引数を含みます。Local必須検証：1,481 tests、fmt／Clippy／rustdoc成功。次はC export／factory統合に先立つF09 source drop（2点）、続いてF13 source panicとversion付きencoding／契約判断（初期暫定3点）です。着手前監査で差分2点を明示し、受理済みの全範囲を維持します。[実装Todo](milestone-2.md)で現在の行・evidence・見積もり収支を確認できます。
 
 従来の完了条件は **7/18** のままで、**50/113** は過去のgate固定重みであり工数予測ではありません。Raw C export／object、完全packaging、複合conformance、性能、debug、最終の日英guideを維持します。
 
