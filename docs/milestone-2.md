@@ -6,26 +6,36 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**109 done · 0 doing · 14 todo · 31 remaining pt**
+**109 done · 1 doing · 13 todo · 31 remaining pt**
 
 
 
-**Next: M2-F07 → verify the repaired snapshot's complete native Windows C-boundary run (2 pt, ready).**
+**Next: M2-P01 → actionable linker discovery/output-path failures (2 pt, in progress); F07 waits for the matching Windows run.**
 
 | Next delivery | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F07: native Windows evidence | F06: native macOS headers/boundaries; **108 → 109 done, 33 → 31 pt** (adff5d9) | Matching MSVC headers, validity and linked source-object fixtures pass; record the actual run/head/job |
+| P01: linker diagnostics; F07 CI pending | F06: native macOS headers/boundaries; **108 → 109 done, 33 → 31 pt** (adff5d9) | Missing-toolchain setup, output-path preflight and native direct/response error context pass on both tier-1 hosts |
+
+
+P01 checkpoints (same 2 pt; native Windows proof pending):
+
+- [x] Target setup hints and structured output-path preflight; inputs and response files remain unchanged on refusal (30 linker unit cases pass).
+- [x] Actual native macOS direct/response success, existing-output replacement and tool-error diagnostics (two integration cases pass).
+- [x] Native macOS baseline: **1,523 tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 16.99s**, native **66 / 279.13s**, native linker integration **2 / 0.62s**; fmt/Clippy (**18.92s**)/rustdoc (**14.21s**) pass. Implementation: `0061045`.
+- [ ] Matching native Windows C/linker proof. P01 remains doing and F07 remains todo; **31 pt unchanged**, no task/estimate additions.
+
+F07 repair: [run 39298897055](https://github.com/carimatics/lang/actions/runs/39298897055), head 276ad56, job 118218561053, failed at **2026-10-19 18:09:20 UTC**: **66 C ABI pass / 5 failures**, all CL-forwarded response files treated as literal LINK inputs (LNK1104). P01 now compiles C separately and calls LINK through the existing SystemLinker. A fresh matching native Windows run is required. A fresh Windows run from this implementation snapshot is pending; the prior failed run is terminal and is not restarted.
+
+Original exit gates: **11/18** (historical weight 68/113). **113 is retired as an effort forecast.** Task counts are not equal units of effort or a milestone completion percentage. The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates. Retire F06's 2 pt with **123 rows and +85 added pt unchanged**; retired estimates become **188 pt**. F07 remains open: the shared MSVC response-file fixture is repaired, but native Windows verification is pending.
+
+<details>
+<summary>Delivery history and platform verification records</summary>
 
 F06 completed checkpoints (same 2 pt; no added tasks):
 
 - [x] Independent C11 header objects; incompatible target and packing refused by the compiler.
 - [x] Slot/symbol/relocation checks for both object formats; all nine missing-symbol refusals; linked finite Copy cases and 256 mixed imports.
 - [x] Native macOS full baseline: **1,519 tests / 88 suites**, zero failures, one manual timing test ignored. C ABI **71 / 20.09s**, native **66 / 279.70s**; fmt/Clippy (**2.81s**)/rustdoc (**13.72s**) pass. Code: `adff5d9`.
-
-Original exit gates: **11/18** (historical weight 68/113). **113 is retired as an effort forecast.** Task counts are not equal units of effort or a milestone completion percentage. The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates. Retire F06's 2 pt with **123 rows and +85 added pt unchanged**; retired estimates become **188 pt**. F07 remains open: the shared MSVC response-file fixture is repaired, but native Windows verification is pending.
-
-<details>
-<summary>Delivery history and platform verification records</summary>
 
 F05 Windows failure (verified 2026-10-20 JST): [run 39288239469](https://github.com/carimatics/lang/actions/runs/39288239469), head 2f8772b, job 118181807851, failed at **2026-10-19 16:53:47 UTC**. C ABI: **64 pass / 4 failures**, all response-file cases missing the private DLL slot; direct-link cases pass. F06 keeps CL's /link outside the response file, passes the file to LINK, exports the slot as DATA and checks all required exports with compiler/linker diagnostics. Native confirmation requires a fresh matching F07 run; this failed snapshot does not close either C exit gate.
 
@@ -367,7 +377,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N19 | done | 0 | M2-N05 | G14 | Bind a trusted linked image with its code owner to the checked owned program gateway; execute real linked owned code. | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | `25de18a` |
 | M2-N07 | done | 0 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | `119f9ff` |
-| M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
+| M2-P01 | doing | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
@@ -381,6 +391,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
 
 ## Sources and verification dates
+
+- [Linker diagnostics/preflight](../src/linker.rs), [actual native success/failure fixtures](../tests/linker_failures.rs), [direct LINK C fixture](../tests/support/c_imports.rs), [early Windows C/linker checks](../.github/workflows/windows-x86_64.yml) (`0061045`): updated/verified locally **2026-10-20 JST**. The full baseline above passes on native macOS; matching native Windows evidence is still required for P01/F07. No effort point is retired for this local implementation alone.
 
 - [Independent C11 header objects](../tests/c_abi.rs), [native object/binding/finite Copy fixtures](../tests/support/c_object_binding.rs), [shared VM/JIT/AOT mixed-import oracle and MSVC fixture](../tests/support/c_imports.rs) (`adff5d9`): updated/verified **2026-10-20 JST** on Darwin arm64 / Apple Clang 21.0.0 / pinned Rust 1.99.0. The final baseline above follows the Windows-fixture correction; F07 still requires actual matching native Windows success. Microsoft [/link](https://learn.microsoft.com/en-us/cpp/build/reference/link-pass-options-to-linker?view=msvc-170) and [compiler response files](https://learn.microsoft.com/en-us/cpp/build/reference/at-specify-a-compiler-response-file?view=msvc-170) last updated **2021-08-03**, [linker syntax](https://learn.microsoft.com/en-us/cpp/build/reference/linking?view=msvc-170) **2025-11-05**; verified **2026-10-20 JST**.
 

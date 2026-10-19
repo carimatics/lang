@@ -8,13 +8,13 @@
 
 ## 現在のM2実装状況
 
-**検証済み109件 · 進行中0件 · 残り14件（暫定31 pt）。**
+**検証済み109件 · 進行中1件 · 残り13件（暫定31 pt）。**
 
 | 次の成果 | 直近の検証済み成果 | Milestone完了条件 |
 | --- | --- | --- |
-| F07：修正版のnative Windows確認（2 pt、着手可能） | F06：native macOSのheader／境界（adff5d9）。**完了108 → 109件、残り33 → 31 pt** | **11/18条件**。過去の重み68/113（60.2%） |
+| P01：local実装0061045確認済み。P01／F07のWindows証拠を確認中 | F06：native macOSのheader／境界（adff5d9）。**完了108 → 109件、残り33 → 31 pt** | **11/18条件**。過去の重み68/113（60.2%） |
 
-**次：修正版C境界snapshotをnative Windowsで確認（F07）。** F05 run 39288239469のresponse-file export lookup 4件の失敗に対し、F06で共有MSVC fixtureを修正しnative境界証拠を追加しました。Task／見積もりの追加はありません。
+**次：P01のnative linker診断と、共有LINK修正のWindows確認を進めます。** F07 snapshot 276ad56はCLから渡したresponse file input 5件で失敗しました（run 39298897055）。現在のfixtureはCを別途compileしてSystemLinkerを直接呼びます。Native Windows証拠は未完了で、task／見積もりの追加はありません。
 
 113は固定された完了条件の重みで、工数予測としての使用は取りやめています。成果件数はtask粒度に依存し、完成率ではありません。[詳細Todo](milestone-2.md)に現在の状態、見積もりの変更、実行証拠、検証時間、情報源の日付を集約します（2026-10-20 JST更新・確認）。先頭で作業中・直近の完了成果・元のMilestone完了条件を区別し、過去のreportはそこで折りたたみます。
 

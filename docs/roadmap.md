@@ -8,13 +8,13 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**109 verified deliveries · 0 in progress · 14 remaining tasks (provisional 31 pt).**
+**109 verified deliveries · 1 in progress · 13 remaining tasks (provisional 31 pt).**
 
 | Next delivery | Latest verified outcome | Milestone exit |
 | --- | --- | --- |
-| F07: matching native Windows repair verification (2 pt, ready) | F06: native macOS headers/boundaries (adff5d9); **108 → 109 deliveries, 33 → 31 remaining pt** | **11/18 gates**, historical weight 68/113 (60.2%) |
+| P01: local implementation 0061045 verified; P01/F07 Windows evidence pending | F06: native macOS headers/boundaries (adff5d9); **108 → 109 deliveries, 33 → 31 remaining pt** | **11/18 gates**, historical weight 68/113 (60.2%) |
 
-**Next: verify the repaired C-boundary snapshot on native Windows (F07).** F05 run 39288239469 failed four response-file export lookups; F06 corrects the shared MSVC fixture and adds native boundary evidence. No new task or estimate was added.
+**Next: finish P01 native linker diagnostics and verify the shared LINK repair on Windows.** F07 snapshot 276ad56 failed five CL-forwarded response-file inputs (run 39298897055); the current fixture compiles C separately and calls SystemLinker directly. Native Windows proof is pending; no new task/estimate was added.
 
 113 measures fixed exit-gate weights; it is retired as an effort forecast. Delivery counts depend on task size and are not a completion percentage. The [delivery board](milestone-2.md) is the source for current Todo states, estimate changes, execution evidence, validation times and source dates (updated/verified 2026-10-20 JST). Its first view separates current work, the latest completed outcome and the original exit gates; historical reports are collapsed there.
 

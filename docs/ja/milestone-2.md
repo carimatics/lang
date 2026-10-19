@@ -6,26 +6,36 @@
 
 更新・確認日：**2026-10-20 JST**。初回監査の基準commit：`0c2c012`。
 
-**109 done · 0 doing · 14 todo · 31 remaining pt**
+**109 done · 1 doing · 13 todo · 31 remaining pt**
 
 
 
-**次: M2-F07 → 修正版snapshotのnative Windows C境界run全体を確認（2 pt、着手可能）。**
+**次: M2-P01 → linker検出／出力先失敗の具体的な診断（2 pt、進行中）。F07は対応するWindows runを確認中。**
 
 | 次の成果 | 直近の完了 | 必須の実行結果 |
 | --- | --- | --- |
-| F07：native Windows証拠 | F06：native macOSのheader／境界。**完了108 → 109件、残り33 → 31 pt**（adff5d9） | 対応するMSVC header、validity、linked source object検証が成功し、実run／head／jobを記録 |
+| P01：linker診断。F07 CI確認中 | F06：native macOSのheader／境界。**完了108 → 109件、残り33 → 31 pt**（adff5d9） | 両tier-1で未検出toolchainの設定案内、output path事前検査、native direct／response失敗診断を確認 |
+
+
+P01の確認点（同じ2 pt内。native Windows証拠は未完了）：
+
+- [x] 対象toolchainの設定案内と構造化output path検査。拒否時にinputとresponse fileを変更しません（linker unit case 30件成功）。
+- [x] 実native macOSでdirect／responseの成功、既存output置換、tool失敗診断を確認（integration case 2件成功）。
+- [x] Native macOS全baseline **1,523 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／16.99秒**、native **66件／279.13秒**、native linker integration **2件／0.62秒**、fmt／Clippy（**18.92秒**）／rustdoc（**14.21秒**）成功。実装：`0061045`。
+- [ ] 対応するnative Windows C／linker証拠。P01はdoing、F07はtodoを維持し、**31 ptは不変**、task／見積もりの追加はありません。
+
+F07修正中：[run 39298897055](https://github.com/carimatics/lang/actions/runs/39298897055)、head 276ad56、job 118218561053が **2026-10-19 18:09:20 UTC** に失敗しました。C ABIは **66件成功／5件失敗**、すべてCLから渡したresponse fileがLINKの通常inputと扱われるLNK1104です。P01でCを個別compileし既存SystemLinkerからLINKを呼ぶよう変更し、修正版と一致する新native Windows runを確認します。 この実装snapshotから新しいWindows runを開始して確認し、終了済みの失敗run自体は再起動しません。
+
+元のMilestone完了条件は **11/18**（過去の重み68/113）。**113 ptは工数予測としての使用を取りやめています。** 成果件数は同じ工数の単位でもMilestoneの完成率でもありません。[見積もり収支](#進捗と見積もり変更)で判明した作業と完了見積もりを分けます。F06の2 ptを完了し、**123行・追加85点は不変**、完了で取り除いた見積もりは **188点** です。共有MSVC response-file fixtureは修正しましたが、native Windows確認は未完了のためF07を維持します。
+
+<details>
+<summary>過去の成果とplatform検証記録</summary>
 
 F06の完了確認点（同じ2 pt内。taskの追加なし）：
 
 - [x] 独立C11 header objectを生成。対象環境とpackingの不一致をcompilerが拒否。
 - [x] 両object formatのslot／symbol／relocation、missing symbol 9通りの拒否、linkedの有限Copy caseと256混合importを確認。
 - [x] Native macOS全baseline **1,519 tests / 88 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／20.09秒**、native **66件／279.70秒**、fmt／Clippy（**2.81秒**）／rustdoc（**13.72秒**）成功。Code：`adff5d9`。
-
-元のMilestone完了条件は **11/18**（過去の重み68/113）。**113 ptは工数予測としての使用を取りやめています。** 成果件数は同じ工数の単位でもMilestoneの完成率でもありません。[見積もり収支](#進捗と見積もり変更)で判明した作業と完了見積もりを分けます。F06の2 ptを完了し、**123行・追加85点は不変**、完了で取り除いた見積もりは **188点** です。共有MSVC response-file fixtureは修正しましたが、native Windows確認は未完了のためF07を維持します。
-
-<details>
-<summary>過去の成果とplatform検証記録</summary>
 
 F05のWindows失敗（2026-10-20 JST確認）：[run 39288239469](https://github.com/carimatics/lang/actions/runs/39288239469)、head 2f8772b、job 118181807851が **2026-10-19 16:53:47 UTC** に失敗しました。C ABIは **64件成功／4件失敗**、失敗はすべてresponse-file経由のprivate DLL slot欠落で、direct linkのcaseは成功しました。F06でCLの/linkをresponse file外へ置いてファイルをLINKへ渡し、slotをDATA exportし、全required exportとcompiler／linker診断を確認するよう修正しました。Native確認には修正版と一致する新F07 runが必要で、この失敗snapshotではCの完了条件を閉じません。
 
@@ -367,7 +377,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N19 | done | 0 | M2-N05 | G14 | Linked imageの寿命を保持した信頼済みbindingと既存gatewayによるowned program実行を、実objectで検証する。 | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | `25de18a` |
 | M2-N07 | done | 0 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | `119f9ff` |
-| M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
+| M2-P01 | doing | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Startup／runtime／context依存をpackage化し、clean installでlink／run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | 両tier-1 CIで代表conformanceとresource-limit scenarioの成功を記録。 | — |
@@ -381,6 +391,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | 全exit evidenceを監査し、英日M2 capability guideを公開。 | — |
 
 ## 情報源と確認日
+
+- [Linker診断／事前検査](../../src/linker.rs)、[実native成功／失敗fixture](../../tests/linker_failures.rs)、[LINK直呼びC fixture](../../tests/support/c_imports.rs)、[Windowsの先行C／linker検証](../../.github/workflows/windows-x86_64.yml)（`0061045`）：**2026-10-20 JST更新・local確認**。Native macOSで上記全baselineが成功し、P01／F07の対応するnative Windows証拠を引き続き確認します。Local実装だけでeffort pointを前倒し完了しません。
 
 - [独立C11 header object](../../tests/c_abi.rs)、[native object／bind／有限Copy fixture](../../tests/support/c_object_binding.rs)、[VM／JIT／AOT共有mixed import oracleとMSVC fixture](../../tests/support/c_imports.rs)（`adff5d9`）：**2026-10-20 JST更新・確認**。Darwin arm64／Apple Clang 21.0.0／固定Rust 1.99.0で上記の最終baselineをWindows fixture修正後に確認しました。対応するnative Windows成功はF07に維持します。Microsoftの[/link](https://learn.microsoft.com/en-us/cpp/build/reference/link-pass-options-to-linker?view=msvc-170)と[compiler response file](https://learn.microsoft.com/en-us/cpp/build/reference/at-specify-a-compiler-response-file?view=msvc-170)は最終更新 **2021-08-03**、[linker構文](https://learn.microsoft.com/en-us/cpp/build/reference/linking?view=msvc-170)は **2025-11-05**。すべて **2026-10-20 JST確認**。
 
