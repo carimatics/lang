@@ -6,15 +6,25 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**107 done · 0 doing · 16 todo · 36 remaining pt**
+**108 done · 0 doing · 15 todo · 33 remaining pt**
 
-**Next: M2-F05 → decide the private C object/bootstrap contract and execute source exports through real link/run (provisional 3 pt).**
 
-| Next delivery (not started) | Latest completion | Required execution outcome |
+**Next: M2-F06 → independently compile headers and verify native macOS boundary validity (2 pt, ready).**
+
+| Next delivery | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F05: C object/bootstrap (provisional 3 pt) | F16: typed native runtime, 106 → 107 done, 39 → 36 pt (4158655) | C calls linked object support/exports, including owner/panic/import results and cleanup |
+| F06: macOS headers/boundaries | F05: linked C objects without runtime JIT; **107 → 108 done, 36 → 33 pt** (c0eee9a) | Independently compiled headers and actual boundary-validity fixtures pass on native macOS |
 
-Last three: F14 (17da01b) → F15 (c0f9b68) → F16 (4158655). Original exit gates: **11/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+F05 completed checkpoints (one delivery; no added tasks/points):
+
+- [x] Accepted private bridge before implementation (RFC 0015, 949f3d8).
+- [x] Actual C object direct/response link/run; aggregates, owner recursion/original-context imports/panic, 256 mixed inputs and every fuel/provider failure prefix (six focused tests).
+- [x] Full workspace: **1,516 tests / 88 suites**, zero failures, one manual timing test ignored. C ABI **68 / 16.67s**, native **66 / 276.60s**; fmt/Clippy (**34.11s**)/rustdoc (**23.75s**) pass. Code: `c0eee9a`.
+
+Original exit gates: **11/18** (historical weight 68/113). **113 is retired as an effort forecast.** Task counts are not equal units of effort or a milestone completion percentage. The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates. This delivery retires 3 pt with **123 rows and +85 added pt unchanged**; retired estimates become **186 pt**.
+
+<details>
+<summary>Delivery history and platform verification records</summary>
 
 F16 delivery (2026-10-20 JST): 4158655 connects the reusable NativeFactory to the actual context allocator/cleanup Instance. Real C round-trips records, nested sums, every core error, empty records and scalar extremes; 256 mixed parameters execute native arithmetic and 128 guest calls. Owner recursion/C callbacks/callee panic and ten Bytes/Text/Vec/Map/shared/arena sources match VM values/fuel/work/frame/cell usage. Every fuel/provider refusal prefix preserves output and balances allocations/releases. Baseline: **1,510 tests / 88 suites**, zero failures, one manual timing test ignored. C ABI **62 / 14.13s**, native **66 / 276.96s**, fmt/Clippy (**27.48s**)/rustdoc (**23.43s**) pass. Retire initial **3 pt: 106 → 107 done, 39 → 36 pt**. **123 rows and +85 added pt unchanged; retired estimates 183 pt**. Original gates stay **11/18**; C object/platform/package and the final guide remain.
 
@@ -142,15 +152,17 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 </details>
 
+</details>
+
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 107 (+72)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 108 (+73)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +85 pt | −183 pt | 36 pt |
+| 134 pt | +85 pt | −186 pt | 33 pt |
 
-**134 + 85 − 183 = 36 pt**
+**134 + 85 − 186 = 33 pt**
 
 This separates delivered work from newly recognized work: completion retired 183 estimated points, while exposed prerequisites and re-estimation added 85. These are planning units, not hours or measured actual effort. The remaining 36 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
@@ -185,6 +197,7 @@ Audit after the first execution fixture (2026-10-18 JST): RFC 0007's accepted mo
 
 S01 decision audit (2026-10-18 JST): RFC 0009 selects three finite core calls using existing generic-call syntax and whole-value argument rules, rather than a new consuming match grammar. Completing the 2-point design row changes remaining work **136 → 134 pt** and todo **53 → 52**. Keep S02 at 3 pt for signatures/source/MIR checks and S03 at 3 pt for supported Bytes/Copy transfer and panic cleanup; parser syntax, arbitrary enum extraction, collections and native execution are outside those slices. Their estimates remain provisional until the transfer experiment; expose/split a new prerequisite before coding it. S02 followed by S03 must produce the next source owner-extraction fixture before expanding the foundation.
 
+- Keep the roadmap first view to current/next work, the latest completed outcome and original exit gates; keep historical reports on this board behind details. Expose execution/validation checkpoints for a long-running doing row without adding task credit or retiring points early. Documentation-only follow-ups run consistency checks, not an unchanged full code baseline.
 - Select one row before implementation and mark it `doing`; keep at most one doing row. A row has one observable outcome and 1–3 remaining points. Split it before starting if that outcome is larger or its prerequisites are unknown.
 - If planning produces no patch or executable experiment within 10 minutes, narrow the task and run the smallest useful experiment before extending the design. Add abstractions and hardening only when the selected outcome or accepted requirements need them. Record validation duration when available; commit intervals are not work-time measurements.
 - F09 executes accepted source drop. Next decide F13 versioned panic representation and execute a real panic source before C export/factory integration; expose new prerequisites with an executable experiment and remaining-work audit.
@@ -319,7 +332,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F14 | done | 0 | M2-F02,M2-F03 | G11,G12 | Generated raw C create/query/destroy copies descriptors, preserves output on failure, owns context lifetime and enforces artifact/reentry gates through a real C caller. | 17da01b |
 | M2-F15 | done | 0 | M2-F04,M2-F09,M2-F13,M2-F14 | G12 | Real C calls native source exports with original opaque-context callbacks, allocator integration, atomic results and resource conformance. | c0f9b68 |
 | M2-F16 | done | 0 | M2-F15,M2-N05 | G12 | Real C calls aggregate source exports with typed transfer/return escrow and owner/guest-call body runtime/cleanup integration. | 4158655 |
-| M2-F05 | todo | 3 | M2-F16 | G12 | Complete linked C object/bootstrap/runtime integration under an explicit private bridge contract and verify accepted exports through real link/run. | — |
+| M2-F05 | done | 0 | M2-F16 | G12 | Complete linked C object/bootstrap/runtime integration under an explicit private bridge contract and verify accepted exports through real link/run. | `c0eee9a` |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
 
@@ -360,6 +373,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
 
 ## Sources and verification dates
+
+- [C object emitter/binding](../crates/codegen-clif/src/c_abi/object.rs), [retained linked metadata](../crates/codegen-clif/src/owned/c_objects.rs), [actual C object tests](../tests/support/c_objects.rs) (`c0eee9a`): updated/verified **2026-10-20 JST**. The six object fixtures and full baseline above pass locally; F06/F07 retain complete target-boundary evidence, P02 standalone packaging and Z01 the final guide. RFC 0015 decision `949f3d8` precedes implementation. No new row/estimate was added by F05.
 
 - [Native factory](../crates/codegen-clif/src/c_abi/runtime/factory.rs), [typed transfers](../crates/runtime/src/c_abi/transfer.rs), [real C/VM comparisons](../tests/support/c_exports_runtime.rs) and [Copy cases/256 parameters](../tests/support/c_exports_copy_cases.rs) (4158655): updated/verified 2026-10-20 JST. All baseline checks pass above. Linked C object remains F05; the new Windows snapshot and remaining platform/package/guide evidence remain F06/F07/P02/Z01.
 - [Native source exports](../crates/codegen-clif/src/c_abi/exports.rs), [real C caller](../tests/support/c_exports_native.c) and [five execution/boundary tests](../tests/support/c_exports_native.rs) (c0f9b68): updated/verified 2026-10-19 JST. Full baseline plus final affected C ABI rerun above; full typed-runtime/object and the new Windows snapshot remain F16/F05/F07.
