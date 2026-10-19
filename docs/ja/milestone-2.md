@@ -10,7 +10,7 @@
 
 **次: M2-N07 → 同じowned executable／failure matrixをWindows x86-64で実行し、native CIの成功証拠を記録（暫定2点）。**
 
-N07の検証状況（2026-10-19 JST）：MSVCのstartup／process image／export処理を698345bで実装し、codex/m2-native-windows-20261019へpushしました。ローカルmacOSは1,415 test／87 suite、native 61件、fmt／Clippy／rustdoc成功。[Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974)は同commitを検証中で、compile／lintが成功し、Testを実行中です（2026-10-19 03:15:29 UTC開始）。現行commitのnative実行成功を確認するまでN07はdoing、G14は未完とします。見積もり・task数は変更しません。
+N07の検証状況（2026-10-19 JST）：最初の[Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974)はcompile／lint成功後、AArch64 emitterの無効化とWindows import libraryの検索path不足でTestが失敗しました。対象やfixtureを減らさず9589022で修正し、同じbranchへpushしました。[現行commitのWindows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229)で再検証中です。ローカルmacOSは対象別admission test 3件、全体1,415 test／87 suite（native 61件、254.15秒、手動timing test 1件はignored）、fmt／全体Clippy／rustdocが成功しました。実装と検証待ちを区別し、N07はdoing、G14は未完とします。見積もり・task数は変更しません。
 
 最新の完了成果（2026-10-19 JST）：e7a2bb4でN06を完了し、25de18aでstatic imageのprovenance契約も明示しました。31 source unitを62個のmacOS実executableとしてdirect／response-fileでlink／runし、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteを検証しました。**93 → 94 done、51 → 49 pt**。Task／見積もりは追加せず、完了で取り除いた見積もりは **151点** です。全workspace **1,415 test／87 suite**、native **61件**、fmt／Clippy／rustdoc成功。G14はWindowsのN07が残り未完で、従来gateは **6/18** を維持します。
 
