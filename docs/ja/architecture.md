@@ -24,6 +24,9 @@ Windows fixtureのlink（2026-10-20 JST更新）：F05 run 39288239469はrespons
 
 P01 linker診断（2026-10-20 JST更新）：command previewはfilesystemに依存しません。実行時にはspawn／response file作成前に出力の親directoryとfile種別を確認し、対象pathとI/O原因を構造化errorへ保持します。検出失敗では選択したflavor、検索candidate／PATH、対象toolchainの設定案内を保持します。Toolの失敗はcommandがresponse fileだけを指す場合もoutput pathを保持し、command／status／stdout／stderrを残します。Native fixtureはdirect／responseの成功、既存出力の置換、不正objectの失敗を実行し、事前拒否でinput保持とresponse file未作成を確認します。Rust embeddingの移行：網羅matchにはOutputDirectory／OutputNotFile／InspectOutputを追加し、LinkerDiscoveryError::NotFoundのflavorとLinkError::Failedのoutputを受け取るか..を使います。FailedのcommandはWindowsでもerrorを小さく保つためBox<LinkCommand>です。Windows CIは全workspace検証前に対象C／linker検証を実行します。情報源：[driverとunit case](../../src/linker.rs)、[native case](../../tests/linker_failures.rs)、[C fixture](../../tests/support/c_imports.rs)。P01の完了には両native targetの証拠を維持します。
 
+P02のmetadata準備prototype（2026-10-20 JST実装・重点確認）：`ObjectArtifact::into_recorded` が元object bytes、target、private ABI scope、FunctionCode全記録を生成元IR／layoutsの借用から切り離します。`RecordedObject::prepare` はISA lookup、機械語生成、JIT構築、source解析、symbol resolverなしで、検証済みfunction／frame／node／continuation計画を再構築します。Code size／source rangeを保持し、function数／ID、正規private symbol、code range境界、source spanのUTF-8境界を検査して、保持buffer容量と新規planを累積host budgetへ算入します。これは不透明なtrusted Rust記録であり、serialized packageやnative認証loaderではありません。Unsafe bindには元program／code／toolchain／imageの一致契約を維持します。実linked managed-value testで生成元state破棄後、同じsourceを再解析してplanを再構築し、全metadataと各service-work prefixでのVM／nativeの結果・解放を保持します。別caseでfunction数不一致、別layouts、host予算不足を拒否します。Package／IR形式の判断、C context依存、production配布物、両tier-1の隔離clean-install link/runはP02に残り、このprototypeだけではpointを完了にしません。情報源：[記録](../../crates/codegen-clif/src/owned/recorded.rs)、[共通symbol生成](../../crates/codegen-clif/src/owned.rs)、[native実行／拒否](../../tests/support/native_linked.rs)。2026-10-20 JST更新・確認。
+
+
 ## 目標
 
 - WindowsとmacOSでのnative性能と低レベル制御。

@@ -123,13 +123,14 @@ impl Drop for Image {
     }
 }
 
-#[cfg(target_os = "macos")]
-#[test]
-fn linked_owned_image_executes_managed_calls_and_keeps_its_code_owner_alive() {
-    let source = source(include_str!(
-        "../../examples/analysis/native_managed_text_work.lang"
-    ));
-    let flow = source.failure_flow();
+fn record_source(
+    text: &str,
+) -> (
+    n::RecordedObject,
+    Vec<lang_codegen_clif::program::FunctionCode>,
+) {
+    let producer = source(text);
+    let flow = producer.failure_flow();
     let types = flow
         .source()
         .activity()
@@ -147,6 +148,104 @@ fn linked_owned_image_executes_managed_calls_and_keeps_its_code_owner_alive() {
         1000,
     )
     .unwrap();
+    let metadata = (0..flow.functions().len())
+        .map(|index| {
+            artifact
+                .function(m::FunctionId(index as u32))
+                .unwrap()
+                .metadata()
+                .clone()
+        })
+        .collect();
+    (
+        artifact.into_recorded(Default::default()).unwrap(),
+        metadata,
+    )
+}
+
+#[test]
+fn detached_owned_records_reject_foreign_layouts_counts_and_preparation_exhaustion() {
+    let text = "fn main() -> i64 { let mut value: core::Bytes = core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator())); return 7; }";
+    let consumer = source(text);
+    let flow = consumer.failure_flow();
+    let types = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+    let (record, _) = record_source(&format!("{text} fn other() -> i64 {{ return 8; }}"));
+    assert!(matches!(
+        record.prepare(flow, &layouts, Default::default(), 1000),
+        Err(n::RecordedError::FunctionCount {
+            expected: 1,
+            recorded: 2
+        })
+    ));
+    let foreign = source(text);
+    let foreign_types = foreign
+        .failure_flow()
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let foreign_layouts = l::Layouts::compile(foreign_types, Default::default()).unwrap();
+    let (record, _) = record_source(text);
+    assert!(matches!(
+        record.prepare(flow, &foreign_layouts, Default::default(), 1000),
+        Err(n::RecordedError::Preparation(n::Error::Layout(
+            l::Error::ForeignLocation
+        )))
+    ));
+    let (record, _) = record_source(text);
+    assert!(matches!(
+        record.prepare(
+            flow,
+            &layouts,
+            m::Limits {
+                allocations: 0,
+                ..Default::default()
+            },
+            1000
+        ),
+        Err(n::RecordedError::Preparation(_))
+    ));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn linked_owned_image_executes_managed_calls_and_keeps_its_code_owner_alive() {
+    let text = include_str!("../../examples/analysis/native_managed_text_work.lang");
+    // The helper's producer IR/layouts are gone before this second analysis.
+    let (record, metadata) = record_source(text);
+    let original = record.bytes().to_vec();
+    let source = source(text);
+    let flow = source.failure_flow();
+    let types = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+    let artifact = record
+        .prepare(flow, &layouts, Default::default(), 1000)
+        .unwrap();
+    assert_eq!(artifact.bytes, original);
+    for expected in &metadata {
+        assert_eq!(
+            artifact.function(expected.function).unwrap().metadata(),
+            expected
+        );
+    }
     let dropped = Rc::new(Cell::new(false));
     let image = Image::link(&artifact.bytes, dropped.clone());
     // SAFETY: Image links these exact bytes for the host, resolves their private

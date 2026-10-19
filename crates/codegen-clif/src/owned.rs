@@ -28,10 +28,12 @@ use std::{
 
 mod c_imports;
 mod c_objects;
+mod recorded;
 pub(crate) use c_imports::CExecutable;
 use c_imports::ImportDispatcher;
 pub use c_imports::{CCompiledProgram, CEnvironment, CError, NativeProgram};
 pub use c_objects::{CLinkedProgram, CObjectArtifact, CObjectError, emit_c_object_for_target};
+pub use recorded::{RecordedError, RecordedObject};
 
 pub type ResultStep = Result<(), c::Cause>;
 
@@ -927,6 +929,7 @@ impl<'a> ObjectFunction<'a> {
 pub struct ObjectArtifact<'a> {
     pub bytes: Vec<u8>,
     target: crate::Triple,
+    scope: CompileScope,
     functions: Vec<ObjectFunction<'a>>,
     usage: m::Usage,
 }
@@ -1001,6 +1004,7 @@ pub fn emit_object_for_target<'a>(
 struct PreparedObject<'a> {
     module: ObjectModule,
     target: crate::Triple,
+    scope: CompileScope,
     functions: Vec<ObjectFunction<'a>>,
     usage: m::Usage,
 }
@@ -1010,6 +1014,7 @@ impl<'a> PreparedObject<'a> {
         Ok(ObjectArtifact {
             bytes,
             target: self.target,
+            scope: self.scope,
             functions: self.functions,
             usage: self.usage,
         })
@@ -1078,6 +1083,7 @@ fn prepare_object<'a>(
     Ok(PreparedObject {
         module,
         target: target.clone(),
+        scope,
         functions,
         usage,
     })
@@ -2024,6 +2030,22 @@ helper!(after_failure, ctx, _a, _b, node, {
     ctx.transition(node, |r, _, _| r.after_failure())
 });
 
+fn function_symbol(source: &f::Elaborated, function: m::FunctionId, scope: CompileScope) -> String {
+    let revision = if typed(source).has_explicit_panic() {
+        3
+    } else if scope.is_c() {
+        2
+    } else {
+        1
+    };
+    match scope {
+        CompileScope::CObject(digest) => {
+            format!("lang_c_obj1_r{revision}_{digest}_f{}", function.0)
+        }
+        _ => format!("lang_owned_r{revision}_f{}", function.0),
+    }
+}
+
 fn emit<M: Module>(
     module: &mut M,
     graph: &f::Function,
@@ -2047,19 +2069,7 @@ fn emit<M: Module>(
         .params
         .extend([AbiParam::new(types::I64); 4]);
     helper_signature.returns.push(AbiParam::new(types::I32));
-    let revision = if typed(layout.source).has_explicit_panic() {
-        3
-    } else if scope.is_c() {
-        2
-    } else {
-        1
-    };
-    let symbol = match scope {
-        CompileScope::CObject(digest) => {
-            format!("lang_c_obj1_r{revision}_{digest}_f{}", layout.function.0)
-        }
-        _ => format!("lang_owned_r{revision}_f{}", layout.function.0),
-    };
+    let symbol = function_symbol(layout.source, layout.function, scope);
     let id = module
         .declare_function(&symbol, Linkage::Export, &signature)
         .map_err(backend)?;
