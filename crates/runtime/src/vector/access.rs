@@ -12,6 +12,7 @@ mod tests {
             index: loan.index,
             kind: loan.kind,
             active: loan.active,
+            service_work: loan.service_work.clone(),
         }
     }
     fn drain(vector: &mut Vector<'_, '_>, allocator: &mut a::Allocator<a::System>) {
@@ -113,6 +114,7 @@ impl Default for Limits {
 /// One registered lease, ended explicitly. Ordinary wrapper disposal neither
 /// unregisters nor releases the vector. Abort invalidates abandoned leases.
 pub struct Loan {
+    service_work: Option<crate::execution::ServiceWork>,
     owner: a::Handle,
     ty: o::Type,
     slot: u64,
@@ -192,6 +194,7 @@ impl Loan {
             layouts,
             ty: self.ty,
             header: Some(self.owner),
+            service_work: self.service_work.clone(),
         }
     }
     pub fn view<'a, 'l, 't, P: a::Provider>(
@@ -258,7 +261,11 @@ impl Borrowed<'_, '_, '_> {
         allocator: &a::Allocator<P>,
     ) -> Result<l::Immediate, Error> {
         self.check(allocator)?;
-        Ok(self.value.read_immediate(at, allocator)?)
+        Ok(self.value.read_immediate_with_service_work(
+            at,
+            allocator,
+            self.loan.service_work.as_ref(),
+        )?)
     }
     /// Borrow-only bytes: the element keeps its cleanup obligation.
     pub fn read_token<P: a::Provider>(
@@ -267,7 +274,11 @@ impl Borrowed<'_, '_, '_> {
         allocator: &a::Allocator<P>,
     ) -> Result<l::Token, Error> {
         self.check(allocator)?;
-        Ok(self.value.read_token(at, allocator)?)
+        Ok(self.value.read_token_with_service_work(
+            at,
+            allocator,
+            self.loan.service_work.as_ref(),
+        )?)
     }
     pub fn copy_into<P: a::Provider>(
         &self,
@@ -277,7 +288,13 @@ impl Borrowed<'_, '_, '_> {
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Error> {
         self.check(allocator)?;
-        Ok(destination.copy_from(target, &self.value, from, allocator)?)
+        Ok(destination.copy_from_with_service_work(
+            target,
+            &self.value,
+            from,
+            allocator,
+            self.loan.service_work.as_ref(),
+        )?)
     }
 }
 impl<'l, 't> Vector<'l, 't> {
@@ -329,6 +346,7 @@ impl<'l, 't> Vector<'l, 't> {
             index,
             kind,
             active: true,
+            service_work: self.service_work.clone(),
         })
     }
     fn check_loan<P: a::Provider>(
@@ -467,7 +485,12 @@ impl<'l, 't> Vector<'l, 't> {
         let index = h.len - 1;
         let links = self.links(h, index, allocator)?;
         let mut source = self.element(h, index)?;
-        source.move_root_into(destination, target, allocator)?;
+        source.move_root_into_with_service_work(
+            destination,
+            target,
+            allocator,
+            self.service_work.as_ref(),
+        )?;
         self.unlink(h, index, links, allocator)?;
         put(allocator.bytes_mut(self.header.unwrap())?, 16, index);
         Ok(true)
@@ -534,7 +557,13 @@ impl<'l, 't> Vector<'l, 't> {
         let old = self.span(h, loan.index, allocator)?;
         let mut value = self.element(h, loan.index)?;
         let root = target == value.root();
-        let replaced = value.exchange_root_at(target, input, span, allocator)?;
+        let replaced = value.exchange_root_at_with_service_work(
+            target,
+            input,
+            span,
+            allocator,
+            self.service_work.as_ref(),
+        )?;
         if root {
             self.root_replaced(h, loan.index, links, span, allocator)?;
             Ok(old)
@@ -560,7 +589,13 @@ impl<'l, 't> Vector<'l, 't> {
         }
         let links = self.links(h, loan.index, allocator)?;
         let value = self.element(h, loan.index)?;
-        value.copy_from(target, input, from, allocator)?;
+        value.copy_from_with_service_work(
+            target,
+            input,
+            from,
+            allocator,
+            self.service_work.as_ref(),
+        )?;
         if target == value.root() {
             self.root_replaced(h, loan.index, links, span, allocator)?;
         }

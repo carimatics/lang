@@ -158,8 +158,8 @@ fn compare_scalar(flow: &o::failure::Elaborated, expected: i64) {
 fn bad() -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Invariant)
 }
-fn fault(_: l::Error) -> c::Cause {
-    bad()
+fn fault(error: l::Error) -> c::Cause {
+    service_invariant(error)
 }
 
 #[derive(Clone, Copy)]
@@ -318,8 +318,8 @@ fn dereference(unit: &Unit<'_, '_, '_, '_>, target: DataTarget) -> Result<Target
         .read_token(target.location, store.allocator)
         .map_err(fault)?
         .bytes;
-    let id =
-        usize::try_from(u64::from_le_bytes(token[..8].try_into().unwrap())).map_err(|_| bad())?;
+    let id = usize::try_from(u64::from_le_bytes(token[..8].try_into().unwrap()))
+        .map_err(service_invariant)?;
     let generation = u64::from_le_bytes(token[8..16].try_into().unwrap());
     if token[16..].iter().any(|&byte| byte != 0) {
         return Err(bad());
@@ -484,7 +484,7 @@ fn copy_target(
                 heap.as_ref()
                     .ok_or_else(bad)?
                     .view(read, ty, allocator)
-                    .map_err(|_| bad())?
+                    .map_err(service_invariant)?
                     .copy_to(location, destination, destination.root(), allocator)
                     .map_err(fault)?;
             }
@@ -509,7 +509,7 @@ fn copy_target(
                     .as_ref()
                     .ok_or_else(bad)?
                     .payload(read, allocator)
-                    .map_err(|_| bad())?
+                    .map_err(service_invariant)?
                     .copy_into(location, destination, destination.root(), allocator)
                     .map_err(fault)?;
             }

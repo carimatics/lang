@@ -4,8 +4,12 @@ use m::ownership::core::Operation as Op;
 fn bad() -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Invariant)
 }
-fn fault<T>(_: T) -> c::Cause {
-    c::Cause::Execution(c::ExecutionFailure::Fault)
+fn fault<T: std::error::Error + 'static>(error: T) -> c::Cause {
+    c::Cause::Execution(
+        e::service_failure(&error)
+            .map(Into::into)
+            .unwrap_or(c::ExecutionFailure::Fault),
+    )
 }
 fn buffer_fault(error: buffer::Fault) -> c::Cause {
     match error {

@@ -6,6 +6,9 @@ fn bad() -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Invariant)
 }
 pub(super) fn fault(error: v::Error) -> c::Cause {
+    if let Some(failure) = lang_runtime::execution::service_failure(&error) {
+        return c::Cause::Execution(failure.into());
+    }
     c::Cause::Execution(match error {
         v::Error::LoanLimit | v::Error::Allocation(a::Error::Limit(_) | a::Error::OutOfMemory) => {
             c::ExecutionFailure::AllocationLimit
@@ -51,7 +54,9 @@ fn owner<'l>(
 ) -> Result<v::Vector<'l, 'l>, c::Cause> {
     let (_, mut token) = places::buffer_token(unit, slot)?;
     let store = unit.store.borrow();
-    v::Vector::from_token(store.layouts, ty, &mut token, store.allocator).map_err(fault)
+    v::Vector::from_token(store.layouts, ty, &mut token, store.allocator)
+        .map_err(fault)
+        .map(|value| value.with_service_work(unit.service_work.clone()))
 }
 fn physical(unit: &Unit<'_, '_, '_, '_>, slot: usize) -> Result<Physical, c::Cause> {
     unit.ledger

@@ -3,6 +3,7 @@ use super::*;
 /// One read registration, ended explicitly. Disposing this wrapper does not
 /// unregister it. Host abort invalidates abandoned registrations.
 pub struct Loan {
+    service_work: Option<crate::execution::ServiceWork>,
     entry: Entry,
     key: o::Type,
     value: o::Type,
@@ -24,6 +25,7 @@ impl Loan {
             key: self.key,
             value: self.value,
             owner: Some(self.entry.owner),
+            service_work: self.service_work.clone(),
         }
     }
     pub fn view<'a, 'l, 't, P: a::Provider>(
@@ -86,7 +88,11 @@ impl Borrowed<'_, '_, '_> {
         allocator: &a::Allocator<P>,
     ) -> Result<l::Immediate, Error> {
         self.check(allocator)?;
-        Ok(self.value.read_immediate(at, allocator)?)
+        Ok(self.value.read_immediate_with_service_work(
+            at,
+            allocator,
+            self.loan.service_work.as_ref(),
+        )?)
     }
     /// The element retains the cleanup obligation for the observed token.
     pub fn read_token<P: a::Provider>(
@@ -95,7 +101,11 @@ impl Borrowed<'_, '_, '_> {
         allocator: &a::Allocator<P>,
     ) -> Result<l::Token, Error> {
         self.check(allocator)?;
-        Ok(self.value.read_token(at, allocator)?)
+        Ok(self.value.read_token_with_service_work(
+            at,
+            allocator,
+            self.loan.service_work.as_ref(),
+        )?)
     }
     pub fn copy_into<P: a::Provider>(
         &self,
@@ -105,7 +115,13 @@ impl Borrowed<'_, '_, '_> {
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Error> {
         self.check(allocator)?;
-        Ok(destination.copy_from(target, &self.value, from, allocator)?)
+        Ok(destination.copy_from_with_service_work(
+            target,
+            &self.value,
+            from,
+            allocator,
+            self.loan.service_work.as_ref(),
+        )?)
     }
 }
 
@@ -140,6 +156,7 @@ impl<'l, 't> Map<'l, 't> {
             slot,
             serial: h.serial,
             active: true,
+            service_work: self.service_work.clone(),
         }))
     }
     fn check_loan<P: a::Provider>(
@@ -196,6 +213,7 @@ mod tests {
             slot: loan.slot,
             serial: loan.serial,
             active: loan.active,
+            service_work: loan.service_work.clone(),
         }
     }
     #[test]

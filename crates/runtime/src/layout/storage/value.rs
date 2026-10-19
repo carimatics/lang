@@ -172,16 +172,26 @@ impl Reservation<'_, '_> {
         location: Location,
         allocator: &Allocator<P>,
     ) -> Result<Token, Error> {
+        self.read_token_with_service_work(location, allocator, None)
+    }
+    pub fn read_token_with_service_work<P: Provider>(
+        &self,
+        location: Location,
+        allocator: &Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<Token, Error> {
         let layout = self.validate_location(location)?;
         if !matches!(layout.kind, Kind::Token(_)) {
             return Err(Error::InvalidType(location.ty));
         }
-        let bytes = self
+        let data = self
             .data(allocator)?
             .get(range(location.offset, 32)?)
-            .ok_or(Error::State)?
-            .try_into()
-            .map_err(|_| Error::State)?;
+            .ok_or(Error::State)?;
+        if let Some(meter) = meter {
+            meter.charge(1).map_err(Error::ServiceWork)?;
+        }
+        let bytes = data.try_into().map_err(|_| Error::State)?;
         Ok(Token {
             leaf: Leaf {
                 ty: location.ty,
@@ -200,6 +210,16 @@ impl Reservation<'_, '_> {
         from: Location,
         allocator: &mut Allocator<P>,
     ) -> Result<(), Error> {
+        self.copy_from_with_service_work(target, source, from, allocator, None)
+    }
+    pub fn copy_from_with_service_work<P: Provider>(
+        &self,
+        target: Location,
+        source: &Self,
+        from: Location,
+        allocator: &mut Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<(), Error> {
         let to_layout = self.validate_location(target)?;
         let from_layout = source.validate_location(from)?;
         if !std::ptr::eq(self.layouts.types, source.layouts.types)
@@ -213,6 +233,19 @@ impl Reservation<'_, '_> {
             || from_layout.metadata_bytes != 0
         {
             return Err(Error::InvalidType(from.ty));
+        }
+        allocator
+            .bytes(source.data)?
+            .get(range(from.offset, to_layout.size)?)
+            .ok_or(Error::State)?;
+        allocator
+            .bytes(self.data)?
+            .get(range(target.offset, to_layout.size)?)
+            .ok_or(Error::State)?;
+        if let Some(meter) = meter {
+            meter
+                .charge(to_layout.service_copy_work())
+                .map_err(Error::ServiceWork)?;
         }
         allocator.copy_bytes(
             source.data,
@@ -263,11 +296,25 @@ impl Reservation<'_, '_> {
         location: Location,
         allocator: &Allocator<P>,
     ) -> Result<Immediate, Error> {
+        self.read_immediate_with_service_work(location, allocator, None)
+    }
+    pub fn read_immediate_with_service_work<P: Provider>(
+        &self,
+        location: Location,
+        allocator: &Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<Immediate, Error> {
         let layout = self.validate_location(location)?;
         let bytes = allocator
             .bytes(self.data)?
             .get(range(location.offset, layout.size)?)
             .ok_or(Error::State)?;
+        if !matches!(&layout.kind, Kind::Scalar | Kind::Error { .. }) {
+            return Err(Error::InvalidType(location.ty));
+        }
+        if let Some(meter) = meter {
+            meter.charge(1).map_err(Error::ServiceWork)?;
+        }
         match location.ty {
             o::Type::I64 => return Ok(Immediate::I64(read_u64(bytes, 0)? as i64)),
             o::Type::Bool => {

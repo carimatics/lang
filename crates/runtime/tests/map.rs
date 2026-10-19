@@ -8,6 +8,8 @@ mod mutation;
 mod mutation_failures;
 #[path = "support/map_storage.rs"]
 mod storage;
+#[path = "support/map_work.rs"]
+mod work;
 
 fn ty(id: u32) -> o::Type {
     o::Type::Constructed(o::ConstructedId(id))

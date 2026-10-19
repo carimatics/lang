@@ -29,19 +29,10 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
             location,
         } = target
         {
-            let view = self.arena_view(owner, read)?;
-            let start = location.offset() as usize;
-            return view
-                .data(self.allocator)
-                .map_err(invariant)?
-                .get(
-                    start
-                        ..start
-                            .checked_add(32)
-                            .ok_or(c::ExecutionFailure::Invariant)?,
-                )
-                .ok_or(c::ExecutionFailure::Invariant)?
-                .try_into()
+            return self
+                .arena_view(owner, read)?
+                .read_token(location, self.allocator)
+                .map(|token| token.bytes)
                 .map_err(invariant);
         }
         let Target::Data { cell, location } = target else {
@@ -98,7 +89,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
     fn borrowed_bytes(&self, reference: usize) -> Step<(Target, buffer::Bytes)> {
         let target = self.reference(self.root(reference)?)?;
         let bytes = buffer::Bytes::from_token(&mut self.token(target)?, self.allocator)
-            .map_err(|_| c::ExecutionFailure::Fault)?;
+            .map_err(control_fault)?;
         Ok((target, bytes))
     }
     pub(super) fn immediate_result(
@@ -160,9 +151,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
     ) -> Step<()> {
         // Growth may replace the heap handle. Restore the actual token to the
         // loan's owner before any guest failure/control boundary, including Err.
-        let token = bytes
-            .take_token(self.allocator)
-            .map_err(|_| c::ExecutionFailure::Fault)?;
+        let token = bytes.take_token(self.allocator).map_err(control_fault)?;
         self.store_token(target, token)?;
         let outcome = match outcome {
             Ok(()) => Ok(l::Immediate::Unit),
@@ -214,8 +203,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
     }
     pub fn text_len(&mut self, reference: usize) -> Step<i64> {
         let text = self.borrowed_text(reference)?;
-        text.len(self.allocator)
-            .map_err(|_| c::ExecutionFailure::Fault)
+        text.len(self.allocator).map_err(control_fault)
     }
     pub fn text_equal(&mut self, left: usize, right: usize) -> Step<bool> {
         let left = self.borrowed_text(left)?;
@@ -325,7 +313,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         }
         let input = self.root(source)?;
         let mut bytes = buffer::Bytes::from_token(&mut self.token(input)?, self.allocator)
-            .map_err(|_| c::ExecutionFailure::Fault)?;
+            .map_err(control_fault)?;
         let outcome = {
             let (allocator, mut work) = self.buffer_service();
             bytes.take_text_metered(allocator, &mut work)
@@ -342,9 +330,7 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
                 cell.prepare_case(root, 0, self.allocator)
                     .map_err(invariant)?;
                 let at = cell.child(root, 0, self.allocator).map_err(invariant)?;
-                let token = text
-                    .take_token(self.allocator)
-                    .map_err(|_| c::ExecutionFailure::Fault)?;
+                let token = text.take_token(self.allocator).map_err(control_fault)?;
                 let target = Target::Data {
                     cell: self.cells[destination].physical,
                     location: at,

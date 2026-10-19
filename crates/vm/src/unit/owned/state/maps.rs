@@ -1,6 +1,9 @@
 use super::*;
 
 fn fault(error: mm::Error) -> c::ExecutionFailure {
+    if let Some(failure) = lang_runtime::execution::service_failure(&error) {
+        return failure.into();
+    }
     match error {
         mm::Error::LoanLimit
         | mm::Error::Allocation(a::Error::Limit(_) | a::Error::OutOfMemory) => {
@@ -42,6 +45,7 @@ impl<'l, 't, P: a::Provider> State<'_, 'l, 't, P> {
             self.allocator,
         )
         .map_err(fault)
+        .map(|value| value.with_service_work(self.service_work.clone()))
     }
     fn map_key(&self, argument: usize, ty: o::Type) -> Step<mm::Key> {
         let target = self.reference(self.root(argument)?)?;

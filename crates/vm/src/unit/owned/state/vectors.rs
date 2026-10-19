@@ -1,6 +1,9 @@
 use super::*;
 
 fn fault(error: v::Error) -> c::ExecutionFailure {
+    if let Some(failure) = lang_runtime::execution::service_failure(&error) {
+        return failure.into();
+    }
     match error {
         v::Error::LoanLimit | v::Error::Allocation(a::Error::Limit(_) | a::Error::OutOfMemory) => {
             c::ExecutionFailure::AllocationLimit
@@ -33,7 +36,9 @@ impl<'l, 't, P: a::Provider> State<'_, 'l, 't, P> {
     fn vector_owner(&self, argument: usize, ty: o::Type) -> Step<v::Vector<'l, 't>> {
         let target = self.reference(self.root(argument)?)?;
         let mut token = self.token(target)?;
-        v::Vector::from_token(self.layouts, ty, &mut token, self.allocator).map_err(fault)
+        v::Vector::from_token(self.layouts, ty, &mut token, self.allocator)
+            .map_err(fault)
+            .map(|value| value.with_service_work(self.service_work.clone()))
     }
     fn vector_result(
         &mut self,

@@ -1,6 +1,12 @@
 use super::*;
 
 fn outcome<T>(value: Result<T, sh::Error>) -> Step<Result<T, l::OwnershipError>> {
+    if let Err(error) = &value
+        && let Some(failure) = lang_runtime::execution::service_failure(error)
+    {
+        return Err(failure.into());
+    }
+
     match value {
         Ok(v) => Ok(Ok(v)),
         Err(sh::Error {

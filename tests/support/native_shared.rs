@@ -6,6 +6,12 @@ fn bad() -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Invariant)
 }
 fn outcome<T>(value: Result<T, sh::Error>) -> Result<Result<T, l::OwnershipError>, c::Cause> {
+    if let Err(error) = &value
+        && let Some(failure) = lang_runtime::execution::service_failure(error)
+    {
+        return Err(c::Cause::Execution(failure.into()));
+    }
+
     match value {
         Ok(value) => Ok(Ok(value)),
         Err(sh::Error {
@@ -46,7 +52,7 @@ pub(super) fn view<'s, 'l>(
         .as_ref()
         .ok_or_else(bad)?
         .view(read, ty, store.allocator)
-        .map_err(|_| bad())
+        .map_err(service_invariant)
 }
 pub(super) fn custody(
     unit: &Unit<'_, '_, '_, '_>,
@@ -62,7 +68,7 @@ pub(super) fn custody(
                 .ok_or_else(bad)?
                 .custody(read, ty, store.allocator)
                 .map(Some)
-                .map_err(|_| bad())
+                .map_err(service_invariant)
         }
         places::Target::Map { read, .. } | places::Target::Vector { read, .. } => {
             Ok(store.loans[read].custody)
@@ -155,7 +161,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                             .as_ref()
                             .ok_or_else(bad)?
                             .view(read, ty, state.allocator)
-                            .map_err(|_| bad())?
+                            .map_err(service_invariant)?
                             .root()
                     };
                     unit.store.borrow_mut().loans[id].shared_read = Some(read);
@@ -228,7 +234,7 @@ fn store(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
         };
         let input = pools[physical.frame]
             .cell_mut(physical.cell)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
         let value = match ready {
             Err(error) => Err(error),
             Ok(()) if target.is_some() => {
@@ -273,7 +279,7 @@ fn store(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::ResultStep {
             Err(error) => (Err(error), Transfer::Rejected),
         };
         if matches!(transfer, Transfer::Moved) {
-            input.recycle(allocator).map_err(|_| bad())?;
+            input.recycle(allocator).map_err(service_invariant)?;
         }
         (value, transfer)
     };

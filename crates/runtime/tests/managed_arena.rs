@@ -2,6 +2,9 @@ use lang_mir::unit::{self as m, ownership as o};
 use lang_runtime::{allocation as a, arena::managed as g, buffer, cleanup as c, layout as l};
 use std::{cell::RefCell, rc::Rc};
 
+#[path = "support/arena_work.rs"]
+mod work;
+
 fn span() -> m::Span {
     m::Span {
         source: m::SourceId(0),

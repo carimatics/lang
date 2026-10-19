@@ -23,9 +23,9 @@ mod state;
 mod storage;
 use state::{State, Step, Target, invariant};
 use storage::StackStorage;
-/// Full-family support remains incomplete; use the shared whole-unit predicate
-/// in `lang_runtime::execution::service_work_supported` for partial admission.
-pub const SERVICE_WORK_SUPPORTED: bool = false;
+/// All current owned service families forward one invocation's work meter.
+/// Whole-unit admission still uses the shared exhaustive capability predicate.
+pub const SERVICE_WORK_SUPPORTED: bool = true;
 
 #[derive(Debug)]
 pub enum Reason {
@@ -543,11 +543,10 @@ fn execute_single<P: a::Provider>(
             custody: None,
         });
     }
+    let service_work = lang_runtime::execution::ServiceWork::new(control.service_work_limit());
+    let shared_heap = shared_heap.map(|heap| heap.with_service_work(service_work.clone()));
     let shared = Rc::new(RefCell::new(State {
-        service_control: Control::with_limits(super::Limits::unbounded())
-            .and_service_work(control.service_work_limit()),
-        service_usage: Usage::default(),
-        service_metering: lang_runtime::execution::service_work_supported(flow),
+        service_work,
         allocator,
         storage: None,
         types,
@@ -572,7 +571,8 @@ fn execute_single<P: a::Provider>(
                 ..Default::default()
             },
             move |ticket: &mut Ticket, _, context: &mut c::Context<'_>| {
-                cleaner_state.borrow_mut().cleanup(ticket, context)
+                let meter = cleaner_state.borrow().service_work.clone();
+                meter.unmetered(|| cleaner_state.borrow_mut().cleanup(ticket, context))
             },
         )
         .map_err(|e| fail(Reason::Enter(e)))?;
@@ -777,58 +777,61 @@ fn execute_single<P: a::Provider>(
             f::Kind::PropagateFailure => break frame.finish_reported_failure(),
         };
     };
-    let mut state = shared.borrow_mut();
-    usage.service_work = state.service_usage.service_work;
-    let panic_code = state.panic_code;
-    let State {
-        allocator,
-        storage,
-        shared_heap,
-        ..
-    } = &mut *state;
-    if let Some(heap) = shared_heap.as_mut().filter(|h| h.is_open()) {
-        heap.close(allocator)
-            .map_err(|_| fail(Reason::Preparation(l::Error::State)))?;
-    }
-    if let Err(error) = storage
-        .as_mut()
-        .expect("admitted storage")
-        .release(allocator)
-    {
-        return Err(Failure {
-            reason: Reason::Preparation(error),
+    let final_work = shared.borrow().service_work.clone();
+    final_work.unmetered(|| {
+        let mut state = shared.borrow_mut();
+        usage.service_work = state.service_work.used();
+        let panic_code = state.panic_code;
+        let State {
+            allocator,
+            storage,
+            shared_heap,
+            ..
+        } = &mut *state;
+        if let Some(heap) = shared_heap.as_mut().filter(|h| h.is_open()) {
+            heap.close(allocator)
+                .map_err(|_| fail(Reason::Preparation(l::Error::State)))?;
+        }
+        if let Err(error) = storage
+            .as_mut()
+            .expect("admitted storage")
+            .release(allocator)
+        {
+            return Err(Failure {
+                reason: Reason::Preparation(error),
+                usage,
+                function: Some(function),
+                fault,
+                report: Some(completion.report),
+                panic_code,
+                stack: Vec::new(),
+            });
+        }
+        if let Some(primary) = completion.report.primary() {
+            trace.push(super::StackFrame {
+                function,
+                span: primary.span.or(fault),
+            });
+            return Err(Failure {
+                reason: Reason::Execution(primary.kind),
+                usage,
+                function: Some(function),
+                fault: primary.span.or(fault),
+                report: Some(completion.report),
+                panic_code,
+                stack: trace,
+            });
+        }
+        let value = result.ok_or_else(|| {
+            fail(Reason::Execution(c::FailureKind::Execution(
+                c::ExecutionFailure::Invariant,
+            )))
+        })?;
+        Ok(Outcome {
+            value,
             usage,
-            function: Some(function),
-            fault,
-            report: Some(completion.report),
-            panic_code,
-            stack: Vec::new(),
-        });
-    }
-    if let Some(primary) = completion.report.primary() {
-        trace.push(super::StackFrame {
-            function,
-            span: primary.span.or(fault),
-        });
-        return Err(Failure {
-            reason: Reason::Execution(primary.kind),
-            usage,
-            function: Some(function),
-            fault: primary.span.or(fault),
-            report: Some(completion.report),
-            panic_code,
-            stack: trace,
-        });
-    }
-    let value = result.ok_or_else(|| {
-        fail(Reason::Execution(c::FailureKind::Execution(
-            c::ExecutionFailure::Invariant,
-        )))
-    })?;
-    Ok(Outcome {
-        value,
-        usage,
-        allocations: allocator.stats(),
+            allocations: allocator.stats(),
+        })
     })
 }
 
@@ -1048,7 +1051,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 Ticket::Loan(address.loan + id),
                 Some(span),
             )
-            .map_err(invariant)
+            .map_err(|_| c::ExecutionFailure::Invariant)
     };
     for register in &instruction.results {
         let index = value(*register);
@@ -1347,7 +1350,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                             Ticket::Cell(physical),
                             Some(span),
                         )
-                        .map_err(invariant)?;
+                        .map_err(|_| c::ExecutionFailure::Invariant)?;
                 }
                 if let Some(token) = key {
                     let source = token.leaf.span;
@@ -1492,7 +1495,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                         Ticket::Cell(physical),
                         Some(span),
                     )
-                    .map_err(invariant)?;
+                    .map_err(|_| c::ExecutionFailure::Invariant)?;
             }
             o::core::Operation::BytesLen => {
                 let len = shared.borrow().bytes_len(value(call.arguments[0]))?;
@@ -1571,7 +1574,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
             let physical = shared.borrow().cells[local].physical;
             frame
                 .initialize(address.slot(local), Ticket::Cell(physical), Some(span))
-                .map_err(invariant)?;
+                .map_err(|_| c::ExecutionFailure::Invariant)?;
         }
         b::Op::ArenaExit { owner } => {
             drop_cell(shared, frame, address.cell + owner.0 as usize, true)?;
@@ -1633,7 +1636,7 @@ fn instruction<P: a::Provider, C: c::Cleaner<Ticket>>(
                 Ok(_) => {}
                 Err(c::StateError::Uninitialized) => frame
                     .initialize(address.slot(index), Ticket::Cell(physical), Some(span))
-                    .map_err(invariant)?,
+                    .map_err(|_| c::ExecutionFailure::Invariant)?,
                 Err(_) => return Err(c::ExecutionFailure::Invariant),
             }
         }

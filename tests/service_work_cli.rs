@@ -110,7 +110,7 @@ fn source_and_loaded_buffers_preserve_numeric_budgets_and_guest_faults() {
 }
 
 #[test]
-fn unmetered_unused_functions_refuse_finite_source_and_artifact_execution() {
+fn unused_managed_functions_are_admitted_and_active_work_keeps_numeric_limits() {
     let text = format!(
         "{BUFFER}\n{}",
         include_str!("../examples/analysis/native_vec_nested.lang").replacen(
@@ -121,20 +121,42 @@ fn unmetered_unused_functions_refuse_finite_source_and_artifact_execution() {
     );
     let files = Files::new(&text);
     compile(&files);
-    for limit in ["0", "18446744073709551615"] {
-        for artifact in [false, true] {
+    for artifact in [false, true] {
+        let result = run(&files, &["--service-work", "0"], artifact);
+        assert_eq!(result.status.code(), Some(1));
+        let message = stderr(&result);
+        assert!(message.contains("ServiceWorkLimit"), "{message}");
+        assert!(message.contains("limit: 0"), "{message}");
+        assert!(message.contains("used: 0"), "{message}");
+        for limit in ["37", "18446744073709551615"] {
             let result = run(&files, &["--service-work", limit], artifact);
-            assert_eq!(result.status.code(), Some(1));
-            assert_eq!(result.stdout, b"");
-            let message = stderr(&result);
-            assert!(message.contains("UnsupportedServiceWork"), "{message}");
-            assert!(message.contains(&format!("limit: {limit}")), "{message}");
-            assert!(message.contains("service work 0"), "{message}");
+            assert!(result.status.success(), "{}", stderr(&result));
+            assert_eq!(result.stdout, b"67\n");
         }
     }
-    let result = run(&files, &[], false);
-    assert!(result.status.success(), "{}", stderr(&result));
-    assert_eq!(result.stdout, b"67\n");
+}
+
+#[test]
+fn managed_text_payloads_keep_source_and_artifact_budget_behavior() {
+    let files = Files::new(include_str!(
+        "../examples/analysis/native_managed_text_work.lang"
+    ));
+    compile(&files);
+    for artifact in [false, true] {
+        let result = run(
+            &files,
+            &["--service-work", "18446744073709551615"],
+            artifact,
+        );
+        assert!(result.status.success(), "{}", stderr(&result));
+        assert_eq!(result.stdout, b"3\n");
+        let result = run(&files, &["--service-work", "0"], artifact);
+        assert_eq!(result.status.code(), Some(1));
+        let message = stderr(&result);
+        assert!(message.contains("ServiceWorkLimit"), "{message}");
+        assert!(message.contains("limit: 0"), "{message}");
+        assert!(message.contains("used: 0"), "{message}");
+    }
 }
 
 #[test]

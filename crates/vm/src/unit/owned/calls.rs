@@ -668,11 +668,15 @@ fn execute_with<P: a::Provider>(
         };
         arenas.push(arena);
     }
+    let service_work = lang_runtime::execution::ServiceWork::new(control.service_work_limit());
+    let shared_heap = shared_heap.map(|heap| heap.with_service_work(service_work.clone()));
+    for arena in &mut arenas {
+        if let Some(prepared) = arena.take() {
+            *arena = Some(prepared.with_service_work(service_work.clone()));
+        }
+    }
     let shared = Rc::new(RefCell::new(State {
-        service_control: Control::with_limits(super::super::Limits::unbounded())
-            .and_service_work(control.service_work_limit()),
-        service_usage: Usage::default(),
-        service_metering: lang_runtime::execution::service_work_supported(flow),
+        service_work,
         allocator,
         storage: Some(StackStorage {
             frames: pools,
@@ -701,7 +705,8 @@ fn execute_with<P: a::Provider>(
                 ..Default::default()
             },
             move |ticket: &mut Ticket, _, context: &mut c::Context<'_>| {
-                cleaner_state.borrow_mut().cleanup(ticket, context)
+                let meter = cleaner_state.borrow().service_work.clone();
+                meter.unmetered(|| cleaner_state.borrow_mut().cleanup(ticket, context))
             },
         )
         .map_err(|e| fail(Reason::Enter(e)))?;
@@ -1142,42 +1147,45 @@ fn execute_with<P: a::Provider>(
         }
         stack.last_mut().unwrap().node = next;
     };
-    let mut state = shared.borrow_mut();
-    usage.service_work = state.service_usage.service_work;
-    let panic_code = state.panic_code;
-    let State {
-        storage,
-        allocator,
-        shared_heap,
-        ..
-    } = &mut *state;
-    if let Some(heap) = shared_heap.as_mut().filter(|h| h.is_open()) {
-        heap.close(allocator)
-            .map_err(|_| fail(Reason::Preparation(l::Error::State)))?;
-    }
-    storage
-        .as_mut()
-        .unwrap()
-        .release(allocator)
-        .map_err(|e| fail(Reason::Preparation(e)))?;
-    if let Some(primary) = completion.report.primary() {
-        return Err(Failure {
-            reason: preview_error.map_or(Reason::Execution(primary.kind), Reason::Preview),
+    let final_work = shared.borrow().service_work.clone();
+    final_work.unmetered(|| {
+        let mut state = shared.borrow_mut();
+        usage.service_work = state.service_work.used();
+        let panic_code = state.panic_code;
+        let State {
+            storage,
+            allocator,
+            shared_heap,
+            ..
+        } = &mut *state;
+        if let Some(heap) = shared_heap.as_mut().filter(|h| h.is_open()) {
+            heap.close(allocator)
+                .map_err(|_| fail(Reason::Preparation(l::Error::State)))?;
+        }
+        storage
+            .as_mut()
+            .unwrap()
+            .release(allocator)
+            .map_err(|e| fail(Reason::Preparation(e)))?;
+        if let Some(primary) = completion.report.primary() {
+            return Err(Failure {
+                reason: preview_error.map_or(Reason::Execution(primary.kind), Reason::Preview),
+                usage,
+                function: Some(failed_function),
+                fault: primary.span.or(fault),
+                report: Some(completion.report),
+                panic_code,
+                stack: trace,
+            });
+        }
+        Ok(Execution {
+            value: result.ok_or_else(|| {
+                fail(Reason::Execution(c::FailureKind::Execution(
+                    c::ExecutionFailure::Invariant,
+                )))
+            })?,
             usage,
-            function: Some(failed_function),
-            fault: primary.span.or(fault),
-            report: Some(completion.report),
-            panic_code,
-            stack: trace,
-        });
-    }
-    Ok(Execution {
-        value: result.ok_or_else(|| {
-            fail(Reason::Execution(c::FailureKind::Execution(
-                c::ExecutionFailure::Invariant,
-            )))
-        })?,
-        usage,
-        allocations: allocator.stats(),
+            allocations: allocator.stats(),
+        })
     })
 }

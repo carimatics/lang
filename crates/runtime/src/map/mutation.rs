@@ -161,6 +161,11 @@ impl<'l, 't> Map<'l, 't> {
         let at = self.record(h, entry.index)?;
         let old_span = self.entry_spans(h, entry.index, allocator)?.value;
         let mut old = self.element(h, entry.index, Part::Value)?;
+        let moved = old.transfer_work(old.root(), destination, target, allocator)?;
+        self.charge(&[
+            moved,
+            self.layouts.get(self.value).unwrap().service_copy_work(),
+        ])?;
         // This transfer validates the complete old shape and destination before
         // mutation. New inputs were validated by publish_if_absent. With no
         // callbacks and exclusive allocator access, the following writes reuse
@@ -218,6 +223,16 @@ impl<'l, 't> Map<'l, 't> {
         let mut stored_key = self.element(h, index, Part::Key)?;
         stored_key.validate_retirement(allocator)?;
         let mut value = self.element(h, index, Part::Value)?;
+        let moved = value.transfer_work(value.root(), destination, target, allocator)?;
+        let (key_copy, value_copy) = if index != last {
+            (
+                self.layouts.get(self.key).unwrap().service_copy_work(),
+                self.layouts.get(self.value).unwrap().service_copy_work(),
+            )
+        } else {
+            (0, 0)
+        };
+        self.charge(&[moved, key_copy, value_copy])?;
         value.move_root_into(destination, target, allocator)?;
         // Key/value retirement scratch is shared: finish the value transfer
         // before starting the single Text-key walk.

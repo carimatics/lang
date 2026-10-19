@@ -331,10 +331,10 @@ fn immediate(unit: &Unit<'_, '_, '_, '_>, cell: usize) -> Result<l::Immediate, c
     let store = unit.store.borrow();
     let source = store.pools[value.frame]
         .cell(value.cell)
-        .map_err(|_| bad())?;
+        .map_err(service_invariant)?;
     source
         .read_immediate(source.root(), store.allocator)
-        .map_err(|_| bad())
+        .map_err(service_invariant)
 }
 pub(super) fn read_scalar(unit: &mut Unit<'_, '_, '_, '_>, cell: usize) -> Result<i64, c::Cause> {
     match immediate(unit, cell)? {
@@ -359,10 +359,12 @@ fn write(
         let Store {
             pools, allocator, ..
         } = &mut *store;
-        let output = pools[target.frame].cell(target.cell).map_err(|_| bad())?;
+        let output = pools[target.frame]
+            .cell(target.cell)
+            .map_err(service_invariant)?;
         output
             .write_immediate(output.root(), value, allocator)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
     }
     publish(unit, cell, target, span)
 }
@@ -389,11 +391,13 @@ pub(super) fn copy_physical(
     let Store {
         pools, allocator, ..
     } = store;
-    let input = pools[from.frame].cell(from.cell).map_err(|_| bad())?;
-    let output = pools[to.frame].cell(to.cell).map_err(|_| bad())?;
+    let input = pools[from.frame]
+        .cell(from.cell)
+        .map_err(service_invariant)?;
+    let output = pools[to.frame].cell(to.cell).map_err(service_invariant)?;
     output
         .copy_from(output.root(), input, input.root(), allocator)
-        .map_err(|_| bad())
+        .map_err(service_invariant)
 }
 pub(super) fn copy_slot(
     unit: &mut Unit<'_, '_, '_, '_>,
@@ -453,7 +457,7 @@ pub(super) fn aggregate(
         return write(
             unit,
             record.result,
-            l::Immediate::from_case(builtin, case, payload).map_err(|_| bad())?,
+            l::Immediate::from_case(builtin, case, payload).map_err(service_invariant)?,
             record.span,
         );
     }
@@ -463,11 +467,13 @@ pub(super) fn aggregate(
     let Store {
         pools, allocator, ..
     } = &mut *store;
-    let output = pools[target.frame].cell(target.cell).map_err(|_| bad())?;
+    let output = pools[target.frame]
+        .cell(target.cell)
+        .map_err(service_invariant)?;
     if let Some(case) = case {
         output
             .prepare_case(output.root(), case, allocator)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
     }
     for (field, slot) in record.fields.iter().enumerate() {
         let source = ledger
@@ -477,10 +483,12 @@ pub(super) fn aggregate(
         if source.frame != target.frame {
             return Err(bad());
         }
-        let input = pools[source.frame].cell(source.cell).map_err(|_| bad())?;
+        let input = pools[source.frame]
+            .cell(source.cell)
+            .map_err(service_invariant)?;
         let child = output
             .child(output.root(), field as u32, allocator)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
         if types.equivalent(input.root().ty(), child.ty()) != Some(true) {
             return Err(bad());
         }
@@ -491,7 +499,7 @@ pub(super) fn aggregate(
             record.initialization_order.iter().copied(),
             allocator,
         )
-        .map_err(|_| bad())?;
+        .map_err(service_invariant)?;
     for (field, slot) in record.fields.iter().enumerate() {
         let source = ledger
             .value(c::Slot(base + slot))
@@ -499,19 +507,19 @@ pub(super) fn aggregate(
             .physical()?;
         let (input, output) = pools[target.frame]
             .two_cells_mut(source.cell, target.cell)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
         let child = output
             .child(output.root(), field as u32, allocator)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
         if types.properties(input.root().ty()).unwrap().is_copy {
             output
                 .copy_from(child, input, input.root(), allocator)
-                .map_err(|_| bad())?;
+                .map_err(service_invariant)?;
         } else {
             input
                 .move_root_into(output, child, allocator)
-                .map_err(|_| bad())?;
-            input.recycle(allocator).map_err(|_| bad())?;
+                .map_err(service_invariant)?;
+            input.recycle(allocator).map_err(service_invariant)?;
             ledger.take_owner(c::Slot(base + slot)).map_err(invariant)?;
         }
     }
@@ -532,17 +540,19 @@ pub(super) fn extract(unit: &mut Unit<'_, '_, '_, '_>, site: &n::ExtractSite) ->
         } = &mut *store;
         let (input, output) = pools[source.frame]
             .two_cells_mut(source.cell, target.cell)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
         if copied {
-            let child = input.child(input.root(), 0, allocator).map_err(|_| bad())?;
+            let child = input
+                .child(input.root(), 0, allocator)
+                .map_err(service_invariant)?;
             output
                 .copy_from(output.root(), input, child, allocator)
-                .map_err(|_| bad())?;
+                .map_err(service_invariant)?;
         } else {
             input
                 .extract_case_into(site.case, output, allocator)
-                .map_err(|_| bad())?;
-            input.recycle(allocator).map_err(|_| bad())?;
+                .map_err(service_invariant)?;
+            input.recycle(allocator).map_err(service_invariant)?;
         }
     }
     if !copied {

@@ -6,6 +6,9 @@ fn bad() -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Invariant)
 }
 pub(super) fn fault(error: mm::Error) -> c::Cause {
+    if let Some(failure) = lang_runtime::execution::service_failure(&error) {
+        return c::Cause::Execution(failure.into());
+    }
     c::Cause::Execution(match error {
         mm::Error::LoanLimit
         | mm::Error::Allocation(a::Error::Limit(_) | a::Error::OutOfMemory) => {
@@ -56,6 +59,7 @@ fn owner<'l>(unit: &Unit<'_, '_, '_, 'l>, site: &n::CoreSite) -> Result<mm::Map<
         store.allocator,
     )
     .map_err(fault)
+    .map(|value| value.with_service_work(unit.service_work.clone()))
 }
 fn key(unit: &Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> Result<mm::Key, c::Cause> {
     if site.type_arguments[0] == o::Type::I64 {

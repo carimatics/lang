@@ -66,9 +66,7 @@ pub(super) struct Loan {
     pub custody: Option<sh::Custody>,
 }
 pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
-    pub service_control: lang_runtime::execution::Control<'static>,
-    pub service_usage: lang_runtime::execution::Usage,
-    pub service_metering: bool,
+    pub service_work: lang_runtime::execution::ServiceWork,
     pub allocator: &'a mut a::Allocator<P>,
     pub storage: Option<StackStorage<'layouts, 'types>>,
     pub types: &'types o::VerifiedTypes,
@@ -85,8 +83,15 @@ pub(super) struct State<'a, 'layouts, 'types, P: a::Provider> {
     pub current: Address,
 }
 pub(super) type Step<T> = Result<T, c::ExecutionFailure>;
-pub(super) fn invariant<T>(_: T) -> c::ExecutionFailure {
-    c::ExecutionFailure::Invariant
+pub(super) fn invariant<T: std::error::Error + 'static>(error: T) -> c::ExecutionFailure {
+    lang_runtime::execution::service_failure(&error)
+        .map(Into::into)
+        .unwrap_or(c::ExecutionFailure::Invariant)
+}
+pub(super) fn control_fault<T: std::error::Error + 'static>(error: T) -> c::ExecutionFailure {
+    lang_runtime::execution::service_failure(&error)
+        .map(Into::into)
+        .unwrap_or(c::ExecutionFailure::Fault)
 }
 pub(super) fn cleanup_leaf<P: a::Provider>(
     types: &o::VerifiedTypes,
@@ -115,16 +120,8 @@ impl<P: a::Provider> State<'_, '_, '_, P> {
         &mut a::Allocator<P>,
         impl FnMut(u64) -> Result<(), lang_runtime::execution::Failure> + '_,
     ) {
-        let control = self.service_control;
-        let enabled = self.service_metering;
-        let usage = &mut self.service_usage;
-        (&mut *self.allocator, move |cost| {
-            if enabled {
-                control.charge_service_work(usage, cost)
-            } else {
-                Ok(())
-            }
-        })
+        let meter = self.service_work.clone();
+        (&mut *self.allocator, move |cost| meter.charge(cost))
     }
 
     pub fn custody(&self, target: Target) -> Step<Option<sh::Custody>> {

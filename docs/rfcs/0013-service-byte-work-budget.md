@@ -95,6 +95,8 @@ Default unbounded execution retains source behavior/fuel positions apart from de
 
 Metered buffer entry points are additive; existing buffer methods retain their unmetered host/cleanup behavior. Buffer Fault::ServiceWork carries the shared structured failure, so exhaustive Rust matches on Fault need that branch. It has no new serialized representation in this stage.
 
+Managed services use an optional cloned ServiceWork handle backed by Rc/Cell for one synchronous invocation. Prepared Vec/Map/shared/arena services, registered loans and views retaining this handle are no longer Send/Sync, even when their optional meter is absent. Rust embedders must construct these execution contexts on the execution thread; interruption flags retain their independent atomic cross-thread signaling contract. Existing unmetered methods remain available for trusted host work and mandatory cleanup. Runtime error enums gain structured service-work variants and source chains; exhaustive Rust matches must handle them. These are Rust API changes, without a source-language, serialized-format or C ABI change.
+
 Add ServiceWorkLimit with numeric fields to the shared dynamic failure domain, without reusing another identity. Current artifacts store pre-failure-elaboration data, not dynamic execution causes. N05 must audit serializers again: versioned reports/interfaces encoding new usage/errors require a format bump or support negotiation and migration fixtures. Never append tags/fields under an unchanged closed schema. Private revision-1 native packets remain unchanged; Rust context layouts are not a public C ABI. FFI/component mappings remain independently versioned.
 
 ## Diagnostics and tooling
@@ -123,7 +125,7 @@ This complements fuel, memory and local inspection quotas; it does not bound all
 2. N16 adds meter/builder/usage/failure data, N17 buffer metering, and N18 CLI configuration/report-format audit. N05 wires every managed service event while preserving local quotas. Reject finite configuration for incomplete units.
 3. N05 verifies full success/refusal/panic/cleanup and migration coverage. N06/N07 still require actual target object link/run evidence. Do not introduce frontend/backend coupling or new serialized IR.
 
-Implementation status (2026-10-19 JST): N16/N17/N18 subsets are implemented, including finite-budget source/artifact/REPL CLI execution. CLI options exist only in the execution context; no tag/field is added to Copy schema 1 / ownership schema 2 artifacts. REPL failures retain numeric data in existing Rust values and add usage to unversioned display text. No new versioned report encoding is introduced. All managed families, native driver/object execution and full conformance remain unfinished; this RFC stays accepted.
+Implementation status (2026-10-19 JST): N16/N17/N18 and N05 cover all current owned VM and canonical native service families. One invocation counter crosses guest calls/loans/views; structured refusal and unmetered retirement preserve numeric details and cleanup. Twenty-four sources compare every finite work prefix; tests also cover mixed controls/provider failures, guest panic, secondary cleanup, local quotas and source/artifact CLI behavior. CLI settings remain execution-only. Copy schema 1 / ownership schema 2 artifacts, unversioned REPL display and private revision-1 native packets gain no wire fields/tags. Native driver/target execution and platform performance remain N06/N07 and later gates; this RFC stays accepted pending those boundaries.
 
 ## Test plan
 
@@ -136,13 +138,13 @@ Implementation status (2026-10-19 JST): N16/N17/N18 subsets are implemented, inc
 
 ## Open questions
 
-Optional follow-ups: measure event-check overhead and evaluate later cost profiles. N05 must prove complete event coverage and rollback behavior before claiming implementation; the 20 Map tests establish feasibility only.
+Optional follow-ups: release-mode overhead measurements and later cost profiles. The manual managed_service_budget_timing_observation test reuses one compiled Vec/Text/shared/arena program using 228 work units. Five samples of 16 invocations after two warmups gave debug-profile medians: VM unbounded 4.663 ms / finite 4.652 ms; native unbounded 4.644 ms / finite 4.593 ms. Per-invocation storage/teardown is included; source/native compilation is excluded. This verifies stable usage without establishing meter overhead, a speed advantage, a Rust/C comparison or platform performance. Raw timing source: /tmp/lang-n05-timing.log, verified 2026-10-19 JST.
 
 ## Decision review
 
 Accepted under experimental delegation on 2026-10-19 JST. No blocking design question remains: shared runtime events avoid divergent formulas; local checks precede counter commits; known dependent growth/copy costs are batched before handle mutation; terminal failure leaves mandatory cleanup available. The explicit Rust migration and closed-schema rule cover compatibility without changing source typing or fuel.
 
-Unverified assumptions are implementation coverage, safe integration of every provisional-resource path, and measured overhead. These remain N05 validation obligations, not claims of implementation or stabilization. Existing Map boundary tests support feasibility only. A later contract change requires an explicit RFC revision/follow-up before implementation.
+Current conformance establishes event/refusal/rollback behavior for the documented owned profiles. Release-mode overhead, linked target drivers and platform execution remain unverified boundaries. A later cost-contract change still requires an explicit RFC revision/follow-up before implementation.
 
 ### Admission amendment — 2026-10-19
 
@@ -161,3 +163,4 @@ The normative choices above are project decisions. These local facts were verifi
 - [Map storage tests](../../crates/runtime/tests/support/map_storage.rs) and [mutation refusal tests](../../crates/runtime/tests/support/map_mutation_failures.rs), last committed 2026-10-18. Readiness command cargo test -p lang-runtime --test map: 20 pass, 0.06 s.
 - [Failure domain](../../crates/mir/src/unit/ownership/failure.rs) and [artifact codec](../../src/artifact.rs), last committed 2026-10-18. Repeat the serializer audit during N05.
 - [CLI](../../src/main.rs), [REPL transport](../../src/repl/owned.rs) and [CLI conformance](../../tests/service_work_cli.rs), updated/verified 2026-10-19. N18 audits the existing source/artifact/REPL configuration and report surfaces; it does not establish complete native/managed or future wire-format conformance.
+- [Managed metering](../../crates/runtime/src/execution.rs), [typed transfers](../../crates/runtime/src/layout/storage/transfer.rs), [VM adapter](../../crates/vm/src/unit/owned.rs), [native conformance](../../tests/support/native_control.rs) and [managed Text example](../../examples/analysis/native_managed_text_work.lang), updated/verified 2026-10-19. The N05 audit confirms execution-only numeric usage/failures; current artifact and private packet schemas are unchanged.

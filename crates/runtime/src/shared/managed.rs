@@ -73,7 +73,16 @@ impl Display for Error {
         write!(f, "managed shared failure: {:?}", self.kind)
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.kind {
+            Kind::Layout(error) => Some(error),
+            Kind::Buffer(error) => Some(error),
+            Kind::Inspection(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 fn core(error: l::OwnershipError) -> Error {
     Error::new(Kind::Ownership(error))
 }
@@ -205,6 +214,7 @@ type Work = i::Work;
 pub struct Heap<'l, 't> {
     layouts: &'l l::Layouts<'t>,
     limits: Limits,
+    service_work: Option<crate::execution::ServiceWork>,
     owner: Option<a::Handle>,
     nodes: Vec<Option<Node<'l, 't>>>,
     walk: i::Inspector<'l, 't>,
@@ -217,6 +227,11 @@ pub struct Heap<'l, 't> {
     usage: m::Usage,
 }
 impl<'l, 't> Heap<'l, 't> {
+    pub fn with_service_work(mut self, meter: crate::execution::ServiceWork) -> Self {
+        self.service_work = Some(meter);
+        self
+    }
+
     pub(crate) fn uses_layouts(&self, layouts: &l::Layouts<'_>) -> bool {
         std::ptr::eq(self.layouts, layouts)
     }
@@ -313,6 +328,7 @@ impl<'l, 't> Heap<'l, 't> {
             layouts,
             limits,
             owner: None,
+            service_work: None,
             nodes,
             walk,
             incoming,
@@ -365,7 +381,11 @@ impl<'l, 't> Heap<'l, 't> {
         Ok(owner)
     }
     fn work(&self) -> Work {
-        Work::new(self.limits.publication_work)
+        let work = Work::new(self.limits.publication_work);
+        match &self.service_work {
+            Some(meter) => work.with_service_work(meter.clone()),
+            None => work,
+        }
     }
     fn vacancy<P: a::Provider>(
         &self,
@@ -487,9 +507,19 @@ impl<'l, 't> Heap<'l, 't> {
             let index = free.ok_or_else(limit)?;
             let reference = self.vacancy(allocator, &mut work)?;
             let block = if copy {
-                s::Block::allocate_copy(input, span, allocator)?
+                s::Block::allocate_copy_with_service_work(
+                    input,
+                    span,
+                    allocator,
+                    self.service_work.as_ref(),
+                )?
             } else {
-                s::Block::allocate_from(input, span, allocator)?
+                s::Block::allocate_from_with_service_work(
+                    input,
+                    span,
+                    allocator,
+                    self.service_work.as_ref(),
+                )?
             };
             self.nodes[index] = Some(Node { block, ty });
             self.register(reference, index, STRONG, allocator)?;

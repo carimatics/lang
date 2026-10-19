@@ -42,16 +42,83 @@ pub(super) fn native(
 type VmResult = Result<lang_vm::unit::owned::Outcome, lang_vm::unit::owned::Failure>;
 
 #[test]
-fn unmetered_service_profiles_reject_before_provider_effects() {
-    let unused = format!(
-        "{}\n{}",
-        EXAMPLES[0],
-        EXAMPLES[1].replacen("fn main()", "fn unused()", 1)
+#[ignore = "observational adapter timings, without a performance threshold"]
+fn managed_service_budget_timing_observation() {
+    let source = source(include_str!(
+        "../../examples/analysis/native_managed_text_work.lang"
+    ));
+    let flow = source.failure_flow();
+    let types = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+    let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+    let base = e::Control::with_limits(limits());
+    let expected = native(flow, &layouts, &program, base, None).usage;
+    for backend in ["vm", "native"] {
+        for budget in [None, Some(expected.service_work)] {
+            let control = base.and_service_work(budget);
+            let mut samples = Vec::new();
+            for sample in 0..7 {
+                let start = Instant::now();
+                for _ in 0..16 {
+                    let usage = if backend == "native" {
+                        native(flow, &layouts, &program, control, None).usage
+                    } else {
+                        vm(flow, control, None).0.unwrap().usage
+                    };
+                    assert_eq!(usage, expected);
+                }
+                if sample >= 2 {
+                    samples.push(start.elapsed().as_nanos() / 16);
+                }
+            }
+            samples.sort_unstable();
+            eprintln!(
+                "managed-text {backend} budget={budget:?}: median={} ns/invocation, range={}..{}, 5 x 16 samples; prepared adapter execution including per-invocation storage, excluding source/native compilation",
+                samples[2], samples[0], samples[4]
+            );
+        }
+    }
+}
+
+#[test]
+fn finite_managed_work_keeps_guest_panic_and_owner_cleanup() {
+    let text = include_str!("../../examples/scripts/shared.lang").replace(
+        "return (*value);",
+        "return core::option_unwrap::<i64>(core::Option::None);",
     );
-    for text in [EXAMPLES[1], EXAMPLES[2], EXAMPLES[3], EXAMPLES[4], &unused] {
+    let source = source(&text);
+    let flow = source.failure_flow();
+    let types = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types();
+    let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+    let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+    let control = e::Control::with_limits(limits()).and_service_work(Some(9));
+    let actual = native(flow, &layouts, &program, control, None);
+    let (expected, requests) = vm(flow, control, None);
+    same(&actual, &expected);
+    assert_eq!(actual.total_requests, requests);
+    assert_eq!(actual.usage.service_work, 9);
+    assert!(actual.failure.unwrap().panic_code.is_some());
+}
+
+#[test]
+fn managed_work_refusal_stays_primary_when_cleanup_also_fails() {
+    for text in &EXAMPLES[1..] {
         let source = source(text);
         let flow = source.failure_flow();
-        assert!(!e::service_work_supported(flow));
         let types = flow
             .source()
             .activity()
@@ -62,44 +129,268 @@ fn unmetered_service_profiles_reject_before_provider_effects() {
             .types();
         let layouts = l::Layouts::compile(types, Default::default()).unwrap();
         let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
-        for limit in [0, 1, u64::MAX] {
-            let control = e::Control::with_limits(limits()).and_service_work(Some(limit));
-            let actual = native(flow, &layouts, &program, control, None);
-            let (expected, requests) = vm(flow, control, None);
-            let expected = expected.err().unwrap();
-            let error = e::UnsupportedServiceWork { limit };
-            assert!(
-                matches!(expected.reason, lang_vm::unit::owned::Reason::UnsupportedServiceWork(value) if value == error)
+        let normal = native(
+            flow,
+            &layouts,
+            &program,
+            e::Control::with_limits(limits()),
+            None,
+        );
+        let control =
+            e::Control::with_limits(limits()).and_service_work(Some(normal.usage.service_work / 2));
+        let actual = execute_controlled(
+            flow,
+            &layouts,
+            &program,
+            Run {
+                inputs: &[],
+                fuel: None,
+                max_frames: 8,
+                cells: 1000,
+                refuse: None,
+                refuse_cleanup: true,
+            },
+            control,
+            None,
+        );
+        let failure = actual.failure.unwrap();
+        assert!(matches!(
+            failure.reason,
+            n::Reason::Runtime(c::Cause::Execution(
+                c::ExecutionFailure::ServiceWorkLimit { .. }
+            ))
+        ));
+        assert!(matches!(
+            actual.report.primary().unwrap().kind,
+            c::FailureKind::Execution(c::ExecutionFailure::ServiceWorkLimit { .. })
+        ));
+        assert!(!actual.report.secondary().is_empty());
+        assert!(
+            actual
+                .report
+                .secondary()
+                .iter()
+                .all(|record| matches!(record.kind, c::FailureKind::Cleanup(_)))
+        );
+    }
+}
+
+#[test]
+fn managed_work_profiles_match_vm_at_finite_boundaries() {
+    let unused = format!(
+        "{}\n{}",
+        EXAMPLES[0],
+        EXAMPLES[1].replacen("fn main()", "fn unused()", 1)
+    );
+    for (label, text) in [
+        ("utf8", EXAMPLES[0]),
+        ("vector", EXAMPLES[1]),
+        ("map", EXAMPLES[2]),
+        ("shared", EXAMPLES[3]),
+        ("arena", EXAMPLES[4]),
+        ("unused", unused.as_str()),
+        (
+            "vector-copy",
+            include_str!("../../examples/scripts/vec.lang"),
+        ),
+        (
+            "vector-owned",
+            include_str!("../../examples/scripts/vec_owned.lang"),
+        ),
+        (
+            "vector-errors",
+            include_str!("../../examples/analysis/native_vec_errors.lang"),
+        ),
+        ("map-copy", include_str!("../../examples/scripts/map.lang")),
+        (
+            "map-owned",
+            include_str!("../../examples/scripts/map_owned.lang"),
+        ),
+        (
+            "map-text",
+            include_str!("../../examples/analysis/native_map_text_probe.lang"),
+        ),
+        (
+            "shared-copy",
+            include_str!("../../examples/scripts/shared.lang"),
+        ),
+        (
+            "shared-owned",
+            include_str!("../../examples/scripts/shared_owned.lang"),
+        ),
+        (
+            "shared-cycle",
+            include_str!("../../examples/scripts/nested_cycle.lang"),
+        ),
+        (
+            "weak-expired",
+            include_str!("../../examples/analysis/native_weak_expired.lang"),
+        ),
+        (
+            "arena-copy",
+            include_str!("../../examples/scripts/arena.lang"),
+        ),
+        (
+            "arena-owned",
+            include_str!("../../examples/scripts/arena_owned.lang"),
+        ),
+        (
+            "arena-nested",
+            include_str!("../../examples/scripts/nested_arena.lang"),
+        ),
+        (
+            "arena-reuse",
+            include_str!("../../examples/analysis/native_arena_reuse.lang"),
+        ),
+        (
+            "managed-text",
+            include_str!("../../examples/analysis/native_managed_text_work.lang"),
+        ),
+        (
+            "buffer-bytes",
+            include_str!("../../examples/analysis/native_core_bytes.lang"),
+        ),
+        (
+            "buffer-errors",
+            include_str!("../../examples/analysis/native_core_errors.lang"),
+        ),
+        ("text", include_str!("../../examples/scripts/text.lang")),
+    ] {
+        let source = source(text);
+        let flow = source.failure_flow();
+        assert!(e::service_work_supported(flow));
+        let types = flow
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types();
+        let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+        let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+        let configured = e::Control::with_limits(limits());
+        let actual = native(flow, &layouts, &program, configured, None);
+        let (expected, requests) = vm(flow, configured, None);
+        let expected_usage = match &expected {
+            Ok(value) => value.usage,
+            Err(error) => error.usage,
+        };
+        assert_eq!(actual.usage, expected_usage, "{label}");
+        same(&actual, &expected);
+        assert_eq!(actual.total_requests, requests, "{label}");
+        assert!(actual.usage.service_work > 0, "{label}");
+        let total = actual.usage.service_work;
+        for limit in 0..=total + 1 {
+            let configured = e::Control::with_limits(limits()).and_service_work(Some(limit));
+            let actual = native(flow, &layouts, &program, configured, None);
+            let (expected, requests) = vm(flow, configured, None);
+            let expected_usage = match &expected {
+                Ok(value) => value.usage,
+                Err(error) => error.usage,
+            };
+            assert_eq!(
+                actual.usage,
+                expected_usage,
+                "{label}, limit {limit}: {:?} / {:?}",
+                actual.failure,
+                expected.as_ref().err()
             );
-            let failure = actual.failure.unwrap();
-            assert_eq!(failure.reason, n::Reason::UnsupportedServiceWork(error));
-            assert_eq!(Some(failure.span), expected.fault);
-            assert_eq!(Some(failure.function), expected.function);
-            assert_eq!(actual.usage, e::Usage::default());
-            assert_eq!(expected.usage, e::Usage::default());
-            assert_eq!(actual.total_requests, 0);
-            assert_eq!(requests, 0);
-            assert!(actual.report.primary().is_none());
-            let trace = Rc::new(RefCell::new(Trace::default()));
-            let mut allocator =
-                a::Allocator::new(Provider(trace.clone()), Default::default()).unwrap();
-            let mut instance = c::Instance::default();
-            let preview = lang_vm::unit::owned::execute_preview(
-                flow,
-                failure.function,
-                &mut instance,
-                Some(&mut allocator),
-                control,
-                32,
-            )
-            .err()
-            .unwrap();
-            assert!(
-                matches!(preview.reason, lang_vm::unit::owned::Reason::UnsupportedServiceWork(value) if value == error)
-            );
-            assert_eq!(preview.usage, e::Usage::default());
-            assert_eq!(trace.borrow().requests, 0);
-            assert!(!instance.is_poisoned());
+            same(&actual, &expected);
+            assert_eq!(actual.total_requests, requests, "{label}, limit {limit}");
+            if let Some(failure) = actual.failure {
+                assert!(
+                    matches!(
+                        failure.reason,
+                        n::Reason::Runtime(c::Cause::Execution(
+                            c::ExecutionFailure::ServiceWorkLimit { .. }
+                        ))
+                    ),
+                    "{label}, limit {limit}: {failure:?}"
+                );
+            } else {
+                assert!(limit >= total, "{label}, limit {limit}");
+            }
+        }
+        assert_eq!(actual.usage, expected_usage, "{label}");
+    }
+}
+#[test]
+fn managed_work_preserves_other_control_and_provider_failure_precedence() {
+    for text in &EXAMPLES[1..] {
+        let source = source(text);
+        let flow = source.failure_flow();
+        let types = flow
+            .source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types();
+        let layouts = l::Layouts::compile(types, Default::default()).unwrap();
+        let program = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+        let normal = native(
+            flow,
+            &layouts,
+            &program,
+            e::Control::with_limits(limits()),
+            None,
+        );
+        for work in [normal.usage.service_work / 2, normal.usage.service_work] {
+            for fuel in [0, normal.usage.fuel / 2, normal.usage.fuel] {
+                let mut bounds = limits();
+                bounds.fuel = Some(fuel);
+                let control = e::Control::with_limits(bounds).and_service_work(Some(work));
+                let actual = native(flow, &layouts, &program, control, None);
+                let (expected, requests) = vm(flow, control, None);
+                same(&actual, &expected);
+                assert_eq!(actual.total_requests, requests);
+            }
+            // The native fixture numbers guest allocation requests after its
+            // prepared storage. Align that index with VM's absolute trace.
+            // Admitted work survives OOM; refusal suppresses later effects.
+            for request in 1..=normal.total_requests {
+                let control = e::Control::with_limits(limits()).and_service_work(Some(work));
+                if request <= normal.requests {
+                    let actual = execute_controlled(
+                        flow,
+                        &layouts,
+                        &program,
+                        Run {
+                            inputs: &[],
+                            fuel: None,
+                            max_frames: 8,
+                            cells: 1000,
+                            refuse: Some(request),
+                            refuse_cleanup: false,
+                        },
+                        control,
+                        None,
+                    );
+                    let absolute_request = normal.total_requests - normal.requests + request;
+                    let (expected, requests) =
+                        vm_with_refusal(flow, control, None, Some(absolute_request));
+                    same(&actual, &expected);
+                    assert_eq!(actual.total_requests, requests);
+                }
+                let native_flag = Rc::new(e::InterruptionFlag::new());
+                let vm_flag = Rc::new(e::InterruptionFlag::new());
+                let actual = native(
+                    flow,
+                    &layouts,
+                    &program,
+                    control.and_interruption(&native_flag),
+                    Some((request, native_flag.clone())),
+                );
+                let (expected, requests) = vm(
+                    flow,
+                    control.and_interruption(&vm_flag),
+                    Some((request, vm_flag.clone())),
+                );
+                same(&actual, &expected);
+                assert_eq!(actual.total_requests, requests);
+            }
         }
     }
 }
@@ -108,8 +399,17 @@ pub(super) fn vm(
     control: e::Control<'_>,
     interrupt: Option<(usize, Rc<e::InterruptionFlag>)>,
 ) -> (VmResult, usize) {
+    vm_with_refusal(flow, control, interrupt, None)
+}
+fn vm_with_refusal(
+    flow: &m::ownership::failure::Elaborated,
+    control: e::Control<'_>,
+    interrupt: Option<(usize, Rc<e::InterruptionFlag>)>,
+    refuse: Option<usize>,
+) -> (VmResult, usize) {
     let trace = Rc::new(RefCell::new(Trace {
         interrupt,
+        refuse,
         ..Default::default()
     }));
     let mut allocator = a::Allocator::new(Provider(trace.clone()), Default::default()).unwrap();

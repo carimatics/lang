@@ -57,7 +57,16 @@ impl Display for Error {
         write!(f, "managed arena failure: {:?}", self.kind)
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.kind {
+            Kind::Layout(error) => Some(error),
+            Kind::Buffer(error) => Some(error),
+            Kind::Inspection(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 impl From<l::Error> for Error {
     fn from(error: l::Error) -> Self {
         match error {
@@ -131,6 +140,7 @@ pub struct Read {
 /// operations. Retaining this Rust borrow also excludes arena mutation.
 pub struct View<'a, 'l, 't> {
     payload: &'a l::Reservation<'l, 't>,
+    service_work: Option<crate::execution::ServiceWork>,
 }
 impl<'l, 't> View<'_, 'l, 't> {
     /// Read a token through the same validated location contract as other managed views.
@@ -139,7 +149,8 @@ impl<'l, 't> View<'_, 'l, 't> {
         location: l::Location,
         allocator: &a::Allocator<P>,
     ) -> Result<l::Token, l::Error> {
-        self.payload.read_token(location, allocator)
+        self.payload
+            .read_token_with_service_work(location, allocator, self.service_work.as_ref())
     }
 
     pub fn copy_into<P: a::Provider>(
@@ -149,7 +160,13 @@ impl<'l, 't> View<'_, 'l, 't> {
         target: l::Location,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), l::Error> {
-        destination.copy_from(target, self.payload, from, allocator)
+        destination.copy_from_with_service_work(
+            target,
+            self.payload,
+            from,
+            allocator,
+            self.service_work.as_ref(),
+        )
     }
     pub fn root(&self) -> l::Location {
         self.payload.root()
@@ -173,7 +190,11 @@ impl<'l, 't> View<'_, 'l, 't> {
         location: l::Location,
         allocator: &a::Allocator<P>,
     ) -> Result<l::Immediate, l::Error> {
-        self.payload.read_immediate(location, allocator)
+        self.payload.read_immediate_with_service_work(
+            location,
+            allocator,
+            self.service_work.as_ref(),
+        )
     }
     pub fn case<P: a::Provider>(
         &self,
@@ -209,6 +230,14 @@ pub struct PublicationBudget {
     work: i::Work,
 }
 impl PublicationBudget {
+    pub fn observe(&mut self, amount: usize) -> Result<(), Error> {
+        self.work
+            .charge_event(amount, amount as u64)
+            .map_err(Into::into)
+    }
+    pub fn service(&self, amount: u64) -> Result<(), crate::execution::Failure> {
+        self.work.service(amount)
+    }
     pub fn charge(&mut self, amount: usize) -> Result<(), Error> {
         self.work.charge(amount).map_err(|_| limit())
     }
@@ -222,6 +251,7 @@ impl PublicationBudget {
 pub struct Arena<'l, 't> {
     layouts: &'l l::Layouts<'t>,
     limits: Limits,
+    service_work: Option<crate::execution::ServiceWork>,
     state: State,
     nodes: Vec<Node<'l, 't>>,
     pending: Vec<l::Location>,
@@ -229,6 +259,18 @@ pub struct Arena<'l, 't> {
     usage: m::Usage,
 }
 impl<'l, 't> Arena<'l, 't> {
+    pub fn with_service_work(mut self, meter: crate::execution::ServiceWork) -> Self {
+        self.service_work = Some(meter);
+        self
+    }
+    fn work(&self) -> i::Work {
+        let work = i::Work::new(self.limits.publication_work);
+        match &self.service_work {
+            Some(meter) => work.with_service_work(meter.clone()),
+            None => work,
+        }
+    }
+
     /// Exact host-pool admission without allocating trial buffers. Execution
     /// adapters use this while choosing a bounded activation capacity.
     pub fn preparation_usage(
@@ -293,6 +335,7 @@ impl<'l, 't> Arena<'l, 't> {
             layouts,
             limits,
             state: State::Closed,
+            service_work: None,
             nodes,
             pending,
             opening,
@@ -400,20 +443,26 @@ impl<'l, 't> Arena<'l, 't> {
             return Err(Error::new(Kind::State));
         }
         input.validate_retirement(allocator)?;
-        let mut budget = PublicationBudget {
-            work: i::Work::new(self.limits.publication_work),
-        };
+        let mut budget = PublicationBudget { work: self.work() };
         self.pending.clear();
         if self.limits.value_cells == 0 {
             return Err(limit());
         }
         self.pending.push(input.root());
         while let Some(location) = self.pending.pop() {
-            budget.charge(1)?;
             let layout = self
                 .layouts
                 .get(location.ty())
                 .ok_or_else(|| Error::new(Kind::State))?;
+            if matches!(
+                &layout.kind,
+                l::Kind::Token(o::Constructor::Vec(_) | o::Constructor::Map(..))
+            ) {
+                // The delegated inspector observes this collection node.
+                budget.charge(1)?;
+            } else {
+                budget.observe(1)?;
+            }
             let fields = match &layout.kind {
                 l::Kind::Record(fields) => Some(fields),
                 l::Kind::Enum { cases, .. } => {
@@ -454,14 +503,17 @@ impl<'l, 't> Arena<'l, 't> {
                                 .map_err(|e| Error::new(Kind::Buffer(e)))?;
                         }
                         o::Constructor::Builtin(o::Builtin::Text) => {
-                            let text = buffer::Text::from_token(&mut bytes, allocator)
+                            let text =
+                                buffer::Text::from_token_metered(&mut bytes, allocator, &mut |n| {
+                                    budget.service(n)
+                                })
                                 .map_err(|e| Error::new(Kind::Buffer(e)))?;
                             let length = usize::try_from(
                                 text.len(allocator)
                                     .map_err(|e| Error::new(Kind::Buffer(e)))?,
                             )
                             .map_err(|_| Error::new(Kind::State))?;
-                            budget.charge(length)?;
+                            budget.observe(length)?;
                             text.as_str(allocator)
                                 .map_err(|e| Error::new(Kind::Buffer(e)))?;
                         }
@@ -572,6 +624,16 @@ impl<'l, 't> Arena<'l, 't> {
                 .storage_requests()?;
             let node_request = a::Request::new(NODE_HEADER, 8)?;
             allocator.check(&[node_request, requests[0], requests[1]])?;
+            if let Some(meter) = &self.service_work {
+                meter
+                    .charge(
+                        self.layouts
+                            .get(input.root().ty())
+                            .unwrap()
+                            .service_copy_work(),
+                    )
+                    .map_err(l::Error::ServiceWork)?;
+            }
             let header = allocator.allocate(node_request)?;
             let mut payload =
                 match l::Reservation::allocate(self.layouts, input.root().ty(), allocator) {
@@ -680,11 +742,21 @@ impl<'l, 't> Arena<'l, 't> {
             let node = &mut self.nodes[reference.node as usize];
             let old_span = node_header(node.header, reference, allocator)?;
             if copy {
-                node.payload
-                    .copy_from(node.payload.root(), input, input.root(), allocator)?;
+                node.payload.copy_from_with_service_work(
+                    node.payload.root(),
+                    input,
+                    input.root(),
+                    allocator,
+                    self.service_work.as_ref(),
+                )?;
             } else {
-                node.payload
-                    .exchange_root_at(node.payload.root(), input, span, allocator)?;
+                node.payload.exchange_root_at_with_service_work(
+                    node.payload.root(),
+                    input,
+                    span,
+                    allocator,
+                    self.service_work.as_ref(),
+                )?;
             }
             store_span(allocator.bytes_mut(node.header)?, Some(span));
             Ok(old_span)
@@ -750,6 +822,7 @@ impl<'l, 't> Arena<'l, 't> {
         node_header(node.header, read.reference, allocator)?;
         Ok(View {
             payload: &node.payload,
+            service_work: self.service_work.clone(),
         })
     }
     pub fn end_read<P: a::Provider>(

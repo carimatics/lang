@@ -9,6 +9,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
+    ServiceWork(crate::execution::Failure),
     Layout(l::Error),
     Vector(vector::Error),
     Map(map::Error),
@@ -35,21 +36,53 @@ impl Display for Error {
         write!(f, "managed inspection failed: {self:?}")
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ServiceWork(error) => Some(error),
+            Self::Layout(error) => Some(error),
+            Self::Vector(error) => Some(error),
+            Self::Map(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 /// One cumulative publication budget, including caller-specific leaf checks.
 pub struct Work {
     remaining: usize,
+    service_work: Option<crate::execution::ServiceWork>,
 }
 impl Work {
     pub const fn new(remaining: usize) -> Self {
-        Self { remaining }
+        Self {
+            remaining,
+            service_work: None,
+        }
+    }
+    pub fn with_service_work(mut self, meter: crate::execution::ServiceWork) -> Self {
+        self.service_work = Some(meter);
+        self
     }
     pub const fn remaining(&self) -> usize {
         self.remaining
     }
     pub fn charge(&mut self, amount: usize) -> Result<(), Error> {
         self.remaining = self.remaining.checked_sub(amount).ok_or(Error::Work)?;
+        Ok(())
+    }
+    /// Admit both quotas before committing either; metadata-only local work
+    /// continues to use `charge` and contributes no service event.
+    pub fn charge_event(&mut self, local: usize, service: u64) -> Result<(), Error> {
+        let remaining = self.remaining.checked_sub(local).ok_or(Error::Work)?;
+        self.service(service).map_err(Error::ServiceWork)?;
+        self.remaining = remaining;
+        Ok(())
+    }
+    pub fn service(&self, amount: u64) -> Result<(), crate::execution::Failure> {
+        if let Some(meter) = &self.service_work {
+            meter.charge(amount)?;
+        }
         Ok(())
     }
 }
@@ -214,7 +247,18 @@ impl<'l, 't> Inspector<'l, 't> {
         work: &mut Work,
     ) -> Result<Option<Observation>, Error> {
         while let Some(visit) = self.pending.pop() {
-            work.charge(1)?;
+            let observation = match &visit {
+                Visit::Value { at, .. } => !matches!(
+                    self.layouts
+                        .get(at.ty())
+                        .ok_or(l::Error::InvalidType(at.ty()))?
+                        .kind,
+                    l::Kind::Token(_)
+                ),
+                Visit::Token { .. } => true,
+                Visit::Vector { .. } | Visit::Map { .. } => false,
+            };
+            work.charge_event(1, u64::from(observation))?;
             match visit {
                 Visit::Value { value, at, span } => {
                     let layout = self

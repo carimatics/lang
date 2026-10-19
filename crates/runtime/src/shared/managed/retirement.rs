@@ -271,7 +271,8 @@ impl<'l, 't> Heap<'l, 't> {
             .as_ref()
             .unwrap()
             .block
-            .payload(allocator)?)
+            .payload(allocator)?
+            .with_service_work(self.service_work.clone()))
     }
     pub fn end_read<P: a::Provider>(
         &mut self,

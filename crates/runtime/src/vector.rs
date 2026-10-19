@@ -19,6 +19,7 @@ const RETIRING: u64 = LIVE + 1;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
+    ServiceWork(crate::execution::Failure),
     Allocation(a::Error),
     Layout(l::Error),
     Unavailable,
@@ -45,7 +46,15 @@ impl Display for Error {
         write!(f, "vector storage failure: {self:?}")
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ServiceWork(error) => Some(error),
+            Self::Layout(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Header {
@@ -115,6 +124,7 @@ fn key(ty: o::Type) -> u64 {
 /// one serially reused element retirement stack are real guest reservations.
 pub struct Vector<'l, 't> {
     layouts: &'l l::Layouts<'t>,
+    service_work: Option<crate::execution::ServiceWork>,
     ty: o::Type,
     header: Option<a::Handle>,
 }
@@ -123,6 +133,7 @@ pub struct Vector<'l, 't> {
 pub struct View<'a, 'l, 't, P: a::Provider> {
     value: l::Reservation<'l, 't>,
     allocator: &'a a::Allocator<P>,
+    service_work: Option<crate::execution::ServiceWork>,
 }
 impl<P: a::Provider> View<'_, '_, '_, P> {
     pub fn root(&self) -> l::Location {
@@ -132,16 +143,35 @@ impl<P: a::Provider> View<'_, '_, '_, P> {
         Ok(self.value.child(at, index, self.allocator)?)
     }
     pub fn read_immediate(&self, at: l::Location) -> Result<l::Immediate, Error> {
-        Ok(self.value.read_immediate(at, self.allocator)?)
+        Ok(self.value.read_immediate_with_service_work(
+            at,
+            self.allocator,
+            self.service_work.as_ref(),
+        )?)
     }
     pub fn case(&self, at: l::Location) -> Result<u32, Error> {
         Ok(self.value.case(at, self.allocator)?)
     }
     pub fn read_token(&self, at: l::Location) -> Result<l::Token, Error> {
-        Ok(self.value.read_token(at, self.allocator)?)
+        Ok(self.value.read_token_with_service_work(
+            at,
+            self.allocator,
+            self.service_work.as_ref(),
+        )?)
     }
 }
 impl<'l, 't> Vector<'l, 't> {
+    pub fn with_service_work(mut self, meter: crate::execution::ServiceWork) -> Self {
+        self.service_work = Some(meter);
+        self
+    }
+    fn charge(&self, events: &[u64]) -> Result<(), Error> {
+        if let Some(meter) = &self.service_work {
+            meter.charge_batch(events).map_err(Error::ServiceWork)?;
+        }
+        Ok(())
+    }
+
     pub fn new<P: a::Provider>(
         layouts: &'l l::Layouts<'t>,
         ty: o::Type,
@@ -179,6 +209,7 @@ impl<'l, 't> Vector<'l, 't> {
             layouts,
             ty,
             header: Some(header),
+            service_work: None,
         })
     }
     fn layout(&self) -> &l::Layout {
@@ -302,6 +333,7 @@ impl<'l, 't> Vector<'l, 't> {
         Ok(View {
             value: self.element(h, index)?,
             allocator,
+            service_work: self.service_work.clone(),
         })
     }
     pub(crate) fn observation<P: a::Provider>(
@@ -379,11 +411,14 @@ impl<'l, 't> Vector<'l, 't> {
         if len > i64::MAX as u64 {
             return Err(a::Error::Overflow.into());
         }
+        self.check_tail(old, allocator)?;
         let mut next = old;
+        let copied = self.layout().service_copy_work();
         if len > old.capacity {
             let capacity = old.capacity.saturating_mul(2).min(i64::MAX as u64).max(len);
             let p = plan(self.layout(), capacity)?;
             allocator.check(&p.requests)?;
+            self.charge(&[mul(old.len, p.stride)?, copied])?;
             let metadata = allocator.allocate(p.requests[0])?;
             let data = match allocator.allocate(p.requests[1]) {
                 Ok(h) => h,
@@ -413,8 +448,10 @@ impl<'l, 't> Vector<'l, 't> {
                 ..old
             };
         }
+        if len <= old.capacity {
+            self.charge(&[copied])?;
+        }
         let destination = self.element(next, old.len)?;
-        self.check_tail(old, allocator)?;
         let result = if copy {
             destination.copy_from(destination.root(), input, input.root(), allocator)
         } else {
@@ -482,6 +519,7 @@ impl<'l, 't> Vector<'l, 't> {
             layouts,
             ty,
             header: Some(a::Handle::from_token(bytes[..24].try_into().unwrap())?),
+            service_work: None,
         };
         value.inspect(allocator)?;
         bytes.fill(0);

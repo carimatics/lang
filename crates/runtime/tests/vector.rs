@@ -4,6 +4,8 @@ use std::{cell::RefCell, rc::Rc};
 
 #[path = "support/vector_access.rs"]
 mod access;
+#[path = "support/vector_work.rs"]
+mod work;
 
 fn span(start: u32) -> m::Span {
     m::Span {

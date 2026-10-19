@@ -24,6 +24,7 @@ impl<'l, 't> Vector<'l, 't> {
                 layouts: self.layouts,
                 ty: self.ty,
                 header: self.header.take(),
+                service_work: None,
             },
             header: h,
             index: h.tail,

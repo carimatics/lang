@@ -321,8 +321,8 @@ impl<R: Runtime> RuntimeInstance<R> {
     }
 }
 
-/// The canonical owned profile is not yet completely metered.
-pub const SERVICE_WORK_SUPPORTED: bool = false;
+/// The canonical owned runtime profile meters all current service families.
+pub const SERVICE_WORK_SUPPORTED: bool = true;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Reason {

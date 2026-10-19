@@ -46,11 +46,13 @@ fn inspect<P: a::Provider>(
                     })?;
             }
             o::Constructor::Builtin(o::Builtin::Text) => {
-                let text =
-                    buffer::Text::from_token(&mut bytes, allocator).map_err(|e| g::Error {
-                        kind: g::Kind::Buffer(e),
-                        span: observed.span,
-                    })?;
+                let text = buffer::Text::from_token_metered(&mut bytes, allocator, &mut |n| {
+                    budget.service(n)
+                })
+                .map_err(|e| g::Error {
+                    kind: g::Kind::Buffer(e),
+                    span: observed.span,
+                })?;
                 let length = usize::try_from(text.len(allocator).map_err(|e| g::Error {
                     kind: g::Kind::Buffer(e),
                     span: observed.span,
@@ -59,7 +61,7 @@ fn inspect<P: a::Provider>(
                     kind: g::Kind::State,
                     span: observed.span,
                 })?;
-                budget.charge(length)?;
+                budget.observe(length)?;
                 text.as_str(allocator).map_err(|e| g::Error {
                     kind: g::Kind::Buffer(e),
                     span: observed.span,
@@ -77,6 +79,12 @@ fn inspect<P: a::Provider>(
 }
 
 fn outcome<T>(value: Result<T, g::Error>) -> Step<Result<T, l::ArenaError>> {
+    if let Err(error) = &value
+        && let Some(failure) = lang_runtime::execution::service_failure(error)
+    {
+        return Err(failure.into());
+    }
+
     match value {
         Ok(value) => Ok(Ok(value)),
         Err(g::Error {

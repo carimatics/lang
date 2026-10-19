@@ -6,6 +6,12 @@ fn bad() -> c::Cause {
     c::Cause::Execution(c::ExecutionFailure::Invariant)
 }
 fn outcome<T>(value: Result<T, g::Error>) -> Result<Result<T, l::ArenaError>, c::Cause> {
+    if let Err(error) = &value
+        && let Some(failure) = lang_runtime::execution::service_failure(error)
+    {
+        return Err(c::Cause::Execution(failure.into()));
+    }
+
     match value {
         Ok(value) => Ok(Ok(value)),
         Err(g::Error {
@@ -65,11 +71,13 @@ fn inspect<P: a::Provider>(
                     })?;
             }
             o::Constructor::Builtin(o::Builtin::Text) => {
-                let text =
-                    buffer::Text::from_token(&mut bytes, allocator).map_err(|e| g::Error {
-                        kind: g::Kind::Buffer(e),
-                        span: observed.span,
-                    })?;
+                let text = buffer::Text::from_token_metered(&mut bytes, allocator, &mut |n| {
+                    budget.service(n)
+                })
+                .map_err(|e| g::Error {
+                    kind: g::Kind::Buffer(e),
+                    span: observed.span,
+                })?;
                 let length = usize::try_from(text.len(allocator).map_err(|e| g::Error {
                     kind: g::Kind::Buffer(e),
                     span: observed.span,
@@ -78,7 +86,7 @@ fn inspect<P: a::Provider>(
                     kind: g::Kind::State,
                     span: observed.span,
                 })?;
-                budget.charge(length)?;
+                budget.observe(length)?;
                 text.as_str(allocator).map_err(|e| g::Error {
                     kind: g::Kind::Buffer(e),
                     span: observed.span,
@@ -115,7 +123,7 @@ pub(super) fn view<'s, 'l>(
         .as_ref()
         .ok_or_else(bad)?
         .payload(read, store.allocator)
-        .map_err(|_| bad())
+        .map_err(service_invariant)
 }
 pub(super) fn enter(unit: &mut Unit<'_, '_, '_, '_>, site: &n::ArenaSite) -> n::ResultStep {
     if !matches!(
@@ -174,7 +182,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
     let owner = places::arena_owner(unit, site.arguments[0])?;
     if site.operation == Op::ArenaRead {
         let reference = g::Reference::from_token(places::buffer_token(unit, site.arguments[1])?.1)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
         let loan = site.loan.ok_or_else(bad)?;
         let id = places::available(unit, loan)?;
         {
@@ -207,7 +215,7 @@ pub(super) fn call(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite) -> n::Re
                         .as_ref()
                         .ok_or_else(bad)?
                         .payload(&read, store.allocator)
-                        .map_err(|_| bad())?
+                        .map_err(service_invariant)?
                         .root()
                 };
                 unit.store.borrow_mut().loans[id].arena_read = Some((owner, read));
@@ -247,7 +255,7 @@ fn store(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite, owner: usize) -> n
     let reference = if site.operation == Op::ArenaReplace {
         Some(
             g::Reference::from_token(places::buffer_token(unit, site.arguments[1])?.1)
-                .map_err(|_| bad())?,
+                .map_err(service_invariant)?,
         )
     } else {
         None
@@ -264,7 +272,7 @@ fn store(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite, owner: usize) -> n
         } = &mut *state;
         let input = pools[source.frame]
             .cell_mut(source.cell)
-            .map_err(|_| bad())?;
+            .map_err(service_invariant)?;
         let arena = arena[owner].as_mut().ok_or_else(bad)?;
         let inspect = |token: &l::Token,
                        arena: &g::Arena<'_, '_>,
@@ -302,7 +310,7 @@ fn store(unit: &mut Unit<'_, '_, '_, '_>, site: &n::CoreSite, owner: usize) -> n
             Err(error) => (Err(error), Transfer::Rejected),
         };
         if matches!(transfer, Transfer::Moved) {
-            input.recycle(allocator).map_err(|_| bad())?;
+            input.recycle(allocator).map_err(service_invariant)?;
         }
         (value, transfer)
     };

@@ -63,7 +63,14 @@ impl Display for Fault {
         write!(f, "buffer runtime fault: {self:?}")
     }
 }
-impl std::error::Error for Fault {}
+impl std::error::Error for Fault {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ServiceWork(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 impl From<a::Error> for Fault {
     fn from(error: a::Error) -> Self {
         Self::Allocator(error)

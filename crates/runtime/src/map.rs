@@ -20,6 +20,7 @@ const MAGIC: u64 = 0x6d61_705f_3030_3031;
 const NONE: u64 = u64::MAX;
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
+    ServiceWork(crate::execution::Failure),
     Allocation(a::Error),
     Layout(l::Error),
     Buffer(buffer::Fault),
@@ -53,7 +54,16 @@ impl Display for Error {
         write!(f, "map storage failure: {self:?}")
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ServiceWork(error) => Some(error),
+            Self::Layout(error) => Some(error),
+            Self::Buffer(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {
     pub loans: usize,
@@ -177,10 +187,15 @@ fn plan(key: &l::Layout, value: &l::Layout, capacity: u64) -> Result<Plan, Error
 }
 struct Work {
     left: u64,
+    service_work: Option<crate::execution::ServiceWork>,
 }
 impl Work {
     fn charge(&mut self, n: u64) -> Result<(), Error> {
-        self.left = self.left.checked_sub(n).ok_or(Error::WorkLimit)?;
+        let left = self.left.checked_sub(n).ok_or(Error::WorkLimit)?;
+        if let Some(meter) = &self.service_work {
+            meter.charge(n).map_err(Error::ServiceWork)?;
+        }
+        self.left = left;
         Ok(())
     }
 }
@@ -190,6 +205,7 @@ enum Compared<'a> {
 }
 pub struct Map<'l, 't> {
     layouts: &'l l::Layouts<'t>,
+    service_work: Option<crate::execution::ServiceWork>,
     key: o::Type,
     value: o::Type,
     owner: Option<a::Handle>,
@@ -197,6 +213,7 @@ pub struct Map<'l, 't> {
 pub struct View<'a, 'l, 't, P: a::Provider> {
     value: l::Reservation<'l, 't>,
     allocator: &'a a::Allocator<P>,
+    service_work: Option<crate::execution::ServiceWork>,
 }
 impl<P: a::Provider> View<'_, '_, '_, P> {
     pub fn root(&self) -> l::Location {
@@ -209,13 +226,33 @@ impl<P: a::Provider> View<'_, '_, '_, P> {
         Ok(self.value.case(at, self.allocator)?)
     }
     pub fn read_immediate(&self, at: l::Location) -> Result<l::Immediate, Error> {
-        Ok(self.value.read_immediate(at, self.allocator)?)
+        Ok(self.value.read_immediate_with_service_work(
+            at,
+            self.allocator,
+            self.service_work.as_ref(),
+        )?)
     }
     pub fn read_token(&self, at: l::Location) -> Result<l::Token, Error> {
-        Ok(self.value.read_token(at, self.allocator)?)
+        Ok(self.value.read_token_with_service_work(
+            at,
+            self.allocator,
+            self.service_work.as_ref(),
+        )?)
     }
 }
 impl<'l, 't> Map<'l, 't> {
+    fn charge(&self, events: &[u64]) -> Result<(), Error> {
+        if let Some(meter) = &self.service_work {
+            meter.charge_batch(events).map_err(Error::ServiceWork)?;
+        }
+        Ok(())
+    }
+
+    pub fn with_service_work(mut self, meter: crate::execution::ServiceWork) -> Self {
+        self.service_work = Some(meter);
+        self
+    }
+
     pub fn new<P: a::Provider>(
         layouts: &'l l::Layouts<'t>,
         key: o::Type,
@@ -261,6 +298,7 @@ impl<'l, 't> Map<'l, 't> {
             key,
             value,
             owner: Some(owner),
+            service_work: None,
         })
     }
     fn plan(&self, capacity: u64) -> Result<Plan, Error> {
@@ -423,7 +461,10 @@ impl<'l, 't> Map<'l, 't> {
         allocator: &a::Allocator<P>,
     ) -> Result<Option<Entry>, Error> {
         let h = self.inspect(allocator)?;
-        let mut work = Work { left: h.work };
+        let mut work = Work {
+            left: h.work,
+            service_work: self.service_work.clone(),
+        };
         let needle = self.compared(key, &mut work, allocator)?;
         for index in 0..h.len {
             work.charge(1)?;
@@ -470,6 +511,7 @@ impl<'l, 't> Map<'l, 't> {
         Ok(View {
             value: self.element(h, entry.index, Part::Value)?,
             allocator,
+            service_work: self.service_work.clone(),
         })
     }
     pub(crate) fn observation<P: a::Provider>(
@@ -545,10 +587,20 @@ impl<'l, 't> Map<'l, 't> {
             return Err(a::Error::Overflow.into());
         }
         let mut next = h;
+        let copied = [
+            self.layouts.get(self.key).unwrap().service_copy_work(),
+            self.layouts.get(self.value).unwrap().service_copy_work(),
+        ];
         if len > h.capacity {
             let capacity = h.capacity.saturating_mul(2).min(i64::MAX as u64).max(len);
             let p = self.plan(capacity)?;
             allocator.check(&p.requests)?;
+            self.charge(&[
+                mul(h.len, p.key_stride)?,
+                mul(h.len, p.value_stride)?,
+                copied[0],
+                copied[1],
+            ])?;
             let metadata = allocator.allocate(p.requests[0])?;
             let keys = match allocator.allocate(p.requests[1]) {
                 Ok(h) => h,
@@ -590,6 +642,9 @@ impl<'l, 't> Map<'l, 't> {
                 metadata: Some(metadata),
                 ..h
             };
+        }
+        if len <= h.capacity {
+            self.charge(&copied)?;
         }
         for (cell, part, ty) in [(key, Part::Key, self.key), (value, Part::Value, self.value)] {
             let to = self.element(next, h.len, part)?;
@@ -652,6 +707,7 @@ impl<'l, 't> Map<'l, 't> {
             key,
             value,
             owner,
+            service_work: None,
         };
         map.inspect(allocator)?;
         bytes.fill(0);

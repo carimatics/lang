@@ -95,6 +95,8 @@ Opaqueなtrusted host callbackはhost-call課金を残し、引数から任意wo
 
 計量付きbuffer entry pointは追加APIで、既存buffer methodは課金しないhost／cleanup用の挙動を維持します。BufferのFault::ServiceWorkが共通の構造化failureを保持するため、Faultを全列挙するRust matchにはこの分岐が必要です。この段階では新しいserialized表現を追加しません。
 
+Managed serviceは、同期的な1 invocationでRc／Cellを共有するServiceWork handleを任意に保持します。このhandleを保持する準備済みVec／Map／shared／arena service、登録済みloanとviewは、任意のmeterが未設定の場合もSend／Syncではなくなります。Rustの埋め込み側は実行thread上でcontextを構築してください。割り込みflagは独立したatomicによるthread間通知の契約を維持します。既存の非計量methodはtrusted host処理と必須cleanupに引き続き利用できます。Runtime error enumには構造化service-work variantとsource chainを追加するため、全列挙するRust matchは対応が必要です。これらはRust APIの変更で、source language・serialized format・C ABIの変更ではありません。
+
 既存identityを流用せず、数値付きServiceWorkLimitを共通の動的failure domainへ追加します。現在のartifactはfailure elaboration前のdataを保存し、動的execution causeを含みません。N05でserializerを再監査し、新usage／errorをencodeするversion付きreport／interfaceにはformat更新かsupport negotiationと移行fixtureを要求します。同じ閉じたschema versionへtag／fieldを追加してはいけません。Private revision-1 native packetは不変で、Rust context layoutは公開C ABIではありません。FFI／component mappingのversionは独立です。
 
 ## 診断とツール
@@ -123,7 +125,7 @@ Fuel・memory・局所inspection quotaを補完し、CPU work全体、allocator�
 2. N16でmeter／builder／usage／failure data、N17でbuffer計量、N18でCLI設定とreport format監査を追加する。N05で全managed serviceを局所quotaを残して接続する。未完のunitは有限設定を拒否する。
 3. N05で全成功／拒否／panic／cleanupと移行を検証する。N06／N07の実target object link／runも必要なままで、frontend／backend結合や新serialized IRは導入しない。
 
-実装状況（2026-10-19 JST）：N16／N17／N18の部分成果を実装し、source／artifact／REPLのCLIで有限予算を利用できます。CLIのoptionは実行contextだけに存在し、artifactのCopy schema 1／ownership schema 2に新tag／fieldを追加しません。REPL failureは既存のRust値で数値を保持し、versionを持たない表示にusageを追加します。新しいversion付きreport encodingは導入しません。N05のmanaged family全体、native driver／object実行と全体conformanceは未完で、本RFCはacceptedのままです。
+実装状況（2026-10-19 JST）：N16／N17／N18とN05で、現在のowned VMとcanonical nativeの全service familyを計量します。Invocation共通counterがguest call／loan／view間を通り、構造化拒否と非課金のretirementで数値とcleanupを保持します。24件のsourceで有限workの全prefixを比較し、他control／provider failureとの組み合わせ、guest panic、secondary cleanup、局所quota、source／artifact CLIも検証します。CLI設定は実行時のみです。Copy schema 1／ownership schema 2のartifact、versionを持たないREPL表示、private revision-1 native packetにwire field／tagを追加しません。Native driver／target実行とplatform性能はN06／N07と後続gateに残るため、本RFCはその境界の確認までacceptedを維持します。
 
 ## テスト計画
 
@@ -136,13 +138,13 @@ Fuel・memory・局所inspection quotaを補完し、CPU work全体、allocator�
 
 ## 未解決事項
 
-任意の後続課題はevent check overheadの測定と将来のcost profileです。N05で全eventとrollbackを検証してから実装完了とし、Map 20 testは実現性の裏付けに限定します。
+任意の後続課題はrelease modeでのoverhead測定と将来のcost profileです。手動testのmanaged_service_budget_timing_observationはcompile済みのVec／Text／shared／arena混在programを再利用し、228 work単位を計上します。Warmup 2回後に16 invocationを5 sample測定したdebug profileの中央値は、VM無制限4.663 ms／有限4.652 ms、native無制限4.644 ms／有限4.593 msでした。Invocationごとのstorage／teardownを含み、source／nativeのcompileを除きます。Usageの安定性を確認する観測であり、meterのoverhead、速度優位、Rust／C比較、platform性能は示しません。Raw timingの情報源：/tmp/lang-n05-timing.log、2026-10-19 JST確認。
 
 ## 判断レビュー
 
 2026-10-19 JST、実験段階の委任に基づきacceptedとしました。Blockingな設計課題はありません。共通runtime eventで式の分岐を防ぎ、局所check後にcounterをcommitし、既知のgrow／copy依存costをhandle変更前にまとめてadmitし、terminal failure後も必須cleanupを行えます。Rustの移行と閉じたschemaの規則により、source型やfuelを変えずに互換性を扱います。
 
-未検証の仮説は全eventの網羅、全仮resource経路の安全な統合、overheadの測定です。N05で検証し、実装完了／安定化は主張しません。既存Map testは実現性の裏付けに限定します。後で契約を変更する場合は、実装前に明示的なRFC改訂／後続RFCを行います。
+現在のconformanceは記載したowned profileのevent／拒否／rollback挙動を確認します。Release modeのoverhead、linked target driver、platform実行は未検証の境界に残ります。後からcost契約を変える場合は、引き続き実装前に明示的なRFC改訂／後続RFCが必要です。
 
 ### 受理条件の改訂 — 2026-10-19
 
@@ -161,3 +163,4 @@ N05のruntime監査中、実験段階の委任に基づきacceptedとしまし�
 - [Map storage test](../../../crates/runtime/tests/support/map_storage.rs)、[mutation拒否test](../../../crates/runtime/tests/support/map_mutation_failures.rs)：最終commit 2026-10-18。着手前command cargo test -p lang-runtime --test map：20件成功、0.06秒。
 - [Failure domain](../../../crates/mir/src/unit/ownership/failure.rs)、[artifact codec](../../../src/artifact.rs)：最終commit 2026-10-18。N05でserializerを再監査します。
 - [CLI](../../../src/main.rs)、[REPL transport](../../../src/repl/owned.rs)、[CLI conformance](../../../tests/service_work_cli.rs)：2026-10-19更新・確認。N18は既存source／artifact／REPLの設定・report面を監査し、native／managed全体や将来のwire formatのconformance完了は示しません。
+- [Managed計量](../../../crates/runtime/src/execution.rs)、[型付きtransfer](../../../crates/runtime/src/layout/storage/transfer.rs)、[VM adapter](../../../crates/vm/src/unit/owned.rs)、[native conformance](../../../tests/support/native_control.rs)、[managed Textの例](../../../examples/analysis/native_managed_text_work.lang)：2026-10-19更新・確認。N05監査で数値付きusage／failureが実行時のみで、現在のartifactとprivate packetのschemaを変えないことを確認しました。

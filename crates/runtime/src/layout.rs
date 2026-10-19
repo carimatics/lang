@@ -23,6 +23,7 @@ pub(crate) const WORK_ENTRY: u64 = 40;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
+    ServiceWork(crate::execution::Failure),
     Resource {
         error: m::Error,
         span: Option<m::Span>,
@@ -54,7 +55,14 @@ impl Display for Error {
         write!(f, "invalid managed value layout: {self:?}")
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ServiceWork(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 impl From<m::Error> for Error {
     fn from(value: m::Error) -> Self {
         Self::Resource {
@@ -106,6 +114,16 @@ pub struct Layout {
     pub kind: Kind,
 }
 impl Layout {
+    /// Profile-1 cost of one typed core-service transfer. A standalone token
+    /// transfers a fixed handle; inline typed storage copies its full extent.
+    /// Separate initialization/retirement metadata is never payload data.
+    pub fn service_copy_work(&self) -> u64 {
+        if matches!(&self.kind, Kind::Token(_)) {
+            0
+        } else {
+            self.size
+        }
+    }
     pub fn storage_requests(&self) -> Result<[allocation::Request; 2], Error> {
         let metadata = add(self.metadata_bytes, mul(self.work_slots, WORK_ENTRY)?)?;
         Ok([

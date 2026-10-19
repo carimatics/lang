@@ -1,0 +1,39 @@
+// The same Text payload crosses collection, shared and arena service views.
+struct Label { text: core::Text }
+
+fn main() -> i64 { return vector() + shared_value() + arena_value(); }
+
+fn key() -> core::Text {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, 65));
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes));
+}
+
+fn vector() -> i64 {
+    let mut values: core::Vec<core::Text> = core::result_unwrap::<core::Vec<core::Text>, core::AllocError>(core::vec_new::<core::Text>(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<core::Text>(values, key()));
+    match core::vec_get::<core::Text>(values, 0) {
+        core::Result::Ok(text) => { return core::text_len(text); },
+        core::Result::Err(_) => { return -1; },
+    }
+}
+
+fn shared_value() -> i64 {
+    let mut owner: shared Label = core::result_unwrap::<shared Label, core::OwnershipError>(core::shared_new::<Label>(core::allocator(), Label { text: key() }));
+    let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::OwnershipError>(core::shared_replace::<Label>(owner, Label { text: key() }));
+    match core::shared_read::<Label>(owner) {
+        core::Result::Ok(value) => { return core::text_len(value.text); },
+        core::Result::Err(_) => { return -2; },
+    }
+}
+
+fn arena_value() -> i64 {
+    arena graph(core::allocator()) {
+        let mut owner: arena Label = core::result_unwrap::<arena Label, core::ArenaError>(core::arena_new::<Label>(graph, Label { text: key() }));
+        let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::ArenaError>(core::arena_replace::<Label>(graph, owner, Label { text: key() }));
+        match core::arena_read::<Label>(graph, owner) {
+            core::Result::Ok(value) => { return core::text_len(value.text); },
+            core::Result::Err(_) => { return -3; },
+        }
+    }
+}

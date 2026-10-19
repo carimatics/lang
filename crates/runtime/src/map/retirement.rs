@@ -24,6 +24,7 @@ impl<'l, 't> Map<'l, 't> {
                 key: self.key,
                 value: self.value,
                 owner: self.owner.take(),
+                service_work: None,
             },
             header: h,
             index: h.tail,

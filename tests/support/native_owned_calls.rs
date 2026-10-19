@@ -17,6 +17,13 @@ mod values;
 mod vectors;
 use lang_runtime::execution as e;
 use n::{CallSite, CompiledProgram, Transition};
+fn service_invariant<T: std::error::Error + 'static>(error: T) -> c::Cause {
+    c::Cause::Execution(
+        e::service_failure(&error)
+            .map(Into::into)
+            .unwrap_or(c::ExecutionFailure::Invariant),
+    )
+}
 
 #[derive(Clone, Copy)]
 struct Physical {
@@ -85,7 +92,7 @@ impl Store<'_, '_> {
         result.map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))
     }
 }
-struct Drain<'s, 'a, 'l>(&'s RefCell<Store<'a, 'l>>);
+struct Drain<'s, 'a, 'l>(&'s RefCell<Store<'a, 'l>>, e::ServiceWork);
 impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
     fn cleanup(
         &mut self,
@@ -93,6 +100,9 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
         _: c::Reason,
         context: &mut c::Context<'_>,
     ) -> Result<(), u32> {
+        let meter = self.1.clone();
+        meter.unmetered(|| {
+
         let mut storage = self.0.borrow_mut();
         let physical = match ticket {
             Ticket::Loan(id) => {
@@ -225,6 +235,8 @@ impl c::Cleaner<Ticket> for Drain<'_, '_, '_> {
         })
         .map_err(|_| 96u32)?;
         cell.recycle(allocator).map_err(|_| 97u32)
+
+        })
     }
 }
 #[derive(Clone, Copy)]
@@ -252,20 +264,12 @@ struct Unit<'i, 's, 'a, 'l> {
     handle: u64,
     pending: Option<Transition>,
     published: bool,
-    service_metering: bool,
+    service_work: e::ServiceWork,
 }
 impl Unit<'_, '_, '_, '_> {
     fn work(&mut self) -> impl FnMut(u64) -> Result<(), e::Failure> + '_ {
-        let control = self.control;
-        let enabled = self.service_metering;
-        let usage = &mut self.usage;
-        move |cost| {
-            if enabled {
-                control.charge_service_work(usage, cost)
-            } else {
-                Ok(())
-            }
-        }
+        let meter = self.service_work.clone();
+        move |cost| meter.charge(cost)
     }
 
     fn depth(&self) -> usize {
@@ -549,7 +553,7 @@ impl Runtime for Unit<'_, '_, '_, '_> {
             } = &mut *state;
             pools[depth]
                 .admit(target.frame(), allocator)
-                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Fault))?;
+                .map_err(|_| c::Cause::Execution(c::ExecutionFailure::AllocationLimit))?;
         }
         let caller_layout = self
             .program
@@ -907,6 +911,7 @@ fn execute_controlled<'l>(
     let trace = Rc::new(RefCell::new(Trace::default()));
     trace.borrow_mut().interrupt = interrupt;
     let mut allocator = a::Allocator::new(Provider(trace.clone()), Default::default()).unwrap();
+    let service_work = e::ServiceWork::new(control.service_work_limit());
     let heap = if types.table().constructed.iter().any(|ty| {
         matches!(
             ty.constructor,
@@ -921,7 +926,7 @@ fn execute_controlled<'l>(
         )
         .unwrap();
         usage = heap.usage();
-        Some(heap)
+        Some(heap.with_service_work(service_work.clone()))
     } else {
         None
     };
@@ -946,7 +951,8 @@ fn execute_controlled<'l>(
                 )
                 .unwrap();
                 usage = prepared.usage();
-                arena[depth * stride + cell] = Some(prepared);
+                arena[depth * stride + cell] =
+                    Some(prepared.with_service_work(service_work.clone()));
                 has_arena = true;
             }
         }
@@ -1008,7 +1014,7 @@ fn execute_controlled<'l>(
                 scopes: max_frames,
                 failure_records: 128,
             },
-            Drain(&store),
+            Drain(&store, service_work.clone()),
         )
         .unwrap();
     let mut stack = Vec::with_capacity(max_frames);
@@ -1035,12 +1041,14 @@ fn execute_controlled<'l>(
         handle: 1,
         pending: None,
         published: false,
-        service_metering: e::service_work_supported(flow),
+        service_work,
     });
     let result = program.invoke(entry, &mut instance);
+    let final_work = instance.runtime().service_work.clone();
     assert_eq!(instance.runtime().published, result.is_ok());
     assert_eq!(instance.is_poisoned(), refuse_cleanup, "{result:?}");
-    let usage = instance.runtime().usage;
+    let mut usage = instance.runtime().usage;
+    usage.service_work = instance.runtime().service_work.used();
     let fuel = usage.fuel;
     let peak = usage.peak_frames;
     let peak_cells = usage.peak_live_cells;
@@ -1057,80 +1065,82 @@ fn execute_controlled<'l>(
     };
     drop(instance);
     let mut state = store.into_inner();
-    assert!(
-        state.loans.iter().all(|loan| loan.target.is_none()
-            && loan.vector_read.is_none()
-            && loan.map_read.is_none()
-            && loan.shared_read.is_none()
-            && loan.custody.is_none()
-            && loan.arena_read.is_none()),
-        "all registrations retire before frame release"
-    );
-    assert!(
-        state.arena_live.iter().all(|live| !live),
-        "every arena owner retires before frame release"
-    );
-    assert!(
-        state.prepared.iter().all(Option::is_none),
-        "all captures retire before frame release"
-    );
-    let mut scalar = None;
-    let value = completion.value.and_then(|ticket| {
-        let physical = ticket.physical().unwrap();
-        assert_eq!(
-            (physical.frame, physical.cell),
-            (0, root.frame().return_cell())
+    final_work.unmetered(|| {
+        assert!(
+            state.loans.iter().all(|loan| loan.target.is_none()
+                && loan.vector_read.is_none()
+                && loan.map_read.is_none()
+                && loan.shared_read.is_none()
+                && loan.custody.is_none()
+                && loan.arena_read.is_none()),
+            "all registrations retire before frame release"
         );
-        if root.frame().cell_type(physical.cell).unwrap().ty == m::ownership::Type::I64 {
-            let cell = state.pools[0].cell(physical.cell).unwrap();
-            let l::Immediate::I64(value) =
-                cell.read_immediate(cell.root(), state.allocator).unwrap()
-            else {
-                panic!("i64 result")
-            };
-            scalar = Some(value);
-            return None;
+        assert!(
+            state.arena_live.iter().all(|live| !live),
+            "every arena owner retires before frame release"
+        );
+        assert!(
+            state.prepared.iter().all(Option::is_none),
+            "all captures retire before frame release"
+        );
+        let mut scalar = None;
+        let value = completion.value.and_then(|ticket| {
+            let physical = ticket.physical().unwrap();
+            assert_eq!(
+                (physical.frame, physical.cell),
+                (0, root.frame().return_cell())
+            );
+            if root.frame().cell_type(physical.cell).unwrap().ty == m::ownership::Type::I64 {
+                let cell = state.pools[0].cell(physical.cell).unwrap();
+                let l::Immediate::I64(value) =
+                    cell.read_immediate(cell.root(), state.allocator).unwrap()
+                else {
+                    panic!("i64 result")
+                };
+                scalar = Some(value);
+                return None;
+            }
+            let mut token: [u8; 32] = state.pools[0]
+                .cell(physical.cell)
+                .unwrap()
+                .data(state.allocator)
+                .unwrap()
+                .try_into()
+                .unwrap();
+            let mut value = buffer::Bytes::from_token(&mut token, state.allocator).unwrap();
+            state.pools[0]
+                .cell(physical.cell)
+                .unwrap()
+                .data_mut(state.allocator)
+                .unwrap()
+                .fill(0);
+            let bytes = value.as_slice(state.allocator).unwrap().to_vec();
+            value.release(state.allocator).unwrap();
+            Some(bytes)
+        });
+        state.pools[0].release(state.allocator).unwrap();
+        if let Some(heap) = &mut state.heap
+            && heap.is_open()
+        {
+            heap.close(state.allocator).unwrap();
         }
-        let mut token: [u8; 32] = state.pools[0]
-            .cell(physical.cell)
-            .unwrap()
-            .data(state.allocator)
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let mut value = buffer::Bytes::from_token(&mut token, state.allocator).unwrap();
-        state.pools[0]
-            .cell(physical.cell)
-            .unwrap()
-            .data_mut(state.allocator)
-            .unwrap()
-            .fill(0);
-        let bytes = value.as_slice(state.allocator).unwrap().to_vec();
-        value.release(state.allocator).unwrap();
-        Some(bytes)
-    });
-    state.pools[0].release(state.allocator).unwrap();
-    if let Some(heap) = &mut state.heap
-        && heap.is_open()
-    {
-        heap.close(state.allocator).unwrap();
-    }
-    assert_eq!(state.allocator.stats().live_allocations, 0);
-    let trace = trace.borrow();
-    assert_eq!(trace.allocated, trace.released);
-    Seen {
-        value,
-        scalar,
-        retired: state.retired,
-        fuel,
-        peak,
-        peak_cells,
-        failure: result.err(),
-        report: completion.report,
-        requests: trace.requests - initial_requests,
-        total_requests: trace.requests,
-        usage,
-    }
+        assert_eq!(state.allocator.stats().live_allocations, 0);
+        let trace = trace.borrow();
+        assert_eq!(trace.allocated, trace.released);
+        Seen {
+            value,
+            scalar,
+            retired: state.retired,
+            fuel,
+            peak,
+            peak_cells,
+            failure: result.err(),
+            report: completion.report,
+            requests: trace.requests - initial_requests,
+            total_requests: trace.requests,
+            usage,
+        }
+    })
 }
 
 const CALLS: &str = include_str!("../../examples/analysis/native_owned_calls.lang");

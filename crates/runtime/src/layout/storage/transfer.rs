@@ -13,6 +13,16 @@ impl Reservation<'_, '_> {
         span: m::Span,
         allocator: &mut Allocator<P>,
     ) -> Result<Option<m::Span>, Error> {
+        self.exchange_root_at_with_service_work(target, incoming, span, allocator, None)
+    }
+    pub fn exchange_root_at_with_service_work<P: Provider>(
+        &mut self,
+        target: Location,
+        incoming: &mut Self,
+        span: m::Span,
+        allocator: &mut Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<Option<m::Span>, Error> {
         let output = self.validate_location(target)?;
         let source = incoming.validate_location(incoming.root())?;
         if !std::ptr::eq(self.layouts.types, incoming.layouts.types)
@@ -26,6 +36,7 @@ impl Reservation<'_, '_> {
         if !self.layouts.span_valid(span) {
             return Err(Error::InvalidSpan);
         }
+        let copied = [output.service_copy_work(), source.service_copy_work()];
         let size = output.size as usize;
         let metadata = output.metadata_bytes as usize;
         let offset = target.offset as usize;
@@ -93,6 +104,9 @@ impl Reservation<'_, '_> {
                 parent_order = Some((entry, end, parent.field, old_span));
             }
         }
+        if let Some(meter) = meter {
+            meter.charge_batch(&copied).map_err(Error::ServiceWork)?;
+        }
         allocator.swap_bytes(self.data, offset, incoming.data, 0, size)?;
         allocator.swap_bytes(self.metadata, meta_offset, incoming.metadata, 0, metadata)?;
         if let Some((entry, end, field, old_span)) = parent_order {
@@ -119,7 +133,16 @@ impl Reservation<'_, '_> {
         target: Location,
         allocator: &mut Allocator<P>,
     ) -> Result<(), Error> {
-        self.transfer_into(self.root(), destination, target, allocator)
+        self.move_root_into_with_service_work(destination, target, allocator, None)
+    }
+    pub fn move_root_into_with_service_work<P: Provider>(
+        &mut self,
+        destination: &Self,
+        target: Location,
+        allocator: &mut Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<(), Error> {
+        self.transfer_into(self.root(), destination, target, allocator, meter)
     }
 
     /// Consume a whole Option/Result and transfer its sole expected payload.
@@ -145,16 +168,28 @@ impl Reservation<'_, '_> {
             return Err(Error::InvalidCase(actual));
         }
         let payload = self.child(root, 0, allocator)?;
-        self.transfer_into(payload, destination, destination.root(), allocator)
+        self.transfer_into(payload, destination, destination.root(), allocator, None)
     }
 
-    fn transfer_into<P: Provider>(
-        &mut self,
+    /// Preflight a typed transfer without consuming either obligation.
+    pub fn transfer_work<P: Provider>(
+        &self,
         from: Location,
         destination: &Self,
         target: Location,
-        allocator: &mut Allocator<P>,
-    ) -> Result<(), Error> {
+        allocator: &Allocator<P>,
+    ) -> Result<u64, Error> {
+        Ok(self
+            .transfer_ranges(from, destination, target, allocator)?
+            .2)
+    }
+    fn transfer_ranges<P: Provider>(
+        &self,
+        from: Location,
+        destination: &Self,
+        target: Location,
+        allocator: &Allocator<P>,
+    ) -> Result<(u64, u64, u64), Error> {
         let source = self.validate_location(from)?;
         let output = destination.validate_location(target)?;
         if !std::ptr::eq(self.layouts.types, destination.layouts.types)
@@ -167,6 +202,7 @@ impl Reservation<'_, '_> {
         }
         let size = source.size;
         let metadata = source.metadata_bytes;
+        let copied = source.service_copy_work();
         for (handle, offset, size) in [
             (self.data, from.offset, size),
             (destination.data, target.offset, size),
@@ -177,6 +213,21 @@ impl Reservation<'_, '_> {
             if end > allocator.bytes(handle)?.len() {
                 return Err(Error::State);
             }
+        }
+        Ok((size, metadata, copied))
+    }
+    fn transfer_into<P: Provider>(
+        &mut self,
+        from: Location,
+        destination: &Self,
+        target: Location,
+        allocator: &mut Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<(), Error> {
+        let (size, metadata, copied) =
+            self.transfer_ranges(from, destination, target, allocator)?;
+        if let Some(meter) = meter {
+            meter.charge(copied).map_err(Error::ServiceWork)?;
         }
         // Dry-run the entire active source shape before publishing any bytes.
         // This validates nested tags/order flags using its admitted work area.

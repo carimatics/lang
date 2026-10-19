@@ -1,4 +1,6 @@
 //! Shared polling, charging and usage contract for instrumented execution.
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
@@ -117,6 +119,56 @@ pub struct Usage {
     pub peak_live_cells: usize,
 }
 
+/// One synchronous invocation's service counter. Clones forward the same
+/// counter through prepared services and guest calls; independent constructors
+/// remain isolated. Construct before guest entry, without ambient state.
+/// Prepared services and views retaining this counter are synchronous and
+/// neither `Send` nor `Sync`; create them on their execution thread.
+#[derive(Clone, Debug)]
+pub struct ServiceWork(Rc<ServiceCounter>);
+#[derive(Debug)]
+struct ServiceCounter {
+    control: Control<'static>,
+    usage: Cell<Usage>,
+    suspended: Cell<bool>,
+}
+impl ServiceWork {
+    pub fn new(limit: Option<u64>) -> Self {
+        Self(Rc::new(ServiceCounter {
+            control: Control::with_limits(Limits::unbounded()).and_service_work(limit),
+            usage: Cell::new(Usage::default()),
+            suspended: Cell::new(false),
+        }))
+    }
+    pub fn used(&self) -> u64 {
+        self.0.usage.get().service_work
+    }
+    pub fn charge(&self, requested: u64) -> Result<(), Failure> {
+        self.charge_batch(&[requested])
+    }
+    pub fn charge_batch(&self, events: &[u64]) -> Result<(), Failure> {
+        if self.0.suspended.get() {
+            return Ok(());
+        }
+        let mut usage = self.0.usage.get();
+        self.0.control.charge_service_batch(&mut usage, events)?;
+        self.0.usage.set(usage);
+        Ok(())
+    }
+    /// Mandatory cleanup and trusted post-execution inspection do not consume
+    /// guest service work. Restore the prior scope even if its callback panics.
+    pub fn unmetered<T>(&self, operation: impl FnOnce() -> T) -> T {
+        struct Restore<'a>(&'a Cell<bool>, bool);
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.1);
+            }
+        }
+        let _restore = Restore(&self.0.suspended, self.0.suspended.replace(true));
+        operation()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
     Interrupted,
@@ -130,6 +182,24 @@ pub enum Failure {
         requested: u64,
     },
 }
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "execution control failed: {self:?}")
+    }
+}
+impl std::error::Error for Failure {}
+
+/// Recover a structured control refusal through runtime service error layers.
+pub fn service_failure(error: &(dyn std::error::Error + 'static)) -> Option<Failure> {
+    let mut cause = Some(error);
+    while let Some(error) = cause {
+        if let Some(failure) = error.downcast_ref::<Failure>() {
+            return Some(*failure);
+        }
+        cause = error.source();
+    }
+    None
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct UnsupportedServiceWork {
@@ -140,37 +210,61 @@ pub struct UnsupportedServiceWork {
 /// operation families may participate in a finite-budget program.
 pub fn service_work_supported(flow: &lang_mir::unit::ownership::failure::Elaborated) -> bool {
     use lang_mir::unit::ownership::{bodies::Op, core::Operation as C};
-    let typed = flow.source().activity().moved().typed();
-    typed.functions().iter().all(|function| {
-        function.blocks.iter().all(|block| {
-            block
-                .instructions
-                .iter()
-                .all(|instruction| match &instruction.op {
-                    Op::CoreCall(call) => {
-                        call.operation.extraction().is_some()
-                            || matches!(
-                                call.operation,
-                                C::Allocator
-                                    | C::BytesNew
-                                    | C::BytesLen
-                                    | C::BytesGet
-                                    | C::BytesSet
-                                    | C::BytesPush
-                                    | C::BytesClone
-                                    | C::TextFromUtf8
-                                    | C::TextLen
-                                    | C::TextEqual
-                                    | C::TextClone
-                                    | C::TextBytes
-                                    | C::TextConcat
-                            )
-                    }
-                    Op::ArenaEnter { .. } | Op::ArenaExit { .. } => false,
-                    _ => true,
-                })
+    flow.source()
+        .activity()
+        .moved()
+        .typed()
+        .functions()
+        .iter()
+        .all(|function| {
+            function.blocks.iter().all(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .all(|instruction| match &instruction.op {
+                        Op::CoreCall(call) => match call.operation {
+                            C::Allocator
+                            | C::TextFromUtf8
+                            | C::TextClone
+                            | C::TextLen
+                            | C::TextBytes
+                            | C::TextEqual
+                            | C::TextConcat
+                            | C::BytesNew
+                            | C::BytesClone
+                            | C::BytesLen
+                            | C::BytesGet
+                            | C::BytesPush
+                            | C::BytesSet
+                            | C::VecNew
+                            | C::VecLen
+                            | C::VecPush
+                            | C::VecPop
+                            | C::VecGet
+                            | C::VecGetMut
+                            | C::MapNew
+                            | C::MapLen
+                            | C::MapInsert
+                            | C::MapGet
+                            | C::MapRemove
+                            | C::SharedNew
+                            | C::SharedClone
+                            | C::SharedRead
+                            | C::SharedReplace
+                            | C::WeakNew
+                            | C::WeakClone
+                            | C::WeakUpgrade
+                            | C::ArenaNew
+                            | C::ArenaRead
+                            | C::ArenaReplace
+                            | C::OptionUnwrap
+                            | C::ResultUnwrap
+                            | C::ResultUnwrapErr => true,
+                        },
+                        _ => true,
+                    })
+            })
         })
-    })
 }
 
 impl From<Failure> for crate::cleanup::ExecutionFailure {

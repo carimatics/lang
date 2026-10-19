@@ -123,14 +123,16 @@ fn collect<'l, 't, P: a::Provider>(
                     .map_err(|e| Error::new(Kind::Buffer(e)))?;
             }
             o::Constructor::Builtin(o::Builtin::Text) => {
-                let text = buffer::Text::from_token(&mut bytes, allocator)
-                    .map_err(|e| Error::new(Kind::Buffer(e)))?;
+                let text = buffer::Text::from_token_metered(&mut bytes, allocator, &mut |n| {
+                    work.service(n)
+                })
+                .map_err(|e| Error::new(Kind::Buffer(e)))?;
                 let length = usize::try_from(
                     text.len(allocator)
                         .map_err(|e| Error::new(Kind::Buffer(e)))?,
                 )
                 .map_err(|_| Error::new(Kind::State))?;
-                work.charge(length)?;
+                work.charge_event(length, length as u64)?;
                 text.as_str(allocator)
                     .map_err(|e| Error::new(Kind::Buffer(e)))?;
             }
@@ -174,7 +176,12 @@ impl<'l, 't> Heap<'l, 't> {
                 .as_mut()
                 .unwrap()
                 .block
-                .replace_copy(input, span, allocator)?;
+                .replace_copy_with_service_work(
+                    input,
+                    span,
+                    allocator,
+                    self.service_work.as_ref(),
+                )?;
             Ok(())
         })();
         result.map_err(|e: Error| e.at(Some(span)))
@@ -276,7 +283,7 @@ impl<'l, 't> Heap<'l, 't> {
             self.seen[incoming.node] = true;
             self.graph.push(incoming.node);
             while let Some(node) = self.graph.pop() {
-                work.charge(1)?;
+                work.charge_event(1, 1)?;
                 self.existing(node, false, allocator, work)?;
                 for edge in &self.found {
                     work.charge(1)?;
@@ -345,7 +352,12 @@ impl<'l, 't> Heap<'l, 't> {
                 .as_mut()
                 .unwrap()
                 .block
-                .replace_from(input, span, allocator)?;
+                .replace_from_with_service_work(
+                    input,
+                    span,
+                    allocator,
+                    self.service_work.as_ref(),
+                )?;
             self.mark(&self.old_edges, 0, allocator)?;
             self.mark(&self.incoming, index as u64 + 1, allocator)?;
             Ok(old)

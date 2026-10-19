@@ -43,7 +43,14 @@ impl Display for Error {
         write!(f, "shared storage failure: {self:?}")
     }
 }
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Layout(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Counts {
@@ -146,8 +153,17 @@ impl Retired<'_, '_> {
 /// Checked read surface; structural locations cannot expose mutable payloads.
 pub struct View<'b, 'l, 't> {
     payload: &'b l::Reservation<'l, 't>,
+    service_work: Option<crate::execution::ServiceWork>,
 }
 impl<'l, 't> View<'_, 'l, 't> {
+    pub(crate) fn with_service_work(
+        mut self,
+        meter: Option<crate::execution::ServiceWork>,
+    ) -> Self {
+        self.service_work = meter;
+        self
+    }
+
     pub(crate) fn reservation(&self) -> &l::Reservation<'l, 't> {
         self.payload
     }
@@ -156,7 +172,8 @@ impl<'l, 't> View<'_, 'l, 't> {
         location: l::Location,
         allocator: &a::Allocator<P>,
     ) -> Result<l::Token, l::Error> {
-        self.payload.read_token(location, allocator)
+        self.payload
+            .read_token_with_service_work(location, allocator, self.service_work.as_ref())
     }
     pub fn initialized_field<P: a::Provider>(
         &self,
@@ -173,7 +190,13 @@ impl<'l, 't> View<'_, 'l, 't> {
         target: l::Location,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), l::Error> {
-        destination.copy_from(target, self.payload, location, allocator)
+        destination.copy_from_with_service_work(
+            target,
+            self.payload,
+            location,
+            allocator,
+            self.service_work.as_ref(),
+        )
     }
     pub fn root(&self) -> l::Location {
         self.payload.root()
@@ -197,7 +220,11 @@ impl<'l, 't> View<'_, 'l, 't> {
         location: l::Location,
         allocator: &a::Allocator<P>,
     ) -> Result<l::Immediate, l::Error> {
-        self.payload.read_immediate(location, allocator)
+        self.payload.read_immediate_with_service_work(
+            location,
+            allocator,
+            self.service_work.as_ref(),
+        )
     }
     pub fn case<P: a::Provider>(
         &self,
@@ -216,7 +243,15 @@ impl<'l, 't> Block<'l, 't> {
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Self, Error> {
-        Self::allocate(input, span, allocator, false)
+        Self::allocate_from_with_service_work(input, span, allocator, None)
+    }
+    pub fn allocate_from_with_service_work<P: a::Provider>(
+        input: &mut l::Reservation<'l, 't>,
+        span: Option<m::Span>,
+        allocator: &mut a::Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<Self, Error> {
+        Self::allocate(input, span, allocator, false, meter)
     }
     /// Preserve a Copy operand; owning values require `allocate_from`.
     pub fn allocate_copy<P: a::Provider>(
@@ -224,13 +259,22 @@ impl<'l, 't> Block<'l, 't> {
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Self, Error> {
-        Self::allocate(input, span, allocator, true)
+        Self::allocate_copy_with_service_work(input, span, allocator, None)
+    }
+    pub fn allocate_copy_with_service_work<P: a::Provider>(
+        input: &mut l::Reservation<'l, 't>,
+        span: Option<m::Span>,
+        allocator: &mut a::Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<Self, Error> {
+        Self::allocate(input, span, allocator, true, meter)
     }
     fn allocate<P: a::Provider>(
         input: &mut l::Reservation<'l, 't>,
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
         copy: bool,
+        meter: Option<&crate::execution::ServiceWork>,
     ) -> Result<Self, Error> {
         let layouts = input.layouts();
         let ty = input.root().ty();
@@ -247,6 +291,11 @@ impl<'l, 't> Block<'l, 't> {
             .storage_requests()?;
         let control = a::Request::new(HEADER_BYTES, 8)?;
         allocator.check(&[control, requests[0], requests[1]])?;
+        if let Some(meter) = meter {
+            meter
+                .charge(layouts.get(ty).unwrap().service_copy_work())
+                .map_err(l::Error::ServiceWork)?;
+        }
         let header = allocator.allocate(control)?;
         let mut payload = match l::Reservation::allocate(layouts, ty, allocator) {
             Ok(payload) => payload,
@@ -318,6 +367,7 @@ impl<'l, 't> Block<'l, 't> {
         self.live(allocator)?;
         Ok(View {
             payload: self.payload.as_ref().ok_or(Error::State)?,
+            service_work: None,
         })
     }
     pub fn retain_strong<P: a::Provider>(
@@ -435,13 +485,28 @@ impl<'l, 't> Block<'l, 't> {
         span: m::Span,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Option<m::Span>, Error> {
+        self.replace_from_with_service_work(input, span, allocator, None)
+    }
+    pub fn replace_from_with_service_work<P: a::Provider>(
+        &mut self,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<Option<m::Span>, Error> {
         self.live(allocator)?;
         if self.counts(allocator)?.readers != 0 {
             return Err(Error::BorrowConflict);
         }
         let old = self.span(allocator)?;
         let payload = self.payload.as_mut().ok_or(Error::State)?;
-        payload.exchange_root_at(payload.root(), input, span, allocator)?;
+        payload.exchange_root_at_with_service_work(
+            payload.root(),
+            input,
+            span,
+            allocator,
+            meter,
+        )?;
         store_span(allocator.bytes_mut(self.identity()?)?, Some(span));
         Ok(old)
     }
@@ -451,6 +516,15 @@ impl<'l, 't> Block<'l, 't> {
         span: m::Span,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Error> {
+        self.replace_copy_with_service_work(input, span, allocator, None)
+    }
+    pub fn replace_copy_with_service_work<P: a::Provider>(
+        &mut self,
+        input: &l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+        meter: Option<&crate::execution::ServiceWork>,
+    ) -> Result<(), Error> {
         self.live(allocator)?;
         if self.counts(allocator)?.readers != 0 {
             return Err(Error::BorrowConflict);
@@ -459,7 +533,13 @@ impl<'l, 't> Block<'l, 't> {
         if !payload.layouts().span_valid(span) {
             return Err(l::Error::InvalidSpan.into());
         }
-        payload.copy_from(payload.root(), input, input.root(), allocator)?;
+        payload.copy_from_with_service_work(
+            payload.root(),
+            input,
+            input.root(),
+            allocator,
+            meter,
+        )?;
         store_span(allocator.bytes_mut(self.identity()?)?, Some(span));
         Ok(())
     }
