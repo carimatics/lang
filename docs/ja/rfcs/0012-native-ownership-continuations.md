@@ -7,7 +7,7 @@
 - ステータス: accepted
 - 著者: Codex、ownerの実験段階の委任に基づく
 - 作成日: 2026-10-18
-- 最終更新日: 2026-10-18
+- 最終更新日: 2026-10-19
 - Tracking issue: M2-N08、M2-N01〜N07、M2-G01〜G03
 - 置き換えるRFC: なし。RFC 0008のprivate native実行契約を具体化
 - 置き換えたRFC: なし
@@ -66,6 +66,18 @@ Inputのsize／alignmentは24／8です。Outputのsize／alignmentは16／8で�
 Status **0** は最外invocationのreturn、**1** は次の継続のdispatch、**2** は終端failureを表します。Output packetの公開はstatus 1のみです。Status 0／2はpacketを変更せず、結果と構造化failureはcontext所有storageに置きます。他のstatusは不正です。Calleeの成功returnはcallerへdispatchし、最外returnにはなりません。
 
 Packetを構築するのは信頼されたgatewayのみです。生成codeのcall前にprogram／context identity、生存frame identity、function／continuation境界、reservedのzero、instance poison状態、非再入を確認します。Dispatch前には、提案されたtarget全体をcontextの準備済み遷移と照合します。不正遷移は閉じた状態で失敗します。Sourceやdecode済みartifactは生pointerや権限を供給しません。生成entry guardは不正な継続をeffect前に拒否します。
+
+### 明示C import用のprivate revision 2
+
+RFC 0001の実験段階の委任に基づき、**2026-10-19 JST** に改訂を受理します。明示的なC対応ownership unitは **lang_owned_r2_f<function-index>** を使います。通常のownership unitはrevision 1と既存symbolを維持します。Revision 2でも、前述のinput／output packetのsize・field offset、2 pointer／i32 machine signature、終端／dispatch statusは同じで、外部C export署名ではありません。
+
+対応runtimeはrevision 1のhelper prefix（index 0–32の署名／意味／offset）を保ち、宣言済みC import用helperをindex **33** へ追加します。Revision 1 codeは元のprefixだけを参照するため、runtimeは拡張済みtableを保持したままrevision 1も実行できます。Revision 2のcode生成とfunction metadataはrevision 2 namespaceを使い、通常のrevision 1／object gatewayがそのsymbol名だけを受け入れてC実行を有効化してはいけません。
+
+新helperは静的に準備したimport identity、引数／result cell位置、source spanを受け取ります。RFC 0008のcontext gate越しに宣言済みforeign serviceを実行し、MIR control flowをdecodeしません。Guest／providerのeffect前に、実code owner、C metadata全体と明示grant、contextへ一度だけ結び付けた実accounting allocator、一致するcontrol／共有workを要求します。C値の完全な事前検査後にhost callを1回だけ計上し、raw foreign statusをguest panicやnative継続statusと分けて保持します。Sourceへ公開する前にresultを検証／copyし、通常のfailure cleanupとpoison規則を維持します。初期実装はscalar／Unit importに対応し、未対応import profile全体を作用前に拒否します。Aggregate importと外部export／AOT対応は引き続きM2要件です。
+
+根拠と代替案：C実行を拒否し続けてもM2を達成できず、operationをdecodeするlibrary経路はnative loweringを満たしません。Versionを変えずhelperを追加すると契約変更が隠れます。通常のrevision 1 unitを全て改名しても意味論は変わらず移行だけが増えます。Revision 1 prefixを保つ別のrevision 2 C対応namespaceにより、通常objectを維持しながら拡張を確認できます。C対応codeは対応runtimeと再buildし、過去に生成したcodeのlabelだけを変更しません。今後の非互換packet／status／helper／layout変更にも別途RFCとprivate revisionを要求します。C profile 1のdescriptor／digest／header、source構文、schema 1／2とそのC識別拒否は不変です。
+
+2026-10-19 JST確認の実現性evidence：生成typedefと照合したC compiler産callbackをsource VM／nativeから呼び42／59を返し、256引数で32,896を得ました。全有限fuel／work境界、foreign失敗、code／allocator provenanceも対象fixtureがあります。改訂前prototypeは判断根拠であり、最終revision 2やWindowsのevidenceではありません。Revision 2の再検証、native Windows／MSVC、汎用aggregate／export／factory統合と性能計測は未検証です。この改訂から性能や追加のsource／FFI権限は主張しません。
 
 ### 予約済みframeとruntime operation
 

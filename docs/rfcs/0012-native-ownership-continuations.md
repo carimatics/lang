@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-18
-- Last updated: 2026-10-18
+- Last updated: 2026-10-19
 - Tracking issue: M2-N08, M2-N01–N07, M2-G01–G03
 - Supersedes: None; elaborates RFC 0008's private native execution contract
 - Superseded by: None
@@ -66,6 +66,18 @@ Input size/alignment is 24/8. Output size/alignment is 16/8:
 Status **0** means the outer invocation returned; **1** dispatches the next continuation; **2** reports terminal failure. Only status 1 publishes an output packet. Status 0/2 leaves the packet untouched; results and structured failures reside in context-owned storage. No other status is valid. A callee's successful return dispatches its caller; it is not an outer return.
 
 Only the trusted gateway constructs packets. Before calling generated code it checks program/context identity, live frame identity, function/continuation bounds, zero reserved bits, instance poison state and non-reentrancy. Before dispatch it validates the complete proposed target against the context's prepared transition. Malformed transitions fail closed. Neither source nor decoded artifacts supply raw pointers or authority. Generated entry guards reject invalid continuations before effects.
+
+### Private revision 2 for explicit C imports
+
+Accepted amendment, **2026-10-19 JST**, under RFC 0001's experimental delegation. Explicit C-aware ownership units use **lang_owned_r2_f<function-index>**. Ordinary ownership units retain revision 1 and their existing symbols. Revision 2 preserves the input/output packet sizes, field offsets, two-pointer/i32 machine signature and terminal/dispatch statuses above; it is not an external C export signature.
+
+The matching runtime retains revision 1's helper prefix (indices 0–32, unchanged signatures/meanings/offsets) and appends the declared-C-import helper at index **33**. A runtime may retain this extended table while executing revision-1 code, which accesses only the original prefix. Revision-2 emission and function metadata use the revision-2 namespace; an ordinary revision-1/object gateway cannot enable C execution by accepting that symbol spelling alone.
+
+The new helper receives a statically prepared import identity, argument/result cell locations and source span. It performs the declared foreign service through the RFC 0008 context gate, not decoded MIR control flow. Before guest/provider effects, require the actual code owner, complete C metadata and explicit grants, the context's once-bound accounting allocator, and matching control/shared-work configuration. Charge one host call only after complete C value admission; preserve raw foreign status separately from guest panic and native continuation status. Validate/copy results before source publication and preserve ordinary failure cleanup and poison behavior. The first implementation supports scalar/Unit imports; unsupported complete import profiles reject before effects. Aggregate imports and external export/AOT support remain required M2 work.
+
+Rationale and alternatives: leaving C execution refused does not deliver M2; an operation-decoding library path does not satisfy native lowering. An unversioned extra helper hides a contract change. Renaming every ordinary revision-1 unit imposes migration without changing its semantics. A separate revision-2 C-aware namespace with a preserved revision-1 prefix makes the extension reviewable while retaining current ordinary objects. Rebuild C-aware code with its matching runtime; do not relabel previously emitted code. Future incompatible packet/status/helper/layout changes still require another RFC and private revision. C profile 1 descriptors/digests/headers, source syntax, schemas 1/2 and their C-identity refusal are unchanged.
+
+Feasibility evidence, verified 2026-10-19 JST: compiler-produced C callbacks checked against generated typedefs return 42/59 through source VM and native execution, and 32,896 across 256 parameters. Finite fuel/work prefixes, foreign failures and code/allocator provenance have focused fixtures. These pre-revision probes motivate the decision, not final revision-2 or Windows evidence. Fresh revision-2 checks, native Windows/MSVC execution, general aggregate/export/factory integration and performance measurements remain unverified. No performance claim or new source/FFI authority follows from this amendment.
 
 ### Prepared frames and runtime operations
 
