@@ -203,11 +203,15 @@ impl Library {
                 "echo_bad_unused" => {
                     "((unsigned char *)&out->payload)[sizeof(out->payload) - 1] = 1;"
                 }
-                "echo_failure" => "return UINT32_MAX;",
                 _ => "",
             };
             let copy = c_copy_fields(artifact, function.result, "(*value)", "(*out)");
-            code.push_str(&format!("\nEXPORT uint32_t c_{name}(lang_context *context, void *user, const lang_type_{digest} *value, lang_type_{digest} *out) {{ if (!context) return 1; ++((fixture_stats *)user)->effects; memset(out, 0xa5, sizeof(*out)); {copy} {extra} return 0; }}\n",digest=ty.digest));
+            let status = if name == "echo_failure" {
+                "UINT32_MAX"
+            } else {
+                "0"
+            };
+            code.push_str(&format!("\nEXPORT uint32_t c_{name}(lang_context *context, void *user, const lang_type_{digest} *value, lang_type_{digest} *out) {{ if (!context) return 1; ++((fixture_stats *)user)->effects; memset(out, 0xa5, sizeof(*out)); {copy} {extra} return {status}; }}\n",digest=ty.digest));
         }
         for function in artifact
             .functions()
@@ -265,7 +269,14 @@ impl Library {
                 .unwrap()
         } else {
             Command::new("cc")
-                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-dynamiclib"])
+                .args([
+                    "-std=c11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Wunreachable-code",
+                    "-Werror",
+                    "-dynamiclib",
+                ])
                 .arg(&source)
                 .arg("-o")
                 .arg(&library)
