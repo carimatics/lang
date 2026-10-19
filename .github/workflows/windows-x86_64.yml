@@ -22,7 +22,7 @@ jobs:
   windows-msvc:
     name: Windows Server 2025 / x86-64 MSVC
     runs-on: windows-2025
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
