@@ -10,21 +10,24 @@
 
 
 
-**次: M2-P01 → linker検出／出力先失敗の具体的な診断（2 pt、進行中）。F07は対応するWindows runを確認中。**
+**次: M2-V17 → collection／shared／weakの有限REPL表示（3 pt、進行中）。P01／F07はWindows全検証待ちです。**
 
 | 次の成果 | 直近の完了 | 必須の実行結果 |
 | --- | --- | --- |
-| P01：linker診断。F07 CI確認中 | F06：native macOSのheader／境界。**完了108 → 109件、残り33 → 31 pt**（adff5d9） | 両tier-1で未検出toolchainの設定案内、output path事前検査、native direct／response失敗診断を確認 |
+| V17：RFC 0016に基づく間接値preview | F06：native macOSのheader／境界。**完了108 → 109件、残り33 → 31 pt**（adff5d9） | Vecの添字順、Mapのキー順、shared custody、weak生存状態、表示上限とcleanupをVM／REPLで確認 |
 
+V17の確認点（既存3 pt内）：
 
-P01の確認点（同じ2 pt内。native Windows証拠は未完了）：
+- [x] 最小REPL実験で、Vec結果が効果前のUnsupportedで拒否されることを確認。
+- [x] 後続[RFC 0016](rfcs/0016-indirect-repl-previews.md)を委任に基づきaccepted（c38a38e）。arena脱出禁止を維持。
+- [ ] 読み取り専用の有限runtime表示とVM接続。
+- [ ] 出力・順序・custody・生存状態・失敗cleanupとCLI REPLの証拠、全baseline。
 
-- [x] 対象toolchainの設定案内と構造化output path検査。拒否時にinputとresponse fileを変更しません（linker unit case 30件成功）。
-- [x] 実native macOSでdirect／responseの成功、既存output置換、tool失敗診断を確認（integration case 2件成功）。
-- [x] Native macOS全baseline **1,523 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／16.99秒**、native **66件／279.13秒**、native linker integration **2件／0.62秒**、fmt／Clippy（**18.92秒**）／rustdoc（**14.21秒**）成功。実装：`0061045`。
-- [ ] 対応するnative Windows C／linker証拠。P01はdoing、F07はtodoを維持し、**31 ptは不変**、task／見積もりの追加はありません。
+P01／F07の検証待ち（合計4 ptは維持。P01の実装完了とtask完了は区別）：
 
-F07修正中：[run 39298897055](https://github.com/carimatics/lang/actions/runs/39298897055)、head 276ad56、job 118218561053が **2026-10-19 18:09:20 UTC** に失敗しました。C ABIは **66件成功／5件失敗**、すべてCLから渡したresponse fileがLINKの通常inputと扱われるLNK1104です。P01でCを個別compileし既存SystemLinkerからLINKを呼ぶよう変更し、修正版と一致する新native Windows runを確認します。 この実装snapshotから新しいWindows runを開始して確認し、終了済みの失敗run自体は再起動しません。
+- [x] Native macOS：**1,523 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／17.02秒**、native **66件／279.31秒**、native linker integration **2件／0.62秒**。fmt／Clippy（**18.56秒**）／rustdoc（**14.42秒**）成功。実装0061045、Windows error縮小修正 **2cf38ca**。suite時間合計375.66秒は開発時間ではありません。
+- [x] [Windows run 39303961064](https://github.com/carimatics/lang/actions/runs/39303961064)、head69f8bec、job118236068802：重点stepで **C ABI 71件、linker unit 25件、integration 2件成功**。LINK直呼び修正を実機で確認。
+- [ ] 同runは後続Clippyの `result_large_err`（WindowsのFailed variantが140 bytes）で失敗し、全test／rustdocは未実行。2cf38caで失敗時のcommandをBox化しました。修正版の新run全体で確認するまでP01／F07をtodoに保ちます。失敗済みrun自体は再起動しません。
 
 元のMilestone完了条件は **11/18**（過去の重み68/113）。**113 ptは工数予測としての使用を取りやめています。** 成果件数は同じ工数の単位でもMilestoneの完成率でもありません。[見積もり収支](#進捗と見積もり変更)で判明した作業と完了見積もりを分けます。F06の2 ptを完了し、**123行・追加85点は不変**、完了で取り除いた見積もりは **188点** です。共有MSVC response-file fixtureは修正しましたが、native Windows確認は未完了のためF07を維持します。
 
@@ -304,7 +307,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-V16 | done | 0 | M2-V14,M2-V08,M2-V09 | G08 | Namedな引数なしowned resultを上限付きmanaged previewとresult全retirementで実行し、source fixtureと失敗根拠を示す。 | `040c082` |
 | M2-V15 | done | 0 | M2-V14 | G08 | 生成ownership式wrapperの具体的resultを通常のHIR／MIR move／loan／region検証越しに推論し、user関数の推論は追加しない。 | `3ecef3b` |
 | M2-V10 | done | 0 | M2-V08,M2-V09,M2-V15,M2-V16 | G08 | REPL ownership item／式、明示allocator authority、元sourceへのfailure mapping、cleanupで分離したcanonical resultをscript実行意味論へ統合。 | `834abe8` |
-| M2-V17 | todo | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | 明示follow-upを判断してindirect-service resultの上限付きpreviewを実装し、Map順序とshared／weak／arena access制約を維持。VM／REPL根拠を示す。 | — |
+| M2-V17 | doing | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | 明示follow-upを判断してindirect-service resultの上限付きpreviewを実装し、Map順序とshared／weak／arena access制約を維持。VM／REPL根拠を示す。 | — |
 | M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | 上限付きadmission済みsnapshotでCopy／affine CFG argumentを同時転送。Cycle／fan-out／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを検証。 | `1dcf260` |
 
 ## Shared、arena、collection
@@ -377,7 +380,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N19 | done | 0 | M2-N05 | G14 | Linked imageの寿命を保持した信頼済みbindingと既存gatewayによるowned program実行を、実objectで検証する。 | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | `25de18a` |
 | M2-N07 | done | 0 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | `119f9ff` |
-| M2-P01 | doing | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
+| M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Startup／runtime／context依存をpackage化し、clean installでlink／run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | 両tier-1 CIで代表conformanceとresource-limit scenarioの成功を記録。 | — |

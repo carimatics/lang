@@ -12,9 +12,9 @@
 
 | 次の成果 | 直近の検証済み成果 | Milestone完了条件 |
 | --- | --- | --- |
-| P01：local実装0061045確認済み。P01／F07のWindows証拠を確認中 | F06：native macOSのheader／境界（adff5d9）。**完了108 → 109件、残り33 → 31 pt** | **11/18条件**。過去の重み68/113（60.2%） |
+| V17：間接値REPL表示（RFC 0016、c38a38e）。P01／F07はWindows全検証待ち | F06：native macOSのheader／境界（adff5d9）。**完了108 → 109件、残り33 → 31 pt** | **11/18条件**。過去の重み68/113（60.2%） |
 
-**次：P01のnative linker診断と、共有LINK修正のWindows確認を進めます。** F07 snapshot 276ad56はCLから渡したresponse file input 5件で失敗しました（run 39298897055）。現在のfixtureはCを別途compileしてSystemLinkerを直接呼びます。Native Windows証拠は未完了で、task／見積もりの追加はありません。
+**次：V17のcollection／shared／weak previewを実装します。** P01のmacOS全1,523 testは成功。Windows run 39303961064はC ABI 71件とlinker integration 2件が成功し、その後のClippyでerror sizeの問題が判明しました。2cf38caで修正し、新run全体の証拠を待つ間はP01／F07をtodoに置きます。元の31 pt内で実装の対象だけを切り替え、task／見積もりは追加しません。
 
 113は固定された完了条件の重みで、工数予測としての使用は取りやめています。成果件数はtask粒度に依存し、完成率ではありません。[詳細Todo](milestone-2.md)に現在の状態、見積もりの変更、実行証拠、検証時間、情報源の日付を集約します（2026-10-20 JST更新・確認）。先頭で作業中・直近の完了成果・元のMilestone完了条件を区別し、過去のreportはそこで折りたたみます。
 

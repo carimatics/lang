@@ -12,9 +12,9 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 | Next delivery | Latest verified outcome | Milestone exit |
 | --- | --- | --- |
-| P01: local implementation 0061045 verified; P01/F07 Windows evidence pending | F06: native macOS headers/boundaries (adff5d9); **108 → 109 deliveries, 33 → 31 remaining pt** | **11/18 gates**, historical weight 68/113 (60.2%) |
+| V17: indirect REPL previews (RFC 0016, c38a38e); P01/F07 full Windows baseline pending | F06: native macOS headers/boundaries (adff5d9); **108 → 109 deliveries, 33 → 31 remaining pt** | **11/18 gates**, historical weight 68/113 (60.2%) |
 
-**Next: finish P01 native linker diagnostics and verify the shared LINK repair on Windows.** F07 snapshot 276ad56 failed five CL-forwarded response-file inputs (run 39298897055); the current fixture compiles C separately and calls SystemLinker directly. Native Windows proof is pending; no new task/estimate was added.
+**Next: implement V17 collection/shared/weak previews.** P01 passes all 1,523 macOS tests. Windows run 39303961064 passes 71 C ABI and two linker integration cases, then fails Clippy on error size. 2cf38ca repairs that issue; P01/F07 stay todo pending the fresh full run. Switch the active implementation within the same 31 pt; no tasks or estimates are added.
 
 113 measures fixed exit-gate weights; it is retired as an effort forecast. Delivery counts depend on task size and are not a completion percentage. The [delivery board](milestone-2.md) is the source for current Todo states, estimate changes, execution evidence, validation times and source dates (updated/verified 2026-10-20 JST). Its first view separates current work, the latest completed outcome and the original exit gates; historical reports are collapsed there.
 

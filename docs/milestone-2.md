@@ -10,21 +10,24 @@ Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
 
 
-**Next: M2-P01 → actionable linker discovery/output-path failures (2 pt, in progress); F07 waits for the matching Windows run.**
+**Next: M2-V17 → bounded collection/shared/weak REPL previews (3 pt, in progress); P01/F07 await the full Windows baseline.**
 
 | Next delivery | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| P01: linker diagnostics; F07 CI pending | F06: native macOS headers/boundaries; **108 → 109 done, 33 → 31 pt** (adff5d9) | Missing-toolchain setup, output-path preflight and native direct/response error context pass on both tier-1 hosts |
+| V17: indirect previews under RFC 0016 | F06: native macOS headers/boundaries; **108 → 109 done, 33 → 31 pt** (adff5d9) | Vec index order, Map key order, shared custody, weak liveness, limits and cleanup verified through VM/REPL |
 
+V17 checkpoints (existing 3 pt):
 
-P01 checkpoints (same 2 pt; native Windows proof pending):
+- [x] Smallest REPL experiment confirms Vec results are refused with pre-effect Unsupported.
+- [x] Follow-up [RFC 0016](rfcs/0016-indirect-repl-previews.md) accepted under delegation (c38a38e); arena escape remains forbidden.
+- [ ] Bounded read-only runtime formatting and VM connection.
+- [ ] Output/order/custody/liveness/failure-cleanup and CLI REPL evidence, then full baseline.
 
-- [x] Target setup hints and structured output-path preflight; inputs and response files remain unchanged on refusal (30 linker unit cases pass).
-- [x] Actual native macOS direct/response success, existing-output replacement and tool-error diagnostics (two integration cases pass).
-- [x] Native macOS baseline: **1,523 tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 16.99s**, native **66 / 279.13s**, native linker integration **2 / 0.62s**; fmt/Clippy (**18.92s**)/rustdoc (**14.21s**) pass. Implementation: `0061045`.
-- [ ] Matching native Windows C/linker proof. P01 remains doing and F07 remains todo; **31 pt unchanged**, no task/estimate additions.
+P01/F07 verification wait (same combined 4 pt; implementation completion is separate from task completion):
 
-F07 repair: [run 39298897055](https://github.com/carimatics/lang/actions/runs/39298897055), head 276ad56, job 118218561053, failed at **2026-10-19 18:09:20 UTC**: **66 C ABI pass / 5 failures**, all CL-forwarded response files treated as literal LINK inputs (LNK1104). P01 now compiles C separately and calls LINK through the existing SystemLinker. A fresh matching native Windows run is required. A fresh Windows run from this implementation snapshot is pending; the prior failed run is terminal and is not restarted.
+- [x] Native macOS: **1,523 tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 17.02s**, native **66 / 279.31s**, native linker integration **2 / 0.62s**. fmt/Clippy (**18.56s**)/rustdoc (**14.42s**) pass. Implementation 0061045; Windows error-size fix **2cf38ca**. Summed suite duration 375.66s is not development time.
+- [x] [Windows run 39303961064](https://github.com/carimatics/lang/actions/runs/39303961064), head 69f8bec, job 118236068802: focused step passes **71 C ABI, 25 linker unit and 2 integration cases**, confirming the direct-LINK repair on the native host.
+- [ ] That run fails later Clippy `result_large_err` (Windows Failed variant: 140 bytes); full tests/rustdoc were skipped. 2cf38ca boxes the failed command. P01/F07 stay todo until a fresh repaired run completes all required checks. The terminal failed run is not restarted.
 
 Original exit gates: **11/18** (historical weight 68/113). **113 is retired as an effort forecast.** Task counts are not equal units of effort or a milestone completion percentage. The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates. Retire F06's 2 pt with **123 rows and +85 added pt unchanged**; retired estimates become **188 pt**. F07 remains open: the shared MSVC response-file fixture is repaired, but native Windows verification is pending.
 
@@ -304,7 +307,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-V16 | done | 0 | M2-V14,M2-V08,M2-V09 | G08 | Execute a named zero-argument owned result with bounded managed preview and complete result retirement; source fixture and failure evidence. | `040c082` |
 | M2-V15 | done | 0 | M2-V14 | G08 | Infer the generated ownership expression wrapper's concrete result through normal HIR/MIR move/loan/region checks without adding user function inference. | `3ecef3b` |
 | M2-V10 | done | 0 | M2-V08,M2-V09,M2-V15,M2-V16 | G08 | REPL ownership items/expressions, explicit allocator authority, source-mapped failures and cleanup-isolated canonical results match the script execution semantics. | `834abe8` |
-| M2-V17 | todo | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | Decide an explicit follow-up and implement bounded indirect-service result previews, preserving Map order and shared/weak/arena access constraints; VM/REPL evidence. | — |
+| M2-V17 | doing | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | Decide an explicit follow-up and implement bounded indirect-service result previews, preserving Map order and shared/weak/arena access constraints; VM/REPL evidence. | — |
 | M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | Simultaneous Copy/affine CFG arguments execute through bounded admitted snapshots; cycle/fan-out/enum/owner oracles, loan rebinding, cell/quota/OOM and fuel cleanup verified. | `1dcf260` |
 
 ## Shared, arenas and collections
@@ -377,7 +380,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N19 | done | 0 | M2-N05 | G14 | Bind a trusted linked image with its code owner to the checked owned program gateway; execute real linked owned code. | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | `25de18a` |
 | M2-N07 | done | 0 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | `119f9ff` |
-| M2-P01 | doing | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
+| M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
