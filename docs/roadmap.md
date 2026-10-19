@@ -8,7 +8,14 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**101 verified deliveries · 1 in progress · 17 remaining tasks (provisional 42 pt).**
+**102 verified deliveries · 0 in progress · 17 remaining tasks (provisional 39 pt).**
+
+F04 (`cfd0987`, 2026-10-19 JST) executes finite Copy C imports from source in VM/native, including nested sums and 256 mixed parameters. Full local baseline: 1,481 tests; fmt/Clippy/rustdoc pass. Next: F09 accepted source drop/panic before C export/factory integration. See the [delivery board](milestone-2.md) for current rows, evidence and the estimate ledger.
+
+Original exit gates remain **7/18**; **50/113** is a historical gate-weight score, not an effort forecast. Raw C exports/objects, complete packaging, combined conformance, performance, debug and the final bilingual guide remain required.
+
+<details>
+<summary>Earlier delivery and estimate notes</summary>
 
 F11 delivery (2026-10-19 JST): a37b053 executes real compiler-produced C callbacks from source in the VM and generated native code. The named scalar/Unit fixture returns 59; direct calls return 42, and the complete 256-parameter profile returns 32,896. Context/code/actual-allocator binding, canonical outputs, foreign failures and shared control/work stay enforced. Seven new fixtures include all finite fuel/work prefixes, OOM, interruption/deadline and same-ABI wrong-owner/replaced-allocator refusal before effects. RFC 0012 amendment 43edb9b precedes C-aware revision-2 emission; ordinary revision-1 symbols and external C profile 1 are preserved. Baseline: **1,478 tests / 88 suites**, zero failures, one manual timing test ignored; **41 C ABI tests**, native **62 / 262.13s**; fmt/Clippy/rustdoc pass (rustdoc **21.29s**). Retire F11 **3 pt: 100 → 101 done, 45 → 42 pt**. **119 rows and +75 pt additions unchanged; retired estimates 167 pt**. Original gates remain **7/18**. General aggregates, raw C factories/exports/object publication and full packaging/platform evidence remain open.
 
@@ -64,9 +71,7 @@ N03 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** befor
 
 N12 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** before native element-view integration, **59 → 61 remaining pt**, net additions **49 → 51 pt**. N12 delivery retires its last 3 points: **61 → 58 pt**, with 108 rows unchanged. N05 now depends on N12/N03/N04 in addition to N02/N11/V08 before full accepted service/payload, ordered-exit and configured byte-work admission conformance. No requirement was removed.
 
-Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for current tasks, evidence and remaining estimates (updated 2026-10-19 JST). N05 managed service integration and N06/N07 standalone object execution on both tier-1 hosts are complete; F11 scalar/Unit C source execution is complete; F04 aggregate import transfer is next. Preserve remaining native/FFI/platform/performance/debug obligations and the final bilingual guide.
-
-The original **7 / 18 exit gates** include completed G06 and G14. Their **50 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
+</details>
 
 ## Task tracking
 

@@ -6,27 +6,31 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**101 done · 1 doing · 17 todo · 42 remaining pt**
+**102 done · 0 doing · 17 todo · 39 remaining pt**
 
-**Next: M2-F04 → finite Copy C imports with actual allocation and VM/native cleanup (doing, provisional 3 pt).**
+**Next: M2-F09 → accepted source core::drop/panic, with VM/native cleanup and structured failure (3 pt).**
 
-| Working now | Latest completion | Required execution outcome |
+| Next delivery (not started) | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F04: aggregate C imports (provisional 3 pt) | F11: real C source execution, 100 → 101 done, 45 → 42 pt (a37b053) | Source evidence for aggregates, allocator, both backends and failures |
+| F09: source drop/panic (3 pt) | F04: finite Copy C imports, 101 → 102 done, 42 → 39 pt (cfd0987) | Source cleanup, divergence and panic code/spans on both backends |
 
-Last three: F10 (5108069) → F02 (7d4fea7) → F11 (a37b053). Original exit gates: **7/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+Last three: F02 (7d4fea7) → F11 (a37b053) → F04 (cfd0987). Original exit gates: **7/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
 
-F11 delivery (2026-10-19 JST): a37b053 executes real compiler-produced C callbacks from source in the VM and generated native code. The named scalar/Unit fixture returns 59; direct calls return 42, and the complete 256-parameter profile returns 32,896. Context/code/actual-allocator binding, canonical outputs, foreign failures and shared control/work stay enforced. Seven new fixtures include all finite fuel/work prefixes, OOM, interruption/deadline and same-ABI wrong-owner/replaced-allocator refusal before effects. RFC 0012 amendment 43edb9b precedes C-aware revision-2 emission; ordinary revision-1 symbols and external C profile 1 are preserved. Baseline: **1,478 tests / 88 suites**, zero failures, one manual timing test ignored; **41 C ABI tests**, native **62 / 262.13s**; fmt/Clippy/rustdoc pass (rustdoc **21.29s**). Retire F11 **3 pt: 100 → 101 done, 45 → 42 pt**. **119 rows and +75 pt additions unchanged; retired estimates 167 pt**. Original gates remain **7/18**. General aggregates, raw C factories/exports/object publication and full packaging/platform evidence remain open.
+F04 delivery (2026-10-19 JST): cfd0987 executes finite Copy C imports through the actual context allocator in VM/native. Field-wise transfers cover records/empty records, enums, nested Option/Result/core errors, aggregate/scalar/Unit results and 256 mixed parameters. Named source returns 84. Invalid output/status, every finite fuel/work prefix and the first three allocation refusals preserve matching reports, usage, discarded results and balanced original deallocation. Baseline: **1,481 tests / 88 suites**, zero failures, one manual timing test ignored; **44 C ABI tests / 12.15s**, native **62 / 267.18s**; fmt, Clippy and rustdoc (**21.41s**) pass. Retire F04 **3 pt: 101 → 102 done, 42 → 39 pt**. **119 rows, +75 added pt unchanged; retired estimates 170 pt**. Original gates remain **7/18**. Raw C factory/export/object publication, packaging and combined owner/C conformance remain open.
 
 <details>
-<summary>F04 remaining scope</summary>
+<summary>Remaining FFI integration</summary>
 
-F04 remaining-scope audit (2026-10-19 JST): the new source path handles scalar/Unit imports; NativeInvoker, the VM import gate and CCompiledProgram still explicitly reject record/enum signatures. Managed/C aggregate field/case transfer and scratch/result storage are absent. F04 must integrate those paths with the actual C allocator and ordinary failure cleanup in both execution modes, including nested Copy Option/Result/error values and padding-safe reads. Raw C descriptor/factory/export publication remains required F04/F05 work, and F09/F05-F07/P02 are unchanged. The next experiment is the accepted aggregate C source fixture, not another helper-only completion. F04 remains provisional 3 pt; inspect that experiment and the full residual list before deciding whether to retain or revise it. This audit changes no estimate or original outcome.
+Remaining FFI audit (2026-10-19 JST): F04 completes typed import transfer. F09 must expose accepted source drop/panic before F05's raw descriptor copies, context factories/error queries/destroy, export wrappers and C-aware object publication. Make that original scope explicit in F05; its 3 pt remain provisional until a real export/factory readiness experiment, not a validated forecast. Preserve F06/F07 target evidence, P02 clean packaging and Q01/Q02 combined managed-owner/C conformance. Z01 now explicitly depends on V17's outstanding indirect previews. No estimate or original outcome is removed.
 
 </details>
 
 <details>
 <summary>Historical deliveries, scope audits and validation records</summary>
+
+F11 Windows evidence (2026-10-19 JST): [full run 39234763047](https://github.com/carimatics/lang/actions/runs/39234763047), head 1a8fcad, job 118001054052, completed successfully. This proves the F11/revision-2 scalar source snapshot, not F04 aggregates or the remaining F07/platform gate.
+
+F11 delivery (2026-10-19 JST): a37b053 executes real compiler-produced C callbacks from source in the VM and generated native code. The named scalar/Unit fixture returns 59; direct calls return 42, and the complete 256-parameter profile returns 32,896. Context/code/actual-allocator binding, canonical outputs, foreign failures and shared control/work stay enforced. Seven new fixtures include all finite fuel/work prefixes, OOM, interruption/deadline and same-ABI wrong-owner/replaced-allocator refusal before effects. RFC 0012 amendment 43edb9b precedes C-aware revision-2 emission; ordinary revision-1 symbols and external C profile 1 are preserved. Baseline: **1,478 tests / 88 suites**, zero failures, one manual timing test ignored; **41 C ABI tests**, native **62 / 262.13s**; fmt/Clippy/rustdoc pass (rustdoc **21.29s**). Retire F11 **3 pt: 100 → 101 done, 45 → 42 pt**. **119 rows and +75 pt additions unchanged; retired estimates 167 pt**. Original gates remain **7/18**. General aggregates, raw C factories/exports/object publication and full packaging/platform evidence remain open.
 
 F02 Windows evidence (2026-10-19 JST): [full run 39222466737](https://github.com/carimatics/lang/actions/runs/39222466737), head 40e6c34, job 117960765077, completed successfully. This predates F11/revision 2 and does not prove the new C source path or remaining F07/platform gates.
 
@@ -99,15 +103,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 101 (+66)**, and the task inventory increased **87 → 119 (+32)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 102 (+67)**, and the task inventory increased **87 → 119 (+32)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +75 pt | −167 pt | 42 pt |
+| 134 pt | +75 pt | −170 pt | 39 pt |
 
-**134 + 75 − 167 = 42 pt**
+**134 + 75 − 170 = 39 pt**
 
-This separates delivered work from newly recognized work: completion retired 167 estimated points, while exposed prerequisites and re-estimation added 75. These are planning units, not hours or measured actual effort. The remaining 42 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 170 estimated points, while exposed prerequisites and re-estimation added 75. These are planning units, not hours or measured actual effort. The remaining 39 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -142,7 +146,7 @@ S01 decision audit (2026-10-18 JST): RFC 0009 selects three finite core calls us
 
 - Select one row before implementation and mark it `doing`; keep at most one doing row. A row has one observable outcome and 1–3 remaining points. Split it before starting if that outcome is larger or its prerequisites are unknown.
 - If planning produces no patch or executable experiment within 10 minutes, narrow the task and run the smallest useful experiment before extending the design. Add abstractions and hardening only when the selected outcome or accepted requirements need them. Record validation duration when available; commit intervals are not work-time measurements.
-- F11 executes scalar/Unit C source. Next test F04 aggregate source transfer; expose any new prerequisite with an executable experiment and a remaining-work audit before further foundation work.
+- F04 executes finite Copy C imports. Next deliver F09 source drop/panic before export/factory integration; expose prerequisites with an executable experiment and a remaining-work audit.
 - Done requires a commit for the row's outcome (implementation or an explicitly planned design decision) and focused validation evidence. Add the commit in the next planning update when it cannot be referenced in its own commit. Keep work-in-progress honest until that evidence exists. Update this board after every delivery; do not wait for an exit gate.
 - Run focused checks first and the required full baseline once for a coherent code delivery. Documentation-only follow-ups run repository consistency checks; repeat broader checks only for new code, failures, or unresolved concerns. Keep the implementation/roadmap commit sequence, but replace repetitive narrative appends with row updates. Append an audit only when scope, estimates, dependencies or an exit decision changes.
 - After two consecutive prerequisite deliveries without a new source execution fixture, stop expanding the foundation and review the next vertical slice. Report the concrete blocker and remaining task, not a generic claim that estimates remain appropriate.
@@ -269,8 +273,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F02 | done | 0 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | `7d4fea7` |
 | M2-F03 | done | 0 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | `dee7f34` |
 | M2-F11 | done | 0 | M2-F02,M2-F03 | G12 | Execute scalar/Unit imports from source through real C code and the shared context in VM/native, with failure fixtures. | `a37b053` |
-| M2-F04 | doing | 3 | M2-F02,M2-F03,M2-F11 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
-| M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exports return accepted statuses/results and contain nested cleanup failures. | — |
+| M2-F04 | done | 0 | M2-F02,M2-F03,M2-F11 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | `cfd0987` |
+| M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | Raw descriptor/context factory/error/destroy and C export/object integration returns accepted statuses/results and contains nested cleanup failures. | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
 
@@ -308,9 +312,11 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-G01 | todo | 3 | M2-N06 | G18 | Emit native owned-value source spans/locations and validate macOS debug fixtures. | — |
 | M2-G02 | todo | 3 | M2-N07 | G18 | Emit corresponding Windows native debug metadata and validate source locations. | — |
 | M2-G03 | todo | 2 | M2-G01,M2-G02 | G18 | Record actual debugger stepping/backtrace evidence on both tier-1 platforms. | — |
-| M2-Z01 | todo | 1 | M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
+| M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
 
 ## Sources and verification dates
+
+- [F04 finite Copy transfers](../crates/runtime/src/c_abi/transfer.rs), [named source](../examples/analysis/c_aggregate_imports.lang) and [real C fixtures](../tests/support/c_imports.rs) (`cfd0987`): updated/verified 2026-10-19 JST. Full local baseline above; F04 Windows and complete raw C exports remain unverified.
 
 - [F11 scalar C source](../examples/analysis/c_scalar_imports.lang), [C/VM/native fixtures](../tests/support/c_imports.rs) and [revision-2 native gateway](../crates/codegen-clif/src/owned/c_imports.rs) (`a37b053`): updated/verified 2026-10-19 JST. Full local baseline above; native Windows F11 and general C integration remain unverified.
 - [F02 context implementation](../crates/runtime/src/c_abi/context.rs) and [16 failure/state fixtures](../tests/support/c_context.rs) (`7d4fea7`): updated/verified 2026-10-19 JST. Full local baseline above; actual C adapters remain F04/F05.

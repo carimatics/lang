@@ -8,7 +8,14 @@
 
 ## 現在のM2実装状況
 
-**検証済み101件 · 進行中1件 · 残り17件（暫定42 pt）。**
+**検証済み102件 · 進行中0件 · 残り17件（暫定39 pt）。**
+
+F04（`cfd0987`、2026-10-19 JST）でfinite Copy C importをsourceからVM／native実行できます。入れ子sumと256混合引数を含みます。Local必須検証：1,481 tests、fmt／Clippy／rustdoc成功。次はC export／factory統合に先立つ、受理済みF09 source drop／panicです。[実装Todo](milestone-2.md)で現在の行・evidence・見積もり収支を確認できます。
+
+従来の完了条件は **7/18** のままで、**50/113** は過去のgate固定重みであり工数予測ではありません。Raw C export／object、完全packaging、複合conformance、性能、debug、最終の日英guideを維持します。
+
+<details>
+<summary>以前の成果・見積もり記録</summary>
 
 F11完了（2026-10-19 JST）：a37b053でC compiler産の実callbackをsourceからVM／生成native codeで実行します。名前付きscalar／Unit fixtureは59、直接callは42、上限256引数では32,896を返します。Context／code／実allocatorの結び付け、正規output、foreign失敗、共有control／workを強制します。新規7 fixtureには全有限fuel／work境界、OOM、interruption／deadline、同一ABIの別owner／allocator交換の作用前拒否を含みます。RFC 0012改訂43edb9bの後にC対応revision 2を生成し、通常のrevision 1 symbolと外部C profile 1を維持します。必須検証：**1,478 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。**C ABI 41件**、native **62件／262.13秒**、fmt／Clippy／rustdocも成功です（rustdoc **21.29秒**）。F11の **3点** を取り除き、**100 → 101 done、45 → 42 pt** とします。**119行と追加75点は不変、完了で取り除いた見積もりは167点** です。従来gateは **7/18** のままで、汎用aggregate、raw C factory／export／object公開、完全なpackaging／platform検証は未完了です。
 
@@ -64,9 +71,7 @@ N03見積もり・依存関係監査（2026-10-19 JST）：key／所有値結果
 
 N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接続の前に **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。N12完了で最後の3点を取り除き **61 → 58点**、108行は維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformance前に、N05の依存へN02／N11／V08に加えN12／N03／N04を明示しました。要件は削除していません。
 
-現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続とN06／N07の両tier-1 hostでのstandalone object実行は完了し、F11のscalar／Unit C source実行を完了し、次はF04のaggregate import転送です。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
-
-G06とG14を完了とし、従来の **完了条件18件中7件完了** です。その **50 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
+</details>
 
 ## タスク管理
 
