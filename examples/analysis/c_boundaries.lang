@@ -1,0 +1,14 @@
+// Source checking succeeds; C execution adapters remain under development.
+pub struct Pair { number: i64, flag: bool }
+
+extern "C" fn inspect(value: Pair, enabled: bool) -> i64;
+
+pub extern "C" fn identity(value: Pair) -> Pair {
+    return value;
+}
+
+fn main() -> i64 {
+    unsafe {
+        return inspect(identity(Pair { number: 7, flag: true }), true);
+    }
+}

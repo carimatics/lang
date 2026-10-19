@@ -1190,6 +1190,7 @@ impl Checker<'_, '_> {
         let span = statement.span;
         self.context.budget.enter(span, depth)?;
         match &statement.kind {
+            r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
             r::StatementKind::LetMut { local, initializer } => {
                 let refs = if let Some(kind) = self.loan(self.facts.locals()[local.0]) {
                     self.reference(*initializer, kind, self.scopes.len(), depth + 1)?

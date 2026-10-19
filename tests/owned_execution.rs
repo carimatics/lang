@@ -15,6 +15,8 @@ mod arenas;
 mod calls;
 #[path = "support/owned_edges.rs"]
 mod edges;
+#[path = "support/owned_foreign.rs"]
+mod foreign;
 #[path = "support/owned_inference.rs"]
 mod inference;
 #[path = "support/owned_map.rs"]

@@ -1,0 +1,4 @@
+extern "C" fn foreign(value: i64) -> i64;
+fn main() -> i64 {
+    return foreign(1);
+}

@@ -72,6 +72,26 @@ impl Drop for Files {
     }
 }
 
+#[test]
+fn c_exports_require_the_root_module_even_when_the_module_is_public() {
+    let files = Files::new("pub mod child; fn main() -> i64 { return child::exported(); }");
+    files.write(
+        "child.lang",
+        "pub extern \"C\" fn exported() -> i64 { return 1; }",
+    );
+    let (sources, source) = files.resolved();
+    let analysis =
+        lang_hir::program::analyze_program(source, &sources, Default::default()).unwrap();
+    assert!(analysis.program.is_none());
+    assert!(
+        analysis
+            .diagnostics
+            .iter()
+            .any(|d| d.code == codes::FOREIGN_BOUNDARY
+                && sources.slice(d.primary.span).unwrap() == "exported")
+    );
+}
+
 fn checked(
     source: r::Program,
     sources: &SourceMap,

@@ -1490,6 +1490,7 @@ impl Checker<'_, '_> {
         let span = statement.span;
         self.context.budget.enter(span, depth)?;
         match &statement.kind {
+            r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
             r::StatementKind::LetMut { local, initializer } => {
                 let value = self.eval(*initializer, depth + 1)?;
                 if self.diverges {

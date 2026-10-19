@@ -104,7 +104,7 @@ fn core_namespace_declarations_and_imports_fail_before_loading_reserved_modules(
 }
 
 #[test]
-fn unfinished_c_source_cannot_be_omitted_or_bound_as_an_ordinary_host_import() {
+fn c_source_survives_module_collection_for_typed_binding() {
     for text in [
         "extern \"C\" fn f(x: i64) -> i64; fn main() -> i64 { return 0; }",
         "extern \"C\" fn f() -> core::Unit; fn main() -> i64 { return 0; }",
@@ -113,16 +113,12 @@ fn unfinished_c_source_cannot_be_omitted_or_bound_as_an_ordinary_host_import() {
     ] {
         let files = Files::new(text);
         let (_, analysis) = files.load(ModuleLimits::default()).unwrap();
-        assert!(analysis.graph.is_none(), "{text}");
-        assert!(!analysis.diagnostics.is_empty(), "{text}");
         assert!(
-            analysis
-                .diagnostics
-                .iter()
-                .all(|d| d.code == codes::FOREIGN_BOUNDARY),
+            analysis.graph.is_some(),
             "{text}: {:?}",
             analysis.diagnostics
         );
+        assert!(analysis.diagnostics.is_empty(), "{text}");
     }
     let files = Files::new("extern fn f(x: i64) -> i64; fn main() -> i64 { return f(1); }");
     let (_, graph) = files.graph();

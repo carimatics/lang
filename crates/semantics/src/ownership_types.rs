@@ -352,19 +352,24 @@ fn construct_declarations<'a>(
     };
     for import in &input.imports {
         c.budget.charge(1)?;
-        let mut parameters = c.budget.vector(1)?;
-        parameters.push(o::TypeUse {
-            ty: o::Type::I64,
-            span: c.span(import.parameter.span)?,
-        });
+        let mut parameters = c.budget.vector(import.parameters.len())?;
+        for parameter in &import.parameters {
+            parameters.push(o::TypeUse {
+                ty: ty(parameter.ty.value_type)?,
+                span: c.span(parameter.ty.span)?,
+            });
+        }
         out.imports.push(d::Import {
-            abi: d::ImportAbi::Host,
+            abi: match import.abi {
+                r::ImportAbi::Host => d::ImportAbi::Host,
+                r::ImportAbi::C => d::ImportAbi::C,
+            },
             name: c.text(&import.qualified_name)?,
             span: c.span(import.span)?,
             parameters,
             result: o::TypeUse {
-                ty: o::Type::I64,
-                span: c.span(import.span)?,
+                ty: ty(import.result.value_type)?,
+                span: c.span(import.result.span)?,
             },
         });
     }
@@ -408,7 +413,10 @@ fn construct_declarations<'a>(
             });
         }
         out.functions.push(d::Function {
-            abi: d::FunctionAbi::Guest,
+            abi: match f.abi {
+                r::FunctionAbi::Guest => d::FunctionAbi::Guest,
+                r::FunctionAbi::CExport => d::FunctionAbi::CExport,
+            },
             name: c.text(&f.qualified_name)?,
             public: f.public,
             span: c.span(f.span)?,

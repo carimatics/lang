@@ -642,12 +642,29 @@ impl<'a> Context<'a> {
         let parameters = child_nodes(tree, item.syntax())
             .find(|id| tree.node(*id).unwrap().kind() == S::Parameters)
             .unwrap();
-        let parameter = child_nodes(tree, parameters).next().unwrap();
+        let mut signature = Vec::new();
+        for parameter in child_nodes(tree, parameters) {
+            self.charge(tree.node(parameter).unwrap().span(), 0)?;
+            let ty = child_nodes(tree, parameter).next().unwrap();
+            signature.push(r::ImportParameter {
+                name: direct_name(self.sources, tree, parameter),
+                ty: self.ty(item.module(), ty, false)?,
+            });
+        }
+        let result = child_nodes(tree, item.syntax())
+            .find(|id| tree.node(*id).unwrap().kind() == S::Type)
+            .unwrap();
         Ok(r::HostImport {
+            abi: if tree.node(item.syntax()).unwrap().kind() == S::ForeignImport {
+                r::ImportAbi::C
+            } else {
+                r::ImportAbi::Host
+            },
             module: r::ModuleId(item.module().index()),
             name: item_name(item),
             qualified_name: item.qualified_name().into(),
-            parameter: direct_name(self.sources, tree, parameter),
+            parameters: signature,
+            result: self.ty(item.module(), result, false)?,
             span: self.semantic_span(item.module(), item.syntax())?,
         })
     }
@@ -691,6 +708,11 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
             )
             .map_err(|e| Abort::Fatal(BindingError::Source(e)))?;
         let function = r::Function {
+            abi: if tree.node(item.syntax()).unwrap().kind() == S::ForeignExport {
+                r::FunctionAbi::CExport
+            } else {
+                r::FunctionAbi::Guest
+            },
             module: r::ModuleId(item.module().index()),
             name: item_name(item),
             qualified_name: item.qualified_name().into(),
@@ -843,6 +865,9 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         self.context.charge(span, depth)?;
         let children: Vec<_> = child_nodes(tree, syntax).collect();
         let kind = match node.kind() {
+            S::UnsafeBlock => r::StatementKind::Unsafe {
+                body: self.block(children[0], depth + 1)?,
+            },
             S::Let => {
                 let annotation = self.context.ty(self.module, children[0], false)?;
                 let initializer = self.expression(children[1], depth + 1)?;

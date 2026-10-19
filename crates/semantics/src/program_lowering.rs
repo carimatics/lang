@@ -153,6 +153,21 @@ fn lower_unit(
     select_entry: bool,
 ) -> Result<m::VerifiedUnit> {
     let input = program.source();
+    if let Some(span) = input
+        .imports
+        .iter()
+        .find(|i| i.abi == r::ImportAbi::C)
+        .map(|i| i.span)
+        .or_else(|| {
+            input
+                .functions
+                .iter()
+                .find(|f| f.abi == r::FunctionAbi::CExport)
+                .map(|f| f.signature_span)
+        })
+    {
+        return Err(LowerError::UnsupportedOwnershipBody { span });
+    }
     let mut c = Context {
         input,
         sources,
@@ -578,7 +593,9 @@ impl<'a> Lowerer<'a, '_> {
             };
             self.context.budget.charge(1)?;
             current = match &statement.kind {
-                r::StatementKind::PlaceAssign { .. } | r::StatementKind::Arena { .. } => {
+                r::StatementKind::PlaceAssign { .. }
+                | r::StatementKind::Arena { .. }
+                | r::StatementKind::Unsafe { .. } => {
                     return Err(LowerError::UnsupportedOwnershipBody {
                         span: statement.span,
                     });

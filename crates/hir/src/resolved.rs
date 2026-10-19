@@ -182,13 +182,37 @@ pub struct Definition {
     pub span: Span,
 }
 
+/// Binding identity is independent of its source name and scalar shape.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ImportAbi {
+    #[default]
+    Host,
+    C,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FunctionAbi {
+    #[default]
+    Guest,
+    CExport,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportParameter {
+    pub name: Name,
+    pub ty: TypeUse,
+}
+
+/// Historical name retained for the resolved import table; abi distinguishes
+/// RFC 0006 host bindings from RFC 0008 C declarations.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HostImport {
+    pub abi: ImportAbi,
     pub module: ModuleId,
     pub name: Name,
     pub qualified_name: String,
-    /// RFC 0006 fixes host signatures to exactly `(i64) -> i64`.
-    pub parameter: Name,
+    pub parameters: Vec<ImportParameter>,
+    pub result: TypeUse,
     pub span: Span,
 }
 
@@ -321,6 +345,10 @@ pub struct Arm {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatementKind {
+    /// A normal lexical scope with an additional foreign-call obligation marker.
+    Unsafe {
+        body: BlockId,
+    },
     LetMut {
         local: LocalId,
         initializer: ExpressionId,
@@ -369,6 +397,7 @@ pub struct Block {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
+    pub abi: FunctionAbi,
     pub module: ModuleId,
     pub name: Name,
     pub qualified_name: String,

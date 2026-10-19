@@ -744,6 +744,35 @@ struct Seen {
 }
 
 #[test]
+fn unsafe_lexical_scope_preserves_native_cleanup_and_vm_control_usage() {
+    let base = include_str!("../../examples/scripts/owned_bytes.lang");
+    let scoped = format!(
+        "{} }}",
+        base.replacen("fn main() -> i64 {", "fn main() -> i64 { unsafe {", 1)
+    );
+    let ordinary = execute_unit(base, &[], None, 8, 1000, None, false);
+    let native = execute_unit(&scoped, &[], None, 8, 1000, None, false);
+    assert!(native.failure.is_none());
+    assert_eq!(native.scalar, ordinary.scalar);
+    assert_eq!(native.retired, ordinary.retired);
+    assert_eq!(native.total_requests, ordinary.total_requests);
+    assert_eq!(native.fuel, ordinary.fuel, "unsafe adds no runtime branch");
+    let source = source(&scoped);
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut instance = c::Instance::default();
+    let vm = lang_vm::unit::owned::execute_entry(
+        source.failure_flow(),
+        &mut instance,
+        Some(&mut allocator),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(native.scalar, Some(vm.value));
+    assert_eq!(native.fuel, vm.usage.fuel);
+    assert_eq!(native.peak, vm.usage.peak_frames);
+    assert_eq!(native.peak_cells, vm.usage.peak_live_cells);
+}
+#[test]
 fn native_control_usage_includes_loans_and_return_escrow() {
     let text = include_str!("../../examples/scripts/utf8.lang");
     let native = execute_unit(text, &[], None, 8, 1000, None, false);

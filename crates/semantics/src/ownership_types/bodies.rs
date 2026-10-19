@@ -708,6 +708,9 @@ impl Lowerer<'_, '_, '_> {
                     }
                     current = Some(after);
                 }
+                r::StatementKind::Unsafe { body } => {
+                    current = self.body(*body, block, depth + 1)?;
+                }
                 r::StatementKind::Arena {
                     owner,
                     allocator,

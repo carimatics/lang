@@ -339,6 +339,35 @@ fn check_program_internal(
     };
     let mut ownership_span = source.types.first().map(|first| first.span);
     if ownership_span.is_none() {
+        // ABI identities, including unused scalar C declarations, select the
+        // ownership contract. Bound and charge this foreign-input scan too.
+        let root = source
+            .modules
+            .first()
+            .map(|m| m.span)
+            .ok_or_else(|| input(CheckInputErrorKind::InvalidModule(0), None))?;
+        context.span(root)?;
+        if source.imports.len() > limits.imports || source.functions.len() > limits.functions {
+            return Err(context.limit(root, "program declaration count limit exceeded"));
+        }
+        for import in &source.imports {
+            context.charge(root)?;
+            if import.abi == r::ImportAbi::C {
+                ownership_span = Some(import.span);
+                break;
+            }
+        }
+        if ownership_span.is_none() {
+            for function in &source.functions {
+                context.charge(root)?;
+                if function.abi == r::FunctionAbi::CExport {
+                    ownership_span = Some(function.signature_span);
+                    break;
+                }
+            }
+        }
+    }
+    if ownership_span.is_none() {
         // Validate/count foreign arenas before looking for new forms without
         // constructed annotations. The scan shares the Copy checker budget.
         context.metadata()?;
@@ -374,7 +403,9 @@ fn check_program_internal(
                     context.charge(function.span)?;
                     if matches!(
                         statement.kind,
-                        r::StatementKind::PlaceAssign { .. } | r::StatementKind::Arena { .. }
+                        r::StatementKind::PlaceAssign { .. }
+                            | r::StatementKind::Arena { .. }
+                            | r::StatementKind::Unsafe { .. }
                     ) {
                         ownership_span = Some(statement.span);
                         break 'scan;
@@ -852,6 +883,80 @@ impl<'a> Context<'a> {
         }
         Ok(())
     }
+    fn c_width(&mut self, count: usize, limit: usize, span: Span) -> Result<bool, CheckError> {
+        if count > limit {
+            self.error(
+                codes::FOREIGN_BOUNDARY,
+                span,
+                "C signature exceeds the fixed profile bounds",
+                None,
+            )?;
+            Ok(false)
+        } else {
+            Ok(true)
+        }
+    }
+    fn c_type(&mut self, ty: r::Type, span: Span, depth: usize) -> Result<(), CheckError> {
+        self.charge(span)?;
+        if !self.c_width(depth, 64, span)? {
+            return Ok(());
+        }
+        if let Some(store) = &self.types {
+            let p = store.properties(ty, span)?;
+            if !p.is_copy || p.contains_loan || p.contains_arena || p.contains_allocator {
+                return self.error(codes::FOREIGN_BOUNDARY, span,
+                    "C signatures require finite Copy values without loans, owners or allocator authority", None);
+            }
+        }
+        match ty {
+            r::Type::I64 | r::Type::Bool => Ok(()),
+            r::Type::Nominal(id) => match &self.source.definitions[id.0].kind {
+                r::DefinitionKind::Record(fields) => {
+                    if self.c_width(fields.len(), 256, span)? {
+                        for field in fields {
+                            self.c_type(field.value_type.value_type, span, depth + 1)?;
+                        }
+                    }
+                    Ok(())
+                }
+                r::DefinitionKind::Enum(cases) => {
+                    if self.c_width(cases.len(), 256, span)? {
+                        for case in cases {
+                            self.charge(span)?;
+                            if self.c_width(case.payload.len(), 256, span)? {
+                                for value in &case.payload {
+                                    self.c_type(value.value_type, span, depth + 1)?;
+                                }
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            },
+            r::Type::Constructed(_) => match self.constructor(ty) {
+                Some(r::TypeConstructor::Builtin(
+                    r::BuiltinType::Unit
+                    | r::BuiltinType::AllocError
+                    | r::BuiltinType::BoundsError
+                    | r::BuiltinType::BufferError
+                    | r::BuiltinType::Utf8Error
+                    | r::BuiltinType::OwnershipError
+                    | r::BuiltinType::ArenaError,
+                )) => Ok(()),
+                Some(r::TypeConstructor::Option(value)) => self.c_type(value, span, depth + 1),
+                Some(r::TypeConstructor::Result(ok, error)) => {
+                    self.c_type(ok, span, depth + 1)?;
+                    self.c_type(error, span, depth + 1)
+                }
+                _ => self.error(
+                    codes::FOREIGN_BOUNDARY,
+                    span,
+                    "type is outside the finite C signature profile",
+                    None,
+                ),
+            },
+        }
+    }
     fn metadata(&mut self) -> Result<(), CheckError> {
         if self.source.modules.is_empty() {
             return Err(input(CheckInputErrorKind::MissingRoot, None));
@@ -923,7 +1028,45 @@ impl<'a> Context<'a> {
                 &host.qualified_name,
                 &mut seen,
             )?;
-            self.name(host.span, &host.parameter)?;
+            if host.parameters.len() > self.limits.layout.fields {
+                return Err(self.limit(host.span, "import parameter limit exceeded"));
+            }
+            let mut names = BTreeMap::new();
+            for parameter in &host.parameters {
+                self.charge(host.span)?;
+                self.name(host.span, &parameter.name)?;
+                self.type_use(host.span, parameter.ty, false)?;
+                if let Some(original) = names.insert(&parameter.name.text, parameter.name.span) {
+                    self.error(
+                        codes::DUPLICATE_NAME,
+                        parameter.name.span,
+                        "name is already used in this import signature",
+                        Some(original),
+                    )?;
+                }
+            }
+            self.type_use(host.span, host.result, false)?;
+            match host.abi {
+                r::ImportAbi::Host => {
+                    if host.parameters.len() != 1
+                        || host.parameters[0].ty.value_type != r::Type::I64
+                        || host.result.value_type != r::Type::I64
+                    {
+                        return Err(input(
+                            CheckInputErrorKind::InvalidSignature,
+                            Some(host.span),
+                        ));
+                    }
+                }
+                r::ImportAbi::C => {
+                    if self.c_width(host.parameters.len(), 256, host.span)? {
+                        for parameter in &host.parameters {
+                            self.c_type(parameter.ty.value_type, parameter.ty.span, 1)?;
+                        }
+                    }
+                    self.c_type(host.result.value_type, host.result.span, 1)?;
+                }
+            }
         }
         for function in &self.source.functions {
             self.declaration(
@@ -982,6 +1125,25 @@ impl<'a> Context<'a> {
                     }
                 }
             }
+            if function.abi == r::FunctionAbi::CExport {
+                if function.module != r::ModuleId(0)
+                    || !function.public
+                    || function.name.text.len() > 128
+                    || !function.name.text.bytes().enumerate().all(|(i, b)| {
+                        b == b'_' || b.is_ascii_alphabetic() || (i > 0 && b.is_ascii_digit())
+                    })
+                {
+                    self.error(
+                        codes::FOREIGN_BOUNDARY,
+                        function.name.span,
+                        "C exports require a public root ASCII identifier of at most 128 bytes",
+                        None,
+                    )?;
+                }
+                self.c_width(function.parameters.len(), 256, function.signature_span)?;
+                self.within(function.signature_span, function.result.span)?;
+                self.c_type(function.result.value_type, function.result.span, 1)?;
+            }
             let mut parameters = BTreeSet::new();
             for local in &function.parameters {
                 self.charge(function.signature_span)?;
@@ -994,6 +1156,17 @@ impl<'a> Context<'a> {
                         Some(function.signature_span),
                     )
                 })?;
+                if function.abi == r::FunctionAbi::CExport {
+                    let ty = item.annotation.ok_or_else(|| {
+                        input(
+                            CheckInputErrorKind::InvalidSignature,
+                            Some(function.signature_span),
+                        )
+                    })?;
+                    self.within(function.signature_span, item.name.span)?;
+                    self.within(function.signature_span, ty.span)?;
+                    self.c_type(ty.value_type, ty.span, 1)?;
+                }
                 if item.kind != r::BindingKind::Parameter || !parameters.insert(*local) {
                     return Err(input(
                         CheckInputErrorKind::InvalidSignature,
@@ -1046,6 +1219,7 @@ struct FunctionChecker<'a, 'b> {
     unreachable_arms: BTreeSet<r::PatternId>,
     calls: BTreeMap<r::ExpressionId, CallFacts>,
     borrow_match: bool,
+    unsafe_depth: usize,
 }
 impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn new(
@@ -1079,6 +1253,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             unreachable_arms: BTreeSet::new(),
             calls: BTreeMap::new(),
             borrow_match: false,
+            unsafe_depth: 0,
         }
     }
     fn start(
@@ -1255,6 +1430,12 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<Flow, CheckError> {
         self.context.enter(statement.span, depth)?;
         match &statement.kind {
+            r::StatementKind::Unsafe { body } => {
+                self.unsafe_depth += 1;
+                let result = self.block(*body, depth + 1);
+                self.unsafe_depth -= 1;
+                return result;
+            }
             r::StatementKind::Arena {
                 owner,
                 allocator,
@@ -1790,7 +1971,22 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                         input(CheckInputErrorKind::InvalidImport(id.0), Some(span))
                     })?;
                     self.context.charge(span)?;
-                    (vec![r::Type::I64], r::Type::I64, host.span)
+                    if host.abi == r::ImportAbi::C && self.unsafe_depth == 0 {
+                        self.context.error(
+                            codes::FOREIGN_BOUNDARY,
+                            span,
+                            "C import calls require a lexical unsafe block",
+                            Some(host.span),
+                        )?;
+                    }
+                    for _ in &host.parameters {
+                        self.context.charge(span)?;
+                    }
+                    (
+                        host.parameters.iter().map(|p| p.ty.value_type).collect(),
+                        host.result.value_type,
+                        host.span,
+                    )
                 }
                 r::Callable::Case { definition, index } => {
                     let declared = self.definition(definition, span)?;
