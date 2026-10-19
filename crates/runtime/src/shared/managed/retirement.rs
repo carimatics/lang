@@ -481,6 +481,59 @@ mod tests {
                     }
                 };
                 let unchanged = allocator.stats();
+                let counts: Vec<_> = heap
+                    .nodes
+                    .iter()
+                    .flatten()
+                    .map(|node| node.block.counts(&allocator).unwrap())
+                    .collect();
+                let root_token = l::Token {
+                    leaf: l::Leaf {
+                        ty: ty(5),
+                        offset: 0,
+                        span: None,
+                    },
+                    bytes: root.0.bytes(),
+                };
+                let PreviewObservation::Strong { customer, .. } = heap
+                    .preview_observation(&root_token, 0, &allocator)
+                    .unwrap()
+                else {
+                    panic!("strong root must expose a checked payload");
+                };
+                assert!(heap.preview_observation(&observed, 0, &allocator).is_err());
+                assert!(matches!(
+                    heap.preview_observation(&observed, customer, &allocator),
+                    Ok(PreviewObservation::Strong { .. })
+                ));
+                let mut forged = l::Token {
+                    leaf: l::Leaf {
+                        ty: ty(1),
+                        offset: 0,
+                        span: None,
+                    },
+                    bytes: observed.bytes,
+                };
+                forged.bytes[24] ^= 0x80;
+                assert!(
+                    heap.preview_observation(&forged, customer, &allocator)
+                        .is_err()
+                );
+                forged.bytes = observed.bytes;
+                forged.leaf.ty = ty(5);
+                assert!(
+                    heap.preview_observation(&forged, customer, &allocator)
+                        .is_err()
+                );
+                assert_eq!(
+                    counts,
+                    heap.nodes
+                        .iter()
+                        .flatten()
+                        .map(|node| node.block.counts(&allocator).unwrap())
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(allocator.stats(), unchanged);
                 assert!(heap.read_observed(&observed, None, &mut allocator).is_err());
                 assert!(
                     heap.retire_read(parent_read, ty(4), &mut allocator)

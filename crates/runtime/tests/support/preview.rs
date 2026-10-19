@@ -108,7 +108,7 @@ fn deep_zero_sized_copy_records_use_the_bounded_iterative_stack() {
 #[test]
 fn preparation_obeys_cumulative_work_storage_and_inactive_payload_boundaries() {
     let mut table = table();
-    let forbidden = construct(&mut table, o::Constructor::Vec(o::Type::I64));
+    let forbidden = construct(&mut table, o::Constructor::Arena(o::Type::I64));
     let inactive = construct(&mut table, o::Constructor::Option(forbidden));
     let verified = table.verify(Default::default()).unwrap();
     let layouts = l::Layouts::compile(&verified, Default::default()).unwrap();
@@ -166,4 +166,39 @@ fn preparation_obeys_cumulative_work_storage_and_inactive_payload_boundaries() {
         V::from_case(o::Builtin::AllocError, 3, None),
         Err(l::Error::InvalidCase(3))
     );
+}
+
+#[test]
+fn indirect_preview_scratch_obeys_exact_and_one_below_cumulative_host_budgets() {
+    let mut table = table();
+    let map = construct(&mut table, o::Constructor::Map(o::Type::I64, o::Type::I64));
+    let verified = table.verify(Default::default()).unwrap();
+    let layouts = l::Layouts::compile(&verified, Default::default()).unwrap();
+    let base = layouts.usage();
+    let used = l::Preview::prepare(&layouts, map, 64, Default::default(), base)
+        .unwrap()
+        .usage();
+    let exact = m::Limits {
+        work: used.work,
+        allocations: used.allocation_bytes,
+        elements: used.elements,
+        ..Default::default()
+    };
+    assert!(l::Preview::prepare(&layouts, map, 64, exact, base).is_ok());
+    for limits in [
+        m::Limits {
+            work: exact.work - 1,
+            ..exact
+        },
+        m::Limits {
+            allocations: exact.allocations - 1,
+            ..exact
+        },
+        m::Limits {
+            elements: exact.elements - 1,
+            ..exact
+        },
+    ] {
+        assert!(l::Preview::prepare(&layouts, map, 64, limits, base).is_err());
+    }
 }

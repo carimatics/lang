@@ -1,6 +1,57 @@
 use super::*;
 
+/// Private coordinates for a callback-free protected-result observation.
+/// Never an owning ticket or externally constructible custody capability.
+pub(crate) enum PreviewObservation<'l, 't> {
+    Strong {
+        value: l::ReadView<'l, 't>,
+        customer: u64,
+    },
+    Weak {
+        live: bool,
+    },
+}
 impl<'l, 't> Heap<'l, 't> {
+    pub(crate) fn preview_observation<P: a::Provider>(
+        &self,
+        token: &l::Token,
+        customer: u64,
+        allocator: &a::Allocator<P>,
+    ) -> Result<PreviewObservation<'l, 't>, Error> {
+        let o::Type::Constructed(id) = token.leaf.ty else {
+            return Err(unavailable());
+        };
+        let (kind, ty) = match self
+            .layouts
+            .types()
+            .table()
+            .constructed
+            .get(id.0 as usize)
+            .map(|t| t.constructor)
+        {
+            Some(o::Constructor::Shared(ty)) => (STRONG, ty),
+            Some(o::Constructor::Weak(ty)) => (WEAK, ty),
+            _ => return Err(unavailable()),
+        };
+        let index = Registry::new(self.owner, &self.nodes, self.layouts, self.limits).resolve(
+            Reference::parse(token.bytes)?,
+            kind,
+            ty,
+            customer,
+            allocator,
+        )?;
+        let node = self.nodes[index].as_ref().ok_or_else(unavailable)?;
+        if kind == WEAK {
+            return Ok(PreviewObservation::Weak {
+                live: node.block.counts(allocator)?.strong != 0,
+            });
+        }
+        Ok(PreviewObservation::Strong {
+            value: node.block.payload(allocator)?.reservation().observe()?,
+            customer: index as u64 + 1,
+        })
+    }
+
     pub fn custody<P: a::Provider>(
         &self,
         read: Read,

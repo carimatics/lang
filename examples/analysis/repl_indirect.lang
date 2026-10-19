@@ -1,0 +1,37 @@
+struct Pair { strong: shared i64, back: weak i64 }
+struct Node { next: core::Option<weak Node> }
+fn vector() -> core::Vec<i64> {
+    let mut v: core::Vec<i64> = core::result_unwrap::<core::Vec<i64>,core::AllocError>(core::vec_new::<i64>(core::allocator()));
+    let mut a: core::Unit = core::result_unwrap::<core::Unit,core::AllocError>(core::vec_push::<i64>(v,9));
+    let mut b: core::Unit = core::result_unwrap::<core::Unit,core::AllocError>(core::vec_push::<i64>(v,-1));
+    return v;
+}
+fn table() -> core::Map<i64,bool> {
+    let mut v: core::Map<i64,bool> = core::result_unwrap::<core::Map<i64,bool>,core::AllocError>(core::map_new::<i64,bool>(core::allocator()));
+    let mut a: core::Option<bool> = core::result_unwrap::<core::Option<bool>,core::AllocError>(core::map_insert::<i64,bool>(v,2,false));
+    let mut b: core::Option<bool> = core::result_unwrap::<core::Option<bool>,core::AllocError>(core::map_insert::<i64,bool>(v,1,false));
+    let mut c: core::Option<bool> = core::result_unwrap::<core::Option<bool>,core::AllocError>(core::map_insert::<i64,bool>(v,2,true));
+    let mut d: core::Option<bool> = core::result_unwrap::<core::Option<bool>,core::AllocError>(core::map_insert::<i64,bool>(v,3,true));
+    let mut e: core::Option<bool> = core::result_unwrap::<core::Option<bool>,core::AllocError>(core::map_insert::<i64,bool>(v,10,true));
+    let mut key: i64 = 3;
+    let mut removed: core::Option<bool> = core::map_remove::<i64,bool>(v,key);
+    return v;
+}
+fn empty_map() -> core::Map<i64,bool> {
+    return core::result_unwrap::<core::Map<i64,bool>,core::AllocError>(core::map_new::<i64,bool>(core::allocator()));
+}
+fn pair() -> shared Pair {
+    let mut strong: shared i64 = core::result_unwrap::<shared i64,core::OwnershipError>(core::shared_new::<i64>(core::allocator(),7));
+    let mut weak_value: weak i64 = core::result_unwrap::<weak i64,core::OwnershipError>(core::weak_new::<i64>(strong));
+    return core::result_unwrap::<shared Pair,core::OwnershipError>(core::shared_new::<Pair>(core::allocator(),Pair { strong: strong, back: weak_value }));
+}
+fn expired() -> weak i64 {
+    let mut strong: shared i64 = core::result_unwrap::<shared i64,core::OwnershipError>(core::shared_new::<i64>(core::allocator(),7));
+    return core::result_unwrap::<weak i64,core::OwnershipError>(core::weak_new::<i64>(strong));
+}
+fn cycle() -> shared Node {
+    let mut owner: shared Node = core::result_unwrap::<shared Node,core::OwnershipError>(core::shared_new::<Node>(core::allocator(),Node { next: core::Option::None }));
+    let mut back: weak Node = core::result_unwrap::<weak Node,core::OwnershipError>(core::weak_new::<Node>(owner));
+    let mut changed: core::Unit = core::result_unwrap::<core::Unit,core::OwnershipError>(core::shared_replace::<Node>(owner,Node { next: core::Option::Some(back) }));
+    return owner;
+}

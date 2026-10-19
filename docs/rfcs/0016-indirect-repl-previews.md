@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0016-indirect-repl-previews.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -17,6 +17,8 @@
 Extend RFC 0010's VM/REPL result formatter to Vec, Map, shared owners and weak tokens. For example, a function returning a Vec containing 9 prints `core::Vec [9]` instead of failing before execution with `Unsupported`. Source arena escape checks remain mandatory.
 
 Acceptance: **accepted under experimental delegation**, before implementation. Review finds no conflict with RFCs 0004/0007/0008/0010: this is read-only tooling over the already protected result, with explicit finite host scratch and no new guest operations. Implementation and boundary tests remain unverified at acceptance; acceptance does not complete V17.
+
+Implementation status (2026-10-20 JST): available through the intended VM/REPL interfaces, with output/order/custody/liveness/output and host-budget boundaries/cleanup verified. Latest per-suite workspace results total **1,529 tests / 89 suites** passing (after replacing the legacy Vec-refusal fixture with arena refusal and rerunning the non-root workspace). fmt/Clippy/rustdoc pass. The accepted design is unchanged.
 
 ## Motivation
 

@@ -1,7 +1,8 @@
 //! RFC 0010 previews read checked managed values without taking their owners.
 //! Output and the iterative depth stack are admitted before guest execution.
 use super::*;
-use crate::buffer;
+use crate::{buffer, map, shared::managed as shared, vector};
+mod indirect;
 use std::fmt::{self, Write};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -9,6 +10,9 @@ pub enum PreviewError {
     Limit,
     Value(Error),
     Buffer(buffer::Fault),
+    Vector(vector::Error),
+    Map(map::Error),
+    Shared(shared::Error),
 }
 impl std::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -26,15 +30,49 @@ impl From<buffer::Fault> for PreviewError {
         Self::Buffer(error)
     }
 }
-enum Print {
-    Value(Location),
+#[derive(Clone, Copy)]
+struct Site<'l, 't> {
+    value: ReadView<'l, 't>,
+    location: Location,
+    customer: u64,
+}
+impl<'l, 't> Site<'l, 't> {
+    fn root(value: ReadView<'l, 't>, customer: u64) -> Self {
+        Self {
+            location: value.root(),
+            value,
+            customer,
+        }
+    }
+    fn child<P: Provider>(self, field: u32, allocator: &Allocator<P>) -> Result<Self, Error> {
+        Ok(Self {
+            location: self.value.child(self.location, field, allocator)?,
+            ..self
+        })
+    }
+}
+enum Print<'l, 't> {
+    Value(Site<'l, 't>),
     Fields {
-        location: Location,
+        site: Site<'l, 't>,
         next: usize,
         case: Option<u32>,
     },
+    Vector {
+        ty: o::Type,
+        token: [u8; 32],
+        customer: u64,
+        next: u64,
+        len: u64,
+    },
+    Map(indirect::MapWalk),
     Text(&'static str),
     Immediate(Immediate),
+}
+#[derive(Clone, Copy)]
+struct OrderedKey {
+    key: map::Key,
+    index: u64,
 }
 struct Output {
     text: String,
@@ -58,7 +96,8 @@ pub struct Preview<'l, 't> {
     layouts: &'l Layouts<'t>,
     root: o::Type,
     output: Output,
-    pending: Vec<Print>,
+    pending: Vec<Print<'l, 't>>,
+    order: Vec<OrderedKey>,
     usage: m::Usage,
 }
 impl<'l, 't> Preview<'l, 't> {
@@ -91,6 +130,8 @@ impl<'l, 't> Preview<'l, 't> {
         seen.resize(count, false);
         let mut visit = budget.vector(count)?;
         let mut reached = 0usize;
+        let mut indirect = false;
+        let mut maps = false;
         let enqueue = |ty,
                        seen: &mut Vec<bool>,
                        visit: &mut Vec<o::Type>,
@@ -137,6 +178,19 @@ impl<'l, 't> Preview<'l, 't> {
                         | o::Builtin::OwnershipError
                         | o::Builtin::ArenaError,
                     ) => {}
+                    o::Constructor::Vec(t) | o::Constructor::Shared(t) => {
+                        indirect = true;
+                        enqueue(t, &mut seen, &mut visit, &mut budget)?;
+                    }
+                    o::Constructor::Map(k, v) => {
+                        indirect = true;
+                        maps = true;
+                        enqueue(k, &mut seen, &mut visit, &mut budget)?;
+                        enqueue(v, &mut seen, &mut visit, &mut budget)?;
+                    }
+                    o::Constructor::Weak(_) => {
+                        indirect = true;
+                    }
                     o::Constructor::Option(t) => enqueue(t, &mut seen, &mut visit, &mut budget)?,
                     o::Constructor::Result(a, b) => {
                         enqueue(a, &mut seen, &mut visit, &mut budget)?;
@@ -150,7 +204,15 @@ impl<'l, 't> Preview<'l, 't> {
             .checked_add(4)
             .and_then(|n| n.checked_mul(3))
             .ok_or(Error::Overflow)?;
+        let capacity = capacity
+            .checked_add(if indirect { limits.value_cells } else { 0 })
+            .ok_or(Error::Overflow)?;
         let pending = budget.vector(capacity)?;
+        let order = budget.vector(if maps {
+            (limit / 4).min(limits.value_cells)
+        } else {
+            0
+        })?;
         let bytes: Vec<u8> = budget.vector(limit)?;
         let text = String::from_utf8(bytes).map_err(|_| Error::InvalidValue)?;
         Ok(Self {
@@ -158,6 +220,7 @@ impl<'l, 't> Preview<'l, 't> {
             root,
             output: Output { text, limit },
             pending,
+            order,
             usage: m::Usage {
                 work: budget.work_used(),
                 allocation_bytes: budget.allocation_bytes(),
@@ -168,9 +231,9 @@ impl<'l, 't> Preview<'l, 't> {
     pub const fn usage(&self) -> m::Usage {
         self.usage
     }
-    fn push(&mut self, item: Print) -> Result<(), PreviewError> {
+    fn push(&mut self, item: Print<'l, 't>) -> Result<(), PreviewError> {
         if self.pending.len() == self.pending.capacity() {
-            return Err(Error::State.into());
+            return Err(PreviewError::Limit);
         }
         self.pending.push(item);
         Ok(())
@@ -235,7 +298,7 @@ impl<'l, 't> Preview<'l, 't> {
     }
     fn aggregate(
         &mut self,
-        location: Location,
+        site: Site<'l, 't>,
         case: Option<u32>,
         fields: usize,
         record: bool,
@@ -253,7 +316,7 @@ impl<'l, 't> Preview<'l, 't> {
         }
         self.push(Print::Text(if record { " }" } else { ")" }))?;
         self.push(Print::Fields {
-            location,
+            site,
             next: 0,
             case,
         })
@@ -261,9 +324,19 @@ impl<'l, 't> Preview<'l, 't> {
     /// Read-only rendering; success/failure never transfers or retires a token.
     /// The adapter must consume the result and check cleanup before publication.
     pub fn render<P: Provider>(
+        self,
+        cell: &Reservation<'l, 't>,
+        allocator: &Allocator<P>,
+    ) -> Result<String, PreviewError> {
+        self.render_with_shared(cell, allocator, None)
+    }
+    /// The registry is immutably borrowed with the allocator and protected result.
+    /// Formatting never creates guest read tickets or changes reference counts.
+    pub fn render_with_shared<P: Provider>(
         mut self,
         cell: &Reservation<'l, 't>,
         allocator: &Allocator<P>,
+        shared: Option<&shared::Heap<'l, 't>>,
     ) -> Result<String, PreviewError> {
         if !std::ptr::eq(self.layouts, cell.layouts)
             || self.layouts.types.equivalent(self.root, cell.ty) != Some(true)
@@ -271,138 +344,153 @@ impl<'l, 't> Preview<'l, 't> {
             return Err(Error::ForeignLocation.into());
         }
         let layouts = self.layouts;
-        self.push(Print::Value(cell.root()))?;
+        self.push(Print::Value(Site::root(cell.observe()?, 0)))?;
         while let Some(item) = self.pending.pop() {
             match item {
                 Print::Text(text) => self.text(text)?,
                 Print::Immediate(value) => self.immediate(value)?,
-                Print::Value(location) => match location.ty {
-                    o::Type::I64 | o::Type::Bool => {
-                        self.immediate(cell.read_immediate(location, allocator)?)?
-                    }
-                    o::Type::Nominal(id) => {
-                        let definition = &layouts.types.table().definitions[id.0 as usize];
-                        self.text(&definition.name)?;
-                        match &definition.kind {
-                            o::DefinitionKind::Record(fields) => {
-                                self.aggregate(location, None, fields.len(), true)?
-                            }
-                            o::DefinitionKind::Enum(cases) => {
-                                let case = cell.case(location, allocator)?;
-                                let definition =
-                                    cases.get(case as usize).ok_or(Error::InvalidCase(case))?;
-                                self.text("::")?;
-                                self.text(&definition.name)?;
-                                self.aggregate(
-                                    location,
-                                    Some(case),
-                                    definition.payload.len(),
-                                    false,
-                                )?;
-                            }
+                Print::Value(site) => {
+                    let location = site.location;
+                    match location.ty {
+                        o::Type::I64 | o::Type::Bool => {
+                            self.immediate(site.value.immediate(location, allocator)?)?
                         }
-                    }
-                    o::Type::Constructed(id) => {
-                        match layouts.types.table().constructed[id.0 as usize].constructor {
-                            o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text) => {
-                                let builtin =
-                                    layouts.types.table().constructed[id.0 as usize].constructor;
-                                let start = location.offset as usize;
-                                let mut token: [u8; 32] = cell
-                                    .data(allocator)?
-                                    .get(start..start.checked_add(32).ok_or(Error::Overflow)?)
-                                    .ok_or(Error::State)?
-                                    .try_into()
-                                    .map_err(|_| Error::State)?;
-                                if builtin == o::Constructor::Builtin(o::Builtin::Bytes) {
-                                    let bytes = buffer::Bytes::from_token(&mut token, allocator)?;
-                                    self.text("core::Bytes [")?;
-                                    if bytes.len(allocator)? as usize
-                                        > self.output.limit - self.output.text.len()
-                                    {
-                                        return Err(PreviewError::Limit);
-                                    }
-                                    for (i, byte) in bytes.as_slice(allocator)?.iter().enumerate() {
-                                        if i != 0 {
-                                            self.text(", ")?;
-                                        }
-                                        self.number(i64::from(*byte))?;
-                                    }
-                                    self.text("]")?;
-                                } else {
-                                    let text = buffer::Text::from_token(&mut token, allocator)?;
-                                    self.text("core::Text \"")?;
-                                    if text.len(allocator)? as usize
-                                        > self.output.limit - self.output.text.len()
-                                    {
-                                        return Err(PreviewError::Limit);
-                                    }
-                                    for character in text.as_str(allocator)?.chars() {
-                                        match character {
-                                            '"' => self.text("\\\"")?,
-                                            '\\' => self.text("\\\\")?,
-                                            '\n' => self.text("\\n")?,
-                                            '\r' => self.text("\\r")?,
-                                            '\t' => self.text("\\t")?,
-                                            ' '..='~' => self
-                                                .output
-                                                .write_char(character)
-                                                .map_err(|_| PreviewError::Limit)?,
-                                            other => write!(
-                                                &mut self.output,
-                                                "\\u{{{:x}}}",
-                                                u32::from(other)
-                                            )
-                                            .map_err(|_| PreviewError::Limit)?,
-                                        }
-                                    }
-                                    self.text("\"")?;
+                        o::Type::Nominal(id) => {
+                            let definition = &layouts.types.table().definitions[id.0 as usize];
+                            self.text(&definition.name)?;
+                            match &definition.kind {
+                                o::DefinitionKind::Record(fields) => {
+                                    self.aggregate(site, None, fields.len(), true)?
+                                }
+                                o::DefinitionKind::Enum(cases) => {
+                                    let case = site.value.case(location, allocator)?;
+                                    let definition =
+                                        cases.get(case as usize).ok_or(Error::InvalidCase(case))?;
+                                    self.text("::")?;
+                                    self.text(&definition.name)?;
+                                    self.aggregate(
+                                        site,
+                                        Some(case),
+                                        definition.payload.len(),
+                                        false,
+                                    )?;
                                 }
                             }
-                            o::Constructor::Builtin(_) => {
-                                self.immediate(cell.read_immediate(location, allocator)?)?
+                        }
+                        o::Type::Constructed(id) => {
+                            match layouts.types.table().constructed[id.0 as usize].constructor {
+                                o::Constructor::Builtin(o::Builtin::Bytes | o::Builtin::Text) => {
+                                    let builtin = layouts.types.table().constructed[id.0 as usize]
+                                        .constructor;
+                                    let mut token = site.value.token(location, allocator)?.bytes;
+                                    if builtin == o::Constructor::Builtin(o::Builtin::Bytes) {
+                                        let bytes =
+                                            buffer::Bytes::from_token(&mut token, allocator)?;
+                                        self.text("core::Bytes [")?;
+                                        if bytes.len(allocator)? as usize
+                                            > self.output.limit - self.output.text.len()
+                                        {
+                                            return Err(PreviewError::Limit);
+                                        }
+                                        for (i, byte) in
+                                            bytes.as_slice(allocator)?.iter().enumerate()
+                                        {
+                                            if i != 0 {
+                                                self.text(", ")?;
+                                            }
+                                            self.number(i64::from(*byte))?;
+                                        }
+                                        self.text("]")?;
+                                    } else {
+                                        let text = buffer::Text::from_token(&mut token, allocator)?;
+                                        self.text("core::Text \"")?;
+                                        if text.len(allocator)? as usize
+                                            > self.output.limit - self.output.text.len()
+                                        {
+                                            return Err(PreviewError::Limit);
+                                        }
+                                        for character in text.as_str(allocator)?.chars() {
+                                            match character {
+                                                '"' => self.text("\\\"")?,
+                                                '\\' => self.text("\\\\")?,
+                                                '\n' => self.text("\\n")?,
+                                                '\r' => self.text("\\r")?,
+                                                '\t' => self.text("\\t")?,
+                                                ' '..='~' => self
+                                                    .output
+                                                    .write_char(character)
+                                                    .map_err(|_| PreviewError::Limit)?,
+                                                other => write!(
+                                                    &mut self.output,
+                                                    "\\u{{{:x}}}",
+                                                    u32::from(other)
+                                                )
+                                                .map_err(|_| PreviewError::Limit)?,
+                                            }
+                                        }
+                                        self.text("\"")?;
+                                    }
+                                }
+                                o::Constructor::Builtin(_) => {
+                                    self.immediate(site.value.immediate(location, allocator)?)?
+                                }
+                                o::Constructor::Option(_) | o::Constructor::Result(..) => {
+                                    let case = site.value.case(location, allocator)?;
+                                    let option = matches!(
+                                        layouts.types.table().constructed[id.0 as usize]
+                                            .constructor,
+                                        o::Constructor::Option(_)
+                                    );
+                                    self.text(if option {
+                                        "core::Option::"
+                                    } else {
+                                        "core::Result::"
+                                    })?;
+                                    self.text(if option {
+                                        if case == 0 { "None" } else { "Some" }
+                                    } else if case == 0 {
+                                        "Ok"
+                                    } else {
+                                        "Err"
+                                    })?;
+                                    let Kind::Enum { cases, .. } = &layouts
+                                        .get(location.ty)
+                                        .ok_or(Error::InvalidType(location.ty))?
+                                        .kind
+                                    else {
+                                        return Err(Error::InvalidType(location.ty).into());
+                                    };
+                                    self.aggregate(
+                                        site,
+                                        Some(case),
+                                        cases[case as usize].fields.len(),
+                                        false,
+                                    )?;
+                                }
+                                o::Constructor::Vec(ty) => self.vector(site, ty, allocator)?,
+                                o::Constructor::Map(key, value) => {
+                                    self.map(site, key, value, allocator)?
+                                }
+                                o::Constructor::Shared(_) | o::Constructor::Weak(_) => {
+                                    self.shared(site, shared.ok_or(Error::State)?, allocator)?;
+                                }
+                                _ => return Err(Error::InvalidType(location.ty).into()),
                             }
-                            o::Constructor::Option(_) | o::Constructor::Result(..) => {
-                                let case = cell.case(location, allocator)?;
-                                let option = matches!(
-                                    layouts.types.table().constructed[id.0 as usize].constructor,
-                                    o::Constructor::Option(_)
-                                );
-                                self.text(if option {
-                                    "core::Option::"
-                                } else {
-                                    "core::Result::"
-                                })?;
-                                self.text(if option {
-                                    if case == 0 { "None" } else { "Some" }
-                                } else if case == 0 {
-                                    "Ok"
-                                } else {
-                                    "Err"
-                                })?;
-                                let Kind::Enum { cases, .. } = &layouts
-                                    .get(location.ty)
-                                    .ok_or(Error::InvalidType(location.ty))?
-                                    .kind
-                                else {
-                                    return Err(Error::InvalidType(location.ty).into());
-                                };
-                                self.aggregate(
-                                    location,
-                                    Some(case),
-                                    cases[case as usize].fields.len(),
-                                    false,
-                                )?;
-                            }
-                            _ => return Err(Error::InvalidType(location.ty).into()),
                         }
                     }
-                },
-                Print::Fields {
-                    location,
+                }
+                Print::Vector {
+                    ty,
+                    token,
+                    customer,
                     next,
-                    case,
+                    len,
                 } => {
+                    self.vector_next(ty, token, customer, next, len, allocator)?;
+                }
+                Print::Map(walk) => self.map_next(walk, allocator)?,
+                Print::Fields { site, next, case } => {
+                    let location = site.location;
                     let Kind::Record(record) = &layouts
                         .get(location.ty)
                         .ok_or(Error::InvalidType(location.ty))?
@@ -418,15 +506,11 @@ impl<'l, 't> Preview<'l, 't> {
                                 self.text(", ")?;
                             }
                             self.push(Print::Fields {
-                                location,
+                                site,
                                 next: next + 1,
                                 case,
                             })?;
-                            self.push(Print::Value(cell.child(
-                                location,
-                                next as u32,
-                                allocator,
-                            )?))?;
+                            self.push(Print::Value(site.child(next as u32, allocator)?))?;
                         }
                         continue;
                     };
@@ -445,15 +529,11 @@ impl<'l, 't> Preview<'l, 't> {
                         self.text(&fields[next].name)?;
                         self.text(": ")?;
                         self.push(Print::Fields {
-                            location,
+                            site,
                             next: next + 1,
                             case,
                         })?;
-                        self.push(Print::Value(cell.child(
-                            location,
-                            next as u32,
-                            allocator,
-                        )?))?;
+                        self.push(Print::Value(site.child(next as u32, allocator)?))?;
                     }
                 }
             }

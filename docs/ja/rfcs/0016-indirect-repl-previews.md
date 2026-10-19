@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0016-indirect-repl-previews.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -17,6 +17,8 @@
 RFC 0010 の VM/REPL 結果表示を Vec、Map、shared 所有値、weak トークンに拡張する。例えば 9 を含む Vec を返す関数は、実行前の `Unsupported` ではなく `core::Vec [9]` を表示する。ソースの arena 脱出検査は必須のままとする。
 
 受理判断: 実装前に **実験段階の委任に基づき accepted**。保護済み結果を読み取るツール機能であり、有限のホスト作業領域を明示し、ゲスト操作を追加しないため、RFC 0004/0007/0008/0010 との矛盾はないと判断した。受理時点では実装と境界テストは未検証であり、受理だけでは V17 は完了しない。
+
+実装状態（2026-10-20 JST）：VM／REPLの意図した入口へ接続し、表示・順序・custody・生存状態・出力／host予算境界・cleanupを検証済み。全workspaceの最新実行結果を統合して **1,529 tests / 89 suites** が成功（旧Vec拒否fixtureをarena拒否へ更新した後、非root workspaceを再実行）。fmt／Clippy／rustdocも成功しました。設計内容は受理時から変えていません。
 
 ## 動機
 

@@ -376,7 +376,7 @@ fn owned_limits_oom_interruption_and_cumulative_quotas_release_and_recover() {
 }
 
 #[test]
-fn ownership_transactions_and_unsupported_reachable_operations_have_no_provider_effects() {
+fn ownership_transactions_preserve_errors_and_collection_results_now_render() {
     let mut session = Session::default();
     commit(&mut session, FRESH);
     let bad = submit(&mut session, "fn bad() -> i64 { return fresh_bytes(); }");
@@ -393,10 +393,9 @@ fn ownership_transactions_and_unsupported_reachable_operations_have_no_provider_
     );
     let (mut allocator, trace) = allocator(Default::default());
     let report = eval(&mut session, "vector()", &mut allocator, Control::default());
-    assert!(
-        matches!(report.result, Err(ReplError::OwnedRuntime(ref e)) if matches!(e.reason, engine::Reason::Unsupported { .. }))
-    );
-    assert_eq!(trace.borrow().requests, 0);
+    expect_value(report, "core::Vec []");
+    assert!(trace.borrow().requests > 0);
+    released(&allocator, &trace);
     expect_value(
         eval(
             &mut session,
@@ -536,4 +535,21 @@ fn piped_owned_repl_transcript_recovers_from_runtime_and_frame_failures_without_
     assert!(output.status.success());
     assert_eq!(output.stdout, b"3\n");
     assert!(String::from_utf8_lossy(&output.stderr).contains("FrameLimit"));
+}
+
+#[test]
+fn piped_repl_prints_collections_shared_and_weak_results_without_retaining_guest_state() {
+    let input = format!(
+        "{}\nvector()\ntable()\npair()\nexpired()\ncycle()\n",
+        include_str!("../../examples/analysis/repl_indirect.lang")
+    );
+    let output = cli(input.as_bytes(), &[]);
+    assert!(output.status.success());
+    assert_eq!(output.stdout,
+        b"core::Vec [9, -1]\ncore::Map { 1: false, 2: true, 10: true }\nshared(Pair { strong: shared(7), back: weak::Live })\nweak::Expired\nshared(Node { next: core::Option::Some(weak::Live) })\n");
+    assert!(
+        output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

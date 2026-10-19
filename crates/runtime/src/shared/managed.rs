@@ -5,6 +5,7 @@ use crate::{allocation as a, buffer, cleanup as c, inspection as i, layout as l}
 use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 mod access;
+pub(crate) use access::PreviewObservation;
 mod graph;
 mod retirement;
 use graph::Registry;

@@ -1110,7 +1110,11 @@ fn execute_with<P: a::Provider>(
                             .unwrap()
                             .cell(state.cells[escrow].physical)
                             .unwrap();
-                        prepared.render(cell, state.allocator)
+                        prepared.render_with_shared(
+                            cell,
+                            state.allocator,
+                            state.shared_heap.as_ref(),
+                        )
                     };
                     match rendered {
                         Ok(value) => {
