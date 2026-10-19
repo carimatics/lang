@@ -42,6 +42,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo fmt --manifest-path fuzz/Cargo.toml --check
 
+      - name: Check native C boundaries and linker failures
+        run: |
+          cargo test --locked --test c_abi --all-features
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --lib --all-features linker::tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --test linker_failures --all-features
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Lint
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 

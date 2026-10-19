@@ -196,23 +196,35 @@ pub enum LinkerDiscoveryError {
     NotFound {
         candidates: Vec<OsString>,
         search_path: OsString,
+        flavor: LinkerFlavor,
     },
 }
 
 impl Display for LinkerDiscoveryError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MissingPath => formatter.write_str("PATH is not set for linker discovery"),
+            Self::MissingPath => formatter.write_str(
+                "PATH is not set for linker discovery; configure the target C toolchain on PATH",
+            ),
             Self::NotFound {
                 candidates,
                 search_path,
+                flavor,
             } => {
                 formatter.write_str("no linker candidate found on PATH ")?;
                 write!(formatter, "{search_path:?}; searched")?;
                 for candidate in candidates {
                     write!(formatter, " {candidate:?}")?;
                 }
-                Ok(())
+                let help = match flavor {
+                    LinkerFlavor::Cc => {
+                        "install a C toolchain and add cc, clang, or gcc to PATH (macOS: Xcode Command Line Tools)"
+                    }
+                    LinkerFlavor::MsvcLink => {
+                        "install the Visual Studio C++ Build Tools and use an x64 Developer Command Prompt so link.exe and Windows SDK libraries are available"
+                    }
+                };
+                write!(formatter, "; {help}")
             }
         }
     }
@@ -289,6 +301,7 @@ impl SystemLinker {
         Err(LinkerDiscoveryError::NotFound {
             candidates: candidates.iter().map(OsString::from).collect(),
             search_path: search_path.to_os_string(),
+            flavor,
         })
     }
 
@@ -359,6 +372,7 @@ impl SystemLinker {
 
     pub fn link(&self, request: &LinkRequest) -> Result<(), LinkError> {
         let command = self.command(request)?;
+        Self::validate_output_path(request)?;
         Self::execute(request, command)
     }
 
@@ -372,6 +386,7 @@ impl SystemLinker {
     ) -> Result<(), LinkError> {
         let response_file = response_file.as_ref();
         let command = self.command_with_response_file(request, response_file)?;
+        Self::validate_output_path(request)?;
         let contents = self.response_file_contents(request)?;
         // Exclusive creation also rejects symlinks and differently spelled
         // aliases of an existing input. Never truncate a caller's file.
@@ -420,6 +435,37 @@ impl SystemLinker {
         }
 
         Ok(())
+    }
+
+    // Command preview remains independent of the filesystem. Only execution
+    // performs path preflight, before creating an rsp file or starting a tool.
+    fn validate_output_path(request: &LinkRequest) -> Result<(), LinkError> {
+        let parent = request
+            .output
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let directory = fs::metadata(parent).map_err(|source| LinkError::OutputDirectory {
+            path: parent.to_path_buf(),
+            source,
+        })?;
+        if !directory.is_dir() {
+            return Err(LinkError::OutputDirectory {
+                path: parent.to_path_buf(),
+                source: io::ErrorKind::NotADirectory.into(),
+            });
+        }
+        match fs::metadata(&request.output) {
+            Ok(metadata) if !metadata.is_file() => Err(LinkError::OutputNotFile {
+                path: request.output.clone(),
+            }),
+            Ok(_) => Ok(()),
+            Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(source) => Err(LinkError::InspectOutput {
+                path: request.output.clone(),
+                source,
+            }),
+        }
     }
 
     fn validate_response_file_path(
@@ -535,6 +581,7 @@ impl SystemLinker {
         if !output.status.success() {
             return Err(LinkError::Failed {
                 command,
+                output: request.output.clone(),
                 status: output.status,
                 stdout: output.stdout,
                 stderr: output.stderr,
@@ -635,6 +682,17 @@ fn is_executable_file(path: &Path) -> bool {
 
 #[derive(Debug)]
 pub enum LinkError {
+    OutputDirectory {
+        path: PathBuf,
+        source: io::Error,
+    },
+    OutputNotFile {
+        path: PathBuf,
+    },
+    InspectOutput {
+        path: PathBuf,
+        source: io::Error,
+    },
     EmptyProgram,
     EmptyOutput,
     NoObjects,
@@ -671,6 +729,7 @@ pub enum LinkError {
     },
     Failed {
         command: LinkCommand,
+        output: PathBuf,
         status: ExitStatus,
         stdout: Vec<u8>,
         stderr: Vec<u8>,
@@ -684,6 +743,33 @@ pub enum LinkError {
 impl Display for LinkError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::OutputDirectory { path, source } => {
+                write!(
+                    formatter,
+                    "cannot use link output directory `{}`: {source}; ",
+                    path.display()
+                )?;
+                formatter.write_str(match source.kind() {
+                    io::ErrorKind::NotFound => "create the output directory before linking",
+                    io::ErrorKind::NotADirectory => {
+                        "choose an existing directory for the output file"
+                    }
+                    io::ErrorKind::PermissionDenied => {
+                        "check access permissions for the output directory"
+                    }
+                    _ => "check that the output directory exists and is accessible",
+                })
+            }
+            Self::OutputNotFile { path } => write!(
+                formatter,
+                "link output `{}` is not a regular file; choose an output file in an existing directory",
+                path.display()
+            ),
+            Self::InspectOutput { path, source } => write!(
+                formatter,
+                "cannot inspect link output `{}`: {source}; check the output path and permissions",
+                path.display()
+            ),
             Self::EmptyProgram => formatter.write_str("system linker program must not be empty"),
             Self::EmptyOutput => formatter.write_str("link output path must not be empty"),
             Self::NoObjects => formatter.write_str("link request must contain at least one object"),
@@ -734,16 +820,23 @@ impl Display for LinkError {
                 write!(
                     formatter,
                     "failed to start system linker command {command}: {source}"
-                )
+                )?;
+                formatter.write_str(match source.kind() {
+                    io::ErrorKind::NotFound => "; configure the target toolchain on PATH or select its full executable path",
+                    io::ErrorKind::PermissionDenied => "; check executable permissions and access to the linker",
+                    _ => "",
+                })
             }
             Self::Failed {
                 command,
+                output,
                 status,
                 stdout,
                 stderr,
             } => write!(
                 formatter,
-                "system linker command {command} failed with {status}:\nstdout:\n{}\nstderr:\n{}",
+                "system linker command {command} failed for output `{}` with {status}:\nstdout:\n{}\nstderr:\n{}",
+                output.display(),
                 String::from_utf8_lossy(stdout),
                 String::from_utf8_lossy(stderr)
             ),
@@ -759,7 +852,11 @@ impl Display for LinkError {
 impl Error for LinkError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::WriteResponseFile { source, .. } | Self::Spawn { source, .. } => Some(source),
+            Self::OutputDirectory { source, .. }
+            | Self::InspectOutput { source, .. }
+            | Self::WriteResponseFile { source, .. }
+            | Self::Spawn { source, .. } => Some(source),
+            Self::OutputNotFile { .. } => None,
             Self::EmptyProgram
             | Self::EmptyOutput
             | Self::NoObjects
@@ -1317,7 +1414,7 @@ mod tests {
     fn reports_searched_candidates_when_discovery_fails() {
         let directory = TestDirectory::create();
         let search_path = std::env::join_paths([directory.path()]).unwrap();
-        let (expected_candidates, _) = host_linker_candidates();
+        let (expected_candidates, flavor) = host_linker_candidates();
 
         let error = SystemLinker::discover_host_in(&search_path)
             .expect_err("reports missing host linker candidates");
@@ -1327,6 +1424,7 @@ mod tests {
             LinkerDiscoveryError::NotFound {
                 candidates: expected_candidates.iter().map(OsString::from).collect(),
                 search_path,
+                flavor,
             }
         );
     }
@@ -1416,6 +1514,109 @@ mod tests {
                 OsString::from("-o"),
                 OsString::from("program"),
             ]
+        );
+    }
+
+    #[test]
+    fn output_path_errors_precede_spawning_and_response_file_creation() {
+        use std::io::ErrorKind;
+        let directory = TestDirectory::create();
+        let input = directory.path().join("main.o");
+        fs::write(&input, b"preserve input").unwrap();
+        let not_directory = directory.path().join("parent-file");
+        fs::write(&not_directory, b"preserve parent").unwrap();
+        let existing_directory = directory.path().join("output-directory");
+        fs::create_dir(&existing_directory).unwrap();
+        for flavor in [LinkerFlavor::Cc, LinkerFlavor::MsvcLink] {
+            for output in [
+                directory.path().join("missing/program"),
+                not_directory.join("program"),
+                existing_directory.clone(),
+            ] {
+                let request = LinkRequest::new(&output).with_object(&input);
+                let linker = SystemLinker::new_with_flavor(MISSING_LINKER, flavor);
+                // Command previews need no files or tools and remain useful for
+                // cross-target build planning; execution performs the preflight.
+                assert!(linker.command(&request).is_ok());
+                let response = directory.path().join("unused.rsp");
+                for error in [
+                    linker.link(&request).unwrap_err(),
+                    linker
+                        .link_with_response_file(&request, &response)
+                        .unwrap_err(),
+                ] {
+                    let message = error.to_string();
+                    if output == existing_directory {
+                        assert!(
+                            matches!(error, LinkError::OutputNotFile { ref path } if path == &output)
+                        );
+                        assert!(message.contains("choose an output file"));
+                    } else {
+                        let expected = if output.starts_with(&not_directory) {
+                            ErrorKind::NotADirectory
+                        } else {
+                            ErrorKind::NotFound
+                        };
+                        assert!(
+                            matches!(error, LinkError::OutputDirectory { ref path, ref source } if Some(path.as_path()) == output.parent() && source.kind() == expected)
+                        );
+                        let cause = std::error::Error::source(&error)
+                            .unwrap()
+                            .downcast_ref::<std::io::Error>()
+                            .unwrap();
+                        assert_eq!(cause.kind(), expected);
+                        assert!(message.contains(if expected == ErrorKind::NotFound {
+                            "create the output directory"
+                        } else {
+                            "choose an existing directory"
+                        }));
+                    }
+                    assert!(
+                        !response.exists(),
+                        "invalid output must not leave a response file"
+                    );
+                    assert_eq!(fs::read(&input).unwrap(), b"preserve input");
+                    assert_eq!(fs::read(&not_directory).unwrap(), b"preserve parent");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn discovery_reports_the_requested_toolchain_and_setup_action() {
+        let directory = TestDirectory::create();
+        let search_path = std::env::join_paths([directory.path()]).unwrap();
+        for (target, hint) in [
+            (LinkTarget::MacosAarch64, "Xcode Command Line Tools"),
+            (
+                LinkTarget::WindowsX86_64Msvc,
+                "x64 Developer Command Prompt",
+            ),
+        ] {
+            let error = SystemLinker::discover_target_in(target, &search_path).unwrap_err();
+            let message = error.to_string();
+            assert!(
+                matches!(error, LinkerDiscoveryError::NotFound { flavor, ref candidates, ref search_path } if flavor == target.linker_flavor() && candidates.iter().any(|c| c == target.default_linker_program()) && !search_path.is_empty())
+            );
+            assert!(message.contains(hint), "{message}");
+            assert!(
+                message.contains(target.default_linker_program()),
+                "{message}"
+            );
+        }
+        let request = LinkRequest::new(directory.path().join("program")).with_object("main.o");
+        let error = SystemLinker::new(MISSING_LINKER)
+            .link(&request)
+            .unwrap_err();
+        assert!(matches!(error, LinkError::Spawn { .. }));
+        assert!(error.to_string().contains("full executable path"));
+        assert_eq!(
+            std::error::Error::source(&error)
+                .unwrap()
+                .downcast_ref::<std::io::Error>()
+                .unwrap()
+                .kind(),
+            std::io::ErrorKind::NotFound
         );
     }
 }

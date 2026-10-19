@@ -130,6 +130,18 @@ fn c_copy_fields(
 #[path = "c_context_native.rs"]
 mod context_support;
 
+fn object_function_symbols(object: &lang_codegen_clif::owned::CObjectArtifact<'_>) -> Vec<String> {
+    let mut symbols = object.support_symbols().to_vec();
+    symbols.extend(object.export_symbols().iter().map(|(_, name)| name.clone()));
+    symbols.extend(object.thunk_symbols().iter().map(|(_, name)| name.clone()));
+    let mut i = 0;
+    while let Some(function) = object.function(lang_mir::unit::FunctionId(i)) {
+        symbols.push(function.metadata().symbol.clone());
+        i += 1;
+    }
+    symbols
+}
+
 impl Library {
     fn new(artifact: &Artifact) -> Self {
         Self::with_extra(artifact, "")
@@ -278,29 +290,11 @@ impl Library {
             "callbacks.dylib"
         });
         let mut object_arguments = Vec::<std::ffi::OsString>::new();
+        let native_object = directory.join("owned.obj");
         if let Some((object, response)) = object {
-            let path = directory.join("owned.obj");
-            std::fs::write(&path, object.bytes()).unwrap();
-            object_arguments.push(path.into_os_string());
-            if cfg!(target_os = "windows") {
-                let mut symbols = vec![object.slot_symbol().to_owned()];
-                symbols.extend(object.support_symbols().iter().cloned());
-                symbols.extend(object.export_symbols().iter().map(|(_, name)| name.clone()));
-                symbols.extend(object.thunk_symbols().iter().map(|(_, name)| name.clone()));
-                let mut i = 0;
-                while let Some(function) = object.function(lang_mir::unit::FunctionId(i)) {
-                    symbols.push(function.metadata().symbol.clone());
-                    i += 1;
-                }
-                object_arguments.extend(symbols.iter().map(|s| {
-                    if s == object.slot_symbol() {
-                        format!("/EXPORT:{s},DATA").into()
-                    } else {
-                        format!("/EXPORT:{s}").into()
-                    }
-                }));
-            }
-            if response {
+            std::fs::write(&native_object, object.bytes()).unwrap();
+            object_arguments.push(native_object.clone().into_os_string());
+            if response && !cfg!(target_os = "windows") {
                 let path = directory.join("object.rsp");
                 let contents = object_arguments
                     .iter()
@@ -310,21 +304,66 @@ impl Library {
                 std::fs::write(&path, contents).unwrap();
                 object_arguments = vec![format!("@{}", path.display()).into()];
             }
-            if cfg!(target_os = "windows") {
-                // Pass the response file to LINK, not to CL's compiler-option
-                // parser. Keep /link outside the file, at the end of CL options.
-                object_arguments.insert(0, "/link".into());
-            }
         }
+        let mut link_description = None;
         let output = if cfg!(target_os = "windows") {
-            Command::new("cl")
-                .current_dir(&directory)
-                .args(["/nologo", "/std:c11", "/W4", "/WX", "/LD"])
-                .arg(&source)
-                .arg(format!("/Fe{}", library.display()))
-                .args(&object_arguments)
-                .output()
-                .unwrap()
+            if let Some((object, response)) = object {
+                // Compile separately, then invoke LINK itself through the same
+                // production driver as native AOT. CL quotes a forwarded @file
+                // as an ordinary input; it is not a LINK response-file boundary.
+                let callbacks = directory.join("callbacks.obj");
+                let compilation = Command::new("cl")
+                    .current_dir(&directory)
+                    .args(["/nologo", "/std:c11", "/W4", "/WX", "/c"])
+                    .arg(&source)
+                    .arg(format!("/Fo{}", callbacks.display()))
+                    .output()
+                    .unwrap();
+                assert!(
+                    compilation.status.success(),
+                    "{}\n{}",
+                    String::from_utf8_lossy(&compilation.stdout),
+                    String::from_utf8_lossy(&compilation.stderr)
+                );
+                let mut linker = lang::linker::SystemLinker::discover_host()
+                    .unwrap()
+                    .with_argument("/DLL")
+                    .with_argument(format!(
+                        "/IMPLIB:{}",
+                        directory.join("callbacks.lib").display()
+                    ))
+                    .with_argument(format!("/EXPORT:{},DATA", object.slot_symbol()));
+                for name in object_function_symbols(object) {
+                    linker.push_argument(format!("/EXPORT:{name}"));
+                }
+                let request = lang::linker::LinkRequest::new(&library)
+                    .with_object(&callbacks)
+                    .with_object(&native_object);
+                let response_path = directory.join("object.rsp");
+                let command = if response {
+                    linker
+                        .command_with_response_file(&request, &response_path)
+                        .unwrap()
+                } else {
+                    linker.command(&request).unwrap()
+                };
+                link_description = Some(command.to_string());
+                let result = if response {
+                    linker.link_with_response_file(&request, &response_path)
+                } else {
+                    linker.link(&request)
+                };
+                result.unwrap_or_else(|error| panic!("{error}"));
+                compilation
+            } else {
+                Command::new("cl")
+                    .current_dir(&directory)
+                    .args(["/nologo", "/std:c11", "/W4", "/WX", "/LD"])
+                    .arg(&source)
+                    .arg(format!("/Fe{}", library.display()))
+                    .output()
+                    .unwrap()
+            }
         } else {
             Command::new("cc")
                 .args([
@@ -366,18 +405,11 @@ impl Library {
         let loaded = Self { handle, directory };
         if let Some((object, _)) = object {
             let mut symbols = vec![object.slot_symbol().to_owned()];
-            symbols.extend(object.support_symbols().iter().cloned());
-            symbols.extend(object.export_symbols().iter().map(|(_, name)| name.clone()));
-            symbols.extend(object.thunk_symbols().iter().map(|(_, name)| name.clone()));
-            let mut i = 0;
-            while let Some(function) = object.function(lang_mir::unit::FunctionId(i)) {
-                symbols.push(function.metadata().symbol.clone());
-                i += 1;
-            }
+            symbols.extend(object_function_symbols(object));
             for symbol in symbols {
                 assert!(
                     loaded.address(&symbol).is_some(),
-                    "linked image did not export {symbol}:\n{}\n{}",
+                    "linked image did not export {symbol}; link command {link_description:?}:\n{}\n{}",
                     String::from_utf8_lossy(&output.stdout),
                     String::from_utf8_lossy(&output.stderr)
                 );
