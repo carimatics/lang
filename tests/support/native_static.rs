@@ -196,7 +196,11 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
     if result.is_ok() {{ 0 }} else {{ 1 }}
 }}
 "#, boundary=root.join("tests/native_owned_boundary.rs"))).unwrap();
-    let archive = files.0.join("runtime.a");
+    let archive = files.0.join(if cfg!(target_env = "msvc") {
+        "runtime.lib"
+    } else {
+        "runtime.a"
+    });
     let mut compiler = Command::new("rustc");
     compiler
         .current_dir(&root)
@@ -252,22 +256,38 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
                 .map(|(_, value)| value)
         })
         .unwrap();
-    let mut linker = SystemLinker::discover_host()
-        .unwrap()
-        .with_argument("-Wl,-export_dynamic");
+    let mut linker = SystemLinker::discover_host().unwrap();
+    if cfg!(target_os = "macos") {
+        linker.push_argument("-Wl,-export_dynamic");
+    }
     for argument in libraries.split_whitespace() {
         linker.push_argument(argument);
     }
     let startup = files.0.join("startup.c");
-    let startup_object = files.0.join("startup.o");
+    let startup_object = files.0.join(if cfg!(target_env = "msvc") {
+        "startup.obj"
+    } else {
+        "startup.o"
+    });
     fs::write(&startup, "extern int lang_owned_static_driver(const char*, const char*);\nint main(int argc, char** argv) { return argc == 3 ? lang_owned_static_driver(argv[1], argv[2]) : 2; }\n").unwrap();
-    let output = Command::new("cc")
-        .args(["-c"])
-        .arg(&startup)
-        .arg("-o")
-        .arg(&startup_object)
-        .output()
-        .unwrap();
+    let output = if cfg!(target_env = "msvc") {
+        let mut object = std::ffi::OsString::from("/Fo:");
+        object.push(&startup_object);
+        Command::new("cl.exe")
+            .args(["/nologo", "/O2", "/c"])
+            .arg(&startup)
+            .arg(object)
+            .output()
+            .unwrap()
+    } else {
+        Command::new("cc")
+            .arg("-c")
+            .arg(&startup)
+            .arg("-o")
+            .arg(&startup_object)
+            .output()
+            .unwrap()
+    };
     assert!(output.status.success(), "{output:?}");
     let mut profiles = control::work_profiles();
     profiles.push((
@@ -338,22 +358,42 @@ fn make_static(value: i64) -> core::Bytes {
             1000,
         )
         .unwrap();
-        let object = profile.join("guest.o");
+        let object = profile.join(if cfg!(target_env = "msvc") {
+            "guest.obj"
+        } else {
+            "guest.o"
+        });
+        let mut target_linker = linker.clone();
+        if cfg!(target_env = "msvc") {
+            for index in 0..flow.functions().len() {
+                let name = &artifact
+                    .function(m::FunctionId(index as u32))
+                    .unwrap()
+                    .metadata()
+                    .symbol;
+                target_linker.push_argument(format!("/EXPORT:{name}"));
+            }
+        }
         let source_file = profile.join("guest.lang");
         fs::write(&object, artifact.bytes).unwrap();
         fs::write(&source_file, &text).unwrap();
         for response in [false, true] {
-            let executable = profile.join(if response { "response" } else { "direct" });
+            let executable = profile.join(match (cfg!(target_env = "msvc"), response) {
+                (true, true) => "response.exe",
+                (true, false) => "direct.exe",
+                (false, true) => "response",
+                (false, false) => "direct",
+            });
             let request = LinkRequest::new(&executable)
                 .with_object(&startup_object)
                 .with_object(&object)
                 .with_object(&archive);
             if response {
-                linker
+                target_linker
                     .link_with_response_file(&request, profile.join("link.rsp"))
                     .unwrap();
             } else {
-                linker.link(&request).unwrap();
+                target_linker.link(&request).unwrap();
             }
             let output = Command::new(&executable)
                 .arg(&source_file)

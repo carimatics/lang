@@ -393,7 +393,10 @@ mod calls;
 /// This executable must contain the exact owned object supplied here, linked
 /// from the same source and toolchain. The private fixture caller owns that
 /// provenance; this entry point does not validate arbitrary native binaries.
-#[cfg(target_os = "macos")]
+#[cfg(any(
+    target_os = "macos",
+    all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+))]
 #[allow(
     dead_code,
     reason = "Called by the separately compiled standalone driver."

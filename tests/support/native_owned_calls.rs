@@ -5,7 +5,10 @@ mod arenas;
 mod control;
 #[path = "native_core.rs"]
 mod core;
-#[cfg(target_os = "macos")]
+#[cfg(any(
+    target_os = "macos",
+    all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+))]
 #[path = "native_linked.rs"]
 mod linked;
 #[path = "native_linking_admission.rs"]
@@ -16,7 +19,10 @@ mod maps;
 mod places;
 #[path = "native_shared.rs"]
 mod shared;
-#[cfg(target_os = "macos")]
+#[cfg(any(
+    target_os = "macos",
+    all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+))]
 #[path = "native_static.rs"]
 pub(super) mod static_driver;
 #[path = "native_owned_values.rs"]
@@ -28,7 +34,10 @@ use n::{CallSite, CompiledProgram, Transition};
 #[derive(Clone, Copy)]
 enum Executable<'p, 'l> {
     Jit(&'p CompiledProgram<'l>),
-    #[cfg(target_os = "macos")]
+    #[cfg(any(
+        target_os = "macos",
+        all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+    ))]
     Linked(&'p n::LinkedProgram<'l, linked::Image>),
 }
 impl<'p, 'l> From<&'p CompiledProgram<'l>> for Executable<'p, 'l> {
@@ -36,7 +45,10 @@ impl<'p, 'l> From<&'p CompiledProgram<'l>> for Executable<'p, 'l> {
         Self::Jit(program)
     }
 }
-#[cfg(target_os = "macos")]
+#[cfg(any(
+    target_os = "macos",
+    all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+))]
 impl<'p, 'l> From<&'p n::LinkedProgram<'l, linked::Image>> for Executable<'p, 'l> {
     fn from(program: &'p n::LinkedProgram<'l, linked::Image>) -> Self {
         Self::Linked(program)
@@ -46,14 +58,20 @@ impl<'l> Executable<'_, 'l> {
     fn layout(&self, function: m::FunctionId) -> Option<&n::FunctionLayout<'l>> {
         match self {
             Self::Jit(program) => program.layout(function),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(
+                target_os = "macos",
+                all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+            ))]
             Self::Linked(program) => program.layout(function),
         }
     }
     fn usage(&self) -> m::Usage {
         match self {
             Self::Jit(program) => program.usage(),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(
+                target_os = "macos",
+                all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+            ))]
             Self::Linked(program) => program.usage(),
         }
     }
@@ -64,7 +82,10 @@ impl<'l> Executable<'_, 'l> {
     ) -> Result<(), n::Failure> {
         match self {
             Self::Jit(program) => program.invoke(function, instance),
-            #[cfg(target_os = "macos")]
+            #[cfg(any(
+                target_os = "macos",
+                all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")
+            ))]
             Self::Linked(program) => program.invoke(function, instance),
         }
     }

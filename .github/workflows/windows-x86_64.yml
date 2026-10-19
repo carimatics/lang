@@ -1,10 +1,12 @@
 name: Windows x86-64 CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
+      - 'codex/m2-*'
 
 permissions:
   contents: read

@@ -1,23 +1,38 @@
-//! A trusted macOS test image, linked from the exact current ObjectArtifact.
-//! N06 retains standalone target executables and the full platform matrix.
+//! Trusted tier-1 test image guards; standalone runners own their process image.
 use super::*;
 use std::{
     cell::Cell,
-    ffi::{CString, c_char, c_int, c_void},
+    ffi::{CString, c_void},
+    ptr::NonNull,
+};
+#[cfg(target_os = "macos")]
+use std::{
+    ffi::{c_char, c_int},
     fs,
     path::PathBuf,
     process::Command,
-    ptr::NonNull,
     sync::atomic::{AtomicU64, Ordering},
 };
 
+#[cfg(target_os = "macos")]
 unsafe extern "C" {
     fn dlopen(path: *const c_char, mode: c_int) -> *mut c_void;
     fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
     fn dlclose(handle: *mut c_void) -> c_int;
 }
 
+#[cfg(target_os = "windows")]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn GetModuleHandleW(name: *const u16) -> *mut c_void;
+    fn GetProcAddress(
+        module: *mut c_void,
+        name: *const u8,
+    ) -> Option<unsafe extern "system" fn() -> isize>;
+}
+#[cfg(target_os = "macos")]
 struct Directory(PathBuf);
+#[cfg(target_os = "macos")]
 impl Drop for Directory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
@@ -25,10 +40,12 @@ impl Drop for Directory {
 }
 pub(super) struct Image {
     handle: NonNull<c_void>,
+    #[cfg(target_os = "macos")]
     _directory: Option<Directory>,
     dropped: Rc<Cell<bool>>,
 }
 impl Image {
+    #[cfg(target_os = "macos")]
     fn link(bytes: &[u8], dropped: Rc<Cell<bool>>) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
@@ -61,12 +78,18 @@ impl Image {
         }
     }
     pub(super) fn current_executable(dropped: Rc<Cell<bool>>) -> Self {
-        // SAFETY: Darwin defines a null path as a handle for this process's
-        // already-linked images. The executable outlives every driver call.
+        #[cfg(target_os = "macos")]
+        // SAFETY: Darwin defines a null path as this process's loaded images.
         let handle = NonNull::new(unsafe { dlopen(std::ptr::null(), 2) })
             .expect("opens the current executable image");
+        #[cfg(target_os = "windows")]
+        // SAFETY: NULL selects the current executable. This borrowed module
+        // remains loaded for process lifetime; Drop must not call FreeLibrary.
+        let handle = NonNull::new(unsafe { GetModuleHandleW(std::ptr::null()) })
+            .expect("gets the current executable module");
         Self {
             handle,
+            #[cfg(target_os = "macos")]
             _directory: None,
             dropped,
         }
@@ -75,18 +98,32 @@ impl Image {
         let name = CString::new(name).unwrap();
         // SAFETY: handle is live, and the terminated name survives the lookup.
         // The binder accepts only this artifact's exact private function names.
-        NonNull::new(unsafe { dlsym(self.handle.as_ptr(), name.as_ptr()) })
+        #[cfg(target_os = "macos")]
+        {
+            NonNull::new(unsafe { dlsym(self.handle.as_ptr(), name.as_ptr()) })
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // SAFETY: the live process module and terminated exact export name
+            // come from this toolchain's object metadata. Do not use ordinals.
+            unsafe { GetProcAddress(self.handle.as_ptr(), name.as_ptr().cast()) }
+                .and_then(|function| NonNull::new(function as *const () as *mut c_void))
+        }
     }
 }
 impl Drop for Image {
     fn drop(&mut self) {
         // SAFETY: this Image owns one successful dlopen reference. LinkedProgram
         // retains it until all gateway, helper and cleanup calls have returned.
+        #[cfg(target_os = "macos")]
         assert_eq!(unsafe { dlclose(self.handle.as_ptr()) }, 0);
+        // Windows GetModuleHandleW did not increment the reference count.
+        // Its process-owned module is deliberately not released here.
         self.dropped.set(true);
     }
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 fn linked_owned_image_executes_managed_calls_and_keeps_its_code_owner_alive() {
     let source = source(include_str!(
