@@ -404,12 +404,8 @@ struct Node {
 pub struct CompiledFunction<'a> {
     _owner: OwnedJitModule,
     code: *const u8,
-    layout: FunctionLayout<'a>,
-    nodes: Vec<Node>,
+    function: ObjectFunction<'a>,
     usage: m::Usage,
-    metadata: super::program::FunctionCode,
-    continuations: Vec<u32>,
-    failure_node: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -467,12 +463,14 @@ impl<'a> CompiledFunction<'a> {
         Ok(Self {
             _owner: owner,
             code,
-            layout,
-            nodes,
+            function: ObjectFunction {
+                layout,
+                nodes,
+                metadata,
+                continuations,
+                failure_node: graph.failure().0,
+            },
             usage,
-            metadata,
-            continuations,
-            failure_node: graph.failure().0,
         })
     }
 
@@ -482,15 +480,22 @@ impl<'a> CompiledFunction<'a> {
         self.usage
     }
     pub const fn metadata(&self) -> &super::program::FunctionCode {
-        &self.metadata
+        &self.function.metadata
     }
 
     pub const fn layout(&self) -> &FunctionLayout<'a> {
-        &self.layout
+        &self.function.layout
+    }
+
+    fn entry(&self) -> FunctionEntry<'_, 'a> {
+        FunctionEntry {
+            definition: &self.function,
+            code: self.code,
+        }
     }
 
     pub fn invoke<R: Runtime>(&self, instance: &mut RuntimeInstance<R>) -> Result<(), Failure> {
-        run(self, None, instance)
+        run(self.entry(), None, instance)
     }
 }
 
@@ -539,10 +544,10 @@ impl<'a> CompiledProgram<'a> {
         self.functions.get(function.0 as usize)
     }
     pub fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>> {
-        self.compiled(function).map(|f| &f.layout)
+        self.compiled(function).map(|f| &f.function.layout)
     }
     pub fn metadata(&self, function: m::FunctionId) -> Option<&super::program::FunctionCode> {
-        self.compiled(function).map(|f| &f.metadata)
+        self.compiled(function).map(|f| &f.function.metadata)
     }
     pub const fn usage(&self) -> m::Usage {
         self.usage
@@ -555,16 +560,87 @@ impl<'a> CompiledProgram<'a> {
         let entry = self.compiled(function).ok_or(Failure {
             function,
             reason: Reason::Runtime(c::Cause::Execution(c::ExecutionFailure::Invariant)),
-            span: self.functions[0].nodes[0].span,
+            span: self.functions[0].function.nodes[0].span,
             panic_code: None,
         })?;
-        run(entry, Some(self), instance)
+        run(entry.entry(), Some(ProgramRef::Jit(self)), instance)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct FunctionEntry<'c, 'a> {
+    definition: &'c ObjectFunction<'a>,
+    code: *const u8,
+}
+impl<'a> std::ops::Deref for FunctionEntry<'_, 'a> {
+    type Target = ObjectFunction<'a>;
+    fn deref(&self) -> &Self::Target {
+        self.definition
+    }
+}
+trait LinkedCode<'a> {
+    fn entry(&self, function: m::FunctionId) -> Option<FunctionEntry<'_, 'a>>;
+}
+#[derive(Clone, Copy)]
+enum ProgramRef<'c, 'a> {
+    Jit(&'c CompiledProgram<'a>),
+    Linked(&'c dyn LinkedCode<'a>),
+}
+impl<'c, 'a> ProgramRef<'c, 'a> {
+    fn entry(self, function: m::FunctionId) -> Option<FunctionEntry<'c, 'a>> {
+        match self {
+            Self::Jit(program) => program.compiled(function).map(CompiledFunction::entry),
+            Self::Linked(program) => program.entry(function),
+        }
+    }
+}
+
+/// A trusted linked image paired with the metadata that emitted its functions.
+/// The image owner stays alive through every gateway/helper/cleanup invocation.
+pub struct LinkedProgram<'a, Image> {
+    artifact: ObjectArtifact<'a>,
+    addresses: Vec<std::ptr::NonNull<c_void>>,
+    _image: Image,
+    usage: m::Usage,
+}
+impl<'a, Image> LinkedCode<'a> for LinkedProgram<'a, Image> {
+    fn entry(&self, function: m::FunctionId) -> Option<FunctionEntry<'_, 'a>> {
+        Some(FunctionEntry {
+            definition: self.artifact.function(function)?,
+            code: self.addresses.get(function.0 as usize)?.as_ptr().cast(),
+        })
+    }
+}
+impl<'a, Image> LinkedProgram<'a, Image> {
+    pub fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>> {
+        self.artifact.function(function).map(ObjectFunction::layout)
+    }
+    pub fn metadata(&self, function: m::FunctionId) -> Option<&super::program::FunctionCode> {
+        self.artifact
+            .function(function)
+            .map(ObjectFunction::metadata)
+    }
+    pub const fn usage(&self) -> m::Usage {
+        self.usage
+    }
+    pub fn invoke<R: Runtime>(
+        &self,
+        function: m::FunctionId,
+        instance: &mut RuntimeInstance<R>,
+    ) -> Result<(), Failure> {
+        let entry = self.entry(function).ok_or(Failure {
+            function,
+            reason: Reason::Runtime(c::Cause::Execution(c::ExecutionFailure::Invariant)),
+            span: self.artifact.functions[0].nodes[0].span,
+            panic_code: None,
+        })?;
+        run(entry, Some(ProgramRef::Linked(self)), instance)
     }
 }
 
 fn run<'c, 'a, R: Runtime>(
-    entry: &'c CompiledFunction<'a>,
-    program: Option<&'c CompiledProgram<'a>>,
+    entry: FunctionEntry<'c, 'a>,
+    program: Option<ProgramRef<'c, 'a>>,
     instance: &'c mut RuntimeInstance<R>,
 ) -> Result<(), Failure> {
     let rejected = |reason| Failure {
@@ -669,7 +745,7 @@ fn run<'c, 'a, R: Runtime>(
                 return Err(context.fault.expect("protocol failure"));
             }
             context.compiled = program
-                .and_then(|p| p.compiled(next.function))
+                .and_then(|p| p.entry(next.function))
                 .expect("sealed target");
             context.dispatch.frame = next.frame;
             continuation = next.continuation;
@@ -690,9 +766,9 @@ fn run<'c, 'a, R: Runtime>(
     }
 }
 
-fn valid_target(program: Option<&CompiledProgram<'_>>, target: Transition, failure: bool) -> bool {
+fn valid_target(program: Option<ProgramRef<'_, '_>>, target: Transition, failure: bool) -> bool {
     program
-        .and_then(|p| p.compiled(target.function))
+        .and_then(|p| p.entry(target.function))
         .is_some_and(|f| {
             f.continuations.contains(&target.continuation)
                 && (!failure || target.continuation == f.failure_node)
@@ -704,6 +780,7 @@ pub struct ObjectFunction<'a> {
     nodes: Vec<Node>,
     continuations: Vec<u32>,
     metadata: super::program::FunctionCode,
+    failure_node: u32,
 }
 impl<'a> ObjectFunction<'a> {
     pub const fn layout(&self) -> &FunctionLayout<'a> {
@@ -772,10 +849,60 @@ impl<'a> ObjectFunction<'a> {
 /// metadata is not a Rust-layout wire format or a self-contained runtime image.
 pub struct ObjectArtifact<'a> {
     pub bytes: Vec<u8>,
+    target: crate::Triple,
     functions: Vec<ObjectFunction<'a>>,
     usage: m::Usage,
 }
 impl<'a> ObjectArtifact<'a> {
+    /// Pair this metadata with code linked from its object bytes.
+    ///
+    /// # Safety
+    /// Every resolved symbol must be the matching function emitted by this
+    /// artifact and toolchain, with the private revision-1 native convention.
+    /// It must remain executable and unchanged while the image is alive.
+    /// The image must own (or borrow) all code/relocation dependencies; its
+    /// Drop must not invalidate another live program. Resolvers must not
+    /// fabricate addresses. This is a trusted compiler/linker boundary,
+    /// never an untrusted artifact loader or a stable C export ABI.
+    pub unsafe fn bind<Image>(
+        self,
+        image: Image,
+        mut resolve: impl FnMut(&Image, &str) -> Option<std::ptr::NonNull<c_void>>,
+        limits: m::Limits,
+    ) -> Result<LinkedProgram<'a, Image>, Error> {
+        let host = crate::Triple::host();
+        if self.target != host {
+            return Err(Error::LinkedTarget {
+                emitted: self.target.clone(),
+                host,
+            });
+        }
+        if self.functions.is_empty() {
+            return Err(Error::InvalidFunction(m::FunctionId(0)));
+        }
+        let mut budget = m::Budget::with_usage(limits, self.usage)?;
+        budget.charge(self.functions.len())?;
+        let mut addresses = budget.vector(self.functions.len())?;
+        for (index, function) in self.functions.iter().enumerate() {
+            addresses.push(resolve(&image, &function.metadata.symbol).ok_or_else(|| {
+                Error::MissingLinkedSymbol {
+                    function: m::FunctionId(index as u32),
+                    symbol: function.metadata.symbol.clone(),
+                }
+            })?);
+        }
+        let usage = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        Ok(LinkedProgram {
+            artifact: self,
+            addresses,
+            _image: image,
+            usage,
+        })
+    }
     pub fn function(&self, function: m::FunctionId) -> Option<&ObjectFunction<'a>> {
         self.functions.get(function.0 as usize)
     }
@@ -844,11 +971,13 @@ pub fn emit_object_for_target<'a>(
             nodes,
             continuations,
             metadata,
+            failure_node: flow.functions()[index].failure().0,
         });
     }
     let bytes = module.finish().emit().map_err(backend)?;
     Ok(ObjectArtifact {
         bytes,
+        target: target.clone(),
         functions,
         usage,
     })
@@ -1364,8 +1493,8 @@ struct DispatchState {
 struct Invocation<'c, 'a, R> {
     // The non-generic prefix is read by native code only between callbacks.
     dispatch: DispatchState,
-    compiled: &'c CompiledFunction<'a>,
-    program: Option<&'c CompiledProgram<'a>>,
+    compiled: FunctionEntry<'c, 'a>,
+    program: Option<ProgramRef<'c, 'a>>,
     instance: &'c mut RuntimeInstance<R>,
     fault: Option<Failure>,
     report_recorded: bool,
@@ -1388,7 +1517,7 @@ impl<R: Runtime> Invocation<'_, '_, R> {
     fn apply(
         &mut self,
         node: u64,
-        action: impl FnOnce(&mut R, &CompiledFunction<'_>, m::Span) -> ResultStep,
+        action: impl FnOnce(&mut R, &ObjectFunction<'_>, m::Span) -> ResultStep,
     ) -> i32 {
         if self.evaluate(node, action).is_ok() {
             0
@@ -1399,7 +1528,7 @@ impl<R: Runtime> Invocation<'_, '_, R> {
     fn evaluate<T>(
         &mut self,
         node: u64,
-        action: impl FnOnce(&mut R, &CompiledFunction<'_>, m::Span) -> Result<T, c::Cause>,
+        action: impl FnOnce(&mut R, &ObjectFunction<'_>, m::Span) -> Result<T, c::Cause>,
     ) -> Result<T, ()> {
         let Some(info) = usize::try_from(node)
             .ok()
@@ -1413,7 +1542,7 @@ impl<R: Runtime> Invocation<'_, '_, R> {
         };
         let span = info.span;
         let outcome = catch_unwind(AssertUnwindSafe(|| {
-            action(&mut self.instance.runtime, self.compiled, span)
+            action(&mut self.instance.runtime, self.compiled.definition, span)
         }));
         let cause = match outcome {
             Ok(Ok(value)) => return Ok(value),
@@ -1437,7 +1566,7 @@ impl<R: Runtime> Invocation<'_, '_, R> {
         node: u64,
         action: impl FnOnce(
             &mut R,
-            &CompiledFunction<'_>,
+            &ObjectFunction<'_>,
             m::Span,
         ) -> Result<Option<Transition>, c::Cause>,
     ) -> i32 {
@@ -1727,7 +1856,7 @@ helper!(prepare_call, ctx, _a, _b, node, {
             .as_ref()
             .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
         let target = program
-            .and_then(|p| p.compiled(call.function))
+            .and_then(|p| p.entry(call.function))
             .ok_or(c::Cause::Execution(c::ExecutionFailure::Invariant))?;
         r.prepare_call(call, &target.layout).map(Some)
     })
@@ -2216,6 +2345,14 @@ struct Output {
 
 #[derive(Debug)]
 pub enum Error {
+    LinkedTarget {
+        emitted: crate::Triple,
+        host: crate::Triple,
+    },
+    MissingLinkedSymbol {
+        function: m::FunctionId,
+        symbol: String,
+    },
     Layout(l::Error),
     Resource(m::Error),
     InvalidFunction(m::FunctionId),

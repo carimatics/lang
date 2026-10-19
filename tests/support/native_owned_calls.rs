@@ -5,6 +5,11 @@ mod arenas;
 mod control;
 #[path = "native_core.rs"]
 mod core;
+#[cfg(target_os = "macos")]
+#[path = "native_linked.rs"]
+mod linked;
+#[path = "native_linking_admission.rs"]
+mod linking_admission;
 #[path = "native_maps.rs"]
 mod maps;
 #[path = "native_places.rs"]
@@ -17,6 +22,50 @@ mod values;
 mod vectors;
 use lang_runtime::execution as e;
 use n::{CallSite, CompiledProgram, Transition};
+#[derive(Clone, Copy)]
+enum Executable<'p, 'l> {
+    Jit(&'p CompiledProgram<'l>),
+    #[cfg(target_os = "macos")]
+    Linked(&'p n::LinkedProgram<'l, linked::Image>),
+}
+impl<'p, 'l> From<&'p CompiledProgram<'l>> for Executable<'p, 'l> {
+    fn from(program: &'p CompiledProgram<'l>) -> Self {
+        Self::Jit(program)
+    }
+}
+#[cfg(target_os = "macos")]
+impl<'p, 'l> From<&'p n::LinkedProgram<'l, linked::Image>> for Executable<'p, 'l> {
+    fn from(program: &'p n::LinkedProgram<'l, linked::Image>) -> Self {
+        Self::Linked(program)
+    }
+}
+impl<'l> Executable<'_, 'l> {
+    fn layout(&self, function: m::FunctionId) -> Option<&n::FunctionLayout<'l>> {
+        match self {
+            Self::Jit(program) => program.layout(function),
+            #[cfg(target_os = "macos")]
+            Self::Linked(program) => program.layout(function),
+        }
+    }
+    fn usage(&self) -> m::Usage {
+        match self {
+            Self::Jit(program) => program.usage(),
+            #[cfg(target_os = "macos")]
+            Self::Linked(program) => program.usage(),
+        }
+    }
+    fn invoke<R: Runtime>(
+        &self,
+        function: m::FunctionId,
+        instance: &mut RuntimeInstance<R>,
+    ) -> Result<(), n::Failure> {
+        match self {
+            Self::Jit(program) => program.invoke(function, instance),
+            #[cfg(target_os = "macos")]
+            Self::Linked(program) => program.invoke(function, instance),
+        }
+    }
+}
 fn service_invariant<T: std::error::Error + 'static>(error: T) -> c::Cause {
     c::Cause::Execution(
         e::service_failure(&error)
@@ -251,7 +300,7 @@ struct Active {
     parent: Option<Parent>,
 }
 struct Unit<'i, 's, 'a, 'l> {
-    program: &'s CompiledProgram<'l>,
+    program: Executable<'s, 'l>,
     store: &'s RefCell<Store<'a, 'l>>,
     ledger: Option<c::Frame<'i, Ticket, Drain<'s, 'a, 'l>>>,
     stack: Vec<Active>,
@@ -800,14 +849,15 @@ fn rejected_control(entry: m::FunctionId, span: m::Span, reason: n::Reason) -> S
         usage: e::Usage::default(),
     }
 }
-fn execute_controlled<'l>(
+fn execute_controlled<'p, 'l: 'p>(
     flow: &'l m::ownership::failure::Elaborated,
     layouts: &'l l::Layouts<'l>,
-    program: &CompiledProgram<'l>,
+    program: impl Into<Executable<'p, 'l>>,
     run: Run<'_>,
     control: e::Control<'_>,
     interrupt: Option<(usize, Rc<e::InterruptionFlag>)>,
 ) -> Seen {
+    let program = program.into();
     let Run {
         inputs,
         fuel: _,
