@@ -6,27 +6,29 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**100 done · 0 doing · 18 todo · 42 remaining pt**
+**100 done · 1 doing · 18 todo · 45 remaining pt**
 
-**次: M2-F04 → 最初の実C import呼出しをsourceから実行し、残作業3点の妥当性を確認します。**
+**次: M2-F11 → 実C callbackを共通contextとVM／native越しにsourceから実行します（3 pt）。**
 
-| 次の成果（未着手） | 直近の完了 | 必須の実行成果 |
+| 現在の作業 | 直近の完了 | 必須の実行成果 |
 | --- | --- | --- |
-| F04：最初のC import呼出し（暫定3 pt） | F02：共通context gate、99 → 100件、44 → 42 pt（7d4fea7） | 実C callbackをsourceから実行。Aggregate／allocation／両backendも維持する |
+| F11：最初のscalar／Unit C source呼出し（3 pt） | F02：共通context gate、99 → 100件、44 → 42 pt（7d4fea7） | 実C callbackをsourceから実行。Aggregate／allocation／両backendも維持する |
 
 直近3件：F03（dee7f34）→ F10（5108069）→ F02（7d4fea7）。従来の完了条件は **7/18**。**113は完了条件の固定重みで、残作業の工数予測には使用しません。** [見積もり収支](#進捗と見積もり変更)で追加作業と完了分を分けて確認できます。
 
 F02完了（2026-10-19 JST）：7d4fea7で共通config／context gate、code owner／allocator provenance、明示C import grant、F10受入れ／result検査、再入／poison拒否、callback／body／reader panicの上限付きcontainmentを完成しました。16件のfailure／state fixtureでforeign status、primary／callsiteの保持、cleanupの切捨て／件数、summary copyを検証します。必須検証：**1,471 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。Nativeは **62件／266.07秒**、fmt、Clippy（**21.57秒**）、rustdoc（**20.93秒**）も成功です。F02の残り **2点** を取り除き、**99 → 100 done、44 → 42 pt** とします。**118行、追加72点は不変、完了で取り除いた見積もりは164点** です。従来gateは **7/18** のままです。Raw C descriptor read、正確なcallback呼出し、foreign allocator bridge、VM／native adapter、output公開はF04／F05、実platform実行はF06／F07に維持します。C実行／object／schema 2の拒否も保ちます。
 
 <details>
-<summary>次のF04着手前確認</summary>
+<summary>F04／F11着手前・見積もり監査</summary>
 
-次の実行成果F04の見直し（2026-10-19 JST）：F03／F10／F02でmetadata、値検査、context検査を揃えたため、次は実C source importを実行する成果とします。Ownership VM／nativeにはOp::Import dispatch、managed値とCのmarshaller、raw allocator provider、正確な署名のC invokerがまだありません。最小の実scalar callback sourceを試し、残る全作業を確認してからF04の暫定3点を維持できるか判断します。Aggregate引数／result、allocation context、両backend、failure statusもF04に維持し、wrapperだけのtestでは完了にしません。Source drop／panicのF09とF05-F07も残します。この着手前の確認では見積もりを変更しません。
+F04／F11の着手前・見積もり監査（2026-10-19 JST）：CLIで受理済みC例を実行するとUnsupportedCInterfaceとなり、fuel／host call／service workはいずれも0です。Ownership VM／nativeにはOp::Import dispatchがなく、安全なcontext／header／value metadataだけではC呼出し、allocator provider、managed値とCの転送を供給できません。従来の合計3点見積もりを撤回し、実C code・共通context・VM／native越しに最初のscalar／Unit C source callbackを実行するF11を **初期3点** で追加します。全aggregate転送、allocator／config統合、failure conformanceを担うF04は、そのfixture後の **暫定3点** として残します。**118 → 119行、残り42 → 45点、追加分72 → 75点** とし、完了で取り除いた **164点** は不変です。F11をdoingとし、**100 done / 1 doing / 18 todo** です。F09／F05-F07を含む元のimport／export／platform全成果を維持し、次の区切りにはhelperだけでなくsource実行を必須とします。F04の残る範囲はF11後に再監査し、現時点で見積もり妥当とは断定しません。
 
 </details>
 
 <details>
 <summary>過去の成果・範囲監査・検証記録</summary>
+
+F10のWindows evidence（2026-10-19 JST）：[全run 39218185835](https://github.com/carimatics/lang/actions/runs/39218185835)、head d4ddc65、job 117946926317が成功しました。F02より前のsnapshotであり、実C source実行の証拠ではありません。
 
 F10完了（2026-10-19 JST）：5108069でF03 metadataを使ったpadding安全なC value／address事前検査を完成しました。入力read前にargument／result／context全体のshape、null／alignment／extent／overflow、output overlapを検証します。Readerは初期化済みfield／tag／reserved／unused unionだけを要求し、実C address／lifetimeの有効性はtrusted caller／adapterの義務を維持します。実union extentからenum末尾paddingを除外しunionの丸めを含め、生成C headerでも独立にassertします。正規tag zeroは受理し、未知tag、非正規bool／Unit／reserved／unused byteを拒否します。Padding readを禁止するReader、全address検査後のread、const inputのoverlap、output拒否、共有work、interruption／deadline／read failureを新規10 fixtureで検証しました。最終検証：1,455 tests / 88 suites, zero failures, one manual timing test ignored; native 62 in 265.39s。Fmt／Clippy／rustdocも成功です。**F02から配分した1点** をF10完了で取り除き、**98 → 99 done、45 → 44 pt** とします。118行と追加72点は不変で、完了で取り除いた点数は **162点** です。従来gateは **7/18** のままです。F02にはcontext／config／bindings／provenance／capability／poison／再入／callback containmentを残り2点で維持し、F04／F05で実VM／native C adapterにこの事前検査を強制します。統合まではC unit全体の実行／object／schema 2拒否を保ちます。
 
@@ -86,15 +88,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 100件（+65件）**、作業一覧は **87 → 118件（+31件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 100件（+65件）**、作業一覧は **87 → 119件（+32件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +72 pt | −164 pt | 42 pt |
+| 134 pt | +75 pt | −164 pt | 45 pt |
 
-**134 + 72 − 164 = 42 pt**
+**134 + 75 − 164 = 45 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり164点分を取り除く一方、前提作業の可視化と再見積もりで72点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り42点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり164点分を取り除く一方、前提作業の可視化と再見積もりで75点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り45点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
 N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
@@ -129,7 +131,7 @@ S01判断時の監査（2026-10-18 JST）：RFC 0009は新しい消費match構�
 
 - 実装前に1行を選んで `doing` にし、同時進行は最大1件とします。1行は観測可能な1成果、残り1〜3 ptです。それより大きい、または前提が不明なら着手前に分割します。
 - 計画開始から10分経ってもpatchまたは実行可能な実験がなければ、設計を広げる前にtaskを狭めて最小限の有用な実験を実行します。抽象化やhardeningの追加は、選択した成果または受理済み要件に必要な場合に限ります。取得できる検証所要時間を記録し、commit間隔を稼働時間とはみなしません。
-- F03／F10／F02の前提成果が揃ったため、次はF04で実C source importを実行します。さらに前提が必要と判明したら、具体的な実験と残作業の監査を記録してから順序を変更します。
+- F03／F10／F02の前提成果が揃ったため、次はF11で実scalar／Unit C source importを実行します。さらに前提が必要と判明したら、具体的な実験と残作業の監査を記録してから順序を変更します。
 - Doneには行のoutcomeを満たすcommit（実装、または明示的に計画した設計判断）と対象を絞った検証evidenceが必要です。自分自身のcommitを参照できない場合は次の計画更新でcommitを記録し、evidenceが揃うまで仕掛かり状態を正直に保ちます。完了条件を満たすまで待たず、各成果の後にこの表を更新します。
 - 対象を絞ったcheckから始め、まとまったcode成果ごとに必須full baselineを1回実行します。文書だけのfollow-upはrepository consistencyを確認し、追加code、失敗、未解決の懸念がある場合だけ広いcheckを再実行します。実装／roadmapのcommit順序は維持し、繰り返しの長文追記を行更新に置き換えます。監査記録の追記はscope、見積もり、依存、完了判断が変わった場合に限ります。
 - ソース実行fixtureが増えない前提作業が2件続いたら、基盤の拡張を止め、次のvertical sliceを再検討します。漠然と「見積もりは妥当」とせず、具体的な阻害要因と残taskを報告します。
@@ -255,7 +257,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F10 | done | 0 | M2-F03 | G11,G12 | C address／正規value検査でpaddingを読まず、alignment／extent／overlapと未知tag／非正規byteを作用前に拒否し、共有work計上とfailure fixtureを保つ。 | `5108069` |
 | M2-F02 | done | 0 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | `7d4fea7` |
 | M2-F03 | done | 0 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | `dee7f34` |
-| M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
+| M2-F11 | doing | 3 | M2-F02,M2-F03 | G12 | 実C codeと共通contextを使い、scalar／Unit importをsourceからVM／nativeで実行しfailureを検証。 | — |
+| M2-F04 | todo | 3 | M2-F02,M2-F03,M2-F11 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
 | M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exportで規定status／resultを返し、入れ子cleanup failureをcontain。 | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Headerを独立compileし、native macOSで境界validity fixtureを実行。 | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Native Windowsで対応するC境界fixtureを実行し、成功CI evidenceを記録。 | — |
