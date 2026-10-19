@@ -135,6 +135,13 @@ impl Library {
         Self::with_extra(artifact, "")
     }
     fn with_extra(artifact: &Artifact, extra: &str) -> Self {
+        Self::with_object(artifact, extra, None)
+    }
+    fn with_object(
+        artifact: &Artifact,
+        extra: &str,
+        object: Option<(&lang_codegen_clif::owned::CObjectArtifact<'_>, bool)>,
+    ) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let directory = std::env::temp_dir().join(format!(
             "lang-c-imports-{}-{}",
@@ -270,12 +277,42 @@ impl Library {
         } else {
             "callbacks.dylib"
         });
+        let mut object_arguments = Vec::<std::ffi::OsString>::new();
+        if let Some((object, response)) = object {
+            let path = directory.join("owned.obj");
+            std::fs::write(&path, object.bytes()).unwrap();
+            object_arguments.push(path.into_os_string());
+            if cfg!(target_os = "windows") {
+                object_arguments.push("/link".into());
+                let mut symbols = vec![object.slot_symbol().to_owned()];
+                symbols.extend(object.support_symbols().iter().cloned());
+                symbols.extend(object.export_symbols().iter().map(|(_, name)| name.clone()));
+                symbols.extend(object.thunk_symbols().iter().map(|(_, name)| name.clone()));
+                let mut i = 0;
+                while let Some(function) = object.function(lang_mir::unit::FunctionId(i)) {
+                    symbols.push(function.metadata().symbol.clone());
+                    i += 1;
+                }
+                object_arguments.extend(symbols.iter().map(|s| format!("/EXPORT:{s}").into()));
+            }
+            if response {
+                let path = directory.join("object.rsp");
+                let contents = object_arguments
+                    .iter()
+                    .map(|s| format!("\"{}\"", s.to_string_lossy()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                std::fs::write(&path, contents).unwrap();
+                object_arguments = vec![format!("@{}", path.display()).into()];
+            }
+        }
         let output = if cfg!(target_os = "windows") {
             Command::new("cl")
                 .current_dir(&directory)
                 .args(["/nologo", "/std:c11", "/W4", "/WX", "/LD"])
                 .arg(&source)
                 .arg(format!("/Fe{}", library.display()))
+                .args(&object_arguments)
                 .output()
                 .unwrap()
         } else {
@@ -289,6 +326,7 @@ impl Library {
                     "-dynamiclib",
                 ])
                 .arg(&source)
+                .args(&object_arguments)
                 .arg("-o")
                 .arg(&library)
                 .output()
@@ -316,6 +354,21 @@ impl Library {
         };
         assert!(!handle.is_null());
         Self { handle, directory }
+    }
+    fn address(&self, name: &str) -> Option<std::ptr::NonNull<c_void>> {
+        let name = CString::new(name).unwrap();
+        #[cfg(target_os = "macos")]
+        // SAFETY: live owned image; lookup alone neither dereferences data nor
+        // invokes a function. The matched artifact binder checks every symbol.
+        unsafe {
+            std::ptr::NonNull::new(dlsym(self.handle, name.as_ptr()))
+        }
+        #[cfg(target_os = "windows")]
+        // SAFETY: exact terminated symbol name in our retained trusted image.
+        unsafe {
+            GetProcAddress(self.handle, name.as_ptr().cast())
+                .and_then(|p| std::ptr::NonNull::new(p as *const () as *mut c_void))
+        }
     }
     fn function(&self, name: &str) -> config::ErasedFunction {
         let name = CString::new(name).unwrap();

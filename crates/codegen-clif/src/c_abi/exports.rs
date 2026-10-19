@@ -70,15 +70,15 @@ fn backend(error: impl std::fmt::Display) -> Error {
     Error::Backend(error.to_string())
 }
 
-struct Dispatch<'p, F: ExportRuntime<'p>> {
-    program: &'p c::Program<'p>,
-    compiled: &'p n::CCompiledProgram<'p>,
-    factory: &'p F,
+pub(crate) struct Dispatch<'p, F: ExportRuntime<'p>, C: n::CExecutable<'p>> {
+    pub program: &'p c::Program<'p>,
+    pub compiled: &'p C,
+    pub factory: &'p F,
 }
 /// Generated C entries borrowing the registered program, machine code and
 /// trusted runtime factory. Keep this owner alive through every entry call.
 pub struct NativeExports<'p, F: ExportRuntime<'p>> {
-    _dispatch: Box<Dispatch<'p, F>>,
+    _dispatch: Box<Dispatch<'p, F, n::CCompiledProgram<'p>>>,
     _owner: OwnedJitModule,
     entries: Vec<(usize, String, *const u8)>,
 }
@@ -116,7 +116,10 @@ impl<'p, F: ExportRuntime<'p>> NativeExports<'p, F> {
         });
         let mut budget = m::Budget::new(limits);
         let mut builder = JITBuilder::new(default_libcall_names()).map_err(backend)?;
-        builder.symbol("lang_c_export_profile1", invoke::<F> as *const u8);
+        builder.symbol(
+            "lang_c_export_profile1",
+            invoke::<F, n::CCompiledProgram<'p>> as *const u8,
+        );
         let mut owner = OwnedJitModule(Some(JITModule::new(builder)));
         let module = owner.0.as_mut().unwrap();
         let pointer = module.target_config().pointer_type();
@@ -181,7 +184,8 @@ impl<'p, F: ExportRuntime<'p>> NativeExports<'p, F> {
             }
             let data = b.ins().iconst(
                 pointer,
-                (&*dispatch as *const Dispatch<'_, F>).expose_provenance() as i64,
+                (&*dispatch as *const Dispatch<'_, F, n::CCompiledProgram<'p>>).expose_provenance()
+                    as i64,
             );
             let ordinal = b.ins().iconst(pointer, index as i64);
             let words = b.ins().stack_addr(pointer, slot, 0);
@@ -334,8 +338,8 @@ impl Drop for Stage<'_, '_> {
         }
     }
 }
-unsafe extern "C" fn invoke<'p, F: ExportRuntime<'p>>(
-    dispatch: *const Dispatch<'p, F>,
+pub(crate) unsafe extern "C" fn invoke<'p, F: ExportRuntime<'p>, C: n::CExecutable<'p>>(
+    dispatch: *const Dispatch<'p, F, C>,
     index: u64,
     pointer: *mut c_void,
     words: *const u64,
@@ -428,10 +432,19 @@ unsafe extern "C" fn invoke<'p, F: ExportRuntime<'p>>(
                                 .map_err(|_| c::Fault::new(c::Kind::Reentry))?;
                             // SAFETY: copied code/user bindings retain their declared exact
                             // callback types and callbacks receive the ORIGINAL opaque pointer.
-                            let mut invoker =
-                                NativeInvoker::with_opaque(context, address, Default::default())
-                                    .map_err(|_| c::Fault::new(c::Kind::Allocation))?;
-                            let environment = dispatch.compiled.prepare(
+                            let mut invoker = match dispatch.compiled.linked_thunks() {
+                                Some(thunks) => NativeInvoker::from_linked(
+                                    context,
+                                    address,
+                                    thunks,
+                                    Default::default(),
+                                ),
+                                None => {
+                                    NativeInvoker::with_opaque(context, address, Default::default())
+                                }
+                            }
+                            .map_err(|_| c::Fault::new(c::Kind::Allocation))?;
+                            let environment = dispatch.compiled.prepare_c(
                                 session,
                                 &invoker,
                                 allocator.managed(),
@@ -460,7 +473,7 @@ unsafe extern "C" fn invoke<'p, F: ExportRuntime<'p>>(
                             let mut runtime = n::RuntimeInstance::new(state);
                             let failure = dispatch
                                 .compiled
-                                .invoke_export(function, session, &mut invoker, &mut runtime)
+                                .execute_export(function, session, &mut invoker, &mut runtime)
                                 .err();
                             dispatch.factory.complete(
                                 runtime.runtime_mut(),

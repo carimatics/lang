@@ -40,6 +40,11 @@ fn backend(error: impl std::fmt::Display) -> Error {
 }
 type Entry =
     unsafe extern "C" fn(ErasedFunction, *mut c_void, *mut c_void, *const u64, *mut c_void) -> u32;
+#[derive(Clone, Copy)]
+pub(crate) struct LinkedThunk {
+    pub function: usize,
+    pub code: *const u8,
+}
 struct Thunk {
     function: usize,
     code: *const u8,
@@ -48,7 +53,7 @@ pub struct NativeInvoker<'a> {
     context: &'a Context<'a>,
     thunks: Vec<Thunk>,
     opaque: Option<Address>,
-    _owner: OwnedJitModule,
+    _owner: Option<OwnedJitModule>,
 }
 impl<'a> NativeInvoker<'a> {
     /// # Safety
@@ -94,74 +99,14 @@ impl<'a> NativeInvoker<'a> {
             return Err(Error::Target);
         }
         let mut entries = budget.vector(artifact.functions().len())?;
-        for (index, function) in artifact.functions().iter().enumerate() {
-            if function.direction != Direction::Import {
-                continue;
-            }
-            budget.charge(32 + function.parameters.len() * 8)?;
-            let mut signature = module.make_signature();
-            signature.params.extend([AbiParam::new(pointer); 5]);
-            signature.returns.push(AbiParam::new(types::I32));
-            let mut callback = module.make_signature();
-            callback.params.extend([AbiParam::new(pointer); 2]);
-            for ty in &function.parameters {
-                callback
-                    .params
-                    .push(if matches!(artifact.types()[ty.0].kind, Kind::Bool) {
-                        AbiParam::new(types::I8).uext()
-                    } else {
-                        AbiParam::new(pointer)
-                    });
-            }
-            let unit = matches!(artifact.types()[function.result.0].kind, Kind::Unit);
-            if !unit {
-                callback.params.push(AbiParam::new(pointer));
-            }
-            callback.returns.push(AbiParam::new(types::I32));
-            let id = module
-                .declare_function(
-                    &format!("lang_c_import_thunk_{}", function.digest),
-                    Linkage::Local,
-                    &signature,
-                )
-                .map_err(backend)?;
-            let mut code = module.make_context();
-            code.func.signature = signature;
-            let mut builder_context = FunctionBuilderContext::new();
-            {
-                let mut b = FunctionBuilder::new(&mut code.func, &mut builder_context);
-                let entry = b.create_block();
-                b.append_block_params_for_function_params(entry);
-                b.switch_to_block(entry);
-                let p: Vec<_> = b.block_params(entry).to_vec();
-                let mut arguments = budget.vector(function.parameters.len() + 3)?;
-                arguments.extend([p[1], p[2]]);
-                for (argument, ty) in function.parameters.iter().enumerate() {
-                    let bits =
-                        b.ins()
-                            .load(types::I64, MemFlagsData::new(), p[3], (argument * 8) as i32);
-                    let bits = if matches!(artifact.types()[ty.0].kind, Kind::Bool) {
-                        b.ins().ireduce(types::I8, bits)
-                    } else {
-                        bits
-                    };
-                    arguments.push(bits);
-                }
-                if !unit {
-                    arguments.push(p[4]);
-                }
-                let callback = b.func.import_signature(callback);
-                let call = b.ins().call_indirect(callback, p[0], &arguments);
-                let status = b.inst_results(call)[0];
-                b.ins().return_(&[status]);
-                b.seal_all_blocks();
-                b.finalize(module.target_config());
-            }
-            module.define_function(id, &mut code).map_err(backend)?;
-            entries.push((index, id));
-        }
+        entries.extend(emit_thunks(
+            module,
+            artifact,
+            &mut budget,
+            ThunkProfile::Jit,
+        )?);
         module.finalize_definitions().map_err(backend)?;
-        for (function, id) in entries {
+        for (function, id, _) in entries {
             thunks.push(Thunk {
                 function,
                 code: module.get_finalized_function(id),
@@ -171,7 +116,46 @@ impl<'a> NativeInvoker<'a> {
             context,
             thunks,
             opaque: None,
-            _owner: owner,
+            _owner: Some(owner),
+        })
+    }
+}
+impl<'a> NativeInvoker<'a> {
+    /// # Safety
+    /// Each address is its exact object-emitted thunk from the matching retained
+    /// native image, with the same callback/object/code/user contract as new.
+    /// Its code and exposed opaque-context pointer stay live for this borrow.
+    pub(crate) unsafe fn from_linked(
+        context: &'a Context<'a>,
+        opaque: Address,
+        addresses: &[LinkedThunk],
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        let mut budget = m::Budget::new(limits);
+        let mut thunks = budget.vector(addresses.len())?;
+        let mut expected = addresses.iter();
+        for (function, metadata) in context.artifact().functions().iter().enumerate() {
+            if metadata.direction != Direction::Import {
+                continue;
+            }
+            budget.charge(1)?;
+            let address = expected.next().ok_or(Error::Signature(function))?;
+            if address.function != function || address.code.is_null() {
+                return Err(Error::Signature(function));
+            }
+            thunks.push(Thunk {
+                function,
+                code: address.code,
+            });
+        }
+        if expected.next().is_some() {
+            return Err(Error::Signature(0));
+        }
+        Ok(Self {
+            context,
+            thunks,
+            opaque: Some(opaque),
+            _owner: None,
         })
     }
 }
@@ -179,6 +163,7 @@ impl<'a> NativeInvoker<'a> {
     /// # Safety
     /// In addition to new's callback contract, opaque is the complete live raw
     /// C context for this exact gate, retained for every synchronous callback.
+    /// Its start address must expose that actual pointer's provenance.
     pub unsafe fn with_opaque(
         context: &'a Context<'a>,
         opaque: Address,
@@ -199,7 +184,7 @@ impl Invoker for NativeInvoker<'_> {
     }
     fn context(&self) -> Address {
         self.opaque.unwrap_or(Address {
-            start: (self.context as *const Context<'_>).addr(),
+            start: (self.context as *const Context<'_>).expose_provenance(),
             extent: std::mem::size_of_val(self.context),
         })
     }
@@ -301,7 +286,7 @@ impl Invoker for NativeInvoker<'_> {
         let status = unsafe {
             entry(
                 binding.function(),
-                (self.context as *const Context<'_>).cast_mut().cast(),
+                std::ptr::with_exposed_provenance_mut(self.context().start),
                 binding.user(),
                 words.as_ptr(),
                 result,
@@ -327,4 +312,103 @@ impl Invoker for NativeInvoker<'_> {
         }
         status
     }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ThunkProfile {
+    Jit,
+    Object,
+}
+pub(crate) fn emit_thunks<M: Module>(
+    module: &mut M,
+    artifact: &lang_runtime::c_abi::Artifact,
+    budget: &mut m::Budget,
+    profile: ThunkProfile,
+) -> Result<Vec<(usize, cranelift_module::FuncId, String)>, Error> {
+    let pointer = module.target_config().pointer_type();
+    if pointer != types::I64 {
+        return Err(Error::Target);
+    }
+    if artifact
+        .functions()
+        .iter()
+        .any(|f| f.parameters.len() > 256)
+    {
+        return Err(Error::Signature(0));
+    }
+    let mut entries = budget.vector(artifact.functions().len())?;
+    for (index, function) in artifact.functions().iter().enumerate() {
+        if function.direction != Direction::Import {
+            continue;
+        }
+        budget.charge(32 + function.parameters.len() * 8)?;
+        let mut signature = module.make_signature();
+        signature.params.extend([AbiParam::new(pointer); 5]);
+        signature.returns.push(AbiParam::new(types::I32));
+        let mut callback = module.make_signature();
+        callback.params.extend([AbiParam::new(pointer); 2]);
+        for ty in &function.parameters {
+            callback
+                .params
+                .push(if matches!(artifact.types()[ty.0].kind, Kind::Bool) {
+                    AbiParam::new(types::I8).uext()
+                } else {
+                    AbiParam::new(pointer)
+                });
+        }
+        let unit = matches!(artifact.types()[function.result.0].kind, Kind::Unit);
+        if !unit {
+            callback.params.push(AbiParam::new(pointer));
+        }
+        callback.returns.push(AbiParam::new(types::I32));
+        let (symbol, linkage) = match profile {
+            ThunkProfile::Jit => (
+                format!("lang_c_import_thunk_{}", function.digest),
+                Linkage::Local,
+            ),
+            ThunkProfile::Object => (
+                format!("lang_c_obj1_t{index}_{}", artifact.digest()),
+                Linkage::Export,
+            ),
+        };
+        budget.allocate::<u8>(symbol.len())?;
+        let id = module
+            .declare_function(&symbol, linkage, &signature)
+            .map_err(backend)?;
+        let mut code = module.make_context();
+        code.func.signature = signature;
+        let mut builder_context = FunctionBuilderContext::new();
+        {
+            let mut b = FunctionBuilder::new(&mut code.func, &mut builder_context);
+            let entry = b.create_block();
+            b.append_block_params_for_function_params(entry);
+            b.switch_to_block(entry);
+            let p: Vec<_> = b.block_params(entry).to_vec();
+            let mut arguments = budget.vector(function.parameters.len() + 3)?;
+            arguments.extend([p[1], p[2]]);
+            for (argument, ty) in function.parameters.iter().enumerate() {
+                let bits =
+                    b.ins()
+                        .load(types::I64, MemFlagsData::new(), p[3], (argument * 8) as i32);
+                let bits = if matches!(artifact.types()[ty.0].kind, Kind::Bool) {
+                    b.ins().ireduce(types::I8, bits)
+                } else {
+                    bits
+                };
+                arguments.push(bits);
+            }
+            if !unit {
+                arguments.push(p[4]);
+            }
+            let callback = b.func.import_signature(callback);
+            let call = b.ins().call_indirect(callback, p[0], &arguments);
+            let status = b.inst_results(call)[0];
+            b.ins().return_(&[status]);
+            b.seal_all_blocks();
+            b.finalize(module.target_config());
+        }
+        module.define_function(id, &mut code).map_err(backend)?;
+        entries.push((index, id, symbol));
+    }
+    Ok(entries)
 }

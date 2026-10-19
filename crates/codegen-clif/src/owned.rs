@@ -27,8 +27,11 @@ use std::{
 };
 
 mod c_imports;
+mod c_objects;
+pub(crate) use c_imports::CExecutable;
 use c_imports::ImportDispatcher;
-pub use c_imports::{CCompiledProgram, CEnvironment, CError};
+pub use c_imports::{CCompiledProgram, CEnvironment, CError, NativeProgram};
+pub use c_objects::{CLinkedProgram, CObjectArtifact, CObjectError, emit_c_object_for_target};
 
 pub type ResultStep = Result<(), c::Cause>;
 
@@ -453,6 +456,15 @@ enum CompileScope {
     Function,
     Unit,
     CUnit,
+    CObject(lang_runtime::c_abi::Digest),
+}
+impl CompileScope {
+    fn is_c(self) -> bool {
+        matches!(self, Self::CUnit | Self::CObject(_))
+    }
+    fn is_unit(self) -> bool {
+        !matches!(self, Self::Function)
+    }
 }
 
 impl<'a> CompiledFunction<'a> {
@@ -570,7 +582,7 @@ impl<'a> CompiledProgram<'a> {
         cells: usize,
         scope: CompileScope,
     ) -> Result<Self, Error> {
-        if !matches!(scope, CompileScope::CUnit) {
+        if !scope.is_c() {
             reject_c_interface(flow)?;
         }
         if flow.functions().is_empty() {
@@ -923,7 +935,8 @@ impl<'a> ObjectArtifact<'a> {
     ///
     /// # Safety
     /// Every resolved symbol must be the matching function emitted by this
-    /// artifact and toolchain, with the private revision-1 native convention.
+    /// artifact and toolchain, with its recorded private native convention
+    /// (ordinary revision 1, or the explicit C object's revision 2/3).
     /// It must remain executable and unchanged while the image is alive.
     /// The image must own (or borrow) all code/relocation dependencies; its
     /// Drop must not invalidate another live program. Resolvers must not
@@ -983,7 +996,36 @@ pub fn emit_object_for_target<'a>(
     limits: m::Limits,
     cells: usize,
 ) -> Result<ObjectArtifact<'a>, Error> {
-    reject_c_interface(flow)?;
+    prepare_object(flow, layouts, target, limits, cells, CompileScope::Unit)?.finish()
+}
+struct PreparedObject<'a> {
+    module: ObjectModule,
+    target: crate::Triple,
+    functions: Vec<ObjectFunction<'a>>,
+    usage: m::Usage,
+}
+impl<'a> PreparedObject<'a> {
+    fn finish(self) -> Result<ObjectArtifact<'a>, Error> {
+        let bytes = self.module.finish().emit().map_err(backend)?;
+        Ok(ObjectArtifact {
+            bytes,
+            target: self.target,
+            functions: self.functions,
+            usage: self.usage,
+        })
+    }
+}
+fn prepare_object<'a>(
+    flow: &'a f::Elaborated,
+    layouts: &'a Layouts<'a>,
+    target: &crate::Triple,
+    limits: m::Limits,
+    cells: usize,
+    scope: CompileScope,
+) -> Result<PreparedObject<'a>, Error> {
+    if !scope.is_c() {
+        reject_c_interface(flow)?;
+    }
     if !std::ptr::eq(layouts.types(), typed(flow).places().declarations().types()) {
         return Err(Error::Layout(l::Error::ForeignLocation));
     }
@@ -1010,15 +1052,7 @@ pub fn emit_object_for_target<'a>(
             nodes,
             continuations,
             mut budget,
-        } = prepare(
-            flow,
-            layouts,
-            function,
-            limits,
-            cells,
-            Some(usage),
-            CompileScope::Unit,
-        )?;
+        } = prepare(flow, layouts, function, limits, cells, Some(usage), scope)?;
         let (_, metadata) = emit(
             &mut module,
             &flow.functions()[index],
@@ -1026,7 +1060,7 @@ pub fn emit_object_for_target<'a>(
             &nodes,
             &continuations,
             &mut budget,
-            CompileScope::Unit,
+            scope,
         )?;
         usage = m::Usage {
             work: budget.work_used(),
@@ -1041,9 +1075,8 @@ pub fn emit_object_for_target<'a>(
             failure_node: flow.functions()[index].failure().0,
         });
     }
-    let bytes = module.finish().emit().map_err(backend)?;
-    Ok(ObjectArtifact {
-        bytes,
+    Ok(PreparedObject {
+        module,
         target: target.clone(),
         functions,
         usage,
@@ -1065,7 +1098,7 @@ fn prepare<'a>(
     prefix: Option<m::Usage>,
     scope: CompileScope,
 ) -> Result<Prepared<'a>, Error> {
-    if !matches!(scope, CompileScope::CUnit) {
+    if !scope.is_c() {
         reject_c_interface(flow)?;
     }
     let layout = FunctionLayout::compile_after(flow, layouts, function, limits, cells, prefix)?;
@@ -1087,7 +1120,7 @@ fn prepare<'a>(
         .ok_or(Error::Layout(l::Error::Overflow))?;
     let mut continuations = budget.vector(capacity)?;
     continuations.push(graph.entry().0);
-    if matches!(scope, CompileScope::Unit | CompileScope::CUnit) {
+    if scope.is_unit() {
         continuations.push(graph.failure().0);
     }
     for node in graph.nodes() {
@@ -1373,7 +1406,7 @@ fn prepare<'a>(
                         });
                         Some(Action::Core)
                     }
-                    b::Op::Import { import, arguments } if matches!(scope, CompileScope::CUnit) => {
+                    b::Op::Import { import, arguments } if scope.is_c() => {
                         if typed(flow).places().declarations().imports()[import.0 as usize].abi
                             != o::declarations::ImportAbi::C
                         {
@@ -1460,7 +1493,7 @@ fn prepare<'a>(
                     b::Op::Call {
                         function: callee,
                         arguments,
-                    } if matches!(scope, CompileScope::Unit | CompileScope::CUnit) => {
+                    } if scope.is_unit() => {
                         let f::Kind::Execute { next, failure, .. } = node.kind else {
                             unreachable!()
                         };
@@ -2014,15 +2047,18 @@ fn emit<M: Module>(
         .params
         .extend([AbiParam::new(types::I64); 4]);
     helper_signature.returns.push(AbiParam::new(types::I32));
-    let symbol = if typed(layout.source).has_explicit_panic() {
-        format!("lang_owned_r3_f{}", layout.function.0)
+    let revision = if typed(layout.source).has_explicit_panic() {
+        3
+    } else if scope.is_c() {
+        2
     } else {
-        match scope {
-            CompileScope::CUnit => format!("lang_owned_r2_f{}", layout.function.0),
-            CompileScope::Function | CompileScope::Unit => {
-                format!("lang_owned_r1_f{}", layout.function.0)
-            }
+        1
+    };
+    let symbol = match scope {
+        CompileScope::CObject(digest) => {
+            format!("lang_c_obj1_r{revision}_{digest}_f{}", layout.function.0)
         }
+        _ => format!("lang_owned_r{revision}_f{}", layout.function.0),
     };
     let id = module
         .declare_function(&symbol, Linkage::Export, &signature)

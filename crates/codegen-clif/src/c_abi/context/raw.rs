@@ -33,6 +33,7 @@ pub struct ImportBinding {
     pub user: *mut c_void,
     pub flags: u64,
 }
+#[repr(C)]
 struct RawContext<'a> {
     // Drop accounting/regions before the gate and its borrowed registration.
     allocator: std::cell::RefCell<super::super::allocator::CAllocator<'a>>,
@@ -363,12 +364,12 @@ pub(crate) unsafe fn with_allocator<'a, T>(
         &context.context,
         &context.allocator,
         v::Address {
-            start: pointer.addr(),
+            start: pointer.expose_provenance(),
             extent: size_of::<RawContext<'_>>(),
         },
     )
 }
-pub(super) unsafe extern "C" fn create(
+pub(crate) unsafe extern "C" fn create(
     program: *const c::Program<'_>,
     config: *const ProgramConfig,
     out: *mut *mut c_void,
@@ -400,7 +401,7 @@ pub(super) unsafe extern "C" fn create(
         Ok(())
     })
 }
-pub(super) unsafe extern "C" fn destroy(
+pub(crate) unsafe extern "C" fn destroy(
     program: *const c::Program<'_>,
     pointer: *mut c_void,
 ) -> u32 {
@@ -422,7 +423,7 @@ pub(super) unsafe extern "C" fn destroy(
         result
     })
 }
-pub(super) unsafe extern "C" fn last_error(
+pub(crate) unsafe extern "C" fn last_error(
     program: *const c::Program<'_>,
     pointer: *mut c_void,
     out: *mut c::ErrorSummary,

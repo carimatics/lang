@@ -7,3 +7,5 @@ pub mod exports;
 mod padding;
 pub mod runtime;
 pub mod scalar;
+
+pub mod object;

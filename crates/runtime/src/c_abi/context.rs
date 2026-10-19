@@ -65,6 +65,11 @@ impl<'a> Program<'a> {
     pub const fn artifact(&self) -> &Artifact {
         self.artifact
     }
+    /// Code identity is process-local; matching ABI digests do not substitute
+    /// another executable owner at this trusted registration boundary.
+    pub fn retains_code<T: CodeOwner + ?Sized>(&self, owner: &T) -> bool {
+        std::ptr::addr_eq(self._owner as *const dyn CodeOwner, owner as *const T)
+    }
 }
 /// Process-local allocator-instance provenance, never a serialized handle.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -353,7 +358,7 @@ pub struct Session<'a> {
     failure: Option<Fault>,
 }
 impl<'a> Session<'a> {
-    pub fn retains_code<T: CodeOwner>(&self, owner: &T) -> bool {
+    pub fn retains_code<T: CodeOwner + ?Sized>(&self, owner: &T) -> bool {
         std::ptr::addr_eq(self.code_owner as *const dyn CodeOwner, owner as *const T)
     }
     pub fn artifact(&self) -> &Artifact {

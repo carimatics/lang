@@ -20,6 +20,8 @@ struct Probe {
 mod aggregates;
 #[path = "c_exports_copy_cases.rs"]
 mod copy_cases;
+#[path = "c_objects.rs"]
+mod objects;
 #[path = "c_exports_runtime.rs"]
 mod runtime_cases;
 

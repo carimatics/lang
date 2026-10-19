@@ -4,13 +4,13 @@ use super::*;
 /// factory uses the original context allocator and cleanup Instance; it never
 /// executes a guest body. NativeExports invokes the actual compiled machine code.
 pub struct NativeFactory<'p> {
-    program: &'p n::CCompiledProgram<'p>,
+    program: &'p dyn n::NativeProgram<'p>,
     artifact: &'p Artifact,
     limits: m::Limits,
 }
 impl<'p> NativeFactory<'p> {
     pub fn new(
-        program: &'p n::CCompiledProgram<'p>,
+        program: &'p dyn n::NativeProgram<'p>,
         artifact: &'p Artifact,
         limits: m::Limits,
     ) -> Result<Self, gate::Fault> {

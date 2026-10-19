@@ -49,32 +49,51 @@ impl<'a> CEnvironment<'a> {
         self.cleanup_records
     }
 }
-pub struct CCompiledProgram<'a> {
-    program: CompiledProgram<'a>,
-    artifact: abi::Digest,
-    functions: Vec<Option<usize>>,
-    exports: Vec<Option<m::FunctionId>>,
+pub(super) mod sealed {
+    pub trait Sealed {}
 }
-impl<'a> CCompiledProgram<'a> {
-    /// Compatibility spelling for the initial Rust embedding API. It now uses
-    /// the same finite Copy profile as `compile_imports`.
-    pub fn compile_scalar_imports(
-        flow: &'a f::Elaborated,
-        layouts: &'a Layouts<'a>,
-        artifact: &abi::Artifact,
-        limits: m::Limits,
-        cells: usize,
-    ) -> Result<Self, CError> {
-        Self::compile_imports(flow, layouts, artifact, limits, cells)
+/// Read-only verified C code metadata shared by JIT and linked execution.
+/// Implementations are sealed; this interface neither executes a guest body
+/// nor grants code, allocator or foreign-call authority.
+pub trait NativeProgram<'a>: sealed::Sealed {
+    fn artifact_digest(&self) -> abi::Digest;
+    fn exported_function(&self, index: usize) -> Option<m::FunctionId>;
+    fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>>;
+    fn usage(&self) -> m::Usage;
+}
+pub(crate) trait CExecutable<'a>: NativeProgram<'a> + gate::CodeOwner {
+    fn prepare_c<'context, P: ContextProvider>(
+        &self,
+        session: &gate::Session<'context>,
+        invoker: &dyn Invoker,
+        allocator: &a::Allocator<P>,
+    ) -> Result<CEnvironment<'context>, gate::Fault>;
+    fn execute_export<R: Runtime>(
+        &self,
+        function: m::FunctionId,
+        session: &mut gate::Session<'_>,
+        invoker: &mut dyn Invoker,
+        instance: &mut RuntimeInstance<R>,
+    ) -> Result<(), Failure>;
+    fn linked_thunks(&self) -> Option<&[crate::c_abi::scalar::LinkedThunk]> {
+        None
     }
-    /// Prepare every profile-1 finite Copy import, retaining the private r2
-    /// gateway. External C export wrappers and C object publication are separate.
-    pub fn compile_imports(
-        flow: &'a f::Elaborated,
-        layouts: &'a Layouts<'a>,
+}
+pub(super) struct CInterface {
+    pub artifact: abi::Digest,
+    pub functions: Vec<Option<usize>>,
+    pub exports: Vec<Option<m::FunctionId>>,
+}
+pub(super) struct CExecution<'c, 'a> {
+    pub owner: &'c dyn gate::CodeOwner,
+    pub entry: FunctionEntry<'c, 'a>,
+    pub program: ProgramRef<'c, 'a>,
+}
+impl CInterface {
+    pub fn check(
+        flow: &f::Elaborated,
         artifact: &abi::Artifact,
         limits: m::Limits,
-        cells: usize,
     ) -> Result<Self, CError> {
         let declarations = typed(flow).places().declarations();
         let checked = abi::Artifact::compile(
@@ -140,41 +159,20 @@ impl<'a> CCompiledProgram<'a> {
                 None
             });
         }
-        let program =
-            CompiledProgram::compile_scope(flow, layouts, limits, cells, CompileScope::CUnit)
-                .map_err(CError::Codegen)?;
         Ok(Self {
-            program,
             artifact: checked.digest(),
             functions,
             exports,
         })
     }
-    pub const fn artifact_digest(&self) -> abi::Digest {
-        self.artifact
-    }
-    pub fn exported_function(&self, index: usize) -> Option<m::FunctionId> {
-        self.exports.get(index).copied().flatten()
-    }
-    pub fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>> {
-        self.program.layout(function)
-    }
-    pub fn metadata(&self, function: m::FunctionId) -> Option<&crate::program::FunctionCode> {
-        self.program.metadata(function)
-    }
-    pub const fn usage(&self) -> m::Usage {
-        self.program.usage
-    }
-    /// Perform this admission BEFORE reserving the runtime's guest-controlled
-    /// frames/metadata. The returned requirements retain the invocation counter
-    /// and cannot relax the context's allocation/execution bounds.
     pub fn prepare<'context, P: ContextProvider>(
         &self,
+        owner: &dyn gate::CodeOwner,
         session: &gate::Session<'context>,
         invoker: &dyn Invoker,
         allocator: &a::Allocator<P>,
     ) -> Result<CEnvironment<'context>, gate::Fault> {
-        if !session.retains_code(self)
+        if !session.retains_code(owner)
             || session.artifact().digest() != self.artifact
             || invoker.artifact() != self.artifact
             || invoker.allocator_identity() != session.allocator_identity()
@@ -202,6 +200,126 @@ impl<'a> CCompiledProgram<'a> {
             work: session.work().clone(),
             cleanup_records: session.cleanup_records(),
         })
+    }
+    pub fn invoke<R: Runtime>(
+        &self,
+        code: CExecution<'_, '_>,
+        session: &mut gate::Session<'_>,
+        invoker: &mut dyn Invoker,
+        instance: &mut RuntimeInstance<R>,
+        abi: o::declarations::FunctionAbi,
+    ) -> Result<(), Failure> {
+        let compiled = code.entry;
+        let function = compiled.layout.function;
+        let reject = |fault| Failure {
+            function,
+            reason: Reason::Foreign(fault),
+            span: compiled.nodes[0].span,
+            panic_code: None,
+        };
+        let actual = instance
+            .runtime
+            .c_environment()
+            .ok_or_else(|| reject(gate::Fault::new(gate::Kind::WrongProgram)))?;
+        if !session.retains_code(code.owner)
+            || session.artifact().digest() != self.artifact
+            || invoker.artifact() != self.artifact
+            || invoker.allocator_identity() != session.allocator_identity()
+            || actual.context != session.allocator_identity()
+            || Some(actual.allocator) != session.bound_allocator()
+            || !actual.control.same_configuration(session.control())
+            || !actual.work.same_invocation(session.work())
+            || actual.cleanup_records != session.cleanup_records()
+            || instance.runtime.c_usage().is_none()
+        {
+            return Err(reject(gate::Fault::new(gate::Kind::WrongProgram)));
+        }
+        if typed(compiled.layout.source)
+            .places()
+            .declarations()
+            .functions()[function.0 as usize]
+            .abi
+            != abi
+        {
+            return Err(reject(gate::Fault::new(gate::Kind::Function(
+                function.0 as usize,
+            ))));
+        }
+        let mut imports = Dispatcher {
+            session,
+            invoker,
+            functions: &self.functions,
+        };
+        let result = run(compiled, Some(code.program), instance, Some(&mut imports));
+        if let Some(usage) = instance.runtime.c_usage() {
+            *imports.session.usage() = usage;
+        }
+        result.map_err(|mut failure| {
+            if let Some(fault) = imports.session.failure() {
+                failure.reason = Reason::Foreign(fault);
+                failure.span = fault.span.unwrap_or(failure.span);
+            }
+            failure
+        })
+    }
+}
+
+pub struct CCompiledProgram<'a> {
+    program: CompiledProgram<'a>,
+    interface: CInterface,
+}
+impl<'a> CCompiledProgram<'a> {
+    /// Compatibility spelling for the initial Rust embedding API. It now uses
+    /// the same finite Copy profile as `compile_imports`.
+    pub fn compile_scalar_imports(
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        artifact: &abi::Artifact,
+        limits: m::Limits,
+        cells: usize,
+    ) -> Result<Self, CError> {
+        Self::compile_imports(flow, layouts, artifact, limits, cells)
+    }
+    /// Prepare every profile-1 finite Copy import, retaining the private r2
+    /// gateway. External C export wrappers and C object publication are separate.
+    pub fn compile_imports(
+        flow: &'a f::Elaborated,
+        layouts: &'a Layouts<'a>,
+        artifact: &abi::Artifact,
+        limits: m::Limits,
+        cells: usize,
+    ) -> Result<Self, CError> {
+        let interface = CInterface::check(flow, artifact, limits)?;
+        let program =
+            CompiledProgram::compile_scope(flow, layouts, limits, cells, CompileScope::CUnit)
+                .map_err(CError::Codegen)?;
+        Ok(Self { program, interface })
+    }
+    pub const fn artifact_digest(&self) -> abi::Digest {
+        self.interface.artifact
+    }
+    pub fn exported_function(&self, index: usize) -> Option<m::FunctionId> {
+        self.interface.exports.get(index).copied().flatten()
+    }
+    pub fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>> {
+        self.program.layout(function)
+    }
+    pub fn metadata(&self, function: m::FunctionId) -> Option<&crate::program::FunctionCode> {
+        self.program.metadata(function)
+    }
+    pub const fn usage(&self) -> m::Usage {
+        self.program.usage
+    }
+    /// Perform this admission BEFORE reserving the runtime's guest-controlled
+    /// frames/metadata. The returned requirements retain the invocation counter
+    /// and cannot relax the context's allocation/execution bounds.
+    pub fn prepare<'context, P: ContextProvider>(
+        &self,
+        session: &gate::Session<'context>,
+        invoker: &dyn Invoker,
+        allocator: &a::Allocator<P>,
+    ) -> Result<CEnvironment<'context>, gate::Fault> {
+        self.interface.prepare(self, session, invoker, allocator)
     }
     pub fn invoke<R: Runtime>(
         &self,
@@ -248,61 +366,52 @@ impl<'a> CCompiledProgram<'a> {
             span: self.program.functions[0].function.nodes[0].span,
             panic_code: None,
         })?;
-        let reject = |fault| Failure {
-            function,
-            reason: Reason::Foreign(fault),
-            span: compiled.function.nodes[0].span,
-            panic_code: None,
-        };
-        let actual = instance
-            .runtime
-            .c_environment()
-            .ok_or_else(|| reject(gate::Fault::new(gate::Kind::WrongProgram)))?;
-        if !session.retains_code(self)
-            || session.artifact().digest() != self.artifact
-            || invoker.artifact() != self.artifact
-            || invoker.allocator_identity() != session.allocator_identity()
-            || actual.context != session.allocator_identity()
-            || Some(actual.allocator) != session.bound_allocator()
-            || !actual.control.same_configuration(session.control())
-            || !actual.work.same_invocation(session.work())
-            || actual.cleanup_records != session.cleanup_records()
-            || instance.runtime.c_usage().is_none()
-        {
-            return Err(reject(gate::Fault::new(gate::Kind::WrongProgram)));
-        }
-        if typed(compiled.function.layout.source)
-            .places()
-            .declarations()
-            .functions()[function.0 as usize]
-            .abi
-            != abi
-        {
-            return Err(reject(gate::Fault::new(gate::Kind::Function(
-                function.0 as usize,
-            ))));
-        }
-        let mut imports = Dispatcher {
+        self.interface.invoke(
+            CExecution {
+                owner: self,
+                entry: compiled.entry(),
+                program: ProgramRef::Jit(&self.program),
+            },
             session,
             invoker,
-            functions: &self.functions,
-        };
-        let result = run(
-            compiled.entry(),
-            Some(ProgramRef::Jit(&self.program)),
             instance,
-            Some(&mut imports),
-        );
-        if let Some(usage) = instance.runtime.c_usage() {
-            *imports.session.usage() = usage;
-        }
-        result.map_err(|mut failure| {
-            if let Some(fault) = imports.session.failure() {
-                failure.reason = Reason::Foreign(fault);
-                failure.span = fault.span.unwrap_or(failure.span);
-            }
-            failure
-        })
+            abi,
+        )
+    }
+}
+
+impl sealed::Sealed for CCompiledProgram<'_> {}
+impl<'a> NativeProgram<'a> for CCompiledProgram<'a> {
+    fn artifact_digest(&self) -> abi::Digest {
+        self.artifact_digest()
+    }
+    fn exported_function(&self, index: usize) -> Option<m::FunctionId> {
+        self.exported_function(index)
+    }
+    fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>> {
+        self.layout(function)
+    }
+    fn usage(&self) -> m::Usage {
+        self.usage()
+    }
+}
+impl<'a> CExecutable<'a> for CCompiledProgram<'a> {
+    fn prepare_c<'context, P: ContextProvider>(
+        &self,
+        session: &gate::Session<'context>,
+        invoker: &dyn Invoker,
+        allocator: &a::Allocator<P>,
+    ) -> Result<CEnvironment<'context>, gate::Fault> {
+        self.prepare(session, invoker, allocator)
+    }
+    fn execute_export<R: Runtime>(
+        &self,
+        function: m::FunctionId,
+        session: &mut gate::Session<'_>,
+        invoker: &mut dyn Invoker,
+        instance: &mut RuntimeInstance<R>,
+    ) -> Result<(), Failure> {
+        self.invoke_export(function, session, invoker, instance)
     }
 }
 

@@ -165,7 +165,7 @@ struct Active {
     parent: Option<Parent>,
 }
 pub struct State<'i, 's, 'a, 'l> {
-    program: &'s n::CCompiledProgram<'l>,
+    program: &'s dyn n::NativeProgram<'l>,
     store: Rc<RefCell<Store<'a, 'l>>>,
     ledger: Option<c::Frame<'i, Ticket, Drain<'a, 'l>>>,
     stack: Vec<Active>,
