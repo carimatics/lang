@@ -8,15 +8,17 @@
 
 ## 現在のM2実装状況
 
-**検証済み112件 · 進行中1件 · 残り10件（暫定24 pt）。**
+**検証済み114件 · 進行中1件 · 残り13件（暫定32 pt）。**
 
 | 次の成果 | 直近の検証済み成果 | Milestone完了条件 |
 | --- | --- | --- |
-| P02：C識別を保持するIR形式の判断、その後production配布／隔離link-run | Metadata準備の分離（5324c64）を完了。配布物は未完成のため **112完了・残り24 ptは不変** | **14/18条件**。過去の重み84/113（74.3%） |
+| P05：Copy／ownershipのsource不要runtime起動 | P03 metadata（5324c64）とP04 C対応schema 4（816b0b6）が完了。配布は残る | **14/18 gates**、過去の重み84/113（74.3%） |
 
-**次：P02のC対応MIR保存形式をRFCで判断します。** 5324c64で生成元IRから記録を切り離し、機械語生成なしでnative実行計画を再構築できました。Macの全1,530 tests／89 suites、fmt／Clippy／rustdocが成功。現schema 2／3はC識別を保存しないため、形式決定・C context依存・production配布物・両tier-1のclean-installは未完了です。V17の全Windows run 39312412257（head8b4ee47、job118265129127）は2026-10-19 20:00:45 UTCに成功。Scope／task／見積もりを追加せず、残り24 ptを維持します。
+**次：P05のsource不要native起動。** P02の既存3 ptにmetadata、意味論の保存、runtime、C context、SDK組立、両host clean installが隠れていました。[実装Todo](milestone-2.md)でP03–P07を明示し、P02の最終clean-install検証とCopy／ownership／Cの全成果を維持します。**123 → 128行、完了112 → 114件、追加11点／完了で3点を除き、残り24 → 32 pt**。P03／P04は既存commit済みの作業を今回見える形にしたものです。収支は **134 + 96 − 198 = 32**。工数の完成率とはせず、見積りを訂正します。
 
-113は固定された完了条件の重みで、工数予測としての使用は取りやめています。成果件数はtask粒度に依存し、完成率ではありません。[詳細Todo](milestone-2.md)に現在の状態、見積もりの変更、実行証拠、検証時間、情報源の日付を集約します（2026-10-20 JST更新・確認）。先頭で作業中・直近の完了成果・元のMilestone完了条件を区別し、過去のreportはそこで折りたたみます。
+Schema 4でC宣言と明示的panicを保持し、意味論全体を独立検証します。Decode後の実C callbackを明示VM／native contextで実行し、CLI loadではC権限を与えません。816b0b6はMac全1,533 tests／89 suitesとfmt／Clippy／rustdocに成功。Production runtime／context配布、隔離SDK link/run、後続conformance／性能／debug gateは残ります。2026-10-20 JST更新・確認。
+
+113は固定した完了条件の重みで、工数予測として使用しません。成果件数もtaskの大きさに依存し、完成率ではありません。現在のTodo、見積り変更、証拠、検証時間／情報源の日付は実装Todoに記録し、過去報告は折り畳んでいます。
 
 ## タスク管理
 

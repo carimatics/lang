@@ -6,38 +6,38 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**112 done · 1 doing · 10 todo · 24 remaining pt**
+**114 done · 1 doing · 13 todo · 32 remaining pt**
 
-
-
-**Next: M2-P02 → package startup/runtime/context dependencies and prove clean-install link/run (3 pt, in progress).**
+**Next: M2-P05 → source-free native runtime bootstrap for Copy and ownership (provisional 3 pt, in progress).**
 
 | Next delivery | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| P02: production bootstrap/runtime distribution | V17/P01/F07: **109 → 112 done, 31 → 24 pt** | Link/run from an isolated distribution directory without hidden repository or target/deps dependencies |
+| P05: source-free runtime startup | P03/P04: **112 → 114 done**; remaining distribution audit **24 → 32 pt** | Run linked code from decoded semantics and native records without source analysis or backend emission |
 
-P02 checkpoints (existing 3 pt; separate from distribution completion):
+P02 packaging audit (2026-10-20 JST): retaining its old 3 pt across metadata, semantic transport, runtime startup, C-context integration, SDK assembly and both-host clean installation hid several independent outcomes. Keep P02's final clean-install proof at 3 pt. Expose P03 detached metadata (initial 2 pt, delivered 5324c64) and P04 C-aware artifact transport (initial 1 pt, delivered 816b0b6), plus P05 runtime bootstrap (3), P06 distributed C context (3) and P07 SDK assembly (2). This is an explicit re-estimate of existing requirements, with **no scope removed**: **123 → 128 rows, +11 added pt, 3 retired pt, 24 + 11 − 3 = 32 remaining pt**. Recording P03/P04 now does not claim new work since their commits. The next startup experiment must execute source-derived code.
 
-- [x] Identify repository test-source/Rust-rlib and startup metadata-regeneration dependencies in the existing standalone fixture.
-- [x] Implement detached Rust records and plan reconstruction without machine-code emission (`5324c64`): real native execution after producer IR/layout teardown, preserved code sizes/source ranges, every service-work-prefix VM comparison, and count/foreign-layout/budget refusals.
-- [ ] Decide a C-aware MIR format in an RFC. Current schemas 2/3 refuse C interfaces; schema 3 already belongs to explicit panic and must remain compatible.
-- [ ] Bundle production startup/runtime dependencies, including the C context.
-- [ ] Verify isolated clean-install link/run on both tier-1 hosts without narrowing Copy/ownership/C coverage.
+- [x] **P03**: detached Rust native records reconstruct plans after producer IR/layout teardown without machine-code emission; preserve code sizes/source ranges and actual linked work-prefix VM comparisons. Code: `5324c64`.
+- [x] **P04 / RFC 0017**: schema 4 preserves Host/C and Guest/CExport identities, aggregate signatures and explicit panic. Decoded source fixtures invoke actual C through explicit VM/native contexts; the CLI still refuses C execution with zero usage after source deletion. Code: `816b0b6`.
+- [ ] **P05**: source-free Copy/ownership startup and native metadata transport.
+- [ ] **P06**: distributed C context/import/export bindings with original allocator and cleanup.
+- [ ] **P07**: compiler/startup/runtime/header SDK assembly with explicit toolchain requirements.
+- [ ] **P02**: clean-install link/run for Copy, ownership and C on both tier-1 hosts outside the repository/target/deps.
+
+Latest validation: `816b0b6` passes **1,533 macOS tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 16.98s**, native **67 / 278.18s**; fmt/Clippy (**23.65s**)/rustdoc (**21.70s**) pass. Summed suite time 374.56s is validation time, not development effort. Prior metadata snapshot 479296b is tracked by [Windows run 39317655321](https://github.com/carimatics/lang/actions/runs/39317655321), job 118283210035: required fmt/focused C-linker/Clippy/tests/rustdoc pass by 20:39:08 UTC; the whole workflow succeeds (job completed 20:49:28 UTC, 2026-10-19). Its prototype benchmark is not G17 Rust/C comparison evidence. Schema-4 [Windows run 39322772989](https://github.com/carimatics/lang/actions/runs/39322772989), head 816b0b6, is in progress; no success is claimed for that snapshot yet.
+
+Original exit gates remain **14/18** (historical weight 84/113); G15–G18 and final guide Z01 remain open. **113 is retired as an effort forecast.** Delivery counts are not a completion percentage. The [estimate ledger](#progress-and-estimate-changes) is **134 + 96 − 198 = 32 pt**.
+
+<details>
+<summary>Delivery history and platform verification records</summary>
+
+Earlier checkpoint/delivery validation records:
 
 Latest checkpoint validation: `5324c64` passes all **1,530 macOS tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 18.74s**, native **67 / 279.10s**, fmt/Clippy (**32.93s**)/rustdoc (**18.18s**) pass. Summed suite duration 376.98s is not development time. P02 remains doing; **24 pt, 123 rows and +85 added pt stay unchanged**. No new wire format or production distribution exists yet.
-
-Latest completed deliveries:
-
-
 
 - [x] **V17 (3 pt)**: implement RFC 0016's Vec, key-ordered Map, shared-payload and weak-liveness previews through VM/actual CLI, preserving arena escape rejection. Verify output/host-scratch bounds, custody, weak cycles, cleanup/reuse. Code: `72950d6`.
 - [x] **P01 (2 pt)/F07 (2 pt)**: verify direct LINK invocation, actionable toolchain/output errors and the compact Windows error on both native hosts. P01 code: `0061045`/`2cf38ca`. [Windows run 39306998513](https://github.com/carimatics/lang/actions/runs/39306998513), head `15a50bb`, job `118246548342`: formatting, focused C/linker checks, Clippy, full tests and rustdoc succeed. Required baseline completes at **2026-10-19 19:24:45 UTC**. The whole workflow also succeeds at **2026-10-19 19:35:39 UTC**. The later V17 snapshot `8b4ee47` [full Windows run 39312412257](https://github.com/carimatics/lang/actions/runs/39312412257), job 118265129127, succeeds at **20:00:45 UTC**. The prototype benchmark is not G17 Rust/C comparison evidence.
 - [x] **V17 macOS validation**: latest per-suite results total **1,529 tests / 89 suites**, zero failures, one manual timing test ignored. The first full workspace attempt fails only the legacy Vec-refusal fixture; after changing that test input to arena, `cargo test --workspace --exclude lang --all-targets --all-features` reruns the corrected suite and crates skipped by fail-fast. Production code is unchanged afterward; retain successful root/native evidence. C ABI **71 / 17.24s**, native **66 / 280.54s**, owned execution **155 / 5.94s**, REPL **28 / 0.20s**. fmt/Clippy (workspace **30.41s**, runtime after test correction **17.24s**)/rustdoc (**24.25s**) pass. Summed unique suite duration 377.91s is not development time.
 
-Original exit gates: **14/18** (historical weight 84/113). This scope audit closes G08 core/indirect previews and G11/G12 C boundaries/headers/target evidence. **113 is retired as an effort forecast.** Delivery counts are not a completion percentage. The [estimate ledger](#progress-and-estimate-changes) is **134 + 85 − 195 = 24 pt**. **123 rows and +85 added pt stay unchanged**; retire only the existing V17/P01/F07 7 pt. G15–G18 and final guide Z01 remain open.
-
-<details>
-<summary>Delivery history and platform verification records</summary>
 
 F06 completed checkpoints (same 2 pt; no added tasks):
 
@@ -183,15 +183,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 112 (+77)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 114 (+79)**, and the task inventory increased **87 → 128 (+41)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +85 pt | −195 pt | 24 pt |
+| 134 pt | +96 pt | −198 pt | 32 pt |
 
-**134 + 85 − 195 = 24 pt**
+**134 + 96 − 198 = 32 pt**
 
-This separates delivered work from newly recognized work: completion retired 183 estimated points, while exposed prerequisites and re-estimation added 85. These are planning units, not hours or measured actual effort. The remaining 36 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 198 estimated points, while exposed prerequisites and re-estimation added 96. These are planning units, not hours or measured actual effort. The remaining 32 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -386,7 +386,12 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | `25de18a` |
 | M2-N07 | done | 0 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | `119f9ff` |
 | M2-P01 | done | 0 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | `2cf38ca` |
-| M2-P02 | doing | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
+| M2-P03 | done | 0 | M2-P01,M2-N07 | G15 | Detached native records rebuild checked runtime plans after producer teardown without code emission; linked execution matches VM. | `5324c64` |
+| M2-P04 | done | 0 | M2-P03,M2-F07 | G15 | C-aware schema 4 preserves identities; decoded actual C callbacks execute through explicit VM/native contexts. | `816b0b6` |
+| M2-P05 | doing | 3 | M2-P03,M2-P04 | G15 | Source-free Copy/ownership runtime bootstrap reconstructs native plans without frontend analysis/code emission. | — |
+| M2-P06 | todo | 3 | M2-P05,M2-F07 | G15 | Distributed C context/import/export bindings preserve original allocator and owner cleanup through linked source execution. | — |
+| M2-P07 | todo | 2 | M2-P05,M2-P06 | G15 | Assemble compiler/startup/runtime/header SDK with explicit matching-toolchain requirements. | — |
+| M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05,M2-P07 | G15 | Clean-install SDK link/run for Copy, ownership and C succeeds on both tier-1 hosts outside repo/target/deps. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
 | M2-B01 | todo | 2 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | — |

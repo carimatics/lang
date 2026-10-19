@@ -8,15 +8,17 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**112 verified deliveries · 1 in progress · 10 remaining tasks (provisional 24 pt).**
+**114 verified deliveries · 1 in progress · 13 remaining tasks (provisional 32 pt).**
 
 | Next delivery | Latest verified outcome | Milestone exit |
 | --- | --- | --- |
-| P02: decide C-aware IR transport, then production distribution/isolated link-run | Metadata preparation separation complete (5324c64); distribution incomplete, so **112 done / 24 pt stay unchanged** | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P05: source-free Copy/ownership runtime startup | P03 metadata (5324c64) and P04 C-aware schema 4 (816b0b6) are complete; distribution remains | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Next: decide the P02 C-aware MIR transport in an RFC.** 5324c64 detaches records from producer IR and reconstructs native runtime plans without machine-code emission. All 1,530 Mac tests/89 suites and fmt/Clippy/rustdoc pass. Existing schemas 2/3 cannot preserve C identities; the format decision, C-context dependencies, production distribution and both-host clean install remain. V17 full Windows run 39312412257 (head 8b4ee47, job 118265129127) succeeds at 2026-10-19 20:00:45 UTC. Scope/tasks/estimates are unchanged at 24 pt.
+**Next: P05 source-free native startup.** P02's old 3 pt concealed metadata, semantic transport, runtime, C context, SDK assembly and both-host clean install. The [delivery board](milestone-2.md) now exposes P03–P07 while retaining P02's final clean-install proof and all Copy/ownership/C outcomes: **123 → 128 rows; 112 → 114 done; +11 added / 3 retired pt; 24 → 32 remaining pt**. P03/P04 are previously committed work, made observable now. The ledger is **134 + 96 − 198 = 32**; this corrects the estimate rather than claiming an effort percentage.
 
-113 measures fixed exit-gate weights; it is retired as an effort forecast. Delivery counts depend on task size and are not a completion percentage. The [delivery board](milestone-2.md) is the source for current Todo states, estimate changes, execution evidence, validation times and source dates (updated/verified 2026-10-20 JST). Its first view separates current work, the latest completed outcome and the original exit gates; historical reports are collapsed there.
+Schema 4 preserves C declarations and explicit panic, independently verifies the complete semantic unit, and executes decoded actual C callbacks through explicit VM/native contexts. CLI loading grants no C authority. 816b0b6 passes all 1,533 Mac tests/89 suites and fmt/Clippy/rustdoc. Production runtime/context distribution, isolated SDK link/run and the later conformance/performance/debug gates remain open. Updated/verified 2026-10-20 JST.
+
+113 measures fixed exit-gate weights; it is retired as an effort forecast. Delivery counts depend on task size and are not a completion percentage. Current Todo states, estimate changes, evidence and validation/source dates are in the delivery board; historical reports are collapsed there.
 
 ## Task tracking
 
