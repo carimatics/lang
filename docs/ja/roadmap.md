@@ -8,7 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み105件 · 進行中0件 · 残り16件（暫定36 pt）。**
+**検証済み106件 · 進行中0件 · 残り17件（暫定39 pt）。**
+
+F15完了（2026-10-19 JST）：c0f9b68で実C callerから生成native source increment／panic、bool／Unitとcallbackを実行します。元opaque contextの保持・再入拒否・別Program・foreign failure・quota／OOM・host panic／poisonを5 testで検証しました。Contextは実C allocatorを保持し、result stagingも同じproviderとlive／累積quotaへ計上して成功・失敗とも解放します。必須検証は **1,504 tests / 88 suites**、失敗0、手動timing 1件のみignored。最後のstaging修正後に影響先C ABI全 **56件／12.37秒** を再実行し、他の実装pathは不変です。Native **66件／275.69秒**、fmt／Clippy（26.57秒）／rustdoc（18.01秒）成功。F15の初期 **3 pt** を取り除き、**105 → 106 done、39 → 36 pt**。下記F16の追加3点と分けて表示し、現在は **123行、追加85点、完了で取り除いた180点、残り39点**。元の完了条件は **11/18** で、C object完了とはしません。
+
+F15後の残作業監査（2026-10-19 JST）：実行済みfixture factoryはi64／bool／Unitで、aggregate exportのC → managed転送・aggregate return escrowとowner／guest call bodyのruntime接続が残ります。F16（初期3 pt）へ分離し、次は実Cのrecord／enum source exportを動かします。F05はlinked C object／bootstrapに絞り、明示的なprivate bridge契約とlink／runを維持します（暫定3 pt、着手前にobject実験で確認）。F15完了後の **36 → 39残点、122 → 123行、追加82 → 85点** で、完了による180点は不変です。新たなvalue／owner要件の追加ではなく、元のF05から残る実装を可視化しました。Runtime同梱・全body／aggregate・platform／package／最終guideを省きません。
+
+F14のWindows確定（2026-10-19 JST）：[全workflow 39265484004](https://github.com/carimatics/lang/actions/runs/39265484004)、head 8aef3d6、job 118103831488が **2026-10-19 14:39:54 UTC** に成功しました。Raw context snapshotの全検証／benchmarkが完了し、後続F15 source exportの証拠とは分けます。
+
+F05実行後の範囲監査（2026-10-19 JST）：実C → 生成native source increment／panicの実験が成功しました。JIT source exportのcontext／callback／allocator／result／資源制限統合をF15（初期3 pt、doing）に分離し、F05はlinked C object公開・bootstrap・runtime／cleanup統合（暫定3 pt）として維持します。ポインタを埋め込むJIT wrapperはportable objectには使えず、object側の明示契約が未確定です。**121 → 122行、36 → 39残点、追加79 → 82点**、完了で取り除いた177点は不変です。Source実行の前に別の前提を追加しない条件は満たしました。Aggregate／owner body／platform／packageを含む元要件は残し、F15の成功をF05やC完了条件の完了としません。
 
 F14（`17da01b`、2026-10-19 JST）でraw C contextのcreate／query／destroy supportを生成し、実C callerで実行します。所有snapshot・output原子性・登録identity・再入・panic／poison状態を保持し、**全88 suite／1,499 test**、fmt／Clippy／rustdoc成功です。前提2点の明示と完了により **36 + 2 − 2 = 36 pt**、成果は **104 → 105件** となりました。次はF05の実source export実行とruntime／result／object全統合で、それより前に別の前提作業を追加しません。
 

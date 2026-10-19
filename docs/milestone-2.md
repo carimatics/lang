@@ -6,22 +6,30 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**105 done · 0 doing · 16 todo · 36 remaining pt**
+**106 done · 0 doing · 17 todo · 39 remaining pt**
 
-**Next: M2-F05 → execute a source export through a real C caller, then complete runtime/result/object integration (provisional 3 pt).**
+**Next: M2-F16 → execute aggregate source exports from real C and integrate typed values/runtime/cleanup (initial 3 pt). Linked objects remain F05.**
 
 | Next delivery (not started) | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| F05: source export/runtime/object integration (provisional 3 pt) | F14: raw C context support, 104 → 105 done, 38 → 36 pt (17da01b) | C calls source increment/panic through native exports, with atomic results and full context/runtime/object wiring |
+| F16: typed value/runtime export integration (initial 3 pt) | F15: real C native source exports, 105 → 106 done, 3 pt retired (c0f9b68) | Real C calls record/enum sources with padding-safe transfers and owner/guest-call body/failure cleanup wiring |
 
-Last three: F09 (59f0f08) → F13 (6eb9018) → F14 (17da01b). Original exit gates: **11/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+Last three: F13 (6eb9018) → F14 (17da01b) → F15 (c0f9b68). Original exit gates: **11/18**. **113 is a fixed exit-gate weight, retired as a remaining-effort forecast.** The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates.
+
+F15 delivery (2026-10-19 JST): c0f9b68 lets real C call generated native source increment/panic, bool/Unit and callbacks. Five tests cover the original opaque context, reentry, another Program, foreign failure, quota/OOM and host panic/poison. Contexts retain the actual C allocator; result staging uses the same provider/live/cumulative quota and retires on success/failure. Baseline: **1,504 tests / 88 suites**, zero failures, one manual timing test ignored. After the final staging repair, rerun all **56 affected C ABI tests / 12.37s**; other implementation paths are unchanged. Native **66 / 275.69s**, fmt/Clippy (**26.57s**)/rustdoc (**18.01s**) pass. Retire F15 initial **3 pt: 105 → 106 done, 39 → 36 pt**. Show the separate F16 addition below: current **123 rows, +85 added pt, 180 retired pt, 39 remaining pt**. Original gates stay **11/18**; C object delivery is incomplete.
+
+F14 Windows completion (2026-10-19 JST): [full workflow 39265484004](https://github.com/carimatics/lang/actions/runs/39265484004), head 8aef3d6, job 118103831488, succeeded at **2026-10-19 14:39:54 UTC**, including all checks/benchmark. This proves the raw-context snapshot, separately from the later F15 source-export implementation.
 
 F14 delivery (2026-10-19 JST): 17da01b generates the existing C create/destroy/last_error entries bound to an actual Program. A real C caller creates/queries/destroys opaque contexts; overwritten stack descriptors/names cannot change their snapshots. Five boundary/state tests cover invalid requests, untouched outputs, identity/reentry/poison, address/overlap refusal and valid zero budgets. Baseline: **1,499 tests / 88 suites**, zero failures, one manual timing test ignored; C ABI **51 / 14.65s**, native **66 / 276.32s**, fmt/Clippy/rustdoc pass. Retire F14 **2 pt: 104 → 105 done, 38 → 36 pt**. **121 rows, +79 added pt, 177 retired pt**. Exposing and completing 2 pt leaves the total unchanged from the preceding delivery while adding working C support. The separate core-exit audit closes G05/G07/G09/G10; F05 still owes source exports and objects.
 
 <details>
 <summary>Remaining FFI integration</summary>
 
-Remaining FFI audit (2026-10-19 JST): F04 typed imports, F09 drop, F13 panic and F14 raw C context support are complete locally. F05 retains native source export execution, original opaque context in callbacks, actual allocator/runtime/result staging and C-aware object publication. Its 3 pt remain provisional until the next real C source-export experiment; do not add another prerequisite before that execution. F06/F07 target evidence, P02 packaging, Q01/Q02 owner/C conformance, V17 indirect previews and Z01 guide remain required.
+Post-F15 remaining-scope audit (2026-10-19 JST): the executed fixture factory handles i64/bool/Unit; aggregate export C-to-managed transfer/return escrow and owner/guest-call body runtime wiring remain. Separate F16 (initial 3 pt), with a real C record/enum source export as its next execution. Narrow F05 to linked C object/bootstrap, retaining an explicit private bridge decision and actual link/run (provisional 3 pt, to be checked against its object experiment before coding). After retiring F15 this changes **36 → 39 remaining pt, 122 → 123 rows, net additions 82 → 85 pt**; retired estimates stay 180. These expose residual original F05 work, not new value/owner requirements. Bundled runtime, complete body/aggregate/platform/package outcomes and the final guide remain required.
+
+F05 post-execution scope audit (2026-10-19 JST): the real C → generated native source increment/panic experiment passes. Separate JIT source export context/callback/allocator/result/resource integration into F15 (initial 3 pt, doing); retain F05 for linked C object publication/bootstrap/runtime/cleanup integration (provisional 3 pt). A JIT wrapper capturing an address cannot serve as a portable object, whose explicit bridge contract remains undecided. This changes **121 → 122 rows, 36 → 39 remaining pt, net additions 79 → 82 pt**; retired estimates stay 177. The requirement to execute source before another prerequisite is met. Original aggregate/owner-body/platform/package outcomes remain; F15 does not complete F05 or the C exit gates.
+
+Prior FFI audit at the F14 snapshot (2026-10-19 JST): F04 typed imports, F09 drop, F13 panic and F14 raw C context support are complete locally. F05 retains native source export execution, original opaque context in callbacks, actual allocator/runtime/result staging and C-aware object publication. Its 3 pt remain provisional until the next real C source-export experiment; do not add another prerequisite before that execution. F06/F07 target evidence, P02 packaging, Q01/Q02 owner/C conformance, V17 indirect previews and Z01 guide remain required.
 
 </details>
 
@@ -130,15 +138,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 105 (+70)**, and the task inventory increased **87 → 121 (+34)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 106 (+71)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +79 pt | −177 pt | 36 pt |
+| 134 pt | +85 pt | −180 pt | 39 pt |
 
-**134 + 79 − 177 = 36 pt**
+**134 + 85 − 180 = 39 pt**
 
-This separates delivered work from newly recognized work: completion retired 177 estimated points, while exposed prerequisites and re-estimation added 79. These are planning units, not hours or measured actual effort. The remaining 36 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 180 estimated points, while exposed prerequisites and re-estimation added 85. These are planning units, not hours or measured actual effort. The remaining 39 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -303,7 +311,9 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F11 | done | 0 | M2-F02,M2-F03 | G12 | Execute scalar/Unit imports from source through real C code and the shared context in VM/native, with failure fixtures. | `a37b053` |
 | M2-F04 | done | 0 | M2-F02,M2-F03,M2-F11 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | `cfd0987` |
 | M2-F14 | done | 0 | M2-F02,M2-F03 | G11,G12 | Generated raw C create/query/destroy copies descriptors, preserves output on failure, owns context lifetime and enforces artifact/reentry gates through a real C caller. | 17da01b |
-| M2-F05 | todo | 3 | M2-F04,M2-F09,M2-F13,M2-F14 | G12 | Raw descriptor/context factory/error/destroy and C export/object integration returns accepted statuses/results and contains nested cleanup failures. | — |
+| M2-F15 | done | 0 | M2-F04,M2-F09,M2-F13,M2-F14 | G12 | Real C calls native source exports with original opaque-context callbacks, allocator integration, atomic results and resource conformance. | c0f9b68 |
+| M2-F16 | todo | 3 | M2-F15,M2-N05 | G12 | Real C calls aggregate source exports with typed transfer/return escrow and owner/guest-call body runtime/cleanup integration. | — |
+| M2-F05 | todo | 3 | M2-F16 | G12 | Complete linked C object/bootstrap/runtime integration under an explicit private bridge contract and verify accepted exports through real link/run. | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
 
@@ -345,7 +355,9 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 
 ## Sources and verification dates
 
-- [Raw C context support](../crates/codegen-clif/src/c_abi/context.rs), [field reader/lifecycle](../crates/codegen-clif/src/c_abi/context/raw.rs) and [real C/state fixtures](../tests/support/c_context_native.rs) (`17da01b`): updated/verified 2026-10-19 JST. Full local baseline above; this new raw-context snapshot still needs its own Windows run. F05 source exports/objects are unimplemented.
+- [Native source exports](../crates/codegen-clif/src/c_abi/exports.rs), [real C caller](../tests/support/c_exports_native.c) and [five execution/boundary tests](../tests/support/c_exports_native.rs) (c0f9b68): updated/verified 2026-10-19 JST. Full baseline plus final affected C ABI rerun above; full typed-runtime/object and the new Windows snapshot remain F16/F05/F07.
+
+- [Raw C context support](../crates/codegen-clif/src/c_abi/context.rs), [field reader/lifecycle](../crates/codegen-clif/src/c_abi/context/raw.rs) and [real C/state fixtures](../tests/support/c_context_native.rs) (`17da01b`): updated/verified 2026-10-19 JST. Full local baseline above; Windows run 39265484004 succeeded. F15 is a later source-export snapshot; C objects remain F05.
 
 - [Source panic](../examples/analysis/explicit_panic_owned.lang), [VM fixtures](../tests/support/owned_panic.rs), [native fixtures](../tests/support/native_panic.rs) and [RFC 0014](rfcs/0014-explicit-source-panic.md) (`6eb9018`): updated/verified 2026-10-19 JST. All local baseline suites complete above. [Windows run 39258215633](https://github.com/carimatics/lang/actions/runs/39258215633), head 165ae7d, job 118078789294, completed successfully at 2026-10-19 13:36:00 UTC, including the complete workflow. F14 raw context support is a later, separately tracked implementation.
 
