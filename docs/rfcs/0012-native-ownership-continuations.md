@@ -7,12 +7,14 @@
 - Status: accepted
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-18
-- Last updated: 2026-10-19
+- Last updated: 2026-10-20
 - Tracking issue: M2-N08, M2-N01–N07, M2-G01–G03
 - Supersedes: None; elaborates RFC 0008's private native execution contract
 - Superseded by: None
 
 Extension (2026-10-19): [RFC 0014](0014-explicit-source-panic.md) selects private revision 3 for whole units containing explicit Panic. It preserves packets/statuses and helper indices 0–33, appending dynamic panic helper 34. Other units retain revision 1/2.
+
+Extension (2026-10-20): [RFC 0015](0015-c-native-object-bridge.md) selects private bridge revision 1, artifact-qualified symbols and object-resident import thunks for explicit C-aware objects. Existing packets/helpers and ordinary/JIT namespaces remain unchanged.
 
 ## Summary
 

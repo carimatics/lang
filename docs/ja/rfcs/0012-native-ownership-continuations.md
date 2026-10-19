@@ -7,12 +7,14 @@
 - ステータス: accepted
 - 著者: Codex、ownerの実験段階の委任に基づく
 - 作成日: 2026-10-18
-- 最終更新日: 2026-10-19
+- 最終更新日: 2026-10-20
 - Tracking issue: M2-N08、M2-N01〜N07、M2-G01〜G03
 - 置き換えるRFC: なし。RFC 0008のprivate native実行契約を具体化
 - 置き換えたRFC: なし
 
 拡張（2026-10-19）：[RFC 0014](0014-explicit-source-panic.md)は明示的Panicを含むunit全体にprivate revision 3を選びます。packet／statusとhelper index 0–33を保ち、動的panic helper 34を末尾に追加します。それ以外のunitはrevision 1/2を維持します。
+
+拡張（2026-10-20）：[RFC 0015](0015-c-native-object-bridge.md)は明示C対応objectのprivate bridge revision 1、artifact別symbol、object内import thunkを定めます。既存packet／helperと通常／JIT namespaceは維持します。
 
 ## 概要
 
