@@ -6,11 +6,13 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**93 done · 0 doing · 22 todo · 51 remaining pt**
+**94 done · 0 doing · 21 todo · 49 remaining pt**
 
-**次: M2-N06 → macOSのstandalone owned executableをdirect／response-fileでlink／runし、全service／payloadのconformanceを検証（暫定2点）。**
+**次: M2-N07 → 同じowned executable／failure matrixをWindows x86-64で実行し、native CIの成功証拠を記録（暫定2点）。**
 
-N06着手前監査（2026-10-19 JST）：owned objectのbyte列と対応metadataは生成できますが、検証付きgatewayはJITのCompiledFunctionが保持するaddressだけをdispatchします。Code ownerの寿命を保持し、同じ検証付きprogram全体のgatewayを利用するtrusted linked-image境界と、実際のlinked owned codeの実行証拠をM2-N19（3点）として明示します。N06のmacOS direct／response-file全体conformance、P02のclean-install runtime packagingは維持します。VMへのfallback、packet／schema変更、sourceの部分対応で置き換えません。**114 → 115行、51 → 54 pt**、新たに判明した見積もり **63 → 66点**、完了で取り除いた146点は不変です。実装前にN19をdoingとして実装を開始しました。現在はd53aac0でN19を完了し、230予算でlinked Mach-OとVMが一致し、target／symbol／予算拒否とowner解放も検証済みです。**92 → 93 done、54 → 51 pt**、追加分66点は不変、完了で取り除いた見積もりは149点です。全workspace 1,414 test／87 suite、native 60件、fmt／Clippy／rustdoc成功（計測専用1件はignore）。次はN06のstandalone executable検証で、暫定2点を維持します。
+最新の完了成果（2026-10-19 JST）：e7a2bb4でN06を完了し、25de18aでstatic imageのprovenance契約も明示しました。31 source unitを62個のmacOS実executableとしてdirect／response-fileでlink／runし、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteを検証しました。**93 → 94 done、51 → 49 pt**。Task／見積もりは追加せず、完了で取り除いた見積もりは **151点** です。全workspace **1,415 test／87 suite**、native **61件**、fmt／Clippy／rustdoc成功。G14はWindowsのN07が残り未完で、従来gateは **6/18** を維持します。
+
+N06着手前監査（2026-10-19 JST）：owned objectのbyte列と対応metadataは生成できますが、検証付きgatewayはJITのCompiledFunctionが保持するaddressだけをdispatchします。Code ownerの寿命を保持し、同じ検証付きprogram全体のgatewayを利用するtrusted linked-image境界と、実際のlinked owned codeの実行証拠をM2-N19（3点）として明示します。N06のmacOS direct／response-file全体conformance、P02のclean-install runtime packagingは維持します。VMへのfallback、packet／schema変更、sourceの部分対応で置き換えません。**114 → 115行、51 → 54 pt**、新たに判明した見積もり **63 → 66点**、完了で取り除いた146点は不変です。実装前にN19をdoingとして実装を開始しました。現在はd53aac0でN19を完了し、230予算でlinked Mach-OとVMが一致し、target／symbol／予算拒否とowner解放も検証済みです。**92 → 93 done、54 → 51 pt**、追加分66点は不変、完了で取り除いた見積もりは149点です。全workspace 1,414 test／87 suite、native 60件、fmt／Clippy／rustdoc成功（計測専用1件はignore）。N19完了時点では、次のN06のstandalone executable検証を暫定2点としていました。
 
 N05完了／G06 exit監査（2026-10-19 JST）：`f6d9fc4`で現在の全managed service／payloadの計量をVM／nativeのcall、loan、viewへ接続しました。24件のsource programで有限予算の全prefixを比較し、他control／provider拒否、guest panic、secondary cleanup、source／artifact CLIの検証も成功しました。予算超過後も数値付きerrorと必須retirementを維持し、Rust contextの移行とserialized schemaが不変であることを文書化しました。**91 → 92 done、54 → 51 pt**。暫定3点を消化し、taskや見積もりは追加しません（**134 + 63 − 146 = 51**）。全baseline **1,410 test／87 suite**（手動計測1件は別途成功）、fmt／Clippy／rustdoc成功。D28–D34、V07／V08、C07、N05の生成cleanup・順序・returnの証拠と、owned execution 139件、native 56件に基づきG06を完了とします。従来gateは **6/18** となり、G14のmacOS／Windowsでのowned object実link／runは未完です。他gateはそれぞれの最終evidence reviewを維持します。
 
@@ -40,25 +42,27 @@ N16検証時間：runtime重点4 testは報告値0.00秒、profile拒否の重�
 
 N17検証実測：Focused runtime 3件／0.00秒、有限buffer予算prefix 1件／0.69秒、全feature native 53件／11.29秒。全testのCargo compileは47.51秒、test報告時間の合計は88.20秒、log作成から最終書込みまで529.91秒。Clippy 45.34秒、rustdoc 19.28秒。検証の観測値であり、実作業時間やruntime benchmarkではありません。Build cacheの追加調査でdepsに645,863 entry／33.05 GiBがあり、一覧走査は12.26秒でした。Cargoのpackage単位の整理で生成物439,988 file／21.6 GiBを削除しました。同じ集計方法で整理後は228,369 entry／13.62 GiB、走査1.885秒です。各1回の走査はfilesystemの集計costを示し、検証実時間の残差すべての原因やsuite全体の高速化は示しません。起動のみの一覧表示2件は各0.00秒でした。Cache整理によるsource変更とfull baselineの再実行は不要で、plan更新後はrepository consistencyのみ実行します。
 
-N19検証実測（2026-10-19 JST）：linked-image 230予算のtest 1件／2.38秒、admission 3件／0.08秒、native全体60件／33.72秒。全baselineは1,414 test／87 suite成功、計測専用1件ignore。全test実時間201.74秒、Cargo compile 10.04秒、suite報告時間合計110.75秒、全feature native 60件／33.35秒。Clippy実時間10.69秒、rustdoc実時間14.16秒。実作業時間やruntime性能の主張ではありません。文書だけのplan更新はrepository_consistencyで検証します。
+N06検証実測（2026-10-19 JST）：standaloneの31 unit／62 executableを含む全baselineは1,415 test／87 suite成功（計測専用1件ignore）。全test実時間336.90秒、Cargo compile 1.09秒、suite報告時間合計330.72秒、native 61件／251.86秒。Focused cleanup 9件／0.58秒、Copy／control例のVM結果65。Clippy実時間0.99秒、rustdoc実時間10.59秒。Compiler／cache条件の異なる検証の観測値であり、実作業時間やruntime性能ではありません。文書だけのplan更新はrepository_consistencyで検証します。
+
+次targetの証拠確認（2026-10-19 JST）：既存の最新[Windows成功run](https://github.com/carimatics/lang/actions/runs/39007443435)はhead 88325a5、最終更新2026-10-17 05:54:49 UTCで、owned standalone matrix以前のためN07を完了とはしません。windows-2025／MSVC workflowは利用可能です。N07でstartup／image／link処理を移植し、対応する現行commitのnative実行証拠を取得します。
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 93件（+58件）**、作業一覧は **87 → 115件（+28件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 94件（+59件）**、作業一覧は **87 → 115件（+28件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +66 pt | −149 pt | 51 pt |
+| 134 pt | +66 pt | −151 pt | 49 pt |
 
-**134 + 66 − 149 = 51 pt**
+**134 + 66 − 151 = 49 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり149点分を取り除く一方、前提作業の可視化と再見積もりで66点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り51点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり151点分を取り除く一方、前提作業の可視化と再見積もりで66点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り49点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **66点**、完了で取り除いた見積もりは **149点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
+N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **66点**、完了で取り除いた見積もりは **151点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
 以前のcode baselineの実測（2026-10-19 JST）：workspace Clippy **28.3秒**、全test **362.5秒**、rustdoc **14.2秒** の実時間（shell time）。Cargo報告のtest compileは **24.4秒**、suite時間合計は **87.2秒** です。Native境界suiteは **40 test・10.77秒** で成功し、service失敗matrixはcompile済みcodeを再利用してruntimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
 
-現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Nativeの生成exitは累積workのconformanceまで検証済みで、target driver／platform／FFIの残要件はevidenceが必要です。Source統合だけでexit gateを閉じません。
+現在のsource対応範囲：引数なしi64 mainでBytes／Text、arena allocation／read／replace／teardown、shared／weak allocation／clone／read／replace／upgrade、Vec new／len／push／pop／shared・mutable read、厳密なi64／Text keyのMap new／len／insert／get／removeを実行します。Storable payloadは入れ子collection、inline record／enum／Option／Result、再帰guest call越しに組み合わせられます。Shared publicationは推移的strong edge、arena storeは入れ子brandを検査し、projection／call越しにread custodyを保持します。Ownerはcleanupで保護したreturnとprepared replacementを通り、正常／失敗teardownを反復実行します。Ordinary loan、allocator authority、arena ownerは格納不可で、cross-region／shared-heap edgeとarena escapeを拒否します。Borrowed matchとpartial move禁止は維持します。V16／V15／V10は既存managed preview／推論／REPL profileに対応し、V13は明記したsource coverage内のprovisional-read loan終了を検証します。Indirectionを含むpreviewはV17です。V11はin-memory CFG argumentに対応しますが、現ownership source loweringは生成しません。Nativeの生成exitは累積workのconformanceまで検証済みで、macOS standalone実行はN06で確認済みで、Windows／production driver／FFIの残要件はevidenceが必要です。Source統合だけでexit gateを閉じません。
 
 実装前・分割監査（2026-10-19 JST）：初回Bytes sourceはVMで1を返し、native allocator／Bytes接続の不足を確認しました。公開buffer APIがstorage操作を提供し、collectionには別途managed loan viewが必要です。N03の3点をN11 allocator／Bytes／Text（初期1点、今回完了）、N12 Vec（1点）、N03 Map（1点）へ分割しました。**106 → 108 task**、**N11の1点完了前の残り60点は不変** です。N05は設定可能なservice byte-work admissionを引き続き含み、exit conformance全体の前提としてN11に依存します。RFC 0012はVM／nativeで設定済み制御を一致させ、未対応設定を拒否することを要求します。具体的なservice-work契約は実装前に設計文書で定義する必要があります。Native／FFI／platform／conformance／performance／debug全要件、V17、Z01の英日guideを維持します。
 
@@ -236,7 +240,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N18 | done | 0 | M2-N17 | G06,G14 | Source／artifact／REPLのCLIでservice-work予算と数値付きfailureを扱い、report schemaの互換性を監査する。 | 419f6ac |
 | M2-N05 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16,M2-N17,M2-N18 | G06,G14 | 設定可能なservice byte-work admissionを含め、受理済みservice／payloadの組合せ全体でnativeの生成failure／return exitをVMのcleanup順序とfuel behaviorに一致させる。 | `f6d9fc4` |
 | M2-N19 | done | 0 | M2-N05 | G14 | Linked imageの寿命を保持した信頼済みbindingと既存gatewayによるowned program実行を、実objectで検証する。 | `d53aac0` |
-| M2-N06 | todo | 2 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | — |
+| M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | `25de18a` |
 | M2-N07 | todo | 2 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | — |
 | M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Startup／runtime／context依存をpackage化し、clean installでlink／run成功。 | — |

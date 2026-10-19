@@ -8,9 +8,11 @@
 
 ## 現在のM2実装状況
 
-**検証済み93件 · 進行中0件 · 残り22件（暫定51 pt）。**
+**検証済み94件 · 進行中0件 · 残り21件（暫定49 pt）。**
 
-N06着手前監査（2026-10-19 JST）：owned objectのbyte列と対応metadataは生成できますが、検証付きgatewayはJITのCompiledFunctionが保持するaddressだけをdispatchします。Code ownerの寿命を保持し、同じ検証付きprogram全体のgatewayを利用するtrusted linked-image境界と、実際のlinked owned codeの実行証拠をM2-N19（3点）として明示します。N06のmacOS direct／response-file全体conformance、P02のclean-install runtime packagingは維持します。VMへのfallback、packet／schema変更、sourceの部分対応で置き換えません。**114 → 115行、51 → 54 pt**、新たに判明した見積もり **63 → 66点**、完了で取り除いた146点は不変です。実装前にN19をdoingとして実装を開始しました。現在はd53aac0でN19を完了し、230予算でlinked Mach-OとVMが一致し、target／symbol／予算拒否とowner解放も検証済みです。**92 → 93 done、54 → 51 pt**、追加分66点は不変、完了で取り除いた見積もりは149点です。全workspace 1,414 test／87 suite、native 60件、fmt／Clippy／rustdoc成功（計測専用1件はignore）。次はN06のstandalone executable検証で、暫定2点を維持します。
+最新の完了成果（2026-10-19 JST）：e7a2bb4でN06を完了し、25de18aでstatic imageのprovenance契約も明示しました。31 source unitを62個のmacOS実executableとしてdirect／response-fileでlink／runし、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteを検証しました。**93 → 94 done、51 → 49 pt**。Task／見積もりは追加せず、完了で取り除いた見積もりは **151点** です。全workspace **1,415 test／87 suite**、native **61件**、fmt／Clippy／rustdoc成功。G14はWindowsのN07が残り未完で、従来gateは **6/18** を維持します。
+
+N06着手前監査（2026-10-19 JST）：owned objectのbyte列と対応metadataは生成できますが、検証付きgatewayはJITのCompiledFunctionが保持するaddressだけをdispatchします。Code ownerの寿命を保持し、同じ検証付きprogram全体のgatewayを利用するtrusted linked-image境界と、実際のlinked owned codeの実行証拠をM2-N19（3点）として明示します。N06のmacOS direct／response-file全体conformance、P02のclean-install runtime packagingは維持します。VMへのfallback、packet／schema変更、sourceの部分対応で置き換えません。**114 → 115行、51 → 54 pt**、新たに判明した見積もり **63 → 66点**、完了で取り除いた146点は不変です。実装前にN19をdoingとして実装を開始しました。現在はd53aac0でN19を完了し、230予算でlinked Mach-OとVMが一致し、target／symbol／予算拒否とowner解放も検証済みです。**92 → 93 done、54 → 51 pt**、追加分66点は不変、完了で取り除いた見積もりは149点です。全workspace 1,414 test／87 suite、native 60件、fmt／Clippy／rustdoc成功（計測専用1件はignore）。N19完了時点では、次のN06のstandalone executable検証を暫定2点としていました。
 
 N05完了／G06 exit監査（2026-10-19 JST）：`f6d9fc4`で現在の全managed service／payloadの計量をVM／nativeのcall、loan、viewへ接続しました。24件のsource programで有限予算の全prefixを比較し、他control／provider拒否、guest panic、secondary cleanup、source／artifact CLIの検証も成功しました。予算超過後も数値付きerrorと必須retirementを維持し、Rust contextの移行とserialized schemaが不変であることを文書化しました。**91 → 92 done、54 → 51 pt**。暫定3点を消化し、taskや見積もりは追加しません（**134 + 63 − 146 = 51**）。全baseline **1,410 test／87 suite**（手動計測1件は別途成功）、fmt／Clippy／rustdoc成功。D28–D34、V07／V08、C07、N05の生成cleanup・順序・returnの証拠と、owned execution 139件、native 56件に基づきG06を完了とします。従来gateは **6/18** となり、G14のmacOS／Windowsでのowned object実link／runは未完です。他gateはそれぞれの最終evidence reviewを維持します。
 
@@ -34,7 +36,7 @@ N03見積もり・依存関係監査（2026-10-19 JST）：key／所有値結果
 
 N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接続の前に **1 → 3点**、残りを **59 → 61点**、追加分合計を **49 → 51点** へ再見積もりしました。N12完了で最後の3点を取り除き **61 → 58点**、108行は維持します。受理済みservice／payload全体、順序付きexit、設定可能なbyte-work admissionのconformance前に、N05の依存へN02／N11／V08に加えN12／N03／N04を明示しました。要件は削除していません。
 
-現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続は完了し、次はN06のmacOS object link／runです。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
+現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続は完了し、N06のmacOS standalone object link／runは完了し、次は同等のWindows実行N07です。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
 
 G06を完了とし、従来の **完了条件18件中6件完了** です。その **42 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
