@@ -6,13 +6,13 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**94 done · 1 doing · 20 todo · 49 remaining pt**
+**95 done · 0 doing · 20 todo · 47 remaining pt**
 
-**次: M2-N07 → 同じowned executable／failure matrixをWindows x86-64で実行し、native CIの成功証拠を記録（暫定2点）。**
+**次: M2-F01 → accepted仕様のunsafe／C source boundaryを診断とcompile-fail fixtureで実装します（暫定2点、着手前に範囲を確認）。**
 
-N07の検証状況（2026-10-19 JST）：最初の[Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974)はcompile／lint成功後、AArch64 emitterの無効化とWindows import libraryの検索path不足でTestが失敗しました。対象やfixtureを減らさず9589022で修正し、同じbranchへpushしました。[現行commitのWindows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229)で再検証中です。ローカルmacOSは対象別admission test 3件、全体1,415 test／87 suite（native 61件、254.15秒、手動timing test 1件はignored）、fmt／全体Clippy／rustdocが成功しました。実装と検証待ちを区別し、N07はdoing、G14は未完とします。見積もり・task数は変更しません。 5fe96deでは次回以降のWindows workflowをtest executableのbuildと実行に分け、各段階の時間を表示します。進行中の9589022のrunはそのまま継続します。
+N07のnative証拠（2026-10-19 JST）：実装9589022の[Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229)で1,404 test／87 suiteが成功しました。Native 60件は697.58秒で、31 source／62 executableのdirect／response-file standalone matrixも成功しています。Fmt／Clippy／rustdocも成功しました。Jobは後続のprototype benchmark中に30分上限へ達してcancelledとなり、workflow全体の成功は主張しません。119f9ffに証拠と次回の60分上限を記録し、5fe96deでbuild／実行を分離しました。確認済みnative Test証拠に基づきN07／G14を完了とし、全体CI／性能の証明はQ02／B01-B04へ残します。Task／見積もりは追加しません。
 
-最新の完了成果（2026-10-19 JST）：e7a2bb4でN06を完了し、25de18aでstatic imageのprovenance契約も明示しました。31 source unitを62個のmacOS実executableとしてdirect／response-fileでlink／runし、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteを検証しました。**93 → 94 done、51 → 49 pt**。Task／見積もりは追加せず、完了で取り除いた見積もりは **151点** です。全workspace **1,415 test／87 suite**、native **61件**、fmt／Clippy／rustdoc成功。G14はWindowsのN07が残り未完で、従来gateは **6/18** を維持します。
+最新の完了成果／G14 exit監査（2026-10-19 JST）：9589022でN07を実装し、119f9ffに確認済み証拠を記録しました。N06 macOSとN07 Windowsで同じowned source／objectと失敗matrixを実行し、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteをVMと比較しました。**94 → 95 done、49 → 47 pt**。115行と追加分合計66点は不変で、完了で取り除いた見積もりは **153点** です。ローカルmacOS 1,415 test／87 suite（native 61）、Windows 1,404／87（native 60）、fmt／Clippy／rustdocが成功しました。後続benchmarkの時間超過は明記します。従来gateは **7/18**、履歴上の重みは **50/113** です。FFI、packaging、代表的conformance／性能、debug、最終guideを残します。
 
 N06着手前監査（2026-10-19 JST）：owned objectのbyte列と対応metadataは生成できますが、検証付きgatewayはJITのCompiledFunctionが保持するaddressだけをdispatchします。Code ownerの寿命を保持し、同じ検証付きprogram全体のgatewayを利用するtrusted linked-image境界と、実際のlinked owned codeの実行証拠をM2-N19（3点）として明示します。N06のmacOS direct／response-file全体conformance、P02のclean-install runtime packagingは維持します。VMへのfallback、packet／schema変更、sourceの部分対応で置き換えません。**114 → 115行、51 → 54 pt**、新たに判明した見積もり **63 → 66点**、完了で取り除いた146点は不変です。実装前にN19をdoingとして実装を開始しました。現在はd53aac0でN19を完了し、230予算でlinked Mach-OとVMが一致し、target／symbol／予算拒否とowner解放も検証済みです。**92 → 93 done、54 → 51 pt**、追加分66点は不変、完了で取り除いた見積もりは149点です。全workspace 1,414 test／87 suite、native 60件、fmt／Clippy／rustdoc成功（計測専用1件はignore）。N19完了時点では、次のN06のstandalone executable検証を暫定2点としていました。
 
@@ -46,21 +46,21 @@ N17検証実測：Focused runtime 3件／0.00秒、有限buffer予算prefix 1件
 
 N07のローカル検証実測（2026-10-19 JST）：macOS baselineは1,415 test／87 suite成功、native 61件／255.64秒、計測専用1件ignore。全test実時間337.35秒、Cargo compile 0.60秒、suite報告時間合計334.29秒。Clippy実時間1.33秒、rustdoc 10.46秒、linked-image probe 1件／2.48秒。ローカル検証の時間で、Windows証拠・実作業時間・runtime benchmarkではありません。Planのみの変更はrepository_consistencyで検証します。
 
-次targetの証拠確認（2026-10-19 JST）：既存の最新[Windows成功run](https://github.com/carimatics/lang/actions/runs/39007443435)はhead 88325a5、最終更新2026-10-17 05:54:49 UTCで、owned standalone matrix以前のためN07を完了とはしません。windows-2025／MSVC workflowは利用可能です。N07でstartup／image／link処理を移植し、対応する現行commitのnative実行証拠を取得します。
+N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全workflow成功run](https://github.com/carimatics/lang/actions/runs/39007443435)はhead 88325a5、最終更新2026-10-17 05:54:49 UTCで、owned standalone matrix以前でした。この旧runをN07完了の証拠には使わず、上記の現行実装9589022のnative Test実行を確認して完了としました。
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 94件（+59件）**、作業一覧は **87 → 115件（+28件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 95件（+60件）**、作業一覧は **87 → 115件（+28件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +66 pt | −151 pt | 49 pt |
+| 134 pt | +66 pt | −153 pt | 47 pt |
 
-**134 + 66 − 151 = 49 pt**
+**134 + 66 − 153 = 47 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり151点分を取り除く一方、前提作業の可視化と再見積もりで66点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り49点は暫定値で、native／FFIとplatform evidenceには引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり153点分を取り除く一方、前提作業の可視化と再見積もりで66点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り47点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **66点**、完了で取り除いた見積もりは **151点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
+N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **66点**、完了で取り除いた見積もりは **153点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
 以前のcode baselineの実測（2026-10-19 JST）：workspace Clippy **28.3秒**、全test **362.5秒**、rustdoc **14.2秒** の実時間（shell time）。Cargo報告のtest compileは **24.4秒**、suite時間合計は **87.2秒** です。Native境界suiteは **40 test・10.77秒** で成功し、service失敗matrixはcompile済みcodeを再利用してruntimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
 
@@ -68,7 +68,7 @@ N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**�
 
 実装前・分割監査（2026-10-19 JST）：初回Bytes sourceはVMで1を返し、native allocator／Bytes接続の不足を確認しました。公開buffer APIがstorage操作を提供し、collectionには別途managed loan viewが必要です。N03の3点をN11 allocator／Bytes／Text（初期1点、今回完了）、N12 Vec（1点）、N03 Map（1点）へ分割しました。**106 → 108 task**、**N11の1点完了前の残り60点は不変** です。N05は設定可能なservice byte-work admissionを引き続き含み、exit conformance全体の前提としてN11に依存します。RFC 0012はVM／nativeで設定済み制御を一致させ、未対応設定を拒否することを要求します。具体的なservice-work契約は実装前に設計文書で定義する必要があります。Native／FFI／platform／conformance／performance／debug全要件、V17、Z01の英日guideを維持します。
 
-従来の完了条件は **18件中6件完了** です。Compiler／VM／canonical nativeのcleanup証拠によりG06を閉じ、target link／runのG14は未完を維持します。完了成果にはcompiler／runtimeの前提作業と初期source実行fixtureを含み、core-libraryやbackend機能全体の完了を意味しません。
+従来の完了条件は **18件中7件完了** です。G06のcompiler／VM／canonical native cleanupに加え、G14の両tier-1でのowned source object link／runを完了しました。全workflow成功とFFI、packaging、代表的conformance／性能、debug、最終guideは未完です。
 
 この文書を実装Todoの正本とします。Roadmapには従来の受入条件とその履歴上の重みを残します。件数は独立して検証した成果の数であり、各件の作業量が等しいという意味ではありません。残りpointは積み上げによる暫定見積もりで、native／C／platform統合の確度は低く、時間や完成時期の予測ではありません。完了済み作業に後付けのeffort pointは与えません。完了行の *残り* pointは0です。
 
@@ -243,7 +243,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N05 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16,M2-N17,M2-N18 | G06,G14 | 設定可能なservice byte-work admissionを含め、受理済みservice／payloadの組合せ全体でnativeの生成failure／return exitをVMのcleanup順序とfuel behaviorに一致させる。 | `f6d9fc4` |
 | M2-N19 | done | 0 | M2-N05 | G14 | Linked imageの寿命を保持した信頼済みbindingと既存gatewayによるowned program実行を、実objectで検証する。 | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | `25de18a` |
-| M2-N07 | doing | 2 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | — |
+| M2-N07 | done | 0 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | `119f9ff` |
 | M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Startup／runtime／context依存をpackage化し、clean installでlink／run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |

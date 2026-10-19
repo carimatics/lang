@@ -8,11 +8,11 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**94 verified deliveries · 1 in progress · 20 remaining tasks (provisional 49 pt).**
+**95 verified deliveries · 0 in progress · 20 remaining tasks (provisional 47 pt).**
 
-Active N07 validation (2026-10-19 JST): the first [Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974) passed compilation/lint but Test failed because the AArch64 emitter was disabled and the Windows import-library search path was missing. Fix 9589022 preserves the full target/fixture matrix and is pushed to the same branch. [Current-commit Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229) is validating it. Local macOS target-admission tests (3), all 1,415 tests / 87 suites (native 61 in 254.15s; one manual timing test ignored), fmt, workspace Clippy and rustdoc pass. Distinguish implemented code from pending validation: N07 remains doing and G14 open. No estimate/task-count change. Commit 5fe96de splits future Windows workflow test-executable compilation from execution so each phase exposes its duration. The live 9589022 run continues unchanged.
+N07 native evidence (2026-10-19 JST): [Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229), implementation 9589022, passes 1,404 tests / 87 suites, including 60 native tests in 697.58s and the standalone 31-source / 62-executable direct/response-file matrix. Fmt/Clippy/rustdoc pass. The job is cancelled later during the prototype benchmark at its 30-minute limit; this is not a green whole-workflow claim. Evidence and the next-run 60-minute budget are recorded in 119f9ff; 5fe96de separates build/run phases. N07/G14 close on the inspected native Test evidence. Full CI/performance proof remains Q02/B01-B04 work; no task or estimate is added.
 
-Latest delivery (2026-10-19 JST): N06 is done in e7a2bb4, with explicit static-image provenance contracts in 25de18a. Thirty-one source units run as 62 real macOS executables through direct/response-file links, covering work/fuel prefixes, provider refusal, interruption, frame/cell limits, panic, cleanup and returned owner bytes. **93 → 94 done, 51 → 49 pt**; no tasks/estimates added, retired estimates **151 pt**. Workspace **1,415 tests / 87 suites**, native **61**, fmt/Clippy/rustdoc pass. G14 remains open for Windows N07; original gates stay **6/18**.
+Latest delivery / G14 exit audit (2026-10-19 JST): N07 is implemented in 9589022 with inspected evidence in 119f9ff. N06 macOS and N07 Windows execute the identical owned source/object and failure matrix: every work/fuel prefix, provider refusal, interruption, frame/cell limits, panic, cleanup and returned owner bytes match VM semantics. **94 → 95 done, 49 → 47 pt**; 115 rows and added estimates 66 pt are unchanged; retired estimates **153 pt**. Local macOS 1,415 tests / 87 suites (native 61), Windows 1,404 / 87 (native 60), fmt/Clippy/rustdoc pass. The later benchmark timeout remains explicit. Original gates are **7/18**, historical weight **50/113**. FFI, packaging, representative conformance/performance, debug and the final guide remain.
 
 N06 readiness audit (2026-10-19 JST): owned object bytes and matching metadata are emitted, but the checked gateway dispatches only JIT-owned CompiledFunction addresses. Expose M2-N19 (3 pt) for a trusted linked-image binding that retains its code owner and reuses the same checked whole-program gateway, with real linked owned-code execution evidence. N06 retains full macOS direct/response-file object conformance; P02 retains clean-install runtime packaging. No VM fallback, packet/schema change or source subset replaces those outcomes. **114 → 115 rows, 51 → 54 pt**; newly recognized work **63 → 66 pt**, retired estimates **146 pt** unchanged. N19 was marked doing before implementation and is now delivered in d53aac0: linked Mach-O matches VM across 230 budgets; target/symbol/budget refusal and owner release are verified. **92 → 93 done, 54 → 51 pt**; added estimates stay 66, retired estimates are 149. Workspace 1,414 tests / 87 suites, native 60, fmt/Clippy/rustdoc pass (one timing-only test ignored). At the N19 checkpoint, N06 standalone executable conformance was next at a provisional 2 pt.
 
@@ -40,7 +40,7 @@ N12 estimate/dependency audit (2026-10-19 JST): re-estimate **1 → 3 pt** befor
 
 Use the [M2 delivery board](milestone-2.md#progress-and-estimate-changes) for current tasks, evidence and remaining estimates (updated 2026-10-19 JST). N05 managed service integration is complete; N06 macOS standalone object link/run is complete; matching Windows N07 execution is next. Preserve remaining native/FFI/platform/performance/debug obligations and the final bilingual guide.
 
-The original **6 / 18 exit gates** include completed G06. Their **42 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
+The original **7 / 18 exit gates** include completed G06 and G14. Their **50 / 113 pt** is a historical gate-weight score, not an effort forecast or a measure of daily implementation progress. The 2026-10-18 audit retired the 113-point effort estimate after exposing hidden prerequisites and an excessively coarse checklist. Completed deliveries and remaining work are tracked separately; no retrospective effort percentage is claimed.
 
 ## Task tracking
 
@@ -72,13 +72,13 @@ Exit-gate weight snapshot verified on 2026-10-18 (JST). Overall arithmetic aggre
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 42 pt | 113 pt | 37.2% |
+| 2 — ownership and native AOT | 50 pt | 113 pt | 44.2% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **340 pt** | **764 pt** | **44.5%** |
+| **Overall** | **348 pt** | **764 pt** | **45.5%** |
 
 ## Milestone 0: design baseline
 
@@ -254,7 +254,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 6 / 18 complete; historical weight: 42 / 113 pt (37.2%).**
+**Exit gates: 7 / 18 complete; historical weight: 50 / 113 pt (44.2%).**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -273,7 +273,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [ ] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
 - [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
 - [x] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
-- [ ] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
+- [x] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
 - [ ] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
 - [ ] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
 - [ ] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt

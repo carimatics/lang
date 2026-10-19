@@ -8,11 +8,11 @@
 
 ## 現在のM2実装状況
 
-**検証済み94件 · 進行中1件 · 残り20件（暫定49 pt）。**
+**検証済み95件 · 進行中0件 · 残り20件（暫定47 pt）。**
 
-N07の検証状況（2026-10-19 JST）：最初の[Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974)はcompile／lint成功後、AArch64 emitterの無効化とWindows import libraryの検索path不足でTestが失敗しました。対象やfixtureを減らさず9589022で修正し、同じbranchへpushしました。[現行commitのWindows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229)で再検証中です。ローカルmacOSは対象別admission test 3件、全体1,415 test／87 suite（native 61件、254.15秒、手動timing test 1件はignored）、fmt／全体Clippy／rustdocが成功しました。実装と検証待ちを区別し、N07はdoing、G14は未完とします。見積もり・task数は変更しません。 5fe96deでは次回以降のWindows workflowをtest executableのbuildと実行に分け、各段階の時間を表示します。進行中の9589022のrunはそのまま継続します。
+N07のnative証拠（2026-10-19 JST）：実装9589022の[Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229)で1,404 test／87 suiteが成功しました。Native 60件は697.58秒で、31 source／62 executableのdirect／response-file standalone matrixも成功しています。Fmt／Clippy／rustdocも成功しました。Jobは後続のprototype benchmark中に30分上限へ達してcancelledとなり、workflow全体の成功は主張しません。119f9ffに証拠と次回の60分上限を記録し、5fe96deでbuild／実行を分離しました。確認済みnative Test証拠に基づきN07／G14を完了とし、全体CI／性能の証明はQ02／B01-B04へ残します。Task／見積もりは追加しません。
 
-最新の完了成果（2026-10-19 JST）：e7a2bb4でN06を完了し、25de18aでstatic imageのprovenance契約も明示しました。31 source unitを62個のmacOS実executableとしてdirect／response-fileでlink／runし、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteを検証しました。**93 → 94 done、51 → 49 pt**。Task／見積もりは追加せず、完了で取り除いた見積もりは **151点** です。全workspace **1,415 test／87 suite**、native **61件**、fmt／Clippy／rustdoc成功。G14はWindowsのN07が残り未完で、従来gateは **6/18** を維持します。
+最新の完了成果／G14 exit監査（2026-10-19 JST）：9589022でN07を実装し、119f9ffに確認済み証拠を記録しました。N06 macOSとN07 Windowsで同じowned source／objectと失敗matrixを実行し、work／fuelの全prefix、provider拒否、割り込み、frame／cell上限、panic、cleanup、返されたownerのbyteをVMと比較しました。**94 → 95 done、49 → 47 pt**。115行と追加分合計66点は不変で、完了で取り除いた見積もりは **153点** です。ローカルmacOS 1,415 test／87 suite（native 61）、Windows 1,404／87（native 60）、fmt／Clippy／rustdocが成功しました。後続benchmarkの時間超過は明記します。従来gateは **7/18**、履歴上の重みは **50/113** です。FFI、packaging、代表的conformance／性能、debug、最終guideを残します。
 
 N06着手前監査（2026-10-19 JST）：owned objectのbyte列と対応metadataは生成できますが、検証付きgatewayはJITのCompiledFunctionが保持するaddressだけをdispatchします。Code ownerの寿命を保持し、同じ検証付きprogram全体のgatewayを利用するtrusted linked-image境界と、実際のlinked owned codeの実行証拠をM2-N19（3点）として明示します。N06のmacOS direct／response-file全体conformance、P02のclean-install runtime packagingは維持します。VMへのfallback、packet／schema変更、sourceの部分対応で置き換えません。**114 → 115行、51 → 54 pt**、新たに判明した見積もり **63 → 66点**、完了で取り除いた146点は不変です。実装前にN19をdoingとして実装を開始しました。現在はd53aac0でN19を完了し、230予算でlinked Mach-OとVMが一致し、target／symbol／予算拒否とowner解放も検証済みです。**92 → 93 done、54 → 51 pt**、追加分66点は不変、完了で取り除いた見積もりは149点です。全workspace 1,414 test／87 suite、native 60件、fmt／Clippy／rustdoc成功（計測専用1件はignore）。N19完了時点では、次のN06のstandalone executable検証を暫定2点としていました。
 
@@ -40,7 +40,7 @@ N12見積もり・依存関係監査（2026-10-19 JST）：native要素view接�
 
 現在のtask、証拠、残作業見積もりは [M2実装Todo](milestone-2.md#進捗と見積もり変更) を参照してください（2026-10-19 JST更新）。N05のmanaged service接続は完了し、N06のmacOS standalone object link／runは完了し、次は同等のWindows実行N07です。残るnative／FFI／platform／performance／debug要件と、最後の英日guideを維持します。
 
-G06を完了とし、従来の **完了条件18件中6件完了** です。その **42 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
+G06とG14を完了とし、従来の **完了条件18件中7件完了** です。その **50 / 113 pt** は履歴上の受入条件の重みであり、作業量予測や日々の実装進捗ではありません。2026-10-18の監査で隠れた前提作業と粗すぎるchecklistを明確にし、113 ptの作業量見積もりは使用を取りやめました。完了成果と残作業を分けて追跡し、後付けのeffort完成率は示しません。
 
 ## タスク管理
 
@@ -72,13 +72,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 42 pt | 113 pt | 37.2% |
+| 2 — ownershipとnative AOT | 50 pt | 113 pt | 44.2% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **340 pt** | **764 pt** | **44.5%** |
+| **全体** | **348 pt** | **764 pt** | **45.5%** |
 
 ## Milestone 0：設計baseline
 
@@ -254,7 +254,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中6件完了、履歴上の重み：42 / 113 pt（37.2%）。**
+**完了条件：18件中7件完了、履歴上の重み：50 / 113 pt（44.2%）。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -273,7 +273,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [ ] **P0 — 狭いunsafe boundaryを定義し、FFI validity ruleを強制する。** — 5 pt
 - [ ] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
 - [x] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
-- [ ] **P0 — macOS AArch64／Windows x86-64向けownership-aware source-program object generationとnative link／run conformanceを完成させる。** — 8 pt
+- [x] **P0 — macOS AArch64／Windows x86-64向けownership-aware source-program object generationとnative link／run conformanceを完成させる。** — 8 pt
 - [ ] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
 - [ ] **P0 — 代表的なVM／native differential conformance suiteを構築する。** — 8 pt
 - [ ] **P0 — 代表的native workloadを同等のRust／C実装に対して計測する。** — 8 pt

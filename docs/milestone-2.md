@@ -6,13 +6,13 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**94 done · 1 doing · 20 todo · 49 remaining pt**
+**95 done · 0 doing · 20 todo · 47 remaining pt**
 
-**Next: M2-N07 → execute the matching owned executable/failure matrix on Windows x86-64 and record successful native CI evidence (2 pt provisional).**
+**Next: M2-F01 → enforce accepted unsafe/C source-boundary rules with diagnostics and compile-fail fixtures (2 pt provisional; review scope before implementation).**
 
-Active N07 validation (2026-10-19 JST): the first [Windows run 39193648974](https://github.com/carimatics/lang/actions/runs/39193648974) passed compilation/lint but Test failed because the AArch64 emitter was disabled and the Windows import-library search path was missing. Fix 9589022 preserves the full target/fixture matrix and is pushed to the same branch. [Current-commit Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229) is validating it. Local macOS target-admission tests (3), all 1,415 tests / 87 suites (native 61 in 254.15s; one manual timing test ignored), fmt, workspace Clippy and rustdoc pass. Distinguish implemented code from pending validation: N07 remains doing and G14 open. No estimate/task-count change. Commit 5fe96de splits future Windows workflow test-executable compilation from execution so each phase exposes its duration. The live 9589022 run continues unchanged.
+N07 native evidence (2026-10-19 JST): [Windows run 39194948229](https://github.com/carimatics/lang/actions/runs/39194948229), implementation 9589022, passes 1,404 tests / 87 suites, including 60 native tests in 697.58s and the standalone 31-source / 62-executable direct/response-file matrix. Fmt/Clippy/rustdoc pass. The job is cancelled later during the prototype benchmark at its 30-minute limit; this is not a green whole-workflow claim. Evidence and the next-run 60-minute budget are recorded in 119f9ff; 5fe96de separates build/run phases. N07/G14 close on the inspected native Test evidence. Full CI/performance proof remains Q02/B01-B04 work; no task or estimate is added.
 
-Latest delivery (2026-10-19 JST): N06 is done in e7a2bb4, with explicit static-image provenance contracts in 25de18a. Thirty-one source units run as 62 real macOS executables through direct/response-file links, covering work/fuel prefixes, provider refusal, interruption, frame/cell limits, panic, cleanup and returned owner bytes. **93 → 94 done, 51 → 49 pt**; no tasks/estimates added, retired estimates **151 pt**. Workspace **1,415 tests / 87 suites**, native **61**, fmt/Clippy/rustdoc pass. G14 remains open for Windows N07; original gates stay **6/18**.
+Latest delivery / G14 exit audit (2026-10-19 JST): N07 is implemented in 9589022 with inspected evidence in 119f9ff. N06 macOS and N07 Windows execute the identical owned source/object and failure matrix: every work/fuel prefix, provider refusal, interruption, frame/cell limits, panic, cleanup and returned owner bytes match VM semantics. **94 → 95 done, 49 → 47 pt**; 115 rows and added estimates 66 pt are unchanged; retired estimates **153 pt**. Local macOS 1,415 tests / 87 suites (native 61), Windows 1,404 / 87 (native 60), fmt/Clippy/rustdoc pass. The later benchmark timeout remains explicit. Original gates are **7/18**, historical weight **50/113**. FFI, packaging, representative conformance/performance, debug and the final guide remain.
 
 N06 readiness audit (2026-10-19 JST): owned object bytes and matching metadata are emitted, but the checked gateway dispatches only JIT-owned CompiledFunction addresses. Expose M2-N19 (3 pt) for a trusted linked-image binding that retains its code owner and reuses the same checked whole-program gateway, with real linked owned-code execution evidence. N06 retains full macOS direct/response-file object conformance; P02 retains clean-install runtime packaging. No VM fallback, packet/schema change or source subset replaces those outcomes. **114 → 115 rows, 51 → 54 pt**; newly recognized work **63 → 66 pt**, retired estimates **146 pt** unchanged. N19 was marked doing before implementation and is now delivered in d53aac0: linked Mach-O matches VM across 230 budgets; target/symbol/budget refusal and owner release are verified. **92 → 93 done, 54 → 51 pt**; added estimates stay 66, retired estimates are 149. Workspace 1,414 tests / 87 suites, native 60, fmt/Clippy/rustdoc pass (one timing-only test ignored). At the N19 checkpoint, N06 standalone executable conformance was next at a provisional 2 pt.
 
@@ -46,21 +46,21 @@ N17 validation observations: Focused runtime tests 3 / 0.00 s; finite-buffer pre
 
 N07 local validation observations (2026-10-19 JST): macOS baseline 1,415 tests / 87 suites passes, native 61 / 255.64 s, one timing-only test ignored. Full-test wall time 337.35 s, Cargo compilation 0.60 s, summed suites 334.29 s. Clippy wall time 1.33 s; rustdoc 10.46 s; linked-image probe 1 / 2.48 s. These are local validation durations, not Windows evidence, active working time or runtime benchmarks. Planning-only changes run repository_consistency.
 
-Next-target evidence check (2026-10-19 JST): the latest existing [Windows success](https://github.com/carimatics/lang/actions/runs/39007443435) is head 88325a5, updated 2026-10-17 05:54:49 UTC. It predates the owned standalone matrix and does not close N07. The configured windows-2025/MSVC workflow is available; N07 must port the startup/image/link handling and obtain matching current-commit native execution evidence.
+N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windows whole-workflow success](https://github.com/carimatics/lang/actions/runs/39007443435), head 88325a5, updated 2026-10-17 05:54:49 UTC, predates the owned standalone matrix. It was not used to close N07; the current implementation 9589022 native Test evidence inspected above supplies that outcome.
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 94 (+59)**, and the task inventory increased **87 → 115 (+28)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 95 (+60)**, and the task inventory increased **87 → 115 (+28)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +66 pt | −151 pt | 49 pt |
+| 134 pt | +66 pt | −153 pt | 47 pt |
 
-**134 + 66 − 151 = 49 pt**
+**134 + 66 − 153 = 47 pt**
 
-This separates delivered work from newly recognized work: completion retired 151 estimated points, while exposed prerequisites and re-estimation added 66. These are planning units, not hours or measured actual effort. The remaining 49 points are provisional; native/FFI and platform evidence still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 153 estimated points, while exposed prerequisites and re-estimation added 66. These are planning units, not hours or measured actual effort. The remaining 47 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions remain **66 pt** and estimates retired at completion are **151 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
+Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions remain **66 pt** and estimates retired at completion are **153 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
 Earlier measured code baseline (2026-10-19 JST): workspace Clippy **28.3 s**, full tests **362.5 s**, rustdoc **14.2 s** wall time (shell time). Cargo reports test compilation **24.4 s**; summed suite timings are **87.2 s**. The native boundary suite passes **40 tests in 10.77 s**; service failure matrices reuse compiled code with fresh runtimes. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
@@ -68,7 +68,7 @@ Current source capability: a zero-parameter i64 main executes Bytes/Text, arena 
 
 Readiness/split audit (2026-10-19 JST): the initial Bytes source returned 1 in the VM and exposed missing native allocator/Bytes binding. Public buffer APIs supply the storage operations; collections additionally need managed loan views. Split N03's 3 points into N11 allocator/Bytes/Text (initial 1, now done), N12 Vec (1), and N03 Map (1): **106 → 108 tasks**, **60 pt unchanged before the 1-point N11 delivery**. N05 retains configured service byte-work admission and depends on N11 before full exit conformance. RFC 0012 requires matching VM/native configured controls and rejecting unsupported configurations; the concrete service-work contract needs a documented design before implementation. Preserve all native/FFI/platform/conformance/performance/debug outcomes, V17 and Z01's bilingual guide.
 
-The original exit gates are **6 / 18 complete**. G06 closes with compiler/VM/canonical-native cleanup evidence; G14 target link/run remains open. Completed deliveries include compiler/runtime prerequisites and the initial source execution fixture; they do not assert that entire core-library or backend features are complete.
+The original exit gates are **7 / 18 complete**. G06 compiler/VM/canonical-native cleanup and G14 owned source-object link/run on both tier-1 hosts are complete. Whole-workflow success, FFI, packaging, representative conformance/performance, debug and the final guide remain open.
 
 This is the authoritative implementation Todo list. The roadmap retains the original acceptance gates and their historical weights. Counts measure independently verified deliveries, not equal amounts of work. Remaining points are a provisional bottom-up estimate, with low confidence for native/C/platform integration; they are not hours or a completion forecast. Completed work is not assigned retrospective effort points. A done row has zero *remaining* points.
 
@@ -243,7 +243,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N05 | done | 0 | M2-N02,M2-N11,M2-N12,M2-N03,M2-N13,M2-N04,M2-V08,M2-N14,M2-N15,M2-N16,M2-N17,M2-N18 | G06,G14 | Native generated failure/return exits match ordered VM cleanup/fuel behavior across accepted service/payload combinations, including configured service byte-work admission. | `f6d9fc4` |
 | M2-N19 | done | 0 | M2-N05 | G14 | Bind a trusted linked image with its code owner to the checked owned program gateway; execute real linked owned code. | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | `25de18a` |
-| M2-N07 | doing | 2 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | — |
+| M2-N07 | done | 0 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | `119f9ff` |
 | M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
