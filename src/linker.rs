@@ -580,7 +580,7 @@ impl SystemLinker {
 
         if !output.status.success() {
             return Err(LinkError::Failed {
-                command,
+                command: Box::new(command),
                 output: request.output.clone(),
                 status: output.status,
                 stdout: output.stdout,
@@ -728,7 +728,7 @@ pub enum LinkError {
         source: io::Error,
     },
     Failed {
-        command: LinkCommand,
+        command: Box<LinkCommand>,
         output: PathBuf,
         status: ExitStatus,
         stdout: Vec<u8>,
