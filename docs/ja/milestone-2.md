@@ -6,9 +6,11 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**98 done · 0 doing · 19 todo · 45 remaining pt**
+**98 done · 1 doing · 19 todo · 45 remaining pt**
 
-**次: M2-F02 → 検証済みC metadataを使い、context／binding validity・capability・poison／再入・unwind事前検査を失敗fixtureで実装します（暫定3点）。**
+**次: M2-F10 → C objectのaddressと正規field／tag／reserved／unused unionをpaddingを読まずに検証します（進行中、F02から配分した1点）。**
+
+F02／F10の範囲配分（2026-10-19 JST）：Cのpaddingは未初期化の場合があるため、native adapterは入力C object全体をRustのu8 sliceへ変換できません。まずF10として、addressだけでnull／alignment／extent／overlapを事前検査し、通常paddingを要求しない上限付きread interfaceでfield／tag／reserved／unused unionを正規検証します。F03のC layoutと共有service-work計上を使い、raw addressの実際の生存・有効性はRFC 0008どおりtrusted native caller／adapterの義務とします。**F02初期3点から1点を配分**し、残る **2点** にcontext／binding／config全体の事前検査、owner／allocator provenance、poison／再入、callback containmentを維持します。F02はF10に依存し、F04／F05で両経路を実adapterに強制します。**117 → 118行、残り45点・追加72点・完了分161点は不変**です。F10をdoingとし、元の要件やplatform要件は削除しません。
 
 F03完了／残る範囲の監査（2026-10-19 JST）：dee7f34でprofile 1のC layout、正確なfunction／type／artifact descriptorとSHA-256 fingerprint、callback／export／support宣言とlayout assertion付きC11 headerを完成しました。元のscalar vectorと独立aggregate／type／artifact vectorが両target・両方向で一致し、実C compilerでscalar／aggregate／Unit署名、headerの再読込み／共有型、両Clang targetの配置を検証しました。Resource／alias／depth fixtureで、artifact合計の早期上限とsource／MIR／展開後Cの一致した暗黙builtin payload境界も確認しました。最終検証：1,445 tests / 88 suites; zero failures, one manual timing test ignored; native 62 in 264.91s。Fmt／Clippy／rustdocも成功です。F03完了で **3点（45 → 42）** を取り除きます。同じ監査で既存要件の計上漏れも確認しました。受理済みRFC 0008のcore::drop<T>とcore::panic<T>は現行CLIでSRC0024となり、明示的な未完了成果がありません。Source型検査／発散、move／loan規則、VM／nativeのcleanupとpanic code／span検証をF09・暫定 **3点（42 → 45）** として追加し、実sourceのpanic／export fixtureのためF05の前提に加えます。受理済み要件の未実装であり、新言語機能やschema 1／2の変更ではありません。**97 → 98 done、116 → 117行、残り45点**。追加見積りは **69 → 72点**、完了で取り除いた点数は **158 → 161点** です。従来gateは **7/18** のままです。次は検証済みC metadataを使うF02で、F04-F07、F09、その他のM2要件も維持し、C実行／object／schema 2の拒否を保ちます。
 
@@ -60,7 +62,7 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 98件（+63件）**、作業一覧は **87 → 117件（+30件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 98件（+63件）**、作業一覧は **87 → 118件（+31件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
@@ -226,7 +228,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | AcceptedのC import／exportとunsafe blockをlosslessにparse／formatし、予約語を診断し、上限を維持して未完成の意味解析を拒否する。 | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | `819ee7c` |
 | M2-F09 | todo | 3 | M2-F01,M2-N07 | G08,G11,G12 | 受理済みcore::drop／panicのsource型検査・発散・move／loan規則を実装し、VM／nativeのcleanupとpanic code／spanをsource fixtureで検証。 | — |
-| M2-F02 | todo | 3 | M2-F01,M2-V08,M2-F03 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
+| M2-F10 | doing | 1 | M2-F03 | G11,G12 | C address／正規value検査でpaddingを読まず、alignment／extent／overlapと未知tag／非正規byteを作用前に拒否し、共有work計上とfailure fixtureを保つ。 | — |
+| M2-F02 | todo | 2 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
 | M2-F03 | done | 0 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | `dee7f34` |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
 | M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exportで規定status／resultを返し、入れ子cleanup failureをcontain。 | — |

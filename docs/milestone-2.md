@@ -6,9 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**98 done · 0 doing · 19 todo · 45 remaining pt**
+**98 done · 1 doing · 19 todo · 45 remaining pt**
 
-**Next: M2-F02 → use checked C metadata for context/binding validity, capability, poison/reentry and unwind preflight with failure fixtures (3 pt provisional).**
+**Next: M2-F10 → validate C object addresses and canonical fields/tags/reserved/unused-union bytes without reading padding (in progress, 1 pt allocated from F02).**
+
+F02/F10 scope allocation (2026-10-19 JST): C padding may be indeterminate, so a native adapter must not turn an entire incoming C object into a Rust u8 slice. First expose F10 for address-only null/alignment/extent/overlap preflight and canonical field/tag/reserved/unused-union validation through a bounded read interface that never requests ordinary padding. It consumes F03 C layouts and shared service-work accounting; raw-address lifetime validity stays the trusted native caller/adapter obligation in RFC 0008. Allocate **1 pt from F02 initial 3**, leaving F02 at **2 pt** for complete context/binding/configuration preflight, owner/allocator provenance, poison/reentry and callback containment. F02 depends on F10; F04/F05 must enforce both paths in real adapters. **117 → 118 rows; 45 pt, added 72 pt and retired 161 pt unchanged**. F10 is doing; no original outcome or platform requirement is removed.
 
 F03 delivery / remaining-scope audit (2026-10-19 JST): dee7f34 completes profile-1 C layouts, exact function/type/artifact descriptors and SHA-256 fingerprints, plus C11 headers with callback/export/support declarations and layout assertions. Original scalar vectors and independent aggregate/type/artifact vectors match both targets/directions; real C compiler checks cover scalar/aggregate/Unit signatures, repeated/shared types and both Clang target layouts. Resource/alias/depth fixtures include early cumulative artifact limits and identical source/MIR/expanded-C builtin-payload bounds. Final baseline: 1,445 tests / 88 suites; zero failures, one manual timing test ignored; native 62 in 264.91s; fmt/Clippy/rustdoc pass. F03 retires **3 pt (45 → 42)**. The same audit confirms an existing-scope omission: the current CLI rejects accepted RFC 0008 core::drop<T> and core::panic<T> with SRC0024, and neither has an explicit remaining delivery. Add F09 at provisional **3 pt (42 → 45)** for source typing/divergence, move/loan rules, and VM/native cleanup/panic code/span evidence; F05 now depends on F09 for real source panic/export fixtures. This is an unimplemented accepted requirement, not a new language feature or a change to schemas 1/2. **97 → 98 done; 116 → 117 rows; 45 pt remaining**. Added estimates **69 → 72 pt**, retired estimates **158 → 161 pt**. Original gates remain **7/18**. Next is F02 using checked C metadata; F04-F07, F09 and the other M2 outcomes remain required. C execution/object/schema-2 fences are retained.
 
@@ -60,7 +62,7 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 98 (+63)**, and the task inventory increased **87 → 117 (+30)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 98 (+63)**, and the task inventory increased **87 → 118 (+31)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
@@ -226,7 +228,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | Parse/format accepted C imports/exports and unsafe blocks losslessly, diagnose reserved names, preserve limits and reject unfinished semantic admission. | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | `819ee7c` |
 | M2-F09 | todo | 3 | M2-F01,M2-N07 | G08,G11,G12 | Implement accepted core::drop/panic source typing/divergence and move/loan rules; verify VM/native cleanup and panic code/spans using source fixtures. | — |
-| M2-F02 | todo | 3 | M2-F01,M2-V08,M2-F03 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
+| M2-F10 | doing | 1 | M2-F03 | G11,G12 | Preflight C addresses/canonical values without reading padding; reject alignment/extent/overlap and unknown tags/noncanonical bytes before effects, with shared work accounting and failure fixtures. | — |
+| M2-F02 | todo | 2 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
 | M2-F03 | done | 0 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | `dee7f34` |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
 | M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exports return accepted statuses/results and contain nested cleanup failures. | — |

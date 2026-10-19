@@ -8,7 +8,9 @@
 
 ## 現在のM2実装状況
 
-**検証済み98件 · 進行中0件 · 残り19件（暫定45 pt）。**
+**検証済み98件 · 進行中1件 · 残り19件（暫定45 pt）。**
+
+F02／F10の範囲配分（2026-10-19 JST）：Cのpaddingは未初期化の場合があるため、native adapterは入力C object全体をRustのu8 sliceへ変換できません。まずF10として、addressだけでnull／alignment／extent／overlapを事前検査し、通常paddingを要求しない上限付きread interfaceでfield／tag／reserved／unused unionを正規検証します。F03のC layoutと共有service-work計上を使い、raw addressの実際の生存・有効性はRFC 0008どおりtrusted native caller／adapterの義務とします。**F02初期3点から1点を配分**し、残る **2点** にcontext／binding／config全体の事前検査、owner／allocator provenance、poison／再入、callback containmentを維持します。F02はF10に依存し、F04／F05で両経路を実adapterに強制します。**117 → 118行、残り45点・追加72点・完了分161点は不変**です。F10をdoingとし、元の要件やplatform要件は削除しません。
 
 F03完了／残る範囲の監査（2026-10-19 JST）：dee7f34でprofile 1のC layout、正確なfunction／type／artifact descriptorとSHA-256 fingerprint、callback／export／support宣言とlayout assertion付きC11 headerを完成しました。元のscalar vectorと独立aggregate／type／artifact vectorが両target・両方向で一致し、実C compilerでscalar／aggregate／Unit署名、headerの再読込み／共有型、両Clang targetの配置を検証しました。Resource／alias／depth fixtureで、artifact合計の早期上限とsource／MIR／展開後Cの一致した暗黙builtin payload境界も確認しました。最終検証：1,445 tests / 88 suites; zero failures, one manual timing test ignored; native 62 in 264.91s。Fmt／Clippy／rustdocも成功です。F03完了で **3点（45 → 42）** を取り除きます。同じ監査で既存要件の計上漏れも確認しました。受理済みRFC 0008のcore::drop<T>とcore::panic<T>は現行CLIでSRC0024となり、明示的な未完了成果がありません。Source型検査／発散、move／loan規則、VM／nativeのcleanupとpanic code／span検証をF09・暫定 **3点（42 → 45）** として追加し、実sourceのpanic／export fixtureのためF05の前提に加えます。受理済み要件の未実装であり、新言語機能やschema 1／2の変更ではありません。**97 → 98 done、116 → 117行、残り45点**。追加見積りは **69 → 72点**、完了で取り除いた点数は **158 → 161点** です。従来gateは **7/18** のままです。次は検証済みC metadataを使うF02で、F04-F07、F09、その他のM2要件も維持し、C実行／object／schema 2の拒否を保ちます。
 
