@@ -6,11 +6,15 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**97 done · 1 doing · 18 todo · 45 remaining pt**
+**98 done · 0 doing · 19 todo · 45 remaining pt**
 
-**Next: M2-F03 → generate exact C descriptors/digests/layouts/C11 headers and verify frozen RFC vectors plus a real C compiler (in progress, 3 pt provisional).**
+**Next: M2-F02 → use checked C metadata for context/binding validity, capability, poison/reentry and unwind preflight with failure fixtures (3 pt provisional).**
 
-F02/F03 readiness audit (2026-10-19 JST): runtime layout.rs explicitly defines managed/VM layouts, not C layouts. No production LANGCABI descriptor/header producer exists; only the RFC scalar fingerprint and hand-written C layout fixtures exist. F02 must match exact declared digests and validate actual C fields/reserved storage, so make F03 a dependency of F02 and implement F03 first. Scope: bounded profile-1 function/type/artifact descriptors with SHA-256, target C layouts and C11 headers with layout assertions, checked against the frozen RFC vectors and a real C compiler. Reuse verified C-aware MIR; keep F02 context/capability/poison/unwind checks, F04 adapters and F05-F07 complete. Mark F03 doing (3 pt); **97 done / 1 doing / 18 todo / 45 pt**. No task, estimate, ledger or original-gate change.
+F03 delivery / remaining-scope audit (2026-10-19 JST): dee7f34 completes profile-1 C layouts, exact function/type/artifact descriptors and SHA-256 fingerprints, plus C11 headers with callback/export/support declarations and layout assertions. Original scalar vectors and independent aggregate/type/artifact vectors match both targets/directions; real C compiler checks cover scalar/aggregate/Unit signatures, repeated/shared types and both Clang target layouts. Resource/alias/depth fixtures include early cumulative artifact limits and identical source/MIR/expanded-C builtin-payload bounds. Final baseline: 1,445 tests / 88 suites; zero failures, one manual timing test ignored; native 62 in 264.91s; fmt/Clippy/rustdoc pass. F03 retires **3 pt (45 → 42)**. The same audit confirms an existing-scope omission: the current CLI rejects accepted RFC 0008 core::drop<T> and core::panic<T> with SRC0024, and neither has an explicit remaining delivery. Add F09 at provisional **3 pt (42 → 45)** for source typing/divergence, move/loan rules, and VM/native cleanup/panic code/span evidence; F05 now depends on F09 for real source panic/export fixtures. This is an unimplemented accepted requirement, not a new language feature or a change to schemas 1/2. **97 → 98 done; 116 → 117 rows; 45 pt remaining**. Added estimates **69 → 72 pt**, retired estimates **158 → 161 pt**. Original gates remain **7/18**. Next is F02 using checked C metadata; F04-F07, F09 and the other M2 outcomes remain required. C execution/object/schema-2 fences are retained.
+
+F01 Windows evidence (2026-10-19 JST): [full workflow 39207649118](https://github.com/carimatics/lang/actions/runs/39207649118), head cdae1ee, job 117913869152, completed successfully, including formatting, Clippy, full tests, documentation and the prototype benchmark. This snapshot predates F03 and does not complete the remaining C interoperability/performance gates.
+
+Historical F02/F03 readiness audit (2026-10-19 JST): runtime layout.rs explicitly defines managed/VM layouts, not C layouts. No production LANGCABI descriptor/header producer exists; only the RFC scalar fingerprint and hand-written C layout fixtures exist. F02 must match exact declared digests and validate actual C fields/reserved storage, so make F03 a dependency of F02 and implement F03 first. Scope: bounded profile-1 function/type/artifact descriptors with SHA-256, target C layouts and C11 headers with layout assertions, checked against the frozen RFC vectors and a real C compiler. Reuse verified C-aware MIR; keep F02 context/capability/poison/unwind checks, F04 adapters and F05-F07 complete. Mark F03 doing (3 pt); **97 done / 1 doing / 18 todo / 45 pt**. No task, estimate, ledger or original-gate change.
 
 F01 delivery and first-C-execution audit (2026-10-19 JST): 819ee7c completes C source/HIR typing and lexical unsafe scopes on the explicit C MIR proof from 03239a1 (RFC amendment 68240cc). Valid C declarations reach independently verified ownership MIR, including unused scalar declarations; source diagnostics reject unsafe-call, type, scope, move, loan and fixed-profile violations. Unsafe adds no runtime branch or capability and preserves normal cleanup. Local baseline: **1,437 tests / 87 suites**, zero failures, one manual timing test ignored; native 62 in 255.76s; fmt/Clippy/rustdoc pass. CLI checks the C example successfully, rejects an unsafe-free C call with SRC0025 and its declaration span, and refuses C execution with fuel 0 / host calls 0. **96 → 97 done, 48 → 45 pt**; 116 rows and added estimates 69 pt are unchanged; retired estimates **158 pt**. F01 is done; original gates stay **7/18**. The first real C source call still needs F02 explicit C context/grants/validity and poison/unwind preflight, F03 exact C layouts/descriptors/headers, then F04 typed import adapters. Reuse the checked type graph and existing instance/allocation/control machinery; ordinary host grants cannot enable C bindings. F05 exports and F06/F07 native platform fixtures remain intact, and schema 2 still rejects C identity. This audit adds no scope or estimate.
 
@@ -56,17 +60,17 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 97 (+62)**, and the task inventory increased **87 → 116 (+29)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 98 (+63)**, and the task inventory increased **87 → 117 (+30)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +69 pt | −158 pt | 45 pt |
+| 134 pt | +72 pt | −161 pt | 45 pt |
 
-**134 + 69 − 158 = 45 pt**
+**134 + 72 − 161 = 45 pt**
 
-This separates delivered work from newly recognized work: completion retired 158 estimated points, while exposed prerequisites and re-estimation added 69. These are planning units, not hours or measured actual effort. The remaining 45 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 161 estimated points, while exposed prerequisites and re-estimation added 72. These are planning units, not hours or measured actual effort. The remaining 45 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
-Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions are **69 pt** and estimates retired at completion are **158 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
+Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Net additions are **72 pt** and estimates retired at completion are **161 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
 Earlier measured code baseline (2026-10-19 JST): workspace Clippy **28.3 s**, full tests **362.5 s**, rustdoc **14.2 s** wall time (shell time). Cargo reports test compilation **24.4 s**; summed suite timings are **87.2 s**. The native boundary suite passes **40 tests in 10.77 s**; service failure matrices reuse compiled code with fresh runtimes. These are validation durations, not active working time or runtime benchmarks. Documentation-only planning updates run `repository_consistency`.
 
@@ -221,10 +225,11 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-A03 | done | 0 | M2-A02 | G16 | Load, independently verify and execute owned source artifacts; round-trip behavior agrees. | `2dfea13` |
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | Parse/format accepted C imports/exports and unsafe blocks losslessly, diagnose reserved names, preserve limits and reject unfinished semantic admission. | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | Enforce accepted unsafe/source boundary rules with source diagnostics and compile-fail fixtures. | `819ee7c` |
+| M2-F09 | todo | 3 | M2-F01,M2-N07 | G08,G11,G12 | Implement accepted core::drop/panic source typing/divergence and move/loan rules; verify VM/native cleanup and panic code/spans using source fixtures. | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08,M2-F03 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | — |
-| M2-F03 | doing | 3 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | — |
+| M2-F03 | done | 0 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | `dee7f34` |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
-| M2-F05 | todo | 3 | M2-F04 | G12 | C exports return accepted statuses/results and contain nested cleanup failures. | — |
+| M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exports return accepted statuses/results and contain nested cleanup failures. | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
 

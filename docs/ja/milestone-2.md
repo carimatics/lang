@@ -6,11 +6,15 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**97 done · 1 doing · 18 todo · 45 remaining pt**
+**98 done · 0 doing · 19 todo · 45 remaining pt**
 
-**次: M2-F03 → 正確なC descriptor／digest／layout／C11 headerを固定RFC vectorと実C compilerで検証します（進行中、暫定3点）。**
+**次: M2-F02 → 検証済みC metadataを使い、context／binding validity・capability・poison／再入・unwind事前検査を失敗fixtureで実装します（暫定3点）。**
 
-F02／F03着手前監査（2026-10-19 JST）：runtimeのlayout.rsはmanaged／VM向けでC layoutではないと明記しています。製品用のLANGCABI descriptor／header生成器はなく、RFCのscalar fingerprintと手書きC layout fixtureだけがあります。F02には厳密な宣言digestの照合と実C field／reserved storageの検証が必要なため、F03をF02の前提に加え、先に実装します。範囲は上限付きprofile 1のfunction／type／artifact descriptorとSHA-256、target別C layout、layout assertion付きC11 headerで、固定RFC vectorと実C compilerで確認します。検証済みC対応MIRを再利用し、F02のcontext／capability／poison／unwind検査、F04 adapter、F05-F07の全要件を維持します。F03をdoing・3点とし、**97 done / 1 doing / 18 todo / 45 pt** とします。作業数、見積り、収支、元のgateは不変です。
+F03完了／残る範囲の監査（2026-10-19 JST）：dee7f34でprofile 1のC layout、正確なfunction／type／artifact descriptorとSHA-256 fingerprint、callback／export／support宣言とlayout assertion付きC11 headerを完成しました。元のscalar vectorと独立aggregate／type／artifact vectorが両target・両方向で一致し、実C compilerでscalar／aggregate／Unit署名、headerの再読込み／共有型、両Clang targetの配置を検証しました。Resource／alias／depth fixtureで、artifact合計の早期上限とsource／MIR／展開後Cの一致した暗黙builtin payload境界も確認しました。最終検証：1,445 tests / 88 suites; zero failures, one manual timing test ignored; native 62 in 264.91s。Fmt／Clippy／rustdocも成功です。F03完了で **3点（45 → 42）** を取り除きます。同じ監査で既存要件の計上漏れも確認しました。受理済みRFC 0008のcore::drop<T>とcore::panic<T>は現行CLIでSRC0024となり、明示的な未完了成果がありません。Source型検査／発散、move／loan規則、VM／nativeのcleanupとpanic code／span検証をF09・暫定 **3点（42 → 45）** として追加し、実sourceのpanic／export fixtureのためF05の前提に加えます。受理済み要件の未実装であり、新言語機能やschema 1／2の変更ではありません。**97 → 98 done、116 → 117行、残り45点**。追加見積りは **69 → 72点**、完了で取り除いた点数は **158 → 161点** です。従来gateは **7/18** のままです。次は検証済みC metadataを使うF02で、F04-F07、F09、その他のM2要件も維持し、C実行／object／schema 2の拒否を保ちます。
+
+F01のWindows evidence（2026-10-19 JST）：[全workflow 39207649118](https://github.com/carimatics/lang/actions/runs/39207649118)、head cdae1ee、job 117913869152が成功し、fmt／Clippy／全テスト／doc／prototype benchmarkを完了しました。F03より前のsnapshotであり、残るC相互運用／性能gateの完了を示すものではありません。
+
+過去のF02／F03着手前監査（2026-10-19 JST）：runtimeのlayout.rsはmanaged／VM向けでC layoutではないと明記しています。製品用のLANGCABI descriptor／header生成器はなく、RFCのscalar fingerprintと手書きC layout fixtureだけがあります。F02には厳密な宣言digestの照合と実C field／reserved storageの検証が必要なため、F03をF02の前提に加え、先に実装します。範囲は上限付きprofile 1のfunction／type／artifact descriptorとSHA-256、target別C layout、layout assertion付きC11 headerで、固定RFC vectorと実C compilerで確認します。検証済みC対応MIRを再利用し、F02のcontext／capability／poison／unwind検査、F04 adapter、F05-F07の全要件を維持します。F03をdoing・3点とし、**97 done / 1 doing / 18 todo / 45 pt** とします。作業数、見積り、収支、元のgateは不変です。
 
 F01完了と最初のC実行の監査（2026-10-19 JST）：819ee7cで、03239a1の明示的なC MIR検証（RFC改訂68240cc）へsource／HIRのC型検査とlexicalなunsafe scopeを接続しました。未使用scalar宣言を含む有効なC宣言は独立検証済みownership MIRへ到達し、unsafe呼出し、型、scope、move、loan、固定profile違反にはsource診断を出します。Unsafeはruntime branchやcapabilityを追加せず通常のcleanupを維持します。ローカル必須検証は **1,437 tests / 87 suites**、失敗0、手動timing testのみ1件ignored。Nativeは62件・255.76秒で、fmt／Clippy／rustdocも成功です。CLIでC例のcheck成功、unsafeなしのC callへのSRC0025と宣言span、C実行のfuel 0／host call 0での拒否を確認しました。**96 → 97 done、48 → 45 pt**。116行と追加分69点は不変で、完了で取り除いた点数は **158点** です。F01はdoneとし、従来gateは **7/18** のままです。最初の実C source callには、F02の明示的なC context／grant／validityとpoison／unwind事前検査、F03の正確なC layout／descriptor／header、続いてF04の型付きimport adapterが必要です。検証済み型graphと既存instance／allocation／controlを再利用し、通常host grantからC bindingは有効にしません。F05のexportとF06／F07のnative platform fixtureを維持し、schema 2もC識別を引き続き拒否します。この監査でscopeや見積りは追加しません。
 
@@ -18,7 +22,7 @@ F01着手前／F08分割の過去監査（2026-10-19 JST）：実行したprobe�
 
 N07 native／CI上限の証拠（2026-10-19 JST）：516f663の[Windows全run 39198008813](https://github.com/carimatics/lang/actions/runs/39198008813)が33分56秒で成功しました。1,404 test／87 suite、native 60件（748.74秒）、31 source／62 executableのdirect／response-file standalone test、fmt／Clippy／rustdocと、cleanなschema-20 prototype benchmarkのuploadが成功しています。先行run 39194948229がbenchmark中に30分を超えた後、119f9ffの60分上限と5fe96deのbuild／実行分離を検証できました。Test build 4分49秒、実行16分20秒、docs 17秒、benchmark／release build 10分03秒で、いずれもCI時間です。N07／G14のnative証拠は完了とし、代表的M2の全体CI／性能の証明はQ02／B01-B04へ残します。F08は別の[Windows run 39200895976](https://github.com/carimatics/lang/actions/runs/39200895976)で検証し、N07のsnapshotで後続source変更の成功を主張しません。Task／見積もりの変更はありません。
 
-F08の完了成果（2026-10-19 JST）：6c32322でF08を完了しました。正確なquoted-C import／export宣言とstatementのみのunsafe blockをlosslessにparse／formatし、comment、fixtureの全prefix、上限付きrecoveryを確認しました。型名を含む従来unsafe名はSRC0024となり、unsafeの自動fixは付けません。CLI checkは未対応のC意味境界に字句エラーではなくSRC0025を返し、従来のi64引数1個のhost importは維持します。**95 → 96 done、50 → 48 pt**。116行と追加分合計69点は不変で、完了で取り除いた見積もりは **158点** です。Frontendのfocused 352 test、workspace **1,421 test／87 suite**（native 61件、250.59秒、手動timing test 1件はignored）、fmt／Clippy／rustdocが成功しました。C bindingの意味規則、MIR接続、capability、実C adapterはF01-F07へ残し、従来gateは **7/18** を維持します。
+F08の完了成果（2026-10-19 JST）：6c32322でF08を完了しました。正確なquoted-C import／export宣言とstatementのみのunsafe blockをlosslessにparse／formatし、comment、fixtureの全prefix、上限付きrecoveryを確認しました。型名を含む従来unsafe名はSRC0024となり、unsafeの自動fixは付けません。CLI checkは未対応のC意味境界に字句エラーではなくSRC0025を返し、従来のi64引数1個のhost importは維持します。**95 → 96 done、50 → 48 pt**。116行と追加分合計69点は不変で、完了で取り除いた見積もりは **161点** です。Frontendのfocused 352 test、workspace **1,421 test／87 suite**（native 61件、250.59秒、手動timing test 1件はignored）、fmt／Clippy／rustdocが成功しました。C bindingの意味規則、MIR接続、capability、実C adapterはF01-F07へ残し、従来gateは **7/18** を維持します。
 
 N06着手前監査（2026-10-19 JST）：owned objectのbyte列と対応metadataは生成できますが、検証付きgatewayはJITのCompiledFunctionが保持するaddressだけをdispatchします。Code ownerの寿命を保持し、同じ検証付きprogram全体のgatewayを利用するtrusted linked-image境界と、実際のlinked owned codeの実行証拠をM2-N19（3点）として明示します。N06のmacOS direct／response-file全体conformance、P02のclean-install runtime packagingは維持します。VMへのfallback、packet／schema変更、sourceの部分対応で置き換えません。**114 → 115行、51 → 54 pt**、新たに判明した見積もり **63 → 66点**、完了で取り除いた146点は不変です。実装前にN19をdoingとして実装を開始しました。現在はd53aac0でN19を完了し、230予算でlinked Mach-OとVMが一致し、target／symbol／予算拒否とowner解放も検証済みです。**92 → 93 done、54 → 51 pt**、追加分66点は不変、完了で取り除いた見積もりは149点です。全workspace 1,414 test／87 suite、native 60件、fmt／Clippy／rustdoc成功（計測専用1件はignore）。N19完了時点では、次のN06のstandalone executable検証を暫定2点としていました。
 
@@ -56,17 +60,17 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 97件（+62件）**、作業一覧は **87 → 116件（+29件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 98件（+63件）**、作業一覧は **87 → 117件（+30件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +69 pt | −158 pt | 45 pt |
+| 134 pt | +72 pt | −161 pt | 45 pt |
 
-**134 + 69 − 158 = 45 pt**
+**134 + 72 − 161 = 45 pt**
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり158点分を取り除く一方、前提作業の可視化と再見積もりで69点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り45点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり161点分を取り除く一方、前提作業の可視化と再見積もりで72点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り45点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
-N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **69点**、完了で取り除いた見積もりは **155点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
+N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。追加分合計は **72点**、完了で取り除いた見積もりは **155点** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
 以前のcode baselineの実測（2026-10-19 JST）：workspace Clippy **28.3秒**、全test **362.5秒**、rustdoc **14.2秒** の実時間（shell time）。Cargo報告のtest compileは **24.4秒**、suite時間合計は **87.2秒** です。Native境界suiteは **40 test・10.77秒** で成功し、service失敗matrixはcompile済みcodeを再利用してruntimeを毎回作り直します。検証所要時間であり、実稼働時間やruntime benchmarkではありません。文書だけの計画更新では `repository_consistency` を実行します。
 
@@ -221,10 +225,11 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-A03 | done | 0 | M2-A02 | G16 | Owned source artifactをload、独立検証、実行し、往復時のbehavior一致を確認。 | `2dfea13` |
 | M2-F08 | done | 0 | M2-D27 | G11,G12 | AcceptedのC import／exportとunsafe blockをlosslessにparse／formatし、予約語を診断し、上限を維持して未完成の意味解析を拒否する。 | `6c32322` |
 | M2-F01 | done | 0 | M2-D27,M2-F08 | G11 | 受理済みunsafe／source境界規則をsource診断とcompile-fail fixtureで強制。 | `819ee7c` |
+| M2-F09 | todo | 3 | M2-F01,M2-N07 | G08,G11,G12 | 受理済みcore::drop／panicのsource型検査・発散・move／loan規則を実装し、VM／nativeのcleanupとpanic code／spanをsource fixtureで検証。 | — |
 | M2-F02 | todo | 3 | M2-F01,M2-V08,M2-F03 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | — |
-| M2-F03 | doing | 3 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | — |
+| M2-F03 | done | 0 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | `dee7f34` |
 | M2-F04 | todo | 3 | M2-F02,M2-F03 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
-| M2-F05 | todo | 3 | M2-F04 | G12 | C exportで規定status／resultを返し、入れ子cleanup failureをcontain。 | — |
+| M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exportで規定status／resultを返し、入れ子cleanup failureをcontain。 | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Headerを独立compileし、native macOSで境界validity fixtureを実行。 | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Native Windowsで対応するC境界fixtureを実行し、成功CI evidenceを記録。 | — |
 
