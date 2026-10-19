@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**101 verified deliveries · 0 in progress · 18 remaining tasks (provisional 42 pt).**
+**101 verified deliveries · 1 in progress · 17 remaining tasks (provisional 42 pt).**
 
 F11 delivery (2026-10-19 JST): a37b053 executes real compiler-produced C callbacks from source in the VM and generated native code. The named scalar/Unit fixture returns 59; direct calls return 42, and the complete 256-parameter profile returns 32,896. Context/code/actual-allocator binding, canonical outputs, foreign failures and shared control/work stay enforced. Seven new fixtures include all finite fuel/work prefixes, OOM, interruption/deadline and same-ABI wrong-owner/replaced-allocator refusal before effects. RFC 0012 amendment 43edb9b precedes C-aware revision-2 emission; ordinary revision-1 symbols and external C profile 1 are preserved. Baseline: **1,478 tests / 88 suites**, zero failures, one manual timing test ignored; **41 C ABI tests**, native **62 / 262.13s**; fmt/Clippy/rustdoc pass (rustdoc **21.29s**). Retire F11 **3 pt: 100 → 101 done, 45 → 42 pt**. **119 rows and +75 pt additions unchanged; retired estimates 167 pt**. Original gates remain **7/18**. General aggregates, raw C factories/exports/object publication and full packaging/platform evidence remain open.
 

@@ -6,11 +6,11 @@
 
 更新・確認日：**2026-10-19 JST**。初回監査の基準commit：`0c2c012`。
 
-**101 done · 0 doing · 18 todo · 42 remaining pt**
+**101 done · 1 doing · 17 todo · 42 remaining pt**
 
-**次: M2-F04 → aggregate C source fixtureで汎用Copy値の転送と残る3点を確認します。**
+**次: M2-F04 → finite Copy C importを実allocation・VM／native cleanupへ統合します（作業中、暫定3 pt）。**
 
-| 次の成果（未着手） | 直近の完了 | 必須の実行成果 |
+| 作業中 | 直近の完了 | 必須の実行成果 |
 | --- | --- | --- |
 | F04：aggregate C import（暫定3 pt） | F11：実C source実行、100 → 101件、45 → 42 pt（a37b053） | Aggregate／allocator／両backend／failureをsourceで検証 |
 
@@ -269,7 +269,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F02 | done | 0 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C境界のvalidity／capability／poison preflightとunwind containmentを失敗fixtureで検証。 | `7d4fea7` |
 | M2-F03 | done | 0 | M2-F01 | G12 | 厳密なC descriptor／digest／headerを生成し、受理済みvectorでlayoutを検証。 | `dee7f34` |
 | M2-F11 | done | 0 | M2-F02,M2-F03 | G12 | 実C codeと共通contextを使い、scalar／Unit importをsourceからVM／nativeで実行しfailureを検証。 | `a37b053` |
-| M2-F04 | todo | 3 | M2-F02,M2-F03,M2-F11 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
+| M2-F04 | doing | 3 | M2-F02,M2-F03,M2-F11 | G12 | C importでscalar／aggregate引数、allocation context、failure statusを扱う。 | — |
 | M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exportで規定status／resultを返し、入れ子cleanup failureをcontain。 | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Headerを独立compileし、native macOSで境界validity fixtureを実行。 | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Native Windowsで対応するC境界fixtureを実行し、成功CI evidenceを記録。 | — |

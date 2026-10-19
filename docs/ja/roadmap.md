@@ -8,7 +8,7 @@
 
 ## 現在のM2実装状況
 
-**検証済み101件 · 進行中0件 · 残り18件（暫定42 pt）。**
+**検証済み101件 · 進行中1件 · 残り17件（暫定42 pt）。**
 
 F11完了（2026-10-19 JST）：a37b053でC compiler産の実callbackをsourceからVM／生成native codeで実行します。名前付きscalar／Unit fixtureは59、直接callは42、上限256引数では32,896を返します。Context／code／実allocatorの結び付け、正規output、foreign失敗、共有control／workを強制します。新規7 fixtureには全有限fuel／work境界、OOM、interruption／deadline、同一ABIの別owner／allocator交換の作用前拒否を含みます。RFC 0012改訂43edb9bの後にC対応revision 2を生成し、通常のrevision 1 symbolと外部C profile 1を維持します。必須検証：**1,478 tests / 88 suites**、失敗0、手動timing testのみ1件ignored。**C ABI 41件**、native **62件／262.13秒**、fmt／Clippy／rustdocも成功です（rustdoc **21.29秒**）。F11の **3点** を取り除き、**100 → 101 done、45 → 42 pt** とします。**119行と追加75点は不変、完了で取り除いた見積もりは167点** です。従来gateは **7/18** のままで、汎用aggregate、raw C factory／export／object公開、完全なpackaging／platform検証は未完了です。
 

@@ -6,11 +6,11 @@
 
 Updated and verified: **2026-10-19 JST**. Initial audit checkpoint: `0c2c012`.
 
-**101 done · 0 doing · 18 todo · 42 remaining pt**
+**101 done · 1 doing · 17 todo · 42 remaining pt**
 
-**Next: M2-F04 → exercise aggregate C source transfer and audit the remaining provisional 3 pt.**
+**Next: M2-F04 → finite Copy C imports with actual allocation and VM/native cleanup (doing, provisional 3 pt).**
 
-| Next delivery (not started) | Latest completion | Required execution outcome |
+| Working now | Latest completion | Required execution outcome |
 | --- | --- | --- |
 | F04: aggregate C imports (provisional 3 pt) | F11: real C source execution, 100 → 101 done, 45 → 42 pt (a37b053) | Source evidence for aggregates, allocator, both backends and failures |
 
@@ -269,7 +269,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F02 | done | 0 | M2-F01,M2-V08,M2-F03,M2-F10 | G11 | C-boundary validity/capability/poison preflight and unwind containment have failure fixtures. | `7d4fea7` |
 | M2-F03 | done | 0 | M2-F01 | G12 | Generate exact C descriptors/digests/headers and validate layouts against accepted vectors. | `dee7f34` |
 | M2-F11 | done | 0 | M2-F02,M2-F03 | G12 | Execute scalar/Unit imports from source through real C code and the shared context in VM/native, with failure fixtures. | `a37b053` |
-| M2-F04 | todo | 3 | M2-F02,M2-F03,M2-F11 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
+| M2-F04 | doing | 3 | M2-F02,M2-F03,M2-F11 | G12 | C imports handle scalar/aggregate arguments, allocation context and failure statuses. | — |
 | M2-F05 | todo | 3 | M2-F04,M2-F09 | G12 | C exports return accepted statuses/results and contain nested cleanup failures. | — |
 | M2-F06 | todo | 2 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | — |
 | M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
