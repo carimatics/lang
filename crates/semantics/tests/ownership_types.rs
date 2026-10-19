@@ -412,7 +412,10 @@ fn automatic_construction_and_verification_use_exact_cumulative_budgets() {
 fn every_source_core_identity_maps_to_the_independent_mir_contract() {
     let mut seen = std::collections::BTreeSet::new();
     for source in lang_hir::core::Operation::ALL {
-        let mir = ownership_types::core_operation(source);
+        let Some(mir) = ownership_types::core_operation(source) else {
+            assert_eq!(source, lang_hir::core::Operation::Drop);
+            continue;
+        };
         assert!(seen.insert(mir));
         assert_eq!(source.name(), mir.name());
         assert_eq!(
@@ -476,7 +479,8 @@ fn checked_source_core_allocator_retains_its_span_and_preflight_fact_in_mir_asse
                         op: b::Op::CoreCall(o::core::Call {
                             operation: ownership_types::core_operation(
                                 lang_hir::core::Operation::Allocator,
-                            ),
+                            )
+                            .unwrap(),
                             type_arguments: vec![],
                             arguments: vec![],
                             result_loan: Some(b::LoanId(0)),

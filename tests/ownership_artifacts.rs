@@ -11,6 +11,46 @@ const BYTES: &str = include_str!("../examples/scripts/owned_bytes.lang");
 mod execution;
 
 #[test]
+fn source_drop_round_trips_through_existing_schema_two_cleanup_ops() {
+    for text in [
+        include_str!("../examples/analysis/explicit_drop.lang"),
+        include_str!("../examples/analysis/explicit_drop_shared.lang"),
+    ] {
+        let raw = table(text);
+        assert!(
+            raw.functions
+                .iter()
+                .flat_map(|f| &f.blocks)
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.op, o::bodies::Op::DropValue(_)))
+        );
+        let encoded = wire::encode(raw, Some(m::FunctionId(0)), Default::default()).unwrap();
+        let decoded = wire::decode(&encoded, Default::default()).unwrap();
+        let mut allocator = lang_runtime::allocation::Allocator::new(
+            lang_runtime::allocation::System,
+            Default::default(),
+        )
+        .unwrap();
+        let mut instance = lang_runtime::cleanup::Instance::default();
+        let outcome = lang_vm::unit::owned::execute_function(
+            decoded.flow(),
+            decoded.entry().unwrap(),
+            &mut instance,
+            Some(&mut allocator),
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(outcome.value, 42);
+        assert!(!instance.is_poisoned());
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert_eq!(
+            allocator.stats().allocations,
+            allocator.stats().deallocations
+        );
+    }
+}
+
+#[test]
 fn compiled_bytes_execute_from_the_decoded_entry_identity() {
     let raw = table(BYTES);
     let entry = raw

@@ -513,7 +513,27 @@ impl Lowerer<'_, '_, '_> {
             unreachable!()
         };
         let span = source.span;
-        let operation = super::super::core_operation(*operation);
+        if *operation == lang_hir::core::Operation::Drop {
+            // Preserve ordinary argument evaluation/moves and the current
+            // lexical loan checks. Copy arguments have no retirement action;
+            // owners use exactly the existing explicit-drop failure path.
+            let mark = self.actions.len();
+            let argument = arguments[0];
+            let expected = self.facts.call(expression).unwrap().parameters[0];
+            let value = self.argument(argument, Some(expected), block, depth + 1)?;
+            if self.input.properties(expected).unwrap().requires_drop {
+                self.emit(block, None, b::Op::DropValue(value), span)?;
+            }
+            let out = m::Register(super::id(expression.0)?);
+            self.emit(block, Some(out), b::Op::Unit, span)?;
+            self.cleanup(mark, block, None)?;
+            self.actions.truncate(mark);
+            return self.result(expression);
+        }
+        let operation = super::super::core_operation(*operation).ok_or(Error::UnsupportedBody {
+            feature: UnsupportedBody::SourceIntrinsic,
+            span,
+        })?;
         let retained = match operation.signature().result_binding {
             o::core::ResultBinding::ProvisionalLoan { parameter, .. } => Some(parameter),
             _ => None,

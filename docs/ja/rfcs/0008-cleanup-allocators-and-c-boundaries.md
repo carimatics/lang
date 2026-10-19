@@ -221,6 +221,8 @@ F11のscalar C source実行（2026-10-19 JST実装・確認）：Rust embedding�
 
 ## 情報源
 
+F09 source dropのevidence（2026-10-19 JST更新・確認）：[Bytes](../../../examples/analysis/explicit_drop.lang)と[最後のstrong／weak期限切れ](../../../examples/analysis/explicit_drop_shared.lang)で受理済みgeneric dropをVM／native実行します。HIR署名／型診断でCopyの元の値・affine move・lexical loanを維持し、source専用dropを既存DropValue／Unitへ下げ、閉じたruntime core tableは拡張しません。既存schema 2のencode／decodeから両fixtureを実行できます。即時破棄、有限control／provider拒否、cleanup失敗時の一度だけの消費を[対象fixture](../../../tests/support/native_drop.rs)で検証し、両sourceを共通standalone target matrixにも追加します。Source panic・動的code／非復帰・version／互換性判断はF13に残し、dropではformat／native packet revisionを変更しません。
+
 F04実装evidence（2026-10-19 JST更新・確認）：明示VM／contextとnative revision 2のimport APIでfinite Copy aggregateに対応しました。[Field単位の転送](../../../crates/runtime/src/c_abi/transfer.rs)は実allocatorを使い、初期化済みの呼出し中C objectをmanaged storageと分離します。正確なnative thunkはRust byte access再開前に通常paddingを初期化し、不正な正規fieldはF10拒否用に保持します。[実C fixture](../../../tests/support/c_imports.rs)はrecord／空record、enum、入れ子Option／Result／error、scalar result、256混合引数、全有限fuel／work境界、scratch OOMを検証します。[名前付きsource](../../../examples/analysis/c_aggregate_imports.lang)は両modeで84を返します。Raw C factory／export、C object公開、完全native packaging／platform、ownerとCの複合conformanceは未完了で、既定CLI／schema 2のC拒否は不変です。既存の受理済みprofileを実装し、source構文・C digest・private helper／packet revisionを追加しません。
 
 - [RFC 0004](0004-owned-values-and-cyclic-graphs.md)：受理済みlifetime／cycle／arena規則。[RFC 0007](0007-source-ownership-and-core-values.md)：受理済みsource／core／allocator型表面。ともに2026-10-17 JST最終更新、同日確認。

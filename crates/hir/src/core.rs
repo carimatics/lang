@@ -1,4 +1,4 @@
-//! The finite RFC 0007/0009 core operation signatures. These backend-independent
+//! The finite RFC 0007/0008/0009 core operation signatures. These backend-independent
 //! templates describe source types and result provenance; they do not grant
 //! allocator authority, implement an operation, or establish body validity.
 
@@ -243,6 +243,8 @@ impl Case {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Operation {
+    /// Source-only RFC 0008 intrinsic, lowered to ordinary MIR cleanup.
+    Drop,
     Allocator,
     TextFromUtf8,
     TextClone,
@@ -319,7 +321,8 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 37] = [
+    pub const ALL: [Self; 38] = [
+        Self::Drop,
         Self::Allocator,
         Self::TextFromUtf8,
         Self::TextClone,
@@ -361,6 +364,7 @@ impl Operation {
 
     pub const fn name(self) -> &'static str {
         match self {
+            Self::Drop => "drop",
             Self::Allocator => "allocator",
             Self::TextFromUtf8 => "text_from_utf8",
             Self::TextClone => "text_clone",
@@ -411,6 +415,7 @@ impl Operation {
         use LoanKind::{Exclusive as M, Shared as S};
         use TypePattern as P;
         let mut sig = match self {
+            Self::Drop => signature(ONE, &[T], UNIT),
             Self::OptionUnwrap => signature(ONE, &[P::Option(&T)], T),
             Self::ResultUnwrap => signature(TWO, &[P::Result(&T, &V)], T),
             Self::ResultUnwrapErr => signature(TWO, &[P::Result(&T, &V)], V),

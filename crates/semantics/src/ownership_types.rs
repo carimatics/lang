@@ -15,6 +15,7 @@ pub mod places;
 pub enum UnsupportedBody {
     Match,
     ProvisionalResult,
+    SourceIntrinsic,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -431,8 +432,10 @@ fn construct_declarations<'a>(
 
 /// Map resolved source identity explicitly; display names and Rust discriminants
 /// are not the ownership MIR operation contract.
-pub const fn core_operation(operation: lang_hir::core::Operation) -> o::core::Operation {
-    match operation {
+/// Source-only intrinsics return None and must lower to existing MIR primitives.
+pub const fn core_operation(operation: lang_hir::core::Operation) -> Option<o::core::Operation> {
+    Some(match operation {
+        lang_hir::core::Operation::Drop => return None,
         lang_hir::core::Operation::Allocator => o::core::Operation::Allocator,
         lang_hir::core::Operation::TextFromUtf8 => o::core::Operation::TextFromUtf8,
         lang_hir::core::Operation::TextClone => o::core::Operation::TextClone,
@@ -470,5 +473,5 @@ pub const fn core_operation(operation: lang_hir::core::Operation) -> o::core::Op
         lang_hir::core::Operation::OptionUnwrap => o::core::Operation::OptionUnwrap,
         lang_hir::core::Operation::ResultUnwrap => o::core::Operation::ResultUnwrap,
         lang_hir::core::Operation::ResultUnwrapErr => o::core::Operation::ResultUnwrapErr,
-    }
+    })
 }

@@ -5,6 +5,8 @@ mod arenas;
 mod control;
 #[path = "native_core.rs"]
 mod core;
+#[path = "native_drop.rs"]
+mod drop_values;
 #[cfg(any(
     target_os = "macos",
     all(target_os = "windows", target_env = "msvc", target_arch = "x86_64")

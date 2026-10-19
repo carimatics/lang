@@ -60,6 +60,8 @@
 
 ## 開発
 
+RFC 0008の`core::drop::<T>(value) -> core::Unit`でownerを即座に破棄し、Copyの元の値を維持します。Loan／allocator特殊化は`SRC0024`、借用中ownerのmoveは`SRC0021`、破棄済みownerの使用は`SRC0020`で拒否します。[Bytes](examples/analysis/explicit_drop.lang)と[shared／weak](examples/analysis/explicit_drop_shared.lang)の例はVM／nativeで42を返します。Dropを既存cleanup命令へ下げてownership schema 2で往復でき、source `core::panic`はF13に残ります。2026-10-19 JST確認。
+
 Milestone 1のsource pipelineは複数fileのmodule、型付きfunctionと再帰、copy-only record／enum、網羅的pattern、検証済みportable bytecode、上限付きVM実行に対応しています。Source spanはanalysis、lowering、artifact、runtime stackまで保持されます。Formatterとstdio LSP prototypeは同じlossless parserとrevision付きmodule／診断databaseを使います。
 
 RFC 0008のC import／export宣言は、source checkから独立検証済みownership MIRまで型付きC識別を保持します。呼出しにはlexicalな`unsafe`が必要で、通常の型・move・loan・cleanup規則を維持します。不正なC署名／呼出しには`SRC0025`、従来`unsafe`という名前には移行`SRC0024`を示します。明示Rust context／binding APIで[scalar／Unit](examples/analysis/c_scalar_imports.lang)と[finite Copy aggregate import](examples/analysis/c_aggregate_imports.lang)をVM／native実行できます。Record、enum、入れ子Option／Result、core errorはfield単位でC値と変換し、実context allocatorを使用します。生成C11 headerでcallback署名も検査します。`cargo test --test c_abi imports::aggregate_c_imports_execute_records_and_sums_from_source`で確認できます。Raw C factory／export、C object公開、完全なnative packagingは未完成です。既定CLI／従来実行入口とschema 2 encodingは作用前にC unit全体を拒否します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-19 JST確認。

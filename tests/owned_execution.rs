@@ -13,6 +13,8 @@ use std::{cell::RefCell, path::Path, rc::Rc, time::Instant};
 mod arenas;
 #[path = "support/owned_calls.rs"]
 mod calls;
+#[path = "support/owned_drop.rs"]
+mod drop_values;
 #[path = "support/owned_edges.rs"]
 mod edges;
 #[path = "support/owned_foreign.rs"]

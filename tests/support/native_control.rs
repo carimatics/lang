@@ -253,6 +253,14 @@ pub(super) fn work_profiles() -> Vec<(&'static str, String)> {
             "buffer-errors",
             include_str!("../../examples/analysis/native_core_errors.lang"),
         ),
+        (
+            "explicit-drop",
+            include_str!("../../examples/analysis/explicit_drop.lang"),
+        ),
+        (
+            "explicit-drop-shared",
+            include_str!("../../examples/analysis/explicit_drop_shared.lang"),
+        ),
         ("text", include_str!("../../examples/scripts/text.lang")),
     ]
     .into_iter()

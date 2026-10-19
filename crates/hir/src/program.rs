@@ -2172,7 +2172,12 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     .unwrap()
                     .properties(ty.value_type, ty.span)?;
                 if properties.contains_loan || properties.contains_allocator {
-                    self.context.error(codes::INVALID_OWNERSHIP_TYPE, ty.span, "core type argument must be storable without ordinary loans or allocator authority", None)?;
+                    let code = if *operation == core::Operation::Drop {
+                        codes::UNSUPPORTED_SPECIALIZATION
+                    } else {
+                        codes::INVALID_OWNERSHIP_TYPE
+                    };
+                    self.context.error(code, ty.span, "core type argument must be storable without ordinary loans or allocator authority", None)?;
                 }
                 if *rule == core::TypeArgumentRule::SharedPayload && properties.contains_arena {
                     self.context.error(

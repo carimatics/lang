@@ -28,6 +28,7 @@ fn every_core_signature_matches_the_accepted_rfc_table() {
     // owning inputs, borrowed results, and every operation-specific error.
     let expected: Vec<_> = include_str!("../../../tests/fixtures/core-signatures.txt")
         .lines()
+        .chain(include_str!("../../../tests/fixtures/source-intrinsic-signatures.txt").lines())
         .filter(|line| !line.starts_with('#') && !line.is_empty())
         .map(|line| {
             let mut fields = line.split('|');
@@ -88,6 +89,7 @@ fn signatures_record_result_provenance_and_concrete_argument_restrictions() {
         } else if operation.name().starts_with("vec_")
             || operation.name().starts_with("arena_")
             || operation.name().starts_with("option_")
+            || operation == Operation::Drop
         {
             &[T::Storable]
         } else {
