@@ -47,6 +47,7 @@ struct Thunk {
 pub struct NativeInvoker<'a> {
     context: &'a Context<'a>,
     thunks: Vec<Thunk>,
+    opaque: Option<Address>,
     _owner: OwnedJitModule,
 }
 impl<'a> NativeInvoker<'a> {
@@ -169,8 +170,24 @@ impl<'a> NativeInvoker<'a> {
         Ok(Self {
             context,
             thunks,
+            opaque: None,
             _owner: owner,
         })
+    }
+}
+impl<'a> NativeInvoker<'a> {
+    /// # Safety
+    /// In addition to new's callback contract, opaque is the complete live raw
+    /// C context for this exact gate, retained for every synchronous callback.
+    pub unsafe fn with_opaque(
+        context: &'a Context<'a>,
+        opaque: Address,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        // SAFETY: forwarded exact callback/code/user lifetime contract.
+        let mut invoker = unsafe { Self::new(context, limits)? };
+        invoker.opaque = Some(opaque);
+        Ok(invoker)
     }
 }
 impl Invoker for NativeInvoker<'_> {
@@ -181,10 +198,10 @@ impl Invoker for NativeInvoker<'_> {
         self.context.allocator_identity()
     }
     fn context(&self) -> Address {
-        Address {
+        self.opaque.unwrap_or(Address {
             start: (self.context as *const Context<'_>).addr(),
             extent: std::mem::size_of_val(self.context),
-        }
+        })
     }
     fn invoke(
         &mut self,

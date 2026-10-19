@@ -10,7 +10,7 @@ use lang_mir::unit as m;
 use lang_runtime::c_abi::{Target, context as gate};
 use std::ffi::c_void;
 
-mod raw;
+pub(crate) mod raw;
 pub use raw::{ImportBinding, ProgramConfig, with_context};
 
 pub type Create = unsafe extern "C" fn(*const ProgramConfig, *mut *mut c_void) -> u32;

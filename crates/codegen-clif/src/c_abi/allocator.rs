@@ -3,7 +3,7 @@
 //! exact sizes, OOM rollback and handle provenance stay in the shared allocator.
 use lang_runtime::allocation as a;
 use lang_runtime::c_abi::context::{AllocatorIdentity, Context, config::Allocator};
-use std::ptr::NonNull;
+use std::{marker::PhantomData, ptr::NonNull};
 
 pub struct CAllocator<'a> {
     identity: AllocatorIdentity,
@@ -27,9 +27,18 @@ impl<'a> CAllocator<'a> {
     /// request, matching exact deallocation, no unwind/reentry, and no retained
     /// alias to a published region. A null allocation is recoverable OOM.
     pub unsafe fn new(context: &'a Context<'a>) -> Result<Self, Error> {
+        // SAFETY: the public borrow additionally prevents context destruction.
+        unsafe { Self::owned(context) }
+    }
+    /// # Safety
+    /// Used only by the opaque owning context: this allocator and all its
+    /// regions must retire before that Context and its foreign code/user data.
+    /// The copied provider identity never borrows the movable Context address.
+    pub(crate) unsafe fn owned(context: &Context<'a>) -> Result<Self, Error> {
         let provider = Provider {
-            context,
+            context: context.allocator_identity(),
             descriptor: context.allocator(),
+            lifetime: PhantomData,
         };
         let inner =
             a::Allocator::new(provider, context.limits().allocation).map_err(Error::Allocation)?;
@@ -53,16 +62,17 @@ impl<'a> CAllocator<'a> {
 }
 
 pub struct Provider<'a> {
-    context: &'a Context<'a>,
+    context: AllocatorIdentity,
     descriptor: Allocator,
+    lifetime: PhantomData<&'a Context<'a>>,
 }
 impl lang_runtime::c_abi::context::scalar::ContextProvider for Provider<'_> {
     fn context_identity(&self) -> AllocatorIdentity {
-        self.context.allocator_identity()
+        self.context
     }
 }
 pub struct Region<'a> {
-    _context: &'a Context<'a>,
+    _context: PhantomData<&'a Context<'a>>,
     descriptor: Allocator,
     request: a::Request,
     pointer: NonNull<u8>,
@@ -101,7 +111,7 @@ impl<'a> a::Provider for Provider<'a> {
             pointer
         };
         Some(Region {
-            _context: self.context,
+            _context: PhantomData,
             descriptor: self.descriptor,
             request,
             pointer,

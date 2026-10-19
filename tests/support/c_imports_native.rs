@@ -6,6 +6,9 @@ use lang_codegen_clif::owned::{self as n, Runtime};
 use lang_mir::unit::{self as m, ownership as o};
 use lang_runtime::{cleanup as clean, layout as l};
 
+#[path = "c_exports_native.rs"]
+mod exports;
+
 type Ledger<'a> = clean::Frame<'a, usize, fn(&mut usize, clean::Reason) -> Result<(), u32>>;
 struct RuntimeState<'i, 'pool, 'layout, 'provider, 'control> {
     layout: &'layout n::FunctionLayout<'layout>,

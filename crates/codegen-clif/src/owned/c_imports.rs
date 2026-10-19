@@ -53,6 +53,7 @@ pub struct CCompiledProgram<'a> {
     program: CompiledProgram<'a>,
     artifact: abi::Digest,
     functions: Vec<Option<usize>>,
+    exports: Vec<Option<m::FunctionId>>,
 }
 impl<'a> CCompiledProgram<'a> {
     /// Compatibility spelling for the initial Rust embedding API. It now uses
@@ -113,6 +114,32 @@ impl<'a> CCompiledProgram<'a> {
                 None
             });
         }
+        let mut exports = budget
+            .vector(checked.functions().len())
+            .map_err(|e| CError::Codegen(Error::Resource(e)))?;
+        for metadata in checked.functions() {
+            exports.push(if metadata.direction == abi::Direction::Export {
+                Some(m::FunctionId(
+                    u32::try_from(
+                        declarations
+                            .functions()
+                            .iter()
+                            .position(|function| {
+                                function.abi == o::declarations::FunctionAbi::CExport
+                                    && function.name == metadata.name
+                            })
+                            .ok_or(CError::Profile {
+                                span: metadata.span,
+                            })?,
+                    )
+                    .map_err(|_| CError::Profile {
+                        span: metadata.span,
+                    })?,
+                ))
+            } else {
+                None
+            });
+        }
         let program =
             CompiledProgram::compile_scope(flow, layouts, limits, cells, CompileScope::CUnit)
                 .map_err(CError::Codegen)?;
@@ -120,7 +147,14 @@ impl<'a> CCompiledProgram<'a> {
             program,
             artifact: checked.digest(),
             functions,
+            exports,
         })
+    }
+    pub const fn artifact_digest(&self) -> abi::Digest {
+        self.artifact
+    }
+    pub fn exported_function(&self, index: usize) -> Option<m::FunctionId> {
+        self.exports.get(index).copied().flatten()
     }
     pub fn layout(&self, function: m::FunctionId) -> Option<&FunctionLayout<'a>> {
         self.program.layout(function)
@@ -176,6 +210,38 @@ impl<'a> CCompiledProgram<'a> {
         invoker: &mut dyn Invoker,
         instance: &mut RuntimeInstance<R>,
     ) -> Result<(), Failure> {
+        self.invoke_profile(
+            function,
+            session,
+            invoker,
+            instance,
+            o::declarations::FunctionAbi::Guest,
+        )
+    }
+    /// Called only after the generated C wrapper's complete Export gate.
+    pub(crate) fn invoke_export<R: Runtime>(
+        &self,
+        function: m::FunctionId,
+        session: &mut gate::Session<'_>,
+        invoker: &mut dyn Invoker,
+        instance: &mut RuntimeInstance<R>,
+    ) -> Result<(), Failure> {
+        self.invoke_profile(
+            function,
+            session,
+            invoker,
+            instance,
+            o::declarations::FunctionAbi::CExport,
+        )
+    }
+    fn invoke_profile<R: Runtime>(
+        &self,
+        function: m::FunctionId,
+        session: &mut gate::Session<'_>,
+        invoker: &mut dyn Invoker,
+        instance: &mut RuntimeInstance<R>,
+        abi: o::declarations::FunctionAbi,
+    ) -> Result<(), Failure> {
         let compiled = self.program.compiled(function).ok_or(Failure {
             function,
             reason: Reason::Runtime(c::Cause::Execution(c::ExecutionFailure::Invariant)),
@@ -210,7 +276,7 @@ impl<'a> CCompiledProgram<'a> {
             .declarations()
             .functions()[function.0 as usize]
             .abi
-            != o::declarations::FunctionAbi::Guest
+            != abi
         {
             return Err(reject(gate::Fault::new(gate::Kind::Function(
                 function.0 as usize,

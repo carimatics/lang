@@ -10,7 +10,9 @@
 
 明示的なsource panic（2026-10-19）：RFC 0008の`core::panic::<T>(code: i64)`は復帰せず、符号付きcode、元の呼び出しspan、guest stack、owner cleanupをVM／nativeで保持します。[例](examples/analysis/explicit_panic_owned.lang)と[version付き契約](docs/ja/rfcs/0014-explicit-source-panic.md)を参照してください。明示的panicを含むartifact unitはownership schema 3、従来のownership unitはschema 2を使います。引き続き実験的な実装です。
 
-Raw C context support（2026-10-19）：Rust埋め込みAPIの`lang_codegen_clif::c_abi::context::ContextSupport`は、登録済みProgram向けのprofile 1 create／destroy／last_error symbolを生成します。実C callerでdescriptorをコピーしたopaque contextを作成し、整数のerror summaryを照会・破棄できます。すべての呼び出しとcontext破棄が終わるまでsupport・登録code・allocator・callback user dataを保持してください。Source export実行とC対応object公開はF05です。
+Raw C context support（2026-10-19）：Rust埋め込みAPIの`lang_codegen_clif::c_abi::context::ContextSupport`は、登録済みProgram向けのprofile 1 create／destroy／last_error symbolを生成します。実C callerでdescriptorをコピーしたopaque contextを作成し、整数のerror summaryを照会・破棄できます。すべての呼び出しとcontext破棄が終わるまでsupport・登録code・allocator・callback user dataを保持してください。Native source exportの明示embedding入口は下記のF15です。C対応object公開はF05に維持します。
+
+Native C source export（2026-10-19 JST確認）：`lang_codegen_clif::c_abi::exports::NativeExports`と信頼する`ExportRuntime` factoryを`ContextSupport`／`CCompiledProgram`と共に保持すると、実C callerからsource increment／panic、bool／Unit、C callbackを実行できます。生成machine codeがsource bodyを実行し、callbackへ元のopaque contextを渡します。各contextが実C providerと累積quotaを保持し、失敗時はcaller resultを変更しません。`cargo test --test c_abi imports::native::exports`で実行・再入・quota／OOM・host panicを検証します。Factoryは型付きstorage／cleanupを実装する信頼されたhost部品です。汎用runtime同梱、aggregate／owner bodyのexport conformance、linked C object／standalone公開はF05に残ります。
 
 ## ビジョン
 
@@ -68,7 +70,7 @@ RFC 0008の`core::drop::<T>(value) -> core::Unit`でownerを即座に破棄し�
 
 Milestone 1のsource pipelineは複数fileのmodule、型付きfunctionと再帰、copy-only record／enum、網羅的pattern、検証済みportable bytecode、上限付きVM実行に対応しています。Source spanはanalysis、lowering、artifact、runtime stackまで保持されます。Formatterとstdio LSP prototypeは同じlossless parserとrevision付きmodule／診断databaseを使います。
 
-RFC 0008のC import／export宣言は、source checkから独立検証済みownership MIRまで型付きC識別を保持します。呼出しにはlexicalな`unsafe`が必要で、通常の型・move・loan・cleanup規則を維持します。不正なC署名／呼出しには`SRC0025`、従来`unsafe`という名前には移行`SRC0024`を示します。明示Rust context／binding APIで[scalar／Unit](examples/analysis/c_scalar_imports.lang)と[finite Copy aggregate import](examples/analysis/c_aggregate_imports.lang)をVM／native実行できます。Record、enum、入れ子Option／Result、core errorはfield単位でC値と変換し、実context allocatorを使用します。生成C11 headerでcallback署名も検査します。`cargo test --test c_abi imports::aggregate_c_imports_execute_records_and_sums_from_source`で確認できます。Raw C factory／export、C object公開、完全なnative packagingは未完成です。既定CLI／従来実行入口とschema 2 encodingは作用前にC unit全体を拒否します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-19 JST確認。
+RFC 0008のC import／export宣言は、source checkから独立検証済みownership MIRまで型付きC識別を保持します。呼出しにはlexicalな`unsafe`が必要で、通常の型・move・loan・cleanup規則を維持します。不正なC署名／呼出しには`SRC0025`、従来`unsafe`という名前には移行`SRC0024`を示します。明示Rust context／binding APIで[scalar／Unit](examples/analysis/c_scalar_imports.lang)と[finite Copy aggregate import](examples/analysis/c_aggregate_imports.lang)をVM／native実行できます。Record、enum、入れ子Option／Result、core errorはfield単位でC値と変換し、実context allocatorを使用します。生成C11 headerでcallback署名も検査します。`cargo test --test c_abi imports::aggregate_c_imports_execute_records_and_sums_from_source`で確認できます。Raw C context factoryとnative source exportの明示embedding入口は実装済みです（上記F15）。C object公開、完全なnative packagingとaggregate／owner bodyのexport conformanceは未完成です。既定CLI／従来実行入口とschema 2 encodingは作用前にC unit全体を拒否します。i64引数1個の従来`extern fn` host importの動作は維持します。2026-10-19 JST確認。
 
 必要な環境は `rust-toolchain.toml` で固定したRust `1.99.0` とrustfmt／Clippyです。補助tool versionが必要な場合は `mise` を使います。
 

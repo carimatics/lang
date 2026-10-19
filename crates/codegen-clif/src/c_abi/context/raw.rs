@@ -34,6 +34,8 @@ pub struct ImportBinding {
     pub flags: u64,
 }
 struct RawContext<'a> {
+    // Drop accounting/regions before the gate and its borrowed registration.
+    allocator: std::cell::RefCell<super::super::allocator::CAllocator<'a>>,
     program: &'a c::Program<'a>,
     context: c::Context<'a>,
 }
@@ -342,6 +344,30 @@ pub unsafe fn with_context<T>(
     let context = unsafe { context(program, pointer)? };
     operation(&context.context)
 }
+/// Internal export bridge. The gate must be entered before borrowing the
+/// allocator mutably; an imported callback can then refuse reentry atomically.
+/// # Safety
+/// Same live-context and synchronous no-destruction contract as with_context.
+pub(crate) unsafe fn with_allocator<'a, T>(
+    program: &'a c::Program<'a>,
+    pointer: *mut c_void,
+    operation: impl FnOnce(
+        &c::Context<'a>,
+        &std::cell::RefCell<super::super::allocator::CAllocator<'a>>,
+        v::Address,
+    ) -> Result<T, c::Fault>,
+) -> Result<T, c::Fault> {
+    // SAFETY: forwarded live opaque owner/lifetime contract.
+    let context = unsafe { context(program, pointer)? };
+    operation(
+        &context.context,
+        &context.allocator,
+        v::Address {
+            start: pointer.addr(),
+            extent: size_of::<RawContext<'_>>(),
+        },
+    )
+}
 pub(super) unsafe extern "C" fn create(
     program: *const c::Program<'_>,
     config: *const ProgramConfig,
@@ -356,7 +382,16 @@ pub(super) unsafe extern "C" fn create(
         let views = unsafe { views(program, config, output)? };
         let context = program.create(views.config())?;
         drop(views); // No caller descriptor/name borrow survives publication.
-        let pointer = Box::into_raw(Box::new(RawContext { program, context })).cast();
+        // SAFETY: this owning box drops the allocator before Context. Foreign
+        // callback/user lifetimes are the same admitted C create contract.
+        let allocator = unsafe { super::super::allocator::CAllocator::owned(&context) }
+            .map_err(|_| c::Fault::new(c::Kind::Allocation))?;
+        let pointer = Box::into_raw(Box::new(RawContext {
+            allocator: std::cell::RefCell::new(allocator),
+            program,
+            context,
+        }))
+        .cast();
         // SAFETY: output range is admitted, disjoint, writable and possibly
         // uninitialized. Publication is the final, infallible action.
         unsafe {

@@ -3,5 +3,6 @@
 //! the common runtime performs descriptor, capability and value validation.
 pub mod allocator;
 pub mod context;
+pub mod exports;
 mod padding;
 pub mod scalar;
