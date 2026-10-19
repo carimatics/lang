@@ -6,30 +6,29 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**109 done · 1 doing · 13 todo · 31 remaining pt**
+**112 done · 1 doing · 10 todo · 24 remaining pt**
 
 
 
-**Next: M2-V17 → bounded collection/shared/weak REPL previews (3 pt, in progress); P01/F07 await the full Windows baseline.**
+**Next: M2-P02 → package startup/runtime/context dependencies and prove clean-install link/run (3 pt, in progress).**
 
 | Next delivery | Latest completion | Required execution outcome |
 | --- | --- | --- |
-| V17: indirect previews under RFC 0016 | F06: native macOS headers/boundaries; **108 → 109 done, 33 → 31 pt** (adff5d9) | Vec index order, Map key order, shared custody, weak liveness, limits and cleanup verified through VM/REPL |
+| P02: production bootstrap/runtime distribution | V17/P01/F07: **109 → 112 done, 31 → 24 pt** | Link/run from an isolated distribution directory without hidden repository or target/deps dependencies |
 
-V17 checkpoints (existing 3 pt):
+P02 checkpoints (existing 3 pt):
 
-- [x] Smallest REPL experiment confirms Vec results are refused with pre-effect Unsupported.
-- [x] Follow-up [RFC 0016](rfcs/0016-indirect-repl-previews.md) accepted under delegation (c38a38e); arena escape remains forbidden.
-- [ ] Bounded read-only runtime formatting and VM connection.
-- [ ] Output/order/custody/liveness/failure-cleanup and CLI REPL evidence, then full baseline.
+- [x] Inspect the existing standalone fixture: it uses repository test source/Rust rlibs and regenerates metadata at startup; that alone is not production distribution evidence.
+- [ ] Run the smallest executable prototype to establish production bootstrap/runtime/C-context dependencies and the metadata preparation boundary. Decide any unspecified package contract in an RFC before implementation.
+- [ ] Generate the distribution and verify isolated clean-install link/run on both tier-1 hosts.
 
-P01/F07 verification wait (same combined 4 pt; implementation completion is separate from task completion):
+Completed in this scope:
 
-- [x] Native macOS: **1,523 tests / 89 suites**, zero failures, one manual timing test ignored. C ABI **71 / 17.02s**, native **66 / 279.31s**, native linker integration **2 / 0.62s**. fmt/Clippy (**18.56s**)/rustdoc (**14.42s**) pass. Implementation 0061045; Windows error-size fix **2cf38ca**. Summed suite duration 375.66s is not development time.
-- [x] [Windows run 39303961064](https://github.com/carimatics/lang/actions/runs/39303961064), head 69f8bec, job 118236068802: focused step passes **71 C ABI, 25 linker unit and 2 integration cases**, confirming the direct-LINK repair on the native host.
-- [ ] That run fails later Clippy `result_large_err` (Windows Failed variant: 140 bytes); full tests/rustdoc were skipped. 2cf38ca boxes the failed command. P01/F07 stay todo until a fresh repaired run completes all required checks. The terminal failed run is not restarted.
+- [x] **V17 (3 pt)**: implement RFC 0016's Vec, key-ordered Map, shared-payload and weak-liveness previews through VM/actual CLI, preserving arena escape rejection. Verify output/host-scratch bounds, custody, weak cycles, cleanup/reuse. Code: `72950d6`.
+- [x] **P01 (2 pt)/F07 (2 pt)**: verify direct LINK invocation, actionable toolchain/output errors and the compact Windows error on both native hosts. P01 code: `0061045`/`2cf38ca`. [Windows run 39306998513](https://github.com/carimatics/lang/actions/runs/39306998513), head `15a50bb`, job `118246548342`: formatting, focused C/linker checks, Clippy, full tests and rustdoc succeed. Required baseline completes at **2026-10-19 19:24:45 UTC**. The workflow itself is still recording the prototype benchmark; do not report workflow completion or count that as G17 Rust/C measurement evidence.
+- [x] **V17 macOS validation**: latest per-suite results total **1,529 tests / 89 suites**, zero failures, one manual timing test ignored. The first full workspace attempt fails only the legacy Vec-refusal fixture; after changing that test input to arena, `cargo test --workspace --exclude lang --all-targets --all-features` reruns the corrected suite and crates skipped by fail-fast. Production code is unchanged afterward; retain successful root/native evidence. C ABI **71 / 17.24s**, native **66 / 280.54s**, owned execution **155 / 5.94s**, REPL **28 / 0.20s**. fmt/Clippy (workspace **30.41s**, runtime after test correction **17.24s**)/rustdoc (**24.25s**) pass. Summed unique suite duration 377.91s is not development time.
 
-Original exit gates: **11/18** (historical weight 68/113). **113 is retired as an effort forecast.** Task counts are not equal units of effort or a milestone completion percentage. The [estimate ledger](#progress-and-estimate-changes) separates exposed work from completed estimates. Retire F06's 2 pt with **123 rows and +85 added pt unchanged**; retired estimates become **188 pt**. F07 remains open: the shared MSVC response-file fixture is repaired, but native Windows verification is pending.
+Original exit gates: **14/18** (historical weight 84/113). This scope audit closes G08 core/indirect previews and G11/G12 C boundaries/headers/target evidence. **113 is retired as an effort forecast.** Delivery counts are not a completion percentage. The [estimate ledger](#progress-and-estimate-changes) is **134 + 85 − 195 = 24 pt**. **123 rows and +85 added pt stay unchanged**; retire only the existing V17/P01/F07 7 pt. G15–G18 and final guide Z01 remain open.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -178,13 +177,13 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 109 (+74)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 112 (+77)**, and the task inventory increased **87 → 123 (+36)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +85 pt | −188 pt | 31 pt |
+| 134 pt | +85 pt | −195 pt | 24 pt |
 
-**134 + 85 − 188 = 31 pt**
+**134 + 85 − 195 = 24 pt**
 
 This separates delivered work from newly recognized work: completion retired 183 estimated points, while exposed prerequisites and re-estimation added 85. These are planning units, not hours or measured actual effort. The remaining 36 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
@@ -196,7 +195,7 @@ Current source capability: a zero-parameter i64 main executes Bytes/Text, arena 
 
 Readiness/split audit (2026-10-19 JST): the initial Bytes source returned 1 in the VM and exposed missing native allocator/Bytes binding. Public buffer APIs supply the storage operations; collections additionally need managed loan views. Split N03's 3 points into N11 allocator/Bytes/Text (initial 1, now done), N12 Vec (1), and N03 Map (1): **106 → 108 tasks**, **60 pt unchanged before the 1-point N11 delivery**. N05 retains configured service byte-work admission and depends on N11 before full exit conformance. RFC 0012 requires matching VM/native configured controls and rejecting unsupported configurations; the concrete service-work contract needs a documented design before implementation. Preserve all native/FFI/platform/conformance/performance/debug outcomes, V17 and Z01's bilingual guide.
 
-The original exit gates are **11 / 18 complete** after the core audit above. G08 indirect previews, G11/G12 complete C validity/exports and G15–G18 packaging/conformance/performance/debug remain open, together with final guide Z01.
+The current scope audit closes G08/G11/G12: original exit gates are **14 / 18 complete** (weight 84/113). V17 is proved by 72950d6; P01/F07 by the repaired 15a50bb Windows required baseline. G15–G18 packaging/conformance/performance/debug and final guide Z01 remain open.
 
 This is the authoritative implementation Todo list. The roadmap retains the original acceptance gates and their historical weights. Counts measure independently verified deliveries, not equal amounts of work. Remaining points are a provisional bottom-up estimate, with low confidence for native/C/platform integration; they are not hours or a completion forecast. Completed work is not assigned retrospective effort points. A done row has zero *remaining* points.
 
@@ -307,7 +306,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-V16 | done | 0 | M2-V14,M2-V08,M2-V09 | G08 | Execute a named zero-argument owned result with bounded managed preview and complete result retirement; source fixture and failure evidence. | `040c082` |
 | M2-V15 | done | 0 | M2-V14 | G08 | Infer the generated ownership expression wrapper's concrete result through normal HIR/MIR move/loan/region checks without adding user function inference. | `3ecef3b` |
 | M2-V10 | done | 0 | M2-V08,M2-V09,M2-V15,M2-V16 | G08 | REPL ownership items/expressions, explicit allocator authority, source-mapped failures and cleanup-isolated canonical results match the script execution semantics. | `834abe8` |
-| M2-V17 | doing | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | Decide an explicit follow-up and implement bounded indirect-service result previews, preserving Map order and shared/weak/arena access constraints; VM/REPL evidence. | — |
+| M2-V17 | done | 0 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | Decide an explicit follow-up and implement bounded indirect-service result previews, preserving Map order and shared/weak/arena access constraints; VM/REPL evidence. | `72950d6` |
 | M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | Simultaneous Copy/affine CFG arguments execute through bounded admitted snapshots; cycle/fan-out/enum/owner oracles, loan rebinding, cell/quota/OOM and fuel cleanup verified. | `1dcf260` |
 
 ## Shared, arenas and collections
@@ -355,7 +354,7 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-F16 | done | 0 | M2-F15,M2-N05 | G12 | Real C calls aggregate source exports with typed transfer/return escrow and owner/guest-call body runtime/cleanup integration. | 4158655 |
 | M2-F05 | done | 0 | M2-F16 | G12 | Complete linked C object/bootstrap/runtime integration under an explicit private bridge contract and verify accepted exports through real link/run. | `c0eee9a` |
 | M2-F06 | done | 0 | M2-F05 | G11,G12 | Independently compile headers and run boundary-validity fixtures on native macOS. | `adff5d9` |
-| M2-F07 | todo | 2 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | — |
+| M2-F07 | done | 0 | M2-F06 | G11,G12 | Run matching C-boundary fixtures on native Windows; record successful CI evidence. | `15a50bb` |
 
 ## Native, packaging and final evidence
 
@@ -380,8 +379,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-N19 | done | 0 | M2-N05 | G14 | Bind a trusted linked image with its code owner to the checked owned program gateway; execute real linked owned code. | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOS owned programs pass direct/response-file object link/run conformance. | `25de18a` |
 | M2-N07 | done | 0 | M2-N06 | G14 | Native Windows passes matching owned programs; record successful CI evidence. | `119f9ff` |
-| M2-P01 | todo | 2 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | — |
-| M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
+| M2-P01 | done | 0 | M2-N06 | G15 | Linker discovery/output-path failures produce actionable diagnostics on both tier-1 platforms. | `2cf38ca` |
+| M2-P02 | doing | 3 | M2-P01,M2-N07,M2-F05 | G15 | Package startup/runtime/context dependencies; clean-install link/run succeeds. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
 | M2-B01 | todo | 2 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | — |

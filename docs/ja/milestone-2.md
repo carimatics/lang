@@ -6,30 +6,29 @@
 
 更新・確認日：**2026-10-20 JST**。初回監査の基準commit：`0c2c012`。
 
-**109 done · 1 doing · 13 todo · 31 remaining pt**
+**112 done · 1 doing · 10 todo · 24 remaining pt**
 
 
 
-**次: M2-V17 → collection／shared／weakの有限REPL表示（3 pt、進行中）。P01／F07はWindows全検証待ちです。**
+**次: M2-P02 → startup／runtime／context依存をまとめた配布物とclean-install link/run（3 pt、進行中）。**
 
 | 次の成果 | 直近の完了 | 必須の実行結果 |
 | --- | --- | --- |
-| V17：RFC 0016に基づく間接値preview | F06：native macOSのheader／境界。**完了108 → 109件、残り33 → 31 pt**（adff5d9） | Vecの添字順、Mapのキー順、shared custody、weak生存状態、表示上限とcleanupをVM／REPLで確認 |
+| P02：実際の配布用bootstrap／runtime | V17／P01／F07：**完了109 → 112件、残り31 → 24 pt** | リポジトリやtarget/depsへの隠れた依存がない、別directoryの配布物からのlink/run |
 
-V17の確認点（既存3 pt内）：
+P02の確認点（既存3 pt内）：
 
-- [x] 最小REPL実験で、Vec結果が効果前のUnsupportedで拒否されることを確認。
-- [x] 後続[RFC 0016](rfcs/0016-indirect-repl-previews.md)を委任に基づきaccepted（c38a38e）。arena脱出禁止を維持。
-- [ ] 読み取り専用の有限runtime表示とVM接続。
-- [ ] 出力・順序・custody・生存状態・失敗cleanupとCLI REPLの証拠、全baseline。
+- [x] 既存standalone fixtureの依存を調査。Repo内test source／Rust rlibを使い、起動時にmetadataを再生成しているため、それだけでは配布完了の証拠になりません。
+- [ ] 最小の実行実験でproduction bootstrap／runtime／C context依存とmetadata準備の境界を具体化。未規定のpackage契約は実装前にRFCで判断。
+- [ ] 配布物を生成し、隔離したdirectoryからclean-install link/runを両tier-1で検証。
 
-P01／F07の検証待ち（合計4 ptは維持。P01の実装完了とtask完了は区別）：
+今回完了した成果：
 
-- [x] Native macOS：**1,523 tests / 89 suites**、失敗0、手動timingのみ1件ignored。C ABI **71件／17.02秒**、native **66件／279.31秒**、native linker integration **2件／0.62秒**。fmt／Clippy（**18.56秒**）／rustdoc（**14.42秒**）成功。実装0061045、Windows error縮小修正 **2cf38ca**。suite時間合計375.66秒は開発時間ではありません。
-- [x] [Windows run 39303961064](https://github.com/carimatics/lang/actions/runs/39303961064)、head69f8bec、job118236068802：重点stepで **C ABI 71件、linker unit 25件、integration 2件成功**。LINK直呼び修正を実機で確認。
-- [ ] 同runは後続Clippyの `result_large_err`（WindowsのFailed variantが140 bytes）で失敗し、全test／rustdocは未実行。2cf38caで失敗時のcommandをBox化しました。修正版の新run全体で確認するまでP01／F07をtodoに保ちます。失敗済みrun自体は再起動しません。
+- [x] **V17（3 pt）**：RFC 0016を実装。Vec、キー順Map、shared内容、weak生存状態をVM／実CLIで表示し、arena脱出禁止を維持。出力／host作業領域の境界、custody、weak cycle、cleanup／再利用を検証。Code：`72950d6`。
+- [x] **P01（2 pt）／F07（2 pt）**：LINK直呼び、具体的なtoolchain／output失敗診断とWindows error縮小修正を両native hostで確認。P01 code：`0061045`／`2cf38ca`。[Windows run 39306998513](https://github.com/carimatics/lang/actions/runs/39306998513)、head `15a50bb`、job `118246548342` はfmt、重点C／linker、Clippy、全test、rustdocが成功。必須baselineは **2026-10-19 19:24:45 UTC** に完了。Workflow自体はprototype benchmarkを実行中であり、workflow完了とは記録しません。これはG17のRust／C測定証拠でもありません。
+- [x] **V17 macOS検証**：最新suite結果を統合して **1,529 tests / 89 suites** 成功、失敗0、手動timingのみ1件ignored。初回全workspace実行は旧Vec拒否fixtureだけが失敗し、test入力をarenaへ修正後、`cargo test --workspace --exclude lang --all-targets --all-features`で修正suiteと停止後の未実行crateを再実行しました。以降production codeは不変で、成功済みroot／native証拠は保持。C ABI **71件／17.24秒**、native **66件／280.54秒**、owned実行 **155件／5.94秒**、REPL **28件／0.20秒**。fmt／Clippy（全workspace **30.41秒**、test修正後runtime **17.24秒**）／rustdoc（**24.25秒**）成功。重複を除くsuite時間合計377.91秒は開発時間ではありません。
 
-元のMilestone完了条件は **11/18**（過去の重み68/113）。**113 ptは工数予測としての使用を取りやめています。** 成果件数は同じ工数の単位でもMilestoneの完成率でもありません。[見積もり収支](#進捗と見積もり変更)で判明した作業と完了見積もりを分けます。F06の2 ptを完了し、**123行・追加85点は不変**、完了で取り除いた見積もりは **188点** です。共有MSVC response-file fixtureは修正しましたが、native Windows確認は未完了のためF07を維持します。
+元のMilestone完了条件は **14/18**（過去の重み84/113）。今回のscope監査でG08のcore／間接preview、G11／G12のC境界／header／target証拠を完了としました。**113 ptは工数予測としての使用を取りやめています。** 成果件数も完成率ではありません。[見積もり収支](#進捗と見積もり変更)は **134 + 85 − 195 = 24 pt**。**123行・追加85点は不変**で、既存V17／P01／F07の7 ptだけを取り除きました。G15–G18と最終guide Z01は未完了です。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -178,13 +177,13 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 109件（+74件）**、作業一覧は **87 → 123件（+36件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 112件（+77件）**、作業一覧は **87 → 123件（+36件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +85 pt | −188 pt | 31 pt |
+| 134 pt | +85 pt | −195 pt | 24 pt |
 
-**134 + 85 − 188 = 31 pt**
+**134 + 85 − 195 = 24 pt**
 
 完了した作業と新たに判明した作業を分離しました。完了により見積もり183点分を取り除く一方、前提作業の可視化と再見積もりで85点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り36点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
@@ -196,7 +195,7 @@ N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**�
 
 実装前・分割監査（2026-10-19 JST）：初回Bytes sourceはVMで1を返し、native allocator／Bytes接続の不足を確認しました。公開buffer APIがstorage操作を提供し、collectionには別途managed loan viewが必要です。N03の3点をN11 allocator／Bytes／Text（初期1点、今回完了）、N12 Vec（1点）、N03 Map（1点）へ分割しました。**106 → 108 task**、**N11の1点完了前の残り60点は不変** です。N05は設定可能なservice byte-work admissionを引き続き含み、exit conformance全体の前提としてN11に依存します。RFC 0012はVM／nativeで設定済み制御を一致させ、未対応設定を拒否することを要求します。具体的なservice-work契約は実装前に設計文書で定義する必要があります。Native／FFI／platform／conformance／performance／debug全要件、V17、Z01の英日guideを維持します。
 
-従来の完了条件は、上記core監査後 **18件中11件完了** です。G08の間接preview、G11／G12のC validity／export全体、G15–G18のpackaging／conformance／性能／debugと最終guide Z01を維持します。
+現在のscope監査でG08／G11／G12を完了とし、従来の完了条件は **18件中14件完了**（重み84/113）です。V17は72950d6、P01／F07は修正済み15a50bbのWindows必須baselineを根拠とします。G15–G18のpackaging／conformance／性能／debugと最終guide Z01は未完了です。
 
 この文書を実装Todoの正本とします。Roadmapには従来の受入条件とその履歴上の重みを残します。件数は独立して検証した成果の数であり、各件の作業量が等しいという意味ではありません。残りpointは積み上げによる暫定見積もりで、native／C／platform統合の確度は低く、時間や完成時期の予測ではありません。完了済み作業に後付けのeffort pointは与えません。完了行の *残り* pointは0です。
 
@@ -307,7 +306,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-V16 | done | 0 | M2-V14,M2-V08,M2-V09 | G08 | Namedな引数なしowned resultを上限付きmanaged previewとresult全retirementで実行し、source fixtureと失敗根拠を示す。 | `040c082` |
 | M2-V15 | done | 0 | M2-V14 | G08 | 生成ownership式wrapperの具体的resultを通常のHIR／MIR move／loan／region検証越しに推論し、user関数の推論は追加しない。 | `3ecef3b` |
 | M2-V10 | done | 0 | M2-V08,M2-V09,M2-V15,M2-V16 | G08 | REPL ownership item／式、明示allocator authority、元sourceへのfailure mapping、cleanupで分離したcanonical resultをscript実行意味論へ統合。 | `834abe8` |
-| M2-V17 | doing | 3 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | 明示follow-upを判断してindirect-service resultの上限付きpreviewを実装し、Map順序とshared／weak／arena access制約を維持。VM／REPL根拠を示す。 | — |
+| M2-V17 | done | 0 | M2-V14,M2-V16,M2-V10,M2-C03,M2-C06,M2-C07,M2-R04,M2-R06 | G08 | 明示follow-upを判断してindirect-service resultの上限付きpreviewを実装し、Map順序とshared／weak／arena access制約を維持。VM／REPL根拠を示す。 | `72950d6` |
 | M2-V11 | done | 0 | M2-V06 | G08,G14,G16 | 上限付きadmission済みsnapshotでCopy／affine CFG argumentを同時転送。Cycle／fan-out／enum／owner oracle、loan再束縛、cell／quota／OOM、fuel cleanupを検証。 | `1dcf260` |
 
 ## Shared、arena、collection
@@ -355,7 +354,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-F16 | done | 0 | M2-F15,M2-N05 | G12 | 実Cからaggregate source exportを呼び、typed transfer／return escrowとowner／guest call bodyのruntime／cleanup接続を完成する。 | 4158655 |
 | M2-F05 | done | 0 | M2-F16 | G12 | 明示private bridge契約でlinked C object／bootstrap／runtime統合を完成し、受理済みexportを実link／runで検証する。 | `c0eee9a` |
 | M2-F06 | done | 0 | M2-F05 | G11,G12 | Headerを独立compileし、native macOSで境界validity fixtureを実行。 | `adff5d9` |
-| M2-F07 | todo | 2 | M2-F06 | G11,G12 | Native Windowsで対応するC境界fixtureを実行し、成功CI evidenceを記録。 | — |
+| M2-F07 | done | 0 | M2-F06 | G11,G12 | Native Windowsで対応するC境界fixtureを実行し、成功CI evidenceを記録。 | `15a50bb` |
 
 ## Native、packaging、最終evidence
 
@@ -380,8 +379,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-N19 | done | 0 | M2-N05 | G14 | Linked imageの寿命を保持した信頼済みbindingと既存gatewayによるowned program実行を、実objectで検証する。 | `d53aac0` |
 | M2-N06 | done | 0 | M2-N03,M2-N04,M2-N05,M2-N19 | G14 | Native macOSでowned programのdirect／response-file object link／runを検証。 | `25de18a` |
 | M2-N07 | done | 0 | M2-N06 | G14 | Native Windowsで対応owned programを実行し、成功CI evidenceを記録。 | `119f9ff` |
-| M2-P01 | todo | 2 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | — |
-| M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05 | G15 | Startup／runtime／context依存をpackage化し、clean installでlink／run成功。 | — |
+| M2-P01 | done | 0 | M2-N06 | G15 | 両tier-1でlinker discovery／出力path失敗に対処可能な診断を返す。 | `2cf38ca` |
+| M2-P02 | doing | 3 | M2-P01,M2-N07,M2-F05 | G15 | Startup／runtime／context依存をpackage化し、clean installでlink／run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | 両tier-1 CIで代表conformanceとresource-limit scenarioの成功を記録。 | — |
 | M2-B01 | todo | 2 | M2-Q01 | G17 | 同等Rust／C workloadとharnessで比較前に意味的一致を確認。 | — |

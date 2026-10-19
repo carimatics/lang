@@ -8,13 +8,13 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**109 verified deliveries · 1 in progress · 13 remaining tasks (provisional 31 pt).**
+**112 verified deliveries · 1 in progress · 10 remaining tasks (provisional 24 pt).**
 
 | Next delivery | Latest verified outcome | Milestone exit |
 | --- | --- | --- |
-| V17: indirect REPL previews (RFC 0016, c38a38e); P01/F07 full Windows baseline pending | F06: native macOS headers/boundaries (adff5d9); **108 → 109 deliveries, 33 → 31 remaining pt** | **11/18 gates**, historical weight 68/113 (60.2%) |
+| P02: startup/runtime/context distribution and isolated clean install | V17/P01/F07: **109 → 112 deliveries, 31 → 24 remaining pt** (72950d6, 2cf38ca, 15a50bb) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Next: implement V17 collection/shared/weak previews.** P01 passes all 1,523 macOS tests. Windows run 39303961064 passes 71 C ABI and two linker integration cases, then fails Clippy on error size. 2cf38ca repairs that issue; P01/F07 stay todo pending the fresh full run. Switch the active implementation within the same 31 pt; no tasks or estimates are added.
+**Next: implement the P02 production distribution.** V17 completes bounded collection/shared/weak REPL previews. Windows run 39306998513 (head 15a50bb, job 118246548342) passes formatting/focused C-linker/Clippy/full tests/rustdoc by 2026-10-19 19:24:45 UTC; the workflow is still recording the prototype benchmark. Required-baseline evidence closes G08/G11/G12. Mac V17 results total 1,529 tests/89 suites after rerunning the corrected legacy Vec-refusal fixture. Retire the existing 7 pt; no tasks or estimates are added.
 
 113 measures fixed exit-gate weights; it is retired as an effort forecast. Delivery counts depend on task size and are not a completion percentage. The [delivery board](milestone-2.md) is the source for current Todo states, estimate changes, execution evidence, validation times and source dates (updated/verified 2026-10-20 JST). Its first view separates current work, the latest completed outcome and the original exit gates; historical reports are collapsed there.
 
@@ -48,13 +48,13 @@ Exit-gate weight snapshot verified on 2026-10-19 (JST). Overall arithmetic aggre
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 68 pt | 113 pt | 60.2% |
+| 2 — ownership and native AOT | 84 pt | 113 pt | 74.3% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **366 pt** | **764 pt** | **47.9%** |
+| **Overall** | **382 pt** | **764 pt** | **50.0%** |
 
 ## Milestone 0: design baseline
 
@@ -230,7 +230,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 11 / 18 complete; historical weight: 68 / 113 pt (60.2%).**
+**Exit gates: 14 / 18 complete; historical weight: 84 / 113 pt (74.3%).**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -243,11 +243,11 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Implement RFC 0004 lexical arenas, escape rejection, stale-reference checks, and deterministic teardown with compile-fail and runtime tests.** — 5 pt
 - [x] **P0 — Elaborate deterministic drops using accepted return, error, and panic cleanup rules.** — 8 pt
 - [x] **P0 — Implement RFC 0007 Text/Bytes source operations, UTF-8 validation, checked indices, and allocator-preserving conversions.** — 5 pt
-- [ ] **P0 — Implement RFC 0007 Unit/Option/Result and finite built-in specializations needed by core source operations.** — 3 pt
+- [x] **P0 — Implement RFC 0007 Unit/Option/Result and finite built-in specializations needed by core source operations.** — 3 pt
 - [x] **P0 — Implement the RFC 0007 allocator-aware Vec source operations with move, loan, growth, and failure conformance.** — 5 pt
 - [x] **P0 — Implement the RFC 0007 allocator-aware Map source operations with exact key equality and replacement/failure conformance.** — 3 pt
-- [ ] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
-- [ ] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
+- [x] **P0 — Define narrow unsafe boundaries and enforce FFI validity rules.** — 5 pt
+- [x] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
 - [x] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
 - [x] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
 - [ ] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt

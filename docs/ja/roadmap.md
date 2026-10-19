@@ -8,13 +8,13 @@
 
 ## 現在のM2実装状況
 
-**検証済み109件 · 進行中1件 · 残り13件（暫定31 pt）。**
+**検証済み112件 · 進行中1件 · 残り10件（暫定24 pt）。**
 
 | 次の成果 | 直近の検証済み成果 | Milestone完了条件 |
 | --- | --- | --- |
-| V17：間接値REPL表示（RFC 0016、c38a38e）。P01／F07はWindows全検証待ち | F06：native macOSのheader／境界（adff5d9）。**完了108 → 109件、残り33 → 31 pt** | **11/18条件**。過去の重み68/113（60.2%） |
+| P02：startup／runtime／contextの配布物と隔離clean-install | V17／P01／F07：**完了109 → 112件、残り31 → 24 pt**（72950d6、2cf38ca、15a50bb） | **14/18条件**。過去の重み84/113（74.3%） |
 
-**次：V17のcollection／shared／weak previewを実装します。** P01のmacOS全1,523 testは成功。Windows run 39303961064はC ABI 71件とlinker integration 2件が成功し、その後のClippyでerror sizeの問題が判明しました。2cf38caで修正し、新run全体の証拠を待つ間はP01／F07をtodoに置きます。元の31 pt内で実装の対象だけを切り替え、task／見積もりは追加しません。
+**次：P02のproduction配布物を実装します。** V17は有限のcollection／shared／weak REPL表示を完了。P01／F07のWindows run 39306998513（head15a50bb、job118246548342）はfmt／重点C・linker／Clippy／全test／rustdocを2026-10-19 19:24:45 UTCまでに成功し、workflow自体はprototype benchmarkを実行中です。必須baselineの完了を根拠としてG08／G11／G12を閉じます。MacのV17検証は旧Vec拒否fixture修正後の再実行を統合して1,529 tests／89 suites成功。既存7 ptを完了し、task／見積もりを追加しません。
 
 113は固定された完了条件の重みで、工数予測としての使用は取りやめています。成果件数はtask粒度に依存し、完成率ではありません。[詳細Todo](milestone-2.md)に現在の状態、見積もりの変更、実行証拠、検証時間、情報源の日付を集約します（2026-10-20 JST更新・確認）。先頭で作業中・直近の完了成果・元のMilestone完了条件を区別し、過去のreportはそこで折りたたみます。
 
@@ -48,13 +48,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 68 pt | 113 pt | 60.2% |
+| 2 — ownershipとnative AOT | 84 pt | 113 pt | 74.3% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **366 pt** | **764 pt** | **47.9%** |
+| **全体** | **382 pt** | **764 pt** | **50.0%** |
 
 ## Milestone 0：設計baseline
 
@@ -230,7 +230,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中11件完了、履歴上の重み：68 / 113 pt（60.2%）。**
+**完了条件：18件中14件完了、履歴上の重み：84 / 113 pt（74.3%）。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -243,11 +243,11 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — RFC 0004のlexical arena、escape拒否、stale-reference確認、deterministic teardownをcompile-fail／runtime test付きで実装する。** — 5 pt
 - [x] **P0 — 受理済みのreturn／error／panic cleanup規則に従ってdeterministic dropをelaborateする。** — 8 pt
 - [x] **P0 — RFC 0007のText／Bytes source operation、UTF-8検証、checked index、allocatorを保持する変換を実装する。** — 5 pt
-- [ ] **P0 — Core source operationに必要なRFC 0007のUnit／Option／Resultと有限built-in specializationを実装する。** — 3 pt
+- [x] **P0 — Core source operationに必要なRFC 0007のUnit／Option／Resultと有限built-in specializationを実装する。** — 3 pt
 - [x] **P0 — RFC 0007のallocator-aware Vec source operationをmove／loan／growth／failure conformance付きで実装する。** — 5 pt
 - [x] **P0 — RFC 0007のallocator-aware Map source operationを厳密key equalityとreplacement／failure conformance付きで実装する。** — 3 pt
-- [ ] **P0 — 狭いunsafe boundaryを定義し、FFI validity ruleを強制する。** — 5 pt
-- [ ] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
+- [x] **P0 — 狭いunsafe boundaryを定義し、FFI validity ruleを強制する。** — 5 pt
+- [x] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
 - [x] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
 - [x] **P0 — macOS AArch64／Windows x86-64向けownership-aware source-program object generationとnative link／run conformanceを完成させる。** — 8 pt
 - [ ] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
