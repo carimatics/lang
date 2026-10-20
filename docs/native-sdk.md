@@ -4,7 +4,7 @@
 
 [日本語版](ja/native-sdk.md)
 
-Updated/verified: 2026-10-20 JST. RFC 0020 is implemented: SDK assembly, public linking and both-host isolated installation are complete. See the [M2 capability guide and exit audit](milestone-2-capabilities.md) for exact workflows, native-host evidence and limits.
+Updated/verified: 2026-10-20 JST. RFC 0020 is implemented: SDK assembly, public linking and both-host isolated installation are complete. See the [M2 capability guide and exit audit](https://github.com/carimatics/lang/blob/e12c120/docs/milestone-2-capabilities.md) for exact workflows, native-host evidence and limits.
 
 Build on macOS AArch64 or Windows x86-64 in an MSVC developer environment, with Python 3, the pinned Rust toolchain, native linker and C11 compiler:
 

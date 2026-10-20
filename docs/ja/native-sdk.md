@@ -4,7 +4,7 @@
 
 [English](../native-sdk.md)
 
-更新・確認：2026-10-20 JST。RFC 0020はimplementedで、SDK組立・公開link・両hostの隔離installが完了しています。正確な手順・native hostの証拠・制約は[M2 capability guideと出口監査](milestone-2-capabilities.md)にまとめています。
+更新・確認：2026-10-20 JST。RFC 0020はimplementedで、SDK組立・公開link・両hostの隔離installが完了しています。正確な手順・native hostの証拠・制約は[M2 capability guideと出口監査](https://github.com/carimatics/lang/blob/e12c120/docs/ja/milestone-2-capabilities.md)にまとめています。
 
 macOS AArch64またはMSVC developer環境のWindows x86-64で、Python 3、固定Rust toolchain、native linker、C11 compilerを用意します。
 
