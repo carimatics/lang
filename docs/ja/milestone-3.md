@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**4 done · 1 doing · 36 todo · 104 remaining pt**
+**5 done · 1 doing · 35 todo · 102 remaining pt**
 
-**次: M3-T10 → task MIR 前に suspension 時の lexical loan 不在を証明します。**
+**次: M3-T04 → source VM fixture 前に task MIR の scope/suspension/所有権 edge を独立検証します。**
 
-現在の作業: **M3-T10**。直近の実行検証: **`390e3ca`、2026-10-21 03:08 JST**。resolved async effect、Task/TaskError 型、move 検査、有界 lexical claim provenance を実装し、追加 14 件と既存 module/CLI/REPL/LSP 検証が成功しました。全 baseline は **97 suite / 成功 1,641 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、11 fuzz target の compile/lint も成功。T10 の残る受入条件: await/yield/cancel_check/暗黙 join で生存 shared/exclusive loan を拒否し、loan 起点/suspension span を保持し、終了する lexical loan を join 前に終え、入れ子 join では外側 loan を維持します。妥当な task source も SRC0026 を受けます。task MIR/source 実行と M3 ゲートは未完了です。
+現在の作業: **M3-T04**。直近の実行検証: **`9f7012d`、2026-10-21 03:29 JST**。source claim と lexical suspension loan の証明を実行昇格なしで結合しました。追加 11 件で明示/暗黙 point での両 loan 種、一時引数、return/失敗 edge、reborrow/unsafe、branch/loop/pattern 状態、資源上限、旧 MIR の拒否を検証しました。全 baseline は **98 suite / 成功 1,652 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、11 fuzz target の compile/lint も成功。T04 の残る受入条件: 独立 task MIR の effect/type/scope、suspension continuation、所有権/cleanup edge、不正入力検証。必要な MIR 証明と execution adapter の接続までは SRC0026 を維持します。source task 実行と M3 ゲートは未完了です。
 
-**今回: T09 完了（−3 pt）、新しい作業/見積りの追加なし。** 前回残り **107 − 3 = 104 pt**。全 **41 行**、累積消化 **11 pt** と追加見積り **+5 pt** は別に記録します。
+**今回: T10 完了（−2 pt）、新しい作業/見積りの追加なし。** 前回残り **104 − 2 = 102 pt**。全 **41 行**、累積消化 **13 pt** と追加見積り **+5 pt** は別に記録します。
 
 ## Deliveries
 
@@ -24,8 +24,8 @@
 | M3-T02 | done | 0 | M3-T01 | G03,G12 | ホスト駆動の上限付きタスク木で join、協調取消、子から親への retirement を実行 | `a543d23` |
 | M3-T03 | done | 0 | M3-T01 | G01,G03 | source async 契約を採択し lossless parse/recovery/format で task 構文を保持 | `0655939` |
 | M3-T09 | done | 0 | M3-T03 | G03 | async call と scope 付き task handle を bind/type し、逸出と不正 async C surface を拒否 | `390e3ca` |
-| M3-T10 | doing | 2 | M3-T09 | G03 | suspension を跨ぐ shared/exclusive loan を両方の起点の診断付きで拒否 | — |
-| M3-T04 | todo | 3 | M3-T10 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | — |
+| M3-T10 | done | 0 | M3-T09 | G03 | suspension を跨ぐ shared/exclusive loan を両方の起点の診断付きで拒否 | `9f7012d` |
+| M3-T04 | doing | 3 | M3-T10 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | — |
 | M3-T06 | todo | 3 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | — |
 | M3-T07 | todo | 3 | M3-T06 | G03 | 所有 local、入れ子の取消、主/副失敗、exactly-once cleanup を検証 | — |
@@ -82,11 +82,15 @@ T09 を `390e3ca` で完了（2026-10-21 JST）: resolved async effect、Task/Ta
 
 T09 roadmap 監査: 全 15 gate と P1 成果は引き続き必要です。既存 lexical loan engine と有界 task driver を使い **T10 → T04 → T05 → T06** を進めます。次の source fixture 前に scheduler/IDL 基盤を追加しません。source task 実行、独立 MIR 証明、native parity は未証明です。
 
-**110 + 5 − 11 = 104 pt**
+T10 を `9f7012d` で完了（2026-10-21 JST）: lexical loan engine が task expression/scope を扱い、await/yield/cancel_check/暗黙 join で生存 shared/exclusive loan を SRC0028 と loan 起点付きで拒否します。制御フローの合流で状態が捨てられる前に return/失敗 edge を検査し、終了する lexical loan を自身の join 前に終え、入れ子 join では外側 loan を維持します。spawn/cancel は suspension point ではありません。TaskLoans に不変の source claim/loan 証明を結合します。妥当な source も SRC0026 を受け、pure async と Task 値を使う source の両方を旧 ownership MIR 境界で拒否します。追加 11 件と既存の関連 47 件で規則、call 引数順、一時 loan の終了、reborrow、unsafe、branch/loop/pattern、source identity、work/allocation/depth/loan/diagnostic 上限を検証しました。全 baseline は **98 suite / 成功 1,652 / 失敗 0 / 既存 timing ignore 1**、suite 時間合計 **440.07s**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が成功しました。fuzz campaign や source task 実行は主張しません。T10 の最後の 2 pt を消化し、追加/再見積りはありません。
+
+source 前提 T09/T10 の 2 件完了後の roadmap 監査: source claim/loan は必要ですが G03 の証明ではありません。既存 MIR の ownership declaration/body 検証は別の境界です。T04 は HIR 証明を MIR 証明として扱わず、実際の task scope/suspension/所有権 edge と独立検証を追加します。最初の source VM fixture と native parity へ **T04 → T05 → T06** を進め、間に scheduler/IDL framework を追加しません。全 15 gate、全 P1 成果、現在の transfer/ABI/format 制限を維持します。
+
+**110 + 5 − 13 = 102 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +5 pt | −11 pt | 104 pt |
+| 110 pt | +5 pt | −13 pt | 102 pt |
 
 ## Exit audit
 
@@ -100,3 +104,4 @@ T09 roadmap 監査: 全 15 gate と P1 成果は引き続き必要です。既�
 - [RFC 0022](rfcs/0022-source-structured-tasks.md)、最終更新 2026-10-21。syntax/module admission/REPL/CLI・LSP fixture を `0655939` で 2026-10-21 JST に確認。grammar/formatter 契約と現在の実行制限は同 RFC に区別して記録しています。
 
 - T09 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、`crates/hir/src/tasks.rs`、`crates/semantics/tests/tasks.rs`。最終更新 2026-10-21。`390e3ca` を 2026-10-21 JST に検証しました。
+- T10 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、`crates/hir/src/loans.rs`、`crates/hir/src/tasks.rs`、`crates/semantics/tests/task_loans.rs`。最終更新 2026-10-21、`9f7012d` を 2026-10-21 JST に確認しました。MIR 境界監査は `crates/mir/src/unit/ownership/declarations.rs` と `bodies.rs` に基づきます。埋込み更新日の記載はなく、同じ checkpoint/日付で確認しました。
