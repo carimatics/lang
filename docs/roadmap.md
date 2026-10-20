@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**121 verified deliveries · 1 in progress · 11 remaining tasks (provisional 27 pt).**
+**122 verified deliveries · 1 in progress · 10 remaining tasks (provisional 24 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P12: exact-toolchain public link-native | **P07 complete**: matching native SDK assembly (`3080d9e`) | **14/18 gates** |
+| P02: isolated SDK installation on both tier-1 hosts | **P12 complete**: public link-native (`4acd99f`) | **14/18 gates** |
 
-**Latest checkpoint (2026-10-20 12:31 JST):** SDK assembly retains exact Cargo-selected Rust/proc-macro/native dependencies, compiler permissions and bounded verified file tables, with exclusive publication. All packaged Copy/owned/real-C startup templates link/run with only SDK dependencies after source removal. Release SDK assembly and owned 42 pass; abort SDK publication is refused under the clarified unwind policy. Mac **1,577 tests / 93 suites**, 0 final failures, 1 manual test ignored, reconciled against every current Cargo test executable after repairing manual-library selection; no single full-command success is claimed. Fmt, Clippy (1.24s), rustdoc (24.95s) and all 11 fuzz-target Clippy checks (1.73s) pass. The [board](milestone-2.md) records the failed attempt, resumed checks and timings. Current Windows [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598), head `3080d9e`, is in progress; P10 `6024931` [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999) completed successfully at 2026-10-20 03:00:17 UTC. Updated/verified 2026-10-20 JST.
+**Latest checkpoint (2026-10-20 13:16 JST):** verify SDK/program and exact actual rustc identity, link original objects and exclusively publish an executable. Actual Copy/owned/C runs after source/SDK/program removal; fresh release SDK commands also run owned 42 without source. One complete Mac baseline passes **1,583 tests / 94 suites**, 0 failures, 1 manual test ignored; fmt/Clippy/rustdoc/all 11 fuzz targets pass. Validation takes 633.41s, including 267.23s for native ownership; record it separately from development effort. Details: [Todo](milestone-2.md). P12 [Windows run 39368730619](https://github.com/carimatics/lang/actions/runs/39368730619) is in progress; P07 [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598) succeeded at 2026-10-20 04:02:27 UTC. Updated/verified 2026-10-20 JST.
 
-**This update: 1 completed delivery (−2 pt), no new estimates/tasks.** **29 − 2 = 27 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 216 = 27 pt**. Select P12 at provisional 3 pt: verified SDK/program/private roots and all-profile rustc recipes exist; CLI parsing, actual toolchain checks, trusted host/object snapshots and exclusive executable publication remain. Installed linking must not use Cargo/registry/repository paths. P02 proves both-host isolated Copy/owned/C installation. Q/B/G and final Z01 stay open. Historical 113 weights remain in the gate audit, retired as an effort forecast; delivery counts are not a completion percentage.
+**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** **27 − 3 = 24 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 219 = 24 pt**. Select P02 at existing 3 pt: separate macOS AArch64/Windows x86-64 consumer jobs, with no repository checkout, verify actual Copy/owned/C compile/link/run. Current source-removal tests alone do not prove isolation. P02/Q/B/G/final Z01 remain open. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
 
 ## Task tracking
 

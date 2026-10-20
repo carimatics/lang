@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み121件 · 進行中1件 · 残り11件（暫定27 pt）。**
+**検証済み122件 · 進行中1件 · 残り10件（暫定24 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P12：完全一致toolchainの公開link-native | **P07完了**：対応native SDK組立（`3080d9e`） | **14/18条件** |
+| P02：両tier-1での隔離SDK install | **P12完了**：公開link-native（`4acd99f`） | **14/18条件** |
 
-**直近のcheckpoint（2026-10-20 12:31 JST）：** 正確なCargo選択Rust／proc-macro／native依存、compiler実行権限、上限付き検証済みfile表を保持してSDKをexclusive公開します。SDK依存物だけで同梱Copy／owned／実C起動templateをlink／実行し、source削除後も成功しました。Release SDK組立とownedの42、明確化したunwind policyによるabort公開拒否も成功しました。Mac **1,577 tests / 93 suites**、最終失敗0、手動test 1件ignored。手動library選択修正後、現在の全Cargo test実行fileと照合し、単一全command成功とは数えません。Fmt、Clippy（1.24秒）、rustdoc（24.95秒）、全11 fuzz targetのClippy（1.73秒）が成功しました。[Todo](milestone-2.md)に失敗した試行と再開検証／所要時間を記録します。現head `3080d9e` のWindows [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598) を実行中です。P10 head `6024931` の [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999) は2026-10-20 03:00:17 UTCに成功しました。2026-10-20 JST更新・確認。
+**直近のcheckpoint（2026-10-20 13:16 JST）：** SDK／programと実rustcの完全一致を検証し、元objectをlinkしてexecutableをexclusive公開します。Source／SDK／program除去後に実Copy／owned／Cが動作し、新release SDKでもsourceなしownedが42を返しました。Mac全baseline **1,583 tests / 94 suites**、失敗0、手動1件ignored、fmt／Clippy／rustdoc／全11 fuzz target成功。検証633.41秒のうちnative所有権267.23秒で、開発工数とは別に記録します。詳細は[Todo](milestone-2.md)。P12 [Windows run 39368730619](https://github.com/carimatics/lang/actions/runs/39368730619) は実行中、P07 [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598) は2026-10-20 04:02:27 UTCに成功しました。2026-10-20 JST更新・確認。
 
-**今回：成果1件完了（−2 pt）、見積もり／taskの追加なし。** **残り29 − 2 = 27 pt**、**133行／追加109点は不変**、収支は **134 + 109 − 216 = 27 pt**。P12を暫定3 ptで選び、既存の検証済みSDK／program／private rootと3 profileのrustc手順を使います。残るのはCLI parse、実toolchain照合、信頼済みhost／object snapshot、exclusive executable公開です。Install後のlinkではCargo／registry／repository pathを参照しません。両host隔離Copy／owned／C installはP02、Q／B／Gと最終Z01も未完了です。歴史的113点の重みはgate監査に残し、工数予測としては廃止しています。成果件数も完成率には数えません。
+**今回：1件完了（−3 pt）、見積もり／task追加なし。** **27 − 3 = 24 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 219 = 24 pt**。P02を既存3 ptで選び、macOS AArch64／Windows x86-64の別consumer jobでrepoをcheckoutせずCopy／owned／C compile／link／実行を検証します。現source除去testだけでは隔離証拠になりません。P02／Q／B／G／最終Z01は未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
 
 ## タスク管理
 
