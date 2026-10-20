@@ -103,6 +103,63 @@ Dedicated startup executes no workload; the common Rust measurement/JSON driver 
 
 Source pipeline times exceed optimized references for all three cases. These observations cover the checked C-export embedding and its runtime services; optimizer/accounting policies differ. **B04 must interpret both-host costs, variability, memory definitions and reproducibility before G17 is complete.**
 
+### Both-host comparison and reproduction (B04)
+
+Verified **2026-10-20 JST**. G17's requirement is to measure representative native workloads against equivalent Rust/C implementations. The [macOS capture](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json) (clean `ecc0fd1`, 2026-10-20 07:03:45 UTC) and [Windows capture](../benchmarks/results/2026-10-20-m2-windows-dced632.json) (clean `dced632`, 07:17:49 UTC) provide **270 workload and 90 dedicated startup observations** in total. Each native host first passes 21 source/Rust/C/oracle cases and the unwind/retirement/re-registration probe. Full case matrices, checksums, retirement, sample identities, aggregates, SDK identities, canonical harness hashes and reference link boundaries were independently reconciled.
+
+The compiler/runtime, source/Rust/C workloads, harness, SDK builder, Cargo files and pinned Rust toolchain have identical Git blobs between these two revisions; the intervening changes are documentation/results. They use Rust **1.99.0 (`b940084d7`, 2026-09-28)**, Apple Clang **17.0.0 (clang-1700.0.13.5)** or MSVC **19.51.36260**, the flags and matching target-specific SDKs recorded above. Workload inputs, 20 calls, three warmups and 15 samples match. The native hosts differ in OS, ISA, CPU identity and logical-CPU count, so comparisons below stay **within each host**.
+
+| Native host | Workload | Source / Rust elapsed | Source / C elapsed |
+| --- | --- | ---: | ---: |
+| macOS | `scalar` | ~1,478× | ~1,466× |
+| macOS | `buffers` | ~3,362× | ~3,537× |
+| macOS | `regions` | ~422× | ~620× |
+| Windows | `scalar` | ~1,632× | ~4,580× |
+| Windows | `buffers` | ~2,028× | ~3,387× |
+| Windows | `regions` | ~283× | ~349× |
+
+These are rounded ratios of per-case sample medians (source elapsed / reference elapsed), not paired-sample averages. A call performs the entire `n=1000` workload. The measured source program shape currently costs hundreds to thousands of times the optimized references in these cases. This establishes an experimental baseline and does not meet a Rust/C-level speed goal.
+
+The source call includes C-export admission, per-call runtime preparation, finite fuel/resource checks and ownership services; its separate `preparation_ns` is one-time artifact/context initialization and cannot be subtracted to obtain “pure native code” cost. Rust/C have different optimizer settings, collection/reference/region implementations and accounting/control overhead. All three applications include the common Rust measurement/JSON driver; C-labelled startup/size includes it. The data measures this checked embedding configuration. It does not isolate which internal operation causes the cost gap; profiling or controlled variants are needed before attributing it.
+
+Variability is retained, rather than hidden by a single number. Workload RSD is approximately **0.86–8.86% on macOS** and **3.10–33.39% on Windows**; fresh-process startup RSD spans **6.97–30.52%** across both. Short reference batches, scheduling and unrecorded power state limit precision. The tables are descriptive medians with raw samples, not confidence intervals or significance claims. Small reference/startup differences need more controlled evidence.
+
+Memory is the range of per-case median **whole-process** peaks: source **27.328–33.766 MiB** versus references **1.328–1.375 MiB** on macOS RSS; source **12.953–13.605 MiB** versus references **3.426–3.543 MiB** on Windows peak working set. Those OS counters are defined/measured differently; compare each to its own host's references. Provider counters cover routed guest/C requests, not every runtime/system allocation; Rust heap counters are uninstrumented. Successful provider balance proves that scoped retirement check, not zero process memory use. Complete executable/object sizes and dedicated startup values are in the per-host tables. Dynamic system libraries and external SDK/toolchain installation sizes are outside those executable file sizes.
+
+CPU chip brand, pinning, scheduler load and power state were not recorded. There is one runner environment per host, one input size and three successful single-thread workloads, with no hardware counters, scaling study or profiling. Historical schema20 hand-written MIR/Rust data is a separate experiment. Preserve these immutable captures and rerun relevant measurements after compiler/runtime/workload/options changes before making claims about a new revision.
+
+#### Recompute the published values
+
+From the repository root, use Python 3.14. The checked-in read-only [summary script](../tools/summarize-m2-bench.py) validates the published sample matrices, checksums and retirement before recomputing median µs/call and the rounded source/reference ratios. On macOS:
+
+```bash
+python3 tools/summarize-m2-bench.py
+```
+
+On Windows:
+
+```powershell
+python tools/summarize-m2-bench.py
+```
+
+#### Rerun the native experiment
+
+Use a clean checkout at the capture revision for that host, pinned Rust 1.99.0 and the recorded native C toolchain. Output paths must be unused. On macOS:
+
+```bash
+python3 tools/build-native-sdk.py --release --output /tmp/m2-sdk-reproduce
+python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk-reproduce --output /tmp/m2-run-reproduce --samples 15 --repeats 20 --input 1000
+```
+
+In the Windows x64 MSVC developer environment:
+
+```powershell
+python tools/build-native-sdk.py --release --output "$env:TEMP\m2-sdk-reproduce"
+python tools/m2-bench/run.py --sdk "$env:TEMP\m2-sdk-reproduce" --output "$env:TEMP\m2-run-reproduce" --samples 15 --repeats 20 --input 1000
+```
+
+The dedicated `codex/bench-macos-*` / `codex/bench-windows-*` workflows run this same experiment on one native host and retain the report. Confirm clean revision, expected target/SDK and toolchain, 21 parity cases/unwind, 135 workload + 45 startup observations, all checksums/retirement, canonical hashes and sample/aggregate identities. Recompute medians/RSD from the individual samples; numeric timing equality is not a reproducibility requirement on different runner instances. G17 is supported by both-host measurement and this interpretation/reproduction record; source debugger stepping/backtraces remain G18.
+
 ## Interpretation after the 2026-10-17 review
 
 `representative_application` is synthetic host orchestration: it executes separate fixed scalar/resource fixtures, not dispatch through the published instance's negotiated bindings. Selecting and invoking actual provider implementations and measuring generated adapters end to end remain follow-up conformance/measurement work.

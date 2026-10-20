@@ -103,6 +103,63 @@ Hostは **Windows Server 2025、build 10.0.26100、x86-64、logical CPU 2、Pyth
 
 3 caseともsource pipeline時間は最適化済みreferenceより大きい結果です。checked C-export embeddingとruntime serviceの計測であり、optimizer／accounting policyは異なります。**G17完了前に、B04で両hostのコスト・ばらつき・memory定義・再現手順を解釈する必要があります。**
 
+### 両hostの比較と再現（B04）
+
+検証日 **2026-10-20 JST**。G17の要件は代表的なnative workloadと等価Rust／C実装の計測です。[macOS capture](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)（cleanな`ecc0fd1`、2026-10-20 07:03:45 UTC）と[Windows capture](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)（cleanな`dced632`、07:17:49 UTC）に、合計**workload 270観測と専用startup 90観測**を保存しました。各native hostで先にsource／Rust／C／oracle 21組とunwind／退役／再登録probeが通っています。全case matrix・checksum・退役・sample identity・集計値・SDK identity・canonicalなharness hash・reference link境界を独立に照合しました。
+
+両revisionのcompiler／runtime、source／Rust／C workload、harness、SDK builder、Cargo file、固定Rust toolchainはGit blobが同一で、間の変更は文書／resultです。Rust **1.99.0（`b940084d7`、2026-09-28）**、Apple Clang **17.0.0（clang-1700.0.13.5）**またはMSVC **19.51.36260**、前述のflagと対応target固有SDKを使用しています。入力・20 calls・warmup 3回・15 samplesは一致します。native hostのOS・ISA・CPU identity・logical CPU数は異なるため、以下は**同じhost内**で比較します。
+
+| Native host | Workload | Source / Rust時間 | Source / C時間 |
+| --- | --- | ---: | ---: |
+| macOS | `scalar` | ~1,478× | ~1,466× |
+| macOS | `buffers` | ~3,362× | ~3,537× |
+| macOS | `regions` | ~422× | ~620× |
+| Windows | `scalar` | ~1,632× | ~4,580× |
+| Windows | `buffers` | ~2,028× | ~3,387× |
+| Windows | `regions` | ~283× | ~349× |
+
+caseごとのsample中央値の比（source elapsed／reference elapsed）を丸めた値であり、対応sampleの比の平均ではありません。1 callは`n=1000`のworkload全体です。現時点のこのsource program形態は、これらのcaseで最適化済みreferenceの数百〜数千倍の時間がかかります。実験baselineを得たもので、Rust／C並みの速度目標には到達していません。
+
+source callにはC-export admission、callごとのruntime準備、有限fuel／resource check、ownership serviceを含みます。別の`preparation_ns`は一度のartifact／context初期化で、差し引いて「純粋なnative code」の時間にはできません。Rust／Cはoptimizer設定、collection／reference／region実装、accounting／control overheadが異なります。3 applicationとも共通Rust計測／JSON driverを含み、C-labelled startup／sizeにも含みます。このdataは当該checked embedding構成の計測です。どの内部処理がコスト差の原因かは分離しておらず、原因を特定するにはprofilingや条件を制御したvariantが必要です。
+
+1数値だけにせず、ばらつきを保持しています。workload RSDはmacOSで約 **0.86–8.86%**、Windowsで **3.10–33.39%**、両hostの新規process startup RSDは **6.97–30.52%** です。短いreference batch、scheduling、未記録のpower stateが精度を制約します。表はraw sampleに基づく記述的な中央値であり、信頼区間や有意差の主張ではありません。小さなreference／startup差にはより制御した証拠が必要です。
+
+memoryはcaseごとの**process全体**peak中央値の範囲です。macOS RSSではsource **27.328–33.766 MiB**、reference **1.328–1.375 MiB**、Windows peak working setではsource **12.953–13.605 MiB**、reference **3.426–3.543 MiB**です。OS counterの定義／測定が異なるため、各host自身のreferenceと比較します。provider counterは経由したguest／C要求が対象で、すべてのruntime／system確保は含みません。Rust heap counterは未計測です。provider収支成功はそのscopeの退役検証であり、process memory使用zeroは意味しません。executable／object全体のsizeと専用startup値はhost別表にあります。dynamic system libraryや外部SDK／toolchainのinstallation sizeはexecutable file sizeの対象外です。
+
+CPU chip brand、pinning、scheduler load、power stateは未記録です。hostごとにrunner環境は1つ、入力sizeは1つ、成功する単一thread workloadは3つで、hardware counter／scaling study／profilingはありません。過去のschema20手書きMIR／Rust dataは別実験です。captureを不変で保存し、新revisionの性能を主張する前にcompiler／runtime／workload／option変更に関係する計測を再実行します。
+
+#### 公表値の再計算
+
+repository rootからPython 3.14を使います。read-onlyの[summary script](../../tools/summarize-m2-bench.py)を保存してあり、公表sample matrix・checksum・退役を検証してから中央値µs/callと丸めたsource／reference比を再計算します。macOSでは次を実行します。
+
+```bash
+python3 tools/summarize-m2-bench.py
+```
+
+Windowsでは次を実行します。
+
+```powershell
+python tools/summarize-m2-bench.py
+```
+
+#### Native実験の再実行
+
+対象hostのcapture revisionのclean checkout、固定Rust 1.99.0、記録したnative C toolchainを使います。output pathは未使用にします。macOSでは次を実行します。
+
+```bash
+python3 tools/build-native-sdk.py --release --output /tmp/m2-sdk-reproduce
+python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk-reproduce --output /tmp/m2-run-reproduce --samples 15 --repeats 20 --input 1000
+```
+
+Windows x64 MSVC developer環境では次を実行します。
+
+```powershell
+python tools/build-native-sdk.py --release --output "$env:TEMP\m2-sdk-reproduce"
+python tools/m2-bench/run.py --sdk "$env:TEMP\m2-sdk-reproduce" --output "$env:TEMP\m2-run-reproduce" --samples 15 --repeats 20 --input 1000
+```
+
+専用`codex/bench-macos-*`／`codex/bench-windows-*` workflowも片方のnative hostで同じ実験を行いreportを保存します。clean revision、期待target／SDK／toolchain、21組parity／unwind、workload 135＋startup 45観測、全checksum／退役、canonical hash、sample／集計値のidentityを確認します。各sampleから中央値／RSDを再計算し、異なるrunner instanceでの時間値一致は再現性の要件にしません。両host計測とこの解釈／再現記録がG17の証拠となり、source debugger stepping／backtraceは引き続きG18です。
+
 ## 2026-10-17レビュー後の解釈
 
 `representative_application` はsyntheticなhost orchestrationです。公開instanceの交渉済みbindingからdispatchせず、別の固定scalar／resource fixtureを実行します。実際のprovider実装の選択と呼び出し、生成adapterのend-to-end costは後続conformance／measurement課題です。
