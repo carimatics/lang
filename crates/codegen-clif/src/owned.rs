@@ -2260,6 +2260,12 @@ fn emit<M: Module>(
                 };
             }
             let conditional = match node.kind {
+                f::Kind::EndTaskLoans { .. }
+                | f::Kind::CancelTaskScopes { .. }
+                | f::Kind::JoinTaskScopes { .. }
+                | f::Kind::FinishTask => {
+                    return Err(Error::UnsupportedTaskProfile { span: node.span });
+                }
                 f::Kind::Entry { next, failure } => Some((call!(0, 0, 0), next, failure)),
                 f::Kind::Fuel { next, failure, .. } => Some((call!(1, 0, 0), next, failure)),
                 f::Kind::Execute { next, failure, .. } => {
@@ -2631,6 +2637,9 @@ struct Output {
 
 #[derive(Debug)]
 pub enum Error {
+    UnsupportedTaskProfile {
+        span: m::Span,
+    },
     UnsupportedCInterface {
         span: m::Span,
     },
@@ -2659,6 +2668,9 @@ impl Display for Error {
 }
 impl std::error::Error for Error {}
 fn reject_c_interface(flow: &f::Elaborated) -> Result<(), Error> {
+    if let Some(span) = typed(flow).places().declarations().task_feature_span() {
+        return Err(Error::UnsupportedTaskProfile { span });
+    }
     if let Some(span) = typed(flow).places().declarations().foreign_interface_span() {
         return Err(Error::UnsupportedCInterface { span });
     }
@@ -2711,6 +2723,9 @@ impl<'a> FunctionLayout<'a> {
         let typed = flow.source().activity().moved().typed();
         if typed.functions().get(function.0 as usize).is_none() {
             return Err(Error::InvalidFunction(function));
+        }
+        if let Some(span) = typed.places().declarations().task_feature_span() {
+            return Err(Error::UnsupportedTaskProfile { span });
         }
         let base = Self::base_usage(flow, layouts)?;
         let initial = prefix.unwrap_or(base);

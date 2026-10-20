@@ -142,6 +142,8 @@ fn table(instructions: Vec<b::Instruction>) -> b::BodyTable {
             }],
         },
         functions: vec![b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 0,
             prepared: 1,
             blocks: vec![entry(instructions, b::Term::Return(r(1)))],

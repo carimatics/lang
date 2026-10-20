@@ -5,6 +5,7 @@ pub struct NodeId(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Kind {
     Scalar,
+    Task,
     Builtin(Builtin),
     Record(Vec<NodeId>),
     Enum(Vec<Vec<NodeId>>),
@@ -119,12 +120,7 @@ pub(super) fn compile(types: &VerifiedTypes, admit: &mut Admission) -> Result<Ve
                         target: target(t),
                     },
                     Constructor::ArenaOwner(owner) => Kind::ArenaOwner(owner),
-                    Constructor::Task(_) => {
-                        return Err(Error {
-                            kind: ErrorKind::UnsupportedTaskProfile,
-                            span,
-                        });
-                    }
+                    Constructor::Task(_) => Kind::Task,
                 }
             }
         };

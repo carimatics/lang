@@ -472,6 +472,8 @@ fn checked_source_core_allocator_retains_its_span_and_preflight_fact_in_mir_asse
     let typed = b::BodyTable {
         places: places.into_table(),
         functions: vec![b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 1,
             prepared: 0,
             blocks: vec![b::Block {
@@ -886,6 +888,8 @@ fn checked_source_owned_return_can_supply_typed_mir_instructions_and_cfg() {
     let out = b::BodyTable {
         places: places.into_table(),
         functions: vec![b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 0,
             prepared: 0,
             blocks: vec![b::Block {
@@ -974,6 +978,8 @@ fn checked_source_assignment_supplies_destination_before_rhs_in_a_mir_assembly_f
     let typed = b::BodyTable {
         places: places.into_table(),
         functions: vec![b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 0,
             prepared: 1,
             blocks: vec![b::Block {
@@ -1064,6 +1070,8 @@ fn checked_source_lexical_loan_can_supply_explicit_begin_and_end_in_a_mir_assemb
     let typed = b::BodyTable {
         places: places.into_table(),
         functions: vec![b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 1,
             prepared: 0,
             blocks: vec![b::Block {

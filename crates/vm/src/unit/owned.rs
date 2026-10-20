@@ -33,6 +33,7 @@ pub const SERVICE_WORK_SUPPORTED: bool = true;
 pub enum Reason {
     Foreign(lang_runtime::c_abi::context::Fault),
     UnsupportedCInterface,
+    UnsupportedTaskProfile,
     UnsupportedServiceWork(lang_runtime::execution::UnsupportedServiceWork),
     Entry,
     Unsupported { core: Option<o::core::Operation> },
@@ -140,6 +141,7 @@ fn reject_c_interface(
     flow: &f::Elaborated,
     function: Option<m::FunctionId>,
 ) -> Result<(), Failure> {
+    reject_task_profile(flow, function)?;
     if let Some(span) = flow
         .source()
         .activity()
@@ -151,6 +153,31 @@ fn reject_c_interface(
     {
         return Err(rejected(
             Reason::UnsupportedCInterface,
+            function,
+            Some(span),
+        ));
+    }
+    Ok(())
+}
+#[allow(
+    clippy::result_large_err,
+    reason = "Preserve inline failure reports without allocating during rejection."
+)]
+fn reject_task_profile(
+    flow: &f::Elaborated,
+    function: Option<m::FunctionId>,
+) -> Result<(), Failure> {
+    if let Some(span) = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .task_feature_span()
+    {
+        return Err(rejected(
+            Reason::UnsupportedTaskProfile,
             function,
             Some(span),
         ));
@@ -684,6 +711,16 @@ fn execute_single<P: a::Provider>(
     let completion = loop {
         let current = flow.functions()[index].nodes()[node.0 as usize];
         node = match current.kind {
+            f::Kind::EndTaskLoans { .. }
+            | f::Kind::CancelTaskScopes { .. }
+            | f::Kind::JoinTaskScopes { .. }
+            | f::Kind::FinishTask => {
+                return Err(rejected(
+                    Reason::UnsupportedTaskProfile,
+                    Some(function),
+                    Some(current.span),
+                ));
+            }
             f::Kind::Entry { next, .. } => next,
             f::Kind::Fuel { next, failure, .. } => {
                 let charged = control.charge(&mut usage).map_err(super::Reason::from);

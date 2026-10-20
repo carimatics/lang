@@ -776,6 +776,8 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
     });
     t.functions = vec![
         b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 0,
             prepared: 0,
             blocks: vec![block(
@@ -800,6 +802,8 @@ fn records_calls_and_scalar_imports_use_the_verified_type_contract() {
             )],
         },
         b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 0,
             prepared: 0,
             blocks: vec![block(

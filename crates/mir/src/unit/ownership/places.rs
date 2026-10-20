@@ -179,6 +179,20 @@ impl PlaceTable {
         constructed_limit: usize,
         place_limit: usize,
     ) -> Result<VerifiedPlaces, Error> {
+        self.verify_profile(
+            budget,
+            constructed_limit,
+            place_limit,
+            super::bodies::Profile::Synchronous,
+        )
+    }
+    pub(crate) fn verify_profile(
+        self,
+        budget: &mut Budget,
+        constructed_limit: usize,
+        place_limit: usize,
+        profile: super::bodies::Profile,
+    ) -> Result<VerifiedPlaces, Error> {
         if self.functions.len() != self.declarations.functions.len() {
             return Err(Error::new(
                 ErrorKind::FunctionBodyCount {
@@ -199,7 +213,9 @@ impl PlaceTable {
                 .len()
                 .saturating_add(declarations.functions().len()),
         )?;
-        if let Some(span) = declarations.task_feature_span() {
+        if let Some(span) = declarations.task_feature_span()
+            && profile == super::bodies::Profile::Synchronous
+        {
             return Err(Error::new(ErrorKind::UnsupportedTaskProfile, Some(span)));
         }
         let facts = validate(&declarations, &self.functions, budget, place_limit)?;

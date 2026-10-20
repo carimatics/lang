@@ -7,9 +7,26 @@ use super::{declarations as d, places as p, *};
 
 mod term;
 pub use term::Term;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Profile {
+    Synchronous,
+    Tasks,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LoanId(pub u32);
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct TaskScopeId(pub u32);
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskScope {
+    pub parent: Option<TaskScopeId>,
+    pub span: Span,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TaskBinding {
+    pub target: CleanupTarget,
+    pub scope: TaskScopeId,
+}
 /// Function-local identity of a destination capture site, not a source value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PreparedPlaceId(pub u32);
@@ -57,6 +74,17 @@ impl CleanupStep {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Op {
+    TaskScopeEnter(TaskScopeId),
+    TaskScopeExit(TaskScopeId),
+    TaskSpawn {
+        function: FunctionId,
+        arguments: Vec<m::Register>,
+    },
+    TaskAwait(m::Register),
+    TaskCancel(p::PlaceId),
+    TaskYield,
+    TaskCheck,
+    TaskSaveReturn(m::Register),
     I64(i64),
     Bool(bool),
     Unit,
@@ -159,12 +187,27 @@ pub enum Op {
     },
 }
 impl Op {
+    pub const fn is_task(&self) -> bool {
+        matches!(
+            self,
+            Self::TaskScopeEnter(_)
+                | Self::TaskScopeExit(_)
+                | Self::TaskSpawn { .. }
+                | Self::TaskAwait(_)
+                | Self::TaskCancel(_)
+                | Self::TaskYield
+                | Self::TaskCheck
+                | Self::TaskSaveReturn(_)
+        )
+    }
     pub fn operands(&self) -> impl Iterator<Item = m::Register> + '_ {
         let (fixed, variable): ([Option<m::Register>; 2], &[m::Register]) = match self {
             Self::Add(a, b) | Self::LessThan(a, b) | Self::EqualI64(a, b) => {
                 ([Some(*a), Some(*b)], &[])
             }
             Self::Copy(v)
+            | Self::TaskAwait(v)
+            | Self::TaskSaveReturn(v)
             | Self::Move(v)
             | Self::Panic(v)
             | Self::DropValue(v)
@@ -177,9 +220,9 @@ impl Op {
             Self::CopyCaseField { value, guard, .. }
             | Self::BorrowCaseField { value, guard, .. }
             | Self::UnpackVariant { value, guard, .. } => ([Some(*value), Some(*guard)], &[]),
-            Self::Call { arguments, .. } | Self::Import { arguments, .. } => {
-                ([None, None], arguments)
-            }
+            Self::Call { arguments, .. }
+            | Self::Import { arguments, .. }
+            | Self::TaskSpawn { arguments, .. } => ([None, None], arguments),
             Self::CoreCall(call) => ([None, None], &call.arguments),
             Self::Record { fields, .. } => ([None, None], fields),
             Self::Variant { payload, .. } => ([None, None], payload),
@@ -214,6 +257,7 @@ impl Op {
     pub const fn place(&self) -> Option<p::PlaceId> {
         match self {
             Self::CopyPlace(p)
+            | Self::TaskCancel(p)
             | Self::MovePlace(p)
             | Self::Replace { place: p, .. }
             | Self::PreparePlace { place: p, .. }
@@ -249,6 +293,8 @@ pub struct Block {
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FunctionBody {
+    pub task_scopes: Vec<TaskScope>,
+    pub task_bindings: Vec<TaskBinding>,
     pub loans: usize,
     pub prepared: usize,
     pub blocks: Vec<Block>,
@@ -326,6 +372,11 @@ pub struct TypedBodies {
     elements: usize,
 }
 impl TypedBodies {
+    pub(crate) fn record_usage(&mut self, budget: &Budget) {
+        self.work = budget.work_used();
+        self.bytes = budget.allocation_bytes();
+        self.elements = budget.elements_used();
+    }
     pub const fn has_explicit_panic(&self) -> bool {
         self.has_panic
     }
@@ -372,6 +423,24 @@ impl BodyTable {
         loan_limit: usize,
         prepared_limit: usize,
     ) -> Result<TypedBodies, Error> {
+        self.verify_profile(
+            budget,
+            constructed_limit,
+            place_limit,
+            loan_limit,
+            prepared_limit,
+            Profile::Synchronous,
+        )
+    }
+    pub(crate) fn verify_profile(
+        self,
+        budget: &mut Budget,
+        constructed_limit: usize,
+        place_limit: usize,
+        loan_limit: usize,
+        prepared_limit: usize,
+        profile: Profile,
+    ) -> Result<TypedBodies, Error> {
         if self.functions.len() != self.places.functions.len() {
             return Err(Error::new(
                 ErrorKind::FunctionBodyCount {
@@ -383,12 +452,20 @@ impl BodyTable {
         }
         let places = self
             .places
-            .verify_with_budget(budget, constructed_limit, place_limit)?;
+            .verify_profile(budget, constructed_limit, place_limit, profile)?;
         let mut facts = budget.vector(self.functions.len())?;
         let mut has_panic = false;
         let (mut blocks, mut instructions, mut loans, mut prepared) =
             (0usize, 0usize, 0usize, 0usize);
         for (f, body) in self.functions.iter().enumerate() {
+            if profile == Profile::Synchronous
+                && (!body.task_scopes.is_empty() || !body.task_bindings.is_empty())
+            {
+                return Err(Error::new(
+                    ErrorKind::UnsupportedTaskProfile,
+                    Some(places.declarations().functions()[f].span),
+                ));
+            }
             blocks = add(blocks, body.blocks.len())?;
             cap(blocks, budget.limits().blocks, m::LimitKind::Blocks)?;
             loans = add(loans, body.loans)?;
@@ -424,7 +501,7 @@ impl BodyTable {
                 budget.limits().instructions,
                 m::LimitKind::Instructions,
             )?;
-            facts.push(function(&places, f, body, budget)?);
+            facts.push(function(&places, f, body, budget, profile)?);
         }
         allocator_requirements(&self.functions, &mut facts, budget)?;
         Ok(TypedBodies {
@@ -542,6 +619,7 @@ fn variant(types: &VerifiedTypes, ty: Type, shared: bool) -> Result<Type, ErrorK
                             | Builtin::Utf8Error
                             | Builtin::OwnershipError
                             | Builtin::ArenaError
+                            | Builtin::TaskError
                     )
             )
         ),
@@ -576,7 +654,7 @@ fn payload(types: &VerifiedTypes, ty: Type, case: u32) -> Result<Payload<'_>, Er
         Some(Constructor::Builtin(b)) => {
             let count = match b {
                 Builtin::AllocError | Builtin::BufferError => 3,
-                Builtin::BoundsError | Builtin::Utf8Error => 1,
+                Builtin::BoundsError | Builtin::Utf8Error | Builtin::TaskError => 1,
                 Builtin::OwnershipError => 6,
                 Builtin::ArenaError => 4,
                 _ => 0,
@@ -598,6 +676,7 @@ fn payload(types: &VerifiedTypes, ty: Type, case: u32) -> Result<Payload<'_>, Er
     })
 }
 struct Check<'a, 'b> {
+    profile: Profile,
     places: &'a p::VerifiedPlaces,
     types: &'a VerifiedTypes,
     frame: &'a p::FunctionPlaces,
@@ -691,9 +770,77 @@ impl Check<'_, '_> {
             .ok_or_else(|| Error::new(ErrorKind::UndefinedPrepared(id.0), Some(span)))
     }
     fn operation(&mut self, i: &Instruction, site: Site) -> Result<(), Error> {
+        if i.op.is_task()
+            && (self.profile != Profile::Tasks
+                || !self.places.declarations().functions()[self.function.0 as usize]
+                    .effect
+                    .is_async())
+        {
+            return Err(Error::new(ErrorKind::UnsupportedTaskProfile, Some(i.span)));
+        }
         let s = i.span;
         use Expected::{Builtin as B, Exact as E};
         match &i.op {
+            Op::TaskScopeEnter(_) | Op::TaskScopeExit(_) | Op::TaskYield | Op::TaskCheck => {
+                self.void(i)
+            }
+            Op::TaskCancel(place) => {
+                let actual = self.access(*place, p::Access::Read, s)?;
+                if !matches!(ctor(self.types, actual), Some(Constructor::Task(_))) {
+                    return Err(Error::new(ErrorKind::InvalidTaskType(actual), Some(s)));
+                }
+                self.void(i)
+            }
+            Op::TaskAwait(value) => {
+                let actual = self.value(*value, s)?;
+                let Some(Constructor::Task(payload)) = ctor(self.types, actual) else {
+                    return Err(Error::new(ErrorKind::InvalidTaskType(actual), Some(s)));
+                };
+                self.arity(i.results.len(), 1, s)?;
+                let result = self.value(i.results[0], s)?;
+                let Some(Constructor::Result(ok, error)) = ctor(self.types, result) else {
+                    return Err(Error::new(ErrorKind::InvalidTaskType(result), Some(s)));
+                };
+                E(payload).check(self.types, ok, s)?;
+                B(Builtin::TaskError).check(self.types, error, s)?;
+                Ok(())
+            }
+            Op::TaskSaveReturn(value) => {
+                self.expect(
+                    *value,
+                    E(
+                        self.places.declarations().functions()[self.function.0 as usize]
+                            .result
+                            .ty,
+                    ),
+                    s,
+                )?;
+                self.void(i)
+            }
+            Op::TaskSpawn {
+                function,
+                arguments,
+            } => {
+                cap(
+                    arguments.len(),
+                    self.budget.limits().fields,
+                    m::LimitKind::Fields,
+                )?;
+                let mut types = self.budget.vector(arguments.len())?;
+                for value in arguments {
+                    types.push(self.value(*value, s)?);
+                }
+                let payload =
+                    self.places
+                        .declarations()
+                        .check_spawn(*function, &types, s, self.budget)?;
+                self.arity(i.results.len(), 1, s)?;
+                let result = self.value(i.results[0], s)?;
+                let Some(Constructor::Task(actual)) = ctor(self.types, result) else {
+                    return Err(Error::new(ErrorKind::InvalidTaskType(result), Some(s)));
+                };
+                E(payload).check(self.types, actual, s)
+            }
             Op::Cleanup(cleanup) => {
                 self.void(i)?;
                 self.budget.allocate::<CleanupStep>(cleanup.steps.len())?;
@@ -1119,6 +1266,7 @@ fn function(
     index: usize,
     body: &FunctionBody,
     budget: &mut Budget,
+    profile: Profile,
 ) -> Result<FunctionFacts, Error> {
     let declaration = &places.declarations().functions()[index];
     let span = declaration.span;
@@ -1162,6 +1310,7 @@ fn function(
         }
     }
     let mut c = Check {
+        profile,
         places,
         types: places.declarations().types(),
         frame: &places.functions()[index],
@@ -1222,6 +1371,14 @@ fn function(
         }
         within(c.types, block.span, block.terminator.span, c.budget)?;
         match block.terminator.kind {
+            Term::ReturnSaved => {
+                if profile != Profile::Tasks || !declaration.effect.is_async() {
+                    return Err(Error::new(
+                        ErrorKind::UnsupportedTaskProfile,
+                        Some(block.terminator.span),
+                    ));
+                }
+            }
             Term::Return(v) => c.expect(
                 v,
                 Expected::Exact(declaration.result.ty),
@@ -1427,7 +1584,7 @@ fn allocator_requirements(
             'blocks: for block in &body.blocks {
                 for i in &block.instructions {
                     budget.charge(1)?;
-                    if let Op::Call { function, .. } = i.op
+                    if let Op::Call { function, .. } | Op::TaskSpawn { function, .. } = i.op
                         && facts[function.0 as usize].needs_allocator
                     {
                         facts[index].needs_allocator = true;

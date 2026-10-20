@@ -119,6 +119,25 @@ impl VerifiedDeclarations {
         span: Span,
         budget: &mut Budget,
     ) -> Result<Type, Error> {
+        self.check_guest_call(function, arguments, span, budget, false)
+    }
+    pub(crate) fn check_spawn(
+        &self,
+        function: FunctionId,
+        arguments: &[Type],
+        span: Span,
+        budget: &mut Budget,
+    ) -> Result<Type, Error> {
+        self.check_guest_call(function, arguments, span, budget, true)
+    }
+    fn check_guest_call(
+        &self,
+        function: FunctionId,
+        arguments: &[Type],
+        span: Span,
+        budget: &mut Budget,
+        asynchronous: bool,
+    ) -> Result<Type, Error> {
         at(
             validation::source_span(&self.types.table.sources, Some(span), budget),
             span,
@@ -127,7 +146,7 @@ impl VerifiedDeclarations {
             .functions
             .get(function.0 as usize)
             .ok_or_else(|| Error::new(ErrorKind::InvalidFunction(function), Some(span)))?;
-        if f.effect.is_async() {
+        if f.effect.is_async() != asynchronous {
             return Err(Error::new(ErrorKind::UnsupportedTaskProfile, Some(span)));
         }
         self.check_arguments(

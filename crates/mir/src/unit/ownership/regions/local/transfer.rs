@@ -607,6 +607,24 @@ impl Engine {
         }
         let mut result = 0;
         match &i.op {
+            Op::TaskScopeEnter(_) | Op::TaskYield | Op::TaskCheck | Op::TaskCancel(_) => {}
+            Op::TaskScopeExit(scope) => {
+                for binding in
+                    &plan.source().activity().moved().typed().functions()[index].task_bindings
+                {
+                    admit.budget.charge(1)?;
+                    if binding.scope == *scope {
+                        match binding.target {
+                            bodies::CleanupTarget::Local(local) => row[local.0 as usize] = 0,
+                            bodies::CleanupTarget::Value(value) => self.consume(plan, row, value),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            Op::TaskAwait(value) | Op::TaskSaveReturn(value) => {
+                self.consume(plan, row, *value);
+            }
             Op::Copy(v) | Op::Move(v) => {
                 result = row[self.value_root(*v)];
                 if matches!(i.op, Op::Move(_)) {
@@ -757,7 +775,9 @@ impl Engine {
                     self.consume(plan, row, *a);
                 }
             }
-            Op::Call { arguments, .. } | Op::Import { arguments, .. } => {
+            Op::Call { arguments, .. }
+            | Op::Import { arguments, .. }
+            | Op::TaskSpawn { arguments, .. } => {
                 for v in arguments {
                     self.consume(plan, row, *v);
                 }

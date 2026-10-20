@@ -39,6 +39,7 @@ pub enum ErrorKind {
         limit: usize,
     },
     MissingReference,
+    Suspension(ReferenceId),
     EndedReference(ReferenceId),
     Conflict {
         owner: Owner,

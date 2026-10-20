@@ -9,9 +9,13 @@ use libfuzzer_sys::fuzz_target;
 #[path = "ownership_mir_bodies/regions.rs"]
 mod region_cases;
 
+#[path = "ownership_mir_bodies/tasks.rs"]
+mod task_cases;
+
 // This is a bounded test-input generator, not an ownership wire decoder.
 fuzz_target!(|bytes: &[u8]| {
     region_cases::exercise(bytes);
+    task_cases::exercise(bytes);
     let byte = |i: usize| bytes.get(i).copied().unwrap_or(0);
     let span = m::Span {
         source: m::SourceId(0),
@@ -154,6 +158,8 @@ fuzz_target!(|bytes: &[u8]| {
     };
     let count = usize::from(byte(0) % 8) + 1;
     let mut function = b::FunctionBody {
+        task_scopes: Vec::new(),
+        task_bindings: Vec::new(),
         loans: 4,
         prepared: 4,
         blocks: vec![],

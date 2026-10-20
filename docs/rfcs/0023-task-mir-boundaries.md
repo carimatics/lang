@@ -14,9 +14,9 @@
 
 ## Summary
 
-Extend the existing ownership MIR contract with Task/TaskError types and an async function effect, separately from ABI. Type/declaration evidence is not task flow evidence. Until task instructions and independent flow proofs exist, reject this profile at the place/body boundary, so existing execution and artifact paths cannot erase its meaning.
+Extend the existing ownership MIR contract with Task/TaskError types, an async function effect independent from ABI, and independently verified task instructions, scopes, claim flow and suspension cleanup. Type/declaration evidence alone is not task flow evidence. Existing synchronous execution and artifact paths reject this profile so they cannot erase its meaning.
 
-T11 checkpoint (2026-10-21 JST): types, effects and declaration validation are implemented. Old place/body, runtime layout and bytecode writer paths explicitly refuse task metadata; old decoders restore synchronous effects and assign no new tags. In particular, the generic runtime token-layout fallback must not invent storage for Task/TaskError. Task instructions/flow/cleanup and VM/native task execution remain unimplemented; this RFC stays accepted while that contract is incomplete.
+T11/T04 checkpoint (2026-10-21 JST): types, effects and declaration validation are implemented. Old place/body, runtime layout and bytecode writer paths explicitly refuse task metadata; old decoders restore synchronous effects and assign no new tags. In particular, the generic runtime token-layout fallback must not invent storage for Task/TaskError. T04 now adds a separate task verification entry over the same body table, combining scope/claim/return-escrow analysis with move, loan, arena-region and failure-plan evidence. Async failure plans distinguish cancellation from primary execution failure and order loan ending, scope cancellation/join, owner retirement and escrow discard. VM/native task execution remains unimplemented; this RFC stays accepted while that contract is incomplete.
 
 ## Motivation
 
@@ -46,6 +46,22 @@ Async effects have validated source spans within the function signature. Old dec
 
 The instruction/continuation and scope-exit representation must be recorded in this RFC before its implementation. It must cover scoped spawn, consuming await, non-consuming cancel, yield/check points, return escrow, implicit joins and failure/cancellation cleanup; repeat source invariants independently. This boundary decision does not select a weaker substitute for those obligations.
 
+### T04 instruction and continuation decision
+
+Accepted under experimental delegation, 2026-10-21 JST, before implementation: extend ownership `Op` with TaskScopeEnter/Exit, TaskSpawn, TaskAwait, TaskCancel, TaskYield, TaskCheck and TaskSaveReturn. Add ReturnSaved to the ownership terminator. Each operation retains its source span; its continuation is the next instruction site (or the block terminator), not a source AST node. Await/exit can suspend at that site; admission/move and result initialization happen once, and resumption cannot repeat preceding effects. Ordinary guest calls remain synchronous.
+
+Each async body declares a bounded scope tree with root 0 (implicitly active at entry), earlier-parent IDs and source spans, plus exactly one lifetime-scope binding for every Task local/SSA value. Ordinary slots have no claim binding. A scope binding is semantic lifetime metadata, not inferred authority from a source range. Scope enter must match the active parent; exit closes the top scope. At exit, all claim slots bound to that scope retire if initialized, while the scope joins every child and disposes unclaimed results independently of remaining handles. Moving a root claim into an inner binding abandons retrieval when that binding exits without detaching the root child.
+
+An independently computed origin follows each claim through moves, local initialization/replacement and CFG arguments. A destination lifetime scope must be the origin or its descendant, and active when initialized. Copying, borrowing, fabricating, escaping or reusing a consumed/retired claim is invalid. CFG merges require equal active scope stacks and compatible return-escrow state; origin sets are unioned under the shared work/storage limits. Generic ownership move, loan and arena-region proofs remain required. Await/yield/check/scope exit reject every live ordinary loan independently from HIR.
+
+TaskSpawn calls only an async guest and produces Task(T); TaskAwait consumes it and initializes Result(T,TaskError) only after a successful or cancelled join. Terminal child failure follows the failure path. TaskCancel observes a claim and does not consume or suspend. Initial async transfers admit the accepted finite Copy profile; general owned Send/Share remains A01. Owned locals still use the ownership MIR rules, not a second value language.
+
+TaskSaveReturn moves the result into one protected escrow before joins. Async normal exits require one saved result, an empty scope stack and ReturnSaved; duplicate saves or unsaved returns are rejected. Failure/fuel/interruption cleanup ends ordinary frame loans, requests descendant cancellation, joins active scopes from inner to outer and retires their results, then retires frame owners and discards escrow. This mandatory cleanup consumes no guest fuel and continues through secondary failures under RFCs 0008/0021. Synchronous bodies keep existing return/failure behavior. The task failure plan records these phases explicitly; a type/body wrapper alone cannot publish a task execution plan.
+
+The task verifier is a separate entry over the same ownership body table. Existing synchronous verification/execution/writers retain their refusal. A verified task wrapper proves the task and ownership obligations, not host grants, physical layout or backend support. T05/T06 must execute this contract through explicit host services; no tags or encoded artifact revision are assigned here.
+
+T04 cancellation-plan clarification (2026-10-21 JST): async failure plans expose a separate cancellation entry that skips primary-failure recording and enters mandatory cleanup. EndTaskLoans, CancelTaskScopes and JoinTaskScopes precede owner retirement and result discard. FinishTask terminates cleanup using the task driver's pending outcome and recorded failures, so ordinary cancellation is not fabricated as an execution fault; cleanup failures and RFC 0021 precedence remain observable. TaskCancel observes a whole place, including a local, without copying or moving its claim.
+
 ## Execution modes
 
 VM, JIT and AOT consume the same verified task contract when their adapters exist. Native task execution must compile continuations, not interpret MIR or fall back to VM. Until then, existing synchronous adapters reject task profiles before bindings, allocation or effects. Constant execution and component tasks remain unavailable under their current profiles.
@@ -62,7 +78,7 @@ Use structured MIR errors with validated source spans for invalid task types/dec
 
 ## Performance and cost model
 
-Reuse the bounded ownership type graph, canonicalization, property propagation and declaration budgets. Charge new traversal/storage work to existing limits. No runtime cost, frame-size or code-size claim follows from this type-only change. Task/frame/result costs remain measured execution requirements of M3.
+Reuse the bounded ownership type graph, canonicalization, property propagation and declaration budgets. Charge new traversal/storage work to existing limits. No runtime cost, frame-size or code-size claim follows from static MIR proof. Task/frame/result costs remain measured execution requirements of M3.
 
 ## Security and trust boundaries
 
@@ -86,16 +102,18 @@ The selected extension reuses ownership MIR and keeps a strict evidence boundary
 
 ## Test plan
 
-Hand-built valid/invalid type and declaration graphs, canonicalization/property propagation, scope-independent storage/signature restrictions, spoofed effects, C refusal, resource caps and unused metadata. Prove that old place/body/execution/artifact paths reject rather than erase the new profile. Preserve old artifact round trips and the full compiler baseline. Later flow/malformed-input and VM/native differential fixtures must prove actual task execution; compile-only fuzz checks are not a fuzz campaign.
+Hand-built valid/invalid type and declaration graphs, canonicalization/property propagation, scope-independent storage/signature restrictions, spoofed effects, C refusal, resource caps and unused metadata. T04 adds raw MIR scope/claim flow, branch/loop joins, local/prepared moves, loan boundaries, return escrow and cancellation/failure ordering without HIR authority. Prove that old place/body/execution/artifact paths reject rather than erase the new profile. Preserve old artifact round trips and the full compiler baseline. Later VM/native differential fixtures must prove actual task execution; compile-only fuzz checks are not a fuzz campaign.
 
 ## Open questions
 
-No blocking question for the type/declaration boundary. Instruction/continuation encoding, task-aware cleanup and serialized revisions remain unselected and must be recorded before implementation. Hypothesis: extending existing ownership MIR reduces semantic duplication; no compile-time or runtime performance improvement is claimed.
+No blocking question for the in-memory T04 proof. The instruction/continuation and cleanup-plan decisions above are implemented; backend layout, executable resumption and serialized task revisions remain separate unverified deliveries. A serialized revision must be accepted before publication. Hypothesis: extending existing ownership MIR reduces semantic duplication; no compile-time or runtime performance improvement is claimed.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**. The staged refusal preserves existing semantics and creates no execution authority. This is a necessary representation prerequisite, not a new milestone gate or a reduction of T04–T08.
 
 ## Sources
 
+- `crates/mir/src/unit/ownership/tasks.rs`, `ownership/failure.rs`, `crates/mir/tests/tasks.rs` and `tests/task_mir_boundary.rs`: no embedded update date; implementation and independent boundary evidence inspected 2026-10-21 JST. This is static MIR evidence, not executed task conformance.
+- [RFC 0021](0021-bounded-structured-task-driver.md), last updated 2026-10-21; bounded driver outcomes and cancellation/cleanup precedence.
 - [RFC 0022](0022-source-structured-tasks.md), last updated 2026-10-21; source task semantics and separate source proofs.
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md), last updated 2026-10-20; ownership/cleanup and staged C-aware rollout.
 - [RFC 0018](0018-native-compiler-records.md), last updated 2026-10-20, and `crates/codegen-clif/build.rs` (no embedded update date; inspected 2026-10-21 JST): exact native compiler/SDK build identity.

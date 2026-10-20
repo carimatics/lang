@@ -1245,6 +1245,8 @@ fn borrowing_a_reference_cell_and_passing_nested_access_authority_have_distinct_
                 places: vec![],
             });
             t.functions.push(b::FunctionBody {
+                task_scopes: Vec::new(),
+                task_bindings: Vec::new(),
                 loans: 0,
                 prepared: 0,
                 blocks: vec![block(

@@ -112,6 +112,8 @@ pub fn lower(
             });
         }
         functions.push(b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             blocks,
             loans: lower.loans,
             prepared: lower.prepared,

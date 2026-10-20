@@ -3,6 +3,7 @@ use crate::unit::{Register, Target, Term as CopyTerm};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Term {
+    ReturnSaved,
     Return(Register),
     Jump(Target),
     Branch {
@@ -16,11 +17,14 @@ pub enum Term {
 }
 impl Term {
     pub const fn is_exit(&self) -> bool {
-        matches!(self, Self::Return(_) | Self::Unreachable)
+        matches!(
+            self,
+            Self::ReturnSaved | Self::Return(_) | Self::Unreachable
+        )
     }
     pub fn targets(&self) -> impl Iterator<Item = &Target> {
         match self {
-            Self::Return(_) | Self::Unreachable => [None, None],
+            Self::ReturnSaved | Self::Return(_) | Self::Unreachable => [None, None],
             Self::Jump(target) => [Some(target), None],
             Self::Branch {
                 then_target,
@@ -33,7 +37,7 @@ impl Term {
     }
     pub fn targets_mut(&mut self) -> impl Iterator<Item = &mut Target> {
         match self {
-            Self::Return(_) | Self::Unreachable => [None, None],
+            Self::ReturnSaved | Self::Return(_) | Self::Unreachable => [None, None],
             Self::Jump(target) => [Some(target), None],
             Self::Branch {
                 then_target,
@@ -48,7 +52,7 @@ impl Term {
         let value = match self {
             Self::Return(value) => Some(*value),
             Self::Branch { condition, .. } => Some(*condition),
-            Self::Jump(_) | Self::Unreachable => None,
+            Self::ReturnSaved | Self::Jump(_) | Self::Unreachable => None,
         };
         value
             .into_iter()

@@ -79,6 +79,9 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         if !std::ptr::eq(layouts.types, types) {
             return Err(Error::ForeignLocation);
         }
+        if let Some(span) = typed.places().declarations().task_feature_span() {
+            return Err(Error::UnsupportedTaskProfile { span });
+        }
         let index = function.0 as usize;
         let declaration = typed
             .places()

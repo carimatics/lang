@@ -499,6 +499,8 @@ impl Reader<'_> {
         let loans = self.count(Table::Loans, self.limits.verification.bodies.loans, 0)?;
         let prepared = self.count(Table::Prepared, self.limits.verification.bodies.prepared, 0)?;
         Ok(b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans,
             prepared,
             blocks: self.list(Table::Blocks, self.budget.limits().blocks, 33, Self::block)?,

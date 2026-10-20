@@ -543,6 +543,53 @@ impl Context<'_, '_> {
             self.access(row, &destination, Access::Write, s, mode)?;
         }
         match &i.op {
+            Op::TaskScopeEnter(_) => {}
+            Op::TaskScopeExit(_) | Op::TaskYield | Op::TaskCheck | Op::TaskAwait(_) => {
+                if mode == Mode::Check {
+                    for id in 0..self.layout.loans {
+                        self.budget.charge(1)?;
+                        if self.layout.active(row, id) {
+                            return Err(self.fail(
+                                ErrorKind::Suspension(ReferenceId(id as u32)),
+                                s,
+                                Some(id),
+                            ));
+                        }
+                    }
+                }
+                match i.op {
+                    Op::TaskAwait(value) => {
+                        self.read_value(row, value, true, s, mode)?;
+                        self.consume(row, value)?;
+                        self.clear(row, self.topology.value(i.results[0]))?;
+                    }
+                    Op::TaskScopeExit(scope) => {
+                        for binding in &self.typed.functions()[self.function].task_bindings {
+                            self.budget.charge(1)?;
+                            if binding.scope == scope {
+                                self.operation(
+                                    row,
+                                    &b::CleanupStep {
+                                        target: binding.target,
+                                        span: s,
+                                    }
+                                    .instruction(),
+                                    mode,
+                                )?;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Op::TaskCancel(place) => {
+                let place = self.place(row, *place, s, mode)?;
+                self.access(row, &place, Access::Read, s, mode)?;
+            }
+            Op::TaskSaveReturn(value) => {
+                self.read_value(row, *value, true, s, mode)?;
+                self.consume(row, *value)?;
+            }
             Op::Cleanup(cleanup) => {
                 for loans in [true, false] {
                     for step in &cleanup.steps {
@@ -737,6 +784,7 @@ impl Context<'_, '_> {
                 self.clear(row, node)?;
             }
             Op::Call { arguments, .. }
+            | Op::TaskSpawn { arguments, .. }
             | Op::Import { arguments, .. }
             | Op::Record {
                 fields: arguments, ..
@@ -818,7 +866,7 @@ impl Context<'_, '_> {
             b::Term::Branch { condition, .. } => {
                 self.read_value(row, condition, false, body.terminator.span, mode)?
             }
-            b::Term::Jump(_) | b::Term::Unreachable => {}
+            b::Term::ReturnSaved | b::Term::Jump(_) | b::Term::Unreachable => {}
         }
         Ok(())
     }

@@ -314,6 +314,7 @@ fn execute_with<P: a::Provider>(
     }
     .ok_or_else(|| rejected(Reason::Entry, None, None))?;
     let function = m::FunctionId(entry as u32);
+    reject_task_profile(flow, Some(function))?;
     if imports.is_none() {
         reject_c_interface(flow, Some(function))?;
     }
@@ -814,6 +815,16 @@ fn execute_with<P: a::Provider>(
         let values = address.cell + declarations.functions()[index].locals.len();
         let mut failed = None;
         let next = match node.kind {
+            f::Kind::EndTaskLoans { .. }
+            | f::Kind::CancelTaskScopes { .. }
+            | f::Kind::JoinTaskScopes { .. }
+            | f::Kind::FinishTask => {
+                return Err(rejected(
+                    Reason::UnsupportedTaskProfile,
+                    Some(address.function),
+                    Some(node.span),
+                ));
+            }
             f::Kind::Entry { next, .. } => next,
             f::Kind::Fuel { next, failure, .. } => {
                 let checked = control

@@ -100,6 +100,8 @@ fn function(name: &str, locals: Vec<d::Local>, parameters: &[u32]) -> d::Functio
 }
 fn body(loans: usize, instructions: Vec<b::Instruction>, result: u32) -> b::FunctionBody {
     b::FunctionBody {
+        task_scopes: Vec::new(),
+        task_bindings: Vec::new(),
         loans,
         prepared: 0,
         blocks: vec![b::Block {

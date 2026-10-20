@@ -371,6 +371,27 @@ impl Context<'_, '_> {
         let s = i.span;
         self.budget.charge(1)?;
         match &i.op {
+            Op::TaskScopeEnter(_) | Op::TaskYield | Op::TaskCheck => {}
+            Op::TaskScopeExit(scope) => {
+                for binding in &self.typed.functions()[self.function].task_bindings {
+                    self.budget.charge(1)?;
+                    if binding.scope == *scope {
+                        self.operation(
+                            state,
+                            &b::CleanupStep {
+                                target: binding.target,
+                                span: s,
+                            }
+                            .instruction(),
+                            mode,
+                        )?;
+                    }
+                }
+            }
+            Op::TaskAwait(value) | Op::TaskSaveReturn(value) => {
+                self.take(state, *value, s, mode)?
+            }
+            Op::TaskCancel(place) => self.read_place(state, *place, s, mode)?,
             Op::Cleanup(cleanup) => {
                 for step in &cleanup.steps {
                     self.budget.charge(1)?;
@@ -501,6 +522,7 @@ impl Context<'_, '_> {
                 state[index] = Availability::Available;
             }
             Op::Call { arguments, .. }
+            | Op::TaskSpawn { arguments, .. }
             | Op::Import { arguments, .. }
             | Op::Record {
                 fields: arguments, ..
@@ -537,6 +559,24 @@ impl Context<'_, '_> {
             self.operation(state, i, mode)?;
         }
         match body.terminator.kind {
+            b::Term::ReturnSaved => {
+                if mode == Mode::Check {
+                    for (index, availability) in
+                        state.iter().enumerate().skip(self.locals + self.values)
+                    {
+                        self.budget.charge(1)?;
+                        if availability.may_live() {
+                            return Err(Error {
+                                kind: ErrorKind::UnfinishedPrepared(b::PreparedPlaceId(
+                                    (index - self.locals - self.values) as u32,
+                                )),
+                                primary: Some(body.terminator.span),
+                                secondary: None,
+                            });
+                        }
+                    }
+                }
+            }
             b::Term::Return(v) => {
                 self.take(state, v, body.terminator.span, mode)?;
                 if mode == Mode::Check {

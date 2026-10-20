@@ -146,6 +146,7 @@ fn execute(typed: &b::TypedBodies, arguments: Vec<Value>) -> Result<Value, ()> {
         }
         let target = match &block.terminator.kind {
             b::Term::Return(value) => return Ok(values[value.0 as usize].clone().unwrap()),
+            b::Term::ReturnSaved => panic!("task return outside Copy oracle"),
             b::Term::Unreachable => return Err(()),
             b::Term::Jump(target) => target,
             b::Term::Branch {

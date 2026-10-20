@@ -252,9 +252,28 @@ impl Writer<'_> {
         self.span(value.span)
     }
     fn instruction(&mut self, value: &b::Instruction) -> Result<(), CodecError> {
+        if value.op.is_task() {
+            return Err(error(
+                self.length,
+                CodecErrorKind::UnsupportedTaskProfile { span: value.span },
+            ));
+        }
         use b::Op as O;
         self.registers(&value.results)?;
         match &value.op {
+            b::Op::TaskScopeEnter(_)
+            | b::Op::TaskScopeExit(_)
+            | b::Op::TaskSpawn { .. }
+            | b::Op::TaskAwait(_)
+            | b::Op::TaskCancel(_)
+            | b::Op::TaskYield
+            | b::Op::TaskCheck
+            | b::Op::TaskSaveReturn(_) => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedTaskProfile { span: value.span },
+                ));
+            }
             O::Panic(code) => {
                 self.byte(33)?;
                 self.word(code.0)?;
@@ -444,6 +463,12 @@ impl Writer<'_> {
     }
     fn terminator(&mut self, value: &b::Terminator) -> Result<(), CodecError> {
         match &value.kind {
+            b::Term::ReturnSaved => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedTaskProfile { span: value.span },
+                ));
+            }
             b::Term::Return(v) => {
                 self.byte(0)?;
                 self.word(v.0)?;
@@ -467,6 +492,23 @@ impl Writer<'_> {
         self.span(value.span)
     }
     fn unit(&mut self, program: &Program, payload: u32) -> Result<(), CodecError> {
+        let typed = program.flow.source().activity().moved().typed();
+        if let Some(span) = typed.places().declarations().task_feature_span() {
+            return Err(error(
+                self.length,
+                CodecErrorKind::UnsupportedTaskProfile { span },
+            ));
+        }
+        for (index, body) in typed.functions().iter().enumerate() {
+            if !body.task_scopes.is_empty() || !body.task_bindings.is_empty() {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedTaskProfile {
+                        span: typed.places().declarations().functions()[index].span,
+                    },
+                ));
+            }
+        }
         self.bytes(MAGIC)?;
         self.bytes(&self.version.to_le_bytes())?;
         self.bytes(&0_u16.to_le_bytes())?;
@@ -601,6 +643,54 @@ pub(super) fn instruction_fixture(value: &b::Instruction) -> Vec<u8> {
 #[cfg(test)]
 mod task_tests {
     use super::*;
+    #[test]
+    fn task_instructions_and_saved_returns_have_no_old_wire_encoding() {
+        for version in [2, 3, 4] {
+            for op in [
+                b::Op::TaskScopeEnter(b::TaskScopeId(1)),
+                b::Op::TaskScopeExit(b::TaskScopeId(0)),
+                b::Op::TaskSpawn {
+                    function: m::FunctionId(0),
+                    arguments: vec![],
+                },
+                b::Op::TaskAwait(m::Register(0)),
+                b::Op::TaskCancel(p::PlaceId(0)),
+                b::Op::TaskYield,
+                b::Op::TaskCheck,
+                b::Op::TaskSaveReturn(m::Register(0)),
+            ] {
+                let mut budget = m::Budget::new(Default::default());
+                let mut w = writer(&mut budget, version);
+                let e = w
+                    .instruction(&b::Instruction {
+                        results: vec![m::Register(9)],
+                        op,
+                        span: span(),
+                    })
+                    .unwrap_err();
+                assert!(matches!(
+                    e.kind,
+                    CodecErrorKind::UnsupportedTaskProfile { .. }
+                ));
+                assert_eq!(w.length, 0);
+                assert!(w.output.unwrap().is_empty());
+            }
+            let mut budget = m::Budget::new(Default::default());
+            let mut w = writer(&mut budget, version);
+            let e = w
+                .terminator(&b::Terminator {
+                    kind: b::Term::ReturnSaved,
+                    span: span(),
+                })
+                .unwrap_err();
+            assert!(matches!(
+                e.kind,
+                CodecErrorKind::UnsupportedTaskProfile { .. }
+            ));
+            assert_eq!(w.length, 0);
+            assert!(w.output.unwrap().is_empty());
+        }
+    }
     fn span() -> m::Span {
         m::Span {
             source: m::SourceId(0),

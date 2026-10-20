@@ -52,6 +52,8 @@ fn scalar() -> b::BodyTable {
             }],
         },
         functions: vec![b::FunctionBody {
+            task_scopes: Vec::new(),
+            task_bindings: Vec::new(),
             loans: 0,
             prepared: 0,
             blocks: vec![b::Block {

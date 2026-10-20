@@ -18,6 +18,7 @@ pub mod loans;
 pub mod moves;
 pub mod places;
 pub mod regions;
+pub mod tasks;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ConstructedId(pub u32);

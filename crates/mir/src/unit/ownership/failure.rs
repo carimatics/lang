@@ -103,6 +103,16 @@ pub enum Kind {
         next: NodeId,
     },
     PropagateFailure,
+    EndTaskLoans {
+        next: NodeId,
+    },
+    CancelTaskScopes {
+        next: NodeId,
+    },
+    JoinTaskScopes {
+        next: NodeId,
+    },
+    FinishTask,
 }
 impl Kind {
     pub fn targets(self) -> impl Iterator<Item = NodeId> {
@@ -122,11 +132,14 @@ impl Kind {
                 ..
             } => [Some(then_node), Some(else_node), Some(failure)],
             Self::DiscardPrepared { next }
+            | Self::EndTaskLoans { next }
+            | Self::CancelTaskScopes { next }
+            | Self::JoinTaskScopes { next }
             | Self::Raise { next, .. }
             | Self::RecordFailure { next }
             | Self::RetireFailure { next }
             | Self::DiscardResult { next } => [Some(next), None, None],
-            Self::PublishReturn | Self::PropagateFailure => [None, None, None],
+            Self::PublishReturn | Self::PropagateFailure | Self::FinishTask => [None, None, None],
         };
         targets.into_iter().flatten()
     }
@@ -138,10 +151,14 @@ pub struct Node {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
+    cancellation: Option<NodeId>,
     nodes: Vec<Node>,
     entries: Vec<NodeId>,
 }
 impl Function {
+    pub const fn cancellation(&self) -> Option<NodeId> {
+        self.cancellation
+    }
     pub const fn entry(&self) -> NodeId {
         NodeId(0)
     }
@@ -327,7 +344,7 @@ pub fn bookkeeping(op: &b::Op) -> bool {
 fn suffix(block: &b::Block) -> usize {
     if !matches!(
         block.terminator.kind,
-        b::Term::Return(_) | b::Term::Unreachable
+        b::Term::ReturnSaved | b::Term::Return(_) | b::Term::Unreachable
     ) {
         return block.instructions.len();
     }
@@ -341,6 +358,7 @@ fn block_count(block: &b::Block, budget: &mut m::Budget) -> Result<usize, Error>
     budget.charge(block.instructions.len())?;
     let mut count = match block.terminator.kind {
         b::Term::Return(_) => 5,
+        b::Term::ReturnSaved => 4,
         b::Term::Branch { .. } => 4,
         b::Term::Jump(_) | b::Term::Unreachable => 2,
     };
@@ -405,9 +423,10 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
     let mut total = 0usize;
     for (index, body) in typed.functions().iter().enumerate() {
         let declaration = &typed.places().declarations().functions()[index];
+        let task = declaration.effect.is_async();
         let result = (|| {
             let mut entries = budget.vector(body.blocks.len())?;
-            let mut count = 6;
+            let mut count = if task { 9 } else { 6 };
             for block in &body.blocks {
                 budget.charge(1)?;
                 entries.push(id(count)?);
@@ -441,9 +460,18 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                 )?;
                 emit(Kind::RecordFailure { next: NodeId(2) }, declaration.span)?;
                 emit(Kind::DiscardPrepared { next: NodeId(3) }, declaration.span)?;
-                emit(Kind::RetireFailure { next: NodeId(4) }, declaration.span)?;
-                emit(Kind::DiscardResult { next: NodeId(5) }, declaration.span)?;
-                emit(Kind::PropagateFailure, declaration.span)?;
+                if task {
+                    emit(Kind::EndTaskLoans { next: NodeId(4) }, declaration.span)?;
+                    emit(Kind::CancelTaskScopes { next: NodeId(5) }, declaration.span)?;
+                    emit(Kind::JoinTaskScopes { next: NodeId(6) }, declaration.span)?;
+                    emit(Kind::RetireFailure { next: NodeId(7) }, declaration.span)?;
+                    emit(Kind::DiscardResult { next: NodeId(8) }, declaration.span)?;
+                    emit(Kind::FinishTask, declaration.span)?;
+                } else {
+                    emit(Kind::RetireFailure { next: NodeId(4) }, declaration.span)?;
+                    emit(Kind::DiscardResult { next: NodeId(5) }, declaration.span)?;
+                    emit(Kind::PropagateFailure, declaration.span)?;
+                }
             }
             for (block_index, block) in body.blocks.iter().enumerate() {
                 let original = m::BlockId(block_index as u32);
@@ -473,6 +501,39 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                 )?;
                 let span = block.terminator.span;
                 match &block.terminator.kind {
+                    b::Term::ReturnSaved => {
+                        for (offset, instruction) in block.instructions[split..].iter().enumerate()
+                        {
+                            instruction_nodes(
+                                &mut nodes,
+                                &mut budget,
+                                instruction,
+                                b::Site {
+                                    block: original,
+                                    order: split + offset + 1,
+                                },
+                                fail,
+                            )?;
+                        }
+                        let next = id(add(nodes.len(), 1)?)?;
+                        push(
+                            &mut nodes,
+                            &mut budget,
+                            Kind::DiscardPrepared { next },
+                            span,
+                        )?;
+                        let next = id(add(nodes.len(), 1)?)?;
+                        push(
+                            &mut nodes,
+                            &mut budget,
+                            Kind::RetireReturn {
+                                next,
+                                failure: fail,
+                            },
+                            span,
+                        )?;
+                        push(&mut nodes, &mut budget, Kind::PublishReturn, span)?;
+                    }
                     b::Term::Return(value) => {
                         let next = id(add(nodes.len(), 1)?)?;
                         push(
@@ -581,7 +642,11 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                 }
             }
             debug_assert_eq!(nodes.len(), count);
-            Ok(Function { nodes, entries })
+            Ok(Function {
+                cancellation: task.then_some(NodeId(2)),
+                nodes,
+                entries,
+            })
         })();
         functions.push(result.map_err(|mut error: Error| {
             if error.primary.is_none() {

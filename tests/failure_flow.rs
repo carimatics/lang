@@ -129,6 +129,10 @@ fn run(program: &OwnershipProgram, config: Config) -> Run {
     for _ in 0..2000 {
         let node = flow.nodes()[pc.0 as usize];
         match node.kind {
+            f::Kind::EndTaskLoans { .. }
+            | f::Kind::CancelTaskScopes { .. }
+            | f::Kind::JoinTaskScopes { .. }
+            | f::Kind::FinishTask => panic!("task plan outside synchronous failure oracle"),
             f::Kind::Entry { next, failure } => {
                 if config.entry_fails {
                     cause = Some((Cause::Execution(ExecutionFailure::FrameLimit), node.span));
