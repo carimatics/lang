@@ -21,7 +21,7 @@ impl ExecutionOptions {
     }
 }
 
-const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
 enum Command {
     Check {
         file: PathBuf,
@@ -43,6 +43,7 @@ enum Command {
         output: PathBuf,
         target: Option<String>,
     },
+    LinkNative(lang::native::link::Request),
     RunArtifact {
         file: PathBuf,
         limits: ExecutionOptions,
@@ -98,6 +99,9 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
             ));
         }
         return Ok(Command::Lsp);
+    }
+    if first == "link-native" {
+        return parse_link_native(arguments);
     }
     if first == "native" {
         return parse_native(arguments);
@@ -204,6 +208,55 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
         root,
         limits,
     })
+}
+fn parse_link_native(arguments: Vec<OsString>) -> Result<Command, CliError> {
+    let (mut sdk, mut package, mut host, mut output) = (None, None, None, None);
+    let mut objects = Vec::new();
+    let mut args = arguments.into_iter().skip(1);
+    while let Some(option) = args.next() {
+        if option == "--help" || option == "-h" {
+            return Ok(Command::Help);
+        }
+        let flag = option
+            .to_str()
+            .ok_or_else(|| usage("link-native options must be UTF-8"))?;
+        if !matches!(
+            flag,
+            "--sdk" | "--package" | "--host" | "--output" | "--object"
+        ) {
+            return Err(usage(format!("unknown link-native option {flag}")));
+        }
+        let value = args
+            .next()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| usage(format!("missing value for {flag}")))?;
+        let value = PathBuf::from(value);
+        if flag == "--object" {
+            objects.push(value);
+            continue;
+        }
+        let slot = match flag {
+            "--sdk" => &mut sdk,
+            "--package" => &mut package,
+            "--host" => &mut host,
+            "--output" => &mut output,
+            _ => unreachable!(),
+        };
+        if slot.replace(value).is_some() {
+            return Err(usage(format!("duplicate option {flag}")));
+        }
+    }
+    if !objects.is_empty() && host.is_none() {
+        return Err(usage("--object requires an explicit --host"));
+    }
+    Ok(Command::LinkNative(lang::native::link::Request {
+        rustc: std::env::var_os("RUSTC"),
+        sdk: sdk.ok_or_else(|| usage("missing --sdk"))?,
+        package: package.ok_or_else(|| usage("missing --package"))?,
+        host,
+        objects,
+        output: output.ok_or_else(|| usage("missing --output"))?,
+    }))
 }
 fn parse_native(arguments: Vec<OsString>) -> Result<Command, CliError> {
     let mut file = None;
@@ -319,6 +372,10 @@ fn run() -> Result<u8, CliError> {
             output,
             target,
         } => compile_native(file, root, output, target),
+        Command::LinkNative(request) => {
+            lang::native::link::link(&request, Default::default()).map_err(failure)?;
+            Ok(0)
+        }
         Command::RunArtifact { file, limits } => run_artifact(file, limits),
         Command::Repl { root, limits } => run_repl(root, limits),
     }

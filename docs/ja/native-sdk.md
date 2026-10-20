@@ -26,8 +26,17 @@ SDK/bin/lang native --output program application.lang
 
 C libraryにはdefault executable entryがありません。`startup/c-host.rs` は `int native_client(void)` を定義する明示compile済みC objectを要求します。Clientは生成 `program.h` で実configuration／allocator／import grantを作り、exportを呼び、全failure pathを含め同じowner thread上で全contextを破棄してから戻ります。Raw context／clientを保持したり、Rust binding scope終了後にcallしてはいけません。Unsafe matching-image義務はunwindも含みます。信頼済みnative embeddingでありsandboxではなく、metadataはcapabilityを与えません。同梱 `startup/c-guest.lang`／`c-client.c.in` の例は実i64 exportを41で呼び、42とC allocation／context破棄の釣合いを検査します。`@ID@`、`@DIGEST_BYTES@`、`@ENTRY_SYMBOL@` は対応する検証済みC Artifact（decode済みprogram意味論とSDK C metadata API）から埋めます。Interface識別値であり、実行権限ではありません。Integration testにこのdataだけの準備例があります。
 
-公開 `link-native` commandはP12の残作業です。実装までtemplateには完全一致rustc／native linkの明示呼出しが必要で、`--edition=2024`、`-L dependency=SDK/lib`、必要な `-L native=SDK/native`、`--extern lang_codegen_clif=RUNTIME_RLIB`、hostが使うMIR／runtime／bytecode rlibと `-C link-arg=PROGRAM_OBJECT`、信頼済みC host objectを指定します。検証済みSDK／program manifestのpathを使い、link中はprivate snapshot ownerを保持します。C objectはC11とplatform互換runtime（MSVCは `/MD`）を使います。Toolchain／system libraryは外部要件です。この手動手順だけではP02の隔離install検証には数えません。
+公開 `link-native` はprivate SDK／program snapshotと実rustc release／commit／hostを検証し、元objectと配布libraryをlinkして新executableをexclusive公開します。Cargo／registry／repository pathは使いません。通常packageは生成mainを使い、Cは明示Rust hostと必要な個別compile済みC objectを要求します。
+
+```text
+SDK/bin/lang link-native --sdk SDK --package program --output application
+SDK/bin/lang link-native --sdk SDK --package c-program --host c-host.rs --object client.o --output c-application
+```
+
+出力先は未存在である必要があります。Rust hostは生成 `bindings.rs` の隣へコピーする単一root fileであり、追加Rust moduleは自動収集しません。C objectはC11と互換platform runtime（MSVCは `/MD`）を使います。Executableは元記録を保持し、起動時に元source／SDK directoryを必要としません。Toolchain／system libraryは外部要件で、`RUSTC` で明示的なinstall済みcompilerを選べます。Rustup shimを含め、version検査とcompileは同じcompiler path／current directoryを使います。これだけではP02の両host隔離install証拠には数えません。
+
+信頼済みhostの既定上限はRust source 8 MiB、各64 MiBのobject最大64件、合計256 MiB、診断streamごと1 MiB、executable 2 GiBです。Tool起動前に入力をprivate copyし、link中はSDK／program ownerを保持します。Rustc response引数はUTF-8の1行1引数でshell quoteを使わず、改行を含むpathや表現不能な引数は拒否します。SDK／target／toolchain／file／上限の不一致と、失敗／並行linkは既存出力を保ち、所有staging fileを削除します。
 
 Version-1 file表は全hash、上限付きsize、正確なtarget／build／rustc／profile／feature policyを記録します。Componentをstreamコピーして新directoryをatomic公開し、失敗時は所有staging fileだけを削除します。Compilerの実行権限を保持します。Toolがcomponentを使う前にproduction `SdkSnapshot` APIでSDKを検証します。Native code、library、生成Rust／C host、build出力は信頼済み入力であり、hashは対応／整合性を検査するだけでnative codeの真正性は証明しません。未対応／不一致artifactは対応SDKでrebuildします。Build間のRust ABI安定性、性能／size改善は約束しません。
 
-対応する [project repository](https://github.com/carimatics/lang) の情報源：RFC 0020、`src/native/sdk_package.rs`、`tools/build-native-sdk.py`、`crates/codegen-clif/src/sdk/runtime.rs`。2026-10-20 JST更新・確認。Cargo JSON fieldは公式 [Cargo Book: External tools](https://doc.rust-lang.org/cargo/reference/external-tools.html)、panic policyは [catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html) と [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html#panic) に従います。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。
+対応する [project repository](https://github.com/carimatics/lang) の情報源：RFC 0020、`src/native/sdk_package.rs`、`src/native/link.rs`、`tools/build-native-sdk.py`、`crates/codegen-clif/src/sdk/runtime.rs`。2026-10-20 JST更新・確認。Cargo JSON fieldは公式 [Cargo Book: External tools](https://doc.rust-lang.org/cargo/reference/external-tools.html)、panic policyは [catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html) と [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html#panic) に従います。Response引数規則は公式 [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path) に従います。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。

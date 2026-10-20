@@ -158,6 +158,8 @@ P07 build policyの明確化：**実験段階の委任により2026-10-20 JST受
 
 P07 checkpoint（2026-10-20 JST）：repository内build toolでcompiler／runtimeと、成功Cargo buildが正確に選んだRust／proc-macro／native依存artifact、内容不変の共通C profile-1 header、起動例、日英説明を組立します。Assemblerとcompilerは同一buildで生成します。上限付きstream file／manifestをproduction SDK検証APIで検査してからexclusive公開し、compilerの実行権限を保持します。対象は組立であり、公開linkのP12と両host完全隔離Copy／owned／C installのP02は残ります。SDK metadataのkey／role、source意味論、C signatureは不変で、不一致SDKは引き続きrebuildが必要です。最小size／性能は主張しません。
 
+P12 checkpoint（2026-10-20 JST）：公開 `link-native` でSDK／programと上限付き信頼済みRust／C入力をsnapshot・検証し、compileと同じworking directoryで実rustc release／commit／hostを照合して、UTF-8 response引数で配布libraryと元objectをrustcへ渡します。Cargo／registry／repository pathは使いません。成功後に新executableだけをexclusive公開し、失敗／並行時も既存出力を保ちます。通常entryのdefaultと明示C host／context／grantは不変です。Toolchain／tool前拒否、診断／host／出力上限、rollback／1件だけの公開、source／SDK／program退避後の実SDK3 profileをtestします。両host完全隔離のP02、Q／B／G、最終guideは残り、manifest／ABI／version変更や性能改善は主張しません。情報源：公式 [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path)。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。
+
 ## Open questions
 
 契約上のblocking questionはありません。未検証の実装仮説は、最小Rust artifact closure／platform link flags、一貫したbuild識別、大規模programでのmanifest／component上限、C hostの使い勝手、Windowsの完全隔離installです。P09／P10／P07／P02で実験し、受理済み契約を変える前に本RFCを明示改訂します。将来Cだけでbootstrapすることは任意の後続作業です。

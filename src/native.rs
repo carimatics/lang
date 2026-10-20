@@ -1,5 +1,6 @@
 //! RFC 0020 whole-source native package production. This module never executes
 //! guest code, grants imports or treats native hashes as authentication.
+pub mod link;
 pub mod manifest;
 pub mod sdk_package;
 use crate::frontend::{self, CompileLimits, ScriptError};
