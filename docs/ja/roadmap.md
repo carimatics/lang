@@ -8,17 +8,17 @@
 
 ## 現在のM2実装状況
 
-**検証済み127件 · 進行中1件 · 残り5件（暫定12 pt）。**
+**検証済み128件 · 進行中1件 · 残り4件（暫定10 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| B03：native Windows計測とばらつき | **B02完了**：cleanなmacOSの135＋45観測（`95b97cb`） | **16/18条件** |
+| B04：両host計測の解釈と再現 | **B03完了**：cleanなWindowsの135＋45観測（`02b348f`） | **16/18条件** |
 
-**直近の検証checkpoint（2026-10-20 JST）：** [Mac run 39383945072 / job 118499215009](https://github.com/carimatics/lang/actions/runs/39383945072/job/118499215009)のcleanな`ecc0fd1`が成功し、report記録は2026-10-20 07:03:45 UTCです。[Raw capture](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)と[計測表／scope](benchmarks.md#macos-native-capture-b02)を`95b97cb`に保存しました。workload 135観測、workloadなしstartup 45観測、各15 samplesの9 case、checksum、退役、集計値、SDK／harness identity、reference linkの分離を独立に検証しています。B01の両host 21組／unwindの証拠は有効で、harness・compiler／reference sourceは同一です。
+**直近の検証checkpoint（2026-10-20 JST）：** [Windows run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853)のcleanな`dced632`が成功し、2026-10-20 07:17:54 UTCに完了しました。[Raw capture](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)と[計測表／scope](benchmarks.md#windows-native-capture-b03)を`02b348f`に保存しています。workload 135＋専用startup 45観測、全sample identity／checksum／退役／集計値、実際の非zeroなK32 peak working set、SDK／harness hash、reference linkの分離を独立に検証しました。compiler・source／reference workload・harnessはmacOS記録と同一で、checkoutの改行差はcanonicalに扱います。
 
-**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **14 − 2 = 12 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 231 = 12 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **12 − 2 = 10 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 233 = 10 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**B03実装前監査（2026-10-20 JST）：** 既存2 ptと同じharnessをcleanな`codex/bench-windows-*` branchで使い、Windows／MSVCだけを選びます。15 samples、`n=1000`、反復20回、warmup 3回を維持し、21組／unwind gate後に**workload 135＋専用startup 45観測**を取得します。B01で修正後C referenceのWindows build／呼び出しは通っています。今回は実K32 peak working set、runtime／準備／startup分離、size、全checksum／退役、ばらつき、exact revision／SDK／harness provenanceを必須とします。対応release SDK identityと明示MSVC `/O2 /MD`／Rust `opt-level=3` commandを維持します。B04、両hostのdebugger作業、最終Z01は引き続き必須で、新たな前提／見積もりは発生していません。
+**B04実装前監査（2026-10-20 JST）：** 完全な両native記録と既存1 ptを使います。同一host内のsource／Rust／C runtime比率、resource／startup／sizeの証拠、ばらつき、計測の限界を公表し、callごとのruntime処理・artifact／context準備・workloadなし新規process起動を区別します。exact revision／SDK／toolchain／flag、入力、raw source、実行可能な再現／集計commandを含めます。optimizer、有限control、ownership／accounting、共通Rust driver、RSS／working set、hostの差を説明し、未検証の原因や異なるmachineの結論は置きません。文書だけが異なるrevision ID間でcanonicalなharness／workloadが同一なことを検証します。このreport後にG17を完了し、G18と最終Z01は引き続き必須です。新たな前提／見積もりはありません。
 
 ## タスク管理
 

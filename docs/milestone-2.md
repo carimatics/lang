@@ -6,23 +6,23 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**127 done · 1 doing · 5 todo · 12 remaining pt**
+**128 done · 1 doing · 4 todo · 10 remaining pt**
 
-**Next: M2-B03 → clean native Windows runtime/startup/memory/size capture (provisional 2 pt, in progress).**
+**Next: M2-B04 → both-host comparison, interpretation and reproduction (provisional 1 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| B03: native Windows measurements and variance | **B02 complete**: clean macOS 135 + 45 observations (`95b97cb`) | **16/18 gates** |
+| B04: interpret and reproduce both-host measurements | **B03 complete**: clean Windows 135 + 45 observations (`02b348f`) | **16/18 gates** |
 
-**Latest verification checkpoint (2026-10-20 JST):** [Mac run 39383945072 / job 118499215009](https://github.com/carimatics/lang/actions/runs/39383945072/job/118499215009) succeeds at clean `ecc0fd1`, with the report recorded at 2026-10-20 07:03:45 UTC. [Raw capture](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json) and [measurement tables/scope](benchmarks.md#macos-native-capture-b02) are committed in `95b97cb`. All 135 workload and 45 workload-free startup observations, nine 15-sample cases, checksums, retirement, aggregates, SDK/harness identity and separate reference links were independently checked. B01 both-host 21-case/unwind proof remains valid; harness and compiler/reference sources are unchanged.
+**Latest verification checkpoint (2026-10-20 JST):** [Windows run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853) succeeds at clean `dced632`, completed 2026-10-20 07:17:54 UTC. [Raw capture](../benchmarks/results/2026-10-20-m2-windows-dced632.json) and [tables/scope](benchmarks.md#windows-native-capture-b03) are committed as `02b348f`. Independently verified: 135 workload + 45 dedicated startup observations, all sample identities/checksums/retirement/aggregates, actual nonzero K32 peak working-set values, SDK/harness hashes and reference link separation. Compiler, source/reference workloads and harness match the macOS capture; checkout newline differences are canonicalized.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **14 − 2 = 12 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 231 = 12 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **12 − 2 = 10 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 233 = 10 pt**. Provisional planning units are not hours or completion percentages.
 
-**B02 completion audit:** native macOS 15.7.9/arm64, five logical CPUs, 15 samples per source/Rust/C scalar/Bytes+Vec/shared-arena case, `n=1000`, 20 repetitions, three untimed warmups. Runtime and artifact/context preparation are distinct; 45 dedicated startup processes execute no workload. OS peak RSS and linked executable/original object sizes are positive, raw samples and min/median/max/mean/stdev retained, every checksum and allocator balance passes. Source pipeline times are higher than reference times; startup RSD is 19–31%. The common Rust driver, generic CPU field, optimizer and accounting differences are explicit. These observations satisfy measurement scope without a speed guarantee; G17 still needs Windows and B04 interpretation.
+**B03 completion audit:** native Windows Server 2025 build 10.0.26100/x86-64, two logical CPUs, 15 samples per source/Rust/C scalar/Bytes+Vec/shared-arena case, `n=1000`, 20 calls, three untimed warmups; the 21-case/unwind gate passes first. Workload runtime, once-per-process preparation, dedicated startup, K32 process peaks, executable/object sizes and variance are retained. Source pipeline times exceed references; reference workload RSD reaches 33.39% and startup RSD approximately 7–23%. The C-labelled application includes the common Rust driver. Both captures are evidence at their exact revisions, with no inferred cross-machine speed or heap-allocation claim.
 
-Retain B01’s **1,585 tests / 94 suites, 0 failures, 1 manual timing ignore**, fmt/Clippy/rustdoc and standalone/four-mode/parity/unwind checks. B02 changes only result data/documentation; production/reference Rust and the harness are unchanged. Use the three repository-consistency checks for this bilingual plan update rather than repeat the identical compiler baseline.
+Retain B01’s **1,585 tests / 94 suites, 0 failures, 1 manual timing ignore**, fmt/Clippy/rustdoc and standalone/four-mode/parity/unwind checks. B03 changes only captured data/documentation; production/reference Rust and the harness remain unchanged. The bilingual plan uses the three repository-consistency checks and link/data preservation checks.
 
-**B03 readiness (2026-10-20 JST):** use the existing 2 pt and unchanged harness on a clean `codex/bench-windows-*` branch, selecting Windows/MSVC alone. Preserve the same 15 samples, `n=1000`, 20 repetitions and three warmups: **135 workload + 45 dedicated startup observations** after the 21-case/unwind gate. B01 already builds/calls the corrected C references on Windows; now require real K32 peak working-set readings, runtime/preparation/startup separation, sizes, every checksum/retirement, variance and exact revision/SDK/harness provenance. Retain matching release SDK identity and explicit MSVC `/O2 /MD` / Rust `opt-level=3` commands. B04, both-host debugger work and final Z01 remain required. No new prerequisite or estimate is exposed.
+**B04 readiness (2026-10-20 JST):** use the existing 1 pt with both complete native captures. Publish within-host source/Rust/C runtime ratios and resource/startup/size evidence, variance and measurement limitations; distinguish per-call runtime work, artifact/context preparation and workload-free fresh-process startup. Include exact revision/SDK/toolchain/flags, inputs, raw sources and executable reproduction/aggregation commands. Explain optimizer, finite-control, ownership/accounting, common Rust driver, RSS/working-set and host differences without unsupported causal or cross-machine conclusions. Verify the same canonical harness/workloads despite different documentation-only revision IDs. G17 closes only after this report; G18 and final Z01 remain required. No new prerequisite or estimate is exposed.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -210,13 +210,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 127 (+92)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 128 (+93)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −231 pt | 12 pt |
+| 134 pt | +109 pt | −233 pt | 10 pt |
 
-**134 + 109 − 231 = 12 pt**
+**134 + 109 − 233 = 10 pt**
+
+B03 delivery / B04 readiness audit (2026-10-20 JST): `02b348f` retains clean native Windows report `dced632` from run 39385041497: 135 workload + 45 startup observations, every checksum/retirement/provenance/aggregate check passes, K32 memory readings are real and nonzero. Retire existing 2 pt: **127 → 128 done, 12 → 10 remaining pt, retired 231 → 233 pt; 133 rows/+109 additions unchanged**. Select only B04 at its existing 1 pt for both-host interpretation and reproduction. Measurements show a large scoped runtime cost gap and noisy reference/startup samples; those limits must be published. G17 remains open until B04; both-host debugger work and Z01 remain unchanged.
 
 B02 delivery / B03 readiness audit (2026-10-20 JST): `95b97cb` retains clean native Mac report `ecc0fd1` from run 39383945072: 135 workload and 45 startup observations, all checksum/retirement/provenance and aggregate checks pass. Retire the existing 2 pt separately: **126 → 127 done, 14 → 12 remaining pt, retired 229 → 231 pt; 133 rows/+109 additions unchanged**. Select B03 alone at its existing 2 pt and preserve the same Windows scope. G17 requires measurement, not a speed threshold; publish the observed cost gap/variance and both-host limits in B04. G17/G18/Z01 remain open.
 
@@ -450,8 +452,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-Q02 | done | 0 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | `1d0c0dc` |
 | M2-B01 | done | 0 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | `fffe86c` |
 | M2-B02 | done | 0 | M2-B01,M2-P02 | G17 | Record clean macOS runtime/startup/memory/size measurements with variance. | `95b97cb` |
-| M2-B03 | doing | 2 | M2-B01,M2-P02 | G17 | Record equivalent clean Windows measurements with variance. | — |
-| M2-B04 | todo | 1 | M2-B02,M2-B03 | G17 | Publish interpreted results, reproducibility commands and remaining performance limits. | — |
+| M2-B03 | done | 0 | M2-B01,M2-P02 | G17 | Record equivalent clean Windows measurements with variance. | `02b348f` |
+| M2-B04 | doing | 1 | M2-B02,M2-B03 | G17 | Publish interpreted results, reproducibility commands and remaining performance limits. | — |
 | M2-G01 | todo | 3 | M2-N06 | G18 | Emit native owned-value source spans/locations and validate macOS debug fixtures. | — |
 | M2-G02 | todo | 3 | M2-N07 | G18 | Emit corresponding Windows native debug metadata and validate source locations. | — |
 | M2-G03 | todo | 2 | M2-G01,M2-G02 | G18 | Record actual debugger stepping/backtrace evidence on both tier-1 platforms. | — |
