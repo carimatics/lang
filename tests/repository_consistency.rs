@@ -194,9 +194,13 @@ fn delivery_board(document: &str) -> Vec<Delivery<'_>> {
         .split_whitespace()
         .next()
         .unwrap();
-    let next = by_id.get(next).expect("next delivery exists");
-    assert_ne!(next.state, "done");
-    assert!(next.needs.iter().all(|id| by_id[id].state == "done"));
+    if done == rows.len() {
+        assert_eq!(next, "none", "completed board has no next delivery");
+    } else {
+        let next = by_id.get(next).expect("next delivery exists");
+        assert_ne!(next.state, "done");
+        assert!(next.needs.iter().all(|id| by_id[id].state == "done"));
+    }
     rows
 }
 

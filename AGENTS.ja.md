@@ -20,6 +20,7 @@
   - `docs/benchmarks.md` と `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` と `docs/ja/milestone-1.md`
   - `docs/milestone-2.md` と `docs/ja/milestone-2.md`
+  - `docs/milestone-2-capabilities.md` と `docs/ja/milestone-2-capabilities.md`
   - `docs/native-sdk.md` と `docs/ja/native-sdk.md`
   - `docs/review-2026-10-17.md` と `docs/ja/review-2026-10-17.md`
   - `docs/rfcs/0000-template.md` と `docs/ja/rfcs/0000-template.md`
