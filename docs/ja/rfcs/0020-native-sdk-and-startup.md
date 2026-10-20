@@ -150,6 +150,8 @@ Mac AArch64／Windows x86-64 MSVCの導入済みSDK出力から実exe／C caller
 
 2026-10-20 JST：P09は `lang native`、unit全体の分類／元の検査済みentry、semantic／native／object／header／binding出力、target別SDK identity、exclusive公開を実装します。Testはsourceなしの生成driver、managed／panicのVM比較、明示的な実C hostを実行し、cross-target fixtureはMach-O／COFFを検査します。通常の生成host policyは64 logical frame／65,536 live cellと512 MiBのruntime準備上限を使い、semantic decodeの上限と区別します。明示embeddingではこの有限controlを設定できます。これはrepository内のproducer／startup証拠です。`link-native`、非信頼manifest検証全体、SDK組み立て、両hostの隔離installはP11／P10／P07／P12／P02に残ります。意図したSDK interfaceの実装までstatusはacceptedを維持します。
 
+P11 checkpoint（2026-10-20 JST）：型付き上限付きmanifest検証と、SDK／programをstreamコピーするprivate snapshotを実装します。返却前にcompile済みidentityと全fileを検査し、対応する意味論／native／objectを、code binding／tool／providerなしに独立decode・prepareします。Staging parentとnative inputは信頼済みhost policyであり、callerは後続linkの間ownerを保持してprivate fileを変更しません。Parser fuzz targetはI/Oを行いません。このdata境界だけではP10／P07／P12／P02と隔離SDK installを実装しません。
+
 ## Open questions
 
 契約上のblocking questionはありません。未検証の実装仮説は、最小Rust artifact closure／platform link flags、一貫したbuild識別、大規模programでのmanifest／component上限、C hostの使い勝手、Windowsの完全隔離installです。P09／P10／P07／P02で実験し、受理済み契約を変える前に本RFCを明示改訂します。将来Cだけでbootstrapすることは任意の後続作業です。

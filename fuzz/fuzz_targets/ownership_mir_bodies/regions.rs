@@ -87,6 +87,7 @@ fn place(origin: u32, local: u32, dereference: bool) -> p::Place {
 }
 fn function(name: &str, locals: Vec<d::Local>, parameters: &[u32]) -> d::Function {
     d::Function {
+        abi: d::FunctionAbi::Guest,
         name: name.into(),
         public: false,
         span: span(),

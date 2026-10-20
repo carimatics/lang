@@ -205,6 +205,7 @@ fuzz_target!(|bytes: &[u8]| {
         closing_brace: sources.span(source, text.len() - 1..text.len()).unwrap(),
     });
     let mut function = r::Function {
+        abi: r::FunctionAbi::Guest,
         module: r::ModuleId(0),
         name: name("f"),
         qualified_name: "f".into(),
@@ -269,10 +270,15 @@ fuzz_target!(|bytes: &[u8]| {
         definitions,
         types: constructed,
         imports: vec![r::HostImport {
+            abi: r::ImportAbi::Host,
             module: r::ModuleId(0),
             name: name("next"),
             qualified_name: "next".into(),
-            parameter: name("value"),
+            parameters: vec![r::ImportParameter {
+                name: name("value"),
+                ty: use_type(r::Type::I64),
+            }],
+            result: use_type(r::Type::I64),
             span,
         }],
         functions: vec![function],

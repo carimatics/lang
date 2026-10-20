@@ -1,5 +1,6 @@
 //! RFC 0020 whole-source native package production. This module never executes
 //! guest code, grants imports or treats native hashes as authentication.
+pub mod manifest;
 use crate::frontend::{self, CompileLimits, ScriptError};
 use lang_codegen_clif::{self as clif, native_record::Record, owned as n, sdk};
 use lang_diagnostics::SourceMap;
@@ -120,12 +121,14 @@ impl Package {
                 std::process::id(),
                 NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             ));
-            let mut directory = fs::DirBuilder::new();
+            let directory = fs::DirBuilder::new();
             #[cfg(unix)]
-            {
+            let directory = {
                 use std::os::unix::fs::DirBuilderExt;
+                let mut directory = directory;
                 directory.mode(0o700);
-            }
+                directory
+            };
             match directory.create(&path) {
                 Ok(()) => {
                     stage = Some(path);

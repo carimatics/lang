@@ -185,6 +185,12 @@ cargo run --bin lang -- native --target x86_64-pc-windows-msvc --output /tmp/lan
 
 生成startupはproduction runtime APIを使ってscriptの値を表示し、元のobjectのbinding前にSDK identityを照合します。[Compiler test](tests/native_compiler.rs)はsource削除後にこれらの出力と実C callerをbuild・実行します。配布、`link-native`、SDK検証全体、隔離installはaccepted [RFC 0020](docs/ja/rfcs/0020-native-sdk-and-startup.md)のP11／P10／P07／P12／P02に残ります。SDKは完全一致するRust toolchainとnative linkerを必要とし、C hostにはC11も必要です。
 
+### Native package検証API
+
+2026-10-20 JST更新・検証：`native::manifest::SdkSnapshot::open` と `ProgramSnapshot::open` はRFC 0020のdataを検証し、後続の信頼済みlinkに使うprivate copyを保持します。重複／未知field・role、不正path、予算、SDK／build／toolchain tag、hash、意味論／native／objectの不一致を拒否します。SDKは64 KiB bufferでstreamコピーし、program dataはbindingやguest実行なしに独立decodeとplan検査を行います。
+
+Callerはsource rootと信頼済みprivate staging parentを選び、toolが使う間はsnapshot ownerを保持してfileを変更しません。Snapshot成功後は元入力を削除でき、失敗／drop時は所有するstaging directoryだけを削除します。Native fileとRust host glueは信頼済み入力であり、hashは対応検査です。このAPIはrustcを起動せず、applicationをlinkしません。Runtime facade、SDK組立、`link-native`、両host隔離installにはP10／P07／P12／P02が必要です。[検証test](tests/native_packages.rs)を参照してください。`native_manifests` はfilesystem／native権限を持たない上限付きparser fuzz targetです。
+
 ## 設計プロセス
 
 構文、型意味論、メモリ安全性、並行処理、ABI、パッケージ互換性、プラグイン境界を変更する場合はRFCが必要です。リポジトリSkillの `$language-design-rfc` を使用するか、`docs/ja/rfcs/0000-template.md` から開始してください。

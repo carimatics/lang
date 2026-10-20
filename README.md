@@ -185,6 +185,12 @@ Choose a fresh output directory. It contains `package.json`, independently valid
 
 Generated startup uses production runtime APIs, prints the script value and checks SDK identity before binding the original object. [Compiler tests](tests/native_compiler.rs) build/run these outputs and a real C caller after source removal. Distribution, `link-native`, complete SDK validation and isolated installation remain P11/P10/P07/P12/P02 under accepted [RFC 0020](docs/rfcs/0020-native-sdk-and-startup.md). The SDK requires the exact Rust toolchain and native linker; C hosts also require C11.
 
+### Native package verification API
+
+Updated/verified 2026-10-20 JST: `native::manifest::SdkSnapshot::open` and `ProgramSnapshot::open` validate RFC 0020 data and retain private copies for later trusted linking. They reject duplicate/unknown fields and roles, bad paths, budgets, SDK/build/toolchain tags, hashes and semantic/native/object mismatches. SDK copies stream through a 64 KiB buffer; program data undergoes independent decoding and plan checks without binding or guest execution.
+
+The caller selects the source roots and a trusted private staging parent, retains each snapshot owner and leaves its files unchanged while tools consume them. Original inputs can be removed after a successful snapshot; failure/drop removes only the owned staging directory. Native files and Rust host glue remain trusted inputs; hashes are pairing checks. These APIs do not invoke rustc or link an application. P10/P07/P12/P02 remain necessary for the runtime facade, SDK assembly, `link-native` and both-host isolated installation. See [verification tests](tests/native_packages.rs); `native_manifests` is a bounded parser fuzz target, with no filesystem or native authority.
+
 ## Design process
 
 Changes to syntax, type semantics, memory safety, concurrency, ABI, package compatibility, or the plugin boundary require an RFC. Use the repository skill `$language-design-rfc` or start from `docs/rfcs/0000-template.md`.

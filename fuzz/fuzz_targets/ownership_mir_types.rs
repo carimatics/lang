@@ -183,6 +183,7 @@ fuzz_target!(|bytes: &[u8]| {
                 });
             }
             declarations.functions.push(d::Function {
+                abi: d::FunctionAbi::Guest,
                 name: format!("function{i}"),
                 public: byte(i + 350) & 1 != 0,
                 span,

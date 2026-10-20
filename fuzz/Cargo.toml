@@ -9,6 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+lang = { path = ".." }
 lang-runtime = { path = "../crates/runtime" }
 lang-diagnostics = { path = "../crates/diagnostics" }
 lang-syntax = { path = "../crates/syntax" }
@@ -89,3 +90,10 @@ bench = false
 
 [workspace]
 members = ["."]
+
+[[bin]]
+name = "native_manifests"
+path = "fuzz_targets/native_manifests.rs"
+test = false
+doc = false
+bench = false

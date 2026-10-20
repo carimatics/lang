@@ -60,6 +60,7 @@ fuzz_target!(|bytes: &[u8]| {
         c(11),
     ];
     let declaration = d::Function {
+        abi: d::FunctionAbi::Guest,
         name: "f".into(),
         public: false,
         span,

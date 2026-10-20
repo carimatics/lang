@@ -35,6 +35,14 @@ Shared SDK identity covers sorted production inputs/manifests/lock/toolchain, fi
 
 Ordinary startup uses production Copy binding or RFC 0019 ownership entry runtime; explicit C embedding retains unsafe matching-image/owner-thread and actual allocator/context obligations. Source-free driver, managed/panic VM comparison and real C caller fixtures still compile with in-tree dependencies. Distributed consumer/`link-native`, strict untrusted manifest reader, SDK assembly and both-host isolated installation remain P11/P10/P07/P12/P02. This producer alone does not close packaging.
 
+## Native manifest and file verification
+
+P11 (2026-10-20 JST) adds immutable typed SDK/program manifests and owned snapshots. Exact-key serde decoding rejects duplicates/unknown fields; byte/depth/string/file-count limits precede growth. Role/path/profile/entry and aggregate size checks include the manifest bytes. SDK tags match the compiled build, target-specific ID, rustc release/commit, profile and feature policy. Program semantics/entry/ABI, native record kind/target/C digest, exact object bytes and recorded plans are independently checked.
+
+Directory-relative cap-std opens enforce the explicit root across symlink/reparse traversal. Unix opens are nonblocking before regular-file checks. Streaming copies verify declared sizes and SHA-256 into exclusive private files; only verified owners are returned. Source mutation/removal cannot change returned bytes, and failure/drop cleans the owned directory. The staging parent is trusted host policy; these data APIs grant no symbol, import, native/provider or tool authority. P10/P07/P12/P02 still own runtime consumption, SDK assembly, toolchain/link command and isolated install.
+
+Sources: pinned cap-std/cap-primitives 4.0.3 filesystem documentation/source, publication/update date absent in the packaged files, verified 2026-10-20 JST; [Cargo.lock](../Cargo.lock), [validator](../src/native/manifest.rs), [snapshots](../src/native/manifest/snapshot.rs), [tests](../tests/native_packages.rs), and [bounded fuzz target](../fuzz/fuzz_targets/native_manifests.rs), updated/verified 2026-10-20 JST. Fuzz compilation is not a coverage-guided campaign.
+
 ## Goals
 
 - Native performance and low-level control on Windows and macOS.

@@ -35,6 +35,14 @@ P02のmetadata準備prototype（2026-10-20 JST実装・重点確認）：`Object
 
 通常startupはproduction Copy bindingまたはRFC 0019のownership entry runtimeを使い、明示C embeddingはunsafe matching-image／owner-threadと実allocator／contextの義務を保持します。Sourceなしdriver、managed／panicのVM比較、実C callerのfixtureは引き続きrepository内dependencyでcompileします。配布用consumer／`link-native`、厳格な非信頼manifest reader、SDK組み立て、両hostの隔離installはP11／P10／P07／P12／P02に残り、このproducerだけではpackagingを完了しません。
 
+## Native manifest and file verification
+
+P11（2026-10-20 JST）は不変の型付きSDK／program manifestと所有snapshotを追加します。Exact-key serde decodeで重複／未知fieldを拒否し、byte／depth／string／file-count上限を拡張前に検査します。Role／path／profile／entryと総sizeの検査にはmanifest byteも含めます。SDK tagはcompile済みbuild、target別ID、rustc release／commit、profile、feature policyと照合します。Programの意味論／entry／ABI、native記録のkind／target／C digest、正確なobject byteと記録planを独立に検査します。
+
+Directory相対のcap-std openでsymlink／reparse越しにも明示root内を強制します。Unixではregular file検査前のopenをnonblockingにします。Streamコピーで宣言sizeとSHA-256を検証してexclusiveなprivate fileへ保存し、検証済みownerだけを返します。元入力の変更／削除は返したbyteを変えず、失敗／dropで所有directoryを削除します。Staging parentは信頼済みhost policyです。このdata APIはsymbol／import／native／provider／toolの権限を与えません。Runtime利用、SDK組立、toolchain／link command、隔離installはP10／P07／P12／P02に残ります。
+
+情報源：固定したcap-std／cap-primitives 4.0.3のfilesystem文書／source。配布fileに公開／更新日の記載はなく、2026-10-20 JST確認。[Cargo.lock](../../Cargo.lock)、[validator](../../src/native/manifest.rs)、[snapshot](../../src/native/manifest/snapshot.rs)、[test](../../tests/native_packages.rs)、[上限付きfuzz target](../../fuzz/fuzz_targets/native_manifests.rs)は2026-10-20 JST更新・確認。Fuzz compileをcoverage-guided campaignには数えません。
+
 ## 目標
 
 - WindowsとmacOSでのnative性能と低レベル制御。
