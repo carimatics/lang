@@ -8,17 +8,17 @@
 
 ## 現在のM2実装状況
 
-**検証済み130件 · 進行中1件 · 残り2件（暫定6 pt）。**
+**検証済み131件 · 進行中1件 · 残り1件（暫定3 pt）。**
 
-| 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
+| 現在の成果 | 直近の検証済み完了 | Milestone出口 |
 | --- | --- | --- |
-| G02：実装済み（`2297a07`）、Windows実機検証中 | **G01完了**：実macOS Copy／owned／C-export DWARF（`4b0e902`） | **17/18条件** |
+| G03：両hostのlink後source位置、実stepping／backtrace | **G02完了**：Windows Copy／owned／C-export CodeView／PDB（`2297a07`） | **17/18 gates** |
 
-**直近の検証checkpoint（2026-10-20 JST）：** `4b0e902`で[canonical source snapshot変換](../../crates/codegen-clif/src/source_debug.rs)と[複数function DWARF出力](../../crates/codegen-clif/src/debug.rs)を実macOS source producerへ接続しました。[Native compiler test](../../tests/native_compiler.rs)でCopy／owned／C-export packageを出力し、native llvm-dwarfdumpとfunction別symbol／relocationを検証しています。adapter 3 testはUnicode／CRLF／EOF、cross-file、不正source／range／budget拒否を確認し、7 function owned-pipeline objectも検証成功です。全baselineは1,589 tests／94 suites、0失敗、手動timing ignore 1件です。
+**最新検証checkpoint（2026-10-20 JST）：** `2297a07`で上限付きcanonical source adapterを[unit全体のCodeView](../../crates/codegen-clif/src/debug/source_coff.rs)へ接続し、Windows実source producerで使用します。[実PDB test](../../tests/native_debug_windows.rs)がCopy／owned／C-export packageを生成し、native relocationの区別とPE／PDB linkを検証します。native Windows LINK／LLVMで元のfunction名とsource行contributionを確認し、macOS LLDBでもcross-linkした各PDBの2 function名／行を独立に解決します。local全体baselineは1,592 tests／95 suites、失敗0、手動計測ignore 1件です。 同productの[Windows run 39398395224／job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278)、head `2297a07`は、fmt／native C-linker／Clippy／全test／rustdocが**2026-10-20 09:44:14 UTC**までに成功しています。workflow全体も**2026-10-20 09:55:01 UTC**に成功しました。prototype benchmarkはG17の新しいRust／C比較計測ではありません。
 
-**今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **9 − 3 = 6 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 237 = 6 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **6 − 3 = 3 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 240 = 3 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**G02検証中（2026-10-20 18:31 JST）：** 実装commitは `2297a07`。実Copy／owned／C-exportの3 profileをCodeView／PDBへ接続し、localは1,592 tests／95 suites、失敗0、手動計測ignore 1件、fmt／Clippy／rustdoc／全11 fuzz target compileが成功しています。同commitの[macOS CI](https://github.com/carimatics/lang/actions/runs/39398395138)も成功しました。[Windows CI](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278)はnative C／linker、fmt、Clippy、全test executable buildまで成功し、全test実行中です。**実装済み → local検証済み → Windows実機検証中**。完了数130／残り6 pt、133行／追加109点は未変更です。Windows検証完了後に既存G02の3 ptを完了にし、G03の実stepping／backtraceとZ01の最終日英guide／全監査を残します。
+**G03実装前監査／実装（2026-10-20 JST）：** 2 ptを維持し、scope／見積もりを追加しません。実SDKのowned pipelineはlinkして42を出力します。生成artifact上のprobeでMach-O addressの不具合を特定し、local text-section relocationと元offsetで各functionのlink後addressを保持できると確認しました。Rust修正と、実Copy／owned programをdebug link・実行して全dSYM／native symbol addressを比較する回帰testがlocalで成功しました（7.73s）。product commit前の全体baseline検証中です。native metadata probeにはtoolごとの段階／時間と30秒上限を設け、長い全体suiteと独立して結果が見えるhost別専用jobを用意しました。G03の完了には、解決済みの実production runtimeで両native hostの実stepping／backtraceが必要です。local debugger起動は未検証として必要に応じnative CIを使い、元source／source mappingと検証したdebug-link手順を維持・文書化します。Z01の最終日英guide／全出口監査も残します。
 
 ## タスク管理
 
