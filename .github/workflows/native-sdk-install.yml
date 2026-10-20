@@ -1,0 +1,103 @@
+name: Native SDK isolated installation
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'codex/m2-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: 1.99.0
+
+jobs:
+  producer:
+    name: Build SDK / ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - name: Build and bundle matching SDK
+        shell: python
+        run: |
+          import os, pathlib, subprocess
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          temporary = pathlib.Path(os.environ['RUNNER_TEMP'])
+          subprocess.run(['rustup', 'toolchain', 'install', '1.99.0', '--profile', 'minimal'], check=True)
+          subprocess.run(['python', 'tools/build-native-sdk.py', '--release', '--output', str(temporary / 'sdk')], cwd=root, check=True)
+          subprocess.run(['python', 'tools/check-native-sdk-install.py', 'bundle', '--sdk', str(temporary / 'sdk'), '--output', str(temporary / 'SDK.tar'), '--revision', os.environ['GITHUB_SHA']], cwd=root, check=True)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-sdk-${{ matrix.target }}
+          path: ${{ runner.temp }}/SDK.tar
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+
+  consumer:
+    name: No-checkout install / ${{ matrix.target }}
+    needs: producer
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      # Deliberately no checkout, Cargo build, cache, or repository test executable.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-sdk-${{ matrix.target }}
+          path: ${{ runner.temp }}/incoming
+      - name: Install declared external Rust toolchain and run private probe
+        shell: python
+        run: |
+          import os, pathlib, subprocess, tarfile
+          temporary = pathlib.Path(os.environ['RUNNER_TEMP'])
+          bundle = temporary / 'installed-sdk'
+          with tarfile.open(temporary / 'incoming' / 'SDK.tar') as archive:
+              archive.extractall(bundle, filter='data')
+          subprocess.run(['rustup', 'toolchain', 'install', '1.99.0', '--profile', 'minimal'], check=True)
+          subprocess.run(['python', str(bundle / 'probe.py'), 'verify', '--sdk', str(bundle / 'sdk'), '--output', str(temporary / 'sdk-install-result'), '--revision', os.environ['GITHUB_SHA'], '--isolated-root', os.environ['GITHUB_WORKSPACE']], check=True)
+      - name: Retain isolated install evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-sdk-install-${{ matrix.target }}
+          path: ${{ runner.temp }}/sdk-install-result/report.json
+          if-no-files-found: error
+          retention-days: 30

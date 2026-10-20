@@ -207,6 +207,12 @@ Copyは同期unmetered ABIのため、未発火のinterruption／deadlineを含�
 
 Copy／通常owned packageは生成mainを使います。C libraryは `--host HOST.rs` と必要に応じて繰返し `--object HOST.o` を要求します。Hostはコピーした `bindings.rs` の隣に置く単一Rust rootで、信頼済みC objectと明示context／allocator／import grantを使い、C mainを合成しません。Link後はsource／SDK／program directoryが不要です。UTF-8 response引数で空白を保持し、tool不一致、入力／診断上限、link失敗、並行公開は既存出力を保ちます。[SDK説明](docs/ja/native-sdk.md)、[link実装](src/native/link.rs)、[公開CLI／拒否／atomicity test](tests/native_link.rs)を参照してください。両host隔離installはP02に残り、packagingやQ／B／G全体は完了しません。
 
+### Native SDK isolated installation
+
+2026-10-20 JST更新・確認：[隔離install CI](.github/workflows/native-sdk-install.yml) はmacOS AArch64／Windows x86-64でSDKを作るjobと利用jobを分け、SDKとprivate Python probeだけをtarで渡して実行権限を保持します。利用jobはrepoをcheckoutせず、元の.git／Cargo manifest／src／crates／targetがないことを確認します。[Probe](tools/check-native-sdk-install.py) は対応Rust／C toolchainを使い、CargoをPATHから除去して空のCARGO_HOMEでCopy／owned／実Cをcompile／linkします。Private source／SDK／programを削除後に実行し、C allocator／contextの作成・破棄も検証してJSON証拠を保存します。
+
+Local probeの3 profile成功だけでは両host隔離の完了とはせず、対応する別jobの結果を[Todo](docs/ja/milestone-2.md)に記録してP02を判定します。Q／B／Gと最終guideはそれぞれの完了証拠を必要とします。Artifact転送の権限保持はGitHub公式 [upload-artifact](https://github.com/actions/upload-artifact/tree/cf430e030ddbb5b0abf93d22962f4752f3646cd9#permission-loss)／[download-artifact](https://github.com/actions/download-artifact/tree/9000827ccba6bdab643e8b6fd33ac0654aef8333#maintaining-file-permissions) に従います。Living READMEに更新日表示はなく、2026-10-20 JST確認です。
+
 ## 設計プロセス
 
 構文、型意味論、メモリ安全性、並行処理、ABI、パッケージ互換性、プラグイン境界を変更する場合はRFCが必要です。リポジトリSkillの `$language-design-rfc` を使用するか、`docs/ja/rfcs/0000-template.md` から開始してください。
