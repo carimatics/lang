@@ -23,6 +23,7 @@ pub enum Error {
     Signature(usize),
     Resource(m::Error),
     Backend(String),
+    SourceDebug(crate::SourceDebugError),
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -104,6 +105,7 @@ impl<'a> NativeInvoker<'a> {
             artifact,
             &mut budget,
             ThunkProfile::Jit,
+            None,
         )?);
         module.finalize_definitions().map_err(backend)?;
         for (function, id, _) in entries {
@@ -330,6 +332,7 @@ pub(crate) fn emit_thunks<M: Module>(
     artifact: &lang_runtime::c_abi::Artifact,
     budget: &mut m::Budget,
     profile: ThunkProfile,
+    mut unwind: Option<&mut crate::windows_unwind::Records>,
 ) -> Result<Vec<(usize, cranelift_module::FuncId, String)>, Error> {
     let pointer = module.target_config().pointer_type();
     if pointer != types::I64 {
@@ -411,6 +414,11 @@ pub(crate) fn emit_thunks<M: Module>(
             b.finalize(module.target_config());
         }
         module.define_function(id, &mut code).map_err(backend)?;
+        if let Some(unwind) = unwind.as_deref_mut() {
+            unwind
+                .capture(id, &code, module.isa(), budget)
+                .map_err(Error::SourceDebug)?;
+        }
         entries.push((index, id, symbol));
     }
     Ok(entries)

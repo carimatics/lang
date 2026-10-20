@@ -54,6 +54,7 @@ pub enum Error {
     Profile(usize),
     Resource(m::Error),
     Backend(String),
+    SourceDebug(crate::SourceDebugError),
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

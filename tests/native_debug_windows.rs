@@ -101,6 +101,7 @@ fn source_copy_owned_and_c_units_link_source_locations_into_windows_pdbs() {
         );
         let bytes = fs::read(package.join("program.obj")).unwrap();
         let object = object::File::parse(bytes.as_slice()).unwrap();
+        verify_unwind(&object);
         let debug = object.section_by_name(".debug$S").unwrap();
         assert!(object.section_by_name(".debug$T").is_some());
         let mut symbols: Vec<_> = debug
@@ -181,8 +182,69 @@ fn source_copy_owned_and_c_units_link_source_locations_into_windows_pdbs() {
     }
 }
 
+fn verify_unwind(object: &object::File<'_>) {
+    let pdata = object
+        .section_by_name(".pdata")
+        .expect("native call frames require .pdata");
+    let xdata = object
+        .section_by_name(".xdata")
+        .expect("native prologues require .xdata");
+    let entries = pdata.data().unwrap();
+    let info = xdata.data().unwrap();
+    assert!(!entries.is_empty());
+    assert_eq!(entries.len() % 12, 0);
+    let relocations: Vec<_> = pdata.relocations().collect();
+    assert_eq!(relocations.len(), entries.len() / 4);
+    let address = |at: usize| {
+        let (_, relocation) = relocations
+            .iter()
+            .find(|(offset, _)| *offset == at as u64)
+            .unwrap();
+        assert_eq!(relocation.kind(), object::RelocationKind::ImageOffset);
+        assert_eq!(relocation.size(), 32);
+        let object::RelocationTarget::Symbol(index) = relocation.target() else {
+            panic!("unwind target must name a symbol")
+        };
+        let symbol = object.symbol_by_index(index).unwrap();
+        let addend = u32::from_le_bytes(entries[at..at + 4].try_into().unwrap());
+        (
+            symbol.section_index().unwrap(),
+            symbol.address() + u64::from(addend),
+        )
+    };
+    for at in (0..entries.len()).step_by(12) {
+        let (section, begin) = address(at);
+        let (end_section, end) = address(at + 4);
+        assert_eq!(section, end_section);
+        let text = object.section_by_index(section).unwrap();
+        assert_eq!(text.kind(), object::SectionKind::Text);
+        assert!(begin < end && end <= text.address() + text.size());
+        let (section, offset) = address(at + 8);
+        assert_eq!(section, xdata.index());
+        let offset = (offset - xdata.address()) as usize;
+        assert_eq!(offset % 4, 0);
+        assert_eq!(info[offset] & 7, 1); // UNWIND_INFO version 1
+        assert_eq!(info[offset] >> 3, 0); // no fabricated SEH/chained handler
+        assert!(offset + 4 + 2 * usize::from(info[offset + 2]) <= info.len());
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn inspect_native_pdb(pdb: &std::path::Path, profile: &str, names: [&str; 2]) {
+    let unwind = run_bounded(
+        Command::new(r"C:\Program Files\LLVM\bin\llvm-readobj.exe")
+            .arg("--unwind")
+            .arg(pdb.parent().unwrap().join("program.obj")),
+        pdb.parent().unwrap(),
+        &format!("{profile}-unwind-read"),
+    );
+    assert!(
+        unwind.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&unwind.stdout),
+        String::from_utf8_lossy(&unwind.stderr)
+    );
+    assert!(String::from_utf8_lossy(&unwind.stdout).contains("UnwindInfo"));
     let tool = PathBuf::from(r"C:\Program Files\LLVM\bin\llvm-pdbutil.exe");
     let mut command = if tool.is_file() {
         Command::new(tool)

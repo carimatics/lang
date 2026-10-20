@@ -131,7 +131,7 @@ impl<'a> CompiledProgram<'a> {
         }
         let mut owner = OwnedJitModule(Some(JITModule::new(builder)));
         let module = owner.0.as_mut().expect("new module");
-        let (ids, functions) = define(module, verified, imports, &mut budget)?;
+        let (ids, functions) = define(module, verified, imports, &mut budget, None)?;
         module.finalize_definitions().map_err(backend)?;
         let mut pointers = budget.vector(ids.len())?;
         for id in &ids {
@@ -288,8 +288,21 @@ fn emit(
     let builder =
         ObjectBuilder::new(isa, b"lang-unit".to_vec(), default_libcall_names()).map_err(backend)?;
     let mut module = ObjectModule::new(builder);
-    let (_, functions) = define(&mut module, verified, imports, &mut budget)?;
+    let mut unwind = crate::windows_unwind::Records::new(
+        module.isa().triple(),
+        verified.unit().functions.len(),
+        &mut budget,
+    )
+    .map_err(Error::SourceDebug)?;
+    let (_, functions) = define(
+        &mut module,
+        verified,
+        imports,
+        &mut budget,
+        Some(&mut unwind),
+    )?;
     let mut product = module.finish();
+    unwind.emit(&mut product).map_err(Error::SourceDebug)?;
     if let Some(sources) = sources {
         crate::source_debug::emit(
             &mut product.object,
@@ -408,6 +421,7 @@ fn define<M: Module>(
     v: &m::VerifiedUnit,
     imports: &[HostFunctionId],
     budget: &mut m::Budget,
+    mut unwind: Option<&mut crate::windows_unwind::Records>,
 ) -> Result<(Vec<FuncId>, Vec<FunctionCode>), Error> {
     let pointer = module.target_config().pointer_type();
     let mut signature = module.make_signature();
@@ -552,6 +566,11 @@ fn define<M: Module>(
             lower.builder.finalize(config);
         }
         module.define_function(id, &mut context).map_err(backend)?;
+        if let Some(unwind) = unwind.as_deref_mut() {
+            unwind
+                .capture(id, &context, module.isa(), budget)
+                .map_err(Error::SourceDebug)?;
+        }
         let code = context.compiled_code().expect("defined code");
         let mut ranges = budget.vector(code.buffer.get_srclocs_sorted().len())?;
         for range in code.buffer.get_srclocs_sorted() {

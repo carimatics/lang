@@ -96,8 +96,13 @@ fn emit_c_object<'a>(
     .map_err(CObjectError::Codegen)?;
     let mut budget = m::Budget::with_usage(limits, prepared.usage)
         .map_err(|e| CObjectError::Codegen(Error::Resource(e)))?;
-    let symbols =
-        bridge::emit(&mut prepared.module, artifact, &mut budget).map_err(CObjectError::Bridge)?;
+    let symbols = bridge::emit(
+        &mut prepared.module,
+        artifact,
+        &mut budget,
+        &mut prepared.unwind,
+    )
+    .map_err(CObjectError::Bridge)?;
     prepared.usage = m::Usage {
         work: budget.work_used(),
         allocation_bytes: budget.allocation_bytes(),

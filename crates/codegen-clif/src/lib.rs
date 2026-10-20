@@ -19,6 +19,7 @@ pub use target_lexicon::Triple;
 pub mod c_abi;
 mod debug;
 mod source_debug;
+mod windows_unwind;
 pub use source_debug::{Error as SourceDebugError, SourceFault as SourceDebugFault};
 pub mod native_record;
 pub mod owned;

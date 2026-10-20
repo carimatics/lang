@@ -55,6 +55,8 @@ Windows runnerのLLDBは存在してもDLL不足の0xc0000135で起動できな�
 
 debugger harnessだけの反復でコンパイラを再buildしないよう、CIはOS／CPUとRust・manifest・schema・header・SDK builder・同梱文書の全入力hashが一致するSDKを再利用します。差分restore keyは使わず、実debugger検証は常に実行します。metadata検証とSDK組立が成功した時点でcacheを保存し、後続debuggerの失敗で再buildを強いない構成です。actionは[公式cache v6.1.0](https://github.com/actions/cache/releases/tag/v6.1.0)のcommitへ固定し、公開・更新2026-06-26、2026-10-20 JST検証です。
 
+G03 Windows unwind修正（2026-10-20 JST、検証中）：実CDBはleafのsource停止／stepに進みましたが、outerの次のcallerを復元できませんでした。objectの.pdata／.xdata欠落を確認し、[collector](../../crates/codegen-clif/src/windows_unwind.rs)で各Cranelift compiled contextのWindows x64 unwind recordを取得します。Copy／owned本体とC objectのsupport／export／import thunkを対象に、image-relativeなbegin／end／unwind addressを持つRUNTIME_FUNCTION entryを出力します。buffer／record／relocation用領域はcompiler budgetへ計上し、命令・private ABI・source／serialized revisionは変更しません。JITのfunction-table登録とは別のAOT object処理です。[Metadata test](../../tests/native_debug_windows.rs)は12 byte entry、text範囲、3 RVA relocation、4 byte alignment、version／record範囲を独立に検証し、native WindowsではLLVM readerも使います。Microsoftの[x64 unwind仕様](https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64?view=msvc-170)は2026-05-21更新、2026-10-20 JST検証です。元の3段caller要件を保って実CDBを再実行します。
+
 ## Native manifest and file verification
 
 P11（2026-10-20 JST）は不変の型付きSDK／program manifestと所有snapshotを追加します。Exact-key serde decodeで重複／未知fieldを拒否し、byte／depth／string／file-count上限を拡張前に検査します。Role／path／profile／entryと総sizeの検査にはmanifest byteも含めます。SDK tagはcompile済みbuild、target別ID、rustc release／commit、profile、feature policyと照合します。Programの意味論／entry／ABI、native記録のkind／target／C digest、正確なobject byteと記録planを独立に検査します。

@@ -68,7 +68,14 @@ pub(crate) fn emit(
     module: &mut ObjectModule,
     artifact: &abi::Artifact,
     budget: &mut m::Budget,
+    unwind: &mut crate::windows_unwind::Records,
 ) -> Result<Symbols, Error> {
+    let extra = artifact
+        .functions()
+        .len()
+        .checked_add(3)
+        .ok_or(Error::SourceDebug(crate::SourceDebugError::Capacity))?;
+    unwind.reserve(extra, budget).map_err(Error::SourceDebug)?;
     let pointer = module.target_config().pointer_type();
     if pointer != types::I64 {
         return Err(Error::Target);
@@ -221,8 +228,18 @@ pub(crate) fn emit(
         b.seal_all_blocks();
         b.finalize(module.target_config());
         module.define_function(id, &mut code).map_err(backend)?;
+        unwind
+            .capture(id, &code, module.isa(), budget)
+            .map_err(Error::SourceDebug)?;
     }
-    scalar::emit_thunks(module, artifact, budget, scalar::ThunkProfile::Object).map_err(backend)?;
+    scalar::emit_thunks(
+        module,
+        artifact,
+        budget,
+        scalar::ThunkProfile::Object,
+        Some(unwind),
+    )
+    .map_err(backend)?;
     Ok(symbols)
 }
 

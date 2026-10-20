@@ -518,7 +518,10 @@ impl<'a> CompiledFunction<'a> {
             &nodes,
             &continuations,
             &mut budget,
-            scope,
+            EmitOptions {
+                scope,
+                unwind: None,
+            },
         )?;
         module.finalize_definitions().map_err(backend)?;
         let code = module.get_finalized_function(id);
@@ -1022,6 +1025,7 @@ struct PreparedObject<'a> {
     scope: CompileScope,
     functions: Vec<ObjectFunction<'a>>,
     usage: m::Usage,
+    unwind: crate::windows_unwind::Records,
 }
 impl<'a> PreparedObject<'a> {
     fn finish(self) -> Result<ObjectArtifact<'a>, Error> {
@@ -1032,6 +1036,7 @@ impl<'a> PreparedObject<'a> {
         debug: Option<(&f::Elaborated, m::Limits)>,
     ) -> Result<ObjectArtifact<'a>, Error> {
         let mut product = self.module.finish();
+        self.unwind.emit(&mut product).map_err(Error::SourceDebug)?;
         let mut usage = self.usage;
         if let Some((flow, limits)) = debug {
             let mut budget = m::Budget::with_usage(limits, usage).map_err(Error::Resource)?;
@@ -1089,6 +1094,9 @@ fn prepare_object<'a>(
         ObjectBuilder::new(isa, "lang-owned-r1", default_libcall_names()).map_err(backend)?,
     );
     let mut budget = m::Budget::with_usage(limits, FunctionLayout::base_usage(flow, layouts)?)?;
+    let mut unwind =
+        crate::windows_unwind::Records::new(target, flow.functions().len(), &mut budget)
+            .map_err(Error::SourceDebug)?;
     let mut functions = budget.vector(flow.functions().len())?;
     let mut usage = m::Usage {
         work: budget.work_used(),
@@ -1110,7 +1118,10 @@ fn prepare_object<'a>(
             &nodes,
             &continuations,
             &mut budget,
-            scope,
+            EmitOptions {
+                scope,
+                unwind: Some(&mut unwind),
+            },
         )?;
         usage = m::Usage {
             work: budget.work_used(),
@@ -1131,6 +1142,7 @@ fn prepare_object<'a>(
         scope,
         functions,
         usage,
+        unwind,
     })
 }
 
@@ -2091,6 +2103,11 @@ fn function_symbol(source: &f::Elaborated, function: m::FunctionId, scope: Compi
     }
 }
 
+struct EmitOptions<'a> {
+    scope: CompileScope,
+    unwind: Option<&'a mut crate::windows_unwind::Records>,
+}
+
 fn emit<M: Module>(
     module: &mut M,
     graph: &f::Function,
@@ -2098,8 +2115,9 @@ fn emit<M: Module>(
     nodes: &[Node],
     continuations: &[u32],
     budget: &mut m::Budget,
-    scope: CompileScope,
+    options: EmitOptions<'_>,
 ) -> Result<(cranelift_module::FuncId, super::program::FunctionCode), Error> {
+    let EmitOptions { scope, unwind } = options;
     let pointer = module.target_config().pointer_type();
     if pointer != types::I64 {
         return Err(Error::Backend(
@@ -2425,6 +2443,11 @@ fn emit<M: Module>(
         b.finalize(module.target_config());
     }
     module.define_function(id, &mut context).map_err(backend)?;
+    if let Some(unwind) = unwind {
+        unwind
+            .capture(id, &context, module.isa(), budget)
+            .map_err(Error::SourceDebug)?;
+    }
     let code = context.compiled_code().expect("defined code");
     let mut ranges = budget.vector(code.buffer.get_srclocs_sorted().len())?;
     for range in code.buffer.get_srclocs_sorted() {
