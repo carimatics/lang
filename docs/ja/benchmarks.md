@@ -29,7 +29,7 @@ python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk --output /tmp/m2-measure --sampl
 
 未使用のoutput pathを使います。Windowsではx64 MSVC developer環境が必要で、環境に応じて`python3`を`python`に読み替えます。SDKはnative tier-1 hostと固定rustc identityに一致させます。`M2 source Rust C benchmark` CIは`codex/bench-parity-*`でparityを検証し、`codex/bench-macos-*`と`codex/bench-windows-*`では一方のnative計測hostを選択します。これらのbranchは従来のprototype／isolated-install workflowを起動しません。
 
-parity executableは3実装を含みます。**計測するsource・Rust・C executableは別々**で、reference側には言語objectもSDK/runtimeもlinkしません。Rust host/referenceは`-Copt-level=3`、edition 2024、unwind、LTOなし、CはmacOSで`-O3`、MSVCで`/O2 /MD`です。source objectは現compilerのCranelift既定値（PIC、明示的な`opt_level`上書きなし）を使います。現実装と最適化済みreferenceの比較であり、optimizerの成熟度が同等とは主張しません。
+parity executableは3実装を含みます。**計測するsource・Rust・C executableは別々**で、reference側には言語objectもSDK/runtimeもlinkしません。3つともRustの計測／JSON driverを使います。`c`はCのworkload実装を表し、そのstartup／sizeにも共通driverを含みます。Rust host/referenceは`-Copt-level=3`、edition 2024、unwind、LTOなし、CはmacOSで`-O3`、MSVCで`/O2 /MD`です。source objectは現compilerのCranelift既定値（PIC、明示的な`opt_level`上書きなし）を使います。現実装と最適化済みreferenceの比較であり、optimizerの成熟度が同等とは主張しません。
 
 `preparation_ns`はsource record検証／decode、artifact準備／binding、C context作成をprocessごとに一度記録します。`elapsed_ns / repeats`は再利用するartifact/contextへの呼び出しで、**呼び出しごとのruntime admission・準備・確保・退役を含み**、3回のwarmupは計時外です。各実装で同じC dispatch/statusとchecksum loopも含みます。入出力を観測可能にし、Cのallocation callbackにはvolatileな間接呼び出しを使い、Rustのbuffer／region ownerは`black_box`を通します。
 
@@ -42,6 +42,36 @@ provider heap counterは当該guest/C providerを通る確保が対象で、Rust
 reportには各sample、min/median/max/mean/stdev、実装順の巡回、compiler command/version、SDK ID、source/harness hash、clean/dirty revision、host、入力、executable sizeを保存します。計測でも毎回checksumとallocator収支を検証します。local smoke runはharnessの検証であり、G17の完了には引き続き**両方**のtier-1 hostのnative計測と再現可能な解釈report（B02–B04）が必要です。
 
 B01の正しさの証拠（検証日 **2026-10-20 JST**）：[CI run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742)で両native hostのcleanな`fffe86c`が成功しました。[macOS parity report](../../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json)と[Windows parity report](../../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json)はそれぞれ21組のoracle一致とunwind退役成功、対応release SDK ID、検証したharness hash、独立したreference link commandを保持します。canonical source hashの照合ではWindows checkoutの改行差を許容します。**このparity reportにtiming／startup観測はありません**。入力欄は予定した計測設定です。B02–B04は未完了です。
+
+### macOS native capture (B02)
+
+検証日 **2026-10-20 JST**。[CI run 39383945072 / job 118499215009](https://github.com/carimatics/lang/actions/runs/39383945072/job/118499215009)のcleanな`ecc0fd1`が成功しました。**2026-10-20 07:03:45 UTC**に記録した[全native report](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)には**workload 135観測と専用startup 45観測**を保存しています。各case 15 samples、`n=1000`、sample当たり20 calls、計時外warmup 3回です。先に必須の21組parity／unwind gateが通っています。保存dataから全checksum・allocator退役・case/sample identity・集計値・SDK ID・harness hash・reference linkの分離を再検証しました。
+
+Hostは **macOS 15.7.9、arm64、logical CPU 5、Python 3.14.7**です。processor欄は`arm`のみで、chip modelは未記録です。sourceはrelease SDK `06794c1ec70d06992a0e9f7c5714d05d32e8e1b5c029beac78062fbe8a32bad1`を使います。harnessとproduction／reference codeはB01と同一です。reportにflag・rustc/C compiler version・commandを保存し、測定境界は前述のとおりです。
+
+| Workload | 実装 | 中央値 µs/call | Runtime RSD | Artifact/context準備 ms | RSS中央値 MiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `scalar` | source | 1484.383 | 4.68% | 1.554 | 27.328 |
+| `scalar` | rust | 1.004 | 4.70% | — | 1.344 |
+| `scalar` | c | 1.012 | 8.86% | — | 1.328 |
+| `buffers` | source | 6661.158 | 1.76% | 1.521 | 27.469 |
+| `buffers` | rust | 1.981 | 5.71% | — | 1.375 |
+| `buffers` | c | 1.883 | 5.03% | — | 1.359 |
+| `regions` | source | 18913.673 | 0.86% | 1.532 | 33.766 |
+| `regions` | rust | 44.850 | 4.47% | — | 1.344 |
+| `regions` | c | 30.492 | 4.67% | — | 1.328 |
+
+Runtimeは反復call時間の中央値を20で割った値で、RSDはsample標準偏差／平均です。準備はsource processごとに一度の値で、callごとのruntime処理は含めません。referenceにはSDK/context準備がありません。RSSはworkload process全体で、baselineは差し引きません。
+
+| 実装 | 新規process起動中央値 ms | RSD |
+| --- | ---: | ---: |
+| source | 4.085 | 19.02% |
+| rust | 2.277 | 30.52% |
+| c | 2.493 | 27.03% |
+
+Startupはworkloadなし、新規process、warmなOS/file cache、初期化から正常終了までを測ります。RSDが19–31%あるため小さな差は不安定です。link済みexecutable全体のsizeはsource **2,283,096 B**, rust **493,976 B**, c **493,168 B**、元のsource objectは **27,912 B**です。
+
+3 caseともsource pipeline時間は最適化済みreferenceより大きい結果です。宣言したruntime check、callごとの準備、ownership serviceを含みます。CPU scheduling／power stateとchip modelは記録しておらず、異なるmachine全体の性能は示しません。**G17完了には引き続きB03のWindows計測とB04の両hostの解釈が必要です。**
 
 ## 2026-10-17レビュー後の解釈
 

@@ -29,7 +29,7 @@ python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk --output /tmp/m2-measure --sampl
 
 Use fresh output paths. Windows requires the x64 MSVC developer environment and `python` instead of `python3` when appropriate. The SDK must match the native tier-1 host and pinned rustc identity. `M2 source Rust C benchmark` CI runs parity on `codex/bench-parity-*`; `codex/bench-macos-*` and `codex/bench-windows-*` select one native measurement host. These branches do not trigger the older prototype or isolated-install workflows.
 
-The parity executable contains all three implementations. **The measured source, Rust and C executables are separate**; reference executables link neither the language object nor its SDK/runtime. Rust host/reference code uses `-Copt-level=3`, edition 2024, unwind and no LTO; C uses `-O3` on macOS or `/O2 /MD` on MSVC. The source object uses the compiler's current Cranelift defaults (PIC, no explicit `opt_level` override). This measures the current implementation against optimized references; it does not claim equivalent optimizer maturity.
+The parity executable contains all three implementations. **The measured source, Rust and C executables are separate**; reference executables link neither the language object nor its SDK/runtime. All three use the Rust measurement/JSON driver; `c` identifies the C workload implementation, and its startup/size includes that common driver. Rust host/reference code uses `-Copt-level=3`, edition 2024, unwind and no LTO; C uses `-O3` on macOS or `/O2 /MD` on MSVC. The source object uses the compiler's current Cranelift defaults (PIC, no explicit `opt_level` override). This measures the current implementation against optimized references; it does not claim equivalent optimizer maturity.
 
 `preparation_ns` covers source record validation/decoding, artifact preparation/binding and C context creation, once per process. `elapsed_ns / repeats` covers calls through the reused artifact/context **including per-call runtime admission, preparation, allocation and retirement**, with three untimed warmups. The timer also includes the same C dispatch/status and checksum loop for each implementation. Inputs and outputs are observable; C allocation callbacks use volatile indirection, and Rust buffers/region owners pass through `black_box`.
 
@@ -42,6 +42,36 @@ Provider heap counters cover allocations routed through that guest/C provider; t
 Reports retain individual samples, min/median/max/mean/stdev, rotated implementation order, compiler commands/versions, SDK ID, source/harness hashes, clean/dirty revision, host, input and executable sizes. Timing runs verify every checksum and allocator balance. A local smoke run validates the harness; G17 still requires native measurements on **both** tier-1 hosts and a reproducible interpretation report (B02–B04).
 
 B01 correctness evidence (verified **2026-10-20 JST**): [CI run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742) passes on both native hosts at clean `fffe86c`. The [macOS parity report](../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) and [Windows parity report](../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json) contain 21 oracle-checked matches and successful unwind retirement each, matching release SDK IDs, verified harness hashes and separate reference link commands. Windows checkout newline differences are allowed when comparing canonical source hashes. **There are no timing/startup observations in these parity reports**; their input settings are planned measurement settings. B02–B04 remain open.
+
+### macOS native capture (B02)
+
+Verified **2026-10-20 JST**. [CI run 39383945072 / job 118499215009](https://github.com/carimatics/lang/actions/runs/39383945072/job/118499215009) succeeds at clean `ecc0fd1`. The [complete native report](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json), recorded at **2026-10-20 07:03:45 UTC**, contains **135 workload observations and 45 dedicated startup observations**: 15 samples per case, `n=1000`, 20 calls per sample and three untimed warmups. The required 21-case parity/unwind gate passes first. Every checksum and allocator retirement, case/sample identity, aggregate, SDK ID, harness hash and reference link separation was rechecked from the saved data.
+
+Host: **macOS 15.7.9, arm64, 5 logical CPUs, Python 3.14.7**. The processor field is only `arm`; the chip model was not recorded. Source uses release SDK `06794c1ec70d06992a0e9f7c5714d05d32e8e1b5c029beac78062fbe8a32bad1`. The harness and production/reference code are unchanged from B01. Flags, rustc/C compiler versions and commands are retained in the report; measurement boundaries remain those above.
+
+| Workload | Implementation | Median µs/call | Runtime RSD | Artifact/context prep ms | Median RSS MiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `scalar` | source | 1484.383 | 4.68% | 1.554 | 27.328 |
+| `scalar` | rust | 1.004 | 4.70% | — | 1.344 |
+| `scalar` | c | 1.012 | 8.86% | — | 1.328 |
+| `buffers` | source | 6661.158 | 1.76% | 1.521 | 27.469 |
+| `buffers` | rust | 1.981 | 5.71% | — | 1.375 |
+| `buffers` | c | 1.883 | 5.03% | — | 1.359 |
+| `regions` | source | 18913.673 | 0.86% | 1.532 | 33.766 |
+| `regions` | rust | 44.850 | 4.47% | — | 1.344 |
+| `regions` | c | 30.492 | 4.67% | — | 1.328 |
+
+Runtime is the median repeated-call time divided by 20; RSD is sample standard deviation / mean. Preparation is once per source process and excludes per-call runtime work; references have no SDK/context preparation. RSS is each whole workload process, without baseline subtraction.
+
+| Implementation | Median fresh-process startup ms | RSD |
+| --- | ---: | ---: |
+| source | 4.085 | 19.02% |
+| rust | 2.277 | 30.52% |
+| c | 2.493 | 27.03% |
+
+Startup uses workload-free processes, warm OS/file caches, initialization and clean exit. Its 19–31% RSD makes small differences noisy. Complete linked executable sizes: source **2,283,096 B**, rust **493,976 B**, c **493,168 B**. The original source object is **27,912 B**.
+
+Source pipeline times are much higher than optimized reference times in all three cases. They include the scoped runtime checks, per-call preparation and ownership services. CPU scheduling/power state and chip model were not captured; these samples do not establish performance across machines. **B03 Windows measurements and B04 both-host interpretation remain required for G17.**
 
 ## Interpretation after the 2026-10-17 review
 
