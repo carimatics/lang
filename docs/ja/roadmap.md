@@ -8,17 +8,17 @@
 
 ## 現在のM2実装状況
 
-**検証済み126件 · 進行中1件 · 残り6件（暫定14 pt）。**
+**検証済み127件 · 進行中1件 · 残り5件（暫定12 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| B02：native macOS計測とばらつき | **B01完了**：両hostのsource／Rust／C一致（`fffe86c`） | **16/18条件** |
+| B03：native Windows計測とばらつき | **B02完了**：cleanなmacOSの135＋45観測（`95b97cb`） | **16/18条件** |
 
-**直近の検証checkpoint（2026-10-20 JST）：** [run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742)、exact head `fffe86c`で両native tier-1 hostが成功しました。Mac job 118495004851は2026-10-20 06:50:40 UTC、Windows job 118495004473は06:57:23 UTCに完了しました。cleanな各artifactでsource／Rust／C／oracleの21組一致とunwind退役後の次context実行を検証しています。[Mac report](../../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) · [Windows report](../../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json)。timing sampleは含まず、G17の完了には数えません。
+**直近の検証checkpoint（2026-10-20 JST）：** [Mac run 39383945072 / job 118499215009](https://github.com/carimatics/lang/actions/runs/39383945072/job/118499215009)のcleanな`ecc0fd1`が成功し、report記録は2026-10-20 07:03:45 UTCです。[Raw capture](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)と[計測表／scope](benchmarks.md#macos-native-capture-b02)を`95b97cb`に保存しました。workload 135観測、workloadなしstartup 45観測、各15 samplesの9 case、checksum、退役、集計値、SDK／harness identity、reference linkの分離を独立に検証しています。B01の両host 21組／unwindの証拠は有効で、harness・compiler／reference sourceは同一です。
 
-**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **16 − 2 = 14 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 229 = 14 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **14 − 2 = 12 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 231 = 12 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**B02実装前監査（2026-10-20 JST）：** 既存2 ptと同じharnessを使います。cleanな`codex/bench-macos-*` branchでmacOSだけを選び、15 samples × 3 implementations × 3 workloads＝**workload 135観測**と、**専用startup 45観測**を`n=1000`、反復20回、計時外warmup 3回で記録します。先に21組／unwind gateを通します。exact revision／SDK／source provenance、全checksum、allocator収支、runtime／準備／startupの分離、OS peak RSS、executable／object size、sampleのばらつきを必須とします。B03で同条件のWindows記録、B04で再現可能な解釈を公表します。G17／G18と最終Z01は未完了で、性能改善やRust／Cとの速度同等性はまだ主張しません。
+**B03実装前監査（2026-10-20 JST）：** 既存2 ptと同じharnessをcleanな`codex/bench-windows-*` branchで使い、Windows／MSVCだけを選びます。15 samples、`n=1000`、反復20回、warmup 3回を維持し、21組／unwind gate後に**workload 135＋専用startup 45観測**を取得します。B01で修正後C referenceのWindows build／呼び出しは通っています。今回は実K32 peak working set、runtime／準備／startup分離、size、全checksum／退役、ばらつき、exact revision／SDK／harness provenanceを必須とします。対応release SDK identityと明示MSVC `/O2 /MD`／Rust `opt-level=3` commandを維持します。B04、両hostのdebugger作業、最終Z01は引き続き必須で、新たな前提／見積もりは発生していません。
 
 ## タスク管理
 

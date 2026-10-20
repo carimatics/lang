@@ -8,17 +8,17 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**126 verified deliveries · 1 in progress · 6 remaining tasks (provisional 14 pt).**
+**127 verified deliveries · 1 in progress · 5 remaining tasks (provisional 12 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| B02: native macOS measurements and variance | **B01 complete**: source/Rust/C parity on both hosts (`fffe86c`) | **16/18 gates** |
+| B03: native Windows measurements and variance | **B02 complete**: clean macOS 135 + 45 observations (`95b97cb`) | **16/18 gates** |
 
-**Latest verification checkpoint (2026-10-20 JST):** [run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742), exact head `fffe86c`, succeeds on both native tier-1 hosts: Mac job 118495004851 (2026-10-20 06:50:40 UTC), Windows job 118495004473 (06:57:23 UTC). Each clean artifact verifies 21 source/Rust/C/oracle cases and unwind retirement followed by a new context. [Mac report](../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) · [Windows report](../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json). These contain no timing samples and do not complete G17.
+**Latest verification checkpoint (2026-10-20 JST):** [Mac run 39383945072 / job 118499215009](https://github.com/carimatics/lang/actions/runs/39383945072/job/118499215009) succeeds at clean `ecc0fd1`, with the report recorded at 2026-10-20 07:03:45 UTC. [Raw capture](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json) and [measurement tables/scope](benchmarks.md#macos-native-capture-b02) are committed in `95b97cb`. All 135 workload and 45 workload-free startup observations, nine 15-sample cases, checksums, retirement, aggregates, SDK/harness identity and separate reference links were independently checked. B01 both-host 21-case/unwind proof remains valid; harness and compiler/reference sources are unchanged.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **16 − 2 = 14 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 229 = 14 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **14 − 2 = 12 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 231 = 12 pt**. Provisional planning units are not hours or completion percentages.
 
-**B02 readiness (2026-10-20 JST):** use the existing 2 pt and unchanged harness. A clean `codex/bench-macos-*` branch selects only macOS: 15 samples × 3 implementations × 3 workloads = **135 workload observations**, plus **45 dedicated startup observations**, `n=1000`, 20 repetitions and three untimed warmups. The 21-case/unwind gate runs first. Require exact revision/SDK/source provenance, every checksum, allocator balance, runtime/preparation/startup separation, OS peak RSS, executable/object sizes and sample variance. B03 retains the same Windows capture and B04 publishes reproducible interpretation. G17/G18 and final Z01 remain open; no performance improvement or Rust/C parity in speed is claimed.
+**B03 readiness (2026-10-20 JST):** use the existing 2 pt and unchanged harness on a clean `codex/bench-windows-*` branch, selecting Windows/MSVC alone. Preserve the same 15 samples, `n=1000`, 20 repetitions and three warmups: **135 workload + 45 dedicated startup observations** after the 21-case/unwind gate. B01 already builds/calls the corrected C references on Windows; now require real K32 peak working-set readings, runtime/preparation/startup separation, sizes, every checksum/retirement, variance and exact revision/SDK/harness provenance. Retain matching release SDK identity and explicit MSVC `/O2 /MD` / Rust `opt-level=3` commands. B04, both-host debugger work and final Z01 remain required. No new prerequisite or estimate is exposed.
 
 ## Task tracking
 

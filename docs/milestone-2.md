@@ -6,23 +6,23 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**126 done · 1 doing · 6 todo · 14 remaining pt**
+**127 done · 1 doing · 5 todo · 12 remaining pt**
 
-**Next: M2-B02 → clean native macOS runtime/startup/memory/size capture (provisional 2 pt, in progress).**
+**Next: M2-B03 → clean native Windows runtime/startup/memory/size capture (provisional 2 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| B02: native macOS measurements and variance | **B01 complete**: source/Rust/C parity on both hosts (`fffe86c`) | **16/18 gates** |
+| B03: native Windows measurements and variance | **B02 complete**: clean macOS 135 + 45 observations (`95b97cb`) | **16/18 gates** |
 
-**Latest verification checkpoint (2026-10-20 JST):** [run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742), exact head `fffe86c`, succeeds on both native tier-1 hosts: Mac job 118495004851 (2026-10-20 06:50:40 UTC), Windows job 118495004473 (06:57:23 UTC). Each clean artifact verifies 21 source/Rust/C/oracle cases and unwind retirement followed by a new context. [Mac report](../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) · [Windows report](../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json). These contain no timing samples and do not complete G17.
+**Latest verification checkpoint (2026-10-20 JST):** [Mac run 39383945072 / job 118499215009](https://github.com/carimatics/lang/actions/runs/39383945072/job/118499215009) succeeds at clean `ecc0fd1`, with the report recorded at 2026-10-20 07:03:45 UTC. [Raw capture](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json) and [measurement tables/scope](benchmarks.md#macos-native-capture-b02) are committed in `95b97cb`. All 135 workload and 45 workload-free startup observations, nine 15-sample cases, checksums, retirement, aggregates, SDK/harness identity and separate reference links were independently checked. B01 both-host 21-case/unwind proof remains valid; harness and compiler/reference sources are unchanged.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **16 − 2 = 14 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 229 = 14 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **14 − 2 = 12 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 231 = 12 pt**. Provisional planning units are not hours or completion percentages.
 
-**B01 completion audit:** actual source compilation, original C-export object and installed production runtime agree with optimized Rust/C and independent oracles for scalar CFG, owned Bytes+Vec and shared/weak/arena lifecycles at seven inputs. Separate measured executables keep the SDK/object/runtime out of references. The harness distinguishes artifact/context preparation, repeated calls including per-call runtime work, and workload-free fresh-process startup; OS peak memory, complete executable/object sizes, individual samples, variance, flags and provenance are recorded. Seven evidence-rejection/oracle tests pass on both CI hosts. The private C reference alignment portability fix earns no separate credit. [Measurement scope](benchmarks.md#milestone-2-sourcerustc-harness) declares allocator, optimization and accounting differences.
+**B02 completion audit:** native macOS 15.7.9/arm64, five logical CPUs, 15 samples per source/Rust/C scalar/Bytes+Vec/shared-arena case, `n=1000`, 20 repetitions, three untimed warmups. Runtime and artifact/context preparation are distinct; 45 dedicated startup processes execute no workload. OS peak RSS and linked executable/original object sizes are positive, raw samples and min/median/max/mean/stdev retained, every checksum and allocator balance passes. Source pipeline times are higher than reference times; startup RSD is 19–31%. The common Rust driver, generic CPU field, optimizer and accounting differences are explicit. These observations satisfy measurement scope without a speed guarantee; G17 still needs Windows and B04 interpretation.
 
-Retain the fresh B01 local baseline: **1,585 tests / 94 suites, 0 failures, 1 manual timing test ignored**; fmt, Clippy and rustdoc pass. Standalone Rust formatting and four-mode builds, 21-case parity/unwind, all nine child checksum/retirement checks and three startup checks pass; an earlier nine-observation OS-memory smoke passed. The final C reference alignment correction changes no production/reference Rust source. Docs/result/plan updates use the three repository-consistency checks; no compiler baseline rerun is needed for identical Rust bytes.
+Retain B01’s **1,585 tests / 94 suites, 0 failures, 1 manual timing ignore**, fmt/Clippy/rustdoc and standalone/four-mode/parity/unwind checks. B02 changes only result data/documentation; production/reference Rust and the harness are unchanged. Use the three repository-consistency checks for this bilingual plan update rather than repeat the identical compiler baseline.
 
-**B02 readiness (2026-10-20 JST):** use the existing 2 pt and unchanged harness. A clean `codex/bench-macos-*` branch selects only macOS: 15 samples × 3 implementations × 3 workloads = **135 workload observations**, plus **45 dedicated startup observations**, `n=1000`, 20 repetitions and three untimed warmups. The 21-case/unwind gate runs first. Require exact revision/SDK/source provenance, every checksum, allocator balance, runtime/preparation/startup separation, OS peak RSS, executable/object sizes and sample variance. B03 retains the same Windows capture and B04 publishes reproducible interpretation. G17/G18 and final Z01 remain open; no performance improvement or Rust/C parity in speed is claimed.
+**B03 readiness (2026-10-20 JST):** use the existing 2 pt and unchanged harness on a clean `codex/bench-windows-*` branch, selecting Windows/MSVC alone. Preserve the same 15 samples, `n=1000`, 20 repetitions and three warmups: **135 workload + 45 dedicated startup observations** after the 21-case/unwind gate. B01 already builds/calls the corrected C references on Windows; now require real K32 peak working-set readings, runtime/preparation/startup separation, sizes, every checksum/retirement, variance and exact revision/SDK/harness provenance. Retain matching release SDK identity and explicit MSVC `/O2 /MD` / Rust `opt-level=3` commands. B04, both-host debugger work and final Z01 remain required. No new prerequisite or estimate is exposed.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -210,13 +210,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 126 (+91)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 127 (+92)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −229 pt | 14 pt |
+| 134 pt | +109 pt | −231 pt | 12 pt |
 
-**134 + 109 − 229 = 14 pt**
+**134 + 109 − 231 = 12 pt**
+
+B02 delivery / B03 readiness audit (2026-10-20 JST): `95b97cb` retains clean native Mac report `ecc0fd1` from run 39383945072: 135 workload and 45 startup observations, all checksum/retirement/provenance and aggregate checks pass. Retire the existing 2 pt separately: **126 → 127 done, 14 → 12 remaining pt, retired 229 → 231 pt; 133 rows/+109 additions unchanged**. Select B03 alone at its existing 2 pt and preserve the same Windows scope. G17 requires measurement, not a speed threshold; publish the observed cost gap/variance and both-host limits in B04. G17/G18/Z01 remain open.
 
 B01 delivery / B02 readiness audit (2026-10-20 JST): `41250a2` plus the private C alignment correction `fffe86c` completes source/Rust/C parity and the measurement harness. Both native hosts pass 21 oracle cases/unwind on clean `fffe86c`; raw JSON is retained. Retire only the existing 2 pt: **125 → 126 done, 16 → 14 remaining pt, retired 227 → 229 pt; 133 rows/+109 additions unchanged**. Select B02 alone at its existing 2 pt; require full macOS measurements before credit. B03/B04, both-host debugger work and Z01 remain required. Original G17 is representative native workloads against equivalent Rust/C; the three actual-source workloads preserve that scope. No new prerequisite or estimate is exposed.
 
@@ -447,8 +449,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-Q01 | done | 0 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | `3db077f` |
 | M2-Q02 | done | 0 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | `1d0c0dc` |
 | M2-B01 | done | 0 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | `fffe86c` |
-| M2-B02 | doing | 2 | M2-B01,M2-P02 | G17 | Record clean macOS runtime/startup/memory/size measurements with variance. | — |
-| M2-B03 | todo | 2 | M2-B01,M2-P02 | G17 | Record equivalent clean Windows measurements with variance. | — |
+| M2-B02 | done | 0 | M2-B01,M2-P02 | G17 | Record clean macOS runtime/startup/memory/size measurements with variance. | `95b97cb` |
+| M2-B03 | doing | 2 | M2-B01,M2-P02 | G17 | Record equivalent clean Windows measurements with variance. | — |
 | M2-B04 | todo | 1 | M2-B02,M2-B03 | G17 | Publish interpreted results, reproducibility commands and remaining performance limits. | — |
 | M2-G01 | todo | 3 | M2-N06 | G18 | Emit native owned-value source spans/locations and validate macOS debug fixtures. | — |
 | M2-G02 | todo | 3 | M2-N07 | G18 | Emit corresponding Windows native debug metadata and validate source locations. | — |
