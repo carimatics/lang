@@ -147,7 +147,7 @@ REPLは検証に成功したitem定義をcommitし、submissionごとに1つのe
 
 共有host APIには `lang::frontend`、`lang::artifact`、`lang::repl::Session`、`lang_semantics::analysis`、`lang_semantics::database`、`lang_syntax::format`、MIR／bytecode／VM／Cranelift crateの `unit` moduleがあります。Source解析は明示的なCopy／ownership programを返し、ownership variantは検証済みHIR／MIRを保持します。Compiler／codec／cache budgetを設定できます。VM既定値はfuel 1,000,000、host call 1,000、guest frame 256、live value cell 1,000,000です。Interruption／deadlineはguest safe pointで作用し、trusted native callbackはpreemptできず、unwindは禁止です。
 
-`lang_codegen_clif::program` のunit全体native APIは、guest call、boolean interface、record／enum、patternを含むRFC 0006 Copy profileを扱います。Ownership-aware native lowering、公開C adapter、production native packagingはMilestone 2の残作業です。`cargo run -- 20 22` は以前のscalar VM／JIT比較を保持します。初期native backendはCranelift 0.136.3です。Native linker／debug evidenceと過去のplatform計測は[architecture](docs/ja/architecture.md)、[benchmarks](docs/ja/benchmarks.md)、[roadmap](docs/ja/roadmap.md)へ記録しています。2026-10-17のlocal source-conformance実行環境はmacOS AArch64で、Windows実行にはCI evidenceが必要です。
+`lang_codegen_clif::program` のunit全体native APIは、guest call、boolean interface、record／enum、patternを含むRFC 0006 Copy profileを扱います。Ownership-aware native loweringと明示C adapterは下記で実装済みで、production native SDK packagingはMilestone 2の残作業です。`cargo run -- 20 22` は以前のscalar VM／JIT比較を保持します。初期native backendはCranelift 0.136.3です。Native linker／debug evidenceと過去のplatform計測は[architecture](docs/ja/architecture.md)、[benchmarks](docs/ja/benchmarks.md)、[roadmap](docs/ja/roadmap.md)へ記録しています。2026-10-17のlocal source-conformance実行環境はmacOS AArch64で、Windows実行にはCI evidenceが必要です。
 
 Code変更の確定前に次を実行します。
 
@@ -158,19 +158,32 @@ cargo test --workspace --all-targets --all-features
 cargo doc --workspace --no-deps
 ```
 
-Rustのnative embedding境界で [sourceのBytes引数／返り値](examples/analysis/native_owned_boundary.lang)、[ownerを渡すguest call](examples/analysis/native_owned_calls.lang)、[record](examples/analysis/native_owned_records.lang)、[sumのpayload全体抽出](examples/analysis/native_owned_sums.lang)、[借用fieldの変更](examples/analysis/native_owned_loans.lang)、allocator／buffer／collection／shared／weak／字句arena service（既存の [shared](examples/scripts/shared_owned.lang)、[Map](examples/scripts/map_owned.lang)、[Vec](examples/scripts/vec_owned.lang)、[Text](examples/scripts/text.lang) と [UTF-8](examples/scripts/utf8.lang) の例）、[入れ子arena ownerとguest call越しのread](examples/analysis/native_arena_regions.lang)、[ownerの再open](examples/analysis/native_arena_reuse.lang) が生成機械コードで実行できます。Scalar／Copyの制御、place projection、通常のloan、準備済み置換、CFG引数の同時転送もlowerします。VMとnative adapterはinstrumented controlとusageを共有し、nativeの報告にもloan／escrowのcell数と元の失敗位置を保持します。`cargo test --test native_owned_boundary` でVM／native比較、失敗時cleanup、admission、poison、compile budgetを検証できます。対応Mach-O／COFF codeとメモリ上のmetadataを出力し、macOSのstandalone owned programはdirect／response-fileでlink／run検証済みで、Windows実行、production driver、CLIは残作業です。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
+Rustのnative embedding境界で [sourceのBytes引数／返り値](examples/analysis/native_owned_boundary.lang)、[ownerを渡すguest call](examples/analysis/native_owned_calls.lang)、[record](examples/analysis/native_owned_records.lang)、[sumのpayload全体抽出](examples/analysis/native_owned_sums.lang)、[借用fieldの変更](examples/analysis/native_owned_loans.lang)、allocator／buffer／collection／shared／weak／字句arena service（既存の [shared](examples/scripts/shared_owned.lang)、[Map](examples/scripts/map_owned.lang)、[Vec](examples/scripts/vec_owned.lang)、[Text](examples/scripts/text.lang) と [UTF-8](examples/scripts/utf8.lang) の例）、[入れ子arena ownerとguest call越しのread](examples/analysis/native_arena_regions.lang)、[ownerの再open](examples/analysis/native_arena_reuse.lang) が生成機械コードで実行できます。Scalar／Copyの制御、place projection、通常のloan、準備済み置換、CFG引数の同時転送もlowerします。VMとnative adapterはinstrumented controlとusageを共有し、nativeの報告にもloan／escrowのcell数と元の失敗位置を保持します。`cargo test --test native_owned_boundary` でVM／native比較、失敗時cleanup、admission、poison、compile budgetを検証できます。対応Mach-O／COFF codeとメモリ上のmetadataを出力し、macOSのstandalone owned programはdirect／response-fileでlink／run検証済みで、Source compileと生成startupは後述し、SDK配布は残作業です。[境界の対応範囲](docs/ja/architecture.md#native-whole-ownerの境界)を参照してください。2026-10-19 JST更新・検証。
 
 Owned VMとcanonical native profileで、現在のallocator、Bytes／Text、Vec／Map、shared／weak、arenaの全serviceに有限のservice-work予算を適用できます。Invocation共通counterがguest call、loan、service viewへ伝わり、型付きcopy／grow、UTF-8 scan、Map lookup、managed payloadの検査を決定的なeventで計量します。拒否時はlimit／used／requestedの数値を保持し、必須cleanupを課金せずownerを解放します。[Bufferの例](examples/analysis/native_buffer_work.lang) は引き続き37単位で67を返し、[managed Text payloadの例](examples/analysis/native_managed_text_work.lang) はVec／shared／arenaのviewを通ります。両tier-1 hostのnative object実行は下記で実証し、production driverのpackagingはP02に残ります。2026-10-19 JST確認。
 
 Trusted Rust APIのObjectArtifact::bindはlinked imageのownerを保持し、JITと同じ検証付きowned gatewayを利用します。Symbol解決前にhost targetと累積compile budgetを検査し、symbol欠落は構造化errorで返します。実際のmacOS linked imageでVec／Text／shared／arena混在例を実行し、workの全prefixでVMと一致します。Unsafe bindingには、同じartifact／toolchainからlinkしたcodeと、ownerの寿命中の有効性が必要です。下記の開発用standalone driverで両tier-1 targetを実証し、clean-install packagingはP02に残ります。2026-10-19 JST確認。
 
-macOS AArch64とWindows x86-64 MSVCの[standalone conformance test](tests/support/native_static.rs)は、同じ31 source unitをhostごとにdirect／response-file経由で62 executableへlinkし、空白を含むpathも検証します。Work／fuelの全prefix、allocation拒否、割り込み、frame／cell上限、panic、cleanupをVMと比較します。[Copy payload制御の例](examples/analysis/native_owned_control.lang)はnominal record／enum、managed Vec、boolのcall、所有権付きreturnを組み合わせます。516f663の[Windows全workflow run 39198008813](https://github.com/carimatics/lang/actions/runs/39198008813)でnative testと後続prototype benchmarkの両方が成功しました。開発用driverは対応metadataを再生成・照合し、link済み機械関数を呼びます。Production startup packagingとnative CLIはP02に残ります。実行：cargo test --test native_owned_boundary standalone_owned_object -- --nocapture。2026-10-19 JST確認。
+macOS AArch64とWindows x86-64 MSVCの[standalone conformance test](tests/support/native_static.rs)は、同じ31 source unitをhostごとにdirect／response-file経由で62 executableへlinkし、空白を含むpathも検証します。Work／fuelの全prefix、allocation拒否、割り込み、frame／cell上限、panic、cleanupをVMと比較します。[Copy payload制御の例](examples/analysis/native_owned_control.lang)はnominal record／enum、managed Vec、boolのcall、所有権付きreturnを組み合わせます。516f663の[Windows全workflow run 39198008813](https://github.com/carimatics/lang/actions/runs/39198008813)でnative testと後続prototype benchmarkの両方が成功しました。開発用driverは対応metadataを再生成・照合し、link済み機械関数を呼びます。Production SDK packagingはP10／P07／P02に残ります。実行：cargo test --test native_owned_boundary standalone_owned_object -- --nocapture。2026-10-19 JST確認。
 
 CLIのsource、保存artifact、REPLで `--service-work N` を使えます。省略時は無制限、0は無償の操作だけを許し、範囲はu64です。上限はartifactへ保存せず実行時に設定し、REPLでは投稿ごとにresetします。Runtime errorにはservice workのusageと拒否のlimit／used／requestedを表示します。引数不正はexit 2、scriptの予算拒否はexit 1、REPLはruntime error後も継続します。CLI実行はVMで、native実行への置換を意味しません。2026-10-19 JST検証。
 
 ```bash
 cargo run --bin lang -- run --service-work 37 examples/analysis/native_buffer_work.lang
 ```
+
+### Native program出力
+
+2026-10-20 JST更新・検証：`lang native` はsource unit全体を `aarch64-apple-darwin` または `x86_64-pc-windows-msvc` 向けにcompileします（既定：compiler host）。
+
+```bash
+cargo run --bin lang -- native --output /tmp/lang-owned-native examples/scripts/owned_bytes.lang
+cargo run --bin lang -- native --target x86_64-pc-windows-msvc --output /tmp/lang-c-native examples/analysis/c_owned_exports.lang
+```
+
+新しいoutput directoryを指定します。`package.json`、独立に検証した `program.lbc`／`program.native`、元の `program.o`／`program.obj`、canonicalな `bindings.rs` を出力します。通常のCopy／ownership programには実際の引数なしi64 mainを起動する `main.rs` を、C unitには既定entryを持たない `program.h` を追加します。完全な出力だけをatomicに公開し、既存destinationを保持します。
+
+生成startupはproduction runtime APIを使ってscriptの値を表示し、元のobjectのbinding前にSDK identityを照合します。[Compiler test](tests/native_compiler.rs)はsource削除後にこれらの出力と実C callerをbuild・実行します。配布、`link-native`、SDK検証全体、隔離installはaccepted [RFC 0020](docs/ja/rfcs/0020-native-sdk-and-startup.md)のP10／P07／P02に残ります。SDKは完全一致するRust toolchainとnative linkerを必要とし、C hostにはC11も必要です。
 
 ## 設計プロセス
 

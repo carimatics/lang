@@ -142,6 +142,10 @@ Run actual compiled executables and real C callers from installed SDK outputs on
 
 Use focused checks then the required code baseline. Documentation-only RFC/planning changes run repository consistency checks. Later performance/debug gates require their own measurements and actual debugger evidence.
 
+## Implementation checkpoint
+
+2026-10-20 JST: P09 implements `lang native`, whole-unit classification/original checked entry, semantic/native/object/header/binding output, target-specific SDK identity and exclusive publication. Tests run source-free generated drivers, managed/panic VM comparisons and an explicit real-C host; cross-target fixtures check Mach-O/COFF. The initial generated ordinary host policy retains 64 logical frames/65,536 live cells and a 512 MiB runtime-preparation bound, distinct from semantic decoding limits; explicit embedding can configure these finite controls. This remains in-tree producer/startup evidence. `link-native`, complete untrusted manifest validation, SDK assembly and both-host isolated installation remain P10/P07/P02. Status remains accepted until the intended SDK interface is implemented.
+
 ## Open questions
 
 No blocking contract question. Unverified implementation assumptions: minimal selected Rust artifact closure and platform link flags, deterministic shared build identity, exact manifest/component bounds under large programs, C-host ergonomics and complete Windows isolated installation. Prototype these within P09/P10/P07/P02 and revise this RFC explicitly before changing the accepted contract. An eventual C-only bootstrap is optional future work.

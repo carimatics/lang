@@ -153,6 +153,11 @@ impl Record {
     pub fn object(&self) -> &[u8] {
         &self.bytes
     }
+    /// Recover original compiler object data without cloning it or granting
+    /// any native execution authority.
+    pub fn into_object_bytes(self) -> Vec<u8> {
+        self.bytes
+    }
     pub fn functions(&self) -> &[FunctionCode] {
         &self.functions
     }

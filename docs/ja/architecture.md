@@ -27,6 +27,14 @@ P01 linker診断（2026-10-20 JST更新）：command previewはfilesystemに依�
 P02のmetadata準備prototype（2026-10-20 JST実装・重点確認）：`ObjectArtifact::into_recorded` が元object bytes、target、private ABI scope、FunctionCode全記録を生成元IR／layoutsの借用から切り離します。`RecordedObject::prepare` はISA lookup、機械語生成、JIT構築、source解析、symbol resolverなしで、検証済みfunction／frame／node／continuation計画を再構築します。Code size／source rangeを保持し、function数／ID、正規private symbol、code range境界、source spanのUTF-8境界を検査して、保持buffer容量と新規planを累積host budgetへ算入します。これは不透明なtrusted Rust記録であり、serialized packageやnative認証loaderではありません。Unsafe bindには元program／code／toolchain／imageの一致契約を維持します。実linked managed-value testで生成元state破棄後、同じsourceを再解析してplanを再構築し、全metadataと各service-work prefixでのVM／nativeの結果・解放を保持します。別caseでfunction数不一致、別layouts、host予算不足を拒否します。Package／IR形式の判断、C context依存、production配布物、両tier-1の隔離clean-install link/runはP02に残り、このprototypeだけではpointを完了にしません。情報源：[記録](../../crates/codegen-clif/src/owned/recorded.rs)、[共通symbol生成](../../crates/codegen-clif/src/owned.rs)、[native実行／拒否](../../tests/support/native_linked.rs)。2026-10-20 JST更新・確認。
 
 
+## Native source package producer
+
+[RFC 0020](rfcs/0020-native-sdk-and-startup.md)に従い2026-10-20 JST実装・検証：`lang native` はsource-root権限とunit全体のABI分類を保持し、通常entryを検査し、canonical portable dataを独立にdecodeしてから、元のobject／record、canonical symbol binding、上限付きmanifest、該当するRust main／C headerを出力します。0以外のentry IDとC libraryのentry-nullを保持します。
+
+共有SDK identityはsortしたproduction input／manifest／lock／toolchain、固定workspace feature、profile／optimization／debug／flag、要求target、ABI revisionを含みます。不一致の検出であり認証ではありません。Privateな兄弟stageとplatformのexclusive renameで既存input／outputを保持し、失敗時はstageを削除します。生成symbol textは確保前に8 MiB上限を検査します。
+
+通常startupはproduction Copy bindingまたはRFC 0019のownership entry runtimeを使い、明示C embeddingはunsafe matching-image／owner-threadと実allocator／contextの義務を保持します。Sourceなしdriver、managed／panicのVM比較、実C callerのfixtureは引き続きrepository内dependencyでcompileします。配布用consumer／`link-native`、厳格な非信頼manifest reader、SDK組み立て、両hostの隔離installはP10／P07／P02に残り、このproducerだけではpackagingを完了しません。
+
 ## 目標
 
 - WindowsとmacOSでのnative性能と低レベル制御。

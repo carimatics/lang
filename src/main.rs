@@ -21,7 +21,7 @@ impl ExecutionOptions {
     }
 }
 
-const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
 enum Command {
     Check {
         file: PathBuf,
@@ -36,6 +36,12 @@ enum Command {
         file: PathBuf,
         root: Option<PathBuf>,
         output: PathBuf,
+    },
+    Native {
+        file: PathBuf,
+        root: Option<PathBuf>,
+        output: PathBuf,
+        target: Option<String>,
     },
     RunArtifact {
         file: PathBuf,
@@ -92,6 +98,9 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
             ));
         }
         return Ok(Command::Lsp);
+    }
+    if first == "native" {
+        return parse_native(arguments);
     }
     let repl = first == "repl";
     let check = first == "check";
@@ -196,6 +205,88 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
         limits,
     })
 }
+fn parse_native(arguments: Vec<OsString>) -> Result<Command, CliError> {
+    let mut file = None;
+    let mut root = None;
+    let mut output = None;
+    let mut target = None;
+    let mut seen = std::collections::BTreeSet::new();
+    let mut args = arguments.into_iter().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == "--help" || arg == "-h" {
+            return Ok(Command::Help);
+        }
+        if let Some(flag) = arg.to_str().filter(|s| s.starts_with("--")) {
+            if !matches!(flag, "--source-root" | "--output" | "--target") {
+                return Err(usage(format!("unknown native option {flag}")));
+            }
+            if !seen.insert(flag.to_owned()) {
+                return Err(usage(format!("duplicate option {flag}")));
+            }
+            let value = args
+                .next()
+                .ok_or_else(|| usage(format!("missing value for {flag}")))?;
+            match flag {
+                "--source-root" => root = Some(PathBuf::from(value)),
+                "--output" => output = Some(PathBuf::from(value)),
+                "--target" => {
+                    target = Some(
+                        value
+                            .into_string()
+                            .map_err(|_| usage("target must be UTF-8"))?,
+                    )
+                }
+                _ => unreachable!(),
+            }
+        } else if file.replace(PathBuf::from(arg)).is_some() {
+            return Err(usage("only one root file is allowed"));
+        }
+    }
+    Ok(Command::Native {
+        file: file.ok_or_else(|| usage("missing root file"))?,
+        root,
+        output: output.ok_or_else(|| usage("missing --output"))?,
+        target,
+    })
+}
+fn compile_native(
+    file: PathBuf,
+    root: Option<PathBuf>,
+    output: PathBuf,
+    target: Option<String>,
+) -> Result<u8, CliError> {
+    let target = lang::native::target(
+        &target.unwrap_or_else(|| lang_codegen_clif::Triple::host().to_string()),
+    )
+    .map_err(failure)?;
+    let root = source_root(&file, root);
+    let limits = CompileLimits::default();
+    let analysis = frontend::analyze_file(&file, &root, limits);
+    for d in &analysis.diagnostics {
+        io::stderr()
+            .lock()
+            .write_all(d.render(&analysis.sources).map_err(failure)?.as_bytes())
+            .map_err(failure)?;
+    }
+    let program = match analysis.result {
+        Ok(p) => p,
+        Err(AnalysisError::Diagnostics) => return Ok(1),
+        Err(e) => return Err(failure(e)),
+    };
+    let package = match lang::native::compile(program, &analysis.sources, limits, target) {
+        Ok(p) => p,
+        Err(lang::native::Error::Entry(ScriptError::Entry(d))) => {
+            io::stderr()
+                .lock()
+                .write_all(d.render(&analysis.sources).map_err(failure)?.as_bytes())
+                .map_err(failure)?;
+            return Ok(1);
+        }
+        Err(e) => return Err(failure(e)),
+    };
+    package.publish(&output).map_err(failure)?;
+    Ok(0)
+}
 fn run() -> Result<u8, CliError> {
     match parse(std::env::args_os().skip(1).collect())? {
         Command::Help => {
@@ -222,6 +313,12 @@ fn run() -> Result<u8, CliError> {
         Command::Check { file, root } => check_source(file, root),
         Command::Run { file, root, limits } => run_script(file, root, limits),
         Command::Compile { file, root, output } => compile_source(file, root, output),
+        Command::Native {
+            file,
+            root,
+            output,
+            target,
+        } => compile_native(file, root, output, target),
         Command::RunArtifact { file, limits } => run_artifact(file, limits),
         Command::Repl { root, limits } => run_repl(root, limits),
     }

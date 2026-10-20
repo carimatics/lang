@@ -142,6 +142,10 @@ Mac AArch64／Windows x86-64 MSVCの導入済みSDK出力から実exe／C caller
 
 重点検証後にcode baselineを実行し、文書だけのRFC／計画変更はrepository consistencyを実行します。後続性能／debug条件は専用測定と実debugger証拠を必要とします。
 
+## Implementation checkpoint
+
+2026-10-20 JST：P09は `lang native`、unit全体の分類／元の検査済みentry、semantic／native／object／header／binding出力、target別SDK identity、exclusive公開を実装します。Testはsourceなしの生成driver、managed／panicのVM比較、明示的な実C hostを実行し、cross-target fixtureはMach-O／COFFを検査します。通常の生成host policyは64 logical frame／65,536 live cellと512 MiBのruntime準備上限を使い、semantic decodeの上限と区別します。明示embeddingではこの有限controlを設定できます。これはrepository内のproducer／startup証拠です。`link-native`、非信頼manifest検証全体、SDK組み立て、両hostの隔離installはP10／P07／P02に残ります。意図したSDK interfaceの実装までstatusはacceptedを維持します。
+
 ## Open questions
 
 契約上のblocking questionはありません。未検証の実装仮説は、最小Rust artifact closure／platform link flags、一貫したbuild識別、大規模programでのmanifest／component上限、C hostの使い勝手、Windowsの完全隔離installです。P09／P10／P07／P02で実験し、受理済み契約を変える前に本RFCを明示改訂します。将来Cだけでbootstrapすることは任意の後続作業です。

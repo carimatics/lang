@@ -17,6 +17,7 @@ pub mod component_resource_conformance;
 pub mod frontend;
 pub mod linker;
 pub mod lsp;
+pub mod native;
 pub mod repl;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
