@@ -3,12 +3,55 @@
     all(target_os = "windows", target_arch = "x86_64", target_env = "msvc")
 ))]
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
-use std::{fs, path::PathBuf, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::{Command, Output, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
 
 struct Directory(PathBuf);
 impl Drop for Directory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn run_bounded(command: &mut Command, logs: &Path, phase: &str) -> Output {
+    let stdout = logs.join(format!("{phase}-stdout.log"));
+    let stderr = logs.join(format!("{phase}-stderr.log"));
+    // Files keep a verbose tool from blocking on an undrained pipe while the
+    // parent polls. Each fixed, trusted metadata probe must finish promptly.
+    command.stdout(Stdio::from(fs::File::create(&stdout).unwrap()));
+    command.stderr(Stdio::from(fs::File::create(&stderr).unwrap()));
+    println!("Native debug stage {phase}: {command:?}");
+    let mut child = command.spawn().unwrap();
+    let start = Instant::now();
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            println!(
+                "Native debug stage {phase}: {status}, {:.2}s",
+                start.elapsed().as_secs_f64()
+            );
+            return Output {
+                status,
+                stdout: fs::read(stdout).unwrap(),
+                stderr: fs::read(stderr).unwrap(),
+            };
+        }
+        if start.elapsed() >= Duration::from_secs(30) {
+            let _ = child.kill();
+            let _ = child.wait();
+            let out = fs::read(stdout).unwrap();
+            let err = fs::read(stderr).unwrap();
+            panic!(
+                "native debug stage {phase} exceeded 30s:\n{}\n{}",
+                String::from_utf8_lossy(&out[out.len().saturating_sub(4096)..]),
+                String::from_utf8_lossy(&err[err.len().saturating_sub(4096)..])
+            );
+        }
+        thread::sleep(Duration::from_millis(20));
     }
 }
 
@@ -43,12 +86,14 @@ fn source_copy_owned_and_c_units_link_source_locations_into_windows_pdbs() {
         )
         .unwrap();
         let package = root.0.join(profile);
-        let emit = Command::new(env!("CARGO_BIN_EXE_lang"))
-            .args(["native", "--target", "x86_64-pc-windows-msvc", "--output"])
-            .arg(&package)
-            .arg(&input)
-            .output()
-            .unwrap();
+        let emit = run_bounded(
+            Command::new(env!("CARGO_BIN_EXE_lang"))
+                .args(["native", "--target", "x86_64-pc-windows-msvc", "--output"])
+                .arg(&package)
+                .arg(&input),
+            &root.0,
+            &format!("{profile}-emit"),
+        );
         assert!(
             emit.status.success(),
             "{}",
@@ -92,7 +137,7 @@ fn source_copy_owned_and_c_units_link_source_locations_into_windows_pdbs() {
         }
         // This image is for metadata inspection only. Actual execution with
         // resolved SDK imports and debugger stepping belongs to G03.
-        let link = linker.output().unwrap();
+        let link = run_bounded(&mut linker, &root.0, &format!("{profile}-link"));
         assert!(
             link.status.success(),
             "{}{}",
@@ -114,7 +159,7 @@ fn source_copy_owned_and_c_units_link_source_locations_into_windows_pdbs() {
             for name in names {
                 reader.args(["-o", &format!("image lookup -n {name}")]);
             }
-            let result = reader.output().unwrap();
+            let result = run_bounded(&mut reader, &root.0, &format!("{profile}-read"));
             let output = String::from_utf8(result.stdout).unwrap();
             assert!(
                 result.status.success(),
@@ -144,11 +189,11 @@ fn inspect_native_pdb(pdb: &std::path::Path, profile: &str, names: [&str; 2]) {
     } else {
         Command::new("llvm-pdbutil")
     };
-    let dump = command
-        .args(["dump", "-l", "-symbols"])
-        .arg(pdb)
-        .output()
-        .expect("LLVM PDB reader must be installed for native metadata validation");
+    let dump = run_bounded(
+        command.args(["dump", "-l", "-symbols"]).arg(pdb),
+        pdb.parent().unwrap(),
+        &format!("{profile}-read"),
+    );
     let output = String::from_utf8(dump.stdout).unwrap();
     assert!(
         dump.status.success(),

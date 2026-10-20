@@ -1,0 +1,49 @@
+name: Native source debug validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'codex/debug-*'
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: Source debug metadata / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure the x86-64 MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+
+      - name: Record native debug tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:ProgramFiles\LLVM\bin\llvm-pdbutil.exe" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($tool in @(
+            "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe",
+            "$env:ProgramFiles\LLVM\bin\lldb.exe"
+          )) {
+            Write-Host "$tool available: $(Test-Path $tool)"
+          }
+
+      - name: Validate all source CodeView profiles with bounded tools
+        run: cargo test --locked --test native_debug_windows --all-features -- --nocapture
+
+      - name: Validate linked Mach-O function addresses
+        if: runner.os == 'macOS'
+        run: cargo test --locked --test native_compiler --all-features linked_copy_and_owned_dwarf_ranges_match_each_native_body -- --nocapture

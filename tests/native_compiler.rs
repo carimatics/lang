@@ -110,24 +110,109 @@ fn source_native_copy_owned_and_c_objects_have_verified_function_debug_locations
         let bytes = fs::read(object).unwrap();
         let parsed = object::File::parse(bytes.as_slice()).unwrap();
         let debug = parsed.section_by_name("__debug_info").unwrap();
+        let data = debug.data().unwrap();
         let targets: std::collections::HashSet<_> = debug
             .relocations()
-            .filter_map(|(_, r)| match r.target() {
-                object::RelocationTarget::Symbol(i) => parsed
-                    .symbol_by_index(i)
-                    .ok()
-                    .and_then(|s| s.name().ok())
-                    .map(str::to_owned),
+            .filter_map(|(at, r)| match r.target() {
+                object::RelocationTarget::Section(i)
+                    if parsed.section_by_index(i).unwrap().kind() == object::SectionKind::Text =>
+                {
+                    assert_eq!(r.size(), 64);
+                    let at = at as usize;
+                    Some((i, u64::from_le_bytes(data[at..at + 8].try_into().unwrap())))
+                }
                 _ => None,
             })
             .collect();
         for line in info.lines().filter(|l| l.contains("DW_AT_linkage_name")) {
             let symbol = line.split('"').nth(1).unwrap();
             // Mach-O's leading underscore is not part of the linker spelling.
+            let native = parsed.symbol_by_name(&format!("_{symbol}")).unwrap();
             assert!(
-                targets.contains(symbol) || targets.contains(&format!("_{symbol}")),
+                targets.contains(&(native.section_index().unwrap(), native.address())),
                 "{symbol}: {targets:?}"
             );
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn linked_copy_and_owned_dwarf_ranges_match_each_native_body() {
+    use object::{Object as _, ObjectSymbol as _};
+    let root = Dir::new();
+    let cases = [
+        (
+            "copy",
+            "fn debug_leaf(n:i64)->i64{return n+1;}\nfn debug_outer(n:i64)->i64{return debug_leaf(n);}\nfn main()->i64{return debug_outer(41);}",
+            ["debug_leaf", "debug_outer", "main"],
+        ),
+        (
+            "owned",
+            "fn debug_make(n:i64)->core::Bytes { let mut b:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator())); let mut p:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(b,n)); return b; }\nfn debug_take(b:core::Bytes)->i64 { return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(b,0))+1; }\nfn main()->i64 { return debug_take(debug_make(41)); }",
+            ["debug_make", "debug_take", "main"],
+        ),
+    ];
+    for (profile, source, names) in cases {
+        let input = root.0.join(format!("{profile}.lang"));
+        fs::write(&input, source).unwrap();
+        let package = root.0.join(profile);
+        let emitted = native(&input, &package, None);
+        assert!(
+            emitted.status.success(),
+            "{}",
+            String::from_utf8_lossy(&emitted.stderr)
+        );
+        let executable = build_extra_with_debug(&package, "debug-application", &[], true);
+        let run = Command::new(&executable).output().unwrap();
+        assert!(run.status.success());
+        assert_eq!(String::from_utf8(run.stdout).unwrap().trim(), "42");
+        let bytes = fs::read(&executable).unwrap();
+        let image = object::File::parse(bytes.as_slice()).unwrap();
+        let dsym = PathBuf::from(format!("{}.dSYM", executable.display()));
+        assert!(dsym.is_dir());
+        for name in names {
+            let dump = Command::new("xcrun")
+                .args(["llvm-dwarfdump", "--debug-info"])
+                .arg(format!("--name={name}"))
+                .arg(&dsym)
+                .output()
+                .unwrap();
+            assert!(
+                dump.status.success(),
+                "{}",
+                String::from_utf8_lossy(&dump.stderr)
+            );
+            let text = String::from_utf8(dump.stdout).unwrap();
+            let procedures: Vec<_> = text
+                .split("DW_TAG_subprogram")
+                .skip(1)
+                .filter_map(|die| {
+                    let linkage = die
+                        .lines()
+                        .find(|l| l.contains("DW_AT_linkage_name"))?
+                        .split('"')
+                        .nth(1)?;
+                    linkage.starts_with("lang_").then_some((die, linkage))
+                })
+                .collect();
+            assert_eq!(procedures.len(), 1, "{profile}/{name}: {text}");
+            let (die, linkage) = procedures[0];
+            let address = |attribute: &str| {
+                let line = die.lines().find(|l| l.contains(attribute)).unwrap();
+                u64::from_str_radix(
+                    line.split("0x").nth(1).unwrap().split(')').next().unwrap(),
+                    16,
+                )
+                .unwrap()
+            };
+            let native = image.symbol_by_name(&format!("_{linkage}")).unwrap();
+            assert_eq!(
+                address("DW_AT_low_pc"),
+                native.address(),
+                "{profile}/{name}: {die}"
+            );
+            assert!(address("DW_AT_high_pc") > native.address());
         }
     }
 }
@@ -170,6 +255,9 @@ fn windows_native_paths() -> &'static Vec<PathBuf> {
     })
 }
 fn build_extra(package: &Path, name: &str, extra: &[&str]) -> PathBuf {
+    build_extra_with_debug(package, name, extra, false)
+}
+fn build_extra_with_debug(package: &Path, name: &str, extra: &[&str], debug: bool) -> PathBuf {
     let exe = package.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
     let deps = std::env::current_exe()
         .unwrap()
@@ -177,6 +265,9 @@ fn build_extra(package: &Path, name: &str, extra: &[&str]) -> PathBuf {
         .unwrap()
         .to_owned();
     let mut c = Command::new("rustc");
+    if debug {
+        c.args(["-Cdebuginfo=2", "-Csplit-debuginfo=packed"]);
+    }
     c.current_dir(package)
         .args([
             "--edition=2024",

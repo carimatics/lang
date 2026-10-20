@@ -158,15 +158,29 @@ fn add_macho_sections(
             .get_mut(dwarf_id)
             .expect("the fixed DWARF section list contains writable sections");
         for relocation in section.relocations.drain(..) {
-            let symbol = match relocation.target {
-                RelocationTarget::Symbol(symbol) => *symbols
-                    .get(symbol)
-                    .ok_or_else(|| format!("unknown DWARF symbol index {symbol}"))?,
+            let (symbol, addend) = match relocation.target {
+                RelocationTarget::Symbol(index) => {
+                    let symbol = *symbols
+                        .get(index)
+                        .ok_or_else(|| format!("unknown DWARF symbol index {index}"))?;
+                    let definition = object.symbol(symbol);
+                    let object::write::SymbolSection::Section(section) = definition.section else {
+                        return Err("DWARF address requires a defined code symbol".into());
+                    };
+                    // Mach-O debug maps use the original object address. Keep
+                    // that offset in the implicit addend of a local section
+                    // relocation so dsymutil can map each linked function.
+                    let addend = i64::try_from(definition.value)
+                        .ok()
+                        .and_then(|value| value.checked_add(relocation.addend))
+                        .ok_or("DWARF object address exceeds the relocation range")?;
+                    (object.section_symbol(section), addend)
+                }
                 RelocationTarget::Section(target) => {
                     let target = *object_sections
                         .get(&target)
                         .ok_or_else(|| format!("missing DWARF target section {}", target.name()))?;
-                    object.section_symbol(target)
+                    (object.section_symbol(target), relocation.addend)
                 }
             };
             object
@@ -175,7 +189,7 @@ fn add_macho_sections(
                     Relocation {
                         offset: relocation.offset as u64,
                         symbol,
-                        addend: relocation.addend,
+                        addend,
                         flags: RelocationFlags::Generic {
                             kind: RelocationKind::Absolute,
                             encoding: RelocationEncoding::Generic,

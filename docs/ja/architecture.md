@@ -45,6 +45,10 @@ G02 source CodeView（2026-10-20 JST実装）：Windowsの実producerでもCopy�
 
 [実Windows metadata test](../../tests/native_debug_windows.rs)で3 profileを生成してPE／PDBへlinkします。macOSではLLDBが元の2 function名から正確なsource行を解決し、Windowsではnative LINKとLLVM PDB readerが対応functionとline contributionを検証します。inspection imageはruntime importの未解決を許容し、実行しません。G03では完全linkした実行・stepping・backtraceが必要です。これはtest toolの要件で、runtime依存は追加しません。LLVMの[llvm-pdbutil文書](https://llvm.org/docs/CommandGuide/llvm-pdbutil.html)と[line-dump formatter](https://github.com/llvm/llvm-project/blob/main/llvm/tools/llvm-pdbutil/DumpOutputStyle.cpp)にはpage更新日の記載がなく、2026-10-20 JST検証です。local focused checkは成功し、native Windows完了はdelivery boardで追跡します。
 
+G03 linked-address repair（2026-10-20 JST、検証中）：Mach-Oのnative addressをlocal text-section relocationと元のobject offsetで記録します。先行external-symbol relocationはobjectの構造検証に成功しても、dsymutil後の非先頭functionを先頭functionのaddressへずらしていました。[新しい回帰検証](../../tests/native_compiler.rs)は実Copy／owned packageをdebug linkし、実行結果42を確認したうえで、各source functionのdSYM low-PCを実image symbolと照合します。codegen byte・private ABI・全serialized revisionは変更せず、compiler identityに対応したSDKの再buildが必要です。これはlink後addressの修正で、両hostの実stepping／backtrace完了は意味しません。
+
+[CodeView検証](../../tests/native_debug_windows.rs)ではemit／link／readerごとの段階と時間を出力し、外部toolを30秒で打ち切ります。stdout／stderrをfileへ流すため、poll中のpipe詰まりを作りません。[専用CI](../../.github/workflows/native-debug.yml)で両hostを独立に検証し、長い全体testの中に新しいmetadata検査を隠さず、実行中の全体jobもrestartしません。
+
 ## Native manifest and file verification
 
 P11（2026-10-20 JST）は不変の型付きSDK／program manifestと所有snapshotを追加します。Exact-key serde decodeで重複／未知fieldを拒否し、byte／depth／string／file-count上限を拡張前に検査します。Role／path／profile／entryと総sizeの検査にはmanifest byteも含めます。SDK tagはcompile済みbuild、target別ID、rustc release／commit、profile、feature policyと照合します。Programの意味論／entry／ABI、native記録のkind／target／C digest、正確なobject byteと記録planを独立に検査します。
