@@ -41,6 +41,8 @@ provider heap counterは当該guest/C providerを通る確保が対象で、Rust
 
 reportには各sample、min/median/max/mean/stdev、実装順の巡回、compiler command/version、SDK ID、source/harness hash、clean/dirty revision、host、入力、executable sizeを保存します。計測でも毎回checksumとallocator収支を検証します。local smoke runはharnessの検証であり、G17の完了には引き続き**両方**のtier-1 hostのnative計測と再現可能な解釈report（B02–B04）が必要です。
 
+B01の正しさの証拠（検証日 **2026-10-20 JST**）：[CI run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742)で両native hostのcleanな`fffe86c`が成功しました。[macOS parity report](../../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json)と[Windows parity report](../../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json)はそれぞれ21組のoracle一致とunwind退役成功、対応release SDK ID、検証したharness hash、独立したreference link commandを保持します。canonical source hashの照合ではWindows checkoutの改行差を許容します。**このparity reportにtiming／startup観測はありません**。入力欄は予定した計測設定です。B02–B04は未完了です。
+
 ## 2026-10-17レビュー後の解釈
 
 `representative_application` はsyntheticなhost orchestrationです。公開instanceの交渉済みbindingからdispatchせず、別の固定scalar／resource fixtureを実行します。実際のprovider実装の選択と呼び出し、生成adapterのend-to-end costは後続conformance／measurement課題です。

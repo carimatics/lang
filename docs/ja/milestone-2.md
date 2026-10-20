@@ -6,25 +6,23 @@
 
 更新・検証：**2026-10-20 JST**。初回監査checkpoint：`0c2c012`。
 
-**125 done · 1 doing · 7 todo · 16 remaining pt**
+**126 done · 1 doing · 6 todo · 14 remaining pt**
 
-**次: M2-B01 → source-native／Rust／Cの等価workloadと比較harness（暫定2 pt、実装中）。**
+**次: M2-B02 → cleanなnative macOSのruntime／startup／memory／size記録（暫定2 pt、実施中）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| B01：local 21/21一致・unwind済み、native CI待ち | **Q02完了**：両tier-1の複合conformance CI（`1d0c0dc`） | **16/18条件** |
+| B02：native macOS計測とばらつき | **B01完了**：両hostのsource／Rust／C一致（`fffe86c`） | **16/18条件** |
 
-**直近の検証checkpoint（2026-10-20 14:56 JST）：** [macOS run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、job `118474323072`／head `1d0c0dc` は **2026-10-20 05:48:01 UTC** に全workflow成功。Fmt／Clippy／全target・feature test／rustdoc／全11 fuzz targetを含みます。[Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、job `118467465176`／head `3db077f` はfmt／C・linker検証／Clippy／全test／rustdocを **05:49:05 UTC** までに全成功しました。差分7 pathはMac起動条件と文書のみで、実装・test・fixture・Cargo／toolchainのGit blobは同一です。新しい複合production entry／resource prefix、実AOT、実C／保存C object、panic loan回帰testが両targetで有効であるcfgを監査し、Mac logの各成功行も照合しました。Windowsのprototype benchmarkは確認時点で実行中で、workflow全体やRust／C性能比較の成功とは数えません。
+**直近の検証checkpoint（2026-10-20 JST）：** [run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742)、exact head `fffe86c`で両native tier-1 hostが成功しました。Mac job 118495004851は2026-10-20 06:50:40 UTC、Windows job 118495004473は06:57:23 UTCに完了しました。cleanな各artifactでsource／Rust／C／oracleの21組一致とunwind退役後の次context実行を検証しています。[Mac report](../../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) · [Windows report](../../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json)。timing sampleは含まず、G17の完了には数えません。
 
-**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **18 − 2 = 16 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もりの変更)は **134 + 109 − 227 = 16 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **16 − 2 = 14 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もり変更)は **134 + 109 − 229 = 14 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**G16完了監査：** Q01の複合sourceはVec→Map移動／置換、Text／Bytes aggregate、再帰call、shared／weak、arena owned collection、入れ子read、CrossRegion拒否／解放を含みます。通常42／panic−42で元span／stack／report／usageと全fuel／work／provider拒否prefix・frame／cell境界が一致し、実AOT／実C／保存C objectへ接続されています。Q02でこれを両native hostの全test成功へ対応付けたため、G16を完了します。従来gateは **16/18、重み97/113**。G17性能／G18debugと最終Z01は未完了です。
+**B01完了監査：** 実source compile・元C-export object・installed production runtimeで、scalar CFG、owned Bytes＋Vec、shared／weak／arena lifecycleの各7入力が最適化済みRust／Cおよび独立oracleと一致しました。計測executableを分け、referenceにはSDK／object／runtimeをlinkしません。artifact／context準備、呼び出しごとのruntime処理を含む反復、workloadなし新規process起動を区別し、OS peak memory、executable／object全体のsize、各sample、ばらつき、flag、provenanceを記録します。証拠の拒否／oracle test 7件も両CI hostで成功しています。private C referenceのalignment移植性修正に別creditは付けません。[計測scope](benchmarks.md#milestone-2-sourcerustc-harness)にallocator・最適化・accountingの差を明記しています。
 
-Local Rust baselineは実装byteが不変のQ01結果 **1,585 tests / 94 suites、失敗0、手動1件ignored**（900.90秒）、fmt／Clippy／rustdoc／全11 fuzz成功を保持します。今回のYAMLは構文・event・全baseline stepを確認し、文書／task整合性3 testを実行します。変更のないcompiler baselineを再実行したとは主張しません。SDK隔離 [run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) も同じ実装で両host全成功し、G15／RFC 0020の完了を維持します。
+B01で改めて実行したlocal baselineは **1,585 tests／94 suites、0失敗、手動timing ignore 1件**で、fmt・Clippy・rustdocも成功しました。standalone Rust formatと4 mode build、21組parity／unwind、9組のchild checksum／解放、3組のstartup検証が通り、先行OS memory smokeの9観測も成功しました。最終C reference alignment修正はproduction／reference Rust sourceを変更していません。文書／result／計画の更新にはrepository consistency 3件を使い、同じRust bytesのcompiler baselineは繰り返しません。
 
-**B01 WIP（2026-10-20 15:38 JST）：** 実SDK compiler／元C-export object／production runtimeでRust／Cと独立oracleに**21/21組**一致しました（scalar、Bytes＋Vec、shared／weak／arena、7入力）。allocator退役とhost unwind後の次の登録・呼び出しも通りました。別々のsource／Rust／C binaryで9組のchild checksum／解放検証と3組のworkloadなしstartup検証が通り、先のOS memory smokeも成功しています。private version-1 harnessで準備・反復呼び出し・新規process起動・RSS／working set・size・sample・正確なflag／accounting scopeを記録します。拒否／oracle test 7件、workflow YAML／Python検証、全local baseline（1,585 tests／94 suites、0失敗、手動ignore 1件）、fmt・Clippy・rustdocが通りました。残る受入条件は、特にWindows／MSVCを含むnative tier-1 CIで同じ21組／unwind gateを通すことです。B01はdoing／2 ptのままです。B02–B04で両hostの性能記録と解釈を引き続き行います。[計測scope](benchmarks.md#milestone-2-sourcerustc-harness)参照。
-
-**B01 native検証（2026-10-20 15:48 JST）：** [run 39381574039](https://github.com/carimatics/lang/actions/runs/39381574039)、exact head `41250a2`でcleanなmacOSの21組parity／unwindが成功しました。Windowsはrelease SDKを構築できましたが、private C referenceの`max_align_t`を拒否しました（MSVC C11では未提供）。referenceが使うi64／u64のalignmentを明示し、各payloadの型要件をcompile時にassertする形に修正しました。修正後の4 mode build、21組parity／unwind、Python 7 checksはlocalで通っています。B01完了前にnative CIを再実行します。この移植性修正に別task／pointは計上しません。production／reference Rust sourceは変更していないため、1,585-test Rust baselineの証拠は有効です。
+**B02実装前監査（2026-10-20 JST）：** 既存2 ptと同じharnessを使います。cleanな`codex/bench-macos-*` branchでmacOSだけを選び、15 samples × 3 implementations × 3 workloads＝**workload 135観測**と、**専用startup 45観測**を`n=1000`、反復20回、計時外warmup 3回で記録します。先に21組／unwind gateを通します。exact revision／SDK／source provenance、全checksum、allocator収支、runtime／準備／startupの分離、OS peak RSS、executable／object size、sampleのばらつきを必須とします。B03で同条件のWindows記録、B04で再現可能な解釈を公表します。G17／G18と最終Z01は未完了で、性能改善やRust／Cとの速度同等性はまだ主張しません。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -212,13 +210,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 125件（+90件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 126件（+91件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −227 pt | 16 pt |
+| 134 pt | +109 pt | −229 pt | 14 pt |
 
-**134 + 109 − 227 = 16 pt**
+**134 + 109 − 229 = 14 pt**
+
+B01完了／B02実装前監査（2026-10-20 JST）：`41250a2`とprivate C alignment修正`fffe86c`でsource／Rust／C一致と計測harnessを完了しました。両native hostのcleanな`fffe86c`で21組oracle／unwindが通り、raw JSONを保存しています。既存2 ptだけを除き、**125 → 126完了、残り16 → 14 pt、完了で除いた227 → 229点、133行／追加109点は不変**。B02だけを既存2 ptで選び、macOSの全計測後に完了を計上します。B03／B04、両hostのdebugger作業、Z01は引き続き必須です。元のG17は代表native workloadと等価Rust／Cの比較で、実sourceの3 workloadが範囲を維持しています。新たな前提や見積もりは発生していません。
 
 Q02完了／B01実装前監査（2026-10-20 JST）：`1d0c0dc` のMac限定branch CIと、同一実装／fixtureのWindows `3db077f` 全baseline成功を照合し、既存2 ptを完了しました。**124 → 125完了、残り18 → 16 pt、完了で除いた225 → 227点、133行／追加109点は不変**。Q01／Q02の実source・runtime・AOT／C・resource証拠でG16を完了し、従来gateは16/18。B01だけを既存2 ptで選び、G17／G18／Z01と元の全要件を維持します。
 
@@ -446,8 +446,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-P02 | done | 0 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Repo／target/deps外でCopy／ownership／Cを含む両tier-1のclean-install SDK link/run成功。 | `c54af31` |
 | M2-Q01 | done | 0 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | `3db077f` |
 | M2-Q02 | done | 0 | M2-Q01,M2-P02 | G16 | 両tier-1 CIで代表conformanceとresource-limit scenarioの成功を記録。 | `1d0c0dc` |
-| M2-B01 | doing | 2 | M2-Q01 | G17 | 同等Rust／C workloadとharnessで比較前に意味的一致を確認。 | — |
-| M2-B02 | todo | 2 | M2-B01,M2-P02 | G17 | CleanなmacOSでruntime／startup／memory／sizeとばらつきを記録。 | — |
+| M2-B01 | done | 0 | M2-Q01 | G17 | 同等Rust／C workloadとharnessで比較前に意味的一致を確認。 | `fffe86c` |
+| M2-B02 | doing | 2 | M2-B01,M2-P02 | G17 | CleanなmacOSでruntime／startup／memory／sizeとばらつきを記録。 | — |
 | M2-B03 | todo | 2 | M2-B01,M2-P02 | G17 | 同等のclean Windows計測とばらつきを記録。 | — |
 | M2-B04 | todo | 1 | M2-B02,M2-B03 | G17 | 結果の解釈、再現command、残るperformance上の限界を公開。 | — |
 | M2-G01 | todo | 3 | M2-N06 | G18 | Native owned-valueのsource span／locationをemitし、macOS debug fixtureで検証。 | — |

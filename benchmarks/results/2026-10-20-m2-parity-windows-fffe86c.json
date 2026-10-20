@@ -1,0 +1,352 @@
+{
+  "format": "lang-m2-benchmark",
+  "version": 1,
+  "verified_at_utc": "2026-10-20T06:57:16Z",
+  "revision": "fffe86c389e0855fc41c29a183abe3e4f86edf60",
+  "dirty": false,
+  "target": "x86_64-pc-windows-msvc",
+  "sdk_build_id": "1a19e49debefcffaec8ab17b288c2a575c528c1f9a22c64d1493960e086f6602",
+  "sdk_profile": "release",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-pc-windows-msvc\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "c_compiler": "usage: cl [ option... ] filename... [ /link linkoption... ]\nMicrosoft (R) C/C++ Optimizing Compiler Version 19.51.36260 for x64\nCopyright (C) Microsoft Corporation.  All rights reserved.\n\n",
+  "host": {
+    "platform": "Windows-2025Server-10.0.26100-SP0",
+    "processor": "AMD64 Family 25 Model 1 Stepping 1, AuthenticAMD",
+    "cpu_count": 2,
+    "python": "3.14.8"
+  },
+  "inputs": {
+    "n": 1000,
+    "repeats": 20,
+    "samples": 15,
+    "warmups": 3
+  },
+  "harness_sha256": {
+    ".gitignore": "6252093f8103b25bf77e3171bfc9952ba9c964480ae8f326dc9c4bb12e6aea28",
+    "client.c.in": "1becc5a423be115faf34938f4ff2233d601d87687c4353ec15776540687f0252",
+    "host.rs": "d805238f74820106b1fecd9f043952f84e0adc4d6cac82fa83ba228aa2450ffb",
+    "reference.rs": "11a1125ebb63728b074e6b4f0ea460a5b032c929342712ff40dccae71a5ce6e6",
+    "run.py": "0415d1af722b1226dba5e9e2c7e094bfe39a11d4a9cac3da4015dbf2b64a3e3a",
+    "test_harness.py": "3caf79ee0f5fdde1fc588459f8128ef14e72b42ab60cec21301b018b83f5baf7",
+    "workloads.lang": "21449bac89d53e53968964809b5208240632fd1b2be113a9d1c8291cf0ac676e"
+  },
+  "compile_command": [
+    "D:\\a\\_temp\\m2-sdk\\bin\\lang.exe",
+    "native",
+    "--output",
+    "D:\\a\\_temp\\m2-bench\\package",
+    "D:\\a\\lang\\lang\\tools\\m2-bench\\workloads.lang"
+  ],
+  "compile_ns": 46905800,
+  "builds": {
+    "parity": {
+      "executable": "D:\\a\\_temp\\m2-bench\\parity.exe",
+      "executable_bytes": 1844224,
+      "c_command": [
+        "cl",
+        "/nologo",
+        "/std:c11",
+        "/O2",
+        "/MD",
+        "/c",
+        "/DPARITY",
+        "client.c",
+        "/FoD:\\a\\_temp\\m2-bench\\package\\parity.obj"
+      ],
+      "c_compile_ns": 3205520700,
+      "rust_command": [
+        "C:\\Users\\runneradmin\\.rustup\\toolchains\\1.99.0-x86_64-pc-windows-msvc\\bin\\rustc.exe",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "parity",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=D:\\a\\_temp\\m2-bench\\package\\parity.obj",
+        "-o",
+        "D:\\a\\_temp\\m2-bench\\parity.exe",
+        "-L",
+        "dependency=D:\\a\\_temp\\m2-sdk\\lib",
+        "-L",
+        "native=D:\\a\\_temp\\m2-sdk\\lib",
+        "-L",
+        "dependency=D:\\a\\_temp\\m2-sdk\\native",
+        "-L",
+        "native=D:\\a\\_temp\\m2-sdk\\native",
+        "--extern",
+        "lang_codegen_clif=D:\\a\\_temp\\m2-sdk\\lib\\liblang_codegen_clif-84ad491302ba1b43.rlib",
+        "--extern",
+        "lang_runtime=D:\\a\\_temp\\m2-sdk\\lib\\liblang_runtime-6dfcb6f06287e835.rlib",
+        "--extern",
+        "lang_mir=D:\\a\\_temp\\m2-sdk\\lib\\liblang_mir-af8beee62f05d9b8.rlib",
+        "--extern",
+        "lang_bytecode=D:\\a\\_temp\\m2-sdk\\lib\\liblang_bytecode-6742c26f0175b3e2.rlib",
+        "-C",
+        "link-arg=D:\\a\\_temp\\m2-bench\\package\\program.obj"
+      ],
+      "link_ns": 10042540100
+    },
+    "source": {
+      "executable": "D:\\a\\_temp\\m2-bench\\source.exe",
+      "executable_bytes": 1849344,
+      "c_command": [
+        "cl",
+        "/nologo",
+        "/std:c11",
+        "/O2",
+        "/MD",
+        "/c",
+        "/DSOURCE",
+        "client.c",
+        "/FoD:\\a\\_temp\\m2-bench\\package\\source.obj"
+      ],
+      "c_compile_ns": 367578900,
+      "rust_command": [
+        "C:\\Users\\runneradmin\\.rustup\\toolchains\\1.99.0-x86_64-pc-windows-msvc\\bin\\rustc.exe",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "source",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=D:\\a\\_temp\\m2-bench\\package\\source.obj",
+        "-o",
+        "D:\\a\\_temp\\m2-bench\\source.exe",
+        "-L",
+        "dependency=D:\\a\\_temp\\m2-sdk\\lib",
+        "-L",
+        "native=D:\\a\\_temp\\m2-sdk\\lib",
+        "-L",
+        "dependency=D:\\a\\_temp\\m2-sdk\\native",
+        "-L",
+        "native=D:\\a\\_temp\\m2-sdk\\native",
+        "--extern",
+        "lang_codegen_clif=D:\\a\\_temp\\m2-sdk\\lib\\liblang_codegen_clif-84ad491302ba1b43.rlib",
+        "--extern",
+        "lang_runtime=D:\\a\\_temp\\m2-sdk\\lib\\liblang_runtime-6dfcb6f06287e835.rlib",
+        "--extern",
+        "lang_mir=D:\\a\\_temp\\m2-sdk\\lib\\liblang_mir-af8beee62f05d9b8.rlib",
+        "--extern",
+        "lang_bytecode=D:\\a\\_temp\\m2-sdk\\lib\\liblang_bytecode-6742c26f0175b3e2.rlib",
+        "-C",
+        "link-arg=D:\\a\\_temp\\m2-bench\\package\\program.obj"
+      ],
+      "link_ns": 10122902800
+    },
+    "rust": {
+      "executable": "D:\\a\\_temp\\m2-bench\\rust.exe",
+      "executable_bytes": 154624,
+      "c_command": [
+        "cl",
+        "/nologo",
+        "/std:c11",
+        "/O2",
+        "/MD",
+        "/c",
+        "/DRUST",
+        "client.c",
+        "/FoD:\\a\\_temp\\m2-bench\\package\\rust.obj"
+      ],
+      "c_compile_ns": 370087400,
+      "rust_command": [
+        "C:\\Users\\runneradmin\\.rustup\\toolchains\\1.99.0-x86_64-pc-windows-msvc\\bin\\rustc.exe",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "rust",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=D:\\a\\_temp\\m2-bench\\package\\rust.obj",
+        "-o",
+        "D:\\a\\_temp\\m2-bench\\rust.exe"
+      ],
+      "link_ns": 466175000
+    },
+    "c": {
+      "executable": "D:\\a\\_temp\\m2-bench\\c.exe",
+      "executable_bytes": 153088,
+      "c_command": [
+        "cl",
+        "/nologo",
+        "/std:c11",
+        "/O2",
+        "/MD",
+        "/c",
+        "/DCREF",
+        "client.c",
+        "/FoD:\\a\\_temp\\m2-bench\\package\\c.obj"
+      ],
+      "c_compile_ns": 377945300,
+      "rust_command": [
+        "C:\\Users\\runneradmin\\.rustup\\toolchains\\1.99.0-x86_64-pc-windows-msvc\\bin\\rustc.exe",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "c",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=D:\\a\\_temp\\m2-bench\\package\\c.obj",
+        "-o",
+        "D:\\a\\_temp\\m2-bench\\c.exe"
+      ],
+      "link_ns": 376615800
+    }
+  },
+  "source_object_bytes": 29687,
+  "parity": [
+    {
+      "workload": "scalar",
+      "input": 0,
+      "result": 17
+    },
+    {
+      "workload": "scalar",
+      "input": 1,
+      "result": 34
+    },
+    {
+      "workload": "scalar",
+      "input": 7,
+      "result": 2296
+    },
+    {
+      "workload": "scalar",
+      "input": 64,
+      "result": 555055
+    },
+    {
+      "workload": "scalar",
+      "input": 250,
+      "result": 298524
+    },
+    {
+      "workload": "scalar",
+      "input": 251,
+      "result": 597298
+    },
+    {
+      "workload": "scalar",
+      "input": 1000,
+      "result": 69943
+    },
+    {
+      "workload": "buffers",
+      "input": 0,
+      "result": 0
+    },
+    {
+      "workload": "buffers",
+      "input": 1,
+      "result": 0
+    },
+    {
+      "workload": "buffers",
+      "input": 7,
+      "result": 63
+    },
+    {
+      "workload": "buffers",
+      "input": 64,
+      "result": 6048
+    },
+    {
+      "workload": "buffers",
+      "input": 250,
+      "result": 93375
+    },
+    {
+      "workload": "buffers",
+      "input": 251,
+      "result": 93625
+    },
+    {
+      "workload": "buffers",
+      "input": 1000,
+      "result": 748500
+    },
+    {
+      "workload": "regions",
+      "input": 0,
+      "result": 0
+    },
+    {
+      "workload": "regions",
+      "input": 1,
+      "result": 2
+    },
+    {
+      "workload": "regions",
+      "input": 7,
+      "result": 56
+    },
+    {
+      "workload": "regions",
+      "input": 64,
+      "result": 4160
+    },
+    {
+      "workload": "regions",
+      "input": 250,
+      "result": 62750
+    },
+    {
+      "workload": "regions",
+      "input": 251,
+      "result": 63252
+    },
+    {
+      "workload": "regions",
+      "input": 1000,
+      "result": 1001000
+    }
+  ],
+  "unwind_retirement": "unwind retirement ok",
+  "observations": [],
+  "aggregates": [],
+  "startup_observations": [],
+  "startup_aggregates": []
+}

@@ -8,15 +8,17 @@
 
 ## 現在のM2実装状況
 
-**検証済み125件 · 進行中1件 · 残り7件（暫定16 pt）。**
+**検証済み126件 · 進行中1件 · 残り6件（暫定14 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| B01：source-native／Rust／C比較のsemantic parity | **Q02完了**：両tier-1 conformance CI（`1d0c0dc`） | **16/18条件** |
+| B02：native macOS計測とばらつき | **B01完了**：両hostのsource／Rust／C一致（`fffe86c`） | **16/18条件** |
 
-**直近のcheckpoint（2026-10-20 14:56 JST）：** [Mac run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、head `1d0c0dc` は全workflow成功（2026-10-20 05:48:01 UTC）。[Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、head `3db077f` はfmt／C・linker検証／Clippy／全test／rustdoc成功（05:49:05 UTCまで）。Git差分はworkflow／文書のみで実装・test・fixtureが同一です。複合sourceの通常／panic・resource prefix・実AOT／実C／保存C objectとloan回帰testが両targetで有効で、成功に対応付けたためQ02／G16を完了しました。Windows prototype benchmarkは確認時点で実行中で、性能gateの成功とは数えません。Localの不変実装baseline 1,585 tests／94 suitesと全checkを保持します。詳細は[Todo](milestone-2.md)。2026-10-20 JST更新・確認。
+**直近の検証checkpoint（2026-10-20 JST）：** [run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742)、exact head `fffe86c`で両native tier-1 hostが成功しました。Mac job 118495004851は2026-10-20 06:50:40 UTC、Windows job 118495004473は06:57:23 UTCに完了しました。cleanな各artifactでsource／Rust／C／oracleの21組一致とunwind退役後の次context実行を検証しています。[Mac report](../../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) · [Windows report](../../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json)。timing sampleは含まず、G17の完了には数えません。
 
-**今回：1件完了（−2 pt）、見積もり／task追加なし。** **18 − 2 = 16 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 227 = 16 pt**。既存2 ptのB01でsource-native／Rust／Cの同入力・checksum／解放一致をtiming前に検証するharnessを作ります。旧schema20のscalar MIR／Rust測定は再利用可能な基盤で、M2性能比較の代替にはしません。B02–B04／G01–G03／最終Z01は未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
+**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **16 − 2 = 14 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 229 = 14 pt**。暫定planning単位であり時間や完成率ではありません。
+
+**B02実装前監査（2026-10-20 JST）：** 既存2 ptと同じharnessを使います。cleanな`codex/bench-macos-*` branchでmacOSだけを選び、15 samples × 3 implementations × 3 workloads＝**workload 135観測**と、**専用startup 45観測**を`n=1000`、反復20回、計時外warmup 3回で記録します。先に21組／unwind gateを通します。exact revision／SDK／source provenance、全checksum、allocator収支、runtime／準備／startupの分離、OS peak RSS、executable／object size、sampleのばらつきを必須とします。B03で同条件のWindows記録、B04で再現可能な解釈を公表します。G17／G18と最終Z01は未完了で、性能改善やRust／Cとの速度同等性はまだ主張しません。
 
 ## タスク管理
 

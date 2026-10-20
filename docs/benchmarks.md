@@ -41,6 +41,8 @@ Provider heap counters cover allocations routed through that guest/C provider; t
 
 Reports retain individual samples, min/median/max/mean/stdev, rotated implementation order, compiler commands/versions, SDK ID, source/harness hashes, clean/dirty revision, host, input and executable sizes. Timing runs verify every checksum and allocator balance. A local smoke run validates the harness; G17 still requires native measurements on **both** tier-1 hosts and a reproducible interpretation report (B02–B04).
 
+B01 correctness evidence (verified **2026-10-20 JST**): [CI run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742) passes on both native hosts at clean `fffe86c`. The [macOS parity report](../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) and [Windows parity report](../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json) contain 21 oracle-checked matches and successful unwind retirement each, matching release SDK IDs, verified harness hashes and separate reference link commands. Windows checkout newline differences are allowed when comparing canonical source hashes. **There are no timing/startup observations in these parity reports**; their input settings are planned measurement settings. B02–B04 remain open.
+
 ## Interpretation after the 2026-10-17 review
 
 `representative_application` is synthetic host orchestration: it executes separate fixed scalar/resource fixtures, not dispatch through the published instance's negotiated bindings. Selecting and invoking actual provider implementations and measuring generated adapters end to end remain follow-up conformance/measurement work.

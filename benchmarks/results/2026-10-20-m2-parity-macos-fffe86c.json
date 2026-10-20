@@ -1,0 +1,352 @@
+{
+  "format": "lang-m2-benchmark",
+  "version": 1,
+  "verified_at_utc": "2026-10-20T06:50:37Z",
+  "revision": "fffe86c389e0855fc41c29a183abe3e4f86edf60",
+  "dirty": false,
+  "target": "aarch64-apple-darwin",
+  "sdk_build_id": "06794c1ec70d06992a0e9f7c5714d05d32e8e1b5c029beac78062fbe8a32bad1",
+  "sdk_profile": "release",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "c_compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)\nTarget: arm64-apple-darwin24.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+  "host": {
+    "platform": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "cpu_count": 5,
+    "python": "3.14.7"
+  },
+  "inputs": {
+    "n": 1000,
+    "repeats": 20,
+    "samples": 15,
+    "warmups": 3
+  },
+  "harness_sha256": {
+    ".gitignore": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b",
+    "client.c.in": "7f9dc64c2f1d95199dcc86d4462c7cdf78f7220391585aacd42ec9e02746f841",
+    "host.rs": "e552275308e1d2057d8951ab5bba9a27b63ca169c2b759a1a1312fe059598f2b",
+    "reference.rs": "6d5529b83c1061d77323ced51fcf67abcdb70d334afb884d9e95e58c087b0d55",
+    "run.py": "f3f3666ff35fc2d02870d1a940f970b167e4eda26f6778b9a7176337a36326a4",
+    "test_harness.py": "ac333b87763b84a64e393477b656416835e5e8616e0a59c1361acb938ffda25d",
+    "workloads.lang": "68cd16c966b0a89a7e392b6050f42229f8ac659321a793283964e500e0a563ed"
+  },
+  "compile_command": [
+    "/Users/runner/work/_temp/m2-sdk/bin/lang",
+    "native",
+    "--output",
+    "/Users/runner/work/_temp/m2-bench/package",
+    "/Users/runner/work/lang/lang/tools/m2-bench/workloads.lang"
+  ],
+  "compile_ns": 40466708,
+  "builds": {
+    "parity": {
+      "executable": "/Users/runner/work/_temp/m2-bench/parity",
+      "executable_bytes": 2267064,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DPARITY",
+        "client.c",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/package/parity.o"
+      ],
+      "c_compile_ns": 214780250,
+      "rust_command": [
+        "/Users/runner/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "parity",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/Users/runner/work/_temp/m2-bench/package/parity.o",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/parity",
+        "-L",
+        "dependency=/Users/runner/work/_temp/m2-sdk/lib",
+        "-L",
+        "native=/Users/runner/work/_temp/m2-sdk/lib",
+        "--extern",
+        "lang_codegen_clif=/Users/runner/work/_temp/m2-sdk/lib/liblang_codegen_clif-d1a50ea423427533.rlib",
+        "--extern",
+        "lang_runtime=/Users/runner/work/_temp/m2-sdk/lib/liblang_runtime-dca24f508c45babd.rlib",
+        "--extern",
+        "lang_mir=/Users/runner/work/_temp/m2-sdk/lib/liblang_mir-0c8592149234eec0.rlib",
+        "--extern",
+        "lang_bytecode=/Users/runner/work/_temp/m2-sdk/lib/liblang_bytecode-e06b364c5c4c57ef.rlib",
+        "-C",
+        "link-arg=/Users/runner/work/_temp/m2-bench/package/program.o"
+      ],
+      "link_ns": 1240331666
+    },
+    "source": {
+      "executable": "/Users/runner/work/_temp/m2-bench/source",
+      "executable_bytes": 2283096,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DSOURCE",
+        "client.c",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/package/source.o"
+      ],
+      "c_compile_ns": 33155750,
+      "rust_command": [
+        "/Users/runner/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "source",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/Users/runner/work/_temp/m2-bench/package/source.o",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/source",
+        "-L",
+        "dependency=/Users/runner/work/_temp/m2-sdk/lib",
+        "-L",
+        "native=/Users/runner/work/_temp/m2-sdk/lib",
+        "--extern",
+        "lang_codegen_clif=/Users/runner/work/_temp/m2-sdk/lib/liblang_codegen_clif-d1a50ea423427533.rlib",
+        "--extern",
+        "lang_runtime=/Users/runner/work/_temp/m2-sdk/lib/liblang_runtime-dca24f508c45babd.rlib",
+        "--extern",
+        "lang_mir=/Users/runner/work/_temp/m2-sdk/lib/liblang_mir-0c8592149234eec0.rlib",
+        "--extern",
+        "lang_bytecode=/Users/runner/work/_temp/m2-sdk/lib/liblang_bytecode-e06b364c5c4c57ef.rlib",
+        "-C",
+        "link-arg=/Users/runner/work/_temp/m2-bench/package/program.o"
+      ],
+      "link_ns": 1291275542
+    },
+    "rust": {
+      "executable": "/Users/runner/work/_temp/m2-bench/rust",
+      "executable_bytes": 493976,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DRUST",
+        "client.c",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/package/rust.o"
+      ],
+      "c_compile_ns": 28316333,
+      "rust_command": [
+        "/Users/runner/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "rust",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/Users/runner/work/_temp/m2-bench/package/rust.o",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/rust"
+      ],
+      "link_ns": 172845625
+    },
+    "c": {
+      "executable": "/Users/runner/work/_temp/m2-bench/c",
+      "executable_bytes": 493168,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DCREF",
+        "client.c",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/package/c.o"
+      ],
+      "c_compile_ns": 40427584,
+      "rust_command": [
+        "/Users/runner/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "c",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/Users/runner/work/_temp/m2-bench/package/c.o",
+        "-o",
+        "/Users/runner/work/_temp/m2-bench/c"
+      ],
+      "link_ns": 156298792
+    }
+  },
+  "source_object_bytes": 27912,
+  "parity": [
+    {
+      "workload": "scalar",
+      "input": 0,
+      "result": 17
+    },
+    {
+      "workload": "scalar",
+      "input": 1,
+      "result": 34
+    },
+    {
+      "workload": "scalar",
+      "input": 7,
+      "result": 2296
+    },
+    {
+      "workload": "scalar",
+      "input": 64,
+      "result": 555055
+    },
+    {
+      "workload": "scalar",
+      "input": 250,
+      "result": 298524
+    },
+    {
+      "workload": "scalar",
+      "input": 251,
+      "result": 597298
+    },
+    {
+      "workload": "scalar",
+      "input": 1000,
+      "result": 69943
+    },
+    {
+      "workload": "buffers",
+      "input": 0,
+      "result": 0
+    },
+    {
+      "workload": "buffers",
+      "input": 1,
+      "result": 0
+    },
+    {
+      "workload": "buffers",
+      "input": 7,
+      "result": 63
+    },
+    {
+      "workload": "buffers",
+      "input": 64,
+      "result": 6048
+    },
+    {
+      "workload": "buffers",
+      "input": 250,
+      "result": 93375
+    },
+    {
+      "workload": "buffers",
+      "input": 251,
+      "result": 93625
+    },
+    {
+      "workload": "buffers",
+      "input": 1000,
+      "result": 748500
+    },
+    {
+      "workload": "regions",
+      "input": 0,
+      "result": 0
+    },
+    {
+      "workload": "regions",
+      "input": 1,
+      "result": 2
+    },
+    {
+      "workload": "regions",
+      "input": 7,
+      "result": 56
+    },
+    {
+      "workload": "regions",
+      "input": 64,
+      "result": 4160
+    },
+    {
+      "workload": "regions",
+      "input": 250,
+      "result": 62750
+    },
+    {
+      "workload": "regions",
+      "input": 251,
+      "result": 63252
+    },
+    {
+      "workload": "regions",
+      "input": 1000,
+      "result": 1001000
+    }
+  ],
+  "unwind_retirement": "unwind retirement ok",
+  "observations": [],
+  "aggregates": [],
+  "startup_observations": [],
+  "startup_aggregates": []
+}

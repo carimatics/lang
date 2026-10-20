@@ -8,15 +8,17 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**125 verified deliveries · 1 in progress · 7 remaining tasks (provisional 16 pt).**
+**126 verified deliveries · 1 in progress · 6 remaining tasks (provisional 14 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| B01: source-native/Rust/C semantic parity before comparison | **Q02 complete**: both-tier-1 conformance CI (`1d0c0dc`) | **16/18 gates** |
+| B02: native macOS measurements and variance | **B01 complete**: source/Rust/C parity on both hosts (`fffe86c`) | **16/18 gates** |
 
-**Latest checkpoint (2026-10-20 14:56 JST):** [Mac run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840), head `1d0c0dc`, succeeds as a whole workflow (2026-10-20 05:48:01 UTC). [Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894), head `3db077f`, passes fmt/C-linker checks/Clippy/all tests/rustdoc by 05:49:05 UTC. Git differences are workflow/docs only; implementation/test/fixture blobs are identical. Combined-source ordinary/panic/resource-prefix, actual AOT/real-C/persisted-C and loan-regression cases are enabled on both targets and covered by successful tests: close Q02/G16. The Windows prototype benchmark was active when checked; this is not performance-gate success. Retain unchanged-implementation local **1,585 tests / 94 suites** and full checks. Details: [Todo](milestone-2.md), updated/verified 2026-10-20 JST.
+**Latest verification checkpoint (2026-10-20 JST):** [run 39382631742](https://github.com/carimatics/lang/actions/runs/39382631742), exact head `fffe86c`, succeeds on both native tier-1 hosts: Mac job 118495004851 (2026-10-20 06:50:40 UTC), Windows job 118495004473 (06:57:23 UTC). Each clean artifact verifies 21 source/Rust/C/oracle cases and unwind retirement followed by a new context. [Mac report](../benchmarks/results/2026-10-20-m2-parity-macos-fffe86c.json) · [Windows report](../benchmarks/results/2026-10-20-m2-parity-windows-fffe86c.json). These contain no timing samples and do not complete G17.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** **18 − 2 = 16 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 227 = 16 pt**. Use existing 2-point B01 for source-native/Rust/C identical-input checksum/retirement parity before timing. Historical schema20 scalar-MIR/Rust measurements provide reusable infrastructure, not substitute M2 performance evidence. B02–B04/G01–G03/final Z01 remain open. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **16 − 2 = 14 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 229 = 14 pt**. Provisional planning units are not hours or completion percentages.
+
+**B02 readiness (2026-10-20 JST):** use the existing 2 pt and unchanged harness. A clean `codex/bench-macos-*` branch selects only macOS: 15 samples × 3 implementations × 3 workloads = **135 workload observations**, plus **45 dedicated startup observations**, `n=1000`, 20 repetitions and three untimed warmups. The 21-case/unwind gate runs first. Require exact revision/SDK/source provenance, every checksum, allocator balance, runtime/preparation/startup separation, OS peak RSS, executable/object sizes and sample variance. B03 retains the same Windows capture and B04 publishes reproducible interpretation. G17/G18 and final Z01 remain open; no performance improvement or Rust/C parity in speed is claimed.
 
 ## Task tracking
 
