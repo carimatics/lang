@@ -41,7 +41,7 @@ fn main()->i64 {
 """
 
 
-def execute(label, arguments, directory, logs, timeout=60):
+def execute(label, arguments, directory, logs, timeout=60, accepted_statuses=(0,)):
     log = logs / f"{label}.log"
     started = time.monotonic()
     print(f"{label}: starting", flush=True)
@@ -64,7 +64,7 @@ def execute(label, arguments, directory, logs, timeout=60):
             raise RuntimeError(f"{label} exceeded {timeout}s; log: {log}") from None
     result = log.read_text(encoding="utf-8", errors="replace")
     print(f"{label}: status {status}, {time.monotonic() - started:.2f}s; {log}", flush=True)
-    if status:
+    if status not in accepted_statuses:
         raise RuntimeError(f"{label} failed:\n{result[-12000:]}")
     return result
 
@@ -118,10 +118,10 @@ def check_trace(text, profile, line, step):
             "result": 42}
 
 
-def cdb_commands(source, line, profile):
+def cdb_commands(location, profile):
     return [
         'sxe -c ".echo __LANG_EXIT__; .lastevent; q" epr',
-        f"bp `{source.name}:{line}`",
+        f"bp {location}",
         "g",
         ".echo __LANG_BEFORE__",
         ".frame /r 0",
@@ -234,7 +234,16 @@ def main():
         if ordinary.strip() != "42":
             raise RuntimeError(f"{profile}: wrong ordinary result: {ordinary}")
         if windows:
-            commands = cdb_commands(source_path, line, profile)
+            # A source line may map to several native instruction ranges.
+            # Resolve it with CDB, then keep the selected symbol+offset across
+            # launches (an absolute address would be invalid after ASLR).
+            resolve = debugger + ["-lines", "-y", str(package), "-srcpath", str(root),
+                                  "-c", f"bp `{source_path.name}:{line}`; bl; q", str(executable)]
+            locations = execute(f"{profile}-resolve-source", resolve, root, root, 30, (0, 1))
+            candidates = re.findall(r"debuggee![A-Za-z_][A-Za-z_0-9]*(?:\+0x[0-9a-fA-F]+)?", locations)
+            if not candidates:
+                raise RuntimeError(f"{profile}: CDB did not resolve source line {line}:\n{locations}")
+            commands = cdb_commands(candidates[0], profile)
             debug = debugger + ["-lines", "-y", str(package), "-srcpath", str(root),
                                 "-c", "; ".join(commands), str(executable)]
         else:
