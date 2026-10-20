@@ -150,7 +150,9 @@ Mac AArch64／Windows x86-64 MSVCの導入済みSDK出力から実exe／C caller
 
 2026-10-20 JST：P09は `lang native`、unit全体の分類／元の検査済みentry、semantic／native／object／header／binding出力、target別SDK identity、exclusive公開を実装します。Testはsourceなしの生成driver、managed／panicのVM比較、明示的な実C hostを実行し、cross-target fixtureはMach-O／COFFを検査します。通常の生成host policyは64 logical frame／65,536 live cellと512 MiBのruntime準備上限を使い、semantic decodeの上限と区別します。明示embeddingではこの有限controlを設定できます。これはrepository内のproducer／startup証拠です。`link-native`、非信頼manifest検証全体、SDK組み立て、両hostの隔離installはP11／P10／P07／P12／P02に残ります。意図したSDK interfaceの実装までstatusはacceptedを維持します。
 
-P11 checkpoint（2026-10-20 JST）：型付き上限付きmanifest検証と、SDK／programをstreamコピーするprivate snapshotを実装します。返却前にcompile済みidentityと全fileを検査し、対応する意味論／native／objectを、code binding／tool／providerなしに独立decode・prepareします。Staging parentとnative inputは信頼済みhost policyであり、callerは後続linkの間ownerを保持してprivate fileを変更しません。Parser fuzz targetはI/Oを行いません。このdata境界だけではP10／P07／P12／P02と隔離SDK installを実装しません。
+P11 checkpoint（2026-10-20 JST）：型付き上限付きmanifest検証と、SDK／programをstreamコピーするprivate snapshotを実装します。返却前にcompile済みidentityと全fileを検査し、対応する意味論／native／objectを、code binding／tool／providerなしに独立decode・prepareします。Staging parentとnative inputは信頼済みhost policyであり、callerは後続linkの間ownerを保持してprivate fileを変更しません。Parser fuzz targetはI/Oを行いません。このdata境界だけではruntime利用、SDK組立／link、SDK隔離installは実装されません。
+
+P10 checkpoint（2026-10-20 JST）：productionのunsafe SDK APIでCopy／owned／Cを元のimageから実行します。Target／buildと上限付き記録をsymbol／provider作用前に検証します。Copy controlを黙って無視せず拒否し、ownedは同じallocator／Instance／control／usage／poison／元failureとsource byteを保持します。Cはowner-thread closureに限定し、unwind時を含め全contextを破棄してからunbindする義務をunsafe callerに残します。生成default driverと明示実C hostはこのAPIを使います。P07／P12／P02、Q／B／Gと最終guideは未完了です。
 
 ## Open questions
 

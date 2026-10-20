@@ -1,4 +1,5 @@
 //! Shared identity of the compiler and runtime SDK, not native authentication.
+pub mod runtime;
 use sha2::{Digest, Sha256};
 pub const RUSTC_RELEASE: &str = env!("LANG_SDK_RUSTC_RELEASE");
 pub const RUSTC_COMMIT: &str = env!("LANG_SDK_RUSTC_COMMIT");

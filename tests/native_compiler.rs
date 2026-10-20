@@ -390,10 +390,10 @@ int native_client(void) {{
     lang_context *context=NULL;
     if(lang_context_create_{id}(&config,&context)) return 1;
     int64_t output=-1;
-    if({symbol}(context,41,&output) || output!=42) return 2;
-    if(lang_context_destroy_{id}(context)) return 3;
-    if(!allocations || allocations!=releases) return 4;
-    return 0;
+    int result=({symbol}(context,41,&output) || output!=42)?2:0;
+    if(lang_context_destroy_{id}(context) && !result) result=3;
+    if((!allocations || allocations!=releases) && !result) result=4;
+    return result;
 }}
 "#
     );
@@ -422,23 +422,19 @@ int native_client(void) {{
 mod bindings;
 unsafe extern "C" { fn native_client()->i32; }
 fn main(){
-    let target=bindings::TARGET.parse().unwrap();
-    assert_eq!(lang_codegen_clif::sdk::build_id(&target),bindings::BUILD_ID);
-    let p=lang_bytecode::ownership::decode(bindings::SEMANTIC,Default::default()).unwrap();
-    let flow=p.flow();let decl=flow.source().activity().moved().typed().places().declarations();
-    let layouts=lang_runtime::layout::Layouts::compile(decl.types(),Default::default()).unwrap();
-    let target=if cfg!(windows){lang_runtime::c_abi::Target::WindowsX86_64}else{lang_runtime::c_abi::Target::MacosAarch64};
-    let artifact=lang_runtime::c_abi::Artifact::compile(decl,target,Default::default()).unwrap();
-    let record=lang_codegen_clif::native_record::Record::decode(bindings::NATIVE,bindings::SEMANTIC,Default::default()).unwrap();
-    let object=lang_codegen_clif::owned::RecordedObject::from_record(record).unwrap().prepare_c(flow,&layouts,&artifact,Default::default(),4096).unwrap();
-    // SAFETY: generated bindings refer to the unchanged linked object; the
-    // process retains every symbol, and native_client destroys all contexts.
-    let code=unsafe{object.bind((),bindings::resolve,Default::default())}.unwrap();
-    let program=lang_runtime::c_abi::context::Program::new(&artifact,&code,lang_runtime::c_abi::context::config::Capacities::from_strides(64,16,64).unwrap()).unwrap();
-    let factory=lang_codegen_clif::c_abi::runtime::NativeFactory::new(&code,&artifact,Default::default()).unwrap();
-    // SAFETY: synchronous owner thread; client returns with no context/call.
-    let _exports=unsafe{lang_codegen_clif::c_abi::object::ObjectExports::new(&program,&code,&factory)}.unwrap();
-    assert_eq!(unsafe{native_client()},0);
+    let input=lang_codegen_clif::sdk::runtime::Input{target:bindings::TARGET,build_id:bindings::BUILD_ID,semantic:bindings::SEMANTIC,native:bindings::NATIVE};
+    let capacities=lang_runtime::c_abi::context::config::Capacities::from_strides(64,16,64).unwrap();
+    // SAFETY: exact original linked image. The synchronous C client creates,
+    // calls and destroys every context on this owner thread before returning.
+    let result=unsafe{lang_codegen_clif::sdk::runtime::with_c(input,&(),bindings::resolve,capacities,Default::default(),|_|native_client())}.unwrap();
+    assert_eq!(result,0);
+    // No C context is created in this body. Unwinding must retire the scoped
+    // registration so the exact same image can be bound and called again.
+    assert!(std::panic::catch_unwind(|| unsafe {
+        lang_codegen_clif::sdk::runtime::with_c(input,&(),bindings::resolve,capacities,Default::default(),|_|panic!("host scope"))
+    }).is_err());
+    let result=unsafe{lang_codegen_clif::sdk::runtime::with_c(input,&(),bindings::resolve,capacities,Default::default(),|_|native_client())}.unwrap();
+    assert_eq!(result,0);
 }
 "#;
     fs::write(package.join("host.rs"), host).unwrap();
@@ -614,4 +610,120 @@ fn source_native_modules_retain_snapshots_and_sdk_mismatch_refuses_startup() {
     assert_eq!(out.status.code(), Some(1));
     assert!(out.stdout.is_empty());
     assert!(String::from_utf8_lossy(&out.stderr).contains("SDK build mismatch"));
+}
+
+#[test]
+fn sdk_copy_preflight_refuses_before_resolution_and_keeps_the_borrowed_image() {
+    let dir = Dir::new();
+    let input = dir.0.join("input.lang");
+    let package = dir.0.join("program");
+    fs::write(
+        &input,
+        "fn first()->i64{return 7;} fn main()->i64{return 42;}",
+    )
+    .unwrap();
+    let out = native(&input, &package, None);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    fs::write(package.join("main.rs"),r#"
+mod bindings;
+use lang_codegen_clif::sdk::runtime::{self as sdk,Input,ErrorKind};
+use lang_runtime::execution as e;
+use std::{cell::Cell,rc::Rc,time::{Duration,Instant}};
+struct Image(Rc<Cell<usize>>);
+impl Drop for Image{fn drop(&mut self){self.0.set(self.0.get()+1);}}
+fn main(){
+ let drops=Rc::new(Cell::new(0));let image=Image(drops.clone());let resolutions=Cell::new(0);
+ let mut resolve=|_:&Image,name:&str|{resolutions.set(resolutions.get()+1);bindings::resolve(&(),name)};
+ let input=Input{target:bindings::TARGET,build_id:bindings::BUILD_ID,semantic:bindings::SEMANTIC,native:bindings::NATIVE};
+ let wrong=Input{build_id:"wrong",..input};
+ assert!(matches!(unsafe{sdk::execute_copy(wrong,&image,&mut resolve,Default::default(),Default::default())}.unwrap_err().kind,ErrorKind::BuildId{..}));
+ let wrong=Input{target:if cfg!(windows){"aarch64-apple-darwin"}else{"x86_64-pc-windows-msvc"},..input};
+ assert!(matches!(unsafe{sdk::execute_copy(wrong,&image,&mut resolve,Default::default(),Default::default())}.unwrap_err().kind,ErrorKind::Target{..}));
+ let flag=e::InterruptionFlag::default();
+ for control in [
+   e::Control::with_limits(e::Limits{fuel:Some(0),..Default::default()}),
+   e::Control::with_limits(e::Limits{host_calls:Some(0),..Default::default()}),
+   e::Control::with_limits(e::Limits{frames:Some(1),..Default::default()}),
+   e::Control::with_limits(e::Limits{live_cells:Some(1),..Default::default()}),
+   e::Control::default().and_service_work(Some(0)),
+   e::Control::default().and_interruption(&flag),
+   e::Control::default().and_deadline(Instant::now()+Duration::from_secs(60)),
+ ] {assert!(matches!(unsafe{sdk::execute_copy(input,&image,&mut resolve,control,Default::default())}.unwrap_err().kind,ErrorKind::UnsupportedCopyControls));}
+ let malformed=Input{native:&[],..input};
+ assert!(matches!(unsafe{sdk::execute_copy(malformed,&image,&mut resolve,Default::default(),Default::default())}.unwrap_err().kind,ErrorKind::Record(_)));
+ let no_budget=sdk::Limits{record:lang_codegen_clif::native_record::Limits{bytes:0,..Default::default()},..Default::default()};
+ assert!(matches!(unsafe{sdk::execute_copy(input,&image,&mut resolve,Default::default(),no_budget)}.unwrap_err().kind,ErrorKind::Record(_)));
+ let mut allocator=lang_runtime::allocation::Allocator::new(lang_runtime::allocation::System,Default::default()).unwrap();
+ let mut instance=lang_runtime::cleanup::Instance::default();let wrong=Input{build_id:"wrong",..input};
+ assert!(unsafe{sdk::execute_owned(wrong,&image,&mut resolve,&mut instance,&mut allocator,Default::default(),Default::default())}.is_err());
+ let capacities=lang_runtime::c_abi::context::config::Capacities::from_strides(64,16,64).unwrap();let entered=Cell::new(false);
+ assert!(unsafe{sdk::with_c(wrong,&image,&mut resolve,capacities,Default::default(),|_|entered.set(true))}.is_err());
+ assert!(!entered.get());assert_eq!(resolutions.get(),0);assert_eq!(drops.get(),0);
+ assert_eq!(unsafe{sdk::execute_copy(input,&image,&mut resolve,Default::default(),Default::default())}.unwrap(),42);
+ assert!(resolutions.get()>0);assert_eq!(drops.get(),0);drop(image);assert_eq!(drops.get(),1);
+}
+"#).unwrap();
+    let executable = build(&package, "guarded");
+    fs::remove_file(input).unwrap();
+    let out = Command::new(executable).output().unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn sdk_owned_uses_original_allocator_control_source_and_poisoned_instance() {
+    let dir = Dir::new();
+    let input = dir.0.join("input.lang");
+    let package = dir.0.join("program");
+    fs::write(&input, include_str!("../docs/experiments/sdk-owned.lang")).unwrap();
+    let out = native(&input, &package, None);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    fs::write(package.join("main.rs"),r#"
+mod bindings;
+use lang_codegen_clif::{sdk::runtime::{self as sdk,Input,ErrorKind},owned::runtime as rt};
+use lang_runtime::{allocation as a,cleanup as c,execution as e};
+use std::{cell::Cell,rc::Rc};
+struct Track{system:a::System,calls:Rc<Cell<usize>>,panic:Rc<Cell<bool>>}
+impl a::Provider for Track{
+ type Region=a::Storage;
+ fn allocate(&mut self,r:a::Request)->Option<Self::Region>{self.calls.set(self.calls.get()+1);assert!(!self.panic.get(),"SDK provider panic");a::Provider::allocate(&mut self.system,r)}
+ fn deallocate(&mut self,r:Self::Region,q:a::Request){a::Provider::deallocate(&mut self.system,r,q)}
+}
+fn main(){
+ let input=Input{target:bindings::TARGET,build_id:bindings::BUILD_ID,semantic:bindings::SEMANTIC,native:bindings::NATIVE};
+ let calls=Rc::new(Cell::new(0));let panic=Rc::new(Cell::new(false));
+ let mut allocator=a::Allocator::new(Track{system:a::System,calls:calls.clone(),panic:panic.clone()},Default::default()).unwrap();
+ let identity=allocator.identity();let mut instance=c::Instance::default();
+ let config=rt::Config{control:e::Control::with_limits(e::Limits{fuel:Some(0),host_calls:Some(0),frames:Some(4),live_cells:Some(1024)}),..Default::default()};
+ let failure=unsafe{sdk::execute_owned(input,&(),bindings::resolve,&mut instance,&mut allocator,config,Default::default())}.unwrap_err();
+ match &failure.kind{ErrorKind::OwnedEntry(e)=>assert_eq!(e.usage.fuel,0),other=>panic!("{other:?}")};
+ assert!(std::ptr::eq(failure.input.semantic,bindings::SEMANTIC));assert!(calls.get()>0);assert_eq!(allocator.stats().live_allocations,0);assert!(!instance.is_poisoned());
+ let p=lang_bytecode::ownership::decode(failure.input.semantic,Default::default()).unwrap();assert!(p.flow().source().activity().moved().typed().places().declarations().types().table().sources[0].text.contains("fn main"));drop(p);
+ let outcome=unsafe{sdk::execute_owned(input,&(),bindings::resolve,&mut instance,&mut allocator,Default::default(),Default::default())}.unwrap();
+ assert_eq!(outcome.value,42);assert!(calls.get()>0);assert_eq!(allocator.identity(),identity);assert_eq!(allocator.stats().live_allocations,0);assert!(!instance.is_poisoned());
+ panic.set(true);let failure=unsafe{sdk::execute_owned(input,&(),bindings::resolve,&mut instance,&mut allocator,Default::default(),Default::default())}.unwrap_err();
+ assert!(matches!(failure.kind,ErrorKind::OwnedEntry(_)));assert!(instance.is_poisoned());let before=calls.get();panic.set(false);
+ let failure=unsafe{sdk::execute_owned(input,&(),bindings::resolve,&mut instance,&mut allocator,Default::default(),Default::default())}.unwrap_err();
+ assert!(matches!(failure.kind,ErrorKind::OwnedEntry(rt::EntryError{kind:rt::ErrorKind::Poisoned,..})));assert_eq!(calls.get(),before);
+}
+"#).unwrap();
+    let executable = build(&package, "owned-state");
+    fs::remove_file(input).unwrap();
+    let out = Command::new(executable).output().unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }

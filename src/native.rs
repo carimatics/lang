@@ -401,7 +401,7 @@ fn bindings_source(
     ))?;
     for (i, name) in symbols.iter().enumerate() {
         out.append(format_args!(
-            "{name:?} => NonNull::new(unsafe {{ &raw const S{i} }}.cast_mut().cast()),\n"
+            "{name:?} => NonNull::new((&raw const S{i}).cast_mut().cast()),\n"
         ))?;
     }
     out.append(format_args!("_=>None }}}}\n"))?;
@@ -411,34 +411,24 @@ fn bindings_source(
 fn main_source(profile: &str) -> String {
     let execute = if profile == "owned" {
         r#"
-let p=lang_bytecode::ownership::decode(bindings::SEMANTIC,Default::default()).map_err(|e|e.to_string())?;
-let flow=p.flow(); let types=flow.source().activity().moved().typed().places().declarations().types();
-let layouts=lang_runtime::layout::Layouts::compile(types,Default::default()).map_err(|e|e.to_string())?;
-let object=lang_codegen_clif::owned::RecordedObject::from_record(record).map_err(|e|e.to_string())?.prepare(flow,&layouts,Default::default(),4096).map_err(|e|e.to_string())?;
-let code=unsafe{object.bind((),bindings::resolve,Default::default())}.map_err(|e|e.to_string())?;
 let mut allocator=lang_runtime::allocation::Allocator::new(lang_runtime::allocation::System,Default::default()).map_err(|e|e.to_string())?;
-// Finite host policy: runtime preparation includes storage for every frame;
-// its bound is distinct from the 128 MiB semantic-decoder budget.
+let mut instance=lang_runtime::cleanup::Instance::default();
+// The finite preparation budget is separate from bounded semantic decoding.
 let config=lang_codegen_clif::owned::runtime::Config{limits:lang_mir::unit::Limits{allocations:512*1024*1024,..Default::default()},..Default::default()};
-let value=lang_codegen_clif::owned::runtime::execute_entry(&code,p.entry().ok_or("missing entry")?,&mut lang_runtime::cleanup::Instance::default(),&mut allocator,config).map_err(|e|format!("{e:?}"))?.value;
+let value=unsafe{lang_codegen_clif::sdk::runtime::execute_owned(input,&(),bindings::resolve,&mut instance,&mut allocator,config,Default::default())}.map_err(|e|e.to_string())?.value;
 "#
     } else {
         r#"
-let p=lang_bytecode::unit::decode(bindings::SEMANTIC,Default::default()).map_err(|e|e.to_string())?;
-let object=record.prepare_copy(p.verified(),&[],Default::default()).map_err(|e|e.to_string())?;
-let code=unsafe{object.bind((),bindings::resolve,Default::default())}.map_err(|e|e.to_string())?;
-let value=code.invoke(p.verified().unit().entry.ok_or("missing entry")?,&[]).map_err(|e|e.to_string())?.cells.first().copied().ok_or("missing i64 result")?;
+let value=unsafe{lang_codegen_clif::sdk::runtime::execute_copy(input,&(),bindings::resolve,Default::default(),Default::default())}.map_err(|e|e.to_string())?;
 "#
     };
     format!(
         r#"// Generated for this exact SDK/object; native build inputs are trusted.
 mod bindings;
 fn run()->Result<(),String>{{
-let target=bindings::TARGET.parse().map_err(|_|"invalid target")?;
-if lang_codegen_clif::sdk::build_id(&target)!=bindings::BUILD_ID{{return Err("SDK build mismatch".into());}}
-let record=lang_codegen_clif::native_record::Record::decode(bindings::NATIVE,bindings::SEMANTIC,Default::default()).map_err(|e|e.to_string())?;
-// SAFETY: the link stage retains this original verified object and SDK;
-// all resolved code/data symbols live in this process until exit.
+let input=lang_codegen_clif::sdk::runtime::Input{{target:bindings::TARGET,build_id:bindings::BUILD_ID,semantic:bindings::SEMANTIC,native:bindings::NATIVE}};
+// SAFETY: the link stage retains the exact original verified object/SDK;
+// all symbol addresses and relocation dependencies live until process exit.
 {execute}
 println!("{{value}}"); Ok(())
 }}

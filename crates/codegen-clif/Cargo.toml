@@ -12,6 +12,7 @@ cranelift-native.workspace = true
 cranelift-object.workspace = true
 gimli.workspace = true
 lang-mir.workspace = true
+lang-bytecode.workspace = true
 lang-runtime.workspace = true
 object.workspace = true
 sha2.workspace = true

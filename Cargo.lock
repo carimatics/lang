@@ -481,6 +481,7 @@ dependencies = [
  "cranelift-native",
  "cranelift-object",
  "gimli",
+ "lang-bytecode",
  "lang-mir",
  "lang-runtime",
  "object",
