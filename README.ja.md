@@ -53,7 +53,7 @@ Native C runtime（2026-10-20 JST実装・確認）：`lang_codegen_clif::c_abi:
 ## ドキュメント
 
 - [言語・エコシステム調査](docs/ja/research.md)
-- [Prototype benchmark evidence](docs/ja/benchmarks.md)
+- [Benchmark evidence: M2 source/Rust/Cと過去のprototype](docs/ja/benchmarks.md)
 - [アーキテクチャbaseline](docs/ja/architecture.md)
 - [実装ロードマップ](docs/ja/roadmap.md)
 - [Milestone 1機能ガイド](docs/ja/milestone-1.md)

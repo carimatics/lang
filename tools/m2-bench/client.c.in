@@ -1,0 +1,221 @@
+#include <stdint.h>
+#include <stddef.h>
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#include <malloc.h>
+#include <windows.h>
+#include <psapi.h>
+#define NOINLINE __declspec(noinline)
+#else
+#define NOINLINE __attribute__((noinline))
+#endif
+#if defined(SOURCE) || defined(PARITY)
+#include "program.h"
+#endif
+
+typedef struct {
+    uint64_t allocations, releases, requested_bytes, live_bytes, peak_live_bytes;
+} heap_stats;
+static heap_stats stats;
+
+#if defined(SOURCE) || defined(PARITY) || defined(CREF)
+static NOINLINE void *allocate(void *user, uint64_t size, uint64_t align) {
+    (void)user;
+#ifdef _WIN32
+    void *p = _aligned_malloc((size_t)(size ? size : 1),
+                             (size_t)(align < sizeof(void*) ? sizeof(void*) : align));
+#else
+    if (align > _Alignof(max_align_t)) return NULL;
+    void *p = malloc((size_t)(size ? size : 1));
+#endif
+    if (p) {
+        ++stats.allocations;
+        stats.requested_bytes += size;
+        stats.live_bytes += size;
+        if (stats.live_bytes > stats.peak_live_bytes) stats.peak_live_bytes = stats.live_bytes;
+    }
+    return p;
+}
+static NOINLINE void deallocate(void *user, void *p, uint64_t size, uint64_t align) {
+    (void)user; (void)align;
+    if (!p || size > stats.live_bytes) abort();
+    ++stats.releases;
+    stats.live_bytes -= size;
+#ifdef _WIN32
+    _aligned_free(p);
+#else
+    free(p);
+#endif
+}
+#endif
+
+#if defined(RUST) || defined(PARITY)
+extern int64_t rust_scalar(int64_t n);
+extern int64_t rust_buffers(int64_t n);
+extern int64_t rust_regions(int64_t n);
+static int64_t rust_call(int kind, int64_t n) {
+    return kind == 0 ? rust_scalar(n) : kind == 1 ? rust_buffers(n) : rust_regions(n);
+}
+#endif
+
+#if defined(CREF) || defined(PARITY)
+/* Volatile indirection keeps allocation/retirement observable under -O3 /O2. */
+static void *(*volatile heap_allocate)(void *, uint64_t, uint64_t) = allocate;
+static void (*volatile heap_deallocate)(void *, void *, uint64_t, uint64_t) = deallocate;
+static void *heap_new(size_t size) {
+    void *p = heap_allocate(NULL, size, _Alignof(max_align_t));
+    if (!p) abort();
+    return p;
+}
+static void heap_drop(void *p, size_t size) {
+    if (p) heap_deallocate(NULL, p, size, _Alignof(max_align_t));
+}
+static NOINLINE int64_t c_scalar(int64_t n) {
+    int64_t value = 17;
+    for (int64_t index = 0; index < n; ++index) {
+        if (value < 500003) value = value + value + index;
+        else value = value + (-500003) + index;
+    }
+    return value;
+}
+static NOINLINE int64_t c_buffers(int64_t n) {
+    uint8_t *bytes = NULL;
+    int64_t *values = NULL;
+    size_t length = 0, capacity = 0;
+    uint8_t value = 0;
+    for (int64_t index = 0; index < n; ++index) {
+        if (length == capacity) {
+            size_t next = capacity ? capacity * 2 : 8;
+            uint8_t *new_bytes = heap_new(next);
+            int64_t *new_values = heap_new(next * sizeof(int64_t));
+            for (size_t i = 0; i < length; ++i) {
+                new_bytes[i] = bytes[i];
+                new_values[i] = values[i];
+            }
+            heap_drop(bytes, capacity);
+            heap_drop(values, capacity * sizeof(int64_t));
+            bytes = new_bytes;
+            values = new_values;
+            capacity = next;
+        }
+        bytes[length] = value;
+        values[length++] = index + value;
+        if (++value > 249) value = 0;
+    }
+    int64_t sum = 0;
+    for (size_t i = 0; i < length; ++i) sum += bytes[i] + values[i];
+    heap_drop(bytes, capacity);
+    heap_drop(values, capacity * sizeof(int64_t));
+    return sum;
+}
+typedef struct { int64_t value; uint64_t strong, weak; } shared_payload;
+static void release_strong(shared_payload *p) {
+    if (!--p->strong && !--p->weak) heap_drop(p, sizeof(*p));
+}
+static NOINLINE int64_t c_regions(int64_t n) {
+    int64_t sum = 0;
+    for (int64_t index = 0; index < n; ++index) {
+        shared_payload *owner = heap_new(sizeof(*owner));
+        int64_t *arena_slot = heap_new(sizeof(*arena_slot));
+        *owner = (shared_payload){index, 1, 1};
+        shared_payload *observer = owner;
+        ++observer->weak;
+        shared_payload *retained = owner;
+        ++retained->strong;
+        *arena_slot = index + 1;
+        release_strong(owner);
+        sum += retained->value + *arena_slot;
+        heap_drop(arena_slot, sizeof(*arena_slot));
+        release_strong(retained);
+        if (observer->strong) abort();
+        ++sum;
+        if (!--observer->weak) heap_drop(observer, sizeof(*observer));
+    }
+    return sum;
+}
+static int64_t c_call(int kind, int64_t n) {
+    return kind == 0 ? c_scalar(n) : kind == 1 ? c_buffers(n) : c_regions(n);
+}
+#endif
+
+#if defined(SOURCE) || defined(PARITY)
+static lang_context *context;
+static uint32_t source_call(int kind, int64_t n, int64_t *out) {
+    return kind == 0 ? @SCALAR_SYMBOL@(context, n, out) :
+           kind == 1 ? @BUFFERS_SYMBOL@(context, n, out) : @REGIONS_SYMBOL@(context, n, out);
+}
+#endif
+int benchmark_begin(void) {
+    stats = (heap_stats){0};
+#if defined(SOURCE) || defined(PARITY)
+    lang_allocator_descriptor allocator = {1, 32, NULL, allocate, deallocate};
+    lang_limits_descriptor limits = {1, 72, 268435456, 1073741824, 65536, 8, 65536, 0, 100000000, 4096, 0};
+    lang_program_config config = {1, 80, &allocator, &limits, NULL, 0, {@DIGEST_BYTES@}, 0};
+    return (int)lang_context_create_@ID@(&config, &context);
+#else
+    return 0;
+#endif
+}
+int benchmark_call(int kind, int64_t n, int64_t *out) {
+#if defined(SOURCE) || defined(PARITY)
+    return (int)source_call(kind, n, out);
+#elif defined(RUST)
+    *out = rust_call(kind, n);
+    return 0;
+#else
+    *out = c_call(kind, n);
+    return 0;
+#endif
+}
+int benchmark_end(void) {
+    int result = 0;
+#if defined(SOURCE) || defined(PARITY)
+    result = (int)lang_context_destroy_@ID@(context);
+    context = NULL;
+#endif
+    if ((stats.allocations != stats.releases || stats.live_bytes) && !result) result = 4;
+    return result;
+}
+void benchmark_stats(heap_stats *out) { *out = stats; }
+uint64_t benchmark_peak_memory(void) {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS counters = {0};
+    counters.cb = sizeof(counters);
+    if (!K32GetProcessMemoryInfo(GetCurrentProcess(), &counters, counters.cb)) abort();
+    return (uint64_t)counters.PeakWorkingSetSize;
+#else
+    return 0; /* Parent reads macOS /usr/bin/time -l for this exact child. */
+#endif
+}
+
+#ifdef PARITY
+int native_parity(void) {
+    if (benchmark_begin()) return 1;
+    const int64_t inputs[] = {0, 1, 7, 64, 250, 251, 1000};
+    int result = 0;
+    for (int kind = 0; kind < 3; ++kind) {
+        for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
+            int64_t output = -1, rust = rust_call(kind, inputs[i]), c = c_call(kind, inputs[i]);
+            uint32_t status = source_call(kind, inputs[i], &output);
+            if (status || output != rust || output != c) {
+                lang_error_summary error = {0};
+                (void)lang_context_last_error_@ID@(context, &error);
+                fprintf(stderr, "parity failed kind=%d input=%" PRId64 " status=%u source=%" PRId64 " rust=%" PRId64 " c=%" PRId64 "\n",
+                        kind, inputs[i], status, output, rust, c);
+                fprintf(stderr, "error source=%u span=%u..%u cleanup=%u flags=%u\n",
+                        error.source, error.start, error.end, error.cleanup_count, error.flags);
+                result = 2;
+                break;
+            }
+            printf("%s,%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64 "\n",
+                   kind == 0 ? "scalar" : kind == 1 ? "buffers" : "regions",
+                   inputs[i], output, rust, c);
+        }
+        if (result) break;
+    }
+    int retired = benchmark_end();
+    return result ? result : retired;
+}
+#endif

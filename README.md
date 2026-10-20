@@ -53,7 +53,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 ## Documents
 
 - [Language and ecosystem research](docs/research.md)
-- [Prototype benchmark evidence](docs/benchmarks.md)
+- [Benchmark evidence: M2 source/Rust/C and historical prototypes](docs/benchmarks.md)
 - [Architecture baseline](docs/architecture.md)
 - [Implementation roadmap](docs/roadmap.md)
 - [Milestone 1 capability guide](docs/milestone-1.md)

@@ -1,10 +1,45 @@
 <!-- canonical-language: en; japanese-translation: ja/benchmarks.md -->
 
-# Prototype benchmark evidence
+# Benchmark evidence
 
 [日本語版](ja/benchmarks.md)
 
 These measurements are design evidence for the pre-alpha prototypes. They are not language performance guarantees, release targets, or a final backend selection.
+
+## Milestone 2 source/Rust/C harness
+
+Updated and verified: **2026-10-20 JST**. [`tools/m2-bench`](../tools/m2-bench/) uses the actual source compiler, original C-export object and installed release SDK production runtime. It is independent of the historical schema20 prototype below. Its private result format is `lang-m2-benchmark`, version 1.
+
+Three workloads have the same bounded, nonnegative input and integer result in all implementations:
+
+| Workload | Operations | Independent result check |
+| --- | --- | --- |
+| `scalar` | Addition, a data-dependent branch and a loop; all intermediates fit i64 | Python recurrence and fixed small cases |
+| `buffers` | Grow Bytes/byte vector and Vec/i64 vector, then read and sum both | Closed sum, including the 250-byte value wrap |
+| `regions` | Allocate shared payload, weak observer, retained owner and arena payload; read, retire, require weak expiry | `n * (n + 1)` |
+
+Before timing, the harness requires **21 source/Rust/C/oracle matches** at `n = 0, 1, 7, 64, 250, 251, 1000`. It rejects missing, duplicate or incorrect results. It also forces Rust host unwind inside the live source context, checks allocator retirement, then successfully registers and calls a second context. These are correctness checks, not performance evidence.
+
+```bash
+python3 tools/build-native-sdk.py --release --output /tmp/m2-sdk
+python3 -m unittest discover -s tools/m2-bench -p 'test_*.py'
+python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk --output /tmp/m2-parity --parity-only
+python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk --output /tmp/m2-measure --samples 15 --repeats 20 --input 1000
+```
+
+Use fresh output paths. Windows requires the x64 MSVC developer environment and `python` instead of `python3` when appropriate. The SDK must match the native tier-1 host and pinned rustc identity. `M2 source Rust C benchmark` CI runs parity on `codex/bench-parity-*`; `codex/bench-macos-*` and `codex/bench-windows-*` select one native measurement host. These branches do not trigger the older prototype or isolated-install workflows.
+
+The parity executable contains all three implementations. **The measured source, Rust and C executables are separate**; reference executables link neither the language object nor its SDK/runtime. Rust host/reference code uses `-Copt-level=3`, edition 2024, unwind and no LTO; C uses `-O3` on macOS or `/O2 /MD` on MSVC. The source object uses the compiler's current Cranelift defaults (PIC, no explicit `opt_level` override). This measures the current implementation against optimized references; it does not claim equivalent optimizer maturity.
+
+`preparation_ns` covers source record validation/decoding, artifact preparation/binding and C context creation, once per process. `elapsed_ns / repeats` covers calls through the reused artifact/context **including per-call runtime admission, preparation, allocation and retirement**, with three untimed warmups. The timer also includes the same C dispatch/status and checksum loop for each implementation. Inputs and outputs are observable; C allocation callbacks use volatile indirection, and Rust buffers/region owners pass through `black_box`.
+
+Separate `startup` invocations perform no workload/warmup and report fresh-process wall time through initialization and clean exit; they run with warm OS/file caches. Parent wall times include process launch and output capture. Workload process wall times additionally include `/usr/bin/time` on macOS and are **not** startup latency. Memory is each workload child's macOS maximum RSS (`time -l`, bytes) or Windows `PeakWorkingSetSize` (K32), without subtracting a noisy baseline. Sizes are the complete linked executables and original source object; system dynamic libraries are not added to those file sizes.
+
+Source calls have explicit finite limits: 256 MiB requested live memory, 1 GiB cumulative memory, 65,536 allocations, 8 frames, 65,536 cells, 100,000,000 fuel and 4,096 cleanup records; no host calls/import grants. The original provider counts requested bytes, allocations and releases, and must return to zero after context destruction. C uses the same tracked heap callbacks. Rust uses standard `Vec`, `Rc`/`Weak` and a lexical `Vec<Box<_>>` region, with RAII and required weak expiry; its heap counters are **not instrumented** (zero fields are not zero allocation claims). C uses geometric buffers, explicit single-thread reference counts and lexical region retirement. Policies, layouts, validation, reference-count synchronization and allocator-accounting overhead differ; only workload behavior is equivalent. The region test does not compare concurrent use or a general arena implementation.
+
+Provider heap counters cover allocations routed through that guest/C provider; they do not account for all Rust runtime/preparation metadata or the whole process. Use the OS peak-memory samples for process comparisons.
+
+Reports retain individual samples, min/median/max/mean/stdev, rotated implementation order, compiler commands/versions, SDK ID, source/harness hashes, clean/dirty revision, host, input and executable sizes. Timing runs verify every checksum and allocator balance. A local smoke run validates the harness; G17 still requires native measurements on **both** tier-1 hosts and a reproducible interpretation report (B02–B04).
 
 ## Interpretation after the 2026-10-17 review
 

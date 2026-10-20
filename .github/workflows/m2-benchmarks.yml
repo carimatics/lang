@@ -1,0 +1,80 @@
+name: M2 source Rust C benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        type: choice
+        options: [both, macos, windows]
+        default: both
+      mode:
+        type: choice
+        options: [parity, measure]
+        default: parity
+  push:
+    branches:
+      - 'codex/bench-parity-*'
+      - 'codex/bench-macos-*'
+      - 'codex/bench-windows-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: 1.99.0
+  PARITY_ONLY: ${{ startsWith(github.ref, 'refs/heads/codex/bench-parity-') || inputs.mode == 'parity' }}
+
+jobs:
+  benchmark:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON((startsWith(github.ref, 'refs/heads/codex/bench-macos-') || inputs.target == 'macos') && '["macos"]' || (startsWith(github.ref, 'refs/heads/codex/bench-windows-') || inputs.target == 'windows') && '["windows"]' || '["macos","windows"]') }}
+    name: Source Rust C / ${{ matrix.target }}
+    runs-on: ${{ matrix.target == 'macos' && 'macos-15' || 'windows-2025' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
+      - name: Validate evidence parser and build matching release SDK
+        shell: python
+        run: |
+          import os, pathlib, subprocess, sys
+          temporary = pathlib.Path(os.environ['RUNNER_TEMP'])
+          subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', 'tools/m2-bench', '-p', 'test_*.py'], check=True)
+          subprocess.run(['rustup', 'toolchain', 'install', '1.99.0', '--profile', 'minimal'], check=True)
+          subprocess.run([sys.executable, 'tools/build-native-sdk.py', '--release', '--output', str(temporary / 'm2-sdk')], check=True)
+      - name: Require parity before optional measurements
+        shell: python
+        run: |
+          import json, os, pathlib, subprocess, sys
+          temporary = pathlib.Path(os.environ['RUNNER_TEMP'])
+          command = [sys.executable, 'tools/m2-bench/run.py', '--sdk', str(temporary / 'm2-sdk'), '--output', str(temporary / 'm2-bench'), '--samples', '15', '--repeats', '20', '--input', '1000']
+          parity = os.environ['PARITY_ONLY'] == 'true'
+          if parity:
+              command.append('--parity-only')
+          subprocess.run(command, check=True)
+          report = json.loads((temporary / 'm2-bench/report.json').read_text(encoding='utf-8'))
+          assert report['revision'] == os.environ['GITHUB_SHA'] and not report['dirty']
+          assert report['format'] == 'lang-m2-benchmark' and report['version'] == 1
+          assert len(report['parity']) == 21 and report['unwind_retirement'] == 'unwind retirement ok'
+          assert len(report['observations']) == (0 if parity else 135)
+          assert len(report['startup_observations']) == (0 if parity else 45)
+      - name: Retain exact-revision evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: m2-benchmark-${{ matrix.target }}
+          path: ${{ runner.temp }}/m2-bench/report.json
+          if-no-files-found: error
+          retention-days: 30

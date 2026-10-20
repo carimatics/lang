@@ -1,10 +1,45 @@
 <!-- translation-of: ../benchmarks.md; canonical-language: en -->
 
-# Prototype benchmark evidence
+# Benchmark evidence
 
 [English](../benchmarks.md)
 
 これらのmeasurementはpre-alpha prototypeの設計証拠です。言語のperformance guarantee、release target、最終backend選定ではありません。
+
+## Milestone 2 source/Rust/C harness
+
+更新・検証日: **2026-10-20 JST**。[`tools/m2-bench`](../../tools/m2-bench/)は実際のsource compiler、元のC-export object、installed release SDKのproduction runtimeを使用します。後述の過去のschema20 prototypeとは独立しています。private result formatは`lang-m2-benchmark` version 1です。
+
+3 workloadで同じ上限付きの非負入力と整数結果を使います。
+
+| Workload | 処理 | 独立した結果検証 |
+| --- | --- | --- |
+| `scalar` | 加算、値に依存する分岐、loop。中間値はすべてi64範囲内 | Python漸化式と固定の小入力 |
+| `buffers` | Bytes/byte vectorとVec/i64 vectorを伸ばし、両方を読み加算 | 250 byteの値の折り返しを含む閉形式の和 |
+| `regions` | shared payload、weak observer、retained owner、arena payloadを確保し、読み出し・退役・weak失効を確認 | `n * (n + 1)` |
+
+計測前に`n = 0, 1, 7, 64, 250, 251, 1000`の**21組のsource/Rust/C/oracle一致**を必須とします。欠落・重複・誤った結果は拒否します。生きているsource context内でRust hostを意図的にunwindさせ、allocator退役後に次のcontextを正常に登録・実行することも検証します。これらは正しさの検証であり、性能の証拠ではありません。
+
+```bash
+python3 tools/build-native-sdk.py --release --output /tmp/m2-sdk
+python3 -m unittest discover -s tools/m2-bench -p 'test_*.py'
+python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk --output /tmp/m2-parity --parity-only
+python3 tools/m2-bench/run.py --sdk /tmp/m2-sdk --output /tmp/m2-measure --samples 15 --repeats 20 --input 1000
+```
+
+未使用のoutput pathを使います。Windowsではx64 MSVC developer環境が必要で、環境に応じて`python3`を`python`に読み替えます。SDKはnative tier-1 hostと固定rustc identityに一致させます。`M2 source Rust C benchmark` CIは`codex/bench-parity-*`でparityを検証し、`codex/bench-macos-*`と`codex/bench-windows-*`では一方のnative計測hostを選択します。これらのbranchは従来のprototype／isolated-install workflowを起動しません。
+
+parity executableは3実装を含みます。**計測するsource・Rust・C executableは別々**で、reference側には言語objectもSDK/runtimeもlinkしません。Rust host/referenceは`-Copt-level=3`、edition 2024、unwind、LTOなし、CはmacOSで`-O3`、MSVCで`/O2 /MD`です。source objectは現compilerのCranelift既定値（PIC、明示的な`opt_level`上書きなし）を使います。現実装と最適化済みreferenceの比較であり、optimizerの成熟度が同等とは主張しません。
+
+`preparation_ns`はsource record検証／decode、artifact準備／binding、C context作成をprocessごとに一度記録します。`elapsed_ns / repeats`は再利用するartifact/contextへの呼び出しで、**呼び出しごとのruntime admission・準備・確保・退役を含み**、3回のwarmupは計時外です。各実装で同じC dispatch/statusとchecksum loopも含みます。入出力を観測可能にし、Cのallocation callbackにはvolatileな間接呼び出しを使い、Rustのbuffer／region ownerは`black_box`を通します。
+
+専用の`startup`起動ではworkloadもwarmupも実行せず、初期化から正常終了までの新規process wall timeを記録します。OS/file cacheはwarm状態です。親側wall timeにはprocess起動と出力取得を含みます。workloadのprocess wall timeはmacOSで`/usr/bin/time`自体も含み、**起動latencyではありません**。memoryはworkload childごとのmacOS maximum RSS（`time -l`、bytes）またはWindows `PeakWorkingSetSize`（K32）で、変動するbaselineは差し引きません。sizeはlink済みexecutable全体と元のsource objectで、system dynamic libraryのsizeは加算しません。
+
+sourceには要求live memory 256 MiB、cumulative memory 1 GiB、allocation 65,536件、8 frames、65,536 cells、fuel 100,000,000、cleanup records 4,096の明示的有限limitを設定し、host call/import grantは与えません。元のproviderで要求bytes・確保・解放を数え、context破棄後にzeroへ戻ることを必須とします。Cも同じ追跡付きheap callbackを使用します。Rustは標準`Vec`、`Rc`/`Weak`、lexicalな`Vec<Box<_>>` regionをRAIIで管理しweak失効を確認します。Rustのheap counterは**未計測**です（zero欄はallocationがないという意味ではありません）。Cは幾何級数で伸びるbuffer、明示的な単一thread参照count、lexicalなregion退役を使います。policy・layout・検証・参照count同期・allocator追跡のoverheadには差があり、同等なのはworkloadの振る舞いです。region testは並列利用や汎用arena実装の比較ではありません。
+
+provider heap counterは当該guest/C providerを通る確保が対象で、Rust runtime／準備用metadataのすべてやprocess全体は数えません。process比較にはOSのpeak memory sampleを使います。
+
+reportには各sample、min/median/max/mean/stdev、実装順の巡回、compiler command/version、SDK ID、source/harness hash、clean/dirty revision、host、入力、executable sizeを保存します。計測でも毎回checksumとallocator収支を検証します。local smoke runはharnessの検証であり、G17の完了には引き続き**両方**のtier-1 hostのnative計測と再現可能な解釈report（B02–B04）が必要です。
 
 ## 2026-10-17レビュー後の解釈
 

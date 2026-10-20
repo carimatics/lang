@@ -12,7 +12,7 @@
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| B01：比較前の結果・解放・測定scopeの一致 | **Q02完了**：両tier-1の複合conformance CI（`1d0c0dc`） | **16/18条件** |
+| B01：local 21/21一致・unwind済み、native CI待ち | **Q02完了**：両tier-1の複合conformance CI（`1d0c0dc`） | **16/18条件** |
 
 **直近の検証checkpoint（2026-10-20 14:56 JST）：** [macOS run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、job `118474323072`／head `1d0c0dc` は **2026-10-20 05:48:01 UTC** に全workflow成功。Fmt／Clippy／全target・feature test／rustdoc／全11 fuzz targetを含みます。[Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、job `118467465176`／head `3db077f` はfmt／C・linker検証／Clippy／全test／rustdocを **05:49:05 UTC** までに全成功しました。差分7 pathはMac起動条件と文書のみで、実装・test・fixture・Cargo／toolchainのGit blobは同一です。新しい複合production entry／resource prefix、実AOT、実C／保存C object、panic loan回帰testが両targetで有効であるcfgを監査し、Mac logの各成功行も照合しました。Windowsのprototype benchmarkは確認時点で実行中で、workflow全体やRust／C性能比較の成功とは数えません。
 
@@ -22,7 +22,7 @@
 
 Local Rust baselineは実装byteが不変のQ01結果 **1,585 tests / 94 suites、失敗0、手動1件ignored**（900.90秒）、fmt／Clippy／rustdoc／全11 fuzz成功を保持します。今回のYAMLは構文・event・全baseline stepを確認し、文書／task整合性3 testを実行します。変更のないcompiler baselineを再実行したとは主張しません。SDK隔離 [run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) も同じ実装で両host全成功し、G15／RFC 0020の完了を維持します。
 
-**B01実装前監査（2026-10-20 14:56 JST）：** 現schema20 prototype harnessは手書きscalar MIRと直接Rustの結果比較、統計、process-memory helperを持ちますが、M2 sourceと等価なC reference／owned runtimeの測定harnessはありません。既存2 ptで、scalar CFG、owned buffer／collection、shared／arena lifecycleの代表sourceと等価Rust／Cを同じ入力で検証するharnessを作り、checksumと解放を比較してからtimingを許可します。既存の統計／memory処理、SDK compiler／元object／実production runtimeを再利用します。execute_ownedはdecode／prepareを含むため、準備済み実行・準備・startupを混在させず、compiler flags、allocator／accounting scopeを明示します。最初に1 caseの実parityを確認し、前提や残作業が想定より大きければ先にscopeを再監査します。B02／B03が両hostのruntime／startup／memory／sizeと分散を測り、B04が解釈を公表します。既存schema20証拠は改変せず、まだ性能改善を主張しません。
+**B01 WIP（2026-10-20 15:38 JST）：** 実SDK compiler／元C-export object／production runtimeでRust／Cと独立oracleに**21/21組**一致しました（scalar、Bytes＋Vec、shared／weak／arena、7入力）。allocator退役とhost unwind後の次の登録・呼び出しも通りました。別々のsource／Rust／C binaryで9組のchild checksum／解放検証と3組のworkloadなしstartup検証が通り、先のOS memory smokeも成功しています。private version-1 harnessで準備・反復呼び出し・新規process起動・RSS／working set・size・sample・正確なflag／accounting scopeを記録します。拒否／oracle test 7件、workflow YAML／Python検証、全local baseline（1,585 tests／94 suites、0失敗、手動ignore 1件）、fmt・Clippy・rustdocが通りました。残る受入条件は、特にWindows／MSVCを含むnative tier-1 CIで同じ21組／unwind gateを通すことです。B01はdoing／2 ptのままです。B02–B04で両hostの性能記録と解釈を引き続き行います。[計測scope](benchmarks.md#milestone-2-sourcerustc-harness)参照。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>

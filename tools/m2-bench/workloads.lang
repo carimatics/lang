@@ -1,0 +1,75 @@
+// Inputs are nonnegative and at most 100000; intermediates fit in i64.
+pub extern "C" fn scalar(n: i64) -> i64 {
+    let mut index: i64 = 0;
+    let mut value: i64 = 17;
+    while index < n {
+        if value < 500003 {
+            value = value + value + index;
+        } else {
+            value = value + (-500003) + index;
+        }
+        index = index + 1;
+    }
+    return value;
+}
+
+pub extern "C" fn buffers(n: i64) -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut values: core::Vec<i64> = core::result_unwrap::<core::Vec<i64>, core::AllocError>(core::vec_new::<i64>(core::allocator()));
+    let mut index: i64 = 0;
+    let mut value: i64 = 0;
+    while index < n {
+        let mut byte_added: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, value));
+        let mut value_added: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<i64>(values, index + value));
+        value = value + 1;
+        if 249 < value { value = 0; }
+        index = index + 1;
+    }
+    index = 0;
+    let mut sum: i64 = 0;
+    while index < n {
+        sum = sum + core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(bytes, index));
+        match core::vec_get::<i64>(values, index) {
+            core::Result::Ok(item) => { sum = sum + (*item); },
+            core::Result::Err(_) => { return -1; },
+        }
+        index = index + 1;
+    }
+    return sum;
+}
+
+struct Payload { value: i64 }
+
+pub extern "C" fn regions(n: i64) -> i64 {
+    let mut index: i64 = 0;
+    let mut sum: i64 = 0;
+    while index < n {
+        let mut owner: shared Payload = core::result_unwrap::<shared Payload, core::OwnershipError>(core::shared_new::<Payload>(core::allocator(), Payload { value: index }));
+        let mut observer: weak Payload = core::result_unwrap::<weak Payload, core::OwnershipError>(core::weak_new::<Payload>(owner));
+        arena batch(core::allocator()) {
+            let mut retained: shared Payload = core::result_unwrap::<shared Payload, core::OwnershipError>(core::shared_clone::<Payload>(owner));
+            let mut slot: arena Payload = core::result_unwrap::<arena Payload, core::ArenaError>(core::arena_new::<Payload>(batch, Payload { value: index + 1 }));
+            let mut dropped: core::Unit = core::drop::<shared Payload>(owner);
+            match core::shared_read::<Payload>(retained) {
+                core::Result::Ok(shared_view) => {
+                    match core::arena_read::<Payload>(batch, slot) {
+                        core::Result::Ok(arena_view) => { sum = sum + shared_view.value + arena_view.value; },
+                        core::Result::Err(_) => { return -2; },
+                    }
+                },
+                core::Result::Err(_) => { return -3; },
+            }
+        }
+        match core::weak_upgrade::<Payload>(observer) {
+            core::Result::Ok(_) => { return -4; },
+            core::Result::Err(error) => {
+                match error {
+                    core::OwnershipError::ExpiredWeak => { sum = sum + 1; },
+                    _ => { return -5; },
+                }
+            },
+        }
+        index = index + 1;
+    }
+    return sum;
+}
