@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**124 verified deliveries · 1 in progress · 8 remaining tasks (provisional 18 pt).**
+**125 verified deliveries · 1 in progress · 7 remaining tasks (provisional 16 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| Q02: both-native-host source/resource conformance CI | **Q01 complete**: combined VM/native conformance (`3db077f`) | **15/18 gates** |
+| B01: source-native/Rust/C semantic parity before comparison | **Q02 complete**: both-tier-1 conformance CI (`1d0c0dc`) | **16/18 gates** |
 
-**Latest checkpoint (2026-10-20 14:33 JST):** combine Vec/Map/shared/weak/arena/Text/Bytes and recursive calls, checking CrossRegion refusal/retirement, ordinary 42 and panic −42. VM/actual production native agree on values, usage and original spans/reports/stacks at every fuel/work/provider-refusal prefix and frame/cell boundary. Actual AOT after source deletion and real-C/persisted-C eleven-source cases pass. Fix MIR's false terminal-panic rejection of an active arena allocator loan while retaining normal-exit/invalid-continuation refusal. Mac full baseline passes **1,585 tests / 94 suites**, 0 failures, 1 manual test ignored (900.90s); fmt/Clippy/rustdoc/all 11 fuzz targets pass. Same-head [SDK isolated run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) also passes on both hosts; matching [Windows full run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894) is running tests. Details: [Todo](milestone-2.md), updated/verified 2026-10-20 JST.
+**Latest checkpoint (2026-10-20 14:56 JST):** [Mac run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840), head `1d0c0dc`, succeeds as a whole workflow (2026-10-20 05:48:01 UTC). [Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894), head `3db077f`, passes fmt/C-linker checks/Clippy/all tests/rustdoc by 05:49:05 UTC. Git differences are workflow/docs only; implementation/test/fixture blobs are identical. Combined-source ordinary/panic/resource-prefix, actual AOT/real-C/persisted-C and loan-regression cases are enabled on both targets and covered by successful tests: close Q02/G16. The Windows prototype benchmark was active when checked; this is not performance-gate success. Retain unchanged-implementation local **1,585 tests / 94 suites** and full checks. Details: [Todo](milestone-2.md), updated/verified 2026-10-20 JST.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** **21 − 3 = 18 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 225 = 18 pt**. Select Q02 at existing 2 pt: add a narrow Mac branch trigger and reconcile both-host CI on the same implementation/fixtures. Keep G16 open until Q02 passes; B/G/final Z01 remain. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** **18 − 2 = 16 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 227 = 16 pt**. Use existing 2-point B01 for source-native/Rust/C identical-input checksum/retirement parity before timing. Historical schema20 scalar-MIR/Rust measurements provide reusable infrastructure, not substitute M2 performance evidence. B02–B04/G01–G03/final Z01 remain open. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
 
 ## Task tracking
 
@@ -48,13 +48,13 @@ Exit-gate weight snapshot verified on 2026-10-20 (JST). Overall arithmetic aggre
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 89 pt | 113 pt | 78.8% |
+| 2 — ownership and native AOT | 97 pt | 113 pt | 85.8% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **387 pt** | **764 pt** | **50.7%** |
+| **Overall** | **395 pt** | **764 pt** | **51.7%** |
 
 ## Milestone 0: design baseline
 
@@ -230,7 +230,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 15 / 18 complete; historical weight: 89 / 113 pt (78.8%).**
+**Exit gates: 16 / 18 complete; historical weight: 97 / 113 pt (85.8%).**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -251,7 +251,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
 - [x] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
 - [x] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
-- [ ] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
+- [x] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
 - [ ] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 

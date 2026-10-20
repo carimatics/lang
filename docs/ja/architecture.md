@@ -222,6 +222,8 @@ Local probeだけでは両host隔離の証拠になりません。対応する�
 
 このfixtureで見つかったpanic時のallocator loan解析拒否を修正しました。Typed MIRが末尾Panic＋Unreachableだけを許可した経路では、必須failure retirementがpanic記録後にloan／ownerを解放します。通常return、bare Unreachable、成功経路へ継続する不正Panicの拒否は[MIR回帰test](../../crates/mir/tests/ownership_loan_activity.rs)で維持します。既存の受理済みpanic意味論の修正であり、source／ABI／serialized formatの変更はありません。
 
+両tier-1 conformance確認（2026-10-20 JST）：[macOS run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、job `118474323072`／head `1d0c0dc` は全workflow成功（2026-10-20 05:48:01 UTC）。[Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、job `118467465176`／head `3db077f` はfmt／C・linker検証／Clippy／全test／rustdoc成功（05:49:05 UTCまで）です。差分はmacOS起動条件と文書だけで、実装・test・fixture・Cargo／toolchainのGit blobは同一です。複合production entry、実AOT、実C／保存C object、panic loan回帰testが両targetで有効であり、Mac logの各成功行も照合しました。Q02／G16を完了します。Windowsのprototype benchmarkは実行中で、workflow全体の成功やRust／C性能比較の証拠とは数えません。
+
 ### Native compiler record transport and Copy binding
 
 2026-10-20 JST実装・確認：[RFC 0018](rfcs/0018-native-compiler-records.md)で元object、tier-1 target 2種、private compile scope（C object digestを含む）、全function metadataを記録します。明示version 1 framing／tag、意味論／objectのSHA-256、厳密UTF-8／symbol／range／count検査、work／allocation／element／byte累積上限を公開前に適用します。Hashはdataの識別でありnative codeの認証ではありません。Portable schema 1／2／3／4の独立verifierと形式は維持します。

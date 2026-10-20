@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み124件 · 進行中1件 · 残り8件（暫定18 pt）。**
+**検証済み125件 · 進行中1件 · 残り7件（暫定16 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| Q02：両native hostの複合source／resource CI証拠 | **Q01完了**：VM／native複合conformance（`3db077f`） | **15/18条件** |
+| B01：source-native／Rust／C比較のsemantic parity | **Q02完了**：両tier-1 conformance CI（`1d0c0dc`） | **16/18条件** |
 
-**直近のcheckpoint（2026-10-20 14:33 JST）：** Vec／Map／shared／weak／arena／Text／Bytesと再帰callを組み合わせ、CrossRegion拒否と解放、通常42／panic−42を検証しました。VM／実production nativeで値・usage・元span／report／stackが全fuel／work／provider拒否prefixとframe／cell境界で一致。元source削除後の実AOT、実C／保存C object各11 sourceも成功しました。末尾panicでactive arena allocator loanを誤拒否するMIR不具合を修正し、正常exit／不正継続の拒否を維持しました。Mac全baseline **1,585 tests／94 suites**、失敗0、手動1件ignored（900.90秒）、fmt／Clippy／rustdoc／全11 fuzz target成功。同headの [SDK隔離run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) も両host成功。対応[Windows全体run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)は全test実行中です。詳細は[Todo](milestone-2.md)。2026-10-20 JST更新・確認。
+**直近のcheckpoint（2026-10-20 14:56 JST）：** [Mac run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、head `1d0c0dc` は全workflow成功（2026-10-20 05:48:01 UTC）。[Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、head `3db077f` はfmt／C・linker検証／Clippy／全test／rustdoc成功（05:49:05 UTCまで）。Git差分はworkflow／文書のみで実装・test・fixtureが同一です。複合sourceの通常／panic・resource prefix・実AOT／実C／保存C objectとloan回帰testが両targetで有効で、成功に対応付けたためQ02／G16を完了しました。Windows prototype benchmarkは確認時点で実行中で、性能gateの成功とは数えません。Localの不変実装baseline 1,585 tests／94 suitesと全checkを保持します。詳細は[Todo](milestone-2.md)。2026-10-20 JST更新・確認。
 
-**今回：1件完了（−3 pt）、見積もり／task追加なし。** **21 − 3 = 18 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 225 = 18 pt**。既存2 ptのQ02を選び、Mac workflowの限定branch起動と同一実装／fixtureの両host CI証拠を揃えます。Q02完了まではG16を未完了とし、B／G／最終Z01も未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
+**今回：1件完了（−2 pt）、見積もり／task追加なし。** **18 − 2 = 16 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 227 = 16 pt**。既存2 ptのB01でsource-native／Rust／Cの同入力・checksum／解放一致をtiming前に検証するharnessを作ります。旧schema20のscalar MIR／Rust測定は再利用可能な基盤で、M2性能比較の代替にはしません。B02–B04／G01–G03／最終Z01は未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
 
 ## タスク管理
 
@@ -48,13 +48,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 89 pt | 113 pt | 78.8% |
+| 2 — ownershipとnative AOT | 97 pt | 113 pt | 85.8% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **387 pt** | **764 pt** | **50.7%** |
+| **全体** | **395 pt** | **764 pt** | **51.7%** |
 
 ## Milestone 0：設計baseline
 
@@ -230,7 +230,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中15件完了、履歴上の重み：89 / 113 pt（78.8%）。**
+**完了条件：18件中16件完了、履歴上の重み：97 / 113 pt（85.8%）。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -251,7 +251,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
 - [x] **P0 — macOS AArch64／Windows x86-64向けownership-aware source-program object generationとnative link／run conformanceを完成させる。** — 8 pt
 - [x] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
-- [ ] **P0 — 代表的なVM／native differential conformance suiteを構築する。** — 8 pt
+- [x] **P0 — 代表的なVM／native differential conformance suiteを構築する。** — 8 pt
 - [ ] **P0 — 代表的native workloadを同等のRust／C実装に対して計測する。** — 8 pt
 - [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
 

@@ -6,25 +6,23 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**124 done · 1 doing · 8 todo · 18 remaining pt**
+**125 done · 1 doing · 7 todo · 16 remaining pt**
 
-**Next: M2-Q02 → both-tier-1 source/resource conformance CI evidence (provisional 2 pt, in progress).**
+**Next: M2-B01 → equivalent source-native/Rust/C workloads and harness (provisional 2 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| Q02: matching macOS/Windows full CI evidence | **Q01 complete**: combined-source VM/native conformance (`3db077f`) | **15/18 gates** |
+| B01: result/retirement/measurement-scope parity before comparison | **Q02 complete**: both-tier-1 conformance CI (`1d0c0dc`) | **16/18 gates** |
 
-**Latest executable checkpoint (2026-10-20 14:33 JST):** the [combined source](../examples/conformance/owned_pipeline.lang) composes Vec-to-Map owner transfer/replacement, Text/Bytes aggregates, recursive calls, shared/weak, owning arena collections and nested reads. It checks required shared-to-arena CrossRegion refusal, refused-clone retirement and weak expiry. VM and actual production native entry agree on ordinary 42 / arena panic −42, usage and original spans/stacks/reports. Every fuel/work prefix, provider-refusal position and frame/cell boundary balances original Instance/allocator retirement. Ordinary fuel/work/provider requests: 400/675/694; panic: 326/661/643. Focused validation takes 31.16s. Actual AOT checks seven cases including both variants after source deletion; real-C/persisted-C comparisons each pass eleven sources.
+**Latest verification checkpoint (2026-10-20 14:56 JST):** [macOS run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840), job `118474323072` / head `1d0c0dc`, succeeds as a whole workflow at **2026-10-20 05:48:01 UTC**, including fmt, Clippy, all-target/all-feature tests, rustdoc and all eleven fuzz targets. [Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894), job `118467465176` / head `3db077f`, passes fmt, C/linker checks, Clippy, all tests and rustdoc by **05:49:05 UTC**. Seven differing paths are only the Mac trigger/documentation: implementation/test/fixture/Cargo/toolchain Git blobs are identical. Audit cfg inclusion of the combined production-entry/resource-prefix, actual AOT, real-C/persisted-C and panic-loan cases on both targets; Mac log success lines are also reconciled. The Windows prototype benchmark was active when checked; this does not claim whole-workflow or equivalent Rust/C performance success.
 
-`3db077f` fixes this fixture's false rejection of an active arena allocator loan at terminal panic. Only typed MIR's final-Panic/Unreachable exit defers loan endings to mandatory failure retirement, after recording panic. All eleven MIR tests pass, retaining normal-return, bare-Unreachable and malformed-success-continuation refusal. This corrects accepted RFC 0014 implementation without syntax/ABI/schema changes; compiler changes require SDK rebuild under existing exact-build policy.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **18 − 2 = 16 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 227 = 16 pt**. Provisional planning units are not hours or completion percentages.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **21 − 3 = 18 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 225 = 18 pt**. Provisional planning units are not hours or completion percentages.
+**G16 completion audit:** Q01 combines Vec-to-Map transfer/replacement, Text/Bytes aggregates, recursive calls, shared/weak, owning arena collections, nested reads and CrossRegion refusal/retirement. Ordinary 42/panic −42 compare original spans/stacks/reports/usage, every fuel/work/provider-refusal prefix and frame/cell boundary, plus actual AOT/real-C/persisted-C. Q02 now pairs those cases with successful full tests on both native hosts. Close G16: original gates are **16/18, weight 97/113**. G17 performance/G18 debug and final Z01 remain open.
 
-Mac full baseline passes **1,585 tests / 94 suites**, 0 failures, 1 manual timing test ignored. One command **900.90s**, initial compile31.46s. Native ownership **77 / 269.68s**, C ABI **74 / 19.94s**, source-native **10 / 20.12s**, public linking **6 / 36.13s**, SDK **5 / 14.27s**. Fmt, Clippy (34.17s), rustdoc (35.68s), all 11 fuzz targets (1.83s) pass. These are validation observations, not development effort or performance improvements. Later documentation-only updates use the three repository-consistency tests.
+Retain the unchanged-implementation Q01 local Rust baseline: **1,585 tests / 94 suites, 0 failures, 1 manual test ignored** (900.90s), fmt/Clippy/rustdoc/all eleven fuzz targets pass. Validate the changed YAML syntax/events/full-baseline steps and run three documentation/task-consistency tests. This does not claim an unchanged compiler baseline was rerun. Same-implementation [SDK isolated run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) also succeeds on both hosts; G15/RFC 0020 remain complete.
 
-Same-head `3db077f` [SDK isolated run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) succeeds on both hosts. Separate-consumer `118469487851`/`118469487853` JSON reconciles twelve original repository/target input paths absent per host, no Cargo, empty CARGO_HOME, private linked inputs removed and actual Copy/owned/C success. G15/RFC 0020 remain complete. Matching [Windows full run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894), job `118467465176`, is running full tests; this alone does not complete Q02.
-
-**Q02 readiness (2026-10-20 14:33 JST):** current macOS workflow runs only main/PR, not development-branch pushes. Use existing 2 pt to add a narrow branch trigger for the Mac full baseline and retain matching Windows evidence, checking combined-source/resource cases on both native hosts. If heads differ only by workflow/planning, explicitly compare Rust/test/fixture bytes. Isolated SDK success does not substitute for the full combined conformance suite. Keep G16 open until Q02 passes; B/G/final Z01 and every original requirement remain. No new prerequisite, task or estimate is identified.
+**B01 readiness (2026-10-20 14:56 JST):** existing schema20 prototype tooling compares hand-written scalar MIR/direct Rust and provides statistics/process-memory helpers; M2 source-equivalent C references and an owned-runtime harness are absent. Use existing 2 pt for representative scalar CFG, owning buffer/collection and shared/arena-lifecycle sources with equivalent Rust/C under identical inputs; check checksums/retirement before permitting timing. Reuse statistical/memory procedures and SDK compiler/original objects/production runtime. execute_owned includes decode/prepare: separate prepared execution, preparation and startup, declaring compiler flags and allocator/accounting scope. First prove one actual parity case; re-audit scope before extending work if prerequisites or remaining work exceed expectations. B02/B03 retain both-host runtime/startup/memory/size/variance and B04 interpretation. Preserve historical schema20 evidence; no performance improvement is claimed.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -212,13 +210,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 124 (+89)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 125 (+90)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −225 pt | 18 pt |
+| 134 pt | +109 pt | −227 pt | 16 pt |
 
-**134 + 109 − 225 = 18 pt**
+**134 + 109 − 227 = 16 pt**
+
+Q02 delivery / B01 readiness audit (2026-10-20 JST): `1d0c0dc` enables narrow Mac CI; paired Windows `3db077f` passes the full baseline with identical implementation/fixture blobs. Complete existing 2 pt: **124 → 125 done, 18 → 16 remaining pt, retired 225 → 227 pt; 133 rows/+109 additions unchanged**. Q01/Q02 actual source/runtime/AOT/C/resource evidence closes G16, bringing original gates to 16/18. Select only B01 at existing 2 pt; retain G17/G18/Z01 and every original requirement.
 
 Q01 delivery / Q02 readiness audit (2026-10-20 JST): `3db077f` completes existing 3 pt with combined source, terminal-panic loan correction, ordinary/panic resource prefixes, actual AOT/real-C/persisted-C and full baseline. **123 → 124 done, 21 → 18 remaining pt, retired 222 → 225 pt; 133 rows/+109 additions unchanged**. Select only Q02 at existing 2 pt for Mac branch CI and matching both-host evidence. Retain G16/B/G/Z01 and every original requirement.
 
@@ -443,8 +443,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-P12 | done | 0 | M2-P11,M2-P10,M2-P07 | G15 | link-native verifies exact rustc/SDK/target, links verified original bytes with explicit Rust/C hosts and exclusively publishes a fresh executable. | `4acd99f` |
 | M2-P02 | done | 0 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Clean-install SDK link/run for Copy, ownership and C succeeds on both tier-1 hosts outside repo/target/deps. | `c54af31` |
 | M2-Q01 | done | 0 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | `3db077f` |
-| M2-Q02 | doing | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
-| M2-B01 | todo | 2 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | — |
+| M2-Q02 | done | 0 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | `1d0c0dc` |
+| M2-B01 | doing | 2 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | — |
 | M2-B02 | todo | 2 | M2-B01,M2-P02 | G17 | Record clean macOS runtime/startup/memory/size measurements with variance. | — |
 | M2-B03 | todo | 2 | M2-B01,M2-P02 | G17 | Record equivalent clean Windows measurements with variance. | — |
 | M2-B04 | todo | 1 | M2-B02,M2-B03 | G17 | Publish interpreted results, reproducibility commands and remaining performance limits. | — |

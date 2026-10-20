@@ -223,6 +223,8 @@ Local probeだけでは両host隔離の証拠になりません。対応する�
 
 このfixtureで見つかったpanic時のallocator loan解析拒否を修正しました。Typed MIRが末尾Panic＋Unreachableだけを許可した経路では、必須failure retirementがpanic記録後にloan／ownerを解放します。通常return、bare Unreachable、成功経路へ継続する不正Panicの拒否は[MIR回帰test](crates/mir/tests/ownership_loan_activity.rs)で維持します。既存の受理済みpanic意味論の修正であり、source／ABI／serialized formatの変更はありません。
 
+両tier-1 conformance確認（2026-10-20 JST）：[macOS run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、job `118474323072`／head `1d0c0dc` は全workflow成功（2026-10-20 05:48:01 UTC）。[Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、job `118467465176`／head `3db077f` はfmt／C・linker検証／Clippy／全test／rustdoc成功（05:49:05 UTCまで）です。差分はmacOS起動条件と文書だけで、実装・test・fixture・Cargo／toolchainのGit blobは同一です。複合production entry、実AOT、実C／保存C object、panic loan回帰testが両targetで有効であり、Mac logの各成功行も照合しました。Q02／G16を完了します。Windowsのprototype benchmarkは実行中で、workflow全体の成功やRust／C性能比較の証拠とは数えません。
+
 Platform conformance CI：[macOS workflow](.github/workflows/macos-aarch64.yml) は `codex/q02-*` のpushでも起動し、[Windows](.github/workflows/windows-x86_64.yml) は `codex/m2-*` で起動します。検証headの差分がworkflow／planning文書のみなら、結果を組み合わせる前に実装・test・fixture byteが同一であることを明示照合します。Q02の両native hostの結果は[Todo](docs/ja/milestone-2.md)に記録します。
 
 ## 設計プロセス

@@ -6,25 +6,23 @@
 
 更新・検証：**2026-10-20 JST**。初回監査checkpoint：`0c2c012`。
 
-**124 done · 1 doing · 8 todo · 18 remaining pt**
+**125 done · 1 doing · 7 todo · 16 remaining pt**
 
-**次: M2-Q02 → 両tier-1 CIの複合source／resource conformance証拠（暫定2 pt、実装中）。**
+**次: M2-B01 → source-native／Rust／Cの等価workloadと比較harness（暫定2 pt、実装中）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| Q02：対応するmacOS／Windows全体CIの確認 | **Q01完了**：複合source VM／native conformance（`3db077f`） | **15/18条件** |
+| B01：比較前の結果・解放・測定scopeの一致 | **Q02完了**：両tier-1の複合conformance CI（`1d0c0dc`） | **16/18条件** |
 
-**直近の実行checkpoint（2026-10-20 14:33 JST）：** [複合source](../../examples/conformance/owned_pipeline.lang) はVec→Mapのowner移動／置換、Text／Bytes aggregate、再帰call、shared／weak、arenaのowned collectionと入れ子readを組み合わせます。規定どおりshared→arena格納をCrossRegionで拒否し、拒否cloneの解放とweak失効を確認します。通常42／arena内panic−42でVMと実production native entryの値・usage・元span／stack／reportが一致しました。全fuel／work prefix、provider拒否位置、frame／cell境界でも元Instance／allocatorの解放が均衡します。通常はfuel400／work675／provider要求694、panicは326／661／643です。Focused検証31.16秒。元source削除後の実AOT 7 case（両variantを含む）と、実C／保存C object各11 sourceも成功しました。
+**直近の検証checkpoint（2026-10-20 14:56 JST）：** [macOS run 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、job `118474323072`／head `1d0c0dc` は **2026-10-20 05:48:01 UTC** に全workflow成功。Fmt／Clippy／全target・feature test／rustdoc／全11 fuzz targetを含みます。[Windows run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、job `118467465176`／head `3db077f` はfmt／C・linker検証／Clippy／全test／rustdocを **05:49:05 UTC** までに全成功しました。差分7 pathはMac起動条件と文書のみで、実装・test・fixture・Cargo／toolchainのGit blobは同一です。新しい複合production entry／resource prefix、実AOT、実C／保存C object、panic loan回帰testが両targetで有効であるcfgを監査し、Mac logの各成功行も照合しました。Windowsのprototype benchmarkは確認時点で実行中で、workflow全体やRust／C性能比較の成功とは数えません。
 
-このfixtureで見つかったarena allocator loanの末尾panic誤拒否を `3db077f` で修正しました。Typed MIRの最終Panic＋Unreachableだけは必須failure retirementへloan終了を委ね、panic記録後に解放します。通常return／bare Unreachable／不正成功継続の拒否を含むMIR 11 testが成功。受理済みRFC 0014の実装修正で、構文・ABI・schema変更はなく、変更後SDKは既存の完全一致policyどおり再buildします。
+**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **18 − 2 = 16 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もりの変更)は **134 + 109 − 227 = 16 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **21 − 3 = 18 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もりの変更)は **134 + 109 − 225 = 18 pt**。暫定planning単位であり時間や完成率ではありません。
+**G16完了監査：** Q01の複合sourceはVec→Map移動／置換、Text／Bytes aggregate、再帰call、shared／weak、arena owned collection、入れ子read、CrossRegion拒否／解放を含みます。通常42／panic−42で元span／stack／report／usageと全fuel／work／provider拒否prefix・frame／cell境界が一致し、実AOT／実C／保存C objectへ接続されています。Q02でこれを両native hostの全test成功へ対応付けたため、G16を完了します。従来gateは **16/18、重み97/113**。G17性能／G18debugと最終Z01は未完了です。
 
-Mac全baselineは **1,585 tests / 94 suites**、失敗0、手動計測1件ignored。単一command **900.90秒**、初回compile31.46秒。Native ownership **77 / 269.68秒**、C ABI **74 / 19.94秒**、source-native **10 / 20.12秒**、公開link **6 / 36.13秒**、SDK **5 / 14.27秒**。Fmt、Clippy（34.17秒）、rustdoc（35.68秒）、全11 fuzz target（1.83秒）が成功しました。これは検証時間であり、開発工数や性能改善ではありません。以後の文書のみの更新はrepository consistency 3 testで確認します。
+Local Rust baselineは実装byteが不変のQ01結果 **1,585 tests / 94 suites、失敗0、手動1件ignored**（900.90秒）、fmt／Clippy／rustdoc／全11 fuzz成功を保持します。今回のYAMLは構文・event・全baseline stepを確認し、文書／task整合性3 testを実行します。変更のないcompiler baselineを再実行したとは主張しません。SDK隔離 [run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) も同じ実装で両host全成功し、G15／RFC 0020の完了を維持します。
 
-同じhead `3db077f` の [SDK隔離run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) は両hostで全成功。別consumer `118469487851`／`118469487853` のJSONで、各12 repo／target入力path不在、Cargoなし、空のCARGO_HOME、private入力削除後のCopy／owned／C成功を照合しました。G15／RFC 0020の完了を維持します。[Windows全体run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、job `118467465176` は全testを実行中で、これだけをQ02の成功とは数えません。
-
-**Q02実装前監査（2026-10-20 14:33 JST）：** 現macOS workflowはmain／PRだけで、開発branchのpushでは動きません。既存2 ptで、macOS全baselineを起動できる限定branch条件を追加し、対応Windows runを保持して両native hostの複合fixture／resource検証を確認します。Workflow／planningのみのhead差分ならRust・test・fixture byteが同一であることを明示照合します。SDK隔離成功だけでは複合conformance全体の代わりになりません。Q02完了まではG16を未完了にし、B／G／最終Z01と元の全要件を維持します。新しい前提・task・見積もりはありません。
+**B01実装前監査（2026-10-20 14:56 JST）：** 現schema20 prototype harnessは手書きscalar MIRと直接Rustの結果比較、統計、process-memory helperを持ちますが、M2 sourceと等価なC reference／owned runtimeの測定harnessはありません。既存2 ptで、scalar CFG、owned buffer／collection、shared／arena lifecycleの代表sourceと等価Rust／Cを同じ入力で検証するharnessを作り、checksumと解放を比較してからtimingを許可します。既存の統計／memory処理、SDK compiler／元object／実production runtimeを再利用します。execute_ownedはdecode／prepareを含むため、準備済み実行・準備・startupを混在させず、compiler flags、allocator／accounting scopeを明示します。最初に1 caseの実parityを確認し、前提や残作業が想定より大きければ先にscopeを再監査します。B02／B03が両hostのruntime／startup／memory／sizeと分散を測り、B04が解釈を公表します。既存schema20証拠は改変せず、まだ性能改善を主張しません。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -212,13 +210,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 124件（+89件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 125件（+90件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −225 pt | 18 pt |
+| 134 pt | +109 pt | −227 pt | 16 pt |
 
-**134 + 109 − 225 = 18 pt**
+**134 + 109 − 227 = 16 pt**
+
+Q02完了／B01実装前監査（2026-10-20 JST）：`1d0c0dc` のMac限定branch CIと、同一実装／fixtureのWindows `3db077f` 全baseline成功を照合し、既存2 ptを完了しました。**124 → 125完了、残り18 → 16 pt、完了で除いた225 → 227点、133行／追加109点は不変**。Q01／Q02の実source・runtime・AOT／C・resource証拠でG16を完了し、従来gateは16/18。B01だけを既存2 ptで選び、G17／G18／Z01と元の全要件を維持します。
 
 Q01完了／Q02実装前監査（2026-10-20 JST）：`3db077f` の複合source、末尾panic loan修正、通常／panic全resource prefix、実AOT／実C／保存C objectと全baselineで既存3 ptを完了しました。**123 → 124完了、残り21 → 18 pt、完了で除いた222 → 225点、133行／追加109点は不変**。Mac branch CI起動と対応両host証拠のQ02だけを既存2 ptで選びます。G16／B／G／Z01と元の全要件を維持します。
 
@@ -443,8 +443,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-P12 | done | 0 | M2-P11,M2-P10,M2-P07 | G15 | link-nativeがrustc／SDK／targetの完全一致を検証し、明示Rust／C hostと検証済み元byteをlinkして新しいexecutableをexclusive公開。 | `4acd99f` |
 | M2-P02 | done | 0 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Repo／target/deps外でCopy／ownership／Cを含む両tier-1のclean-install SDK link/run成功。 | `c54af31` |
 | M2-Q01 | done | 0 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | `3db077f` |
-| M2-Q02 | doing | 2 | M2-Q01,M2-P02 | G16 | 両tier-1 CIで代表conformanceとresource-limit scenarioの成功を記録。 | — |
-| M2-B01 | todo | 2 | M2-Q01 | G17 | 同等Rust／C workloadとharnessで比較前に意味的一致を確認。 | — |
+| M2-Q02 | done | 0 | M2-Q01,M2-P02 | G16 | 両tier-1 CIで代表conformanceとresource-limit scenarioの成功を記録。 | `1d0c0dc` |
+| M2-B01 | doing | 2 | M2-Q01 | G17 | 同等Rust／C workloadとharnessで比較前に意味的一致を確認。 | — |
 | M2-B02 | todo | 2 | M2-B01,M2-P02 | G17 | CleanなmacOSでruntime／startup／memory／sizeとばらつきを記録。 | — |
 | M2-B03 | todo | 2 | M2-B01,M2-P02 | G17 | 同等のclean Windows計測とばらつきを記録。 | — |
 | M2-B04 | todo | 1 | M2-B02,M2-B03 | G17 | 結果の解釈、再現command、残るperformance上の限界を公開。 | — |
