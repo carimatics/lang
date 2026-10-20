@@ -6,26 +6,28 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**132 done · 1 doing · 0 todo · 1 remaining pt**
+**133 done · 0 doing · 0 todo · 0 remaining pt**
 
-**Next: M2-Z01 → final bilingual capability guide and complete exit-evidence audit (1 pt, in progress).**
+**Next: none → all Milestone 2 deliveries are complete. Later milestones are planned separately.**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| Z01: final guide and exit audit | **G03 complete**: actual LLDB/CDB stepping and backtraces (`1496b8b`) | **18/18 gates; final documentation open** |
+| No active M2 work | **Z01 complete**: bilingual capability guide and full exit audit (`e12c120`) | **18/18 gates; final audit complete** |
 
-**Latest verified completion (2026-10-20 JST):** [run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593), exact product `1496b8b`, succeeds on macOS AArch64 and Windows x86-64. Actual LLDB/CDB both stop in original source, step Copy line 2→3 with caller lines 2/6/9, advance owned native PCs at line 8 with a production Rust runtime caller, and finish both programs to 42/normal exit. macOS evidence is recorded at **11:16:39 UTC**; Windows at **11:20:07 UTC**. Independent metadata checks cover whole-source PDBs and Windows `.pdata`/`.xdata`.
+**Final delivery checkpoint (2026-10-20 JST):** [the capability guide and 18-gate audit](milestone-2-capabilities.md) record current ownership/core/VM/native/C behavior, practical SDK workflows and exact evidence/limitations. Z01 also replaces stale incremental README status with current guidance and lets the consistency checker represent a completed board as `Next: none`. Actual check/VM/artifact/public-SDK link/run of the combined source succeeds and prints 42.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **3 − 2 = 1 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 242 = 1 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−1 pt), no added estimates/tasks.** Remaining **1 − 1 = 0 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 243 = 0 pt**. These retired planning units are not hours or a measured historical overrun.
 
-**G03 completion audit:** `7b6d181` repairs linked Mach-O function addresses; `1496b8b` adds Windows x64 unwind records for source Copy/owned/C-object functions. The probe uses preserved source and a manual debug link against the matching production SDK. Owned stepping shows physical native/runtime frames; logical continuation stepping, source variables, mixed VM/native stacks and automatic CLI sidecars remain outside this evidence. No requirement, estimate, ABI or serialized revision was added or reduced.
+Final local baseline: **1,593 tests / 95 suites, 0 failures, 1 manual timing ignore**; suite-time sum **439.90s**. fmt, warnings-denied workspace/all-target/all-feature Clippy (**18.52s**), rustdoc (**18.31s**) and all 11 fuzz-target compile/lint checks (**0.68s**) pass. New guide/README local links and anchors, all 18 audit rows and identical bilingual command blocks pass. Final board/roadmap consistency exercises the all-complete state; no unchanged compiler baseline is rerun for this planning-only update.
 
-Fresh product validation: **1,593 tests / 95 suites, 0 failures, 1 manual timing ignore**; suite-time sum 440.31s. fmt, warnings-denied workspace Clippy (21.59s), rustdoc (19.60s) and all 11 fuzz-target compile/lint checks (1.67s) pass. This documentation-only update checks bilingual board/roadmap consistency; B02/B03 performance captures retain their named earlier revisions.
+The final native implementation is `1496b8b`; [both-host actual debugger run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593) passes original-source breakpoints, Copy line 2→3/three source callers, owned instruction stepping/production runtime caller and normal 42 results. Windows unwind metadata and linked Mach-O addresses are repaired. Z01 changes documentation and its consistency test, not compiler/runtime behavior.
 
-**Z01 is now the sole remaining delivery.** Audit every original exit gate and publish a concise English/Japanese capability guide, including executable workflows and measured limitations. All 18 gates have evidence, but the Milestone 2 Goal remains active until this final documentation/audit delivery is complete.
+All original acceptance outcomes are retained. Performance evidence stays at the named B02/B03 revisions and shows large Rust/C gaps; the current native debug probe uses a manual matching-SDK link and physical owned/runtime frames. Experimental ABI/formats, source-variable locations, logical continuation stepping, mixed VM/native debugger stacks and later milestone features retain the limits in the guide.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
+
+Z01 delivery (2026-10-20 JST): `e12c120` publishes the bilingual capability guide and audits every original gate, updates README/SDK status and supports explicit `Next: none` only after all rows finish. Local full baseline is 1,593 tests/95 suites, 0 failures, 1 manual timing ignore; fmt/Clippy/rustdoc/all 11 fuzz-target checks and actual VM/artifact/native 42 smoke pass. Retire the final 1 pt: **132 → 133 done, 1 → 0 remaining pt**, ledger **134 + 109 − 243 = 0**. All 18 original gates and the final guide/audit are complete; no scope was removed.
 
 G03 historical checkpoint (2026-10-20 JST): `1496b8b` completes actual both-host debugger execution in [run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593); Mac job118597368496/Windows job118597368052. CDB's original truncated stack was caused by missing `.pdata`/`.xdata`; the repaired product retains the three-caller assertion. G03 retires 2 pt without scope/estimate additions: **131 → 132 done, 3 → 1 remaining pt**, ledger **134 + 109 − 242 = 1**. G18 closes; Z01 remains doing.
 
@@ -212,13 +214,13 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 132 (+97)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 133 (+98)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −242 pt | 1 pt |
+| 134 pt | +109 pt | −243 pt | 0 pt |
 
-**134 + 109 − 242 = 1 pt**
+**134 + 109 − 243 = 0 pt**
 
 G02 delivery / G03 readiness audit (2026-10-20 JST): `2297a07` adds whole-unit Windows CodeView to actual Copy/owned/C-export source packages and validates linked PDB functions/locations. Local 1,592-test/95-suite baseline and the exact native Windows required baseline pass. Retire 3 pt: **130 → 131 done, 6 → 3 remaining, retired 237 → 240 pt**; **133 rows/+109 additions unchanged**. Original gates remain **17/18**. G03 retains actual both-host stepping/backtraces and the linked Mach-O relocation repair; Z01 retains the final bilingual guide/full audit.
 
@@ -465,9 +467,11 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-G01 | done | 0 | M2-N06 | G18 | Emit native owned-value source spans/locations and validate macOS debug fixtures. | `4b0e902` |
 | M2-G02 | done | 0 | M2-N07 | G18 | Emit corresponding Windows native debug metadata and validate source locations. | `2297a07` |
 | M2-G03 | done | 0 | M2-G01,M2-G02 | G18 | Record actual debugger stepping/backtrace evidence on both tier-1 platforms. | `1496b8b` |
-| M2-Z01 | doing | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
+| M2-Z01 | done | 0 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | `e12c120` |
 
 ## Sources and verification dates
+
+- [Final capability guide and complete exit audit](milestone-2-capabilities.md) (`e12c120`): updated/verified 2026-10-20 JST; all 18 original gates, executable workflows and precise revision/measurement limitations. Compiler/runtime product `1496b8b` has actual both-host debugger evidence; this final delivery changes docs and the board-consistency test.
 
 - [RFC 0020](rfcs/0020-native-sdk-and-startup.md) and [retained SDK readiness probe](experiments/sdk-owned-consumer.rs) (`bca5f12`): accepted/verified 2026-10-20 JST. Documented producer/consumer build with matching rustc/copied libraries, then run after source removal with result42, positive allocations and complete release. Retire P08 initial1pt; P09 product implementation remains separate. Repository consistency3pass.
 

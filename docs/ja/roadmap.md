@@ -8,19 +8,19 @@
 
 ## 現在のM2実装状況
 
-**検証済み132件 · 進行中1件 · 残り0件（暫定1 pt）。**
-
-上の残り件数は進行中の1件を除く未着手件数で、Z01の最終1 ptが残っています。
+**検証済み133件 · 進行中0件 · 残り0件（暫定0 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone出口 |
 | --- | --- | --- |
-| Z01：最終guideと全出口監査 | **G03完了**：実LLDB／CDBのstep・backtrace（`1496b8b`） | **18/18 gates、最終文書は未完了** |
+| M2の進行中作業なし | **Z01完了**：日英capability guideと全出口監査（`e12c120`） | **18/18 gates、最終監査も完了** |
 
-**直近の検証済み完了（2026-10-20 JST）：** exact product `1496b8b`の[run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)がmacOS AArch64／Windows x86-64で成功しました。実LLDB／CDBで元sourceに停止し、Copyの2→3行stepと2／6／9行のcaller、ownedの8行でnative PC前進と実Rust runtime caller、両programのdebugger内42／正常終了を実証しました。macOS記録は**11:16:39 UTC**、Windowsは**11:20:07 UTC**です。独立metadata検証ではsource全体のPDBとWindowsの`.pdata`／`.xdata`も確認しました。
+**最終成果checkpoint（2026-10-20 JST）：** [capability guideと18 gate監査](milestone-2-capabilities.md)に、現ownership／core／VM／native／C動作、実用SDK手順、正確な証拠と制約を記録しました。Z01ではREADMEの古い逐次statusを現機能の案内へ置き換え、整合性checkerが全件完了を`Next: none`で表せるようにしました。複合sourceのcheck／VM／artifact／公開SDK link・runを実行し、42を確認しています。
 
-**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **3 − 2 = 1 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 242 = 1 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−1 pt）、見積もり／task追加なし。** 残り **1 − 1 = 0 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 243 = 0 pt**。完了したplanning単位であり、時間や計測済みの過去の超過工数ではありません。
 
-**残る成果はZ01の1件です。** 元の全exit gateを監査し、実行可能な手順と計測済みの制約を含む簡潔な日英capability guideを公開します。18 gateの証拠はそろっていますが、最終文書／監査が完了するまでMilestone 2 Goalを継続します。
+最終native実装は`1496b8b`で、[両host実debugger run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)が元sourceのbreakpoint、Copyの2→3行step／3段source caller、ownedのinstruction step／実runtime caller、42／正常終了に成功しました。Windows unwind metadataとlink後Mach-O addressを修正済みです。Z01の変更は文書と整合性testで、compiler／runtime動作は変更していません。
+
+元の全受け入れ成果を維持しています。性能証拠は記載したB02／B03 revisionのままでRust／Cとの大きな差があり、現native debug probeは対応SDKの手動linkとowned／runtimeの物理frameを使います。実験的ABI／format、source変数位置、論理continuation step、VM／native混在debugger stack、後続milestone機能はguide記載の制約を維持します。
 
 ## タスク管理
 
@@ -234,7 +234,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中18件完了、履歴上の重み：113 / 113 pt（100.0%）。最終capability guide／監査Z01は進行中です。**
+**Milestone 2完了：18/18 gate、履歴上の重み113 / 113 pt（100.0%）、最終capability guide／全出口監査Z01も完了。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -259,7 +259,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — 代表的native workloadを同等のRust／C実装に対して計測する。** — 8 pt
 - [x] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
 
-G18検証（2026-10-20 JST）：exact product `1496b8b`の[両host実debugger検証](https://github.com/carimatics/lang/actions/runs/39413674593)が成功しました。LLDB／CDBでCopyの2→3行step・2／6／9行caller、ownedのinstruction step／実runtime caller、42／正常終了をassertします。対応SDKによる手動debug linkでsourceを保持し、source変数・論理continuation step・CLIのdebug sidecar自動出力はこの証拠の範囲外です。Z01の最終guide／全出口監査は引き続き必要です。
+G18検証（2026-10-20 JST）：exact product `1496b8b`の[両host実debugger検証](https://github.com/carimatics/lang/actions/runs/39413674593)が成功しました。LLDB／CDBでCopyの2→3行step・2／6／9行caller、ownedのinstruction step／実runtime caller、42／正常終了をassertします。対応SDKによる手動debug linkでsourceを保持し、source変数・論理continuation step・CLIのdebug sidecar自動出力はこの証拠の範囲外です。[最終日英guide](milestone-2-capabilities.md)で全18 gateを監査し、Z01も完了しました。
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。
 

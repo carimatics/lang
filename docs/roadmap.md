@@ -8,19 +8,19 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**132 verified deliveries · 1 in progress · 0 remaining tasks (provisional 1 pt).**
-
-The task count above excludes the one delivery in progress; Z01 still owns the final 1 pt.
+**133 verified deliveries · 0 in progress · 0 remaining tasks (provisional 0 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| Z01: final guide and exit audit | **G03 complete**: actual LLDB/CDB stepping and backtraces (`1496b8b`) | **18/18 gates; final documentation open** |
+| No active M2 work | **Z01 complete**: bilingual capability guide and full exit audit (`e12c120`) | **18/18 gates; final audit complete** |
 
-**Latest verified completion (2026-10-20 JST):** [run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593), exact product `1496b8b`, succeeds on macOS AArch64 and Windows x86-64. Actual LLDB/CDB both stop in original source, step Copy line 2→3 with caller lines 2/6/9, advance owned native PCs at line 8 with a production Rust runtime caller, and finish both programs to 42/normal exit. macOS evidence is recorded at **11:16:39 UTC**; Windows at **11:20:07 UTC**. Independent metadata checks cover whole-source PDBs and Windows `.pdata`/`.xdata`.
+**Final delivery checkpoint (2026-10-20 JST):** [the capability guide and 18-gate audit](milestone-2-capabilities.md) record current ownership/core/VM/native/C behavior, practical SDK workflows and exact evidence/limitations. Z01 also replaces stale incremental README status with current guidance and lets the consistency checker represent a completed board as `Next: none`. Actual check/VM/artifact/public-SDK link/run of the combined source succeeds and prints 42.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **3 − 2 = 1 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 242 = 1 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−1 pt), no added estimates/tasks.** Remaining **1 − 1 = 0 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 243 = 0 pt**. These retired planning units are not hours or a measured historical overrun.
 
-**Z01 is now the sole remaining delivery.** Audit every original exit gate and publish a concise English/Japanese capability guide, including executable workflows and measured limitations. All 18 gates have evidence, but the Milestone 2 Goal remains active until this final documentation/audit delivery is complete.
+The final native implementation is `1496b8b`; [both-host actual debugger run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593) passes original-source breakpoints, Copy line 2→3/three source callers, owned instruction stepping/production runtime caller and normal 42 results. Windows unwind metadata and linked Mach-O addresses are repaired. Z01 changes documentation and its consistency test, not compiler/runtime behavior.
+
+All original acceptance outcomes are retained. Performance evidence stays at the named B02/B03 revisions and shows large Rust/C gaps; the current native debug probe uses a manual matching-SDK link and physical owned/runtime frames. Experimental ABI/formats, source-variable locations, logical continuation stepping, mixed VM/native debugger stacks and later milestone features retain the limits in the guide.
 
 ## Task tracking
 
@@ -234,7 +234,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 18 / 18 complete; historical weight: 113 / 113 pt (100.0%). Final capability guide/audit Z01 remains in progress.**
+**Milestone 2 complete: 18/18 gates, historical weight 113 / 113 pt (100.0%), final capability guide/full exit audit Z01 complete.**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -259,7 +259,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
 - [x] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
-G18 verification (2026-10-20 JST): exact product `1496b8b` passes [both-host actual debugger execution](https://github.com/carimatics/lang/actions/runs/39413674593). Copy source line 2→3 and caller lines 2/6/9, owned instruction stepping/production runtime caller and normal 42 results are asserted on LLDB/CDB. The manual matching-SDK debug link preserves source; source variables, logical continuation stepping and automatic CLI debug sidecars remain outside this evidence. Z01's final guide and complete exit audit are still required.
+G18 verification (2026-10-20 JST): exact product `1496b8b` passes [both-host actual debugger execution](https://github.com/carimatics/lang/actions/runs/39413674593). Copy source line 2→3 and caller lines 2/6/9, owned instruction stepping/production runtime caller and normal 42 results are asserted on LLDB/CDB. The manual matching-SDK debug link preserves source; source variables, logical continuation stepping and automatic CLI debug sidecars remain outside this evidence. [The final bilingual guide](milestone-2-capabilities.md) audits all 18 gates and completes Z01.
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
 

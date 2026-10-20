@@ -6,26 +6,28 @@
 
 更新・検証：**2026-10-20 JST**。初回監査checkpoint：`0c2c012`。
 
-**132 done · 1 doing · 0 todo · 1 remaining pt**
+**133 done · 0 doing · 0 todo · 0 remaining pt**
 
-**次: M2-Z01 → 最終日英capability guideと全exit evidence監査（1 pt、進行中）。**
+**次: none → Milestone 2の全成果が完了しました。後続milestoneは別途計画します。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone出口 |
 | --- | --- | --- |
-| Z01：最終guideと全出口監査 | **G03完了**：実LLDB／CDBのstep・backtrace（`1496b8b`） | **18/18 gates、最終文書は未完了** |
+| M2の進行中作業なし | **Z01完了**：日英capability guideと全出口監査（`e12c120`） | **18/18 gates、最終監査も完了** |
 
-**直近の検証済み完了（2026-10-20 JST）：** exact product `1496b8b`の[run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)がmacOS AArch64／Windows x86-64で成功しました。実LLDB／CDBで元sourceに停止し、Copyの2→3行stepと2／6／9行のcaller、ownedの8行でnative PC前進と実Rust runtime caller、両programのdebugger内42／正常終了を実証しました。macOS記録は**11:16:39 UTC**、Windowsは**11:20:07 UTC**です。独立metadata検証ではsource全体のPDBとWindowsの`.pdata`／`.xdata`も確認しました。
+**最終成果checkpoint（2026-10-20 JST）：** [capability guideと18 gate監査](milestone-2-capabilities.md)に、現ownership／core／VM／native／C動作、実用SDK手順、正確な証拠と制約を記録しました。Z01ではREADMEの古い逐次statusを現機能の案内へ置き換え、整合性checkerが全件完了を`Next: none`で表せるようにしました。複合sourceのcheck／VM／artifact／公開SDK link・runを実行し、42を確認しています。
 
-**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **3 − 2 = 1 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もり変更)は **134 + 109 − 242 = 1 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−1 pt）、見積もり／task追加なし。** 残り **1 − 1 = 0 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もり変更)は **134 + 109 − 243 = 0 pt**。完了したplanning単位であり、時間や計測済みの過去の超過工数ではありません。
 
-**G03完了監査：** `7b6d181`でlink後Mach-O function addressを修正し、`1496b8b`でsource Copy／owned／C objectのWindows x64 unwind recordを追加しました。probeはsourceを保持し、対応する実SDKを使った手動debug linkを行います。ownedのstepは物理native／runtime frameを示し、論理continuation step・source変数・VM／native混在stack・CLIのsidecar自動出力はこの証拠の範囲外です。要件・見積もり・ABI・serialized revisionの追加や縮小はありません。
+最終local baseline：**1,593 tests／95 suites、失敗0、手動計測ignore 1件**、suite時間合計**439.90s**。fmt、workspace／all-target／all-feature警告error化Clippy（**18.52s**）、rustdoc（**18.31s**）、全11 fuzz targetのcompile／lint（**0.68s**）が成功しました。新guide／READMEのlocal link・anchor、全18監査行、日英command block一致も検証しました。最終board／roadmap整合性testは全件完了状態を検証し、計画のみの更新で変更のないcompiler全baselineは再実行しません。
 
-新規product検証：**1,593 tests／95 suites、失敗0、手動計測ignore 1件**、suite時間合計440.31s。fmt、workspace警告error化Clippy（21.59s）、rustdoc（19.60s）、全11 fuzz targetのcompile／lint（1.67s）が成功しました。この文書のみの更新は日英board／roadmapの整合性を検証し、B02／B03の性能captureは記載した先行revision時点の証拠に限ります。
+最終native実装は`1496b8b`で、[両host実debugger run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)が元sourceのbreakpoint、Copyの2→3行step／3段source caller、ownedのinstruction step／実runtime caller、42／正常終了に成功しました。Windows unwind metadataとlink後Mach-O addressを修正済みです。Z01の変更は文書と整合性testで、compiler／runtime動作は変更していません。
 
-**残る成果はZ01の1件です。** 元の全exit gateを監査し、実行可能な手順と計測済みの制約を含む簡潔な日英capability guideを公開します。18 gateの証拠はそろっていますが、最終文書／監査が完了するまでMilestone 2 Goalを継続します。
+元の全受け入れ成果を維持しています。性能証拠は記載したB02／B03 revisionのままでRust／Cとの大きな差があり、現native debug probeは対応SDKの手動linkとowned／runtimeの物理frameを使います。実験的ABI／format、source変数位置、論理continuation step、VM／native混在debugger stack、後続milestone機能はguide記載の制約を維持します。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
+
+Z01成果（2026-10-20 JST）：`e12c120`で日英capability guideと元の全gate監査を公開し、README／SDK statusを更新しました。全行完了時のみ明示`Next: none`を認めます。Local全体1,593 tests／95 suites、失敗0、手動計測ignore 1件、fmt／Clippy／rustdoc／全11 fuzz targetとVM／artifact／nativeの実42 smokeが成功しました。最終1 ptを完了し、**132 → 133 done、残り1 → 0 pt**、収支は**134 + 109 − 243 = 0**。元18 gateと最終guide／監査が完了し、scopeは削っていません。
 
 G03履歴checkpoint（2026-10-20 JST）：`1496b8b`の[run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)、Mac job118597368496／Windows job118597368052で両hostの実debugger検証を完了しました。元のCDB stack途切れは`.pdata`／`.xdata`欠落が原因で、修正後も3段caller要件を維持しています。scope／見積もり追加なしで2 ptを完了し、**131 → 132 done、残り3 → 1 pt**、収支は**134 + 109 − 242 = 1**。G18を閉じ、Z01をdoingにします。
 
@@ -212,13 +214,13 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 132件（+97件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 133件（+98件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −242 pt | 1 pt |
+| 134 pt | +109 pt | −243 pt | 0 pt |
 
-**134 + 109 − 242 = 1 pt**
+**134 + 109 − 243 = 0 pt**
 
 G02完了／G03実装前監査（2026-10-20 JST）：`2297a07`で実Copy／owned／C-export source packageへunit全体のWindows CodeViewを追加し、linkしたPDBのfunction／位置を検証しました。local 1,592-test／95-suite baselineと同一commitのnative Windows必須baselineが成功しました。3 ptを完了し、**130 → 131 done、残り6 → 3 pt、retired 237 → 240 pt**、**133行／追加109点は不変**です。原出口は**17/18**を維持します。G03の両host実stepping／backtraceとlink後Mach-O relocation修正、Z01の最終日英guide／全監査を残します。
 
@@ -465,9 +467,11 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-G01 | done | 0 | M2-N06 | G18 | Native owned-valueのsource span／locationをemitし、macOS debug fixtureで検証。 | `4b0e902` |
 | M2-G02 | done | 0 | M2-N07 | G18 | 対応するWindows native debug metadataをemitし、source locationを検証。 | `2297a07` |
 | M2-G03 | done | 0 | M2-G01,M2-G02 | G18 | 両tier-1実機でdebuggerのstep／backtrace evidenceを記録。 | `1496b8b` |
-| M2-Z01 | doing | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | 全exit evidenceを監査し、英日M2 capability guideを公開。 | — |
+| M2-Z01 | done | 0 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | 全exit evidenceを監査し、英日M2 capability guideを公開。 | `e12c120` |
 
 ## 情報源と確認日
+
+- [最終capability guideと全出口監査](milestone-2-capabilities.md)（`e12c120`）：2026-10-20 JST更新・検証。元の全18 gate、実行手順、正確なrevision／計測上の制約を記録します。Compiler／runtime product `1496b8b`には両host実debugger証拠があり、最終成果の変更は文書とboard整合性testです。
 
 - [RFC 0020](rfcs/0020-native-sdk-and-startup.md)と[保存したSDK準備実験](../experiments/sdk-owned-consumer.rs)（`bca5f12`）：2026-10-20 JST受理・確認。Producer／consumerを対応rustcとコピー済みlibraryで実buildし、元source移動後の42／allocation発生・全解放を確認。P08の初期1 ptを完了し、P09の製品実装は別途未完了です。Repository整合性3件が成功。
 
