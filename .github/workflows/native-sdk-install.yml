@@ -54,7 +54,9 @@ jobs:
         with:
           name: native-sdk-${{ matrix.target }}
           path: ${{ runner.temp }}/SDK.tar
-          archive: false
+          # Raw upload ignores name; a stored zip preserves distinct matrix names.
+          # Executable permissions remain inside the tar, not the zip envelope.
+          compression-level: 0
           if-no-files-found: error
           retention-days: 7
 
