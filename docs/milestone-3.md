@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**3 done · 1 doing · 37 todo · 107 remaining pt**
+**4 done · 1 doing · 36 todo · 104 remaining pt**
 
-**Next: M3-T09 → bind/type async effects and scoped Task claims before executable lowering.**
+**Next: M3-T10 → prove no live lexical loan at suspension before task MIR.**
 
-Current delivery: **M3-T09**. Last executable checkpoint: **`0655939`, verified 2026-10-21 01:38 JST**: accepted [RFC 0022](rfcs/0022-source-structured-tasks.md), lossless async/task grammar, recovery and formatter fixtures; 14 added regressions cover source/module/CLI/REPL/LSP admission. Full baseline: **96 suites / 1,627 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and 11 fuzz-target compile/lint checks pass. Remaining T09 acceptance: resolved async effects, Task/TaskError typing, scoped claims, call/move/escape and C-surface diagnostics. Retain explicit refusal of unavailable execution until the relevant source/MIR proofs and adapters are connected. T10 still owns suspension-loan proofs; no source task executes yet and no M3 gate is complete.
+Current delivery: **M3-T10**. Last executable checkpoint: **`390e3ca`, verified 2026-10-21 03:08 JST**: resolved async effects, Task/TaskError typing, move checks and bounded lexical claim provenance; 14 new regressions plus existing module/CLI/REPL/LSP coverage pass. Full baseline: **97 suites / 1,641 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and 11 fuzz-target compile/lint checks pass. Remaining T10 acceptance: reject live shared/exclusive loans at await, yield, cancel_check and implicit joins, preserve loan-origin/suspension spans, end exiting lexical loans before a join and retain outer loans at a nested join. Valid task source still receives SRC0026; no task MIR/source execution or M3 gate is complete.
 
-**This update: T03 completed (−3 pt); no new tasks or estimates.** Previous remaining **110 − 3 = 107 pt**. There are **41 rows**; cumulative retirement is **8 pt**, separate from **+5 pt** added estimates.
+**This update: T09 completed (−3 pt); no new tasks or estimates.** Previous remaining **107 − 3 = 104 pt**. There are **41 rows**; cumulative retirement is **11 pt**, separate from **+5 pt** added estimates.
 
 ## Deliveries
 
@@ -23,8 +23,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-T01 | done | 0 | — | G01 | Accept explicit FIFO driver, task ancestry, join, cancellation, failure and bounded admission rules | `8ab751b` |
 | M3-T02 | done | 0 | M3-T01 | G03,G12 | Execute a bounded host-driven task tree with joins, cooperative cancellation and postorder retirement | `a543d23` |
 | M3-T03 | done | 0 | M3-T01 | G01,G03 | Accept source async contracts and preserve task syntax through lossless parsing, recovery and formatting | `0655939` |
-| M3-T09 | doing | 3 | M3-T03 | G03 | Bind/type async calls and scoped task handles; reject handle escape and invalid async C surfaces | — |
-| M3-T10 | todo | 2 | M3-T09 | G03 | Reject shared/exclusive loans at suspension with suspension and loan-origin diagnostics | — |
+| M3-T09 | done | 0 | M3-T03 | G03 | Bind/type async calls and scoped task handles; reject handle escape and invalid async C surfaces | `390e3ca` |
+| M3-T10 | doing | 2 | M3-T09 | G03 | Reject shared/exclusive loans at suspension with suspension and loan-origin diagnostics | — |
 | M3-T04 | todo | 3 | M3-T10 | G03 | Verify typed MIR suspension, task scopes and ownership edges independently | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | Execute a source spawn/yield/join fixture in the VM through the shared task driver | — |
 | M3-T06 | todo | 3 | M3-T05 | G03,G13 | Execute the same task fixture through native continuations with equivalent events | — |
@@ -78,19 +78,25 @@ T03 completed at `0655939` (2026-10-21 JST): accepted RFC 0022; exact task keywo
 
 T03 roadmap audit: the source async decision closes only part of G01. Channels/backpressure, Send/Share, production embedding, source proofs and cross-mode execution are still required; all 15 gates stay open. Preserve T09 → T10 → T04 → T05 → T06 as the next source/VM/native path. Do not expose Task through existing C/serialized profiles or retire artifact/startup work without accepted format extensions and conformance evidence. Current T09 acceptance remains the explicitly split 3-point typing/scope outcome; no new prerequisite or estimate is introduced by this syntax delivery.
 
-**110 + 5 − 8 = 107 pt**
+T09 completed at `390e3ca` (2026-10-21 JST): resolved async effects, Task/TaskError typing, await Result types, call/move/consume diagnostics and bounded lexical scope provenance. Task claims cannot escape, be borrowed/matched, enter containers/nested tasks or appear in parameters/results/C surfaces. Existing finite C validation also refuses TaskError. The first transfer profile admits scalar/finite Copy values; owned Send/Share remains A01, not a claim that owned values are intrinsically non-sendable. Explicit generic Result unwraps use the existing syntax; opaque Task matching follows existing loan semantics. Fourteen new regressions cover branches/loops, raw IDs/spans, work/allocation/diagnostic caps and separation from executable/loan proof. Existing file/virtual/cached modules and CLI/REPL/LSP retain transactional refusal; valid source still receives SRC0026. Full baseline: **97 suites / 1,641 passed / 0 failed / 1 existing timing ignore**, suite-time sum **437.84s**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. The raw HIR fuzz generator now includes async effects, Task/TaskError and spawn/await; no fuzz campaign is claimed. Retire T09’s last 3 pt; no additions or re-estimates.
+
+T09 roadmap audit: all 15 gates and P1 outcomes remain required. Proceed **T10 → T04 → T05 → T06** using the existing lexical loan engine and bounded task driver. Do not add scheduler/IDL scaffolding before the next source fixture; source task execution, independent MIR proofs and native parity remain unproven.
+
+**110 + 5 − 11 = 104 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +5 pt | −8 pt | 107 pt |
+| 110 pt | +5 pt | −11 pt | 104 pt |
 
 ## Exit audit
 
-**0/15 gates complete; 0/96 gate weight.** A delivery is not a gate. G01 waits for task syntax, channels and Send/Share decisions; G14 waits for real cross-mode conformance on macOS AArch64 and Windows x86-64. No P1 work is moved out of M3.
+**0/15 gates complete; 0/96 gate weight.** A delivery is not a gate. Source async syntax is accepted, but G01 still waits for channel/backpressure and Send/Share decisions; G14 waits for real cross-mode conformance on macOS AArch64 and Windows x86-64. No P1 work is moved out of M3.
 
 ## Sources
 
-- [Roadmap](roadmap.md), [architecture](architecture.md), [completed M2 board](milestone-2.md), and [review](review-2026-10-20.md): last updated 2026-10-20; inspected at `984557d`, 2026-10-20 JST.
+- Activation references: [roadmap](roadmap.md), [architecture](architecture.md), [completed M2 board](milestone-2.md), and [review](review-2026-10-20.md), as of `984557d`; those versions last updated 2026-10-20, inspected 2026-10-20 JST. The T09 roadmap/architecture reconciliation is dated 2026-10-21 JST.
 - [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md), last updated 2026-10-21, and [RFC 0003](rfcs/0003-versioned-component-contracts.md), last updated 2026-10-17. These contracts remain binding; prototypes do not prove production completion.
 - [RFC 0021](rfcs/0021-bounded-structured-task-driver.md), last updated 2026-10-21; current kernel, tests and example inspected at `a543d23` on 2026-10-21 JST. Source-scope audit uses `crates/hir/src/resolved.rs`, `crates/hir/src/program/`, `crates/hir/src/loans.rs` and `crates/semantics/src/analysis.rs` from the same checkpoint.
 - [RFC 0022](rfcs/0022-source-structured-tasks.md), last updated 2026-10-21; syntax, module admission, REPL and CLI/LSP fixtures inspected at `0655939` on 2026-10-21 JST. Source grammar/formatter contracts and current execution limits are recorded separately there.
+
+- T09 evidence: [RFC 0022](rfcs/0022-source-structured-tasks.md), `crates/hir/src/tasks.rs` and `crates/semantics/tests/tasks.rs`; last updated 2026-10-21, inspected at `390e3ca` on 2026-10-21 JST.

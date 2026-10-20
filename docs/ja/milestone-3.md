@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**3 done · 1 doing · 37 todo · 107 remaining pt**
+**4 done · 1 doing · 36 todo · 104 remaining pt**
 
-**次: M3-T09 → 実行 lowering 前に async effect と scope 付き Task claim を bind/type します。**
+**次: M3-T10 → task MIR 前に suspension 時の lexical loan 不在を証明します。**
 
-現在の作業: **M3-T09**。直近の実行検証: **`0655939`、2026-10-21 01:38 JST**。[RFC 0022](rfcs/0022-source-structured-tasks.md) の採択、lossless async/task grammar、recovery、formatter fixture が成功。追加 14 件で source/module/CLI/REPL/LSP admission を検証しました。全 baseline は **96 suite / 成功 1,627 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、11 fuzz target の compile/lint も成功。T09 の残る受入条件: resolved async effect、Task/TaskError 型、scoped claim、call/move/escape/C surface 診断。source/MIR の必要な証明と adapter 接続までは未対応実行を明示拒否します。suspension loan 証明は T10 です。source task の実行と M3 ゲートは未完了です。
+現在の作業: **M3-T10**。直近の実行検証: **`390e3ca`、2026-10-21 03:08 JST**。resolved async effect、Task/TaskError 型、move 検査、有界 lexical claim provenance を実装し、追加 14 件と既存 module/CLI/REPL/LSP 検証が成功しました。全 baseline は **97 suite / 成功 1,641 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、11 fuzz target の compile/lint も成功。T10 の残る受入条件: await/yield/cancel_check/暗黙 join で生存 shared/exclusive loan を拒否し、loan 起点/suspension span を保持し、終了する lexical loan を join 前に終え、入れ子 join では外側 loan を維持します。妥当な task source も SRC0026 を受けます。task MIR/source 実行と M3 ゲートは未完了です。
 
-**今回: T03 完了（−3 pt）、新しい作業/見積りの追加なし。** 前回残り **110 − 3 = 107 pt**。全 **41 行**、累積消化 **8 pt** と追加見積り **+5 pt** は別に記録します。
+**今回: T09 完了（−3 pt）、新しい作業/見積りの追加なし。** 前回残り **107 − 3 = 104 pt**。全 **41 行**、累積消化 **11 pt** と追加見積り **+5 pt** は別に記録します。
 
 ## Deliveries
 
@@ -23,8 +23,8 @@
 | M3-T01 | done | 0 | — | G01 | FIFO ドライバー、親子関係、join、取消、失敗、上限付き admission の規則を採択 | `8ab751b` |
 | M3-T02 | done | 0 | M3-T01 | G03,G12 | ホスト駆動の上限付きタスク木で join、協調取消、子から親への retirement を実行 | `a543d23` |
 | M3-T03 | done | 0 | M3-T01 | G01,G03 | source async 契約を採択し lossless parse/recovery/format で task 構文を保持 | `0655939` |
-| M3-T09 | doing | 3 | M3-T03 | G03 | async call と scope 付き task handle を bind/type し、逸出と不正 async C surface を拒否 | — |
-| M3-T10 | todo | 2 | M3-T09 | G03 | suspension を跨ぐ shared/exclusive loan を両方の起点の診断付きで拒否 | — |
+| M3-T09 | done | 0 | M3-T03 | G03 | async call と scope 付き task handle を bind/type し、逸出と不正 async C surface を拒否 | `390e3ca` |
+| M3-T10 | doing | 2 | M3-T09 | G03 | suspension を跨ぐ shared/exclusive loan を両方の起点の診断付きで拒否 | — |
 | M3-T04 | todo | 3 | M3-T10 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | — |
 | M3-T06 | todo | 3 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | — |
@@ -78,19 +78,25 @@ T03 は `0655939` で完了（2026-10-21 JST）。RFC 0022 を採択し、厳密
 
 T03 ロードマップ監査: source async 判断は G01 の一部です。channel/backpressure、Send/Share、production embedding、source 証明、cross-mode 実行を引き続き要し、全 15 ゲートを未完了のまま維持します。次は T09 → T10 → T04 → T05 → T06 の source/VM/native 経路です。accepted format 拡張と適合証拠なしに Task を既存 C/serialized profile に公開したり artifact/startup 作業を消化したりしません。T09 は明示分割した 3 pt の型/scope 成果を維持し、今回の構文作業で新たな前提/見積りは追加しません。
 
-**110 + 5 − 8 = 107 pt**
+T09 を `390e3ca` で完了（2026-10-21 JST）: resolved async effect、Task/TaskError 型、await の Result 型、call/move/consume 診断、有界 lexical scope provenance を実装しました。Task claim の scope escape、borrow/match、container/入れ子格納、parameter/result/C surface を拒否します。既存 finite C 検査でも TaskError を拒否します。初期 transfer profile は scalar/finite Copy 値に限定し、owned Send/Share は A01 です。owned 値自体が送信不能という主張ではありません。Result unwrap の明示 generic は既存構文に従い、opaque Task の match は既存 loan semantics に従います。追加 14 件で branch/loop、raw ID/span、work/allocation/diagnostic 上限、実行/loan 証明との分離を検証しました。既存 file/virtual/cached module と CLI/REPL/LSP は transactional な拒否を維持し、妥当な source も SRC0026 を受けます。全 baseline は **97 suite / 成功 1,641 / 失敗 0 / 既存 timing ignore 1**、suite 時間合計 **437.84s**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が成功しました。raw HIR fuzz generator に async effect、Task/TaskError、spawn/await を加えましたが、fuzz campaign の実施は主張しません。T09 の最後の 3 pt を消化し、追加/再見積りはありません。
+
+T09 roadmap 監査: 全 15 gate と P1 成果は引き続き必要です。既存 lexical loan engine と有界 task driver を使い **T10 → T04 → T05 → T06** を進めます。次の source fixture 前に scheduler/IDL 基盤を追加しません。source task 実行、独立 MIR 証明、native parity は未証明です。
+
+**110 + 5 − 11 = 104 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +5 pt | −8 pt | 107 pt |
+| 110 pt | +5 pt | −11 pt | 104 pt |
 
 ## Exit audit
 
-**0/15 ゲート完了、ゲート重み 0/96。** 作業の完了とゲートの完了は別です。G01 には task 構文、channel、Send/Share の決定が必要です。G14 には macOS AArch64 と Windows x86-64 で実際の cross-mode 適合試験が必要です。P1 作業も M3 に残します。
+**0/15 ゲート完了、ゲート重み 0/96。** 作業の完了とゲートの完了は別です。source async 構文は採択済みですが、G01 には channel/backpressure と Send/Share の決定が残っています。G14 には macOS AArch64 と Windows x86-64 で実際の cross-mode 適合試験が必要です。P1 作業も M3 に残します。
 
 ## Sources
 
-- [ロードマップ](roadmap.md)、[architecture](architecture.md)、[完了済み M2 board](milestone-2.md)、[レビュー](review-2026-10-20.md): 最終更新 2026-10-20、`984557d` で 2026-10-20 JST に確認。
+- 開始時の参照: `984557d` 時点の[ロードマップ](roadmap.md)、[architecture](architecture.md)、[完了済み M2 board](milestone-2.md)、[レビュー](review-2026-10-20.md)。当時の版の最終更新は 2026-10-20、確認日は 2026-10-20 JST です。T09 の roadmap/architecture 再確認は 2026-10-21 JST です。
 - [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21 と [RFC 0003](rfcs/0003-versioned-component-contracts.md)、最終更新 2026-10-17。契約を引き続き遵守し、prototype は production 完了の証拠にしません。
 - [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)、最終更新 2026-10-21。kernel、test、example を `a543d23` で 2026-10-21 JST に確認。source scope 監査は同じ checkpoint の `crates/hir/src/resolved.rs`、`crates/hir/src/program/`、`crates/hir/src/loans.rs`、`crates/semantics/src/analysis.rs` に基づきます。
 - [RFC 0022](rfcs/0022-source-structured-tasks.md)、最終更新 2026-10-21。syntax/module admission/REPL/CLI・LSP fixture を `0655939` で 2026-10-21 JST に確認。grammar/formatter 契約と現在の実行制限は同 RFC に区別して記録しています。
+
+- T09 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、`crates/hir/src/tasks.rs`、`crates/semantics/tests/tasks.rs`。最終更新 2026-10-21。`390e3ca` を 2026-10-21 JST に検証しました。
