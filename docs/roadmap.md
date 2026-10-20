@@ -12,13 +12,13 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| G02: Windows source names/locations and native metadata | **G01 complete**: actual macOS Copy/owned/C-export DWARF (`4b0e902`) | **17/18 gates** |
+| G02: implemented (`2297a07`), native Windows validation in progress | **G01 complete**: actual macOS Copy/owned/C-export DWARF (`4b0e902`) | **17/18 gates** |
 
 **Latest verification checkpoint (2026-10-20 JST):** `4b0e902` adds [canonical source-snapshot adaptation](../crates/codegen-clif/src/source_debug.rs) and [multi-function DWARF emission](../crates/codegen-clif/src/debug.rs), connected to the actual macOS source producer. The [native compiler test](../tests/native_compiler.rs) emits Copy/owned/C-export packages, verifies each with native llvm-dwarfdump and checks per-function symbols/relocations. Three adapter tests cover Unicode/CRLF/EOF, cross-file ranges and source/range/budget rejection. A seven-function owned-pipeline object also verifies. Full baseline: 1,589 tests/94 suites, 0 failures, 1 manual timing ignore.
 
 **This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **9 − 3 = 6 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 237 = 6 pt**. Provisional planning units are not hours or completion percentages.
 
-**G02 readiness (2026-10-20 JST):** retain the existing 3 pt. Reuse G01’s bounded canonical source index and exact native function/range data. The existing COFF writer describes a single earlier prototype with a known signature; generalize whole-unit/multi-file CodeView records and relocations for the actual source producer, describing the actual private i32/two-pointer machine type without fabricated source variable locations. Preserve the earlier prototype writer, encoded format/ABI checks and diagnostic/resource bounds. Validate corresponding Copy/owned/C-export Windows objects and source locations on native Windows before credit. G03 retains actual stepping/backtraces on both hosts, and Z01 the final bilingual guide/full audit. No new estimate is added.
+**G02 validation in progress (2026-10-20 18:31 JST):** implementation commit `2297a07` connects actual Copy/owned/C-export production to CodeView/PDB. Local validation passes 1,592 tests/95 suites, 0 failures, 1 manual timing ignore, fmt/Clippy/rustdoc and all 11 fuzz-target compilation checks. The same [macOS CI](https://github.com/carimatics/lang/actions/runs/39398395138) also succeeds. [Windows CI](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278) passes native C/linker, fmt, Clippy and all test-executable builds; full tests are running. **Implemented → locally verified → native Windows validation in progress**. Done 130/remaining 6 pt, 133 rows/+109 added points are unchanged. Retire the existing G02 3 pt after native validation; retain G03 actual stepping/backtraces and Z01 final bilingual guide/full audit.
 
 ## Task tracking
 

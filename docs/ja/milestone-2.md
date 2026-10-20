@@ -12,7 +12,7 @@
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| G02：Windows source名／位置とnative metadata | **G01完了**：実macOS Copy／owned／C-export DWARF（`4b0e902`） | **17/18条件** |
+| G02：実装済み（`2297a07`）、Windows実機検証中 | **G01完了**：実macOS Copy／owned／C-export DWARF（`4b0e902`） | **17/18条件** |
 
 **直近の検証checkpoint（2026-10-20 JST）：** `4b0e902`で[canonical source snapshot変換](../../crates/codegen-clif/src/source_debug.rs)と[複数function DWARF出力](../../crates/codegen-clif/src/debug.rs)を実macOS source producerへ接続しました。[Native compiler test](../../tests/native_compiler.rs)でCopy／owned／C-export packageを出力し、native llvm-dwarfdumpとfunction別symbol／relocationを検証しています。adapter 3 testはUnicode／CRLF／EOF、cross-file、不正source／range／budget拒否を確認し、7 function owned-pipeline objectも検証成功です。全baselineは1,589 tests／94 suites、0失敗、手動timing ignore 1件です。
 
@@ -22,7 +22,7 @@
 
 G01の新baselineは **1,589 tests／94 suites、0失敗、手動timing ignore 1件**、suite時間合計447.68sです。format成功、警告をerrorとするworkspace／all-target／all-feature Clippy成功（19.65s）、rustdoc成功（18.60s）、全11 fuzz targetのcompile／lint成功（2.50s）、新focused 4 testと7 function LLVM probeも成功しました。今回の計画だけの更新にはrepository consistency 3件と新link検証を使います。B02／B03の性能captureは記載した先行revisionの不変の証拠であり、変更後compiler出力の新しい計測とは扱いません。
 
-**G02実装前監査（2026-10-20 JST）：** 既存3 ptを維持し、G01の上限付きcanonical source indexと正確なnative function／range dataを再利用します。現COFF writerは既知signatureの先行単一prototype向けなので、unit全体／複数fileのCodeView recordとrelocationへ一般化し、実source producerに接続します。private pointer ABIは実際のi32戻り値・2 pointerのmachine typeを記述し、source variable位置を捏造せず、先行prototype writer、encoded format／ABI検査、diagnostic／resource boundを維持します。対応するCopy／owned／C-export Windows objectとsource位置をnative Windowsで検証してから完了にします。G03の両host実stepping／backtraceとZ01の最終日英guide／全監査を残します。見積もり追加はありません。
+**G02検証中（2026-10-20 18:31 JST）：** 実装commitは `2297a07`。実Copy／owned／C-exportの3 profileをCodeView／PDBへ接続し、localは1,592 tests／95 suites、失敗0、手動計測ignore 1件、fmt／Clippy／rustdoc／全11 fuzz target compileが成功しています。同commitの[macOS CI](https://github.com/carimatics/lang/actions/runs/39398395138)も成功しました。[Windows CI](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278)はnative C／linker、fmt、Clippy、全test executable buildまで成功し、全test実行中です。**実装済み → local検証済み → Windows実機検証中**。完了数130／残り6 pt、133行／追加109点は未変更です。Windows検証完了後に既存G02の3 ptを完了にし、G03の実stepping／backtraceとZ01の最終日英guide／全監査を残します。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
