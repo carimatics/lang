@@ -68,12 +68,12 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0018: Native compiler records (implemented)](docs/rfcs/0018-native-compiler-records.md)
 - [RFC 0019: Ordinary owned native entry runtime (implemented)](docs/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: Experimental native SDK and scoped startup (implemented)](docs/rfcs/0020-native-sdk-and-startup.md)
-- [RFC 0021: Bounded structured task driver (accepted)](docs/rfcs/0021-bounded-structured-task-driver.md)
+- [RFC 0021: Bounded structured task driver (implemented)](docs/rfcs/0021-bounded-structured-task-driver.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
 
-Use Rust **1.99.0** with rustfmt and Clippy, pinned by `rust-toolchain.toml`. The [M2 capability guide](docs/milestone-2-capabilities.md) records implemented behavior, all 18 exit gates and limits; the [delivery board](docs/milestone-2.md) records current work and estimate changes.
+Use Rust **1.99.0** with rustfmt and Clippy, pinned by `rust-toolchain.toml`. The [M2 capability guide](docs/milestone-2-capabilities.md) records implemented behavior, all 18 exit gates and limits; the [M3 delivery board](docs/milestone-3.md) records current work and estimate changes. `cargo run --example structured-tasks` exercises the first explicit host task driver; source async remains in progress.
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang

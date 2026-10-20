@@ -4,10 +4,10 @@
 
 [日本語版](../ja/rfcs/0021-bounded-structured-task-driver.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-21
 - Tracking issue: M3-T01, M3-T02
 - Supersedes:
 - Superseded by:
@@ -17,6 +17,8 @@
 Add one backend-neutral, host-driven scheduler kernel under RFC 0005. It owns task ancestry and scheduling state, while execution adapters own guest frames, values and diagnostics. There is one explicit root and at most one active dispatch. Ready tasks run FIFO until the adapter reports a semantic boundary. Scope exit joins children; cancellation/failure requests cancellation of unfinished descendants. Guest cleanup is a separate dispatch, acknowledged only after actual frame cleanup.
 
 This decides the first production task-driver contract. Source async syntax, Send/Share, channels, component cancellation and the public C embedding API remain separate M3 decisions. Accepting this RFC completes neither roadmap G01 nor structured source execution.
+
+Implementation checkpoint (2026-10-21 JST): `crates/runtime/src/task.rs` implements this kernel. Eighteen focused tests cover the state/limit/cleanup contract, including cancellation before cleanup entry and during active cleanup. `cargo run --example structured-tasks` executes real host-owned frames through success and nested cancellation (42; cleanup 2,1,0; zero live tasks). Full fmt/Clippy/test/rustdoc baseline passes: 96 suites, 1,613 tests, zero failures, one existing timing ignore. Source/VM/native task execution and public embedding remain the separate work described below.
 
 ## Motivation
 

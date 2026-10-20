@@ -22,6 +22,7 @@ These instructions apply to the entire repository.
   - `docs/benchmarks.md` and `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` and `docs/ja/milestone-1.md`
   - `docs/milestone-2.md` and `docs/ja/milestone-2.md`
+  - `docs/milestone-3.md` and `docs/ja/milestone-3.md`
   - `docs/milestone-2-capabilities.md` and `docs/ja/milestone-2-capabilities.md`
   - `docs/native-sdk.md` and `docs/ja/native-sdk.md`
   - `docs/review-2026-10-17.md` and `docs/ja/review-2026-10-17.md`

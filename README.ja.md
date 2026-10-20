@@ -68,12 +68,12 @@
 - [RFC 0018: Native compiler record（implemented）](docs/ja/rfcs/0018-native-compiler-records.md)
 - [RFC 0019: 通常owned native entry runtime（implemented）](docs/ja/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: 実験段階のnative SDKとscope付き起動（implemented）](docs/ja/rfcs/0020-native-sdk-and-startup.md)
-- [RFC 0021: 上限付き構造化タスクドライバー（accepted）](docs/ja/rfcs/0021-bounded-structured-task-driver.md)
+- [RFC 0021: 上限付き構造化タスクドライバー（implemented）](docs/ja/rfcs/0021-bounded-structured-task-driver.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
 
-`rust-toolchain.toml`で固定されたRust **1.99.0**とrustfmt／Clippyを使います。[M2 capability guide](docs/ja/milestone-2-capabilities.md)に実装動作・18完了条件・制約、[実装Todo](docs/ja/milestone-2.md)に現在の作業と見積もり変更を記録しています。
+`rust-toolchain.toml` で固定した Rust **1.99.0** と rustfmt/Clippy を使います。[M2 capability guide](docs/ja/milestone-2-capabilities.md)に実装動作・18 完了条件・制約、[M3 実装 Todo](docs/ja/milestone-3.md)に現在の作業と見積り変更を記録します。`cargo run --example structured-tasks` で最初の明示的 host task driver を実行できます。source async は実装中です。
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang

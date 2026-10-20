@@ -12,6 +12,7 @@ pub mod layout;
 pub mod map;
 pub mod retirement;
 pub mod shared;
+pub mod task;
 pub mod vector;
 
 use std::collections::HashMap;

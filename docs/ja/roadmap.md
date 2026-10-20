@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で初期 39 作業、暫定残り 110 pt、doing 1 行を追跡します。最初の成果はホスト駆動の構造化タスク木、その後 VM/native continuation で source spawn/yield/join fixture を実行します。M3 の出口ゲートはまだ完了していません。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
+[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で **1 done · 1 doing · 37 todo · 108 remaining pt** を追跡します。最初の成果はホスト駆動の構造化タスク木、その後 VM/native continuation で source spawn/yield/join fixture を実行します。M3 の出口ゲートはまだ完了していません。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
 
 ## 進行中 milestone の実行
 

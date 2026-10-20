@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-3.md) · [Exit gates](roadmap.md#milestone-3-concurrency-and-embedding)
 
-Updated: **2026-10-20 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
+Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**0 done · 1 doing · 38 todo · 110 remaining pt**
+**1 done · 1 doing · 37 todo · 108 remaining pt**
 
-**Next: M3-T01 → decide the bounded task-driver contract, then execute the scheduler fixture.**
+**Next: M3-T02 → execute the bounded host-driven task-tree fixture.**
 
-Current delivery: **M3-T01**. Last executable checkpoint: 29 semantic-model tests and five repository-consistency tests pass (2026-10-20 JST). The bilingual [driver contract](rfcs/0021-bounded-structured-task-driver.md) is accepted under experimental delegation. Record its commit and select T02 next. No M3 gate is complete.
+Current delivery: **M3-T02**. Last executable checkpoint: **2026-10-21 JST**, 18 task tests, the host example and the full baseline pass (96 suites / 1,613 tests; zero failures, one existing timing ignore). Normal execution returns 42; normal and nested cancellation retire frames in order 2,1,0 with zero live tasks. fmt, warnings-denied Clippy and rustdoc pass. Remaining acceptance: record the implementation commit and publish completion evidence. No M3 gate is complete.
 
 ## Deliveries
 
@@ -18,8 +18,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 
 | ID | State | Remaining | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M3-T01 | doing | 2 | — | G01 | Accept explicit FIFO driver, task ancestry, join, cancellation, failure and bounded admission rules | — |
-| M3-T02 | todo | 3 | M3-T01 | G03,G12 | Execute a bounded host-driven task tree with joins, cooperative cancellation and postorder retirement | — |
+| M3-T01 | done | 0 | — | G01 | Accept explicit FIFO driver, task ancestry, join, cancellation, failure and bounded admission rules | `8ab751b` |
+| M3-T02 | doing | 3 | M3-T01 | G03,G12 | Execute a bounded host-driven task tree with joins, cooperative cancellation and postorder retirement | — |
 | M3-T03 | todo | 3 | M3-T01 | G01,G03 | Accept async syntax; parse/check tasks and reject escaping handles and live loans at suspension | — |
 | M3-T04 | todo | 3 | M3-T03 | G03 | Verify typed MIR suspension, task scopes and ownership edges independently | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | Execute a source spawn/yield/join fixture in the VM through the shared task driver | — |
@@ -62,11 +62,13 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 
 Activation audit (2026-10-20 JST): 39 deliveries, initial **110 pt**. This is a bottom-up provisional forecast; the roadmap's **96 pt** are historical gate weights. No work is retired and no additional work has been exposed yet. Re-estimate changed scope explicitly before implementation. Review sequencing after two prerequisites without a new source execution fixture; T02 and T03 must not turn into an open-ended scheduler framework.
 
-**110 + 0 − 0 = 110 pt**
+T01 completed at `8ab751b`: accepted RFC 0021 and added independent board validation. Semantic-model tests 29/29 and repository consistency 5/5 pass. Retire 2 pt; no additions/re-estimates. Roadmap audit: all 15 gates remain necessary and none is proven by the decision alone.
+
+**110 + 0 − 2 = 108 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +0 pt | −0 pt | 110 pt |
+| 110 pt | +0 pt | −2 pt | 108 pt |
 
 ## Exit audit
 

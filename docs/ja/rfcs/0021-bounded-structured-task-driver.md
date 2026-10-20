@@ -4,10 +4,10 @@
 
 [English](../../rfcs/0021-bounded-structured-task-driver.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-21
 - Tracking issue: M3-T01, M3-T02
 - Supersedes:
 - Superseded by:
@@ -17,6 +17,8 @@
 RFC 0005 の下で、バックエンドに依存しないホスト駆動の scheduler kernel を追加します。kernel は親子関係とスケジュール状態、実行 adapter は guest frame、値、診断を所有します。明示的な root は 1 つで、同時に active な dispatch は最大 1 つです。ready task を FIFO で実行し、adapter が意味的境界を報告します。scope の終了は子を join し、取消/失敗では未完了の子孫へ取消要求を伝播します。guest cleanup は別の dispatch とし、実際の frame cleanup 後に確認します。
 
 最初の production task driver の契約を決めます。source async 構文、Send/Share、channel、component 取消、公開 C embedding API は別の M3 判断です。この RFC の採択だけでは G01 も構造化 source 実行も完了しません。
+
+実装 checkpoint（2026-10-21 JST）: `crates/runtime/src/task.rs` に kernel を実装しました。18 件の focused test で状態/上限/cleanup 契約を検証し、cleanup entry 前と実行中の取消も含めています。`cargo run --example structured-tasks` は実際の host 所有 frame で通常終了と入れ子取消を実行します（42、cleanup 2,1,0、live task 0）。全 fmt/Clippy/test/rustdoc baseline が成功し、96 suite、1,613 test、失敗 0、既存の timing ignore 1 件です。source/VM/native task 実行と公開 embedding は後述の別作業です。
 
 ## Motivation
 

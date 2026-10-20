@@ -2,15 +2,15 @@
 
 # Milestone 3 delivery board
 
-[English](../milestone-3.md) · [Exit gates](roadmap.md#milestone-3-concurrency-and-embedding)
+[English](../milestone-3.md) · [Exit gates](../roadmap.md#milestone-3-concurrency-and-embedding)
 
-更新日: **2026-10-20 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
+更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**0 done · 1 doing · 38 todo · 110 remaining pt**
+**1 done · 1 doing · 37 todo · 108 remaining pt**
 
-**次: M3-T01 → 上限付きタスクドライバーの契約を決定し、スケジューラーの fixture を実行します。**
+**次: M3-T02 → 上限付きホスト駆動 task tree fixture を実行します。**
 
-現在の作業: **M3-T01**。直近の実行検証: semantic model 29 件と repository consistency 5 件の試験が成功（2026-10-20 JST）。日英の [driver 契約](rfcs/0021-bounded-structured-task-driver.md)を実験段階の委任で accepted にしました。次にその commit を記録して T02 を選択します。M3 のゲートは未完了です。
+現在の作業: **M3-T02**。直近の実行検証: **2026-10-21 JST**、task test 18 件、host example、全 baseline が成功（96 suite / 1,613 test、失敗 0、既存 timing ignore 1 件）。通常実行は 42 を返し、通常/入れ子取消のどちらも frame を 2,1,0 の順に破棄して live task は 0 です。fmt、warnings-denied Clippy、rustdoc も成功。残る受入条件: 実装 commit と完了証拠の公開。M3 のゲートは未完了です。
 
 ## Deliveries
 
@@ -18,8 +18,8 @@
 
 | ID | State | Remaining | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M3-T01 | doing | 2 | — | G01 | FIFO ドライバー、親子関係、join、取消、失敗、上限付き admission の規則を採択 | — |
-| M3-T02 | todo | 3 | M3-T01 | G03,G12 | ホスト駆動の上限付きタスク木で join、協調取消、子から親への retirement を実行 | — |
+| M3-T01 | done | 0 | — | G01 | FIFO ドライバー、親子関係、join、取消、失敗、上限付き admission の規則を採択 | `8ab751b` |
+| M3-T02 | doing | 3 | M3-T01 | G03,G12 | ホスト駆動の上限付きタスク木で join、協調取消、子から親への retirement を実行 | — |
 | M3-T03 | todo | 3 | M3-T01 | G01,G03 | async 構文を採択し parse/check。handle 逸出と suspension を跨ぐ loan を拒否 | — |
 | M3-T04 | todo | 3 | M3-T03 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | — |
@@ -62,11 +62,13 @@
 
 開始監査（2026-10-20 JST）: 39 作業、初期 **110 pt**。積上げの暫定予測です。ロードマップの **96 pt** は過去に付与したゲート重みです。完了による消化も追加作業もまだありません。範囲が変われば実装前に再見積りします。新しい source 実行 fixture のない前提作業が 2 件続いたら順序を再確認します。T02/T03 を際限のない scheduler framework にしません。
 
-**110 + 0 − 0 = 110 pt**
+T01 は `8ab751b` で完了しました。RFC 0021 を採択し board の独立検証を追加しました。semantic model 29/29 と repository consistency 5/5 が成功。2 pt を消化し追加/再見積りはありません。ロードマップ監査: 全 15 ゲートを維持し、判断だけでは完了を証明しません。
+
+**110 + 0 − 2 = 108 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +0 pt | −0 pt | 110 pt |
+| 110 pt | +0 pt | −2 pt | 108 pt |
 
 ## Exit audit
 

@@ -217,6 +217,22 @@ fn m3_delivery_evidence_estimates_dependencies_and_translations_agree() {
     let accounting = remaining_work_accounting(english_text);
     assert_eq!(accounting, remaining_work_accounting(japanese_text));
     assert_eq!(accounting[3], english.iter().map(|row| row.remaining).sum());
+    let done = english.iter().filter(|row| row.state == "done").count();
+    let doing = english.iter().filter(|row| row.state == "doing").count();
+    let todo = english.len() - done - doing;
+    let summary = format!(
+        "**{done} done · {doing} doing · {todo} todo · {} remaining pt**",
+        accounting[3]
+    );
+    for roadmap in [
+        include_str!("../docs/roadmap.md"),
+        include_str!("../docs/ja/roadmap.md"),
+    ] {
+        assert!(
+            roadmap.contains(&summary),
+            "active roadmap matches the M3 board"
+        );
+    }
     let gates: BTreeSet<_> = english
         .iter()
         .flat_map(|row| row.gates.iter().copied())

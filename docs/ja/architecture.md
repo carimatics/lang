@@ -110,6 +110,8 @@ Query graphは推移的consumerを無効化し、編集、close/reopen、新し�
 
 [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)はstructured cancellation/isolation方針を定めます。[RFC 0003](rfcs/0003-versioned-component-contracts.md)はversioned component契約、capability、typed failure、resource所有権を定めます。State modelやscalar/resource相互運用prototypeは判断の根拠であり、production source async、scheduler/channel、IDL/adapter、汎用mixed-mode embeddingはM3の作業です。
 
+M3 は[進行中の実装 Todo](milestone-3.md)で追跡します。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md)は `crates/runtime/src/task.rs` の明示的な有界 task driver を定義します。FIFO の resume/cleanup dispatch、invocation 単位の handle、live/累積 task admission、直接の子の join、協調取消を扱います。`cargo run --example structured-tasks` は実際の host 所有 frame tree を実行し、42 を返し、通常終了/入れ子取消の両方で frame を 2,1,0 の順に破棄します。kernel 自身は guest code を実行しません。source 構文/MIR、VM/native task adapter、実際の guest frame cleanup は後続作業です。2026-10-21 JST に確認。M2 の実行経路や artifact 形式は変えません。
+
 配布tierを明示します。信頼済みnative codeにsandboxの主張はなく、検証済みscriptにはcapability/resource enforcementが必要で、portable WebAssembly componentは後のmilestoneです。Native in-process pluginは非信頼codeのsandboxにできません。将来のfrontendがMIRを共有できるのは意味論が一致するときだけで、それ以外はcomponent境界を必要とします。
 
 Package-aware build/test/lint/doc、package manager/installer、拡張LSP/DAP、registry/provenance、LLVM評価、self-hosting、追加frontendは[roadmap](roadmap.md)に残ります。現在のSDK packagingはpackage managerやinstallerを完了させません。Bootstrapには固定した対応subset、stage 0→1→2のconformance、両hostでの再現性が必要です。第二frontendは第一frontendとABIの安定後です。
