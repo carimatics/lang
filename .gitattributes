@@ -1,0 +1,8 @@
+# SDK identity hashes production input bytes; keep them identical on both hosts.
+/Cargo.toml text eol=lf
+/Cargo.lock text eol=lf
+/rust-toolchain.toml text eol=lf
+/src/** text=auto eol=lf
+/crates/**/Cargo.toml text eol=lf
+/crates/**/build.rs text eol=lf
+/crates/**/src/** text=auto eol=lf

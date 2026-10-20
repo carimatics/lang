@@ -2,6 +2,9 @@
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "windows", target_arch = "x86_64", target_env = "msvc")
 ))]
+#[path = "support/rust_artifacts.rs"]
+mod artifacts;
+use artifacts::library;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -34,25 +37,6 @@ fn native(input: &Path, out: &Path, target: Option<&str>) -> Output {
         c.arg("--target").arg(t);
     }
     c.arg(input).output().unwrap()
-}
-fn library(name: &str) -> PathBuf {
-    let deps = std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_owned();
-    fs::read_dir(deps)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| {
-            p.file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with(&format!("lib{name}-"))
-                && p.extension().is_some_and(|e| e == "rlib")
-        })
-        .max_by_key(|p| p.metadata().unwrap().modified().unwrap())
-        .unwrap()
 }
 fn build(package: &Path, name: &str) -> PathBuf {
     build_extra(package, name, &[])
@@ -356,47 +340,10 @@ fn source_native_c_bindings_run_a_real_c_caller_with_original_allocator() {
         .collect::<Vec<_>>()
         .join(",");
     let id = artifact.digest();
-    let c = format!(
-        r#"
-#include "program.h"
-#include <stdlib.h>
-#ifdef _WIN32
-#include <malloc.h>
-#endif
-static uint64_t allocations, releases;
-static void *allocate(void *user,uint64_t size,uint64_t align) {{
-    (void)user;
-#ifdef _WIN32
-    void *p=_aligned_malloc((size_t)(size?size:1), (size_t)(align<sizeof(void*)?sizeof(void*):align));
-#else
-    if (align > _Alignof(max_align_t)) return NULL;
-    void *p=malloc((size_t)(size?size:1));
-#endif
-    if(p) ++allocations;
-    return p;
-}}
-static void deallocate(void *user,void *p,uint64_t size,uint64_t align) {{
-    (void)user; (void)size; (void)align; ++releases;
-#ifdef _WIN32
-    _aligned_free(p);
-#else
-    free(p);
-#endif
-}}
-int native_client(void) {{
-    lang_allocator_descriptor allocator={{1,32,NULL,allocate,deallocate}};
-    lang_limits_descriptor limits={{1,72,16777216,67108864,4096,64,65536,0,1000000,256,0}};
-    lang_program_config config={{1,80,&allocator,&limits,NULL,0,{{{digest}}},0}};
-    lang_context *context=NULL;
-    if(lang_context_create_{id}(&config,&context)) return 1;
-    int64_t output=-1;
-    int result=({symbol}(context,41,&output) || output!=42)?2:0;
-    if(lang_context_destroy_{id}(context) && !result) result=3;
-    if((!allocations || allocations!=releases) && !result) result=4;
-    return result;
-}}
-"#
-    );
+    let c = include_str!("../src/native/sdk_startup/c-client.c.in")
+        .replace("@DIGEST_BYTES@", &digest)
+        .replace("@ENTRY_SYMBOL@", symbol)
+        .replace("@ID@", &id.to_string());
     fs::write(package.join("client.c"), c).unwrap();
     let object = if cfg!(windows) {
         "client.obj"

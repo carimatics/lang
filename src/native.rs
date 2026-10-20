@@ -1,6 +1,7 @@
 //! RFC 0020 whole-source native package production. This module never executes
 //! guest code, grants imports or treats native hashes as authentication.
 pub mod manifest;
+pub mod sdk_package;
 use crate::frontend::{self, CompileLimits, ScriptError};
 use lang_codegen_clif::{self as clif, native_record::Record, owned as n, sdk};
 use lang_diagnostics::SourceMap;
@@ -101,6 +102,25 @@ impl Package {
     }
     /// Publish a complete fresh directory; no existing destination is replaced.
     pub fn publish(&self, output: &Path) -> Result<(), Error> {
+        let stage = Stage::new(output)?;
+        for file in &self.files {
+            use std::io::Write;
+            let path = stage.0.join(file.path);
+            let mut out = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .map_err(|e| io("component create", &path, e))?;
+            out.write_all(&file.bytes)
+                .and_then(|_| out.sync_all())
+                .map_err(|e| io("component write", &path, e))?;
+        }
+        publish::rename(&stage.0, output).map_err(|e| io("exclusive publication", output, e))
+    }
+}
+struct Stage(PathBuf);
+impl Stage {
+    fn new(output: &Path) -> Result<Self, Error> {
         if fs::symlink_metadata(output).is_ok() {
             return Err(io(
                 "destination exists",
@@ -138,23 +158,9 @@ impl Package {
                 Err(e) => return Err(io("staging directory", &path, e)),
             }
         }
-        let stage = Stage(stage.ok_or(Error::Capacity)?);
-        for file in &self.files {
-            use std::io::Write;
-            let path = stage.0.join(file.path);
-            let mut out = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&path)
-                .map_err(|e| io("component create", &path, e))?;
-            out.write_all(&file.bytes)
-                .and_then(|_| out.sync_all())
-                .map_err(|e| io("component write", &path, e))?;
-        }
-        publish::rename(&stage.0, output).map_err(|e| io("exclusive publication", output, e))
+        Ok(Self(stage.ok_or(Error::Capacity)?))
     }
 }
-struct Stage(PathBuf);
 impl Drop for Stage {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);

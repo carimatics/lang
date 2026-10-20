@@ -1,4 +1,7 @@
 //! Standalone executable conformance reuses the existing owned runtime hooks.
+#[cfg(test)]
+#[path = "rust_artifacts.rs"]
+mod artifacts;
 use super::*;
 use std::{cell::Cell, fs, path::PathBuf, process::Command};
 
@@ -224,20 +227,7 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
         "lang_vm",
         "object",
     ] {
-        let mut candidates: Vec<_> = fs::read_dir(&dependencies)
-            .unwrap()
-            .map(Result::unwrap)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .starts_with(&format!("lib{name}-"))
-                    && path.extension().is_some_and(|ext| ext == "rlib")
-            })
-            .collect();
-        candidates.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
-        let path = candidates.last().unwrap();
+        let path = artifacts::library(name);
         compiler
             .arg("--extern")
             .arg(format!("{name}={}", path.display()));

@@ -1,0 +1,5 @@
+pub extern "C" fn entry(value: i64) -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, value));
+    return core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(bytes, 0)) + 1;
+}

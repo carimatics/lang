@@ -20,6 +20,7 @@ These instructions apply to the entire repository.
   - `docs/benchmarks.md` and `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` and `docs/ja/milestone-1.md`
   - `docs/milestone-2.md` and `docs/ja/milestone-2.md`
+  - `docs/native-sdk.md` and `docs/ja/native-sdk.md`
   - `docs/review-2026-10-17.md` and `docs/ja/review-2026-10-17.md`
   - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
   - Every numbered RFC in `docs/rfcs/` and its same-named mirror in `docs/ja/rfcs/`

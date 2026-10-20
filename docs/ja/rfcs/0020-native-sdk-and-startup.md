@@ -53,7 +53,7 @@ Copy／通常owned packageでは、実際に検査した引数なしi64のsource
 
 C unitはprivateなmainを含んでも自動実行entryを持たないlibrary packageです。生成header／Rust bindingで既存profile-1 exportを公開します。明示Rust hostと、必要なら別途compileしたC host objectを指定します。実C callerがcontextを生成／呼出し／照会／破棄する間、Rust hostはbindingを保持します。C importには実hostのbinding／grantが必要で、private mainを動かすために仮のC export／MIR wrapperは作りません。
 
-初期SDKは正確に対応する固定Rust release／commit、native linker、C host用C11 toolchainを明示要件とします。`link-native`は同梱libraryでrustcを実行し、Cargo、依存download、repository pathを使いません。Rust host要件は実験段階の配布判断です。将来Cだけでbootstrapする場合は別のreview済み変更が必要です。
+初期SDKは正確に対応する固定Rust release／commit、native linker、C host用C11 toolchainを明示要件とします。Rust SDK／host buildは受理済みhost panicの包含／poison契約を保つためpanic unwindを使い、SDK組立はabort buildを拒否します。実効panic policyはbuild identityに含めます。`link-native`は同梱libraryでrustcを実行し、Cargo、依存download、repository pathを使いません。Rust host要件は実験段階の配布判断です。将来Cだけでbootstrapする場合は別のreview済み変更が必要です。
 
 ## Reference semantics
 
@@ -153,6 +153,10 @@ Mac AArch64／Windows x86-64 MSVCの導入済みSDK出力から実exe／C caller
 P11 checkpoint（2026-10-20 JST）：型付き上限付きmanifest検証と、SDK／programをstreamコピーするprivate snapshotを実装します。返却前にcompile済みidentityと全fileを検査し、対応する意味論／native／objectを、code binding／tool／providerなしに独立decode・prepareします。Staging parentとnative inputは信頼済みhost policyであり、callerは後続linkの間ownerを保持してprivate fileを変更しません。Parser fuzz targetはI/Oを行いません。このdata境界だけではruntime利用、SDK組立／link、SDK隔離installは実装されません。
 
 P10 checkpoint（2026-10-20 JST）：productionのunsafe SDK APIでCopy／owned／Cを元のimageから実行します。Target／buildと上限付き記録をsymbol／provider作用前に検証します。Copy controlを黙って無視せず拒否し、ownedは同じallocator／Instance／control／usage／poison／元failureとsource byteを保持します。Cはowner-thread closureに限定し、unwind時を含め全contextを破棄してからunbindする義務をunsafe callerに残します。生成default driverと明示実C hostはこのAPIを使います。P07／P12／P02、Q／B／Gと最終guideは未完了です。
+
+P07 build policyの明確化：**実験段階の委任により2026-10-20 JST受理、実装前に記録**。Abort拒否でRFC 0019のhost panic復帰／poisonを保ちます。Build flagの暗黙上書きはcaller設定を隠し、abortの受入は必要reportを返さず終了する可能性があります。SDKは3 profileすべてを保持します。実効panic cfgを既存build digestに含め、manifest field／version、source／C ABIは変えず、不一致SDKのrebuildを移行方法とします。通常／release組立と公開前abort拒否を検証します。情報源：公式 [catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html)（unwindを捕捉しabortは捕捉しない）と [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html#panic)（panic build policy）。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。
+
+P07 checkpoint（2026-10-20 JST）：repository内build toolでcompiler／runtimeと、成功Cargo buildが正確に選んだRust／proc-macro／native依存artifact、内容不変の共通C profile-1 header、起動例、日英説明を組立します。Assemblerとcompilerは同一buildで生成します。上限付きstream file／manifestをproduction SDK検証APIで検査してからexclusive公開し、compilerの実行権限を保持します。対象は組立であり、公開linkのP12と両host完全隔離Copy／owned／C installのP02は残ります。SDK metadataのkey／role、source意味論、C signatureは不変で、不一致SDKは引き続きrebuildが必要です。最小size／性能は主張しません。
 
 ## Open questions
 

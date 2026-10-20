@@ -59,6 +59,7 @@ fn main() {
     let flags = env::var("CARGO_ENCODED_RUSTFLAGS").unwrap_or_default();
     let opt_level = env::var("OPT_LEVEL").unwrap();
     let debug = env::var("DEBUG").unwrap();
+    let panic = env::var("CARGO_CFG_PANIC").expect("SDK target panic strategy");
     println!("cargo:rerun-if-env-changed=CARGO_ENCODED_RUSTFLAGS");
     let mut hash = Sha256::new();
     hash.update(b"LANGSDK1\0");
@@ -86,6 +87,7 @@ fn main() {
         &flags,
         &opt_level,
         &debug,
+        &panic,
         "workspace-fixed",
         "portable1-4/native1/c1",
     ] {
