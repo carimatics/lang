@@ -18,9 +18,11 @@
 
 **今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** 残りは **35 − 3 = 32 pt**、**133行・追加109点は不変**です。[収支](#進捗と見積もり変更)は **134 + 109 − 211 = 32 pt**。暫定の計画単位であり、時間や完成率ではありません。
 
+**P10実装前checkpoint（2026-10-20 10:29 JST）：** Windows head01bf09cはfmt／C-linker／lint／test-buildが成功し、standalone driver fixtureでwindows.0.52.0.libの探索とC allocatorのcompileが失敗しました。Test専用修正 `f9a519d` でCargoが解決したnative library探索path、MSVCのaligned allocation／dynamic CRT、compilerのstdout／stderrを保持します。Mac実C検証（1件／19.58秒）とfmt／Clippy（1.52秒）は成功しました。製品codeと見積もりは不変で、上記の新head Windows runを検証中です。P07／P12はSDK依存closureにnative support archiveも保持し、install後のlinkでは引き続きCargo／registryを参照しません。
+
 **P10の残る条件：** P05／P06のproduction primitiveをscope付きSDK entry／binding APIで再利用し、symbol／provider effect前にtarget／buildを検査します。元entry、source snapshot、control、allocator、Instanceのpoison、明示的なunsafe C owner-thread／image寿命を保持します。対象はruntime facadeだけで、P07のSDK組立、P12の完全一致toolchainによる `link-native`、P02の両host隔離Copy／ownership／C検証は別成果です。[RFC 0020](rfcs/0020-native-sdk-and-startup.md)のQ／B／Gと最終guide Z01も未完了です。
 
-Windows：[run 39351953438](https://github.com/carimatics/lang/actions/runs/39351953438), head 01bf09c, in progress。前[P09 run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096)はC／linker成功後、Unix専用DirBuilderのmut指定でLint失敗しました。`01bf09c` で修正し、新headを検証中です。旧runを今回codeの証拠には数えません。全test実時間 **800.98秒**、compile **27.73秒**、suite報告合計 **484.49秒** は検証の観測値であり、開発工数の実測ではありません。差分時間の原因は計測なしに断定しません。113を工数予測には戻しません。
+Windows：[run 39353572806](https://github.com/carimatics/lang/actions/runs/39353572806), head f9a519d, in progress。前[P09 run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096)はC／linker成功後、Unix専用DirBuilderのmut指定でLint失敗しました。`01bf09c` で修正し、新headを検証中です。旧runを今回codeの証拠には数えません。全test実時間 **800.98秒**、compile **27.73秒**、suite報告合計 **484.49秒** は検証の観測値であり、開発工数の実測ではありません。差分時間の原因は計測なしに断定しません。113を工数予測には戻しません。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -417,7 +419,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-P09 | done | 0 | M2-P08,M2-P04,M2-P06 | G15 | 製品用source-native compilerコマンドがCopy／ownership／Cのobject、意味論、記録、必要headerを検証・公開し、失敗時に既存出力を保持。 | `66ebb0c` |
 | M2-P11 | done | 0 | M2-P09 | G15 | 上限付きSDK／program manifestと検証済みcomponent snapshotで、compiler／provider effect前にkey／path／hash／意味論／objectの不一致を拒否。 | `01bf09c` |
 | M2-P10 | doing | 3 | M2-P09,M2-P05,M2-P06,M2-P11 | G15 | 配布用runtime／startup consumerで保存Copy／ownership／Cを対応toolchainと起動し、source分析／backend生成／test runtimeに依存せず元control／allocator／context／grant／cleanupを維持。 | — |
-| M2-P07 | todo | 2 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | 対応toolchain要件を明示したcompiler／startup／runtime／header SDKを組立。 | — |
+| M2-P07 | todo | 2 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | 対応toolchain要件を明示したRust／native依存closureを含むcompiler／startup／runtime／header SDKを組立。 | — |
 | M2-P12 | todo | 3 | M2-P11,M2-P10,M2-P07 | G15 | link-nativeがrustc／SDK／targetの完全一致を検証し、明示Rust／C hostと検証済み元byteをlinkして新しいexecutableをexclusive公開。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Repo／target/deps外でCopy／ownership／Cを含む両tier-1のclean-install SDK link/run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
