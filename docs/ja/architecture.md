@@ -33,7 +33,7 @@ P02のmetadata準備prototype（2026-10-20 JST実装・重点確認）：`Object
 
 共有SDK identityはsortしたproduction input／manifest／lock／toolchain、固定workspace feature、profile／optimization／debug／flag、要求target、ABI revisionを含みます。不一致の検出であり認証ではありません。Privateな兄弟stageとplatformのexclusive renameで既存input／outputを保持し、失敗時はstageを削除します。生成symbol textは確保前に8 MiB上限を検査します。
 
-通常startupはproduction Copy bindingまたはRFC 0019のownership entry runtimeを使い、明示C embeddingはunsafe matching-image／owner-threadと実allocator／contextの義務を保持します。Sourceなしdriver、managed／panicのVM比較、実C callerのfixtureは引き続きrepository内dependencyでcompileします。配布用consumer／`link-native`、厳格な非信頼manifest reader、SDK組み立て、両hostの隔離installはP10／P07／P02に残り、このproducerだけではpackagingを完了しません。
+通常startupはproduction Copy bindingまたはRFC 0019のownership entry runtimeを使い、明示C embeddingはunsafe matching-image／owner-threadと実allocator／contextの義務を保持します。Sourceなしdriver、managed／panicのVM比較、実C callerのfixtureは引き続きrepository内dependencyでcompileします。配布用consumer／`link-native`、厳格な非信頼manifest reader、SDK組み立て、両hostの隔離installはP11／P10／P07／P12／P02に残り、このproducerだけではpackagingを完了しません。
 
 ## 目標
 

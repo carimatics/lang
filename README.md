@@ -183,7 +183,7 @@ cargo run --bin lang -- native --target x86_64-pc-windows-msvc --output /tmp/lan
 
 Choose a fresh output directory. It contains `package.json`, independently validated `program.lbc`/`program.native`, original `program.o`/`program.obj` and canonical `bindings.rs`. Ordinary Copy/ownership programs receive `main.rs` for the actual zero-parameter i64 main; C units receive `program.h` with no default entry. Only complete outputs publish atomically; existing destinations are preserved.
 
-Generated startup uses production runtime APIs, prints the script value and checks SDK identity before binding the original object. [Compiler tests](tests/native_compiler.rs) build/run these outputs and a real C caller after source removal. Distribution, `link-native`, complete SDK validation and isolated installation remain P10/P07/P02 under accepted [RFC 0020](docs/rfcs/0020-native-sdk-and-startup.md). The SDK requires the exact Rust toolchain and native linker; C hosts also require C11.
+Generated startup uses production runtime APIs, prints the script value and checks SDK identity before binding the original object. [Compiler tests](tests/native_compiler.rs) build/run these outputs and a real C caller after source removal. Distribution, `link-native`, complete SDK validation and isolated installation remain P11/P10/P07/P12/P02 under accepted [RFC 0020](docs/rfcs/0020-native-sdk-and-startup.md). The SDK requires the exact Rust toolchain and native linker; C hosts also require C11.
 
 ## Design process
 

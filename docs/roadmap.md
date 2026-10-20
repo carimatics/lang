@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**117 verified deliveries · 1 in progress · 13 remaining tasks (provisional 32 pt).**
+**118 verified deliveries · 1 in progress · 14 remaining tasks (provisional 35 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P09: production source-native compiler | **P08 complete**: SDK/startup RFC 0020 accepted (bca5f12) | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P11: bounded SDK/program verification | **P09 complete**: source-native compiler and source-free generated startup (`66ebb0c`) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Next: P09 native compiler output from real source.** [RFC 0020](rfcs/0020-native-sdk-and-startup.md) defines the command/manifest/build-identity and scoped Rust startup contract before implementation. A copied-library Mac probe executes production owned code after source removal with result 42 and complete release. It is decision evidence; SDK commands/consumer/assembly/both-host isolated Copy/ownership/C install remain P09/P10/P07/P02. Product `2712700` passes the 1,550-test Mac baseline; matching Windows required checks pass by 2026-10-19 23:32:43 UTC, with the whole prototype-benchmark workflow still in progress. Updated/verified 2026-10-20 JST; details are on the [delivery board](milestone-2.md).
+**Latest checkpoint:** eight CLI tests execute Copy/ownership and a real C caller after source removal, verify both object targets, SDK mismatch and atomic publication, and compare managed/panic outcomes with the VM. Mac baseline: 1,559 tests / 90 suites, 0 failures, 1 manual test ignored; fmt, Clippy (33.64s) and rustdoc (19.01s) pass; suite-time sum 450.31s; native 76 / 279.77s, C ABI 74 / 20.52s. Matching Windows: [run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096), head 66ebb0c, in progress. Updated/verified 2026-10-20 JST; [delivery board](milestone-2.md) records current conditions and evidence.
 
-P08 retires its initial 1 pt: **33 → 32 remaining pt**, **116 → 117 verified deliveries**. Inventory stays 131 rows and +103 added pt; the ledger is **134 + 103 − 205 = 32 pt**. Retain every Copy/ownership/C, both-host, conformance/performance/debug and final-guide requirement. 113 is retired as an effort forecast; delivery counts are not a completion percentage.
+**This update: 1 completed delivery (−3 pt), 2 exposed deliveries (+6 pt).** P10 concealed separate verified manifests/files (P11, initial 3 pt) and `link-native` (P12, initial 3 pt); P10 keeps the scoped runtime facade. **32 − 3 + 6 = 35 remaining pt**, **131 → 133 rows**; ledger **134 + 109 − 208 = 35 pt**. Next P11 must reject malformed data before tool/provider effects. Keep P10/P07/P12/P02, both-host Copy/ownership/C installation, conformance/performance/debug and final Z01. 113 is retired as an effort forecast; delivery counts are not a completion percentage.
 
 ## Task tracking
 

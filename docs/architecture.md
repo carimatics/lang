@@ -33,7 +33,7 @@ Implemented/verified 2026-10-20 JST under [RFC 0020](rfcs/0020-native-sdk-and-st
 
 Shared SDK identity covers sorted production inputs/manifests/lock/toolchain, fixed workspace features, profile/optimization/debug/flags, requested target and ABI revisions. It detects mismatches, not authenticity. Private sibling staging and exclusive platform rename preserve existing inputs/outputs and clean up failures. Generated symbol text checks its 8 MiB bound before reservation.
 
-Ordinary startup uses production Copy binding or RFC 0019 ownership entry runtime; explicit C embedding retains unsafe matching-image/owner-thread and actual allocator/context obligations. Source-free driver, managed/panic VM comparison and real C caller fixtures still compile with in-tree dependencies. Distributed consumer/`link-native`, strict untrusted manifest reader, SDK assembly and both-host isolated installation remain P10/P07/P02. This producer alone does not close packaging.
+Ordinary startup uses production Copy binding or RFC 0019 ownership entry runtime; explicit C embedding retains unsafe matching-image/owner-thread and actual allocator/context obligations. Source-free driver, managed/panic VM comparison and real C caller fixtures still compile with in-tree dependencies. Distributed consumer/`link-native`, strict untrusted manifest reader, SDK assembly and both-host isolated installation remain P11/P10/P07/P12/P02. This producer alone does not close packaging.
 
 ## Goals
 

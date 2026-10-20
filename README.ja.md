@@ -183,7 +183,7 @@ cargo run --bin lang -- native --target x86_64-pc-windows-msvc --output /tmp/lan
 
 新しいoutput directoryを指定します。`package.json`、独立に検証した `program.lbc`／`program.native`、元の `program.o`／`program.obj`、canonicalな `bindings.rs` を出力します。通常のCopy／ownership programには実際の引数なしi64 mainを起動する `main.rs` を、C unitには既定entryを持たない `program.h` を追加します。完全な出力だけをatomicに公開し、既存destinationを保持します。
 
-生成startupはproduction runtime APIを使ってscriptの値を表示し、元のobjectのbinding前にSDK identityを照合します。[Compiler test](tests/native_compiler.rs)はsource削除後にこれらの出力と実C callerをbuild・実行します。配布、`link-native`、SDK検証全体、隔離installはaccepted [RFC 0020](docs/ja/rfcs/0020-native-sdk-and-startup.md)のP10／P07／P02に残ります。SDKは完全一致するRust toolchainとnative linkerを必要とし、C hostにはC11も必要です。
+生成startupはproduction runtime APIを使ってscriptの値を表示し、元のobjectのbinding前にSDK identityを照合します。[Compiler test](tests/native_compiler.rs)はsource削除後にこれらの出力と実C callerをbuild・実行します。配布、`link-native`、SDK検証全体、隔離installはaccepted [RFC 0020](docs/ja/rfcs/0020-native-sdk-and-startup.md)のP11／P10／P07／P12／P02に残ります。SDKは完全一致するRust toolchainとnative linkerを必要とし、C hostにはC11も必要です。
 
 ## 設計プロセス
 

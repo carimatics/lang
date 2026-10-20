@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み117件 · 進行中1件 · 残り13件（暫定32 pt）。**
+**検証済み118件 · 進行中1件 · 残り14件（暫定35 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P09：製品用source-native compiler | **P08完了**：SDK／起動のRFC 0020を受理（bca5f12） | **14/18条件**。過去の重み84/113（74.3%） |
+| P11：上限付きSDK／program検証 | **P09完了**：source-native compilerとsourceなし生成startup（`66ebb0c`） | **14/18条件**。過去の重み84/113（74.3%） |
 
-**次：P09で実sourceからnative出力を生成。** [RFC 0020](rfcs/0020-native-sdk-and-startup.md)で、実装前にcommand／manifest／build識別とscope付きRust起動を定義しました。Macのlibraryコピー実験で、元sourceを移動後もproduction owned codeが42を返し全解放を確認しました。判断の証拠で、SDK command／consumer／組立／両host隔離Copy／ownership／C installはP09／P10／P07／P02に残ります。製品`2712700`はMac全1,550 test baselineに成功し、対応Windowsも2026-10-19 23:32:43 UTCまでに必須検証が成功、prototype benchmarkを含むworkflow全体は進行中です。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に詳細を記録します。
+**直近のcheckpoint：** CLI検証8件でsource削除後のCopy／ownershipと実C callerを実行し、両object target、SDK不一致、atomic公開を検査し、managed／panic結果をVMと比較します。Mac baseline: 1,559 tests / 90 suites, 0 failures, 1 manual test ignored; fmt, Clippy (33.64s) and rustdoc (19.01s) pass; suite-time sum 450.31s; native 76 / 279.77s, C ABI 74 / 20.52s。対応Windows：[run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096), head 66ebb0c, in progress。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に現在の条件と証拠を記録します。
 
-P08の初期1 ptを除き、**残り33 → 32 pt**、**検証済み116 → 117件**です。131行と追加103点は不変で、収支は **134 + 103 − 205 = 32 pt**。Copy／ownership／C、両host、conformance／性能／debug、最終guideの全要件を維持します。113を工数予測、成果件数を完成率として使用しません。
+**今回：成果1件完了（−3 pt）、成果2件を可視化（+6 pt）。** P10に隠れたmanifest／file検証（P11、初期3 pt）と `link-native`（P12、初期3 pt）を分離し、P10はscoped runtime facadeを維持します。**残り32 − 3 + 6 = 35 pt**、**131 → 133行**、収支は **134 + 109 − 208 = 35 pt**。次のP11はtool／provider effect前に不正dataを拒否します。P10／P07／P12／P02、両host Copy／ownership／C install、conformance／性能／debug、最終Z01を維持します。113を工数予測、成果件数を完成率として使用しません。
 
 ## タスク管理
 

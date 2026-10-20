@@ -8,7 +8,7 @@
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
 - Last updated: 2026-10-20
-- Tracking issue: M2-P08, M2-P09, M2-P10, M2-P07, M2-P02
+- Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
 
@@ -127,10 +127,12 @@ Native linker／compiler起動前とprovider／guest作用前に上限付きdata
 ## Implementation plan
 
 1. P09：source-native compiler、unit全体の分類、検証entry、元object／記録／header／binding、manifest／build識別、排他的出力公開。
-2. P10：productionのscope付きCopy／owned／C consumerと`link-native`。不一致SDK／rustc／target／dataをnative呼出し前に拒否し、元runtime／context契約を保持。
-3. P07：上限付きfile tableと外部toolchain要件を持つcompiler／runtime／依存／header／startup SDKの組立。
-4. P02：両tier-1でSDK／applicationをrepository、target/deps、source、test helperから隔離し、実Copy／ownership／C callerをcompile／link／run。
-5. Q01／Q02、B01–B04、G01–G03、最終英日guide Z01を維持。
+2. P11：tool／provider effect前の上限付きSDK／program manifestと検証済みcomponent snapshot。
+3. P10：productionのscope付きCopy／owned／C consumer。元runtime／control／context／grantとmatching-image契約を保持。
+4. P07：上限付きfile tableと外部toolchain要件を持つcompiler／runtime／依存／header／startup SDKの組立。
+5. P12：rustc／SDK／targetの完全一致検査と、検証済み元input、明示Rust／C host、exclusive executable公開を使うlink-native。
+6. P02：両tier-1でSDK／applicationをrepository、target/deps、source、test helperから隔離し、実Copy／ownership／C callerをcompile／link／run。
+7. Q01／Q02、B01–B04、G01–G03、最終英日guide Z01を維持。
 
 Frontend言語、標準library、package managerの機能は追加しません。Probe、manifestだけ、tree内link成功をSDK install完了に数えません。
 
@@ -142,9 +144,11 @@ Mac AArch64／Windows x86-64 MSVCの導入済みSDK出力から実exe／C caller
 
 重点検証後にcode baselineを実行し、文書だけのRFC／計画変更はrepository consistencyを実行します。後続性能／debug条件は専用測定と実debugger証拠を必要とします。
 
+成果分割の監査（2026-10-20 JST）：P11はeffect前の上限付きSDK／program検証と検証済みfile snapshot、P10はscoped runtime consumer、P07はSDK組立、P12は完全一致toolchainの `link-native` commandとexclusive executable公開を担当します。P02の隔離installはP12に依存します。P11／P12は既存義務の明示であり、manifest／ABI／公開動作は変更しません。
+
 ## Implementation checkpoint
 
-2026-10-20 JST：P09は `lang native`、unit全体の分類／元の検査済みentry、semantic／native／object／header／binding出力、target別SDK identity、exclusive公開を実装します。Testはsourceなしの生成driver、managed／panicのVM比較、明示的な実C hostを実行し、cross-target fixtureはMach-O／COFFを検査します。通常の生成host policyは64 logical frame／65,536 live cellと512 MiBのruntime準備上限を使い、semantic decodeの上限と区別します。明示embeddingではこの有限controlを設定できます。これはrepository内のproducer／startup証拠です。`link-native`、非信頼manifest検証全体、SDK組み立て、両hostの隔離installはP10／P07／P02に残ります。意図したSDK interfaceの実装までstatusはacceptedを維持します。
+2026-10-20 JST：P09は `lang native`、unit全体の分類／元の検査済みentry、semantic／native／object／header／binding出力、target別SDK identity、exclusive公開を実装します。Testはsourceなしの生成driver、managed／panicのVM比較、明示的な実C hostを実行し、cross-target fixtureはMach-O／COFFを検査します。通常の生成host policyは64 logical frame／65,536 live cellと512 MiBのruntime準備上限を使い、semantic decodeの上限と区別します。明示embeddingではこの有限controlを設定できます。これはrepository内のproducer／startup証拠です。`link-native`、非信頼manifest検証全体、SDK組み立て、両hostの隔離installはP11／P10／P07／P12／P02に残ります。意図したSDK interfaceの実装までstatusはacceptedを維持します。
 
 ## Open questions
 

@@ -8,7 +8,7 @@
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
 - Last updated: 2026-10-20
-- Tracking issue: M2-P08, M2-P09, M2-P10, M2-P07, M2-P02
+- Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
 
@@ -127,10 +127,12 @@ Validate bounded data before launching a native linker/compiler and before provi
 ## Implementation plan
 
 1. P09: source-native compiler, complete-unit classification, checked entry, original objects/records/header/bindings, manifests/build identity and exclusive output publication.
-2. P10: production scoped Copy/owned/C consumer and `link-native`; reject wrong SDK/rustc/target/data before native invocation, preserve original runtime and context contracts.
-3. P07: assemble matching compiler/runtime/dependency/header/startup SDK with a bounded file table and declared external toolchains.
-4. P02: isolate SDK/application from repository, target/deps, source and test helpers on each tier-1 host; compile/link/run actual Copy, ownership and C callers.
-5. Keep Q01/Q02, B01–B04, G01–G03 and final bilingual Z01 guide open.
+2. P11: bounded SDK/program manifests and verified component snapshots before tool/provider effects.
+3. P10: production scoped Copy/owned/C consumer; retain original runtime/control/context/grant and matching-image contracts.
+4. P07: assemble matching compiler/runtime/dependency/header/startup SDK with a bounded file table and declared external toolchains.
+5. P12: exact rustc/SDK/target checks and link-native using verified original inputs, explicit Rust/C hosts and exclusive executable publication.
+6. P02: isolate SDK/application from repository, target/deps, source and test helpers on each tier-1 host; compile/link/run actual Copy, ownership and C callers.
+7. Keep Q01/Q02, B01–B04, G01–G03 and final bilingual Z01 guide open.
 
 No frontend language, standard-library or package-manager feature is added by these steps. Do not count the probe, manifests alone or a successful in-tree link as SDK installation.
 
@@ -142,9 +144,11 @@ Run actual compiled executables and real C callers from installed SDK outputs on
 
 Use focused checks then the required code baseline. Documentation-only RFC/planning changes run repository consistency checks. Later performance/debug gates require their own measurements and actual debugger evidence.
 
+Delivery breakdown audit (2026-10-20 JST): P11 owns bounded SDK/program validation and verified file snapshots before effects; P10 owns the scoped runtime consumer; P07 assembles the SDK; P12 implements the exact-toolchain `link-native` command and exclusive executable publication. P02 requires P12 for isolated installation. P11/P12 expose existing obligations, with no manifest/ABI/public behavior change.
+
 ## Implementation checkpoint
 
-2026-10-20 JST: P09 implements `lang native`, whole-unit classification/original checked entry, semantic/native/object/header/binding output, target-specific SDK identity and exclusive publication. Tests run source-free generated drivers, managed/panic VM comparisons and an explicit real-C host; cross-target fixtures check Mach-O/COFF. The initial generated ordinary host policy retains 64 logical frames/65,536 live cells and a 512 MiB runtime-preparation bound, distinct from semantic decoding limits; explicit embedding can configure these finite controls. This remains in-tree producer/startup evidence. `link-native`, complete untrusted manifest validation, SDK assembly and both-host isolated installation remain P10/P07/P02. Status remains accepted until the intended SDK interface is implemented.
+2026-10-20 JST: P09 implements `lang native`, whole-unit classification/original checked entry, semantic/native/object/header/binding output, target-specific SDK identity and exclusive publication. Tests run source-free generated drivers, managed/panic VM comparisons and an explicit real-C host; cross-target fixtures check Mach-O/COFF. The initial generated ordinary host policy retains 64 logical frames/65,536 live cells and a 512 MiB runtime-preparation bound, distinct from semantic decoding limits; explicit embedding can configure these finite controls. This remains in-tree producer/startup evidence. `link-native`, complete untrusted manifest validation, SDK assembly and both-host isolated installation remain P11/P10/P07/P12/P02. Status remains accepted until the intended SDK interface is implemented.
 
 ## Open questions
 
