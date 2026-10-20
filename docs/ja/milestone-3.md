@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**8 done · 1 doing · 33 todo · 96 remaining pt**
+**9 done · 1 doing · 32 todo · 93 remaining pt**
 
-**次: M3-T06 → 同じ source task fixture を compiled native continuation で実行します。**
+**次: M3-T07 → owned task local を実行し、入れ子の取消/失敗 cleanup を検証します。**
 
-現在の作業: **M3-T06**。直近の実行検証: **`2f58084`、2026-10-21 06:38 JST**。`cargo run -- run examples/scripts/tasks.lang` は両 worker の yield と scope join の後に 42 を出力します。TaskProgram は source claim/loan と独立 MIR 証明を保持し、明示 task VM が managed finite Copy storage、偽造不能な claim sidecar、保護された result reservation を使います。全 baseline は **104 suite / 成功 1,698 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が成功しました。T06 の残る受入条件: 同じ契約の native task continuation を compile し、MIR 解釈や VM fallback を使わず fixture の値/event を一致させます。初期 local は finite Copy/Task とし、native/owned/loan/foreign 実行、完全な共有 control、task artifact 形式の未完了 scope を維持します。M3 exit gate は未完了です。
+現在の作業: **M3-T07**。直近の実行検証: **`8d6c283`、2026-10-21 07:29 JST**。source VM と `cargo run --example native-structured-tasks` はともに 42 を出力します。compiled native continuation と独立にリンクした host object は finite Copy/Task local で VM と値/event/失敗起点/使用量が一致し、MIR 解釈や VM fallback を使いません。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が通過しました。T07 の残条件は実際の owned local と同期 owned-result move、retirement 前の入れ子 cancel/join、primary/secondary 失敗 report、exactly-once cleanup です。一般 async Send/Share transfer は A01、完全な共有 control は T08 に残します。task artifact/native package の明示拒否を維持し、M3 exit gate は未完了です。
 
-**今回: T05 完了（−3 pt）、新規 task/見積りはありません。** 直前残り **99 − 3 = 96 pt**。全 **42 行**、累積消化 **21 pt** と純追加見積り **+7 pt** は別に記録します。
+**今回: T06 完了（−3 pt）、新規 task/見積りはありません。** 直前残り **96 − 3 = 93 pt**。全 **42 行**、累積消化 **24 pt** と純追加見積り **+7 pt** を維持します。
 
 ## Deliveries
 
@@ -28,8 +28,8 @@
 | M3-T11 | done | 0 | M3-T10 | G03 | Task/TaskError と async MIR 宣言を検証し旧実行/artifact profile を拒否 | `ae9404d` |
 | M3-T04 | done | 0 | M3-T11 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | `700391d` |
 | M3-T05 | done | 0 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | `2f58084` |
-| M3-T06 | doing | 3 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | — |
-| M3-T07 | todo | 3 | M3-T06 | G03 | 所有 local、入れ子の取消、主/副失敗、exactly-once cleanup を検証 | — |
+| M3-T06 | done | 0 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | `8d6c283` |
+| M3-T07 | doing | 3 | M3-T06 | G03 | 所有 local、入れ子の取消、主/副失敗、exactly-once cleanup を検証 | — |
 | M3-T08 | todo | 3 | M3-T07 | G12,G13 | 全実行経路で task/frame/fuel の共有上限を副作用前に適用 | — |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | 有界 channel、FIFO wakeup、背圧、所有権 commit、取消 error を採択 | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | — |
@@ -101,11 +101,15 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 7 − 21 = 96 pt**
+**110 + 7 − 24 = 93 pt**
+
+T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
+
+T06 roadmap 監査: G03/G12/G13 の完了前に **T07 → T08** へ進みます。task `Frame::transfer`、finite profile の admission、既存 VM ownership state、native production managed primitive、`Reservation::move_root_into`、retirement/cleanup context を確認しました。T07 は元の 3 pt の観測可能な成果を維持し、残条件は実際の managed ownership による対応 owned local と同期 owned-result move、owner/escrow retirement 前の入れ子取消 join、失敗時の順序付き primary/secondary report と exactly-once cleanup です。現在の Copy transfer/forget 経路は ownership の代用になりません。次の owned source fixture で既存 managed service/cleanup 機構を再利用し、別の観測可能な前提が必要なら実装前に公開/再見積りします。一般 async transfer は A01、完全な共有 control は T08 に残します。全 15 gate、全 P1、channel、Send/Share、production embedding を M3 に維持します。
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +7 pt | −21 pt | 96 pt |
+| 110 pt | +7 pt | −24 pt | 93 pt |
 
 ## Exit audit
 
@@ -124,3 +128,4 @@ T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G
 - T11 の根拠: [RFC 0023](rfcs/0023-task-mir-boundaries.md)、`crates/mir/src/unit/ownership.rs`、`ownership/declarations.rs`、`crates/bytecode/src/ownership/`、`crates/runtime/src/layout.rs`。最終更新 2026-10-21、`ae9404d` を 2026-10-21 JST に確認/検証しました。
 - T04 の根拠: [RFC 0023](rfcs/0023-task-mir-boundaries.md)、`crates/mir/src/unit/ownership/tasks.rs`、`ownership/failure.rs`、`crates/mir/tests/tasks.rs`、`tests/task_mir_boundary.rs`。code の埋込み更新日はなく、`700391d` を 2026-10-21 JST に確認/検証しました。T05 の順序は同じ checkpoint の source lowerer と VM 境界に基づきます。
 - T05 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、[RFC 0023](rfcs/0023-task-mir-boundaries.md)、`crates/semantics/src/analysis.rs`、`ownership_types/bodies.rs`、`crates/runtime/src/layout/`、`crates/vm/src/unit/tasks/`、`tests/task_execution.rs`、`examples/scripts/tasks.lang`。code の埋込み更新日はなく、`2f58084` を 2026-10-21 JST に確認/実行/検証しました。T06 監査は同じ checkpoint の native codegen/公開境界に基づきます。
+- T06 の根拠: [RFC 0023](rfcs/0023-task-mir-boundaries.md)、`crates/runtime/src/task/runner/`、`crates/codegen-clif/src/tasks.rs`、`tasks/object.rs`、`tasks/tests.rs`、`tests/native_task_execution.rs`、`tests/support/task_static.rs`、`examples/native-structured-tasks.rs`。code の埋込み更新日はなく、`8d6c283` を 2026-10-21 07:29 JST に macOS AArch64 で確認/実行/検証しました。T07 監査も同じ時点の ownership move/cleanup interface に基づきます。
