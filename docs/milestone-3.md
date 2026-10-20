@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**6 done · 1 doing · 35 todo · 102 remaining pt**
+**7 done · 1 doing · 34 todo · 99 remaining pt**
 
-**Next: M3-T04 → independently verify task instructions, scopes, suspension and ownership/cleanup flow.**
+**Next: M3-T05 → execute the first source spawn/yield/join fixture in the VM.**
 
-Current delivery: **M3-T04**. Last executable checkpoint: **`ae9404d`, verified 2026-10-21 04:13 JST**: accepted RFC 0023; ownership MIR Task/TaskError types, properties and async declarations validate independently, while old place/body/layout/codec paths refuse the unavailable task profile. Fourteen new regressions cover the boundary, including unused metadata and no partial writer output. Full baseline: **100 suites / 1,666 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. Remaining T04 acceptance: record instruction/continuation design in RFC 0023, then independently verify task scopes/claims, suspension and ownership/cleanup edges. Keep source SRC0026 and old-profile refusal until the relevant proofs/adapters exist. No source task execution or M3 gate is complete.
+Current delivery: **M3-T05**. Last executable checkpoint: **`700391d`, verified 2026-10-21 05:30 JST**: RFC 0023 task instructions, scope/claim/return-escrow analysis and independent move/loan/arena-region/failure-plan evidence validate raw ownership MIR without HIR authority. Old layout/VM/native/codec paths refuse even scalar async proofs. Full baseline: **102 suites / 1,685 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. Remaining T05 acceptance: lower the source spawn/yield/join fixture into verified task MIR and execute it through the bounded driver in the VM, proving its value and event order. Keep unsupported execution/artifact modes explicit. No source task execution or M3 gate is complete.
 
-**This update: T11 completed (−2 pt), separately from T11 exposed earlier in this cycle (+2 pt).** Last remaining **104 − 2 = 102 pt**, net **0 pt** against the pre-audit 102 pt. There are **42 rows**; cumulative retirement is **15 pt**, separate from **+7 pt** net added estimates.
+**This update: T04 completed (−3 pt); no new tasks or estimates.** Previous remaining **102 − 3 = 99 pt**. There are **42 rows**; cumulative retirement is **18 pt**, separate from **+7 pt** net added estimates.
 
 ## Deliveries
 
@@ -26,8 +26,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-T09 | done | 0 | M3-T03 | G03 | Bind/type async calls and scoped task handles; reject handle escape and invalid async C surfaces | `390e3ca` |
 | M3-T10 | done | 0 | M3-T09 | G03 | Reject shared/exclusive loans at suspension with suspension and loan-origin diagnostics | `9f7012d` |
 | M3-T11 | done | 0 | M3-T10 | G03 | Validate Task/TaskError and async MIR declarations; reject the old executable/artifact profile | `ae9404d` |
-| M3-T04 | doing | 3 | M3-T11 | G03 | Verify typed MIR suspension, task scopes and ownership edges independently | — |
-| M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | Execute a source spawn/yield/join fixture in the VM through the shared task driver | — |
+| M3-T04 | done | 0 | M3-T11 | G03 | Verify typed MIR suspension, task scopes and ownership edges independently | `700391d` |
+| M3-T05 | doing | 3 | M3-T02,M3-T04 | G03 | Execute a source spawn/yield/join fixture in the VM through the shared task driver | — |
 | M3-T06 | todo | 3 | M3-T05 | G03,G13 | Execute the same task fixture through native continuations with equivalent events | — |
 | M3-T07 | todo | 3 | M3-T06 | G03 | Verify owned locals, nested cancellation, primary/secondary failures and exactly-once cleanup | — |
 | M3-T08 | todo | 3 | M3-T07 | G12,G13 | Enforce shared task/frame/fuel controls before effects on all execution paths | — |
@@ -93,11 +93,15 @@ T11 completed at `ae9404d` (2026-10-21 JST): accepted RFC 0023 and extended the 
 
 T11 roadmap audit: keep T04’s original instruction/scope/suspension/ownership/cleanup outcome and 3 pt. Record the concrete instruction/continuation design in RFC 0023 before implementation, then follow **T04 → T05 → T06** to source VM execution and compiled native parity. Type-only evidence and old-profile refusal do not prove G03 or any other exit gate. All 15 gates, P1 outcomes, channels, Send/Share and production embedding remain in M3; add no separate task language or scheduler/IDL framework.
 
-**110 + 7 − 15 = 102 pt**
+T04 completed at `700391d` (2026-10-21 JST): recorded the concrete instruction/continuation and cancellation-plan decisions in RFC 0023 before implementation. The task entry over existing ownership MIR independently validates bounded lexical scopes, origin sets through locals/prepared destinations/CFG arguments, move-only claims, suspension loans and return escrow. Existing ownership move, loan and arena-region proofs remain mandatory. Async failure plans distinguish cancellation entry from primary-failure recording and order loan ending, scope cancellation/join, owner retirement and escrow discard; these are static plans, not executed guest cleanup. Old frame/VM/native/codec APIs refuse even scalar async evidence before effects or wire output. Nineteen added regressions comprise 17 raw MIR tests, one private schema-2/3/4 writer test and one cross-adapter boundary test. The final fixed-input baseline passes **102 suites / 1,685 tests / 0 failures / 1 existing timing ignore**, suite-time sum **471.29s**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. The existing raw MIR fuzz target now mutates task instructions and metadata; no fuzz campaign or source task execution is claimed. An earlier full run hit one native CLI-start NotFound; its isolated retry and the final full baseline pass without changing production inputs or SDK checks. Retire T04’s last 3 pt; no additions or re-estimates.
+
+T04 roadmap audit: inspected the existing source lowerer’s Task refusal and synchronous execution boundaries against the verified MIR contract. T05 retains its original 3-point source fixture outcome: add task-aware source lowering and connect that evidence to the existing bounded driver in the VM, then T06 compiles the same continuations. Actual owned-local cancellation/cleanup and shared controls remain T07/T08. Add no scheduler/IDL framework or further representation prerequisite before this source fixture; re-audit if its remaining conditions grow. All 15 gates, all P1 work, channels, Send/Share and production embedding remain M3 requirements.
+
+**110 + 7 − 18 = 99 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +7 pt | −15 pt | 102 pt |
+| 110 pt | +7 pt | −18 pt | 99 pt |
 
 ## Exit audit
 
@@ -112,5 +116,6 @@ T11 roadmap audit: keep T04’s original instruction/scope/suspension/ownership/
 
 - T09 evidence: [RFC 0022](rfcs/0022-source-structured-tasks.md), `crates/hir/src/tasks.rs` and `crates/semantics/tests/tasks.rs`; last updated 2026-10-21, inspected at `390e3ca` on 2026-10-21 JST.
 - T10 evidence: [RFC 0022](rfcs/0022-source-structured-tasks.md), `crates/hir/src/loans.rs`, `crates/hir/src/tasks.rs` and `crates/semantics/tests/task_loans.rs`; last updated 2026-10-21, inspected at `9f7012d` on 2026-10-21 JST. MIR boundary audit: `crates/mir/src/unit/ownership/declarations.rs` and `bodies.rs` have no embedded update date; verified at the same checkpoint/date.
-- [RFC 0023](rfcs/0023-task-mir-boundaries.md), last updated 2026-10-21; accepted MIR type/declaration boundary and explicit unverified flow/format work.
+- [RFC 0023](rfcs/0023-task-mir-boundaries.md), last updated 2026-10-21; accepted in-memory type/declaration, instruction/scope and cleanup-plan contracts. Execution and serialized task formats remain unproved.
 - T11 evidence: [RFC 0023](rfcs/0023-task-mir-boundaries.md), `crates/mir/src/unit/ownership.rs`, `ownership/declarations.rs`, `crates/bytecode/src/ownership/` and `crates/runtime/src/layout.rs`; last updated 2026-10-21, inspected/verified at `ae9404d` on 2026-10-21 JST.
+- T04 evidence: [RFC 0023](rfcs/0023-task-mir-boundaries.md), `crates/mir/src/unit/ownership/tasks.rs`, `ownership/failure.rs`, `crates/mir/tests/tasks.rs` and `tests/task_mir_boundary.rs`; no embedded code update date, inspected/verified at `700391d` on 2026-10-21 JST. T05 sequencing uses the source lowerer and VM boundaries from that same checkpoint.
