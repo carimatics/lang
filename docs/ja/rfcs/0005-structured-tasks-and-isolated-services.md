@@ -206,7 +206,7 @@ Unscoped futureはspawnを簡単にしますが、childがborrowed／owned paren
 
 ## Implementation plan
 
-厳格な isolation/cancellation policy は受理済みです。RFC 0021 で有界 host task driver を実装し、RFC 0022 で lossless syntax、resolved async effect、実行を許可しない型/move/scope snapshot を実装して、未対応実行 profile を明示拒否します。suspension loan 証明、MIR、VM/native adapter は別の M3 作業です。channel/backpressure、Send/Share 導出、production component の cancellation/embedding profile は依存実装前の明示判断を引き続き要します。既存 task/service state model だけではこれらの production 成果を完了しません。
+厳格な isolation/cancellation policy は受理済みです。RFC 0021 で有界 host task driver を実装し、RFC 0022 で lossless syntax、resolved async effect、実行を許可しない型/move/scope snapshot、別段階の suspension loan 証明を実装し、未対応実行 profile を明示拒否します。独立 MIR と VM/native adapter は別の M3 作業です。channel/backpressure、Send/Share 導出、production component の cancellation/embedding profile は依存実装前の明示判断を引き続き要します。既存 task/service state model だけではこれらの production 成果を完了しません。
 
 1. Source／HIR task scope、suspension point、messageへのmove、service-owner operation、compile-pass／fail fixtureを追加します。
 2. No-live-borrow-at-suspension、scoped child handle、`Send` derivation、isolationのtyped MIR operation／validationを追加します。

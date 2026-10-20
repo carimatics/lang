@@ -16,7 +16,7 @@
 
 RFC 0005 の厳密な構造化並行性を RFC 0021 の driver で実行する source 構文を定めます。関数は `async` を宣言し、`spawn` が scope 付きの子を作り、`await` が handle を消費し、task scope は終了前に join します。borrow は suspension を跨げません。source semantics の採択であり、source task 実行や serialized coroutine 形式の完成ではありません。
 
-T09 checkpoint（2026-10-21 JST）: lossless syntax を resolved async effect、Task/TaskError 型、有界 move/scope claim snapshot に束縛しました。不正 effect/claim/escape は task 診断を受け、妥当な task source も executable checked program 作成前に `SRC0026` を受けます。CLI/REPL/LSP と file/virtual/cached module も対象です。snapshot は suspension loan や MIR/backend 実行を証明しません。現在の async transfer は scalar/finite Copy 値に限定し、一般の owned transfer は A01 の Send/Share profile を待ちます。T10、MIR、VM/native 実行は別作業で、契約全体の実装まで本 RFC は accepted のままです。
+T10 checkpoint（2026-10-21 JST）: lossless syntax を resolved async effect、Task/TaskError 型、有界 move/scope claim snapshot に束縛します。別段階の source loan 証明で await/yield/cancel_check/暗黙 join 時の生存 shared/exclusive loan を SRC0028 と loan 起点 span 付きで拒否し、branch 合流前の return/失敗 edge も検査します。終了する lexical loan を自身の join 前に終え、入れ子 join では外側 loan を維持します。型/claim snapshot だけでは loan 証明にならず、結合した TaskLoans 証明も executable MIR/backend program を許可しません。妥当な task source は CLI/REPL/LSP と file/virtual/cached module で SRC0026 を受けます。async transfer は A01 の一般 owned Send/Share profile まで scalar/finite Copy 値に限定します。独立 MIR と VM/native 実行は別作業で、契約全体の実装まで本 RFC は accepted のままです。
 
 ```text
 async fn worker(value: i64) -> i64 {
@@ -121,7 +121,7 @@ source syntax/core 型/effect の契約を追加しますが、native frame layo
 
 専用 CST node で async 宣言/scope/prefix/statement を保持します。不正 async signature や operand 欠落でも全 token、囲む brace、後続宣言を回復で保ちます。format は空白だけを変え comment/優先順位/冪等性を維持します。LSP format は同じ CST formatter を使います。
 
-段階導入で未対応の async 実行/解析 profile に `SRC0026`、task effect/scope/claim 違反に `SRC0027`、`concurrency.borrow-across-suspension` に `SRC0028` と loan 起点の副 label を予約します。既存 move/type 診断も使用します。parser 受入だけで source check を成功させず、T09/T10/MIR 接続までは semantic program 作成前に未対応 profile を報告します。debug ancestry/lint は後続 tooling 作業で、source 変数/DAP 対応を主張しません。
+段階導入で未対応の async 実行/解析 profile に `SRC0026`、task effect/scope/claim 違反に `SRC0027`、`concurrency.borrow-across-suspension` に `SRC0028` と loan 起点の副 label を使用します。既存 move/type 診断も使用します。source 型/claim と loan 証明だけで実行用 source check を成功させず、task MIR と adapter 接続までは executable checked program 作成前に未対応 profile を報告します。debug ancestry/lint は後続 tooling 作業で、source 変数/DAP 対応を主張しません。
 
 ## Performance and cost model
 

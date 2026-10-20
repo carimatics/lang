@@ -206,7 +206,7 @@ Unscoped futures simplify spawning but permit children to outlive borrowed/owned
 
 ## Implementation plan
 
-The strict isolation/cancellation policy is accepted. RFC 0021 implements the bounded host task driver; RFC 0022 implements lossless syntax, resolved async effects and non-executable typing/move/scope snapshots with explicit refusal of the unavailable execution profile. Suspension-loan proofs, MIR and VM/native adapters remain separate M3 deliveries. Channel/backpressure, Send/Share derivation and the production component cancellation/embedding profile still require their explicit decisions before dependent implementation. Existing task/service state models do not complete those production outcomes.
+The strict isolation/cancellation policy is accepted. RFC 0021 implements the bounded host task driver; RFC 0022 implements lossless syntax, resolved async effects, non-executable typing/move/scope snapshots and separate suspension-loan proofs, while explicitly refusing the unavailable execution profile. Independent MIR and VM/native adapters remain separate M3 deliveries. Channel/backpressure, Send/Share derivation and the production component cancellation/embedding profile still require their explicit decisions before dependent implementation. Existing task/service state models do not complete those production outcomes.
 
 1. Add source/HIR task scopes, suspension points, moves into messages, service-owner operations, and compile-pass/fail fixtures.
 2. Add typed MIR operations and validation for no live borrow at suspension, scoped child handles, `Send` derivation, and isolation.

@@ -1,8 +1,8 @@
-//! Non-executable RFC 0022 typing/move/scope snapshots. These do not prove
-//! suspension loans or construct an executable MIR/VM/native program.
+//! Non-executable RFC 0022 source snapshots. Typing/move/scope snapshots and
+//! suspension-loan proofs are separate; neither constructs executable MIR.
 
 use crate::{
-    moves,
+    loans, moves,
     program::{self, BodyTypes, CheckError, CheckLimits},
     resolved as r, types,
 };
@@ -176,6 +176,40 @@ impl TaskTypes {
 pub struct Analysis {
     pub program: Option<TaskTypes>,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Combined source claim and suspension-loan evidence, not a MIR proof.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskLoans {
+    loaned: loans::LoanCheckedBodies,
+    functions: Vec<FunctionClaims>,
+}
+impl TaskLoans {
+    pub fn loaned(&self) -> &loans::LoanCheckedBodies {
+        &self.loaned
+    }
+    pub fn functions(&self) -> &[FunctionClaims] {
+        &self.functions
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LoanAnalysis {
+    pub program: Option<TaskLoans>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+pub fn check_loans(
+    typed: TaskTypes,
+    sources: &SourceMap,
+    limits: loans::Limits,
+) -> Result<LoanAnalysis, loans::Error> {
+    let checked = loans::analyze(typed.moved, sources, limits)?;
+    Ok(LoanAnalysis {
+        program: checked.bodies.map(|loaned| TaskLoans {
+            loaned,
+            functions: typed.functions,
+        }),
+        diagnostics: checked.diagnostics,
+    })
 }
 
 pub fn analyze(

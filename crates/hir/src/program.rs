@@ -334,7 +334,23 @@ fn check_program_internal(
     if let Some(span) = crate::tasks::feature_span(&source, sources, limits)? {
         let checked = crate::tasks::analyze(source, sources, limits)?;
         let mut diagnostics = checked.diagnostics;
-        if checked.program.is_some() {
+        let loaned = if let Some(typed) = checked.program {
+            let checked = crate::tasks::check_loans(typed, sources, limits.loans)
+                .map_err(CheckError::Loans)?;
+            if checked.diagnostics.len() > limits.diagnostics.saturating_sub(diagnostics.len()) {
+                return Err(CheckError::Limit(Box::new(Diagnostic::new(
+                    codes::RESOURCE_LIMIT,
+                    Severity::Error,
+                    "task profile diagnostic limit exceeded",
+                    Label::new(span, "diagnostic limit exceeded"),
+                ))));
+            }
+            diagnostics.extend(checked.diagnostics);
+            checked.program.is_some()
+        } else {
+            false
+        };
+        if loaned {
             if diagnostics.len() >= limits.diagnostics {
                 return Err(CheckError::Limit(Box::new(Diagnostic::new(
                     codes::RESOURCE_LIMIT,

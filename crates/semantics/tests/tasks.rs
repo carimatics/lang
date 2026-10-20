@@ -191,10 +191,14 @@ fn typed_task_snapshots_do_not_authorize_loan_proofs_or_execution() {
     let text =
         "async fn main()->i64{let mut value:i64=1;let mut view:&i64=&value;yield;return value;}";
     let (sources, snapshot) = checked(text);
-    assert!(matches!(
-        lang_hir::loans::analyze(snapshot.moved().clone(), &sources, Default::default()),
-        Err(lang_hir::loans::Error::TaskProfile { .. })
-    ));
+    let loaned = tasks::check_loans(snapshot, &sources, Default::default()).unwrap();
+    assert!(loaned.program.is_none());
+    assert!(
+        loaned
+            .diagnostics
+            .iter()
+            .any(|d| d.code == codes::BORROW_ACROSS_SUSPENSION)
+    );
     let (_, program) = bound(text);
     let result = lang_hir::program::analyze_program(program, &sources, CheckLimits::default());
     // Use the exact source identity of the newly bound program below.
@@ -207,7 +211,7 @@ fn typed_task_snapshots_do_not_authorize_loan_proofs_or_execution() {
         result
             .diagnostics
             .iter()
-            .any(|d| d.code == codes::ASYNC_UNAVAILABLE)
+            .any(|d| d.code == codes::BORROW_ACROSS_SUSPENSION)
     );
 }
 

@@ -37,7 +37,6 @@ pub enum Error {
     Source(SourceError),
     Limit(Box<Diagnostic>),
     AllocationFailed { span: Span },
-    TaskProfile { span: Span },
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -81,6 +80,7 @@ pub enum ViolationKind {
     Escape,
     CallerCellEscape,
     LoopState,
+    Suspension,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Violation {
@@ -315,8 +315,13 @@ impl Context {
                 "ordinary loans cannot escape into a caller-owned reference cell"
             }
             ViolationKind::LoopState => "loop back-edge must restore the header loan state",
+            ViolationKind::Suspension => {
+                "live lexical loan crosses a task suspension or cancellation point"
+            }
         };
-        let code = if matches!(
+        let code = if violation.kind == ViolationKind::Suspension {
+            codes::BORROW_ACROSS_SUSPENSION
+        } else if matches!(
             violation.kind,
             ViolationKind::Escape | ViolationKind::CallerCellEscape
         ) {
@@ -346,9 +351,6 @@ pub fn analyze(
     limits: Limits,
 ) -> Result<Analysis, Error> {
     let bodies = moved.bodies();
-    if let Some(span) = bodies.task_feature_span() {
-        return Err(Error::TaskProfile { span });
-    }
     let root = bodies.source().modules[0].span;
     for module in &bodies.source().modules {
         sources.slice(module.span).map_err(Error::Source)?;
@@ -405,6 +407,7 @@ pub fn analyze(
             },
             depths,
             scopes: Vec::new(),
+            task_scopes: Vec::new(),
         };
         for local in &function.parameters {
             if checker.loan(facts.locals()[local.0]).is_some() {
@@ -416,7 +419,16 @@ pub fn analyze(
                     .push(span, &mut checker.state.references[local.0], id)?;
             }
         }
-        checker.block(function.body, 0)?;
+        if function.effect.is_async() {
+            checker
+                .context
+                .budget
+                .push(function.span, &mut checker.task_scopes, 1)?;
+        }
+        let reaches = checker.block(function.body, 0)?;
+        if reaches && function.effect.is_async() {
+            checker.suspend(function.blocks[function.body.0].closing_brace, None)?;
+        }
         functions.push(FunctionLoans {
             loans: checker.loans,
             dependencies: checker.dependencies,
@@ -448,8 +460,35 @@ struct Checker<'a, 'b> {
     state: State,
     depths: Vec<usize>,
     scopes: Vec<Vec<r::LocalId>>,
+    /// Lexical depth of each implicit/explicit task scope. Return/failure
+    /// checks each join before branch states discard its exiting edge.
+    task_scopes: Vec<usize>,
 }
 impl Checker<'_, '_> {
+    fn suspend(&mut self, span: Span, exiting: Option<usize>) -> Result<(), Error> {
+        for index in 0..self.state.active.len() {
+            self.context.budget.charge(span, 1)?;
+            let loan = self.loans[self.state.active[index].0];
+            // Loans in the scope being exited end before its implicit join.
+            // Outer loans remain live until their own lexical exit.
+            if exiting.is_none_or(|depth| loan.scope < depth) {
+                self.report(
+                    ViolationKind::Suspension,
+                    Some(loan.owner),
+                    span,
+                    Some(loan.span),
+                )?;
+            }
+        }
+        Ok(())
+    }
+    fn exit_tasks(&mut self, span: Span) -> Result<(), Error> {
+        for index in (0..self.task_scopes.len()).rev() {
+            self.context.budget.charge(span, 1)?;
+            self.suspend(span, Some(self.task_scopes[index]))?;
+        }
+        Ok(())
+    }
     fn loan_target(&self, ty: r::Type) -> Option<(r::LoanKind, r::Type)> {
         if let r::Type::Constructed(id) = ty
             && let r::TypeConstructor::Loan(kind, target) = self.bodies.types()[id.0].constructor
@@ -1047,8 +1086,11 @@ impl Checker<'_, '_> {
                 .map(Value::references);
         }
         match &expression.kind {
-            r::ExpressionKind::Spawn(_) | r::ExpressionKind::Await(_) => {
-                return Err(Error::TaskProfile { span });
+            r::ExpressionKind::Spawn(value) | r::ExpressionKind::Await(value) => {
+                self.eval(*value, result_scope, depth + 1)?;
+                if matches!(expression.kind, r::ExpressionKind::Await(_)) {
+                    self.suspend(span, None)?;
+                }
             }
             r::ExpressionKind::Local(_)
             | r::ExpressionKind::Field { .. }
@@ -1233,13 +1275,25 @@ impl Checker<'_, '_> {
                 self.temporary(r::ExpressionId(place.0), depth + 1)?;
             }
             self.temporary(id, depth + 1)?;
+            self.exit_tasks(span)?;
             return Ok(false);
         }
         match &statement.kind {
-            r::StatementKind::TaskScope { .. }
-            | r::StatementKind::Yield
-            | r::StatementKind::Cancel(_)
-            | r::StatementKind::CancelCheck => return Err(Error::TaskProfile { span }),
+            r::StatementKind::TaskScope { body } => {
+                self.context
+                    .budget
+                    .push(span, &mut self.task_scopes, self.scopes.len() + 1)?;
+                let reaches = self.block(*body, depth + 1)?;
+                self.task_scopes.pop();
+                if reaches {
+                    self.suspend(self.function.blocks[body.0].closing_brace, None)?;
+                }
+                return Ok(reaches);
+            }
+            r::StatementKind::Yield | r::StatementKind::CancelCheck => self.suspend(span, None)?,
+            r::StatementKind::Cancel(value) => {
+                self.temporary(*value, depth + 1)?;
+            }
             r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
             r::StatementKind::LetMut { local, initializer } => {
                 let refs = if let Some(kind) = self.loan(self.facts.locals()[local.0]) {
@@ -1310,6 +1364,7 @@ impl Checker<'_, '_> {
             }
             r::StatementKind::Return(value) => {
                 self.temporary(*value, depth + 1)?;
+                self.exit_tasks(span)?;
                 return Ok(false);
             }
             r::StatementKind::Arena {

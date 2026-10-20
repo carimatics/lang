@@ -491,9 +491,7 @@ fuzz_target!(|bytes: &[u8]| {
                                 }
                                 Err(loans::Error::Limit(d)) => d.validate(&sources).unwrap(),
                                 Err(
-                                    loans::Error::Source(_)
-                                    | loans::Error::AllocationFailed { .. }
-                                    | loans::Error::TaskProfile { .. },
+                                    loans::Error::Source(_) | loans::Error::AllocationFailed { .. },
                                 ) => {}
                             }
                         }
@@ -516,11 +514,7 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
-            | CheckError::Loans(
-                loans::Error::Source(_)
-                | loans::Error::AllocationFailed { .. }
-                | loans::Error::TaskProfile { .. },
-            )
+            | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
             | CheckError::Regions(
                 regions::Error::Source(_) | regions::Error::AllocationFailed { .. },
             )
@@ -554,11 +548,7 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
-            | CheckError::Loans(
-                loans::Error::Source(_)
-                | loans::Error::AllocationFailed { .. }
-                | loans::Error::TaskProfile { .. },
-            )
+            | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
             | CheckError::Regions(
                 regions::Error::Source(_) | regions::Error::AllocationFailed { .. },
             )
