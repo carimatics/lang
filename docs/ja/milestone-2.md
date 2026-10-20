@@ -2,27 +2,27 @@
 
 # Milestone 2実装Todo
 
-[English](../milestone-2.md) · [完了条件](roadmap.md#milestone-2-ownership-and-native-aot)
+[English](../milestone-2.md) · [完了条件](roadmap.md#milestone-2ownershipとnative-aot)
 
 更新・検証：**2026-10-20 JST**。初回監査checkpoint：`0c2c012`。
 
-**128 done · 1 doing · 4 todo · 10 remaining pt**
+**129 done · 1 doing · 3 todo · 9 remaining pt**
 
-**次: M2-B04 → 両hostの比較・解釈・再現手順（暫定1 pt、実施中）。**
+**次: M2-G01 → owned native source locationとmacOS debug metadata（暫定3 pt、実装中）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| B04：両host計測の解釈と再現 | **B03完了**：cleanなWindowsの135＋45観測（`02b348f`） | **16/18条件** |
+| G01：owned native source map＋macOS debug metadata | **B04完了**：両host比較／再現（`990e422`） | **17/18条件** |
 
-**直近の検証checkpoint（2026-10-20 JST）：** [Windows run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853)のcleanな`dced632`が成功し、2026-10-20 07:17:54 UTCに完了しました。[Raw capture](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)と[計測表／scope](benchmarks.md#windows-native-capture-b03)を`02b348f`に保存しています。workload 135＋専用startup 45観測、全sample identity／checksum／退役／集計値、実際の非zeroなK32 peak working set、SDK／harness hash、reference linkの分離を独立に検証しました。compiler・source／reference workload・harnessはmacOS記録と同一で、checkoutの改行差はcanonicalに扱います。
+**直近の検証checkpoint（2026-10-20 JST）：** `990e422`で[両hostの比較と再現](benchmarks.md#両hostの比較と再現b04)、read-onlyの[summary tool](../../tools/summarize-m2-bench.py)を公表しました。cleanなnative記録[macOS `ecc0fd1`](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)と[Windows `dced632`](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)は、各hostの21組parity／unwind後のworkload 270＋専用startup 90観測を保持します。data／集計値／provenance／退役の全検証が通り、独立した再計算で公表したsource／reference比6行が一致しました。G17を完了し、実debuggerの証拠は未完了です。
 
-**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **12 − 2 = 10 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もり変更)は **134 + 109 − 233 = 10 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−1 pt）、見積もり／task追加なし。** 残り **10 − 1 = 9 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もり変更)は **134 + 109 − 234 = 9 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**B03完了監査：** native Windows Server 2025 build 10.0.26100／x86-64、logical CPU 2で、source／Rust／Cのscalar／Bytes＋Vec／shared-arenaを各15 samples、`n=1000`、20 calls、計時外warmup 3回で記録し、先に21組／unwind gateが通りました。workload runtime、processごとに一度の準備、専用startup、K32 process peak、executable／object size、ばらつきを保持します。source pipeline時間はreferenceより大きく、reference workload RSDは最大33.39%、startup RSDは約7–23%です。C-labelled applicationも共通Rust driverを含みます。両記録は各exact revision時点の証拠で、異なるmachineの速度やheap allocation量は推測しません。
+**G17完了監査：** B01で実sourceのscalar、owned Bytes＋Vec、shared／weak／arena workloadと、独立した最適化済みRust／C referenceを用意しました。B02／B03で両native tier-1 hostのruntime・準備・startup・OS memory・binary／object size・ばらつきを記録し、B04でコスト差・ノイズ・control／optimizer／allocator／共通Rust driver・RSS／working set定義の差を解釈して、不変のraw dataと再実行commandを公表しました。計測したchecked source pipelineはreferenceより大幅に遅く、速度目標や異なるmachineの因果関係は主張しません。元の計測条件を完了したもので、source debuggingと最終capability guideは未完了です。
 
-B01の **1,585 tests／94 suites、0失敗、手動timing ignore 1件**、fmt／Clippy／rustdoc、standalone／4 mode／parity／unwindの証拠を維持します。B03は記録data／文書のみで、production／reference Rustとharnessは同一です。日英計画はrepository consistency 3件とlink／data保存検証を使います。
+B01の **1,585 tests／94 suites、0失敗、手動timing ignore 1件**、fmt／Clippy／rustdoc、両hostの4 mode／parity／unwindの証拠を維持します。compiler・runtime・reference・計測harnessは同一です。read-only集計toolを別directoryから両保存datasetに実行し、比較6行の一致、ばらつき／memory範囲、source／tool linkを再確認しました。日英task／gate／重み更新にはrepository consistency 3件を使います。
 
-**B04実装前監査（2026-10-20 JST）：** 完全な両native記録と既存1 ptを使います。同一host内のsource／Rust／C runtime比率、resource／startup／sizeの証拠、ばらつき、計測の限界を公表し、callごとのruntime処理・artifact／context準備・workloadなし新規process起動を区別します。exact revision／SDK／toolchain／flag、入力、raw source、実行可能な再現／集計commandを含めます。optimizer、有限control、ownership／accounting、共通Rust driver、RSS／working set、hostの差を説明し、未検証の原因や異なるmachineの結論は置きません。文書だけが異なるrevision ID間でcanonicalなharness／workloadが同一なことを検証します。このreport後にG17を完了し、G18と最終Z01は引き続き必須です。新たな前提／見積もりはありません。
+**G01実装前監査（2026-10-20 JST）：** 既存の暫定3 ptを使います。`owned.rs`はCranelift SourceLoc rangeを既に記録し、`program.rs`にはCopy-unitのrange基盤、`debug.rs`には先行fixtureのnative DWARF／CodeView emitterがあります。ownedのfunctionごとのsource range／nameを実native object経路へ接続する箇所を調べ、既存基盤を再利用してmacOSのsource-span／location fixtureを検証してから完了にします。構造変更前にcanonical architecture／受理済み設計を読み、新たなpublic設計が必要なら実装前に記録します。frontend／backend分離とspan／resource boundを維持します。G02のWindows metadataと、G03の両hostでの実debugger stepping／backtraceを残し、metadata検査だけでG18を完了しません。最終Z01も引き続き必須です。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -210,13 +210,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 128件（+93件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 129件（+94件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −233 pt | 10 pt |
+| 134 pt | +109 pt | −234 pt | 9 pt |
 
-**134 + 109 − 233 = 10 pt**
+**134 + 109 − 234 = 9 pt**
+
+B04完了／G01実装前監査（2026-10-20 JST）：`990e422`で両hostの解釈と実行可能なread-only再計算toolを公表しました。両native captureのcompiler／runtime／workload／harness／build／toolchain blobは同一で、workload 270＋専用startup 90観測、parity／checksum／退役／provenance／ばらつきを独立に照合しました。tool実行で比率6行が再現し、限界とcommandを公表しています。既存1 ptを除き、**128 → 129完了、残り10 → 9 pt、完了で除いた233 → 234点、133行／追加109点は不変**。G17を完了し、**17/18条件、履歴上の重み105/113 pt（92.9%）**です。G01だけを既存3 ptで選び、source range／debug emitterを再利用しつつ、両platformのG02／G03と最終Z01を維持します。この実装前監査で見積もり追加はありません。
 
 B03完了／B04実装前監査（2026-10-20 JST）：`02b348f`にrun 39385041497のcleanなnative Windows report `dced632`を保存し、workload 135＋startup 45観測、全checksum／退役／provenance／集計値、実際の非zeroなK32 memoryが通りました。既存2 ptを除き、**127 → 128完了、残り12 → 10 pt、完了で除いた231 → 233点、133行／追加109点は不変**。B04だけを既存1 ptで選び、両hostの解釈／再現手順をまとめます。計測には大きなscope内runtimeコスト差とreference／startupのばらつきがあり、限界を公表します。G17はB04まで未完了で、両hostのdebugger作業とZ01は不変です。
 
@@ -453,8 +455,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-B01 | done | 0 | M2-Q01 | G17 | 同等Rust／C workloadとharnessで比較前に意味的一致を確認。 | `fffe86c` |
 | M2-B02 | done | 0 | M2-B01,M2-P02 | G17 | CleanなmacOSでruntime／startup／memory／sizeとばらつきを記録。 | `95b97cb` |
 | M2-B03 | done | 0 | M2-B01,M2-P02 | G17 | 同等のclean Windows計測とばらつきを記録。 | `02b348f` |
-| M2-B04 | doing | 1 | M2-B02,M2-B03 | G17 | 結果の解釈、再現command、残るperformance上の限界を公開。 | — |
-| M2-G01 | todo | 3 | M2-N06 | G18 | Native owned-valueのsource span／locationをemitし、macOS debug fixtureで検証。 | — |
+| M2-B04 | done | 0 | M2-B02,M2-B03 | G17 | 結果の解釈、再現command、残るperformance上の限界を公開。 | `990e422` |
+| M2-G01 | doing | 3 | M2-N06 | G18 | Native owned-valueのsource span／locationをemitし、macOS debug fixtureで検証。 | — |
 | M2-G02 | todo | 3 | M2-N07 | G18 | 対応するWindows native debug metadataをemitし、source locationを検証。 | — |
 | M2-G03 | todo | 2 | M2-G01,M2-G02 | G18 | 両tier-1実機でdebuggerのstep／backtrace evidenceを記録。 | — |
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | 全exit evidenceを監査し、英日M2 capability guideを公開。 | — |

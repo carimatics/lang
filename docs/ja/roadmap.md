@@ -8,17 +8,17 @@
 
 ## 現在のM2実装状況
 
-**検証済み128件 · 進行中1件 · 残り4件（暫定10 pt）。**
+**検証済み129件 · 進行中1件 · 残り3件（暫定9 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| B04：両host計測の解釈と再現 | **B03完了**：cleanなWindowsの135＋45観測（`02b348f`） | **16/18条件** |
+| G01：owned native source map＋macOS debug metadata | **B04完了**：両host比較／再現（`990e422`） | **17/18条件** |
 
-**直近の検証checkpoint（2026-10-20 JST）：** [Windows run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853)のcleanな`dced632`が成功し、2026-10-20 07:17:54 UTCに完了しました。[Raw capture](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)と[計測表／scope](benchmarks.md#windows-native-capture-b03)を`02b348f`に保存しています。workload 135＋専用startup 45観測、全sample identity／checksum／退役／集計値、実際の非zeroなK32 peak working set、SDK／harness hash、reference linkの分離を独立に検証しました。compiler・source／reference workload・harnessはmacOS記録と同一で、checkoutの改行差はcanonicalに扱います。
+**直近の検証checkpoint（2026-10-20 JST）：** `990e422`で[両hostの比較と再現](benchmarks.md#両hostの比較と再現b04)、read-onlyの[summary tool](../../tools/summarize-m2-bench.py)を公表しました。cleanなnative記録[macOS `ecc0fd1`](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)と[Windows `dced632`](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)は、各hostの21組parity／unwind後のworkload 270＋専用startup 90観測を保持します。data／集計値／provenance／退役の全検証が通り、独立した再計算で公表したsource／reference比6行が一致しました。G17を完了し、実debuggerの証拠は未完了です。
 
-**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **12 − 2 = 10 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 233 = 10 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−1 pt）、見積もり／task追加なし。** 残り **10 − 1 = 9 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 234 = 9 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**B04実装前監査（2026-10-20 JST）：** 完全な両native記録と既存1 ptを使います。同一host内のsource／Rust／C runtime比率、resource／startup／sizeの証拠、ばらつき、計測の限界を公表し、callごとのruntime処理・artifact／context準備・workloadなし新規process起動を区別します。exact revision／SDK／toolchain／flag、入力、raw source、実行可能な再現／集計commandを含めます。optimizer、有限control、ownership／accounting、共通Rust driver、RSS／working set、hostの差を説明し、未検証の原因や異なるmachineの結論は置きません。文書だけが異なるrevision ID間でcanonicalなharness／workloadが同一なことを検証します。このreport後にG17を完了し、G18と最終Z01は引き続き必須です。新たな前提／見積もりはありません。
+**G01実装前監査（2026-10-20 JST）：** 既存の暫定3 ptを使います。`owned.rs`はCranelift SourceLoc rangeを既に記録し、`program.rs`にはCopy-unitのrange基盤、`debug.rs`には先行fixtureのnative DWARF／CodeView emitterがあります。ownedのfunctionごとのsource range／nameを実native object経路へ接続する箇所を調べ、既存基盤を再利用してmacOSのsource-span／location fixtureを検証してから完了にします。構造変更前にcanonical architecture／受理済み設計を読み、新たなpublic設計が必要なら実装前に記録します。frontend／backend分離とspan／resource boundを維持します。G02のWindows metadataと、G03の両hostでの実debugger stepping／backtraceを残し、metadata検査だけでG18を完了しません。最終Z01も引き続き必須です。
 
 ## タスク管理
 
@@ -50,13 +50,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 97 pt | 113 pt | 85.8% |
+| 2 — ownershipとnative AOT | 105 pt | 113 pt | 92.9% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **395 pt** | **764 pt** | **51.7%** |
+| **全体** | **403 pt** | **764 pt** | **52.7%** |
 
 ## Milestone 0：設計baseline
 
@@ -232,7 +232,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中16件完了、履歴上の重み：97 / 113 pt（85.8%）。**
+**完了条件：18件中17件完了、履歴上の重み：105 / 113 pt（92.9%）。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -254,7 +254,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — macOS AArch64／Windows x86-64向けownership-aware source-program object generationとnative link／run conformanceを完成させる。** — 8 pt
 - [x] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
 - [x] **P0 — 代表的なVM／native differential conformance suiteを構築する。** — 8 pt
-- [ ] **P0 — 代表的native workloadを同等のRust／C実装に対して計測する。** — 8 pt
+- [x] **P0 — 代表的native workloadを同等のRust／C実装に対して計測する。** — 8 pt
 - [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。

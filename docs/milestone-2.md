@@ -6,23 +6,23 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**128 done · 1 doing · 4 todo · 10 remaining pt**
+**129 done · 1 doing · 3 todo · 9 remaining pt**
 
-**Next: M2-B04 → both-host comparison, interpretation and reproduction (provisional 1 pt, in progress).**
+**Next: M2-G01 → owned native source locations and macOS debug metadata (provisional 3 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| B04: interpret and reproduce both-host measurements | **B03 complete**: clean Windows 135 + 45 observations (`02b348f`) | **16/18 gates** |
+| G01: owned native source maps + macOS debug metadata | **B04 complete**: both-host comparison/reproduction (`990e422`) | **17/18 gates** |
 
-**Latest verification checkpoint (2026-10-20 JST):** [Windows run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853) succeeds at clean `dced632`, completed 2026-10-20 07:17:54 UTC. [Raw capture](../benchmarks/results/2026-10-20-m2-windows-dced632.json) and [tables/scope](benchmarks.md#windows-native-capture-b03) are committed as `02b348f`. Independently verified: 135 workload + 45 dedicated startup observations, all sample identities/checksums/retirement/aggregates, actual nonzero K32 peak working-set values, SDK/harness hashes and reference link separation. Compiler, source/reference workloads and harness match the macOS capture; checkout newline differences are canonicalized.
+**Latest verification checkpoint (2026-10-20 JST):** `990e422` publishes [both-host comparison and reproduction](benchmarks.md#both-host-comparison-and-reproduction-b04) with the read-only [summary tool](../tools/summarize-m2-bench.py). Clean native captures [macOS `ecc0fd1`](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json) and [Windows `dced632`](../benchmarks/results/2026-10-20-m2-windows-dced632.json) retain 270 workload + 90 dedicated startup observations, after 21-case parity/unwind on each host. All data/aggregate/provenance/retirement checks pass; independent recomputation reproduces all six published source/reference ratios. G17 is complete; actual debugger evidence remains open.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **12 − 2 = 10 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 233 = 10 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−1 pt), no added estimates/tasks.** Remaining **10 − 1 = 9 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 234 = 9 pt**. Provisional planning units are not hours or completion percentages.
 
-**B03 completion audit:** native Windows Server 2025 build 10.0.26100/x86-64, two logical CPUs, 15 samples per source/Rust/C scalar/Bytes+Vec/shared-arena case, `n=1000`, 20 calls, three untimed warmups; the 21-case/unwind gate passes first. Workload runtime, once-per-process preparation, dedicated startup, K32 process peaks, executable/object sizes and variance are retained. Source pipeline times exceed references; reference workload RSD reaches 33.39% and startup RSD approximately 7–23%. The C-labelled application includes the common Rust driver. Both captures are evidence at their exact revisions, with no inferred cross-machine speed or heap-allocation claim.
+**G17 completion audit:** B01 supplies equivalent actual-source scalar, owning Bytes+Vec and shared/weak/arena workloads and separate optimized Rust/C references. B02/B03 record runtime, preparation, startup, OS memory, binary/object sizes and variance on both native tier-1 hosts; B04 interprets the measured cost gap, noise, differing controls/optimizers/allocators/common Rust driver and RSS/working-set definitions, with immutable raw data and rerunnable commands. The measured checked source pipeline is much slower than references; no speed target or cross-machine causality is claimed. This closes the original measurement criterion, not source debugging or the final capability guide.
 
-Retain B01’s **1,585 tests / 94 suites, 0 failures, 1 manual timing ignore**, fmt/Clippy/rustdoc and standalone/four-mode/parity/unwind checks. B03 changes only captured data/documentation; production/reference Rust and the harness remain unchanged. The bilingual plan uses the three repository-consistency checks and link/data preservation checks.
+Retain B01’s **1,585 tests / 94 suites, 0 failures, 1 manual timing ignore**, fmt/Clippy/rustdoc and both-host four-mode/parity/unwind evidence. Compiler, runtime, references and the capture harness are unchanged. The read-only summary tool was executed against both saved datasets from another directory; all six comparison rows agree, recorded variance/memory ranges and source/tool links were rechecked. Validate the bilingual task/gate/weight update with the three repository-consistency checks.
 
-**B04 readiness (2026-10-20 JST):** use the existing 1 pt with both complete native captures. Publish within-host source/Rust/C runtime ratios and resource/startup/size evidence, variance and measurement limitations; distinguish per-call runtime work, artifact/context preparation and workload-free fresh-process startup. Include exact revision/SDK/toolchain/flags, inputs, raw sources and executable reproduction/aggregation commands. Explain optimizer, finite-control, ownership/accounting, common Rust driver, RSS/working-set and host differences without unsupported causal or cross-machine conclusions. Verify the same canonical harness/workloads despite different documentation-only revision IDs. G17 closes only after this report; G18 and final Z01 remain required. No new prerequisite or estimate is exposed.
+**G01 readiness (2026-10-20 JST):** use the existing provisional 3 pt. `owned.rs` already records Cranelift SourceLoc ranges, `program.rs` has Copy-unit range infrastructure, and `debug.rs` supplies native DWARF/CodeView emission for earlier fixtures. Inspect and connect the owned per-function source ranges/names through the actual native object path, reusing that infrastructure; validate macOS source-span/location fixtures before credit. Read the canonical architecture/accepted design before structural changes, and record any newly required public design before implementation. Preserve frontend/backend separation and span/resource bounds. G02 retains Windows metadata and G03 actual debugger stepping/backtraces on both hosts; metadata inspection alone does not close G18. Final Z01 remains required.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -210,13 +210,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 128 (+93)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 129 (+94)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −233 pt | 10 pt |
+| 134 pt | +109 pt | −234 pt | 9 pt |
 
-**134 + 109 − 233 = 10 pt**
+**134 + 109 − 234 = 9 pt**
+
+B04 delivery / G01 readiness audit (2026-10-20 JST): `990e422` publishes both-host interpretation and a concrete read-only reproduction tool. The two native captures have identical compiler/runtime/workload/harness/build/toolchain blobs, 270 workload + 90 dedicated startup observations and independently reconciled parity/checksum/retirement/provenance/variance. Execute the tool and reproduce all six ratio rows; publish limitations and commands. Retire existing 1 pt: **128 → 129 done, 10 → 9 remaining pt, retired 233 → 234 pt; 133 rows/+109 additions unchanged**. Close G17: **17/18 gates, historical 105/113 pt (92.9%)**. Select G01 alone at existing 3 pt; reuse existing source ranges/debug emitters, preserving both-platform G02/G03 and final Z01. No new estimate is added at this readiness checkpoint.
 
 B03 delivery / B04 readiness audit (2026-10-20 JST): `02b348f` retains clean native Windows report `dced632` from run 39385041497: 135 workload + 45 startup observations, every checksum/retirement/provenance/aggregate check passes, K32 memory readings are real and nonzero. Retire existing 2 pt: **127 → 128 done, 12 → 10 remaining pt, retired 231 → 233 pt; 133 rows/+109 additions unchanged**. Select only B04 at its existing 1 pt for both-host interpretation and reproduction. Measurements show a large scoped runtime cost gap and noisy reference/startup samples; those limits must be published. G17 remains open until B04; both-host debugger work and Z01 remain unchanged.
 
@@ -453,8 +455,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-B01 | done | 0 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | `fffe86c` |
 | M2-B02 | done | 0 | M2-B01,M2-P02 | G17 | Record clean macOS runtime/startup/memory/size measurements with variance. | `95b97cb` |
 | M2-B03 | done | 0 | M2-B01,M2-P02 | G17 | Record equivalent clean Windows measurements with variance. | `02b348f` |
-| M2-B04 | doing | 1 | M2-B02,M2-B03 | G17 | Publish interpreted results, reproducibility commands and remaining performance limits. | — |
-| M2-G01 | todo | 3 | M2-N06 | G18 | Emit native owned-value source spans/locations and validate macOS debug fixtures. | — |
+| M2-B04 | done | 0 | M2-B02,M2-B03 | G17 | Publish interpreted results, reproducibility commands and remaining performance limits. | `990e422` |
+| M2-G01 | doing | 3 | M2-N06 | G18 | Emit native owned-value source spans/locations and validate macOS debug fixtures. | — |
 | M2-G02 | todo | 3 | M2-N07 | G18 | Emit corresponding Windows native debug metadata and validate source locations. | — |
 | M2-G03 | todo | 2 | M2-G01,M2-G02 | G18 | Record actual debugger stepping/backtrace evidence on both tier-1 platforms. | — |
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |

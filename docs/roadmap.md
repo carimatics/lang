@@ -8,17 +8,17 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**128 verified deliveries · 1 in progress · 4 remaining tasks (provisional 10 pt).**
+**129 verified deliveries · 1 in progress · 3 remaining tasks (provisional 9 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| B04: interpret and reproduce both-host measurements | **B03 complete**: clean Windows 135 + 45 observations (`02b348f`) | **16/18 gates** |
+| G01: owned native source maps + macOS debug metadata | **B04 complete**: both-host comparison/reproduction (`990e422`) | **17/18 gates** |
 
-**Latest verification checkpoint (2026-10-20 JST):** [Windows run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853) succeeds at clean `dced632`, completed 2026-10-20 07:17:54 UTC. [Raw capture](../benchmarks/results/2026-10-20-m2-windows-dced632.json) and [tables/scope](benchmarks.md#windows-native-capture-b03) are committed as `02b348f`. Independently verified: 135 workload + 45 dedicated startup observations, all sample identities/checksums/retirement/aggregates, actual nonzero K32 peak working-set values, SDK/harness hashes and reference link separation. Compiler, source/reference workloads and harness match the macOS capture; checkout newline differences are canonicalized.
+**Latest verification checkpoint (2026-10-20 JST):** `990e422` publishes [both-host comparison and reproduction](benchmarks.md#both-host-comparison-and-reproduction-b04) with the read-only [summary tool](../tools/summarize-m2-bench.py). Clean native captures [macOS `ecc0fd1`](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json) and [Windows `dced632`](../benchmarks/results/2026-10-20-m2-windows-dced632.json) retain 270 workload + 90 dedicated startup observations, after 21-case parity/unwind on each host. All data/aggregate/provenance/retirement checks pass; independent recomputation reproduces all six published source/reference ratios. G17 is complete; actual debugger evidence remains open.
 
-**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **12 − 2 = 10 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 233 = 10 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−1 pt), no added estimates/tasks.** Remaining **10 − 1 = 9 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 234 = 9 pt**. Provisional planning units are not hours or completion percentages.
 
-**B04 readiness (2026-10-20 JST):** use the existing 1 pt with both complete native captures. Publish within-host source/Rust/C runtime ratios and resource/startup/size evidence, variance and measurement limitations; distinguish per-call runtime work, artifact/context preparation and workload-free fresh-process startup. Include exact revision/SDK/toolchain/flags, inputs, raw sources and executable reproduction/aggregation commands. Explain optimizer, finite-control, ownership/accounting, common Rust driver, RSS/working-set and host differences without unsupported causal or cross-machine conclusions. Verify the same canonical harness/workloads despite different documentation-only revision IDs. G17 closes only after this report; G18 and final Z01 remain required. No new prerequisite or estimate is exposed.
+**G01 readiness (2026-10-20 JST):** use the existing provisional 3 pt. `owned.rs` already records Cranelift SourceLoc ranges, `program.rs` has Copy-unit range infrastructure, and `debug.rs` supplies native DWARF/CodeView emission for earlier fixtures. Inspect and connect the owned per-function source ranges/names through the actual native object path, reusing that infrastructure; validate macOS source-span/location fixtures before credit. Read the canonical architecture/accepted design before structural changes, and record any newly required public design before implementation. Preserve frontend/backend separation and span/resource bounds. G02 retains Windows metadata and G03 actual debugger stepping/backtraces on both hosts; metadata inspection alone does not close G18. Final Z01 remains required.
 
 ## Task tracking
 
@@ -50,13 +50,13 @@ Exit-gate weight snapshot verified on 2026-10-20 (JST). Overall arithmetic aggre
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 97 pt | 113 pt | 85.8% |
+| 2 — ownership and native AOT | 105 pt | 113 pt | 92.9% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **395 pt** | **764 pt** | **51.7%** |
+| **Overall** | **403 pt** | **764 pt** | **52.7%** |
 
 ## Milestone 0: design baseline
 
@@ -232,7 +232,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 16 / 18 complete; historical weight: 97 / 113 pt (85.8%).**
+**Exit gates: 17 / 18 complete; historical weight: 105 / 113 pt (92.9%).**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -254,7 +254,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
 - [x] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
 - [x] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
-- [ ] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
+- [x] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
