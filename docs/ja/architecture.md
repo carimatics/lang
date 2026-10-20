@@ -49,6 +49,8 @@ G03 linked-address repair（2026-10-20 JST、検証中）：Mach-Oのnative addr
 
 [CodeView検証](../../tests/native_debug_windows.rs)ではemit／link／readerごとの段階と時間を出力し、外部toolを30秒で打ち切ります。stdout／stderrをfileへ流すため、poll中のpipe詰まりを作りません。[専用CI](../../.github/workflows/native-debug.yml)で両hostを独立に検証し、長い全体testの中に新しいmetadata検査を隠さず、実行中の全体jobもrestartしません。
 
+G03実debugger probe（2026-10-20 JST、実行検証前）：[SDK harness](../../tools/check-native-debugger.py)は元sourceを保存し、実producerのCopy／owned packageをSDK内の依存だけでdebug linkします。通常実行の42に加え、native LLDBでbreakpoint・PCの前進・source位置・backtrace・debugger内での正常終了を必須にします。Copyはsource行のstep-overと3段のsource caller、continuation方式のowned runtimeはnative命令のstepと実Rust runtime callerを確認します。これはphysical native stackの検証で、logical guest steppingやmixed VM stackは後続roadmapです。各commandを時間制限付きで実行し、logと成功した場合のJSON reportをCI artifactへ保存します。通常のlink-nativeはdebug sidecarを公開しないため、この明示的なdebug linkは元objectとsourceを保持します。実CIの成功前にG03完了とは扱いません。
+
 ## Native manifest and file verification
 
 P11（2026-10-20 JST）は不変の型付きSDK／program manifestと所有snapshotを追加します。Exact-key serde decodeで重複／未知fieldを拒否し、byte／depth／string／file-count上限を拡張前に検査します。Role／path／profile／entryと総sizeの検査にはmanifest byteも含めます。SDK tagはcompile済みbuild、target別ID、rustc release／commit、profile、feature policyと照合します。Programの意味論／entry／ABI、native記録のkind／target／C digest、正確なobject byteと記録planを独立に検査します。

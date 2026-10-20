@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   metadata:
-    name: Source debug metadata / ${{ matrix.os }}
+    name: Source debug execution / ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -47,3 +47,25 @@ jobs:
       - name: Validate linked Mach-O function addresses
         if: runner.os == 'macOS'
         run: cargo test --locked --test native_compiler --all-features linked_copy_and_owned_dwarf_ranges_match_each_native_body -- --nocapture
+
+      - name: Build the matching native SDK
+        run: python tools/build-native-sdk.py --output "${{ runner.temp }}/lang-debug-sdk"
+
+      - name: Enable debugger authorization on the ephemeral macOS runner
+        if: runner.os == 'macOS'
+        run: sudo /usr/sbin/DevToolsSecurity -enable
+
+      - name: Exercise actual native breakpoints, stepping and backtraces
+        run: python tools/check-native-debugger.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-debug-probes"
+
+      - name: Upload native debugger evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-debug-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/lang-debug-probes/*.log
+            ${{ runner.temp }}/lang-debug-probes/*.json
+            ${{ runner.temp }}/lang-debug-probes/*.lang
+          if-no-files-found: warn
+          retention-days: 14
