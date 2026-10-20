@@ -6,25 +6,27 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**120 done · 1 doing · 12 todo · 29 remaining pt**
+**121 done · 1 doing · 11 todo · 27 remaining pt**
 
-**Next: M2-P07 → assemble the matching native SDK (provisional 2 pt, in progress).**
+**Next: M2-P12 → exact-toolchain link-native (provisional 3 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P07: compiler/runtime/startup/header SDK and dependency closure | **P10 complete**: scoped production Copy/ownership/C consumer (`6024931`) | **14/18 gates** |
+| P12: verified SDK/program inputs → fresh native executable | **P07 complete**: matching compiler/runtime/startup/header/dependency SDK (`3080d9e`) | **14/18 gates** |
 
-**Latest executable checkpoint (2026-10-20 11:22 JST):** generated default drivers and a real C host use the production SDK APIs with original linked code after source removal. Copy rejects target/build, unsupported controls and bounded-record failures before symbol effects; its image remains borrowed. Ownership retains the actual allocator, control, semantic source bytes, cleanup usage and poisoned Instance. C scopes release registration after normal completion and host unwind before rebinding.
+**Latest executable checkpoint (2026-10-20 12:31 JST):** the SDK builder consumes exact successful Cargo artifacts/build-script output, retains Rust/proc-macro/native archives, streams bounded files and verifies the complete written SDK through P11 before exclusive publication. Compiler execute permissions survive. Packaged Copy/owned/C startup templates link using only SDK dependencies; source removal still yields 42, with a real C allocator/context client. Release SDK assembly also passes (105 components / 197.2 MiB logical size) and its owned entry prints 42 without source. Abort builds are refused before publication; RFC 0020 records unwind policy and build identity includes panic cfg.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **32 − 3 = 29 pt**; **133 rows and +109 pt additions unchanged**. The [ledger](#progress-and-estimate-changes) is **134 + 109 − 214 = 29 pt**. Planning units and delivery counts are not hours or a completion percentage; historical 113 gate weights remain in the audit below.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **29 − 2 = 27 pt**; **133 rows and +109 pt additions unchanged**. The [ledger](#progress-and-estimate-changes) is **134 + 109 − 216 = 27 pt**. These are provisional planning units, not hours or a completion percentage.
 
-Mac baseline: **1,572 tests / 91 suites**, 0 failures, 1 manual timing test ignored. Source-native **10 / 117.97s**, native ownership **76 / 283.15s**, C ABI **74 / 19.81s**, snapshots **9 / 0.66s**; fmt, Clippy (**3.10s**), rustdoc (**19.72s**) and all 11 fuzz-target Clippy checks (**2.35s**) pass. Focused source-native 10 / 65.80s also passes. Full-test wall time **795.86s**, compilation **26.92s** and summed suites **501.07s** are validation observations; unmeasured intervals are not attributed to development or a performance improvement.
+Mac validation: **1,577 tests / 93 suites**, 0 final failures, 1 manual timing test ignored. This is an executable-by-executable reconciliation: retain 19 unaffected successful suites from the first full attempt, repair manual-rustc fixtures that mixed newest abort/unwind libraries, then pass the affected source-native suite and every remaining root/workspace target. All 93 match the current Cargo all-target/all-feature inventory, with no missing/orphan executable. Source-native **10 / 13.42s**, native ownership **76 / 268.87s**, SDK **5 / 15.26s**, C ABI **74 / 20.28s**, snapshots **9 / 1.20s**. Fmt, final Clippy (**1.24s**), rustdoc (**24.95s**) and all 11 fuzz-target Clippy checks (**1.73s**) pass. This does not claim that the initial failed full command succeeded.
 
-**P07 readiness checkpoint (2026-10-20 11:22 JST):** a fresh locked compiler build reports 113 Cargo artifacts, including 88 selected rlibs (382.4 MiB logical size) and one proc-macro library. This is a candidate production build selection, not a minimal/installed SDK size. Assemble from exact Cargo artifact/build-script output, retaining required Rust and native dependencies, including Windows support archives. P11 supplies bounded manifests/private verification; P09/P10 supply compiler/runtime primitives. No new prerequisite or contract change is identified; the existing 2 pt remain provisional.
+Validation observations: initial attempt **164.10s** wall / **26.06s** compile; resumed root batch **422.48s**; non-root workspace **77.24s**; selected passing suite reports sum **398.96s**. Release assembly build **38.86s**, final abort refusal build **3.62s**. These are separate observations, not development time, a single full-run duration, a minimal SDK size or a performance improvement. Stale package check metadata was resolved with Cargo's package cleanup; no test credit was added. Canonical LF production attributes prevent checkout-only changes to the shared source digest; original header support bytes remain unchanged.
 
-**P07 still pending:** assemble a usable compiler/runtime/dependency/header/startup/documentation SDK, preserve executable permissions, record matching build/target/rustc/profile and bounded file hashes, and validate rollback/exclusive publication. P12 owns exact-toolchain `link-native`; installed linking must not query Cargo/registry. P02 owns both-host isolated Copy/ownership/C installation. Q/B/G and final bilingual Z01 remain open under [RFC 0020](rfcs/0020-native-sdk-and-startup.md).
+**P12 readiness checkpoint (2026-10-20 12:31 JST):** `SdkSnapshot`/`ProgramSnapshot` expose private verified roots and typed manifests; P07 supplies selected libraries/native archives and P10 supplies startup. `src/main.rs` still has no `link-native` command. SDK tests already prove explicit rustc linking for all three profiles. Reuse these pieces for the accepted public command. No new prerequisite/contract is identified; the existing 3 pt remain provisional.
 
-Windows: current [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999), head `6024931`, is in progress. Prior repaired-driver [run 39353572806](https://github.com/carimatics/lang/actions/runs/39353572806), head `f9a519d`, completed successfully at **2026-10-20 02:08:00 UTC**, including full tests/docs/benchmark. That success proves the previous snapshot; current-head and isolated-install evidence remain separate.
+**P12 still pending:** parse the accepted SDK/package/host/object/output options; verify actual rustc release/commit/host against the SDK; snapshot trusted Rust/C inputs; link the verified original program object and SDK libraries with panic unwinding; exclusively publish a fresh executable with rollback, preserving prior output. Test mismatch/missing-tool, limits, ordinary defaults, explicit C hosts and concurrent/failing publication. Installed linking must not query Cargo/registry or repository paths. P02 owns both-host isolated Copy/ownership/C installation. Q/B/G and final bilingual Z01 remain open under [RFC 0020](rfcs/0020-native-sdk-and-startup.md).
+
+Windows: current [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598), head `3080d9e`, is in progress. P10 [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999), head `6024931`, completed successfully at **2026-10-20 03:00:17 UTC**, including full tests/docs/benchmark. That proves P10, not later SDK assembly or isolated installation.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -204,13 +206,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 120 (+85)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 121 (+86)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −214 pt | 29 pt |
+| 134 pt | +109 pt | −216 pt | 27 pt |
 
-**134 + 109 − 214 = 29 pt**
+**134 + 109 − 216 = 27 pt**
+
+P07 delivery / P12 readiness audit (2026-10-20 JST): `3080d9e` completes the existing 2-point SDK assembly with exact Cargo-selected Rust/native closure, startup/header/documentation resources, bounded verified publication and normal/release/unwind policy. All three source-free SDK startup paths pass; release owned startup and abort refusal have separate evidence above. Fix the old manual test fixtures' variant selection without added task credit. **120 → 121 done, 29 → 27 remaining pt, retired 214 → 216 pt; 133 rows/+109 additions unchanged**. Select only P12 public linking at provisional 3 pt; verified snapshots and the successful manual SDK link recipes provide its prerequisites. P02/Q/B/G/Z01 and all original exit conditions remain.
 
 P10 delivery / P07 readiness audit (2026-10-20 JST): `6024931` completes the existing 3-point scoped production runtime outcome. Actual source-free Copy/owned/C drivers pass; identity/control/record refusal precedes resolution, owned failure retains source/usage/allocator/poison, and real C registration retires through host unwind. Reuse the original P05/P06 runtime rather than a fixture Runtime. **119 → 120 done, 32 → 29 remaining pt, retired 211 → 214 pt; 133 rows/+109 additions unchanged**. Select only P07 assembly at provisional 2 pt after the exact-artifact probe above; retain required native archives, bounded metadata, exclusive publication and declared external toolchains. P12/P02 and every original Q/B/G/Z01 outcome remain. Full local baseline and previous/current Windows snapshots are recorded above; no SDK installation or performance claim is made.
 
@@ -220,7 +224,7 @@ P09 delivery / P10 readiness audit (2026-10-20 JST): `66ebb0c` completes P09's o
 
 SDK readiness audit (2026-10-20 JST): The old P07 2 pt concealed a public source-native compiler command, distributed startup/runtime consumer and version/toolchain contract in addition to assembling existing components. `src/main.rs` compile emits portable artifacts only; `prototype-object` accepts fixed MIR prototypes. Expose P08 contract decision (initial 1 pt), P09 production AOT compiler (initial 3 pt) and P10 distributed runtime/startup (initial 3 pt); retain P07 final assembly at 2 and P02 isolated Copy/ownership/C install on both hosts at 3. Separate P06 completion from the re-estimate: **115 → 116 done, 128 → 131 rows, added 96 → 103 pt, retired 201 → 204 pt, 29 − 3 + 7 = 33 remaining pt**. No original M2 outcome is removed; unspecified public behavior must wait for P08 acceptance.
 
-This separates delivered work from newly recognized work: completion retired 214 estimated points, while exposed prerequisites and re-estimation added 109. These are planning units, not hours or measured actual effort. The remaining 29 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 216 estimated points, while exposed prerequisites and re-estimation added 109. These are planning units, not hours or measured actual effort. The remaining 27 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -423,8 +427,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-P09 | done | 0 | M2-P08,M2-P04,M2-P06 | G15 | Production source-native compiler command validates/publishes Copy/ownership/C objects, semantics, records and required headers, preserving existing output on failure. | `66ebb0c` |
 | M2-P11 | done | 0 | M2-P09 | G15 | Bounded SDK/program manifests and verified component snapshots reject key/path/hash/semantic/object mismatches before compiler/provider effects. | `01bf09c` |
 | M2-P10 | done | 0 | M2-P09,M2-P05,M2-P06,M2-P11 | G15 | Distributed runtime/startup consumer runs saved Copy/ownership/C with matching toolchain and original controls/allocator/context/grants/cleanup, without source analysis/backend emission/test runtime. | `6024931` |
-| M2-P07 | doing | 2 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | Assemble compiler/startup/runtime/header SDK with Rust/native dependency closure with explicit matching-toolchain requirements. | — |
-| M2-P12 | todo | 3 | M2-P11,M2-P10,M2-P07 | G15 | link-native verifies exact rustc/SDK/target, links verified original bytes with explicit Rust/C hosts and exclusively publishes a fresh executable. | — |
+| M2-P07 | done | 0 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | Assemble compiler/startup/runtime/header SDK with Rust/native dependency closure with explicit matching-toolchain requirements. | `3080d9e` |
+| M2-P12 | doing | 3 | M2-P11,M2-P10,M2-P07 | G15 | link-native verifies exact rustc/SDK/target, links verified original bytes with explicit Rust/C hosts and exclusively publishes a fresh executable. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Clean-install SDK link/run for Copy, ownership and C succeeds on both tier-1 hosts outside repo/target/deps. | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |

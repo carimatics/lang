@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み120件 · 進行中1件 · 残り12件（暫定29 pt）。**
+**検証済み121件 · 進行中1件 · 残り11件（暫定27 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P07：対応SDKの組立と依存closure | **P10完了**：scope付きproduction Copy／ownership／C runtime（`6024931`） | **14/18条件** |
+| P12：完全一致toolchainの公開link-native | **P07完了**：対応native SDK組立（`3080d9e`） | **14/18条件** |
 
-**直近のcheckpoint（2026-10-20 11:22 JST）：** source削除後もproduction SDK APIから元のlinked Copy／owned／C codeを実行できます。Symbol／provider作用前にidentity／control／記録を検査し、owned failureでも元allocator、source byte、usage、poisonを保持して、C scopeはhost unwind後もunbindします。Mac baseline **1,572 tests / 91 suites**、失敗0、手動timing test 1件ignored。Fmt、Clippy（3.10秒）、rustdoc（19.72秒）、全11 fuzz targetのClippy（2.35秒）が成功しました。Source-native 10件／117.97秒、native 76件／283.15秒、C ABI 74件／19.81秒。現head `6024931` のWindows [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999) を実行中です。前head `f9a519d` の [run 39353572806](https://github.com/carimatics/lang/actions/runs/39353572806) はbenchmarkを含め2026-10-20 02:08:00 UTCに成功しました。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に所要時間と残る条件を記録します。
+**直近のcheckpoint（2026-10-20 12:31 JST）：** 正確なCargo選択Rust／proc-macro／native依存、compiler実行権限、上限付き検証済みfile表を保持してSDKをexclusive公開します。SDK依存物だけで同梱Copy／owned／実C起動templateをlink／実行し、source削除後も成功しました。Release SDK組立とownedの42、明確化したunwind policyによるabort公開拒否も成功しました。Mac **1,577 tests / 93 suites**、最終失敗0、手動test 1件ignored。手動library選択修正後、現在の全Cargo test実行fileと照合し、単一全command成功とは数えません。Fmt、Clippy（1.24秒）、rustdoc（24.95秒）、全11 fuzz targetのClippy（1.73秒）が成功しました。[Todo](milestone-2.md)に失敗した試行と再開検証／所要時間を記録します。現head `3080d9e` のWindows [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598) を実行中です。P10 head `6024931` の [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999) は2026-10-20 03:00:17 UTCに成功しました。2026-10-20 JST更新・確認。
 
-**今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** **残り32 − 3 = 29 pt**、**133行／追加109点は不変**、収支は **134 + 109 − 214 = 29 pt**。Locked buildの正確なartifact実験後、P07を暫定2 ptで選びました。既存compiler／runtime／startup／header／documentationと、Windows support archiveを含む選択Rust／native依存closureを組立て、上限付きmanifestとexclusive公開を維持します。完全一致toolchainのlinkと両host隔離installはP12／P02です。Install後のlinkではCargo／registryを参照しません。Q／B／Gと最終Z01は未完了です。歴史的113点の重みはgate監査に残し、工数予測としては廃止しています。成果件数も完成率には数えません。
+**今回：成果1件完了（−2 pt）、見積もり／taskの追加なし。** **残り29 − 2 = 27 pt**、**133行／追加109点は不変**、収支は **134 + 109 − 216 = 27 pt**。P12を暫定3 ptで選び、既存の検証済みSDK／program／private rootと3 profileのrustc手順を使います。残るのはCLI parse、実toolchain照合、信頼済みhost／object snapshot、exclusive executable公開です。Install後のlinkではCargo／registry／repository pathを参照しません。両host隔離Copy／owned／C installはP02、Q／B／Gと最終Z01も未完了です。歴史的113点の重みはgate監査に残し、工数予測としては廃止しています。成果件数も完成率には数えません。
 
 ## タスク管理
 
