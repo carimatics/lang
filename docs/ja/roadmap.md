@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で **9 done · 1 doing · 33 todo · 95 remaining pt** を追跡します。有界 host task tree は `a543d23`、source claim/loan と独立 task MIR 証明を接続した VM は `2f58084`、compiled native continuation は `8d6c283` で実行できます。CLI run と `cargo run --example native-structured-tasks` はともに 42 を出力し、初期 finite Copy/Task local は VM/JIT/リンク済み host object で VM fallback なしに一致します。次は所有値を受理する前の join/retirement 順の修正（T12）、続いて owned task cleanup（T07）、完全な共有 control（T08）です。owned/loan/foreign 実行と M3 の全残作業の gate を維持します。source/MIR/task lifetime 監査で前提 4 件（+9 pt）を追加し、完了 9 件で 24 pt を消化しました。M3 出口ゲートは未完了です。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
+[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で **10 done · 1 doing · 32 todo · 93 remaining pt** を追跡します。有界 host task tree は `a543d23`、source claim/loan と独立 task MIR 証明を接続した VM は `2f58084`、compiled native continuation は `8d6c283` で実行できます。CLI run と `cargo run --example native-structured-tasks` はともに 42 を出力し、初期 finite Copy/Task local は VM/JIT/リンク済み host object で VM fallback なしに一致します。`29badaa` で join 後の local cleanup と公開逆順の result retirement を修正しました。次は owned task cleanup（T07）、完全な共有 control（T08）です。owned/loan/foreign 実行と M3 の全残作業の gate を維持します。source/MIR/task lifetime 監査で前提 4 件（+9 pt）を追加し、完了 10 件で 26 pt を消化しました。M3 出口ゲートは未完了です。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
 
 ## 進行中 milestone の実行
 
