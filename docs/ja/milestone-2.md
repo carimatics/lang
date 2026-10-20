@@ -1,28 +1,30 @@
-<!-- translation-of: ../milestone-2.md; canonical-language: en -->
+<!-- canonical-language: en; japanese-translation: ja/milestone-2.md -->
 
-# Milestone 2 実装Todo
+# Milestone 2実装Todo
 
-[English](../milestone-2.md) · [完了条件](roadmap.md#milestone-2ownershipとnative-aot)
+[English](../milestone-2.md) · [完了条件](roadmap.md#milestone-2-ownership-and-native-aot)
 
-更新・確認日：**2026-10-20 JST**。初回監査の基準commit：`0c2c012`。
+更新・検証：**2026-10-20 JST**。初回監査checkpoint：`0c2c012`。
 
-**119 done · 1 doing · 13 todo · 32 remaining pt**
+**120 done · 1 doing · 12 todo · 29 remaining pt**
 
-**次: M2-P10 → scope付きproduction native runtime consumer（暫定3 pt、進行中）。**
+**次: M2-P07 → 対応native SDKの組立（暫定2 pt、進行中）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P10：scope付きCopy／ownership／C runtime consumer | **P11完了**：上限付きmanifestと検証済みprivate snapshot（`01bf09c`） | **14/18条件**。過去の重み84/113（74.3%） |
+| P07：compiler／runtime／startup／header SDKと依存closure | **P10完了**：scope付きproduction Copy／ownership／C consumer（`6024931`） | **14/18条件** |
 
-**直近の実行checkpoint（2026-10-20 10:11 JST）：** SDK／program dataはtool／provider前に重複／未知field、不正path／role／entry／上限／identity、hashと意味論／native／objectの不一致を拒否します。Copy／ownership／Cのcompiler出力を元sourceから独立したprivate snapshotにでき、stream、上限境界、rollback、symlink脱出、元file同時変更の検証が成功しました。Mac: 1,570 tests / 91 suites, 0 failures, 1 manual timing test ignored; fmt, Clippy (27.02s), rustdoc (20.89s), all 11 fuzz-target Clippy checks pass. Snapshot tests 9 / 0.59s; native 76 / 280.80s; C ABI 74 / 20.27s。
+**直近の実行checkpoint（2026-10-20 11:22 JST）：** 生成default driverと実C hostがproduction SDK APIを使い、source削除後も元のlinked codeを実行します。Copyはsymbol作用前にtarget／build、未対応control、上限付き記録の失敗を拒否し、imageを借用のまま保持します。Ownershipは実allocator、control、semantic source byte、cleanup usage、poison済みInstanceを保持します。C scopeは通常終了とhost unwindの両方で登録を解放し、再bindingできます。
 
-**今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** 残りは **35 − 3 = 32 pt**、**133行・追加109点は不変**です。[収支](#進捗と見積もり変更)は **134 + 109 − 211 = 32 pt**。暫定の計画単位であり、時間や完成率ではありません。
+**今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** 残りは **32 − 3 = 29 pt**、**133行・追加109点は不変**です。[収支](#進捗と見積もり変更)は **134 + 109 − 214 = 29 pt**。計画単位と成果件数は時間や完成率ではなく、歴史的な113点の重みは下の監査に残します。
 
-**P10実装前checkpoint（2026-10-20 10:29 JST）：** Windows head01bf09cはfmt／C-linker／lint／test-buildが成功し、standalone driver fixtureでwindows.0.52.0.libの探索とC allocatorのcompileが失敗しました。Test専用修正 `f9a519d` でCargoが解決したnative library探索path、MSVCのaligned allocation／dynamic CRT、compilerのstdout／stderrを保持します。Mac実C検証（1件／19.58秒）とfmt／Clippy（1.52秒）は成功しました。製品codeと見積もりは不変で、上記の新head Windows runを検証中です。P07／P12はSDK依存closureにnative support archiveも保持し、install後のlinkでは引き続きCargo／registryを参照しません。
+Mac baseline：**1,572 tests / 91 suites**、失敗0、手動timing test 1件ignored。Source-native **10 / 117.97秒**、native ownership **76 / 283.15秒**、C ABI **74 / 19.81秒**、snapshot **9 / 0.66秒**。Fmt、Clippy（**3.10秒**）、rustdoc（**19.72秒**）、全11 fuzz targetのClippy（**2.35秒**）が成功しました。Focused source-native 10件／65.80秒も成功しています。全test実時間 **795.86秒**、compile **26.92秒**、suite報告合計 **501.07秒** は検証の観測値であり、未計測の差分を開発工数や性能改善に帰属させません。
 
-**P10の残る条件：** P05／P06のproduction primitiveをscope付きSDK entry／binding APIで再利用し、symbol／provider effect前にtarget／buildを検査します。元entry、source snapshot、control、allocator、Instanceのpoison、明示的なunsafe C owner-thread／image寿命を保持します。対象はruntime facadeだけで、P07のSDK組立、P12の完全一致toolchainによる `link-native`、P02の両host隔離Copy／ownership／C検証は別成果です。[RFC 0020](rfcs/0020-native-sdk-and-startup.md)のQ／B／Gと最終guide Z01も未完了です。
+**P07実装前checkpoint（2026-10-20 11:22 JST）：** 新しいlocked compiler buildから113 Cargo artifact、選択された88 rlib（logical size 382.4 MiB）とproc-macro library 1件を確認しました。Production buildの選択候補であり、最小／install済みSDKのsizeではありません。正確なCargo artifact／build-script出力から組立て、Windows support archiveを含むRust／native依存物を保持します。P11の上限付きmanifest／private検証とP09／P10のcompiler／runtime primitiveを使います。新たな前提や契約変更は特定されず、既存2 ptは暫定のままです。
 
-Windows：[run 39353572806](https://github.com/carimatics/lang/actions/runs/39353572806), head f9a519d, in progress。前[P09 run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096)はC／linker成功後、Unix専用DirBuilderのmut指定でLint失敗しました。`01bf09c` で修正し、新headを検証中です。旧runを今回codeの証拠には数えません。全test実時間 **800.98秒**、compile **27.73秒**、suite報告合計 **484.49秒** は検証の観測値であり、開発工数の実測ではありません。差分時間の原因は計測なしに断定しません。113を工数予測には戻しません。
+**P07の残る条件：** 使用可能なcompiler／runtime／dependency／header／startup／documentation SDKを組立て、実行権限を保持し、対応build／target／rustc／profileと上限付きfile hashを記録してrollback／exclusive公開を検証します。完全一致toolchainの `link-native` はP12、両host隔離Copy／ownership／C installはP02です。Install後のlinkではCargo／registryを参照しません。[RFC 0020](rfcs/0020-native-sdk-and-startup.md)のQ／B／Gと最終日英guide Z01も未完了です。
+
+Windows：現head `6024931` の [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999) を実行中です。前のdriver修正head `f9a519d` の [run 39353572806](https://github.com/carimatics/lang/actions/runs/39353572806) は全test／doc／benchmarkを含め **2026-10-20 02:08:00 UTC** に成功しました。前snapshotの証拠であり、現headと隔離installの検証は別に保持します。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -202,13 +204,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 119件（+84件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 120件（+85件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −211 pt | 32 pt |
+| 134 pt | +109 pt | −214 pt | 29 pt |
 
-**134 + 109 − 211 = 32 pt**
+**134 + 109 − 214 = 29 pt**
+
+P10完了／P07実装前監査（2026-10-20 JST）：`6024931` で既存3 ptのscope付きproduction runtimeを完了しました。実sourceなしCopy／owned／C driverが成功し、identity／control／記録を解決前に拒否し、owned failureのsource／usage／allocator／poisonを保持して実C登録をhost unwind時にも解放します。Fixture Runtimeではなく元のP05／P06 runtimeを使います。**119 → 120完了、残り32 → 29 pt、完了で除いた211 → 214点、133行／追加109点は不変**。上記の正確なartifact実験後、P07の組立だけを暫定2 ptで選び、必要native archive、上限付きmetadata、exclusive公開、明示外部toolchainを保持します。P12／P02と元の全Q／B／G／Z01成果は残ります。全local baselineと前／現Windows snapshotは上記に記録し、SDK installや性能改善の完了は主張しません。
 
 P11完了／P10実装前監査（2026-10-20 JST）：`01bf09c` は元の3 ptのmanifest／検証済みsnapshot成果を完了し、正確なobject／意味論／記録の境界をtool／native／provider起動なしに検査します。P09のWindows unused-mutと旧fuzz ABI初期化4箇所も追加task加点なしで修正しました。Parser fuzz targetはcompile成功し、campaignとは数えません。**118 → 119完了、残り35 → 32 pt、133行／追加109点は不変、完了で除いた208 → 211点**。P10はP05／P06上のscope付きproduction consumerだけを選びます。File検証はP11、SDK組立はP07、公開link commandはP12、隔離installはP02です。新前提や契約変更は特定されず、P10は暫定3 ptとし、拡張前に実sourceなし通常／C実行のcheckpointを示します。Mac: 1,570 tests / 91 suites, 0 failures, 1 manual timing test ignored; fmt, Clippy (27.02s), rustdoc (20.89s), all 11 fuzz-target Clippy checks pass. Snapshot tests 9 / 0.59s; native 76 / 280.80s; C ABI 74 / 20.27s。Windows：[run 39351953438](https://github.com/carimatics/lang/actions/runs/39351953438), head 01bf09c, in progress。元の全gateと最終guideを維持します。
 
@@ -216,7 +220,7 @@ P09完了／P10実装前監査（2026-10-20 JST）：`66ebb0c` でP09の元の3 
 
 SDK実装前監査（2026-10-20 JST）：P07の既存2 ptは、既存componentの組立に加えて公開source-native compilerコマンド、配布startup／runtime consumer、version／toolchain一致契約を隠していました。`src/main.rs`のcompileはportable artifactのみで、`prototype-object`は固定MIRだけを扱います。P08の契約判断（初期1 pt）、P09の製品用AOT compiler（初期3 pt）、P10の配布runtime／startup（初期3 pt）を前提として明示し、P07の最終組立2 ptとP02の両host隔離Copy／ownership／C install 3 ptは維持します。P06完了と分離して、**115 → 116完了、128 → 131行、追加96 → 103点、完了で除いた201 → 204点、29 − 3 + 7 = 残り33 pt**。元M2の成果は削除せず、P08受理前に未規定の公開動作を実装しません。
 
-完了した作業と新たに判明した作業を分離しました。完了により見積もり211点分を取り除く一方、前提作業の可視化と再見積もりで109点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り32点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
+完了した作業と新たに判明した作業を分離しました。完了により見積もり214点分を取り除く一方、前提作業の可視化と再見積もりで109点増えています。これは計画上の単位で、時間や実工数の計測値ではありません。残り29点は暫定値で、FFI、packaging、debug、性能には引き続き実装前の実験が必要です。元の18完了条件は維持します。各成果の更新時にこの収支を検証し、追加分の合計は明示的なscope／見積もり監査がある場合のみ変更します。詳細計画の初期134点と、歴史的な完了条件の重み113点は別の指標です。
 
 N13／N14の **初期見積もり各3点**、N15の **初期見積もり1点**、N16の **初期配分1点** を保持します。N16は既存N05の3点から1点を配分し、N05に2点を残したため見積もり追加はなく、**54 − 1 = 53 pt** です。N03／N12の1 → 3点監査、N11／N09の初期各1点も保持し、元の要件は削除しません。
 
@@ -418,8 +422,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-P08 | done | 0 | M2-P05,M2-P06 | G15 | 実験段階SDKの配布／起動、compiler出力、version／toolchain一致、明示C権限の契約をRFCで決定。 | `bca5f12` |
 | M2-P09 | done | 0 | M2-P08,M2-P04,M2-P06 | G15 | 製品用source-native compilerコマンドがCopy／ownership／Cのobject、意味論、記録、必要headerを検証・公開し、失敗時に既存出力を保持。 | `66ebb0c` |
 | M2-P11 | done | 0 | M2-P09 | G15 | 上限付きSDK／program manifestと検証済みcomponent snapshotで、compiler／provider effect前にkey／path／hash／意味論／objectの不一致を拒否。 | `01bf09c` |
-| M2-P10 | doing | 3 | M2-P09,M2-P05,M2-P06,M2-P11 | G15 | 配布用runtime／startup consumerで保存Copy／ownership／Cを対応toolchainと起動し、source分析／backend生成／test runtimeに依存せず元control／allocator／context／grant／cleanupを維持。 | — |
-| M2-P07 | todo | 2 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | 対応toolchain要件を明示したRust／native依存closureを含むcompiler／startup／runtime／header SDKを組立。 | — |
+| M2-P10 | done | 0 | M2-P09,M2-P05,M2-P06,M2-P11 | G15 | 配布用runtime／startup consumerで保存Copy／ownership／Cを対応toolchainと起動し、source分析／backend生成／test runtimeに依存せず元control／allocator／context／grant／cleanupを維持。 | `6024931` |
+| M2-P07 | doing | 2 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | 対応toolchain要件を明示したRust／native依存closureを含むcompiler／startup／runtime／header SDKを組立。 | — |
 | M2-P12 | todo | 3 | M2-P11,M2-P10,M2-P07 | G15 | link-nativeがrustc／SDK／targetの完全一致を検証し、明示Rust／C hostと検証済み元byteをlinkして新しいexecutableをexclusive公開。 | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Repo／target/deps外でCopy／ownership／Cを含む両tier-1のclean-install SDK link/run成功。 | — |
 | M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |

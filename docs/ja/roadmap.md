@@ -8,17 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み119件 · 進行中1件 · 残り13件（暫定32 pt）。**
+**検証済み120件 · 進行中1件 · 残り12件（暫定29 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P10：scope付きproduction runtime consumer | **P11完了**：上限付きmanifestと検証済みSDK／program snapshot（`01bf09c`） | **14/18条件**。過去の重み84/113（74.3%） |
+| P07：対応SDKの組立と依存closure | **P10完了**：scope付きproduction Copy／ownership／C runtime（`6024931`） | **14/18条件** |
 
-**直近のcheckpoint：** Copy／ownership／C packageの正確なidentity、上限付きfield／path／role、hashと意味論／native／object planを検証し、独立したprivate snapshotを作れます。Snapshot 9件とparser境界2件が成功し、native／provider／toolを起動しません。Mac: 1,570 tests / 91 suites, 0 failures, 1 manual timing test ignored; fmt, Clippy (27.02s), rustdoc (20.89s), all 11 fuzz-target Clippy checks pass. Snapshot tests 9 / 0.59s; native 76 / 280.80s; C ABI 74 / 20.27s。Windows：[run 39353572806](https://github.com/carimatics/lang/actions/runs/39353572806), head f9a519d, in progress。P09の旧unused-mut lint失敗は今回修正し、新headの結果待ちです。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に時刻、残る条件、検証所要時間を記録します。
+**直近のcheckpoint（2026-10-20 11:22 JST）：** source削除後もproduction SDK APIから元のlinked Copy／owned／C codeを実行できます。Symbol／provider作用前にidentity／control／記録を検査し、owned failureでも元allocator、source byte、usage、poisonを保持して、C scopeはhost unwind後もunbindします。Mac baseline **1,572 tests / 91 suites**、失敗0、手動timing test 1件ignored。Fmt、Clippy（3.10秒）、rustdoc（19.72秒）、全11 fuzz targetのClippy（2.35秒）が成功しました。Source-native 10件／117.97秒、native 76件／283.15秒、C ABI 74件／19.81秒。現head `6024931` のWindows [run 39358461999](https://github.com/carimatics/lang/actions/runs/39358461999) を実行中です。前head `f9a519d` の [run 39353572806](https://github.com/carimatics/lang/actions/runs/39353572806) はbenchmarkを含め2026-10-20 02:08:00 UTCに成功しました。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に所要時間と残る条件を記録します。
 
-**P10実装前checkpoint（2026-10-20 10:29 JST）：** Windows head01bf09cはfmt／C-linker／lint／test-buildが成功し、standalone driver fixtureでwindows.0.52.0.libの探索とC allocatorのcompileが失敗しました。Test専用修正 `f9a519d` でCargoが解決したnative library探索path、MSVCのaligned allocation／dynamic CRT、compilerのstdout／stderrを保持します。Mac実C検証（1件／19.58秒）とfmt／Clippy（1.52秒）は成功しました。製品codeと見積もりは不変で、上記の新head Windows runを検証中です。P07／P12はSDK依存closureにnative support archiveも保持し、install後のlinkでは引き続きCargo／registryを参照しません。
-
-**今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** **残り35 − 3 = 32 pt**、**133行／追加109点は不変**、収支は **134 + 109 − 211 = 32 pt**。P10は実control／allocator／context／poison／image寿命を保つscope付きproduction Copy／ownership／C利用の暫定3 ptです。P07／P12／P02の組立／link／隔離install、両hostの証拠、conformance／性能／debug、最終Z01は維持します。113を工数予測、成果件数を完成率として使用しません。
+**今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** **残り32 − 3 = 29 pt**、**133行／追加109点は不変**、収支は **134 + 109 − 214 = 29 pt**。Locked buildの正確なartifact実験後、P07を暫定2 ptで選びました。既存compiler／runtime／startup／header／documentationと、Windows support archiveを含む選択Rust／native依存closureを組立て、上限付きmanifestとexclusive公開を維持します。完全一致toolchainのlinkと両host隔離installはP12／P02です。Install後のlinkではCargo／registryを参照しません。Q／B／Gと最終Z01は未完了です。歴史的113点の重みはgate監査に残し、工数予測としては廃止しています。成果件数も完成率には数えません。
 
 ## タスク管理
 
