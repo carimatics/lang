@@ -38,6 +38,7 @@ pub enum ErrorKind {
     Paths { requested: usize, limit: usize },
     Edges { requested: usize, limit: usize },
     InvalidPath,
+    UnsupportedTaskProfile,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {

@@ -125,6 +125,9 @@ pub enum CodecErrorKind {
     UnsupportedCInterface {
         span: m::Span,
     },
+    UnsupportedTaskProfile {
+        span: m::Span,
+    },
     Budget(m::Error),
     Types(o::Error),
     Moves(o::moves::Error),

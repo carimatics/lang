@@ -31,6 +31,9 @@ pub enum Error {
     Allocation(allocation::Error),
     Overflow,
     InvalidType(o::Type),
+    UnsupportedTaskProfile {
+        span: m::Span,
+    },
     InvalidFunction(m::FunctionId),
     InvalidCell(usize),
     CellLimit {
@@ -149,6 +152,10 @@ impl<'types> Layouts<'types> {
                 elements: types.elements_used(),
             },
         )?;
+        budget.charge(types.table().constructed.len())?;
+        if let Some(span) = types.task_feature_span() {
+            return Err(Error::UnsupportedTaskProfile { span });
+        }
         let n = types
             .table()
             .definitions

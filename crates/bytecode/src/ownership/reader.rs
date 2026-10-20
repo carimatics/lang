@@ -271,6 +271,7 @@ impl Reader<'_> {
     }
     fn function(&mut self) -> Result<d::Function, CodecError> {
         Ok(d::Function {
+            effect: d::FunctionEffect::Synchronous,
             name: self.name()?,
             public: self.boolean()?,
             abi: if self.version == 4 {

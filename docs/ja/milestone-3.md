@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**5 done · 1 doing · 35 todo · 102 remaining pt**
+**5 done · 1 doing · 36 todo · 104 remaining pt**
 
-**次: M3-T04 → source VM fixture 前に task MIR の scope/suspension/所有権 edge を独立検証します。**
+**次: M3-T11 → MIR task 型/effect を検証し旧実行/artifact 境界を維持します。**
 
-現在の作業: **M3-T04**。直近の実行検証: **`9f7012d`、2026-10-21 03:29 JST**。source claim と lexical suspension loan の証明を実行昇格なしで結合しました。追加 11 件で明示/暗黙 point での両 loan 種、一時引数、return/失敗 edge、reborrow/unsafe、branch/loop/pattern 状態、資源上限、旧 MIR の拒否を検証しました。全 baseline は **98 suite / 成功 1,652 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、11 fuzz target の compile/lint も成功。T04 の残る受入条件: 独立 task MIR の effect/type/scope、suspension continuation、所有権/cleanup edge、不正入力検証。必要な MIR 証明と execution adapter の接続までは SRC0026 を維持します。source task 実行と M3 ゲートは未完了です。
+現在の作業: **M3-T11**。直近の実行検証: **`9f7012d`、2026-10-21 03:29 JST**。source claim と lexical suspension loan の証明を実行昇格なしで結合しました。追加 11 件で明示/暗黙 point での両 loan 種、一時引数、return/失敗 edge、reborrow/unsafe、branch/loop/pattern 状態、資源上限、旧 MIR の拒否を検証しました。全 baseline は **98 suite / 成功 1,652 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、11 fuzz target の compile/lint も成功。T11 の残る受入条件: Task/TaskError 型 property と storage/signature 制限、独立 async effect/span、旧 place/body/実行/serialization 昇格前の拒否。T04 に task 命令/continuation と独立 scope/所有権/cleanup flow 証明を維持します。source task 実行と M3 ゲートは未完了です。
 
-**今回: T10 完了（−2 pt）、新しい作業/見積りの追加なし。** 前回残り **104 − 2 = 102 pt**。全 **41 行**、累積消化 **13 pt** と追加見積り **+5 pt** は別に記録します。
+**今回: T11 を追加（+2 pt）、完了作業なし。** 前回残り **102 + 2 = 104 pt**。全 **42 行**、累積消化 **13 pt** と追加見積り **+7 pt** は別に記録します。
 
 ## Deliveries
 
@@ -25,7 +25,8 @@
 | M3-T03 | done | 0 | M3-T01 | G01,G03 | source async 契約を採択し lossless parse/recovery/format で task 構文を保持 | `0655939` |
 | M3-T09 | done | 0 | M3-T03 | G03 | async call と scope 付き task handle を bind/type し、逸出と不正 async C surface を拒否 | `390e3ca` |
 | M3-T10 | done | 0 | M3-T09 | G03 | suspension を跨ぐ shared/exclusive loan を両方の起点の診断付きで拒否 | `9f7012d` |
-| M3-T04 | doing | 3 | M3-T10 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | — |
+| M3-T11 | doing | 2 | M3-T10 | G03 | Task/TaskError と async MIR 宣言を検証し旧実行/artifact profile を拒否 | — |
+| M3-T04 | todo | 3 | M3-T11 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | — |
 | M3-T06 | todo | 3 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | — |
 | M3-T07 | todo | 3 | M3-T06 | G03 | 所有 local、入れ子の取消、主/副失敗、exactly-once cleanup を検証 | — |
@@ -86,11 +87,13 @@ T10 を `9f7012d` で完了（2026-10-21 JST）: lexical loan engine が task ex
 
 source 前提 T09/T10 の 2 件完了後の roadmap 監査: source claim/loan は必要ですが G03 の証明ではありません。既存 MIR の ownership declaration/body 検証は別の境界です。T04 は HIR 証明を MIR 証明として扱わず、実際の task scope/suspension/所有権 edge と独立検証を追加します。最初の source VM fixture と native parity へ **T04 → T05 → T06** を進め、間に scheduler/IDL framework を追加しません。全 15 gate、全 P1 成果、現在の transfer/ABI/format 制限を維持します。
 
-**110 + 5 − 13 = 102 pt**
+MIR 表現監査（2026-10-21 JST）: T04 の従来 3 pt は未実装の型/effect 表現境界と task 命令/制御フロー証明を含んでいました。既存 ownership MIR は型、宣言、place、body、move/loan/region/cleanup を分けて検証し、`e4b17d0` に Task/async effect はありません。実装前に **T11（2 pt）** を追加し、採択した [RFC 0023](rfcs/0023-task-mir-boundaries.md) に従い既存 ownership graph/宣言を拡張して旧実行/artifact 昇格を明示拒否します。T04 の元の命令/scope/suspension/所有権の受入条件と 3 pt を維持し、T11 に依存させます。追加 **+2 pt**、行数 **41 → 42**、累積追加 **+7 pt**。消化はありません。別 task 言語/framework や channel/IDL の前提を追加せず、T11 は compile 実験で再監査し **T11 → T04 → T05 → T06** を source fixture へ進めます。
+
+**110 + 7 − 13 = 104 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +5 pt | −13 pt | 102 pt |
+| 110 pt | +7 pt | −13 pt | 104 pt |
 
 ## Exit audit
 
@@ -105,3 +108,4 @@ source 前提 T09/T10 の 2 件完了後の roadmap 監査: source claim/loan �
 
 - T09 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、`crates/hir/src/tasks.rs`、`crates/semantics/tests/tasks.rs`。最終更新 2026-10-21。`390e3ca` を 2026-10-21 JST に検証しました。
 - T10 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、`crates/hir/src/loans.rs`、`crates/hir/src/tasks.rs`、`crates/semantics/tests/task_loans.rs`。最終更新 2026-10-21、`9f7012d` を 2026-10-21 JST に確認しました。MIR 境界監査は `crates/mir/src/unit/ownership/declarations.rs` と `bodies.rs` に基づきます。埋込み更新日の記載はなく、同じ checkpoint/日付で確認しました。
+- [RFC 0023](rfcs/0023-task-mir-boundaries.md)、最終更新 2026-10-21。採択した MIR 型/宣言境界と未証明 flow/format 作業。

@@ -8,6 +8,7 @@ struct Writer<'a> {
     maximum: usize,
     budget: &'a mut m::Budget,
 }
+
 impl Writer<'_> {
     fn charge(&mut self, n: usize) -> Result<(), CodecError> {
         self.budget
@@ -102,8 +103,14 @@ impl Writer<'_> {
         use o::Constructor as C;
         match value.constructor {
             C::Builtin(v) => {
+                let tag = tags::builtin(v).ok_or_else(|| {
+                    error(
+                        self.length,
+                        CodecErrorKind::UnsupportedTaskProfile { span: value.span },
+                    )
+                })?;
                 self.byte(0)?;
-                self.byte(tags::builtin(v))?;
+                self.byte(tag)?;
             }
             C::Option(v) => {
                 self.byte(1)?;
@@ -145,6 +152,12 @@ impl Writer<'_> {
                 self.word(v.function.0)?;
                 self.word(v.local)?;
             }
+            C::Task(_) => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedTaskProfile { span: value.span },
+                ));
+            }
         }
         self.span(value.span)
     }
@@ -175,6 +188,12 @@ impl Writer<'_> {
         self.list(values, |s, v| s.word(v.0))
     }
     fn function(&mut self, value: &d::Function) -> Result<(), CodecError> {
+        if let d::FunctionEffect::Asynchronous { span } = value.effect {
+            return Err(error(
+                self.length,
+                CodecErrorKind::UnsupportedTaskProfile { span },
+            ));
+        }
         if self.version < 4 && value.abi != d::FunctionAbi::Guest {
             return Err(error(
                 self.length,
@@ -577,4 +596,83 @@ pub(super) fn instruction_fixture(value: &b::Instruction) -> Vec<u8> {
     };
     writer.instruction(value).unwrap();
     writer.output.unwrap()
+}
+
+#[cfg(test)]
+mod task_tests {
+    use super::*;
+    fn span() -> m::Span {
+        m::Span {
+            source: m::SourceId(0),
+            start: 0,
+            end: 5,
+        }
+    }
+    fn writer(budget: &mut m::Budget, version: u16) -> Writer<'_> {
+        Writer {
+            version,
+            output: Some(Vec::new()),
+            length: 0,
+            maximum: 1024,
+            budget,
+        }
+    }
+    #[test]
+    fn old_writers_never_assign_task_tags_or_write_a_partial_constructor() {
+        for version in [2, 3, 4] {
+            for constructor in [
+                o::Constructor::Task(o::Type::I64),
+                o::Constructor::Builtin(o::Builtin::TaskError),
+            ] {
+                let mut budget = m::Budget::new(Default::default());
+                let mut w = writer(&mut budget, version);
+                let e = w
+                    .constructor(&o::Constructed {
+                        constructor,
+                        span: span(),
+                    })
+                    .unwrap_err();
+                assert!(
+                    matches!(e.kind,CodecErrorKind::UnsupportedTaskProfile{span:s} if s==span())
+                );
+                assert_eq!(w.length, 0);
+                assert!(w.output.unwrap().is_empty());
+            }
+        }
+        assert_eq!(tags::builtin(o::Builtin::TaskError), None);
+        assert!(matches!(
+            tags::read_builtin(10, 0).unwrap_err().kind,
+            CodecErrorKind::InvalidTag {
+                tag: Tag::Builtin,
+                value: 10
+            }
+        ));
+    }
+    #[test]
+    fn old_writers_refuse_even_scalar_async_declarations_before_output() {
+        for version in [2, 3, 4] {
+            let mut budget = m::Budget::new(Default::default());
+            let mut w = writer(&mut budget, version);
+            let f = d::Function {
+                effect: d::FunctionEffect::Asynchronous { span: span() },
+                abi: d::FunctionAbi::Guest,
+                name: "f".into(),
+                public: false,
+                span: span(),
+                signature_span: span(),
+                parameters: vec![],
+                result: o::TypeUse {
+                    ty: o::Type::I64,
+                    span: span(),
+                },
+                locals: vec![],
+            };
+            assert!(matches!(
+                w.function(&f).unwrap_err().kind,
+                CodecErrorKind::UnsupportedTaskProfile { .. }
+            ));
+            assert_eq!(w.length, 0);
+            assert!(w.output.unwrap().is_empty());
+        }
+    }
 }

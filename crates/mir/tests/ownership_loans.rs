@@ -99,6 +99,7 @@ fn base() -> b::BodyTable {
                 },
                 imports: vec![],
                 functions: vec![d::Function {
+                    effect: Default::default(),
                     abi: d::FunctionAbi::Guest,
                     name: "f".into(),
                     public: false,

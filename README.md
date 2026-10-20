@@ -70,6 +70,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0020: Experimental native SDK and scoped startup (implemented)](docs/rfcs/0020-native-sdk-and-startup.md)
 - [RFC 0021: Bounded structured task driver (implemented)](docs/rfcs/0021-bounded-structured-task-driver.md)
 - [RFC 0022: Source structured tasks (accepted)](docs/rfcs/0022-source-structured-tasks.md)
+- [RFC 0023: Task MIR boundaries (accepted)](docs/rfcs/0023-task-mir-boundaries.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

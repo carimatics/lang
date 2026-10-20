@@ -20,10 +20,44 @@ tags!(import_abi, read_import_abi, o::declarations::ImportAbi, Tag::ImportAbi, {
 tags!(function_abi, read_function_abi, o::declarations::FunctionAbi, Tag::FunctionAbi, {
     0 => o::declarations::FunctionAbi::Guest, 1 => o::declarations::FunctionAbi::CExport
 });
-tags!(builtin, read_builtin, B, Tag::Builtin, {
-    0=>B::Unit, 1=>B::Text, 2=>B::Bytes, 3=>B::Allocator, 4=>B::AllocError,
-    5=>B::BoundsError, 6=>B::BufferError, 7=>B::Utf8Error, 8=>B::OwnershipError, 9=>B::ArenaError
-});
+pub(super) fn builtin(value: B) -> Option<u8> {
+    Some(match value {
+        B::Unit => 0,
+        B::Text => 1,
+        B::Bytes => 2,
+        B::Allocator => 3,
+        B::AllocError => 4,
+        B::BoundsError => 5,
+        B::BufferError => 6,
+        B::Utf8Error => 7,
+        B::OwnershipError => 8,
+        B::ArenaError => 9,
+        B::TaskError => return None,
+    })
+}
+pub(super) fn read_builtin(value: u8, offset: usize) -> Result<B, CodecError> {
+    Ok(match value {
+        0 => B::Unit,
+        1 => B::Text,
+        2 => B::Bytes,
+        3 => B::Allocator,
+        4 => B::AllocError,
+        5 => B::BoundsError,
+        6 => B::BufferError,
+        7 => B::Utf8Error,
+        8 => B::OwnershipError,
+        9 => B::ArenaError,
+        value => {
+            return Err(error(
+                offset,
+                CodecErrorKind::InvalidTag {
+                    tag: Tag::Builtin,
+                    value,
+                },
+            ));
+        }
+    })
+}
 tags!(loan, read_loan, L, Tag::LoanKind, {0=>L::Shared, 1=>L::Exclusive});
 tags!(end, read_end, E, Tag::EndMode, {0=>E::Required, 1=>E::IfActive});
 tags!(local, read_local, K, Tag::LocalKind, {0=>K::Parameter, 1=>K::Mutable, 2=>K::Pattern, 3=>K::ArenaOwner});

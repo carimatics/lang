@@ -191,6 +191,17 @@ impl PlaceTable {
         let declarations = self
             .declarations
             .verify_with_budget(budget, constructed_limit)?;
+        budget.charge(
+            declarations
+                .types()
+                .table()
+                .constructed
+                .len()
+                .saturating_add(declarations.functions().len()),
+        )?;
+        if let Some(span) = declarations.task_feature_span() {
+            return Err(Error::new(ErrorKind::UnsupportedTaskProfile, Some(span)));
+        }
         let facts = validate(&declarations, &self.functions, budget, place_limit)?;
         Ok(VerifiedPlaces {
             declarations,

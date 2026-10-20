@@ -8,7 +8,7 @@ fuzz_target!(|bytes: &[u8]| {
     let span = m::Span {
         source: m::SourceId(0),
         start: 0,
-        end: 6,
+        end: 7,
     };
     let ty = |b: u8| match b % 4 {
         0 => Type::I64,
@@ -19,14 +19,16 @@ fuzz_target!(|bytes: &[u8]| {
     let mut table = TypeTable {
         sources: vec![m::Source {
             path: "types.lang".into(),
-            text: "abcdé".into(),
+            text: "asyncé".into(),
         }],
         ..TypeTable::default()
     };
     for i in 0..usize::from(byte(0) % 32) {
         let a = ty(byte(3 * i + 3));
         let b = ty(byte(3 * i + 4));
-        let constructor = match byte(3 * i + 2) % 16 {
+        let constructor = match byte(3 * i + 2) % 18 {
+            16 => Constructor::Task(a),
+            17 => Constructor::Builtin(Builtin::TaskError),
             0 => Constructor::Builtin(Builtin::Unit),
             1 => Constructor::Builtin(Builtin::Text),
             2 => Constructor::Builtin(Builtin::Bytes),
@@ -183,6 +185,13 @@ fuzz_target!(|bytes: &[u8]| {
                 });
             }
             declarations.functions.push(d::Function {
+                effect: if byte(i + 351) & 1 == 0 {
+                    d::FunctionEffect::Synchronous
+                } else {
+                    d::FunctionEffect::Asynchronous {
+                        span: m::Span { end: 5, ..span },
+                    }
+                },
                 abi: d::FunctionAbi::Guest,
                 name: format!("function{i}"),
                 public: byte(i + 350) & 1 != 0,

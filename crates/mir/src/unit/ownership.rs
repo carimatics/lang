@@ -40,6 +40,7 @@ pub enum Builtin {
     Utf8Error,
     OwnershipError,
     ArenaError,
+    TaskError,
 }
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LoanKind {
@@ -63,6 +64,7 @@ pub enum Constructor {
     Arena(Type),
     Loan(LoanKind, Type),
     ArenaOwner(ArenaOwner),
+    Task(Type),
 }
 impl Constructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
@@ -72,6 +74,7 @@ impl Constructor {
             | Self::Shared(t)
             | Self::Weak(t)
             | Self::Arena(t)
+            | Self::Task(t)
             | Self::Loan(_, t) => [Some(t), None],
             Self::Result(t, e) | Self::Map(t, e) => [Some(t), Some(e)],
             Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
@@ -157,6 +160,9 @@ pub enum ErrorKind {
     EmptyEnum,
     RecursiveInline(Type),
     InvalidStorage(Type),
+    InvalidTaskType(Type),
+    InvalidAsyncEffect(FunctionId),
+    UnsupportedTaskProfile,
     ArenaInShared(Type),
     PrivateInPublic(Type),
     InvalidMapKey(Type),
@@ -310,6 +316,7 @@ pub struct Properties {
     pub contains_arena: bool,
     pub contains_allocator: bool,
     pub contains_owner: bool,
+    pub contains_task: bool,
 }
 impl Properties {
     fn from_bits(bits: u8) -> Self {
@@ -320,6 +327,7 @@ impl Properties {
             contains_arena: bits & ARENA != 0,
             contains_allocator: bits & ALLOCATOR != 0,
             contains_owner: bits & OWNER != 0,
+            contains_task: bits & TASK != 0,
         }
     }
 }
@@ -336,6 +344,16 @@ pub struct VerifiedTypes {
     elements: usize,
 }
 impl VerifiedTypes {
+    /// An unsupported execution profile can be present in unused metadata.
+    pub fn task_feature_span(&self) -> Option<Span> {
+        self.table.constructed.iter().find_map(|t| {
+            matches!(
+                t.constructor,
+                Constructor::Task(_) | Constructor::Builtin(Builtin::TaskError)
+            )
+            .then_some(t.span)
+        })
+    }
     pub fn table(&self) -> &TypeTable {
         &self.table
     }
@@ -421,6 +439,7 @@ fn canonicalize(table: &TypeTable, budget: &mut Budget) -> Result<Vec<Type>, Err
             Constructor::Weak(t) => Constructor::Weak(child(t)),
             Constructor::Arena(t) => Constructor::Arena(child(t)),
             Constructor::Loan(k, t) => Constructor::Loan(k, child(t)),
+            Constructor::Task(t) => Constructor::Task(child(t)),
             Constructor::Builtin(_) | Constructor::ArenaOwner(_) => t.constructor,
         };
         let mut hasher = DefaultHasher::new();
@@ -453,7 +472,8 @@ const ARENA: u8 = 8;
 const ALLOCATOR: u8 = 16;
 const OWNER: u8 = 32;
 const PRIVATE: u8 = 64;
-const INSPECT: u8 = LOAN | ARENA | ALLOCATOR | OWNER | PRIVATE;
+const TASK: u8 = 128;
+const INSPECT: u8 = LOAN | ARENA | ALLOCATOR | OWNER | PRIVATE | TASK;
 #[derive(Clone, Copy)]
 struct Edge {
     child: usize,
@@ -728,7 +748,9 @@ fn validate(
         g.names(&mut member_names, definition.span)?;
     }
     validation::unique(&mut names, g.budget)?;
+    let mut has_task = false;
     for (i, ty) in table.constructed.iter().enumerate() {
+        has_task |= matches!(ty.constructor, Constructor::Task(_));
         g.span(ty.span)?;
         let mut depth = 1;
         for argument in ty.constructor.arguments() {
@@ -765,14 +787,15 @@ fn validate(
             Constructor::Loan(..) => NONCOPY | LOAN,
             Constructor::Arena(_) => ARENA,
             Constructor::ArenaOwner(_) => NONCOPY | DROP | ARENA | OWNER,
+            Constructor::Task(_) => NONCOPY | DROP | TASK,
             _ => 0,
         };
     }
     g.inline_depths()?;
-    // Every queued delta introduces at least one of seven previously absent
+    // Every queued delta introduces at least one of eight previously absent
     // bits at its node, including the initial seeds. No queue growth is needed.
     let queue_capacity = n
-        .checked_mul(7)
+        .checked_mul(if has_task { 8 } else { 7 })
         .ok_or_else(|| super::Error::new(super::ErrorKind::ArithmeticOverflow))?;
     let mut queue = g.budget.vector(queue_capacity)?;
     for (id, flags) in bits.iter().copied().enumerate() {
@@ -798,6 +821,15 @@ fn validate(
         g.budget.charge(1)?;
         for argument in ty.constructor.arguments() {
             let flags = bits[node(table, argument)?];
+            if flags & TASK != 0
+                || (matches!(ty.constructor, Constructor::Task(_))
+                    && flags & (LOAN | ARENA | ALLOCATOR | OWNER) != 0)
+            {
+                return Err(Error::new(
+                    ErrorKind::InvalidTaskType(argument),
+                    Some(ty.span),
+                ));
+            }
             let forbidden = match ty.constructor {
                 Constructor::Loan(..) => 0,
                 // Core read results may contain loans in stack sums. Source
@@ -832,6 +864,12 @@ fn validate(
     for (i, definition) in table.definitions.iter().enumerate() {
         for edge in &g.edges[2 + i] {
             g.budget.charge(1)?;
+            if bits[edge.child] & TASK != 0 {
+                return Err(Error::new(
+                    ErrorKind::InvalidTaskType(type_at(table, edge.child)),
+                    Some(definition.span),
+                ));
+            }
             if bits[edge.child] & (LOAN | ALLOCATOR | OWNER) != 0 {
                 return Err(Error::new(
                     ErrorKind::InvalidStorage(type_at(table, edge.child)),

@@ -433,6 +433,7 @@ fn construct_declarations<'a>(
             });
         }
         out.functions.push(d::Function {
+            effect: Default::default(),
             abi: match f.abi {
                 r::FunctionAbi::Guest => d::FunctionAbi::Guest,
                 r::FunctionAbi::CExport => d::FunctionAbi::CExport,

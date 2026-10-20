@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で **5 done · 1 doing · 35 todo · 102 remaining pt** を追跡します。有界 host task tree は `a543d23` で実行でき、`0655939` の source syntax に加え、`390e3ca` で scope 付き Task claim と async effect を bind/type し、`9f7012d` で別段階の suspension loan 証明を追加しました。妥当な task source も未対応 executable profile を明示拒否します。次は独立 task MIR と source VM/native 実行です。2026-10-21 の source 監査で前提 2 件（+5 pt）を追加し、完了 5 件で 13 pt を消化しました。M3 の出口ゲートはまだ完了していません。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
+[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で **5 done · 1 doing · 36 todo · 104 remaining pt** を追跡します。有界 host task tree は `a543d23` で実行でき、`0655939` の source syntax に加え、`390e3ca` で scope 付き Task claim と async effect を bind/type し、`9f7012d` で別段階の suspension loan 証明を追加しました。妥当な task source も未対応 executable profile を明示拒否します。次は MIR 型/effect 境界、独立 task flow、source VM/native 実行です。2026-10-21 の source/MIR 監査で前提 3 件（+7 pt）を追加し、完了 5 件で 13 pt を消化しました。M3 の出口ゲートはまだ完了していません。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
 
 ## 進行中 milestone の実行
 

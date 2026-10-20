@@ -31,8 +31,22 @@ pub enum FunctionAbi {
     Guest,
     CExport,
 }
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FunctionEffect {
+    #[default]
+    Synchronous,
+    Asynchronous {
+        span: Span,
+    },
+}
+impl FunctionEffect {
+    pub const fn is_async(self) -> bool {
+        matches!(self, Self::Asynchronous { .. })
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
+    pub effect: FunctionEffect,
     pub abi: FunctionAbi,
     pub name: String,
     pub public: bool,
@@ -66,6 +80,14 @@ pub struct VerifiedDeclarations {
     elements: usize,
 }
 impl VerifiedDeclarations {
+    pub fn task_feature_span(&self) -> Option<Span> {
+        self.types.task_feature_span().or_else(|| {
+            self.functions.iter().find_map(|f| match f.effect {
+                FunctionEffect::Asynchronous { span } => Some(span),
+                FunctionEffect::Synchronous => None,
+            })
+        })
+    }
     pub fn types(&self) -> &VerifiedTypes {
         &self.types
     }
@@ -105,6 +127,9 @@ impl VerifiedDeclarations {
             .functions
             .get(function.0 as usize)
             .ok_or_else(|| Error::new(ErrorKind::InvalidFunction(function), Some(span)))?;
+        if f.effect.is_async() {
+            return Err(Error::new(ErrorKind::UnsupportedTaskProfile, Some(span)));
+        }
         self.check_arguments(
             f.parameters.iter().map(|p| f.locals[p.0 as usize].ty.ty),
             arguments,
@@ -338,7 +363,8 @@ impl Check<'_> {
         public: bool,
     ) -> Result<(), Error> {
         let p = self.type_use(owner, ty)?;
-        if p.contains_owner
+        if p.contains_task
+            || p.contains_owner
             || (result && (p.contains_loan || p.contains_arena || p.contains_allocator))
         {
             return Err(Error::new(
@@ -431,6 +457,17 @@ fn validate(
         let function = FunctionId(index as u32);
         c.span(f.span)?;
         c.within(f.span, f.signature_span)?;
+        if let FunctionEffect::Asynchronous { span } = f.effect {
+            c.within(f.signature_span, span)?;
+            let text = &types.table.sources[span.source.0 as usize].text
+                [span.start as usize..span.end as usize];
+            if text != "async" || f.abi == FunctionAbi::CExport {
+                return Err(Error::new(
+                    ErrorKind::InvalidAsyncEffect(function),
+                    Some(span),
+                ));
+            }
+        }
         at(validation::name(&f.name, true, c.budget), f.span)?;
         names.push(f.name.as_str());
         if f.abi == FunctionAbi::CExport {
@@ -503,6 +540,16 @@ fn validate(
             at(validation::name(&local.name, false, c.budget), local.span)?;
             local_names.push(local.name.as_str());
             let p = c.type_use(f.span, local.ty)?;
+            if p.contains_task
+                && (!f.effect.is_async()
+                    || local.kind != LocalKind::Mutable
+                    || !matches!(c.constructor(local.ty.ty), Some(Constructor::Task(_))))
+            {
+                return Err(Error::new(
+                    ErrorKind::InvalidLocalType(local.ty.ty),
+                    Some(local.ty.span),
+                ));
+            }
             if local.kind == LocalKind::Parameter && !seen[i] {
                 return Err(Error::new(
                     ErrorKind::InvalidParameterList(function),
