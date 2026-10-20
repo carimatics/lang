@@ -118,6 +118,65 @@ def check_trace(text, profile, line, step):
             "result": 42}
 
 
+def cdb_commands(source, line, profile):
+    return [
+        'sxe -c ".echo __LANG_EXIT__; .lastevent; q" epr',
+        f"bp `{source.name}:{line}`",
+        "g",
+        ".echo __LANG_BEFORE__",
+        ".frame /r 0",
+        "r rip",
+        "k",
+        "bc *",
+        "l+t" if profile == "copy" else "l-t",
+        "p" if profile == "copy" else "t",
+        ".echo __LANG_AFTER__",
+        ".frame /r 0",
+        "r rip",
+        "k",
+        "g",
+        ".echo __LANG_UNEXPECTED_STOP__",
+        ".lastevent",
+        "q",
+    ]
+
+
+def check_cdb_trace(text, profile, line):
+    text = text.replace("\r\n", "\n")
+    before = re.search(r"(?ms)^__LANG_BEFORE__\s*\n(.*?)^__LANG_AFTER__\s*\n", text)
+    after = re.search(r"(?ms)^__LANG_AFTER__\s*\n(.*?)^__LANG_EXIT__\s*\n", text)
+    if not before or not after:
+        raise RuntimeError(f"{profile}: CDB did not stop, step and exit:\n{text[-18000:]}")
+    frames = [before.group(1), after.group(1)]
+    addresses = []
+    for frame in frames:
+        pc = re.search(r"rip=([0-9a-fA-F`]+)", frame)
+        if not pc:
+            raise RuntimeError(f"{profile}: no CDB instruction pointer:\n{frame}")
+        addresses.append(int(pc.group(1).replace("`", ""), 16))
+    if addresses[0] == addresses[1]:
+        raise RuntimeError(f"{profile}: CDB instruction pointer did not advance")
+    location = lambda number: rf"{profile}\.lang\s*@\s*{number}\b"
+    if not re.search(location(line), frames[0]):
+        raise RuntimeError(f"{profile}: wrong CDB source location:\n{frames[0]}")
+    if f"{profile}.lang" not in frames[1]:
+        raise RuntimeError(f"{profile}: CDB step left native source code:\n{frames[1]}")
+    if profile == "copy":
+        if not all(re.search(location(n), frames[0]) for n in [2, 6, 9]):
+            raise RuntimeError(f"copy: missing native callers:\n{frames[0]}")
+        if not re.search(location(3), frames[1]):
+            raise RuntimeError(f"copy: CDB source step did not reach return:\n{frames[1]}")
+    elif "lang_codegen_clif" not in frames[0]:
+        raise RuntimeError(f"owned: missing production runtime caller:\n{frames[0]}")
+    exit_text = text.split("__LANG_EXIT__", 1)[-1]
+    if not re.search(r"(?m)^42\s*$", text) or not re.search(r"[Ee]xit process.*code 0\b", exit_text):
+        raise RuntimeError(f"{profile}: missing normal program completion:\n{text[-12000:]}")
+    return {"profile": profile, "step": "source p" if profile == "copy" else "instruction t",
+            "before": frames[0].strip(), "after": frames[1].strip(),
+            "pc_before": addresses[0], "pc_after": addresses[1], "stack": frames[0].strip(),
+            "result": 42}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdk", required=True, type=Path)
@@ -143,11 +202,11 @@ def main():
     windows = os.name == "nt"
     compiler = sdk / "bin" / ("lang.exe" if windows else "lang")
     if windows:
-        path = Path(r"C:\Program Files\LLVM\bin\lldb.exe")
-        lldb = [str(path if path.is_file() else shutil.which("lldb.exe"))]
+        path = Path(r"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe")
+        debugger = [str(path if path.is_file() else shutil.which("cdb.exe"))]
     else:
-        lldb = ["xcrun", "lldb"]
-    version = execute("debugger-version", lldb + ["--version"], root, root, 20)
+        debugger = ["xcrun", "lldb"]
+    version = execute("debugger-version", debugger + ["-version" if windows else "--version"], root, root, 20)
     libraries = [sdk / f["path"] for f in manifest["files"] if f["path"].endswith(".rlib")]
     directories = sorted({(sdk / f["path"]).parent for f in manifest["files"]
                           if Path(f["path"]).suffix in {".rlib", ".lib", ".a"}})
@@ -174,12 +233,18 @@ def main():
         ordinary = execute(f"{profile}-ordinary-run", [executable], root, root, 30)
         if ordinary.strip() != "42":
             raise RuntimeError(f"{profile}: wrong ordinary result: {ordinary}")
-        commands = debugger_commands(source_path, package, root, line, step)
-        debug = lldb + ["--batch", "--no-lldbinit", "--file", str(executable)]
-        for command in commands:
-            debug.extend(["-o", command])
+        if windows:
+            commands = cdb_commands(source_path, line, profile)
+            debug = debugger + ["-lines", "-y", str(package), "-srcpath", str(root),
+                                "-c", "; ".join(commands), str(executable)]
+        else:
+            commands = debugger_commands(source_path, package, root, line, step)
+            debug = debugger + ["--batch", "--no-lldbinit", "--file", str(executable)]
+            for command in commands:
+                debug.extend(["-o", command])
         trace = execute(f"{profile}-debugger", debug, root, root, 90)
-        results.append(check_trace(trace, profile, line, step))
+        results.append(check_cdb_trace(trace, profile, line) if windows
+                       else check_trace(trace, profile, line, step))
     report = {"version": 1, "os": platform.system(), "architecture": platform.machine(),
               "sdk_build_id": manifest["build_id"], "debugger": version.strip(), "cases": results}
     (root / "debugger-report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
