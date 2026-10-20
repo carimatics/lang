@@ -309,6 +309,12 @@ pub trait Runtime {
     fn frame_identity(&self) -> u64 {
         0
     }
+    /// Read-only debugger descriptors for the next native dispatch. No Rust
+    /// code dereferences these addresses. They are valid only while this
+    /// invocation is paused in guest code, before another runtime transition.
+    fn debug_view(&self) -> DebugView {
+        DebugView::default()
+    }
     /// The adapter reserves/adopts the callee before consuming caller owners.
     fn prepare_call(
         &mut self,
@@ -389,6 +395,38 @@ pub struct Failure {
 
 type Helper = unsafe extern "C" fn(*mut c_void, u64, u64, u64) -> i32;
 const HELPERS: usize = 35;
+/// Private debugger view revision 1, independent of the native machine ABI.
+/// Frames are ordered outermost first; the preceding frame is the logical
+/// parent. A debugger must honor count and stride and read only a stopped
+/// process. Function/source IDs refer to the original verified unit.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DebugView {
+    pub revision: u64,
+    pub address: u64,
+    pub count: u64,
+    pub stride: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DebugFrame {
+    pub function: u32,
+    pub source: u32,
+    pub start: u32,
+    pub end: u32,
+}
+impl DebugFrame {
+    pub(crate) fn new(function: m::FunctionId, span: m::Span) -> Self {
+        Self {
+            function: function.0,
+            source: span.source.0,
+            start: span.start,
+            end: span.end,
+        }
+    }
+}
+
 #[repr(C)]
 struct Header {
     data: *mut c_void,
@@ -805,6 +843,11 @@ fn run<'c, 'a, R: Runtime>(
             function: u32::MAX,
             continuation: u32::MAX,
         };
+        // Keep a named, addressable descriptor in this physical driver frame.
+        // Its pointed-to records live in the pre-reserved runtime frame stack;
+        // no shared Rust reference survives mutable runtime callbacks.
+        let debug_view = context.instance.runtime.debug_view();
+        std::hint::black_box(&debug_view);
         // SAFETY: emit produces precisely this target-native C signature. Both
         // packets/header and the repr(C) DispatchState prefix have the exact
         // extents used by lowering. The opaque pointer borrows this Invocation
@@ -815,6 +858,7 @@ fn run<'c, 'a, R: Runtime>(
                 std::mem::transmute(context.compiled.code);
             call(&input, &mut output)
         };
+        std::hint::black_box(&debug_view);
         if status == 1 {
             let next = Transition {
                 frame: output.frame,

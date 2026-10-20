@@ -16,6 +16,16 @@ Extension (2026-10-19): [RFC 0014](0014-explicit-source-panic.md) selects privat
 
 Extension (2026-10-20): [RFC 0015](0015-c-native-object-bridge.md) selects private bridge revision 1, artifact-qualified symbols and object-resident import thunks for explicit C-aware objects. Existing packets/helpers and ordinary/JIT namespaces remain unchanged.
 
+## Current implementation status
+
+The repository review on 2026-10-20 JST found that G03/G18 host evidence checks physical runtime callers for owned native code, but does not verify the logical guest chain required by the debugger contract below. Production managed continuations and service families are implemented; this RFC remains accepted until the logical frames are exposed and verified on both hosts.
+
+## Debugger descriptor clarification (2026-10-20, accepted)
+
+Expose the logical chain through read-only repr(C) debug records in the production runtime's pre-reserved active frames. The driver local debug_view contains revision 1, the first record address, frame count and stride. Each record contains the original FunctionId, SourceId and start/end byte offsets. Records run outermost to innermost; the preceding record is the logical parent. Callers retain their call site; the innermost record retains the latest charged instruction span, with the physical PC supplying its exact current source location.
+
+Read only while guest execution is stopped; reacquire address/count after a runtime transition. Rust code never dereferences the exported addresses, and debugger readers validate count/stride. Existing frame admission accounts for capacity and bytes; dispatch adds no allocation or guest effects. Custom Runtime implementations default to unsupported revision 0. This private tooling descriptor changes neither Input/Output packets, helper indices, bytecode nor the public C ABI. Completion requires actual three-deep owned calls and parent source call sites on both hosts.
+
 ## Summary
 
 Compile ownership MIR into native continuations using the existing two-pointer/i32-status machine convention. A bounded host driver dispatches compiled function addresses; managed values remain in the runtime's prepared frames. Guest arithmetic, branches and continuation selection are machine code. The driver does not interpret MIR or bytecode and does not fall back to the VM.

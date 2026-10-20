@@ -456,6 +456,19 @@ pub(super) fn prepare<'i, 'a, 'l, P: a::Provider>(
         .vector(maximum_frames)
         .map_err(SetupError::Resource)?;
     stack.push(Active {
+        debug: n::DebugFrame::new(
+            layout.function(),
+            layout
+                .source()
+                .source()
+                .activity()
+                .moved()
+                .typed()
+                .places()
+                .declarations()
+                .functions()[layout.function().0 as usize]
+                .span,
+        ),
         handle: 1,
         function: layout.function(),
         parent: None,

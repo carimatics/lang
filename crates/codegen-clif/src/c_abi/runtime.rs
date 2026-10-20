@@ -161,6 +161,7 @@ struct Parent {
     failure: u32,
 }
 struct Active {
+    debug: n::DebugFrame,
     handle: u64,
     function: m::FunctionId,
     parent: Option<Parent>,
@@ -266,6 +267,14 @@ impl<P: a::Provider> Runtime for State<'_, '_, '_, '_, P> {
     fn frame_identity(&self) -> u64 {
         self.stack.last().unwrap().handle
     }
+    fn debug_view(&self) -> n::DebugView {
+        n::DebugView {
+            revision: 1,
+            address: std::ptr::from_ref(&self.stack[0].debug) as u64,
+            count: self.stack.len() as u64,
+            stride: std::mem::size_of::<Active>() as u64,
+        }
+    }
     fn validate_transition(&self, target: Transition) -> bool {
         self.pending == Some(target)
             && self.frame_identity() == target.frame
@@ -312,7 +321,9 @@ impl<P: a::Provider> Runtime for State<'_, '_, '_, '_, P> {
         }
         Ok(())
     }
-    fn charge(&mut self, _: m::Span) -> n::ResultStep {
+    fn charge(&mut self, span: m::Span) -> n::ResultStep {
+        let active = self.stack.last_mut().unwrap();
+        active.debug = n::DebugFrame::new(active.function, span);
         self.control.charge(&mut self.usage).map_err(control_cause)
     }
     fn move_slot(&mut self, source: usize, target: usize, span: m::Span) -> n::ResultStep {
@@ -583,8 +594,11 @@ impl<P: a::Provider> Runtime for State<'_, '_, '_, '_, P> {
                 .map_err(|_| c::Cause::Execution(c::ExecutionFailure::Invariant))?;
         }
         self.handle = next_handle;
+        let caller = self.stack.last_mut().unwrap();
+        caller.debug = n::DebugFrame::new(caller.function, call.span);
         assert!(self.stack.len() < self.stack.capacity());
         self.stack.push(Active {
+            debug: n::DebugFrame::new(call.function, function.span),
             handle: self.handle,
             function: call.function,
             parent: Some(Parent {

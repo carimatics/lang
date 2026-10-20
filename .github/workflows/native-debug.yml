@@ -2,12 +2,48 @@ name: Native source debug validation
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.gitattributes'
+      - 'src/**'
+      - 'crates/**'
+      - 'tests/native_compiler.rs'
+      - 'tests/native_debug_windows.rs'
+      - 'tools/build-native-sdk.py'
+      - 'tools/check-native-debugger.py'
+      - 'tools/test_native_debugger.py'
+      - 'docs/native-sdk.md'
+      - 'docs/ja/native-sdk.md'
+      - '.github/workflows/native-debug.yml'
   push:
     branches:
+      - main
       - 'codex/debug-*'
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.gitattributes'
+      - 'src/**'
+      - 'crates/**'
+      - 'tests/native_compiler.rs'
+      - 'tests/native_debug_windows.rs'
+      - 'tools/build-native-sdk.py'
+      - 'tools/check-native-debugger.py'
+      - 'tools/test_native_debugger.py'
+      - 'docs/native-sdk.md'
+      - 'docs/ja/native-sdk.md'
+      - '.github/workflows/native-debug.yml'
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   metadata:
@@ -24,6 +60,9 @@ jobs:
 
       - name: Select the pinned Rust toolchain
         run: rustup show active-toolchain
+
+      - name: Check debugger evidence validation
+        run: python -m unittest discover -s tools -p 'test_*.py'
 
       - name: Configure the x86-64 MSVC environment
         if: runner.os == 'Windows'

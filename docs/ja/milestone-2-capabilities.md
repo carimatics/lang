@@ -6,6 +6,8 @@
 
 更新・検証：**2026-10-20 JST**。M2の元の18完了条件には実行／設計の証拠がそろっています。Z01でこの最終guideと監査を公開します。実装は引き続き実験的で、accepted／implementedのRFCもstabilizedな契約ではありません。履歴上の**113/113 gate weight**は受け入れ範囲の達成を示し、時間・生産性・正確な工数見積もりを意味しません。
 
+**2026-10-20レビューによる訂正（検証中）：** 以下の旧G18根拠はownedの物理callerのみを確認し、RFC 0012の論理guest呼び出し列要件を満たしていませんでした。予約済みframeのread-only debug descriptorと3段の呼び出し列検証を追加しました。ローカルmacOS LLDBでmain→debug_outer→debug_takeと親のcall siteを確認済みで、Windows CDB検証は未完了です。RFC 0012はacceptedを保ち、下記の完了数値は従来監査の記録として扱います。
+
 ## 完結したsource programを実行する
 
 固定されたRust **1.99.0** toolchainを使います。[複合program](../../examples/conformance/owned_pipeline.lang)はowner移動、collection、shared／weak、arena、再帰、cleanupを組み合わせます。
@@ -69,7 +71,7 @@ Exact product `1496b8b`の[両host run 39413674593](https://github.com/carimatic
 - Owned：8行目のbreakpoint、native PCの前進、実Rust runtime caller。
 - 両profile：通常実行とdebugger実行で42を返し、正常終了。
 
-[Probe](../../tools/check-native-debugger.py)はsourceを保持し、一致するSDK／rustcでdebug情報付きの手動linkを行います。既定`link-native`はこのdebug sidecarを公開しません。Owned continuationは物理native／runtime frameを示し、native debugger内の完全な論理guest stackではありません。Source変数位置、完全な論理continuation step、VM／native混在stack、DAPは後続toolingの範囲です。Runtimeのguest error stackを縮小するものではありません。
+[Probe](../../tools/check-native-debugger.py)はsourceを保持し、一致するSDK／rustcでdebug情報付きの手動linkを行います。既定`link-native`はこのdebug sidecarを公開しません。旧runのOwned continuation根拠は物理native／runtime frameのみです。上記の訂正で論理guest stackの検証を補います。Source変数位置、完全な論理continuation step、VM／native混在stack、DAPは後続toolingの範囲です。Runtimeのguest error stackを縮小するものではありません。
 
 [性能captureと再現手順](benchmarks.md#milestone-2-sourcerustc-harness)は、各hostで3つの代表source programを同等の最適化Rust／C実装と比較します。macOS captureは`ecc0fd1`、Windowsは`dced632`です。これらの小さなworkloadでは検査付きsource実行は数百〜数千倍遅く、同等性能には達していません。Memoryはprocess全体、file sizeは文書記載の範囲で測定しています。これは先行revisionの不変の観測で、`1496b8b`や本guideの計測ではありません。Scaling・電源状態の制御・一般的な性能を示す証拠ではありません。
 

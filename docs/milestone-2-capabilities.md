@@ -6,6 +6,8 @@
 
 Updated and verified: **2026-10-20 JST**. The 18 original M2 exit gates have execution/design evidence. Z01 publishes this final guide and audit. The implementation remains experimental; accepted or implemented RFCs are not stabilized contracts. Historical **113/113 gate weight** describes acceptance coverage, not hours, productivity or an accurate effort estimate.
 
+**2026-10-20 review correction (validation pending):** The old G18 evidence below checked only physical owned callers and did not satisfy RFC 0012's logical guest-chain requirement. Read-only debug descriptors in prepared frames and a three-deep logical-chain probe have been added. Local macOS LLDB verifies main→debug_outer→debug_take and parent call sites; Windows CDB verification is pending. RFC 0012 remains accepted, and the completion counts below describe the prior audit.
+
 ## Run a complete source program
 
 Use the pinned Rust **1.99.0** toolchain. The [combined program](../examples/conformance/owned_pipeline.lang) composes owner transfer, collections, shared/weak values, arenas, recursion and cleanup:
@@ -69,7 +71,7 @@ Portable Copy uses schema 1; ordinary ownership uses schema 2, explicit-panic ow
 - Owned: breakpoint at line 8, advancing native PC and an actual Rust runtime caller.
 - Both profiles: ordinary and debugger execution return 42 and exit normally.
 
-The [probe](../tools/check-native-debugger.py) preserves source and manually links with debug information using the matching SDK/rustc. Default `link-native` does not publish these debug sidecars. Owned continuations expose physical native/runtime frames, not a complete logical guest stack in the native debugger. Source-variable locations, full logical continuation stepping, mixed VM/native stacks and DAP remain later tooling work. This does not weaken runtime guest error stacks.
+The [probe](../tools/check-native-debugger.py) preserves source and manually links with debug information using the matching SDK/rustc. Default `link-native` does not publish these debug sidecars. The old run covers physical native/runtime frames only; the correction above adds logical guest-stack verification. Source-variable locations, full logical continuation stepping, mixed VM/native stacks and DAP remain later tooling work. This does not weaken runtime guest error stacks.
 
 [Performance captures and reproduction](benchmarks.md#milestone-2-sourcerustc-harness) compare three representative source programs with equivalent optimized Rust/C on each host. The macOS capture is from `ecc0fd1`; Windows from `dced632`. Guarded source execution is hundreds to thousands of times slower in these small workloads; parity is not achieved. Measurements include whole-process memory and file sizes with the documented scope. They are immutable earlier-revision observations, not measurements of `1496b8b` or this guide. No scaling, power-state control or general performance claim follows from them.
 

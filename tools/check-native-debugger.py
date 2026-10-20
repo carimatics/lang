@@ -35,10 +35,52 @@ fn debug_take(b:core::Bytes)->i64 {
     let mut value:i64 = original + 1;
     return value;
 }
+fn debug_outer(b:core::Bytes)->i64 {
+    return debug_take(b);
+}
 fn main()->i64 {
-    return debug_take(debug_make(41));
+    return debug_outer(debug_make(41));
 }
 """
+
+LLDB_STACK = """
+import lldb, struct
+thread = lldb.debugger.GetSelectedTarget().GetProcess().GetSelectedThread()
+view = next((f.FindVariable("debug_view") for f in thread
+             if f.FindVariable("debug_view").IsValid()), None)
+assert view is not None, "no owned driver debug_view"
+revision, address, count, stride = [view.GetChildMemberWithName(k).GetValueAsUnsigned()
+                                   for k in ("revision", "address", "count", "stride")]
+assert revision == 1 and 0 < count <= 64 and 16 <= stride <= 1024, "bad debug view"
+print("__LANG_VIEW__ %d %d %d" % (revision, count, stride))
+for i in range(count):
+    error = lldb.SBError()
+    data = thread.GetProcess().ReadMemory(address + i * stride, 16, error)
+    assert error.Success() and len(data) == 16, "unreadable logical frame"
+    print("__LANG_FRAME__ %d %d %d %d" % struct.unpack("<IIII", data))
+"""
+
+
+def check_logical_stack(text):
+    """Decode target memory; assert real logical parents, including call sites."""
+    views = re.findall(r"(?m)^__LANG_VIEW__ (\d+) (\d+) (\d+)\s*$", text)
+    records = [tuple(map(int, row)) for row in
+               re.findall(r"(?m)^__LANG_FRAME__ (\d+) (\d+) (\d+) (\d+)\s*$", text)]
+    if len(views) != 1 or tuple(map(int, views[0][:2])) != (1, 3) or len(records) != 3:
+        raise RuntimeError(f"owned: missing three live logical frames: {views}, {records}")
+    frames = []
+    for (function, source, start, end), expected, name, line in zip(
+            records, [3, 2, 1], ["main", "debug_outer", "debug_take"], [15, 12, None]):
+        if function != expected or source != 0 or not 0 <= start <= end <= len(OWNED):
+            raise RuntimeError(f"owned: invalid logical frame: {records}")
+        actual_line = OWNED.count("\n", 0, start) + 1
+        # The innermost frame records the latest charged instruction; the
+        # physical PC supplies its exact current line. Parents retain call sites.
+        if (line is not None and actual_line != line) or (line is None and actual_line not in (7, 8)):
+            raise RuntimeError(f"owned: wrong logical call site: {records}")
+        frames.append({"function": function, "name": name, "source": source,
+                       "start": start, "end": end, "line": actual_line})
+    return frames
 
 
 def execute(label, arguments, directory, logs, timeout=60, accepted_statuses=(0,)):
@@ -83,6 +125,7 @@ def debugger_commands(source, package, root, line, step):
         "run",
         "frame info",
         "thread backtrace -c 32",
+        *([f"script exec({LLDB_STACK!r})"] if source.stem == "owned" else []),
         "breakpoint disable",
         step,
         "frame info",
@@ -114,6 +157,7 @@ def check_trace(text, profile, line, step):
     if not re.search(r"(?m)^42\s*$", text) or not re.search(r"exited with status = 0", text):
         raise RuntimeError(f"{profile}: debugged program did not finish successfully:\n{text[-16000:]}")
     return {"profile": profile, "step": step, "before": frames[0], "after": frames[1],
+            "logical_stack": check_logical_stack(text) if profile == "owned" else [],
             "pc_before": addresses[0], "pc_after": addresses[1], "stack": first_stack.strip(),
             "result": 42}
 
@@ -127,6 +171,19 @@ def cdb_commands(location, profile):
         ".frame /r 0",
         "r rip",
         "k",
+        *([
+            ".frame /r 1",
+            'r @$t0 = @@c++(debug_view.address)',
+            'r @$t1 = @@c++(debug_view.stride)',
+            'r @$t2 = @@c++(debug_view.count)',
+            '.printf "__LANG_VIEW__ %I64u %I64u %I64u\\n", @@c++(debug_view.revision), @$t2, @$t1',
+            '.if (@$t2 > 0 && @$t2 <= 0n64 && @$t1 >= 0n16 && @$t1 <= 0n1024) { '
+            '.for (r @$t3 = 0; @$t3 < @$t2; r @$t3 = @$t3 + 1) { '
+            '.printf "__LANG_FRAME__ %u %u %u %u\\n", '
+            'dwo(@$t0+@$t3*@$t1), dwo(@$t0+@$t3*@$t1+4), '
+            'dwo(@$t0+@$t3*@$t1+8), dwo(@$t0+@$t3*@$t1+0xc) } }',
+            ".frame /r 0",
+        ] if profile == "owned" else []),
         "bc *",
         "l+t" if profile == "copy" else "l-t",
         "p" if profile == "copy" else "t",
@@ -172,6 +229,7 @@ def check_cdb_trace(text, profile, line):
     if not re.search(r"(?m)^42\s*$", text) or not re.search(r"[Ee]xit process.*code 0\b", exit_text):
         raise RuntimeError(f"{profile}: missing normal program completion:\n{text[-12000:]}")
     return {"profile": profile, "step": "source p" if profile == "copy" else "instruction t",
+            "logical_stack": check_logical_stack(text) if profile == "owned" else [],
             "before": frames[0].strip(), "after": frames[1].strip(),
             "pc_before": addresses[0], "pc_after": addresses[1], "stack": frames[0].strip(),
             "result": 42}

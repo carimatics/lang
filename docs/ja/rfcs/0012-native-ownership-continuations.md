@@ -16,6 +16,16 @@
 
 拡張（2026-10-20）：[RFC 0015](0015-c-native-object-bridge.md)は明示C対応objectのprivate bridge revision 1、artifact別symbol、object内import thunkを定めます。既存packet／helperと通常／JIT namespaceは維持します。
 
+## 現在の実装状態
+
+2026-10-20 JSTの全体レビューで、G03/G18の実機根拠はowned nativeの物理runtime callerまでで、以下のdebugger契約が要求する論理guest呼び出し列を検証していないことが分かりました。Production managed continuationとservice familyは実装済みですが、本RFC全体はacceptedを維持します。論理frameの表示と両hostでの検証が完了するまでimplementedへ変更しません。
+
+## Debugger descriptor補足（2026-10-20、accepted）
+
+実機debuggerが論理呼び出し列を読めるよう、production runtimeの予約済みactive frameにread-onlyのrepr(C) debug recordを保持します。Driverのlocal変数 debug_viewはrevision 1、先頭recordのaddress、frame数、strideを持ちます。各recordは元のFunctionId、SourceId、start/end byte offsetです。順序は外側から内側で、直前recordが論理parentです。Callerはcall site、innermostは最後にchargeした命令のspanを保持し、現在位置は物理PCのsource情報で示します。
+
+停止したguest実行中だけ読み取り可能で、runtime transition後のaddress／countは再取得します。Rust codeは公開addressをdereferenceせず、debuggerはcount／strideを検査します。容量とbyte数は既存frame admission予算で計上し、dispatch中に新規allocationやguest effectを追加しません。Custom Runtimeのdefault viewは未対応を表すrevision 0です。このprivate tooling descriptorはInput/Output packet、helper index、bytecode、公開C ABIを変更しません。両hostで3段のowned呼び出しと親のsource call siteを実機検証してから完了を記録します。
+
 ## 概要
 
 Ownership MIRを、既存の2 pointer／i32 statusのmachine conventionを使うnative継続にcompileします。上限付きhost driverがcompile済み関数addressをdispatchし、managed valueはruntimeの予約済みframeに保持します。Guestの算術、分岐、継続選択は機械コードです。DriverはMIR／bytecodeを解釈せず、VMへfallbackしません。
