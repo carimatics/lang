@@ -12,13 +12,13 @@
 
 | 現在の成果 | 直近の検証済み完了 | Milestone出口 |
 | --- | --- | --- |
-| G03：両hostのlink後source位置、実stepping／backtrace | **G02完了**：Windows Copy／owned／C-export CodeView／PDB（`2297a07`） | **17/18 gates** |
+| G03：address修正・macOS実行検証済み、Windows実debugger検証中 | **G02完了**：Windows Copy／owned／C-export CodeView／PDB（`2297a07`） | **17/18 gates** |
 
 **最新検証checkpoint（2026-10-20 JST）：** `2297a07`で上限付きcanonical source adapterを[unit全体のCodeView](../../crates/codegen-clif/src/debug/source_coff.rs)へ接続し、Windows実source producerで使用します。[実PDB test](../../tests/native_debug_windows.rs)がCopy／owned／C-export packageを生成し、native relocationの区別とPE／PDB linkを検証します。native Windows LINK／LLVMで元のfunction名とsource行contributionを確認し、macOS LLDBでもcross-linkした各PDBの2 function名／行を独立に解決します。local全体baselineは1,592 tests／95 suites、失敗0、手動計測ignore 1件です。 同productの[Windows run 39398395224／job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278)、head `2297a07`は、fmt／native C-linker／Clippy／全test／rustdocが**2026-10-20 09:44:14 UTC**までに成功しています。workflow全体も**2026-10-20 09:55:01 UTC**に成功しました。prototype benchmarkはG17の新しいRust／C比較計測ではありません。
 
 **今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **6 − 3 = 3 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 240 = 3 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**G03実装前監査／実装（2026-10-20 JST）：** 2 ptを維持し、scope／見積もりを追加しません。実SDKのowned pipelineはlinkして42を出力します。生成artifact上のprobeでMach-O addressの不具合を特定し、local text-section relocationと元offsetで各functionのlink後addressを保持できると確認しました。Rust修正と、実Copy／owned programをdebug link・実行して全dSYM／native symbol addressを比較する回帰testがlocalで成功しました（7.73s）。product commit前の全体baseline検証中です。native metadata probeにはtoolごとの段階／時間と30秒上限を設け、長い全体suiteと独立して結果が見えるhost別専用jobを用意しました。G03の完了には、解決済みの実production runtimeで両native hostの実stepping／backtraceが必要です。local debugger起動は未検証として必要に応じnative CIを使い、元source／source mappingと検証したdebug-link手順を維持・文書化します。Z01の最終日英guide／全出口監査も残します。
+**G03実行検証中（2026-10-20 19:35 JST）：** 既存2 ptを維持し、scope／見積もり追加なし。`7b6d181`でMach-Oのlink後addressを修正し、実Copy／owned debug link・42の実行・全functionのdSYM／native symbol照合を検証しました。local全体1,593 tests／95 suites（失敗0、手動計測ignore 1）、fmt／Clippy／rustdoc／全11 fuzz compileが成功し、[両hostの限定metadata CI](https://github.com/carimatics/lang/actions/runs/39405677404)も成功しています。SDKに一致する絶対rustcを選ぶ`95098b4`の[macOS実debugger job](https://github.com/carimatics/lang/actions/runs/39408056699/job/118578728261)は、Copyの2→3行step-over・3段source caller、ownedのPC前進・実Rust runtime caller、両方のdebugger内42／正常終了に成功しました。Windows LLDBはDLL不足で起動できないため、同じ実行要件をCDBで検証する`34d2b54`の[CI](https://github.com/carimatics/lang/actions/runs/39408889911)を実行中です。**address修正済み → macOS実行検証済み → Windows実行検証中**。両hostの実証前にG03は完了にせず、Z01の最終日英guide／全出口監査も残します。
 
 ## タスク管理
 
