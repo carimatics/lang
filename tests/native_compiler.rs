@@ -57,6 +57,41 @@ fn library(name: &str) -> PathBuf {
 fn build(package: &Path, name: &str) -> PathBuf {
     build_extra(package, name, &[])
 }
+#[cfg(windows)]
+fn windows_native_paths() -> &'static Vec<PathBuf> {
+    static PATHS: std::sync::OnceLock<Vec<PathBuf>> = std::sync::OnceLock::new();
+    PATHS.get_or_init(|| {
+        // In-tree conformance only: Cargo normally forwards these native
+        // import-library paths. Installed SDK linking must bundle them.
+        let metadata = Command::new(env!("CARGO"))
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args([
+                "metadata",
+                "--locked",
+                "--offline",
+                "--format-version=1",
+                "--filter-platform=x86_64-pc-windows-msvc",
+            ])
+            .output()
+            .unwrap();
+        assert!(metadata.status.success(), "{metadata:?}");
+        let metadata: serde_json::Value = serde_json::from_slice(&metadata.stdout).unwrap();
+        metadata["packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|package| package["name"] == "windows_x86_64_msvc")
+            .map(|package| {
+                let path = PathBuf::from(package["manifest_path"].as_str().unwrap())
+                    .parent()
+                    .unwrap()
+                    .join("lib");
+                assert!(path.is_dir());
+                path
+            })
+            .collect()
+    })
+}
 fn build_extra(package: &Path, name: &str, extra: &[&str]) -> PathBuf {
     let exe = package.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
     let deps = std::env::current_exe()
@@ -76,6 +111,12 @@ fn build_extra(package: &Path, name: &str, extra: &[&str]) -> PathBuf {
             "-L",
         ])
         .arg(format!("dependency={}", deps.display()));
+    #[cfg(windows)]
+    for path in windows_native_paths() {
+        let mut search = std::ffi::OsString::from("native=");
+        search.push(path);
+        c.arg("-L").arg(search);
+    }
     for name in [
         "lang_mir",
         "lang_runtime",
@@ -319,16 +360,28 @@ fn source_native_c_bindings_run_a_real_c_caller_with_original_allocator() {
         r#"
 #include "program.h"
 #include <stdlib.h>
+#ifdef _WIN32
+#include <malloc.h>
+#endif
 static uint64_t allocations, releases;
 static void *allocate(void *user,uint64_t size,uint64_t align) {{
     (void)user;
+#ifdef _WIN32
+    void *p=_aligned_malloc((size_t)(size?size:1), (size_t)(align<sizeof(void*)?sizeof(void*):align));
+#else
     if (align > _Alignof(max_align_t)) return NULL;
     void *p=malloc((size_t)(size?size:1));
+#endif
     if(p) ++allocations;
     return p;
 }}
 static void deallocate(void *user,void *p,uint64_t size,uint64_t align) {{
-    (void)user; (void)size; (void)align; ++releases; free(p);
+    (void)user; (void)size; (void)align; ++releases;
+#ifdef _WIN32
+    _aligned_free(p);
+#else
+    free(p);
+#endif
 }}
 int native_client(void) {{
     lang_allocator_descriptor allocator={{1,32,NULL,allocate,deallocate}};
@@ -353,7 +406,7 @@ int native_client(void) {{
     let mut cc = Command::new(if cfg!(windows) { "cl" } else { "cc" });
     cc.current_dir(&package);
     if cfg!(windows) {
-        cc.args(["/nologo", "/std:c11", "/c", "client.c"])
+        cc.args(["/nologo", "/std:c11", "/MD", "/c", "client.c"])
             .arg(format!("/Fo{object}"));
     } else {
         cc.args(["-std=c11", "-Werror", "-c", "client.c", "-o", object]);
@@ -361,7 +414,8 @@ int native_client(void) {{
     let out = cc.output().unwrap();
     assert!(
         out.status.success(),
-        "{}",
+        "{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
     let host = r#"
