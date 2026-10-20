@@ -22,6 +22,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Select the pinned Rust toolchain
+        run: rustup show active-toolchain
+
       - name: Configure the x86-64 MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
@@ -41,15 +44,31 @@ jobs:
             Write-Host "$tool available: $(Test-Path $tool)"
           }
 
+      - name: Restore the exact matching debug SDK
+        id: sdk-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/lang-debug-sdk
+          key: native-debug-sdk-v1-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('**/*.rs', '**/*.toml', '**/*.h', '**/*.c', '**/*.wit', 'Cargo.lock', 'schema/**', '.cargo/**', '.gitattributes', 'docs/native-sdk.md', 'docs/ja/native-sdk.md', 'tools/build-native-sdk.py') }}
+
       - name: Validate all source CodeView profiles with bounded tools
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
         run: cargo test --locked --test native_debug_windows --all-features -- --nocapture
 
       - name: Validate linked Mach-O function addresses
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.sdk-cache.outputs.cache-hit != 'true'
         run: cargo test --locked --test native_compiler --all-features linked_copy_and_owned_dwarf_ranges_match_each_native_body -- --nocapture
 
       - name: Build the matching native SDK
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
         run: python tools/build-native-sdk.py --output "${{ runner.temp }}/lang-debug-sdk"
+
+      - name: Save the built SDK before debugger execution
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/lang-debug-sdk
+          key: ${{ steps.sdk-cache.outputs.cache-primary-key }}
 
       - name: Enable debugger authorization on the ephemeral macOS runner
         if: runner.os == 'macOS'

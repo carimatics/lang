@@ -239,7 +239,11 @@ def main():
             # launches (an absolute address would be invalid after ASLR).
             resolve = debugger + ["-lines", "-y", str(package), "-srcpath", str(root),
                                   "-c", f"bp `{source_path.name}:{line}`; bl; q", str(executable)]
-            locations = execute(f"{profile}-resolve-source", resolve, root, root, 30, (0, 1))
+            # An ambiguous query consumes the batch command and reaches EOF;
+            # CDB returns HRESULT_FROM_WIN32(ERROR_BROKEN_PIPE) after printing
+            # the matches. Actual execution still requires normal status 0.
+            locations = execute(f"{profile}-resolve-source", resolve, root, root, 30,
+                                (0, 1, 0x8007006D))
             candidates = re.findall(r"debuggee![A-Za-z_][A-Za-z_0-9]*(?:\+0x[0-9a-fA-F]+)?", locations)
             if not candidates:
                 raise RuntimeError(f"{profile}: CDB did not resolve source line {line}:\n{locations}")

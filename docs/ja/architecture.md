@@ -53,6 +53,8 @@ G03実debugger probe（2026-10-20 JST、実行検証前）：[SDK harness](../..
 
 Windows runnerのLLDBは存在してもDLL不足の0xc0000135で起動できなかったため、同じnative実行検証にインストール済みCDBを使います。source modeとstepの意味はMicrosoftの[CDB CLI](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/cdb-command-line-options)（更新2021-12-15）、[source options](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/l---l---set-source-options-)／[p](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/p--step-)（更新2023-10-25）に従い、いずれも2026-10-20 JST検証です。toolが使えないことをmetadata成功やdebugger成功へ読み替えません。
 
+debugger harnessだけの反復でコンパイラを再buildしないよう、CIはOS／CPUとRust・manifest・schema・header・SDK builder・同梱文書の全入力hashが一致するSDKを再利用します。差分restore keyは使わず、実debugger検証は常に実行します。metadata検証とSDK組立が成功した時点でcacheを保存し、後続debuggerの失敗で再buildを強いない構成です。actionは[公式cache v6.1.0](https://github.com/actions/cache/releases/tag/v6.1.0)のcommitへ固定し、公開・更新2026-06-26、2026-10-20 JST検証です。
+
 ## Native manifest and file verification
 
 P11（2026-10-20 JST）は不変の型付きSDK／program manifestと所有snapshotを追加します。Exact-key serde decodeで重複／未知fieldを拒否し、byte／depth／string／file-count上限を拡張前に検査します。Role／path／profile／entryと総sizeの検査にはmanifest byteも含めます。SDK tagはcompile済みbuild、target別ID、rustc release／commit、profile、feature policyと照合します。Programの意味論／entry／ABI、native記録のkind／target／C digest、正確なobject byteと記録planを独立に検査します。
