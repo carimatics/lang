@@ -47,7 +47,7 @@ impl<'p> ExportRuntime<'p> for Metered<'p> {
     }
 }
 
-pub(super) const MANAGED_SOURCES: [&str; 10] = [
+pub(super) const MANAGED_SOURCES: [&str; 11] = [
     include_str!("../../examples/analysis/native_core_bytes.lang"),
     include_str!("../../examples/scripts/text.lang"),
     include_str!("../../examples/scripts/utf8.lang"),
@@ -58,6 +58,7 @@ pub(super) const MANAGED_SOURCES: [&str; 10] = [
     include_str!("../../examples/analysis/native_shared_custody.lang"),
     include_str!("../../examples/scripts/arena_owned.lang"),
     include_str!("../../examples/analysis/native_arena_regions.lang"),
+    include_str!("../../examples/conformance/owned_pipeline.lang"),
 ];
 
 #[test]

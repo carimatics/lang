@@ -15,6 +15,97 @@ const SOURCES: [&str; 10] = [
     include_str!("../../examples/analysis/explicit_panic_owned.lang"),
     include_str!("../../examples/analysis/explicit_drop_shared.lang"),
 ];
+const COMBINED: &str = include_str!("../../examples/conformance/owned_pipeline.lang");
+
+#[test]
+fn production_owned_entry_combines_collections_shared_arena_calls_and_panic() {
+    for panic in [false, true] {
+        let text = if panic {
+            COMBINED.replace(
+                "fn main() -> i64 { return scenario(false); }",
+                "fn main() -> i64 { return scenario(true); }",
+            )
+        } else {
+            COMBINED.to_owned()
+        };
+        let source = source(&text);
+        let flow = source.failure_flow();
+        let layouts = l::Layouts::compile(
+            flow.source()
+                .activity()
+                .moved()
+                .typed()
+                .places()
+                .declarations()
+                .types(),
+            Default::default(),
+        )
+        .unwrap();
+        let program =
+            n::CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+        let controls = e::Control::with_limits(control::limits());
+        let (actual, requests) = run(&program, main_id(flow), controls, None);
+        let (expected, expected_requests) = control::vm(flow, controls, None);
+        compare(&actual, &expected);
+        assert_eq!(requests, expected_requests);
+        let usage = actual.as_ref().map(|v| v.usage).unwrap_or_else(|e| e.usage);
+        assert!(usage.fuel > 0 && usage.service_work > 0 && requests > 0);
+        if panic {
+            assert_eq!(actual.unwrap_err().panic_code, Some(-42));
+        } else {
+            assert_eq!(actual.unwrap().value, 42);
+        }
+        eprintln!(
+            "combined panic={panic}: fuel={}, service-work={}, provider-requests={requests}",
+            usage.fuel, usage.service_work
+        );
+        for fuel in 0..=usage.fuel + 1 {
+            let control = e::Control::with_limits(e::Limits {
+                fuel: Some(fuel),
+                ..control::limits()
+            });
+            let (actual, requests) = run(&program, main_id(flow), control, None);
+            let (expected, expected_requests) = control::vm(flow, control, None);
+            compare(&actual, &expected);
+            assert_eq!(requests, expected_requests);
+        }
+        for work in 0..=usage.service_work + 1 {
+            let control = controls.and_service_work(Some(work));
+            let (actual, requests) = run(&program, main_id(flow), control, None);
+            let (expected, expected_requests) = control::vm(flow, control, None);
+            compare(&actual, &expected);
+            assert_eq!(requests, expected_requests);
+        }
+        for at in 1..=requests {
+            let (actual, requests) = run(&program, main_id(flow), controls, Some(at));
+            let (expected, expected_requests) =
+                control::vm_with_refusal(flow, controls, None, Some(at));
+            compare(&actual, &expected);
+            assert_eq!(requests, expected_requests);
+        }
+        for frames in [0, usage.peak_frames - 1, usage.peak_frames] {
+            let control = e::Control::with_limits(e::Limits {
+                frames: Some(frames),
+                ..control::limits()
+            });
+            compare(
+                &run(&program, main_id(flow), control, None).0,
+                &control::vm(flow, control, None).0,
+            );
+        }
+        for cells in [0, usage.peak_live_cells - 1, usage.peak_live_cells] {
+            let control = e::Control::with_limits(e::Limits {
+                live_cells: Some(cells),
+                ..control::limits()
+            });
+            compare(
+                &run(&program, main_id(flow), control, None).0,
+                &control::vm(flow, control, None).0,
+            );
+        }
+    }
+}
+
 fn main_id(flow: &m::ownership::failure::Elaborated) -> m::FunctionId {
     m::FunctionId(
         flow.source()

@@ -207,7 +207,16 @@ fn block(
             *slot = Activity::Inactive;
         }
     }
-    if mode == Mode::Check && body.terminator.kind.is_exit() {
+    // Typed MIR requires Panic to be the last instruction with an Unreachable
+    // terminator. It has no success exit: mandatory failure retirement ends
+    // its active registrations after recording the panic, including arena
+    // allocator loans. Normal returns and bare unreachable exits still need
+    // explicit ends here; do not retire owners before recording the panic.
+    let panic = body
+        .instructions
+        .last()
+        .is_some_and(|i| matches!(i.op, b::Op::Panic(_)));
+    if mode == Mode::Check && body.terminator.kind.is_exit() && !panic {
         for (index, activity) in state.iter().copied().enumerate() {
             budget.charge(1)?;
             if activity != Activity::Inactive {

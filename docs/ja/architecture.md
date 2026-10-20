@@ -214,6 +214,14 @@ Copy／通常owned packageは生成mainを使います。C libraryは `--host HO
 
 Local probeだけでは両host隔離の証拠になりません。対応する別jobの結果を[Todo](milestone-2.md)に記録しました。Q／B／Gと最終guideはそれぞれの完了証拠を必要とします。Artifact転送の権限保持はGitHub公式 [upload-artifact](https://github.com/actions/upload-artifact/tree/cf430e030ddbb5b0abf93d22962f4752f3646cd9#permission-loss)／[download-artifact](https://github.com/actions/download-artifact/tree/9000827ccba6bdab643e8b6fd33ac0654aef8333#maintaining-file-permissions) に従います。Living READMEに更新日表示はなく、2026-10-20 JST確認です。
 
+### Combined source conformance
+
+2026-10-20 JST更新・確認：[複合source](../../examples/conformance/owned_pipeline.lang) はVecからMapへのowner移動・置換、Text／Bytesを持つaggregate、再帰guest call、shared／weak、arenaのowned collectionと入れ子readを組み合わせます。RFC 0004どおりshared→arena格納をCrossRegionで拒否し、拒否したcloneの解放、arena scope終了後のweak失効も確認します。通常entryは42、同じ処理をarena内でpanicさせるvariantは−42です。
+
+[実production entry比較](../../tests/support/native_entry_runtime.rs) はVMと値・usage・元span／stack／reportを照合し、両variantの全fuel／service-work prefix、provider割当て拒否位置、frame／cell境界で元Instanceとallocatorの解放を確認します。[Source-native test](../../tests/native_compiler.rs) は元source削除後の実AOTで両variantを実行します。[C runtime比較](../../tests/support/c_exports_runtime.rs) と[保存C object比較](../../tests/support/c_object_records.rs) では通常variantを含む11 sourceを実C caller／元allocatorで検証します。これらは代表的conformanceで、性能やdebuggerの証拠とは別です。
+
+このfixtureで見つかったpanic時のallocator loan解析拒否を修正しました。Typed MIRが末尾Panic＋Unreachableだけを許可した経路では、必須failure retirementがpanic記録後にloan／ownerを解放します。通常return、bare Unreachable、成功経路へ継続する不正Panicの拒否は[MIR回帰test](../../crates/mir/tests/ownership_loan_activity.rs)で維持します。既存の受理済みpanic意味論の修正であり、source／ABI／serialized formatの変更はありません。
+
 ### Native compiler record transport and Copy binding
 
 2026-10-20 JST実装・確認：[RFC 0018](rfcs/0018-native-compiler-records.md)で元object、tier-1 target 2種、private compile scope（C object digestを含む）、全function metadataを記録します。明示version 1 framing／tag、意味論／objectのSHA-256、厳密UTF-8／symbol／range／count検査、work／allocation／element／byte累積上限を公開前に適用します。Hashはdataの識別でありnative codeの認証ではありません。Portable schema 1／2／3／4の独立verifierと形式は維持します。

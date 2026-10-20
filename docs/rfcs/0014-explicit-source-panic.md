@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-19
+- Last updated: 2026-10-20
 - Accepted: 2026-10-19
 - Implemented: 2026-10-19
 - Tracking issue: M2-F13
@@ -73,6 +73,8 @@ Add source signature/divergence and MIR validation; implement VM/native helpers 
 ## Test plan
 
 Compile-pass/fail generic, code-type, loan and unreachable cases; nested expression/argument order; dynamic positive/negative/extreme codes and logical stack/span; cleanup failures and finite fuel/work; VM/JIT/AOT equivalence; schema 2 byte stability, schema 3 round trips and malformed version/tag/continuation refusals. Run the full baseline and request Windows evidence for the resulting snapshot.
+
+Implementation correction (2026-10-20 JST): the [combined source](../../examples/conformance/owned_pipeline.lang) exposed false loan-activity rejection of a terminal panic with an active arena allocator loan. Rely on typed MIR's required final-Panic/Unreachable validation and defer only that exit's loan endings to mandatory failure retirement, after recording the primary panic. Normal returns, bare Unreachable and invalid success continuations still refuse. Compare VM/actual production native entry at ordinary 42/panic −42, every fuel/work/provider-refusal prefix and frame/cell boundaries, retaining original allocator/Instance retirement; actual AOT and real-C/persisted-C paths also exercise the combined source. This corrects accepted semantics without changing syntax, ABI, schemas 1–4 or native-record framing. Compiler-source changes require rebuilding SDKs under the existing exact-build policy. Sources: [loan analysis](../../crates/mir/src/unit/ownership/loan_activity.rs), [regression test](../../crates/mir/tests/ownership_loan_activity.rs), [VM/native comparison](../../tests/support/native_entry_runtime.rs), updated/verified 2026-10-20 JST.
 
 ## Open questions
 

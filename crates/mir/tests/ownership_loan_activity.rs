@@ -188,6 +188,31 @@ fn explicit_ends_are_required_once_and_report_the_creation_span() {
 }
 
 #[test]
+fn panic_defers_active_loans_to_failure_retirement_only_without_a_success_exit() {
+    let mut t = table(vec![begin(), instruction(&[], b::Op::Panic(r(0)), 9)]);
+    t.functions[0].blocks[0].terminator.kind = b::Term::Unreachable;
+    analyze(t.clone()).unwrap();
+
+    // Merely changing a return into unreachable must not waive explicit ends.
+    let mut bare = t.clone();
+    bare.functions[0].blocks[0].instructions.pop();
+    assert_eq!(
+        analyze(bare).unwrap_err().kind,
+        a::ErrorKind::Unended {
+            loan: loan(),
+            state: a::Activity::Active,
+        }
+    );
+
+    // A panic cannot bypass normal-exit checks by retaining a success path.
+    t.functions[0].blocks[0].terminator.kind = b::Term::Return(r(0));
+    assert_eq!(
+        t.verify(Default::default()).unwrap_err().kind,
+        o::ErrorKind::InvalidPanicContinuation
+    );
+}
+
+#[test]
 fn conditional_cleanup_is_idempotent_but_does_not_make_a_later_required_end_valid() {
     analyze(table(vec![
         end(b::EndMode::IfActive, 3),

@@ -461,6 +461,11 @@ fn source_native_cross_target_profiles_keep_original_entry_and_object() {
 
 #[test]
 fn source_native_generated_startup_matches_vm_for_managed_families_and_panic() {
+    let combined = include_str!("../examples/conformance/owned_pipeline.lang");
+    let combined_panic = combined.replace(
+        "fn main() -> i64 { return scenario(false); }",
+        "fn main() -> i64 { return scenario(true); }",
+    );
     for (name, source) in [
         ("map", include_str!("../examples/scripts/map_owned.lang")),
         ("vec", include_str!("../examples/scripts/vec_owned.lang")),
@@ -476,6 +481,8 @@ fn source_native_generated_startup_matches_vm_for_managed_families_and_panic() {
             "panic",
             include_str!("../examples/analysis/explicit_panic_owned.lang"),
         ),
+        ("combined", combined),
+        ("combined-panic", combined_panic.as_str()),
     ] {
         let dir = Dir::new();
         let input = dir.0.join(format!("{name}.lang"));
@@ -503,7 +510,7 @@ fn source_native_generated_startup_matches_vm_for_managed_families_and_panic() {
             String::from_utf8_lossy(&actual.stderr)
         );
         assert_eq!(actual.stdout, oracle.stdout, "{name}");
-        if name == "panic" {
+        if name.ends_with("panic") {
             let error = String::from_utf8_lossy(&actual.stderr);
             assert!(error.contains("-42"), "{error}");
             assert!(error.contains("Execution(Panic)"), "{error}");

@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex（所有者による実験的な委任に基づく）
 - Created: 2026-10-19
-- Last updated: 2026-10-19
+- Last updated: 2026-10-20
 - Accepted: 2026-10-19
 - Implemented: 2026-10-19
 - Tracking issue: M2-F13
@@ -73,6 +73,8 @@ Panicに所有値の確保やcopyは不要。検査済みscalar read一回とfai
 ## テスト計画
 
 generic、code型、loan、到達不能のcompile-pass/fail、入れ子式と引数順序、正負/境界値の動的codeと論理stack/span、cleanup失敗と有限fuel/work、VM/JIT/AOTの一致、schema 2のbyte安定性、schema 3の往復と不正version/tag/continuation拒否を検査する。全baselineを実行し、完成snapshotのWindows根拠を依頼する。
+
+実装修正（2026-10-20 JST）：[複合source](../../../examples/conformance/owned_pipeline.lang) により、arenaのallocator loanがactiveな末尾panicをloan activity解析が誤って拒否することを確認しました。Typed MIRのPanicが最終instruction＋Unreachableである検証を前提に、その終了だけはloan終了を必須failure retirementへ委ね、primary panic記録後にowner／loanを解放します。通常return、bare Unreachable、不正な成功継続は引き続き拒否します。VM／実production native entryの通常値42・panic−42、全fuel／work／provider拒否prefixとframe／cell境界を比較し、元allocator／Instanceのretirementを検証します。実AOTと実C／保存C objectでも複合sourceを検証します。受理済み意味論の実装修正であり、構文・ABI・schema 1–4／native record形式は不変です。Compiler sourceが変わるため、SDKは既存の完全一致build方針どおり再buildが必要です。情報源：[loan解析](../../../crates/mir/src/unit/ownership/loan_activity.rs)／[回帰test](../../../crates/mir/tests/ownership_loan_activity.rs)／[VM-native比較](../../../tests/support/native_entry_runtime.rs)、2026-10-20 JST更新・確認。
 
 ## 未解決事項
 
