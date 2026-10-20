@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**2 done · 1 doing · 38 todo · 110 remaining pt**
+**3 done · 1 doing · 37 todo · 107 remaining pt**
 
-**次: M3-T03 → source async 構文を採択し、lossless parser/formatter fixture を実行します。**
+**次: M3-T09 → 実行 lowering 前に async effect と scope 付き Task claim を bind/type します。**
 
-現在の作業: **M3-T03**。直近の実行検証: **2026-10-21 JST**。[RFC 0022](rfcs/0022-source-structured-tasks.md) を採択し、lossless async/task grammar、recovery、formatter fixture が成功。追加 14 件で優先順位/comment/上限、file/virtual/cached module/CLI/transactional REPL/LSP format・診断の未対応 async admission 拒否を検証しました。全 baseline は **96 suite / 成功 1,627 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint も成功。候補 source は parse に成功し、SRC0012 の代わりに SRC0026 を報告します。残る受入条件: 実装 commit と証拠公開。binding/型/loan 証明は T09/T10 であり、source task の実行と M3 ゲートは未完了です。
+現在の作業: **M3-T09**。直近の実行検証: **`0655939`、2026-10-21 01:38 JST**。[RFC 0022](rfcs/0022-source-structured-tasks.md) の採択、lossless async/task grammar、recovery、formatter fixture が成功。追加 14 件で source/module/CLI/REPL/LSP admission を検証しました。全 baseline は **96 suite / 成功 1,627 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、11 fuzz target の compile/lint も成功。T09 の残る受入条件: resolved async effect、Task/TaskError 型、scoped claim、call/move/escape/C surface 診断。source/MIR の必要な証明と adapter 接続までは未対応実行を明示拒否します。suspension loan 証明は T10 です。source task の実行と M3 ゲートは未完了です。
 
-**今回: T02 完了（−3 pt）、source analysis 2 作業を明示（+5 pt）。** 前回残り **108 + 5 − 3 = 110 pt**。全 **41 行**、累積消化 **5 pt** と追加見積り **+5 pt** は別に記録します。
+**今回: T03 完了（−3 pt）、新しい作業/見積りの追加なし。** 前回残り **110 − 3 = 107 pt**。全 **41 行**、累積消化 **8 pt** と追加見積り **+5 pt** は別に記録します。
 
 ## Deliveries
 
@@ -22,8 +22,8 @@
 | --- | --- | ---: | --- | --- | --- | --- |
 | M3-T01 | done | 0 | — | G01 | FIFO ドライバー、親子関係、join、取消、失敗、上限付き admission の規則を採択 | `8ab751b` |
 | M3-T02 | done | 0 | M3-T01 | G03,G12 | ホスト駆動の上限付きタスク木で join、協調取消、子から親への retirement を実行 | `a543d23` |
-| M3-T03 | doing | 3 | M3-T01 | G01,G03 | source async 契約を採択し lossless parse/recovery/format で task 構文を保持 | — |
-| M3-T09 | todo | 3 | M3-T03 | G03 | async call と scope 付き task handle を bind/type し、逸出と不正 async C surface を拒否 | — |
+| M3-T03 | done | 0 | M3-T01 | G01,G03 | source async 契約を採択し lossless parse/recovery/format で task 構文を保持 | `0655939` |
+| M3-T09 | doing | 3 | M3-T03 | G03 | async call と scope 付き task handle を bind/type し、逸出と不正 async C surface を拒否 | — |
 | M3-T10 | todo | 2 | M3-T09 | G03 | suspension を跨ぐ shared/exclusive loan を両方の起点の診断付きで拒否 | — |
 | M3-T04 | todo | 3 | M3-T10 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | — |
@@ -74,11 +74,15 @@ source scope 監査（2026-10-21 JST）: 初期 T03 は言語判断/grammar と�
 
 前提 2 件後のロードマップ/順序監査: T01/T02 で最初の host 成果を達成しましたが G03 は未完了です。全 15 ゲートと P1 作業を維持します。kernel/IDL 基盤の拡張を止め、**T03 → T09 → T10 → T04 → T05** で最初の実 source VM fixture、その後 T06 native parity へ進みます。新しい source/ABI/format の選択には引き続き accepted 判断が必要です。milestone の重みや出口条件は削減しません。
 
-**110 + 5 − 5 = 110 pt**
+T03 は `0655939` で完了（2026-10-21 JST）。RFC 0022 を採択し、厳密な task keyword と専用 async/scope/prefix/statement CST node、有界 recovery、優先順位、空白だけを変える formatter を実装しました。`async: T` は予約 parameter 名として局所診断し、`async fn` は後続宣言の回復境界として保持します。14 件の回帰試験で task 構文、comment/span、keyword 移行、深さ上限、file/virtual/cached module/CLI/REPL/LSP の未対応 profile 拒否を検証しました。LSP format は SRC0026 を維持し、REPL の拒否は既存定義を保持します。候補 fixture は構文 error から、parse 成功と明示的な未対応 profile 診断へ変わりました。全 baseline は **96 suite / 成功 1,627 / 失敗 0 / 既存 timing ignore 1**、suite 時間合計 **430.74s**。fmt、Clippy（**39.56s**）、rustdoc（**36.94s**）、11 fuzz target の compile/lint（**3.22s**）も成功。fuzz target の compile は fuzz campaign の実行ではありません。日英 metadata/code 例/local reference と repository consistency も成功。T03 の最後の残見積り 3 pt を消化し、追加は +5 pt、行数は 41 のままです。
+
+T03 ロードマップ監査: source async 判断は G01 の一部です。channel/backpressure、Send/Share、production embedding、source 証明、cross-mode 実行を引き続き要し、全 15 ゲートを未完了のまま維持します。次は T09 → T10 → T04 → T05 → T06 の source/VM/native 経路です。accepted format 拡張と適合証拠なしに Task を既存 C/serialized profile に公開したり artifact/startup 作業を消化したりしません。T09 は明示分割した 3 pt の型/scope 成果を維持し、今回の構文作業で新たな前提/見積りは追加しません。
+
+**110 + 5 − 8 = 107 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +5 pt | −5 pt | 110 pt |
+| 110 pt | +5 pt | −8 pt | 107 pt |
 
 ## Exit audit
 
@@ -89,3 +93,4 @@ source scope 監査（2026-10-21 JST）: 初期 T03 は言語判断/grammar と�
 - [ロードマップ](roadmap.md)、[architecture](architecture.md)、[完了済み M2 board](milestone-2.md)、[レビュー](review-2026-10-20.md): 最終更新 2026-10-20、`984557d` で 2026-10-20 JST に確認。
 - [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21 と [RFC 0003](rfcs/0003-versioned-component-contracts.md)、最終更新 2026-10-17。契約を引き続き遵守し、prototype は production 完了の証拠にしません。
 - [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)、最終更新 2026-10-21。kernel、test、example を `a543d23` で 2026-10-21 JST に確認。source scope 監査は同じ checkpoint の `crates/hir/src/resolved.rs`、`crates/hir/src/program/`、`crates/hir/src/loans.rs`、`crates/semantics/src/analysis.rs` に基づきます。
+- [RFC 0022](rfcs/0022-source-structured-tasks.md)、最終更新 2026-10-21。syntax/module admission/REPL/CLI・LSP fixture を `0655939` で 2026-10-21 JST に確認。grammar/formatter 契約と現在の実行制限は同 RFC に区別して記録しています。
