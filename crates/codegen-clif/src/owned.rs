@@ -1005,7 +1005,7 @@ pub fn emit_object_for_target<'a>(
 ) -> Result<ObjectArtifact<'a>, Error> {
     prepare_object(flow, layouts, target, limits, cells, CompileScope::Unit)?.finish()
 }
-/// Emit source-mapped Mach-O debug metadata using the same private native ABI.
+/// Emit source-mapped native debug metadata using the same private native ABI.
 pub fn emit_object_for_target_with_debug<'a>(
     flow: &'a f::Elaborated,
     layouts: &'a Layouts<'a>,
@@ -1036,7 +1036,7 @@ impl<'a> PreparedObject<'a> {
         if let Some((flow, limits)) = debug {
             let mut budget = m::Budget::with_usage(limits, usage).map_err(Error::Resource)?;
             let declarations = typed(flow).places().declarations();
-            crate::source_debug::macho(
+            crate::source_debug::emit(
                 &mut product.object,
                 self.functions.iter().map(|function| &function.metadata),
                 |id| {

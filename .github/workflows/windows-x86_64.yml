@@ -36,6 +36,17 @@ jobs:
       - name: Select the pinned Rust toolchain
         run: rustup show active-toolchain
 
+      - name: Inspect native debug tools
+        run: |
+          & "$env:ProgramFiles\LLVM\bin\llvm-pdbutil.exe" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($tool in @(
+            "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe",
+            "$env:ProgramFiles\LLVM\bin\lldb.exe"
+          )) {
+            Write-Host "$tool available: $(Test-Path $tool)"
+          }
+
       - name: Check formatting
         run: |
           cargo fmt --all --check

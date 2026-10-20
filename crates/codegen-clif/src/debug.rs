@@ -11,6 +11,9 @@ use object::{BinaryFormat, RelocationEncoding, RelocationFlags, RelocationKind, 
 
 use super::CompiledSourceMap;
 
+mod source_coff;
+pub(super) use source_coff::add_coff_units;
+
 const CODEVIEW_SIGNATURE_C13: u32 = 4;
 const DEBUG_S_SYMBOLS: u32 = 0xf1;
 const DEBUG_S_LINES: u32 = 0xf2;

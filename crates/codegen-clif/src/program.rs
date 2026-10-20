@@ -256,7 +256,7 @@ pub fn emit_object_for_target(
         None,
     )
 }
-/// Emit source-mapped Mach-O debug metadata for an actual whole source unit.
+/// Emit source-mapped native debug metadata for an actual whole source unit.
 pub fn emit_object_for_target_with_debug(
     verified: &m::VerifiedUnit,
     imports: &[HostFunctionId],
@@ -291,7 +291,7 @@ fn emit(
     let (_, functions) = define(&mut module, verified, imports, &mut budget)?;
     let mut product = module.finish();
     if let Some(sources) = sources {
-        crate::source_debug::macho(
+        crate::source_debug::emit(
             &mut product.object,
             functions.iter(),
             |id| {

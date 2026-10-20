@@ -22,7 +22,7 @@
 
 G01の新baselineは **1,589 tests／94 suites、0失敗、手動timing ignore 1件**、suite時間合計447.68sです。format成功、警告をerrorとするworkspace／all-target／all-feature Clippy成功（19.65s）、rustdoc成功（18.60s）、全11 fuzz targetのcompile／lint成功（2.50s）、新focused 4 testと7 function LLVM probeも成功しました。今回の計画だけの更新にはrepository consistency 3件と新link検証を使います。B02／B03の性能captureは記載した先行revisionの不変の証拠であり、変更後compiler出力の新しい計測とは扱いません。
 
-**G02実装前監査（2026-10-20 JST）：** 既存3 ptを維持し、G01の上限付きcanonical source indexと正確なnative function／range dataを再利用します。現COFF writerは既知signatureの先行単一prototype向けなので、unit全体／複数fileのCodeView recordとrelocationへ一般化し、実source producerに接続します。source位置がないprivate pointer ABIは正直にuntypedとし、先行prototype writer、encoded format／ABI検査、diagnostic／resource boundを維持します。対応するCopy／owned／C-export Windows objectとsource位置をnative Windowsで検証してから完了にします。G03の両host実stepping／backtraceとZ01の最終日英guide／全監査を残します。見積もり追加はありません。
+**G02実装前監査（2026-10-20 JST）：** 既存3 ptを維持し、G01の上限付きcanonical source indexと正確なnative function／range dataを再利用します。現COFF writerは既知signatureの先行単一prototype向けなので、unit全体／複数fileのCodeView recordとrelocationへ一般化し、実source producerに接続します。private pointer ABIは実際のi32戻り値・2 pointerのmachine typeを記述し、source variable位置を捏造せず、先行prototype writer、encoded format／ABI検査、diagnostic／resource boundを維持します。対応するCopy／owned／C-export Windows objectとsource位置をnative Windowsで検証してから完了にします。G03の両host実stepping／backtraceとZ01の最終日英guide／全監査を残します。見積もり追加はありません。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>

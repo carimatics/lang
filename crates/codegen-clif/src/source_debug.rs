@@ -119,14 +119,17 @@ impl<'a> Positions<'a> {
     }
 }
 
-pub(crate) fn macho<'a>(
+pub(crate) fn emit<'a>(
     object: &mut Object<'_>,
     functions: impl ExactSizeIterator<Item = &'a FunctionCode>,
     lookup: impl Fn(m::FunctionId) -> Option<(&'a str, m::Span)>,
     sources: &'a [m::Source],
     budget: &mut m::Budget,
 ) -> Result<(), Error> {
-    if object.format() != object::BinaryFormat::MachO {
+    if !matches!(
+        object.format(),
+        object::BinaryFormat::MachO | object::BinaryFormat::Coff
+    ) {
         return Err(Error::Format);
     }
     let mut positions = budget.vector(sources.len()).map_err(Error::Resource)?;
@@ -202,7 +205,12 @@ pub(crate) fn macho<'a>(
             ranges,
         });
     }
-    crate::debug::add_macho_units(object, &debug).map_err(Error::Backend)
+    match object.format() {
+        object::BinaryFormat::MachO => crate::debug::add_macho_units(object, &debug),
+        object::BinaryFormat::Coff => crate::debug::add_coff_units(object, &debug),
+        _ => unreachable!("format checked before source adaptation"),
+    }
+    .map_err(Error::Backend)
 }
 
 #[cfg(test)]
@@ -296,7 +304,7 @@ mod tests {
         let code = code(span(0, 0, 1));
         let mut image = object();
         assert!(matches!(
-            macho(
+            emit(
                 &mut image,
                 std::iter::once(&code),
                 |_| Some(("guest", span(9, 0, 1))),
@@ -311,7 +319,7 @@ mod tests {
         let mut bad = code.clone();
         bad.source_ranges[0].end = 17;
         assert!(matches!(
-            macho(
+            emit(
                 &mut image,
                 std::iter::once(&bad),
                 |_| Some(("guest", span(0, 0, 1))),
@@ -329,7 +337,7 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(
-            macho(
+            emit(
                 &mut image,
                 std::iter::once(&code),
                 |_| Some(("guest", span(0, 0, 1))),
@@ -359,7 +367,7 @@ mod tests {
             span: span(1, 6, 9),
         });
         let mut image = object();
-        macho(
+        emit(
             &mut image,
             std::iter::once(&code),
             |_| Some(("guest", span(0, 0, 1))),
