@@ -173,12 +173,15 @@ def cdb_commands(location, profile):
         "k",
         *([
             ".frame /r 1",
-            'r @$t0 = @@c++(debug_view.address)',
-            'r @$t1 = @@c++(debug_view.stride)',
-            'r @$t2 = @@c++(debug_view.count)',
-            '.printf "__LANG_VIEW__ %I64u %I64u %I64u\\n", @@c++(debug_view.revision), @$t2, @$t1',
+            # Writing a pseudo-register resets CDB's local frame context.
+            # Resolve the local once, then read the repr(C) u64 view by address.
+            'r $t4 = @@c++(&debug_view)',
+            'r $t0 = poi(@$t4+8)',
+            'r $t1 = poi(@$t4+0x18)',
+            'r $t2 = poi(@$t4+0x10)',
+            '.printf "__LANG_VIEW__ %I64u %I64u %I64u\\n", poi(@$t4), @$t2, @$t1',
             '.if (@$t2 > 0 && @$t2 <= 0n64 && @$t1 >= 0n16 && @$t1 <= 0n1024) { '
-            '.for (r @$t3 = 0; @$t3 < @$t2; r @$t3 = @$t3 + 1) { '
+            '.for (r $t3 = 0; @$t3 < @$t2; r $t3 = @$t3 + 1) { '
             '.printf "__LANG_FRAME__ %u %u %u %u\\n", '
             'dwo(@$t0+@$t3*@$t1), dwo(@$t0+@$t3*@$t1+4), '
             'dwo(@$t0+@$t3*@$t1+8), dwo(@$t0+@$t3*@$t1+0xc) } }',
