@@ -69,6 +69,7 @@ pub enum BuiltinType {
     Utf8Error,
     OwnershipError,
     ArenaError,
+    TaskError,
 }
 impl BuiltinType {
     pub const fn name(self) -> &'static str {
@@ -83,6 +84,7 @@ impl BuiltinType {
             Self::Utf8Error => "Utf8Error",
             Self::OwnershipError => "OwnershipError",
             Self::ArenaError => "ArenaError",
+            Self::TaskError => "TaskError",
         }
     }
     pub fn from_name(name: &str) -> Option<Self> {
@@ -97,6 +99,7 @@ impl BuiltinType {
             Self::Utf8Error,
             Self::OwnershipError,
             Self::ArenaError,
+            Self::TaskError,
         ]
         .into_iter()
         .find(|b| b.name() == name)
@@ -107,6 +110,7 @@ pub enum TypeConstructor {
     Builtin(BuiltinType),
     Option(Type),
     Result(Type, Type),
+    Task(Type),
     Vec(Type),
     Map(Type, Type),
     Shared(Type),
@@ -122,6 +126,7 @@ impl TypeConstructor {
         let pair = match self {
             Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
             Self::Option(t)
+            | Self::Task(t)
             | Self::Vec(t)
             | Self::Shared(t)
             | Self::Weak(t)
@@ -266,6 +271,8 @@ pub enum ExpressionKind {
         place: PlaceId,
     },
     Dereference(ExpressionId),
+    Spawn(ExpressionId),
+    Await(ExpressionId),
     Add(ExpressionId, ExpressionId),
     LessThan(ExpressionId, ExpressionId),
     Call {
@@ -300,6 +307,8 @@ impl ExpressionKind {
             match self {
                 Self::Borrow { place, .. } => ([Some(ExpressionId(place.0)), None], &[], &[]),
                 Self::Dereference(value)
+                | Self::Spawn(value)
+                | Self::Await(value)
                 | Self::Field {
                     receiver: value, ..
                 } => ([Some(*value), None], &[], &[]),
@@ -328,7 +337,10 @@ impl StatementKind {
             Self::If { condition, .. } | Self::While { condition, .. } => [Some(*condition), None],
             Self::Match { scrutinee, .. } => [Some(*scrutinee), None],
             Self::Arena { allocator, .. } => [Some(*allocator), None],
-            Self::Unsafe { .. } => [None, None],
+            Self::Cancel(value) => [Some(*value), None],
+            Self::Unsafe { .. } | Self::TaskScope { .. } | Self::Yield | Self::CancelCheck => {
+                [None, None]
+            }
         };
         values.into_iter().flatten()
     }
@@ -386,6 +398,12 @@ pub struct Arm {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatementKind {
+    TaskScope {
+        body: BlockId,
+    },
+    Yield,
+    Cancel(ExpressionId),
+    CancelCheck,
     /// A normal lexical scope with an additional foreign-call obligation marker.
     Unsafe {
         body: BlockId,
@@ -438,6 +456,7 @@ pub struct Block {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Function {
+    pub effect: FunctionEffect,
     pub abi: FunctionAbi,
     pub module: ModuleId,
     pub name: Name,
@@ -452,6 +471,20 @@ pub struct Function {
     pub body: BlockId,
     pub span: Span,
     pub signature_span: Span,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FunctionEffect {
+    #[default]
+    Synchronous,
+    Asynchronous {
+        span: Span,
+    },
+}
+impl FunctionEffect {
+    pub const fn is_async(self) -> bool {
+        matches!(self, Self::Asynchronous { .. })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

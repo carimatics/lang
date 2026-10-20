@@ -120,19 +120,22 @@ fn definitions_commit_only_after_successful_complete_analysis() {
 fn async_items_and_task_expressions_are_rejected_transactionally() {
     let mut s = Session::default();
     commit(&mut s, "fn keep()->i64{return 42;}");
-    for text in [
-        "async fn task()->i64{yield;return 1;}",
-        "pub async fn task()->i64{return 1;}",
-        "await keep()",
-        "spawn keep()",
+    for (text, expected) in [
+        (
+            "async fn task()->i64{yield;return 1;}",
+            codes::ASYNC_UNAVAILABLE,
+        ),
+        (
+            "pub async fn task()->i64{return 1;}",
+            codes::ASYNC_UNAVAILABLE,
+        ),
+        ("await keep()", codes::INVALID_TASK),
+        ("spawn keep()", codes::INVALID_TASK),
     ] {
         let report = submit(&mut s, text);
         assert!(report.result.is_err(), "{text}");
         assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.code == codes::ASYNC_UNAVAILABLE),
+            report.diagnostics.iter().any(|d| d.code == expected),
             "{text}: {:?}",
             report.diagnostics
         );

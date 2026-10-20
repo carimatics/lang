@@ -16,7 +16,7 @@
 
 RFC 0005 の厳密な構造化並行性を RFC 0021 の driver で実行する source 構文を定めます。関数は `async` を宣言し、`spawn` が scope 付きの子を作り、`await` が handle を消費し、task scope は終了前に join します。borrow は suspension を跨げません。source semantics の採択であり、source task 実行や serialized coroutine 形式の完成ではありません。
 
-T03 checkpoint（2026-10-21 JST）: lossless parse/recovery/format を実装しました。CLI/REPL/LSP と file/virtual/cached module admission は semantic program 作成前に `SRC0026` を報告します。task 型/effect、loan 証明、MIR、VM/native 実行は別作業で、契約全体の実装まで本 RFC は accepted のままです。
+T09 checkpoint（2026-10-21 JST）: lossless syntax を resolved async effect、Task/TaskError 型、有界 move/scope claim snapshot に束縛しました。不正 effect/claim/escape は task 診断を受け、妥当な task source も executable checked program 作成前に `SRC0026` を受けます。CLI/REPL/LSP と file/virtual/cached module も対象です。snapshot は suspension loan や MIR/backend 実行を証明しません。現在の async transfer は scalar/finite Copy 値に限定し、一般の owned transfer は A01 の Send/Share profile を待ちます。T10、MIR、VM/native 実行は別作業で、契約全体の実装まで本 RFC は accepted のままです。
 
 ```text
 async fn worker(value: i64) -> i64 {
@@ -29,7 +29,8 @@ async fn main() -> i64 {
         let mut right: core::Task<i64> = spawn worker(22);
         let mut a: core::Result<i64, core::TaskError> = await left;
         let mut b: core::Result<i64, core::TaskError> = await right;
-        return core::result_unwrap(a) + core::result_unwrap(b);
+        return core::result_unwrap::<i64, core::TaskError>(a)
+            + core::result_unwrap::<i64, core::TaskError>(b);
     }
 }
 ```
@@ -85,6 +86,8 @@ unary          := "spawn" unary | "await" unary | existing-unary
 spawn/await は加算/比較より強く call/field より弱く結合し、括弧を優先します。parser は operand tree を保持し、typing が spawn の direct async guest call、await の Task value/direct async call を要求します。既存の expression statement 制限を保ち、join Result の保持/破棄には型付き local を使います。modifier 順は `pub async fn`、C 宣言に async は付けません。
 
 `core::Task<T>` と `core::TaskError` は予約 core namespace の型です。Task は直接の子の結果を取得する linear/non-Copy/non-Send/non-Share の claim で、生成 lexical scope の brand を持ちます。source は task/scope brand を作れません。初期 Task 型は async body 内の local のみで、field/container/関数引数・戻り値/host・C signature/入れ子 Task 結果を拒否します。生成 scope の外側に宣言された local への move/代入を拒否します。await/move 後の使用は既存の初期化/move 検査で拒否し、cancel は live task place を検査して clone/move しません。
+
+Task claim は借用できません。既存の owned pattern matching は通常 loan を作るため、Task の直接 `match` を拒否します。型付き local に move して await してください。特別な move-pattern semantics は導入しません。T09 互換性監査（2026-10-21 JST）: opaque claim の制限を明示し、guide の Result unwrap に既存仕様で必要な core 型引数を補いました。新たな推論は導入しません。
 
 ### Effects, evaluation and admission
 

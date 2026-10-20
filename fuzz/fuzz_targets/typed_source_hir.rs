@@ -15,7 +15,7 @@ use libfuzzer_sys::fuzz_target;
 // A debug snapshot supplies stable valid spans. Semantic IR is intentionally
 // constructed independently of parsing to exercise the foreign-input boundary.
 fuzz_target!(|bytes: &[u8]| {
-    let text = "R a b E None Some f x i64 bool next value }";
+    let text = "async R a b E None Some f x i64 bool next value }";
     let mut sources = SourceMap::new();
     let source = sources.add("hir-fuzz.lang", text).unwrap();
     let span = sources.span(source, 0..text.len()).unwrap();
@@ -80,7 +80,9 @@ fuzz_target!(|bytes: &[u8]| {
     for chunk in bytes.chunks(4).take(32) {
         let a = r::ExpressionId(chunk.get(1).copied().unwrap_or(0) as usize);
         let b = r::ExpressionId(chunk.get(2).copied().unwrap_or(0) as usize);
-        let kind = match chunk[0] % 15 {
+        let kind = match chunk[0] % 17 {
+            15 => r::ExpressionKind::Spawn(a),
+            16 => r::ExpressionKind::Await(a),
             0 => r::ExpressionKind::Integer(i64::from(chunk[0] as i8)),
             1 => r::ExpressionKind::Boolean(chunk[0] & 16 != 0),
             2 => r::ExpressionKind::Local(r::LocalId(a.0)),
@@ -205,6 +207,13 @@ fuzz_target!(|bytes: &[u8]| {
         closing_brace: sources.span(source, text.len() - 1..text.len()).unwrap(),
     });
     let mut function = r::Function {
+        effect: if byte(31) & 2 == 0 {
+            r::FunctionEffect::Synchronous
+        } else {
+            r::FunctionEffect::Asynchronous {
+                span: name("async").span,
+            }
+        },
         abi: r::FunctionAbi::Guest,
         module: r::ModuleId(0),
         name: name("f"),
@@ -240,7 +249,9 @@ fuzz_target!(|bytes: &[u8]| {
             .map(|chunk| {
                 let a = ty(chunk.get(1).copied().unwrap_or(0));
                 let b = ty(chunk.get(2).copied().unwrap_or(0));
-                let constructor = match chunk[0] % 13 {
+                let constructor = match chunk[0] % 15 {
+                    13 => r::TypeConstructor::Task(a),
+                    14 => r::TypeConstructor::Builtin(r::BuiltinType::TaskError),
                     0 => r::TypeConstructor::Builtin(r::BuiltinType::Text),
                     1 => r::TypeConstructor::Builtin(r::BuiltinType::Allocator),
                     2 => r::TypeConstructor::Option(a),
@@ -480,7 +491,9 @@ fuzz_target!(|bytes: &[u8]| {
                                 }
                                 Err(loans::Error::Limit(d)) => d.validate(&sources).unwrap(),
                                 Err(
-                                    loans::Error::Source(_) | loans::Error::AllocationFailed { .. },
+                                    loans::Error::Source(_)
+                                    | loans::Error::AllocationFailed { .. }
+                                    | loans::Error::TaskProfile { .. },
                                 ) => {}
                             }
                         }
@@ -503,7 +516,11 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
-            | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
+            | CheckError::Loans(
+                loans::Error::Source(_)
+                | loans::Error::AllocationFailed { .. }
+                | loans::Error::TaskProfile { .. },
+            )
             | CheckError::Regions(
                 regions::Error::Source(_) | regions::Error::AllocationFailed { .. },
             )
@@ -537,7 +554,11 @@ fuzz_target!(|bytes: &[u8]| {
             | CheckError::Layout(LayoutError::Input { .. })
             | CheckError::Types(types::Error::Input { .. } | types::Error::AllocationFailed { .. })
             | CheckError::Moves(moves::Error::Source(_) | moves::Error::AllocationFailed { .. })
-            | CheckError::Loans(loans::Error::Source(_) | loans::Error::AllocationFailed { .. })
+            | CheckError::Loans(
+                loans::Error::Source(_)
+                | loans::Error::AllocationFailed { .. }
+                | loans::Error::TaskProfile { .. },
+            )
             | CheckError::Regions(
                 regions::Error::Source(_) | regions::Error::AllocationFailed { .. },
             )

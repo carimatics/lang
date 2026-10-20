@@ -37,6 +37,7 @@ pub enum Error {
     Source(SourceError),
     Limit(Box<Diagnostic>),
     AllocationFailed { span: Span },
+    TaskProfile { span: Span },
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -345,6 +346,9 @@ pub fn analyze(
     limits: Limits,
 ) -> Result<Analysis, Error> {
     let bodies = moved.bodies();
+    if let Some(span) = bodies.task_feature_span() {
+        return Err(Error::TaskProfile { span });
+    }
     let root = bodies.source().modules[0].span;
     for module in &bodies.source().modules {
         sources.slice(module.span).map_err(Error::Source)?;
@@ -1043,6 +1047,9 @@ impl Checker<'_, '_> {
                 .map(Value::references);
         }
         match &expression.kind {
+            r::ExpressionKind::Spawn(_) | r::ExpressionKind::Await(_) => {
+                return Err(Error::TaskProfile { span });
+            }
             r::ExpressionKind::Local(_)
             | r::ExpressionKind::Field { .. }
             | r::ExpressionKind::Dereference(_) => {
@@ -1229,6 +1236,10 @@ impl Checker<'_, '_> {
             return Ok(false);
         }
         match &statement.kind {
+            r::StatementKind::TaskScope { .. }
+            | r::StatementKind::Yield
+            | r::StatementKind::Cancel(_)
+            | r::StatementKind::CancelCheck => return Err(Error::TaskProfile { span }),
             r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
             r::StatementKind::LetMut { local, initializer } => {
                 let refs = if let Some(kind) = self.loan(self.facts.locals()[local.0]) {

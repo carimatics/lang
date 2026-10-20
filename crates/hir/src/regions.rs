@@ -1524,7 +1524,13 @@ impl Checker<'_, '_> {
             return Ok(false);
         }
         match &statement.kind {
-            r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
+            r::StatementKind::Unsafe { body } | r::StatementKind::TaskScope { body } => {
+                return self.block(*body, depth + 1);
+            }
+            r::StatementKind::Yield | r::StatementKind::CancelCheck => {}
+            r::StatementKind::Cancel(value) => {
+                self.eval(*value, depth + 1)?;
+            }
             r::StatementKind::LetMut { local, initializer } => {
                 let value = self.eval(*initializer, depth + 1)?;
                 if self.diverges {

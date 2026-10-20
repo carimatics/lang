@@ -69,10 +69,12 @@ pub enum Family {
     Utf8Error,
     OwnershipError,
     ArenaError,
+    TaskError,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Case {
+    TaskCancelled,
     None,
     Some,
     Ok,
@@ -98,7 +100,7 @@ pub enum Case {
 }
 
 impl Family {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Option,
         Self::Result,
         Self::AllocError,
@@ -107,6 +109,7 @@ impl Family {
         Self::Utf8Error,
         Self::OwnershipError,
         Self::ArenaError,
+        Self::TaskError,
     ];
     pub const fn name(self) -> &'static str {
         match self {
@@ -118,6 +121,7 @@ impl Family {
             Self::Utf8Error => "Utf8Error",
             Self::OwnershipError => "OwnershipError",
             Self::ArenaError => "ArenaError",
+            Self::TaskError => "TaskError",
         }
     }
     pub const fn type_arguments(self) -> usize {
@@ -130,6 +134,7 @@ impl Family {
     pub fn cases(self) -> &'static [Case] {
         use Case as C;
         match self {
+            Self::TaskError => &[C::TaskCancelled],
             Self::Option => &[C::None, C::Some],
             Self::Result => &[C::Ok, C::Err],
             Self::AllocError => &[C::AllocLimit, C::AllocOutOfMemory, C::AllocOverflow],
@@ -155,7 +160,7 @@ impl Family {
 }
 
 impl Case {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::None,
         Self::Some,
         Self::Ok,
@@ -178,9 +183,11 @@ impl Case {
         Self::CrossRegion,
         Self::ArenaUnavailable,
         Self::ArenaBorrowConflict,
+        Self::TaskCancelled,
     ];
     pub const fn family(self) -> Family {
         match self {
+            Self::TaskCancelled => Family::TaskError,
             Self::None | Self::Some => Family::Option,
             Self::Ok | Self::Err => Family::Result,
             Self::AllocLimit | Self::AllocOutOfMemory | Self::AllocOverflow => Family::AllocError,
@@ -201,6 +208,7 @@ impl Case {
     }
     pub const fn name(self) -> &'static str {
         match self {
+            Self::TaskCancelled => "Cancelled",
             Self::None => "None",
             Self::Some => "Some",
             Self::Ok => "Ok",

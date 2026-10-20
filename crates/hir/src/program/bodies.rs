@@ -16,8 +16,12 @@ pub struct BodyTypes {
     constructed: Vec<types::Properties>,
     type_work: usize,
     type_allocations: usize,
+    task_span: Option<Span>,
 }
 impl BodyTypes {
+    pub fn task_feature_span(&self) -> Option<Span> {
+        self.task_span
+    }
     pub fn source(&self) -> &r::Program {
         &self.source
     }
@@ -135,6 +139,7 @@ pub(super) fn analyze_bodies_with_expression(
     }
     Ok(BodyAnalysis {
         bodies: Some(BodyTypes {
+            task_span: crate::tasks::source_feature(&source),
             source,
             types: store.nodes,
             functions,
@@ -154,6 +159,7 @@ fn scalar() -> types::Properties {
         contains_loan: false,
         contains_arena: false,
         contains_allocator: false,
+        contains_task: false,
     }
 }
 
@@ -257,6 +263,7 @@ impl TypeStore {
             properties.contains_loan |= child.contains_loan;
             properties.contains_arena |= child.contains_arena;
             properties.contains_allocator |= child.contains_allocator;
+            properties.contains_task |= child.contains_task;
             let child_depth = match argument {
                 r::Type::Constructed(id) => self.depths[id.0],
                 _ => 1,
@@ -269,6 +276,11 @@ impl TypeStore {
             ));
         }
         match constructor {
+            r::TypeConstructor::Task(_) => {
+                properties.is_copy = false;
+                properties.requires_drop = true;
+                properties.contains_task = true;
+            }
             r::TypeConstructor::ArenaOwner(_) => {
                 properties.is_copy = false;
                 properties.requires_drop = true;
@@ -419,6 +431,7 @@ impl TypeStore {
                     B::Utf8Error => F::Utf8Error,
                     B::OwnershipError => F::OwnershipError,
                     B::ArenaError => F::ArenaError,
+                    B::TaskError => F::TaskError,
                     _ => return None,
                 },
                 [r::Type::I64; 2],

@@ -430,7 +430,7 @@ impl<'a> Context<'a> {
                 );
             };
             let arity = match name {
-                "Option" | "Vec" => 1,
+                "Option" | "Vec" | "Task" => 1,
                 "Result" | "Map" => 2,
                 _ if r::BuiltinType::from_name(name).is_some() => 0,
                 _ => {
@@ -475,6 +475,7 @@ impl<'a> Context<'a> {
             }
             let constructor = match name {
                 "Option" => r::TypeConstructor::Option(values[0]),
+                "Task" => r::TypeConstructor::Task(values[0]),
                 "Result" => r::TypeConstructor::Result(values[0], values[1]),
                 "Vec" => r::TypeConstructor::Vec(values[0]),
                 "Map" => r::TypeConstructor::Map(values[0], values[1]),
@@ -708,6 +709,16 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
             )
             .map_err(|e| Abort::Fatal(BindingError::Source(e)))?;
         let function = r::Function {
+            effect: if tree.node(item.syntax()).unwrap().kind() == S::AsyncFunction {
+                r::FunctionEffect::Asynchronous {
+                    span: direct_tokens(tree, item.syntax())
+                        .find(|t| t.kind == K::Async)
+                        .unwrap()
+                        .span,
+                }
+            } else {
+                r::FunctionEffect::Synchronous
+            },
             abi: if tree.node(item.syntax()).unwrap().kind() == S::ForeignExport {
                 r::FunctionAbi::CExport
             } else {
@@ -865,6 +876,12 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         self.context.charge(span, depth)?;
         let children: Vec<_> = child_nodes(tree, syntax).collect();
         let kind = match node.kind() {
+            S::TaskScope => r::StatementKind::TaskScope {
+                body: self.block(children[0], depth + 1)?,
+            },
+            S::Yield => r::StatementKind::Yield,
+            S::CancelCheck => r::StatementKind::CancelCheck,
+            S::Cancel => r::StatementKind::Cancel(self.expression(children[0], depth + 1)?),
             S::UnsafeBlock => r::StatementKind::Unsafe {
                 body: self.block(children[0], depth + 1)?,
             },
@@ -973,6 +990,8 @@ impl<'a, 'b> FunctionBinder<'a, 'b> {
         self.context.charge(span, depth)?;
         let children: Vec<_> = child_nodes(tree, syntax).collect();
         let kind = match node.kind() {
+            S::Spawn => r::ExpressionKind::Spawn(self.expression(children[0], depth + 1)?),
+            S::Await => r::ExpressionKind::Await(self.expression(children[0], depth + 1)?),
             S::Borrow => {
                 let kind = if direct_tokens(tree, syntax).any(|t| t.kind == K::Mut) {
                     r::LoanKind::Exclusive

@@ -21,6 +21,7 @@ pub mod program;
 pub mod regions;
 pub mod resolved;
 pub mod source;
+pub mod tasks;
 pub mod types;
 
 use std::collections::{BTreeMap, BTreeSet};

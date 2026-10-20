@@ -130,6 +130,7 @@ fn core_case_families_and_payloads_match_the_accepted_closed_sums() {
         ("ArenaError", "CrossRegion", ""),
         ("ArenaError", "Unavailable", ""),
         ("ArenaError", "BorrowConflict", ""),
+        ("TaskError", "Cancelled", ""),
     ];
     assert_eq!(expected.len(), Case::ALL.len());
     let mut seen = std::collections::BTreeSet::new();

@@ -130,7 +130,7 @@ fn cached_parser_trees_and_immutable_snapshots_are_actually_shared_by_module_ana
 }
 
 #[test]
-fn cached_async_syntax_cannot_bypass_task_profile_admission() {
+fn cached_async_syntax_keeps_effects_until_semantic_profile_admission() {
     let mut p = Provider::new();
     p.add(
         "main.lang",
@@ -144,8 +144,14 @@ fn cached_async_syntax_cannot_bypass_task_profile_admission() {
     );
     let mut sources = SourceMap::new();
     let loaded = p.load(&mut sources, ModuleLimits::default()).unwrap();
-    assert!(loaded.graph.is_none());
-    let d = loaded
+    let graph = loaded.graph.unwrap();
+    let bound =
+        lang_semantics::binding::bind_program(&graph, &sources, Default::default()).unwrap();
+    let result =
+        lang_hir::program::analyze_program(bound.program.unwrap(), &sources, Default::default())
+            .unwrap();
+    assert!(result.program.is_none());
+    let d = result
         .diagnostics
         .iter()
         .find(|d| d.code == codes::ASYNC_UNAVAILABLE)

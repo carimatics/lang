@@ -700,46 +700,28 @@ fn long_alias_cycles_use_an_explicit_stack_and_charge_repeated_visits() {
 }
 
 #[test]
-fn task_syntax_is_rejected_before_ignoring_unused_or_imported_async_items() {
+fn task_syntax_is_preserved_for_semantic_analysis() {
     for text in [
-        "async fn unused()->i64{return 1;} fn main()->i64{return 42;}",
-        "fn main()->i64{task_scope{}return 42;}",
-        "fn main()->i64{yield;return 42;}",
-        "fn main()->i64{cancel_check;return 42;}",
-        "fn main()->i64{cancel child;return 42;}",
-        "fn main()->i64{return await child;}",
-        "fn main()->i64{return spawn child();}",
+        "async fn unused()->i64{return 1;}fn main()->i64{return 42;}",
+        "fn main()->i64{task_scope{}yield;cancel_check;cancel child;return await spawn child();}",
     ] {
         let files = Files::new(text);
-        let (sources, analysis) = files.load(ModuleLimits::default()).unwrap();
-        assert!(analysis.graph.is_none(), "{text}");
-        assert_eq!(
-            analysis.diagnostics.len(),
-            1,
-            "{text}: {:?}",
-            analysis.diagnostics
-        );
-        let d = &analysis.diagnostics[0];
-        assert_eq!(d.code, codes::ASYNC_UNAVAILABLE);
-        assert!(
-            [
-                "async",
-                "task_scope",
-                "yield",
-                "cancel_check",
-                "cancel",
-                "await",
-                "spawn"
-            ]
-            .contains(&sources.slice(d.primary.span).unwrap())
-        );
+        let (_, loaded) = files.load(ModuleLimits::default()).unwrap();
+        assert!(loaded.diagnostics.is_empty());
+        assert!(loaded.graph.is_some());
     }
-    let files = Files::new("mod child; fn main()->i64{return 42;}");
+    let files = Files::new("mod child;fn main()->i64{return 42;}");
     files.write("child.lang", b"pub async fn unused()->i64{return 1;}");
-    let (_, analysis) = files.load(ModuleLimits::default()).unwrap();
-    assert!(analysis.graph.is_none());
+    let (sources, loaded) = files.load(ModuleLimits::default()).unwrap();
+    let graph = loaded.graph.unwrap();
+    let bound =
+        lang_semantics::binding::bind_program(&graph, &sources, Default::default()).unwrap();
+    let result =
+        lang_hir::program::analyze_program(bound.program.unwrap(), &sources, Default::default())
+            .unwrap();
+    assert!(result.program.is_none());
     assert!(
-        analysis
+        result
             .diagnostics
             .iter()
             .any(|d| d.code == codes::ASYNC_UNAVAILABLE)

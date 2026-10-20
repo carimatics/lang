@@ -16,6 +16,7 @@ pub enum UnsupportedBody {
     Match,
     ProvisionalResult,
     SourceIntrinsic,
+    Task,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -83,9 +84,15 @@ fn ty(ty: r::Type) -> Result<o::Type> {
         r::Type::Constructed(c) => o::Type::Constructed(o::ConstructedId(id(c.0)?)),
     })
 }
-fn constructor(c: r::TypeConstructor) -> Result<o::Constructor> {
+fn constructor(c: r::TypeConstructor, span: Span) -> Result<o::Constructor> {
     use r::{BuiltinType as B, TypeConstructor as C};
     Ok(match c {
+        C::Task(_) => {
+            return Err(Error::UnsupportedBody {
+                feature: UnsupportedBody::Task,
+                span,
+            });
+        }
         C::Builtin(b) => o::Constructor::Builtin(match b {
             B::Unit => o::Builtin::Unit,
             B::Text => o::Builtin::Text,
@@ -97,6 +104,12 @@ fn constructor(c: r::TypeConstructor) -> Result<o::Constructor> {
             B::Utf8Error => o::Builtin::Utf8Error,
             B::OwnershipError => o::Builtin::OwnershipError,
             B::ArenaError => o::Builtin::ArenaError,
+            B::TaskError => {
+                return Err(Error::UnsupportedBody {
+                    feature: UnsupportedBody::Task,
+                    span,
+                });
+            }
         }),
         C::Option(t) => o::Constructor::Option(ty(t)?),
         C::Result(t, e) => o::Constructor::Result(ty(t)?, ty(e)?),
@@ -296,7 +309,7 @@ fn construct<'a>(
     for t in bodies.types() {
         c.budget.charge(1)?;
         table.constructed.push(o::Constructed {
-            constructor: constructor(t.constructor)?,
+            constructor: constructor(t.constructor, t.span)?,
             span: c.span(t.span)?,
         });
     }
@@ -334,6 +347,12 @@ fn construct_declarations<'a>(
 ) -> Result<(Context<'a>, o::declarations::Declarations)> {
     use o::declarations as d;
     let bodies = checked.loaned().moved().bodies();
+    if let Some(span) = bodies.task_feature_span() {
+        return Err(Error::UnsupportedBody {
+            feature: UnsupportedBody::Task,
+            span,
+        });
+    }
     let input = bodies.source();
     cap(
         input.functions.len(),

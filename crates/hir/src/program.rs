@@ -331,6 +331,30 @@ fn check_program_internal(
     limits: CheckLimits,
     infer: Option<ExpressionInference>,
 ) -> Result<SourceAnalysis, CheckError> {
+    if let Some(span) = crate::tasks::feature_span(&source, sources, limits)? {
+        let checked = crate::tasks::analyze(source, sources, limits)?;
+        let mut diagnostics = checked.diagnostics;
+        if checked.program.is_some() {
+            if diagnostics.len() >= limits.diagnostics {
+                return Err(CheckError::Limit(Box::new(Diagnostic::new(
+                    codes::RESOURCE_LIMIT,
+                    Severity::Error,
+                    "task profile diagnostic limit exceeded",
+                    Label::new(span, "diagnostic limit exceeded"),
+                ))));
+            }
+            diagnostics.push(Diagnostic::new(
+                codes::ASYNC_UNAVAILABLE,
+                Severity::Error,
+                "typed task source requires the unavailable task MIR/execution profile",
+                Label::new(span, "task execution is not available yet"),
+            ));
+        }
+        return Ok(SourceAnalysis {
+            program: None,
+            diagnostics,
+        });
+    }
     let mut context = Context {
         source: &source,
         sources,
@@ -779,6 +803,7 @@ impl<'a> Context<'a> {
                     }
                     r::TypeConstructor::Option(_) => ("core::Option<", ">"),
                     r::TypeConstructor::Result(..) => ("core::Result<", ">"),
+                    r::TypeConstructor::Task(_) => ("core::Task<", ">"),
                     r::TypeConstructor::Vec(_) => ("core::Vec<", ">"),
                     r::TypeConstructor::Map(..) => ("core::Map<", ">"),
                     r::TypeConstructor::Shared(_) => ("shared ", ""),
@@ -1087,6 +1112,25 @@ impl<'a> Context<'a> {
                 &mut seen,
             )?;
             self.within(function.span, function.signature_span)?;
+            if let r::FunctionEffect::Asynchronous { span } = function.effect {
+                self.within(function.signature_span, span)?;
+                if self
+                    .sources
+                    .slice(span)
+                    .map_err(|e| input(CheckInputErrorKind::Source(e), Some(span)))?
+                    != "async"
+                {
+                    return Err(input(CheckInputErrorKind::InvalidSignature, Some(span)));
+                }
+                if function.abi == r::FunctionAbi::CExport {
+                    self.error(
+                        codes::INVALID_TASK,
+                        span,
+                        "C exports cannot be async",
+                        Some(function.signature_span),
+                    )?;
+                }
+            }
             self.type_use(function.span, function.result, function.public)?;
             if function.parameters.len() > self.limits.layout.fields {
                 return Err(
@@ -1231,6 +1275,7 @@ struct FunctionChecker<'a, 'b> {
     calls: BTreeMap<r::ExpressionId, CallFacts>,
     borrow_match: bool,
     unsafe_depth: usize,
+    async_call: Option<r::ExpressionId>,
 }
 impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn new(
@@ -1266,6 +1311,7 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             calls: BTreeMap::new(),
             borrow_match: false,
             unsafe_depth: 0,
+            async_call: None,
         }
     }
     fn start(
@@ -1443,6 +1489,33 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
     fn statement(&mut self, statement: &r::Statement, depth: usize) -> Result<Flow, CheckError> {
         self.context.enter(statement.span, depth)?;
         match &statement.kind {
+            r::StatementKind::TaskScope { body } => {
+                self.require_async(statement.span)?;
+                return self.block(*body, depth + 1);
+            }
+            r::StatementKind::Yield | r::StatementKind::CancelCheck => {
+                self.require_async(statement.span)?;
+            }
+            r::StatementKind::Cancel(value) => {
+                self.require_async(statement.span)?;
+                let actual = self.expression(*value, depth + 1)?;
+                if actual.is_some_and(|ty| {
+                    !matches!(
+                        self.context.constructor(ty),
+                        Some(r::TypeConstructor::Task(_))
+                    )
+                }) || !matches!(
+                    self.function.expressions[value.0].kind,
+                    r::ExpressionKind::Local(_)
+                ) {
+                    self.context.error(
+                        codes::INVALID_TASK,
+                        statement.span,
+                        "cancel requires a live Task local",
+                        None,
+                    )?;
+                }
+            }
             r::StatementKind::Unsafe { body } => {
                 self.unsafe_depth += 1;
                 let result = self.block(*body, depth + 1);
@@ -1614,6 +1687,19 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             }
             r::StatementKind::Match { scrutinee, arms } => {
                 let ty = self.expression(*scrutinee, depth + 1)?;
+                if ty.is_some_and(|ty| {
+                    matches!(
+                        self.context.constructor(ty),
+                        Some(r::TypeConstructor::Task(_))
+                    )
+                }) {
+                    self.context.error(
+                        codes::INVALID_TASK,
+                        statement.span,
+                        "Task claims cannot be borrowed by match; move into a typed local instead",
+                        None,
+                    )?;
+                }
                 let previous_borrow_match = self.borrow_match;
                 let ty = if let Some(ty) = ty {
                     self.borrow_match = self.context.loan(ty).is_some()
@@ -1715,6 +1801,60 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             return Err(CheckError::OwnershipProfile { span });
         }
         let ty = match &expression.kind {
+            r::ExpressionKind::Spawn(value) | r::ExpressionKind::Await(value) => {
+                self.require_async(span)?;
+                let direct_async = match self.function.expressions.get(value.0).map(|e| &e.kind) {
+                    Some(r::ExpressionKind::Call {
+                        callee: r::Callable::Guest(function),
+                        ..
+                    }) => self
+                        .context
+                        .source
+                        .functions
+                        .get(function.0)
+                        .is_some_and(|f| f.effect.is_async()),
+                    _ => false,
+                };
+                let previous = self.async_call;
+                if direct_async {
+                    self.async_call = Some(*value);
+                }
+                let actual = self.expression(*value, depth + 1)?;
+                self.async_call = previous;
+                if matches!(expression.kind, r::ExpressionKind::Spawn(_)) && !direct_async {
+                    self.context.error(
+                        codes::INVALID_TASK,
+                        span,
+                        "spawn requires a direct async guest call",
+                        None,
+                    )?;
+                    None
+                } else if let Some(r::TypeConstructor::Task(result)) =
+                    actual.and_then(|ty| self.context.constructor(ty))
+                {
+                    if matches!(expression.kind, r::ExpressionKind::Spawn(_)) {
+                        actual
+                    } else {
+                        let error = self
+                            .context
+                            .intern(r::TypeConstructor::Builtin(r::BuiltinType::TaskError), span)?;
+                        Some(
+                            self.context
+                                .intern(r::TypeConstructor::Result(result, error), span)?,
+                        )
+                    }
+                } else {
+                    if actual.is_some() {
+                        self.context.error(
+                            codes::INVALID_TASK,
+                            span,
+                            "await requires a Task claim or direct async guest call",
+                            None,
+                        )?;
+                    }
+                    None
+                }
+            }
             r::ExpressionKind::CoreUnit => Some(
                 self.context
                     .intern(r::TypeConstructor::Builtin(r::BuiltinType::Unit), span)?,
@@ -1773,10 +1913,24 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 self.place(*place, span)?;
                 let target = self.expression(r::ExpressionId(place.0), depth + 1)?;
                 if let Some(target) = target {
-                    Some(
-                        self.context
-                            .intern(r::TypeConstructor::Loan(*kind, target), span)?,
-                    )
+                    if self.context.types.as_ref().is_some_and(|store| {
+                        store
+                            .properties(target, span)
+                            .is_ok_and(|p| p.contains_task)
+                    }) {
+                        self.context.error(
+                            codes::INVALID_TASK,
+                            span,
+                            "Task claims cannot be borrowed; cancel inspects a live local",
+                            None,
+                        )?;
+                        None
+                    } else {
+                        Some(
+                            self.context
+                                .intern(r::TypeConstructor::Loan(*kind, target), span)?,
+                        )
+                    }
                 } else {
                     None
                 }
@@ -2074,7 +2228,35 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                 result_binding: core::ResultBinding::Value,
             },
         );
-        Ok(Some(result))
+        if let r::Callable::Guest(function) = callee
+            && self.context.source.functions[function.0].effect.is_async()
+        {
+            if self.async_call != Some(id) {
+                self.context.error(
+                    codes::INVALID_TASK,
+                    span,
+                    "async calls require spawn or await",
+                    Some(original),
+                )?;
+            }
+            Ok(Some(
+                self.context
+                    .intern(r::TypeConstructor::Task(result), span)?,
+            ))
+        } else {
+            Ok(Some(result))
+        }
+    }
+    fn require_async(&mut self, span: Span) -> Result<(), CheckError> {
+        if !self.function.effect.is_async() {
+            self.context.error(
+                codes::INVALID_TASK,
+                span,
+                "task operations require an async function",
+                Some(self.function.signature_span),
+            )?;
+        }
+        Ok(())
     }
     fn is_place(&mut self, id: r::PlaceId, span: Span) -> Result<bool, CheckError> {
         let mut current = id.0;
@@ -2196,6 +2378,14 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     .as_ref()
                     .unwrap()
                     .properties(ty.value_type, ty.span)?;
+                if properties.contains_task {
+                    self.context.error(
+                        codes::INVALID_TASK,
+                        ty.span,
+                        "Task claims cannot be core generic payloads",
+                        None,
+                    )?;
+                }
                 if *rule != core::TypeArgumentRule::ReturnType
                     && (properties.contains_loan || properties.contains_allocator)
                 {

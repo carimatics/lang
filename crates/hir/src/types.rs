@@ -81,10 +81,16 @@ pub struct Properties {
     pub contains_loan: bool,
     pub contains_arena: bool,
     pub contains_allocator: bool,
+    pub contains_task: bool,
 }
 impl Properties {
     pub(crate) fn result_restriction(self) -> Option<(DiagnosticCode, &'static str)> {
-        if self.contains_loan || self.contains_arena {
+        if self.contains_task {
+            Some((
+                codes::INVALID_TASK,
+                "Task claims cannot be returned from a function",
+            ))
+        } else if self.contains_loan || self.contains_arena {
             Some((
                 codes::REGION_ESCAPE,
                 "ordinary loans and arena-bearing values cannot be returned",
@@ -105,6 +111,7 @@ impl Properties {
             contains_loan: bits & LOAN != 0,
             contains_arena: bits & ARENA != 0,
             contains_allocator: bits & ALLOCATOR != 0,
+            contains_task: bits & TASK != 0,
         }
     }
 }
@@ -156,7 +163,8 @@ const LOAN: u8 = 4;
 const ARENA: u8 = 8;
 const ALLOCATOR: u8 = 16;
 const PRIVATE: u8 = 32;
-const INSPECT: u8 = LOAN | ARENA | ALLOCATOR | PRIVATE;
+const TASK: u8 = 64;
+const INSPECT: u8 = LOAN | ARENA | ALLOCATOR | PRIVATE | TASK;
 
 #[derive(Clone, Copy)]
 struct Edge {
@@ -212,7 +220,7 @@ impl Budget {
         v.resize(n, value);
         Ok(v)
     }
-    fn text(&mut self, span: Span, value: &str) -> Result<String, Error> {
+    pub(crate) fn text(&mut self, span: Span, value: &str) -> Result<String, Error> {
         self.charge(span, value.len())?;
         self.allocate::<u8>(span, value.len())?;
         let mut text = String::new();
@@ -390,7 +398,14 @@ impl Context<'_> {
             )?;
         }
         let outer_loan = matches!(ty.value_type, r::Type::Constructed(id) if matches!(self.program.types[id.0].constructor, r::TypeConstructor::Loan(..)));
-        if position == Position::Result
+        if flags & TASK != 0 && matches!(position, Position::Field | Position::Parameter) {
+            self.report(
+                codes::INVALID_TASK,
+                ty.span,
+                "Task claims are permitted only in async locals",
+                None,
+            )?;
+        } else if position == Position::Result
             && let Some((code, message)) = Properties::bits(flags).result_restriction()
         {
             self.report(code, ty.span, message, None)?;
@@ -531,6 +546,7 @@ pub fn analyze(
             | r::TypeConstructor::Shared(_)
             | r::TypeConstructor::Weak(_) => NONCOPY | DROP,
             r::TypeConstructor::Loan(..) => NONCOPY | LOAN,
+            r::TypeConstructor::Task(_) => NONCOPY | DROP | TASK,
             r::TypeConstructor::Arena(_) => ARENA,
             _ => 0,
         };
@@ -615,6 +631,27 @@ pub fn analyze(
         }
     }
     for ty in &program.types {
+        for argument in ty.constructor.arguments() {
+            c.budget.charge(ty.span, 1)?;
+            if matches!(ty.constructor, r::TypeConstructor::Task(_))
+                && bits[c.node(argument, ty.span)?] & (LOAN | ARENA | ALLOCATOR) != 0
+            {
+                c.report(
+                    codes::INVALID_TASK,
+                    ty.span,
+                    "Task results cannot contain loans, arenas or allocator authority",
+                    None,
+                )?;
+            }
+            if bits[c.node(argument, ty.span)?] & TASK != 0 {
+                c.report(
+                    codes::INVALID_TASK,
+                    ty.span,
+                    "Task claims cannot be nested, borrowed or stored in containers",
+                    None,
+                )?;
+            }
+        }
         if !matches!(ty.constructor, r::TypeConstructor::Loan(..)) {
             for argument in ty.constructor.arguments() {
                 c.budget.charge(ty.span, 1)?;
@@ -704,6 +741,14 @@ pub fn analyze(
         for local in &f.locals {
             c.name(f.span, &local.name)?;
             if let Some(ty) = local.annotation {
+                if !f.effect.is_async() && bits[c.node(ty.value_type, ty.span)?] & TASK != 0 {
+                    c.report(
+                        codes::INVALID_TASK,
+                        ty.span,
+                        "Task locals require an async function",
+                        None,
+                    )?;
+                }
                 c.top(f.span, ty, Position::Local, false, &bits, &private)?;
             }
         }

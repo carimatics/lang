@@ -65,7 +65,7 @@ fn virtual_sources_require_no_disk_file_and_keep_original_utf8_bytes() {
 }
 
 #[test]
-fn virtual_task_source_cannot_become_a_synchronous_semantic_program() {
+fn virtual_task_source_is_typed_without_becoming_a_sync_executable() {
     let mut sources = SourceMap::new();
     let loaded = load_virtual(
         &mut sources,
@@ -75,10 +75,18 @@ fn virtual_task_source_cannot_become_a_synchronous_semantic_program() {
         ModuleLimits::default(),
     )
     .unwrap();
-    assert!(loaded.graph.is_none());
-    assert_eq!(loaded.diagnostics.len(), 1);
-    assert_eq!(loaded.diagnostics[0].code, codes::ASYNC_UNAVAILABLE);
-    loaded.diagnostics[0].validate(&sources).unwrap();
+    assert!(loaded.diagnostics.is_empty());
+    let bound = bind_program(&loaded.graph.unwrap(), &sources, BindingLimits::default()).unwrap();
+    let result = lang_hir::program::analyze_program(
+        bound.program.unwrap(),
+        &sources,
+        CheckLimits::default(),
+    )
+    .unwrap();
+    assert!(result.program.is_none());
+    assert_eq!(result.diagnostics.len(), 1);
+    assert_eq!(result.diagnostics[0].code, codes::ASYNC_UNAVAILABLE);
+    result.diagnostics[0].validate(&sources).unwrap();
 }
 
 #[test]

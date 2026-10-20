@@ -842,35 +842,8 @@ impl Loader<'_, '_> {
             self.report(diagnostic.clone())?;
         }
         let mut paths = BTreeMap::new();
-        let mut task_profile_reported = false;
         for (index, node) in tree.nodes().iter().enumerate() {
             self.charge(node.span())?;
-            // T03 admits lossless syntax only. Never ignore async functions or
-            // execute a task statement as ordinary synchronous source before
-            // the source/MIR proofs and execution adapters are connected.
-            if !tree.has_errors() && !task_profile_reported && node.kind().is_task_syntax() {
-                let mut origin = node.span();
-                for element in node.children() {
-                    self.charge(node.span())?;
-                    if let SyntaxElement::Token(index) = element {
-                        let token = tree.tokens()[*index];
-                        if token.kind.is_task_keyword() {
-                            origin = token.span;
-                            break;
-                        }
-                    }
-                }
-                self.report(Diagnostic::new(
-                    codes::ASYNC_UNAVAILABLE,
-                    Severity::Error,
-                    "source task syntax requires the unavailable async analysis/execution profile",
-                    Label::new(
-                        origin,
-                        "async syntax is parsed; task semantics are not executable yet",
-                    ),
-                ))?;
-                task_profile_reported = true;
-            }
             if node.kind() == S::Path {
                 let mut segments = Vec::new();
                 let mut root = false;
@@ -945,7 +918,7 @@ impl Loader<'_, '_> {
                 declaration_name(self.sources, tree, syntax)
             };
             let kind = match node.kind() {
-                S::Function | S::ForeignExport => ItemKind::Function,
+                S::Function | S::AsyncFunction | S::ForeignExport => ItemKind::Function,
                 S::Host | S::ForeignImport => ItemKind::Host,
                 S::Record => ItemKind::Record,
                 S::Enum => ItemKind::Enum {

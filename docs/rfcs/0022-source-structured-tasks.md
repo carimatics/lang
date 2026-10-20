@@ -16,7 +16,7 @@
 
 Specify the source surface of RFC 0005's strict structured concurrency, driven by RFC 0021. Functions declare `async`; `spawn` creates a scoped child, `await` consumes a child handle, and task scopes join before exit. No borrow crosses suspension. This accepts source semantics, not source task execution or a serialized coroutine format.
 
-T03 checkpoint (2026-10-21 JST): lossless parsing, recovery and formatting are implemented. CLI/REPL/LSP and file/virtual/cached module admission report `SRC0026` before producing a semantic program. Task types/effects, loan proofs, MIR and VM/native execution remain separate deliveries; this RFC stays accepted until its complete contract is implemented.
+T09 checkpoint (2026-10-21 JST): lossless syntax now binds to resolved async effects, Task/TaskError types and bounded move/scope claim snapshots. Invalid effects, claims and escapes receive task diagnostics; valid task source still reports `SRC0026` before producing an executable checked program, including CLI/REPL/LSP and file/virtual/cached modules. The snapshot proves neither suspension loans nor MIR/backend execution. Async transfers currently admit scalar/finite Copy values; general owned transfers await A01's Send/Share profile. T10, MIR and VM/native execution remain separate deliveries; this RFC stays accepted until its complete contract is implemented.
 
 ```text
 async fn worker(value: i64) -> i64 {
@@ -29,7 +29,8 @@ async fn main() -> i64 {
         let mut right: core::Task<i64> = spawn worker(22);
         let mut a: core::Result<i64, core::TaskError> = await left;
         let mut b: core::Result<i64, core::TaskError> = await right;
-        return core::result_unwrap(a) + core::result_unwrap(b);
+        return core::result_unwrap::<i64, core::TaskError>(a)
+            + core::result_unwrap::<i64, core::TaskError>(b);
     }
 }
 ```
@@ -85,6 +86,8 @@ unary          := "spawn" unary | "await" unary | existing-unary
 Spawn/await bind more tightly than addition/comparison and less tightly than call/field access. Parentheses override precedence. The parser retains the operand tree; typing requires a spawn operand to be a direct async guest call and an await operand to be a Task value or direct async call. Existing expression-statement restrictions remain: use a typed local to retain/discard a join Result. Modifier order is `pub async fn`; C declarations do not accept `async`.
 
 `core::Task<T>` and `core::TaskError` belong to the reserved core namespace. Task is a linear, non-Copy, non-Send, non-Share claim on one direct child's result, branded by the creating lexical task scope. Source cannot fabricate a task/scope brand. Initial Task types occur only in locals inside an async body; reject them in fields, containers, function parameters/results, host/C signatures and nested Task results. Reject a move/assignment into a local outside the creating scope. Ordinary move/initialization checks reject use after await or move; cancel inspects a live task place rather than cloning/moving it.
+
+Task claims cannot be borrowed. Existing owned pattern matching creates ordinary loans, so a direct `match` on a Task is rejected; move it into a typed local and await it instead. This introduces no special move-pattern semantics. T09 compatibility audit (2026-10-21 JST): this makes the opaque-claim restriction explicit, and the guide's Result unwrap calls now spell the existing required core type arguments; no new inference is introduced.
 
 ### Effects, evaluation and admission
 

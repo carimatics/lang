@@ -438,6 +438,8 @@ impl<'a> Lowerer<'a, '_> {
         let t = ty(self.context.input, self.facts.expressions()[expression.0])?;
         let op = match &source.kind {
             r::ExpressionKind::Borrow { .. }
+            | r::ExpressionKind::Spawn(_)
+            | r::ExpressionKind::Await(_)
             | r::ExpressionKind::Dereference(_)
             | r::ExpressionKind::CoreCall { .. }
             | r::ExpressionKind::CoreUnit
@@ -594,6 +596,10 @@ impl<'a> Lowerer<'a, '_> {
             self.context.budget.charge(1)?;
             current = match &statement.kind {
                 r::StatementKind::PlaceAssign { .. }
+                | r::StatementKind::TaskScope { .. }
+                | r::StatementKind::Yield
+                | r::StatementKind::Cancel(_)
+                | r::StatementKind::CancelCheck
                 | r::StatementKind::Arena { .. }
                 | r::StatementKind::Unsafe { .. } => {
                     return Err(LowerError::UnsupportedOwnershipBody {

@@ -246,6 +246,7 @@ pub mod codes {
     pub const UNSUPPORTED_SPECIALIZATION: DiagnosticCode = DiagnosticCode("SRC0024");
     pub const FOREIGN_BOUNDARY: DiagnosticCode = DiagnosticCode("SRC0025");
     pub const ASYNC_UNAVAILABLE: DiagnosticCode = DiagnosticCode("SRC0026");
+    pub const INVALID_TASK: DiagnosticCode = DiagnosticCode("SRC0027");
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

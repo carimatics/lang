@@ -487,6 +487,12 @@ impl Lowerer<'_, '_, '_> {
             return Ok(out);
         }
         let op = match &source.kind {
+            r::ExpressionKind::Spawn(_) | r::ExpressionKind::Await(_) => {
+                return Err(Error::UnsupportedBody {
+                    feature: super::UnsupportedBody::Task,
+                    span: source.span,
+                });
+            }
             r::ExpressionKind::Integer(value) => b::Op::I64(*value),
             r::ExpressionKind::Boolean(value) => b::Op::Bool(*value),
             r::ExpressionKind::CoreUnit => b::Op::Unit,
@@ -691,6 +697,15 @@ impl Lowerer<'_, '_, '_> {
                 continue;
             }
             match &statement.kind {
+                r::StatementKind::TaskScope { .. }
+                | r::StatementKind::Yield
+                | r::StatementKind::Cancel(_)
+                | r::StatementKind::CancelCheck => {
+                    return Err(Error::UnsupportedBody {
+                        feature: super::UnsupportedBody::Task,
+                        span: statement.span,
+                    });
+                }
                 r::StatementKind::LetMut { local, initializer } => {
                     let value = self.expression(*initializer, block, depth + 1)?;
                     let local = d::LocalId(id(local.0)?);

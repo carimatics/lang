@@ -463,7 +463,13 @@ impl Checker<'_, '_> {
             return Ok(false);
         }
         match &statement.kind {
-            r::StatementKind::Unsafe { body } => return self.block(*body, depth + 1),
+            r::StatementKind::Unsafe { body } | r::StatementKind::TaskScope { body } => {
+                return self.block(*body, depth + 1);
+            }
+            r::StatementKind::Yield | r::StatementKind::CancelCheck => {}
+            r::StatementKind::Cancel(value) => {
+                self.eval(*value, Mode::Observe, depth + 1)?;
+            }
             r::StatementKind::LetMut { local, initializer } => {
                 self.eval(*initializer, Mode::Value, depth + 1)?;
                 self.declare(*local, span)?;
@@ -621,6 +627,9 @@ impl Checker<'_, '_> {
             return Ok(None);
         }
         match &expression.kind {
+            r::ExpressionKind::Spawn(value) | r::ExpressionKind::Await(value) => {
+                self.eval(*value, Mode::Value, depth + 1)?;
+            }
             r::ExpressionKind::Local(local) => {
                 let ready = self.ready(*local, span)?;
                 let moves = matches!(mode, Mode::Value) && !self.copy_type(ty) && !self.loan(ty);
