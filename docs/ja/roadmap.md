@@ -12,11 +12,11 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で **7 done · 1 doing · 34 todo · 99 remaining pt** を追跡します。有界 host task tree は `a543d23` で実行でき、source syntax、scope 付き claim の型検証、suspension loan 証明があります。`700391d` で独立 task MIR scope/claim/所有権/cleanup plan 証明を実装しましたが、source 実行は引き続き SRC0026 を受けます。次は source VM fixture（T05）と compiled native parity（T06）です。source/MIR 監査で前提 3 件（+7 pt）を追加し、完了 7 件で 18 pt を消化しました。M3 の出口ゲートはまだ完了していません。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
+[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で **8 done · 1 doing · 33 todo · 96 remaining pt** を追跡します。有界 host task tree は `a543d23` で実行でき、`2f58084` で source claim/loan と独立 task MIR 証明を task VM に接続しました。`cargo run -- run examples/scripts/tasks.lang` は scope 付き spawn/yield/join の後に 42 を出力し、CLI check/LSP が TaskProgram 証明を保持します。次は compiled native continuation parity（T06）です。初期 VM local は finite Copy/Task とし、owned/loan/foreign/共有 control の全作業を M3 に維持します。source/MIR 監査で前提 3 件（+7 pt）を追加し、完了 8 件で 21 pt を消化しました。M3 出口ゲートは未完了です。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
 
 ## 進行中 milestone の実行
 
-M3 開始時に RFC 0003/0005、M2 の実行/cleanup interface、完了済みレビューを確認しました。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md) で有界 driver を実装し、[RFC 0022](rfcs/0022-source-structured-tasks.md) で source async 契約を採択しました。syntax、型/move/scope snapshot、別段階の suspension loan 証明は未対応 executable profile を明示拒否し、RFC 0023 で独立 task MIR 命令/scope/所有権/cleanup plan 証明と旧 profile 拒否を実装しました。source VM/native 実行へ進みます。channel、Send/Share、production embedding は引き続き判断が必要です。96 pt のゲート重みではなく実装 Todo の積上げ見積りを使います。scheduler/IDL 基盤の追加より次の end-to-end source fixture を優先します。実行経路を変えるときは測定済み M2 性能 baseline を維持し、代表 workload の費用で最適化の優先度を決めます。
+M3 開始時に RFC 0003/0005、M2 の実行/cleanup interface、完了済みレビューを確認しました。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md) で有界 driver、[RFC 0022](rfcs/0022-source-structured-tasks.md) で source async 契約を定め、RFC 0023 で独立検証した task MIR を初期 task VM に接続しました。T06 は同じ continuation を compile し、T07/T08 に owned cleanup と完全な共有 control を維持します。channel、Send/Share、production embedding は引き続き判断が必要です。96 pt のゲート重みではなく実装 Todo の積上げ見積りを使います。scheduler/IDL 基盤の追加より次の end-to-end source/native fixture を優先します。実行経路を変えるときは測定済み M2 性能 baseline を維持し、代表 workload の費用で最適化の優先度を決めます。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 

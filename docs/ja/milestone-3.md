@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**7 done · 1 doing · 34 todo · 99 remaining pt**
+**8 done · 1 doing · 33 todo · 96 remaining pt**
 
-**次: M3-T05 → 最初の source spawn/yield/join fixture を VM で実行します。**
+**次: M3-T06 → 同じ source task fixture を compiled native continuation で実行します。**
 
-現在の作業: **M3-T05**。直近の実行検証: **`700391d`、2026-10-21 05:30 JST**。RFC 0023 の task 命令、scope/claim/return escrow 解析、独立 move/loan/arena region/failure plan 証明が HIR 権限に依存せず raw ownership MIR を検証します。旧 layout/VM/native/codec 経路は scalar async 証明も拒否します。全 baseline は **102 suite / 成功 1,685 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が成功しました。T05 の残る受入条件: source spawn/yield/join fixture を検証済み task MIR へ lower し、有界 driver 経由で VM 実行して値と event 順序を証明します。未対応の実行/artifact mode は明示します。source task 実行と M3 gate は未完了です。
+現在の作業: **M3-T06**。直近の実行検証: **`2f58084`、2026-10-21 06:38 JST**。`cargo run -- run examples/scripts/tasks.lang` は両 worker の yield と scope join の後に 42 を出力します。TaskProgram は source claim/loan と独立 MIR 証明を保持し、明示 task VM が managed finite Copy storage、偽造不能な claim sidecar、保護された result reservation を使います。全 baseline は **104 suite / 成功 1,698 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が成功しました。T06 の残る受入条件: 同じ契約の native task continuation を compile し、MIR 解釈や VM fallback を使わず fixture の値/event を一致させます。初期 local は finite Copy/Task とし、native/owned/loan/foreign 実行、完全な共有 control、task artifact 形式の未完了 scope を維持します。M3 exit gate は未完了です。
 
-**今回: T04 完了（−3 pt）、新規 task/見積りはありません。** 直前残り **102 − 3 = 99 pt**。全 **42 行**、累積消化 **18 pt** と純追加見積り **+7 pt** は別に記録します。
+**今回: T05 完了（−3 pt）、新規 task/見積りはありません。** 直前残り **99 − 3 = 96 pt**。全 **42 行**、累積消化 **21 pt** と純追加見積り **+7 pt** は別に記録します。
 
 ## Deliveries
 
@@ -27,8 +27,8 @@
 | M3-T10 | done | 0 | M3-T09 | G03 | suspension を跨ぐ shared/exclusive loan を両方の起点の診断付きで拒否 | `9f7012d` |
 | M3-T11 | done | 0 | M3-T10 | G03 | Task/TaskError と async MIR 宣言を検証し旧実行/artifact profile を拒否 | `ae9404d` |
 | M3-T04 | done | 0 | M3-T11 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | `700391d` |
-| M3-T05 | doing | 3 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | — |
-| M3-T06 | todo | 3 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | — |
+| M3-T05 | done | 0 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | `2f58084` |
+| M3-T06 | doing | 3 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | — |
 | M3-T07 | todo | 3 | M3-T06 | G03 | 所有 local、入れ子の取消、主/副失敗、exactly-once cleanup を検証 | — |
 | M3-T08 | todo | 3 | M3-T07 | G12,G13 | 全実行経路で task/frame/fuel の共有上限を副作用前に適用 | — |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | 有界 channel、FIFO wakeup、背圧、所有権 commit、取消 error を採択 | — |
@@ -97,11 +97,15 @@ T04 を `700391d` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ具体
 
 T04 roadmap 監査: 検証済み MIR 契約と、既存 source lowerer の Task 拒否・同期実行境界を照合しました。T05 は元の 3 pt の source fixture 成果を維持し、task 対応 source lowering と、証明を既存有界 driver へ接続する VM 経路を追加し、その後 T06 で同じ continuation を compile します。実際の owned local 取消/cleanup と共有 control は T07/T08 に残します。この source fixture 前に scheduler/IDL framework や表現の前提を追加せず、残り条件が増えたら再監査します。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 の要件に維持します。
 
-**110 + 7 − 18 = 99 pt**
+T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/loan 証明、task 対応 lowering、独立 MIR 検証を接続しました。明示 VM adapter が RFC 0021 driver 経由で既存 failure plan を実行し、通常 call、spawn/yield/check、消費 join、型付き取消、loop 再入場を区別する scope、子の terminal failure、保護された return escrow を扱います。managed layout/frame storage を共有し、task 証明を要する entry は payload 0 の TaskClaim marker と invocation 内 TaskId sidecar を使い、frame cleanup は型付き result reservation だけを分離します。子 frame admission 前に task/frame/cell を検査し、source/MIR/preparation budget も有界です。CLI check/run と LSP が接続済み task source を受け入れ、`cargo run -- run examples/scripts/tasks.lang` は **42** を出力し、実行 fixture で **admitted 3 / live task 0**、**live guest allocation 0** を確認しました。旧同期 API、task artifact/native package、async REPL submission の明示拒否を維持します。初期の到達可能 local は finite Copy/Task とし、owned/loan/foreign task 実行と finite service/共有 control の完成は後続作業です。追加 13 件は source-to-MIR 1 件と source/VM/layout/境界 12 件で、CLI/LSP の動作も更新しました。fuel/trace の各 prefix、task/frame 上限、provider の実呼出しごとの拒否で live task/storage が残らず、取消時機、sync/direct-await call、panic 起点、loop scope の破棄も成功しました。production input を固定した全 baseline は **104 suite / 成功 1,698 / 失敗 0 / 既存 timing ignore 1**、suite 時間合計 **467.18s**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が成功しました。fuzz campaign や native task 適合は主張しません。T05 の最後の 3 pt を消化し、追加/再見積りはありません。
+
+T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
+
+**110 + 7 − 21 = 96 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +7 pt | −18 pt | 99 pt |
+| 110 pt | +7 pt | −21 pt | 96 pt |
 
 ## Exit audit
 
@@ -116,6 +120,7 @@ T04 roadmap 監査: 検証済み MIR 契約と、既存 source lowerer の Task 
 
 - T09 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、`crates/hir/src/tasks.rs`、`crates/semantics/tests/tasks.rs`。最終更新 2026-10-21。`390e3ca` を 2026-10-21 JST に検証しました。
 - T10 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、`crates/hir/src/loans.rs`、`crates/hir/src/tasks.rs`、`crates/semantics/tests/task_loans.rs`。最終更新 2026-10-21、`9f7012d` を 2026-10-21 JST に確認しました。MIR 境界監査は `crates/mir/src/unit/ownership/declarations.rs` と `bodies.rs` に基づきます。埋込み更新日の記載はなく、同じ checkpoint/日付で確認しました。
-- [RFC 0023](rfcs/0023-task-mir-boundaries.md)、最終更新 2026-10-21。採択した in-memory 型/宣言、命令/scope、cleanup plan 契約。実行と serialized task 形式は未証明です。
+- [RFC 0023](rfcs/0023-task-mir-boundaries.md)、最終更新 2026-10-21。採択した in-memory task MIR/layout/cleanup 契約と初期 source VM 実装。native/owned task 実行と serialized task 形式は未証明です。
 - T11 の根拠: [RFC 0023](rfcs/0023-task-mir-boundaries.md)、`crates/mir/src/unit/ownership.rs`、`ownership/declarations.rs`、`crates/bytecode/src/ownership/`、`crates/runtime/src/layout.rs`。最終更新 2026-10-21、`ae9404d` を 2026-10-21 JST に確認/検証しました。
 - T04 の根拠: [RFC 0023](rfcs/0023-task-mir-boundaries.md)、`crates/mir/src/unit/ownership/tasks.rs`、`ownership/failure.rs`、`crates/mir/tests/tasks.rs`、`tests/task_mir_boundary.rs`。code の埋込み更新日はなく、`700391d` を 2026-10-21 JST に確認/検証しました。T05 の順序は同じ checkpoint の source lowerer と VM 境界に基づきます。
+- T05 の根拠: [RFC 0022](rfcs/0022-source-structured-tasks.md)、[RFC 0023](rfcs/0023-task-mir-boundaries.md)、`crates/semantics/src/analysis.rs`、`ownership_types/bodies.rs`、`crates/runtime/src/layout/`、`crates/vm/src/unit/tasks/`、`tests/task_execution.rs`、`examples/scripts/tasks.lang`。code の埋込み更新日はなく、`2f58084` を 2026-10-21 JST に確認/実行/検証しました。T06 監査は同じ checkpoint の native codegen/公開境界に基づきます。
