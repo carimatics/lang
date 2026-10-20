@@ -12,7 +12,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 M2 is complete: 18/18 gates, 113/113 historical gate weight. The [completed board](milestone-2.md) records its deliveries and estimate reconciliation; the [capability guide](milestone-2-capabilities.md) records actual source/VM/native/C/SDK/debug evidence and limits. These counts describe M2, not all future work.
 
-The [2026-10-20 repository review](review-2026-10-20.md) is complete. **M3 is active:** the [bilingual delivery board](milestone-3.md) tracks **1 done · 1 doing · 37 todo · 108 remaining pt**. Its first outcome is a host-driven structured task tree, followed by a source spawn/yield/join fixture through VM and native continuations. No M3 exit gate is complete. Chronological planning changes and old partial implementation reports are retained in [roadmap history](roadmap-history.md).
+The [2026-10-20 repository review](review-2026-10-20.md) is complete. **M3 is active:** the [bilingual delivery board](milestone-3.md) tracks **2 done · 1 doing · 38 todo · 110 remaining pt**. The bounded host-driven task tree executes at `a543d23`; next is source async syntax, separate type/loan proofs and a source spawn/yield/join fixture through VM and native continuations. The 2026-10-21 source audit adds two explicit prerequisites (+5 pt), separately from 5 pt retired across two completed deliveries. No M3 exit gate is complete. Chronological planning changes and old partial implementation reports are retained in [roadmap history](roadmap-history.md).
 
 ## Active milestone execution
 

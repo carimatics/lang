@@ -6,11 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**1 done · 1 doing · 37 todo · 108 remaining pt**
+**2 done · 1 doing · 38 todo · 110 remaining pt**
 
-**Next: M3-T02 → execute the bounded host-driven task-tree fixture.**
+**Next: M3-T03 → accept source async syntax and execute lossless parser/formatter fixtures.**
 
-Current delivery: **M3-T02**. Last executable checkpoint: **2026-10-21 JST**, 18 task tests, the host example and the full baseline pass (96 suites / 1,613 tests; zero failures, one existing timing ignore). Normal execution returns 42; normal and nested cancellation retire frames in order 2,1,0 with zero live tasks. fmt, warnings-denied Clippy and rustdoc pass. Remaining acceptance: record the implementation commit and publish completion evidence. No M3 gate is complete.
+Current delivery: **M3-T03**. Last executable checkpoint: **`a543d23`, verified 2026-10-21 01:00 JST**: 18 task tests, the host example and the full baseline pass (96 suites / 1,613 tests; zero failures, one existing timing ignore). Normal execution returns 42; normal and nested cancellation retire frames in order 2,1,0 with zero live tasks. fmt, warnings-denied Clippy and rustdoc pass. Remaining T03 acceptance: accepted bilingual source-async decision; lossless grammar, recovery and formatter fixtures. Source binding/types/loan proofs are the newly explicit T09/T10 prerequisites. No source task executes yet and no M3 gate is complete.
+
+**This update: T02 completed (−3 pt); two source-analysis deliveries exposed (+5 pt).** Previous remaining **108 + 5 − 3 = 110 pt**. There are **41 rows**; cumulative retirement is **5 pt**, separate from **+5 pt** added estimates.
 
 ## Deliveries
 
@@ -19,9 +21,11 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | ID | State | Remaining | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M3-T01 | done | 0 | — | G01 | Accept explicit FIFO driver, task ancestry, join, cancellation, failure and bounded admission rules | `8ab751b` |
-| M3-T02 | doing | 3 | M3-T01 | G03,G12 | Execute a bounded host-driven task tree with joins, cooperative cancellation and postorder retirement | — |
-| M3-T03 | todo | 3 | M3-T01 | G01,G03 | Accept async syntax; parse/check tasks and reject escaping handles and live loans at suspension | — |
-| M3-T04 | todo | 3 | M3-T03 | G03 | Verify typed MIR suspension, task scopes and ownership edges independently | — |
+| M3-T02 | done | 0 | M3-T01 | G03,G12 | Execute a bounded host-driven task tree with joins, cooperative cancellation and postorder retirement | `a543d23` |
+| M3-T03 | doing | 3 | M3-T01 | G01,G03 | Accept source async contracts and preserve task syntax through lossless parsing, recovery and formatting | — |
+| M3-T09 | todo | 3 | M3-T03 | G03 | Bind/type async calls and scoped task handles; reject handle escape and invalid async C surfaces | — |
+| M3-T10 | todo | 2 | M3-T09 | G03 | Reject shared/exclusive loans at suspension with suspension and loan-origin diagnostics | — |
+| M3-T04 | todo | 3 | M3-T10 | G03 | Verify typed MIR suspension, task scopes and ownership edges independently | — |
 | M3-T05 | todo | 3 | M3-T02,M3-T04 | G03 | Execute a source spawn/yield/join fixture in the VM through the shared task driver | — |
 | M3-T06 | todo | 3 | M3-T05 | G03,G13 | Execute the same task fixture through native continuations with equivalent events | — |
 | M3-T07 | todo | 3 | M3-T06 | G03 | Verify owned locals, nested cancellation, primary/secondary failures and exactly-once cleanup | — |
@@ -30,7 +34,7 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-C02 | todo | 3 | M3-C01 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | — |
 | M3-C03 | todo | 3 | M3-C02 | G04 | Run source channel fixtures and reject payload reuse in VM execution | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | Match channel values, failures and cleanup through native execution | — |
-| M3-A01 | todo | 2 | M3-T03 | G01,G05 | Accept recursive Send/Share derivation and source service authority rules | — |
+| M3-A01 | todo | 2 | M3-T09 | G01,G05 | Accept recursive Send/Share derivation and source service authority rules | — |
 | M3-A02 | todo | 3 | M3-A01 | G05 | Check source actor ownership, moves and non-sendable captures with diagnostics | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | Execute owner-isolated service state, FIFO messages and cancellation disposal | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | Match actor isolation and disposal traces in native execution | — |
@@ -60,15 +64,21 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 
 ## Progress and estimate changes
 
-Activation audit (2026-10-20 JST): 39 deliveries, initial **110 pt**. This is a bottom-up provisional forecast; the roadmap's **96 pt** are historical gate weights. No work is retired and no additional work has been exposed yet. Re-estimate changed scope explicitly before implementation. Review sequencing after two prerequisites without a new source execution fixture; T02 and T03 must not turn into an open-ended scheduler framework.
+Activation audit (2026-10-20 JST): 39 deliveries, initial **110 pt**. This is a bottom-up provisional forecast; the roadmap's **96 pt** are historical gate weights. At activation no work was retired and no additional work was exposed. Re-estimate changed scope explicitly before implementation. Review sequencing after two prerequisites without a new source execution fixture; T02 and T03 must not turn into an open-ended scheduler framework.
 
 T01 completed at `8ab751b`: accepted RFC 0021 and added independent board validation. Semantic-model tests 29/29 and repository consistency 5/5 pass. Retire 2 pt; no additions/re-estimates. Roadmap audit: all 15 gates remain necessary and none is proven by the decision alone.
 
-**110 + 0 − 2 = 108 pt**
+T02 completed at `a543d23` (2026-10-21 JST): bounded FIFO kernel, invocation-specific handles, direct-child joins, live/total admission, cooperative cancellation and separately acknowledged cleanup. Eighteen focused tests include 512-deep cancellation, boundary-position exploration, failure ordering, refusal atomicity and cleanup-entry cancellation. The executable host example returns 42 and verifies normal/nested-cancel frame retirement 2,1,0 with zero live tasks. Full baseline: **96 suites / 1,613 passed / 0 failed / 1 existing timing ignore**, suite-time sum **439.11s**; fmt, Clippy (**1.08s**) and rustdoc (**26.32s**) pass. Documentation consistency passes after RFC/index updates. Retire T02's last 3 pt.
+
+Source-scope audit (2026-10-21 JST): the initial T03 bundled a language decision/grammar with two independent source proofs. The actual frontend has separate resolved typing and lexical loan analyses, followed by independent MIR verification; syntax acceptance cannot prove scoped-handle lifetime or no-borrow-at-suspension. Preserve all original acceptance conditions: keep T03's 3 pt for the decision/lossless syntax and expose **T09 (3 pt)** and **T10 (2 pt)** before their implementation. Net addition **+5 pt**, rows **39 → 41**; T04 now depends on T10 and A01 on typed task handles in T09. These are new remaining estimates, not completed work or retroactive increases to T02.
+
+Roadmap/sequencing audit after two prerequisites: T01/T02 establish the first host outcome, not G03. Retain all 15 gates and all P1 work. Stop expanding kernel/IDL scaffolding; proceed **T03 → T09 → T10 → T04 → T05** to the first actual source VM fixture, then T06 native parity. Current source/ABI/format choices still require their accepted decisions. No milestone weight or exit requirement is reduced.
+
+**110 + 5 − 5 = 110 pt**
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +0 pt | −2 pt | 108 pt |
+| 110 pt | +5 pt | −5 pt | 110 pt |
 
 ## Exit audit
 
@@ -78,3 +88,4 @@ T01 completed at `8ab751b`: accepted RFC 0021 and added independent board valida
 
 - [Roadmap](roadmap.md), [architecture](architecture.md), [completed M2 board](milestone-2.md), and [review](review-2026-10-20.md): last updated 2026-10-20; inspected at `984557d`, 2026-10-20 JST.
 - [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md) and [RFC 0003](rfcs/0003-versioned-component-contracts.md): last updated 2026-10-17. These contracts remain binding; prototypes do not prove production completion.
+- [RFC 0021](rfcs/0021-bounded-structured-task-driver.md), last updated 2026-10-21; current kernel, tests and example inspected at `a543d23` on 2026-10-21 JST. Source-scope audit uses `crates/hir/src/resolved.rs`, `crates/hir/src/program/`, `crates/hir/src/loans.rs` and `crates/semantics/src/analysis.rs` from the same checkpoint.
