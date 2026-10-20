@@ -6,31 +6,28 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**131 done · 1 doing · 1 todo · 3 remaining pt**
+**132 done · 1 doing · 0 todo · 1 remaining pt**
 
-**Next: M2-G03 → actual native debugger stepping/backtraces on both tier-1 hosts (provisional 2 pt, in progress).**
+**Next: M2-Z01 → final bilingual capability guide and complete exit-evidence audit (1 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| G03: unwind repair validated locally; actual Windows/macOS debugger CI running | **G02 complete**: Windows Copy/owned/C-export CodeView/PDB (`2297a07`) | **17/18 gates** |
+| Z01: final guide and exit audit | **G03 complete**: actual LLDB/CDB stepping and backtraces (`1496b8b`) | **18/18 gates; final documentation open** |
 
-**Latest verification checkpoint (2026-10-20 JST):** `2297a07` connects the bounded canonical source adapter to [whole-unit CodeView](../crates/codegen-clif/src/debug/source_coff.rs) in the actual Windows source producer. The [production PDB test](../tests/native_debug_windows.rs) generates Copy/owned/C-export packages, checks distinct native relocations and links PE/PDBs. Native Windows LINK/LLVM validate original function names and source-line contributions; macOS LLDB independently resolves both names/lines in each cross-linked PDB. Full local baseline: 1,592 tests/95 suites, 0 failures, 1 manual timing ignore. The exact product’s [Windows run 39398395224, job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278), head `2297a07`, passes fmt/native C-linker/Clippy/full tests/rustdoc by **2026-10-20 09:44:14 UTC**. The whole workflow also succeeds at **2026-10-20 09:55:01 UTC**; its prototype benchmark is not a new G17 Rust/C comparison capture.
+**Latest verified completion (2026-10-20 JST):** [run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593), exact product `1496b8b`, succeeds on macOS AArch64 and Windows x86-64. Actual LLDB/CDB both stop in original source, step Copy line 2→3 with caller lines 2/6/9, advance owned native PCs at line 8 with a production Rust runtime caller, and finish both programs to 42/normal exit. macOS evidence is recorded at **11:16:39 UTC**; Windows at **11:20:07 UTC**. Independent metadata checks cover whole-source PDBs and Windows `.pdata`/`.xdata`.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **6 − 3 = 3 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 240 = 3 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **3 − 2 = 1 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 242 = 1 pt**. Provisional planning units are not hours or completion percentages.
 
-**G02 completion audit:** shared file/string/checksum tables preserve per-file line/column blocks, including returning to a previous source file. Function IDs and address/segment relocations remain distinct; types describe the actual private i32/two-pointer machine ABI without fabricated source variables or locations. Line/column/record bounds fail before sections are attached, and per-file indexing avoids quadratic range scans. The earlier prototype writer, syntax, language ABI and all serialized revisions remain unchanged; matching SDKs must be rebuilt. This is metadata/link/reader evidence. G03 still requires actual executable stepping/backtraces, including the linked Mach-O address correction discovered during readiness probes.
+**G03 completion audit:** `7b6d181` repairs linked Mach-O function addresses; `1496b8b` adds Windows x64 unwind records for source Copy/owned/C-object functions. The probe uses preserved source and a manual debug link against the matching production SDK. Owned stepping shows physical native/runtime frames; logical continuation stepping, source variables, mixed VM/native stacks and automatic CLI sidecars remain outside this evidence. No requirement, estimate, ABI or serialized revision was added or reduced.
 
-Fresh G02 validation: **1,592 tests / 95 suites, 0 failures, 1 manual timing ignore**; suite-time sum 440.48s. Format passes; workspace/all-target/all-feature Clippy with warnings denied passes (19.01s); rustdoc passes (19.16s); all 11 fuzz targets compile/lint (1.40s). Two COFF unit tests cover physical types, distinct functions/relocations, multiple source files/columns and representability refusal. One actual producer test covers three linked PDB profiles. The same product's macOS CI also passes ([run 39398395138](https://github.com/carimatics/lang/actions/runs/39398395138)). Required native Windows checks: The exact product’s [Windows run 39398395224, job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278), head `2297a07`, passes fmt/native C-linker/Clippy/full tests/rustdoc by **2026-10-20 09:44:14 UTC**. The whole workflow also succeeds at **2026-10-20 09:55:01 UTC**; its prototype benchmark is not a new G17 Rust/C comparison capture.. This plan-only update uses repository-consistency checks and new-link validation; earlier B02/B03 captures remain evidence only at their named revisions.
+Fresh product validation: **1,593 tests / 95 suites, 0 failures, 1 manual timing ignore**; suite-time sum 440.31s. fmt, warnings-denied workspace Clippy (21.59s), rustdoc (19.60s) and all 11 fuzz-target compile/lint checks (1.67s) pass. This documentation-only update checks bilingual board/roadmap consistency; B02/B03 performance captures retain their named earlier revisions.
 
-**G03 execution checkpoint (2026-10-20 20:16 JST):** `1496b8b` repairs missing Windows x64 unwind tables without changing instructions or ABI. Fresh local validation: **1,593 tests/95 suites, 0 failures, 1 manual timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target checks pass. [Both-host actual debugger CI](https://github.com/carimatics/lang/actions/runs/39413674593) is running. Retain G03's existing 2 pt; no new tasks or estimates.
-
-- [x] Repair linked Mach-O addresses and match every Copy/owned function to its native symbol (`7b6d181`).
-- [x] Prove actual macOS source stepping, three source callers, owned runtime caller and normal 42 under LLDB ([verified run](https://github.com/carimatics/lang/actions/runs/39408056699)).
-- [x] Diagnose actual CDB's truncated caller stack; emit and independently validate `.pdata`/`.xdata` for Copy/owned/C-object functions (`1496b8b`).
-- [ ] Confirm three source callers and owned runtime stepping in the repaired Windows executable; rerun macOS on the same product. This closes G03; Z01's final guide/audit remains.
+**Z01 is now the sole remaining delivery.** Audit every original exit gate and publish a concise English/Japanese capability guide, including executable workflows and measured limitations. All 18 gates have evidence, but the Milestone 2 Goal remains active until this final documentation/audit delivery is complete.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
+
+G03 historical checkpoint (2026-10-20 JST): `1496b8b` completes actual both-host debugger execution in [run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593); Mac job118597368496/Windows job118597368052. CDB's original truncated stack was caused by missing `.pdata`/`.xdata`; the repaired product retains the three-caller assertion. G03 retires 2 pt without scope/estimate additions: **131 → 132 done, 3 → 1 remaining pt**, ledger **134 + 109 − 242 = 1**. G18 closes; Z01 remains doing.
 
 P07 historical checkpoint:
 
@@ -215,13 +212,13 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 131 (+96)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 132 (+97)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −240 pt | 3 pt |
+| 134 pt | +109 pt | −242 pt | 1 pt |
 
-**134 + 109 − 240 = 3 pt**
+**134 + 109 − 242 = 1 pt**
 
 G02 delivery / G03 readiness audit (2026-10-20 JST): `2297a07` adds whole-unit Windows CodeView to actual Copy/owned/C-export source packages and validates linked PDB functions/locations. Local 1,592-test/95-suite baseline and the exact native Windows required baseline pass. Retire 3 pt: **130 → 131 done, 6 → 3 remaining, retired 237 → 240 pt**; **133 rows/+109 additions unchanged**. Original gates remain **17/18**. G03 retains actual both-host stepping/backtraces and the linked Mach-O relocation repair; Z01 retains the final bilingual guide/full audit.
 
@@ -467,8 +464,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-B04 | done | 0 | M2-B02,M2-B03 | G17 | Publish interpreted results, reproducibility commands and remaining performance limits. | `990e422` |
 | M2-G01 | done | 0 | M2-N06 | G18 | Emit native owned-value source spans/locations and validate macOS debug fixtures. | `4b0e902` |
 | M2-G02 | done | 0 | M2-N07 | G18 | Emit corresponding Windows native debug metadata and validate source locations. | `2297a07` |
-| M2-G03 | doing | 2 | M2-G01,M2-G02 | G18 | Record actual debugger stepping/backtrace evidence on both tier-1 platforms. | — |
-| M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
+| M2-G03 | done | 0 | M2-G01,M2-G02 | G18 | Record actual debugger stepping/backtrace evidence on both tier-1 platforms. | `1496b8b` |
+| M2-Z01 | doing | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | Audit all exit evidence and publish the bilingual M2 capability guide. | — |
 
 ## Sources and verification dates
 

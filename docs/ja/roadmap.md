@@ -8,17 +8,19 @@
 
 ## 現在のM2実装状況
 
-**検証済み131件 · 進行中1件 · 残り1件（暫定3 pt）。**
+**検証済み132件 · 進行中1件 · 残り0件（暫定1 pt）。**
+
+上の残り件数は進行中の1件を除く未着手件数で、Z01の最終1 ptが残っています。
 
 | 現在の成果 | 直近の検証済み完了 | Milestone出口 |
 | --- | --- | --- |
-| G03：address修正・macOS実行検証済み、Windows実debugger検証中 | **G02完了**：Windows Copy／owned／C-export CodeView／PDB（`2297a07`） | **17/18 gates** |
+| Z01：最終guideと全出口監査 | **G03完了**：実LLDB／CDBのstep・backtrace（`1496b8b`） | **18/18 gates、最終文書は未完了** |
 
-**最新検証checkpoint（2026-10-20 JST）：** `2297a07`で上限付きcanonical source adapterを[unit全体のCodeView](../../crates/codegen-clif/src/debug/source_coff.rs)へ接続し、Windows実source producerで使用します。[実PDB test](../../tests/native_debug_windows.rs)がCopy／owned／C-export packageを生成し、native relocationの区別とPE／PDB linkを検証します。native Windows LINK／LLVMで元のfunction名とsource行contributionを確認し、macOS LLDBでもcross-linkした各PDBの2 function名／行を独立に解決します。local全体baselineは1,592 tests／95 suites、失敗0、手動計測ignore 1件です。 同productの[Windows run 39398395224／job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278)、head `2297a07`は、fmt／native C-linker／Clippy／全test／rustdocが**2026-10-20 09:44:14 UTC**までに成功しています。workflow全体も**2026-10-20 09:55:01 UTC**に成功しました。prototype benchmarkはG17の新しいRust／C比較計測ではありません。
+**直近の検証済み完了（2026-10-20 JST）：** exact product `1496b8b`の[run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)がmacOS AArch64／Windows x86-64で成功しました。実LLDB／CDBで元sourceに停止し、Copyの2→3行stepと2／6／9行のcaller、ownedの8行でnative PC前進と実Rust runtime caller、両programのdebugger内42／正常終了を実証しました。macOS記録は**11:16:39 UTC**、Windowsは**11:20:07 UTC**です。独立metadata検証ではsource全体のPDBとWindowsの`.pdata`／`.xdata`も確認しました。
 
-**今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **6 − 3 = 3 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 240 = 3 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−2 pt）、見積もり／task追加なし。** 残り **3 − 2 = 1 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 242 = 1 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**G03実行checkpoint（2026-10-20 20:16 JST）：** `1496b8b`で欠落していたWindows x64 unwind tableを修正し、命令・ABIは維持します。新規local検証は**1,593 tests／95 suites、失敗0、手動計測ignore 1件**、fmt・警告error化Clippy・rustdoc・全11 fuzz targetが成功しました。[両hostの実debugger CI](https://github.com/carimatics/lang/actions/runs/39413674593)を実行中です。G03の既存2 ptを維持し、task・見積もり追加はありません。
+**残る成果はZ01の1件です。** 元の全exit gateを監査し、実行可能な手順と計測済みの制約を含む簡潔な日英capability guideを公開します。18 gateの証拠はそろっていますが、最終文書／監査が完了するまでMilestone 2 Goalを継続します。
 
 ## タスク管理
 
@@ -50,13 +52,13 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 105 pt | 113 pt | 92.9% |
+| 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **403 pt** | **764 pt** | **52.7%** |
+| **全体** | **411 pt** | **764 pt** | **53.8%** |
 
 ## Milestone 0：設計baseline
 
@@ -232,7 +234,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中17件完了、履歴上の重み：105 / 113 pt（92.9%）。**
+**完了条件：18件中18件完了、履歴上の重み：113 / 113 pt（100.0%）。最終capability guide／監査Z01は進行中です。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -255,7 +257,9 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
 - [x] **P0 — 代表的なVM／native differential conformance suiteを構築する。** — 8 pt
 - [x] **P0 — 代表的native workloadを同等のRust／C実装に対して計測する。** — 8 pt
-- [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
+- [x] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt
+
+G18検証（2026-10-20 JST）：exact product `1496b8b`の[両host実debugger検証](https://github.com/carimatics/lang/actions/runs/39413674593)が成功しました。LLDB／CDBでCopyの2→3行step・2／6／9行caller、ownedのinstruction step／実runtime caller、42／正常終了をassertします。対応SDKによる手動debug linkでsourceを保持し、source変数・論理continuation step・CLIのdebug sidecar自動出力はこの証拠の範囲外です。Z01の最終guide／全出口監査は引き続き必要です。
 
 Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRust／C実装に対してperformanceが計測されている。
 

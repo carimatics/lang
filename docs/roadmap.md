@@ -8,17 +8,19 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**131 verified deliveries · 1 in progress · 1 remaining tasks (provisional 3 pt).**
+**132 verified deliveries · 1 in progress · 0 remaining tasks (provisional 1 pt).**
+
+The task count above excludes the one delivery in progress; Z01 still owns the final 1 pt.
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| G03: addresses/macOS execution verified; Windows actual debugger validation running | **G02 complete**: Windows Copy/owned/C-export CodeView/PDB (`2297a07`) | **17/18 gates** |
+| Z01: final guide and exit audit | **G03 complete**: actual LLDB/CDB stepping and backtraces (`1496b8b`) | **18/18 gates; final documentation open** |
 
-**Latest verification checkpoint (2026-10-20 JST):** `2297a07` connects the bounded canonical source adapter to [whole-unit CodeView](../crates/codegen-clif/src/debug/source_coff.rs) in the actual Windows source producer. The [production PDB test](../tests/native_debug_windows.rs) generates Copy/owned/C-export packages, checks distinct native relocations and links PE/PDBs. Native Windows LINK/LLVM validate original function names and source-line contributions; macOS LLDB independently resolves both names/lines in each cross-linked PDB. Full local baseline: 1,592 tests/95 suites, 0 failures, 1 manual timing ignore. The exact product’s [Windows run 39398395224, job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278), head `2297a07`, passes fmt/native C-linker/Clippy/full tests/rustdoc by **2026-10-20 09:44:14 UTC**. The whole workflow also succeeds at **2026-10-20 09:55:01 UTC**; its prototype benchmark is not a new G17 Rust/C comparison capture.
+**Latest verified completion (2026-10-20 JST):** [run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593), exact product `1496b8b`, succeeds on macOS AArch64 and Windows x86-64. Actual LLDB/CDB both stop in original source, step Copy line 2→3 with caller lines 2/6/9, advance owned native PCs at line 8 with a production Rust runtime caller, and finish both programs to 42/normal exit. macOS evidence is recorded at **11:16:39 UTC**; Windows at **11:20:07 UTC**. Independent metadata checks cover whole-source PDBs and Windows `.pdata`/`.xdata`.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **6 − 3 = 3 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 240 = 3 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−2 pt), no added estimates/tasks.** Remaining **3 − 2 = 1 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 242 = 1 pt**. Provisional planning units are not hours or completion percentages.
 
-**G03 execution checkpoint (2026-10-20 20:16 JST):** `1496b8b` repairs missing Windows x64 unwind tables without changing instructions or ABI. Fresh local validation: **1,593 tests/95 suites, 0 failures, 1 manual timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target checks pass. [Both-host actual debugger CI](https://github.com/carimatics/lang/actions/runs/39413674593) is running. Retain G03's existing 2 pt; no new tasks or estimates.
+**Z01 is now the sole remaining delivery.** Audit every original exit gate and publish a concise English/Japanese capability guide, including executable workflows and measured limitations. All 18 gates have evidence, but the Milestone 2 Goal remains active until this final documentation/audit delivery is complete.
 
 ## Task tracking
 
@@ -50,13 +52,13 @@ Exit-gate weight snapshot verified on 2026-10-20 (JST). Overall arithmetic aggre
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 105 pt | 113 pt | 92.9% |
+| 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **403 pt** | **764 pt** | **52.7%** |
+| **Overall** | **411 pt** | **764 pt** | **53.8%** |
 
 ## Milestone 0: design baseline
 
@@ -232,7 +234,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 17 / 18 complete; historical weight: 105 / 113 pt (92.9%).**
+**Exit gates: 18 / 18 complete; historical weight: 113 / 113 pt (100.0%). Final capability guide/audit Z01 remains in progress.**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -255,7 +257,9 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
 - [x] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
 - [x] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
-- [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
+- [x] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt
+
+G18 verification (2026-10-20 JST): exact product `1496b8b` passes [both-host actual debugger execution](https://github.com/carimatics/lang/actions/runs/39413674593). Copy source line 2→3 and caller lines 2/6/9, owned instruction stepping/production runtime caller and normal 42 results are asserted on LLDB/CDB. The manual matching-SDK debug link preserves source; source variables, logical continuation stepping and automatic CLI debug sidecars remain outside this evidence. Z01's final guide and complete exit audit are still required.
 
 Exit: representative command-line programs match VM semantics and performance is measured against equivalent Rust/C implementations.
 
