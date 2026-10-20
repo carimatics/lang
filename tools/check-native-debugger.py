@@ -122,11 +122,24 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdk", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--rustc", type=Path, help="Matching rustc (defaults to rustup's SDK release)")
     args = parser.parse_args()
     sdk = args.sdk.resolve()
     root = args.output.resolve()
     root.mkdir(parents=True, exist_ok=False)
     manifest = json.loads((sdk / "sdk.json").read_text(encoding="utf-8"))
+    if args.rustc:
+        rustc = str(args.rustc.resolve())
+    else:
+        rustc = execute("rustc-location", ["rustup", "which", "--toolchain",
+                                          manifest["rustc"]["release"], "rustc"],
+                        Path.cwd(), root, 20).strip()
+    verbose = execute("rustc-version", [rustc, "-vV"], root, root, 20)
+    fields = dict(line.split(": ", 1) for line in verbose.splitlines() if ": " in line)
+    if (fields.get("release") != manifest["rustc"]["release"]
+            or fields.get("commit-hash") != manifest["rustc"]["commit"]
+            or fields.get("host") != manifest["target"]):
+        raise RuntimeError(f"rustc does not match the native SDK: {verbose}")
     windows = os.name == "nt"
     compiler = sdk / "bin" / ("lang.exe" if windows else "lang")
     if windows:
@@ -146,7 +159,7 @@ def main():
         package = root / profile
         execute(f"{profile}-produce", [compiler, "native", "--output", package, source_path], root, root)
         executable = package / ("debuggee.exe" if windows else "debuggee")
-        command = ["rustc", "--edition=2024", f"--crate-name=lang_debug_{profile}",
+        command = [rustc, "--edition=2024", f"--crate-name=lang_debug_{profile}",
                    "-Cpanic=unwind", "-Cdebuginfo=2", "-Csplit-debuginfo=packed",
                    package / "main.rs", "-o", executable]
         for directory in directories:
