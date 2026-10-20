@@ -8,17 +8,17 @@
 
 ## 現在のM2実装状況
 
-**検証済み129件 · 進行中1件 · 残り3件（暫定9 pt）。**
+**検証済み130件 · 進行中1件 · 残り2件（暫定6 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| G01：owned native source map＋macOS debug metadata | **B04完了**：両host比較／再現（`990e422`） | **17/18条件** |
+| G02：Windows source名／位置とnative metadata | **G01完了**：実macOS Copy／owned／C-export DWARF（`4b0e902`） | **17/18条件** |
 
-**直近の検証checkpoint（2026-10-20 JST）：** `990e422`で[両hostの比較と再現](benchmarks.md#両hostの比較と再現b04)、read-onlyの[summary tool](../../tools/summarize-m2-bench.py)を公表しました。cleanなnative記録[macOS `ecc0fd1`](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)と[Windows `dced632`](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)は、各hostの21組parity／unwind後のworkload 270＋専用startup 90観測を保持します。data／集計値／provenance／退役の全検証が通り、独立した再計算で公表したsource／reference比6行が一致しました。G17を完了し、実debuggerの証拠は未完了です。
+**直近の検証checkpoint（2026-10-20 JST）：** `4b0e902`で[canonical source snapshot変換](../../crates/codegen-clif/src/source_debug.rs)と[複数function DWARF出力](../../crates/codegen-clif/src/debug.rs)を実macOS source producerへ接続しました。[Native compiler test](../../tests/native_compiler.rs)でCopy／owned／C-export packageを出力し、native llvm-dwarfdumpとfunction別symbol／relocationを検証しています。adapter 3 testはUnicode／CRLF／EOF、cross-file、不正source／range／budget拒否を確認し、7 function owned-pipeline objectも検証成功です。全baselineは1,589 tests／94 suites、0失敗、手動timing ignore 1件です。
 
-**今回：成果1件完了（−1 pt）、見積もり／task追加なし。** 残り **10 − 1 = 9 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 234 = 9 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **9 − 3 = 6 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 237 = 6 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**G01実装前監査（2026-10-20 JST）：** 既存の暫定3 ptを使います。`owned.rs`はCranelift SourceLoc rangeを既に記録し、`program.rs`にはCopy-unitのrange基盤、`debug.rs`には先行fixtureのnative DWARF／CodeView emitterがあります。ownedのfunctionごとのsource range／nameを実native object経路へ接続する箇所を調べ、既存基盤を再利用してmacOSのsource-span／location fixtureを検証してから完了にします。構造変更前にcanonical architecture／受理済み設計を読み、新たなpublic設計が必要なら実装前に記録します。frontend／backend分離とspan／resource boundを維持します。G02のWindows metadataと、G03の両hostでの実debugger stepping／backtraceを残し、metadata検査だけでG18を完了しません。最終Z01も引き続き必須です。
+**G02実装前監査（2026-10-20 JST）：** 既存3 ptを維持し、G01の上限付きcanonical source indexと正確なnative function／range dataを再利用します。現COFF writerは既知signatureの先行単一prototype向けなので、unit全体／複数fileのCodeView recordとrelocationへ一般化し、実source producerに接続します。source位置がないprivate pointer ABIは正直にuntypedとし、先行prototype writer、encoded format／ABI検査、diagnostic／resource boundを維持します。対応するCopy／owned／C-export Windows objectとsource位置をnative Windowsで検証してから完了にします。G03の両host実stepping／backtraceとZ01の最終日英guide／全監査を残します。見積もり追加はありません。
 
 ## タスク管理
 

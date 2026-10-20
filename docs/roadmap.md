@@ -8,17 +8,17 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**129 verified deliveries · 1 in progress · 3 remaining tasks (provisional 9 pt).**
+**130 verified deliveries · 1 in progress · 2 remaining tasks (provisional 6 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| G01: owned native source maps + macOS debug metadata | **B04 complete**: both-host comparison/reproduction (`990e422`) | **17/18 gates** |
+| G02: Windows source names/locations and native metadata | **G01 complete**: actual macOS Copy/owned/C-export DWARF (`4b0e902`) | **17/18 gates** |
 
-**Latest verification checkpoint (2026-10-20 JST):** `990e422` publishes [both-host comparison and reproduction](benchmarks.md#both-host-comparison-and-reproduction-b04) with the read-only [summary tool](../tools/summarize-m2-bench.py). Clean native captures [macOS `ecc0fd1`](../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json) and [Windows `dced632`](../benchmarks/results/2026-10-20-m2-windows-dced632.json) retain 270 workload + 90 dedicated startup observations, after 21-case parity/unwind on each host. All data/aggregate/provenance/retirement checks pass; independent recomputation reproduces all six published source/reference ratios. G17 is complete; actual debugger evidence remains open.
+**Latest verification checkpoint (2026-10-20 JST):** `4b0e902` adds [canonical source-snapshot adaptation](../crates/codegen-clif/src/source_debug.rs) and [multi-function DWARF emission](../crates/codegen-clif/src/debug.rs), connected to the actual macOS source producer. The [native compiler test](../tests/native_compiler.rs) emits Copy/owned/C-export packages, verifies each with native llvm-dwarfdump and checks per-function symbols/relocations. Three adapter tests cover Unicode/CRLF/EOF, cross-file ranges and source/range/budget rejection. A seven-function owned-pipeline object also verifies. Full baseline: 1,589 tests/94 suites, 0 failures, 1 manual timing ignore.
 
-**This update: 1 delivery completed (−1 pt), no added estimates/tasks.** Remaining **10 − 1 = 9 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 234 = 9 pt**. Provisional planning units are not hours or completion percentages.
+**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **9 − 3 = 6 pt**; **133 rows/+109 additions unchanged**. [Ledger](milestone-2.md#progress-and-estimate-changes): **134 + 109 − 237 = 6 pt**. Provisional planning units are not hours or completion percentages.
 
-**G01 readiness (2026-10-20 JST):** use the existing provisional 3 pt. `owned.rs` already records Cranelift SourceLoc ranges, `program.rs` has Copy-unit range infrastructure, and `debug.rs` supplies native DWARF/CodeView emission for earlier fixtures. Inspect and connect the owned per-function source ranges/names through the actual native object path, reusing that infrastructure; validate macOS source-span/location fixtures before credit. Read the canonical architecture/accepted design before structural changes, and record any newly required public design before implementation. Preserve frontend/backend separation and span/resource bounds. G02 retains Windows metadata and G03 actual debugger stepping/backtraces on both hosts; metadata inspection alone does not close G18. Final Z01 remains required.
+**G02 readiness (2026-10-20 JST):** retain the existing 3 pt. Reuse G01’s bounded canonical source index and exact native function/range data. The existing COFF writer describes a single earlier prototype with a known signature; generalize whole-unit/multi-file CodeView records and relocations for the actual source producer, keeping the private pointer ABI honestly untyped where source locations are unavailable. Preserve the earlier prototype writer, encoded format/ABI checks and diagnostic/resource bounds. Validate corresponding Copy/owned/C-export Windows objects and source locations on native Windows before credit. G03 retains actual stepping/backtraces on both hosts, and Z01 the final bilingual guide/full audit. No new estimate is added.
 
 ## Task tracking
 

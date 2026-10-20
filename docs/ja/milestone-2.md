@@ -6,25 +6,23 @@
 
 更新・検証：**2026-10-20 JST**。初回監査checkpoint：`0c2c012`。
 
-**129 done · 1 doing · 3 todo · 9 remaining pt**
+**130 done · 1 doing · 2 todo · 6 remaining pt**
 
-**次: M2-G01 → owned native source locationとmacOS debug metadata（暫定3 pt、実装中）。**
+**次: M2-G02 → unit全体のWindows source debug metadata（暫定3 pt、実装中）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| G01：owned native source map＋macOS debug metadata | **B04完了**：両host比較／再現（`990e422`） | **17/18条件** |
+| G02：Windows source名／位置とnative metadata | **G01完了**：実macOS Copy／owned／C-export DWARF（`4b0e902`） | **17/18条件** |
 
-**直近の検証checkpoint（2026-10-20 JST）：** `990e422`で[両hostの比較と再現](benchmarks.md#両hostの比較と再現b04)、read-onlyの[summary tool](../../tools/summarize-m2-bench.py)を公表しました。cleanなnative記録[macOS `ecc0fd1`](../../benchmarks/results/2026-10-20-m2-macos-ecc0fd1.json)と[Windows `dced632`](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)は、各hostの21組parity／unwind後のworkload 270＋専用startup 90観測を保持します。data／集計値／provenance／退役の全検証が通り、独立した再計算で公表したsource／reference比6行が一致しました。G17を完了し、実debuggerの証拠は未完了です。
+**直近の検証checkpoint（2026-10-20 JST）：** `4b0e902`で[canonical source snapshot変換](../../crates/codegen-clif/src/source_debug.rs)と[複数function DWARF出力](../../crates/codegen-clif/src/debug.rs)を実macOS source producerへ接続しました。[Native compiler test](../../tests/native_compiler.rs)でCopy／owned／C-export packageを出力し、native llvm-dwarfdumpとfunction別symbol／relocationを検証しています。adapter 3 testはUnicode／CRLF／EOF、cross-file、不正source／range／budget拒否を確認し、7 function owned-pipeline objectも検証成功です。全baselineは1,589 tests／94 suites、0失敗、手動timing ignore 1件です。
 
-**今回：成果1件完了（−1 pt）、見積もり／task追加なし。** 残り **10 − 1 = 9 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もり変更)は **134 + 109 − 234 = 9 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **9 − 3 = 6 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もり変更)は **134 + 109 − 237 = 6 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**G17完了監査：** B01で実sourceのscalar、owned Bytes＋Vec、shared／weak／arena workloadと、独立した最適化済みRust／C referenceを用意しました。B02／B03で両native tier-1 hostのruntime・準備・startup・OS memory・binary／object size・ばらつきを記録し、B04でコスト差・ノイズ・control／optimizer／allocator／共通Rust driver・RSS／working set定義の差を解釈して、不変のraw dataと再実行commandを公表しました。計測したchecked source pipelineはreferenceより大幅に遅く、速度目標や異なるmachineの因果関係は主張しません。元の計測条件を完了したもので、source debuggingと最終capability guideは未完了です。
+**G01完了監査：** 独立bytecode decode後も可搬MIR snapshot／local source indexを保持し、正確なUnicode scalar行／列を出力します。上限付きLF／non-ASCII indexで長い行の再走査を避け、function別DWARF 4 unitに正確なnative body linkageとrange別file参照を付けます。private pointer ABIのsource variable／parameter位置を捏造せず、当該source記述から呼び出せないことを示します。実Mac source出力はCopy／owning／C-exportに対応し、従来のdebugなしAPIも維持します。構文・言語ABI・bytecode／native-record・manifest revisionは変更せず、compiler identityに対応するSDKを再構築します。debuggerには元fileと論理pathのsource mappingが必要です。実debugger証拠は引き続きG03です。
 
-B01の **1,585 tests／94 suites、0失敗、手動timing ignore 1件**、fmt／Clippy／rustdoc、両hostの4 mode／parity／unwindの証拠を維持します。compiler・runtime・reference・計測harnessは同一です。read-only集計toolを別directoryから両保存datasetに実行し、比較6行の一致、ばらつき／memory範囲、source／tool linkを再確認しました。日英task／gate／重み更新にはrepository consistency 3件を使います。
+G01の新baselineは **1,589 tests／94 suites、0失敗、手動timing ignore 1件**、suite時間合計447.68sです。format成功、警告をerrorとするworkspace／all-target／all-feature Clippy成功（19.65s）、rustdoc成功（18.60s）、全11 fuzz targetのcompile／lint成功（2.50s）、新focused 4 testと7 function LLVM probeも成功しました。今回の計画だけの更新にはrepository consistency 3件と新link検証を使います。B02／B03の性能captureは記載した先行revisionの不変の証拠であり、変更後compiler出力の新しい計測とは扱いません。
 
-**G01実装前監査（2026-10-20 JST）：** 既存の暫定3 ptを使います。`owned.rs`はCranelift SourceLoc rangeを既に記録し、`program.rs`にはCopy-unitのrange基盤、`debug.rs`には先行fixtureのnative DWARF／CodeView emitterがあります。ownedのfunctionごとのsource range／nameを実native object経路へ接続する箇所を調べ、既存基盤を再利用してmacOSのsource-span／location fixtureを検証してから完了にします。構造変更前にcanonical architecture／受理済み設計を読み、新たなpublic設計が必要なら実装前に記録します。frontend／backend分離とspan／resource boundを維持します。G02のWindows metadataと、G03の両hostでの実debugger stepping／backtraceを残し、metadata検査だけでG18を完了しません。最終Z01も引き続き必須です。
-
-**G01実装checkpoint（2026-10-20 JST、完了監査準備済み）：** 可搬MIR snapshot／local ID変換、上限付きLF／UTF-8位置、正確なsymbol relocationを持つfunction別DWARF 4で実Copy／owned／C-export macOS objectを扱います。adapterの境界／cross-file 3 test、実3 profile CLI／LLVM test、7 function owned-pipeline probeが成功しました。全baselineは **1,589 tests／94 suites、0失敗、手動timing ignore 1件**（suite時間合計447.68s）、format成功、all-feature／all-target workspace Clippy成功（19.65s）、rustdoc成功（18.60s）、全11 fuzz targetのcompile／lint成功（2.50s）です。構文／ABI／record／manifestのversion変更はなく、新compiler identityに合わせSDKを再構築します。G02 Windows metadataとG03の両host実debugger証拠は引き続き必須です。
+**G02実装前監査（2026-10-20 JST）：** 既存3 ptを維持し、G01の上限付きcanonical source indexと正確なnative function／range dataを再利用します。現COFF writerは既知signatureの先行単一prototype向けなので、unit全体／複数fileのCodeView recordとrelocationへ一般化し、実source producerに接続します。source位置がないprivate pointer ABIは正直にuntypedとし、先行prototype writer、encoded format／ABI検査、diagnostic／resource boundを維持します。対応するCopy／owned／C-export Windows objectとsource位置をnative Windowsで検証してから完了にします。G03の両host実stepping／backtraceとZ01の最終日英guide／全監査を残します。見積もり追加はありません。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -212,13 +210,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 129件（+94件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 130件（+95件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −234 pt | 9 pt |
+| 134 pt | +109 pt | −237 pt | 6 pt |
 
-**134 + 109 − 234 = 9 pt**
+**134 + 109 − 237 = 6 pt**
+
+G01完了／G02実装前監査（2026-10-20 JST）：`4b0e902`でcanonical MIR snapshot／machine rangeを複数function／fileのDWARF 4へ変換し、実Mac Copy／owned／C-export packageへ接続しました。native LLVM、symbol relocation、UTF-8／CRLF／EOF／境界／cross-file test、新しい全baselineが通りました。既存3 ptを除き、**129 → 130完了、残り9 → 6 pt、完了で除いた234 → 237点、133行／追加109点は不変**。G02だけを既存3 ptで選び、共通source indexと現COFF writerを使い、private ABI parameterをsource variableとして扱いません。Windows metadataと両host実debugger証拠までG18は未完了で、最終Z01も不変です。
 
 B04完了／G01実装前監査（2026-10-20 JST）：`990e422`で両hostの解釈と実行可能なread-only再計算toolを公表しました。両native captureのcompiler／runtime／workload／harness／build／toolchain blobは同一で、workload 270＋専用startup 90観測、parity／checksum／退役／provenance／ばらつきを独立に照合しました。tool実行で比率6行が再現し、限界とcommandを公表しています。既存1 ptを除き、**128 → 129完了、残り10 → 9 pt、完了で除いた233 → 234点、133行／追加109点は不変**。G17を完了し、**17/18条件、履歴上の重み105/113 pt（92.9%）**です。G01だけを既存3 ptで選び、source range／debug emitterを再利用しつつ、両platformのG02／G03と最終Z01を維持します。この実装前監査で見積もり追加はありません。
 
@@ -458,8 +458,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-B02 | done | 0 | M2-B01,M2-P02 | G17 | CleanなmacOSでruntime／startup／memory／sizeとばらつきを記録。 | `95b97cb` |
 | M2-B03 | done | 0 | M2-B01,M2-P02 | G17 | 同等のclean Windows計測とばらつきを記録。 | `02b348f` |
 | M2-B04 | done | 0 | M2-B02,M2-B03 | G17 | 結果の解釈、再現command、残るperformance上の限界を公開。 | `990e422` |
-| M2-G01 | doing | 3 | M2-N06 | G18 | Native owned-valueのsource span／locationをemitし、macOS debug fixtureで検証。 | — |
-| M2-G02 | todo | 3 | M2-N07 | G18 | 対応するWindows native debug metadataをemitし、source locationを検証。 | — |
+| M2-G01 | done | 0 | M2-N06 | G18 | Native owned-valueのsource span／locationをemitし、macOS debug fixtureで検証。 | `4b0e902` |
+| M2-G02 | doing | 3 | M2-N07 | G18 | 対応するWindows native debug metadataをemitし、source locationを検証。 | — |
 | M2-G03 | todo | 2 | M2-G01,M2-G02 | G18 | 両tier-1実機でdebuggerのstep／backtrace evidenceを記録。 | — |
 | M2-Z01 | todo | 1 | M2-V17,M2-Q02,M2-B04,M2-G03 | G05,G06,G07,G08,G09,G10,G11,G12,G14,G15,G16,G17,G18 | 全exit evidenceを監査し、英日M2 capability guideを公開。 | — |
 
