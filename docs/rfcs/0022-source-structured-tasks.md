@@ -16,7 +16,7 @@
 
 Specify the source surface of RFC 0005's strict structured concurrency, driven by RFC 0021. Functions declare `async`; `spawn` creates a scoped child, `await` consumes a child handle, and task scopes join before exit. No borrow crosses suspension. This accepts source semantics, not source task execution or a serialized coroutine format.
 
-T10 checkpoint (2026-10-21 JST): lossless syntax binds to resolved async effects, Task/TaskError types and bounded move/scope claim snapshots. A separate source loan proof rejects live shared/exclusive loans at await, yield, cancel_check and implicit joins with SRC0028 and loan-origin spans, including return/failure edges before branch merging. Exiting lexical loans end before their own join; outer loans remain live at nested joins. Type/claim snapshots alone are not loan evidence; combined TaskLoans evidence still grants no executable MIR/backend program. Valid task source reports SRC0026 through CLI/REPL/LSP and file/virtual/cached modules. Async transfers admit scalar/finite Copy values pending A01’s general owned Send/Share profile. Independent MIR and VM/native execution remain separate deliveries; this RFC stays accepted until its complete contract is implemented.
+T05 checkpoint (2026-10-21 JST): resolved async effects and bounded move/scope claim snapshots combine with a separate source loan proof. Await/yield/cancel_check/implicit joins reject live shared/exclusive loans with SRC0028 and loan-origin spans; exiting lexical loans end before their joins and outer loans remain live at nested joins. TaskLoans alone is not executable. TaskProgram now retains those source proofs with independently verified ownership task MIR, and the task VM consumes that proof through explicit host allocator/task/control authority. `cargo run -- run examples/scripts/tasks.lang` returns 42 after both workers yield; CLI check and LSP retain combined source/MIR evidence. Raw HIR compatibility APIs, REPL task submissions and unavailable execution/artifact adapters still refuse their unsupported profiles. Async transfers admit scalar/finite Copy values pending A01; initial VM locals are finite Copy/Task. Native continuations, owned/loan/foreign task execution, full shared controls and serialized task formats remain separate deliveries. This RFC stays accepted until its complete contract is implemented.
 
 ```text
 async fn worker(value: i64) -> i64 {
@@ -149,7 +149,7 @@ Untrusted source cannot construct handles, assert Send, escape a scope, retain l
 
 ## Test plan
 
-Lossless CST spans/recovery and exact precedence; comments and idempotent formatting; reserved-name and resource-limit boundaries. Reject unavailable source profiles even in unused functions, imported modules, REPL/LSP/virtual/preparsed inputs. Later compile-pass/fail covers async calls, task scope escape, consumed handles, both loan kinds, all exits, and C boundaries. Execute source and malformed MIR/bytecode fixtures with VM/JIT/AOT differential values, typed cancellation, terminal failure ordering, escrow/moves and exactly-once cleanup. Fuzz suspension/claim transitions and measure both hosts before stabilization.
+Lossless CST spans/recovery and exact precedence; comments and idempotent formatting; reserved-name and resource-limit boundaries. Exercise profile discovery in unused functions, imports and REPL/LSP/virtual/preparsed inputs. Available task analysis retains combined source/MIR proof; unavailable adapters retain explicit refusal. Later compile-pass/fail covers async calls, task scope escape, consumed handles, both loan kinds, all exits, and C boundaries. Execute source and malformed MIR/bytecode fixtures with VM/JIT/AOT differential values, typed cancellation, terminal failure ordering, escrow/moves and exactly-once cleanup. Fuzz suspension/claim transitions and measure both hosts before stabilization.
 
 ## Open questions
 
@@ -159,6 +159,7 @@ Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**. T
 
 ## Sources
 
+- T05 source/VM evidence: `crates/semantics/src/analysis.rs`, `ownership_types/bodies.rs`, `crates/vm/src/unit/tasks/`, `tests/task_execution.rs` and `examples/scripts/tasks.lang`; no embedded update date, inspected and executed 2026-10-21 JST. This is initial VM evidence, not native/owned-task or full M3 conformance.
 - [RFC 0005](0005-structured-tasks-and-isolated-services.md), last updated 2026-10-21; strict task/borrow/cancellation baseline and follow-up mapping.
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md) and [RFC 0021](0021-bounded-structured-task-driver.md), last updated 2026-10-20 and 2026-10-21 respectively; cleanup and implemented driver.
 - `crates/syntax/src/{lexer,parser,format}.rs`, `crates/hir/src/resolved.rs`, `crates/semantics/src/{modules,binding}.rs`, inspected at `b45a62d` on 2026-10-21 JST. Candidate source check before changes reports SRC0012 at async/task syntax. This is a grammar experiment, not runtime/performance evidence.

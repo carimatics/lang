@@ -21,8 +21,21 @@ pub(super) fn construct<'a>(
     sources: &'a SourceMap,
     limits: p::Limits,
 ) -> Result<(Context<'a>, p::PlaceTable)> {
-    let bodies = checked.loaned().moved().bodies();
-    let (mut c, declarations) = construct_declarations(checked, sources, limits.ownership)?;
+    construct_profile(
+        checked.loaned().moved().bodies(),
+        sources,
+        limits,
+        Profile::Ownership,
+    )
+}
+
+pub(super) fn construct_profile<'a>(
+    bodies: &BodyTypes,
+    sources: &'a SourceMap,
+    limits: p::Limits,
+    profile: Profile,
+) -> Result<(Context<'a>, p::PlaceTable)> {
+    let (mut c, declarations) = construct_declarations(bodies, sources, limits.ownership, profile)?;
     let mut out = p::PlaceTable {
         declarations,
         functions: c.budget.vector(bodies.source().functions.len())?,

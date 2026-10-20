@@ -54,8 +54,49 @@ pub fn lower(
     sources: &SourceMap,
     limits: b::Limits,
 ) -> Result<b::TypedBodies> {
-    let input = checked.loaned().moved().bodies();
-    let (mut c, mut table) = super::places::construct(checked, sources, limits.places)?;
+    let (mut c, table) = construct(
+        checked.loaned().moved().bodies(),
+        sources,
+        limits,
+        Profile::Ownership,
+    )?;
+    Ok(table.verify_with_budget(
+        &mut c.budget,
+        limits.places.ownership.constructed,
+        limits.places.places,
+        limits.loans,
+        limits.prepared,
+    )?)
+}
+
+/// Lower source claim/loan evidence; every MIR obligation is rechecked independently.
+pub fn lower_tasks(
+    checked: &lang_hir::tasks::TaskLoans,
+    sources: &SourceMap,
+    limits: o::tasks::Limits,
+) -> Result<o::tasks::VerifiedTasks> {
+    let (c, table) = construct(
+        checked.loaned().moved().bodies(),
+        sources,
+        limits.bodies,
+        Profile::Tasks,
+    )?;
+    let usage = m::Usage {
+        work: c.budget.work_used(),
+        allocation_bytes: c.budget.allocation_bytes(),
+        elements: c.budget.elements_used(),
+    };
+    o::tasks::verify_with_usage(table, limits, usage).map_err(Error::Tasks)
+}
+
+fn construct<'a>(
+    input: &BodyTypes,
+    sources: &'a SourceMap,
+    limits: b::Limits,
+    profile: Profile,
+) -> Result<(Context<'a>, b::BodyTable)> {
+    let (mut c, mut table) =
+        super::places::construct_profile(input, sources, limits.places, profile)?;
     let mut counts = Counts::default();
     for (frame, declaration) in table.functions.iter().zip(&table.declarations.functions) {
         counts.registers = counts
@@ -92,7 +133,11 @@ pub fn lower(
             limits,
             loans: 0,
             prepared: 0,
+            task_scopes: Vec::new(),
+            task_stack: Vec::new(),
+            task_bindings: Vec::new(),
         };
+        lower.prepare_tasks()?;
         let entry = lower.block(function.span)?;
         for local in &function.parameters {
             lower.action(Action::Local(d::LocalId(id(local.0)?), function.span))?;
@@ -112,24 +157,20 @@ pub fn lower(
             });
         }
         functions.push(b::FunctionBody {
-            task_scopes: Vec::new(),
-            task_bindings: Vec::new(),
+            task_scopes: lower.task_scopes,
+            task_bindings: lower.task_bindings,
             blocks,
             loans: lower.loans,
             prepared: lower.prepared,
         });
     }
-    Ok(b::BodyTable {
-        places: table,
-        functions,
-    }
-    .verify_with_budget(
-        &mut c.budget,
-        limits.places.ownership.constructed,
-        limits.places.places,
-        limits.loans,
-        limits.prepared,
-    )?)
+    Ok((
+        c,
+        b::BodyTable {
+            places: table,
+            functions,
+        },
+    ))
 }
 
 struct Lowerer<'a, 'b, 'c> {
@@ -147,8 +188,64 @@ struct Lowerer<'a, 'b, 'c> {
     limits: b::Limits,
     loans: usize,
     prepared: usize,
+    task_scopes: Vec<b::TaskScope>,
+    task_stack: Vec<b::TaskScopeId>,
+    task_bindings: Vec<b::TaskBinding>,
 }
 impl Lowerer<'_, '_, '_> {
+    fn is_task(&self, ty: o::Type) -> bool {
+        matches!(ty, o::Type::Constructed(id) if matches!(self.types[id.0 as usize].constructor, o::Constructor::Task(_)))
+    }
+    fn prepare_tasks(&mut self) -> Result<()> {
+        if !self.function.effect.is_async() {
+            return Ok(());
+        }
+        let span = self.c.span(self.function.span)?;
+        push(
+            self.c,
+            &mut self.task_scopes,
+            b::TaskScope { parent: None, span },
+        )?;
+        push(self.c, &mut self.task_stack, b::TaskScopeId(0))?;
+        for (index, ty_) in self.facts.locals().iter().enumerate() {
+            if self.is_task(ty(*ty_)?) {
+                push(
+                    self.c,
+                    &mut self.task_bindings,
+                    b::TaskBinding {
+                        target: b::CleanupTarget::Local(d::LocalId(id(index)?)),
+                        scope: b::TaskScopeId(0),
+                    },
+                )?;
+            }
+        }
+        for index in 0..self.frame.values.len() {
+            if self.is_task(self.frame.values[index].ty) {
+                push(
+                    self.c,
+                    &mut self.task_bindings,
+                    b::TaskBinding {
+                        target: b::CleanupTarget::Value(m::Register(id(index)?)),
+                        scope: b::TaskScopeId(0),
+                    },
+                )?;
+            }
+        }
+        Ok(())
+    }
+    fn bind_task(&mut self, target: b::CleanupTarget) -> Result<()> {
+        let Some(scope) = self.task_stack.last().copied() else {
+            return Ok(());
+        };
+        for binding in &mut self.task_bindings {
+            self.c.budget.charge(1)?;
+            if binding.target == target {
+                binding.scope = scope;
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
     fn enter(&mut self, depth: usize) -> Result<()> {
         self.c.budget.charge(1)?;
         cap(
@@ -193,6 +290,17 @@ impl Lowerer<'_, '_, '_> {
         let out = m::Register(id(self.frame.values.len())?);
         let span = self.c.span(span)?;
         push(self.c, &mut self.frame.values, o::TypeUse { ty, span })?;
+        if self.is_task(ty) {
+            let scope = self.task_stack.last().copied().ok_or(Error::Capacity)?;
+            push(
+                self.c,
+                &mut self.task_bindings,
+                b::TaskBinding {
+                    target: b::CleanupTarget::Value(out),
+                    scope,
+                },
+            )?;
+        }
         Ok(out)
     }
     fn emit(
@@ -459,6 +567,9 @@ impl Lowerer<'_, '_, '_> {
         let source = &self.function.expressions[expression.0];
         let span = source.span;
         let out = m::Register(id(expression.0)?);
+        if self.is_task(ty(self.facts.expressions()[expression.0])?) {
+            self.bind_task(b::CleanupTarget::Value(out))?;
+        }
         if self.facts.diverges(expression) {
             let mut code = None;
             for (index, child) in source.kind.operands().enumerate() {
@@ -489,11 +600,30 @@ impl Lowerer<'_, '_, '_> {
             return Ok(out);
         }
         let op = match &source.kind {
-            r::ExpressionKind::Spawn(_) | r::ExpressionKind::Await(_) => {
-                return Err(Error::UnsupportedBody {
-                    feature: super::UnsupportedBody::Task,
-                    span: source.span,
-                });
+            r::ExpressionKind::Spawn(value) => {
+                let value = self.expression(*value, block, depth + 1)?;
+                let source_span = self.c.span(span)?;
+                let mut found = false;
+                for instruction in self.blocks[block.0 as usize].instructions.iter_mut().rev() {
+                    self.c.budget.charge(1)?;
+                    if instruction.results.first() == Some(&value)
+                        && matches!(instruction.op, b::Op::TaskSpawn { .. })
+                    {
+                        instruction.span = source_span;
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    return Err(Error::MissingExpression {
+                        function: self.index,
+                        expression: expression.0,
+                    });
+                }
+                b::Op::Move(value)
+            }
+            r::ExpressionKind::Await(value) => {
+                b::Op::TaskAwait(self.expression(*value, block, depth + 1)?)
             }
             r::ExpressionKind::Integer(value) => b::Op::I64(*value),
             r::ExpressionKind::Boolean(value) => b::Op::Bool(*value),
@@ -550,6 +680,14 @@ impl Lowerer<'_, '_, '_> {
                 }
                 let arguments = self.arguments(arguments, Some(&parameters), block, depth)?;
                 let op = match callee {
+                    r::Callable::Guest(function)
+                        if self.input.source().functions[function.0].effect.is_async() =>
+                    {
+                        b::Op::TaskSpawn {
+                            function: m::FunctionId(id(function.0)?),
+                            arguments,
+                        }
+                    }
                     r::Callable::Guest(function) => b::Op::Call {
                         function: m::FunctionId(id(function.0)?),
                         arguments,
@@ -699,18 +837,37 @@ impl Lowerer<'_, '_, '_> {
                 continue;
             }
             match &statement.kind {
-                r::StatementKind::TaskScope { .. }
-                | r::StatementKind::Yield
-                | r::StatementKind::Cancel(_)
-                | r::StatementKind::CancelCheck => {
-                    return Err(Error::UnsupportedBody {
-                        feature: super::UnsupportedBody::Task,
-                        span: statement.span,
-                    });
+                r::StatementKind::TaskScope { body } => {
+                    let scope = b::TaskScopeId(id(self.task_scopes.len())?);
+                    let parent = self.task_stack.last().copied();
+                    let scope_span = self.c.span(self.function.blocks[body.0].span)?;
+                    push(
+                        self.c,
+                        &mut self.task_scopes,
+                        b::TaskScope {
+                            parent,
+                            span: scope_span,
+                        },
+                    )?;
+                    self.emit(block, None, b::Op::TaskScopeEnter(scope), span)?;
+                    push(self.c, &mut self.task_stack, scope)?;
+                    current = self.body(*body, block, depth + 1)?;
+                    if let Some(exit) = current {
+                        self.emit(exit, None, b::Op::TaskScopeExit(scope), span)?;
+                    }
+                    self.task_stack.pop();
+                }
+                r::StatementKind::Yield => self.emit(block, None, b::Op::TaskYield, span)?,
+                r::StatementKind::CancelCheck => self.emit(block, None, b::Op::TaskCheck, span)?,
+                r::StatementKind::Cancel(value) => {
+                    let path = self.path(*value)?;
+                    self.evaluate_path(path, block, depth + 1)?;
+                    self.emit(block, None, b::Op::TaskCancel(path), span)?;
                 }
                 r::StatementKind::LetMut { local, initializer } => {
                     let value = self.expression(*initializer, block, depth + 1)?;
                     let local = d::LocalId(id(local.0)?);
+                    self.bind_task(b::CleanupTarget::Local(local))?;
                     self.emit(block, None, b::Op::Initialize { local, value }, span)?;
                     self.action(Action::Local(local, span))?;
                 }
@@ -724,8 +881,22 @@ impl Lowerer<'_, '_, '_> {
                 }
                 r::StatementKind::Return(value) => {
                     let value = self.expression(*value, block, depth + 1)?;
-                    self.cleanup(0, block, Some(value))?;
-                    self.seal(block, b::Term::Return(value), span)?;
+                    if self.function.effect.is_async() {
+                        self.emit(block, None, b::Op::TaskSaveReturn(value), span)?;
+                        self.cleanup(0, block, Some(value))?;
+                        for index in (0..self.task_stack.len()).rev() {
+                            self.emit(
+                                block,
+                                None,
+                                b::Op::TaskScopeExit(self.task_stack[index]),
+                                span,
+                            )?;
+                        }
+                        self.seal(block, b::Term::ReturnSaved, span)?;
+                    } else {
+                        self.cleanup(0, block, Some(value))?;
+                        self.seal(block, b::Term::Return(value), span)?;
+                    }
                     current = None;
                 }
                 r::StatementKind::If {

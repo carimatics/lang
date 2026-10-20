@@ -631,6 +631,10 @@ fn run_script(
         Err(AnalysisError::Diagnostics) => return Ok(1),
         Err(error) => return Err(failure(error)),
     };
+    if let lang_semantics::analysis::Program::Tasks(program) = &typed {
+        drop(stderr);
+        return run_tasks(program.verified(), limits);
+    }
     if let lang_semantics::analysis::Program::Ownership(program) = &typed {
         drop(stderr);
         return run_owned(program.failure_flow(), OwnedEntry::Main, limits);
@@ -653,6 +657,50 @@ fn run_script(
     };
     drop(stderr);
     run_copy(&program, limits)
+}
+
+fn run_tasks(
+    proof: &lang_mir::unit::ownership::tasks::VerifiedTasks,
+    limits: ExecutionOptions,
+) -> Result<u8, CliError> {
+    let mut allocator = lang_runtime::allocation::Allocator::new(
+        lang_runtime::allocation::System,
+        Default::default(),
+    )
+    .map_err(failure)?;
+    match vm::tasks::execute_entry(proof, &mut allocator, limits.control(), Default::default()) {
+        Ok(output) => {
+            writeln!(io::stdout().lock(), "{}", output.value).map_err(failure)?;
+            Ok(0)
+        }
+        Err(error) => {
+            let mut stderr = io::stderr().lock();
+            writeln!(
+                stderr,
+                "error[runtime]: {error} (fuel {}, tasks {})",
+                error.usage.fuel, error.tasks.admitted
+            )
+            .map_err(failure)?;
+            let declarations = proof.typed().places().declarations();
+            if let Some(function) = error.function {
+                let name = &declarations.functions()[function.0 as usize].name;
+                if let Some(span) = error.span
+                    && let Some(source) = declarations
+                        .types()
+                        .table()
+                        .sources
+                        .get(span.source.0 as usize)
+                    && let Some(prefix) = source.text.get(..span.start as usize)
+                {
+                    let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
+                    let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                    writeln!(stderr, "  at {name} ({:?}:{line}:{column})", source.path)
+                        .map_err(failure)?;
+                }
+            }
+            Ok(1)
+        }
+    }
 }
 
 fn run_copy(

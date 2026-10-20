@@ -17,6 +17,24 @@ pub struct OwnershipLimits {
 pub enum Program {
     Copy(h::TypedProgram),
     Ownership(Box<OwnershipProgram>),
+    Tasks(Box<TaskProgram>),
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskProgram {
+    hir: lang_hir::tasks::TaskLoans,
+    mir: o::tasks::VerifiedTasks,
+    feature_span: Span,
+}
+impl TaskProgram {
+    pub fn hir(&self) -> &lang_hir::tasks::TaskLoans {
+        &self.hir
+    }
+    pub fn verified(&self) -> &o::tasks::VerifiedTasks {
+        &self.mir
+    }
+    pub const fn feature_span(&self) -> Span {
+        self.feature_span
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OwnershipProgram {
@@ -47,12 +65,14 @@ impl Program {
         match self {
             Self::Copy(p) => p.source(),
             Self::Ownership(p) => p.hir().loaned().moved().bodies().source(),
+            Self::Tasks(p) => p.hir.loaned().moved().bodies().source(),
         }
     }
     pub fn functions(&self) -> &[h::FunctionFacts] {
         match self {
             Self::Copy(p) => p.functions(),
             Self::Ownership(p) => p.hir().loaned().moved().bodies().functions(),
+            Self::Tasks(p) => p.hir.loaned().moved().bodies().functions(),
         }
     }
     pub fn as_copy(&self) -> Option<&h::TypedProgram> {
@@ -214,9 +234,138 @@ pub fn analyze(
     typing: h::CheckLimits,
     limits: OwnershipLimits,
 ) -> Result<Analysis, Error> {
+    if let Some(span) =
+        lang_hir::tasks::feature_span(&source, sources, typing).map_err(Error::Hir)?
+    {
+        return analyze_tasks(source, sources, typing, limits, span);
+    }
     let root = source.modules.first().map(|m| m.span);
     let checked = h::analyze_program(source, sources, typing).map_err(Error::Hir)?;
     finish(checked, sources, limits, root)
+}
+
+fn analyze_tasks(
+    source: r::Program,
+    sources: &SourceMap,
+    typing: h::CheckLimits,
+    limits: OwnershipLimits,
+    span: Span,
+) -> Result<Analysis, Error> {
+    let checked = lang_hir::tasks::analyze(source, sources, typing).map_err(Error::Hir)?;
+    let mut diagnostics = checked.diagnostics;
+    let Some(typed) = checked.program else {
+        return Ok(Analysis {
+            program: None,
+            diagnostics,
+        });
+    };
+    let checked = lang_hir::tasks::check_loans(typed, sources, typing.loans)
+        .map_err(|e| Error::Hir(h::CheckError::Loans(e)))?;
+    diagnostics.extend(checked.diagnostics);
+    let Some(hir) = checked.program else {
+        return Ok(Analysis {
+            program: None,
+            diagnostics,
+        });
+    };
+    let mut task = o::tasks::Limits {
+        bodies: limits.bodies,
+        state_cells: limits.moves.state_cells.min(limits.activity.state_cells),
+        loan_nodes: limits.loans.nodes,
+        loan_words: limits.loans.state_words,
+        failure_nodes: limits.failure.nodes,
+        regions: limits.failure.regions,
+        ..Default::default()
+    };
+    for (work, allocations, elements) in [
+        (
+            limits.moves.work,
+            limits.moves.allocations,
+            limits.moves.elements,
+        ),
+        (
+            limits.activity.work,
+            limits.activity.allocations,
+            limits.activity.elements,
+        ),
+        (
+            limits.loans.work,
+            limits.loans.allocations,
+            limits.loans.elements,
+        ),
+        (
+            limits.failure.work,
+            limits.failure.allocations,
+            limits.failure.elements,
+        ),
+    ] {
+        let global = &mut task.bodies.places.ownership.unit;
+        global.work = global.work.min(work);
+        global.allocations = global.allocations.min(allocations);
+        global.elements = global.elements.min(elements);
+    }
+    let result = ownership_types::bodies::lower_tasks(&hir, sources, task).map_err(task_error);
+    match result {
+        Ok(mir) => Ok(Analysis {
+            program: Some(Program::Tasks(Box::new(TaskProgram {
+                hir,
+                mir,
+                feature_span: span,
+            }))),
+            diagnostics,
+        }),
+        Err(error) => {
+            if let Some(diagnostic) = error.resource_diagnostic(span).or_else(|| {
+                error.region_diagnostic(hir.loaned().moved().bodies().source(), sources)
+            }) {
+                diagnostics.push(diagnostic);
+                Ok(Analysis {
+                    program: None,
+                    diagnostics,
+                })
+            } else {
+                Err(error)
+            }
+        }
+    }
+}
+fn task_error(error: ownership_types::Error) -> Error {
+    let ownership_types::Error::Tasks(error) = error else {
+        return Error::Lower(error);
+    };
+    let primary = error.primary;
+    let secondary = error.secondary;
+    match error.kind {
+        o::tasks::ErrorKind::Resource(kind) => {
+            Error::Lower(ownership_types::Error::Mir(m::Error::new(kind)))
+        }
+        o::tasks::ErrorKind::Types(kind) => Error::Lower(ownership_types::Error::Types(o::Error {
+            kind,
+            span: primary,
+        })),
+        o::tasks::ErrorKind::Moves(kind) => Error::Moves(o::moves::Error {
+            kind,
+            primary,
+            secondary,
+        }),
+        o::tasks::ErrorKind::Activity(kind) => Error::Activity(o::loan_activity::Error {
+            kind,
+            primary,
+            secondary,
+        }),
+        o::tasks::ErrorKind::Loans(kind) => Error::Loans(o::loans::Error {
+            kind,
+            primary,
+            secondary,
+        }),
+        o::tasks::ErrorKind::Failure(kind) => Error::Failure(o::failure::Error { kind, primary }),
+        o::tasks::ErrorKind::Limit => Error::Lower(ownership_types::Error::Capacity),
+        kind => Error::Lower(ownership_types::Error::Tasks(o::tasks::Error {
+            kind,
+            primary,
+            secondary,
+        })),
+    }
 }
 
 /// Infer only a validated host-generated expression wrapper, then apply the

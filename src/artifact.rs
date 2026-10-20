@@ -41,6 +41,7 @@ pub enum CompileError {
     Copy(copy::CodecError),
     Ownership(owned::CodecError),
     MissingEntry,
+    UnsupportedTaskProfile { span: lang_diagnostics::Span },
 }
 impl Display for CompileError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -49,6 +50,9 @@ impl Display for CompileError {
             Self::Copy(e) => Display::fmt(e, f),
             Self::Ownership(e) => Display::fmt(e, f),
             Self::MissingEntry => f.write_str("missing ownership MIR script entry"),
+            Self::UnsupportedTaskProfile { .. } => {
+                f.write_str("task artifacts require an accepted serialized task format")
+            }
         }
     }
 }
@@ -80,6 +84,9 @@ pub fn compile(
 ) -> Result<Vec<u8>, CompileError> {
     frontend::check_script_entry(program.source(), sources).map_err(CompileError::Script)?;
     match program {
+        SourceProgram::Tasks(program) => Err(CompileError::UnsupportedTaskProfile {
+            span: program.feature_span(),
+        }),
         SourceProgram::Copy(program) => {
             let program = frontend::compile_script(&program, sources, compile)
                 .map_err(CompileError::Script)?;

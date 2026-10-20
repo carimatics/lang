@@ -53,7 +53,7 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         limits: m::Limits,
         cell_limit: usize,
     ) -> Result<Self, Error> {
-        Self::compile_inner(layouts, typed, function, limits, cell_limit, None)
+        Self::compile_inner(layouts, typed, function, limits, cell_limit, None, false)
     }
     /// Add this function's plan to cumulative program preparation, whose
     /// verified type/layout/body graph has already been counted once.
@@ -65,7 +65,57 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         cell_limit: usize,
         initial: m::Usage,
     ) -> Result<Self, Error> {
-        Self::compile_inner(layouts, typed, function, limits, cell_limit, Some(initial))
+        Self::compile_inner(
+            layouts,
+            typed,
+            function,
+            limits,
+            cell_limit,
+            Some(initial),
+            false,
+        )
+    }
+    /// Physical task cells require independent task evidence and matching task layouts.
+    pub fn compile_tasks(
+        layouts: &'layouts Layouts<'types>,
+        proof: &o::tasks::VerifiedTasks,
+        function: m::FunctionId,
+        limits: m::Limits,
+        cell_limit: usize,
+    ) -> Result<Self, Error> {
+        if !layouts.tasks {
+            return Err(Error::State);
+        }
+        Self::compile_inner(
+            layouts,
+            proof.typed(),
+            function,
+            limits,
+            cell_limit,
+            None,
+            true,
+        )
+    }
+    pub fn compile_tasks_after(
+        layouts: &'layouts Layouts<'types>,
+        proof: &o::tasks::VerifiedTasks,
+        function: m::FunctionId,
+        limits: m::Limits,
+        cell_limit: usize,
+        initial: m::Usage,
+    ) -> Result<Self, Error> {
+        if !layouts.tasks {
+            return Err(Error::State);
+        }
+        Self::compile_inner(
+            layouts,
+            proof.typed(),
+            function,
+            limits,
+            cell_limit,
+            Some(initial),
+            true,
+        )
     }
     fn compile_inner(
         layouts: &'layouts Layouts<'types>,
@@ -74,12 +124,15 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         limits: m::Limits,
         cell_limit: usize,
         prefix: Option<m::Usage>,
+        tasks: bool,
     ) -> Result<Self, Error> {
         let types = typed.places().declarations().types();
         if !std::ptr::eq(layouts.types, types) {
             return Err(Error::ForeignLocation);
         }
-        if let Some(span) = typed.places().declarations().task_feature_span() {
+        if let Some(span) = typed.places().declarations().task_feature_span()
+            && !tasks
+        {
             return Err(Error::UnsupportedTaskProfile { span });
         }
         let index = function.0 as usize;
@@ -388,5 +441,31 @@ impl<'layouts, 'types> FrameStorage<'layouts, 'types> {
         }
         self.released = true;
         Ok(())
+    }
+
+    /// Terminal frame cleanup: release all other cells and detach protected escrow.
+    /// Owners in discarded cells must already be retired; the retained reservation
+    /// keeps its typed storage until a scope retrieves or retires the result.
+    pub fn release_except<P: Provider>(
+        &mut self,
+        keep: usize,
+        allocator: &mut Allocator<P>,
+    ) -> Result<Reservation<'layouts, 'types>, Error> {
+        if self.released || keep >= self.cells.len() {
+            return Err(Error::State);
+        }
+        for (index, cell) in self.cells.iter().enumerate() {
+            if index != keep {
+                cell.check_release(allocator)?;
+            }
+        }
+        for (index, cell) in self.cells.iter_mut().enumerate().rev() {
+            if index != keep {
+                cell.release_storage(allocator)?;
+            }
+        }
+        let result = self.cells.swap_remove(keep);
+        self.released = true;
+        Ok(result)
     }
 }

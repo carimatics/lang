@@ -464,6 +464,7 @@ impl<'l, 't> Arena<'l, 't> {
                 budget.observe(1)?;
             }
             let fields = match &layout.kind {
+                l::Kind::TaskClaim => return Err(Error::new(Kind::Unsupported(location.ty()))),
                 l::Kind::Record(fields) => Some(fields),
                 l::Kind::Enum { cases, .. } => {
                     let case = input.case(location, allocator)?;

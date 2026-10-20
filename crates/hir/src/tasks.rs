@@ -70,7 +70,8 @@ fn preflight_error(error: types::Error) -> CheckError {
 }
 
 /// Bound the raw classifier before traversing caller-constructed arenas.
-pub(crate) fn feature_span(
+/// Bounded profile discovery only; source and independent MIR proofs remain required.
+pub fn feature_span(
     source: &r::Program,
     sources: &SourceMap,
     limits: CheckLimits,

@@ -16,7 +16,7 @@
 
 既存 ownership MIR に Task/TaskError 型、ABI から独立した async effect、独立検証した task 命令/scope/claim flow/suspension cleanup を追加します。型/宣言だけの証明は task flow の証明ではありません。既存同期実行/保存経路はこの profile を拒否し、意味を消去できないようにします。
 
-T11/T04 checkpoint（2026-10-21 JST）: 型/effect/宣言検証を実装しました。旧 place/body、runtime layout、bytecode writer は task metadata を明示拒否し、旧 decoder は同期 effect を復元して新 tag を割り当てません。特に汎用 runtime token layout の fallback で Task/TaskError の storage を作りません。T04 で同じ body table を使う別 task 検証 entry を追加し、scope/claim/return escrow 解析と move/loan/arena region/failure plan の証明を結合しました。async failure plan は取消と primary execution failure を区別し、loan 終了、scope cancel/join、owner retirement、escrow 破棄の順を明示します。VM/native task 実行は未実装であり、契約全体の完成まで本 RFC は accepted のままです。
+T11/T04/T05 checkpoint（2026-10-21 JST）: 型/effect/宣言検証を実装しました。旧 place/body、runtime layout、bytecode writer は task metadata を明示拒否し、旧 decoder は同期 effect を復元して新 tag を割り当てません。特に汎用 runtime token layout の fallback で Task/TaskError の storage を作りません。T04 で同じ body table を使う別 task 検証 entry を追加し、scope/claim/return escrow 解析と move/loan/arena region/failure plan の証明を結合しました。async failure plan は取消と primary execution failure を区別し、loan 終了、scope cancel/join、owner retirement、escrow 破棄の順を明示します。T05 で source task をこの契約へ lower し、明示 task VM driver 経由で初期 finite Copy/Task-local profile を実行します。通常 source check/LSP は結合した TaskProgram 証明を保持し、CLI run が source fixture を実行します。native continuation、owned/loan/foreign task 実行、完全な共有 control は未実装であり、契約全体の完成まで本 RFC は accepted のままです。
 
 ## Motivation
 
@@ -64,6 +64,8 @@ T04 cancellation plan の補足（2026-10-21 JST）: async failure plan に、pr
 
 ## Execution modes
 
+T05 adapter の判断（実装前、2026-10-21 JST）: 証明を受け取る task layout/frame entry で managed finite Copy layout と FrameStorage を再利用します。TaskError は通常の 1 case の有限 error layout を持ちます。TaskClaim layout は payload 0 の marker とし、汎用 token fallback を使いません。invocation 内の sidecar が scheduler の偽造不能な TaskId を保持し、claim も logical cell に計上します。runtime scope は loop 再入場を区別する activation identity を持ち、追加の scheduled task は作りません。cleanup で frame storage を解放し、分離した型付き return reservation を取得/破棄まで生成 scope に保持します。これらの private layout は native/C/wire ABI を割り当てません。初期 VM adapter は到達可能な finite Copy/Task local と対応操作を副作用前に検査し、owned/loan/foreign 実行は静的規則を弱めず T07/T08 の明示的な後続作業に残します。host が allocator 権限、task 上限、execution control を渡します。source 昇格は source claim/loan と独立 MIR 証明を一緒に保持し、未対応 backend/artifact の拒否を維持します。
+
 adapter 実装後は VM/JIT/AOT が同じ検証済み task 契約を使います。native task は continuation を compile し、MIR 解釈や VM fallback を使いません。それまでは既存同期 adapter が binding/allocation/副作用前に task profile を拒否します。現在の profile で定数実行/component task は未対応です。
 
 ## ABI and compatibility
@@ -106,12 +108,13 @@ raw MIR の ID/span/cycle/storage/signature/上限を HIR と独立して検証�
 
 ## Open questions
 
-in-memory T04 証明に blocking question はありません。上記の命令/continuation と cleanup plan の判断は実装済みで、backend layout、実際の resume、serialized task revision は別の未検証 delivery です。serialized revision は公開前に採択が必要です。既存 ownership MIR の拡張が semantics 重複を減らすという仮説であり、compile/runtime 性能向上は主張しません。
+in-memory T04 証明に blocking question はありません。上記の命令/continuation と cleanup plan の判断は実装済みで、初期 task VM の layout/resume は実装済みで、compiled native continuation、owned task 実行、完全な共有 control、serialized task revision は別の未検証 delivery です。serialized revision は公開前に採択が必要です。既存 ownership MIR の拡張が semantics 重複を減らすという仮説であり、compile/runtime 性能向上は主張しません。
 
 判断: **RFC 0001 実験段階の委任で accepted、2026-10-21 JST**。段階的な拒否で既存 semantics を維持し、実行権限を作りません。必要な表現の前提であり、新 milestone gate や T04–T08 の縮小ではありません。
 
 ## Sources
 
+- T05 実装: `crates/runtime/src/layout/`、`crates/runtime/src/task.rs`、`crates/semantics/src/analysis.rs`、`ownership_types/bodies.rs`、`crates/vm/src/unit/tasks/`、`tests/task_execution.rs`。埋込み更新日はなく、2026-10-21 JST に確認/実行しました。初期 source VM の値、取消、scope instance、失敗起点、資源拒否は native/owned task 適合と区別します。
 - `crates/mir/src/unit/ownership/tasks.rs`、`ownership/failure.rs`、`crates/mir/tests/tasks.rs`、`tests/task_mir_boundary.rs`。埋込み更新日なし、実装と独立境界の証拠を 2026-10-21 JST に確認しました。静的 MIR 証明であり実際の task 実行適合ではありません。
 - [RFC 0021](0021-bounded-structured-task-driver.md)、最終更新 2026-10-21。有界 driver の outcome と取消/cleanup 優先順位。
 - [RFC 0022](0022-source-structured-tasks.md)、最終更新 2026-10-21。source task semantics と独立した source 証明。

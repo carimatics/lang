@@ -88,8 +88,17 @@ impl VerifiedTasks {
 }
 
 pub fn verify(table: b::BodyTable, limits: Limits) -> Result<VerifiedTasks, Error> {
+    verify_with_usage(table, limits, m::Usage::default())
+}
+
+/// Preserve source-adapter work and storage charges across independent MIR proof.
+pub fn verify_with_usage(
+    table: b::BodyTable,
+    limits: Limits,
+    usage: m::Usage,
+) -> Result<VerifiedTasks, Error> {
     let global = limits.bodies.places.ownership.unit;
-    let mut budget = m::Budget::new(global);
+    let mut budget = m::Budget::with_usage(global, usage)?;
     let mut typed = table
         .verify_profile(
             &mut budget,

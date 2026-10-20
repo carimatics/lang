@@ -11,6 +11,12 @@ use std::fmt::{Display, Formatter};
 pub mod bodies;
 pub mod places;
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Profile {
+    Ownership,
+    Tasks,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UnsupportedBody {
     Match,
@@ -24,6 +30,7 @@ pub enum Error {
     Source(SourceError),
     Mir(m::Error),
     Types(o::Error),
+    Tasks(o::tasks::Error),
     MissingSource,
     MissingLocal {
         function: usize,
@@ -84,9 +91,10 @@ fn ty(ty: r::Type) -> Result<o::Type> {
         r::Type::Constructed(c) => o::Type::Constructed(o::ConstructedId(id(c.0)?)),
     })
 }
-fn constructor(c: r::TypeConstructor, span: Span) -> Result<o::Constructor> {
+fn constructor(c: r::TypeConstructor, span: Span, profile: Profile) -> Result<o::Constructor> {
     use r::{BuiltinType as B, TypeConstructor as C};
     Ok(match c {
+        C::Task(t) if profile == Profile::Tasks => o::Constructor::Task(ty(t)?),
         C::Task(_) => {
             return Err(Error::UnsupportedBody {
                 feature: UnsupportedBody::Task,
@@ -104,6 +112,7 @@ fn constructor(c: r::TypeConstructor, span: Span) -> Result<o::Constructor> {
             B::Utf8Error => o::Builtin::Utf8Error,
             B::OwnershipError => o::Builtin::OwnershipError,
             B::ArenaError => o::Builtin::ArenaError,
+            B::TaskError if profile == Profile::Tasks => o::Builtin::TaskError,
             B::TaskError => {
                 return Err(Error::UnsupportedBody {
                     feature: UnsupportedBody::Task,
@@ -176,16 +185,21 @@ pub fn lower(
     sources: &SourceMap,
     limits: o::Limits,
 ) -> Result<o::VerifiedTypes> {
-    let (mut c, table) = construct(checked, sources, limits)?;
+    let (mut c, table) = construct(
+        checked.loaned().moved().bodies(),
+        sources,
+        limits,
+        Profile::Ownership,
+    )?;
     Ok(table.verify_with_budget(&mut c.budget, limits.constructed)?)
 }
 
 fn construct<'a>(
-    checked: &RegionCheckedBodies,
+    bodies: &lang_hir::program::BodyTypes,
     sources: &'a SourceMap,
     limits: o::Limits,
+    profile: Profile,
 ) -> Result<(Context<'a>, o::TypeTable)> {
-    let bodies = checked.loaned().moved().bodies();
     let input = bodies.source();
     let mut c = Context {
         sources,
@@ -309,7 +323,7 @@ fn construct<'a>(
     for t in bodies.types() {
         c.budget.charge(1)?;
         table.constructed.push(o::Constructed {
-            constructor: constructor(t.constructor, t.span)?,
+            constructor: constructor(t.constructor, t.span, profile)?,
             span: c.span(t.span)?,
         });
     }
@@ -336,18 +350,25 @@ pub fn lower_declarations(
     sources: &SourceMap,
     limits: o::Limits,
 ) -> Result<o::declarations::VerifiedDeclarations> {
-    let (mut c, out) = construct_declarations(checked, sources, limits)?;
+    let (mut c, out) = construct_declarations(
+        checked.loaned().moved().bodies(),
+        sources,
+        limits,
+        Profile::Ownership,
+    )?;
     Ok(out.verify_with_budget(&mut c.budget, limits.constructed)?)
 }
 
 fn construct_declarations<'a>(
-    checked: &RegionCheckedBodies,
+    bodies: &lang_hir::program::BodyTypes,
     sources: &'a SourceMap,
     limits: o::Limits,
+    profile: Profile,
 ) -> Result<(Context<'a>, o::declarations::Declarations)> {
     use o::declarations as d;
-    let bodies = checked.loaned().moved().bodies();
-    if let Some(span) = bodies.task_feature_span() {
+    if let Some(span) = bodies.task_feature_span()
+        && profile == Profile::Ownership
+    {
         return Err(Error::UnsupportedBody {
             feature: UnsupportedBody::Task,
             span,
@@ -364,7 +385,7 @@ fn construct_declarations<'a>(
         limits.unit.imports,
         m::LimitKind::Imports,
     )?;
-    let (mut c, table) = construct(checked, sources, limits)?;
+    let (mut c, table) = construct(bodies, sources, limits, profile)?;
     let mut out = d::Declarations {
         types: table,
         imports: c.budget.vector(input.imports.len())?,
@@ -433,7 +454,12 @@ fn construct_declarations<'a>(
             });
         }
         out.functions.push(d::Function {
-            effect: Default::default(),
+            effect: match f.effect {
+                r::FunctionEffect::Synchronous => d::FunctionEffect::Synchronous,
+                r::FunctionEffect::Asynchronous { span } => d::FunctionEffect::Asynchronous {
+                    span: c.span(span)?,
+                },
+            },
             abi: match f.abi {
                 r::FunctionAbi::Guest => d::FunctionAbi::Guest,
                 r::FunctionAbi::CExport => d::FunctionAbi::CExport,

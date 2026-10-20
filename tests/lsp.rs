@@ -287,7 +287,7 @@ fn canonical_formatter_returns_utf16_whole_document_edits_and_preserves_invalid_
 }
 
 #[test]
-fn task_source_formats_but_never_loses_its_async_admission_diagnostic() {
+fn task_source_checks_and_formats_with_independent_mir_evidence() {
     let files = Files::new();
     let name = files.file("task.lang", "");
     let mut server = ready(None, json!({}));
@@ -297,14 +297,14 @@ fn task_source_formats_but_never_loses_its_async_admission_diagnostic() {
         .iter()
         .map(|d| d["code"].as_str().unwrap())
         .collect::<Vec<_>>();
-    assert_eq!(codes, ["SRC0026"]);
+    assert!(codes.is_empty(), "{codes:?}");
     let params = json!({"textDocument":{"uri":name},"options":{"tabSize":4,"insertSpaces":true}});
     let reply = server.handle(request(2, "textDocument/formatting", params.clone()));
     let formatted = reply[0]["result"][0]["newText"].as_str().unwrap();
     assert!(formatted.contains("async fn main() -> i64"));
     assert!(formatted.contains("        yield;"));
     let changed = change(&mut server, &name, 2, formatted);
-    assert_eq!(diagnostics(&changed, &name)[0]["code"], "SRC0026");
+    assert!(diagnostics(&changed, &name).is_empty());
     assert_eq!(
         server.handle(request(3, "textDocument/formatting", params))[0]["result"],
         json!([])

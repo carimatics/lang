@@ -16,7 +16,7 @@
 
 RFC 0005 の厳密な構造化並行性を RFC 0021 の driver で実行する source 構文を定めます。関数は `async` を宣言し、`spawn` が scope 付きの子を作り、`await` が handle を消費し、task scope は終了前に join します。borrow は suspension を跨げません。source semantics の採択であり、source task 実行や serialized coroutine 形式の完成ではありません。
 
-T10 checkpoint（2026-10-21 JST）: lossless syntax を resolved async effect、Task/TaskError 型、有界 move/scope claim snapshot に束縛します。別段階の source loan 証明で await/yield/cancel_check/暗黙 join 時の生存 shared/exclusive loan を SRC0028 と loan 起点 span 付きで拒否し、branch 合流前の return/失敗 edge も検査します。終了する lexical loan を自身の join 前に終え、入れ子 join では外側 loan を維持します。型/claim snapshot だけでは loan 証明にならず、結合した TaskLoans 証明も executable MIR/backend program を許可しません。妥当な task source は CLI/REPL/LSP と file/virtual/cached module で SRC0026 を受けます。async transfer は A01 の一般 owned Send/Share profile まで scalar/finite Copy 値に限定します。独立 MIR と VM/native 実行は別作業で、契約全体の実装まで本 RFC は accepted のままです。
+T05 checkpoint（2026-10-21 JST）: resolved async effect と有界 move/scope claim snapshot を、別段階の source loan 証明と結合します。await/yield/cancel_check/暗黙 join は生存 shared/exclusive loan を SRC0028 と loan 起点 span 付きで拒否し、終了する lexical loan を自身の join 前に終え、入れ子 join では外側 loan を維持します。TaskLoans だけでは実行できません。TaskProgram がこれらの source 証明と独立検証した ownership task MIR を保持し、task VM は明示 host allocator/task/control 権限でその証明を使います。`cargo run -- run examples/scripts/tasks.lang` は両 worker の yield 後に 42 を返し、CLI check と LSP は結合した source/MIR 証明を保持します。raw HIR 互換 API、REPL task submission、未対応実行/artifact adapter は各 profile を引き続き拒否します。async transfer は A01 まで scalar/finite Copy 値、初期 VM local は finite Copy/Task に限定します。native continuation、owned/loan/foreign task 実行、完全な共有 control、serialized task 形式は別の delivery に残し、契約全体の実装まで本 RFC は accepted のままです。
 
 ```text
 async fn worker(value: i64) -> i64 {
@@ -149,7 +149,7 @@ untrusted source は handle 構築/Send 宣言/scope 逸出/suspension を跨ぐ
 
 ## Test plan
 
-lossless CST span/回復/優先順位、comment/冪等 format、予約識別子/資源上限を検証します。未使用関数/imported module/REPL/LSP/virtual/preparsed 入力でも未対応 source profile を拒否します。後続 compile-pass/fail で async call、scope 逸出、消費済み handle、両 loan、全 exit/C 境界を検証します。source/不正 MIR/bytecode の VM/JIT/AOT 差分で値、型付き取消、terminal failure 順、escrow/move、exactly-once cleanup を一致させます。suspension/claim 遷移を fuzz し、安定化前に両 host を測定します。
+lossless CST span/回復/優先順位、comment/冪等 format、予約識別子/資源上限を検証します。未使用関数/import/REPL/LSP/virtual/preparsed 入力で profile discovery を検証します。対応 task 解析は source/MIR 証明を結合し、未対応 adapter は明示拒否を維持します。後続 compile-pass/fail で async call、scope 逸出、消費済み handle、両 loan、全 exit/C 境界を検証します。source/不正 MIR/bytecode の VM/JIT/AOT 差分で値、型付き取消、terminal failure 順、escrow/move、exactly-once cleanup を一致させます。suspension/claim 遷移を fuzz し、安定化前に両 host を測定します。
 
 ## Open questions
 
@@ -159,6 +159,7 @@ lossless CST span/回復/優先順位、comment/冪等 format、予約識別子/
 
 ## Sources
 
+- T05 source/VM の根拠: `crates/semantics/src/analysis.rs`、`ownership_types/bodies.rs`、`crates/vm/src/unit/tasks/`、`tests/task_execution.rs`、`examples/scripts/tasks.lang`。埋込み更新日はなく、2026-10-21 JST に確認/実行しました。初期 VM の証拠であり native/owned task や M3 全体の適合ではありません。
 - [RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21: 厳密な task/borrow/取消規則と後続判断との対応。
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md)、[RFC 0021](0021-bounded-structured-task-driver.md)、最終更新は順に 2026-10-20、2026-10-21: cleanup と実装済み driver。
 - `crates/syntax/src/{lexer,parser,format}.rs`、`crates/hir/src/resolved.rs`、`crates/semantics/src/{modules,binding}.rs` を `b45a62d` で 2026-10-21 JST に確認。変更前の候補 source check は async/task 構文で SRC0012 を報告します。grammar 実験であり runtime/性能の証拠ではありません。

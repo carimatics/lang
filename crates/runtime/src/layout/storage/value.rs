@@ -27,6 +27,7 @@ pub enum Immediate {
     I64(i64),
     Bool(bool),
     Unit,
+    TaskCancelled,
     Allocation(AllocError),
     Bounds(BoundsError),
     Buffer(BufferError),
@@ -61,7 +62,7 @@ impl Immediate {
         use o::Builtin as T;
         let count = match builtin {
             T::AllocError | T::BufferError => 3,
-            T::BoundsError | T::Utf8Error => 1,
+            T::BoundsError | T::Utf8Error | T::TaskError => 1,
             T::OwnershipError => 6,
             T::ArenaError => 4,
             _ => return Err(Error::InvalidValue),
@@ -72,6 +73,7 @@ impl Immediate {
         Ok(match (builtin, case, payload) {
             (T::AllocError, case, None) => Self::Allocation(alloc_value(case)?),
             (T::BoundsError, 0, None) => Self::Bounds(BoundsError::OutOfBounds),
+            (T::TaskError, 0, None) => Self::TaskCancelled,
             (T::BufferError, 0, None) => Self::Buffer(BufferError::Bounds),
             (T::BufferError, 1, None) => Self::Buffer(BufferError::InvalidByte),
             (T::BufferError, 2, Some(Self::Allocation(error))) => {
@@ -126,6 +128,7 @@ impl Immediate {
                 return (None, 1);
             }
             Self::Unit => return (Some(B::Unit), 0),
+            Self::TaskCancelled => (B::TaskError, 0, None),
             Self::Allocation(error) => (B::AllocError, alloc_tag(error), None),
             Self::Bounds(BoundsError::OutOfBounds) => (B::BoundsError, 0, None),
             Self::Buffer(error) => match error {
@@ -157,7 +160,7 @@ impl Immediate {
             bytes[4..8].copy_from_slice(&alloc_tag(error).to_le_bytes());
         }
         let size = match builtin {
-            B::AllocError | B::BoundsError => 4,
+            B::AllocError | B::BoundsError | B::TaskError => 4,
             _ => 8,
         };
         (Some(builtin), size)
@@ -340,6 +343,7 @@ impl Reservation<'_, '_> {
         Ok(match builtin {
             B::AllocError => Immediate::Allocation(alloc_value(tag)?),
             B::BoundsError => Immediate::Bounds(BoundsError::OutOfBounds),
+            B::TaskError => Immediate::TaskCancelled,
             B::BufferError => Immediate::Buffer(match tag {
                 0 => BufferError::Bounds,
                 1 => BufferError::InvalidByte,

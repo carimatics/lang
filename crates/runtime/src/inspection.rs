@@ -266,6 +266,7 @@ impl<'l, 't> Inspector<'l, 't> {
                         .get(at.ty())
                         .ok_or(l::Error::InvalidType(at.ty()))?;
                     let fields = match &layout.kind {
+                        l::Kind::TaskClaim => return Err(l::Error::InvalidType(at.ty()).into()),
                         l::Kind::Scalar | l::Kind::Error { .. } => {
                             value.immediate(at, allocator)?;
                             None

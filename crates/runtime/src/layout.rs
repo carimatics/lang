@@ -93,6 +93,8 @@ pub struct Aggregate {
 }
 #[derive(Debug, Eq, PartialEq)]
 pub enum Kind {
+    /// Payload-free marker; the task adapter owns an unforgeable claim sidecar.
+    TaskClaim,
     Scalar,
     Error {
         builtin: o::Builtin,
@@ -139,11 +141,26 @@ impl Layout {
 pub struct Layouts<'types> {
     identity: u64,
     types: &'types o::VerifiedTypes,
+    tasks: bool,
     entries: Vec<Option<Layout>>,
     usage: m::Usage,
 }
 impl<'types> Layouts<'types> {
     pub fn compile(types: &'types o::VerifiedTypes, limits: m::Limits) -> Result<Self, Error> {
+        Self::compile_inner(types, limits, false)
+    }
+    /// Explicit task proof is required; ordinary layout entry points still refuse it.
+    pub fn compile_tasks(
+        proof: &'types o::tasks::VerifiedTasks,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        Self::compile_inner(proof.typed().places().declarations().types(), limits, true)
+    }
+    fn compile_inner(
+        types: &'types o::VerifiedTypes,
+        limits: m::Limits,
+        tasks: bool,
+    ) -> Result<Self, Error> {
         let mut budget = m::Budget::with_usage(
             limits,
             m::Usage {
@@ -153,7 +170,9 @@ impl<'types> Layouts<'types> {
             },
         )?;
         budget.charge(types.table().constructed.len())?;
-        if let Some(span) = types.task_feature_span() {
+        if let Some(span) = types.task_feature_span()
+            && !tasks
+        {
             return Err(Error::UnsupportedTaskProfile { span });
         }
         let n = types
@@ -214,6 +233,7 @@ impl<'types> Layouts<'types> {
                 .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
                 .map_err(|_| Error::Overflow)?,
             types,
+            tasks,
             entries,
             usage: m::Usage {
                 work: budget.work_used(),
@@ -440,17 +460,25 @@ fn build(
                     )?);
                 }
                 o::Constructor::Builtin(o::Builtin::Unit) => return Ok(simple(0, 1, Kind::Scalar)),
+                o::Constructor::Task(_) => {
+                    return Ok(Layout {
+                        work_slots: 0,
+                        ..simple(0, 1, Kind::TaskClaim)
+                    });
+                }
                 o::Constructor::Builtin(
                     builtin @ (o::Builtin::AllocError
                     | o::Builtin::BoundsError
                     | o::Builtin::BufferError
                     | o::Builtin::Utf8Error
                     | o::Builtin::OwnershipError
-                    | o::Builtin::ArenaError),
+                    | o::Builtin::ArenaError
+                    | o::Builtin::TaskError),
                 ) => {
                     let (size, alignment, cases, payload_offset) = match builtin {
                         o::Builtin::AllocError => (4, 4, 3, 4),
                         o::Builtin::BoundsError => (4, 4, 1, 4),
+                        o::Builtin::TaskError => (4, 4, 1, 4),
                         o::Builtin::Utf8Error => (16, 8, 1, 8),
                         o::Builtin::BufferError => (8, 4, 3, 4),
                         o::Builtin::OwnershipError => (8, 4, 6, 4),

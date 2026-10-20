@@ -10,6 +10,8 @@
 
 現機能snapshot（2026-10-20 JST検証）：所有値・collection・shared／arena・C境界・VM／native実行・実験SDKと両hostのdebug検証を実装しています。[M2 capability guideと全出口監査](docs/ja/milestone-2-capabilities.md)に手順・証拠・制約をまとめています。
 
+M3 task VM checkpoint（2026-10-21 JST 検証）: `cargo run -- run examples/scripts/tasks.lang` は scope 付き spawn/yield/join で 42 を出力します。task VM は現在 finite Copy/Task local に対応し、owned/loan/foreign task 実行、native task continuation、task artifact、async REPL submission は M3 の残作業です。[実装 Todo](docs/ja/milestone-3.md) に証拠と残り scope を記録しています。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

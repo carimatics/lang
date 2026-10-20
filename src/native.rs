@@ -16,6 +16,9 @@ use std::{
 
 #[derive(Debug)]
 pub enum Error {
+    UnsupportedTaskProfile {
+        span: lang_diagnostics::Span,
+    },
     Target(String),
     Entry(ScriptError),
     CopyCodec(lang_bytecode::unit::CodecError),
@@ -183,6 +186,11 @@ pub fn compile(
     let mut symbols = Vec::new();
     let mut header = None;
     let (semantic, record, profile, entry) = match program {
+        Program::Tasks(p) => {
+            return Err(Error::UnsupportedTaskProfile {
+                span: p.feature_span(),
+            });
+        }
         Program::Copy(p) => {
             let code = frontend::compile_script(&p, sources, limits).map_err(Error::Entry)?;
             let semantic =

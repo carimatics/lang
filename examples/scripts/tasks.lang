@@ -1,0 +1,18 @@
+// Run with: cargo run -- run examples/scripts/tasks.lang
+// Prints 42 after both workers yield and their task scopes join.
+pub async fn worker(value: i64) -> i64 {
+    yield;
+    cancel_check;
+    return value;
+}
+
+async fn main() -> i64 {
+    task_scope {
+        let mut left: core::Task<i64> = spawn worker(20);
+        let mut right: core::Task<i64> = spawn worker(22);
+        let mut a: core::Result<i64, core::TaskError> = await left;
+        let mut b: core::Result<i64, core::TaskError> = await right;
+        return core::result_unwrap::<i64, core::TaskError>(a)
+            + core::result_unwrap::<i64, core::TaskError>(b);
+    }
+}

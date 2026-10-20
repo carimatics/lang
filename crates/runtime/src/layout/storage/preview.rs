@@ -249,6 +249,7 @@ impl<'l, 't> Preview<'l, 't> {
             Immediate::I64(n) => return self.number(n),
             Immediate::Bool(b) => return self.text(if b { "true" } else { "false" }),
             Immediate::Unit => return self.text("core::Unit {}"),
+            Immediate::TaskCancelled => return self.text("core::TaskError::Cancelled"),
             Immediate::Allocation(v) => (
                 match v {
                     buffer::AllocError::Limit => "core::AllocError::Limit",

@@ -382,6 +382,20 @@ impl Session {
             Ok(typed) => typed,
             Err(e) => return Report::failure(sources, diagnostics, ReplError::Analysis(e)),
         };
+        if let SourceProgram::Tasks(program) = &typed {
+            let diagnostic = lang_diagnostics::Diagnostic::new(
+                lang_diagnostics::codes::ASYNC_UNAVAILABLE,
+                lang_diagnostics::Severity::Error,
+                "task REPL execution requires an async submission adapter",
+                lang_diagnostics::Label::new(
+                    program.feature_span(),
+                    "task source execution is currently available through run",
+                ),
+            );
+            let mut diagnostics = diagnostics;
+            diagnostics.push(origins.diagnostic(diagnostic, &sources));
+            return Report::failure(sources, diagnostics, ReplError::Diagnostics);
+        }
         let unit = match &typed {
             SourceProgram::Copy(typed) => {
                 match program_lowering::lower_library(typed, &sources, self.limits.compile.mir) {
@@ -390,7 +404,7 @@ impl Session {
                 }
             }
             // Ownership analysis already includes independent MIR validation.
-            SourceProgram::Ownership(_) => None,
+            SourceProgram::Ownership(_) | SourceProgram::Tasks(_) => None,
         };
         if item {
             if self.items.try_reserve(1).is_err() {

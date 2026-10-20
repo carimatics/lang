@@ -12,6 +12,7 @@ use lang_mir::{HostFunctionId, ResourceTypeId, unit as m};
 use lang_runtime::{HostFunctionRegistry, I64HostFunction};
 
 pub mod owned;
+pub mod tasks;
 
 pub use lang_runtime::execution::{Control, Limits, Usage};
 

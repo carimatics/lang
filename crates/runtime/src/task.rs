@@ -182,11 +182,28 @@ impl Scheduler {
     }
 
     pub fn spawn(&mut self, parent: &TaskId, origin: Option<Span>) -> Result<TaskId, Error> {
+        self.check_spawn(parent)?;
+        let parent = self.running(parent)?;
+        self.admit(Some(parent), origin)
+    }
+
+    /// Check admission before an adapter allocates a frame or transfers arguments.
+    pub fn check_spawn(&self, parent: &TaskId) -> Result<(), Error> {
         let parent = self.running(parent)?;
         if self.closing_requested(parent) {
             return Err(Error::CancellationPending);
         }
-        self.admit(Some(parent), origin)
+        if self.usage.live >= self.limits.live_tasks {
+            return Err(Error::LiveTaskLimit {
+                limit: self.limits.live_tasks,
+            });
+        }
+        if self.tasks.len() >= self.limits.total_tasks {
+            return Err(Error::TotalTaskLimit {
+                limit: self.limits.total_tasks,
+            });
+        }
+        Ok(())
     }
 
     fn admit(&mut self, parent: Option<usize>, origin: Option<Span>) -> Result<TaskId, Error> {

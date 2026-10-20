@@ -210,6 +210,9 @@ pub fn check_script_entry(source: &r::Program, sources: &SourceMap) -> Result<()
 pub fn copy_executable(program: &CheckedProgram) -> Result<&TypedProgram, CheckError> {
     match program {
         CheckedProgram::Copy(program) => Ok(program),
+        CheckedProgram::Tasks(program) => Err(CheckError::OwnershipProfile {
+            span: program.feature_span(),
+        }),
         CheckedProgram::Ownership(program) => Err(CheckError::OwnershipProfile {
             span: program.feature_span(),
         }),

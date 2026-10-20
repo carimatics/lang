@@ -16,7 +16,7 @@
 
 Extend the existing ownership MIR contract with Task/TaskError types, an async function effect independent from ABI, and independently verified task instructions, scopes, claim flow and suspension cleanup. Type/declaration evidence alone is not task flow evidence. Existing synchronous execution and artifact paths reject this profile so they cannot erase its meaning.
 
-T11/T04 checkpoint (2026-10-21 JST): types, effects and declaration validation are implemented. Old place/body, runtime layout and bytecode writer paths explicitly refuse task metadata; old decoders restore synchronous effects and assign no new tags. In particular, the generic runtime token-layout fallback must not invent storage for Task/TaskError. T04 now adds a separate task verification entry over the same body table, combining scope/claim/return-escrow analysis with move, loan, arena-region and failure-plan evidence. Async failure plans distinguish cancellation from primary execution failure and order loan ending, scope cancellation/join, owner retirement and escrow discard. VM/native task execution remains unimplemented; this RFC stays accepted while that contract is incomplete.
+T11/T04/T05 checkpoint (2026-10-21 JST): types, effects and declaration validation are implemented. Old place/body, runtime layout and bytecode writer paths explicitly refuse task metadata; old decoders restore synchronous effects and assign no new tags. In particular, the generic runtime token-layout fallback must not invent storage for Task/TaskError. T04 now adds a separate task verification entry over the same body table, combining scope/claim/return-escrow analysis with move, loan, arena-region and failure-plan evidence. Async failure plans distinguish cancellation from primary execution failure and order loan ending, scope cancellation/join, owner retirement and escrow discard. T05 now lowers source tasks to that contract and executes the initial finite Copy/Task-local profile through an explicit task VM driver. Normal source checking/LSP retain combined TaskProgram evidence and CLI run executes the source fixture. Native continuations, owned/loan/foreign task execution and complete shared controls remain unimplemented; this RFC stays accepted while that contract is incomplete.
 
 ## Motivation
 
@@ -64,6 +64,8 @@ T04 cancellation-plan clarification (2026-10-21 JST): async failure plans expose
 
 ## Execution modes
 
+T05 adapter decision (2026-10-21 JST, before implementation): proof-consuming task layout/frame entries reuse managed finite Copy layouts and FrameStorage. TaskError has its ordinary one-case finite error layout. A TaskClaim layout is a zero-payload marker, with no generic token fallback; an invocation-local sidecar stores the scheduler's unforgeable TaskId. Claims still count as logical cells. Runtime scopes have distinct activation identities for loop re-entry, without inventing extra scheduled tasks. Cleanup releases frame storage while a detached typed return reservation remains in the creating scope until retrieval/disposal. These private layouts assign no native, C or wire ABI. The initial VM adapter preflights reachable finite Copy/Task locals and supported operations before effects; owned/loan/foreign execution remains explicit later work in T07/T08 rather than weaker static rules. The host supplies allocator authority, task limits and execution controls. Source promotion retains source claim/loan and independent MIR evidence together; unavailable backends/artifacts retain refusal.
+
 VM, JIT and AOT consume the same verified task contract when their adapters exist. Native task execution must compile continuations, not interpret MIR or fall back to VM. Until then, existing synchronous adapters reject task profiles before bindings, allocation or effects. Constant execution and component tasks remain unavailable under their current profiles.
 
 ## ABI and compatibility
@@ -106,12 +108,13 @@ Hand-built valid/invalid type and declaration graphs, canonicalization/property 
 
 ## Open questions
 
-No blocking question for the in-memory T04 proof. The instruction/continuation and cleanup-plan decisions above are implemented; backend layout, executable resumption and serialized task revisions remain separate unverified deliveries. A serialized revision must be accepted before publication. Hypothesis: extending existing ownership MIR reduces semantic duplication; no compile-time or runtime performance improvement is claimed.
+No blocking question for the in-memory T04 proof. The instruction/continuation and cleanup-plan decisions above are implemented; initial task VM layout/resumption is implemented, while compiled native continuations, owned-task execution, full shared controls and serialized task revisions remain separate unverified deliveries. A serialized revision must be accepted before publication. Hypothesis: extending existing ownership MIR reduces semantic duplication; no compile-time or runtime performance improvement is claimed.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**. The staged refusal preserves existing semantics and creates no execution authority. This is a necessary representation prerequisite, not a new milestone gate or a reduction of T04–T08.
 
 ## Sources
 
+- T05 implementation: `crates/runtime/src/layout/`, `crates/runtime/src/task.rs`, `crates/semantics/src/analysis.rs`, `ownership_types/bodies.rs`, `crates/vm/src/unit/tasks/` and `tests/task_execution.rs`; no embedded update date, inspected/executed 2026-10-21 JST. Initial source VM values, cancellation, scope instances, failure origins and resource refusals are separate from native/owned-task conformance.
 - `crates/mir/src/unit/ownership/tasks.rs`, `ownership/failure.rs`, `crates/mir/tests/tasks.rs` and `tests/task_mir_boundary.rs`: no embedded update date; implementation and independent boundary evidence inspected 2026-10-21 JST. This is static MIR evidence, not executed task conformance.
 - [RFC 0021](0021-bounded-structured-task-driver.md), last updated 2026-10-21; bounded driver outcomes and cancellation/cleanup precedence.
 - [RFC 0022](0022-source-structured-tasks.md), last updated 2026-10-21; source task semantics and separate source proofs.
