@@ -1,0 +1,22 @@
+// RFC 0022 source grammar fixture; execution is tracked separately in M3-T05.
+pub async fn worker(value: i64) -> i64 {
+    yield;
+    cancel_check;
+    return value;
+}
+
+async fn main() -> i64 {
+    task_scope {
+        let mut left: core::Task<i64> = spawn worker(20);
+        let mut right: core::Task<i64> = spawn worker(22);
+        let mut a: core::Result<i64, core::TaskError> = await left;
+        let mut b: core::Result<i64, core::TaskError> = await right;
+        return core::result_unwrap(a) + core::result_unwrap(b);
+    }
+}
+
+async fn cancelled() -> core::Result<i64, core::TaskError> {
+    let mut child: core::Task<i64> = spawn worker(1);
+    cancel child;
+    return await child;
+}

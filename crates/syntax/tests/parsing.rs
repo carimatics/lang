@@ -86,6 +86,150 @@ fn shape(sources: &SourceMap, tree: &SyntaxTree) -> String {
 }
 
 #[test]
+fn structured_task_source_fixture_is_lossless_and_distinct_from_sync_functions() {
+    let (_, tree) = parsed(include_str!("fixtures/tasks.lang"), false);
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    assert_eq!(
+        tree.nodes()
+            .iter()
+            .filter(|n| n.kind() == S::AsyncFunction)
+            .count(),
+        3
+    );
+    assert!(!tree.nodes().iter().any(|n| n.kind() == S::Function));
+    for kind in [
+        S::AsyncFunction,
+        S::TaskScope,
+        S::Spawn,
+        S::Await,
+        S::Yield,
+        S::Cancel,
+        S::CancelCheck,
+    ] {
+        assert!(tree.nodes().iter().any(|n| n.kind() == kind), "{kind:?}");
+        assert!(kind.is_task_syntax());
+    }
+}
+
+#[test]
+fn task_unary_precedence_preserves_postfix_calls_fields_and_arithmetic() {
+    let (_, tree) = parsed("await value.field + spawn worker(1) < 9", true);
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    let children = |id| {
+        tree.node(id)
+            .unwrap()
+            .children()
+            .iter()
+            .filter_map(|c| match c {
+                SyntaxElement::Node(id) => Some(*id),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let comparison = children(tree.root())[0];
+    assert_eq!(tree.node(comparison).unwrap().kind(), S::LessThan);
+    let sum = children(comparison)[0];
+    assert_eq!(tree.node(sum).unwrap().kind(), S::Add);
+    let terms = children(sum);
+    assert_eq!(
+        terms
+            .iter()
+            .map(|id| tree.node(*id).unwrap().kind())
+            .collect::<Vec<_>>(),
+        [S::Await, S::Spawn]
+    );
+    assert_eq!(tree.node(children(terms[0])[0]).unwrap().kind(), S::Field);
+    assert_eq!(tree.node(children(terms[1])[0]).unwrap().kind(), S::Call);
+    let (sources, tree) = parsed("await (value + 1)", true);
+    assert!(!tree.has_errors());
+    assert!(shape(&sources, &tree).contains("Await(await Parenthesized(( Add("));
+}
+
+#[test]
+fn malformed_tasks_recover_without_losing_braces_or_following_declarations() {
+    for text in [
+        "async fn bad()->i64{task_scope{let mut h:core::Task<i64>=spawn ; return await ;}} async fn good()->i64{return 42;}",
+        "async fn bad()->i64{task_scope{yield; async fn good()->i64{return 42;}",
+        "async fn bad()->i64{yield cancel_check;cancel ;} async fn good()->i64{return 42;}",
+    ] {
+        let (sources, tree) = parsed(text, false);
+        assert!(tree.has_errors(), "{text}");
+        assert_eq!(
+            tree.nodes()
+                .iter()
+                .filter(|n| n.kind() == S::AsyncFunction)
+                .count(),
+            2,
+            "{}",
+            shape(&sources, &tree)
+        );
+        assert!(tree.nodes().iter().any(|n| n.kind() == S::AsyncFunction
+            && sources.slice(n.span()).unwrap().contains("fn good()")));
+    }
+}
+
+#[test]
+fn task_keywords_are_not_names_and_c_declarations_do_not_accept_async() {
+    for word in [
+        "async",
+        "task_scope",
+        "spawn",
+        "await",
+        "yield",
+        "cancel",
+        "cancel_check",
+    ] {
+        for text in [
+            format!("fn {word}()->i64{{return 1;}}"),
+            format!("fn f({word}:i64)->i64{{return 1;}}"),
+            format!("fn f()->i64{{let mut {word}:i64=1;return 1;}}"),
+        ] {
+            let (_, tree) = parsed(&text, false);
+            assert!(
+                tree.diagnostics()
+                    .iter()
+                    .any(|d| d.code == codes::UNSUPPORTED_SPECIALIZATION),
+                "{text}: {:?}",
+                tree.diagnostics()
+            );
+        }
+    }
+    for text in [
+        "pub extern\"C\"async fn f()->i64{return 1;}",
+        "extern\"C\"async fn f()->i64;",
+        "async pub fn f()->i64{return 1;}",
+    ] {
+        let (_, tree) = parsed(text, false);
+        assert!(tree.has_errors(), "{text}");
+    }
+}
+
+#[test]
+fn task_prefix_and_scope_nesting_obey_existing_parser_budgets() {
+    for text in [
+        format!("{}value", "await ".repeat(300)),
+        format!(
+            "async fn f()->i64{{{}yield;{}}}",
+            "task_scope{".repeat(300),
+            "}".repeat(300)
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources.add("deep-task.lang", &text).unwrap();
+        let result = if text.starts_with("await") {
+            parse_expression(&sources, source, ParseLimits::default())
+        } else {
+            parse(&sources, source, ParseLimits::default())
+        };
+        let Err(ParseError::Limit(d)) = result else {
+            panic!("task nesting must fail at a checked depth boundary");
+        };
+        assert_eq!(d.code, codes::RESOURCE_LIMIT);
+        d.validate(&sources).unwrap();
+    }
+}
+
+#[test]
 fn complete_accepted_grammar_is_lossless() {
     let (_, tree) = parsed(include_str!("fixtures/accepted.lang"), false);
     assert!(tree.diagnostics().is_empty(), "{:?}", tree.diagnostics());

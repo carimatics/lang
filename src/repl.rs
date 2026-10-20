@@ -253,7 +253,7 @@ impl Session {
         };
         let item = matches!(
             first,
-            K::Pub | K::Fn | K::Struct | K::Enum | K::Mod | K::Use | K::Extern
+            K::Pub | K::Fn | K::Async | K::Struct | K::Enum | K::Mod | K::Use | K::Extern
         );
         let parsed = if item {
             parse(&sources, source, self.limits.compile.modules.parse)

@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-17
+- Last updated: 2026-10-21
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -24,7 +24,7 @@
 - Accepted messageはmailbox enqueue順で処理します。Cancellationはactive handler boundaryまで待ち、queued payloadを順番にdiscardし、service stateを1回destroyして、後続sendを拒否します。
 - Base modelはgeneral shared mutable stateもimplicit global executorも公開しません。
 
-正確なtask／service API spellingとscheduler policyは暫定です。Lifetime、isolation、ordering、cancellation、cleanup、cross-mode ruleはaccepted semantic commitmentです。
+[RFC 0021](0021-bounded-structured-task-driver.md) で初期の有界 driver policy、[RFC 0022](0022-source-structured-tasks.md) で source task 構文を採択しました。service/channel API と multithread scheduler の選択は暫定です。lifetime/isolation/ordering/cancellation/cleanup/cross-mode 規則は accepted semantic commitment です。
 
 ## 動機
 
@@ -58,7 +58,7 @@ Library-only task／actorはborrow termination、compiler-derived sendability、
 
 ## Guide-level design
 
-Spellingは例示です。Structured scopeが全childを所有します。
+以下の spelling は過去の policy の例示です。[RFC 0022](0022-source-structured-tasks.md) が採択済み source 構文と現在の実装制限を定義します。structured scope は全 child を所有します。
 
 ```text
 async fn load_page(urls: List<Url>) -> Result<Page, Error> {
@@ -206,7 +206,7 @@ Unscoped futureはspawnを簡単にしますが、childがborrowed／owned paren
 
 ## Implementation plan
 
-厳格なisolation／cancellation policyは受理済みです。Source async構文、scheduler／channel／backpressure規則、production componentのcancellation／embedding profileは、依存実装前にMilestone 3の明示的な設計決定を必要とします。既存task／service state modelはproduction schedulerや完全なtask-tree cleanupの実装ではありません。
+厳格な isolation/cancellation policy は受理済みです。RFC 0021 で有界 host task driver を実装し、RFC 0022 で source async semantics を採択して、未対応実行 profile を明示拒否する lossless syntax を実装しました。source task 型/loan 証明、MIR、VM/native adapter は別の M3 作業です。channel/backpressure、Send/Share 導出、production component の cancellation/embedding profile は依存実装前の明示判断を引き続き要します。既存 task/service state model だけではこれらの production 成果を完了しません。
 
 1. Source／HIR task scope、suspension point、messageへのmove、service-owner operation、compile-pass／fail fixtureを追加します。
 2. No-live-borrow-at-suspension、scoped child handle、`Send` derivation、isolationのtyped MIR operation／validationを追加します。

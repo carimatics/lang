@@ -16,7 +16,7 @@
 
 Add one backend-neutral, host-driven scheduler kernel under RFC 0005. It owns task ancestry and scheduling state, while execution adapters own guest frames, values and diagnostics. There is one explicit root and at most one active dispatch. Ready tasks run FIFO until the adapter reports a semantic boundary. Scope exit joins children; cancellation/failure requests cancellation of unfinished descendants. Guest cleanup is a separate dispatch, acknowledged only after actual frame cleanup.
 
-This decides the first production task-driver contract. Source async syntax, Send/Share, channels, component cancellation and the public C embedding API remain separate M3 decisions. Accepting this RFC completes neither roadmap G01 nor structured source execution.
+This decides the first production task-driver contract. [RFC 0022](0022-source-structured-tasks.md) accepts the source async surface; Send/Share, channels, component cancellation and the public C embedding API remain separate M3 decisions. Accepting this RFC completes neither roadmap G01 nor structured source execution.
 
 Implementation checkpoint (2026-10-21 JST): `crates/runtime/src/task.rs` implements this kernel. Eighteen focused tests cover the state/limit/cleanup contract, including cancellation before cleanup entry and during active cleanup. `cargo run --example structured-tasks` executes real host-owned frames through success and nested cancellation (42; cleanup 2,1,0; zero live tasks). Full fmt/Clippy/test/rustdoc baseline passes: 96 suites, 1,613 tests, zero failures, one existing timing ignore. Source/VM/native task execution and public embedding remain the separate work described below.
 
@@ -110,7 +110,7 @@ The scheduler is a trusted host facility, not an untrusted bytecode verifier. In
 ## Implementation plan
 
 1. M3-T02: bounded kernel and actual host-driven spawn/yield/join/cancel/cleanup fixture.
-2. M3-T03/T04: decide source syntax, check suspension ownership and add independently verified typed MIR.
+2. M3-T03/T09/T10/T04: decide/parse source syntax, check task typing and suspension ownership, and add independently verified typed MIR.
 3. M3-T05/T06: source fixture through VM then compiled native continuations, preserving events and spans.
 4. M3-T07/T08: actual owned-frame cleanup and combined execution controls. Do not substitute kernel-only events for these gates.
 
@@ -122,11 +122,11 @@ Exercise FIFO dispatch, both normal and exceptional scope exit, nested descendan
 
 No blocking questions for the initial kernel. Unverified assumptions: retained bounded ancestry is adequate for the first source fixture; scanning costs are acceptable at configured limits; adapters can reserve frame/cleanup resources before spawn. Measure/revise these before stabilization.
 
-Decision: **accepted under RFC 0001 experimental delegation, 2026-10-20 JST**. The explicit driver preserves RFC 0005 while separating scheduling from already validated guest cleanup. No owner approval wait is required. Source/channels/Send/Share and the production embedding profile remain undecided.
+Decision: **accepted under RFC 0001 experimental delegation, 2026-10-20 JST**. The explicit driver preserves RFC 0005 while separating scheduling from already validated guest cleanup. No owner approval wait is required. Source syntax is accepted in RFC 0022; channels/Send/Share and the production embedding profile remain undecided.
 
 ## Sources
 
-- [RFC 0005](0005-structured-tasks-and-isolated-services.md), last updated 2026-10-17: accepted task lifetime/cancellation rules.
+- [RFC 0005](0005-structured-tasks-and-isolated-services.md), last updated 2026-10-21: accepted task lifetime/cancellation rules and follow-up mapping.
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md), last updated 2026-10-20: implemented cleanup/failure boundary.
 - [RFC 0012](0012-native-ownership-continuations.md), last updated 2026-10-20: implemented native managed continuations.
 - Repository `crates/semantics/src/lib.rs`, `crates/runtime/src/execution.rs` and [architecture](../architecture.md), inspected at `984557d` on 2026-10-20 JST. The single-task semantic model's 29 library tests pass on this date; this is baseline evidence, not kernel implementation evidence.

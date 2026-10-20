@@ -69,6 +69,7 @@
 - [RFC 0019: 通常owned native entry runtime（implemented）](docs/ja/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: 実験段階のnative SDKとscope付き起動（implemented）](docs/ja/rfcs/0020-native-sdk-and-startup.md)
 - [RFC 0021: 上限付き構造化タスクドライバー（implemented）](docs/ja/rfcs/0021-bounded-structured-task-driver.md)
+- [RFC 0022: Source の構造化タスク（accepted）](docs/ja/rfcs/0022-source-structured-tasks.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

@@ -215,7 +215,8 @@ impl DiagnosticCode {
     }
 }
 
-/// Accepted identities from RFCs 0002/0006/0007. Implementation and stabilization are separate.
+/// Accepted source identities, including RFC 0022's staged task admission.
+/// Implementation and stabilization are separate.
 pub mod codes {
     use super::DiagnosticCode;
 
@@ -244,6 +245,7 @@ pub mod codes {
     pub const INVALID_OWNERSHIP_TYPE: DiagnosticCode = DiagnosticCode("SRC0023");
     pub const UNSUPPORTED_SPECIALIZATION: DiagnosticCode = DiagnosticCode("SRC0024");
     pub const FOREIGN_BOUNDARY: DiagnosticCode = DiagnosticCode("SRC0025");
+    pub const ASYNC_UNAVAILABLE: DiagnosticCode = DiagnosticCode("SRC0026");
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -10,7 +10,7 @@ Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository 
 
 **Next: M3-T03 → accept source async syntax and execute lossless parser/formatter fixtures.**
 
-Current delivery: **M3-T03**. Last executable checkpoint: **`a543d23`, verified 2026-10-21 01:00 JST**: 18 task tests, the host example and the full baseline pass (96 suites / 1,613 tests; zero failures, one existing timing ignore). Normal execution returns 42; normal and nested cancellation retire frames in order 2,1,0 with zero live tasks. fmt, warnings-denied Clippy and rustdoc pass. Remaining T03 acceptance: accepted bilingual source-async decision; lossless grammar, recovery and formatter fixtures. Source binding/types/loan proofs are the newly explicit T09/T10 prerequisites. No source task executes yet and no M3 gate is complete.
+Current delivery: **M3-T03**. Last executable checkpoint: **2026-10-21 JST**: [RFC 0022](rfcs/0022-source-structured-tasks.md) accepted; lossless async/task grammar, recovery and formatter fixtures pass. Fourteen added regressions cover precedence, comments, limits, unsupported async admission through file/virtual/cached modules, CLI, transactional REPL and LSP formatting/diagnostics. Full baseline: **96 suites / 1,627 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. The candidate source now parses and reports SRC0026 instead of SRC0012. Remaining acceptance: implementation commit and evidence publication. Source binding/types/loan proofs are T09/T10; no source task executes yet and no M3 gate is complete.
 
 **This update: T02 completed (−3 pt); two source-analysis deliveries exposed (+5 pt).** Previous remaining **108 + 5 − 3 = 110 pt**. There are **41 rows**; cumulative retirement is **5 pt**, separate from **+5 pt** added estimates.
 
@@ -87,5 +87,5 @@ Roadmap/sequencing audit after two prerequisites: T01/T02 establish the first ho
 ## Sources
 
 - [Roadmap](roadmap.md), [architecture](architecture.md), [completed M2 board](milestone-2.md), and [review](review-2026-10-20.md): last updated 2026-10-20; inspected at `984557d`, 2026-10-20 JST.
-- [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md) and [RFC 0003](rfcs/0003-versioned-component-contracts.md): last updated 2026-10-17. These contracts remain binding; prototypes do not prove production completion.
+- [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md), last updated 2026-10-21, and [RFC 0003](rfcs/0003-versioned-component-contracts.md), last updated 2026-10-17. These contracts remain binding; prototypes do not prove production completion.
 - [RFC 0021](rfcs/0021-bounded-structured-task-driver.md), last updated 2026-10-21; current kernel, tests and example inspected at `a543d23` on 2026-10-21 JST. Source-scope audit uses `crates/hir/src/resolved.rs`, `crates/hir/src/program/`, `crates/hir/src/loans.rs` and `crates/semantics/src/analysis.rs` from the same checkpoint.

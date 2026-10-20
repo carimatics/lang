@@ -65,6 +65,23 @@ fn virtual_sources_require_no_disk_file_and_keep_original_utf8_bytes() {
 }
 
 #[test]
+fn virtual_task_source_cannot_become_a_synchronous_semantic_program() {
+    let mut sources = SourceMap::new();
+    let loaded = load_virtual(
+        &mut sources,
+        Path::new("task-session.lang"),
+        b"// snapshot\nasync fn main()->i64{yield;return 42;}",
+        None,
+        ModuleLimits::default(),
+    )
+    .unwrap();
+    assert!(loaded.graph.is_none());
+    assert_eq!(loaded.diagnostics.len(), 1);
+    assert_eq!(loaded.diagnostics[0].code, codes::ASYNC_UNAVAILABLE);
+    loaded.diagnostics[0].validate(&sources).unwrap();
+}
+
+#[test]
 fn file_modules_are_unavailable_without_explicit_host_authority() {
     let mut sources = SourceMap::new();
     let loaded = load_virtual(

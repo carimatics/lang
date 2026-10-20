@@ -102,7 +102,7 @@ Read-only revision 1のdebug descriptorで、dispatch時にallocationせずowned
 
 ## 診断、REPL、editor tooling
 
-CLIはcheck、source/artifact実行、portable compile、native package/link、format、transactional REPL、同期LSP prototypeを備えます。[RFC 0010](rfcs/0010-owned-repl-previews.md)と[RFC 0016](rfcs/0016-indirect-repl-previews.md)が上限付きresult previewを定めます。Output公開前にresultをretireし、sessionはsource定義を保持してもmutable guest ownerを保持しません。
+CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。
 
 Query graphは推移的consumerを無効化し、編集、close/reopen、新しい処理の開始後に古い結果の公開を拒否します。LSPはsource analysis、不変overlay、UTF-16 mappingを再利用します。上限付きframing/outputでlifecycle、full synchronization、diagnostic、format、監視moduleのrefreshを実装しています。Navigation、completion、rename、code action、DAPは未提供です。
 
@@ -110,7 +110,9 @@ Query graphは推移的consumerを無効化し、編集、close/reopen、新し�
 
 [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)はstructured cancellation/isolation方針を定めます。[RFC 0003](rfcs/0003-versioned-component-contracts.md)はversioned component契約、capability、typed failure、resource所有権を定めます。State modelやscalar/resource相互運用prototypeは判断の根拠であり、production source async、scheduler/channel、IDL/adapter、汎用mixed-mode embeddingはM3の作業です。
 
-M3 は[進行中の実装 Todo](milestone-3.md)で追跡します。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md)は `crates/runtime/src/task.rs` の明示的な有界 task driver を定義します。FIFO の resume/cleanup dispatch、invocation 単位の handle、live/累積 task admission、直接の子の join、協調取消を扱います。`cargo run --example structured-tasks` は実際の host 所有 frame tree を実行し、42 を返し、通常終了/入れ子取消の両方で frame を 2,1,0 の順に破棄します。kernel 自身は guest code を実行しません。source 構文/MIR、VM/native task adapter、実際の guest frame cleanup は後続作業です。2026-10-21 JST に確認。M2 の実行経路や artifact 形式は変えません。
+M3 は[進行中の実装 Todo](milestone-3.md)で追跡します。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md)は `crates/runtime/src/task.rs` の明示的な有界 task driver を定義します。FIFO の resume/cleanup dispatch、invocation 単位の handle、live/累積 task admission、直接の子の join、協調取消を扱います。`cargo run --example structured-tasks` は実際の host 所有 frame tree を実行し、42 を返し、通常終了/入れ子取消の両方で frame を 2,1,0 の順に破棄します。kernel 自身は guest code を実行しません。task MIR、VM/native task adapter、実際の guest frame cleanup は後続作業です。2026-10-21 JST に確認。M2 の実行経路や artifact 形式は変えません。
+
+[RFC 0022](rfcs/0022-source-structured-tasks.md) で明示 async effect、scope 付き Task claim、型付き join 取消、厳密な suspension loan 規則を採択しました。syntax 層は async 宣言、task scope、spawn/await/yield/cancel/check を保持/回復/format します。module admission は未使用/imported/virtual/cached source を含め、semantic program 作成前に task 構文へ `SRC0026` を報告します。LSP はその診断を維持して整形し、REPL の拒否は transactional です。source 型/loan、task MIR、実際の VM/native task 実行は次の作業です。parser 段階で実行権限を与えず、artifact schema も変えません（2026-10-21 JST）。
 
 配布tierを明示します。信頼済みnative codeにsandboxの主張はなく、検証済みscriptにはcapability/resource enforcementが必要で、portable WebAssembly componentは後のmilestoneです。Native in-process pluginは非信頼codeのsandboxにできません。将来のfrontendがMIRを共有できるのは意味論が一致するときだけで、それ以外はcomponent境界を必要とします。
 

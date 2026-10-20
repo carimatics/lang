@@ -35,6 +35,22 @@ fn owned_bytes_new_len_runs_from_source() {
 }
 
 #[test]
+fn task_source_is_never_checked_or_run_as_an_ordinary_sync_program() {
+    let files = Files::new("async fn unused()->i64{return 1;}fn main()->i64{return 42;}");
+    for command in ["check", "run"] {
+        let output = cli([
+            OsString::from(command),
+            files.0.join("source.lang").into_os_string(),
+        ]);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let message = stderr(&output);
+        assert!(message.contains("SRC0026"), "{message}");
+        assert!(!message.contains("SRC0012"), "{message}");
+    }
+}
+
+#[test]
 fn nested_cleanup_calls_run_and_preserve_body_panic_stack() {
     let source = include_str!("../examples/scripts/cleanup_calls.lang");
     let executed = run(&Files::new(source), &[]);

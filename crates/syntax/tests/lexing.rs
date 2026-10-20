@@ -42,6 +42,29 @@ fn significant(lexed: &Lexed) -> Vec<K> {
 }
 
 #[test]
+fn task_keywords_are_reserved_exactly_and_preserve_adjacent_comments() {
+    let (_, lexed) = tokenize(
+        "async/* 😀 */fn task_scope spawn await yield cancel cancel_check async_value task_scope2 spawn_ await1 yields cancellation cancel_checker Async",
+    );
+    assert!(lexed.diagnostics.is_empty());
+    let tokens = significant(&lexed);
+    assert_eq!(
+        &tokens[..8],
+        &[
+            K::Async,
+            K::Fn,
+            K::TaskScope,
+            K::Spawn,
+            K::Await,
+            K::Yield,
+            K::Cancel,
+            K::CancelCheck
+        ]
+    );
+    assert!(tokens[8..].iter().all(|kind| *kind == K::Identifier));
+}
+
+#[test]
 fn keywords_are_exact_ascii_and_wildcard_is_distinct() {
     let (_, lexed) = tokenize(
         "fn let mut i64 bool if else while return mod use pub root extern struct enum match true false _ _x a1 Fn true1 i64x",

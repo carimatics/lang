@@ -16,7 +16,7 @@
 
 RFC 0005 の下で、バックエンドに依存しないホスト駆動の scheduler kernel を追加します。kernel は親子関係とスケジュール状態、実行 adapter は guest frame、値、診断を所有します。明示的な root は 1 つで、同時に active な dispatch は最大 1 つです。ready task を FIFO で実行し、adapter が意味的境界を報告します。scope の終了は子を join し、取消/失敗では未完了の子孫へ取消要求を伝播します。guest cleanup は別の dispatch とし、実際の frame cleanup 後に確認します。
 
-最初の production task driver の契約を決めます。source async 構文、Send/Share、channel、component 取消、公開 C embedding API は別の M3 判断です。この RFC の採択だけでは G01 も構造化 source 実行も完了しません。
+最初の production task driver の契約を決めます。source async 構文は [RFC 0022](0022-source-structured-tasks.md) で採択しました。Send/Share、channel、component 取消、公開 C embedding API は別の M3 判断です。この RFC の採択だけでは G01 も構造化 source 実行も完了しません。
 
 実装 checkpoint（2026-10-21 JST）: `crates/runtime/src/task.rs` に kernel を実装しました。18 件の focused test で状態/上限/cleanup 契約を検証し、cleanup entry 前と実行中の取消も含めています。`cargo run --example structured-tasks` は実際の host 所有 frame で通常終了と入れ子取消を実行します（42、cleanup 2,1,0、live task 0）。全 fmt/Clippy/test/rustdoc baseline が成功し、96 suite、1,613 test、失敗 0、既存の timing ignore 1 件です。source/VM/native task 実行と公開 embedding は後述の別作業です。
 
@@ -110,7 +110,7 @@ scheduler は trusted host facility であり、untrusted bytecode verifier で�
 ## Implementation plan
 
 1. M3-T02: 有界 kernel と実際の host 駆動 spawn/yield/join/cancel/cleanup fixture。
-2. M3-T03/T04: source 構文判断、suspension 所有権検査、独立検証 typed MIR。
+2. M3-T03/T09/T10/T04: source 構文の判断/parse、task 型と suspension 所有権の検査、独立検証 typed MIR。
 3. M3-T05/T06: VM、次に compiled native continuation で source fixture の event/span を一致。
 4. M3-T07/T08: 実所有 frame cleanup と合算 execution control。kernel event だけでゲートを完了しません。
 
@@ -122,11 +122,11 @@ FIFO dispatch、通常/異常 scope 終了、入れ子、完了済み子の join
 
 初期 kernel の blocking question はありません。未検証の仮定: 有界の親子 metadata 保持が最初の source fixture に十分であること、設定上限内の走査費用が許容されること、adapter が spawn 前に frame/cleanup 資源を予約できること。安定化前に測定/改訂します。
 
-判断: **RFC 0001 の実験段階の委任で accepted、2026-10-20 JST**。明示 driver は RFC 0005 を保ち、検証済み guest cleanup と scheduling を分離します。個別 owner 承認待ちは不要です。source/channel/Send/Share と production embedding profile は未決定です。
+判断: **RFC 0001 の実験段階の委任で accepted、2026-10-20 JST**。明示 driver は RFC 0005 を保ち、検証済み guest cleanup と scheduling を分離します。個別 owner 承認待ちは不要です。source 構文は RFC 0022 で採択し、channel/Send/Share と production embedding profile は未決定です。
 
 ## Sources
 
-- [RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-17: accepted task lifetime/取消規則。
+- [RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21: accepted task lifetime/取消規則と後続判断との対応。
 - [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md)、最終更新 2026-10-20: 実装済み cleanup/failure boundary。
 - [RFC 0012](0012-native-ownership-continuations.md)、最終更新 2026-10-20: 実装済み native managed continuation。
 - `crates/semantics/src/lib.rs`、`crates/runtime/src/execution.rs`、[architecture](../architecture.md) を `984557d` で 2026-10-20 JST に確認。単一 task semantic model の library test 29 件は同日に成功しました。baseline であり kernel 実装の証拠ではありません。

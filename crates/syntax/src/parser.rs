@@ -41,6 +41,7 @@ pub enum SyntaxKind {
     File,
     ExpressionRoot,
     Function,
+    AsyncFunction,
     Parameters,
     Parameter,
     Record,
@@ -62,6 +63,10 @@ pub enum SyntaxKind {
     Path,
     Block,
     UnsafeBlock,
+    TaskScope,
+    Yield,
+    Cancel,
+    CancelCheck,
     Let,
     Assign,
     PlaceAssign,
@@ -77,6 +82,8 @@ pub enum SyntaxKind {
     Call,
     SpecializedCall,
     Borrow,
+    Spawn,
+    Await,
     Dereference,
     Arguments,
     Construction,
@@ -92,6 +99,21 @@ pub enum SyntaxKind {
     CasePattern,
     PayloadPatterns,
     Error,
+}
+
+impl SyntaxKind {
+    pub const fn is_task_syntax(self) -> bool {
+        matches!(
+            self,
+            Self::AsyncFunction
+                | Self::TaskScope
+                | Self::Yield
+                | Self::Cancel
+                | Self::CancelCheck
+                | Self::Spawn
+                | Self::Await
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -569,6 +591,7 @@ impl<'a> Parser<'a> {
             kind == Some(K::Extern) && self.lookahead(usize::from(public) + 1) == Some(K::CAbi);
         let node = match kind {
             Some(K::Fn) => SyntaxKind::Function,
+            Some(K::Async) => SyntaxKind::AsyncFunction,
             Some(K::Struct) => SyntaxKind::Record,
             Some(K::Enum) => SyntaxKind::Enum,
             Some(K::Mod) => SyntaxKind::Module,
@@ -580,7 +603,10 @@ impl<'a> Parser<'a> {
         };
         self.start(node)?;
         let public = self.eat(K::Pub)?;
-        if public && !foreign && !matches!(kind, Some(K::Fn | K::Struct | K::Enum | K::Mod)) {
+        if public
+            && !foreign
+            && !matches!(kind, Some(K::Fn | K::Async | K::Struct | K::Enum | K::Mod))
+        {
             self.missing(
                 ExpectedSyntax::Item,
                 "pub requires a function, struct, enum, or module",
@@ -589,6 +615,10 @@ impl<'a> Parser<'a> {
         }
         match kind {
             Some(K::Fn) => self.function()?,
+            Some(K::Async) => {
+                self.bump()?;
+                self.function()?;
+            }
             Some(K::Struct) => {
                 self.bump()?;
                 self.expect(K::Identifier)?;
@@ -853,7 +883,10 @@ impl<'a> Parser<'a> {
                 || kind == K::Semicolon
                 || kind == K::Arrow
                 || kind == K::FatArrow
-                || item_start(kind)
+                // Inside a list, `async: T` is a reserved parameter name,
+                // while `async fn` starts a following declaration to retain.
+                || (item_start(kind)
+                    && (kind != K::Async || self.lookahead(1) == Some(K::Fn)))
         })
     }
 
@@ -913,6 +946,10 @@ impl<'a> Parser<'a> {
             Some(K::While) => SyntaxKind::While,
             Some(K::Return) => SyntaxKind::Return,
             Some(K::Match) => SyntaxKind::Match,
+            Some(K::TaskScope) => SyntaxKind::TaskScope,
+            Some(K::Yield) => SyntaxKind::Yield,
+            Some(K::Cancel) => SyntaxKind::Cancel,
+            Some(K::CancelCheck) => SyntaxKind::CancelCheck,
             _ => SyntaxKind::Error,
         };
         self.start(kind)?;
@@ -968,6 +1005,19 @@ impl<'a> Parser<'a> {
             SyntaxKind::UnsafeBlock => {
                 self.bump()?;
                 self.block()?;
+            }
+            SyntaxKind::TaskScope => {
+                self.bump()?;
+                self.block()?;
+            }
+            SyntaxKind::Yield | SyntaxKind::CancelCheck => {
+                self.bump()?;
+                self.expect(K::Semicolon)?;
+            }
+            SyntaxKind::Cancel => {
+                self.bump()?;
+                self.expression(true)?;
+                self.expect(K::Semicolon)?;
             }
             SyntaxKind::Match => self.match_statement()?,
             _ => {
@@ -1039,7 +1089,17 @@ impl<'a> Parser<'a> {
     }
 
     fn unary(&mut self, records: bool) -> Result<()> {
-        if self.peek() == Some(K::Ampersand) {
+        if matches!(self.peek(), Some(K::Spawn | K::Await)) {
+            self.start(if self.peek() == Some(K::Spawn) {
+                SyntaxKind::Spawn
+            } else {
+                SyntaxKind::Await
+            })?;
+            self.bump()?;
+            self.unary(records)?;
+            self.finish()?;
+            Ok(())
+        } else if self.peek() == Some(K::Ampersand) {
             self.start(SyntaxKind::Borrow)?;
             self.bump()?;
             self.eat(K::Mut)?;
@@ -1248,13 +1308,23 @@ impl<'a> Parser<'a> {
 fn item_start(kind: K) -> bool {
     matches!(
         kind,
-        K::Pub | K::Fn | K::Struct | K::Enum | K::Mod | K::Use | K::Extern
+        K::Pub | K::Fn | K::Async | K::Struct | K::Enum | K::Mod | K::Use | K::Extern
     )
 }
 fn statement_start(kind: K) -> bool {
     matches!(
         kind,
-        K::Let | K::If | K::While | K::Return | K::Match | K::Arena | K::Unsafe
+        K::Let
+            | K::If
+            | K::While
+            | K::Return
+            | K::Match
+            | K::Arena
+            | K::Unsafe
+            | K::TaskScope
+            | K::Yield
+            | K::Cancel
+            | K::CancelCheck
     )
 }
 fn list_element_start(kind: K) -> bool {
@@ -1274,10 +1344,12 @@ fn list_element_start(kind: K) -> bool {
             | K::Shared
             | K::Weak
             | K::Arena
+            | K::Spawn
+            | K::Await
     )
 }
 fn reserved_keyword(kind: K) -> bool {
-    matches!(kind, K::Shared | K::Weak | K::Arena | K::Unsafe)
+    matches!(kind, K::Shared | K::Weak | K::Arena | K::Unsafe) || kind.is_task_keyword()
 }
 fn expression_boundary(kind: K) -> bool {
     matches!(

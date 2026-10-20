@@ -1,0 +1,162 @@
+<!-- translation-of: ../../rfcs/0022-source-structured-tasks.md -->
+
+# RFC 0022: Source の構造化タスク
+
+[English](../../rfcs/0022-source-structured-tasks.md)
+
+- Status: accepted
+- Authors: Project contributors
+- Created: 2026-10-21
+- Last updated: 2026-10-21
+- Tracking issue: M3-T03, M3-T09, M3-T10, M3-T04–T08
+- Supersedes:
+- Superseded by:
+
+## Summary
+
+RFC 0005 の厳密な構造化並行性を RFC 0021 の driver で実行する source 構文を定めます。関数は `async` を宣言し、`spawn` が scope 付きの子を作り、`await` が handle を消費し、task scope は終了前に join します。borrow は suspension を跨げません。source semantics の採択であり、source task 実行や serialized coroutine 形式の完成ではありません。
+
+T03 checkpoint（2026-10-21 JST）: lossless parse/recovery/format を実装しました。CLI/REPL/LSP と file/virtual/cached module admission は semantic program 作成前に `SRC0026` を報告します。task 型/effect、loan 証明、MIR、VM/native 実行は別作業で、契約全体の実装まで本 RFC は accepted のままです。
+
+```text
+async fn worker(value: i64) -> i64 {
+    yield;
+    return value;
+}
+async fn main() -> i64 {
+    task_scope {
+        let mut left: core::Task<i64> = spawn worker(20);
+        let mut right: core::Task<i64> = spawn worker(22);
+        let mut a: core::Result<i64, core::TaskError> = await left;
+        let mut b: core::Result<i64, core::TaskError> = await right;
+        return core::result_unwrap(a) + core::result_unwrap(b);
+    }
+}
+```
+
+## Motivation
+
+有界 host task driver は木と実 host frame の破棄を実行しますが、source の task 構文/effect、独立検証 task MIR は未実装です。既存宣言の `let mut name: Type = expression;` と明示型を維持します。候補 fixture は現在の parser で `async`、`yield`、task expression に失敗します。識別子扱いや未知 statement の無視では並行性の意味が失われます。
+
+## Goals
+
+- 明示 async effect と型付き join 取消による scoped spawn/await/yield/cancel。
+- 厳密な loan、所有権、result escrow、決定的 cleanup、span の維持。
+- VM/JIT/AOT/host 駆動に共通の意味と明示 scheduler 権限。
+- parser 先行段階でも source async を同期実行しないこと。
+
+## Non-goals
+
+- closure/generator/pinning、借用 capture、detach、任意の first-class future、暗黙 thread/global executor。
+- 最終 channel/service/Send/Share 導出、production component/C embedding profile。別の M3 判断を維持します。
+- async C export/import、source 変数 debug location、一般推論拡張、安定 coroutine layout。
+
+## Guide-level design
+
+`async fn` と `pub async fn` は非同期 guest 関数です。async body は暗黙 task scope を持ち、`task_scope { ... }` は途中の lexical join 境界です。同期関数では spawn/await/yield/task 取消 check/task scope は使えません。async 関数から同期 guest 関数は通常通り呼べます。将来の script entry として `async fn main() -> i64` を認め、host が root scheduler を供給します。同期 entry は従来通りです。
+
+`spawn worker(args)` は最も内側の task scope に直接の子を enqueue し、worker の戻り型 T に対する `core::Task<T>` を返します。async call は spawn/await の直下だけで使え、隠れた lazy future 型は作りません。`await worker(args)` は同じ scope で spawn/join します。`await handle` は handle を move し、`core::Result<T, core::TaskError>` を返します。初期の unit case は `TaskError::Cancelled` です。terminal execution failure は scope に伝播し TaskError に回復可能化しません。通常 guest の `Result::Err` は成功した task value なので、await の結果は入れ子 Result です。
+
+`cancel handle;` は handle を消費せず冪等に取消要求し、suspend しません。`cancel_check;` は要求を観測し、保留がなければ yield しません。`yield;` は協調 suspension で ready queue 末尾へ移ります。await 中の親の取消は親を閉じ、子だけの取消は join の `Err(Cancelled)` になります。
+
+```text
+async fn cancelled() -> core::Result<i64, core::TaskError> {
+    let mut child: core::Task<i64> = spawn worker(1);
+    cancel child;
+    return await child;
+}
+```
+
+## Reference semantics
+
+### Grammar and resolution
+
+`async`、`task_scope`、`spawn`、`await`、`yield`、`cancel`、`cancel_check` を予約します。comment が隣接しても keyword は別 token です。
+
+```text
+function       := ["pub"] ["async"] "fn" signature block
+task-scope     := "task_scope" block
+yield-stmt     := "yield" ";"
+cancel-stmt    := "cancel" expression ";"
+check-stmt     := "cancel_check" ";"
+unary          := "spawn" unary | "await" unary | existing-unary
+```
+
+spawn/await は加算/比較より強く call/field より弱く結合し、括弧を優先します。parser は operand tree を保持し、typing が spawn の direct async guest call、await の Task value/direct async call を要求します。既存の expression statement 制限を保ち、join Result の保持/破棄には型付き local を使います。modifier 順は `pub async fn`、C 宣言に async は付けません。
+
+`core::Task<T>` と `core::TaskError` は予約 core namespace の型です。Task は直接の子の結果を取得する linear/non-Copy/non-Send/non-Share の claim で、生成 lexical scope の brand を持ちます。source は task/scope brand を作れません。初期 Task 型は async body 内の local のみで、field/container/関数引数・戻り値/host・C signature/入れ子 Task 結果を拒否します。生成 scope の外側に宣言された local への move/代入を拒否します。await/move 後の使用は既存の初期化/move 検査で拒否し、cancel は live task place を検査して clone/move しません。
+
+### Effects, evaluation and admission
+
+async は native ABI と独立した関数 effect です。call 検査前に effect を解決します。async 引数/戻り値は RFC 0005 の再帰的 sendability を要し、loan/arena reference/task handle/mutable alias/非 sendable host value は移せません。safe source が Send を宣言することはできません。最初の実行 fixture は scalar/有限 Copy 値だけでもよく、後続の accepted 導出で規則を緩めず対応を広げます。
+
+spawn 引数は親で左から右へ一度評価します。子の公開前に scheduler capability、live/累積 task 上限、frame/result 容量、型、move を preflight し、その後にだけ引数所有権と queue entry を commit します。拒否時は子を公開せず、評価済み引数 owner を failure cleanup します。Task/frame quota 枯渇は既存 call/frame admission と同じ execution-control failure で、回復可能 TaskError ではありません。frame は invocation に明示供給した allocator/service を使い、source metadata から暗黙 executor/allocator grant を得ません。
+
+await/yield/取消 check/暗黙 scope join は suspension/取消点です。live shared/exclusive loan をすべて拒否します。scope 終了では、その lexical scope とともに終了する loan を暗黙 join より先に終えます。内側 join でまだ live な外側 loan は拒否します。source と typed MIR の両方で独立に証明し、unsafe でも迂回しません。定数評価に async/task 操作はありません。
+
+### Lifetime, result escrow and cleanup
+
+handle とは独立して子は生成 scope に所属します。通常終了は全子を join し、terminal failure/取消は子孫へ先に取消要求します。return は scope を閉じる前に結果を一度 escrow へ評価し、必須 cleanup 後に公開します。子は scope/親 frame より長生きできません。
+
+子の結果は子の cleanup 成功まで escrow に保持し、公開成功時に scope の result storage への初期化順を記録します。await は唯一の claim を消費して `Ok(T)` に一度 move します。取消した子は T を公開しません。Task の move は claim の移動です。handle の破棄/上書きは取得権を放棄しますが detach/暗黙取消はしません。未取得結果は scope が所有・計測し、全 join 後、通常の owned local cleanup より前に、結果公開の逆順で破棄します。子が live task でなくなった後も、保持 result の cell/heap は共有 invocation 上限に含めます。
+
+frame local は loan 終了/子孫 join 後に RFC 0008 の実初期化逆順で破棄します。cleanup dispatch/確認は RFC 0021 に従い、entry 前の取消、active callback の非強制停止、明示的親 failure 優先、spawn 順で最初の失敗した子、副次 cleanup failure を維持します。guest fuel 枯渇や report 打切りでも必須 retirement を省略しません。
+
+## Execution modes
+
+typed MIR は async effect、scope identity、spawn 引数 move、result claim、suspension continuation、取消、cleanup edge と span を記録します。scope/handle liveness と suspension loan 状態を HIR と独立検証します。VM と compiled continuation は共通 driver を使い、native は MIR 解釈/VM fallback を行いません。同じ外部 event 順で値/失敗/観測/所有権/cleanup を一致させます。
+
+CLI は有界 task 権限を供給する明示 host です。component host は scheduler 権限/上限を明示 grant し、source/package metadata は要求を宣言するだけです。C/native callback に暗黙の scheduling/再入権限を与えません。poll/callback 取消は production embedding 判断に従います。M2 同期 program の既存 control を維持し、task 取消が instruction fuel/interruption を無効化しません。
+
+## ABI and compatibility
+
+source syntax/core 型/effect の契約を追加しますが、native frame layout や既存 wire schema を変更しません。task 対応 MIR/bytecode/native record/startup adapter は、serialized 実行を認める前に明示 version 拡張と不正入力/互換性検証が必要です。未対応 artifact/profile は副作用前に拒否し、旧 program に暗黙の task を与えません。raw Task handle は C/component value ではなく、公開 component async signature は production profile を待ちます。
+
+7 つの新 keyword と一致する既存識別子は、例 `async` → `async_value` のように改名が必要です。自動 rename は提供しません。安定 source edition はまだありません。C 宣言は同期のままで Task を公開できません。async effect の変更は互換性に影響し、将来の該当 profile の import/export に記録します。
+
+## Diagnostics and tooling
+
+専用 CST node で async 宣言/scope/prefix/statement を保持します。不正 async signature や operand 欠落でも全 token、囲む brace、後続宣言を回復で保ちます。format は空白だけを変え comment/優先順位/冪等性を維持します。LSP format は同じ CST formatter を使います。
+
+段階導入で未対応の async 実行/解析 profile に `SRC0026`、task effect/scope/claim 違反に `SRC0027`、`concurrency.borrow-across-suspension` に `SRC0028` と loan 起点の副 label を予約します。既存 move/type 診断も使用します。parser 受入だけで source check を成功させず、T09/T10/MIR 接続までは semantic program 作成前に未対応 profile を報告します。debug ancestry/lint は後続 tooling 作業で、source 変数/DAP 対応を主張しません。
+
+## Performance and cost model
+
+task 作成には admission 済み frame/result storage と bookkeeping が必要です。suspension は owned local、未取得結果は scope cleanup までメモリを保持します。await は結果を clone せず move します。並列性/latency/無確保 async は保証しません。両 tier-1 host で frame/result peak と spawn/join/取消費用を測定し、M2 workload baseline を保ちます。新構文にも既存 token/node/depth/work/output 上限を適用します。
+
+## Security and trust boundaries
+
+untrusted source は handle 構築/Send 宣言/scope 逸出/suspension を跨ぐ loan/暗黙 scheduler 権限を取得できません。foreign MIR/bytecode には source 証明だけでは不十分で、境界で証明と admission を反復します。task/result/heap/control 上限の callback 合算は残る M3 契約に従います。trusted host は adapter storage/cleanup 確認を正しく行う責任があり、native process 内 sandbox とはしません。
+
+## Alternatives
+
+- **変更なし:** accepted driver を source から利用できません。
+- **library-only task 関数:** lexical brand、async effect、suspension loan、独立 MIR 証明を強制できません。
+- **frame borrow/pinning 付き first-class lazy future:** 合成しやすい一方、RFC 0005 の初期規則にない寿命/アドレス安定/取消/所有権契約が必要です。
+- **同期 spawn sugar:** lowering は容易ですが suspension/queued child 取消を表せず、目的の挙動を実装しません。
+- **await が T を直接返す:** 短い一方、明示的な子の取消を terminal failure と混同せず型付きで表せません。Result で guest error とも分けます。
+
+## Implementation plan
+
+1. T03: 本判断の採択、lossless lexer/parser/recovery/formatter fixture、semantic admission の明示拒否。
+2. T09: resolved async effect、Task/TaskError 型、scoped claim、call/move/escape/C surface 検査。
+3. T10: 明示/暗黙 suspension の source loan 検査と関連 span。
+4. T04/T05: 独立 task MIR/source VM fixture、T06: compiled native parity。serialization/startup の依存実装前に正確な artifact revision を決定。
+5. T07/T08: 実 owned local/result、取消 cleanup、共有 control。channel/Send/Share/embedding は board の別判断を維持。
+
+## Test plan
+
+lossless CST span/回復/優先順位、comment/冪等 format、予約識別子/資源上限を検証します。未使用関数/imported module/REPL/LSP/virtual/preparsed 入力でも未対応 source profile を拒否します。後続 compile-pass/fail で async call、scope 逸出、消費済み handle、両 loan、全 exit/C 境界を検証します。source/不正 MIR/bytecode の VM/JIT/AOT 差分で値、型付き取消、terminal failure 順、escrow/move、exactly-once cleanup を一致させます。suspension/claim 遷移を fuzz し、安定化前に両 host を測定します。
+
+## Open questions
+
+厳密な source 契約の blocking question はありません。未検証の仮定: local-only handle が初回 source slice に十分、保持 result escrow の費用が共有上限内で許容、native continuation が MIR 解釈なしに managed-frame driver を再利用できること。一般 Task 引数/container/高度 future は別判断です。正確な serialized revision と production embedding は明示前提であり、暗黙に採択された形式ではありません。
+
+判断: **RFC 0001 の実験段階の委任で accepted、2026-10-21 JST**。明示 effect/scoped claim/型付き子取消は RFC 0005/0008/0021 を維持します。実装/安定化は上記の証拠を要します。
+
+## Sources
+
+- [RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21: 厳密な task/borrow/取消規則と後続判断との対応。
+- [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md)、[RFC 0021](0021-bounded-structured-task-driver.md)、最終更新は順に 2026-10-20、2026-10-21: cleanup と実装済み driver。
+- `crates/syntax/src/{lexer,parser,format}.rs`、`crates/hir/src/resolved.rs`、`crates/semantics/src/{modules,binding}.rs` を `b45a62d` で 2026-10-21 JST に確認。変更前の候補 source check は async/task 構文で SRC0012 を報告します。grammar 実験であり runtime/性能の証拠ではありません。
+- 新しい構文/effect/result は project decision です。外部言語/性能の新たな事実は主張しません。

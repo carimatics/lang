@@ -117,6 +117,31 @@ fn definitions_commit_only_after_successful_complete_analysis() {
 }
 
 #[test]
+fn async_items_and_task_expressions_are_rejected_transactionally() {
+    let mut s = Session::default();
+    commit(&mut s, "fn keep()->i64{return 42;}");
+    for text in [
+        "async fn task()->i64{yield;return 1;}",
+        "pub async fn task()->i64{return 1;}",
+        "await keep()",
+        "spawn keep()",
+    ] {
+        let report = submit(&mut s, text);
+        assert!(report.result.is_err(), "{text}");
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == codes::ASYNC_UNAVAILABLE),
+            "{text}: {:?}",
+            report.diagnostics
+        );
+        assert_eq!(s.definition_count(), 1);
+    }
+    value(&mut s, "keep()", "42");
+}
+
+#[test]
 fn duplicate_items_retain_original_declaration_locations_until_reset() {
     let mut s = Session::default();
     let text = "\nfn answer() -> i64 { return 42; }";

@@ -103,6 +103,13 @@ pub enum TokenKind {
     Integer(i64),
     IntegerOutOfRange,
     Fn,
+    Async,
+    TaskScope,
+    Spawn,
+    Await,
+    Yield,
+    Cancel,
+    CancelCheck,
     Let,
     Mut,
     I64,
@@ -146,6 +153,19 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
+    pub const fn is_task_keyword(self) -> bool {
+        matches!(
+            self,
+            Self::Async
+                | Self::TaskScope
+                | Self::Spawn
+                | Self::Await
+                | Self::Yield
+                | Self::Cancel
+                | Self::CancelCheck
+        )
+    }
+
     pub const fn is_trivia(self) -> bool {
         matches!(
             self,
@@ -445,6 +465,13 @@ fn identifier_part(byte: u8) -> bool {
 fn keyword(text: &str) -> TokenKind {
     match text {
         "fn" => TokenKind::Fn,
+        "async" => TokenKind::Async,
+        "task_scope" => TokenKind::TaskScope,
+        "spawn" => TokenKind::Spawn,
+        "await" => TokenKind::Await,
+        "yield" => TokenKind::Yield,
+        "cancel" => TokenKind::Cancel,
+        "cancel_check" => TokenKind::CancelCheck,
         "let" => TokenKind::Let,
         "mut" => TokenKind::Mut,
         "i64" => TokenKind::I64,

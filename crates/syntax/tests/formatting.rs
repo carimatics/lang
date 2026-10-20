@@ -99,6 +99,42 @@ fn four_space_blocks_and_one_statement_per_line_have_a_fixed_fixture() {
 }
 
 #[test]
+fn task_syntax_comments_and_prefix_parentheses_format_idempotently() {
+    checked(include_str!("fixtures/tasks.lang"), false);
+    let formatted = checked(
+        "pub/*a*/async/*b*/fn f()->i64{task_scope/*c*/{let mut child:core::Task<i64>=spawn/*d*/worker(1);cancel/*e*/child;yield;cancel_check;return core::result_unwrap(await/*f*/child);}}",
+        false,
+    );
+    assert!(
+        formatted.contains("pub /*a*/ async /*b*/ fn f() -> i64"),
+        "{formatted}"
+    );
+    assert!(formatted.contains("task_scope /*c*/ {"), "{formatted}");
+    assert!(formatted.contains("spawn /*d*/ worker(1)"));
+    assert!(formatted.contains("cancel /*e*/ child;"));
+    assert!(formatted.contains("await /*f*/ child"));
+    assert_eq!(checked("await(child.field)", true), "await (child.field)\n");
+    assert_eq!(checked("spawn(worker(1))", true), "spawn (worker(1))\n");
+}
+
+#[test]
+fn malformed_task_formatting_preserves_original_source_bytes() {
+    for text in [
+        "async fn bad()->i64{yield cancel_check;}",
+        "async fn bad()->i64{task_scope{return await ;}",
+        "pub extern\"C\"async fn f()->i64{return 1;}",
+    ] {
+        let mut sources = SourceMap::new();
+        let source = sources.add("invalid-task.lang", text).unwrap();
+        let tree = parse(&sources, source, ParseLimits::default()).unwrap();
+        assert!(tree.has_errors());
+        let output = format::format(&tree, &sources, Limits::default()).unwrap();
+        assert_eq!(output.status, Status::PreservedInvalid);
+        assert_eq!(output.text, text);
+    }
+}
+
+#[test]
 fn complete_accepted_grammar_round_trips_with_identical_semantic_cst_structure() {
     checked(include_str!("fixtures/accepted.lang"), false);
     checked(

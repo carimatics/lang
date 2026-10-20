@@ -16,7 +16,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## 進行中 milestone の実行
 
-M3 開始時に RFC 0003/0005、M2 の実行/cleanup interface、完了済みレビューを確認しました。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md)で最初の有界 driver 契約を決めます。source 構文、channel、Send/Share、production embedding は別判断です。96 pt のゲート重みではなく実装 Todo の積上げ見積りを使います。scheduler/IDL 基盤の追加より、次の end-to-end source fixture を優先します。実行経路を変えるときは測定済み M2 性能 baseline を維持し、代表 workload の費用で最適化の優先度を決めます。
+M3 開始時に RFC 0003/0005、M2 の実行/cleanup interface、完了済みレビューを確認しました。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md) で有界 driver を実装し、[RFC 0022](rfcs/0022-source-structured-tasks.md) で source async 契約を採択しました。parser/formatter 段階は未対応 semantic/execution profile を明示拒否し、型/loan 証明と source VM/native 実行へ進みます。channel、Send/Share、production embedding は引き続き判断が必要です。96 pt のゲート重みではなく実装 Todo の積上げ見積りを使います。scheduler/IDL 基盤の追加より次の end-to-end source fixture を優先します。実行経路を変えるときは測定済み M2 性能 baseline を維持し、代表 workload の費用で最適化の優先度を決めます。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 

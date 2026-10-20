@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-17
+- Last updated: 2026-10-21
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -24,7 +24,7 @@ Define the initial concurrency and cancellation baseline:
 - Accepted messages are processed in mailbox-enqueue order. Cancellation waits for an active handler boundary, then discards queued payloads in order, destroys service state once, and rejects later sends.
 - The base model exposes neither general shared mutable state nor an implicit global executor.
 
-Exact task/service API spelling and scheduler policy remain provisional. The lifetime, isolation, ordering, cancellation, cleanup, and cross-mode rules are accepted semantic commitments.
+[RFC 0021](0021-bounded-structured-task-driver.md) accepts the first bounded driver policy and [RFC 0022](0022-source-structured-tasks.md) accepts source task spelling. Service/channel APIs and multithreaded scheduler choices remain provisional. The lifetime, isolation, ordering, cancellation, cleanup, and cross-mode rules are accepted semantic commitments.
 
 ## Motivation
 
@@ -58,7 +58,7 @@ Library-only tasks and actors cannot enforce borrow termination, compiler-derive
 
 ## Guide-level design
 
-The spelling is illustrative. A structured scope owns every child:
+The spelling below is a historical policy illustration; [RFC 0022](0022-source-structured-tasks.md) defines the accepted source spelling and its current implementation limits. A structured scope owns every child:
 
 ```text
 async fn load_page(urls: List<Url>) -> Result<Page, Error> {
@@ -206,7 +206,7 @@ Unscoped futures simplify spawning but permit children to outlive borrowed/owned
 
 ## Implementation plan
 
-The strict isolation/cancellation policy is accepted. Source async syntax, scheduler/channel/backpressure rules, and the production component cancellation/embedding profile still require the explicit Milestone 3 decisions before dependent implementation. Existing task/service state models do not implement a production scheduler or full task-tree cleanup.
+The strict isolation/cancellation policy is accepted. RFC 0021 implements the bounded host task driver; RFC 0022 accepts source async semantics and implements lossless syntax with explicit refusal of the unavailable execution profile. Source task typing/loan proofs, MIR and VM/native adapters remain separate M3 deliveries. Channel/backpressure, Send/Share derivation and the production component cancellation/embedding profile still require their explicit decisions before dependent implementation. Existing task/service state models do not complete those production outcomes.
 
 1. Add source/HIR task scopes, suspension points, moves into messages, service-owner operations, and compile-pass/fail fixtures.
 2. Add typed MIR operations and validation for no live borrow at suspension, scoped child handles, `Send` derivation, and isolation.

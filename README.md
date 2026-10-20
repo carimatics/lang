@@ -69,6 +69,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0019: Ordinary owned native entry runtime (implemented)](docs/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: Experimental native SDK and scoped startup (implemented)](docs/rfcs/0020-native-sdk-and-startup.md)
 - [RFC 0021: Bounded structured task driver (implemented)](docs/rfcs/0021-bounded-structured-task-driver.md)
+- [RFC 0022: Source structured tasks (accepted)](docs/rfcs/0022-source-structured-tasks.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

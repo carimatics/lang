@@ -10,7 +10,7 @@
 
 **次: M3-T03 → source async 構文を採択し、lossless parser/formatter fixture を実行します。**
 
-現在の作業: **M3-T03**。直近の実行検証: **`a543d23`、2026-10-21 01:00 JST**。task test 18 件、host example、全 baseline が成功（96 suite / 1,613 test、失敗 0、既存 timing ignore 1 件）。通常実行は 42 を返し、通常/入れ子取消のどちらも frame を 2,1,0 の順に破棄して live task は 0 です。fmt、warnings-denied Clippy、rustdoc も成功。T03 の残る受入条件: source async 判断の日英 accepted RFC、lossless grammar/recovery/formatter fixture。binding/型/loan 証明は新たに明示した T09/T10 です。source task の実行と M3 のゲートは未完了です。
+現在の作業: **M3-T03**。直近の実行検証: **2026-10-21 JST**。[RFC 0022](rfcs/0022-source-structured-tasks.md) を採択し、lossless async/task grammar、recovery、formatter fixture が成功。追加 14 件で優先順位/comment/上限、file/virtual/cached module/CLI/transactional REPL/LSP format・診断の未対応 async admission 拒否を検証しました。全 baseline は **96 suite / 成功 1,627 / 失敗 0 / 既存 timing ignore 1**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint も成功。候補 source は parse に成功し、SRC0012 の代わりに SRC0026 を報告します。残る受入条件: 実装 commit と証拠公開。binding/型/loan 証明は T09/T10 であり、source task の実行と M3 ゲートは未完了です。
 
 **今回: T02 完了（−3 pt）、source analysis 2 作業を明示（+5 pt）。** 前回残り **108 + 5 − 3 = 110 pt**。全 **41 行**、累積消化 **5 pt** と追加見積り **+5 pt** は別に記録します。
 
@@ -87,5 +87,5 @@ source scope 監査（2026-10-21 JST）: 初期 T03 は言語判断/grammar と�
 ## Sources
 
 - [ロードマップ](roadmap.md)、[architecture](architecture.md)、[完了済み M2 board](milestone-2.md)、[レビュー](review-2026-10-20.md): 最終更新 2026-10-20、`984557d` で 2026-10-20 JST に確認。
-- [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)と [RFC 0003](rfcs/0003-versioned-component-contracts.md): 最終更新 2026-10-17。契約を引き続き遵守し、prototype は production 完了の証拠にしません。
+- [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21 と [RFC 0003](rfcs/0003-versioned-component-contracts.md)、最終更新 2026-10-17。契約を引き続き遵守し、prototype は production 完了の証拠にしません。
 - [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)、最終更新 2026-10-21。kernel、test、example を `a543d23` で 2026-10-21 JST に確認。source scope 監査は同じ checkpoint の `crates/hir/src/resolved.rs`、`crates/hir/src/program/`、`crates/hir/src/loans.rs`、`crates/semantics/src/analysis.rs` に基づきます。

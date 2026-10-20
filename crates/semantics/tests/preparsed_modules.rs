@@ -130,6 +130,32 @@ fn cached_parser_trees_and_immutable_snapshots_are_actually_shared_by_module_ana
 }
 
 #[test]
+fn cached_async_syntax_cannot_bypass_task_profile_admission() {
+    let mut p = Provider::new();
+    p.add(
+        "main.lang",
+        "mod worker;fn main()->i64{return 42;}",
+        ParseLimits::default(),
+    );
+    p.add(
+        "worker.lang",
+        "pub async fn unused()->i64{return 1;}",
+        ParseLimits::default(),
+    );
+    let mut sources = SourceMap::new();
+    let loaded = p.load(&mut sources, ModuleLimits::default()).unwrap();
+    assert!(loaded.graph.is_none());
+    let d = loaded
+        .diagnostics
+        .iter()
+        .find(|d| d.code == codes::ASYNC_UNAVAILABLE)
+        .unwrap();
+    assert_eq!(sources.slice(d.primary.span).unwrap(), "async");
+    d.validate(&sources).unwrap();
+    assert_eq!(p.calls[&p.root.join("worker.lang")], 1);
+}
+
+#[test]
 fn duplicate_canonical_files_are_rejected_before_requesting_the_cached_parse_again() {
     let mut p = Provider::new();
     p.add("main.lang", "mod a; mod b;", ParseLimits::default());

@@ -270,8 +270,12 @@ pub fn format(
                     });
             }
             K::LeftParen => {
-                writer.space |=
-                    previous.is_some_and(|k| matches!(k, K::If | K::While | K::Match | K::Return));
+                writer.space |= previous.is_some_and(|k| {
+                    matches!(
+                        k,
+                        K::If | K::While | K::Match | K::Return | K::Await | K::Spawn | K::Cancel
+                    )
+                });
                 writer.token(text)?;
                 writer.indent += 1;
                 if delimiters.len() == delimiters.capacity() {
