@@ -58,6 +58,28 @@ pub fn emit_c_object_for_target<'a>(
     limits: m::Limits,
     cells: usize,
 ) -> Result<CObjectArtifact<'a>, CObjectError> {
+    emit_c_object(flow, layouts, artifact, target, limits, cells, false)
+}
+/// Preserve source locations for the private bodies behind actual C exports.
+pub fn emit_c_object_for_target_with_debug<'a>(
+    flow: &'a f::Elaborated,
+    layouts: &'a Layouts<'a>,
+    artifact: &abi::Artifact,
+    target: &crate::Triple,
+    limits: m::Limits,
+    cells: usize,
+) -> Result<CObjectArtifact<'a>, CObjectError> {
+    emit_c_object(flow, layouts, artifact, target, limits, cells, true)
+}
+fn emit_c_object<'a>(
+    flow: &'a f::Elaborated,
+    layouts: &'a Layouts<'a>,
+    artifact: &abi::Artifact,
+    target: &crate::Triple,
+    limits: m::Limits,
+    cells: usize,
+    debug: bool,
+) -> Result<CObjectArtifact<'a>, CObjectError> {
     let expected = c_object_target(artifact);
     if *target != expected {
         return Err(CObjectError::Target);
@@ -81,7 +103,9 @@ pub fn emit_c_object_for_target<'a>(
         allocation_bytes: budget.allocation_bytes(),
         elements: budget.elements_used(),
     };
-    let object = prepared.finish().map_err(CObjectError::Codegen)?;
+    let object = prepared
+        .finish_debug(debug.then_some((flow, limits)))
+        .map_err(CObjectError::Codegen)?;
     Ok(CObjectArtifact {
         object,
         interface,

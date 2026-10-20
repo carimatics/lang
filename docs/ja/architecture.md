@@ -35,6 +35,12 @@ P02のmetadata準備prototype（2026-10-20 JST実装・重点確認）：`Object
 
 通常startupはproduction Copy bindingまたはRFC 0019のownership entry runtimeを使い、明示C embeddingはunsafe matching-image／owner-threadと実allocator／contextの義務を保持します。Sourceなしdriver、managed／panicのVM比較、実C callerのfixtureは引き続きrepository内dependencyでcompileします。scope付きconsumerと厳格manifest readerは後述のとおり実装済みです。公開 `link-native` は後述のとおり実装し、両host隔離installはP02に残り、このproducerだけではpackagingを完了しません。
 
+## Native source debug metadata
+
+G01 source metadata（2026-10-20 JST実装・検証）：macOSのsource package生成で、追加したsource-awareなCopy／owned／C-export object emitterを使います。diagnostic／editor snapshot identityではなく、canonical MIR source snapshotとlocalなsource indexを取得します。上限付きのLF／UTF-8 indexで長い行を繰り返し走査せず、byte spanを1始まりUnicode scalarの行／列へ変換します。1 functionのrangeに複数source fileを含められます。functionごとのDWARF 4 unitでobject debug sectionを共有し、正確なnative body symbolへrelocationします。source名とlinkage名を区別し、private pointer ABI functionにsource parameter位置を捏造せず、当該source記述から呼び出せないことを示します。構文・言語ABI・bytecode／native-record・package-manifestのrevisionは追加しません。従来のdebugなしbackend entryも維持します。Windows source metadataと両platformの実debugger証拠はG02／G03に残ります。
+
+論理source pathは可搬なMIR namespaceを維持し、filesystem権限を与えません。debuggerのsource text／fileアクセスはhost設定として、source保存とsource mappingを行います。fixtureではnative `llvm-dwarfdump` readerで実Copy／owned／C-export objectとfunction relocationを検証します。adapter testはUnicode／CRLF／EOF位置、cross-file range、不正snapshot ID／native range／compiler budget超過をdebug section追加前に拒否することを確認します。[Writer](../../crates/codegen-clif/src/debug.rs)、[snapshot adapter](../../crates/codegen-clif/src/source_debug.rs)、[production compiler test](../../tests/native_compiler.rs)は2026-10-20 JST更新・検証です。
+
 ## Native manifest and file verification
 
 P11（2026-10-20 JST）は不変の型付きSDK／program manifestと所有snapshotを追加します。Exact-key serde decodeで重複／未知fieldを拒否し、byte／depth／string／file-count上限を拡張前に検査します。Role／path／profile／entryと総sizeの検査にはmanifest byteも含めます。SDK tagはcompile済みbuild、target別ID、rustc release／commit、profile、feature policyと照合します。Programの意味論／entry／ABI、native記録のkind／target／C digest、正確なobject byteと記録planを独立に検査します。

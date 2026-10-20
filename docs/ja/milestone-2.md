@@ -24,6 +24,8 @@ B01の **1,585 tests／94 suites、0失敗、手動timing ignore 1件**、fmt／
 
 **G01実装前監査（2026-10-20 JST）：** 既存の暫定3 ptを使います。`owned.rs`はCranelift SourceLoc rangeを既に記録し、`program.rs`にはCopy-unitのrange基盤、`debug.rs`には先行fixtureのnative DWARF／CodeView emitterがあります。ownedのfunctionごとのsource range／nameを実native object経路へ接続する箇所を調べ、既存基盤を再利用してmacOSのsource-span／location fixtureを検証してから完了にします。構造変更前にcanonical architecture／受理済み設計を読み、新たなpublic設計が必要なら実装前に記録します。frontend／backend分離とspan／resource boundを維持します。G02のWindows metadataと、G03の両hostでの実debugger stepping／backtraceを残し、metadata検査だけでG18を完了しません。最終Z01も引き続き必須です。
 
+**G01実装checkpoint（2026-10-20 JST、完了監査準備済み）：** 可搬MIR snapshot／local ID変換、上限付きLF／UTF-8位置、正確なsymbol relocationを持つfunction別DWARF 4で実Copy／owned／C-export macOS objectを扱います。adapterの境界／cross-file 3 test、実3 profile CLI／LLVM test、7 function owned-pipeline probeが成功しました。全baselineは **1,589 tests／94 suites、0失敗、手動timing ignore 1件**（suite時間合計447.68s）、format成功、all-feature／all-target workspace Clippy成功（19.65s）、rustdoc成功（18.60s）、全11 fuzz targetのcompile／lint成功（2.50s）です。構文／ABI／record／manifestのversion変更はなく、新compiler identityに合わせSDKを再構築します。G02 Windows metadataとG03の両host実debugger証拠は引き続き必須です。
+
 <details>
 <summary>過去の成果とplatform検証記録</summary>
 

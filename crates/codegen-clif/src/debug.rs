@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use gimli::write::{
-    Address, AttributeValue, DwarfUnit, EndianVec, LineProgram, LineString, RelocateWriter,
-    Relocation as DwarfRelocation, RelocationTarget, Sections,
+    Address, AttributeValue, Dwarf, DwarfUnit, EndianVec, LineProgram, LineString, RelocateWriter,
+    Relocation as DwarfRelocation, RelocationTarget, Sections, Unit,
 };
 use gimli::{Encoding, Format, LineEncoding, LittleEndian, SectionId as DwarfSectionId, constants};
 use lang_mir::{Signature, Type};
@@ -120,7 +120,15 @@ fn add_macho_dwarf(
         return Ok(());
     }
 
-    let mut sections = build_dwarf(function_name, code_size, source_map)?;
+    let sections = build_dwarf(function_name, code_size, source_map)?;
+    add_macho_sections(object, sections, &[function_symbol])
+}
+
+fn add_macho_sections(
+    object: &mut Object<'_>,
+    mut sections: Sections<DwarfSection>,
+    symbols: &[SymbolId],
+) -> Result<(), String> {
     let mut object_sections = HashMap::new();
 
     for dwarf_id in DWARF_SECTIONS {
@@ -148,10 +156,9 @@ fn add_macho_dwarf(
             .expect("the fixed DWARF section list contains writable sections");
         for relocation in section.relocations.drain(..) {
             let symbol = match relocation.target {
-                RelocationTarget::Symbol(0) => function_symbol,
-                RelocationTarget::Symbol(symbol) => {
-                    return Err(format!("unknown DWARF symbol index {symbol}"));
-                }
+                RelocationTarget::Symbol(symbol) => *symbols
+                    .get(symbol)
+                    .ok_or_else(|| format!("unknown DWARF symbol index {symbol}"))?,
                 RelocationTarget::Section(target) => {
                     let target = *object_sections
                         .get(&target)
@@ -425,6 +432,157 @@ fn codeview_type(value_type: Type) -> u32 {
         Type::Bool => TYPE_INDEX_BOOL8,
         Type::Own(_) => TYPE_INDEX_U32,
     }
+}
+
+/// A source-level name and location map for a private native function. No
+/// source parameter locations are invented for the backend's pointer ABI.
+pub(super) struct NativeDebugFunction<'a> {
+    pub symbol: SymbolId,
+    pub name: &'a str,
+    pub linkage_name: &'a str,
+    pub path: &'a str,
+    pub span: lang_mir::SourceSpan,
+    pub code_size: usize,
+    pub ranges: Vec<NativeDebugRange<'a>>,
+}
+pub(super) struct NativeDebugRange<'a> {
+    pub start: u32,
+    pub end: u32,
+    pub path: &'a str,
+    pub span: lang_mir::SourceSpan,
+}
+
+pub(super) fn add_macho_units(
+    object: &mut Object<'_>,
+    functions: &[NativeDebugFunction<'_>],
+) -> Result<(), String> {
+    let encoding = Encoding {
+        format: Format::Dwarf32,
+        version: 4,
+        address_size: 8,
+    };
+    let mut dwarf = Dwarf::default();
+    let mut symbols = Vec::with_capacity(functions.len());
+    for (index, function) in functions.iter().enumerate() {
+        let mut lines = LineProgram::new(
+            encoding,
+            LineEncoding::default(),
+            LineString::String(b".".to_vec()),
+            None,
+            LineString::String(function.path.as_bytes().to_vec()),
+            None,
+        );
+        let primary = lines.add_file(
+            LineString::String(function.path.as_bytes().to_vec()),
+            lines.default_directory(),
+            None,
+        );
+        let mut files = HashMap::new();
+        files.insert(function.path, primary);
+        lines.begin_sequence(Some(Address::Symbol {
+            symbol: index,
+            addend: 0,
+        }));
+        let mut previous = None;
+        for range in &function.ranges {
+            if range.start == range.end || previous == Some(range.start) {
+                continue;
+            }
+            let file = *files.entry(range.path).or_insert_with(|| {
+                lines.add_file(
+                    LineString::String(range.path.as_bytes().to_vec()),
+                    lines.default_directory(),
+                    None,
+                )
+            });
+            let row = lines.row();
+            row.address_offset = u64::from(range.start);
+            row.file = file;
+            row.line = u64::from(range.span.start().line());
+            row.column = u64::from(range.span.start().column());
+            row.is_statement = true;
+            lines.generate_row();
+            previous = Some(range.start);
+        }
+        lines.end_sequence(function.code_size as u64);
+        let mut unit = Unit::new(encoding, lines);
+        let root = unit.root();
+        {
+            let entry = unit.get_mut(root);
+            entry.set(
+                constants::DW_AT_producer,
+                AttributeValue::String(b"lang native source".to_vec()),
+            );
+            entry.set(constants::DW_AT_use_UTF8, AttributeValue::FlagPresent);
+            entry.set(
+                constants::DW_AT_name,
+                AttributeValue::String(function.path.as_bytes().to_vec()),
+            );
+            entry.set(
+                constants::DW_AT_comp_dir,
+                AttributeValue::String(b".".to_vec()),
+            );
+            entry.set(constants::DW_AT_stmt_list, AttributeValue::LineProgramRef);
+            entry.set(
+                constants::DW_AT_low_pc,
+                AttributeValue::Address(Address::Symbol {
+                    symbol: index,
+                    addend: 0,
+                }),
+            );
+            entry.set(
+                constants::DW_AT_high_pc,
+                AttributeValue::Udata(function.code_size as u64),
+            );
+        }
+        let procedure = unit.add(root, constants::DW_TAG_subprogram);
+        {
+            let entry = unit.get_mut(procedure);
+            entry.set(
+                constants::DW_AT_name,
+                AttributeValue::String(function.name.as_bytes().to_vec()),
+            );
+            entry.set(
+                constants::DW_AT_linkage_name,
+                AttributeValue::String(function.linkage_name.as_bytes().to_vec()),
+            );
+            entry.set(
+                constants::DW_AT_decl_file,
+                AttributeValue::FileIndex(Some(primary)),
+            );
+            entry.set(
+                constants::DW_AT_decl_line,
+                AttributeValue::Udata(u64::from(function.span.start().line())),
+            );
+            entry.set(
+                constants::DW_AT_decl_column,
+                AttributeValue::Udata(u64::from(function.span.start().column())),
+            );
+            entry.set(constants::DW_AT_external, AttributeValue::FlagPresent);
+            entry.set(
+                constants::DW_AT_calling_convention,
+                AttributeValue::Data1(constants::DW_CC_nocall.0),
+            );
+            entry.set(
+                constants::DW_AT_low_pc,
+                AttributeValue::Address(Address::Symbol {
+                    symbol: index,
+                    addend: 0,
+                }),
+            );
+            entry.set(
+                constants::DW_AT_high_pc,
+                AttributeValue::Udata(function.code_size as u64),
+            );
+        }
+        dwarf.units.add(unit);
+        symbols.push(function.symbol);
+    }
+    let mut sections = Sections::new(DwarfSection::new());
+    dwarf
+        .write(&mut sections)
+        .map_err(|error| error.to_string())?;
+    add_macho_sections(object, sections, &symbols)
 }
 
 fn append_codeview_symbol(

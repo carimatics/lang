@@ -185,6 +185,8 @@ cargo run --bin lang -- native --target x86_64-pc-windows-msvc --output /tmp/lan
 
 生成startupはproduction runtime APIを使ってscriptの値を表示し、元のobjectのbinding前にSDK identityを照合します。[Compiler test](tests/native_compiler.rs)はsource削除後にこれらの出力と実C callerをbuild・実行します。公開 `link-native` は後述のとおり実装し、隔離installはaccepted [RFC 0020](docs/ja/rfcs/0020-native-sdk-and-startup.md)に沿って検証済みです。SDKは完全一致するRust toolchainとnative linkerを必要とし、C hostにはC11も必要です。
 
+Native source location（2026-10-20 JST更新・検証）：macOSの`lang native` objectは、Copy・ownership・C-export unitの各source functionにDWARF 4を出力します。name、正確なnative linkage symbol、論理source path、Unicode scalarの行／列をbytecode decode後も不変のMIR snapshotから取得します。functionごとのrelocationとfileをまたぐline rangeを保持し、source index／metadata構築をcompiler budgetで制限します。private pointer ABIについてsource parameter位置やdebuggerから呼び出せるsignatureは推測しません。既存の低level emit APIはdebugなしの振る舞いを維持し、追加`*_with_debug` APIでsource metadataを提供します。Windows metadataは次のG02、実debugger stepping／backtraceはG03の範囲です。debuggerには元のsource fileと記録した論理pathへの適切なsource mappingが必要です。
+
 ### Native package検証API
 
 2026-10-20 JST更新・検証：`native::manifest::SdkSnapshot::open` と `ProgramSnapshot::open` はRFC 0020のdataを検証し、後続の信頼済みlinkに使うprivate copyを保持します。重複／未知field・role、不正path、予算、SDK／build／toolchain tag、hash、意味論／native／objectの不一致を拒否します。SDKは64 KiB bufferでstreamコピーし、program dataはbindingやguest実行なしに独立decodeとplan検査を行います。

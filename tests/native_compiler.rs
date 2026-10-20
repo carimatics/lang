@@ -38,6 +38,99 @@ fn native(input: &Path, out: &Path, target: Option<&str>) -> Output {
     }
     c.arg(input).output().unwrap()
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+fn source_native_copy_owned_and_c_objects_have_verified_function_debug_locations() {
+    use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
+    let root = Dir::new();
+    let cases = [
+        (
+            "copy",
+            "fn increment(n:i64)->i64{return n+1;} fn main()->i64{return increment(41);}",
+            vec!["increment", "main"],
+        ),
+        (
+            "owned",
+            "fn make(n:i64)->core::Bytes { let mut b:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator())); let mut p:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(b,n)); return b; } fn main()->i64 { let mut b:core::Bytes=make(41); return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(b,0))+1; }",
+            vec!["make", "main"],
+        ),
+        (
+            "c",
+            "fn add(n:i64)->i64{return n+1;} pub extern \"C\" fn entry(n:i64)->i64 { let mut b:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator())); let mut p:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(b,n)); return add(core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(b,0))); }",
+            vec!["add", "entry"],
+        ),
+    ];
+    for (name, source, names) in cases {
+        let input = root.0.join(format!("{name}.lang"));
+        fs::write(&input, format!("// é 😀\n{source}\n")).unwrap();
+        let package = root.0.join(name);
+        let emitted = native(&input, &package, None);
+        assert!(
+            emitted.status.success(),
+            "{}",
+            String::from_utf8_lossy(&emitted.stderr)
+        );
+        let object = package.join("program.o");
+        let verify = Command::new("xcrun")
+            .args(["llvm-dwarfdump", "--verify"])
+            .arg(&object)
+            .output()
+            .unwrap();
+        assert!(
+            verify.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&verify.stdout),
+            String::from_utf8_lossy(&verify.stderr)
+        );
+        let dump = Command::new("xcrun")
+            .args(["llvm-dwarfdump", "--debug-info"])
+            .arg(&object)
+            .output()
+            .unwrap();
+        assert!(dump.status.success());
+        let info = String::from_utf8(dump.stdout).unwrap();
+        assert_eq!(
+            info.matches("DW_TAG_compile_unit").count(),
+            names.len(),
+            "{info}"
+        );
+        assert_eq!(
+            info.matches("DW_TAG_subprogram").count(),
+            names.len(),
+            "{info}"
+        );
+        assert!(
+            !info.contains("DW_TAG_formal_parameter"),
+            "private ABI arguments must not be invented as source variables"
+        );
+        for function in names {
+            assert!(info.contains(&format!("(\"{function}\")")), "{info}");
+        }
+        let bytes = fs::read(object).unwrap();
+        let parsed = object::File::parse(bytes.as_slice()).unwrap();
+        let debug = parsed.section_by_name("__debug_info").unwrap();
+        let targets: std::collections::HashSet<_> = debug
+            .relocations()
+            .filter_map(|(_, r)| match r.target() {
+                object::RelocationTarget::Symbol(i) => parsed
+                    .symbol_by_index(i)
+                    .ok()
+                    .and_then(|s| s.name().ok())
+                    .map(str::to_owned),
+                _ => None,
+            })
+            .collect();
+        for line in info.lines().filter(|l| l.contains("DW_AT_linkage_name")) {
+            let symbol = line.split('"').nth(1).unwrap();
+            // Mach-O's leading underscore is not part of the linker spelling.
+            assert!(
+                targets.contains(symbol) || targets.contains(&format!("_{symbol}")),
+                "{symbol}: {targets:?}"
+            );
+        }
+    }
+}
 fn build(package: &Path, name: &str) -> PathBuf {
     build_extra(package, name, &[])
 }

@@ -37,6 +37,7 @@ pub enum Error {
     UnknownHostFunction(HostFunctionId),
     NativeCapacity,
     Backend(String),
+    SourceDebug(crate::SourceDebugError),
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -236,6 +237,7 @@ pub fn emit_host_object(
         imports,
         budget,
         builder.finish(flags()?).map_err(backend)?,
+        None,
     )
 }
 pub fn emit_object_for_target(
@@ -251,6 +253,24 @@ pub fn emit_object_for_target(
         imports,
         budget,
         builder.finish(flags()?).map_err(backend)?,
+        None,
+    )
+}
+/// Emit source-mapped Mach-O debug metadata for an actual whole source unit.
+pub fn emit_object_for_target_with_debug(
+    verified: &m::VerifiedUnit,
+    imports: &[HostFunctionId],
+    limits: m::Limits,
+    target: Triple,
+) -> Result<ObjectArtifact, Error> {
+    let budget = preflight(verified, imports, limits)?;
+    let builder = isa::lookup(target).map_err(backend)?;
+    emit(
+        verified,
+        imports,
+        budget,
+        builder.finish(flags()?).map_err(backend)?,
+        Some(&verified.unit().sources),
     )
 }
 fn flags() -> Result<settings::Flags, Error> {
@@ -263,12 +283,30 @@ fn emit(
     imports: &[HostFunctionId],
     mut budget: m::Budget,
     isa: OwnedTargetIsa,
+    sources: Option<&[m::Source]>,
 ) -> Result<ObjectArtifact, Error> {
     let builder =
         ObjectBuilder::new(isa, b"lang-unit".to_vec(), default_libcall_names()).map_err(backend)?;
     let mut module = ObjectModule::new(builder);
     let (_, functions) = define(&mut module, verified, imports, &mut budget)?;
-    let bytes = module.finish().emit().map_err(backend)?;
+    let mut product = module.finish();
+    if let Some(sources) = sources {
+        crate::source_debug::macho(
+            &mut product.object,
+            functions.iter(),
+            |id| {
+                verified
+                    .unit()
+                    .functions
+                    .get(id.0 as usize)
+                    .and_then(|function| function.span.map(|span| (function.name.as_str(), span)))
+            },
+            sources,
+            &mut budget,
+        )
+        .map_err(Error::SourceDebug)?;
+    }
+    let bytes = product.emit().map_err(backend)?;
     Ok(ObjectArtifact { bytes, functions })
 }
 

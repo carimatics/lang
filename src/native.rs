@@ -190,7 +190,12 @@ pub fn compile(
             let canonical = lang_bytecode::unit::decode(&semantic, Default::default())
                 .map_err(Error::CopyCodec)?;
             let entry = canonical.verified().unit().entry;
-            let object = clif::program::emit_object_for_target(
+            let emit = if abi_target == abi::Target::MacosAarch64 {
+                clif::program::emit_object_for_target_with_debug
+            } else {
+                clif::program::emit_object_for_target
+            };
+            let object = emit(
                 canonical.verified(),
                 &[],
                 Default::default(),
@@ -257,15 +262,13 @@ pub fn compile(
                         .header(Default::default(), Default::default())
                         .map_err(Error::CMetadata)?,
                 );
-                let object = n::emit_c_object_for_target(
-                    flow,
-                    &layouts,
-                    &artifact,
-                    &target,
-                    Default::default(),
-                    4096,
-                )
-                .map_err(Error::CCodegen)?;
+                let emit = if abi_target == abi::Target::MacosAarch64 {
+                    n::emit_c_object_for_target_with_debug
+                } else {
+                    n::emit_c_object_for_target
+                };
+                let object = emit(flow, &layouts, &artifact, &target, Default::default(), 4096)
+                    .map_err(Error::CCodegen)?;
                 symbols.push(object.slot_symbol().to_owned());
                 symbols.extend(object.support_symbols().iter().cloned());
                 symbols.extend(object.export_symbols().iter().map(|f| f.1.clone()));
@@ -284,9 +287,13 @@ pub fn compile(
                     .into_recorded(Default::default())
                     .map_err(Error::OwnedCodegen)?
             } else {
-                let object =
-                    n::emit_object_for_target(flow, &layouts, &target, Default::default(), 4096)
-                        .map_err(Error::OwnedCodegen)?;
+                let emit = if abi_target == abi::Target::MacosAarch64 {
+                    n::emit_object_for_target_with_debug
+                } else {
+                    n::emit_object_for_target
+                };
+                let object = emit(flow, &layouts, &target, Default::default(), 4096)
+                    .map_err(Error::OwnedCodegen)?;
                 for i in 0..flow.functions().len() {
                     symbols.push(
                         object

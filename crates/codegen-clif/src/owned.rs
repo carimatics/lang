@@ -32,7 +32,10 @@ mod recorded;
 pub(crate) use c_imports::CExecutable;
 use c_imports::ImportDispatcher;
 pub use c_imports::{CCompiledProgram, CEnvironment, CError, NativeProgram};
-pub use c_objects::{CLinkedProgram, CObjectArtifact, CObjectError, emit_c_object_for_target};
+pub use c_objects::{
+    CLinkedProgram, CObjectArtifact, CObjectError, emit_c_object_for_target,
+    emit_c_object_for_target_with_debug,
+};
 pub use recorded::{RecordedError, RecordedObject};
 pub mod runtime;
 
@@ -1002,6 +1005,17 @@ pub fn emit_object_for_target<'a>(
 ) -> Result<ObjectArtifact<'a>, Error> {
     prepare_object(flow, layouts, target, limits, cells, CompileScope::Unit)?.finish()
 }
+/// Emit source-mapped Mach-O debug metadata using the same private native ABI.
+pub fn emit_object_for_target_with_debug<'a>(
+    flow: &'a f::Elaborated,
+    layouts: &'a Layouts<'a>,
+    target: &crate::Triple,
+    limits: m::Limits,
+    cells: usize,
+) -> Result<ObjectArtifact<'a>, Error> {
+    prepare_object(flow, layouts, target, limits, cells, CompileScope::Unit)?
+        .finish_debug(Some((flow, limits)))
+}
 struct PreparedObject<'a> {
     module: ObjectModule,
     target: crate::Triple,
@@ -1011,13 +1025,43 @@ struct PreparedObject<'a> {
 }
 impl<'a> PreparedObject<'a> {
     fn finish(self) -> Result<ObjectArtifact<'a>, Error> {
-        let bytes = self.module.finish().emit().map_err(backend)?;
+        self.finish_debug(None)
+    }
+    fn finish_debug(
+        self,
+        debug: Option<(&f::Elaborated, m::Limits)>,
+    ) -> Result<ObjectArtifact<'a>, Error> {
+        let mut product = self.module.finish();
+        let mut usage = self.usage;
+        if let Some((flow, limits)) = debug {
+            let mut budget = m::Budget::with_usage(limits, usage).map_err(Error::Resource)?;
+            let declarations = typed(flow).places().declarations();
+            crate::source_debug::macho(
+                &mut product.object,
+                self.functions.iter().map(|function| &function.metadata),
+                |id| {
+                    declarations
+                        .functions()
+                        .get(id.0 as usize)
+                        .map(|function| (function.name.as_str(), function.span))
+                },
+                &declarations.types().table().sources,
+                &mut budget,
+            )
+            .map_err(Error::SourceDebug)?;
+            usage = m::Usage {
+                work: budget.work_used(),
+                allocation_bytes: budget.allocation_bytes(),
+                elements: budget.elements_used(),
+            };
+        }
+        let bytes = product.emit().map_err(backend)?;
         Ok(ObjectArtifact {
             bytes,
             target: self.target,
             scope: self.scope,
             functions: self.functions,
-            usage: self.usage,
+            usage,
         })
     }
 }
@@ -2539,6 +2583,7 @@ pub enum Error {
         span: m::Span,
     },
     Backend(String),
+    SourceDebug(crate::SourceDebugError),
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
