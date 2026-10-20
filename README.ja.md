@@ -223,6 +223,8 @@ Local probeだけでは両host隔離の証拠になりません。対応する�
 
 このfixtureで見つかったpanic時のallocator loan解析拒否を修正しました。Typed MIRが末尾Panic＋Unreachableだけを許可した経路では、必須failure retirementがpanic記録後にloan／ownerを解放します。通常return、bare Unreachable、成功経路へ継続する不正Panicの拒否は[MIR回帰test](crates/mir/tests/ownership_loan_activity.rs)で維持します。既存の受理済みpanic意味論の修正であり、source／ABI／serialized formatの変更はありません。
 
+Platform conformance CI：[macOS workflow](.github/workflows/macos-aarch64.yml) は `codex/q02-*` のpushでも起動し、[Windows](.github/workflows/windows-x86_64.yml) は `codex/m2-*` で起動します。検証headの差分がworkflow／planning文書のみなら、結果を組み合わせる前に実装・test・fixture byteが同一であることを明示照合します。Q02の両native hostの結果は[Todo](docs/ja/milestone-2.md)に記録します。
+
 ## 設計プロセス
 
 構文、型意味論、メモリ安全性、並行処理、ABI、パッケージ互換性、プラグイン境界を変更する場合はRFCが必要です。リポジトリSkillの `$language-design-rfc` を使用するか、`docs/ja/rfcs/0000-template.md` から開始してください。

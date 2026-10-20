@@ -223,6 +223,8 @@ The [actual production-entry comparison](tests/support/native_entry_runtime.rs) 
 
 This fixture exposed a false rejection of a live allocator loan at panic. Where typed MIR permits only a final Panic with Unreachable, mandatory failure retirement ends loans/owners after recording the panic. [MIR regression tests](crates/mir/tests/ownership_loan_activity.rs) retain normal-return, bare-Unreachable and invalid-success-continuation refusal. This corrects existing accepted panic semantics without changing source, ABI or serialized formats.
 
+Platform conformance CI: the [macOS workflow](.github/workflows/macos-aarch64.yml) also accepts `codex/q02-*` pushes; [Windows](.github/workflows/windows-x86_64.yml) accepts `codex/m2-*`. If validation heads differ only in workflow/planning documentation, compare the implementation, test and fixture bytes explicitly before pairing their results. Q02 records both native-host outcomes in the [Todo](docs/milestone-2.md).
+
 ## Design process
 
 Changes to syntax, type semantics, memory safety, concurrency, ABI, package compatibility, or the plugin boundary require an RFC. Use the repository skill `$language-design-rfc` or start from `docs/rfcs/0000-template.md`.
