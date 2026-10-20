@@ -9,6 +9,7 @@ pub struct Location {
 pub struct Scope {
     pub id: b::TaskScopeId,
     pub serial: u64,
+    pub results: Option<usize>,
 }
 #[derive(Clone, Copy)]
 pub enum Pending {
@@ -68,6 +69,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
             scopes.push(Scope {
                 id: b::TaskScopeId(0),
                 serial: 0,
+                results: None,
             });
         }
         let storage = plan.reserve_after(allocator, usage(budget))?;

@@ -122,6 +122,8 @@ Keep deployment tiers explicit: trusted native code has no sandbox claim; verifi
 
 Package-aware build/test/lint/doc, a package manager/installer, richer LSP/DAP, registry/provenance, LLVM evaluation, self-hosting and additional frontends remain in the [roadmap](roadmap.md). Current SDK packaging does not complete the package manager or installer. Bootstrap requires a frozen supported subset, stage 0→1→2 conformance and reproducibility on both hosts; a second frontend waits for a stable first frontend and ABI.
 
+T12 aligns task-scope exits with RFC 0022: end exiting loans/references, join, retire unclaimed results in reverse publication order, then clean that scope’s ordinary locals. Return closes nested scopes inside-out after staging its result. Runtime scope/result links retain completed siblings until every required join; awaited holes are consumed once. Failure/cancellation drains the same inventory at the join phase before owner retirement. Source/MIR and VM/native provider-region fixtures verify this order; owned task execution remains T07 work (2026-10-21 JST).
+
 ## Validation and maintenance
 
 Run focused behavior regressions, then the repository fmt/Clippy/test/doc baseline for code changes. Preserve source/format fixtures and differential values, failure spans, cleanup and resource accounting. Native target execution, debugger execution, sanitizer/coverage-guided fuzz campaigns and performance measurements are distinct evidence; compilation alone does not establish them.

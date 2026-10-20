@@ -1,0 +1,24 @@
+// M3-T07 fixture: retain an owned Bytes value across suspension and cancel.
+// Execution support is being connected to the existing managed runtime.
+async fn worker(value: i64) -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator())
+    );
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, value)
+    );
+    yield;
+    cancel_check;
+    return core::bytes_len(bytes);
+}
+
+async fn main() -> i64 {
+    let mut child: core::Task<i64> = spawn worker(65);
+    yield;
+    cancel child;
+    let mut result: core::Result<i64, core::TaskError> = await child;
+    match result {
+        core::Result::Ok(length) => { return length; },
+        core::Result::Err(core::TaskError::Cancelled) => { return 7; },
+    }
+}

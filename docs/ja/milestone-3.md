@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**9 done · 1 doing · 32 todo · 93 remaining pt**
+**9 done · 1 doing · 33 todo · 95 remaining pt**
 
-**次: M3-T07 → owned task local を実行し、入れ子の取消/失敗 cleanup を検証します。**
+**次: M3-T12 → 暗黙 join 時の retirement 順を修正し、T07 owned 実行へ戻ります。**
 
-現在の作業: **M3-T07**。直近の実行検証: **`8d6c283`、2026-10-21 07:29 JST**。source VM と `cargo run --example native-structured-tasks` はともに 42 を出力します。compiled native continuation と独立にリンクした host object は finite Copy/Task local で VM と値/event/失敗起点/使用量が一致し、MIR 解釈や VM fallback を使いません。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が通過しました。T07 の残条件は実際の owned local と同期 owned-result move、retirement 前の入れ子 cancel/join、primary/secondary 失敗 report、exactly-once cleanup です。一般 async Send/Share transfer は A01、完全な共有 control は T08 に残します。task artifact/native package の明示拒否を維持し、M3 exit gate は未完了です。
+現在の作業: **M3-T12**。直近の実行検証: **`8d6c283`、2026-10-21 07:29 JST**。source VM と `cargo run --example native-structured-tasks` はともに 42 を出力します。compiled native continuation と独立にリンクした host object は finite Copy/Task local で VM と値/event/失敗起点/使用量が一致し、MIR 解釈や VM fallback を使いません。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target の compile/lint が通過しました。T12 の残条件は終了 loan を join 前に終え、通常 local を join 後まで保持し、未回収 result を全 join 後に公開逆順で破棄することです。後続 T07 の残条件は実際の owned local と同期 owned-result move、retirement 前の入れ子 cancel/join、primary/secondary 失敗 report、exactly-once cleanup です。一般 async Send/Share transfer は A01、完全な共有 control は T08 に残します。task artifact/native package の明示拒否を維持し、M3 exit gate は未完了です。
 
-**今回: T06 完了（−3 pt）、新規 task/見積りはありません。** 直前残り **96 − 3 = 93 pt**。全 **42 行**、累積消化 **24 pt** と純追加見積り **+7 pt** を維持します。
+**今回: 実装前に T12（+2 pt）を公開し、新たな完了作業はありません。** 直前残り **93 + 2 = 95 pt**。全 **43 行**、累積消化 **24 pt**、純追加見積り **+9 pt** です。
 
 ## Deliveries
 
@@ -29,7 +29,8 @@
 | M3-T04 | done | 0 | M3-T11 | G03 | typed MIR の suspension、task scope、所有権 edge を独立検証 | `700391d` |
 | M3-T05 | done | 0 | M3-T02,M3-T04 | G03 | 共通 task driver 経由で source spawn/yield/join fixture を VM 実行 | `2f58084` |
 | M3-T06 | done | 0 | M3-T05 | G03,G13 | 同じ fixture を native continuation で実行し event 一致を検証 | `8d6c283` |
-| M3-T07 | doing | 3 | M3-T06 | G03 | 所有 local、入れ子の取消、主/副失敗、exactly-once cleanup を検証 | — |
+| M3-T07 | todo | 3 | M3-T12 | G03 | 所有 local、入れ子の取消、主/副失敗、exactly-once cleanup を検証 | — |
+| M3-T12 | doing | 2 | M3-T06 | G03,G13 | owned task 実行前に join 後の local cleanup と公開逆順の result retirement を保証する | — |
 | M3-T08 | todo | 3 | M3-T07 | G12,G13 | 全実行経路で task/frame/fuel の共有上限を副作用前に適用 | — |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | 有界 channel、FIFO wakeup、背圧、所有権 commit、取消 error を採択 | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | — |
@@ -101,15 +102,17 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 7 − 24 = 93 pt**
+**110 + 9 − 24 = 95 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
 T06 roadmap 監査: G03/G12/G13 の完了前に **T07 → T08** へ進みます。task `Frame::transfer`、finite profile の admission、既存 VM ownership state、native production managed primitive、`Reservation::move_root_into`、retirement/cleanup context を確認しました。T07 は元の 3 pt の観測可能な成果を維持し、残条件は実際の managed ownership による対応 owned local と同期 owned-result move、owner/escrow retirement 前の入れ子取消 join、失敗時の順序付き primary/secondary report と exactly-once cleanup です。現在の Copy transfer/forget 経路は ownership の代用になりません。次の owned source fixture で既存 managed service/cleanup 機構を再利用し、別の観測可能な前提が必要なら実装前に公開/再見積りします。一般 async transfer は A01、完全な共有 control は T08 に残します。全 15 gate、全 P1、channel、Send/Share、production embedding を M3 に維持します。
 
+T07 前提監査（2026-10-21 JST）: `03311f8` の lowerer は task scope body/return の Cleanup を TaskScopeExit より前に出し、runtime pending join は後続 child の join 前に先行 result を破棄しています。Copy-only 実行では owner callback がなく、所有値対応時に RFC 0022 の join → 公開逆順 result retirement → ordinary local cleanup を満たせません。owned source fixture は check に成功して実行が副作用前の Unsupported で止まることを再現しました。所有値を受理する前に必要な独立の正しさ修正を **T12（2 pt）** として公開し、**T06 → T12 → T07 → T08** に変更します。T12 は新しい source/MIR 順序テストと VM/native の実行時 region 解放テストを成果とし、scheduler/IDL 基盤は追加しません。T07 の owned move/loan/cancel/primary-secondary/exactly-once 契約と全 M3 gate は維持します。追加 **+2 pt**、**42 → 43 行**、net **+7 → +9 pt**、完了による消化はありません。
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +7 pt | −24 pt | 93 pt |
+| 110 pt | +9 pt | −24 pt | 95 pt |
 
 ## Exit audit
 

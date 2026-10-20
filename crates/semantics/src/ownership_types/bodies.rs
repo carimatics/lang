@@ -37,6 +37,13 @@ enum Action {
     Loan(b::LoanId, Span),
     Arena(d::LocalId, Span),
 }
+#[derive(Clone, Copy)]
+enum CleanupPhase {
+    All,
+    BeforeJoin,
+    AfterJoin,
+}
+
 #[derive(Default)]
 struct Counts {
     registers: usize,
@@ -135,6 +142,7 @@ fn construct<'a>(
             prepared: 0,
             task_scopes: Vec::new(),
             task_stack: Vec::new(),
+            task_marks: Vec::new(),
             task_bindings: Vec::new(),
         };
         lower.prepare_tasks()?;
@@ -190,6 +198,7 @@ struct Lowerer<'a, 'b, 'c> {
     prepared: usize,
     task_scopes: Vec<b::TaskScope>,
     task_stack: Vec<b::TaskScopeId>,
+    task_marks: Vec<usize>,
     task_bindings: Vec<b::TaskBinding>,
 }
 impl Lowerer<'_, '_, '_> {
@@ -207,6 +216,7 @@ impl Lowerer<'_, '_, '_> {
             b::TaskScope { parent: None, span },
         )?;
         push(self.c, &mut self.task_stack, b::TaskScopeId(0))?;
+        push(self.c, &mut self.task_marks, 0)?;
         for (index, ty_) in self.facts.locals().iter().enumerate() {
             if self.is_task(ty(*ty_)?) {
                 push(
@@ -411,9 +421,59 @@ impl Lowerer<'_, '_, '_> {
         block: m::BlockId,
         returned: Option<m::Register>,
     ) -> Result<()> {
+        self.cleanup_phase(mark, end, block, returned, CleanupPhase::All)
+    }
+    fn before_join(&self, action: Action) -> bool {
+        let ty = match action {
+            Action::Loan(..) => return true,
+            Action::Arena(..) => return false,
+            Action::Local(local, _) => {
+                return self
+                    .input
+                    .properties(self.facts.locals()[local.0 as usize])
+                    .is_some_and(|p| p.contains_loan || p.contains_task);
+            }
+            Action::Value(value, _) => self.frame.values[value.0 as usize].ty,
+        };
+        if self.is_task(ty) {
+            return true;
+        }
+        let source = match ty {
+            o::Type::I64 => r::Type::I64,
+            o::Type::Bool => r::Type::Bool,
+            o::Type::Nominal(id) => r::Type::Nominal(r::DefinitionId(id.0 as usize)),
+            o::Type::Constructed(id) => {
+                if matches!(
+                    self.types[id.0 as usize].constructor,
+                    o::Constructor::Loan(..)
+                ) {
+                    return true;
+                }
+                r::Type::Constructed(r::ConstructedTypeId(id.0 as usize))
+            }
+        };
+        self.input
+            .properties(source)
+            .is_some_and(|p| p.contains_loan)
+    }
+    fn cleanup_phase(
+        &mut self,
+        mark: usize,
+        end: usize,
+        block: m::BlockId,
+        returned: Option<m::Register>,
+        phase: CleanupPhase,
+    ) -> Result<()> {
         let mut steps = self.c.budget.vector(end - mark)?;
         for i in (mark..end).rev() {
             self.c.budget.charge(1)?;
+            if match phase {
+                CleanupPhase::All => false,
+                CleanupPhase::BeforeJoin => !self.before_join(self.actions[i]),
+                CleanupPhase::AfterJoin => self.before_join(self.actions[i]),
+            } {
+                continue;
+            }
             let (target, span) = match self.actions[i] {
                 Action::Local(local, span) => (b::CleanupTarget::Local(local), span),
                 Action::Value(value, _) if Some(value) == returned => continue,
@@ -808,6 +868,15 @@ impl Lowerer<'_, '_, '_> {
         entry: m::BlockId,
         depth: usize,
     ) -> Result<Option<m::BlockId>> {
+        self.body_closing(source, entry, depth, None)
+    }
+    fn body_closing(
+        &mut self,
+        source: r::BlockId,
+        entry: m::BlockId,
+        depth: usize,
+        closing: Option<(b::TaskScopeId, Span)>,
+    ) -> Result<Option<m::BlockId>> {
         self.enter(depth)?;
         let mark = self.actions.len();
         let mut current = Some(entry);
@@ -851,11 +920,10 @@ impl Lowerer<'_, '_, '_> {
                     )?;
                     self.emit(block, None, b::Op::TaskScopeEnter(scope), span)?;
                     push(self.c, &mut self.task_stack, scope)?;
-                    current = self.body(*body, block, depth + 1)?;
-                    if let Some(exit) = current {
-                        self.emit(exit, None, b::Op::TaskScopeExit(scope), span)?;
-                    }
+                    push(self.c, &mut self.task_marks, self.actions.len())?;
+                    current = self.body_closing(*body, block, depth + 1, Some((scope, span)))?;
                     self.task_stack.pop();
+                    self.task_marks.pop();
                 }
                 r::StatementKind::Yield => self.emit(block, None, b::Op::TaskYield, span)?,
                 r::StatementKind::CancelCheck => self.emit(block, None, b::Op::TaskCheck, span)?,
@@ -883,7 +951,8 @@ impl Lowerer<'_, '_, '_> {
                     let value = self.expression(*value, block, depth + 1)?;
                     if self.function.effect.is_async() {
                         self.emit(block, None, b::Op::TaskSaveReturn(value), span)?;
-                        self.cleanup(0, block, Some(value))?;
+                        let mut end = self.actions.len();
+                        self.cleanup_phase(0, end, block, Some(value), CleanupPhase::BeforeJoin)?;
                         for index in (0..self.task_stack.len()).rev() {
                             self.emit(
                                 block,
@@ -891,6 +960,15 @@ impl Lowerer<'_, '_, '_> {
                                 b::Op::TaskScopeExit(self.task_stack[index]),
                                 span,
                             )?;
+                            let mark = self.task_marks[index];
+                            self.cleanup_phase(
+                                mark,
+                                end,
+                                block,
+                                Some(value),
+                                CleanupPhase::AfterJoin,
+                            )?;
+                            end = mark;
                         }
                         self.seal(block, b::Term::ReturnSaved, span)?;
                     } else {
@@ -1000,7 +1078,14 @@ impl Lowerer<'_, '_, '_> {
             }
         }
         if let Some(exit) = current {
-            self.cleanup(mark, exit, None)?;
+            if let Some((scope, span)) = closing {
+                let end = self.actions.len();
+                self.cleanup_phase(mark, end, exit, None, CleanupPhase::BeforeJoin)?;
+                self.emit(exit, None, b::Op::TaskScopeExit(scope), span)?;
+                self.cleanup_phase(mark, end, exit, None, CleanupPhase::AfterJoin)?;
+            } else {
+                self.cleanup(mark, exit, None)?;
+            }
         }
         self.actions.truncate(mark);
         Ok(current)

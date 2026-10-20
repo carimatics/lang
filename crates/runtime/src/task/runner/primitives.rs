@@ -323,6 +323,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 frame.scopes.push(Scope {
                     id: *id,
                     serial: frame.serial,
+                    results: None,
                 });
                 self.event(task, EventKind::ScopeEnter(id.0), span)?;
             }
@@ -440,6 +441,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                         return Err(Reason::Invariant);
                     }
                 }
+                self.retire_children_results(task)?;
             }
             Primitive::Finish => return Ok(Flow::Finished),
         }

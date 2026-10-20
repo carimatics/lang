@@ -128,6 +128,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                 frame.scopes.push(Scope {
                                     id: *id,
                                     serial: frame.serial,
+                                    results: None,
                                 });
                                 machine.event(task, EventKind::ScopeEnter(id.0), node.span)?;
                             }
@@ -377,6 +378,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                             return Err(Reason::Invariant);
                         }
                     }
+                    machine.retire_children_results(task)?;
                     next
                 }
                 f::Kind::RetireFailure { next } => next,

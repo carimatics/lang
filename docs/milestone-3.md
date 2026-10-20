@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**9 done · 1 doing · 32 todo · 93 remaining pt**
+**9 done · 1 doing · 33 todo · 95 remaining pt**
 
-**Next: M3-T07 → execute owned task locals and verify nested cancellation/failure cleanup.**
+**Next: M3-T12 → correct implicit-join retirement order, then resume T07 owned execution.**
 
-Current delivery: **M3-T07**. Last executable checkpoint: **`8d6c283`, verified 2026-10-21 07:29 JST**: source VM and `cargo run --example native-structured-tasks` both print 42. Compiled native continuations and independently linked host objects match VM values/events/failure origins/usage for finite Copy/Task locals, without MIR interpretation or a VM fallback. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. Remaining T07 acceptance: actual owned locals and synchronous owned-result moves, nested cancellation/join before retirement, primary/secondary failure reports and exactly-once cleanup. General async Send/Share transfers remain A01; complete shared controls remain T08. Task artifacts/native packages retain explicit refusal. No M3 exit gate is complete.
+Current delivery: **M3-T12**. Last executable checkpoint: **`8d6c283`, verified 2026-10-21 07:29 JST**: source VM and `cargo run --example native-structured-tasks` both print 42. Compiled native continuations and independently linked host objects match VM values/events/failure origins/usage for finite Copy/Task locals, without MIR interpretation or a VM fallback. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. T12 acceptance: ending lexical loans before joins, retaining ordinary locals through their joins, and disposing unclaimed results in reverse publication order only after all joins. T07 remains pending: actual owned locals and synchronous owned-result moves, nested cancellation/join before retirement, primary/secondary failure reports and exactly-once cleanup. General async Send/Share transfers remain A01; complete shared controls remain T08. Task artifacts/native packages retain explicit refusal. No M3 exit gate is complete.
 
-**This update: T06 completed (−3 pt); no new tasks or estimates.** Previous remaining **96 − 3 = 93 pt**. Across **42 rows**, cumulative retired estimates are **24 pt** and net additions remain **+7 pt**.
+**This update: expose T12 (+2 pt) before implementation; no newly completed delivery.** Previous remaining **93 + 2 = 95 pt**. Across **43 rows**, cumulative retired estimates remain **24 pt** and net additions become **+9 pt**.
 
 ## Deliveries
 
@@ -29,7 +29,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-T04 | done | 0 | M3-T11 | G03 | Verify typed MIR suspension, task scopes and ownership edges independently | `700391d` |
 | M3-T05 | done | 0 | M3-T02,M3-T04 | G03 | Execute a source spawn/yield/join fixture in the VM through the shared task driver | `2f58084` |
 | M3-T06 | done | 0 | M3-T05 | G03,G13 | Execute the same task fixture through native continuations with equivalent events | `8d6c283` |
-| M3-T07 | doing | 3 | M3-T06 | G03 | Verify owned locals, nested cancellation, primary/secondary failures and exactly-once cleanup | — |
+| M3-T07 | todo | 3 | M3-T12 | G03 | Verify owned locals, nested cancellation, primary/secondary failures and exactly-once cleanup | — |
+| M3-T12 | doing | 2 | M3-T06 | G03,G13 | Preserve join-before-local cleanup and reverse publication retirement before owned task execution | — |
 | M3-T08 | todo | 3 | M3-T07 | G12,G13 | Enforce shared task/frame/fuel controls before effects on all execution paths | — |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | Accept bounded channel, FIFO wakeup, backpressure, ownership commit and cancellation errors | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | — |
@@ -101,15 +102,17 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 7 − 24 = 93 pt**
+**110 + 9 − 24 = 95 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
 T06 roadmap audit: proceed **T07 → T08** before completing G03/G12/G13. Inspected task `Frame::transfer`, finite-profile admission, the existing VM ownership state, native production managed primitives, `Reservation::move_root_into`, retirement and cleanup contexts. T07 retains its original 3-point observable outcome with these remaining conditions: admit accepted owned locals and synchronous owned-result moves through real managed ownership; join nested cancellation before retiring owners/escrow; preserve ordered primary/secondary reports and exactly-once cleanup under failure. The current Copy transfer/forget path cannot stand in for ownership. Reuse existing managed services and cleanup machinery for the next owned source fixture; expose/re-estimate any additional observable prerequisite before implementing it. General async transfers await A01; full shared controls remain T08. All 15 gates, all P1 work, channels, Send/Share and production embedding stay in M3.
 
+T07 prerequisite audit (2026-10-21 JST): at `03311f8`, the lowerer emits task-scope-body/return Cleanup before TaskScopeExit, while the runtime pending join discards an earlier result before later children join. Copy-only execution has no owner callbacks, so admitting owners would violate RFC 0022’s join → reverse-publication result retirement → ordinary-local cleanup order. An owned source fixture checks successfully and reproduces the pre-effect Unsupported execution boundary. Expose the independently observable correctness prerequisite **T12 (2 pt)** before owner admission; sequence **T06 → T12 → T07 → T08**. T12 delivers source/MIR ordering tests and VM/native region-retirement execution evidence, without scheduler/IDL infrastructure. Preserve T07’s owned move/loan/cancellation/primary-secondary/exactly-once contract and every M3 gate. Addition **+2 pt**, **42 → 43 rows**, net **+7 → +9 pt**; no estimates retired at this audit.
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +7 pt | −24 pt | 93 pt |
+| 110 pt | +9 pt | −24 pt | 95 pt |
 
 ## Exit audit
 

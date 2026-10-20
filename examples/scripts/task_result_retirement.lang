@@ -1,0 +1,19 @@
+// Unclaimed results retire after all scope joins, in reverse publication order.
+async fn worker(value: i64) -> i64 {
+    if value < 22 {
+        yield;
+    } else {
+        yield;
+        yield;
+        yield;
+    }
+    return value;
+}
+
+async fn main() -> i64 {
+    task_scope {
+        let mut left: core::Task<i64> = spawn worker(20);
+        let mut right: core::Task<i64> = spawn worker(22);
+    }
+    return 42;
+}

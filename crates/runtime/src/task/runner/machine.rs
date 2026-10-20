@@ -8,6 +8,7 @@ pub struct Record<'l, 'ty> {
     pub scope: u64,
     pub frames: Vec<Frame<'l, 'ty>>,
     pub result: Option<l::Reservation<'l, 'ty>>,
+    pub next_result: Option<usize>,
 }
 pub struct Fault {
     pub reason: Reason,
@@ -61,6 +62,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             scope: 0,
             frames,
             result: None,
+            next_result: None,
         });
         Ok(Self {
             proof,
@@ -154,6 +156,56 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
         Ok(())
     }
+    fn publish_result(&mut self, task: usize) -> Result<(), Reason> {
+        let Some(parent) = self.records[task].parent else {
+            return Ok(());
+        };
+        if self.records[task].result.is_none() {
+            return Ok(());
+        }
+        let serial = self.records[task].scope;
+        let scope = self.records[parent]
+            .frames
+            .iter_mut()
+            .flat_map(|f| &mut f.scopes)
+            .find(|s| s.serial == serial)
+            .ok_or(Reason::Invariant)?;
+        let previous = scope.results.replace(task);
+        self.records[task].next_result = previous;
+        Ok(())
+    }
+    fn retire_scope_results(&mut self, task: usize, serial: u64) -> Result<(), Reason> {
+        let (frame, scope) = self.records[task]
+            .frames
+            .iter()
+            .enumerate()
+            .find_map(|(f, frame)| {
+                frame
+                    .scopes
+                    .iter()
+                    .position(|s| s.serial == serial)
+                    .map(|s| (f, s))
+            })
+            .ok_or(Reason::Invariant)?;
+        while let Some(child) = self.records[task].frames[frame].scopes[scope].results {
+            if self.records[child].parent != Some(task) || self.records[child].scope != serial {
+                return Err(Reason::Invariant);
+            }
+            self.records[task].frames[frame].scopes[scope].results =
+                self.records[child].next_result.take();
+            self.discard_result(child)?;
+        }
+        Ok(())
+    }
+    pub fn retire_children_results(&mut self, task: usize) -> Result<(), Reason> {
+        for frame in (0..self.records[task].frames.len()).rev() {
+            for index in (0..self.records[task].frames[frame].scopes.len()).rev() {
+                let serial = self.records[task].frames[frame].scopes[index].serial;
+                self.retire_scope_results(task, serial)?;
+            }
+        }
+        Ok(())
+    }
     pub fn pending(&mut self, task: usize) -> Result<bool, Reason> {
         let Some(pending) = self.frame_mut(task)?.pending.take() else {
             return Ok(true);
@@ -220,7 +272,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                             frame.node = failure;
                             return Ok(true);
                         }
-                        t::Status::Complete(_) => self.discard_result(index)?,
+                        t::Status::Complete(_) => {}
                         _ => {
                             self.frame_mut(task)?.pending = Some(Pending::Scope {
                                 scope,
@@ -235,6 +287,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         }
                     }
                 }
+                self.retire_scope_results(task, scope.serial)?;
                 let function = self.frame(task)?.function;
                 for binding in &self.proof.typed().functions()[function.0 as usize].task_bindings {
                     if binding.scope == scope.id {
@@ -343,6 +396,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             scope: scope.serial,
             frames,
             result: None,
+            next_result: None,
         });
         let parent = self.frame_mut(task)?;
         parent.claims[destination] = Some(child);
@@ -368,11 +422,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             backend.cleanup(self, task)?;
         }
 
-        for child in 0..self.records.len() {
-            if self.records[child].parent == Some(task) {
-                self.discard_result(child)?;
-            }
-        }
+        self.retire_children_results(task)?;
         while let Some(mut frame) = self.records[task].frames.pop() {
             if self.records[task].frames.is_empty() && outcome == t::Outcome::Success && frame.saved
             {
@@ -388,6 +438,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.active = None;
         if actual != t::Outcome::Success {
             self.discard_result(task)?;
+        } else {
+            self.publish_result(task)?;
         }
         self.event(task, EventKind::Complete(actual), span)
     }
@@ -405,6 +457,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         if let Some((task, cleaning)) = self.active.take() {
             if cleaning {
                 let index = task.index();
+                self.retire_children_results(index)?;
                 while let Some(mut frame) = self.records[index].frames.pop() {
                     frame.release(self.allocator)?;
                     self.retired(frame.function);
@@ -425,6 +478,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     .finish(&task, t::Outcome::Failed(t::FailureId(0)))?,
                 t::Dispatch::Cleanup { task, .. } => {
                     let index = task.index();
+                    self.retire_children_results(index)?;
                     while let Some(mut frame) = self.records[index].frames.pop() {
                         frame.release(self.allocator)?;
                         self.retired(frame.function);

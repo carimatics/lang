@@ -122,6 +122,8 @@ T06 は `runtime::task::runner` で invocation、managed frame/claim/result 状�
 
 Package-aware build/test/lint/doc、package manager/installer、拡張LSP/DAP、registry/provenance、LLVM評価、self-hosting、追加frontendは[roadmap](roadmap.md)に残ります。現在のSDK packagingはpackage managerやinstallerを完了させません。Bootstrapには固定した対応subset、stage 0→1→2のconformance、両hostでの再現性が必要です。第二frontendは第一frontendとABIの安定後です。
 
+T12 で task scope 終了を RFC 0022 に合わせ、終了 loan/reference、join、公開逆順の未回収 result retirement、当該 scope の通常 local cleanup の順にします。return は result を escrow に置き、入れ子 scope を内側から閉じます。runtime の scope/result link は必要な全 join まで完了 sibling を保持し、await 済みの穴を一度だけ消費します。失敗/取消も owner retirement 前の join phase で同じ inventory を処理します。source/MIR と VM/native provider region の fixture で順序を検証し、owned task 実行は T07 に残します（2026-10-21 JST）。
+
 ## 検証と保守
 
 Code変更では、対象のbehavior regressionを先に確認し、repositoryのfmt/Clippy/test/doc baselineを実行します。Source/format fixtureと、backend間の値、failure span、cleanup、resource accountingを保持します。Native target実行、debugger実行、sanitizer／coverage-guided fuzz campaign、性能測定は別々の根拠であり、compileだけでは成立しません。

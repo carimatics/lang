@@ -64,6 +64,8 @@ T04 cancellation plan の補足（2026-10-21 JST）: async failure plan に、pr
 
 ## Execution modes
 
+T12 の順序明確化（実装前、2026-10-21 JST）: RFC 0022 の既存契約を維持し、source の task scope 終了では exiting loan/reference の cleanup を join 前、通常 owner/value cleanup を当該 join と未回収 result retirement 後に lower します。return は result を一度 escrow に置き、入れ子 scope を内側から閉じ、各 scope の local をその join 後に retire します。既存 MIR 命令を並べ替え、新しい source semantics/wire tag は導入しません。runtime は scope に公開順の result chain を保持し、全 child の join 後に公開逆順で未回収結果を破棄します。await 済みの穴を再破棄せず、失敗/取消でも同じ inventory を使います。T07 の owner admission 前に source/MIR と VM/native region 解放でこの順序を検証します。
+
 T06 native の判断（実装前、2026-10-21 JST）: invocation driver、型付き frame/claim/result 状態、scheduling/storage primitive を runtime で共有し、backend ごとに明示 resume/cleanup entry を持ちます。MIR node dispatch は VM backend に残します。Cranelift が native block、演算、比較、分岐、失敗 edge、有界 continuation 選択を生成し、native callback は型付き storage/scheduling/control/failure primitive だけを処理して MIR 命令/body を評価しません。private invocation packet は有効範囲内の context と検査済み callback entry を保持し、C embedding API や serialized interface ではありません。native 呼出しは通常/中断/取消 continuation の生成 function address を選択します。初期 finite Copy/Task profile で VM と値/event/失敗起点/cleanup を一致させ、厳密に一致する生成 code/metadata と compiler build を信頼する native object 実行も確認します。別の serialized revision 採択までは既存 task artifact/native package の拒否を維持します。managed frame/result layout を再利用し、scheduler/IDL framework や別 IR を追加しません。
 
 T06 は `runtime::task::runner` で invocation、managed frame/claim/result 状態、scheduling/storage service を共有し、backend ごとに resume/cleanup entry を持ちます。VM に MIR dispatch を残し、`codegen_clif::tasks` が演算、比較、分岐、失敗 edge、検査付き continuation 選択を生成します。native callback は MIR 命令/body を評価しません。`cargo run --example native-structured-tasks` は 42 を出力します。JIT と別途リンクした host object は finite Copy/Task local で VM と値/event/失敗起点/使用量/storage retirement が一致します。unsafe object binding は完全に一致する信頼済み code/metadata/compiler/SDK と生存 code owner を要し、公開 C embedding ABI や task package 形式を定義しません。既存 artifact/native package の拒否と後続 owned/loan/foreign/shared-control gate は維持します（2026-10-21 JST、macOS AArch64 検証）。 コンパイルは上限内で proof/layout/native metadata を累積し、invocation は別の preparation/guest control を維持します。private callback は unwind を封じ込めて source span の失敗証拠を保持し、allocation provider は別の no-unwind 契約を維持します。範囲外 continuation は callback 前に拒否し、standalone fixture は再生成 object byte とリンク入力を照合します。より広い性能/platform は主張しません。
@@ -71,6 +73,8 @@ T06 は `runtime::task::runner` で invocation、managed frame/claim/result 状�
 T05 adapter の判断（実装前、2026-10-21 JST）: 証明を受け取る task layout/frame entry で managed finite Copy layout と FrameStorage を再利用します。TaskError は通常の 1 case の有限 error layout を持ちます。TaskClaim layout は payload 0 の marker とし、汎用 token fallback を使いません。invocation 内の sidecar が scheduler の偽造不能な TaskId を保持し、claim も logical cell に計上します。runtime scope は loop 再入場を区別する activation identity を持ち、追加の scheduled task は作りません。cleanup で frame storage を解放し、分離した型付き return reservation を取得/破棄まで生成 scope に保持します。これらの private layout は native/C/wire ABI を割り当てません。初期 VM adapter は到達可能な finite Copy/Task local と対応操作を副作用前に検査し、owned/loan/foreign 実行は静的規則を弱めず T07/T08 の明示的な後続作業に残します。host が allocator 権限、task 上限、execution control を渡します。source 昇格は source claim/loan と独立 MIR 証明を一緒に保持し、未対応 backend/artifact の拒否を維持します。
 
 adapter 実装後は VM/JIT/AOT が同じ検証済み task 契約を使います。native task は continuation を compile し、MIR 解釈や VM fallback を使いません。それまでは既存同期 adapter が binding/allocation/副作用前に task profile を拒否します。現在の profile で定数実行/component task は未対応です。
+
+T12 実装（2026-10-21 JST）: source lowering は通常 scope join と入れ子 return の各境界で cleanup を分割し、既存の独立 task/move/loan 証明で MIR を再検証します。runtime scope は割り当て不要の公開 link stack を保持し、結果を全 join まで維持して新しい順に retire します。取消/失敗でも RetireFailure より前に処理します。await 済みの穴は一度だけ飛ばし、mandatory abort でも同じ inventory を保持します。provider region の実行で公開順の両方向と遅い sibling を VM/native で検査し、source test で通常/入れ子 return 終了の owned local と loan の順序を検査します。owned 実行は T07 まで拒否し、wire/packet revision は割り当てません。
 
 ## ABI and compatibility
 
@@ -117,6 +121,8 @@ in-memory T04 証明に blocking question はありません。上記の命令/c
 判断: **RFC 0001 実験段階の委任で accepted、2026-10-21 JST**。段階的な拒否で既存 semantics を維持し、実行権限を作りません。必要な表現の前提であり、新 milestone gate や T04–T08 の縮小ではありません。
 
 ## Sources
+
+- T12 順序の根拠: `crates/semantics/src/ownership_types/bodies.rs`、`crates/runtime/src/task/runner/`、`crates/vm/src/unit/tasks/machine.rs`、`tests/task_retirement.rs`、`tests/fixtures/task_owned.lang`、`examples/scripts/task_result_retirement.lang`。code の埋込み更新日はなく、2026-10-21 JST に確認/実行しました。owned source fixture は lowering のみを証明し、provider region の実行順検証は対応済み finite Copy task を使います。
 
 - T06 native の根拠: `crates/runtime/src/task/runner/`、`crates/codegen-clif/src/tasks.rs`、`tasks/object.rs`、`tasks/tests.rs`、`tests/native_task_execution.rs`、`tests/support/task_static.rs`、`examples/native-structured-tasks.rs`。埋込み更新日はなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。初期 VM/JIT/リンク済み object の一致であり、owned task、共有 control、platform gate の完了ではありません。
 
