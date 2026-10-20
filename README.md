@@ -44,6 +44,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Implementation roadmap](docs/roadmap.md)
 - [Milestone 1 capability guide](docs/milestone-1.md)
 - [Milestone 2 capability guide and complete exit audit](docs/milestone-2-capabilities.md)
+- [Milestone 3 active delivery board](docs/milestone-3.md)
 - [Whole-repository review, 2026-10-17](docs/review-2026-10-17.md)
 - [Whole-repository review, 2026-10-20](docs/review-2026-10-20.md)
 - [RFC process and template](docs/rfcs/0000-template.md)
@@ -67,6 +68,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0018: Native compiler records (implemented)](docs/rfcs/0018-native-compiler-records.md)
 - [RFC 0019: Ordinary owned native entry runtime (implemented)](docs/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: Experimental native SDK and scoped startup (implemented)](docs/rfcs/0020-native-sdk-and-startup.md)
+- [RFC 0021: Bounded structured task driver (accepted)](docs/rfcs/0021-bounded-structured-task-driver.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

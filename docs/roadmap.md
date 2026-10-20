@@ -12,11 +12,11 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 M2 is complete: 18/18 gates, 113/113 historical gate weight. The [completed board](milestone-2.md) records its deliveries and estimate reconciliation; the [capability guide](milestone-2-capabilities.md) records actual source/VM/native/C/SDK/debug evidence and limits. These counts describe M2, not all future work.
 
-The current repository-wide review is tracked in [the 2026-10-20 report](review-2026-10-20.md). M3 has not started. Complete review fixes and their validation before activating new feature work. Chronological planning changes and old partial implementation reports are retained in [roadmap history](roadmap-history.md).
+The [2026-10-20 repository review](review-2026-10-20.md) is complete. **M3 is active:** the [bilingual delivery board](milestone-3.md) tracks 39 initial deliveries, 110 provisional remaining points and one doing row. Its first outcome is a host-driven structured task tree, followed by a source spawn/yield/join fixture through VM and native continuations. No M3 exit gate is complete. Chronological planning changes and old partial implementation reports are retained in [roadmap history](roadmap-history.md).
 
-## Starting the next milestone
+## Active milestone execution
 
-Before activating M3, inspect its accepted RFCs and actual M2 interfaces, choose one observable source/host execution outcome, and identify only the prerequisites needed for that outcome. Create a delivery board with a bottom-up remaining-work estimate; keep future gate weights separate. Prefer an end-to-end source fixture before general scheduler/IDL infrastructure. Preserve measured M2 performance baselines when changing execution paths; use representative workload costs to prioritize optimization.
+M3 activation inspected RFCs 0003/0005, the M2 execution/cleanup interfaces and the completed review. [RFC 0021](rfcs/0021-bounded-structured-task-driver.md) decides the first bounded driver contract; source syntax, channels, Send/Share and production embedding remain separate decisions. Use the delivery board's bottom-up estimates rather than the 96-point gate weights. Prefer the next end-to-end source fixture before further scheduler/IDL infrastructure. Preserve measured M2 performance baselines when changing execution paths; use representative workload costs to prioritize optimization.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -200,7 +200,7 @@ Exit: representative command-line programs match VM semantics and performance is
 
 **Progress: 0 / 96 pt (0.0%).**
 
-Entry: Milestone 2 supplies ownership and cleanup semantics on both execution paths. RFCs 0003 and 0005 remain the accepted semantic baseline; their prototypes do not complete production IDL, scheduler, or sandbox work. The source VM already bounds frames and live cells; this milestone extends accounting across tasks, native code, and host callbacks.
+Entry satisfied: Milestone 2 supplies ownership and cleanup semantics on both execution paths, and the repository review is complete. RFCs 0003 and 0005 remain the accepted semantic baseline; their prototypes do not complete production IDL, scheduler, or sandbox work. [The active delivery board](milestone-3.md) records implementation scope and estimates. The source VM already bounds frames and live cells; this milestone extends accounting across tasks, native code, and host callbacks.
 
 - [ ] **P0 — Accept remaining scheduler/channel/backpressure/error contracts, send/share derivation, and source async syntax without relaxing RFC 0005.** — 5 pt
 - [ ] **P0 — Accept the production component IDL/wire profile and embedding ABI, including compatibility, typed failures, callback reentrancy, and cancellation mapping to RFC 0003.** — 5 pt

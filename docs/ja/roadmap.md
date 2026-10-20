@@ -12,11 +12,11 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-現在のrepository全体レビューは[2026-10-20報告](review-2026-10-20.md)で追跡しています。M3は未着手です。新機能の作業を開始する前に、レビュー修正と検証を完了します。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
+[2026-10-20 リポジトリレビュー](review-2026-10-20.md)は完了済みです。**M3 は進行中です。** [日英の実装 Todo](milestone-3.md)で初期 39 作業、暫定残り 110 pt、doing 1 行を追跡します。最初の成果はホスト駆動の構造化タスク木、その後 VM/native continuation で source spawn/yield/join fixture を実行します。M3 の出口ゲートはまだ完了していません。時系列の計画変更と過去の部分実装報告は[roadmap履歴](roadmap-history.md)に保持しています。
 
-## 次のmilestoneの開始
+## 進行中 milestone の実行
 
-M3開始前に受理済みRFCと実際のM2 interfaceを確認し、観測可能なsource/host実行成果を1つ選び、それに必要な前提だけを明示します。積み上げによる残作業見積もりを持つ実装Todoを作り、将来のゲート重みとは分けます。汎用scheduler/IDL基盤より、end-to-endのsource fixtureを先に進めます。実行経路を変更するときは測定済みM2性能baselineを保持し、代表workloadの費用で最適化の優先度を決めます。
+M3 開始時に RFC 0003/0005、M2 の実行/cleanup interface、完了済みレビューを確認しました。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md)で最初の有界 driver 契約を決めます。source 構文、channel、Send/Share、production embedding は別判断です。96 pt のゲート重みではなく実装 Todo の積上げ見積りを使います。scheduler/IDL 基盤の追加より、次の end-to-end source fixture を優先します。実行経路を変えるときは測定済み M2 性能 baseline を維持し、代表 workload の費用で最適化の優先度を決めます。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
@@ -200,7 +200,7 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 
 **進捗：0 / 96 pt（0.0%）。**
 
-開始条件：Milestone 2が両実行pathのownership／cleanup semanticsを提供します。RFC 0003／0005を受理済み意味論の基準とし、そのprototypeでproduction IDL／scheduler／sandboxを完了扱いにしません。Source VMには既にframe／live-cell上限があり、このmilestoneでtask、native code、host callback全体へaccountingを拡張します。
+開始条件は充足済みです。Milestone 2 は両実行経路の所有権/cleanup semantics を提供し、リポジトリレビューも完了しました。RFC 0003/0005 を受理済み意味論の基準とし、prototype で production IDL/scheduler/sandbox を完了扱いにしません。[進行中の実装 Todo](milestone-3.md)で範囲と見積りを追跡します。source VM の既存 frame/live-cell 上限を task、native code、host callback 全体へ拡張します。
 
 - [ ] **P0 — RFC 0005を緩和せず、残るscheduler／channel／backpressure／error contract、send／share導出、source async構文を受理する。** — 5 pt
 - [ ] **P0 — Production component IDL／wire profileとembedding ABIを受理し、compatibility、typed failure、callback reentrancy、RFC 0003へのcancellation対応を決める。** — 5 pt

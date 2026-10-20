@@ -113,10 +113,10 @@ struct Delivery<'a> {
     evidence: &'a str,
 }
 
-fn delivery_board(document: &str) -> Vec<Delivery<'_>> {
+fn delivery_board_for<'a>(document: &'a str, prefix: &str, gate_count: u32) -> Vec<Delivery<'a>> {
     let rows: Vec<_> = document
         .lines()
-        .filter(|line| line.starts_with("| M2-"))
+        .filter(|line| line.starts_with(prefix))
         .map(|line| {
             let cells: Vec<_> = line.split('|').map(str::trim).collect();
             assert_eq!(cells.len(), 9, "seven delivery columns: {line}");
@@ -142,7 +142,7 @@ fn delivery_board(document: &str) -> Vec<Delivery<'_>> {
     let by_id: BTreeMap<_, _> = rows.iter().map(|row| (row.id, row)).collect();
     assert_eq!(by_id.len(), rows.len(), "unique delivery IDs");
     for row in &rows {
-        assert!(row.gates.iter().all(|gate| (1..=18).contains(gate)));
+        assert!(row.gates.iter().all(|gate| (1..=gate_count).contains(gate)));
         assert!(matches!(row.state, "done" | "doing" | "todo"));
         if row.state == "done" {
             assert_eq!(row.remaining, 0, "no remaining effort for done deliveries");
@@ -202,6 +202,26 @@ fn delivery_board(document: &str) -> Vec<Delivery<'_>> {
         assert!(next.needs.iter().all(|id| by_id[id].state == "done"));
     }
     rows
+}
+
+fn delivery_board(document: &str) -> Vec<Delivery<'_>> {
+    delivery_board_for(document, "| M2-", 18)
+}
+
+#[test]
+fn m3_delivery_evidence_estimates_dependencies_and_translations_agree() {
+    let english_text = include_str!("../docs/milestone-3.md");
+    let japanese_text = include_str!("../docs/ja/milestone-3.md");
+    let english = delivery_board_for(english_text, "| M3-", 15);
+    assert_eq!(english, delivery_board_for(japanese_text, "| M3-", 15));
+    let accounting = remaining_work_accounting(english_text);
+    assert_eq!(accounting, remaining_work_accounting(japanese_text));
+    assert_eq!(accounting[3], english.iter().map(|row| row.remaining).sum());
+    let gates: BTreeSet<_> = english
+        .iter()
+        .flat_map(|row| row.gates.iter().copied())
+        .collect();
+    assert_eq!(gates, (1..=15).collect(), "preserve every M3 gate");
 }
 
 fn remaining_work_accounting(document: &str) -> [u32; 4] {

@@ -1,0 +1,131 @@
+<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0021-bounded-structured-task-driver.md -->
+
+# RFC 0021: Bounded structured task driver
+
+[日本語版](../ja/rfcs/0021-bounded-structured-task-driver.md)
+
+- Status: accepted
+- Authors: Project contributors
+- Created: 2026-10-20
+- Last updated: 2026-10-20
+- Tracking issue: M3-T01, M3-T02
+- Supersedes:
+- Superseded by:
+
+## Summary
+
+Add one backend-neutral, host-driven scheduler kernel under RFC 0005. It owns task ancestry and scheduling state, while execution adapters own guest frames, values and diagnostics. There is one explicit root and at most one active dispatch. Ready tasks run FIFO until the adapter reports a semantic boundary. Scope exit joins children; cancellation/failure requests cancellation of unfinished descendants. Guest cleanup is a separate dispatch, acknowledged only after actual frame cleanup.
+
+This decides the first production task-driver contract. Source async syntax, Send/Share, channels, component cancellation and the public C embedding API remain separate M3 decisions. Accepting this RFC completes neither roadmap G01 nor structured source execution.
+
+## Motivation
+
+The accepted task prototype in `crates/semantics` models one task's borrows and destruction. It does not schedule children, join scopes, bound task admission or drive actual VM/native frames. M2 already has explicit managed continuations and failure cleanup; the scheduler must dispatch those adapters without interpreting their private layouts or relying on Rust destructor timing for guest destruction.
+
+## Goals
+
+- Explicit scheduler authority, bounded admission and deterministic ordered-event behavior.
+- Cooperative cancellation, no escaping unfinished child and descendant-before-parent cleanup.
+- One scheduling contract for VM, JIT, AOT and host-driven continuations.
+- Validate foreign, stale and illegal handles/transitions before mutation.
+
+## Non-goals
+
+- Source syntax, coroutines, channels, services, threads, timers and external wakeups in this first slice.
+- Fairness/latency guarantees or preemption of arbitrary trusted host/native code.
+- Stable Rust/C ABI, serialized task handles, guest allocator accounting or a sandbox claim for the scheduler alone.
+
+## Guide-level design
+
+The host explicitly constructs a scheduler with live-task and total-task limits, starts its root and drives dispatches. A resume dispatch permits the adapter to access its task frame, spawn a direct child, yield, join a direct child or finish. A cleanup dispatch permits only guest cleanup followed by acknowledgement. `dispatch` refuses reentry while either dispatch is active.
+
+```text
+root resumes → spawn left → spawn right → join left
+left resumes → yield
+right resumes → finish(success)
+left resumes → finish(success)
+right cleanup → acknowledge
+left cleanup → acknowledge
+root resumes → read left/right results → finish(success)
+root cleanup → acknowledge → root complete
+```
+
+Results live in adapter-owned storage. Scheduling success is distinct from a guest `Result::Err`, which is an ordinary typed value. Terminal panic/control/adapter failures cannot be recovered merely by joining a child.
+
+## Reference semantics
+
+### Admission and identity
+
+One scheduler invocation starts exactly one root. Only the actively running task may spawn a direct child; no detached child is available. Handles carry private invocation identity and a monotonic slot. Handles are never reused within an invocation and cannot be serialized or constructed by guest code. A handle from another scheduler is invalid even if its slot matches.
+
+Before publishing a root/child or queue entry, check both live and cumulative task limits. Root, running, suspended, joining and cleaning tasks count as live. Admission does not consume a slot on refusal. The total-task limit bounds retained ancestry/completion metadata and traversal work even when completed tasks no longer count as live. Allocate bounded metadata/queue capacity fallibly before starting. Guest frames/results remain subject to the execution adapter's separate limits; this kernel does not exempt them from accounting.
+
+### Scheduling and join
+
+States are ready, running, waiting for a direct child, joining all children, ready for cleanup, cleaning, and complete. Ready and cleanup-ready dispatches share one FIFO queue; each task has at most one queue position. Spawn and yield append to the tail. Joining an already complete child still yields to the queue. A parent waiting on a child resumes only after that child's cleanup acknowledgement.
+
+`finish(success)` begins normal scope closure and waits for every direct child to become complete. It does not discard unfinished work. A parent frame cannot be cleaned while any child remains live. Joining self, a sibling, an ancestor or a foreign task is rejected before state changes. Adapters retain ownership of completed child results until a validated move/retirement; the scheduler never clones them.
+
+### Cancellation and failures
+
+Cancellation is idempotent and propagates to unfinished descendants. It is observed at dispatch entry, yield, join or an adapter's explicit cancellation check. A running resume/cleanup callback is never preempted. A cancellation request arriving during it takes effect at the next boundary. A normal success reported after a pending cancellation becomes cancelled; an explicit terminal instruction failure retains its own primary identity. A parent already joining successful children may be cancelled while waiting.
+
+When a child finishes with terminal failure, request cancellation of unfinished siblings and mark the parent for failure closure at its next boundary. This propagates upward after each parent's own cleanup. An explicit parent terminal failure is primary. Otherwise, after children finish, choose the first failed direct child in spawn order, ahead of cancellation or success. Adapter diagnostic storage retains that failure's origin and secondary/suppressed failures. A typed guest error is not such a terminal failure.
+
+Cancellation or failure closure joins cancelled descendants before cleaning the parent. Children that already completed remain complete. Cleanup is dispatched exactly once per admitted task and is not charged against guest fuel. The adapter performs RFC 0008 reverse initialization cleanup and returns an optional cleanup failure identity. A cleanup failure replaces success, but an existing failure/cancellation remains primary and the adapter records the cleanup failure as secondary. Completion/live-slot release occurs only after acknowledgement. Queue/report truncation or exhausted guest controls cannot skip cleanup.
+
+The kernel validates scheduling transitions, not guest types, loans, capabilities, result moves or instruction fuel. A VM/native adapter must validate those contracts independently. In particular it must reject all live shared/exclusive loans at suspension under RFC 0005.
+
+## Execution modes
+
+The kernel never calls MIR, VM or native machine code. Drivers map a resume to their prepared continuation and a cleanup dispatch to their failure/retirement path. The same ordered operations must produce the same task ancestry, dispatch order, cancellation observation, completion outcomes and cleanup order in all modes. The first host fixture exercises the kernel; source/VM/native fixtures remain explicit deliveries T03–T07.
+
+Host callbacks cannot obtain ambient scheduling authority or reenter an active dispatch. A later component profile defines how an authorized callback requests cancellation or schedules work. Constant evaluation has no scheduler. WebAssembly components and multithreaded executors require their own adapter work while preserving this contract.
+
+## ABI and compatibility
+
+All state, queue layouts, handles and failure IDs are private in-process Rust interfaces. No source, MIR, bytecode, native ABI, package or C ABI format changes in this delivery. Future source task operations require explicit versioned MIR/artifact support; old artifacts cannot acquire tasks implicitly. Do not expose frame pointers or private handles as component values. Replacing FIFO/observation/failure rules requires an RFC revision and differential migration fixtures.
+
+## Diagnostics and tooling
+
+Structured errors distinguish busy/no active dispatch, foreign/invalid handle, wrong active task, wrong phase, non-child join, duplicate root, cancellation pending, live/total limit and preparation capacity failure. Rejected operations leave scheduling state unchanged. Task origins retain optional validated MIR source spans supplied by the adapter. The kernel exposes read-only status/parent/cancellation information; formatter/LSP/source diagnostics and DAP ancestry remain the source/tooling deliveries.
+
+## Performance and cost model
+
+Prepare task metadata and queue capacity once per invocation. Retain at most the total-task limit entries. No per-transition allocation is required after preparation. The initial bounded implementation may scan ancestry/state to settle joins and propagate cancellation; it promises no constant-time transition or throughput target. Benchmark total-task sizes and cancellation fan-out before stabilization. Do not infer performance from the old single-task prototype. M2 execution paths remain unchanged until actual task adapters are added.
+
+## Security and trust boundaries
+
+The scheduler is a trusted host facility, not an untrusted bytecode verifier. Invalid public operations fail before effects; private handles protect invocation identity. Limits bound task count and metadata, not arbitrary callback CPU or memory. The adapter must poll shared execution controls, admit frame allocations before spawn and continue mandatory cleanup after control exhaustion. No native in-process sandbox is claimed. Fallible metadata preparation reports capacity failure before a root is published.
+
+## Alternatives
+
+- **No change:** the prototype cannot establish structured tree lifetime or drive executable frames.
+- **Library-only futures:** suitable behind an adapter, but do not supply independent guest ownership/loan verification or equivalent native cleanup.
+- **Work-stealing multithreaded executor:** supports parallelism, but adds synchronization, wakeup and memory-accounting contracts before the first source fixture. This design leaves that executor possible behind the accepted task semantics.
+- **Run each child to completion immediately:** simpler, but cannot expose suspension, bounded concurrent admission or cancellation of queued siblings. It does not satisfy the selected execution outcome.
+
+## Implementation plan
+
+1. M3-T02: bounded kernel and actual host-driven spawn/yield/join/cancel/cleanup fixture.
+2. M3-T03/T04: decide source syntax, check suspension ownership and add independently verified typed MIR.
+3. M3-T05/T06: source fixture through VM then compiled native continuations, preserving events and spans.
+4. M3-T07/T08: actual owned-frame cleanup and combined execution controls. Do not substitute kernel-only events for these gates.
+
+## Test plan
+
+Exercise FIFO dispatch, both normal and exceptional scope exit, nested descendants, joins of completed children, cancellation during active resume/cleanup, failure ordering, cleanup failures and one acknowledgement per task. Reject wrong invocation/parent/phase and reentry without changing state. Test live/total capacity at exact boundaries and slot retention after completion. Execute the host fixture as a runnable example. Later differential/source/ABI/fuzz/platform coverage follows the board; kernel tests alone cannot complete M3.
+
+## Open questions
+
+No blocking questions for the initial kernel. Unverified assumptions: retained bounded ancestry is adequate for the first source fixture; scanning costs are acceptable at configured limits; adapters can reserve frame/cleanup resources before spawn. Measure/revise these before stabilization.
+
+Decision: **accepted under RFC 0001 experimental delegation, 2026-10-20 JST**. The explicit driver preserves RFC 0005 while separating scheduling from already validated guest cleanup. No owner approval wait is required. Source/channels/Send/Share and the production embedding profile remain undecided.
+
+## Sources
+
+- [RFC 0005](0005-structured-tasks-and-isolated-services.md), last updated 2026-10-17: accepted task lifetime/cancellation rules.
+- [RFC 0008](0008-cleanup-allocators-and-c-boundaries.md), last updated 2026-10-20: implemented cleanup/failure boundary.
+- [RFC 0012](0012-native-ownership-continuations.md), last updated 2026-10-20: implemented native managed continuations.
+- Repository `crates/semantics/src/lib.rs`, `crates/runtime/src/execution.rs` and [architecture](../architecture.md), inspected at `984557d` on 2026-10-20 JST. The single-task semantic model's 29 library tests pass on this date; this is baseline evidence, not kernel implementation evidence.
+- All scheduler choices above are project decisions. No new external-language or performance claim is made.

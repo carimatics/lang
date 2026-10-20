@@ -44,6 +44,7 @@
 - [実装ロードマップ](docs/ja/roadmap.md)
 - [Milestone 1機能ガイド](docs/ja/milestone-1.md)
 - [Milestone 2 capability guide・全出口監査](docs/ja/milestone-2-capabilities.md)
+- [Milestone 3 進行中の実装 Todo](docs/ja/milestone-3.md)
 - [全ファイルreview、2026-10-17](docs/ja/review-2026-10-17.md)
 - [リポジトリ全体レビュー、2026-10-20](docs/ja/review-2026-10-20.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
@@ -67,6 +68,7 @@
 - [RFC 0018: Native compiler record（implemented）](docs/ja/rfcs/0018-native-compiler-records.md)
 - [RFC 0019: 通常owned native entry runtime（implemented）](docs/ja/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: 実験段階のnative SDKとscope付き起動（implemented）](docs/ja/rfcs/0020-native-sdk-and-startup.md)
+- [RFC 0021: 上限付き構造化タスクドライバー（accepted）](docs/ja/rfcs/0021-bounded-structured-task-driver.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
