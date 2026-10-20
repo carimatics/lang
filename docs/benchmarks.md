@@ -73,6 +73,36 @@ Startup uses workload-free processes, warm OS/file caches, initialization and cl
 
 Source pipeline times are much higher than optimized reference times in all three cases. They include the scoped runtime checks, per-call preparation and ownership services. CPU scheduling/power state and chip model were not captured; these samples do not establish performance across machines. **B03 Windows measurements and B04 both-host interpretation remain required for G17.**
 
+### Windows native capture (B03)
+
+Verified **2026-10-20 JST**. [CI run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853) succeeds at clean `dced632` (job completed 2026-10-20 07:17:54 UTC). The [complete native report](../benchmarks/results/2026-10-20-m2-windows-dced632.json), recorded at **07:17:49 UTC**, retains all JSON data with normalized LF newlines. It contains **135 workload and 45 dedicated startup observations**, 15 samples per case, `n=1000`, 20 calls and three untimed warmups, following the successful 21-case parity/unwind gate. Every checksum, allocator retirement, sample/case identity, aggregate, SDK/harness identity and reference link separation was independently checked.
+
+Host: **Windows Server 2025, build 10.0.26100, x86-64, 2 logical CPUs, Python 3.14.8**; processor identifier `AMD64 Family 26 Model 2 Stepping 1, AuthenticAMD` (chip brand/power state not recorded). Release SDK `1a19e49debefcffaec8ab17b288c2a575c528c1f9a22c64d1493960e086f6602` and the unchanged B01 harness use MSVC `/O2 /MD` and Rust `opt-level=3`. Compiler versions/commands and canonical LF/CRLF-equivalent harness hashes are retained. This run selects Windows alone.
+
+| Workload | Implementation | Median µs/call | Runtime RSD | Artifact/context prep ms | Median peak working set MiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `scalar` | source | 1900.895 | 11.53% | 2.603 | 12.953 |
+| `scalar` | rust | 1.165 | 3.10% | — | 3.426 |
+| `scalar` | c | 0.415 | 20.03% | — | 3.438 |
+| `buffers` | source | 8872.875 | 6.51% | 2.610 | 13.145 |
+| `buffers` | rust | 4.375 | 33.39% | — | 3.543 |
+| `buffers` | c | 2.620 | 10.80% | — | 3.445 |
+| `regions` | source | 20966.035 | 4.75% | 2.602 | 13.605 |
+| `regions` | rust | 74.030 | 21.90% | — | 3.426 |
+| `regions` | c | 60.055 | 20.32% | — | 3.441 |
+
+Each workload process reports actual nonzero **K32 PeakWorkingSetSize**; the parent's stored peak equals that exact reading. These are Windows working-set peaks, distinct from macOS RSS. Runtime/preparation boundaries and the uninstrumented Rust heap counters retain the scope above.
+
+| Implementation | Median fresh-process startup ms | RSD |
+| --- | ---: | ---: |
+| source | 7.896 | 6.97% |
+| rust | 4.566 | 18.88% |
+| c | 4.929 | 23.17% |
+
+Dedicated startup executes no workload; the common Rust measurement/JSON driver is included for all three implementations. Startup RSD is approximately 7–23%; Rust/C workload RSD reaches 33.39% in this run. Complete linked executable sizes: source **1,849,344 B**, rust **154,624 B**, c **153,088 B**. The original source object is **29,687 B**.
+
+Source pipeline times exceed optimized references for all three cases. These observations cover the checked C-export embedding and its runtime services; optimizer/accounting policies differ. **B04 must interpret both-host costs, variability, memory definitions and reproducibility before G17 is complete.**
+
 ## Interpretation after the 2026-10-17 review
 
 `representative_application` is synthetic host orchestration: it executes separate fixed scalar/resource fixtures, not dispatch through the published instance's negotiated bindings. Selecting and invoking actual provider implementations and measuring generated adapters end to end remain follow-up conformance/measurement work.

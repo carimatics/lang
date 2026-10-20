@@ -73,6 +73,36 @@ Startupはworkloadなし、新規process、warmなOS/file cache、初期化か�
 
 3 caseともsource pipeline時間は最適化済みreferenceより大きい結果です。宣言したruntime check、callごとの準備、ownership serviceを含みます。CPU scheduling／power stateとchip modelは記録しておらず、異なるmachine全体の性能は示しません。**G17完了には引き続きB03のWindows計測とB04の両hostの解釈が必要です。**
 
+### Windows native capture (B03)
+
+検証日 **2026-10-20 JST**。[CI run 39385041497 / job 118502756853](https://github.com/carimatics/lang/actions/runs/39385041497/job/118502756853)のcleanな`dced632`が成功しました（job完了2026-10-20 07:17:54 UTC）。**07:17:49 UTC**記録の[全native report](../../benchmarks/results/2026-10-20-m2-windows-dced632.json)は、改行をLFに正規化して全JSON dataを保持しています。21組parity／unwind gate成功後に、各case 15 samples、`n=1000`、20 calls、計時外warmup 3回で**workload 135観測と専用startup 45観測**を記録しました。全checksum・allocator退役・sample/case identity・集計値・SDK／harness identity・reference linkの分離を独立に検証しました。
+
+Hostは **Windows Server 2025、build 10.0.26100、x86-64、logical CPU 2、Python 3.14.8**、processor identifierは`AMD64 Family 26 Model 2 Stepping 1, AuthenticAMD`です（chip brand／power stateは未記録）。release SDK `1a19e49debefcffaec8ab17b288c2a575c528c1f9a22c64d1493960e086f6602`とB01から変更していないharnessで、MSVC `/O2 /MD`、Rust `opt-level=3`を使います。compiler version／commandとcanonicalなLF／CRLF同等のharness hashを保持しています。このrunはWindowsだけを選びます。
+
+| Workload | 実装 | 中央値 µs/call | Runtime RSD | Artifact/context準備 ms | Peak working set中央値 MiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `scalar` | source | 1900.895 | 11.53% | 2.603 | 12.953 |
+| `scalar` | rust | 1.165 | 3.10% | — | 3.426 |
+| `scalar` | c | 0.415 | 20.03% | — | 3.438 |
+| `buffers` | source | 8872.875 | 6.51% | 2.610 | 13.145 |
+| `buffers` | rust | 4.375 | 33.39% | — | 3.543 |
+| `buffers` | c | 2.620 | 10.80% | — | 3.445 |
+| `regions` | source | 20966.035 | 4.75% | 2.602 | 13.605 |
+| `regions` | rust | 74.030 | 21.90% | — | 3.426 |
+| `regions` | c | 60.055 | 20.32% | — | 3.441 |
+
+各workload processで実際の非zeroな **K32 PeakWorkingSetSize** を取得し、親が保存したpeakも同じ読み値であることを確認しました。Windowsのworking set peakであり、macOSのRSSとは区別します。runtime／準備の測定境界と、Rust heap counterが未計測であるscopeは前述のとおりです。
+
+| 実装 | 新規process起動中央値 ms | RSD |
+| --- | ---: | ---: |
+| source | 7.896 | 6.97% |
+| rust | 4.566 | 18.88% |
+| c | 4.929 | 23.17% |
+
+専用startupではworkloadを実行せず、3実装とも共通のRust計測／JSON driverを含みます。startup RSDは約7–23%で、このrunのRust／C workload RSDは最大33.39%です。link済みexecutable全体のsizeはsource **1,849,344 B**, rust **154,624 B**, c **153,088 B**、元のsource objectは **29,687 B**です。
+
+3 caseともsource pipeline時間は最適化済みreferenceより大きい結果です。checked C-export embeddingとruntime serviceの計測であり、optimizer／accounting policyは異なります。**G17完了前に、B04で両hostのコスト・ばらつき・memory定義・再現手順を解釈する必要があります。**
+
 ## 2026-10-17レビュー後の解釈
 
 `representative_application` はsyntheticなhost orchestrationです。公開instanceの交渉済みbindingからdispatchせず、別の固定scalar／resource fixtureを実行します。実際のprovider実装の選択と呼び出し、生成adapterのend-to-end costは後続conformance／measurement課題です。
