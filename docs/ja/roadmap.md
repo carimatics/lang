@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み123件 · 進行中1件 · 残り9件（暫定21 pt）。**
+**検証済み124件 · 進行中1件 · 残り8件（暫定18 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| Q01：複合featureのsource VM／native conformance | **P02完了**：両hostの隔離SDK install（`c54af31`） | **15/18条件** |
+| Q02：両native hostの複合source／resource CI証拠 | **Q01完了**：VM／native複合conformance（`3db077f`） | **15/18条件** |
 
-**直近のcheckpoint（2026-10-20 13:50 JST）：** 完全一致head `c54af31` の [隔離install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) が **2026-10-20 04:44:42 UTC** に成功しました。別VMのmacOS AArch64／Windows x86-64 consumerはcheckoutせず、元repo／target入力不在、Cargoなし、空のCARGO_HOME、private source／SDK／program削除後の実Copy／owned／C全成功をJSONで照合しました。Mac全baseline **1,583 tests／94 suites**、失敗0、手動1件ignored（434.14秒）、fmt／Clippy／rustdoc／全11 fuzz target成功。対応Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929) のfmt／C・linker検証／Clippy／全test／rustdocも **2026-10-20 04:47:51 UTC** までに成功し、G15を完了、RFC 0020をimplementedとしました。Prototype benchmarkは実行中で、性能gateやworkflow全体の成功とは数えません。詳細は[Todo](milestone-2.md)。2026-10-20 JST更新・確認。
+**直近のcheckpoint（2026-10-20 14:33 JST）：** Vec／Map／shared／weak／arena／Text／Bytesと再帰callを組み合わせ、CrossRegion拒否と解放、通常42／panic−42を検証しました。VM／実production nativeで値・usage・元span／report／stackが全fuel／work／provider拒否prefixとframe／cell境界で一致。元source削除後の実AOT、実C／保存C object各11 sourceも成功しました。末尾panicでactive arena allocator loanを誤拒否するMIR不具合を修正し、正常exit／不正継続の拒否を維持しました。Mac全baseline **1,585 tests／94 suites**、失敗0、手動1件ignored（900.90秒）、fmt／Clippy／rustdoc／全11 fuzz target成功。同headの [SDK隔離run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) も両host成功。対応[Windows全体run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)は全test実行中です。詳細は[Todo](milestone-2.md)。2026-10-20 JST更新・確認。
 
-**今回：1件完了（−3 pt）、見積もり／task追加なし。** **24 − 3 = 21 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 222 = 21 pt**。既存3 ptのQ01を選び、個別family testを土台に複合featureのsource fixtureで値／失敗／resource／cleanupを比較します。Q02／B／G／最終Z01は未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
+**今回：1件完了（−3 pt）、見積もり／task追加なし。** **21 − 3 = 18 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 225 = 18 pt**。既存2 ptのQ02を選び、Mac workflowの限定branch起動と同一実装／fixtureの両host CI証拠を揃えます。Q02完了まではG16を未完了とし、B／G／最終Z01も未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
 
 ## タスク管理
 

@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**123 verified deliveries · 1 in progress · 9 remaining tasks (provisional 21 pt).**
+**124 verified deliveries · 1 in progress · 8 remaining tasks (provisional 18 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| Q01: combined-feature source VM/native conformance | **P02 complete**: both-host isolated SDK installation (`c54af31`) | **15/18 gates** |
+| Q02: both-native-host source/resource conformance CI | **Q01 complete**: combined VM/native conformance (`3db077f`) | **15/18 gates** |
 
-**Latest checkpoint (2026-10-20 13:50 JST):** exact head `c54af31` [isolated-install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) succeeded at **2026-10-20 04:44:42 UTC**. Separate-VM macOS AArch64/Windows x86-64 consumers do not check out the repository; reconciled JSON proves original repository/target inputs absent, no Cargo, empty CARGO_HOME, and actual Copy/owned/C success after private source/SDK/program deletion. Mac full baseline passes **1,583 tests / 94 suites**, 0 failures, 1 manual test ignored (434.14s); fmt/Clippy/rustdoc/all 11 fuzz targets pass. Matching Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929) also passes fmt, C/linker checks, Clippy, full tests and rustdoc by **2026-10-20 04:47:51 UTC**: close G15 and set RFC 0020 implemented. Its prototype benchmark remains active; this does not claim performance-gate or whole-workflow success. Details: [Todo](milestone-2.md), updated/verified 2026-10-20 JST.
+**Latest checkpoint (2026-10-20 14:33 JST):** combine Vec/Map/shared/weak/arena/Text/Bytes and recursive calls, checking CrossRegion refusal/retirement, ordinary 42 and panic −42. VM/actual production native agree on values, usage and original spans/reports/stacks at every fuel/work/provider-refusal prefix and frame/cell boundary. Actual AOT after source deletion and real-C/persisted-C eleven-source cases pass. Fix MIR's false terminal-panic rejection of an active arena allocator loan while retaining normal-exit/invalid-continuation refusal. Mac full baseline passes **1,585 tests / 94 suites**, 0 failures, 1 manual test ignored (900.90s); fmt/Clippy/rustdoc/all 11 fuzz targets pass. Same-head [SDK isolated run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) also passes on both hosts; matching [Windows full run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894) is running tests. Details: [Todo](milestone-2.md), updated/verified 2026-10-20 JST.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** **24 − 3 = 21 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 222 = 21 pt**. Select Q01 at existing 3 pt: build on per-family tests with combined-feature source fixtures comparing values/failures/resources/cleanup. Q02/B/G/final Z01 remain open. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
+**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** **21 − 3 = 18 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 225 = 18 pt**. Select Q02 at existing 2 pt: add a narrow Mac branch trigger and reconcile both-host CI on the same implementation/fixtures. Keep G16 open until Q02 passes; B/G/final Z01 remain. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
 
 ## Task tracking
 

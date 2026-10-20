@@ -6,25 +6,25 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**123 done · 1 doing · 9 todo · 21 remaining pt**
+**124 done · 1 doing · 8 todo · 18 remaining pt**
 
-**Next: M2-Q01 → combined-feature source VM/native conformance (provisional 3 pt, in progress).**
+**Next: M2-Q02 → both-tier-1 source/resource conformance CI evidence (provisional 2 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| Q01: combined-feature values/failures/resources/cleanup | **P02 complete**: both-host no-checkout SDK installation (`c54af31`) | **15/18 gates** |
+| Q02: matching macOS/Windows full CI evidence | **Q01 complete**: combined-source VM/native conformance (`3db077f`) | **15/18 gates** |
 
-**Latest executable checkpoint (2026-10-20 13:50 JST):** [run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958), exact head `c54af31`, succeeded completely at **2026-10-20 04:44:42 UTC**. Downloaded/reconciled separate-VM Mac consumer `118458816864` and Windows consumer `118458816960` JSON reports: each checks 12 original repository/target input paths absent, Cargo removed from PATH, empty CARGO_HOME, and actual Copy/owned/C success after private source/SDK/program deletion. Copy/owned print 42; the real C client verifies 42 with balanced allocator/context creation/destruction. SDK build IDs: Mac `7a318931…0bfe46`, Windows `7283752e…6a365`. These six installed-profile checks are separate from Rust workspace test counts.
+**Latest executable checkpoint (2026-10-20 14:33 JST):** the [combined source](../examples/conformance/owned_pipeline.lang) composes Vec-to-Map owner transfer/replacement, Text/Bytes aggregates, recursive calls, shared/weak, owning arena collections and nested reads. It checks required shared-to-arena CrossRegion refusal, refused-clone retirement and weak expiry. VM and actual production native entry agree on ordinary 42 / arena panic −42, usage and original spans/stacks/reports. Every fuel/work prefix, provider-refusal position and frame/cell boundary balances original Instance/allocator retirement. Ordinary fuel/work/provider requests: 400/675/694; panic: 326/661/643. Focused validation takes 31.16s. Actual AOT checks seven cases including both variants after source deletion; real-C/persisted-C comparisons each pass eleven sources.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **24 − 3 = 21 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 222 = 21 pt**. Provisional planning units are not hours or completion percentages.
+`3db077f` fixes this fixture's false rejection of an active arena allocator loan at terminal panic. Only typed MIR's final-Panic/Unreachable exit defers loan endings to mandatory failure retirement, after recording panic. All eleven MIR tests pass, retaining normal-return, bare-Unreachable and malformed-success-continuation refusal. This corrects accepted RFC 0014 implementation without syntax/ABI/schema changes; compiler changes require SDK rebuild under existing exact-build policy.
 
-Mac full baseline passes **1,583 tests / 94 suites**, 0 failures, 1 manual timing test ignored; one command **434.14s** (initial compile 0.18s). Source-native **10 / 13.21s**, native ownership **76 / 267.43s**, public linking **6 / 35.20s**, SDK **5 / 14.16s**, C ABI **74 / 21.82s**. Fmt, Clippy (0.68s), rustdoc (13.62s), all 11 fuzz targets (0.20s) pass. These are validation observations, not development effort or performance improvements. Later documentation-only changes use the three repository-consistency tests.
+**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **21 − 3 = 18 pt**; **133 rows/+109 additions unchanged**. [Ledger](#progress-and-estimate-changes): **134 + 109 − 225 = 18 pt**. Provisional planning units are not hours or completion percentages.
 
-First [run 39369585890](https://github.com/carimatics/lang/actions/runs/39369585890) built both SDKs but failed transfer because raw artifact upload ignores the supplied name. `c54af31` uses a stored zip envelope preserving artifact names; the internal tar retains executable permissions. Local tar extraction also preserves all 105 component sizes/hashes and compiler execute bits; an existing repository refuses isolation before output creation. Fixture/transfer corrections receive no extra credit.
+Mac full baseline passes **1,585 tests / 94 suites**, 0 failures, 1 manual timing test ignored. One command **900.90s**, initial compile31.46s. Native ownership **77 / 269.68s**, C ABI **74 / 19.94s**, source-native **10 / 20.12s**, public linking **6 / 36.13s**, SDK **5 / 14.27s**. Fmt, Clippy (34.17s), rustdoc (35.68s), all 11 fuzz targets (1.83s) pass. These are validation observations, not development effort or performance improvements. Later documentation-only updates use the three repository-consistency tests.
 
-**G15 / RFC 0020 disposition: complete.** Close G15 from both-host P01/F07 linker diagnostics, P03–P12 metadata/runtime/C-context/SDK/public linking and P02 isolated installation. Matching Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929), job `118454194005` / head `991768e`, passes fmt, C/linker checks, Clippy, full tests and rustdoc by **2026-10-20 04:47:51 UTC**; the only difference at `c54af31` is the transfer workflow. P12 head `4acd99f` [run 39368730619](https://github.com/carimatics/lang/actions/runs/39368730619) also passes that baseline by **04:50:52 UTC**. RFC 0020's intended interface and validation are available: implemented, not stabilized. Original gates are **15/18, weight 89/113**. This does not claim active prototype-benchmark/whole-workflow success or Q/B/G/final Z01 completion.
+Same-head `3db077f` [SDK isolated run 39373854906](https://github.com/carimatics/lang/actions/runs/39373854906) succeeds on both hosts. Separate-consumer `118469487851`/`118469487853` JSON reconciles twelve original repository/target input paths absent per host, no Cargo, empty CARGO_HOME, private linked inputs removed and actual Copy/owned/C success. G15/RFC 0020 remain complete. Matching [Windows full run 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894), job `118467465176`, is running full tests; this alone does not complete Q02.
 
-**Q01 readiness (2026-10-20 13:50 JST):** existing production-entry tests compare ten managed-family/panic sources at every fuel/work/provider-refusal prefix; source-native CLI tests compare actual Map/Vec/arena/shared/panic AOT with VM. These alone do not complete representative combined-feature interactions. Use the existing provisional 3 pt for source fixtures combining collection/aggregate ownership, shared/weak/arena, guest calls, explicit failure/cleanup; compare values, usage, spans/reports, finite resources and retirement through actual production entry and native execution. Q02 retains matching both-host evidence; B/G/Z01 remain. No new contract, prerequisite, task or estimate is identified.
+**Q02 readiness (2026-10-20 14:33 JST):** current macOS workflow runs only main/PR, not development-branch pushes. Use existing 2 pt to add a narrow branch trigger for the Mac full baseline and retain matching Windows evidence, checking combined-source/resource cases on both native hosts. If heads differ only by workflow/planning, explicitly compare Rust/test/fixture bytes. Isolated SDK success does not substitute for the full combined conformance suite. Keep G16 open until Q02 passes; B/G/final Z01 and every original requirement remain. No new prerequisite, task or estimate is identified.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -212,13 +212,15 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 123 (+88)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 124 (+89)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −222 pt | 21 pt |
+| 134 pt | +109 pt | −225 pt | 18 pt |
 
-**134 + 109 − 222 = 21 pt**
+**134 + 109 − 225 = 18 pt**
+
+Q01 delivery / Q02 readiness audit (2026-10-20 JST): `3db077f` completes existing 3 pt with combined source, terminal-panic loan correction, ordinary/panic resource prefixes, actual AOT/real-C/persisted-C and full baseline. **123 → 124 done, 21 → 18 remaining pt, retired 222 → 225 pt; 133 rows/+109 additions unchanged**. Select only Q02 at existing 2 pt for Mac branch CI and matching both-host evidence. Retain G16/B/G/Z01 and every original requirement.
 
 P02 delivery / Q01 readiness audit (2026-10-20 JST): `c54af31` completes existing 3-point isolated installation with separate both-host consumers and reconciled JSON. **122 → 123 done, 24 → 21 remaining pt, retired 219 → 222 pt; 133 rows/+109 additions unchanged**. Select only Q01 at existing 3 pt. Matching Windows full baselines pass: close G15 and set RFC 0020 implemented; retain Q/B/G/Z01 and every original requirement.
 
@@ -440,8 +442,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-P07 | done | 0 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | Assemble compiler/startup/runtime/header SDK with Rust/native dependency closure with explicit matching-toolchain requirements. | `3080d9e` |
 | M2-P12 | done | 0 | M2-P11,M2-P10,M2-P07 | G15 | link-native verifies exact rustc/SDK/target, links verified original bytes with explicit Rust/C hosts and exclusively publishes a fresh executable. | `4acd99f` |
 | M2-P02 | done | 0 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Clean-install SDK link/run for Copy, ownership and C succeeds on both tier-1 hosts outside repo/target/deps. | `c54af31` |
-| M2-Q01 | doing | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | — |
-| M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
+| M2-Q01 | done | 0 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | Representative combined-feature VM/native success/failure conformance uses source fixtures. | `3db077f` |
+| M2-Q02 | doing | 2 | M2-Q01,M2-P02 | G16 | Both tier-1 CI runs pass representative conformance and resource-limit scenarios. | — |
 | M2-B01 | todo | 2 | M2-Q01 | G17 | Equivalent Rust/C workloads and harness establish semantic parity before comparison. | — |
 | M2-B02 | todo | 2 | M2-B01,M2-P02 | G17 | Record clean macOS runtime/startup/memory/size measurements with variance. | — |
 | M2-B03 | todo | 2 | M2-B01,M2-P02 | G17 | Record equivalent clean Windows measurements with variance. | — |
