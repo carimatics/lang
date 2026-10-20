@@ -12,7 +12,7 @@
 
 | 現在の成果 | 直近の検証済み完了 | Milestone出口 |
 | --- | --- | --- |
-| G03：address修正・macOS実行検証済み、Windows実debugger検証中 | **G02完了**：Windows Copy／owned／C-export CodeView／PDB（`2297a07`） | **17/18 gates** |
+| G03：unwind修正のlocal検証済み、Windows／macOS実debugger CI実行中 | **G02完了**：Windows Copy／owned／C-export CodeView／PDB（`2297a07`） | **17/18 gates** |
 
 **最新検証checkpoint（2026-10-20 JST）：** `2297a07`で上限付きcanonical source adapterを[unit全体のCodeView](../../crates/codegen-clif/src/debug/source_coff.rs)へ接続し、Windows実source producerで使用します。[実PDB test](../../tests/native_debug_windows.rs)がCopy／owned／C-export packageを生成し、native relocationの区別とPE／PDB linkを検証します。native Windows LINK／LLVMで元のfunction名とsource行contributionを確認し、macOS LLDBでもcross-linkした各PDBの2 function名／行を独立に解決します。local全体baselineは1,592 tests／95 suites、失敗0、手動計測ignore 1件です。 同productの[Windows run 39398395224／job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278)、head `2297a07`は、fmt／native C-linker／Clippy／全test／rustdocが**2026-10-20 09:44:14 UTC**までに成功しています。workflow全体も**2026-10-20 09:55:01 UTC**に成功しました。prototype benchmarkはG17の新しいRust／C比較計測ではありません。
 
@@ -22,7 +22,12 @@
 
 G02新規検証：**1,592 tests／95 suites、失敗0、手動計測ignore 1件**、suite時間合計440.48s。format成功、workspace／all-target／all-feature Clippy警告error化成功（19.01s）、rustdoc成功（19.16s）、全11 fuzz targetのcompile／lint成功（1.40s）。COFF unit test 2件で実machine type、function／relocationの区別、複数source file／列、表現上限の拒否を確認します。実producer test 1件で3 profileのPDBをlinkします。同productのmacOS CIも成功しています（[run 39398395138](https://github.com/carimatics/lang/actions/runs/39398395138)）。native Windows必須check：同productの[Windows run 39398395224／job 118546714278](https://github.com/carimatics/lang/actions/runs/39398395224/job/118546714278)、head `2297a07`は、fmt／native C-linker／Clippy／全test／rustdocが**2026-10-20 09:44:14 UTC**までに成功しています。workflow全体も**2026-10-20 09:55:01 UTC**に成功しました。prototype benchmarkはG17の新しいRust／C比較計測ではありません。。この計画のみの更新ではrepository consistencyと新規linkを検証し、先行B02／B03 captureは記載したrevision時点の証拠に限ります。
 
-**G03実行検証中（2026-10-20 19:35 JST）：** 既存2 ptを維持し、scope／見積もり追加なし。`7b6d181`でMach-Oのlink後addressを修正し、実Copy／owned debug link・42の実行・全functionのdSYM／native symbol照合を検証しました。local全体1,593 tests／95 suites（失敗0、手動計測ignore 1）、fmt／Clippy／rustdoc／全11 fuzz compileが成功し、[両hostの限定metadata CI](https://github.com/carimatics/lang/actions/runs/39405677404)も成功しています。SDKに一致する絶対rustcを選ぶ`95098b4`の[macOS実debugger job](https://github.com/carimatics/lang/actions/runs/39408056699/job/118578728261)は、Copyの2→3行step-over・3段source caller、ownedのPC前進・実Rust runtime caller、両方のdebugger内42／正常終了に成功しました。Windows LLDBはDLL不足で起動できないため、同じ実行要件をCDBで検証する`34d2b54`の[CI](https://github.com/carimatics/lang/actions/runs/39408889911)を実行中です。**address修正済み → macOS実行検証済み → Windows実行検証中**。両hostの実証前にG03は完了にせず、Z01の最終日英guide／全出口監査も残します。
+**G03実行checkpoint（2026-10-20 20:16 JST）：** `1496b8b`で欠落していたWindows x64 unwind tableを修正し、命令・ABIは維持します。新規local検証は**1,593 tests／95 suites、失敗0、手動計測ignore 1件**、fmt・警告error化Clippy・rustdoc・全11 fuzz targetが成功しました。[両hostの実debugger CI](https://github.com/carimatics/lang/actions/runs/39413674593)を実行中です。G03の既存2 ptを維持し、task・見積もり追加はありません。
+
+- [x] Mach-Oのlink後addressを修正し、Copy／ownedの全functionをnative symbolと照合（`7b6d181`）。
+- [x] 実macOS LLDBでsource stepping・3段source caller・ownedのruntime caller・debugger内42／正常終了を実証（[検証済みrun](https://github.com/carimatics/lang/actions/runs/39408056699)）。
+- [x] 実CDBのcaller stack途切れを特定し、Copy／owned／C objectの`.pdata`／`.xdata`を出力・独立検証（`1496b8b`）。
+- [ ] 修正したWindows executableの3段source callerとowned runtime steppingを確認し、同productのmacOSも再検証。成功後にG03を閉じ、Z01の最終guide／監査へ進む。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>

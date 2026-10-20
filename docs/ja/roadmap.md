@@ -18,7 +18,7 @@
 
 **今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **6 − 3 = 3 pt**、**133行／追加109点は不変**、[収支](milestone-2.md#進捗と見積もり変更)は **134 + 109 − 240 = 3 pt**。暫定planning単位であり時間や完成率ではありません。
 
-**G03実行検証中（2026-10-20 19:35 JST）：** 既存2 ptを維持し、scope／見積もり追加なし。`7b6d181`でMach-Oのlink後addressを修正し、実Copy／owned debug link・42の実行・全functionのdSYM／native symbol照合を検証しました。local全体1,593 tests／95 suites（失敗0、手動計測ignore 1）、fmt／Clippy／rustdoc／全11 fuzz compileが成功し、[両hostの限定metadata CI](https://github.com/carimatics/lang/actions/runs/39405677404)も成功しています。SDKに一致する絶対rustcを選ぶ`95098b4`の[macOS実debugger job](https://github.com/carimatics/lang/actions/runs/39408056699/job/118578728261)は、Copyの2→3行step-over・3段source caller、ownedのPC前進・実Rust runtime caller、両方のdebugger内42／正常終了に成功しました。Windows LLDBはDLL不足で起動できないため、同じ実行要件をCDBで検証する`34d2b54`の[CI](https://github.com/carimatics/lang/actions/runs/39408889911)を実行中です。**address修正済み → macOS実行検証済み → Windows実行検証中**。両hostの実証前にG03は完了にせず、Z01の最終日英guide／全出口監査も残します。
+**G03実行checkpoint（2026-10-20 20:16 JST）：** `1496b8b`で欠落していたWindows x64 unwind tableを修正し、命令・ABIは維持します。新規local検証は**1,593 tests／95 suites、失敗0、手動計測ignore 1件**、fmt・警告error化Clippy・rustdoc・全11 fuzz targetが成功しました。[両hostの実debugger CI](https://github.com/carimatics/lang/actions/runs/39413674593)を実行中です。G03の既存2 ptを維持し、task・見積もり追加はありません。
 
 ## タスク管理
 
