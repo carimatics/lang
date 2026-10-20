@@ -39,7 +39,7 @@ P02のmetadata準備prototype（2026-10-20 JST実装・重点確認）：`Object
 
 P11（2026-10-20 JST）は不変の型付きSDK／program manifestと所有snapshotを追加します。Exact-key serde decodeで重複／未知fieldを拒否し、byte／depth／string／file-count上限を拡張前に検査します。Role／path／profile／entryと総sizeの検査にはmanifest byteも含めます。SDK tagはcompile済みbuild、target別ID、rustc release／commit、profile、feature policyと照合します。Programの意味論／entry／ABI、native記録のkind／target／C digest、正確なobject byteと記録planを独立に検査します。
 
-Directory相対のcap-std openでsymlink／reparse越しにも明示root内を強制します。Unixではregular file検査前のopenをnonblockingにします。Streamコピーで宣言sizeとSHA-256を検証してexclusiveなprivate fileへ保存し、検証済みownerだけを返します。元入力の変更／削除は返したbyteを変えず、失敗／dropで所有directoryを削除します。Staging parentは信頼済みhost policyです。このdata APIはsymbol／import／native／provider／toolの権限を与えません。Toolchain／link commandは後述のとおり実装し、隔離installはP02に残ります。
+Directory相対のcap-std openでsymlink／reparse越しにも明示root内を強制します。Unixではregular file検査前のopenをnonblockingにします。Streamコピーで宣言sizeとSHA-256を検証してexclusiveなprivate fileへ保存し、検証済みownerだけを返します。元入力の変更／削除は返したbyteを変えず、失敗／dropで所有directoryを削除します。Staging parentは信頼済みhost policyです。このdata APIはsymbol／import／native／provider／toolの権限を与えません。Toolchain／link commandは後述のとおり実装し、隔離installにはP02の証拠があります。
 
 情報源：固定したcap-std／cap-primitives 4.0.3のfilesystem文書／source。配布fileに公開／更新日の記載はなく、2026-10-20 JST確認。[Cargo.lock](../../Cargo.lock)、[validator](../../src/native/manifest.rs)、[snapshot](../../src/native/manifest/snapshot.rs)、[test](../../tests/native_packages.rs)、[上限付きfuzz target](../../fuzz/fuzz_targets/native_manifests.rs)は2026-10-20 JST更新・確認。Fuzz compileをcoverage-guided campaignには数えません。
 
@@ -192,25 +192,27 @@ EntryErrorは元の準備／native原因、usage、function／fault／panic識�
 
 2026-10-20 JST更新・検証：`lang_codegen_clif::sdk::runtime` は元のlinked imageに対するunsafeな `execute_copy`、`execute_owned`、`with_c` APIを提供します。Symbol解決前にhost target／buildを検査し、上限付きsemantic／native記録を独立decodeしてproductionのbinding／runtime primitiveを使います。Callerは正確に対応するimageと全依存物を保持します。起動時にはsource compile、code生成／JIT、guest命令のinterpretを行いません。
 
-Copyは同期unmetered ABIのため、未発火のinterruption／deadlineを含め設定済みcontrolをすべて拒否します。Ownershipはcallerの実際のallocator、cleanup Instance、controlを使い、usage、poison、元のfailure reportとsemantic source byteを保持します。C bindingは明示closure内に限られ、unwind時を含めclosure終了前にowner thread上で全callを戻し、全contextを破棄します。Unsafe callerはraw client／contextの持ち出しを防ぎ、実際のC設定、provider、import grantを供給します。Metadataは権限を与えません。[runtime実装](../../crates/codegen-clif/src/sdk/runtime.rs)と[sourceなしの実行／guard／状態test](../../tests/native_compiler.rs)を参照してください。公開SDK linkは後述のとおり実装し、両host隔離installはP02に残ります。
+Copyは同期unmetered ABIのため、未発火のinterruption／deadlineを含め設定済みcontrolをすべて拒否します。Ownershipはcallerの実際のallocator、cleanup Instance、controlを使い、usage、poison、元のfailure reportとsemantic source byteを保持します。C bindingは明示closure内に限られ、unwind時を含めclosure終了前にowner thread上で全callを戻し、全contextを破棄します。Unsafe callerはraw client／contextの持ち出しを防ぎ、実際のC設定、provider、import grantを供給します。Metadataは権限を与えません。[runtime実装](../../crates/codegen-clif/src/sdk/runtime.rs)と[sourceなしの実行／guard／状態test](../../tests/native_compiler.rs)を参照してください。公開SDK linkは後述のとおり実装し、両host隔離installにはP02の証拠があります。
 
 ### Native SDK assembly
 
 [.gitattributes](../../.gitattributes)でproduction入力byteをLFへ固定し、checkout設定でhost間の共通SDK source digestが変わることを避けます。core.autocrlf=trueのsrc/native.rs checkout実験では、設定前に465行がCRLFとなり、設定後は0行でした。現在のproduction byteは不変です。2026-10-20 JST確認。
 
-2026-10-20 JST更新・確認：`python3 tools/build-native-sdk.py --output SDK` で新しい対応host SDKをbuild・組立します。Releaseには `--release` を加えます。Cacheの依存variant一覧ではなく、成功した正確なCargo artifact／build-script出力からRust／proc-macro libraryとnative support archiveを選びます。Compiler、scope付きruntime、共通C header、Copy／owned／C起動例、日英の説明、上限付き `sdk.json` を収録します。Production検証APIでprivate copyをstream／hash検証してからexclusive公開し、compilerの実行権限を保持します。[SDK build／利用方法](native-sdk.md)と[組立／sourceなしtest](../../tests/native_sdk.rs)を参照してください。公開 `link-native` は後述のとおり実装し、両host隔離installはP02に残ります。
+2026-10-20 JST更新・確認：`python3 tools/build-native-sdk.py --output SDK` で新しい対応host SDKをbuild・組立します。Releaseには `--release` を加えます。Cacheの依存variant一覧ではなく、成功した正確なCargo artifact／build-script出力からRust／proc-macro libraryとnative support archiveを選びます。Compiler、scope付きruntime、共通C header、Copy／owned／C起動例、日英の説明、上限付き `sdk.json` を収録します。Production検証APIでprivate copyをstream／hash検証してからexclusive公開し、compilerの実行権限を保持します。[SDK build／利用方法](native-sdk.md)と[組立／sourceなしtest](../../tests/native_sdk.rs)を参照してください。公開 `link-native` は後述のとおり実装し、両host隔離installにはP02の証拠があります。
 
 ### Native executable linking
 
 2026-10-20 JST更新・確認：`lang link-native --sdk SDK --package PROGRAM --output EXE` は対応SDK／program全体をsnapshot・検証し、実rustc release／commit／hostを照合して元objectを配布libraryとlinkします。Compile成功後だけ新executableを公開し、Cargo／registry／repository依存探索は行いません。Install済みcompilerは `RUSTC` で選択でき、host glueはRust 2024とpanic unwindを使います。
 
-Copy／通常owned packageは生成mainを使います。C libraryは `--host HOST.rs` と必要に応じて繰返し `--object HOST.o` を要求します。Hostはコピーした `bindings.rs` の隣に置く単一Rust rootで、信頼済みC objectと明示context／allocator／import grantを使い、C mainを合成しません。Link後はsource／SDK／program directoryが不要です。UTF-8 response引数で空白を保持し、tool不一致、入力／診断上限、link失敗、並行公開は既存出力を保ちます。[SDK説明](native-sdk.md)、[link実装](../../src/native/link.rs)、[公開CLI／拒否／atomicity test](../../tests/native_link.rs)を参照してください。両host隔離installはP02に残り、packagingやQ／B／G全体は完了しません。
+Copy／通常owned packageは生成mainを使います。C libraryは `--host HOST.rs` と必要に応じて繰返し `--object HOST.o` を要求します。Hostはコピーした `bindings.rs` の隣に置く単一Rust rootで、信頼済みC objectと明示context／allocator／import grantを使い、C mainを合成しません。Link後はsource／SDK／program directoryが不要です。UTF-8 response引数で空白を保持し、tool不一致、入力／診断上限、link失敗、並行公開は既存出力を保ちます。[SDK説明](native-sdk.md)、[link実装](../../src/native/link.rs)、[公開CLI／拒否／atomicity test](../../tests/native_link.rs)を参照してください。両host隔離installにはP02の証拠がありますが、packagingやQ／B／G全体の判定は別です。
 
 ### Native SDK isolated installation
 
 2026-10-20 JST更新・確認：[隔離install CI](../../.github/workflows/native-sdk-install.yml) はmacOS AArch64／Windows x86-64でSDKを作るjobと利用jobを分け、SDKとprivate Python probeだけをtarで渡して実行権限を保持します。利用jobはrepoをcheckoutせず、元の.git／Cargo manifest／src／crates／targetがないことを確認します。[Probe](../../tools/check-native-sdk-install.py) は対応Rust／C toolchainを使い、CargoをPATHから除去して空のCARGO_HOMEでCopy／owned／実Cをcompile／linkします。Private source／SDK／programを削除後に実行し、C allocator／contextの作成・破棄も検証してJSON証拠を保存します。
 
-Local probeの3 profile成功だけでは両host隔離の完了とはせず、対応する別jobの結果を[Todo](milestone-2.md)に記録してP02を判定します。Q／B／Gと最終guideはそれぞれの完了証拠を必要とします。Artifact転送の権限保持はGitHub公式 [upload-artifact](https://github.com/actions/upload-artifact/tree/cf430e030ddbb5b0abf93d22962f4752f3646cd9#permission-loss)／[download-artifact](https://github.com/actions/download-artifact/tree/9000827ccba6bdab643e8b6fd33ac0654aef8333#maintaining-file-permissions) に従います。Living READMEに更新日表示はなく、2026-10-20 JST確認です。
+両host隔離の検証（2026-10-20 JST）：完全一致head `c54af31` の [run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) は2026-10-20 04:44:42 UTCに成功しました。Mac consumer `118458816864`／Windows consumer `118458816960` のJSONで、両方の元repo／target入力12 pathの不在、Cargoなし、空のCARGO_HOME、privateなlink入力削除、Copy／owned／C全3件の成功を照合しました。P02は完了し、G15全体とRFC 0020の実装完了判定は進行中の対応Windows全baselineも確認してから行います。Q／B／Gと最終guideは未完了です。GitHubの[hosted runner仕様](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners)はjobごとの新VMを説明します（今回のrunnerはsingle-CPU例外ではありません）。更新日表示はなく2026-10-20 JST確認です。
+
+Local probeだけでは両host隔離の証拠になりません。対応する別jobの結果を[Todo](milestone-2.md)に記録しました。Q／B／Gと最終guideはそれぞれの完了証拠を必要とします。Artifact転送の権限保持はGitHub公式 [upload-artifact](https://github.com/actions/upload-artifact/tree/cf430e030ddbb5b0abf93d22962f4752f3646cd9#permission-loss)／[download-artifact](https://github.com/actions/download-artifact/tree/9000827ccba6bdab643e8b6fd33ac0654aef8333#maintaining-file-permissions) に従います。Living READMEに更新日表示はなく、2026-10-20 JST確認です。
 
 ### Native compiler record transport and Copy binding
 
@@ -218,7 +220,7 @@ Local probeの3 profile成功だけでは両host隔離の完了とはせず、�
 
 Copy記録は独立decode済みMIRに対して準備し、count／ID／canonical symbol／source domain不一致を拒否。Imageを保持してcanonical cell-buffer呼出しを検査します。Target／budgetをsymbol検索前に検査し、missing symbolではimageを解放します。JITと呼出し実装を共有し、VMのfuel／frame／interruption制限を持たない既存trusted同期Copy ABIを維持します。Ownershipはdecode済み意味論と元compiler metadataから既存continuation planをISA検索／機械語生成なしに再構築します。正確なcode／compiler／toolchain／imageと寿命に関するunsafe義務は全て残ります。Decodeはcode loadも権限付与もしません。
 
-Macのlinked fixtureは、生成元破棄後に空白入りpathの意味論／native記録fileを読み直します。Copy record／enum呼出しとscalar極値をVMと比較し、不正metadata／UTF-8境界／target／budget／symbolを呼出し前に拒否。Ownership schema 2のmanaged Text／Vec／shared／arenaの全work prefixとschema 3の明示的panicでmetadata、cleanup／control結果、image保持を確認します。埋め込んだsource snapshotは診断dataとして残しますが、起動時のparseや再生成は行いません。初期record fixtureはtest runtimeを使いましたが、下記の通常entryでP05の不足を解消しました。C interface／bridgeの復元は下記で実装しました。SDK組立は上記で実装し、公開linkは上記で実装し、installはP02に残ります。情報源：[codec](../../crates/codegen-clif/src/native_record.rs)、[Copy準備／bind](../../crates/codegen-clif/src/program/recorded.rs)、[owned準備](../../crates/codegen-clif/src/owned/recorded.rs)、[linked fixture](../../tests/support/native_linked.rs)。2026-10-20 JST更新・確認。
+Macのlinked fixtureは、生成元破棄後に空白入りpathの意味論／native記録fileを読み直します。Copy record／enum呼出しとscalar極値をVMと比較し、不正metadata／UTF-8境界／target／budget／symbolを呼出し前に拒否。Ownership schema 2のmanaged Text／Vec／shared／arenaの全work prefixとschema 3の明示的panicでmetadata、cleanup／control結果、image保持を確認します。埋め込んだsource snapshotは診断dataとして残しますが、起動時のparseや再生成は行いません。初期record fixtureはtest runtimeを使いましたが、下記の通常entryでP05の不足を解消しました。C interface／bridgeの復元は下記で実装しました。SDK組立は上記で実装し、公開linkは上記で実装し、installにはP02の証拠があります。情報源：[codec](../../crates/codegen-clif/src/native_record.rs)、[Copy準備／bind](../../crates/codegen-clif/src/program/recorded.rs)、[owned準備](../../crates/codegen-clif/src/owned/recorded.rs)、[linked fixture](../../tests/support/native_linked.rs)。2026-10-20 JST更新・確認。
 
 ### Persisted C object startup
 
@@ -230,7 +232,7 @@ Macのlinked fixtureは、生成元破棄後に空白入りpathの意味論／na
 
 ### Native SDK distribution decision
 
-2026-10-20 JST受理：[RFC 0020](rfcs/0020-native-sdk-and-startup.md)で製品用`native`／`link-native`コマンド、対応Rust SDK、上限付きversion-1 SDK／program manifest、target別build識別、scope付き通常／C起動を定義しました。C profile 1と既存portable／native記録は維持し、C権限を生成せず、初期SDKでは正確なRust toolchainを明示要件とします。P09／P10はsource compilerとscope付きproduction consumerを提供し、SDK組立は実装済みで、link commandは上記で実装し、両host隔離installはP02に残ります。Repository外の既存libraryとproduction入口によるBytes 42／live allocation 0の準備実験を保存しました。設計の証拠であり、SDK全体・性能・debug完了の証拠には数えません。情報源：[producer](../experiments/sdk-owned-producer.rs)、[consumer](../experiments/sdk-owned-consumer.rs)。2026-10-20 JST更新・確認。
+2026-10-20 JST受理：[RFC 0020](rfcs/0020-native-sdk-and-startup.md)で製品用`native`／`link-native`コマンド、対応Rust SDK、上限付きversion-1 SDK／program manifest、target別build識別、scope付き通常／C起動を定義しました。C profile 1と既存portable／native記録は維持し、C権限を生成せず、初期SDKでは正確なRust toolchainを明示要件とします。P09／P10はsource compilerとscope付きproduction consumerを提供し、SDK組立は実装済みで、link commandは上記で実装し、両host隔離installにはP02の証拠があります。Repository外の既存libraryとproduction入口によるBytes 42／live allocation 0の準備実験を保存しました。設計の証拠であり、SDK全体・性能・debug完了の証拠には数えません。情報源：[producer](../experiments/sdk-owned-producer.rs)、[consumer](../experiments/sdk-owned-consumer.rs)。2026-10-20 JST更新・確認。
 
 ### C-aware ownership artifact transport
 
