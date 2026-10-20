@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0020-native-sdk-and-startup.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -160,7 +160,7 @@ P07 checkpoint（2026-10-20 JST）：repository内build toolでcompiler／runtim
 
 P12 checkpoint（2026-10-20 JST）：公開 `link-native` でSDK／programと上限付き信頼済みRust／C入力をsnapshot・検証し、compileと同じworking directoryで実rustc release／commit／hostを照合して、UTF-8 response引数で配布libraryと元objectをrustcへ渡します。Cargo／registry／repository pathは使いません。成功後に新executableだけをexclusive公開し、失敗／並行時も既存出力を保ちます。通常entryのdefaultと明示C host／context／grantは不変です。Toolchain／tool前拒否、診断／host／出力上限、rollback／1件だけの公開、source／SDK／program退避後の実SDK3 profileをtestします。両host完全隔離のP02、Q／B／G、最終guideは残り、manifest／ABI／version変更や性能改善は主張しません。情報源：公式 [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path)。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。
 
-P02 checkpoint（2026-10-20 JST）：完全一致head `c54af31` の [隔離install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) が2026-10-20 04:44:42 UTCに成功しました。別VMのmacOS AArch64／Windows x86-64 consumerはrepoをcheckoutせず、元repo／target入力の不在を検査し、CargoなしでCopy／owned／実Cをcompile／link／実行しました。Private source／SDK／program削除後の実行、元C allocator／contextの均衡、対応revision／build／targetをJSONで照合しました。P02の既存3 ptを完了します。進行中の対応Windows全baselineが成功するまではRFC statusをaccepted、G15判定を未完了に維持します。Q／B／Gと最終guideも未完了で、manifest／ABI／契約変更や性能改善はありません。
+P02 checkpoint（2026-10-20 JST）：完全一致head `c54af31` の [隔離install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) が2026-10-20 04:44:42 UTCに成功しました。別VMのmacOS AArch64／Windows x86-64 consumerはrepoをcheckoutせず、元repo／target入力の不在を検査し、CargoなしでCopy／owned／実Cをcompile／link／実行しました。Private source／SDK／program削除後の実行、元C allocator／contextの均衡、対応revision／build／targetをJSONで照合しました。P02の既存3 ptを完了します。対応Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929)（head `991768e`）のfmt／C・linker検証／Clippy／全test／rustdocは2026-10-20 04:47:51 UTCまでに全成功しました。`c54af31` との差分は転送workflowだけです。G15を完了し、意図したSDK interfaceと検証が揃ったためstatusをimplementedにします。Prototype benchmark／workflow全体の成功やstabilizedは主張しません。Q／B／Gと最終guideも未完了で、manifest／ABI／契約変更や性能改善はありません。
 
 ## Open questions
 

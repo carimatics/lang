@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**122 verified deliveries · 1 in progress · 10 remaining tasks (provisional 24 pt).**
+**123 verified deliveries · 1 in progress · 9 remaining tasks (provisional 21 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P02: isolated SDK installation on both tier-1 hosts | **P12 complete**: public link-native (`4acd99f`) | **14/18 gates** |
+| Q01: combined-feature source VM/native conformance | **P02 complete**: both-host isolated SDK installation (`c54af31`) | **15/18 gates** |
 
-**Latest checkpoint (2026-10-20 13:16 JST):** verify SDK/program and exact actual rustc identity, link original objects and exclusively publish an executable. Actual Copy/owned/C runs after source/SDK/program removal; fresh release SDK commands also run owned 42 without source. One complete Mac baseline passes **1,583 tests / 94 suites**, 0 failures, 1 manual test ignored; fmt/Clippy/rustdoc/all 11 fuzz targets pass. Validation takes 633.41s, including 267.23s for native ownership; record it separately from development effort. Details: [Todo](milestone-2.md). P12 [Windows run 39368730619](https://github.com/carimatics/lang/actions/runs/39368730619) is in progress; P07 [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598) succeeded at 2026-10-20 04:02:27 UTC. Updated/verified 2026-10-20 JST.
+**Latest checkpoint (2026-10-20 13:50 JST):** exact head `c54af31` [isolated-install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) succeeded at **2026-10-20 04:44:42 UTC**. Separate-VM macOS AArch64/Windows x86-64 consumers do not check out the repository; reconciled JSON proves original repository/target inputs absent, no Cargo, empty CARGO_HOME, and actual Copy/owned/C success after private source/SDK/program deletion. Mac full baseline passes **1,583 tests / 94 suites**, 0 failures, 1 manual test ignored (434.14s); fmt/Clippy/rustdoc/all 11 fuzz targets pass. Matching Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929) also passes fmt, C/linker checks, Clippy, full tests and rustdoc by **2026-10-20 04:47:51 UTC**: close G15 and set RFC 0020 implemented. Its prototype benchmark remains active; this does not claim performance-gate or whole-workflow success. Details: [Todo](milestone-2.md), updated/verified 2026-10-20 JST.
 
-**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** **27 − 3 = 24 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 219 = 24 pt**. Select P02 at existing 3 pt: separate macOS AArch64/Windows x86-64 consumer jobs, with no repository checkout, verify actual Copy/owned/C compile/link/run. Current source-removal tests alone do not prove isolation. P02/Q/B/G/final Z01 remain open. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
+**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** **24 − 3 = 21 remaining pt**, **133 rows/+109 additions unchanged**; ledger **134 + 109 − 222 = 21 pt**. Select Q01 at existing 3 pt: build on per-family tests with combined-feature source fixtures comparing values/failures/resources/cleanup. Q02/B/G/final Z01 remain open. Historical 113-point weights are retired as effort forecasts; delivery counts are not completion percentages.
 
 ## Task tracking
 
@@ -42,19 +42,19 @@ The representative-application task is also complete at its prototype boundary. 
 
 The 2026-10-17 repository review exposed missing entry gates for source ownership/core-library syntax and the production component profile, and separated native compilation of the existing copy-value profile from ownership-aware AOT. It adds 21 pending points to Milestone 2 and 5 to Milestone 3; completed work remains 298 points. The lower overall percentage reflects newly explicit work. Source/core-library foundations must precede representative workloads and self-hosting; C embedding stabilization follows conformance and resource enforcement.
 
-Exit-gate weight snapshot verified on 2026-10-19 (JST). Overall arithmetic aggregates historical gate weights; it is not an overall effort estimate. Current M2 delivery progress is above and in the linked board.
+Exit-gate weight snapshot verified on 2026-10-20 (JST). Overall arithmetic aggregates historical gate weights; it is not an overall effort estimate. Current M2 delivery progress is above and in the linked board.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
-| 2 — ownership and native AOT | 84 pt | 113 pt | 74.3% |
+| 2 — ownership and native AOT | 89 pt | 113 pt | 78.8% |
 | 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **382 pt** | **764 pt** | **50.0%** |
+| **Overall** | **387 pt** | **764 pt** | **50.7%** |
 
 ## Milestone 0: design baseline
 
@@ -230,7 +230,7 @@ Exit verified: small programs run as scripts with deterministic behavior and use
 
 ## Milestone 2: ownership and native AOT
 
-**Exit gates: 14 / 18 complete; historical weight: 84 / 113 pt (74.3%).**
+**Exit gates: 15 / 18 complete; historical weight: 89 / 113 pt (78.8%).**
 
 **Implementation Todo: [current deliveries, next task and remaining estimate](milestone-2.md).** This board is the current work queue; the checklist below preserves the original acceptance boundaries.
 
@@ -250,7 +250,7 @@ Entry: RFC 0006's implemented copy-value profile and its compatibility fixtures 
 - [x] **P0 — Implement C ABI import/export and generated headers.** — 8 pt
 - [x] **P0 — Lower the full RFC 0006 copy-value profile (guest calls, boolean interfaces, records, enums, and patterns) to native code with differential fixtures.** — 8 pt
 - [x] **P0 — Complete ownership-aware source-program object generation and native link/run conformance for macOS AArch64 and Windows x86-64.** — 8 pt
-- [ ] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
+- [x] **P0 — Harden linker discovery, startup/runtime packaging, and production error handling.** — 5 pt
 - [ ] **P0 — Build the representative differential VM/native conformance suite.** — 8 pt
 - [ ] **P0 — Measure representative native workloads against equivalent Rust/C implementations.** — 8 pt
 - [ ] **P1 — Emit and validate source-span native debug metadata on both tier-1 platforms.** — 8 pt

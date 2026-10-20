@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み122件 · 進行中1件 · 残り10件（暫定24 pt）。**
+**検証済み123件 · 進行中1件 · 残り9件（暫定21 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P02：両tier-1での隔離SDK install | **P12完了**：公開link-native（`4acd99f`） | **14/18条件** |
+| Q01：複合featureのsource VM／native conformance | **P02完了**：両hostの隔離SDK install（`c54af31`） | **15/18条件** |
 
-**直近のcheckpoint（2026-10-20 13:16 JST）：** SDK／programと実rustcの完全一致を検証し、元objectをlinkしてexecutableをexclusive公開します。Source／SDK／program除去後に実Copy／owned／Cが動作し、新release SDKでもsourceなしownedが42を返しました。Mac全baseline **1,583 tests / 94 suites**、失敗0、手動1件ignored、fmt／Clippy／rustdoc／全11 fuzz target成功。検証633.41秒のうちnative所有権267.23秒で、開発工数とは別に記録します。詳細は[Todo](milestone-2.md)。P12 [Windows run 39368730619](https://github.com/carimatics/lang/actions/runs/39368730619) は実行中、P07 [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598) は2026-10-20 04:02:27 UTCに成功しました。2026-10-20 JST更新・確認。
+**直近のcheckpoint（2026-10-20 13:50 JST）：** 完全一致head `c54af31` の [隔離install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) が **2026-10-20 04:44:42 UTC** に成功しました。別VMのmacOS AArch64／Windows x86-64 consumerはcheckoutせず、元repo／target入力不在、Cargoなし、空のCARGO_HOME、private source／SDK／program削除後の実Copy／owned／C全成功をJSONで照合しました。Mac全baseline **1,583 tests／94 suites**、失敗0、手動1件ignored（434.14秒）、fmt／Clippy／rustdoc／全11 fuzz target成功。対応Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929) のfmt／C・linker検証／Clippy／全test／rustdocも **2026-10-20 04:47:51 UTC** までに成功し、G15を完了、RFC 0020をimplementedとしました。Prototype benchmarkは実行中で、性能gateやworkflow全体の成功とは数えません。詳細は[Todo](milestone-2.md)。2026-10-20 JST更新・確認。
 
-**今回：1件完了（−3 pt）、見積もり／task追加なし。** **27 − 3 = 24 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 219 = 24 pt**。P02を既存3 ptで選び、macOS AArch64／Windows x86-64の別consumer jobでrepoをcheckoutせずCopy／owned／C compile／link／実行を検証します。現source除去testだけでは隔離証拠になりません。P02／Q／B／G／最終Z01は未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
+**今回：1件完了（−3 pt）、見積もり／task追加なし。** **24 − 3 = 21 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 222 = 21 pt**。既存3 ptのQ01を選び、個別family testを土台に複合featureのsource fixtureで値／失敗／resource／cleanupを比較します。Q02／B／G／最終Z01は未完了です。歴史的113点は工数予測として廃止し、件数も完成率には数えません。
 
 ## タスク管理
 
@@ -42,19 +42,19 @@ Representative-application taskも規定したprototype boundaryで完了しま�
 
 2026-10-17のrepository reviewで、source ownership／core-library構文とproduction component profileの開始gate欠落を明確にし、既存copy-value profileのnative compilationをownership-aware AOTから分離しました。Milestone 2に未完了21 pt、Milestone 3に未完了5 ptを追加し、完了済み298 ptは維持します。全体進捗の低下は隠れていた作業の明示によるものです。Source／core-library基盤を代表的workload／self-hostingより先に整備し、C embeddingのstable化はconformance／resource enforcement確認後に行います。
 
-2026-10-19（JST）に確認した受入条件の重みのsnapshotです。全体の計算は履歴上の重みの集計であり、全体作業量の見積もりではありません。現在のM2実装状況は上記とリンク先のTodoを参照してください。
+2026-10-20（JST）に確認した受入条件の重みのsnapshotです。全体の計算は履歴上の重みの集計であり、全体作業量の見積もりではありません。現在のM2実装状況は上記とリンク先のTodoを参照してください。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
-| 2 — ownershipとnative AOT | 84 pt | 113 pt | 74.3% |
+| 2 — ownershipとnative AOT | 89 pt | 113 pt | 78.8% |
 | 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **382 pt** | **764 pt** | **50.0%** |
+| **全体** | **387 pt** | **764 pt** | **50.7%** |
 
 ## Milestone 0：設計baseline
 
@@ -230,7 +230,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 
 ## Milestone 2：ownershipとnative AOT
 
-**完了条件：18件中14件完了、履歴上の重み：84 / 113 pt（74.3%）。**
+**完了条件：18件中15件完了、履歴上の重み：89 / 113 pt（78.8%）。**
 
 **実装Todo：[現在の完了成果、次のtask、残作業見積もり](milestone-2.md)。** 現在の作業queueはこちらで管理し、以下のchecklistは従来の受入条件を保持します。
 
@@ -250,7 +250,7 @@ Exit確認済み：小さなprogramをscriptとして実行でき、deterministi
 - [x] **P0 — C ABI import／exportとgenerated headerを実装する。** — 8 pt
 - [x] **P0 — RFC 0006のcopy-value profile全体（guest call、boolean interface、record、enum、pattern）をdifferential fixture付きでnative codeへlowerする。** — 8 pt
 - [x] **P0 — macOS AArch64／Windows x86-64向けownership-aware source-program object generationとnative link／run conformanceを完成させる。** — 8 pt
-- [ ] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
+- [x] **P0 — Linker discovery、startup／runtime packaging、production error handlingをhardeningする。** — 5 pt
 - [ ] **P0 — 代表的なVM／native differential conformance suiteを構築する。** — 8 pt
 - [ ] **P0 — 代表的native workloadを同等のRust／C実装に対して計測する。** — 8 pt
 - [ ] **P1 — 両tier-1 platformでsource-span native debug metadataをemit／validateする。** — 8 pt

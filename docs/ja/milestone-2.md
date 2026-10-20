@@ -6,25 +6,25 @@
 
 更新・検証：**2026-10-20 JST**。初回監査checkpoint：`0c2c012`。
 
-**122 done · 1 doing · 10 todo · 24 remaining pt**
+**123 done · 1 doing · 9 todo · 21 remaining pt**
 
-**次: M2-P02 → 両tier-1 hostの隔離SDK install（暫定3 pt、実装中）。**
+**次: M2-Q01 → 複合featureのsource由来VM／native conformance（暫定3 pt、実装中）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P02：repo／target/depsなしで両hostのCopy／owned／C install | **P12完了**：公開link-native（`4acd99f`） | **14/18条件** |
+| Q01：複合featureの値／失敗／resource／cleanup比較 | **P02完了**：両hostのcheckoutなしSDK install（`c54af31`） | **15/18条件** |
 
-**直近の実行checkpoint（2026-10-20 13:16 JST）：** `4acd99f` で公開link-nativeを実装しました。検証済みSDK／program／privateな信頼済みRust／C snapshot、実rustc release／commit／host完全一致、元objectとSDKのlink、executableのexclusive公開を行います。6 testでtool開始前拒否、診断／host／出力上限、rollback、公開競合1勝を検証し、source／SDK／program除去後に実Copy／owned／実C binaryが動作しました。新release SDKの公開native／link-nativeでもsource削除後にownedの42を確認しました。
+**直近の実行checkpoint（2026-10-20 13:50 JST）：** [run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958)、完全一致head `c54af31` は **2026-10-20 04:44:42 UTC** に全成功しました。別VMのMac consumer `118458816864`／Windows consumer `118458816960` のJSONを取得・照合しました。各12個の元repo／target入力pathが存在せず、CargoをPATHから除去、CARGO_HOMEは空、privateなsource／SDK／program削除後に実Copy／owned／Cが全成功しています。Copy／ownedは42、実Cはallocator／context作成・破棄を均衡させて42を検証します。SDK build IDはMac `7a318931…0bfe46`／Windows `7283752e…6a365`。この6 profile checkはRust workspaceのtest件数とは別です。
 
-**今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** 残り **27 − 3 = 24 pt**、**133行／追加109点は不変**、収支 **134 + 109 − 219 = 24 pt**。暫定planning単位であり時間や完成率ではありません。
+**今回：成果1件完了（−3 pt）、見積もり／task追加なし。** 残り **24 − 3 = 21 pt**、**133行／追加109点は不変**、[収支](#進捗と見積もりの変更)は **134 + 109 − 222 = 21 pt**。暫定planning単位であり時間や完成率ではありません。
 
-Mac検証：全target／featureのworkspace全command 1回で **1,583 tests / 94 suites**、失敗0、手動計測1件ignored。Source-native **10 / 13.77秒**、native ownership **76 / 267.23秒**、公開link **6 / 35.72秒**、SDK **5 / 14.21秒**、C ABI **74 / 20.83秒**。Fmt、Clippy（**16.82秒**）、rustdoc（**18.43秒**）、全11 fuzz targetのClippy（**1.71秒**）が成功しました。全command **633.41秒**、初回compile **20.16秒**、release SDK **9.74秒／105 component**。検証の観測値であり、開発工数や性能改善ではありません。Planningのみの変更はrepository consistency 3 testで確認します。
+Mac全baselineは **1,583 tests / 94 suites**、失敗0、手動計測1件ignored、単一command **434.14秒**（初回compile 0.18秒）。Source-native **10 / 13.21秒**、native ownership **76 / 267.43秒**、公開link **6 / 35.20秒**、SDK **5 / 14.16秒**、C ABI **74 / 21.82秒**。Fmt、Clippy（0.68秒）、rustdoc（13.62秒）、全11 fuzz target（0.20秒）が成功しました。検証時間の観測であり、開発工数や性能改善ではありません。以後の文書のみの変更はrepository consistency 3 testで確認します。
 
-**P02実行WIP checkpoint（2026-10-20 13:39 JST）：** `991768e` のprivate probe／producer-consumer CIを実装し、転送名だけを `c54af31` で修正しました。Localの実SDK Copy／owned／CはCargoをPATHから外して成功し、private source／SDK／program削除後も実行できました。Tar展開後も105 componentのsize／hashとcompiler実行権限が一致し、repo存在時は出力作成前に隔離検証を拒否します。Mac全baseline **1,583 tests／94 suites、失敗0、手動1件ignored（434.14秒）**、fmt、Clippy（0.68秒）、rustdoc（13.62秒）、全11 fuzz target（0.20秒）成功。初回 [run 39369585890](https://github.com/carimatics/lang/actions/runs/39369585890) は両SDK build成功後、raw uploadがartifact名を無視する仕様で転送に失敗しました。修正版 [run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958)、完全一致head `c54af31` を実行中です。両OSの別consumer成功を確認するまでP02／G15は未完了、点数・行数は不変です。
+初回 [run 39369585890](https://github.com/carimatics/lang/actions/runs/39369585890) は両SDK build成功後、raw artifact uploadが指定名を無視する仕様で転送失敗しました。`c54af31` は名前を保持する非圧縮zip envelopeへ修正し、実行権限は内部tarで保持します。Localでもtarの全105 component size／hash・compiler実行権限が一致し、repo存在時は出力作成前に隔離検証を拒否しました。Fixture／転送修正に追加加点はありません。
 
-**P02実装前監査（2026-10-20 13:16 JST）：** P07に検証済みRust／native依存closure、P12に全profileの公開linkがあります。現testは自分のsource／SDK／programを除去しますが、そのhostに生成元repo／Cargo artifactがあるため隔離install証拠ではありません。macOS AArch64／Windows x86-64のproducerとconsumerを別CI jobにし、対応SDK／private probeを転送してconsumerではrepoをcheckoutしない方針です。対応するinstall済みRust／C toolchainで実Copy／owned／Cのcompile／link／実行を検証し、Cargo／registryには依存しません。契約変更や追加前提は見つかっておらず既存3 ptを維持します。P02／Q／B／G／最終日英Z01と元の全完了条件は[RFC 0020](rfcs/0020-native-sdk-and-startup.md)の下で未完了です。
+**G15／RFC 0020の判定：完了。** P01／F07の両host linker診断、P03–P12のmetadata／runtime／C context／SDK／公開link、今回のP02隔離installに基づきG15を完了します。対応Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929)／job `118454194005`／head `991768e` のfmt、C・linker検証、Clippy、全test、rustdocは **2026-10-20 04:47:51 UTC** までに全成功。`c54af31` との差分は転送workflowのみです。P12 head `4acd99f` の [run 39368730619](https://github.com/carimatics/lang/actions/runs/39368730619) も同baselineを **04:50:52 UTC** までに成功しました。RFC 0020の意図したinterface／検証が揃ったためimplementedとし、stabilizedとはしません。従来gateは **15/18、重み89/113**。実行中のprototype benchmark／workflow全体の成功や、Q／B／G／最終Z01の完了を主張しません。
 
-Windows：P12完全一致head `4acd99f` の [run 39368730619](https://github.com/carimatics/lang/actions/runs/39368730619) は実行中です（job 118451456150）。P07 head `3080d9e` の [run 39364646598](https://github.com/carimatics/lang/actions/runs/39364646598) はSDK testを含め **2026-10-20 04:02:27 UTC** に成功しました。P07の証拠であり、P12やP02隔離の証拠ではありません。
+**Q01実装前監査（2026-10-20 13:50 JST）：** 既存のproduction entry testは10 sourceでmanaged各family／panic、全fuel／work／provider拒否prefixを比較し、source-native CLI testはMap／Vec／arena／shared／panicの実AOTをVMと比較します。これだけでは複合featureの代表的相互作用を完了扱いにしません。既存の暫定3 ptで、collection／aggregate所有権、shared／weak／arena、guest call、明示失敗／cleanupを組み合わせたsource fixtureを定義し、実production entryとnative実行で値・usage・span／report・有限resource・retirementを比較します。Q02が両hostの対応証拠、B／G／Z01も未完了です。新契約・前提・task・見積もりの追加はありません。
 
 <details>
 <summary>過去の成果とplatform検証記録</summary>
@@ -212,13 +212,15 @@ N07移植前の証拠確認（2026-10-19 JST）：当時の最新[Windows全work
 
 ## 進捗と見積もり変更
 
-詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 122件（+87件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
+詳細Todo導入時の `8605416`（2026-10-18 JST）以降、検証済み成果は **35 → 123件（+88件）**、作業一覧は **87 → 133件（+46件）** になりました。新たに可視化した作業は既存要件の実装であり、各件が同じ工数を表すわけではありません。
 
 | 詳細計画導入時の残り | 追加・再見積もりの差分合計 | 完了により取り除いた見積もり | 現在の残り |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −219 pt | 24 pt |
+| 134 pt | +109 pt | −222 pt | 21 pt |
 
-**134 + 109 − 219 = 24 pt**
+**134 + 109 − 222 = 21 pt**
+
+P02完了／Q01実装前監査（2026-10-20 JST）：`c54af31` の両host別consumer成功とJSON照合で既存3 ptの隔離installを完了しました。**122 → 123完了、残り24 → 21 pt、完了で除いた219 → 222点、133行／追加109点は不変**。Q01だけを既存3 ptで選びます。対応Windows全baselineも成功し、G15を完了、RFC 0020をimplementedとします。他のQ／B／G／Z01と元の全要件を維持します。
 
 P12完了／P02実装前監査（2026-10-20 JST）：`4acd99f` で既存3 ptの公開linkを完了しました。**121 → 122完了、残り27 → 24 pt、完了で除いた216 → 219点、133行／追加109点は不変**。上記の成功checkと分離consumer方針に基づき、P02のみを既存の暫定3 ptで選びます。G15／Q／B／G／Z01と元の要件を維持します。
 
@@ -437,8 +439,8 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 | M2-P10 | done | 0 | M2-P09,M2-P05,M2-P06,M2-P11 | G15 | 配布用runtime／startup consumerで保存Copy／ownership／Cを対応toolchainと起動し、source分析／backend生成／test runtimeに依存せず元control／allocator／context／grant／cleanupを維持。 | `6024931` |
 | M2-P07 | done | 0 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | 対応toolchain要件を明示したRust／native依存closureを含むcompiler／startup／runtime／header SDKを組立。 | `3080d9e` |
 | M2-P12 | done | 0 | M2-P11,M2-P10,M2-P07 | G15 | link-nativeがrustc／SDK／targetの完全一致を検証し、明示Rust／C hostと検証済み元byteをlinkして新しいexecutableをexclusive公開。 | `4acd99f` |
-| M2-P02 | doing | 3 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Repo／target/deps外でCopy／ownership／Cを含む両tier-1のclean-install SDK link/run成功。 | — |
-| M2-Q01 | todo | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
+| M2-P02 | done | 0 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Repo／target/deps外でCopy／ownership／Cを含む両tier-1のclean-install SDK link/run成功。 | `c54af31` |
+| M2-Q01 | doing | 3 | M2-A03,M2-N07,M2-F07,M2-V10 | G16 | 複合機能の代表ソースfixtureでVM／nativeの成功／失敗conformanceを検証。 | — |
 | M2-Q02 | todo | 2 | M2-Q01,M2-P02 | G16 | 両tier-1 CIで代表conformanceとresource-limit scenarioの成功を記録。 | — |
 | M2-B01 | todo | 2 | M2-Q01 | G17 | 同等Rust／C workloadとharnessで比較前に意味的一致を確認。 | — |
 | M2-B02 | todo | 2 | M2-B01,M2-P02 | G17 | CleanなmacOSでruntime／startup／memory／sizeとばらつきを記録。 | — |

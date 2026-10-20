@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0020-native-sdk-and-startup.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
 - Last updated: 2026-10-20
@@ -160,7 +160,7 @@ P07 checkpoint (2026-10-20 JST): a repository build tool assembles the compiler/
 
 P12 checkpoint (2026-10-20 JST): the public `link-native` command snapshots/verifies SDK/program and bounded trusted Rust/C inputs, checks actual rustc release/commit/host in the same working directory used for compilation, then drives rustc from UTF-8 response arguments with bundled libraries and the original object. It does not use Cargo/registry/repository paths. A fresh executable is exclusively published after success; failure/concurrency keeps previous output. Ordinary entry defaults and explicit C host/context/grants remain unchanged. Tests cover toolchain/pre-tool refusal, diagnostic/host/output limits, rollback and one-winner publication, plus all three actual SDK profiles after source/SDK/program removal. P02 complete both-host isolation, Q/B/G and final guide remain; no manifest/ABI/version change or performance improvement is claimed. Source: official [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path), living document without a published update date, verified 2026-10-20 JST.
 
-P02 checkpoint (2026-10-20 JST): exact head `c54af31` [isolated-install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) succeeded at 2026-10-20 04:44:42 UTC. Separate-VM macOS AArch64/Windows x86-64 consumers do not check out the repository, check original repository/target inputs absent and compile/link/run actual Copy/owned/real-C without Cargo. JSON reports reconcile execution after private source/SDK/program deletion, balanced original C allocator/context and matching revision/build/target. This completes P02's existing 3 pt. Keep RFC status accepted and G15 disposition open until the matching Windows full baseline already running succeeds. Q/B/G and the final guide remain open; no manifest/ABI/contract change or performance improvement is claimed.
+P02 checkpoint (2026-10-20 JST): exact head `c54af31` [isolated-install run 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958) succeeded at 2026-10-20 04:44:42 UTC. Separate-VM macOS AArch64/Windows x86-64 consumers do not check out the repository, check original repository/target inputs absent and compile/link/run actual Copy/owned/real-C without Cargo. JSON reports reconcile execution after private source/SDK/program deletion, balanced original C allocator/context and matching revision/build/target. This completes P02's existing 3 pt. Matching Windows [run 39369585929](https://github.com/carimatics/lang/actions/runs/39369585929) (head `991768e`) passes fmt, C/linker checks, Clippy, full tests and rustdoc by 2026-10-20 04:47:51 UTC. The only difference at `c54af31` is the transfer workflow. Close G15 and set status implemented: the intended SDK interface and validation are available. This claims neither active prototype-benchmark/whole-workflow success nor stabilization. Q/B/G and the final guide remain open; no manifest/ABI/contract change or performance improvement is claimed.
 
 ## Open questions
 
