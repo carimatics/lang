@@ -6,19 +6,21 @@
 
 Updated and verified: **2026-10-20 JST**. Initial audit checkpoint: `0c2c012`.
 
-**118 done · 1 doing · 14 todo · 35 remaining pt**
+**119 done · 1 doing · 13 todo · 32 remaining pt**
 
-**Next: M2-P11 → bounded SDK/program verification (provisional 3 pt, in progress).**
+**Next: M2-P10 → scoped production native runtime consumer (provisional 3 pt, in progress).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P11: verify manifests and exact component snapshots before effects | **P09 complete**: source-native compiler, generated ordinary startup and real C caller (`66ebb0c`) | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P10: scoped Copy/ownership/C runtime consumer | **P11 complete**: bounded manifests and verified private snapshots (`01bf09c`) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Latest executable checkpoint (2026-10-20 09:21 JST):** `lang native` publishes original Copy/ownership/C objects, independently verified semantic/native records, canonical bindings and required Rust main/C header. Eight CLI tests pass, including source removal, real C allocation/cleanup, both target formats, managed/panic VM comparison, SDK mismatch refusal and concurrent publication. Mac baseline: 1,559 tests / 90 suites, 0 failures, 1 manual test ignored; fmt, Clippy (33.64s) and rustdoc (19.01s) pass; suite-time sum 450.31s; native 76 / 279.77s, C ABI 74 / 20.52s. Matching Windows: [run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096), head 66ebb0c, in progress; earlier runs do not validate this code.
+**Latest executable checkpoint (2026-10-20 10:11 JST):** SDK/program data reject duplicate/unknown fields, bad paths/roles/entry/limits/identity, hash and semantic/native/object mismatches before tools/providers. Copy/ownership/C compiler outputs become source-independent private snapshots; streaming, exact boundaries, rollback, symlink escape and concurrent source mutation checks pass. Mac: 1,570 tests / 91 suites, 0 failures, 1 manual timing test ignored; fmt, Clippy (27.02s), rustdoc (20.89s), all 11 fuzz-target Clippy checks pass. Snapshot tests 9 / 0.59s; native 76 / 280.80s; C ABI 74 / 20.27s.
 
-**This update: 1 delivery completed (−3 pt), 2 previously hidden deliveries exposed (+6 pt).** Remaining **32 − 3 + 6 = 35 pt**; **131 → 133 rows**. P10's runtime facade stays 3 pt; P11 verification and P12 `link-native` each start at 3 pt. The [ledger](#progress-and-estimate-changes) is **134 + 109 − 208 = 35 pt**. All estimates are provisional.
+**This update: 1 delivery completed (−3 pt), no added estimates/tasks.** Remaining **35 − 3 = 32 pt**; **133 rows and +109 pt additions unchanged**. The [ledger](#progress-and-estimate-changes) is **134 + 109 − 211 = 32 pt**. These remain provisional planning units, not time or a completion percentage.
 
-**P11 acceptance still pending:** bounded exact-key/duplicate-field/path/hash checks and verified semantic/native/object snapshots before compiler/provider effects. No P11 points are retired by the P09 checkpoint. P10 scoped runtime, P07 SDK assembly, P12 linking and P02 isolated Copy/ownership/C installation on both hosts remain required under [RFC 0020](rfcs/0020-native-sdk-and-startup.md). Conformance/performance/debug and final guide Z01 stay open. 113 is retired as an effort forecast; delivery counts are not a completion percentage.
+**P10 still pending:** reuse P05/P06 production primitives behind scoped SDK entry/binding APIs; check target/build before symbol/provider effects; retain actual entry, source snapshots, controls, allocator, Instance poison and explicit unsafe C owner-thread/image lifetime. This is the runtime facade only: P07 assembles the SDK, P12 drives exact-toolchain `link-native`, P02 proves isolated Copy/ownership/C on both hosts. Q/B/G and final guide Z01 stay open under [RFC 0020](rfcs/0020-native-sdk-and-startup.md).
+
+Windows: [run 39351953438](https://github.com/carimatics/lang/actions/runs/39351953438), head 01bf09c, in progress. Prior [P09 run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096) passed C/linker checks and failed Lint on Unix-only DirBuilder mutability; `01bf09c` fixes it, with new-head verification pending. Old runs do not prove this code. Full-test wall time **800.98s**, compilation **27.73s**, summed suite reports **484.49s** are validation observations, not measured development effort; the remaining interval is not attributed without measurement. 113 stays retired as an effort forecast.
 
 <details>
 <summary>Delivery history and platform verification records</summary>
@@ -198,19 +200,21 @@ N07 pre-portability evidence checkpoint (2026-10-19 JST): the then-latest [Windo
 
 ## Progress and estimate changes
 
-Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 118 (+83)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
+Since the detailed inventory at `8605416` (2026-10-18 JST), verified deliveries increased **35 → 119 (+84)**, and the task inventory increased **87 → 133 (+46)**. These newly exposed tasks implement existing requirements; task counts are not equal units of effort.
 
 | Remaining at detailed-plan baseline | Added/re-estimated work, net | Estimates retired by completed deliveries | Current remaining |
 | ---: | ---: | ---: | ---: |
-| 134 pt | +109 pt | −208 pt | 35 pt |
+| 134 pt | +109 pt | −211 pt | 32 pt |
 
-**134 + 109 − 208 = 35 pt**
+**134 + 109 − 211 = 32 pt**
+
+P11 delivery / P10 readiness audit (2026-10-20 JST): `01bf09c` completes the original 3-point bounded manifest/verified-snapshot outcome, including the exact object/semantic/record boundary and no tool/native/provider invocation. P09's Windows unused-mut fix and four obsolete fuzz ABI initializers are repaired without extra task credit; the new parser fuzz target compiles, with no campaign claimed. **118 → 119 done, 35 → 32 remaining pt; 133 rows/+109 additions unchanged; retired 208 → 211 pt**. P10 now selects only the scoped production consumer over P05/P06; file verification is P11, SDK assembly P07, public link command P12 and isolated installation P02. No additional prerequisite or contract change is identified; P10 remains provisional 3 pt and must demonstrate a real source-free ordinary/C execution checkpoint before further expansion. Mac: 1,570 tests / 91 suites, 0 failures, 1 manual timing test ignored; fmt, Clippy (27.02s), rustdoc (20.89s), all 11 fuzz-target Clippy checks pass. Snapshot tests 9 / 0.59s; native 76 / 280.80s; C ABI 74 / 20.27s. Windows: [run 39351953438](https://github.com/carimatics/lang/actions/runs/39351953438), head 01bf09c, in progress. Preserve all original gates and the final guide.
 
 P09 delivery / P10 readiness audit (2026-10-20 JST): `66ebb0c` completes P09's original 3-point producer outcome. Retire 3 pt separately: **117 → 118 done, 32 → 29 remaining pt, retired 205 → 208 pt**. RFC 0020 also requires two independently observable outcomes hidden in the old P10 3 pt: strict untrusted SDK/program/file verification and the public toolchain/linker command. No production reader or `link-native` exists. Add **P11 (initial 3 pt)** for verified snapshots and **P12 (initial 3 pt)** for exact-toolchain linking/exclusive executable output; retain P10 3 pt for scoped production runtime. This is existing accepted scope, not a new language feature. **131 → 133 rows, additions 103 → 109 pt, 29 + 6 = 35 remaining pt**. Order P11 → P10 → P07 → P12 → P02; preserve every original gate. Mac baseline: 1,559 tests / 90 suites, 0 failures, 1 manual test ignored; fmt, Clippy (33.64s) and rustdoc (19.01s) pass; suite-time sum 450.31s; native 76 / 279.77s, C ABI 74 / 20.52s. Windows: [run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096), head 66ebb0c, in progress. Readiness/point values for remaining packaging, conformance, performance and debugger work remain provisional; never equate them to measured time.
 
 SDK readiness audit (2026-10-20 JST): The old P07 2 pt concealed a public source-native compiler command, distributed startup/runtime consumer and version/toolchain contract in addition to assembling existing components. `src/main.rs` compile emits portable artifacts only; `prototype-object` accepts fixed MIR prototypes. Expose P08 contract decision (initial 1 pt), P09 production AOT compiler (initial 3 pt) and P10 distributed runtime/startup (initial 3 pt); retain P07 final assembly at 2 and P02 isolated Copy/ownership/C install on both hosts at 3. Separate P06 completion from the re-estimate: **115 → 116 done, 128 → 131 rows, added 96 → 103 pt, retired 201 → 204 pt, 29 − 3 + 7 = 33 remaining pt**. No original M2 outcome is removed; unspecified public behavior must wait for P08 acceptance.
 
-This separates delivered work from newly recognized work: completion retired 208 estimated points, while exposed prerequisites and re-estimation added 109. These are planning units, not hours or measured actual effort. The remaining 35 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
+This separates delivered work from newly recognized work: completion retired 211 estimated points, while exposed prerequisites and re-estimation added 109. These are planning units, not hours or measured actual effort. The remaining 32 points are provisional; FFI, packaging, debugging and performance still need readiness experiments. Preserve the 18 original exit gates. Verify this reconciliation on each delivery; change the added-work total only for an explicit scope/estimate audit. The initial 134-point inventory and historical 113 gate weights are different measures.
 
 Preserve N13/N14's **initial 3-point estimates**, N15's **initial 1-point estimate** and N16's **initial 1-point allocation**. N16 allocates 1 from the existing N05 total 3 and leaves N05 at 2, without adding an estimate: **54 − 1 = 53 pt**. Preserve N03/N12's 1 → 3 audits and N11/N09's initial 1-point estimates; no original requirement is removed.
 
@@ -411,8 +415,8 @@ The initial 35 rows reconstruct completed M2 implementation boundaries from comm
 | M2-P06 | done | 0 | M2-P05,M2-F07 | G15 | Distributed C context/import/export bindings preserve original allocator and owner cleanup through linked source execution. | `2712700` |
 | M2-P08 | done | 0 | M2-P05,M2-P06 | G15 | Decide the experimental SDK distribution/startup, compiler output, version/toolchain matching and explicit C authority contract in an RFC. | `bca5f12` |
 | M2-P09 | done | 0 | M2-P08,M2-P04,M2-P06 | G15 | Production source-native compiler command validates/publishes Copy/ownership/C objects, semantics, records and required headers, preserving existing output on failure. | `66ebb0c` |
-| M2-P11 | doing | 3 | M2-P09 | G15 | Bounded SDK/program manifests and verified component snapshots reject key/path/hash/semantic/object mismatches before compiler/provider effects. | — |
-| M2-P10 | todo | 3 | M2-P09,M2-P05,M2-P06,M2-P11 | G15 | Distributed runtime/startup consumer runs saved Copy/ownership/C with matching toolchain and original controls/allocator/context/grants/cleanup, without source analysis/backend emission/test runtime. | — |
+| M2-P11 | done | 0 | M2-P09 | G15 | Bounded SDK/program manifests and verified component snapshots reject key/path/hash/semantic/object mismatches before compiler/provider effects. | `01bf09c` |
+| M2-P10 | doing | 3 | M2-P09,M2-P05,M2-P06,M2-P11 | G15 | Distributed runtime/startup consumer runs saved Copy/ownership/C with matching toolchain and original controls/allocator/context/grants/cleanup, without source analysis/backend emission/test runtime. | — |
 | M2-P07 | todo | 2 | M2-P05,M2-P06,M2-P09,M2-P10,M2-P11 | G15 | Assemble compiler/startup/runtime/header SDK with explicit matching-toolchain requirements. | — |
 | M2-P12 | todo | 3 | M2-P11,M2-P10,M2-P07 | G15 | link-native verifies exact rustc/SDK/target, links verified original bytes with explicit Rust/C hosts and exclusively publishes a fresh executable. | — |
 | M2-P02 | todo | 3 | M2-P01,M2-N07,M2-F05,M2-P07,M2-P12 | G15 | Clean-install SDK link/run for Copy, ownership and C succeeds on both tier-1 hosts outside repo/target/deps. | — |

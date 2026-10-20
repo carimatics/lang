@@ -8,15 +8,15 @@
 
 ## 現在のM2実装状況
 
-**検証済み118件 · 進行中1件 · 残り14件（暫定35 pt）。**
+**検証済み119件 · 進行中1件 · 残り13件（暫定32 pt）。**
 
 | 現在の成果 | 直近の検証済み完了 | Milestone完了条件 |
 | --- | --- | --- |
-| P11：上限付きSDK／program検証 | **P09完了**：source-native compilerとsourceなし生成startup（`66ebb0c`） | **14/18条件**。過去の重み84/113（74.3%） |
+| P10：scope付きproduction runtime consumer | **P11完了**：上限付きmanifestと検証済みSDK／program snapshot（`01bf09c`） | **14/18条件**。過去の重み84/113（74.3%） |
 
-**直近のcheckpoint：** CLI検証8件でsource削除後のCopy／ownershipと実C callerを実行し、両object target、SDK不一致、atomic公開を検査し、managed／panic結果をVMと比較します。Mac baseline: 1,559 tests / 90 suites, 0 failures, 1 manual test ignored; fmt, Clippy (33.64s) and rustdoc (19.01s) pass; suite-time sum 450.31s; native 76 / 279.77s, C ABI 74 / 20.52s。対応Windows：[run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096), head 66ebb0c, in progress。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に現在の条件と証拠を記録します。
+**直近のcheckpoint：** Copy／ownership／C packageの正確なidentity、上限付きfield／path／role、hashと意味論／native／object planを検証し、独立したprivate snapshotを作れます。Snapshot 9件とparser境界2件が成功し、native／provider／toolを起動しません。Mac: 1,570 tests / 91 suites, 0 failures, 1 manual timing test ignored; fmt, Clippy (27.02s), rustdoc (20.89s), all 11 fuzz-target Clippy checks pass. Snapshot tests 9 / 0.59s; native 76 / 280.80s; C ABI 74 / 20.27s。Windows：[run 39351953438](https://github.com/carimatics/lang/actions/runs/39351953438), head 01bf09c, in progress。P09の旧unused-mut lint失敗は今回修正し、新headの結果待ちです。2026-10-20 JST更新・確認。[実装Todo](milestone-2.md)に時刻、残る条件、検証所要時間を記録します。
 
-**今回：成果1件完了（−3 pt）、成果2件を可視化（+6 pt）。** P10に隠れたmanifest／file検証（P11、初期3 pt）と `link-native`（P12、初期3 pt）を分離し、P10はscoped runtime facadeを維持します。**残り32 − 3 + 6 = 35 pt**、**131 → 133行**、収支は **134 + 109 − 208 = 35 pt**。次のP11はtool／provider effect前に不正dataを拒否します。P10／P07／P12／P02、両host Copy／ownership／C install、conformance／性能／debug、最終Z01を維持します。113を工数予測、成果件数を完成率として使用しません。
+**今回：成果1件完了（−3 pt）、見積もり／taskの追加なし。** **残り35 − 3 = 32 pt**、**133行／追加109点は不変**、収支は **134 + 109 − 211 = 32 pt**。P10は実control／allocator／context／poison／image寿命を保つscope付きproduction Copy／ownership／C利用の暫定3 ptです。P07／P12／P02の組立／link／隔離install、両hostの証拠、conformance／性能／debug、最終Z01は維持します。113を工数予測、成果件数を完成率として使用しません。
 
 ## タスク管理
 

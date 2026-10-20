@@ -8,15 +8,15 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Active M2 delivery status
 
-**118 verified deliveries · 1 in progress · 14 remaining tasks (provisional 35 pt).**
+**119 verified deliveries · 1 in progress · 13 remaining tasks (provisional 32 pt).**
 
 | Current delivery | Latest verified completion | Milestone exit |
 | --- | --- | --- |
-| P11: bounded SDK/program verification | **P09 complete**: source-native compiler and source-free generated startup (`66ebb0c`) | **14/18 gates**, historical weight 84/113 (74.3%) |
+| P10: scoped production runtime consumer | **P11 complete**: bounded manifests and verified SDK/program snapshots (`01bf09c`) | **14/18 gates**, historical weight 84/113 (74.3%) |
 
-**Latest checkpoint:** eight CLI tests execute Copy/ownership and a real C caller after source removal, verify both object targets, SDK mismatch and atomic publication, and compare managed/panic outcomes with the VM. Mac baseline: 1,559 tests / 90 suites, 0 failures, 1 manual test ignored; fmt, Clippy (33.64s) and rustdoc (19.01s) pass; suite-time sum 450.31s; native 76 / 279.77s, C ABI 74 / 20.52s. Matching Windows: [run 39347097096](https://github.com/carimatics/lang/actions/runs/39347097096), head 66ebb0c, in progress. Updated/verified 2026-10-20 JST; [delivery board](milestone-2.md) records current conditions and evidence.
+**Latest checkpoint:** Copy/ownership/C packages validate exact identity, bounded fields/paths/roles, hashes and semantic/native/object plans into independent private snapshots. Nine snapshot and two parser-boundary tests pass, without native/provider/tool invocation. Mac: 1,570 tests / 91 suites, 0 failures, 1 manual timing test ignored; fmt, Clippy (27.02s), rustdoc (20.89s), all 11 fuzz-target Clippy checks pass. Snapshot tests 9 / 0.59s; native 76 / 280.80s; C ABI 74 / 20.27s. Windows: [run 39351953438](https://github.com/carimatics/lang/actions/runs/39351953438), head 01bf09c, in progress; P09's old unused-mut lint failure is fixed here and awaits this new-head result. Updated/verified 2026-10-20 JST; [delivery board](milestone-2.md) records timestamps, remaining conditions and validation durations.
 
-**This update: 1 completed delivery (−3 pt), 2 exposed deliveries (+6 pt).** P10 concealed separate verified manifests/files (P11, initial 3 pt) and `link-native` (P12, initial 3 pt); P10 keeps the scoped runtime facade. **32 − 3 + 6 = 35 remaining pt**, **131 → 133 rows**; ledger **134 + 109 − 208 = 35 pt**. Next P11 must reject malformed data before tool/provider effects. Keep P10/P07/P12/P02, both-host Copy/ownership/C installation, conformance/performance/debug and final Z01. 113 is retired as an effort forecast; delivery counts are not a completion percentage.
+**This update: 1 completed delivery (−3 pt), no new estimates/tasks.** **35 − 3 = 32 remaining pt**, **133 rows/+109 added pt unchanged**; ledger **134 + 109 − 211 = 32 pt**. P10 retains provisional 3 pt for scoped production Copy/ownership/C consumption with actual controls/allocator/context/poison/image lifetime. P07/P12/P02 assembly/link/isolated installation, both-host evidence, conformance/performance/debug and final Z01 remain. 113 stays retired as an effort forecast; delivery counts are not a completion percentage.
 
 ## Task tracking
 
