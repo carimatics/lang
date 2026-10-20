@@ -24,6 +24,8 @@ Local Rust baselineは実装byteが不変のQ01結果 **1,585 tests / 94 suites�
 
 **B01 WIP（2026-10-20 15:38 JST）：** 実SDK compiler／元C-export object／production runtimeでRust／Cと独立oracleに**21/21組**一致しました（scalar、Bytes＋Vec、shared／weak／arena、7入力）。allocator退役とhost unwind後の次の登録・呼び出しも通りました。別々のsource／Rust／C binaryで9組のchild checksum／解放検証と3組のworkloadなしstartup検証が通り、先のOS memory smokeも成功しています。private version-1 harnessで準備・反復呼び出し・新規process起動・RSS／working set・size・sample・正確なflag／accounting scopeを記録します。拒否／oracle test 7件、workflow YAML／Python検証、全local baseline（1,585 tests／94 suites、0失敗、手動ignore 1件）、fmt・Clippy・rustdocが通りました。残る受入条件は、特にWindows／MSVCを含むnative tier-1 CIで同じ21組／unwind gateを通すことです。B01はdoing／2 ptのままです。B02–B04で両hostの性能記録と解釈を引き続き行います。[計測scope](benchmarks.md#milestone-2-sourcerustc-harness)参照。
 
+**B01 native検証（2026-10-20 15:48 JST）：** [run 39381574039](https://github.com/carimatics/lang/actions/runs/39381574039)、exact head `41250a2`でcleanなmacOSの21組parity／unwindが成功しました。Windowsはrelease SDKを構築できましたが、private C referenceの`max_align_t`を拒否しました（MSVC C11では未提供）。referenceが使うi64／u64のalignmentを明示し、各payloadの型要件をcompile時にassertする形に修正しました。修正後の4 mode build、21組parity／unwind、Python 7 checksはlocalで通っています。B01完了前にnative CIを再実行します。この移植性修正に別task／pointは計上しません。production／reference Rust sourceは変更していないため、1,585-test Rust baselineの証拠は有効です。
+
 <details>
 <summary>過去の成果とplatform検証記録</summary>
 

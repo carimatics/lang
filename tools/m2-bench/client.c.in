@@ -64,13 +64,18 @@ static int64_t rust_call(int kind, int64_t n) {
 /* Volatile indirection keeps allocation/retirement observable under -O3 /O2. */
 static void *(*volatile heap_allocate)(void *, uint64_t, uint64_t) = allocate;
 static void (*volatile heap_deallocate)(void *, void *, uint64_t, uint64_t) = deallocate;
+/* Only byte/i64 buffers and shared_payload below use this reference heap.
+ * MSVC C11 does not define max_align_t; assert the actual type requirements. */
+#define REFERENCE_ALIGN _Alignof(uint64_t)
+_Static_assert(_Alignof(int64_t) <= REFERENCE_ALIGN && _Alignof(uint8_t) <= REFERENCE_ALIGN,
+               "reference buffer alignment");
 static void *heap_new(size_t size) {
-    void *p = heap_allocate(NULL, size, _Alignof(max_align_t));
+    void *p = heap_allocate(NULL, size, REFERENCE_ALIGN);
     if (!p) abort();
     return p;
 }
 static void heap_drop(void *p, size_t size) {
-    if (p) heap_deallocate(NULL, p, size, _Alignof(max_align_t));
+    if (p) heap_deallocate(NULL, p, size, REFERENCE_ALIGN);
 }
 static NOINLINE int64_t c_scalar(int64_t n) {
     int64_t value = 17;
@@ -111,6 +116,7 @@ static NOINLINE int64_t c_buffers(int64_t n) {
     return sum;
 }
 typedef struct { int64_t value; uint64_t strong, weak; } shared_payload;
+_Static_assert(_Alignof(shared_payload) <= REFERENCE_ALIGN, "reference shared alignment");
 static void release_strong(shared_payload *p) {
     if (!--p->strong && !--p->weak) heap_drop(p, sizeof(*p));
 }
