@@ -4,13 +4,20 @@
 
 [English](../../rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 
-- ステータス: accepted
+- ステータス: implemented
 - 著者: Project contributors
 - 作成日: 2026-10-17
-- 最終更新日: 2026-10-19
+- 最終更新日: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## 現在の実装状態
+
+2026-10-20 JSTに[M2完了監査](../milestone-2-capabilities.md)と照合しました。Cleanup、allocator authority、有限C profileは実装済みで、実際のVM/native import、生成export/header、linked object、両hostのconformanceを含みます（M2 G06/G11/G12/G14/G15）。汎用component embedding、source raw pointer、安定ABIはこのRFCの範囲外です。 implementedであり、stabilizedではありません。
+
+以下の動機、当初の段階的計画、日付付き部分実装checkpointは、判断とrolloutの履歴です。当時の未完了ゲートは上記根拠で完了しており、規範的契約と明示的非目標は引き続き有効です。この状態照合でsource、ABI、形式の意味論を変更しません。
 
 ## 概要
 

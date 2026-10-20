@@ -4,22 +4,29 @@
 
 [日本語版](../ja/rfcs/0013-service-byte-work-budget.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-19
+- Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Accepted: 2026-10-19
 - Tracking issue: M2-N15, M2-N05, M2-N18
 - Supersedes: None; elaborates RFC 0012's configured service admission
 - Superseded by: None
 
+## Current implementation status
+
+Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabilities.md). The shared meter, CLI/host configuration, structured failures and full accepted managed-service event set are implemented in VM/native. Linked target and both-host evidence now completes the previously pending N06/N07 boundary (M2 G14/G16/G17). This does not establish a CPU-time bound or isolate meter overhead. This is implemented, not stabilized.
+
+The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
+
 ## Summary
 
-Add an optional cumulative service-work limit to the instrumented execution context. VM/native share charging events and usage. Exhaustion is a terminal control failure followed by mandatory cleanup. N15 decides this contract; N05 implements it.
+Add an optional cumulative service-work limit to the instrumented execution context. VM/native share charging events and usage. Exhaustion is a terminal control failure followed by mandatory cleanup. N15 recorded this contract; N05 implemented the managed-service integration.
 
 ## Motivation
 
-Current Control has fuel, host-call, frame and live-cell limits, without service-work configuration. Map already bounds candidate visits, UTF-8 validation and comparison before those actions; buffers perform variable-length copies/scans. Instruction fuel does not distinguish payload sizes. These are implementation facts, not performance measurements.
+At proposal time (2026-10-19), Control had fuel, host-call, frame and live-cell limits, without service-work configuration. Map already bounds candidate visits, UTF-8 validation and comparison before those actions; buffers perform variable-length copies/scans. Instruction fuel does not distinguish payload sizes. These are implementation facts, not performance measurements.
 
 The existing Map suite passes 20 tests, including work refusal without retaining queries, allocating, changing owners or publishing output. This demonstrates useful runtime admission boundaries, not an implemented global meter.
 

@@ -4,13 +4,20 @@
 
 [English](../../rfcs/0015-c-native-object-bridge.md)
 
-- ステータス: accepted
+- ステータス: implemented
 - 著者: Codex、ownerの実験段階の委任に基づく
 - 作成日: 2026-10-20
 - 最終更新日: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: M2-F05–F07、M2-P02
 - 置き換えるRFC: なし。明示C対応objectについてRFC 0012を拡張
 - 置き換えたRFC: なし
+
+## 現在の実装状態
+
+2026-10-20 JSTに[M2完了監査](../milestone-2-capabilities.md)と照合しました。元objectのbridge、imageに結び付いたslot、linked import thunk、typed export runtimeは実装済みで、F05/F06/F07/P02と両hostのC/SDK根拠も完了しています（M2 G12/G14/G15）。Matching-imageのlifetimeとowner-thread責務は変更しません。 implementedであり、stabilizedではありません。
+
+以下の動機、当初の段階的計画、日付付き部分実装checkpointは、判断とrolloutの履歴です。当時の未完了ゲートは上記根拠で完了しており、規範的契約と明示的非目標は引き続き有効です。この状態照合でsource、ABI、形式の意味論を変更しません。
 
 ## 概要
 

@@ -14,6 +14,10 @@
 - Supersedes: None; extends RFC 0011 schema profiles and RFC 0012 private revisions
 - Superseded by: None
 
+## Current implementation status
+
+Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
+
 ## Summary
 
 Implement RFC 0008's `core::panic::<T>(code: i64) -> T`. The call never returns. Preserve the dynamic code, call span, logical stack and mandatory cleanup on VM/native. Introduce ownership schema 3 and private native revision 3 only for units containing the explicit panic instruction.

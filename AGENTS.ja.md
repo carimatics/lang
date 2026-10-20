@@ -16,13 +16,16 @@
   - `CONTRIBUTING.md` と `CONTRIBUTING.ja.md`
   - `docs/research.md` と `docs/ja/research.md`
   - `docs/architecture.md` と `docs/ja/architecture.md`
+  - `docs/architecture-history.md` と `docs/ja/architecture-history.md`
   - `docs/roadmap.md` と `docs/ja/roadmap.md`
+  - `docs/roadmap-history.md` と `docs/ja/roadmap-history.md`
   - `docs/benchmarks.md` と `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` と `docs/ja/milestone-1.md`
   - `docs/milestone-2.md` と `docs/ja/milestone-2.md`
   - `docs/milestone-2-capabilities.md` と `docs/ja/milestone-2-capabilities.md`
   - `docs/native-sdk.md` と `docs/ja/native-sdk.md`
   - `docs/review-2026-10-17.md` と `docs/ja/review-2026-10-17.md`
+  - `docs/review-2026-10-20.md` と `docs/ja/review-2026-10-20.md`
   - `docs/rfcs/0000-template.md` と `docs/ja/rfcs/0000-template.md`
   - `docs/rfcs/` の各番号付きRFCと `docs/ja/rfcs/` の同名ミラー
   - `.agents/skills/language-design-rfc/SKILL.md` と `docs/ja/codex/language-design-rfc.md`
@@ -83,12 +86,12 @@ cargo doc --workspace --no-deps
 
 ## 進行中milestoneの追跡
 
-- 実装作業には [M2実装Todo](docs/ja/milestone-2.md) を使います。Roadmapの大きな完了条件の重みは、実装残作業の予測ではありません。
-- Code着手前に観測可能な1〜3 ptの成果を1件選び、doingにします。同時進行は最大1件です。新たな前提作業は実装前に明示して再見積もりし、残taskを確認せず見積もりを妥当と繰り返し判断しません。
+- milestoneを開始するときは、そのmilestoneの実装Todoを使います。[M2実装Todo](docs/ja/milestone-2.md)は完了記録であり、新規作業のqueueではありません。レビューや保守作業はレビュー報告内のscopeを限定したchecklistで管理できます。完了済みmilestoneの再開や、通常の修正への架空のeffort point付与は不要です。
+- 進行中milestoneの実装前に、次の成果を観測可能な1〜3 ptの単位へ分け、1行をdoingにします。同時進行の実装成果は最大1件です。新たな前提作業は実装前に明示して再見積もりし、残taskを確認せず見積もりを妥当と繰り返し判断しません。Roadmapの大きな完了条件の重みは、実装残作業の予測ではありません。
 - 計画開始から10分経ってもpatchまたは実行可能な実験がなければ、設計を続ける前にtaskを狭めて最小限の有用な実験を実行します。抽象化／hardeningの追加は、選択した成果または受理済み要件に必要な場合に限ります。
 - 成果ごとに実装／検証evidence付きで英日Todoを更新します。Evidence欄はcode commit hashのみとし、検証詳細は成果noteへ記録します。前提作業の完了と完了条件の達成を分離します。横方向の基盤追加より次のソース実行fixtureを優先し、実行fixtureが増えない前提作業が2件続いたら順序を見直します。
 - doingの行が作業sessionをまたいで未完了なら、Todo冒頭に最後の実行可能なcheckpoint、検証時刻、残る完了条件を表示します。Checkpointは完了成果に数えません。完了した作業と新たに追加した作業を別々に報告し、項目が記載した成果を超えて膨らむ場合は、実装を追加する前に再監査します。
-- 計画更新は行と現在の件数を中心に簡潔にします。監査本文はscope、依存、見積もり、完了判断が変わった場合に追加します。文書だけの計画更新では `cargo test --test repository_consistency` を実行し、独自の部分的な確認や変更のないcompiler baseline全体の再実行ではなく、この既存validatorを使います。
+- 計画更新は行と現在の件数を中心に簡潔にします。監査本文はscope、依存、見積もり、完了判断が変わった場合に追加します。現在の契約はRFC／architectureに、日付付きの実装checkpointはTodoやレビュー履歴に記録します。Code、evidence、計画は同じ変更で更新し、計画だけの別commitは必須ではありません。文書だけの計画更新では `cargo test --test repository_consistency` を実行し、変更のないcompiler baseline全体の再実行ではなく、この既存validatorを使います。
 - Todoの見積もり収支「導入時の残り ＋ 追加・再見積もりの差分合計 − 完了で取り除いた見積もり ＝ 残り」を更新します。完了成果と新たに可視化した作業を分けて報告します。行をdoneにするときは直前の残り見積もりを取り除き、追加分は明示的なscope／見積もり監査がある場合のみ変更します。新しい行を最初のcommitでdoneにする場合も、監査に見積もりを残し、追加分と完了分の両方に含めます。点数は計画の単位であり、稼働時間の実測ではありません。
 
 ## セキュリティ

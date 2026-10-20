@@ -4,13 +4,20 @@
 
 [日本語版](../ja/rfcs/0008-cleanup-allocators-and-c-boundaries.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-17
-- Last updated: 2026-10-19
+- Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## Current implementation status
+
+Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabilities.md). Cleanup, allocator authority and the finite C profile are implemented, including actual VM/native imports, generated exports/headers, linked objects and both-host conformance (M2 G06/G11/G12/G14/G15). General component embedding, source raw pointers and stable ABI remain outside this RFC. This is implemented, not stabilized.
+
+The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
 
 ## Summary
 

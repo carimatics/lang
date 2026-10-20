@@ -35,7 +35,9 @@ cargo doc --workspace --no-deps
 
 ## 成果の計画
 
-現在の作業には [M2実装Todo](docs/ja/milestone-2.md) を使います。観測可能な1〜3 ptのtaskを選び、doingは最大1件とし、doneの前に実装commitと検証を記録してください。対訳とroadmap冒頭の現在値も同時更新します。新たな前提作業はcodeの前に計画へ反映します。従来の完了条件と実装sliceの完了は分けます。新たなソース実行evidenceが増えない前提作業が2件続いたら、次のvertical sliceを見直します。Commitごとに履歴本文や根拠のない同じ見積もり判断を繰り返しません。
+進行中milestoneの実装Todoを使います。[M2実装Todo](docs/ja/milestone-2.md)は完了済みで、履歴として保持します。次のmilestoneを始める前に依存関係を確認し、次の成果を観測可能な1〜3 ptのtaskへ分けます。doingの実装taskは最大1件とし、doneの前に実装evidenceと検証を記録してください。レビューや保守作業は、点数の付与やM2の再開をせず、報告内のscopeを限定したchecklistで管理できます。
+
+計画と対訳は実装と同じ変更で更新し、計画だけの別commitは必須ではありません。新たな前提作業はcodeの前に計画へ反映します。従来の完了条件と実装sliceの完了は分けます。新たなソース実行evidenceが増えない前提作業が2件続いたら、次のvertical sliceを見直します。現在の契約はRFC／architectureに、日付付きの実装checkpointはTodoやレビュー履歴に記録します。Commitごとに履歴本文や根拠のない同じ見積もり判断を繰り返しません。
 
 ## RFCが必要な場合
 
@@ -55,7 +57,9 @@ RFCでは、承認済み要件と仮説を区別し、代替案、コスト、�
 
 ## テスト戦略
 
-`cargo test --test repository_consistency` はroadmap集計、日英task状態、RFC status／更新日を検証します。計画変更後に実行してください。両tier-1 CI workflowで全baselineと別fuzz workspaceのformat確認を実行し、macOS workflowでは全fuzz binaryをwarning禁止でlintします。Fuzz targetまたは共有dependency変更後は `cargo fmt --manifest-path fuzz/Cargo.toml --check` と `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` を実行してください。Fuzz targetのcompileはfuzz campaignではなく、長時間fuzzingは明示的な検証作業として残ります。
+`cargo test --test repository_consistency` はroadmap集計、日英task状態、RFC status／更新日、READMEの全RFC indexと現在のstatusを検証します。計画変更後に実行してください。両tier-1 CI workflowで全baselineと別fuzz workspaceのformat確認を実行し、macOS workflowでは全fuzz binaryをwarning禁止でlintします。Fuzz targetまたは共有dependency変更後は `cargo fmt --manifest-path fuzz/Cargo.toml --check` と `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` を実行してください。Fuzz targetのcompileはfuzz campaignではなく、長時間fuzzingは明示的な検証作業として残ります。
+
+関連するnative変更では、両hostで実LLDB／CDBのsource stepと論理stack検証も起動します。Metadataだけのテストはこの根拠を代替しません。Debugger validatorは `python3 -m unittest discover -s tools -p 'test_*.py'`、benchmark validatorは `python3 -m unittest discover -s tools/m2-bench -p 'test_*.py'` で検証し、後者は通常のmacOS CIにも含めます。
 
 Tier-1 AOT integrationは `tests/fixtures/aot_harness.c` を共有します。最適化したC callbackはunsigned演算とbit保持変換でRustのwrapping behaviorに合わせ、通常入力に加えて `i64` 境界値、allocation sum、overflowするFibonacciを検証します。
 

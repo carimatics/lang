@@ -4,17 +4,24 @@
 
 [日本語版](../ja/rfcs/0009-whole-sum-ownership-extraction.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-18
+- Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: M2-S01–S03 in [the delivery board](../milestone-2.md)
 - Supersedes:
 - Superseded by:
 
+## Current implementation status
+
+Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabilities.md). All three extraction operations support the accepted finite owning payloads on VM/native, with fixed wrong-case panic codes, preserved spans and cleanup (M2 G08/G14/G16). The earlier Bytes/Text-only rollout is complete; general consuming patterns remain outside this contract. This is implemented, not stabilized.
+
+The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
+
 ## Summary
 
-Extend RFC 0007's finite core catalog with three explicit operations that take an entire Option/Result by value. A matching case returns its entire payload; the other case raises a guest panic with RFC 0008 cleanup. Existing borrowed matching and the prohibition on partial moves remain unchanged. Source/MIR analysis and the current Bytes/Text/Copy VM/REPL profile are implemented; broader payloads and native execution remain pending. Acceptance is separate from implementation completion and stabilization.
+Extend RFC 0007's finite core catalog with three explicit operations that take an entire Option/Result by value. A matching case returns its entire payload; the other case raises a guest panic with RFC 0008 cleanup. Existing borrowed matching and the prohibition on partial moves remain unchanged. Source/MIR analysis, all accepted finite payloads and VM/native execution are implemented; the REPL uses RFCs 0010/0016 for returned-value previews. Acceptance is separate from implementation completion and stabilization.
 
 | Operation | Signature | Expected case | Other-case panic code |
 | --- | --- | --- | ---: |

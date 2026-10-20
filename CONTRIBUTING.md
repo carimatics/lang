@@ -35,7 +35,9 @@ For a documentation-only planning follow-up, run `cargo test --test repository_c
 
 ## Planning a delivery
 
-Use the [M2 delivery board](docs/milestone-2.md) for current work. Select one observable 1–3-point task, keep at most one task doing, and record the implementation commit and validation before marking it done. Update its translation and the roadmap's short current-status snapshot together. A newly discovered prerequisite changes the plan before it changes the code. Keep the original exit gates separate from completed implementation slices. After two prerequisite deliveries without new source execution evidence, review the next vertical slice. Avoid repeating historical narrative and unchanged estimate claims after each commit.
+Use a delivery board for the active milestone; the [M2 delivery board](docs/milestone-2.md) is complete and remains a historical record. Before starting the next milestone, review its dependencies and split the next outcome into observable 1–3-point tasks. Keep at most one implementation task doing, and record implementation evidence and validation before marking it done. Reviews and maintenance can use a scoped checklist in their report without assigning points or reopening M2.
+
+Update the plan and its translation with the implementation; a separate planning commit is not required. A newly discovered prerequisite changes the plan before it changes the code. Keep the original exit gates separate from completed implementation slices. After two prerequisite deliveries without new source execution evidence, review the next vertical slice. Keep current contracts in RFCs/architecture and dated implementation checkpoints in the board or review history. Avoid repeating historical narrative and unchanged estimate claims after each commit.
 
 ## When an RFC is required
 
@@ -55,7 +57,9 @@ During experimental early development, [RFC 0001's delegated decision policy](do
 
 ## Testing strategy
 
-`cargo test --test repository_consistency` checks roadmap totals, mirrored task states, and RFC status/update dates. Run it after planning changes. Both tier-1 CI workflows run the full baseline and check formatting in the separate fuzz workspace; the macOS workflow also lints all fuzz binaries with warnings denied. Run `cargo fmt --manifest-path fuzz/Cargo.toml --check` and `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` after fuzz-target or shared dependency changes. Compiling fuzz targets is not a fuzz campaign; longer fuzzing remains explicit validation work.
+`cargo test --test repository_consistency` checks roadmap totals, mirrored task states, RFC status/update dates, and complete README RFC indexes with current statuses. Run it after planning changes. Both tier-1 CI workflows run the full baseline and check formatting in the separate fuzz workspace; the macOS workflow also lints all fuzz binaries with warnings denied. Run `cargo fmt --manifest-path fuzz/Cargo.toml --check` and `cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings` after fuzz-target or shared dependency changes. Compiling fuzz targets is not a fuzz campaign; longer fuzzing remains explicit validation work.
+
+Relevant native changes also trigger actual LLDB/CDB source-step and logical-stack validation on both hosts. A metadata-only test does not replace this evidence. The debugger validator tests run with `python3 -m unittest discover -s tools -p 'test_*.py'`; benchmark validator tests run with `python3 -m unittest discover -s tools/m2-bench -p 'test_*.py'` and are included in regular macOS CI.
 
 The tier-1 AOT integrations share `tests/fixtures/aot_harness.c`. Its optimized C callbacks use unsigned arithmetic and bit-preserving conversion to match Rust wrapping behavior, and exercise `i64` extremes, allocation sums, and overflowing Fibonacci as well as ordinary inputs.
 

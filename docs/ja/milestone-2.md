@@ -1,4 +1,4 @@
-<!-- canonical-language: en; japanese-translation: ja/milestone-2.md -->
+<!-- translation-of: ../milestone-2.md; canonical-language: en; reviewed: 2026-10-20 -->
 
 # Milestone 2実装Todo
 
@@ -309,7 +309,7 @@ N01実装前監査（2026-10-18 JST）：既存native APIはCopyの `VerifiedUni
 
 ## 完了済み実装
 
-最初の35行はcommitからM2の実装成果を復元したものです。元のRFC 0007／0008判断は完了条件側に残します。以後の成果は、明示的に計画したfollow-up設計行を含め、計画時のIDを維持してdoneにし、各行に記したoutcomeだけを満たします。検証の詳細と限界は [architecture](architecture.md) と [roadmapの実装履歴](roadmap.md#milestone-2ownershipとnative-aot) を参照してください。
+最初の35行はcommitからM2の実装成果を復元したものです。元のRFC 0007／0008判断は完了条件側に残します。以後の成果は、明示的に計画したfollow-up設計行を含め、計画時のIDを維持してdoneにし、各行に記したoutcomeだけを満たします。検証の詳細と限界は [architecture history](architecture-history.md) と [roadmapの実装履歴](roadmap-history.md#milestone-2ownershipとnative-aot) を参照してください。
 
 `Gate` はroadmapのchecklist順にG01〜G18です。1行が複数条件に貢献しても、作業を二重計上しません。
 

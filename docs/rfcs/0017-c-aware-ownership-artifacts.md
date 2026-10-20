@@ -12,6 +12,10 @@
 - Supersedes: none; extends RFCs 0011/0014
 - Superseded by: none
 
+## Current implementation status
+
+Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
+
 ## Summary
 
 Add ownership schema **4**, preserving the existing Host/C import and Guest/CExport function identities through checked MIR encoding/decoding. Schema 1 Copy, schema 2 ownership and schema 3 explicit-panic bytes remain unchanged. Decoding supplies data and no FFI authority.

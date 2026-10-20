@@ -12,6 +12,10 @@
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
 
+## 現在の実装状態
+
+2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
+
 ## Summary
 
 Native compilerコマンド、対応するRust SDK、scope付きproduction起動consumerを配布します。Sourceから元native objectと検証済み意味論／compiler記録を生成し、SDKのRust libraryと生成bindingでapplicationをlinkします。起動時は既存記録をdecode／準備して元machine codeを呼びます。

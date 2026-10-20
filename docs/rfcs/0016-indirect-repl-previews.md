@@ -12,6 +12,10 @@
 - Supersedes: none; extends RFC 0010
 - Superseded by: none
 
+## Current implementation status
+
+Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
+
 ## Summary
 
 Extend RFC 0010's VM/REPL result formatter to Vec, Map, shared owners and weak tokens. For example, a function returning a Vec containing 9 prints `core::Vec [9]` instead of failing before execution with `Unsupported`. Source arena escape checks remain mandatory.

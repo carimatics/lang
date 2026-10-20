@@ -332,3 +332,36 @@ fn rfc_status_and_dates_match_their_translations() {
         ));
     }
 }
+
+#[test]
+fn readme_rfc_indexes_are_complete_and_use_current_statuses() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let indexes = [
+        (include_str!("../README.md"), "docs/rfcs/", false),
+        (include_str!("../README.ja.md"), "docs/ja/rfcs/", true),
+    ];
+    for entry in fs::read_dir(root.join("docs/rfcs")).unwrap() {
+        let entry = entry.unwrap();
+        let name = entry.file_name();
+        let name = name.to_str().unwrap();
+        if !name.ends_with(".md") || name.starts_with("0000-") {
+            continue;
+        }
+        let document = fs::read_to_string(entry.path()).unwrap();
+        let status = metadata(&document, "- Status");
+        for (index, prefix, japanese) in indexes {
+            let link = format!("]({prefix}{name})");
+            let rows: Vec<_> = index.lines().filter(|line| line.ends_with(&link)).collect();
+            assert_eq!(rows.len(), 1, "one README entry for {prefix}{name}");
+            let status_label = if japanese {
+                format!("（{status}）{link}")
+            } else {
+                format!(" ({status}){link}")
+            };
+            assert!(
+                rows[0].ends_with(&status_label),
+                "README status must match {prefix}{name}: {status}"
+            );
+        }
+    }
+}

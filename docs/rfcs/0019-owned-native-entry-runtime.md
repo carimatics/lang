@@ -12,6 +12,10 @@
 - Supersedes: none; extends RFCs 0012/0013/0014/0018
 - Superseded by: none
 
+## Current implementation status
+
+Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
+
 ## Summary
 
 Provide a concrete Rust runtime entry for ordinary ownership programs using their actual compiled/linked continuations and existing managed primitives. Accept an explicit checked function ID with zero parameters and i64 result, an existing cleanup Instance, an accounting Allocator<P>, and bounded preparation/control configuration. Return the value, usage and cleanup report, or structured original native/configuration/allocation failure with usage/report/stack. Do not parse source, emit code, construct JIT code, or evaluate guest MIR during execution.

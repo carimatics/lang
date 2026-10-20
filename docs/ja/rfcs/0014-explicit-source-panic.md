@@ -14,6 +14,10 @@
 - Supersedes: なし。RFC 0011のschema profileとRFC 0012のprivate revisionを拡張
 - Superseded by: なし
 
+## 現在の実装状態
+
+2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
+
 ## 概要
 
 RFC 0008の`core::panic::<T>(code: i64) -> T`を実装する。呼び出しは復帰しない。動的なcode、呼び出しspan、論理stack、必須cleanupをVM/nativeで保持する。明示的panic命令を含むunitに限りownership schema 3とprivate native revision 3を導入する。

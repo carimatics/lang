@@ -4,13 +4,20 @@
 
 [English](../../rfcs/0010-owned-repl-previews.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-18
+- Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: [実装Todo](../milestone-2.md) のM2-V14／V16／V15／V10／V17
 - Supersedes: なし。RFC 0006のREPLをRFC 0007のownership profileへ拡張
 - Superseded by:
+
+## 現在の実装状態
+
+2026-10-20 JSTに[M2完了監査](../milestone-2-capabilities.md)と照合しました。所定のVM REPL interface、wrapper推論、上限付きpreview、retirementは実装済みです。RFC 0016でV17の間接service preview follow-upも完了しました。Native REPL実行は明示的非目標のままです。tests/repl.rs、crates/runtime/src/layout/storage/preview.rs、M2ガイドを参照してください。 implementedであり、stabilizedではありません。
+
+以下の動機、当初の段階的計画、日付付き部分実装checkpointは、判断とrolloutの履歴です。当時の未完了ゲートは上記根拠で完了しており、規範的契約と明示的非目標は引き続き有効です。この状態照合でsource、ABI、形式の意味論を変更しません。
 
 ## 概要
 
@@ -137,9 +144,9 @@ Previewでfilesystem／network／process／environment／FFIやhost-call authori
 
 Review結果：ownerのRFC 0001の委任に従い、**2026-10-18 JSTにexperimental delegationでaccepted** とします。User関数の推論、source literal、loan escape、execution authorityを変更せず、具体的なREPL境界の不足を埋めます。保護resultの消費とrender failureの優先順位はRFC 0008と整合し、対応profileの境界とV17によってM2の残りresult familyも維持します。このprofileに意味論上のblockerはありません。
 
-根拠：当初のREPL境界実験では妥当なowning定義が拒否されました。V16は [named-result library](../../../examples/analysis/repl_preview.lang) を `lang_vm::unit::owned::execute_preview` で実行し、Bytes／Text／入れ子resultをstring公開前に解放します。V15は通常HIRと独立MIR検証で妥当なwrapper resultを推論します。V10でownership item／式をsessionとCLIへ接続し、明示allocator authority、fresh instance、対応付けたfailure、sourceだけの永続化を実装しました。REPL 24 testとreport-adapter unit testで実内容、transaction、上限、OOM／interruption、quota再利用、厳密解放、source／reset lifetime、Copy host effect、failure優先順位transportを検証します。[CLI transcript](../../../examples/repl/owned.repl) は成功します。[Preview](../architecture.md#owned-result-previews)、[推論](../architecture.md#ownership-expression-inference)、[sessionの根拠](../architecture.md#ownership-repl-sessions)を参照してください。
+根拠：当初のREPL境界実験では妥当なowning定義が拒否されました。V16は [named-result library](../../../examples/analysis/repl_preview.lang) を `lang_vm::unit::owned::execute_preview` で実行し、Bytes／Text／入れ子resultをstring公開前に解放します。V15は通常HIRと独立MIR検証で妥当なwrapper resultを推論します。V10でownership item／式をsessionとCLIへ接続し、明示allocator authority、fresh instance、対応付けたfailure、sourceだけの永続化を実装しました。REPL 24 testとreport-adapter unit testで実内容、transaction、上限、OOM／interruption、quota再利用、厳密解放、source／reset lifetime、Copy host effect、failure優先順位transportを検証します。[CLI transcript](../../../examples/repl/owned.repl) は成功します。[Preview](../architecture-history.md#owned-result-previews)、[推論](../architecture-history.md#ownership-expression-inference)、[sessionの根拠](../architecture-history.md#ownership-repl-sessions)を参照してください。
 
-実装は **一部完了** です。V16／V15／V10はcurrent-profile preview、推論、session／CLI経路を実装します。後続indirect-service形式／実装はV17の明示follow-upへ残し、元のM2完了要件は維持します。準備costと混在sessionのcompile costは未計測で、indirect形式／native previewも未検証です。受理済みcontractを後に変更する場合は、実装前に明示revision／follow-upを行い、両言語を同時更新します。
+過去のcheckpoint、2026-10-18 JST（現在の状態は冒頭で更新済み）：当時の実装は **一部完了** でした。V16／V15／V10はcurrent-profile preview、推論、session／CLI経路を実装します。後続indirect-service形式／実装はV17の明示follow-upへ残し、元のM2完了要件は維持します。準備costと混在sessionのcompile costは未計測で、indirect形式／native previewも未検証です。受理済みcontractを後に変更する場合は、実装前に明示revision／follow-upを行い、両言語を同時更新します。
 
 ## 情報源
 

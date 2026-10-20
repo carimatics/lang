@@ -47,3 +47,6 @@ jobs:
 
       - name: Check fuzz targets
         run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings
+
+      - name: Validate benchmark evidence checks
+        run: python3 -m unittest discover -s tools/m2-bench -p 'test_*.py'

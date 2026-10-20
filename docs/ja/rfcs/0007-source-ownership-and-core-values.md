@@ -4,17 +4,24 @@
 
 [English](../../rfcs/0007-source-ownership-and-core-values.md)
 
-- ステータス: accepted
+- ステータス: implemented
 - 著者: Project contributors
 - 作成日: 2026-10-17
-- 最終更新日: 2026-10-18
+- 最終更新日: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue:
 - Supersedes:
 - Superseded by:
 
+## 現在の実装状態
+
+2026-10-20 JSTに[M2完了監査](../milestone-2-capabilities.md)と照合しました。有限source/core profileは型検査、独立MIR検証、VM/native実行、両hostのconformanceまで実装済みです（M2 G03–G10、G14/G16）。必要なcleanup、抽出、artifact契約はRFC 0008/0009/0011で具体化済みです。 implementedであり、stabilizedではありません。
+
+以下の動機、当初の段階的計画、日付付き部分実装checkpointは、判断とrolloutの履歴です。当時の未完了ゲートは上記根拠で完了しており、規範的契約と明示的非目標は引き続き有効です。この状態照合でsource、ABI、形式の意味論を変更しません。
+
 ## 概要
 
-RFC 0004の受理済みownership policyを再検討することなく、Milestone 2の最初のdecision gateを具体化します。RFC 0006のCopy programを維持し、non-copyなcore valueと字句的loanを追加し、CLI toolと将来のbootstrap compilerに必要な最小collection／型表面を定義します。以下はprojectの受理済み判断であり、実装済みbehaviorではありません。
+RFC 0004の受理済みownership policyを再検討することなく、Milestone 2の最初のdecision gateを具体化します。RFC 0006のCopy programを維持し、non-copyなcore valueと字句的loanを追加し、CLI toolと将来のbootstrap compilerに必要な最小collection／型表面を定義します。以下の受理済み判断は、上記の有限profileで実装済みです。
 
 Parameter typeはRust風の `&T`／`&mut T`、明示的ownership categoryは `shared T`／`weak T`、字句的arenaに推論上のbrandで結び付く参照は `arena T` とします。通常のrecord／enumは全field／payloadがCopyの場合に限りCopyです。Coreの `Text`、`Bytes`、`Vec<T>`、`Map<K, V>` はstorageを所有しmoveします。ここに列挙する組み込みgeneric type／functionのみ導入し、user-defined generic declaration、method、trait、lifetime parameter、暗黙のcloneは延期します。
 

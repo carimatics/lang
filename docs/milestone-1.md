@@ -1,10 +1,12 @@
-<!-- canonical-language: en; japanese-translation: ja/milestone-1.md -->
+<!-- canonical-language: en; japanese-translation: ja/milestone-1.md; reviewed: 2026-10-20 -->
 
 # Milestone 1 capability guide
 
 [日本語版](ja/milestone-1.md)
 
 Last updated and verified: **2026-10-17 JST**. Milestone 1 is complete: **24/24 outcomes, 89/89 points**, including formatter and LSP integration. RFC 0006 is **implemented**, not stabilized. The project remains pre-alpha.
+
+This is the M1 acceptance snapshot from 2026-10-17, retained for its workflows and evidence. Its then-pending ownership/native extensions are now covered by the [M2 capability guide](milestone-2-capabilities.md); consult that guide for current support.
 
 ## Try it
 
@@ -151,9 +153,9 @@ The 2026-10-17 completion audit records **497 passing tests**, `cargo fmt --all 
 
 | Source | Publication/update or verification date |
 | --- | --- |
-| [Milestone 1 completion audit](roadmap.md#completion-audit-2026-10-17), implementation commits through `402a5dc` | Updated/verified 2026-10-17 JST; audit recorded in `5e69965` |
+| [Milestone 1 completion audit](roadmap-history.md#completion-audit-2026-10-17), implementation commits through `402a5dc` | Updated/verified 2026-10-17 JST; audit recorded in `5e69965` |
 | [RFC 0002](rfcs/0002-prototype-control-flow.md), [RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md), [architecture](architecture.md) | Last updated/verified 2026-10-17 JST |
-| Official Microsoft [LSP 3.18](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.18/specification.md) and lifecycle documents linked in [architecture](architecture.md#diagnostics-lsp-and-debugging) | Living documents without stated publication/update dates; verified 2026-10-17 JST |
+| Official Microsoft [LSP 3.18](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.18/specification.md) and lifecycle documents linked in [architecture](architecture-history.md#diagnostics-lsp-and-debugging) | Living documents without stated publication/update dates; verified 2026-10-17 JST |
 | [JSON-RPC 2.0](https://www.jsonrpc.org/specification) | Published 2010-03-26; last updated 2013-01-04; verified 2026-10-17 JST |
 
 Language semantics and numeric limits are project decisions; supported behavior is established by repository implementation/tests. External protocol facts come from the official specifications. Future milestones are plans, not implemented guarantees.

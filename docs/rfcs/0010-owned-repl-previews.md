@@ -4,13 +4,20 @@
 
 [日本語版](../ja/rfcs/0010-owned-repl-previews.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-18
+- Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: M2-V14/V16/V15/V10/V17 in [the delivery board](../milestone-2.md)
 - Supersedes: None; extends the RFC 0006 REPL to the RFC 0007 ownership profile
 - Superseded by:
+
+## Current implementation status
+
+Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabilities.md). The intended VM REPL interface, wrapper inference, bounded previews and retirement are implemented. RFC 0016 also completes V17's indirect-service preview follow-up; native REPL execution remains an explicit non-goal. See tests/repl.rs, crates/runtime/src/layout/storage/preview.rs and the M2 guide. This is implemented, not stabilized.
+
+The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
 
 ## Summary
 
@@ -137,9 +144,9 @@ No unresolved semantic blocker for the current payload profile. Prototype/measur
 
 Review outcome: **accepted under experimental delegation on 2026-10-18 JST**, applying the owner's RFC 0001 delegation. The design fills the concrete REPL boundary without changing user function inference, source literals, loan escape rules or execution authority. Protected result consumption and render-failure precedence remain consistent with RFC 0008; the supported-profile boundary and V17 retain the remaining M2 result family. No blocking semantic question remains for this profile.
 
-Evidence: the original REPL boundary probe rejected a valid owning definition. V16 executes [the named-result library](../../examples/analysis/repl_preview.lang) through `lang_vm::unit::owned::execute_preview`, with Bytes/Text/nested results retired before string publication. V15 infers validated wrapper results through ordinary HIR and independent MIR checks. V10 now connects ownership items/expressions to sessions and CLI with explicit allocator authority, fresh instances, mapped failures and source-only persistence. The 24-test REPL suite and report-adapter unit test cover actual contents, transactions, limits, OOM/interruption, quota reuse, exact release, source/reset lifetime, Copy host effects and failure precedence transport. [The CLI transcript](../../examples/repl/owned.repl) succeeds. See [preview](../architecture.md#owned-result-previews), [inference](../architecture.md#ownership-expression-inference) and [session evidence](../architecture.md#ownership-repl-sessions).
+Evidence: the original REPL boundary probe rejected a valid owning definition. V16 executes [the named-result library](../../examples/analysis/repl_preview.lang) through `lang_vm::unit::owned::execute_preview`, with Bytes/Text/nested results retired before string publication. V15 infers validated wrapper results through ordinary HIR and independent MIR checks. V10 now connects ownership items/expressions to sessions and CLI with explicit allocator authority, fresh instances, mapped failures and source-only persistence. The 24-test REPL suite and report-adapter unit test cover actual contents, transactions, limits, OOM/interruption, quota reuse, exact release, source/reset lifetime, Copy host effects and failure precedence transport. [The CLI transcript](../../examples/repl/owned.repl) succeeds. See [preview](../architecture-history.md#owned-result-previews), [inference](../architecture-history.md#ownership-expression-inference) and [session evidence](../architecture-history.md#ownership-repl-sessions).
 
-Implementation is **partial**: V16/V15/V10 implement the current-profile preview, inference and session/CLI path. Later indirect-service formats/implementation remain V17's explicit follow-up; the original M2 exit requirements are unchanged. Preparation cost and mixed-session compile cost are unmeasured, and indirect formats/native preview remain unverified. Any later change to this accepted contract requires an explicit revision/follow-up before implementation, updating both languages together.
+Historical checkpoint, 2026-10-18 JST (superseded by the implementation status above): implementation was **partial**. V16/V15/V10 implement the current-profile preview, inference and session/CLI path. Later indirect-service formats/implementation remain V17's explicit follow-up; the original M2 exit requirements are unchanged. Preparation cost and mixed-session compile cost are unmeasured, and indirect formats/native preview remain unverified. Any later change to this accepted contract requires an explicit revision/follow-up before implementation, updating both languages together.
 
 ## Sources
 

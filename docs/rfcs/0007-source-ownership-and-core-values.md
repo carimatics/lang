@@ -4,17 +4,24 @@
 
 [日本語版](../ja/rfcs/0007-source-ownership-and-core-values.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-17
-- Last updated: 2026-10-18
+- Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue:
 - Supersedes:
 - Superseded by:
 
+## Current implementation status
+
+Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabilities.md). The finite source/core profile is implemented through checking, independent MIR verification, VM/native execution and both-host conformance (M2 G03–G10, G14/G16). RFCs 0008/0009/0011 supply the required follow-up cleanup, extraction and artifact contracts. This is implemented, not stabilized.
+
+The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
+
 ## Summary
 
-Complete Milestone 2's first decision gate without reopening RFC 0004's accepted ownership policy. Preserve RFC 0006 copy programs, add non-copy core values and lexical loans, and fix the smallest collection/type surface needed for command-line tools and an eventual bootstrap compiler. These are accepted project choices, not implemented behavior.
+Complete Milestone 2's first decision gate without reopening RFC 0004's accepted ownership policy. Preserve RFC 0006 copy programs, add non-copy core values and lexical loans, and fix the smallest collection/type surface needed for command-line tools and an eventual bootstrap compiler. These accepted project choices are implemented at the finite profile documented above.
 
 Use Rust-like `&T` / `&mut T` parameter types, explicit `shared T` / `weak T` ownership categories, and `arena T` for a reference branded by an inferred lexical arena. Ordinary records/enums are Copy exactly when all their fields/payloads are Copy. Core `Text`, `Bytes`, `Vec<T>`, and `Map<K, V>` own their storage and move. Only the listed built-in generic types/functions are introduced; user-defined generic declarations, methods, traits, lifetime parameters, and implicit cloning remain deferred.
 

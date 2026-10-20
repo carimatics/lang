@@ -12,6 +12,10 @@
 - Supersedes: none; extends RFCs 0011/0014/0015/0017
 - Superseded by: none
 
+## Current implementation status
+
+Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
+
 ## Summary
 
 Add a bounded, versioned transport for native object bytes and compiler metadata, paired by SHA-256 with the existing portable semantic artifact. Recover runtime plans from independently decoded semantics without source analysis, ISA lookup, code emission or JIT construction.

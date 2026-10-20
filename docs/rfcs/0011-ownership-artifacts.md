@@ -7,12 +7,16 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-19
+- Last updated: 2026-10-20
 - Tracking issue: M2-A01/A02/A03 and N01 in [the delivery board](../milestone-2.md)
 - Supersedes: None; adds ownership schema 2 alongside RFC 0006 schema 1
 - Superseded by:
 
 Extension (2026-10-19): [RFC 0014](0014-explicit-source-panic.md) selects schema 3 for explicit Panic units. The schema-2 profile specified here remains closed and byte-compatible; its 33 instruction tags and 37 runtime core tags do not change.
+
+## Current implementation status
+
+Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
 
 ## Summary
 

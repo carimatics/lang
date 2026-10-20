@@ -16,13 +16,16 @@ These instructions apply to the entire repository.
   - `CONTRIBUTING.md` and `CONTRIBUTING.ja.md`
   - `docs/research.md` and `docs/ja/research.md`
   - `docs/architecture.md` and `docs/ja/architecture.md`
+  - `docs/architecture-history.md` and `docs/ja/architecture-history.md`
   - `docs/roadmap.md` and `docs/ja/roadmap.md`
+  - `docs/roadmap-history.md` and `docs/ja/roadmap-history.md`
   - `docs/benchmarks.md` and `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` and `docs/ja/milestone-1.md`
   - `docs/milestone-2.md` and `docs/ja/milestone-2.md`
   - `docs/milestone-2-capabilities.md` and `docs/ja/milestone-2-capabilities.md`
   - `docs/native-sdk.md` and `docs/ja/native-sdk.md`
   - `docs/review-2026-10-17.md` and `docs/ja/review-2026-10-17.md`
+  - `docs/review-2026-10-20.md` and `docs/ja/review-2026-10-20.md`
   - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
   - Every numbered RFC in `docs/rfcs/` and its same-named mirror in `docs/ja/rfcs/`
   - `.agents/skills/language-design-rfc/SKILL.md` and `docs/ja/codex/language-design-rfc.md`
@@ -83,12 +86,12 @@ Add focused tests for behavior changes. Compiler work should use the appropriate
 
 ## Active milestone tracking
 
-- Use the [M2 delivery board](docs/milestone-2.md) for implementation work; the roadmap's broad exit-gate weights are not a remaining-effort forecast.
-- Before coding, select one observable 1–3-point delivery and mark it doing. Keep at most one doing row. Expose and re-estimate a new prerequisite before implementing it; never repeatedly retain an estimate without checking the remaining task list.
+- Use the current milestone's delivery board when that milestone is activated. The [M2 delivery board](docs/milestone-2.md) is a completed record, not the queue for new work. Review and maintenance work can use a scoped checklist in its review report; do not reopen a completed milestone or invent effort points for routine fixes.
+- Before implementing an active milestone, break its next outcome into observable 1–3-point deliveries and select one doing row. Keep at most one implementation delivery doing. Expose and re-estimate a new prerequisite before implementing it; never repeatedly retain an estimate without checking the remaining task list. The roadmap's broad exit-gate weights are not a remaining-effort forecast.
 - If planning produces no patch or executable experiment within 10 minutes, narrow the task and run the smallest useful experiment before further design. Add abstractions/hardening only for the selected outcome or accepted requirements.
 - Update the bilingual board with implementation/validation evidence after each delivery. Evidence cells contain only the code commit hash; put validation details in the delivery note. Keep exit-gate completion separate from completed prerequisites. Prefer the next source execution fixture over additional horizontal scaffolding; review the sequence after two prerequisite deliveries without a new execution fixture.
 - If a doing row remains open across a work session, show its last executable checkpoint, verification time, and remaining acceptance conditions at the top of the board. A checkpoint does not count as a completed delivery. Report completed work and newly added work separately, and re-audit an item that grows beyond its stated outcome before adding more implementation.
-- Keep planning updates short: update rows and current counts. Add narrative audits for changed scope, dependencies, estimates or exit decisions. For documentation-only planning updates, run `cargo test --test repository_consistency`; use this existing validator rather than a separate partial check or another unchanged full compiler baseline.
+- Keep planning updates short: update rows and current counts. Add narrative audits for changed scope, dependencies, estimates or exit decisions. Record current contracts in RFCs/architecture and retain dated implementation checkpoints in the board or review history. Update code, evidence and the plan together; a separate planning commit is not required. For documentation-only planning updates, run `cargo test --test repository_consistency`; use this existing validator rather than another unchanged full compiler baseline.
 - Keep the board's estimate reconciliation current: baseline remaining + net added/re-estimated work − estimates retired at completion = remaining. Report completed deliveries separately from newly exposed tasks. Use each row's last remaining estimate when it becomes done; change net additions only with an explicit scope/estimate audit. If a new row is first committed as done, preserve its estimate in the audit and include it in both additions and completed estimates. Points are planning units, not measured working time.
 
 ## Security

@@ -1,4 +1,4 @@
-<!-- canonical-language: en; japanese-translation: ja/native-sdk.md -->
+<!-- canonical-language: en; japanese-translation: ja/native-sdk.md; reviewed: 2026-10-20 -->
 
 # Experimental native SDK
 

@@ -4,22 +4,29 @@
 
 [English](../../rfcs/0013-service-byte-work-budget.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-19
+- Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Accepted: 2026-10-19
 - Tracking issue: M2-N15, M2-N05, M2-N18
 - Supersedes: None; elaborates RFC 0012's configured service admission
 - Superseded by: None
 
+## 現在の実装状態
+
+2026-10-20 JSTに[M2完了監査](../milestone-2-capabilities.md)と照合しました。共有meter、CLI/host設定、構造化failure、受理済みmanaged-service event全体はVM/nativeに実装済みです。Linked targetと両hostの根拠により、以前未完了だったN06/N07境界も完了しました（M2 G14/G16/G17）。CPU時間の上限やmeter単独のoverheadを確立するものではありません。 implementedであり、stabilizedではありません。
+
+以下の動機、当初の段階的計画、日付付き部分実装checkpointは、判断とrolloutの履歴です。当時の未完了ゲートは上記根拠で完了しており、規範的契約と明示的非目標は引き続き有効です。この状態照合でsource、ABI、形式の意味論を変更しません。
+
 ## 概要
 
-Instrumented実行contextに省略可能な累積service-work上限を追加し、VM／nativeで課金eventとusageを共有します。枯渇はterminalな制御failureとし、必須cleanupを続けます。N15で契約を決定し、N05で実装します。
+Instrumented実行contextに省略可能な累積service-work上限を追加し、VM／nativeで課金eventとusageを共有します。枯渇はterminalな制御failureとし、必須cleanupを続けます。N15で契約を記録し、N05でmanaged-service統合を実装しました。
 
 ## 動機
 
-現在のControlはfuel・host-call・frame・live-cell上限を持ち、service-work設定はありません。Mapは候補観測・UTF-8検証・比較を実行前に制限し、bufferは可変長copy／scanを行います。命令fuelはpayloadの大きさを区別しません。これは実装の事実で、性能測定ではありません。
+提案時（2026-10-19）のControlはfuel・host-call・frame・live-cell上限を持ち、service-work設定はありませんでした。Mapは候補観測・UTF-8検証・比較を実行前に制限し、bufferは可変長copy／scanを行います。命令fuelはpayloadの大きさを区別しません。これは実装の事実で、性能測定ではありません。
 
 Mapの既存20 testが成功し、queryの保持／allocationやowner／出力の変更なしでworkを拒否する検証を含みます。Runtime admission境界の実現性を示し、global meterの実装完了を示すものではありません。
 

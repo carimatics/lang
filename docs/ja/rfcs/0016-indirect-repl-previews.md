@@ -12,6 +12,10 @@
 - Supersedes: none; RFC 0010 を拡張
 - Superseded by: none
 
+## 現在の実装状態
+
+2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
+
 ## 概要
 
 RFC 0010 の VM/REPL 結果表示を Vec、Map、shared 所有値、weak トークンに拡張する。例えば 9 を含む Vec を返す関数は、実行前の `Unsupported` ではなく `core::Vec [9]` を表示する。ソースの arena 脱出検査は必須のままとする。

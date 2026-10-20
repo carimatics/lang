@@ -4,17 +4,24 @@
 
 [English](../../rfcs/0009-whole-sum-ownership-extraction.md)
 
-- ステータス: accepted
+- ステータス: implemented
 - 著者: Project contributors
 - 作成日: 2026-10-18
-- 最終更新日: 2026-10-18
+- 最終更新日: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: [実装Todo](../milestone-2.md) のM2-S01〜S03
 - Supersedes:
 - Superseded by:
 
+## 現在の実装状態
+
+2026-10-20 JSTに[M2完了監査](../milestone-2-capabilities.md)と照合しました。3つの抽出操作は受理済みの有限owning payloadについてVM/nativeで実装済みで、別caseの固定panic code、span、cleanupを保持します（M2 G08/G14/G16）。以前のBytes/Text限定rolloutは完了し、汎用consuming patternは範囲外です。 implementedであり、stabilizedではありません。
+
+以下の動機、当初の段階的計画、日付付き部分実装checkpointは、判断とrolloutの履歴です。当時の未完了ゲートは上記根拠で完了しており、規範的契約と明示的非目標は引き続き有効です。この状態照合でsource、ABI、形式の意味論を変更しません。
+
 ## 概要
 
-RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。Source／MIR解析と現在のBytes／Text／Copy VM／REPL profileは実装済みで、広いpayloadとnative実行は未完了です。Acceptanceと実装完了／stabilizationは別に扱います。
+RFC 0007の有限core catalogへ、Option／Result全体をvalueで受け取る明示的な3操作を追加します。期待するcaseならpayload全体を返し、別caseならRFC 0008のcleanupを伴うguest panicにします。既存borrowed matchとpartial move禁止は維持します。Source／MIR解析、受理済み有限payload全体、VM/native実行は実装済みです。REPLの返却値previewはRFC 0010/0016に従います。Acceptanceと実装完了／stabilizationは別に扱います。
 
 | 操作 | Signature | 期待するcase | 別caseのpanic code |
 | --- | --- | --- | ---: |

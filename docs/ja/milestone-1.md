@@ -1,10 +1,12 @@
-<!-- canonical-language: en; japanese-translation: ja/milestone-1.md -->
+<!-- translation-of: ../milestone-1.md; canonical-language: en; reviewed: 2026-10-20 -->
 
 # Milestone 1 機能ガイド
 
 [English](../milestone-1.md)
 
 最終更新／確認：**2026-10-17 JST**。Milestone 1はformatterとLSP統合を含め、**24/24成果、89/89点**で完了しました。RFC 0006は **implemented** で、stabilizedではありません。Projectは引き続きpre-alphaです。
+
+これは2026-10-17のM1受け入れsnapshotで、手順と根拠を保持しています。当時未完了だったownership/native拡張は[M2機能ガイド](milestone-2-capabilities.md)に含まれます。現在の対応状況はそちらを参照してください。
 
 ## 試してみる
 
@@ -151,9 +153,9 @@ Source string／float／array、generic、method、closure、再帰data type、�
 
 | 情報源 | 公開／更新日または確認日 |
 | --- | --- |
-| [Milestone 1完了監査](roadmap.md#完了監査2026-10-17)、`402a5dc` までの実装commit | 最終更新／確認2026-10-17 JST。監査commit `5e69965` |
+| [Milestone 1完了監査](roadmap-history.md#完了監査2026-10-17)、`402a5dc` までの実装commit | 最終更新／確認2026-10-17 JST。監査commit `5e69965` |
 | [RFC 0002](rfcs/0002-prototype-control-flow.md)、[RFC 0006](rfcs/0006-source-frontend-and-portable-programs.md)、[architecture](architecture.md) | 最終更新／確認2026-10-17 JST |
-| Microsoft公式[LSP 3.18](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.18/specification.md)と[architecture](architecture.md#diagnosticslspdebugging)のlifecycle document | 公開／更新日の記載がないliving document。2026-10-17 JST確認 |
+| Microsoft公式[LSP 3.18](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsp/3.18/specification.md)と[architecture](architecture-history.md#diagnosticslspdebugging)のlifecycle document | 公開／更新日の記載がないliving document。2026-10-17 JST確認 |
 | [JSON-RPC 2.0](https://www.jsonrpc.org/specification) | 2010-03-26公開、2013-01-04最終更新、2026-10-17 JST確認 |
 
 Language semanticsと数値limitはproject decisionで、対応behaviorはrepository実装／testで検証しています。外部protocolの事実は公式specificationに基づきます。後続milestoneは計画であり、実装済みの保証ではありません。

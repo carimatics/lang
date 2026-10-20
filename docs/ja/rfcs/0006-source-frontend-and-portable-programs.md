@@ -1,4 +1,4 @@
-<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0006-source-frontend-and-portable-programs.md -->
+<!-- translation-of: ../../rfcs/0006-source-frontend-and-portable-programs.md; canonical-language: en; reviewed: 2026-10-20 -->
 
 # RFC 0006：Source frontendとportable VM program
 
@@ -265,7 +265,7 @@ Optional follow-up：Unicode identifier、通常のimmutable binding、import al
 
 ## 情報源
 
-- [Milestone 1完了監査](../roadmap.md#完了監査2026-10-17)、実装evidence。最終更新／確認2026-10-17 JST。
+- [Milestone 1完了監査](../roadmap-history.md#完了監査2026-10-17)、実装evidence。最終更新／確認2026-10-17 JST。
 - `docs/roadmap.md`、scopeと依存gate。最終更新2026-10-17 JST、commit `f596e2c`。
 - `docs/rfcs/0001-project-charter.md`、受理済みgovernance、backend制約、互換性。最終変更2026-10-17 JST、確認2026-10-17 JST。
 - `docs/rfcs/0002-prototype-control-flow.md`、受理済みscalar／CFG grammarとcode。最終変更2026-10-17 JST、確認2026-10-17 JST。

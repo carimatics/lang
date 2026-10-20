@@ -6,7 +6,7 @@
 
 更新・検証：**2026-10-20 JST**。M2の元の18完了条件には実行／設計の証拠がそろっています。Z01でこの最終guideと監査を公開します。実装は引き続き実験的で、accepted／implementedのRFCもstabilizedな契約ではありません。履歴上の**113/113 gate weight**は受け入れ範囲の達成を示し、時間・生産性・正確な工数見積もりを意味しません。
 
-**2026-10-20レビューによる訂正（検証中）：** 以下の旧G18根拠はownedの物理callerのみを確認し、RFC 0012の論理guest呼び出し列要件を満たしていませんでした。予約済みframeのread-only debug descriptorと3段の呼び出し列検証を追加しました。ローカルmacOS LLDBでmain→debug_outer→debug_takeと親のcall siteを確認済みで、Windows CDB検証は未完了です。RFC 0012はacceptedを保ち、下記の完了数値は従来監査の記録として扱います。
+**2026-10-20レビューによる訂正（解消済み）：** 旧G18根拠はownedの物理callerのみを確認し、RFC 0012の論理guest呼び出し列要件を満たしていませんでした。予約済みframeのread-only descriptorを追加し、[両host run 39427222132](https://github.com/carimatics/lang/actions/runs/39427222132)（exact head 73dca1d）で3段の論理chainと親のcall siteを検証しました。RFC 0012をimplementedへ更新し、元の18 gateの完了根拠を補完しました。
 
 ## 完結したsource programを実行する
 
@@ -36,7 +36,7 @@ cargo run -- repl
 | Native code | macOS AArch64／Windows x86-64のrelocatable AOT objectにaccepted Copy全profileとowned source bodyを出力。Production managed runtime、保存済み記録、source不要の起動 |
 | C境界 | 明示unsafe import／export、有限Copy aggregate、生成C11 header、status／out-parameter転送、opaque context、実allocator／import grant、実C caller |
 | 配布 | 一致する実験SDKの組立、上限付きpackage検証、公開`link-native`、隔離producer／consumer install、source不要のCopy／owned／C実行 |
-| Debug | DWARF／CodeViewのsource位置、両native hostで実LLDB／CDBのbreakpoint・step・物理backtraceを実証 |
+| Debug | DWARF／CodeViewのsource位置、両native hostで実LLDB／CDBのbreakpoint・step・物理backtraceとowned論理guest chainを実証 |
 
 Accepted言語は有限の組込み特殊化を使います。一般のuser generic、trait、closure、並行実行、任意のC ABI layoutを追加するものではありません。通常loan・allocator権限・arena ownerは引き続き格納不可です。Source検査とdecodeしたartifact検証は、それぞれのtrust boundaryを守ります。
 
@@ -65,15 +65,15 @@ Portable Copyはschema 1、通常ownershipはschema 2、明示panic ownershipは
 
 ## Debugと性能の証拠
 
-Exact product `1496b8b`の[両host run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)は実production SDKを使うdebugger実行に成功しました。2026-10-20のmacOS LLDB記録は**11:16:39 UTC**、Windows CDBは**11:20:07 UTC**です。
+Exact product `73dca1d`の[両host run 39427222132](https://github.com/carimatics/lang/actions/runs/39427222132)は実production SDKを使うdebugger実行に成功しました。2026-10-20のmacOS LLDB記録は**13:04:10 UTC**、Windows CDBは**13:05:08 UTC**です。
 
 - Copy：2行目のsource breakpoint、3行目へのsource step、2／6／9行のcaller。
-- Owned：8行目のbreakpoint、native PCの前進、実Rust runtime caller。
+- Owned：8行目のbreakpoint、native PCの前進、実Rust runtime callerに加え、main→debug_outer→debug_takeの論理frame（FunctionId 3/2/1）と親のcall site（15／12行）をtarget memoryから読み取り。
 - 両profile：通常実行とdebugger実行で42を返し、正常終了。
 
-[Probe](../../tools/check-native-debugger.py)はsourceを保持し、一致するSDK／rustcでdebug情報付きの手動linkを行います。既定`link-native`はこのdebug sidecarを公開しません。旧runのOwned continuation根拠は物理native／runtime frameのみです。上記の訂正で論理guest stackの検証を補います。Source変数位置、完全な論理continuation step、VM／native混在stack、DAPは後続toolingの範囲です。Runtimeのguest error stackを縮小するものではありません。
+[Probe](../../tools/check-native-debugger.py)はsourceを保持し、一致するSDK／rustcでdebug情報付きの手動linkを行います。既定`link-native`はこのdebug sidecarを公開しません。Driverのlocal debug_viewからread-onlyの論理frame recordを読み取れます。親はcall site、innermostは最後にchargeした命令のspanを持ち、現在位置は物理PCのsource情報で示します。Source変数位置、完全な論理continuation step、VM／native混在stack、DAPは後続toolingの範囲です。Runtimeのguest error stackを縮小するものではありません。
 
-[性能captureと再現手順](benchmarks.md#milestone-2-sourcerustc-harness)は、各hostで3つの代表source programを同等の最適化Rust／C実装と比較します。macOS captureは`ecc0fd1`、Windowsは`dced632`です。これらの小さなworkloadでは検査付きsource実行は数百〜数千倍遅く、同等性能には達していません。Memoryはprocess全体、file sizeは文書記載の範囲で測定しています。これは先行revisionの不変の観測で、`1496b8b`や本guideの計測ではありません。Scaling・電源状態の制御・一般的な性能を示す証拠ではありません。
+[性能captureと再現手順](benchmarks.md#milestone-2-sourcerustc-harness)は、各hostで3つの代表source programを同等の最適化Rust／C実装と比較します。macOS captureは`ecc0fd1`、Windowsは`dced632`です。これらの小さなworkloadでは検査付きsource実行は数百〜数千倍遅く、同等性能には達していません。Memoryはprocess全体、file sizeは文書記載の範囲で測定しています。これは先行revisionの不変の観測で、`73dca1d`や本guideの計測ではありません。Scaling・電源状態の制御・一般的な性能を示す証拠ではありません。
 
 ## 元の全exit gateの監査
 
@@ -98,7 +98,7 @@ Exact product `1496b8b`の[両host run 39413674593](https://github.com/carimatic
 | G15 | Linker／startup／runtime packaging・production error | [Package検証](../../tests/native_packages.rs)、[link拒否／atomicity](../../tests/native_link.rs)、[SDK組立](../../tests/native_sdk.rs)、下記隔離install |
 | G16 | 代表VM／native差分適合性suite | [複合fixture](../../examples/conformance/owned_pipeline.lang)、[production entry比較](../../tests/support/native_entry_runtime.rs)、[実C比較](../../tests/support/c_exports_runtime.rs)、両host Q02 |
 | G17 | 同等Rust／C実装に対するnative workload計測 | [B02／B03 captureとB04監査](benchmarks.md#milestone-2-sourcerustc-harness)、上記の制約を維持 |
-| G18 | 両hostのsource-span debug metadata出力・検証 | [Source全体PDB回帰](../../tests/native_debug_windows.rs)、[link済DWARF回帰](../../tests/native_compiler.rs)、[実LLDB／CDB run](https://github.com/carimatics/lang/actions/runs/39413674593) |
+| G18 | 両hostのsource-span debug metadata出力・検証 | [Source全体PDB回帰](../../tests/native_debug_windows.rs)、[link済DWARF回帰](../../tests/native_compiler.rs)、[実LLDB／CDB run](https://github.com/carimatics/lang/actions/runs/39427222132) |
 
 以下のcross-host記録はすべて2026-10-20 JST検証です。
 
@@ -106,9 +106,9 @@ Exact product `1496b8b`の[両host run 39413674593](https://github.com/carimatic
 | --- | --- |
 | [隔離install 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958)、`c54af31` | 両hostで別producer／consumer job。Checkout／Cargo／repository入力なし、private入力削除後にCopy／owned／実C実行 |
 | [Q02 macOS 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840)、`1d0c0dc`、[Windows 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894)、`3db077f` | 必須native host適合性検証。両headの実装／test／fixture／Cargo／toolchainのGit blobは一致 |
-| [Windows全baseline 39398395224](https://github.com/carimatics/lang/actions/runs/39398395224)、`2297a07` | 後続unwind修正より前のfmt・C／linker・Clippy・全test・rustdoc。`1496b8b`のWindows全baselineを主張しない |
-| [現productの限定native run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593)、`1496b8b` | 新規SDK、Windows metadata／unwind reader、macOS link後address回帰、両host実debugger実行 |
-| Local `1496b8b` baseline | 1,593 tests／95 suites成功、失敗0、手動計測ignore 1件。fmt・警告error化Clippy・rustdoc・全11 fuzz targetのcompile／lint成功 |
+| [Windows全baseline 39398395224](https://github.com/carimatics/lang/actions/runs/39398395224)、`2297a07` | 後続unwind修正より前のfmt・C／linker・Clippy・全test・rustdoc。`73dca1d`のWindows全baselineを主張しない |
+| [現productの限定native run 39427222132](https://github.com/carimatics/lang/actions/runs/39427222132)、`73dca1d` | 新規SDK、Windows metadata／unwind reader、macOS link後address回帰、両host実debugger実行 |
+| Local `73dca1d` baseline | 1,593 tests／95 suites成功、失敗0、手動計測ignore 1件。fmt・警告error化Clippy・rustdoc・全11 fuzz targetのcompile／lint成功 |
 
 これはtestと記録済runであり、coverage-guided fuzz campaign・形式的安全証明・安定配布・性能保証ではありません。最終文書の成果でcompiler／runtime動作は変わらず、repository整合性検証はboardへ記録します。
 

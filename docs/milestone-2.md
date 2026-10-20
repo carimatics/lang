@@ -1,4 +1,4 @@
-<!-- canonical-language: en; japanese-translation: ja/milestone-2.md -->
+<!-- canonical-language: en; japanese-translation: ja/milestone-2.md; reviewed: 2026-10-20 -->
 
 # Milestone 2 delivery board
 
@@ -309,7 +309,7 @@ N01 readiness audit (2026-10-18 JST): the native API accepts only Copy `Verified
 
 ## Completed deliveries
 
-The initial 35 rows reconstruct completed M2 implementation boundaries from commits; the original RFC 0007/0008 decisions remain in the exit gates. Subsequent deliveries, including explicitly planned follow-up design rows, retain their planned IDs when marked done and satisfy only their stated outcome. Evidence details and validation limits are in [architecture](architecture.md) and the [roadmap evidence history](roadmap.md#implementation-evidence-history-1).
+The initial 35 rows reconstruct completed M2 implementation boundaries from commits; the original RFC 0007/0008 decisions remain in the exit gates. Subsequent deliveries, including explicitly planned follow-up design rows, retain their planned IDs when marked done and satisfy only their stated outcome. Evidence details and validation limits are in [architecture history](architecture-history.md) and the [roadmap evidence history](roadmap-history.md#implementation-evidence-history-1).
 
 `Gate` is the gate's ordinal G01–G18 in the roadmap checklist. A row can contribute to multiple gates without counting its work twice.
 

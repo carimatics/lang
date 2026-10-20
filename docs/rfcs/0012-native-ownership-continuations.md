@@ -4,10 +4,11 @@
 
 [日本語版](../ja/rfcs/0012-native-ownership-continuations.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-18
 - Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: M2-N08, M2-N01–N07, M2-G01–G03
 - Supersedes: None; elaborates RFC 0008's private native execution contract
 - Superseded by: None
@@ -18,7 +19,7 @@ Extension (2026-10-20): [RFC 0015](0015-c-native-object-bridge.md) selects priva
 
 ## Current implementation status
 
-The repository review on 2026-10-20 JST found that G03/G18 host evidence checks physical runtime callers for owned native code, but does not verify the logical guest chain required by the debugger contract below. Production managed continuations and service families are implemented; this RFC remains accepted until the logical frames are exposed and verified on both hosts.
+The logical guest-chain gap found by the 2026-10-20 review is fixed. Revision-1 read-only descriptors expose prepared frames; [actual both-host validation](https://github.com/carimatics/lang/actions/runs/39427222132) at exact head 73dca1d verifies main→debug_outer→debug_take, parent source call sites, native stepping and normal 42 completion. Together with production continuation, service-family and SDK/platform evidence, this completes this RFC's implemented scope. It is not stabilized.
 
 ## Debugger descriptor clarification (2026-10-20, accepted)
 

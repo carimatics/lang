@@ -4,13 +4,20 @@
 
 [日本語版](../ja/rfcs/0015-c-native-object-bridge.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
 - Last updated: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: M2-F05–F07, M2-P02
 - Supersedes: None; extends RFC 0012 for explicitly C-aware objects
 - Superseded by: None
+
+## Current implementation status
+
+Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabilities.md). The original-object bridge, image-bound slots, linked import thunks and typed export runtime are implemented, with F05/F06/F07/P02 and both-host C/SDK evidence complete (M2 G12/G14/G15). Matching-image lifetime and owner-thread obligations remain unchanged. This is implemented, not stabilized.
+
+The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
 
 ## Summary
 

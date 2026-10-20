@@ -1,4 +1,4 @@
-<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0006-source-frontend-and-portable-programs.md -->
+<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0006-source-frontend-and-portable-programs.md; reviewed: 2026-10-20 -->
 
 # RFC 0006: Source frontend and portable VM programs
 
@@ -265,7 +265,7 @@ The pre-decision review outcome was **ready for decision**. Implementation is no
 
 ## Sources
 
-- [Milestone 1 completion audit](../roadmap.md#completion-audit-2026-10-17), implementation evidence; last updated and verified 2026-10-17 JST.
+- [Milestone 1 completion audit](../roadmap-history.md#completion-audit-2026-10-17), implementation evidence; last updated and verified 2026-10-17 JST.
 - `docs/roadmap.md`, scope and dependency gates; last updated 2026-10-17 JST, commit `f596e2c`.
 - `docs/rfcs/0001-project-charter.md`, accepted governance, backend restrictions, and compatibility; last changed 2026-10-17 JST, verified 2026-10-17 JST.
 - `docs/rfcs/0002-prototype-control-flow.md`, accepted scalar/CFG grammar and codes; last changed 2026-10-17 JST, verified 2026-10-17 JST.

@@ -4,10 +4,11 @@
 
 [English](../../rfcs/0012-native-ownership-continuations.md)
 
-- ステータス: accepted
+- ステータス: implemented
 - 著者: Codex、ownerの実験段階の委任に基づく
 - 作成日: 2026-10-18
 - 最終更新日: 2026-10-20
+- Implemented: 2026-10-20
 - Tracking issue: M2-N08、M2-N01〜N07、M2-G01〜G03
 - 置き換えるRFC: なし。RFC 0008のprivate native実行契約を具体化
 - 置き換えたRFC: なし
@@ -18,7 +19,7 @@
 
 ## 現在の実装状態
 
-2026-10-20 JSTの全体レビューで、G03/G18の実機根拠はowned nativeの物理runtime callerまでで、以下のdebugger契約が要求する論理guest呼び出し列を検証していないことが分かりました。Production managed continuationとservice familyは実装済みですが、本RFC全体はacceptedを維持します。論理frameの表示と両hostでの検証が完了するまでimplementedへ変更しません。
+2026-10-20 JSTのレビューで見つかった論理guest呼び出し列の不足を修正しました。Revision 1のread-only descriptorは予約済みframeを公開し、[両hostの実機検証](https://github.com/carimatics/lang/actions/runs/39427222132)（exact head 73dca1d）でmain→debug_outer→debug_take、親のsource call site、native step、42正常終了を確認しました。Production continuation、service family、SDK／platformの根拠と合わせて本RFCをimplementedとします。Stabilizedではありません。
 
 ## Debugger descriptor補足（2026-10-20、accepted）
 

@@ -12,6 +12,10 @@
 - Supersedes: none; extends RFCs 0011/0014/0015/0017
 - Superseded by: none
 
+## 現在の実装状態
+
+2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
+
 ## Summary
 
 Native object byteとcompiler metadataの上限付きversion管理transportを追加し、既存portable意味論artifactのSHA-256と対応させます。独立decode済み意味論から、source分析、ISA検索、機械語生成、JIT構築なしにruntime planを復元します。

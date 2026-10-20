@@ -6,7 +6,7 @@
 
 Updated and verified: **2026-10-20 JST**. The 18 original M2 exit gates have execution/design evidence. Z01 publishes this final guide and audit. The implementation remains experimental; accepted or implemented RFCs are not stabilized contracts. Historical **113/113 gate weight** describes acceptance coverage, not hours, productivity or an accurate effort estimate.
 
-**2026-10-20 review correction (validation pending):** The old G18 evidence below checked only physical owned callers and did not satisfy RFC 0012's logical guest-chain requirement. Read-only debug descriptors in prepared frames and a three-deep logical-chain probe have been added. Local macOS LLDB verifies main→debug_outer→debug_take and parent call sites; Windows CDB verification is pending. RFC 0012 remains accepted, and the completion counts below describe the prior audit.
+**2026-10-20 review correction (resolved):** The old G18 evidence checked only physical owned callers and did not satisfy RFC 0012's logical guest-chain requirement. Read-only descriptors in prepared frames now expose that chain. [Both-host run 39427222132](https://github.com/carimatics/lang/actions/runs/39427222132) at exact head 73dca1d verifies three logical frames and parent call sites. RFC 0012 is implemented; the original 18-gate completion evidence is now supplemented.
 
 ## Run a complete source program
 
@@ -36,7 +36,7 @@ Both executions print **42** and exit 0. Program results are printed values, not
 | Native code | Full accepted Copy profile and owned source bodies in relocatable AOT objects on macOS AArch64 and Windows x86-64; production managed runtime, persisted records and source-free startup |
 | C boundary | Explicit unsafe imports/exports, finite Copy aggregates, generated C11 headers, status/out-parameter transfers, opaque contexts, actual allocator/import grants and real C callers |
 | Distribution | Matching experimental SDK assembly, bounded package verification, public `link-native`, isolated producer/consumer installation and source-free Copy/owned/C execution |
-| Debugging | DWARF/CodeView source locations; actual LLDB/CDB breakpoint, stepping and physical backtrace evidence on both native hosts |
+| Debugging | DWARF/CodeView source locations; actual LLDB/CDB breakpoint, stepping, physical backtraces and owned logical guest chains on both native hosts |
 
 The accepted language uses finite built-in specializations; this does not introduce general user generics, traits, closures, concurrency or arbitrary C ABI layouts. Ordinary loans, allocator authority and arena owners remain unstorable. Source checking and decoded artifact validation enforce their respective trust boundaries.
 
@@ -65,15 +65,15 @@ Portable Copy uses schema 1; ordinary ownership uses schema 2, explicit-panic ow
 
 ## Debug and performance evidence
 
-[Both-host run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593), exact product `1496b8b`, passes actual execution against the production SDK. macOS LLDB evidence was recorded at **11:16:39 UTC**, Windows CDB at **11:20:07 UTC** on 2026-10-20:
+[Both-host run 39427222132](https://github.com/carimatics/lang/actions/runs/39427222132), exact product `73dca1d`, passes actual execution against the production SDK. macOS LLDB evidence was recorded at **13:04:10 UTC**, Windows CDB at **13:05:08 UTC** on 2026-10-20:
 
 - Copy: source breakpoint at line 2, source step to line 3 and caller lines 2/6/9.
-- Owned: breakpoint at line 8, advancing native PC and an actual Rust runtime caller.
+- Owned: breakpoint at line 8, advancing native PC, an actual Rust runtime caller, plus main→debug_outer→debug_take logical frames (FunctionId 3/2/1) and parent call sites (lines 15/12) read from target memory.
 - Both profiles: ordinary and debugger execution return 42 and exit normally.
 
-The [probe](../tools/check-native-debugger.py) preserves source and manually links with debug information using the matching SDK/rustc. Default `link-native` does not publish these debug sidecars. The old run covers physical native/runtime frames only; the correction above adds logical guest-stack verification. Source-variable locations, full logical continuation stepping, mixed VM/native stacks and DAP remain later tooling work. This does not weaken runtime guest error stacks.
+The [probe](../tools/check-native-debugger.py) preserves source and manually links with debug information using the matching SDK/rustc. Default `link-native` does not publish these debug sidecars. Read-only logical records are reachable through the driver local debug_view. Parents retain call sites; the innermost record retains the latest charged instruction span, with the physical PC supplying the current source location. Source-variable locations, full logical continuation stepping, mixed VM/native stacks and DAP remain later tooling work. This does not weaken runtime guest error stacks.
 
-[Performance captures and reproduction](benchmarks.md#milestone-2-sourcerustc-harness) compare three representative source programs with equivalent optimized Rust/C on each host. The macOS capture is from `ecc0fd1`; Windows from `dced632`. Guarded source execution is hundreds to thousands of times slower in these small workloads; parity is not achieved. Measurements include whole-process memory and file sizes with the documented scope. They are immutable earlier-revision observations, not measurements of `1496b8b` or this guide. No scaling, power-state control or general performance claim follows from them.
+[Performance captures and reproduction](benchmarks.md#milestone-2-sourcerustc-harness) compare three representative source programs with equivalent optimized Rust/C on each host. The macOS capture is from `ecc0fd1`; Windows from `dced632`. Guarded source execution is hundreds to thousands of times slower in these small workloads; parity is not achieved. Measurements include whole-process memory and file sizes with the documented scope. They are immutable earlier-revision observations, not measurements of `73dca1d` or this guide. No scaling, power-state control or general performance claim follows from them.
 
 ## Audit of every original exit gate
 
@@ -98,7 +98,7 @@ The [board](milestone-2.md) retains per-delivery commit evidence and estimate hi
 | G15 | Linker/startup/runtime packaging and production errors | [Package validation](../tests/native_packages.rs), [link refusal/atomicity](../tests/native_link.rs), [SDK assembly](../tests/native_sdk.rs), isolated installation below |
 | G16 | Representative VM/native differential suite | [Combined fixture](../examples/conformance/owned_pipeline.lang), [production-entry comparisons](../tests/support/native_entry_runtime.rs), [real-C comparisons](../tests/support/c_exports_runtime.rs), both-host Q02 |
 | G17 | Measure native workloads against equivalent Rust/C | [B02/B03 captures and B04 audit](benchmarks.md#milestone-2-sourcerustc-harness), with the limitations above |
-| G18 | Emit and validate both-host source-span debug metadata | [Whole-source PDB regression](../tests/native_debug_windows.rs), [linked DWARF regression](../tests/native_compiler.rs), [actual LLDB/CDB run](https://github.com/carimatics/lang/actions/runs/39413674593) |
+| G18 | Emit and validate both-host source-span debug metadata | [Whole-source PDB regression](../tests/native_debug_windows.rs), [linked DWARF regression](../tests/native_compiler.rs), [actual LLDB/CDB run](https://github.com/carimatics/lang/actions/runs/39427222132) |
 
 Cross-host records, all verified 2026-10-20 JST:
 
@@ -106,9 +106,9 @@ Cross-host records, all verified 2026-10-20 JST:
 | --- | --- |
 | [Isolated install 39370391958](https://github.com/carimatics/lang/actions/runs/39370391958), `c54af31` | Separate producer/consumer jobs on both hosts; no checkout/Cargo/repository inputs; Copy/owned/real-C execution after private inputs are deleted |
 | [Q02 macOS 39376049840](https://github.com/carimatics/lang/actions/runs/39376049840), `1d0c0dc`; [Windows 39373854894](https://github.com/carimatics/lang/actions/runs/39373854894), `3db077f` | Required native-host conformance checks; implementation/test/fixture/Cargo/toolchain Git blobs match between these two heads |
-| [Windows full baseline 39398395224](https://github.com/carimatics/lang/actions/runs/39398395224), `2297a07` | fmt, C/linker, Clippy, full tests and rustdoc before the later unwind repair; not a claim of a full Windows baseline at `1496b8b` |
-| [Current focused native run 39413674593](https://github.com/carimatics/lang/actions/runs/39413674593), `1496b8b` | Fresh SDKs, Windows metadata/unwind reader checks, macOS linked address regression and actual both-host debugger execution |
-| Local `1496b8b` baseline | 1,593 passing tests/95 suites, 0 failures, 1 manual timing ignore; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks |
+| [Windows full baseline 39398395224](https://github.com/carimatics/lang/actions/runs/39398395224), `2297a07` | fmt, C/linker, Clippy, full tests and rustdoc before the later unwind repair; not a claim of a full Windows baseline at `73dca1d` |
+| [Current focused native run 39427222132](https://github.com/carimatics/lang/actions/runs/39427222132), `73dca1d` | Fresh SDKs, Windows metadata/unwind reader checks, macOS linked address regression and actual both-host debugger execution |
+| Local `73dca1d` baseline | 1,593 passing tests/95 suites, 0 failures, 1 manual timing ignore; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks |
 
 These are tests and recorded runs, not a coverage-guided fuzz campaign, formal safety proof, stable distribution or performance guarantee. Compiler/runtime behavior is unchanged by this final documentation delivery; its repository-consistency validation is recorded on the board.
 
