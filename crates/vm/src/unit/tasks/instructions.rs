@@ -1,55 +1,7 @@
 use super::*;
 use frame::Location;
 
-pub(super) fn supported(op: &b::Op) -> bool {
-    match op {
-        b::Op::Import { .. }
-        | b::Op::Borrow { .. }
-        | b::Op::BorrowCaseField { .. }
-        | b::Op::ArenaEnter { .. }
-        | b::Op::ArenaExit { .. } => false,
-        b::Op::CoreCall(call) => matches!(
-            call.operation,
-            o::core::Operation::OptionUnwrap | o::core::Operation::ResultUnwrap
-        ),
-        b::Op::I64(_)
-        | b::Op::Bool(_)
-        | b::Op::Unit
-        | b::Op::Panic(_)
-        | b::Op::Add(..)
-        | b::Op::LessThan(..)
-        | b::Op::EqualI64(..)
-        | b::Op::Copy(_)
-        | b::Op::Move(_)
-        | b::Op::CopyPlace(_)
-        | b::Op::MovePlace(_)
-        | b::Op::Initialize { .. }
-        | b::Op::Replace { .. }
-        | b::Op::PreparePlace { .. }
-        | b::Op::ReplacePrepared { .. }
-        | b::Op::DiscardPrepared(_)
-        | b::Op::DropValue(_)
-        | b::Op::DropLocal(_)
-        | b::Op::DropLocalIfInitialized(_)
-        | b::Op::DropValueIfAvailable(_)
-        | b::Op::Cleanup(_)
-        | b::Op::EndBorrow { .. }
-        | b::Op::Call { .. }
-        | b::Op::Record { .. }
-        | b::Op::Variant { .. }
-        | b::Op::IsCase { .. }
-        | b::Op::CopyCaseField { .. }
-        | b::Op::UnpackVariant { .. }
-        | b::Op::TaskScopeEnter(_)
-        | b::Op::TaskScopeExit(_)
-        | b::Op::TaskSpawn { .. }
-        | b::Op::TaskAwait(_)
-        | b::Op::TaskCancel(_)
-        | b::Op::TaskYield
-        | b::Op::TaskCheck
-        | b::Op::TaskSaveReturn(_) => true,
-    }
-}
+pub(super) use lang_runtime::task::runner::finite_copy_supported as supported;
 pub(super) fn execute<P: a::Provider>(
     typed: &b::TypedBodies,
     frame: &mut Frame<'_, '_>,

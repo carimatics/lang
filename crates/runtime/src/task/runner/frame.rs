@@ -1,17 +1,17 @@
 use super::*;
 
 #[derive(Clone, Copy)]
-pub(super) struct Location {
+pub struct Location {
     pub slot: usize,
     pub at: l::Location,
 }
 #[derive(Clone, Copy)]
-pub(super) struct Scope {
+pub struct Scope {
     pub id: b::TaskScopeId,
     pub serial: u64,
 }
 #[derive(Clone, Copy)]
-pub(super) enum Pending {
+pub enum Pending {
     Await {
         child: usize,
         destination: usize,
@@ -26,12 +26,12 @@ pub(super) enum Pending {
     },
 }
 #[derive(Clone, Copy)]
-pub(super) struct ReturnTo {
+pub struct ReturnTo {
     pub destination: usize,
     pub next: f::NodeId,
     pub failure: f::NodeId,
 }
-pub(super) struct Frame<'l, 'ty> {
+pub struct Frame<'l, 'ty> {
     pub function: m::FunctionId,
     pub node: f::NodeId,
     pub locals: usize,
@@ -44,6 +44,7 @@ pub(super) struct Frame<'l, 'ty> {
     pub pending: Option<Pending>,
     pub returned: Option<ReturnTo>,
     pub saved: bool,
+    pub closing: bool,
     pub fault: Option<usize>,
     pub return_cell: usize,
 }
@@ -86,6 +87,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
             pending: None,
             returned: None,
             saved: false,
+            closing: false,
             fault: None,
             return_cell: plan.return_cell(),
         })

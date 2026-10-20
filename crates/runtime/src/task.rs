@@ -10,6 +10,8 @@ use std::collections::VecDeque;
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 
+pub mod runner;
+
 /// Private invocation identity prevents a handle from naming another tree.
 #[derive(Clone)]
 pub struct TaskId {

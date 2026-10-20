@@ -16,7 +16,7 @@
 
 RFC 0005 の厳密な構造化並行性を RFC 0021 の driver で実行する source 構文を定めます。関数は `async` を宣言し、`spawn` が scope 付きの子を作り、`await` が handle を消費し、task scope は終了前に join します。borrow は suspension を跨げません。source semantics の採択であり、source task 実行や serialized coroutine 形式の完成ではありません。
 
-T05 checkpoint（2026-10-21 JST）: resolved async effect と有界 move/scope claim snapshot を、別段階の source loan 証明と結合します。await/yield/cancel_check/暗黙 join は生存 shared/exclusive loan を SRC0028 と loan 起点 span 付きで拒否し、終了する lexical loan を自身の join 前に終え、入れ子 join では外側 loan を維持します。TaskLoans だけでは実行できません。TaskProgram がこれらの source 証明と独立検証した ownership task MIR を保持し、task VM は明示 host allocator/task/control 権限でその証明を使います。`cargo run -- run examples/scripts/tasks.lang` は両 worker の yield 後に 42 を返し、CLI check と LSP は結合した source/MIR 証明を保持します。raw HIR 互換 API、REPL task submission、未対応実行/artifact adapter は各 profile を引き続き拒否します。async transfer は A01 まで scalar/finite Copy 値、初期 VM local は finite Copy/Task に限定します。native continuation、owned/loan/foreign task 実行、完全な共有 control、serialized task 形式は別の delivery に残し、契約全体の実装まで本 RFC は accepted のままです。
+T05/T06 checkpoint（2026-10-21 JST）: resolved async effect と有界 move/scope claim snapshot を、別段階の source loan 証明と結合します。await/yield/cancel_check/暗黙 join は生存 shared/exclusive loan を SRC0028 と loan 起点 span 付きで拒否し、終了する lexical loan を自身の join 前に終え、入れ子 join では外側 loan を維持します。TaskLoans だけでは実行できません。TaskProgram がこれらの source 証明と独立検証した ownership task MIR を保持し、task VM は明示 host allocator/task/control 権限でその証明を使います。`cargo run -- run examples/scripts/tasks.lang` は両 worker の yield 後に 42 を返し、CLI check と LSP は結合した source/MIR 証明を保持します。raw HIR 互換 API、REPL task submission、未対応実行/artifact adapter は各 profile を引き続き拒否します。async transfer は A01 まで scalar/finite Copy 値、初期 VM/native local は finite Copy/Task に限定します。実験段階の native continuation は JIT と別途リンクした host object で VM と値/event/cleanup が一致します。owned/loan/foreign task 実行、完全な共有 control、serialized task 形式は別の delivery に残し、契約全体の実装まで本 RFC は accepted のままです。
 
 ```text
 async fn worker(value: i64) -> i64 {
@@ -153,11 +153,13 @@ lossless CST span/回復/優先順位、comment/冪等 format、予約識別子/
 
 ## Open questions
 
-厳密な source 契約の blocking question はありません。未検証の仮定: local-only handle が初回 source slice に十分、保持 result escrow の費用が共有上限内で許容、native continuation が MIR 解釈なしに managed-frame driver を再利用できること。一般 Task 引数/container/高度 future は別判断です。正確な serialized revision と production embedding は明示前提であり、暗黙に採択された形式ではありません。
+厳密な source 契約の blocking question はありません。未検証の仮定: local-only handle が初回 source slice に十分、保持 result escrow の費用が共有上限内で許容、より広い native profile とその費用。T06 は finite Copy/Task local で MIR 解釈を使わず managed-frame driver を再利用できることを示しました。一般 Task 引数/container/高度 future は別判断です。正確な serialized revision と production embedding は明示前提であり、暗黙に採択された形式ではありません。
 
 判断: **RFC 0001 の実験段階の委任で accepted、2026-10-21 JST**。明示 effect/scoped claim/型付き子取消は RFC 0005/0008/0021 を維持します。実装/安定化は上記の証拠を要します。
 
 ## Sources
+
+- T06 native の根拠: `crates/runtime/src/task/runner/`、`crates/codegen-clif/src/tasks.rs`、`tasks/object.rs`、`tasks/tests.rs`、`tests/native_task_execution.rs`、`tests/support/task_static.rs`、`examples/native-structured-tasks.rs`。埋込み更新日はなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。初期 VM/JIT/リンク済み object の一致であり、owned task、共有 control、platform gate の完了ではありません。
 
 - T05 source/VM の根拠: `crates/semantics/src/analysis.rs`、`ownership_types/bodies.rs`、`crates/vm/src/unit/tasks/`、`tests/task_execution.rs`、`examples/scripts/tasks.lang`。埋込み更新日はなく、2026-10-21 JST に確認/実行しました。初期 VM の証拠であり native/owned task や M3 全体の適合ではありません。
 - [RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21: 厳密な task/borrow/取消規則と後続判断との対応。

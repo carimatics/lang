@@ -25,6 +25,7 @@ pub mod native_record;
 pub mod owned;
 pub mod program;
 pub mod sdk;
+pub mod tasks;
 pub mod unit;
 
 #[cfg(all(test, target_pointer_width = "64"))]
