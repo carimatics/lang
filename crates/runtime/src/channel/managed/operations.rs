@@ -61,7 +61,9 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             .map_err(|_| super::super::Error::InvalidPayload)?;
         let value = backing
             .get(index)
-            .filter(|b| b.header == Some(header) && !b.retired)
+            // A closed service owner is still transferable receive authority.
+            // Validate its live header/count/role below, not disposed storage.
+            .filter(|b| b.header == Some(header))
             .ok_or(super::super::Error::ForeignEndpoint)?;
         let bytes = allocator
             .bytes(header)

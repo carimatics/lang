@@ -395,6 +395,15 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .recycle(message, self.allocator)
             .map_err(failure)
     }
+    fn finish_service_boundary(
+        &mut self,
+        task: usize,
+        endpoint: &l::Token,
+        span: m::Span,
+    ) -> Result<(), Reason> {
+        let mut frame = frame::Access::new(&mut self.records[task].frames, &mut self.services)?;
+        frame.finish_service_endpoint(endpoint, span, self.allocator)
+    }
     pub fn channel_receive(
         &mut self,
         task: usize,
@@ -411,6 +420,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 .and_then(Option::as_ref)
                 .ok_or(Reason::Invariant)?,
         );
+        self.finish_service_boundary(task, &endpoint, span)?;
         let outcome = self
             .services
             .channels
@@ -504,18 +514,22 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     ch::Send::Waiting(_) => Completion::Unexpected,
                 })
         } else {
-            self.services
-                .channels
-                .as_mut()
-                .ok_or(Reason::Invariant)?
-                .resume_receive(&mut self.services.scheduler, &wait.operation)
-                .map_err(failure)
-                .map(|outcome| match outcome {
-                    ch::Receive::Value { value, .. } => Completion::Value(1, Some(value)),
-                    ch::Receive::Closed => Completion::Value(0, None),
-                    ch::Receive::Closing => Completion::Closing(None),
-                    ch::Receive::Waiting(_) => Completion::Unexpected,
-                })
+            (|| {
+                let endpoint = observed(&wait.capture);
+                self.finish_service_boundary(task, &endpoint, wait.span)?;
+                self.services
+                    .channels
+                    .as_mut()
+                    .ok_or(Reason::Invariant)?
+                    .resume_receive(&mut self.services.scheduler, &wait.operation)
+                    .map_err(failure)
+                    .map(|outcome| match outcome {
+                        ch::Receive::Value { value, .. } => Completion::Value(1, Some(value)),
+                        ch::Receive::Closed => Completion::Value(0, None),
+                        ch::Receive::Closing => Completion::Closing(None),
+                        ch::Receive::Waiting(_) => Completion::Unexpected,
+                    })
+            })()
         };
         let completion = match resumed {
             Ok(completion) => completion,

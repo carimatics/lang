@@ -101,6 +101,10 @@ fn private_roles_read_generations_and_queue_before_state_retirement_are_checked(
         .unwrap();
     let mut owner = channels.receiver(&setup, ct(3), &mut allocator).unwrap();
     assert!(matches!(
+        channels.service_cancel(&owner, &mut scheduler, &allocator),
+        Err(Error::MessageType)
+    ));
+    assert!(matches!(
         channels.service_read(&owner, &allocator),
         Err(Error::Service(l::ServiceError::NoActiveHandler))
     ));
@@ -147,7 +151,12 @@ fn private_roles_read_generations_and_queue_before_state_retirement_are_checked(
         Some(span())
     );
     assert!(channels.service_view(read, &allocator).is_err());
-    channels.service_finish(&owner, &allocator).unwrap();
+    assert!(
+        channels
+            .service_finish(&owner, &mut scheduler, &allocator)
+            .unwrap()
+            .is_none()
+    );
     let mut session = c::Session::prepare(
         std::num::NonZeroUsize::new(8).unwrap(),
         &mut m::Budget::new(Default::default()),

@@ -7,6 +7,12 @@ pub(crate) struct Retired<'l, 'ty> {
     message: Option<Message<'l, 'ty>>,
 }
 impl<'l, 'ty> Retired<'l, 'ty> {
+    pub(super) fn channel(channel: usize) -> Self {
+        Self {
+            channel: Some(channel),
+            message: None,
+        }
+    }
     pub(crate) fn message<P: a::Provider>(
         message: &mut Message<'l, 'ty>,
         allocator: &mut a::Allocator<P>,
@@ -136,7 +142,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             },
             role,
         )?;
-        self.service_boundary(channel)?;
+        self.service_close(channel)?;
         token.bytes.fill(0);
         allocator.bytes_mut(handle)?[32..40].copy_from_slice(&0u64.to_le_bytes());
         if role == Role::Setup {
@@ -147,6 +153,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         self.backing[channel].retired = true;
         self.backing[channel].draining = true;
         self.hub.refresh(scheduler)?;
+        self.service_unlink(channel);
         Ok(Some(Retired {
             channel: Some(channel),
             message: None,
@@ -170,7 +177,9 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         }
         self.backing[channel].free = Vec::new();
         self.backing[channel].draining = false;
-        if self.hub.channels[channel].producers == 0 {
+        if self.hub.channels[channel].producers == 0
+            && self.hub.channels[channel].role == Role::Retired
+        {
             allocator.release(self.backing[channel].header.take().ok_or(Error::State)?)?;
         }
         Ok(())

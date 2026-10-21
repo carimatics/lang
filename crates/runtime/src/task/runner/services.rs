@@ -222,6 +222,32 @@ impl<'l, 'ty> Services<'l, 'ty> {
             )
         })
     }
+    pub(crate) fn retire_channel<P: a::Provider>(
+        &mut self,
+        types: &o::VerifiedTypes,
+        value: &mut Option<crate::channel::managed::Retired<'l, 'ty>>,
+        allocator: &mut a::Allocator<P>,
+        context: &mut c::Context<'_>,
+    ) -> Result<(), u32> {
+        let meter = self.work.clone();
+        meter.unmetered(|| {
+            self.drain.as_mut().ok_or(3u32)?.channel(
+                value,
+                r::Services {
+                    heap: self.heap.as_mut(),
+                    channels: self
+                        .channels
+                        .as_mut()
+                        .map(|channels| (channels, &mut self.scheduler)),
+                },
+                allocator,
+                context,
+                |token, allocator, _, _| {
+                    crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                },
+            )
+        })
+    }
     pub fn close<P: a::Provider>(&mut self, allocator: &mut a::Allocator<P>) -> Result<(), Reason> {
         let meter = self.work.clone();
         meter.unmetered(|| {

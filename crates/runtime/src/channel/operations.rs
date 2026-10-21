@@ -55,7 +55,7 @@ impl<T: Payload> Hub<T> {
         self.channels[channel].send_tail = Some(slot);
     }
 
-    fn unlink(&mut self, slot: usize) {
+    pub(super) fn unlink(&mut self, slot: usize) {
         let p = self.pending[slot].as_ref().unwrap();
         let (channel, previous, next, send) = (
             p.channel,

@@ -58,6 +58,8 @@ struct Backing<'l, 'ty> {
     header: Option<a::Handle>,
     message: o::Type,
     free: Vec<l::Reservation<'l, 'ty>>,
+    // Physical queue/state storage may retire before a service's live owner
+    // and producer identities release their shared header.
     retired: bool,
     draining: bool,
     service: Option<service::State<'l, 'ty>>,

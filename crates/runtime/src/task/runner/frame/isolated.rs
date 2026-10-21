@@ -15,7 +15,54 @@ fn service_error(error: g::Error) -> Result<l::ServiceError, Reason> {
         error => Err(failure(error)),
     }
 }
-impl Access<'_, '_, '_> {
+impl<'l, 'ty> Access<'_, 'l, 'ty> {
+    fn retire_service<P: a::Provider>(
+        &mut self,
+        value: Option<g::Retired<'l, 'ty>>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        if value.is_none() {
+            return Ok(());
+        }
+        let services = &mut self.services;
+        let types = self.frame.types;
+        let managed = self.frame.managed.as_mut().ok_or(Reason::Invariant)?;
+        let meter = services.work.clone();
+        meter.unmetered(|| {
+            managed
+                .session
+                .retire(
+                    c::Slot(0),
+                    value,
+                    Some(span),
+                    c::Reason::ScopeExit,
+                    &mut c::Contextual::new(
+                        |value: &mut Option<g::Retired<'l, 'ty>>,
+                         _,
+                         context: &mut c::Context<'_>| {
+                            services.retire_channel(types, value, allocator, context)
+                        },
+                    ),
+                )
+                .map_err(|_| Reason::Cleanup)
+        })
+    }
+    pub fn finish_service_endpoint<P: a::Provider>(
+        &mut self,
+        owner: &l::Token,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        let value = self
+            .services
+            .channels
+            .as_mut()
+            .ok_or(Reason::Invariant)?
+            .service_before_receive(owner, &mut self.services.scheduler, allocator)
+            .map_err(failure)?;
+        self.retire_service(value, span, allocator)
+    }
     #[expect(
         clippy::too_many_arguments,
         reason = "Keep the verified operands, result loan and allocator explicit at the service boundary."
@@ -196,12 +243,26 @@ impl Access<'_, '_, '_> {
             }
             O::ServiceFinish => {
                 let owner = self.endpoint(first, allocator)?;
-                self.services
+                let value = self
+                    .services
                     .channels
                     .as_mut()
                     .ok_or(Reason::Invariant)?
-                    .service_finish(&owner, allocator)
+                    .service_finish(&owner, &mut self.services.scheduler, allocator)
                     .map_err(failure)?;
+                self.retire_service(value, span, allocator)?;
+                self.write(to, l::Immediate::Unit, allocator)
+            }
+            O::ServiceCancel => {
+                let handle = self.endpoint(first, allocator)?;
+                let value = self
+                    .services
+                    .channels
+                    .as_mut()
+                    .ok_or(Reason::Invariant)?
+                    .service_cancel(&handle, &mut self.services.scheduler, allocator)
+                    .map_err(failure)?;
+                self.retire_service(value, span, allocator)?;
                 self.write(to, l::Immediate::Unit, allocator)
             }
             _ => Err(Reason::Unsupported),

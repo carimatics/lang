@@ -1,0 +1,66 @@
+struct State { total:i64, marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut buffer:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(buffer,value));
+    return buffer;
+}
+fn unavailable(error:core::ServiceError)->core::Unit {
+    match error {
+        core::ServiceError::InvalidCapacity=>{return core::panic::<core::Unit>(-10);},
+        core::ServiceError::Allocation(detail)=>{return core::panic::<core::Unit>(-10);},
+        core::ServiceError::Unavailable=>{return core::Unit {};},
+        core::ServiceError::NoActiveHandler=>{return core::panic::<core::Unit>(-10);},
+        core::ServiceError::InvalidPublication=>{return core::panic::<core::Unit>(-10);},
+    }
+}
+async fn producer(handle:core::ServiceHandle<core::Bytes>)->i64 {
+    let mut first:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(20));
+    let mut second:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(22));
+    let mut third:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(42));
+    let mut recovered:core::Bytes=core::channel_unsent::<core::Bytes>(third);
+    return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&recovered,0));
+}
+async fn serve(input:core::ServiceOwner<State,core::Bytes>,handle:core::ServiceHandle<core::Bytes>)->i64 {
+    let mut owner:core::ServiceOwner<State,core::Bytes>=input;
+    let mut first:core::Bytes=core::option_unwrap::<core::Bytes>(await core::service_receive::<State,core::Bytes>(&mut owner));
+    yield;
+    let mut marker:i64=0;
+    match core::service_read::<State,core::Bytes>(&owner) {
+        core::Result::Ok(state)=>{
+            let mut requested:core::Unit=core::service_cancel::<core::Bytes>(&handle);
+            marker=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(state.marker,0));
+        },
+        core::Result::Err(read_error)=>{return core::panic::<i64>(-10);},
+    }
+    let mut replaced:core::Unit=core::result_unwrap::<core::Unit,core::ServiceError>(core::service_replace::<State,core::Bytes>(&mut owner,State {total:35+marker,marker:bytes(9)}));
+    yield;
+    let mut answer:i64=0;
+    match core::service_read::<State,core::Bytes>(&owner) {
+        core::Result::Ok(replacement)=>{answer=replacement.total;},
+        core::Result::Err(replacement_read_error)=>{return core::panic::<i64>(-10);},
+    }
+    match await core::service_receive::<State,core::Bytes>(&mut owner) {
+        core::Option::Some(unexpected_message)=>{return core::panic::<i64>(-10);},
+        core::Option::None=>{},
+    }
+    match core::service_read::<State,core::Bytes>(&owner) {
+        core::Result::Ok(unexpected_state)=>{return core::panic::<i64>(-10);},
+        core::Result::Err(closed_error)=>{let mut checked:core::Unit=unavailable(closed_error);},
+    }
+    let mut finished:core::Unit=core::service_finish::<State,core::Bytes>(&mut owner);
+    let mut repeated:core::Unit=core::service_cancel::<core::Bytes>(&handle);
+    return answer;
+}
+async fn main()->i64 {
+    let mut setup:core::ServiceSetup<State,core::Bytes>=core::result_unwrap::<core::ServiceSetup<State,core::Bytes>,core::ServiceError>(core::service_new::<State,core::Bytes>(core::allocator(),1,State {total:0,marker:bytes(7)}));
+    let mut handle:core::ServiceHandle<core::Bytes>=core::service_handle::<State,core::Bytes>(&setup);
+    let mut producer_handle:core::ServiceHandle<core::Bytes>=core::service_clone::<core::Bytes>(&handle);
+    let mut cancel_handle:core::ServiceHandle<core::Bytes>=core::service_clone::<core::Bytes>(&handle);
+    let mut owner:core::ServiceOwner<State,core::Bytes>=core::service_owner::<State,core::Bytes>(setup);
+    let mut sending:core::Task<i64>=spawn producer(producer_handle);
+    let mut serving:core::Task<i64>=spawn serve(owner,cancel_handle);
+    let mut produced:i64=core::result_unwrap::<i64,core::TaskError>(await sending);
+    let mut served:i64=core::result_unwrap::<i64,core::TaskError>(await serving);
+    return produced+served+ -42;
+}

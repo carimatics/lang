@@ -10,7 +10,14 @@ pub(super) struct State<'l, 'ty> {
     pub span: Option<Span>,
     generation: u64,
     readers: usize,
-    active: bool,
+    phase: Phase,
+    requested: bool,
+}
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Phase {
+    Idle,
+    Active,
+    Closed,
 }
 #[derive(Clone, Copy)]
 pub(crate) struct Read {
@@ -148,7 +155,8 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             span,
             generation: 0,
             readers: 0,
-            active: false,
+            phase: Phase::Idle,
+            requested: false,
         });
         let result = self.create_inner(endpoint, capacity, span, allocator, &mut state);
         if result.is_ok() {
@@ -208,10 +216,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             .service
             .as_mut()
             .ok_or(Error::MessageType)?;
-        if state.storage.is_none() {
+        if state.phase == Phase::Closed {
             return Err(Error::Service(l::ServiceError::Unavailable));
         }
-        if !state.active {
+        if state.phase != Phase::Active {
             return Err(Error::Service(l::ServiceError::NoActiveHandler));
         }
         let readers = state.readers.checked_add(1).ok_or(Error::State)?;
@@ -237,7 +245,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         if read.allocator != self.allocator
             || read.generation != state.generation
             || state.readers == 0
-            || !state.active
+            || state.phase != Phase::Active
         {
             return Err(Error::State);
         }
@@ -273,10 +281,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             .service
             .as_ref()
             .ok_or(Error::MessageType)?;
-        if state.storage.is_none() {
+        if state.phase == Phase::Closed {
             return Err(Error::Service(l::ServiceError::Unavailable));
         }
-        if !state.active {
+        if state.phase != Phase::Active {
             return Err(Error::Service(l::ServiceError::NoActiveHandler));
         }
         if state.readers != 0 {
@@ -302,26 +310,130 @@ impl<'l, 'ty> Channels<'l, 'ty> {
     pub(crate) fn service_finish<P: a::Provider>(
         &mut self,
         owner: &l::Token,
+        scheduler: &mut t::Scheduler,
         allocator: &a::Allocator<P>,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<Retired<'l, 'ty>>, Error> {
         let index = self.state_index(owner, allocator)?;
-        self.service_boundary(index)
+        self.service_boundary(index)?;
+        let state = self.backing[index].service.as_ref().ok_or(Error::State)?;
+        if state.phase != Phase::Closed
+            && (state.requested
+                || (self.hub.channels[index].sealed && self.hub.channels[index].values.is_empty()))
+        {
+            self.begin_service_disposal(index, scheduler).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+    pub(crate) fn service_before_receive<P: a::Provider>(
+        &mut self,
+        owner: &l::Token,
+        scheduler: &mut t::Scheduler,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Option<Retired<'l, 'ty>>, Error> {
+        if !matches!(owner.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::ServiceOwner(..)))
+        {
+            return Ok(None);
+        }
+        self.service_finish(owner, scheduler, allocator)
+    }
+    pub(crate) fn service_cancel<P: a::Provider>(
+        &mut self,
+        handle: &l::Token,
+        scheduler: &mut t::Scheduler,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Option<Retired<'l, 'ty>>, Error> {
+        let index = self.index(handle, allocator)?;
+        if !matches!(handle.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::ServiceHandle(_)))
+        {
+            return Err(Error::MessageType);
+        }
+        let state = self.backing[index]
+            .service
+            .as_mut()
+            .ok_or(Error::MessageType)?;
+        if state.requested || state.phase == Phase::Closed {
+            return Ok(None);
+        }
+        state.requested = true;
+        self.hub.channels[index].sealed = true;
+        self.hub.refresh(scheduler)?;
+        self.service_unlink(index);
+        if self.backing[index]
+            .service
+            .as_ref()
+            .ok_or(Error::State)?
+            .phase
+            == Phase::Active
+        {
+            return Ok(None);
+        }
+        self.begin_service_disposal(index, scheduler).map(Some)
+    }
+    fn begin_service_disposal(
+        &mut self,
+        index: usize,
+        scheduler: &mut t::Scheduler,
+    ) -> Result<Retired<'l, 'ty>, Error> {
+        if self.backing[index].draining {
+            return Err(Error::State);
+        }
+        let state = self.backing[index].service.as_mut().ok_or(Error::State)?;
+        if state.readers != 0 || state.phase == Phase::Active || state.phase == Phase::Closed {
+            return Err(Error::State);
+        }
+        state.phase = Phase::Closed;
+        self.hub.channels[index].sealed = true;
+        self.backing[index].retired = true;
+        self.backing[index].draining = true;
+        self.hub.refresh(scheduler)?;
+        self.service_unlink(index);
+        Ok(Retired::channel(index))
+    }
+    pub(super) fn service_unlink(&mut self, index: usize) {
+        if self.backing[index].service.is_none() {
+            return;
+        }
+        for slot in 0..self.hub.pending.len() {
+            if self.hub.pending[slot]
+                .as_ref()
+                .is_some_and(|p| p.channel == index && !p.revoked)
+            {
+                self.hub.unlink(slot);
+            }
+        }
     }
     pub(super) fn service_boundary(&mut self, index: usize) -> Result<(), Error> {
         if let Some(state) = self.backing[index].service.as_mut() {
             if state.readers != 0 {
                 return Err(Error::State);
             }
-            state.active = false;
+            if state.phase != Phase::Closed {
+                state.phase = Phase::Idle;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn service_close(&mut self, index: usize) -> Result<(), Error> {
+        if let Some(state) = self.backing[index].service.as_mut() {
+            if state.readers != 0 {
+                return Err(Error::State);
+            }
+            state.phase = Phase::Closed;
         }
         Ok(())
     }
     pub(super) fn service_received(&mut self, index: usize, received: bool) -> Result<(), Error> {
         if let Some(state) = self.backing[index].service.as_mut() {
-            if state.readers != 0 || state.active {
+            if state.readers != 0
+                || state.phase == Phase::Active
+                || (received && (state.phase == Phase::Closed || state.requested))
+            {
                 return Err(Error::State);
             }
-            state.active = received;
+            if received {
+                state.phase = Phase::Active;
+            }
         }
         Ok(())
     }

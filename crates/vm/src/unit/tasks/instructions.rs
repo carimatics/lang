@@ -6,9 +6,7 @@ pub(super) fn supported(op: &b::Op) -> bool {
         b::Op::PrepareService { .. } | b::Op::ServiceSend { .. } | b::Op::ServiceReceive { .. } => {
             true
         }
-        b::Op::CoreCall(call) if call.operation.is_service() => {
-            call.operation != o::core::Operation::ServiceCancel
-        }
+        b::Op::CoreCall(call) if call.operation.is_service() => true,
         _ => lang_runtime::task::runner::task_supported(op),
     }
 }

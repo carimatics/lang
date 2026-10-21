@@ -417,4 +417,30 @@ impl<'l, 't> Drain<'l, 't> {
         self.run(&mut services, allocator, context, &mut cleaner)
             .map_err(|_| FAULT)
     }
+    pub(crate) fn channel<P: a::Provider>(
+        &mut self,
+        value: &mut Option<ch::Retired<'l, 't>>,
+        mut services: Services<'_, 'l, 't>,
+        allocator: &mut a::Allocator<P>,
+        context: &mut c::Context<'_>,
+        mut cleaner: impl FnMut(
+            &mut l::Token,
+            &mut a::Allocator<P>,
+            c::Reason,
+            &mut c::Context<'_>,
+        ) -> Result<(), u32>,
+    ) -> Result<(), u32> {
+        self.check(allocator).map_err(|_| FAULT)?;
+        self.check_services(&services).map_err(|_| FAULT)?;
+        if services.channels.is_none() {
+            return Err(FAULT);
+        }
+        self.vacancy().map_err(|_| FAULT)?;
+        self.frames.push(Frame::Channel {
+            value: value.take().ok_or(FAULT)?,
+            span: context.span(),
+        });
+        self.run(&mut services, allocator, context, &mut cleaner)
+            .map_err(|_| FAULT)
+    }
 }

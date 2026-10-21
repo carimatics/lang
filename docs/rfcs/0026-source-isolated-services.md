@@ -14,7 +14,7 @@
 
 ## Summary
 
-A07 VM checkpoint (2026-10-22 JST): the owned Counter/Bytes fixture executes 20+22=42 through the existing Hub and task driver, with one actual state Reservation, checked generation/read-count loans, whole replacement, FIFO backpressure and queue-before-state owner retirement. State/read storage and observations use existing finite allocation/cell/preparation/ServiceWork controls. This explicit initial private VM profile requires Share state and refuses remaining state metadata and service_cancel before effects. Source/MIR proof still covers the complete accepted Send contract; the narrower implementation is not A03 completion. A08 supplies handler-boundary cancellation and automatic closed-state retirement, A03 completes Send state edges/prospective publication and integration, and A04 supplies native/linked parity. Ordinary layout, REPL, wire, C/foreign and package profiles retain refusal. Validation evidence is recorded on the bilingual delivery board; acceptance and this VM checkpoint do not imply stabilization.
+A08 VM checkpoint (2026-10-22 JST): the explicit Share-state private VM profile executes owned FIFO plus idle/active/parked/repeated request-only cancellation, pending payload recovery, active-handler read/replacement retention, finish/next-receive/retirement boundaries and last-producer closure. Existing backing phases, Hub sealed wake/unlink and the mixed drain retire committed messages FIFO then state without a second registry or scheduler. Closed owner/handle identities retain their header, permit idempotent operations and can transfer through messages without resurrecting state. Source/control/provider fixtures verify the real inventory, ordered panics and report truncation. Non-Share state metadata still refuses before effects; full Send state/prospective publication is A03 and native/linked parity A04. Ordinary layout, REPL, wire, C/foreign and package profiles retain refusal. Validation evidence remains on the bilingual delivery board; this checkpoint does not imply stabilization or a completed M3 gate.
 
 Accept opaque setup, owner and producer roles, explicit core operations and a handler boundary for invocation-local isolated services. Only the unique owner can read or replace state; producers can enqueue and request cancellation. Typed MIR must independently prove role, moves, loans and suspension. Acceptance is not execution or stabilization evidence.
 
@@ -38,7 +38,7 @@ OS-thread execution, detached tasks, traits/asserted Send, mutable state project
 
 ## Guide-level design
 
-This is accepted spelling. The initial A07 VM profile executes Share state; the complete Send contract and cancellation remain A08/A03.
+This is accepted spelling. The A08 VM profile executes Share state and this lifecycle; the complete Send state contract remains A03.
 
 ```text
 struct Counter { total:i64 }
@@ -178,7 +178,7 @@ Execute 20+22=42, full/empty FIFO/backpressure, pending send recovery, cancel id
 
 ## Open questions
 
-No blocking semantic question remains for A02. A07 verifies reuse of managed loan generations, one backing state Reservation and queue-before-state mixed retirement without a second owner registry or per-retirement allocation. Prospective non-Share state inspection and cancellation integration remain A08/A03 assumptions to validate. Representative cost, both-host behavior and later persisted/foreign representation remain unverified; do not infer them from acceptance.
+No blocking semantic question remains for A02. A08 verifies managed loan-generation retention, one backing state Reservation, Hub wake/unlink, closed-identity lifetime and queue-before-state mixed retirement without a second owner registry or per-retirement allocation. Prospective non-Share state inspection remains an A03 assumption to validate. Representative cost, both-host behavior and later persisted/foreign representation remain unverified; do not infer them from acceptance.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-22 JST**. Explicit roles, ordinary loans/moves, whole-state publication and an observable handler boundary preserve RFC 0005 isolation/cancellation without a new source language, unrestricted mutable projection or interpreter fallback. The composition experiment demonstrates why the ownership boundary is required. Assumptions above are recorded rather than treated as implementation evidence.
 

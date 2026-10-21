@@ -14,7 +14,7 @@
 
 ## Summary
 
-A07 VM checkpoint（2026-10-22 JST）: owned Counter/Bytes fixture は既存 Hub と task driver で 20+22=42 を実行し、実 state Reservation 1個・generation/read-count 検証 loan・全体置換・FIFO backpressure・queue-before-state owner 退役を使います。state/read storage と observation は既存の有限 allocation/cell/preparation/ServiceWork control を使います。明示した初期 private VM profile は Share state を要求し、残りの state metadata と service_cancel は副作用前に拒否します。source/MIR proof は受理済みの完全な Send 契約を検証しており、狭い実装 profile は A03 完了ではありません。A08 が handler 境界の取消と closed-state 自動退役、A03 が Send state edge/prospective publication と統合、A04 が native/別リンク parity を担います。ordinary layout・REPL・wire・C/foreign・package は拒否を保ちます。検証証拠は英日実装 Todo に記録し、受理やこの VM checkpoint から安定化を導きません。
+A08 VM checkpoint（2026-10-22 JST）: 明示 Share-state private VM profile は owned FIFO に加え、idle/active/parked/反復の request-only 取消、pending payload 回復、active handler の read/置換維持、finish/次 receive/退役境界、last-producer closure を実行します。既存 backing phase・Hub sealed wake/unlink・mixed drain が、registry や scheduler を追加せず committed message を FIFO、次に state の順で退役します。closed owner/handle identity は header を保持し、冪等操作と state を復活させない message 経由の転送を許容します。source/control/provider fixture で実 inventory・ordered panic・report 打切りを検証します。non-Share state metadata は副作用前拒否を保ち、完全な Send state/prospective publication は A03、native/別リンク parity は A04 です。ordinary layout・REPL・wire・C/foreign・package は拒否を維持します。検証証拠は英日実装 Todo に記録し、安定化や M3 gate 完了は導きません。
 
 invocation 内で隔離した service の opaque setup・owner・producer role、明示 core 操作、handler 境界を受理します。唯一の owner だけが state を read/置換でき、producer は enqueue と取消要求ができます。typed MIR は role・move・loan・suspension を独立検証します。受理は実行や安定化の証拠ではありません。
 
@@ -38,7 +38,7 @@ OS thread 実行、detached task、trait/自己申告 Send、mutable state proje
 
 ## Guide-level design
 
-受理した spelling です。初期 A07 VM profile は Share state を実行し、完全な Send 契約と取消は A08/A03 に残ります。
+受理した spelling です。A08 VM profile は Share state とこの lifecycle を実行し、完全な Send state 契約は A03 に残ります。
 
 ```text
 struct Counter { total:i64 }
@@ -178,7 +178,7 @@ Copy/owned/nested/recursive state/message、helper read、owner への合法 mov
 
 ## Open questions
 
-A02 の意味論を妨げる未決事項はありません。A07 は managed loan generation・backing 内の state Reservation 1個・queue-before-state mixed retirement の再利用を、owner registry の追加や退役ごとの allocation なしで検証します。prospective non-Share state inspection と取消統合は A08/A03 で検証する仮説に残ります。代表的 cost、両 host、将来の persisted/foreign 表現は未検証で、受理から推測しません。
+A02 の意味論を妨げる未決事項はありません。A08 は managed loan generation の保持・backing 内の state Reservation 1個・Hub wake/unlink・closed identity の寿命・queue-before-state mixed retirement を、owner registry の追加や退役ごとの allocation なしで検証します。prospective non-Share state inspection は A03 で検証する仮説に残ります。代表的 cost、両 host、将来の persisted/foreign 表現は未検証で、受理から推測しません。
 
 決定: **RFC 0001 の実験段階委任により accepted、2026-10-22 JST**。明示 role、通常 loan/move、state 全体 publication、観測可能な handler 境界により、新 source 言語・無制限 mutable projection・interpreter fallback なしで RFC 0005 の isolation/取消を保ちます。composition 実験は ownership 境界が必要な理由を示します。上記仮説は実装証拠として扱わず記録します。
 

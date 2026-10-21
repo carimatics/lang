@@ -1,0 +1,40 @@
+struct State { marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut buffer:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(buffer,value));
+    return buffer;
+}
+fn unavailable(error:core::ServiceError)->core::Unit {
+    match error {
+        core::ServiceError::InvalidCapacity=>{return core::panic::<core::Unit>(-10);},
+        core::ServiceError::Allocation(detail)=>{return core::panic::<core::Unit>(-10);},
+        core::ServiceError::Unavailable=>{return core::Unit {};},
+        core::ServiceError::NoActiveHandler=>{return core::panic::<core::Unit>(-10);},
+        core::ServiceError::InvalidPublication=>{return core::panic::<core::Unit>(-10);},
+    }
+}
+async fn main()->i64 {
+    let mut setup:core::ServiceSetup<State,core::Bytes>=core::result_unwrap::<core::ServiceSetup<State,core::Bytes>,core::ServiceError>(core::service_new::<State,core::Bytes>(core::allocator(),1,State {marker:bytes(7)}));
+    let mut handle:core::ServiceHandle<core::Bytes>=core::service_handle::<State,core::Bytes>(&setup);
+    let mut clone:core::ServiceHandle<core::Bytes>=core::service_clone::<core::Bytes>(&handle);
+    let mut owner:core::ServiceOwner<State,core::Bytes>=core::service_owner::<State,core::Bytes>(setup);
+    let mut queued:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(20));
+    let mut cancelled:core::Unit=core::service_cancel::<core::Bytes>(&handle);
+    let mut repeated:core::Unit=core::service_cancel::<core::Bytes>(&clone);
+    match core::service_read::<State,core::Bytes>(&owner) {
+        core::Result::Ok(unexpected_state)=>{return core::panic::<i64>(-10);},
+        core::Result::Err(read_error)=>{let mut checked_read:core::Unit=unavailable(read_error);},
+    }
+    match core::service_replace::<State,core::Bytes>(&mut owner,State {marker:bytes(99)}) {
+        core::Result::Ok(unexpected_unit)=>{return core::panic::<i64>(-10);},
+        core::Result::Err(replace_error)=>{let mut checked_replace:core::Unit=unavailable(replace_error);},
+    }
+    let mut finished:core::Unit=core::service_finish::<State,core::Bytes>(&mut owner);
+    let mut closed:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&clone,bytes(42));
+    let mut recovered:core::Bytes=core::channel_unsent::<core::Bytes>(closed);
+    match await core::service_receive::<State,core::Bytes>(&mut owner) {
+        core::Option::Some(unexpected_message)=>{return core::panic::<i64>(-10);},
+        core::Option::None=>{return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&recovered,0));},
+    }
+}
