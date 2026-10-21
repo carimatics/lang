@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中:** [実装 Todo](milestone-3.md) は **23 done · 1 doing · 27 todo · 80 remaining pt**。C03 checkpoint `5f11a3f` は owned source channel fixture を VM で実行して42を返し、guest allocation を退役します。実行14件と capability/admission 11件、固定入力の全 baseline **124 suite・1,872件成功・失敗0・既存 ignore 1件** が成功し、fmt、Clippy、rustdoc、全11 fuzz target compile/lint も成功しました。**完了 0 pt・新規追加 0 pt** で、残り **80 + 0 − 0 = 80 pt**。context 付き Shared/Receiver edge 検査、検証済み opaque Sender の heap publication、endpoint を含む mixed retirement、それらの source/control fixture を監査し、**C03 は doing 3 pt のまま**です。C04 native parity、全15 M3/P1 gate、actor/foreign/C/serialized/package、production embedding、最終 guide を維持します。
+**M3 は進行中:** [実装 Todo](milestone-3.md) は **24 done · 1 doing · 26 todo · 77 remaining pt**。C03 は `11769c1` で完了し、VM channel 7 fixture は42、context 付き publication、mixed retirement、取消、有限 control、513段の退役が成功しました。固定入力の baseline **124 suite・1,885件成功・失敗0・既存 ignore 1件** と fmt、Clippy、rustdoc、全11 fuzz target compile/lint が成功しました。**消化3 pt・新規追加0 pt**、残り **80 + 0 − 3 = 77 pt**。native primitive/layout admission と exact-build object binding を監査し、**C04 doing・3 pt** を選択します。全15 M3/P1 gate、actor/foreign/C/serialized/package、production embedding、最終 guide を維持します。
 
 ## 進行中 milestone の実行
 

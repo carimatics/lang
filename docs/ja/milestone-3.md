@@ -4,17 +4,17 @@
 
 [English](../milestone-3.md) · [Exit gates](../roadmap.md#milestone-3-concurrency-and-embedding)
 
-更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
+更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**23 done · 1 doing · 27 todo · 80 remaining pt**
+**24 done · 1 doing · 26 todo · 77 remaining pt**
 
-**次: M3-C03 → 最初の owned source VM fixture に続き、endpoint/shared message の context 付き検査と mixed retirement を完了します。**
+**次: M3-C04 → owned source channel fixture を生成 native continuation と linked object で実行します。**
 
-現在の作業: **M3-C03**。直近の実行可能 checkpoint は **`5f11a3f`、2026-10-21 23:51 JST 検証**です。実 source VM fixture `tests/fixtures/task_channels.lang` は capacity-one の Bytes backpressure を経て42を返します。非公開 layout、実 guest header/descriptor/reservation、共有 cell admission、保持する authority で既存 Hub と VM continuation を接続しました。source 実行14件と admission/capability 11件が成功し、取消、新 storage を使わない closed-send 回収、最古の typed deadlock、owner 起点を保持する cleanup panic、高度な profile の副作用前拒否、全 fuel/work/trace/cell/guest-allocation prefix、最終 live allocation 0 を確認しました。production 入力固定の全 baseline は **124 suites / 1,872 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **549.80s**。fmt、Clippy、rustdoc、全11 fuzz target compile/lint が成功し、fuzz campaign は主張しません。
+現在の作業: **M3-C04**。直近の実行可能な基盤 checkpoint は **`11769c1`、2026-10-22 00:55 JST 検証**です。C03 は完了し、VM CLI 7 fixture は42、channel 26件・capability/admission 11件・owned VM/native 12件が成功しました。Receiver 循環/再検査、Shared/Weak identity、Sender の heap publication/置換、混合取消 [122,22,120,20]、primary failure/panic/打切り、拡張6 fixture の control/provider/interruption prefix、quota、loop 再利用、513段の退役で全 allocation を退役します。production 入力固定の baseline は **124 suites / 1,885 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **552.42s**。fmt、Clippy（**1m 27s**）、rustdoc（**34.51s**）、全11 fuzz target compile/lint（**3.28s**）が成功し、fuzz campaign は主張しません。native channel 実行は未検証です。
 
-`5f11a3f` に照合して再監査した C03 の残条件: (1) read-only context による Shared identity・実 Receiver edge の検査、再開 publication での循環拒否、heap publication 内の検証済み opaque Sender storage、(2) endpoint を含む aggregate/container payload と既存 drain による iterative mixed retirement、(3) それらの境界、cleanup failure/report 上限、複合 control の source fixture。次の具体 fixture 4種は source check が成功しました。直接の自己循環、待機 sender の再開前に変化する Receiver edge、Shared/Weak と Vec 内 Receiver、Shared storage に保持する Sender です。runtime 実行は未検証です。元の guest-owned VM 成果の残部分であり、Hub/inspection/heap/drain interface を確認した上で **残り3 pt・消化0・追加0** を維持します。初期 scalar/flat-buffer VM message profile は高度な payload family を実行前に拒否します。通常/旧 task layout、native、wire/package channel profile の拒否を維持し、C04 は生成 native/linked-object parity を担います。行は doing のままで、全 M3/P1 gate は未完です。
+実装前に再監査した C04 の残条件: 検証済み native task adapter を非公開 channel layout に明示対応させ、capture/send/receive を既存 Machine service に lowering し、JIT と exact-build linked object で VM/native の値・event・failure/usage・退役を7 fixture と有限 control/拒否経路を含めて証明します。通常/旧 layout と wire/C/package 境界は維持します。既存 `tasks.rs` primitive compiler、共通 pending-channel 処理、trusted object binding に必要 interface があり、新 runtime や横断的前提を増やさず元の **残り3 pt** を維持します。全15 M3/P1 gate、actor/foreign/C/serialized/package、production embedding、最終 guide は引き続き必要です。
 
-**今回: C03 checkpoint、完了 0 pt・新規追加 0 pt。** 残り **80 + 0 − 0 = 80 pt**、全 **51 行**、消化 **59 pt**、純追加 **+29 pt**、収支 **110 + 29 − 59 = 80 pt**。
+**今回: C03 完了、消化3 pt・新規追加0 pt。** 残り **80 + 0 − 3 = 77 pt**、全 **51行**、消化 **62 pt**、純追加 **+29 pt**、収支 **110 + 29 − 62 = 77 pt**。doing は C04 の1行です。
 
 ## Deliveries
 
@@ -42,8 +42,8 @@
 | M3-C05 | done | 0 | M3-C01,M3-T08 | G04,G13 | Execute bounded task park/wake with branded wait tickets, FIFO resumption, cancellation revocation and stale-wake checks | `72e759c` |
 | M3-C02 | done | 0 | M3-C01,M3-C05 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | `4056cce` |
 | M3-C06 | done | 0 | M3-C02,M3-A06 | G01,G04,G05 | Decide/check opaque channel role types and distinct Send/Share independently in source/MIR; refuse legacy layouts/artifacts | `e16e537` |
-| M3-C03 | doing | 3 | M3-C02,M3-C06,M3-A05 | G04 | source channel fixture を VM 実行し payload 再利用を拒否 | — |
-| M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | native で channel の値、失敗、cleanup を一致 | — |
+| M3-C03 | done | 0 | M3-C02,M3-C06,M3-A05 | G04 | VM で source channel fixture を実行し payload 再利用を拒否する | `11769c1` |
+| M3-C04 | doing | 3 | M3-C03,M3-T06 | G04 | native 実行で channel の値・失敗・cleanup を一致させる | — |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | `9b2b68c` |
 | M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
 | M3-A05 | done | 0 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | `ea822bd` |
@@ -100,6 +100,8 @@ C02 roadmap audit: Rust host key は source 型証明や guest allocator/cell-ba
 
 ## Progress and estimate changes
 
+C03 は `11769c1`（2026-10-22 JST）で完了しました。context 付き Receiver edge 再検査、Shared/Weak identity、検証済み Sender の heap publication/置換、単一の共通 iterative retirement drain で VM message family を拡張しました。CLI 7 fixture は42、source 26件・capability/admission 11件・owned VM/native 12件が成功し、拡張6 fixture の control/provider/interruption prefix、protocol quota の境界/1未満、primary failure/panic/report 打切り、loop capture 再利用、phantom Sender 型引数、513段の退役を検証しました。同じ選択済み fixture が露出した有効な moved-local 再初期化も共通 VM/native write addressing で修正し、言語規則・format・前提行は追加しません。production 入力固定の全 baseline は **124 suites / 1,885 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **552.42s**。fmt、Clippy（**1m 27s**）、rustdoc（**34.51s**）、全11 fuzz target compile/lint（**3.28s**）が成功し、fuzz campaign は主張しません。行の最後の **3 pt** を消化し、**追加0**。board 冒頭の interface/acceptance 監査により C04 を元の **3 pt** で唯一の doing に選択し、全 gate と M3 全 scope は未完のまま維持します。
+
 C03 VM checkpoint `5f11a3f`（2026-10-21 JST）: 最初の実 owned source channel fixture が既存 Hub/driver を使って42を返します。guest header、sender descriptor、queue/staged Reservation は invocation allocator を使い、実 host queue/cache metadata は preparation 時に admission し、queue/pending cell は有限 cell control を共有します。非公開 capture は suspension・取消を越えて保持し、取消は unlink 後に退役、closed send は新 storage を allocation せず回収、最古の typed deadlock は abort 前に記録します。source 14件と capability/admission 11件が成功しました。失敗 send からの extraction と cleanup panic でも owner span を保持し、高度な endpoint を含む indirect storage は副作用前に明示拒否します。production 入力固定の全 baseline は **124 suites / 1,872 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **549.80s**。fmt、最終 Clippy（**1m 23s**）、rustdoc（**38.84s**）、全11 fuzz target compile/lint（**3.67s**）が成功しました。fuzz campaign、C03 delivery 完了、M3 gate 完了は主張しません。board 冒頭の interface 監査に従い、context 付き inspection/heap publication、iterative mixed retirement、それらの source/control fixture に **残り3 pt・消化0・追加0** を維持し、新しい横断的前提を増やしません。
 
 C03 checkpoint `f4fb49e`（2026-10-21 JST）: 実装前に具体 source catalog を受理し、明示 prepared channel authority と source/MIR の suspension/所有権 proof を追加し、SendResult 両失敗 case の arena brand を保持し、Hub の明示 inspection context/再検査と payload owner/operation span の分離を追加しました。schema 2/3/4 は全新 type/op/core call を出力前に拒否し、VM/native profile は guest/provider allocation 前の拒否を維持します。最終 guest Bytes 実験も42、通常 [20,22]・取消 [22,20] の退役、peak live allocation 6、最終 live 0 です。全 baseline は **122 suites / 1,854 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **551.32s**、fmt、最終 Clippy（**4.48s**）、rustdoc（**53.02s**）、全11 fuzz target compile/lint（**4.15s**）が成功しました。fuzz campaign、source VM 実行、delivery/gate 完了は主張しません。
@@ -146,7 +148,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 29 − 59 = 80 pt**
+**110 + 29 − 62 = 77 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -194,13 +196,15 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +29 pt | −59 pt | 80 pt |
+| 110 pt | +29 pt | −62 pt | 77 pt |
 
 ## Exit audit
 
 **0/15 ゲート完了、ゲート重み 0/96。** 作業の完了とゲートの完了は別です。source async 構文は採択済みですが、G01 には channel/backpressure と Send/Share の決定が残っています。G14 には macOS AArch64 と Windows x86-64 で実際の cross-mode 適合試験が必要です。P1 作業も M3 に残します。
 
 ## Sources
+
+- C03 `11769c1` の根拠: [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md)、最終更新 2026-10-22。managed channel、retirement/heap/frame adapter、`tests/source_channels.rs`、`tests/task_owned_execution.rs`、source 7 fixture。code に更新日の埋込みはなく、2026-10-22 JST に macOS AArch64 で確認/実行しました。C04 監査では同じ checkpoint の `crates/codegen-clif/src/tasks.rs`、`tasks/object.rs`、共通 native primitive、pending-channel continuation 処理も確認しました。
 
 - 開始時の参照: `984557d` 時点の[ロードマップ](roadmap.md)、[architecture](architecture.md)、[完了済み M2 board](milestone-2.md)、[レビュー](review-2026-10-20.md)。当時の版の最終更新は 2026-10-20、確認日は 2026-10-20 JST です。T09 の roadmap/architecture 再確認は 2026-10-21 JST です。
 - [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21 と [RFC 0003](rfcs/0003-versioned-component-contracts.md)、最終更新 2026-10-17。契約を引き続き遵守し、prototype は production 完了の証拠にしません。
