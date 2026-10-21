@@ -1,0 +1,125 @@
+// T07: integrate owned sums/recursion/collections/shared/arena and nested joins.
+struct Item { text: core::Text, bytes: core::Bytes }
+struct Store { values: core::Map<core::Text, Item>, history: core::Vec<Item> }
+struct Rejected { store: shared Store }
+struct Snapshot { values: core::Vec<Item>, extra: Item }
+
+fn bytes(value: i64) -> core::Bytes {
+    let mut result: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(result, value));
+    return result;
+}
+
+fn word(value: i64) -> core::Text {
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes(value)));
+}
+
+fn item(value: i64) -> Item {
+    // Reverse source order also exercises aggregate construction/drop metadata.
+    return Item { bytes: bytes(value), text: word(66) };
+}
+
+fn carry(value: Item, depth: i64) -> Item {
+    if depth < 1 { return value; }
+    return carry(value, depth + (-1));
+}
+
+fn score(store: &Store, query: &core::Text) -> i64 {
+    let mut found: i64 = 0;
+    match core::map_get::<core::Text, Item>(store.values, query) {
+        core::Option::Some(value) => {
+            found = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(value.bytes, 0));
+        },
+        core::Option::None => { return -1; },
+    }
+    match core::vec_get::<Item>(store.history, 0) {
+        core::Result::Ok(history_item) => {
+            return found + core::bytes_len(history_item.bytes) + core::text_len(history_item.text);
+        },
+        core::Result::Err(_) => { return -2; },
+    }
+}
+
+enum Parcel { Pair(Item, Item), Single(Item), Empty }
+fn forward(value:Parcel,depth:i64)->Parcel {
+    if depth<1 {return value;}
+    return forward(value,depth+(-1));
+}
+fn parcel_score(value:&Parcel)->i64 {
+    match value {
+        Parcel::Pair(left,right)=>{return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(left.bytes,0))+core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(right.bytes,0));},
+        Parcel::Single(one)=>{return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(one.bytes,0));},
+        Parcel::Empty=>{return 0;},
+    }
+}
+async fn tail()->i64 {
+    let mut owned:core::Bytes=bytes(77);
+    yield;
+    cancel_check;
+    return 0;
+}
+async fn scenario(explode: bool) -> i64 {
+    let mut parcel:Parcel=forward(Parcel::Pair(item(8),item(9)),1);
+    let mut spare:Parcel=Parcel::Single(item(11));
+    let mut empty:Parcel=Parcel::Empty;
+    let mut history: core::Vec<Item> = core::result_unwrap::<core::Vec<Item>, core::AllocError>(core::vec_new::<Item>(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<Item>(history, carry(item(41), 1)));
+    let mut moved: Item = core::option_unwrap::<Item>(core::vec_pop::<Item>(history));
+    let mut values: core::Map<core::Text, Item> = core::result_unwrap::<core::Map<core::Text, Item>, core::AllocError>(core::map_new::<core::Text, Item>(core::allocator()));
+    let mut added: core::Option<Item> = core::result_unwrap::<core::Option<Item>, core::AllocError>(core::map_insert::<core::Text, Item>(values, word(65), moved));
+    let mut replaced: core::Option<Item> = core::result_unwrap::<core::Option<Item>, core::AllocError>(core::map_insert::<core::Text, Item>(values, word(65), item(40)));
+    let mut previous: Item = core::option_unwrap::<Item>(replaced);
+    let mut retained: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<Item>(history, previous));
+    let mut owner: shared Store = core::result_unwrap::<shared Store, core::OwnershipError>(core::shared_new::<Store>(core::allocator(), Store { history: history, values: values }));
+    let mut observer: weak Store = core::result_unwrap::<weak Store, core::OwnershipError>(core::weak_new::<Store>(owner));
+    let mut query: core::Text = word(65);
+    let mut result: i64 = 0;
+    arena graph(core::allocator()) {
+        let mut retained_store: shared Store = core::result_unwrap::<shared Store, core::OwnershipError>(core::shared_clone::<Store>(owner));
+        let mut rejected: core::Result<arena Rejected, core::ArenaError> = core::arena_new::<Rejected>(graph, Rejected { store: core::result_unwrap::<shared Store, core::OwnershipError>(core::shared_clone::<Store>(retained_store)) });
+        match rejected {
+            core::Result::Ok(_) => { return -7; },
+            core::Result::Err(rejected_error) => {
+                match rejected_error {
+                    core::ArenaError::CrossRegion => {},
+                    _ => { return -8; },
+                }
+            },
+        }
+        let mut local_values: core::Vec<Item> = core::result_unwrap::<core::Vec<Item>, core::AllocError>(core::vec_new::<Item>(core::allocator()));
+        let mut local_added: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<Item>(local_values, item(0)));
+        let mut snapshot: arena Snapshot = core::result_unwrap::<arena Snapshot, core::ArenaError>(core::arena_new::<Snapshot>(graph, Snapshot { extra: item(0), values: local_values }));
+        let mut dropped: core::Unit = core::drop::<shared Store>(owner);
+        task_scope {
+            let mut child:core::Task<i64>=spawn tail();
+            yield;
+            cancel_check;
+            if explode { return core::panic::<i64>(-42); }
+            let mut pattern_result:i64=parcel_score(parcel)+parcel_score(spare)+parcel_score(empty);
+            if pattern_result<28 {return -9;}
+            if 28<pattern_result {return -10;}
+        match core::arena_read::<Snapshot>(graph, snapshot) {
+            core::Result::Ok(snapshot_view) => {
+                match core::shared_read::<Store>(retained_store) {
+                    core::Result::Ok(store) => {
+                        result = score(store, query) + core::vec_len::<Item>(snapshot_view.values) + core::text_len(snapshot_view.extra.text) + (-2);
+                    },
+                    core::Result::Err(_) => { return -3; },
+                }
+            },
+            core::Result::Err(_) => { return -4; },
+        }
+        }
+    }
+    match core::weak_upgrade::<Store>(observer) {
+        core::Result::Ok(_) => { return -5; },
+        core::Result::Err(error) => {
+            match error {
+                core::OwnershipError::ExpiredWeak => { return result; },
+                _ => { return -6; },
+            }
+        },
+    }
+}
+
+async fn main()->i64{return core::result_unwrap::<i64,core::TaskError>(await scenario(false));}

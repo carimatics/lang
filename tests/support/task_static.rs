@@ -42,6 +42,15 @@ fn standalone_task_objects_execute_generated_continuations() {
             include_str!("../fixtures/task_owned_arena.lang").to_owned(),
         ),
         (
+            "owned-integration",
+            include_str!("../fixtures/task_owned_integrated.lang").to_owned(),
+        ),
+        (
+            "owned-integration-panic",
+            include_str!("../fixtures/task_owned_integrated.lang")
+                .replace("await scenario(false)", "await scenario(true)"),
+        ),
+        (
             "cancel",
             format!(
                 "{WORKER}async fn main()->i64{{let mut h:core::Task<i64>=spawn worker(42);cancel h;let mut r:core::Result<i64,core::TaskError>=await h;match r{{core::Result::Ok(n)=>{{return n;}},core::Result::Err(core::TaskError::Cancelled)=>{{return 7;}},}}}}"
@@ -100,7 +109,7 @@ fn main(){{
     let limits=r::Limits{{trace_events:512,..Default::default()}};let control=e::Control::with_limits(Default::default());
     let baseline=compare(proof.verified(),&native,control,limits);let usage=match &baseline{{Ok(o)=>o.usage,Err(e)=>e.usage}};
     for fuel in 0..=usage.fuel{{let _=compare(proof.verified(),&native,e::Control::with_limits(e::Limits{{fuel:Some(fuel),..Default::default()}}),limits);}}
-    match baseline{{Ok(out)=>println!("{{}}",out.value),Err(error)=>{{assert!(matches!(error.reason,r::Reason::Panic(Some(91))));println!("panic 91");}}}}
+    match baseline{{Ok(out)=>println!("{{}}",out.value),Err(error)=>{{let r::Reason::Panic(Some(code))=error.reason else{{panic!("unexpected linked task failure")}};assert!(matches!(code,91|-42));println!("panic {{code}}");}}}}
 }}
 "#)).unwrap();
     let executable = files
@@ -158,10 +167,12 @@ fn main(){{
         assert_eq!(
             String::from_utf8_lossy(&output.stdout).trim(),
             match *label {
-                "join" | "aggregate" | "owned-pipeline" | "owned-arena" => "42",
+                "join" | "aggregate" | "owned-pipeline" | "owned-arena" | "owned-integration" =>
+                    "42",
                 "cancel" | "owned-cancel" => "7",
                 "owned-buffers" => "71",
                 "sync-loans" => "12",
+                "owned-integration-panic" => "panic -42",
                 _ => "panic 91",
             }
         );
