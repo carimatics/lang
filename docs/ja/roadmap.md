@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **22 done · 1 doing · 28 todo · 83 remaining pt** です。C02（`4056cce`）の有限 trusted-host channel が owned send/receive、FIFO backpressure、close/取消/循環/限界拒否を実行し、host fixture は42、17重点テストと全118 suite / 1,826 test が成功、失敗0、既存 timing ignore 1 件です。source/MIR には endpoint 型がなく現在の Send/Share が同値のため、source 実行前に **C06（新規3 pt）** で role 型と異なる capability を独立検証して legacy profile を拒否します。その後 C03/C04 の guest allocator/cell-backed source/VM/native fixture に進みます。今回の **C02 消化3 pt** と **C06 新追加3 pt** を別計上し、累積追加 **+29 pt**、消化 **56 pt**、収支 **110 + 29 − 56 = 83 pt**。source channel、全15 M3/P1 gate、actor/foreign/C/serialized/package/production embedding、最終 guide を維持します。日付付き証拠は board と [roadmap 履歴](roadmap-history.md)に保持します。
+**M3 は進行中:** [実装 Todo](milestone-3.md) は **23 done · 1 doing · 27 todo · 80 remaining pt**。C06（`e16e537`）は opaque ChannelSetup/Sender/Receiver の identity と異なる Send/Share を source/MIR で独立検証します。重点11件、追加 writer 境界1件、既存 capability 7件が成功し、未使用 message、再帰/alias、検証予算、旧 layout/wire/native package の副作用前拒否を確認しました。固定入力の全体検証は119 suite・1,838件成功・失敗0・既存 ignore 1件で、fmt、Clippy、rustdoc、全11 fuzz target compile/lint も成功しました。**C06 完了 −3 pt と新規追加 0 pt** を別計上し、残りは **83 − 3 = 80 pt**。次は **C03** で具体 call/error/MIR catalog を実装前に記録し、既存 Hub/managed reservation を guest allocator/cell-backed VM source fixture に接続します。C04 native parity と全15 M3/P1 gate、actor/foreign/C/serialized/package、production embedding、最終 guide を維持し、source channel 実行は未完です。
 
 ## 進行中 milestone の実行
 
