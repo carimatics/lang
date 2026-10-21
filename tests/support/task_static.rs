@@ -82,6 +82,26 @@ fn standalone_task_objects_execute_generated_continuations() {
             include_str!("../fixtures/task_channel_text.lang").to_owned(),
         ),
         (
+            "channel-copy-option",
+            include_str!("../fixtures/task_channel_copy_sum.lang").to_owned(),
+        ),
+        (
+            "channel-copy-unit",
+            include_str!("../fixtures/task_channel_copy_unit.lang").to_owned(),
+        ),
+        (
+            "channel-copy-aggregate",
+            include_str!("../fixtures/task_channel_copy.lang").to_owned(),
+        ),
+        (
+            "channel-copy-cancel",
+            include_str!("../fixtures/task_channel_copy_cancel.lang").to_owned(),
+        ),
+        (
+            "channel-copy-recover",
+            include_str!("../fixtures/task_channel_copy_recover.lang").to_owned(),
+        ),
+        (
             "owned-integration-panic",
             include_str!("../fixtures/task_owned_integrated.lang")
                 .replace("await scenario(false)", "await scenario(true)"),

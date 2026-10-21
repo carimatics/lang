@@ -1,0 +1,8 @@
+async fn main()->i64 {
+    let mut setup:core::ServiceSetup<i64,core::Unit>=core::result_unwrap::<core::ServiceSetup<i64,core::Unit>,core::ServiceError>(core::service_new::<i64,core::Unit>(core::allocator(),1,7));
+    let mut handle:core::ServiceHandle<core::Unit>=core::service_handle::<i64,core::Unit>(&setup);
+    let mut owner:core::ServiceOwner<i64,core::Unit>=core::service_owner::<i64,core::Unit>(setup);
+    let mut sent:core::SendResult<core::Unit>=await core::service_send::<core::Unit>(&handle,core::Unit {});
+    let mut received:core::Unit=core::option_unwrap::<core::Unit>(await core::service_receive::<i64,core::Unit>(&mut owner));
+    return 42;
+}

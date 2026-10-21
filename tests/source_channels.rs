@@ -23,6 +23,89 @@ fn prepare(text: &str) -> Box<TaskProgram> {
 }
 
 #[test]
+fn scalar_and_error_copy_messages_keep_the_existing_thirteen_work_events() {
+    for (ty, value, body) in [
+        ("i64", "42", "return received+recovered+original+ -84;"),
+        (
+            "bool",
+            "true",
+            "if received { if recovered { return 42; } } return 0;",
+        ),
+        (
+            "core::TaskError",
+            "core::TaskError::Cancelled",
+            "match recovered { core::TaskError::Cancelled=>{ return 42; }, }",
+        ),
+    ] {
+        let text = format!(
+            r#"
+async fn main()->i64 {{
+    let mut setup:core::ChannelSetup<{ty}>=core::result_unwrap::<core::ChannelSetup<{ty}>,core::ChannelError>(core::channel_new::<{ty}>(core::allocator(),1));
+    let mut sender:core::Sender<{ty}>=core::channel_sender::<{ty}>(&setup);
+    let mut receiver:core::Receiver<{ty}>=core::channel_receiver::<{ty}>(setup);
+    let mut original:{ty}={value};
+    let mut sent:core::SendResult<{ty}>=await core::channel_send::<{ty}>(&sender,original);
+    let mut received:{ty}=core::option_unwrap::<{ty}>(await core::channel_receive::<{ty}>(&mut receiver));
+    let mut sealed:core::Unit=core::channel_seal::<{ty}>(&mut receiver);
+    let mut closed:core::SendResult<{ty}>=await core::channel_send::<{ty}>(&sender,original);
+    let mut recovered:{ty}=core::channel_unsent::<{ty}>(closed);
+    {body}
+}}
+"#
+        );
+        let program = prepare(&text);
+        for work in [12, 13] {
+            let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+            let result = lang_vm::unit::tasks::execute_entry(
+                program.verified(),
+                &mut allocator,
+                e::Control::with_limits(Default::default()).and_service_work(Some(work)),
+                Default::default(),
+            );
+            assert_eq!(allocator.stats().live_allocations, 0, "{ty} work={work}");
+            if work == 13 {
+                let outcome = result.unwrap();
+                assert_eq!(outcome.value, 42);
+                assert_eq!(outcome.usage.service_work, 13, "{ty}");
+            } else {
+                let failure = result.err().expect("one below the existing event count");
+                assert!(
+                    matches!(
+                        failure.reason,
+                        r::Reason::Control(e::Failure::ServiceWorkLimit { .. })
+                    ),
+                    "{ty}: {failure:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn copy_sum_channel_messages_round_trip_without_losing_staged_storage() {
+    for text in [
+        include_str!("fixtures/task_channel_copy_sum.lang").to_owned(),
+        channel_fixtures::copy_quota_source(false),
+    ] {
+        let program = prepare(&text);
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let result = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut allocator,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        );
+        assert_eq!(
+            allocator.stats().live_allocations,
+            0,
+            "{:?}",
+            result.as_ref().err()
+        );
+        assert_eq!(result.unwrap().value, 42);
+    }
+}
+
+#[test]
 fn owned_source_channels_execute_backpressure_and_retire_every_guest_allocation() {
     let program = prepare(include_str!("fixtures/task_channels.lang"));
     let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();

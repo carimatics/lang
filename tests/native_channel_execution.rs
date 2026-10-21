@@ -23,28 +23,81 @@ fn prepare(text: &str) -> Box<TaskProgram> {
 }
 
 #[test]
+fn copy_aggregate_channel_quota_boundaries_match_vm() {
+    let program = prepare(&channel_fixtures::copy_quota_source(false));
+    let native =
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
+            .unwrap();
+    let exact = lang_runtime::channel::Limits {
+        channels: 1,
+        slots: 1,
+        handles: 1,
+        waiters: 1,
+    };
+    for kind in 0..=4 {
+        let mut channels = exact;
+        match kind {
+            0 => channels.channels = 0,
+            1 => channels.slots = 0,
+            2 => channels.handles = 0,
+            3 => channels.waiters = 0,
+            _ => {}
+        }
+        let mut expected = None;
+        for compiled in [false, true] {
+            let (mut allocator, trace) = channel_allocator(usize::MAX);
+            let result = execute(
+                &program,
+                &native,
+                compiled,
+                &mut allocator,
+                e::Control::with_limits(Default::default()),
+                r::Limits {
+                    channels,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(result.is_ok(), kind == 4, "quota {kind} native={compiled}");
+            if kind < 4 {
+                use lang_runtime::channel::{Error as C, managed::Error as G};
+                let failure = result.as_ref().err().expect("quota refusal");
+                assert!(
+                    matches!(
+                        (kind, &failure.reason),
+                        (
+                            0,
+                            r::Reason::Channel(G::Protocol(C::ChannelLimit { limit: 0 }))
+                        ) | (
+                            1,
+                            r::Reason::Channel(G::Protocol(C::SlotLimit { limit: 0 }))
+                        ) | (
+                            2,
+                            r::Reason::Channel(G::Protocol(C::HandleLimit { limit: 0 }))
+                        ) | (
+                            3,
+                            r::Reason::Channel(G::Protocol(C::WaiterLimit { limit: 0 }))
+                        )
+                    ),
+                    "quota {kind}: {failure:?}"
+                );
+            }
+            if let Ok(outcome) = &result {
+                assert_eq!(outcome.value, 42);
+            }
+            assert!(trace.borrow().live.is_empty());
+            assert_eq!(allocator.stats().live_allocations, 0);
+            if let Some(previous) = &expected {
+                compare(previous, &result, "Copy message quota");
+            } else {
+                expected = Some(result);
+            }
+        }
+    }
+}
+
+#[test]
 fn source_channel_fixtures_match_vm_on_generated_native_continuations() {
-    for (name, text) in [
-        ("backpressure", include_str!("fixtures/task_channels.lang")),
-        (
-            "self-cycle",
-            include_str!("fixtures/task_channel_self_cycle.lang"),
-        ),
-        (
-            "reinspection",
-            include_str!("fixtures/task_channel_reinspect.lang"),
-        ),
-        ("mixed", include_str!("fixtures/task_channel_mixed.lang")),
-        (
-            "shared-sender",
-            include_str!("fixtures/task_channel_shared_sender.lang"),
-        ),
-        (
-            "mixed-cancel",
-            include_str!("fixtures/task_channel_mixed_cancel.lang"),
-        ),
-        ("text", include_str!("fixtures/task_channel_text.lang")),
-    ] {
+    for (name, text) in fixtures() {
         let program = prepare(text);
         let native = lang_codegen_clif::tasks::CompiledProgram::compile(
             program.verified(),

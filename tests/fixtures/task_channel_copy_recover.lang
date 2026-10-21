@@ -1,0 +1,53 @@
+struct Pair { left:i64, right:i64 }
+enum Message { Empty, Pair(Pair), Nested(core::Option<core::Result<Pair,core::TaskError>>) }
+
+fn amount(message:Message)->i64 {
+    match message {
+        Message::Empty=>{ return 0; },
+        Message::Pair(pair)=>{ return pair.left+pair.right; },
+        Message::Nested(value)=>{
+            let mut nested:Pair=core::result_unwrap::<Pair,core::TaskError>(core::option_unwrap::<core::Result<Pair,core::TaskError>>(value));
+            return nested.left+nested.right;
+        },
+    }
+}
+
+async fn records()->i64 {
+    let mut setup:core::ChannelSetup<Pair>=core::result_unwrap::<core::ChannelSetup<Pair>,core::ChannelError>(core::channel_new::<Pair>(core::allocator(),1));
+    let mut sender:core::Sender<Pair>=core::channel_sender::<Pair>(&setup);
+    let mut receiver:core::Receiver<Pair>=core::channel_receiver::<Pair>(setup);
+    let mut original:Pair=Pair { left:20,right:22 };
+    let mut sent:core::SendResult<Pair>=await core::channel_send::<Pair>(&sender,original);
+    let mut received:Pair=core::option_unwrap::<Pair>(await core::channel_receive::<Pair>(&mut receiver));
+    let mut sealed:core::Unit=core::channel_seal::<Pair>(&mut receiver);
+    let mut closed:core::SendResult<Pair>=await core::channel_send::<Pair>(&sender,original);
+    let mut recovered:Pair=core::channel_unsent::<Pair>(closed);
+    return received.left+recovered.right;
+}
+
+async fn producer(sender:core::Sender<Message>)->i64 {
+    let mut first:core::SendResult<Message>=await core::channel_send::<Message>(&sender,Message::Empty);
+    let mut original:Message=Message::Nested(core::Option::Some(core::Result::Ok(Pair { left:20,right:22 })));
+    let mut blocked:core::SendResult<Message>=await core::channel_send::<Message>(&sender,original);
+    let mut recovered:Message=core::channel_unsent::<Message>(blocked);
+    return amount(original)+amount(recovered)+ -42;
+}
+
+async fn recovery(wake:bool)->i64 {
+    let mut setup:core::ChannelSetup<Message>=core::result_unwrap::<core::ChannelSetup<Message>,core::ChannelError>(core::channel_new::<Message>(core::allocator(),1));
+    let mut sender:core::Sender<Message>=core::channel_sender::<Message>(&setup);
+    let mut receiver:core::Receiver<Message>=core::channel_receiver::<Message>(setup);
+    let mut sending:core::Task<i64>=spawn producer(sender);
+    yield;
+    if wake {
+        let mut received:Message=core::option_unwrap::<Message>(await core::channel_receive::<Message>(&mut receiver));
+    }
+    let mut sealed:core::Unit=core::channel_seal::<Message>(&mut receiver);
+    return core::result_unwrap::<i64,core::TaskError>(await sending);
+}
+
+async fn main()->i64 {
+    let mut parked:i64=core::result_unwrap::<i64,core::TaskError>(await recovery(false));
+    let mut woken:i64=core::result_unwrap::<i64,core::TaskError>(await recovery(true));
+    return parked+woken+ -42;
+}

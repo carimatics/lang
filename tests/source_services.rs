@@ -17,6 +17,29 @@ const SERVICE_SHUTDOWN_FIXTURES: &[(&str, &str)] = &[
     ),
 ];
 
+const SERVICE_COPY_FIXTURES: &[(&str, &str)] = &[
+    (
+        "copy-unit",
+        include_str!("fixtures/task_service_copy_unit.lang"),
+    ),
+    (
+        "copy-option",
+        include_str!("fixtures/task_service_copy_sum.lang"),
+    ),
+    (
+        "copy-aggregate",
+        include_str!("fixtures/task_service_copy.lang"),
+    ),
+    (
+        "copy-cancel",
+        include_str!("fixtures/task_service_copy_cancel.lang"),
+    ),
+    (
+        "copy-recover",
+        include_str!("fixtures/task_service_copy_recover.lang"),
+    ),
+];
+
 fn prepare(text: &str) -> Box<TaskProgram> {
     let out = lang::frontend::analyze_virtual(
         lang_diagnostics::SourceMap::new(),
@@ -37,6 +60,71 @@ fn fixture() -> Box<TaskProgram> {
 }
 fn allocator() -> a::Allocator<a::System> {
     a::Allocator::new(a::System, Default::default()).unwrap()
+}
+
+#[test]
+fn copy_service_message_quotas_keep_queued_and_uncommitted_storage_accounted() {
+    let program = prepare(&channel_fixtures::copy_quota_source(true));
+    let exact = lang_runtime::channel::Limits {
+        channels: 1,
+        slots: 1,
+        handles: 2,
+        waiters: 1,
+    };
+    for kind in 0..=4 {
+        let mut channels = exact;
+        match kind {
+            0 => channels.channels = 0,
+            1 => channels.slots = 0,
+            2 => channels.handles = 1,
+            3 => channels.waiters = 0,
+            _ => {}
+        }
+        let (mut heap, trace) = channel_allocator(usize::MAX);
+        let result = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                channels,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            result.is_ok(),
+            kind == 4,
+            "quota {kind}: {:?}",
+            result.as_ref().err()
+        );
+        if kind < 4 {
+            use lang_runtime::channel::{Error as C, managed::Error as G};
+            let failure = result.as_ref().err().expect("quota refusal");
+            assert!(
+                matches!(
+                    (kind, &failure.reason),
+                    (
+                        0,
+                        r::Reason::Channel(G::Protocol(C::ChannelLimit { limit: 0 }))
+                    ) | (
+                        1,
+                        r::Reason::Channel(G::Protocol(C::SlotLimit { limit: 0 }))
+                    ) | (
+                        2,
+                        r::Reason::Channel(G::Protocol(C::HandleLimit { limit: 1 }))
+                    ) | (
+                        3,
+                        r::Reason::Channel(G::Protocol(C::WaiterLimit { limit: 0 }))
+                    )
+                ),
+                "quota {kind}: {failure:?}"
+            );
+        }
+        assert_eq!(heap.stats().live_allocations, 0, "quota {kind}");
+        assert!(trace.borrow().live.is_empty(), "quota {kind}");
+        if let Ok(outcome) = result {
+            assert_eq!(outcome.value, 42);
+        }
+    }
 }
 
 #[test]
@@ -681,7 +769,10 @@ fn cancellation_cleanup_continues_in_order_after_panics_and_report_truncation() 
 
 #[test]
 fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
-    for &(name, text) in SERVICE_SHUTDOWN_FIXTURES {
+    for &(name, text) in SERVICE_SHUTDOWN_FIXTURES
+        .iter()
+        .chain(SERVICE_COPY_FIXTURES)
+    {
         let program = prepare(text);
         let mut heap = allocator();
         let baseline = lang_vm::unit::tasks::execute_entry(
@@ -800,7 +891,10 @@ fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
 
 #[test]
 fn every_shutdown_provider_refusal_and_interruption_position_drains_the_real_inventory() {
-    for &(name, text) in SERVICE_SHUTDOWN_FIXTURES {
+    for &(name, text) in SERVICE_SHUTDOWN_FIXTURES
+        .iter()
+        .chain(SERVICE_COPY_FIXTURES)
+    {
         let program = prepare(text);
         let (mut heap, trace) = channel_allocator(usize::MAX);
         let baseline = lang_vm::unit::tasks::execute_entry(

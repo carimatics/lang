@@ -2,6 +2,26 @@ use lang_runtime::{allocation as a, execution as e};
 
 pub(crate) const MANAGED_CHANNEL_FIXTURES: &[(&str, &str)] = &[
     (
+        "copy-unit",
+        include_str!("../fixtures/task_channel_copy_unit.lang"),
+    ),
+    (
+        "copy-option",
+        include_str!("../fixtures/task_channel_copy_sum.lang"),
+    ),
+    (
+        "copy-aggregate",
+        include_str!("../fixtures/task_channel_copy.lang"),
+    ),
+    (
+        "copy-cancel",
+        include_str!("../fixtures/task_channel_copy_cancel.lang"),
+    ),
+    (
+        "copy-recover",
+        include_str!("../fixtures/task_channel_copy_recover.lang"),
+    ),
+    (
         "self-cycle",
         include_str!("../fixtures/task_channel_self_cycle.lang"),
     ),
@@ -28,6 +48,18 @@ pub(crate) struct ChannelTrace {
     pub(crate) buffers: Vec<u8>,
     pub(crate) panic_buffers: Vec<u8>,
     pub(crate) interrupt: Option<(usize, std::rc::Rc<e::InterruptionFlag>)>,
+}
+
+pub(crate) fn copy_quota_source(service: bool) -> String {
+    let text = if service {
+        include_str!("../fixtures/task_service_copy_recover.lang")
+    } else {
+        include_str!("../fixtures/task_channel_copy_recover.lang")
+    };
+    format!(
+        "{}async fn main()->i64{{return core::result_unwrap::<i64,core::TaskError>(await recovery(false));}}",
+        text.split("async fn main()").next().unwrap()
+    )
 }
 pub(crate) struct ChannelRegion {
     id: usize,

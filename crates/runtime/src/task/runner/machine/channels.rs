@@ -47,11 +47,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         target.prepare_case(root, 1, self.allocator)?;
         let at = target.child(root, 0, self.allocator)?;
         if copy {
-            target.write_immediate(
-                at,
-                source.read_immediate(source.root(), self.allocator)?,
-                self.allocator,
-            )?;
+            target.copy_from(at, source, source.root(), self.allocator)?;
         } else {
             source.move_root_into(target, at, self.allocator)?;
             source.recycle(self.allocator)?;
@@ -277,6 +273,12 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .as_ref()
             .and_then(|m| m.spans[payload])
             .unwrap_or(span);
+        let copy = frame.is_copy(payload)?;
+        let source = frame
+            .storage
+            .as_mut()
+            .ok_or(Reason::Invariant)?
+            .cell_mut(payload)?;
         let message = self
             .services
             .channels
@@ -284,17 +286,22 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .ok_or(Reason::Invariant)?
             .stage(&endpoint, Some(owner), self.allocator)
             .map_err(failure)?;
-        if frame.is_copy(payload)? {
-            let value = frame.read(payload, self.allocator)?;
-            let storage = message.storage.as_ref().ok_or(Reason::Invariant)?;
-            storage.write_immediate(storage.root(), value, self.allocator)?;
+        let target = message.storage.as_ref().ok_or(Reason::Invariant)?;
+        if copy {
+            // Staging is a typed custody copy, with the same unmetered data
+            // transfer as the old scalar path. Inspection/commit charge work.
+            if let Err(error) =
+                target.copy_from(target.root(), source, source.root(), self.allocator)
+            {
+                self.services
+                    .channels
+                    .as_mut()
+                    .ok_or(Reason::Invariant)?
+                    .recycle(message, self.allocator)
+                    .map_err(failure)?;
+                return Err(error.into());
+            }
         } else {
-            let source = frame
-                .storage
-                .as_mut()
-                .ok_or(Reason::Invariant)?
-                .cell_mut(payload)?;
-            let target = message.storage.as_ref().ok_or(Reason::Invariant)?;
             source.move_root_into(target, target.root(), self.allocator)?;
             source.recycle(self.allocator)?;
             frame.forget(payload);
