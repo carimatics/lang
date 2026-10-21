@@ -8,11 +8,11 @@
 
 **23 done · 1 doing · 27 todo · 80 remaining pt**
 
-**次: M3-C03 → guest queue/cell storage と VM continuation を接続し、owned source channel fixture を実行します。**
+**次: M3-C03 → 最初の owned source VM fixture に続き、endpoint/shared message の context 付き検査と mixed retirement を完了します。**
 
-現在の作業: **M3-C03**。直近の実行可能 checkpoint は **`f4fb49e`、2026-10-21 21:15 JST 検証**です。RFC 0025 に具体8 call/error/MIR catalog を記録し、source lowering と独立 MIR で channel authority、引数 loan の終了、role/type/kind、単一消費、payload 再利用診断を証明します。**MIR 権限5件、source-to-MIR 8件、別の HIR region 回帰検証が成功**しました。guest Bytes reservation 実験は通常/取消で42、owning storage identity 維持、退役 [20,22]/[22,20]、live allocation 0 です。実 guest payload storage を使う host Hub 実行であり、source VM channel fixture ではありません。固定 production 入力の全 baseline は **122 suites / 1,854 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **551.32s**。fmt、Clippy、rustdoc、全11 fuzz target compile/lint が成功しました。
+現在の作業: **M3-C03**。直近の実行可能 checkpoint は **`5f11a3f`、2026-10-21 23:51 JST 検証**です。実 source VM fixture `tests/fixtures/task_channels.lang` は capacity-one の Bytes backpressure を経て42を返します。非公開 layout、実 guest header/descriptor/reservation、共有 cell admission、保持する authority で既存 Hub と VM continuation を接続しました。source 実行14件と admission/capability 11件が成功し、取消、新 storage を使わない closed-send 回収、最古の typed deadlock、owner 起点を保持する cleanup panic、高度な profile の副作用前拒否、全 fuel/work/trace/cell/guest-allocation prefix、最終 live allocation 0 を確認しました。production 入力固定の全 baseline は **124 suites / 1,872 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **549.80s**。fmt、Clippy、rustdoc、全11 fuzz target compile/lint が成功し、fuzz campaign は主張しません。
 
-C03 の残条件: 実 guest queue-slot/metadata/cell admission、一時値 cleanup・suspension・取消を越える endpoint capture 保持、実際の endpoint を含む guest/shared storage の context 付き検査と mixed retirement、VM continuation、owned send/receive/close/取消/typed-deadlock/control fixture。layout、VM/native、旧 wire/package profile は channel admission を guest 副作用前に拒否する状態を維持します。C04 は生成 native/linked-object parity を維持します。行は doing 3 pt のままで、全 M3/P1 gate は未完です。
+`5f11a3f` に照合して再監査した C03 の残条件: (1) read-only context による Shared identity・実 Receiver edge の検査、再開 publication での循環拒否、heap publication 内の検証済み opaque Sender storage、(2) endpoint を含む aggregate/container payload と既存 drain による iterative mixed retirement、(3) それらの境界、cleanup failure/report 上限、複合 control の source fixture。次の具体 fixture 4種は source check が成功しました。直接の自己循環、待機 sender の再開前に変化する Receiver edge、Shared/Weak と Vec 内 Receiver、Shared storage に保持する Sender です。runtime 実行は未検証です。元の guest-owned VM 成果の残部分であり、Hub/inspection/heap/drain interface を確認した上で **残り3 pt・消化0・追加0** を維持します。初期 scalar/flat-buffer VM message profile は高度な payload family を実行前に拒否します。通常/旧 task layout、native、wire/package channel profile の拒否を維持し、C04 は生成 native/linked-object parity を担います。行は doing のままで、全 M3/P1 gate は未完です。
 
 **今回: C03 checkpoint、完了 0 pt・新規追加 0 pt。** 残り **80 + 0 − 0 = 80 pt**、全 **51 行**、消化 **59 pt**、純追加 **+29 pt**、収支 **110 + 29 − 59 = 80 pt**。
 
@@ -99,6 +99,8 @@ C02 roadmap audit: Rust host key は source 型証明や guest allocator/cell-ba
 
 
 ## Progress and estimate changes
+
+C03 VM checkpoint `5f11a3f`（2026-10-21 JST）: 最初の実 owned source channel fixture が既存 Hub/driver を使って42を返します。guest header、sender descriptor、queue/staged Reservation は invocation allocator を使い、実 host queue/cache metadata は preparation 時に admission し、queue/pending cell は有限 cell control を共有します。非公開 capture は suspension・取消を越えて保持し、取消は unlink 後に退役、closed send は新 storage を allocation せず回収、最古の typed deadlock は abort 前に記録します。source 14件と capability/admission 11件が成功しました。失敗 send からの extraction と cleanup panic でも owner span を保持し、高度な endpoint を含む indirect storage は副作用前に明示拒否します。production 入力固定の全 baseline は **124 suites / 1,872 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **549.80s**。fmt、最終 Clippy（**1m 23s**）、rustdoc（**38.84s**）、全11 fuzz target compile/lint（**3.67s**）が成功しました。fuzz campaign、C03 delivery 完了、M3 gate 完了は主張しません。board 冒頭の interface 監査に従い、context 付き inspection/heap publication、iterative mixed retirement、それらの source/control fixture に **残り3 pt・消化0・追加0** を維持し、新しい横断的前提を増やしません。
 
 C03 checkpoint `f4fb49e`（2026-10-21 JST）: 実装前に具体 source catalog を受理し、明示 prepared channel authority と source/MIR の suspension/所有権 proof を追加し、SendResult 両失敗 case の arena brand を保持し、Hub の明示 inspection context/再検査と payload owner/operation span の分離を追加しました。schema 2/3/4 は全新 type/op/core call を出力前に拒否し、VM/native profile は guest/provider allocation 前の拒否を維持します。最終 guest Bytes 実験も42、通常 [20,22]・取消 [22,20] の退役、peak live allocation 6、最終 live 0 です。全 baseline は **122 suites / 1,854 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **551.32s**、fmt、最終 Clippy（**4.48s**）、rustdoc（**53.02s**）、全11 fuzz target compile/lint（**4.15s**）が成功しました。fuzz campaign、source VM 実行、delivery/gate 完了は主張しません。
 
