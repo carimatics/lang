@@ -6,13 +6,17 @@
 
 更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**28 done · 1 doing · 25 todo · 73 remaining pt**
+**29 done · 1 doing · 24 todo · 71 remaining pt**
 
-**次: M3-C07 → 完全な service-state publication の前に typed Copy aggregate/sum message と回復を実行します。**
+**次: M3-A03 → 実 state edge と置換候補を検査し、完全な Send service state/publication を実行します。**
+
+C07 を `7d1a71a` で完了（2026-10-22 07:37 JST）: 共通 typed Reservation copy で Unit・record・入れ子 enum/Option/Result を含む Copy message の staging と Closed(M) 回復を実行します。staging 前に source/Copy を検査し、失敗した copy の空 storage を backing に戻し、送信元 Copy を生存させます。回帰テストは旧 Option<i64> 失敗後の guest allocation 残数2を実測し、修正後は control/provider/割込み/quota 経路で inventory 0 を保ちます。**重点59件**、**CLI fixture 全10個が42**、**別リンク object 25 profile** が成功しました。source 固定の全 baseline は **126 suite・1,934件成功・失敗0・既存 timing ignore 1件**、suite-time 合計 **631.90s**。fmt・Clippy（**2分41秒**）・rustdoc（**37.07s**）・全11 fuzz target compile/lint（**1.30s**）も成功しました。scalar/error probe は論理 work event 13を保ちます（12は拒否）。fuzz campaign や M3 gate 完了は主張しません。**消化2 pt・新規追加0 pt**、残り **73 + 0 − 2 = 71 pt**。完全な Send state/prospective publication は A03、service native/別リンク parity は A04 に残します。
 
 A08 は `4223d7b`（2026-10-22 06:39 JST）で完了しました。既存 backing が idle/active/closed state と request-only 取消 latch を保持します。callback 前に sealed wake/unlink し、idle 要求は即時 drain、active read/置換は finish/次 receive/owner 退役まで維持します。同じ mixed drain が committed queue を FIFO、次に state の順で退役し、通常 last-producer closure は受理済み message を処理してから最終境界/None で退役します。生きた closed owner/handle は検証済み header を保持し、owner の move/drop/finish、handle の clone/cancel、state を復活させない owner message 転送を維持します。重点 **63件**と42を返す CLI 取消 fixture 2個で、wake 前後の pending 回復、明示 finish/return/task cancel、実 quota/control/provider/割込み位置、ordered panic/quarantine/report 打切り、inventory 0 を検証しました。production 入力固定の全 baseline は **126 suites / 1,930 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **599.94s**。fmt・Clippy（**2m 39s**）・rustdoc（**37.76s**）・全11 fuzz target compile/lint（**3.26s**）が成功し、fuzz campaign は主張しません。最終 **3 pt** を消化します。完全な Send state/prospective publication は A03、service native/別リンク parity は A04、下記 Copy-message 不足は C07 で、M3 gate 完了は主張しません。
 
-現在の作業: **M3-C07（2 pt）**。直近の成功した実装 checkpoint は **`4223d7b`、2026-10-22 06:39 JST 検証**です。A03 監査の Copy-sum source probe 2個を同 runtime で **2026-10-22 06:43 JST** に実行し、両方とも受理後の send が Layout(InvalidType(ConstructedId(0))) で停止し、42を返しません。残る C07 受入条件は typed Copy record/sum/Option/Result の staging・delivery・closed/pending 回復、全拒否時の inventory 保持、通常 channel の VM/native/別リンク parity と service VM、有限 control、scalar/error Copy の既存論理 work event 維持です。non-Share service state と service native admission は A03/A04 まで拒否を維持します。
+現在の作業: **M3-A03（3 pt）**。直近の成功した実装 checkpoint は **`7d1a71a`、2026-10-22 07:37 JST 検証**です。残る受入条件は完全な Send/storable state/message、実 Receiver/ServiceOwner state edge と置換予定 graph/publication、read provenance・ownership/回復・有限 control/quota/拒否と inventory 0 です。service native/別リンク parity は A04 に残します。
+
+C07 後の A03 scope/見積り監査（2026-10-22 JST）: 現 backing/graph interface と受理済み残条件を照合し、3 pt を維持します。初期 state の Share 限定受理と inspect_state の receiver 拒否 callback は、有効な Send state をまだ除外します。Hub publication walk は committed message を辿りますが、実 service state を含みません。単一 backing/state Reservation・有界 inspection scratch・mixed drain を再利用し、Receiver/ServiceOwner state と入れ子/再帰 Send message を実行します。send と再開 commit で現在 state edge を検査し、whole replacement の prospective 検査では候補 state だけを置き換えます。拒否候補の消費、旧 state の保持、shared publication の実 producer identity、read provenance、有限 control/quota/拒否と inventory 0 を維持します。次の source 実行 fixture から開始し、doing は A03 のみ、生成 service native/別リンク parity は A04 に残します。新規追加/再見積りはなく、全15 M3/P1 gate・両 host conformance/production embedding・foreign/C/serialized/package・最終 guide を維持します。
 
 A03 scope/estimate 監査（2026-10-22 JST、A08 後）: 受理済み Send/storable message 契約には Copy aggregate を含みます。実 `tests/fixtures/task_service_copy_sum.lang` と `tests/fixtures/task_channel_copy_sum.lang` は有効な Option<i64> message を構築して独立受理されますが、send が fuel 20/19 で Layout(InvalidType(ConstructedId(0))) になります。`Machine::channel_send` と closed-send 回復の Copy 経路は scalar/error 用 Immediate read/write のままで、delivery は既に typed root transfer です。全 state-edge 検査の実装前に、typed Copy staging/回復と ownership・有限 control・VM/native/別リンク conformance の **C07（2 pt）** を明示します。detached staging storage も inventory 受入条件で確認し、CLI probe で leak を測定したとは主張しません。doing は C07 のみ、A03 の依存に追加します。A03 は完全な Send state/message、実 Receiver/ServiceOwner state edge、置換予定値の循環、context 付き publication/再検査統合の **3 pt** を維持し、A04 は service native parity を維持します。追加は **2 pt**・1行で、C03/C04 を消化/再開せず、gate を狭めず、両 host/embedding/最終 guide を代替しません。
 
@@ -56,14 +60,14 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-C06 | done | 0 | M3-C02,M3-A06 | G01,G04,G05 | Decide/check opaque channel role types and distinct Send/Share independently in source/MIR; refuse legacy layouts/artifacts | `e16e537` |
 | M3-C03 | done | 0 | M3-C02,M3-C06,M3-A05 | G04 | VM で source channel fixture を実行し payload 再利用を拒否する | `11769c1` |
 | M3-C04 | done | 0 | M3-C03,M3-T06 | G04 | native 実行で channel の値・失敗・cleanup を一致させる | `f882074` |
-| M3-C07 | doing | 2 | M3-C04,M3-A08 | G04,G05,G13 | typed Copy aggregate/sum message の staging/回復・inventory と通常 channel VM/native/別リンク・service VM conformance を実行 | — |
+| M3-C07 | done | 0 | M3-C04,M3-A08 | G04,G05,G13 | typed Copy aggregate/sum message の staging/回復・inventory と通常 channel VM/native/別リンク・service VM conformance を実行 | `7d1a71a` |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | `9b2b68c` |
 | M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
 | M3-A05 | done | 0 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | `ea822bd` |
 | M3-A02 | done | 0 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | `8944645` |
 | M3-A07 | done | 0 | M3-A02,M3-C03 | G05 | 実 state storage/read/全体置換と有限 control で owned service FIFO source を VM 実行 | `d90de9b` |
 | M3-A08 | done | 0 | M3-A07 | G05 | handler 境界の service 取消、pending send 回復、FIFO queue-before-state 退役を実行 | `4223d7b` |
-| M3-A03 | todo | 3 | M3-A07,M3-A08,M3-C07 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
+| M3-A03 | doing | 3 | M3-A07,M3-A08,M3-C07 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | — |
 | M3-I01 | todo | 3 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | — |
 | M3-I02 | todo | 3 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | — |
@@ -163,7 +167,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 37 − 74 = 73 pt**
+**110 + 37 − 76 = 71 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -211,7 +215,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +37 pt | −74 pt | 73 pt |
+| 110 pt | +37 pt | −76 pt | 71 pt |
 
 ## Exit audit
 
@@ -256,3 +260,5 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 - A01 決定/audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md)、RFC 0005/0007/0022/0023 の最終更新は 2026-10-21。source/MIR type fact/task signature 検査、runtime await/result disposal、service model を `b25aede`、2026-10-21 13:37 JST に macOS AArch64 で確認し、最小 owned Bytes worker で SRC0026 を再現しました。code に更新日の埋込みはありません。受理済み決定は実装証拠ではありません。
 
 - A06 実装と A05 audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md)、[RFC 0022](rfcs/0022-source-structured-tasks.md)、[RFC 0023](rfcs/0023-task-mir-boundaries.md) の最終更新は 2026-10-21。source/MIR type/task 検査、`tests/task_send_capabilities.rs`、source/MIR task テスト、既存 runtime frame/await/result/cleanup API を `d3b33e3`、2026-10-21 14:25 JST に macOS AArch64 で確認/実行しました。code に更新日の埋込みはありません。物理 thread capability、foreign/wire format、benchmark 結果は推論しません。
+
+- C07 の証拠/A03 scope 監査: [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md) と [RFC 0026](rfcs/0026-source-isolated-services.md) の最終更新は 2026-10-22。共通 task/channel typed storage、実 service backing/inspection/publication、`tests/source_channels.rs`、`tests/source_services.rs`、`tests/native_channel_execution.rs`、Copy CLI fixture 10個、`tests/support/task_static.rs` を参照します。code に更新日の埋込みはなく、`7d1a71a`、2026-10-22 07:37 JST、macOS AArch64 で確認/実行/検証しました。
