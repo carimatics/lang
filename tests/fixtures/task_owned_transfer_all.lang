@@ -1,0 +1,71 @@
+// A05: send and return every currently sendable owner through a whole enum.
+struct Packet {
+    bytes: core::Bytes,
+    text: core::Text,
+    values: core::Vec<i64>,
+    mapping: core::Map<core::Text, core::Bytes>,
+    strong: shared core::Bytes,
+    observer: weak core::Bytes
+}
+enum Parcel { Empty, Packet(Packet), Pair(Packet, Packet) }
+fn bytes(value: i64) -> core::Bytes {
+    let mut buffer: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(buffer, value));
+    return buffer;
+}
+fn word() -> core::Text {
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes(65)));
+}
+fn packet() -> Packet {
+    let mut values: core::Vec<i64> = core::result_unwrap::<core::Vec<i64>, core::AllocError>(core::vec_new::<i64>(core::allocator()));
+    let mut added: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<i64>(values, 7));
+    let mut mapping: core::Map<core::Text, core::Bytes> = core::result_unwrap::<core::Map<core::Text, core::Bytes>, core::AllocError>(core::map_new::<core::Text, core::Bytes>(core::allocator()));
+    let mut inserted: core::Option<core::Bytes> = core::result_unwrap::<core::Option<core::Bytes>, core::AllocError>(core::map_insert::<core::Text, core::Bytes>(mapping, word(), bytes(8)));
+    let mut strong: shared core::Bytes = core::result_unwrap::<shared core::Bytes, core::OwnershipError>(core::shared_new::<core::Bytes>(core::allocator(), bytes(10)));
+    let mut observer: weak core::Bytes = core::result_unwrap::<weak core::Bytes, core::OwnershipError>(core::weak_new::<core::Bytes>(strong));
+    return Packet { observer: observer, strong: strong, mapping: mapping, values: values, text: word(), bytes: bytes(6) };
+}
+fn carry(value: Parcel, depth: i64) -> Parcel {
+    if depth < 1 { return value; }
+    return carry(value, depth + (-1));
+}
+async fn forward(value: Parcel) -> Parcel {
+    let mut packet: Parcel = carry(value, 1);
+    yield;
+    cancel_check;
+    return carry(packet, 1);
+}
+fn score(value: &Packet) -> i64 {
+    let mut result: i64 = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(value.bytes, 0)) + core::text_len(value.text);
+    match core::vec_get::<i64>(value.values, 0) {
+        core::Result::Ok(number) => { result = result + (*number); },
+        core::Result::Err(_) => { return -1; },
+    }
+    let mut query: core::Text = word();
+    match core::map_get::<core::Text, core::Bytes>(value.mapping, query) {
+        core::Option::Some(map_buffer) => { result = result + core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(map_buffer, 0)); },
+        core::Option::None => { return -2; },
+    }
+    match core::shared_read::<core::Bytes>(value.strong) {
+        core::Result::Ok(strong_buffer) => { result = result + core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(strong_buffer, 0)); },
+        core::Result::Err(_) => { return -3; },
+    }
+    let mut upgraded: shared core::Bytes = core::result_unwrap::<shared core::Bytes, core::OwnershipError>(core::weak_upgrade::<core::Bytes>(value.observer));
+    match core::shared_read::<core::Bytes>(upgraded) {
+        core::Result::Ok(upgraded_buffer) => { return result + core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(upgraded_buffer, 0)); },
+        core::Result::Err(_) => { return -4; },
+    }
+}
+async fn main() -> i64 {
+    let mut input: Parcel = Parcel::Packet(packet());
+    let mut first: core::Task<Parcel> = spawn forward(input);
+    yield;
+    let mut intermediate: Parcel = core::result_unwrap::<Parcel, core::TaskError>(await first);
+    let mut second: core::Task<Parcel> = spawn forward(intermediate);
+    let mut output: Parcel = core::result_unwrap::<Parcel, core::TaskError>(await second);
+    match output {
+        Parcel::Packet(value) => { return score(value); },
+        Parcel::Pair(_, _) => { return -5; },
+        Parcel::Empty => { return -6; },
+    }
+}

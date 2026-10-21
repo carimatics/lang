@@ -46,6 +46,14 @@ fn standalone_task_objects_execute_generated_continuations() {
             include_str!("../fixtures/task_owned_integrated.lang").to_owned(),
         ),
         (
+            "owned-transfer",
+            include_str!("../fixtures/task_owned_transfer.lang").to_owned(),
+        ),
+        (
+            "owned-transfer-all",
+            include_str!("../fixtures/task_owned_transfer_all.lang").to_owned(),
+        ),
+        (
             "owned-integration-panic",
             include_str!("../fixtures/task_owned_integrated.lang")
                 .replace("await scenario(false)", "await scenario(true)"),
@@ -168,8 +176,8 @@ fn main(){{
         assert_eq!(
             String::from_utf8_lossy(&output.stdout).trim(),
             match *label {
-                "join" | "aggregate" | "owned-pipeline" | "owned-arena" | "owned-integration" =>
-                    "42",
+                "join" | "aggregate" | "owned-pipeline" | "owned-arena" | "owned-integration"
+                | "owned-transfer" | "owned-transfer-all" => "42",
                 "cancel" | "owned-cancel" => "7",
                 "owned-buffers" => "71",
                 "sync-loans" => "12",

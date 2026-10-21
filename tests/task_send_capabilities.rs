@@ -20,30 +20,34 @@ fn prepare(text: &str) -> Box<lang_semantics::analysis::TaskProgram> {
 }
 
 #[test]
-fn owned_async_signatures_reach_independent_mir_proof_before_runtime_admission() {
+fn owned_async_signatures_retain_independent_mir_proof_at_runtime_admission() {
     let program = prepare(OWNED);
     let mut allocator = lang_runtime::allocation::Allocator::new(
         lang_runtime::allocation::System,
         Default::default(),
     )
     .unwrap();
-    let failure = lang_vm::unit::tasks::execute_entry(
+    let output = lang_vm::unit::tasks::execute_entry(
         program.verified(),
         &mut allocator,
         lang_runtime::execution::Control::with_limits(Default::default()),
         Default::default(),
     )
-    .err()
     .unwrap();
-    assert!(matches!(
-        failure.reason,
-        lang_runtime::task::runner::Reason::Unsupported
-    ));
-    assert_eq!(allocator.stats().requests, 0);
-    assert!(matches!(
-        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default()),
-        Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
-    ));
+    assert_eq!(output.value, 0);
+    assert_eq!(allocator.stats().live_allocations, 0);
+    let native =
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
+            .unwrap();
+    let output = native
+        .execute(
+            &mut allocator,
+            lang_runtime::execution::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
+    assert_eq!(output.value, 0);
+    assert_eq!(allocator.stats().live_allocations, 0);
 }
 
 #[test]

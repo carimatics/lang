@@ -8,7 +8,7 @@ pub struct Record<'l, 'ty> {
     pub parent: Option<usize>,
     pub scope: u64,
     pub frames: Vec<Frame<'l, 'ty>>,
-    pub result: Option<l::Reservation<'l, 'ty>>,
+    pub result: Option<frame::RetainedResult<'l, 'ty>>,
     pub next_result: Option<usize>,
     pub session: Option<c::Session>,
 }
@@ -212,12 +212,49 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.usage.peak_live_cells = self.usage.peak_live_cells.max(self.live_cells);
         Ok(frame)
     }
-    pub fn discard_result(&mut self, task: usize) -> Result<(), Reason> {
+    pub fn discard_result(
+        &mut self,
+        task: usize,
+        owner: usize,
+        reason: c::Reason,
+    ) -> Result<bool, Reason> {
+        let mut failed = false;
         if let Some(mut result) = self.records[task].result.take() {
-            result.release_storage(self.allocator)?;
+            let meter = self.services.work.clone();
+            let types = self.proof.typed().places().declarations().types();
+            let services = &mut self.services;
+            let allocator = &mut self.allocator;
+            let session = self.records[owner]
+                .session
+                .as_mut()
+                .ok_or(Reason::Invariant)?;
+            failed = meter.unmetered(|| {
+                let mut cleaner = c::Contextual::new(
+                    |value: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
+                        value
+                            .retire(allocator, context, |token, allocator, _, context| {
+                                services.retire(types, token, allocator, context)
+                            })
+                            .map_err(|_| 4u32)
+                    },
+                );
+                session
+                    .retire(
+                        c::Slot(task),
+                        &mut result.value,
+                        Some(result.span),
+                        reason,
+                        &mut cleaner,
+                    )
+                    .is_err()
+            });
+            result.value.release_storage(self.allocator)?;
             self.live_cells -= 1;
+            if failed {
+                self.cleanup_fault(owner, self.records[task].function, result.span);
+            }
         }
-        Ok(())
+        Ok(failed)
     }
     fn publish_result(&mut self, task: usize) -> Result<(), Reason> {
         let Some(parent) = self.records[task].parent else {
@@ -237,7 +274,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.records[task].next_result = previous;
         Ok(())
     }
-    fn retire_scope_results(&mut self, task: usize, serial: u64) -> Result<(), Reason> {
+    fn retire_scope_results(
+        &mut self,
+        task: usize,
+        serial: u64,
+        reason: c::Reason,
+    ) -> Result<bool, Reason> {
+        let mut failed = false;
         let (frame, scope) = self.records[task]
             .frames
             .iter()
@@ -256,18 +299,23 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             }
             self.records[task].frames[frame].scopes[scope].results =
                 self.records[child].next_result.take();
-            self.discard_result(child)?;
+            failed |= self.discard_result(child, task, reason)?;
         }
-        Ok(())
+        Ok(failed)
     }
-    pub fn retire_children_results(&mut self, task: usize) -> Result<(), Reason> {
+    pub fn retire_children_results(
+        &mut self,
+        task: usize,
+        reason: c::Reason,
+    ) -> Result<bool, Reason> {
+        let mut failed = false;
         for frame in (0..self.records[task].frames.len()).rev() {
             for index in (0..self.records[task].frames[frame].scopes.len()).rev() {
                 let serial = self.records[task].frames[frame].scopes[index].serial;
-                self.retire_scope_results(task, serial)?;
+                failed |= self.retire_scope_results(task, serial, reason)?;
             }
         }
-        Ok(())
+        Ok(failed)
     }
     pub fn pending(&mut self, task: usize) -> Result<bool, Reason> {
         let Some(pending) = self.frame_mut(task)?.pending.take() else {
@@ -296,6 +344,9 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                             .get_disjoint_mut([task, child])
                             .map_err(|_| Reason::Invariant)?;
                         let frame = parent.frames.last_mut().ok_or(Reason::Invariant)?;
+                        let span = self.proof.plan().functions()[frame.function.0 as usize].nodes()
+                            [frame.node.0 as usize]
+                            .span;
                         let cell = frame.data()?.cell(destination)?;
                         let root = cell.root();
                         let case = if outcome == t::Outcome::Success { 0 } else { 1 };
@@ -303,13 +354,19 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         let at = cell.child(root, 0, self.allocator)?;
                         if case == 0 {
                             let mut result = child.result.take().ok_or(Reason::Invariant)?;
-                            cell.copy_from(at, &result, result.root(), self.allocator)?;
-                            result.release_storage(self.allocator)?;
+                            result.value.move_root_into(cell, at, self.allocator)?;
+                            cell.initialize_order(
+                                root,
+                                [(0, result.span)].into_iter(),
+                                self.allocator,
+                            )?;
+                            result.value.release_storage(self.allocator)?;
                             self.live_cells -= 1;
                         } else {
                             cell.write_immediate(at, l::Immediate::TaskCancelled, self.allocator)?;
+                            cell.initialize_order(root, [(0, span)].into_iter(), self.allocator)?;
                         }
-                        frame.live[destination] = true;
+                        frame.mark(destination, span)?;
                         frame.node = next;
                     }
                 }
@@ -351,7 +408,17 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         }
                     }
                 }
-                self.retire_scope_results(task, scope.serial)?;
+                let reason = if self.frame(task)?.closing {
+                    c::Reason::Failure
+                } else {
+                    c::Reason::ScopeExit
+                };
+                if self.retire_scope_results(task, scope.serial, reason)? {
+                    let frame = self.frame_mut(task)?;
+                    frame.fault.get_or_insert(task);
+                    frame.node = failure;
+                    return Ok(true);
+                }
                 let function = self.frame(task)?.function;
                 for binding in &self.proof.typed().functions()[function.0 as usize].task_bindings {
                     if binding.scope == scope.id {
@@ -492,8 +559,16 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             backend.cleanup(self, task)?;
         }
 
-        self.retire_children_results(task)?;
-        let mut cleanup_failure = None;
+        let mut cleanup_failure = self
+            .retire_children_results(
+                task,
+                if outcome == t::Outcome::Success {
+                    c::Reason::ScopeExit
+                } else {
+                    c::Reason::Failure
+                },
+            )?
+            .then_some(t::FailureId(task as u64));
         while let Some(mut frame) = self.records[task].frames.pop() {
             if self.records[task].frames.is_empty() && outcome == t::Outcome::Success && frame.saved
             {
@@ -520,7 +595,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.completed.push(task);
         self.active = None;
         if actual != t::Outcome::Success {
-            self.discard_result(task)?;
+            self.discard_result(task, task, c::Reason::UnpublishedReturn)?;
         } else {
             self.publish_result(task)?;
         }
@@ -541,11 +616,11 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         if let Some((task, cleaning)) = self.active.take() {
             if cleaning {
                 let index = task.index();
-                self.retire_children_results(index)?;
+                self.retire_children_results(index, c::Reason::Failure)?;
                 while let Some(frame) = self.records[index].frames.pop() {
                     self.release_frame(index, frame)?;
                 }
-                self.discard_result(index)?;
+                self.discard_result(index, index, c::Reason::Failure)?;
                 self.scheduler
                     .finish_cleanup(&task, Some(t::FailureId(0)))?;
                 self.completed.push(index);
@@ -562,21 +637,22 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     .finish(&task, t::Outcome::Failed(t::FailureId(0)))?,
                 t::Dispatch::Cleanup { task, .. } => {
                     let index = task.index();
-                    self.retire_children_results(index)?;
+                    self.retire_children_results(index, c::Reason::Failure)?;
                     let mut cleanup_failure = None;
                     while let Some(frame) = self.records[index].frames.pop() {
                         if self.release_frame(index, frame)? {
                             cleanup_failure = Some(t::FailureId(index as u64));
                         }
                     }
-                    self.discard_result(index)?;
+                    self.discard_result(index, index, c::Reason::Failure)?;
                     self.scheduler.finish_cleanup(&task, cleanup_failure)?;
                     self.completed.push(index);
                 }
             }
         }
         for task in 0..self.records.len() {
-            self.discard_result(task)?;
+            let owner = self.records[task].parent.unwrap_or(task);
+            self.discard_result(task, owner, c::Reason::Failure)?;
         }
         Ok(())
     }
@@ -632,8 +708,10 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             match outcome.map_err(Reason::from)? {
                 t::Status::Complete(t::Outcome::Success) => {
                     let mut result = self.records[0].result.take().ok_or(Reason::Invariant)?;
-                    let value = result.read_immediate(result.root(), self.allocator)?;
-                    result.release_storage(self.allocator)?;
+                    let value = result
+                        .value
+                        .read_immediate(result.value.root(), self.allocator)?;
+                    result.value.release_storage(self.allocator)?;
                     self.live_cells -= 1;
                     match value {
                         l::Immediate::I64(value) => Ok(value),
@@ -646,7 +724,12 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             }
         })();
         for task in 0..self.records.len() {
-            if let Err(reason) = self.discard_result(task) {
+            let owner = self.records[task].parent.unwrap_or(task);
+            let discarded = self.discard_result(task, owner, c::Reason::ScopeExit);
+            if matches!(discarded, Ok(true)) && finished.is_ok() {
+                finished = Err(Reason::Cleanup);
+            }
+            if let Err(reason) = discarded {
                 let (report, poisoned) = self.failure_report(task).unwrap_or((None, true));
                 return Err(Failure {
                     reason,

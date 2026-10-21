@@ -1,0 +1,18 @@
+// A05: move a real buffer into a child and consume its owned result once.
+fn bytes(value: i64) -> core::Bytes {
+    let mut buffer: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(buffer, value));
+    return buffer;
+}
+async fn worker(value: core::Bytes) -> core::Bytes {
+    yield;
+    cancel_check;
+    return value;
+}
+async fn main() -> i64 {
+    let mut input: core::Bytes = bytes(42);
+    let mut child: core::Task<core::Bytes> = spawn worker(input);
+    yield;
+    let mut output: core::Bytes = core::result_unwrap::<core::Bytes, core::TaskError>(await child);
+    return core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(output, 0));
+}

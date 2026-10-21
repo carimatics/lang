@@ -377,8 +377,8 @@ pub fn signature_supported(
         let ty=declaration.locals[id.0 as usize].ty.ty;
         let loan=matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(..)));
         if loan {return !asynchronous;}
-        types.properties(ty).is_some_and(|p|(!asynchronous||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&(!asynchronous||!p.contains_arena))
-    })&&types.properties(declaration.result.ty).is_some_and(|p|(!asynchronous||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena)
+        types.properties(ty).is_some_and(|p|if asynchronous {p.is_send()}else{!p.contains_loan&&!p.contains_allocator})
+    })&&types.properties(declaration.result.ty).is_some_and(|p|if asynchronous {p.is_send()}else{!p.contains_loan&&!p.contains_allocator&&!p.contains_arena})
 }
 /// Supported whole-sum extraction forms in the managed task adapter.
 #[doc(hidden)]

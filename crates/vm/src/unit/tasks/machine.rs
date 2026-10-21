@@ -346,7 +346,8 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                             return Err(Reason::Invariant);
                         }
                     }
-                    machine.retire_children_results(task)?;
+                    machine
+                        .retire_children_results(task, lang_runtime::cleanup::Reason::Failure)?;
                     next
                 }
                 f::Kind::RetireFailure { next } => next,

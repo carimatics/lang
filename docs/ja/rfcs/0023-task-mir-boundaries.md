@@ -16,6 +16,8 @@
 
 A06 実装 checkpoint（2026-10-21 JST）: source と MIR は独立に検証した推移 type fact から compiler-derived logical-task Send/Share を提供し、新 graph cache、trait 自己宣言、bit-copy transfer、wire tag を導入しません。async signature は owned Bytes/Text/Vec/Map、sum、再帰 record/enum、checked shared/weak を受理します。loan/arena/allocator/Task 権限は禁止し、通常 move 解析で spawn 引数を一度だけ消費します。重点 7 テストで両 graph、未使用/前方再帰 signature と alias、不正 MIR loan signature の type span での拒否、二重消費拒否、proof work 境界値/1 未満を確認しました。到達する owned async transfer は A05 の publication/await/disposal 実装まで VM/native で副作用前の Unsupported 拒否を維持します。source actor authority は具体的 channel handle 後の A02 に残ります。部分実装の証拠であり、RFC 0024 と全 M3 gate は未完です。
 
+A05 実行 checkpoint（2026-10-21 JST）: VM と生成 native continuation は recursive Send 引数/結果を managed move で実行します。分離した result reservation は owner span を保持し、consuming await または破棄まで live cell として計上します。await は owned Ok payload を初期化して所有権を登録し、未回収結果は既存 mixed cleanup drain を通じて local owner より先に公開順の逆順で退役します。取消と未公開 return は一度限りの退役、primary failure の優先、有限 report、poison 証拠を維持し、必須 cleanup は work 課金しません。差分 15 テストで Bytes/Text/Vec/Map、record/whole enum、shared/weak identity、入れ子 task 世代と owned Result、公開前後の取消、cleanup panic/truncation、保持 cell による admission、resource 上限境界/1 未満、全 fuel/work/provider/interruption prefix を検証します。転送 fixture 2 本を加え linked-object は 13 profile になります。`cargo run -- run tests/fixtures/task_owned_transfer.lang` と `cargo run -- run tests/fixtures/task_owned_transfer_all.lang` は 42 を返します。logical task は同一 invocation 内に限り、source actor authority、channel、foreign/C/serialized/native-package profile、全 M3 gate の残り delivery を維持します。
+
 A01 follow-up 決定（2026-10-21 JST）: [RFC 0024](0024-send-share-and-service-authority.md) は同一 invocation の logical task に対する再帰 Send/Share と mutable state projection のない interface-only producer handle を定めます。初期 Copy-only transfer subset を拡張し、loan/arena/allocator/Task transfer 禁止、checked shared 操作、独立 source/MIR proof を維持します。host thread の保証はありません。実行受理前に A06 導出と A05 owned async publication/await/disposal を検証し、A02 は具体的 channel handle 後の actor authority proof を維持します。以前の日付付き checkpoint は履歴です。channel/backpressure と foreign/C/serialized/package の決定は別途必要で、M3 gate は未完了です。
 
 既存 ownership MIR に Task/TaskError 型、ABI から独立した async effect、独立検証した task 命令/scope/claim flow/suspension cleanup を追加します。型/宣言だけの証明は task flow の証明ではありません。既存同期実行/保存経路はこの profile を拒否し、意味を消去できないようにします。
@@ -142,7 +144,7 @@ raw MIR の ID/span/cycle/storage/signature/上限を HIR と独立して検証�
 
 ## Open questions
 
-in-memory T04 証明に blocking question はありません。上記の命令/continuation と cleanup plan の判断は実装済みで、初期 task VM/native の layout/resume は実装済みで、owned task 実行、完全な共有 control、serialized task revision は別の未検証 delivery です。serialized revision は公開前に採択が必要です。既存 ownership MIR の拡張が semantics 重複を減らすという仮説であり、compile/runtime 性能向上は主張しません。
+in-memory T04 証明に blocking question はありません。上記の命令/continuation、cleanup plan、owned task transfer、共有 control の契約は VM/生成 native continuation で実行します。channel、foreign/embedding、両 host conformance、serialized task revision は別の M3 delivery に残ります。serialized revision は公開前に採択が必要です。既存 ownership MIR の拡張が semantics 重複を減らすという仮説であり、compile/runtime 性能向上は主張しません。
 
 判断: **RFC 0001 実験段階の委任で accepted、2026-10-21 JST**。段階的な拒否で既存 semantics を維持し、実行権限を作りません。必要な表現の前提であり、新 milestone gate や T04–T08 の縮小ではありません。
 
@@ -170,3 +172,5 @@ in-memory T04 証明に blocking question はありません。上記の命令/c
 - T16 の根拠: `crates/hir/src/loans.rs`、source arena lowering、frame arena/read adapter、`crates/runtime/src/arena/managed/publication.rs`、`tests/task_arena_execution.rs`、`crates/semantics/tests/task_loans.rs`、名前付き source/リンク済み object fixture。code に更新日の埋込みはなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。[RFC 0007](0007-source-ownership-and-core-values.md) と [RFC 0022](0022-source-structured-tasks.md)（最終更新/確認 2026-10-21 JST）が allocator 権限捕捉と、維持する通常 loan の suspension 規則を記録します。
 
 - T07 統合の根拠: `tests/fixtures/task_owned_integrated.lang`、`tests/task_owned_integration.rs`、`tests/support/task_static.rs`。code に更新日の埋込みはなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。契約は [RFC 0007](0007-source-ownership-and-core-values.md)、[RFC 0021](0021-bounded-structured-task-driver.md)、本 RFC に基づき、最終更新/確認は 2026-10-21 JST です。外部性能や fuzz campaign の主張ではありません。
+
+- A05 実行証拠: `crates/runtime/src/task/runner/`、`tests/task_owned_transfer.rs`、`tests/fixtures/task_owned_transfer.lang`、`tests/fixtures/task_owned_transfer_all.lang`、`tests/support/task_static.rs`。コードに更新日の埋込みはなく、2026-10-21 JST に macOS AArch64 で検証しました。RFC 0021/0022/0024（最終更新 2026-10-21）の既存 cleanup と transfer 契約を用い、host thread/foreign capability を与えません。

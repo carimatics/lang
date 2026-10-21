@@ -47,6 +47,11 @@ pub struct ReturnTo {
     pub next: f::NodeId,
     pub failure: f::NodeId,
 }
+/// A detached scope result retains its owner provenance with its reservation.
+pub struct RetainedResult<'l, 'ty> {
+    pub value: l::Reservation<'l, 'ty>,
+    pub span: m::Span,
+}
 pub struct Frame<'l, 'ty> {
     pub activation: ActivationId,
     pub types: &'ty o::VerifiedTypes,
@@ -477,8 +482,13 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         &mut self,
         allocator: &mut a::Allocator<P>,
         services: &mut super::services::Services<'_, '_>,
-    ) -> Result<l::Reservation<'l, 'ty>, Reason> {
+    ) -> Result<RetainedResult<'l, 'ty>, Reason> {
         self.available(self.return_cell)?;
+        let span = self
+            .managed
+            .as_ref()
+            .and_then(|m| m.spans[self.return_cell])
+            .unwrap_or(self.origin);
         if let Err(reason) = self.cleanup_all(
             Some(self.return_cell),
             crate::cleanup::Reason::ScopeExit,
@@ -511,6 +521,9 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         self.storage = None;
         self.claims.fill(None);
         self.live.fill(false);
-        Ok(result)
+        Ok(RetainedResult {
+            value: result,
+            span,
+        })
     }
 }

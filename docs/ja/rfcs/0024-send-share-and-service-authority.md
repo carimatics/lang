@@ -16,6 +16,8 @@
 
 A06 実装 checkpoint（2026-10-21 JST）: source と MIR は独立に検証した推移 type fact から compiler-derived logical-task Send/Share を提供し、新 graph cache、trait 自己宣言、bit-copy transfer、wire tag を導入しません。async signature は owned Bytes/Text/Vec/Map、sum、再帰 record/enum、checked shared/weak を受理します。loan/arena/allocator/Task 権限は禁止し、通常 move 解析で spawn 引数を一度だけ消費します。重点 7 テストで両 graph、未使用/前方再帰 signature と alias、不正 MIR loan signature の type span での拒否、二重消費拒否、proof work 境界値/1 未満を確認しました。到達する owned async transfer は A05 の publication/await/disposal 実装まで VM/native で副作用前の Unsupported 拒否を維持します。source actor authority は具体的 channel handle 後の A02 に残ります。部分実装の証拠であり、RFC 0024 と全 M3 gate は未完です。
 
+A05 実行 checkpoint（2026-10-21 JST）: VM と生成 native continuation は recursive Send 引数/結果を managed move で実行します。分離した result reservation は owner span を保持し、consuming await または破棄まで live cell として計上します。await は owned Ok payload を初期化して所有権を登録し、未回収結果は既存 mixed cleanup drain を通じて local owner より先に公開順の逆順で退役します。取消と未公開 return は一度限りの退役、primary failure の優先、有限 report、poison 証拠を維持し、必須 cleanup は work 課金しません。差分 15 テストで Bytes/Text/Vec/Map、record/whole enum、shared/weak identity、入れ子 task 世代と owned Result、公開前後の取消、cleanup panic/truncation、保持 cell による admission、resource 上限境界/1 未満、全 fuel/work/provider/interruption prefix を検証します。転送 fixture 2 本を加え linked-object は 13 profile になります。`cargo run -- run tests/fixtures/task_owned_transfer.lang` と `cargo run -- run tests/fixtures/task_owned_transfer_all.lang` は 42 を返します。logical task は同一 invocation 内に限り、source actor authority、channel、foreign/C/serialized/native-package profile、全 M3 gate の残り delivery を維持します。
+
 検証済み source type から内部 capability を導出します。`Send` は同じ invocation の logical task 間で owned 値を移動する権限、`Share` は mutable alias 権限を与えず検査付き shared observation を行う権限です。async 引数/結果と channel message は Send を要求します。ユーザーによる宣言、trait/closure capture 構文、暗黙 clone、detached task、thread 間 host ABI は追加しません。
 
 Service state は owner task に属します。service handle は interface で受理された message/取消操作だけを与え、mutable state projection を公開しません。具体的な handle type と操作は後続の channel/service 決定で選びます。この受理だけでは操作の実装や M3 gate は完了しません。
@@ -38,7 +40,7 @@ thread、任意の host handle、public Rust Send/Sync 実装、ユーザー定�
 
 async worker は Send な値で構成した Bytes、Text、Vec、Map、record/variant を受け取り、返せます。non-Copy 引数は通常の source move 解析で消費します。await した成功結果は child escrow から一度だけ移動します。取消 child は payload を返さず、未取得の成功結果は retirement まで scope が所有します。source service は private な moved state を持つ async owner であり、producer は別途検証する message handle で通信します。対象が Share でも通常の shared/exclusive loan を別 task へ渡すことは禁止します。
 
-契約例です（実行は A06/A05 で対応予定）。実装後は 0 を返します。
+実行例です（A06/A05 runtime admission test で検証）。0 を返します。
 
 ```text
 async fn worker(value: core::Bytes) -> core::Bytes { yield; return value; }
@@ -114,7 +116,7 @@ Copy-only transfer の維持は単純ですが owned message を満たせませ�
 
 ## Open questions
 
-未検証の仮定: 既存 managed transfer/escrow で新 owner registry なしに owned async publication を実装できること、再帰導出コストが許容できること、将来 channel handle が interface 権限だけを保持できること。実装 audit は不足する観測可能な前提を明示し、全 M3 受入条件を保つ必要があります。thread 間や foreign handle の安全性は推論しません。
+A05 は既存 managed transfer/escrow で新 owner registry なしに owned async publication を実行することを検証し、A06 は proof 上限境界/1 未満で導出の有限性を確認しました。未検証の仮定は代表的な導出/転送費用の許容性、将来 channel handle の interface 権限のみの保持、両 host の動作適合です。実装 audit は不足する観測可能な前提を明示し、全 M3 受入条件を保つ必要があります。thread 間や foreign handle の安全性は推論しません。
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**。検証済み型の再帰的性質、通常 move/loan、既存 checked shared publication と直列 invocation 境界を組み合わせれば、追加の借用や thread 安全性を仮定せず owned task transfer を定義できます。service handle に state projection を与えず、既存 producer/owner 分離を維持します。上記の仮定は実装と両 host の検証まで未検証で、受理だけでは実装・安定化・gate 完了を意味しません。
 
@@ -122,3 +124,5 @@ Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**。
 
 - [RFC 0004](0004-owned-values-and-cyclic-graphs.md) 最終更新 2026-10-17、[RFC 0005](0005-structured-tasks-and-isolated-services.md)/[0007](0007-source-ownership-and-core-values.md)/[0021](0021-bounded-structured-task-driver.md)/[0022](0022-source-structured-tasks.md)/[0023](0023-task-mir-boundaries.md) 最終更新 2026-10-21。2026-10-21 JST 確認。project contract であり外部性能の証拠ではありません。
 - `crates/hir/src/tasks.rs`、`crates/hir/src/types.rs`、`crates/mir/src/unit/ownership/tasks.rs`、`crates/runtime/src/task/runner/`、実験 `crates/semantics/src/service.rs` を 2026-10-21 JST 確認。code に更新日の埋込みはありません。最小の owned Bytes worker 引数/結果例はこの決定の実装前に SRC0026 を再現します。
+
+- A05 実行証拠: `crates/runtime/src/task/runner/`、`tests/task_owned_transfer.rs`、`tests/fixtures/task_owned_transfer.lang`、`tests/fixtures/task_owned_transfer_all.lang`、`tests/support/task_static.rs`。コードに更新日の埋込みはなく、2026-10-21 JST に macOS AArch64 で検証しました。RFC 0021/0022/0024（最終更新 2026-10-21）の既存 cleanup と transfer 契約を用い、host thread/foreign capability を与えません。

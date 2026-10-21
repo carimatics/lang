@@ -495,7 +495,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                         return Err(Reason::Invariant);
                     }
                 }
-                self.retire_children_results(task)?;
+                self.retire_children_results(task, c::Reason::Failure)?;
             }
             Primitive::Finish => return Ok(Flow::Finished),
         }
