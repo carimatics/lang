@@ -31,6 +31,9 @@ pub enum Error {
     Allocation(allocation::Error),
     Overflow,
     InvalidType(o::Type),
+    UnsupportedChannelProfile {
+        span: m::Span,
+    },
     UnsupportedTaskProfile {
         span: m::Span,
     },
@@ -170,6 +173,9 @@ impl<'types> Layouts<'types> {
             },
         )?;
         budget.charge(types.table().constructed.len())?;
+        if let Some(span) = types.channel_feature_span() {
+            return Err(Error::UnsupportedChannelProfile { span });
+        }
         if let Some(span) = types.task_feature_span()
             && !tasks
         {
@@ -460,6 +466,13 @@ fn build(
                     )?);
                 }
                 o::Constructor::Builtin(o::Builtin::Unit) => return Ok(simple(0, 1, Kind::Scalar)),
+                o::Constructor::ChannelSetup(_)
+                | o::Constructor::Sender(_)
+                | o::Constructor::Receiver(_) => {
+                    return Err(Error::UnsupportedChannelProfile {
+                        span: types.table().constructed[id.0 as usize].span,
+                    });
+                }
                 o::Constructor::Task(_) => {
                     return Ok(Layout {
                         work_slots: 0,

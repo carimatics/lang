@@ -14,6 +14,8 @@ M3 task execution checkpoint（2026-10-21 JST 検証）: `cargo run -- run examp
 
 Channel 実行 checkpoint（2026-10-21 JST）: RFC 0025 の有限 trusted-host runtime service を `cargo run --example bounded-channels` で実行し、capacity-one backpressure 経由の42、payload 退役 [20,22]、frame cleanup [1,0]、取消 [9,7]、typed ChannelDeadlock をいずれも live 0 で確認します。重点17件は FIFO 予約、owned transfer、close/取消、循環事前検査、有限 metadata、即時/待機経路の全 service-work prefix を検証します。`cargo run --example parked-tasks` の42と取消 cleanup [2,1,0] も維持します。guest allocator/cell 統合、source/独立 MIR capability/loan 検査、VM/native channel profile は C03/C04 に残ります。Rust host 実行だけで source channel や M3 gate を完了扱いにせず、実装 Todo に全 scope を維持します。
 
+C06 型 checkpoint（2026-10-21 JST）: 予約された opaque `core::ChannelSetup<T>`、`core::Sender<T>`、`core::Receiver<T>` の identity を source/HIR と独立検証する MIR に保持します。既存 graph で有限な Send/Share 依存を別々に導出し、Sender の両 capability は message の Send、Receiver は Share 不可、Setup は両方不可、shared/weak は target の両 capability を要します。全 role は non-Copy で退役が必要であり、未使用 message constructor も Send を要します。重点11件は再帰/宣言順 graph、alias、不正 message/arity、move、偽造 MIR、proof resource の上限境界/1 未満、未対応 profile の admission を検証します。schema-2/3/4 writer は constructor byte 前に拒否し、実行 layout、VM/native channel admission、両 target の native package は未使用 endpoint も guest/provider 副作用前に拒否します。これは型 capability の証明であり channel 実行ではありません。具体 call/error/MIR operation、suspension loan proof、guest allocator/cell 統合、VM/native fixture は C03/C04 に残り、wire/C layout や M3 gate は完了しません。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

@@ -448,6 +448,9 @@ pub fn managed_type_supported(
                         }
                     }
                     o::Constructor::Task(_) => {}
+                    o::Constructor::ChannelSetup(_)
+                    | o::Constructor::Sender(_)
+                    | o::Constructor::Receiver(_) => return Ok(false),
                 }
             }
             o::Type::Nominal(id) => match &types.table().definitions[id.0 as usize].kind {

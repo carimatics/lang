@@ -430,7 +430,7 @@ impl<'a> Context<'a> {
                 );
             };
             let arity = match name {
-                "Option" | "Vec" | "Task" => 1,
+                "Option" | "Vec" | "Task" | "ChannelSetup" | "Sender" | "Receiver" => 1,
                 "Result" | "Map" => 2,
                 _ if r::BuiltinType::from_name(name).is_some() => 0,
                 _ => {
@@ -476,6 +476,9 @@ impl<'a> Context<'a> {
             let constructor = match name {
                 "Option" => r::TypeConstructor::Option(values[0]),
                 "Task" => r::TypeConstructor::Task(values[0]),
+                "ChannelSetup" => r::TypeConstructor::ChannelSetup(values[0]),
+                "Sender" => r::TypeConstructor::Sender(values[0]),
+                "Receiver" => r::TypeConstructor::Receiver(values[0]),
                 "Result" => r::TypeConstructor::Result(values[0], values[1]),
                 "Vec" => r::TypeConstructor::Vec(values[0]),
                 "Map" => r::TypeConstructor::Map(values[0], values[1]),

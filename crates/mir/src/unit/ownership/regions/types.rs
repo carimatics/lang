@@ -6,6 +6,9 @@ pub struct NodeId(pub usize);
 pub enum Kind {
     Scalar,
     Task,
+    ChannelSetup(NodeId),
+    Sender(NodeId),
+    Receiver(NodeId),
     Builtin(Builtin),
     Record(Vec<NodeId>),
     Enum(Vec<Vec<NodeId>>),
@@ -121,6 +124,9 @@ pub(super) fn compile(types: &VerifiedTypes, admit: &mut Admission) -> Result<Ve
                     },
                     Constructor::ArenaOwner(owner) => Kind::ArenaOwner(owner),
                     Constructor::Task(_) => Kind::Task,
+                    Constructor::ChannelSetup(t) => Kind::ChannelSetup(target(t)),
+                    Constructor::Sender(t) => Kind::Sender(target(t)),
+                    Constructor::Receiver(t) => Kind::Receiver(target(t)),
                 }
             }
         };

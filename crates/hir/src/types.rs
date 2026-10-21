@@ -82,20 +82,17 @@ pub struct Properties {
     pub contains_arena: bool,
     pub contains_allocator: bool,
     pub contains_task: bool,
+    pub(crate) non_send: bool,
+    pub(crate) non_share: bool,
 }
 impl Properties {
-    /// RFC 0024 logical-task transfer eligibility for the current type family.
-    /// The verified graph already propagates these exclusions through cycles.
+    /// Logical-task capability derived from the checked graph, independently
+    /// of storage/region facts and of the other capability (RFCs 0024/0025).
     pub const fn is_send(self) -> bool {
-        !self.contains_loan
-            && !self.contains_arena
-            && !self.contains_allocator
-            && !self.contains_task
+        !self.non_send
     }
-    /// Current checked shared operations have the same transitive exclusions.
-    /// New capability-bearing constructors require their own accepted policy.
     pub const fn is_share(self) -> bool {
-        self.is_send()
+        !self.non_share
     }
     pub(crate) fn result_restriction(self) -> Option<(DiagnosticCode, &'static str)> {
         if self.contains_task {
@@ -117,7 +114,7 @@ impl Properties {
             None
         }
     }
-    fn bits(bits: u8) -> Self {
+    fn bits(bits: u16) -> Self {
         Self {
             is_copy: bits & NONCOPY == 0,
             requires_drop: bits & DROP != 0,
@@ -125,6 +122,8 @@ impl Properties {
             contains_arena: bits & ARENA != 0,
             contains_allocator: bits & ALLOCATOR != 0,
             contains_task: bits & TASK != 0,
+            non_send: bits & NONSEND != 0,
+            non_share: bits & NONSHARE != 0,
         }
     }
 }
@@ -170,14 +169,33 @@ pub struct Analysis {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-const NONCOPY: u8 = 1;
-const DROP: u8 = 2;
-const LOAN: u8 = 4;
-const ARENA: u8 = 8;
-const ALLOCATOR: u8 = 16;
-const PRIVATE: u8 = 32;
-const TASK: u8 = 64;
-const INSPECT: u8 = LOAN | ARENA | ALLOCATOR | PRIVATE | TASK;
+const NONCOPY: u16 = 1;
+const DROP: u16 = 2;
+const LOAN: u16 = 4;
+const ARENA: u16 = 8;
+const ALLOCATOR: u16 = 16;
+const PRIVATE: u16 = 32;
+const TASK: u16 = 64;
+const NONSEND: u16 = 128;
+const NONSHARE: u16 = 256;
+const CAPABILITIES: u16 = NONSEND | NONSHARE;
+const INSPECT: u16 = CAPABILITIES | LOAN | ARENA | ALLOCATOR | PRIVATE | TASK;
+
+// Capability dependencies need not coincide with physical referents.
+fn capability_delta(constructor: Option<r::TypeConstructor>, delta: u16) -> u16 {
+    let denied = match constructor {
+        Some(r::TypeConstructor::Shared(_) | r::TypeConstructor::Weak(_)) => {
+            delta & CAPABILITIES != 0
+        }
+        Some(
+            r::TypeConstructor::Sender(_)
+            | r::TypeConstructor::Receiver(_)
+            | r::TypeConstructor::ChannelSetup(_),
+        ) => delta & NONSEND != 0,
+        _ => return delta & CAPABILITIES,
+    };
+    if denied { CAPABILITIES } else { 0 }
+}
 
 #[derive(Clone, Copy)]
 struct Edge {
@@ -397,7 +415,7 @@ impl Context<'_> {
         ty: r::TypeUse,
         position: Position,
         public: bool,
-        bits: &[u8],
+        bits: &[u16],
         private: &[Option<Span>],
     ) -> Result<(), Error> {
         let id = self.use_type(owner, ty)?;
@@ -494,7 +512,7 @@ pub fn analyze(
     let mut reverse = c.budget.vector(root, n)?;
     c.budget.charge(root, n)?;
     reverse.resize_with(n, Vec::new);
-    let mut bits = c.budget.filled(root, n, 0u8)?;
+    let mut bits = c.budget.filled(root, n, 0u16)?;
     let mut private = c.budget.filled(root, n, None)?;
     let mut generic_depth: Vec<usize> = c.budget.vector(root, program.types.len())?;
     for (index, ty) in program.types.iter().enumerate() {
@@ -553,14 +571,19 @@ pub fn analyze(
             r::TypeConstructor::Builtin(r::BuiltinType::Text | r::BuiltinType::Bytes) => {
                 NONCOPY | DROP
             }
-            r::TypeConstructor::Builtin(r::BuiltinType::Allocator) => NONCOPY | ALLOCATOR,
+            r::TypeConstructor::Builtin(r::BuiltinType::Allocator) => {
+                NONCOPY | ALLOCATOR | CAPABILITIES
+            }
             r::TypeConstructor::Vec(_)
             | r::TypeConstructor::Map(..)
             | r::TypeConstructor::Shared(_)
             | r::TypeConstructor::Weak(_) => NONCOPY | DROP,
-            r::TypeConstructor::Loan(..) => NONCOPY | LOAN,
-            r::TypeConstructor::Task(_) => NONCOPY | DROP | TASK,
-            r::TypeConstructor::Arena(_) => ARENA,
+            r::TypeConstructor::Loan(..) => NONCOPY | LOAN | CAPABILITIES,
+            r::TypeConstructor::Task(_) => NONCOPY | DROP | TASK | CAPABILITIES,
+            r::TypeConstructor::ChannelSetup(_) => NONCOPY | DROP | CAPABILITIES,
+            r::TypeConstructor::Sender(_) => NONCOPY | DROP,
+            r::TypeConstructor::Receiver(_) => NONCOPY | DROP | NONSHARE,
+            r::TypeConstructor::Arena(_) => ARENA | CAPABILITIES,
             _ => 0,
         };
     }
@@ -633,7 +656,14 @@ pub fn analyze(
         c.budget.charge(root, 1)?;
         for edge in &reverse[id] {
             c.budget.charge(root, 1)?;
-            let next = delta & if edge.inline { u8::MAX } else { INSPECT } & !bits[edge.parent];
+            let constructor = edge
+                .parent
+                .checked_sub(base)
+                .and_then(|i| program.types.get(i))
+                .map(|t| t.constructor);
+            let storage = delta & if edge.inline { u16::MAX } else { INSPECT };
+            let next = ((storage & !CAPABILITIES) | capability_delta(constructor, delta))
+                & !bits[edge.parent];
             if next != 0 {
                 bits[edge.parent] |= next;
                 if next & PRIVATE != 0 {
@@ -646,6 +676,20 @@ pub fn analyze(
     for ty in &program.types {
         for argument in ty.constructor.arguments() {
             c.budget.charge(ty.span, 1)?;
+            if matches!(
+                ty.constructor,
+                r::TypeConstructor::ChannelSetup(_)
+                    | r::TypeConstructor::Sender(_)
+                    | r::TypeConstructor::Receiver(_)
+            ) && bits[c.node(argument, ty.span)?] & NONSEND != 0
+            {
+                c.report(
+                    codes::INVALID_OWNERSHIP_TYPE,
+                    ty.span,
+                    "channel message types must be Send",
+                    None,
+                )?;
+            }
             if matches!(ty.constructor, r::TypeConstructor::Task(_))
                 && bits[c.node(argument, ty.span)?] & (LOAN | ARENA | ALLOCATOR) != 0
             {

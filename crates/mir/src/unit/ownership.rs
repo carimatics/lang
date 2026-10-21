@@ -66,6 +66,9 @@ pub enum Constructor {
     Loan(LoanKind, Type),
     ArenaOwner(ArenaOwner),
     Task(Type),
+    ChannelSetup(Type),
+    Sender(Type),
+    Receiver(Type),
 }
 impl Constructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
@@ -75,6 +78,9 @@ impl Constructor {
             | Self::Shared(t)
             | Self::Weak(t)
             | Self::Arena(t)
+            | Self::ChannelSetup(t)
+            | Self::Sender(t)
+            | Self::Receiver(t)
             | Self::Task(t)
             | Self::Loan(_, t) => [Some(t), None],
             Self::Result(t, e) | Self::Map(t, e) => [Some(t), Some(e)],
@@ -162,6 +168,7 @@ pub enum ErrorKind {
     RecursiveInline(Type),
     InvalidStorage(Type),
     InvalidTaskType(Type),
+    InvalidChannelMessage(Type),
     InvalidAsyncEffect(FunctionId),
     UnsupportedTaskProfile,
     ArenaInShared(Type),
@@ -318,22 +325,19 @@ pub struct Properties {
     pub contains_allocator: bool,
     pub contains_owner: bool,
     pub contains_task: bool,
+    pub(crate) non_send: bool,
+    pub(crate) non_share: bool,
 }
 impl Properties {
-    /// RFC 0024 eligibility, derived independently from the verified MIR graph.
+    /// Logical-task capability derived from the checked graph, independently
+    /// of storage/region facts and of the other capability (RFCs 0024/0025).
     pub const fn is_send(self) -> bool {
-        !self.contains_loan
-            && !self.contains_arena
-            && !self.contains_allocator
-            && !self.contains_owner
-            && !self.contains_task
+        !self.non_send
     }
-    /// Current checked shared operations have the same transitive exclusions.
-    /// New capability-bearing constructors require their own accepted policy.
     pub const fn is_share(self) -> bool {
-        self.is_send()
+        !self.non_share
     }
-    fn from_bits(bits: u8) -> Self {
+    fn from_bits(bits: u16) -> Self {
         Self {
             is_copy: bits & NONCOPY == 0,
             requires_drop: bits & DROP != 0,
@@ -342,6 +346,8 @@ impl Properties {
             contains_allocator: bits & ALLOCATOR != 0,
             contains_owner: bits & OWNER != 0,
             contains_task: bits & TASK != 0,
+            non_send: bits & NONSEND != 0,
+            non_share: bits & NONSHARE != 0,
         }
     }
 }
@@ -351,7 +357,7 @@ impl Properties {
 /// still require validation before this graph can be part of executable MIR.
 pub struct VerifiedTypes {
     table: TypeTable,
-    bits: Vec<u8>,
+    bits: Vec<u16>,
     canonical: Vec<Type>,
     work: usize,
     bytes: usize,
@@ -364,6 +370,16 @@ impl VerifiedTypes {
             matches!(
                 t.constructor,
                 Constructor::Task(_) | Constructor::Builtin(Builtin::TaskError)
+            )
+            .then_some(t.span)
+        })
+    }
+    /// Includes unused endpoint metadata; no executable layout is assigned yet.
+    pub fn channel_feature_span(&self) -> Option<Span> {
+        self.table.constructed.iter().find_map(|t| {
+            matches!(
+                t.constructor,
+                Constructor::ChannelSetup(_) | Constructor::Sender(_) | Constructor::Receiver(_)
             )
             .then_some(t.span)
         })
@@ -454,6 +470,9 @@ fn canonicalize(table: &TypeTable, budget: &mut Budget) -> Result<Vec<Type>, Err
             Constructor::Arena(t) => Constructor::Arena(child(t)),
             Constructor::Loan(k, t) => Constructor::Loan(k, child(t)),
             Constructor::Task(t) => Constructor::Task(child(t)),
+            Constructor::ChannelSetup(t) => Constructor::ChannelSetup(child(t)),
+            Constructor::Sender(t) => Constructor::Sender(child(t)),
+            Constructor::Receiver(t) => Constructor::Receiver(child(t)),
             Constructor::Builtin(_) | Constructor::ArenaOwner(_) => t.constructor,
         };
         let mut hasher = DefaultHasher::new();
@@ -479,15 +498,30 @@ fn canonicalize(table: &TypeTable, budget: &mut Budget) -> Result<Vec<Type>, Err
     Ok(canonical)
 }
 
-const NONCOPY: u8 = 1;
-const DROP: u8 = 2;
-const LOAN: u8 = 4;
-const ARENA: u8 = 8;
-const ALLOCATOR: u8 = 16;
-const OWNER: u8 = 32;
-const PRIVATE: u8 = 64;
-const TASK: u8 = 128;
-const INSPECT: u8 = LOAN | ARENA | ALLOCATOR | OWNER | PRIVATE | TASK;
+const NONCOPY: u16 = 1;
+const DROP: u16 = 2;
+const LOAN: u16 = 4;
+const ARENA: u16 = 8;
+const ALLOCATOR: u16 = 16;
+const OWNER: u16 = 32;
+const PRIVATE: u16 = 64;
+const TASK: u16 = 128;
+const NONSEND: u16 = 256;
+const NONSHARE: u16 = 512;
+const CAPABILITIES: u16 = NONSEND | NONSHARE;
+const INSPECT: u16 = CAPABILITIES | LOAN | ARENA | ALLOCATOR | OWNER | PRIVATE | TASK;
+// Capability dependencies need not coincide with physical referents.
+fn capability_delta(constructor: Option<Constructor>, delta: u16) -> u16 {
+    let denied = match constructor {
+        Some(Constructor::Shared(_) | Constructor::Weak(_)) => delta & CAPABILITIES != 0,
+        Some(Constructor::Sender(_) | Constructor::Receiver(_) | Constructor::ChannelSetup(_)) => {
+            delta & NONSEND != 0
+        }
+        _ => return delta & CAPABILITIES,
+    };
+    if denied { CAPABILITIES } else { 0 }
+}
+
 #[derive(Clone, Copy)]
 struct Edge {
     child: usize,
@@ -673,7 +707,7 @@ fn validate(
     table: &TypeTable,
     budget: &mut Budget,
     constructed_limit: usize,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u16>, Error> {
     if table.constructed.len() > constructed_limit {
         return Err(Error::new(
             ErrorKind::ConstructedLimit {
@@ -705,7 +739,7 @@ fn validate(
         reverse: filled(budget, n, Vec::new())?,
         budget,
     };
-    let mut bits = filled(g.budget, n, 0u8)?;
+    let mut bits = filled(g.budget, n, 0u16)?;
     let mut depths = g.budget.vector::<usize>(table.constructed.len())?;
     let mut names = g.budget.vector(table.definitions.len())?;
     for (i, definition) in table.definitions.iter().enumerate() {
@@ -762,9 +796,7 @@ fn validate(
         g.names(&mut member_names, definition.span)?;
     }
     validation::unique(&mut names, g.budget)?;
-    let mut has_task = false;
     for (i, ty) in table.constructed.iter().enumerate() {
-        has_task |= matches!(ty.constructor, Constructor::Task(_));
         g.span(ty.span)?;
         let mut depth = 1;
         for argument in ty.constructor.arguments() {
@@ -797,19 +829,22 @@ fn validate(
             | Constructor::Map(..)
             | Constructor::Shared(_)
             | Constructor::Weak(_) => NONCOPY | DROP,
-            Constructor::Builtin(Builtin::Allocator) => NONCOPY | ALLOCATOR,
-            Constructor::Loan(..) => NONCOPY | LOAN,
-            Constructor::Arena(_) => ARENA,
-            Constructor::ArenaOwner(_) => NONCOPY | DROP | ARENA | OWNER,
-            Constructor::Task(_) => NONCOPY | DROP | TASK,
+            Constructor::Builtin(Builtin::Allocator) => NONCOPY | ALLOCATOR | CAPABILITIES,
+            Constructor::Loan(..) => NONCOPY | LOAN | CAPABILITIES,
+            Constructor::Arena(_) => ARENA | CAPABILITIES,
+            Constructor::ArenaOwner(_) => NONCOPY | DROP | ARENA | OWNER | CAPABILITIES,
+            Constructor::Task(_) => NONCOPY | DROP | TASK | CAPABILITIES,
+            Constructor::ChannelSetup(_) => NONCOPY | DROP | CAPABILITIES,
+            Constructor::Sender(_) => NONCOPY | DROP,
+            Constructor::Receiver(_) => NONCOPY | DROP | NONSHARE,
             _ => 0,
         };
     }
     g.inline_depths()?;
-    // Every queued delta introduces at least one of eight previously absent
+    // Every queued delta introduces at least one of ten previously absent
     // bits at its node, including the initial seeds. No queue growth is needed.
     let queue_capacity = n
-        .checked_mul(if has_task { 8 } else { 7 })
+        .checked_mul(10)
         .ok_or_else(|| super::Error::new(super::ErrorKind::ArithmeticOverflow))?;
     let mut queue = g.budget.vector(queue_capacity)?;
     for (id, flags) in bits.iter().copied().enumerate() {
@@ -824,7 +859,14 @@ fn validate(
         g.budget.charge(1)?;
         for edge in &g.reverse[id] {
             g.budget.charge(1)?;
-            let next = delta & if edge.inline { u8::MAX } else { INSPECT } & !bits[edge.parent];
+            let constructor = edge
+                .parent
+                .checked_sub(base)
+                .and_then(|i| table.constructed.get(i))
+                .map(|t| t.constructor);
+            let storage = delta & if edge.inline { u16::MAX } else { INSPECT };
+            let next = ((storage & !CAPABILITIES) | capability_delta(constructor, delta))
+                & !bits[edge.parent];
             if next != 0 {
                 bits[edge.parent] |= next;
                 queue.push((edge.parent, next));
@@ -835,6 +877,16 @@ fn validate(
         g.budget.charge(1)?;
         for argument in ty.constructor.arguments() {
             let flags = bits[node(table, argument)?];
+            if matches!(
+                ty.constructor,
+                Constructor::ChannelSetup(_) | Constructor::Sender(_) | Constructor::Receiver(_)
+            ) && flags & NONSEND != 0
+            {
+                return Err(Error::new(
+                    ErrorKind::InvalidChannelMessage(argument),
+                    Some(ty.span),
+                ));
+            }
             if flags & TASK != 0
                 || (matches!(ty.constructor, Constructor::Task(_))
                     && flags & (LOAN | ARENA | ALLOCATOR | OWNER) != 0)

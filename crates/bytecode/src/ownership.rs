@@ -125,6 +125,9 @@ pub enum CodecErrorKind {
     UnsupportedCInterface {
         span: m::Span,
     },
+    UnsupportedChannelProfile {
+        span: lang_mir::unit::Span,
+    },
     UnsupportedTaskProfile {
         span: m::Span,
     },

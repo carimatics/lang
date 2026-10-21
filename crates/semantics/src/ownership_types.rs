@@ -94,6 +94,9 @@ fn ty(ty: r::Type) -> Result<o::Type> {
 fn constructor(c: r::TypeConstructor, span: Span, profile: Profile) -> Result<o::Constructor> {
     use r::{BuiltinType as B, TypeConstructor as C};
     Ok(match c {
+        C::ChannelSetup(t) => o::Constructor::ChannelSetup(ty(t)?),
+        C::Sender(t) => o::Constructor::Sender(ty(t)?),
+        C::Receiver(t) => o::Constructor::Receiver(ty(t)?),
         C::Task(t) if profile == Profile::Tasks => o::Constructor::Task(ty(t)?),
         C::Task(_) => {
             return Err(Error::UnsupportedBody {

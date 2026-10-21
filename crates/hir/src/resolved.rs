@@ -111,6 +111,9 @@ pub enum TypeConstructor {
     Option(Type),
     Result(Type, Type),
     Task(Type),
+    ChannelSetup(Type),
+    Sender(Type),
+    Receiver(Type),
     Vec(Type),
     Map(Type, Type),
     Shared(Type),
@@ -126,6 +129,9 @@ impl TypeConstructor {
         let pair = match self {
             Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
             Self::Option(t)
+            | Self::ChannelSetup(t)
+            | Self::Sender(t)
+            | Self::Receiver(t)
             | Self::Task(t)
             | Self::Vec(t)
             | Self::Shared(t)

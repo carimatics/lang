@@ -152,6 +152,12 @@ impl Writer<'_> {
                 self.word(v.function.0)?;
                 self.word(v.local)?;
             }
+            C::ChannelSetup(_) | C::Sender(_) | C::Receiver(_) => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedChannelProfile { span: value.span },
+                ));
+            }
             C::Task(_) => {
                 return Err(error(
                     self.length,
@@ -493,6 +499,12 @@ impl Writer<'_> {
     }
     fn unit(&mut self, program: &Program, payload: u32) -> Result<(), CodecError> {
         let typed = program.flow.source().activity().moved().typed();
+        if let Some(span) = typed.places().declarations().types().channel_feature_span() {
+            return Err(error(
+                self.length,
+                CodecErrorKind::UnsupportedChannelProfile { span },
+            ));
+        }
         if let Some(span) = typed.places().declarations().task_feature_span() {
             return Err(error(
                 self.length,
@@ -737,6 +749,30 @@ mod task_tests {
                 value: 10
             }
         ));
+    }
+    #[test]
+    fn old_writers_refuse_each_channel_role_before_any_constructor_bytes() {
+        for version in [2, 3, 4] {
+            for constructor in [
+                o::Constructor::ChannelSetup(o::Type::I64),
+                o::Constructor::Sender(o::Type::I64),
+                o::Constructor::Receiver(o::Type::I64),
+            ] {
+                let mut budget = m::Budget::new(Default::default());
+                let mut w = writer(&mut budget, version);
+                let error = w
+                    .constructor(&o::Constructed {
+                        constructor,
+                        span: span(),
+                    })
+                    .unwrap_err();
+                assert!(
+                    matches!(error.kind,CodecErrorKind::UnsupportedChannelProfile{span:s} if s==span())
+                );
+                assert_eq!(w.length, 0);
+                assert!(w.output.unwrap().is_empty());
+            }
+        }
     }
     #[test]
     fn old_writers_refuse_even_scalar_async_declarations_before_output() {

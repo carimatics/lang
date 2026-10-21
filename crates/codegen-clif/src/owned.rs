@@ -2637,6 +2637,9 @@ struct Output {
 
 #[derive(Debug)]
 pub enum Error {
+    UnsupportedChannelProfile {
+        span: m::Span,
+    },
     UnsupportedTaskProfile {
         span: m::Span,
     },
@@ -2668,6 +2671,14 @@ impl Display for Error {
 }
 impl std::error::Error for Error {}
 fn reject_c_interface(flow: &f::Elaborated) -> Result<(), Error> {
+    if let Some(span) = typed(flow)
+        .places()
+        .declarations()
+        .types()
+        .channel_feature_span()
+    {
+        return Err(Error::UnsupportedChannelProfile { span });
+    }
     if let Some(span) = typed(flow).places().declarations().task_feature_span() {
         return Err(Error::UnsupportedTaskProfile { span });
     }
@@ -2721,6 +2732,9 @@ impl<'a> FunctionLayout<'a> {
         prefix: Option<m::Usage>,
     ) -> Result<Self, Error> {
         let typed = flow.source().activity().moved().typed();
+        if let Some(span) = typed.places().declarations().types().channel_feature_span() {
+            return Err(Error::UnsupportedChannelProfile { span });
+        }
         if typed.functions().get(function.0 as usize).is_none() {
             return Err(Error::InvalidFunction(function));
         }

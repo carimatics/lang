@@ -160,6 +160,8 @@ fn scalar() -> types::Properties {
         contains_arena: false,
         contains_allocator: false,
         contains_task: false,
+        non_send: false,
+        non_share: false,
     }
 }
 
@@ -264,6 +266,8 @@ impl TypeStore {
             properties.contains_arena |= child.contains_arena;
             properties.contains_allocator |= child.contains_allocator;
             properties.contains_task |= child.contains_task;
+            properties.non_send |= !child.is_send();
+            properties.non_share |= !child.is_share();
             let child_depth = match argument {
                 r::Type::Constructed(id) => self.depths[id.0],
                 _ => 1,
@@ -276,6 +280,18 @@ impl TypeStore {
             ));
         }
         match constructor {
+            r::TypeConstructor::ChannelSetup(_) => {
+                properties.is_copy = false;
+                properties.requires_drop = true;
+                properties.non_send = true;
+                properties.non_share = true;
+            }
+            r::TypeConstructor::Sender(t) | r::TypeConstructor::Receiver(t) => {
+                properties.is_copy = false;
+                properties.requires_drop = true;
+                properties.non_share = matches!(constructor, r::TypeConstructor::Receiver(_))
+                    || !self.properties(t, span)?.is_send();
+            }
             r::TypeConstructor::Task(_) => {
                 properties.is_copy = false;
                 properties.requires_drop = true;
@@ -309,6 +325,21 @@ impl TypeStore {
                 properties.contains_arena = true;
             }
             _ => {}
+        }
+        if properties.contains_loan
+            || properties.contains_arena
+            || properties.contains_allocator
+            || properties.contains_task
+        {
+            properties.non_send = true;
+            properties.non_share = true;
+        }
+        if matches!(
+            constructor,
+            r::TypeConstructor::Shared(_) | r::TypeConstructor::Weak(_)
+        ) {
+            properties.non_send |= properties.non_share;
+            properties.non_share |= properties.non_send;
         }
         let id = r::ConstructedTypeId(self.nodes.len());
         self.budget
