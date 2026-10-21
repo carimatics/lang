@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中:** [実装 Todo](milestone-3.md) は **26 done · 1 doing · 26 todo · 77 remaining pt**。A02 は `8944645` で完了し、opaque service 3 role・source 10 call・SRC0029・独立 capture/move/read/suspension proof が成功し、service 実行は guest 副作用前に拒否を維持します。最終固定入力 baseline は **126 suite・1,906件成功・失敗0・既存 ignore 1件**、fmt・Clippy・rustdoc・全11 fuzz target compile/lint も成功しました。**消化3 pt・新規明示6 pt**、残り **74 + 6 − 3 = 77 pt**。初の owned-state/FIFO VM fixture の **A07（3 pt）** と handler 境界の取消/退役の **A08（3 pt）** を明示し、doing は **A07 のみ**です。A03 の全 Send/state-publication/control 統合、A04 の native parity を維持します。全15 M3/P1 gate、foreign/C/serialized/package、production embedding、最終 guide を維持します。
+**M3 は進行中:** [実装 Todo](milestone-3.md) は **27 done · 1 doing · 25 todo · 74 remaining pt**。A07 は `d90de9b` で完了し、Share state の初期 private VM profile で owned Counter/Bytes FIFO fixture が 42 を返し、実 state storage・read/全体置換・backpressure・queue-before-state owner 退役・有限 control を実行します。固定入力 baseline は **126 suite・1,915件成功・失敗0・既存 ignore 1件**、fmt・Clippy・rustdoc・全11 fuzz target compile/lint が成功しました。**消化3 pt・追加/再見積り0 pt**、残り **77 + 0 − 3 = 74 pt**。残る取消 latch、idle/active/parked/反復要求、pending-send 回復、last-producer closure、state を解放した後の owner/header 寿命と report/control を確認し、**A08（3 pt）のみ doing** に選択します。Share でない state と service_cancel は現 VM が副作用前に拒否します。A03 の完全な Send graph/publication 統合、A04 の native parity、全15 M3/P1 gate、foreign/C/serialized/package、両 host conformance/production embedding、最終 guide は維持します。
 
 ## 進行中 milestone の実行
 
