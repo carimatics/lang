@@ -1,0 +1,45 @@
+// T16: owning same-region cycle, suspended scopes and joined descendants.
+struct Node { bytes: core::Bytes, next: core::Option<arena Node> }
+fn bytes(value:i64)->core::Bytes {
+    let mut b:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(b,value));
+    return b;
+}
+fn read(value:&Node)->i64 {
+    return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(value.bytes,0));
+}
+async fn leaf()->i64 {
+    let mut owned:core::Bytes=bytes(7);
+    yield;
+    return 0;
+}
+async fn worker()->i64 {
+    arena graph(core::allocator()) {
+        let mut first:arena Node=core::result_unwrap::<arena Node,core::ArenaError>(core::arena_new::<Node>(graph,Node{bytes:bytes(1),next:core::Option::None}));
+        let mut second:arena Node=core::result_unwrap::<arena Node,core::ArenaError>(core::arena_new::<Node>(graph,Node{bytes:bytes(2),next:core::Option::Some(first)}));
+        let mut replaced:core::Unit=core::result_unwrap::<core::Unit,core::ArenaError>(core::arena_replace::<Node>(graph,first,Node{bytes:bytes(40),next:core::Option::Some(second)}));
+        yield;
+        cancel_check;
+        let mut answer:i64=0;
+        match core::arena_read::<Node>(graph,first) {
+            core::Result::Ok(node)=>{
+                match node.next {
+                    core::Option::Some(next)=>{
+                        match core::arena_read::<Node>(graph,next) {
+                            core::Result::Ok(peer)=>{answer=read(node)+read(peer);},
+                            core::Result::Err(_)=>{return -1;},
+                        }
+                    },
+                    core::Option::None=>{return -2;},
+                }
+            },
+            core::Result::Err(_)=>{return -3;},
+        }
+        task_scope {
+            let mut child:core::Task<i64>=spawn leaf();
+            yield;
+            return answer;
+        }
+    }
+}
+async fn main()->i64 {return core::result_unwrap::<i64,core::TaskError>(await worker());}

@@ -10,7 +10,10 @@ impl Target {
     pub fn at(self) -> Result<l::Location, Reason> {
         match self {
             Self::Cell(v) => Ok(v.at),
-            Self::Vector { at, .. } | Self::Map { at, .. } | Self::Shared { at, .. } => Ok(at),
+            Self::Vector { at, .. }
+            | Self::Map { at, .. }
+            | Self::Shared { at, .. }
+            | Self::Arena { at, .. } => Ok(at),
             _ => Err(Reason::Invariant),
         }
     }
@@ -23,6 +26,7 @@ impl Target {
             Self::Vector { origin, .. } => Self::Vector { origin, at },
             Self::Map { origin, .. } => Self::Map { origin, at },
             Self::Shared { origin, ty, .. } => Self::Shared { origin, ty, at },
+            Self::Arena { origin, .. } => Self::Arena { origin, at },
             _ => return Err(Reason::Invariant),
         })
     }
@@ -63,6 +67,11 @@ macro_rules! observe {
                     .ok_or(Reason::Invariant)?
                     .view(read, ty, $allocator)
                     .map_err(|_| Reason::Invariant)?;
+                let $at = at;
+                $body.map_err(|_| Reason::Invariant)
+            }
+            Target::Arena { origin, at } => {
+                let $view = $s.arena_view(origin, $allocator)?;
                 let $at = at;
                 $body.map_err(|_| Reason::Invariant)
             }
@@ -136,6 +145,7 @@ impl Access<'_, '_, '_> {
             || loan.vector.is_some()
             || loan.map.is_some()
             || loan.shared.is_some()
+            || loan.arena.is_some()
         {
             return Err(Reason::Invariant);
         }
@@ -236,6 +246,10 @@ impl Access<'_, '_, '_> {
         }
         let destination = self.cell(to)?;
         match target {
+            Target::Arena { origin, at } => self
+                .arena_view(origin, allocator)?
+                .copy_into(at, destination, to.at, allocator)
+                .map_err(|_| Reason::Invariant),
             Target::Vector { origin, at } => self
                 .lease(origin)?
                 .vector

@@ -521,30 +521,30 @@ async fn main()->i64 {
 }
 
 #[test]
-fn unconnected_owned_task_profiles_refuse_before_provider_effects() {
-    let source =
-        "async fn main()->i64 {arena graph(core::allocator()){let mut n:i64=1;}yield;return 42;}";
-    let program = prepare(source);
-    assert!(matches!(
-        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default()),
-        Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
-    ));
-    let (mut allocator, trace) = tracked(usize::MAX);
-    let failure = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut allocator,
-        e::Control::with_limits(Default::default()),
-        Default::default(),
-    )
-    .err()
-    .unwrap();
-    assert!(
-        matches!(
-            failure.reason,
-            lang_runtime::task::runner::Reason::Unsupported
-        ),
-        "{failure:?}"
+fn empty_arena_task_scope_captures_authority_and_retires_before_suspension() {
+    let program = prepare(
+        "async fn main()->i64{arena graph(core::allocator()){let mut n:i64=1;}yield;return 42;}",
     );
-    assert_eq!(allocator.stats().requests, 0);
-    assert!(trace.borrow().active.is_empty());
+    let native =
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
+            .unwrap();
+    for compiled in [false, true] {
+        let (mut allocator, trace) = tracked(usize::MAX);
+        let control = e::Control::with_limits(Default::default());
+        let result = if compiled {
+            native.execute(&mut allocator, control, Default::default())
+        } else {
+            lang_vm::unit::tasks::execute_entry(
+                program.verified(),
+                &mut allocator,
+                control,
+                Default::default(),
+            )
+        }
+        .unwrap();
+        assert_eq!(result.value, 42);
+        assert_eq!(result.tasks.live, 0);
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert!(trace.borrow().active.is_empty());
+    }
 }

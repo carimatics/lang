@@ -7,7 +7,7 @@
 - ステータス: implemented
 - 著者: Project contributors
 - 作成日: 2026-10-17
-- 最終更新日: 2026-10-20
+- 最終更新日: 2026-10-21
 - Implemented: 2026-10-20
 - Tracking issue:
 - Supersedes:
@@ -87,7 +87,7 @@ fn example(allocator: &core::Allocator) -> core::Unit {
 }
 ```
 
-`arena graph(allocator) { ... }` でRFC 0004の暫定constructor表記を確定し、regionの間allocatorを明示的にborrowします。Arena ownerはcompilerが作り、move／return／copyやuser parameter typeへの記述はできません。同一regionのreferenceはcycleを形成できます。`arena T` はreference tokenでありraw pointerとしてdereferenceできず、後述のcore arena operationでaccessします。
+`arena graph(allocator) { ... }` は RFC 0004 の暫定構築構文を確定します。T16 の明確化（2026-10-21 JST、実装前に実験段階の委任で採択）: entry は invocation の allocator 権限を compiler-created arena owner に捕捉する間だけ allocator 引数を借用し、引数 temporary を entry 直後に終えます。指定された host allocator は全 task frame と arena retirement より長く生存します。これにより guest reference を suspension に持ち越さず allocator identity を保持します。別に binding した通常 allocator loan は lexical lifetime を維持し、通常 payload/read loan と同様に suspension 越しを拒否します。既存 region escape/task transfer 制限は必須です。entry temporary が終わった arena scope の中断を認めます。以前の source は temporary を領域全体に保持していたため拒否していました。arena owner は compiler-created で move/return/copy できず、ユーザーの parameter 型として記述できません。同じ region 内の参照は cycle を作れます。`arena T` は reference token であって dereference 可能な raw pointer ではなく、アクセスには下記 core arena operation を使います。
 
 ## 参照セマンティクス
 

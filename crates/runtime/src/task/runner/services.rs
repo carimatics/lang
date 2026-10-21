@@ -44,6 +44,7 @@ pub struct Services<'l, 'ty> {
     pub drain: Option<r::Drain<'l, 'ty>>,
     pub heap: Option<sh::Heap<'l, 'ty>>,
     pub opened: bool,
+    pub inspection: Option<crate::inspection::Inspector<'l, 'ty>>,
 }
 impl<'l, 'ty> Services<'l, 'ty> {
     pub fn prepare<P: a::Provider>(
@@ -55,6 +56,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
     ) -> Result<Self, Reason> {
         let mut has_indirect = false;
         let mut has_shared = false;
+        let mut has_arena = false;
         for (index, plan) in plans.iter().enumerate() {
             if plan.is_none() {
                 continue;
@@ -65,12 +67,30 @@ impl<'l, 'ty> Services<'l, 'ty> {
                 .flat_map(|b| &b.instructions)
             {
                 budget.charge(1)?;
+                has_arena |= matches!(instruction.op, b::Op::ArenaEnter { .. });
                 if let b::Op::CoreCall(call) = &instruction.op {
                     has_indirect |= indirect(call.operation);
                     has_shared |= shared(call.operation);
                 }
             }
         }
+        has_indirect |= has_arena;
+        let inspection = if has_arena {
+            let inspector = crate::inspection::Inspector::prepare(
+                layouts,
+                crate::arena::managed::Limits::default().value_cells,
+                budget.limits(),
+                usage(budget),
+            )
+            .map_err(|e| match e {
+                crate::inspection::Error::Layout(e) => Reason::Layout(e),
+                _ => Reason::Invariant,
+            })?;
+            *budget = m::Budget::with_usage(budget.limits(), inspector.usage())?;
+            Some(inspector)
+        } else {
+            None
+        };
         let heap = if has_shared {
             let heap =
                 sh::Heap::prepare(layouts, Default::default(), budget.limits(), usage(budget))
@@ -96,6 +116,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
             heap,
             drain,
             opened: false,
+            inspection,
         })
     }
     pub fn retire<P: a::Provider>(

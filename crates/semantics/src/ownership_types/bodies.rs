@@ -1065,6 +1065,10 @@ impl Lowerer<'_, '_, '_> {
                     let allocator = self.argument(*allocator, Some(expected), block, depth + 1)?;
                     let owner = d::LocalId(id(owner.0)?);
                     self.emit(block, None, b::Op::ArenaEnter { owner, allocator }, span)?;
+                    // The owner captured invocation allocator authority, not a
+                    // guest reference. End entry temporaries before the body.
+                    self.cleanup(arena_mark, block, None)?;
+                    self.actions.truncate(arena_mark);
                     self.action(Action::Arena(owner, span))?;
                     current = self.body(*body, block, depth + 1)?;
                     if let Some(exit) = current {

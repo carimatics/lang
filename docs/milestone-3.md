@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**13 done · 1 doing · 33 todo · 95 remaining pt**
+**13 done · 1 doing · 33 todo · 96 remaining pt**
 
 **Next: M3-T16 → execute owned arena task scopes with region-safe loans and descendant joins on VM/native.**
 
 Current delivery: **M3-T16**. Last executable checkpoint: **`c1b7887`, verified 2026-10-21 11:02 JST** (T15): `cargo run -- run tests/fixtures/task_owned_pipeline.lang` prints 42. VM/JIT/separately linked objects execute the owned Vec/Map/shared/weak pipeline across suspension/cancellation. Nine source tests cover actual retirement order, mutable collection views, Map replacement/removal, nested shared custody/replacement, every fuel/provider-refusal prefix and cleanup panic/report truncation. Full baseline: **111 suites / 1,750 passed / 0 failed / 1 existing timing ignore**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. T16 remaining acceptance: connect frame-owned arena scopes, compiler-known arena reads and existing publication/region checks; execute suspension, cancellation, descendant-join-before-retirement and failure cleanup on VM/native. Complete owned-family integration remains T07 and full shared controls T08. General async Send/Share transfers remain A01; foreign/task artifact/native-package profiles retain refusal. No M3 exit gate is complete.
 
-**This update: T15 completed (−3 pt); no added tasks or re-estimates.** Previous remaining **98 − 3 = 95 pt**. Across **47 rows**, cumulative retired estimates are **34 pt** and net additions remain **+19 pt**. T07 remains open for complete owned-family integration.
+**This update: expose T16’s allocator-capture prerequisite and re-estimate 2→3 pt (+1 pt); no additional completion.** Remaining **95 + 1 = 96 pt**. Across **47 rows**, retired estimates remain **34 pt**, net additions **+20 pt**. Preserve T15’s completed 3 pt in the history and every T16 acceptance condition.
 
 ## Deliveries
 
@@ -34,7 +34,7 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-T13 | done | 0 | M3-T12 | G03,G13 | Execute owned flat buffers, records and whole sums with moves, replacement and bounded cleanup reports on VM/native | `f75738a` |
 | M3-T14 | done | 0 | M3-T13 | G03 | Execute ordinary shared/exclusive loans and borrowed payloads through synchronous calls within task segments | `642e4be` |
 | M3-T15 | done | 0 | M3-T14 | G03 | Execute a suspended/cancelled owned Vec/Map/shared/weak pipeline through existing managed services on VM/native | `c1b7887` |
-| M3-T16 | doing | 2 | M3-T15 | G03 | Execute owned arena task scopes with region-safe loans and descendant-join-before-retirement on VM/native | — |
+| M3-T16 | doing | 3 | M3-T15 | G03 | Execute owned arena task scopes with region-safe loans and descendant-join-before-retirement on VM/native | — |
 | M3-T08 | todo | 3 | M3-T07 | G12,G13 | Enforce shared task/frame/fuel controls before effects on all execution paths | — |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | Accept bounded channel, FIFO wakeup, backpressure, ownership commit and cancellation errors | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | — |
@@ -106,7 +106,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 19 − 34 = 95 pt**
+**110 + 20 − 34 = 96 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -130,9 +130,11 @@ T15 completed at `c1b7887` (2026-10-21 11:02 JST): the invocation prepares the e
 
 T15 roadmap audit: inspected `arena::managed::{Arena,Read,PublicationBudget}`, the existing owning-arena VM adapter/publication inspector, source lowerer BeforeJoin/AfterJoin cleanup phases, and `examples/scripts/arena_owned.lang` plus the combined owned pipeline. Continue **T16 → T07 → T08**. T16 retains its original 2 pt: reuse frame-owned arena state, checked read/region authority, existing publication validation and mixed iterative cleanup for a new suspended/cancelled source fixture with descendants joined before arena retirement on VM/native. Source/MIR region and suspension proofs remain mandatory; no arena value transfers to another task. Expose/re-estimate a new observable prerequisite before implementing it if this contract grows. Keep complete owned integration, general Send/Share, channels, production embedding and all 15 gates/P1 work in M3; no new scheduler/IDL infrastructure.
 
+T16 scope/estimate audit (2026-10-21 11:08 JST, before implementation): the new owning-arena source experiment is rejected with SRC0028 at yield/check/implicit joins because the existing arena statement retains its allocator argument loan for the entire region. The earlier adapter-only assumption was incomplete. Add the explicit prerequisite to capture invocation allocator authority and end entry temporaries, with the RFC 0007/0022/0023 clarification, source checks and independent MIR evidence before runtime admission. Keep all original owning-cycle/read/publication/suspension/descendant-join/cancellation/cleanup VM/native acceptance. Re-estimate this row **2→3 pt**, net addition **+1 pt**, cumulative additions **+19→+20 pt**, remaining **95→96 pt**; 47 rows, 34 pt retired, no new completion. Do not redefine T16 as arenas that end before suspension or exempt live ordinary loans from checks.
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +19 pt | −34 pt | 95 pt |
+| 110 pt | +20 pt | −34 pt | 96 pt |
 
 ## Exit audit
 

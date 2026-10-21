@@ -8,74 +8,17 @@ fn inspect<P: a::Provider>(
     allocator: &a::Allocator<P>,
     budget: &mut g::PublicationBudget,
 ) -> Result<(), g::Error> {
-    let mut read = inspector
-        .as_mut()
-        .ok_or(g::Error {
+    g::inspect(
+        layouts,
+        inspector.as_mut().ok_or(g::Error {
             kind: g::Kind::State,
             span: None,
-        })?
-        .token(token, allocator)?;
-    while let Some(observed) = budget.inspect_next(&mut read)? {
-        let mut bytes = observed.bytes;
-        let Some(l::Layout {
-            kind: l::Kind::Token(constructor),
-            ..
-        }) = layouts.get(observed.ty)
-        else {
-            return Err(g::Error {
-                kind: g::Kind::State,
-                span: observed.span,
-            });
-        };
-        match constructor {
-            o::Constructor::Arena(ty) => {
-                arena.resolve(g::Reference::from_token(bytes)?, *ty, allocator)?
-            }
-            o::Constructor::Shared(_) | o::Constructor::Weak(_) => {
-                return Err(g::Error {
-                    kind: g::Kind::Arena(l::ArenaError::CrossRegion),
-                    span: observed.span,
-                });
-            }
-            o::Constructor::Builtin(o::Builtin::Bytes) => {
-                buffer::Bytes::from_token(&mut bytes, allocator)
-                    .and_then(|v| v.len(allocator))
-                    .map_err(|e| g::Error {
-                        kind: g::Kind::Buffer(e),
-                        span: observed.span,
-                    })?;
-            }
-            o::Constructor::Builtin(o::Builtin::Text) => {
-                let text = buffer::Text::from_token_metered(&mut bytes, allocator, &mut |n| {
-                    budget.service(n)
-                })
-                .map_err(|e| g::Error {
-                    kind: g::Kind::Buffer(e),
-                    span: observed.span,
-                })?;
-                let length = usize::try_from(text.len(allocator).map_err(|e| g::Error {
-                    kind: g::Kind::Buffer(e),
-                    span: observed.span,
-                })?)
-                .map_err(|_| g::Error {
-                    kind: g::Kind::State,
-                    span: observed.span,
-                })?;
-                budget.observe(length)?;
-                text.as_str(allocator).map_err(|e| g::Error {
-                    kind: g::Kind::Buffer(e),
-                    span: observed.span,
-                })?;
-            }
-            _ => {
-                return Err(g::Error {
-                    kind: g::Kind::Unsupported(observed.ty),
-                    span: observed.span,
-                });
-            }
-        }
-    }
-    Ok(())
+        })?,
+        token,
+        arena,
+        allocator,
+        budget,
+    )
 }
 
 fn outcome<T>(value: Result<T, g::Error>) -> Step<Result<T, l::ArenaError>> {

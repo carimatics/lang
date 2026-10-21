@@ -4,7 +4,9 @@
 //! Like Reservation, wrapper disposal alone runs no guest cleanup: the adapter
 //! must drain every node/descendant before releasing its allocator authority.
 use crate::{allocation as a, buffer, cleanup as c, inspection as i, layout as l};
+mod publication;
 use lang_mir::unit::{self as m, ownership as o};
+pub use publication::inspect;
 use std::fmt::{Display, Formatter};
 
 const HEADER: u64 = 40;

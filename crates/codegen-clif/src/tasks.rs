@@ -477,9 +477,9 @@ fn prepare(
                         for step in &c.steps {
                             match step.target {
                                 b::CleanupTarget::Local(l) => v.push(l.0 as usize),
+                                b::CleanupTarget::Arena(l) => v.push(l.0 as usize),
                                 b::CleanupTarget::Value(r) => v.push(value(r)),
                                 b::CleanupTarget::Loan(loan) => loans.push(loan),
-                                _ => return Err(Error::Unsupported { span: i.span }),
                             }
                         }
                         Primitive::Cleanup { slots: v, loans }
@@ -633,6 +633,15 @@ fn prepare(
                         to: to()?,
                     },
                     b::Op::EndBorrow { loan, .. } => Primitive::EndLoan(*loan),
+                    b::Op::ArenaEnter { owner, allocator } => Primitive::ArenaEnter {
+                        owner: owner.0 as usize,
+                        allocator: value(*allocator),
+                    },
+                    b::Op::ArenaExit { owner } => {
+                        let mut slots = budget.vector(1)?;
+                        slots.push(owner.0 as usize);
+                        Primitive::Forget(slots)
+                    }
                     _ => return Err(Error::Unsupported { span: i.span }),
                 }
             }

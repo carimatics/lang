@@ -273,6 +273,18 @@ impl Access<'_, '_, '_> {
             );
         }
         let first = arguments.next().ok_or(Reason::Invariant)?;
+        if matches!(operation, O::ArenaNew | O::ArenaRead | O::ArenaReplace) {
+            return self.arena_core(
+                operation,
+                type_arguments.next().ok_or(Reason::Invariant)?,
+                result_loan,
+                first,
+                arguments,
+                to,
+                span,
+                allocator,
+            );
+        }
         if let Some(contract) = operation.extraction() {
             return self.extract(first, to, contract.case, contract.panic_code, allocator);
         }

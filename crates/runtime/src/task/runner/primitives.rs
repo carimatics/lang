@@ -53,6 +53,10 @@ pub enum Primitive {
     },
     EndLoan(b::LoanId),
     EndLoans,
+    ArenaEnter {
+        owner: usize,
+        allocator: usize,
+    },
     Core {
         operation: o::core::Operation,
         type_arguments: Vec<o::Type>,
@@ -201,6 +205,9 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 to,
             } => frame.borrow_case(*from, *case, *field, *loan, *to, self.allocator)?,
             Primitive::EndLoans => frame.end_loans(self.allocator)?,
+            Primitive::ArenaEnter { owner, allocator } => {
+                frame.arena_enter(*owner, *allocator, span, self.allocator)?
+            }
             Primitive::Core {
                 operation,
                 type_arguments,

@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-17
-- Last updated: 2026-10-20
+- Last updated: 2026-10-21
 - Implemented: 2026-10-20
 - Tracking issue:
 - Supersedes:
@@ -87,7 +87,7 @@ fn example(allocator: &core::Allocator) -> core::Unit {
 }
 ```
 
-`arena graph(allocator) { ... }` fixes RFC 0004's provisional construction spelling and explicitly borrows its allocator for the region. The arena owner is compiler-created and cannot be moved, returned, copied, or written as a user parameter type. Its references may form same-region cycles. `arena T` is a reference token, not a dereferenceable raw pointer; access goes through the core arena operations below.
+`arena graph(allocator) { ... }` fixes RFC 0004's provisional construction spelling. T16 clarification (2026-10-21 JST, accepted under experimental delegation before implementation): entry borrows the allocator argument only while capturing the invocation's allocator authority into the compiler-created arena owner; argument temporaries end immediately after entry. The supplied host allocator outlives all task frames and arena retirement. This retains allocator identity without retaining a guest reference across suspension. A separately bound ordinary allocator loan keeps its lexical lifetime and is still rejected across suspension, as are all ordinary payload/read loans. Existing region-escape and task-transfer restrictions remain mandatory. This admits suspended arena scopes whose entry temporaries have ended; earlier source rejected them because those temporaries lasted for the whole region. The arena owner is compiler-created and cannot be moved, returned, copied, or written as a user parameter type. Its references may form same-region cycles. `arena T` is a reference token, not a dereferenceable raw pointer; access goes through the core arena operations below.
 
 ## Reference semantics
 

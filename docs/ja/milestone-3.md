@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**13 done · 1 doing · 33 todo · 95 remaining pt**
+**13 done · 1 doing · 33 todo · 96 remaining pt**
 
 **次: M3-T16 → region-safe loan と descendant join 後の cleanup を伴う owned arena task scope を VM/native で実行します。**
 
 現在の作業: **M3-T16**。直近の実行検証: **`c1b7887`、2026-10-21 11:02 JST**（T15）。`cargo run -- run tests/fixtures/task_owned_pipeline.lang` は 42 を出力します。VM/JIT/別プロセスのリンク済み object で suspension/取消をまたぐ owned Vec/Map/shared/weak pipeline を実行します。source 9 テストは実際の retirement 順、可変 collection view、Map の置換/削除、入れ子 shared custody/置換、全 fuel/provider 拒否 prefix、cleanup panic/report truncation を検証します。全 baseline: **111 suites / 1,750 passed / 0 failed / 1 existing timing ignore**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target compile/lint が通過しました。T16 の残条件は frame 所有 arena scope、compiler-known arena read、既存 publication/region 検証を接続し、VM/native で中断/取消、descendant join 後の retirement、失敗 cleanup を実行することです。全 owned-family 統合は T07、完全な共有 control は T08、一般 async Send/Share transfer は A01 です。foreign/task artifact/native package は拒否を維持し、M3 exit gate は未完了です。
 
-**今回: T15 完了（−3 pt）、追加 task/再見積りはありません。** 直前残り **98 − 3 = 95 pt**。全 **47 行**、累積消化 **34 pt**、純追加 **+19 pt** を維持します。T07 は全 owned-family 統合のため未完了です。
+**今回: T16 の新しい前提を公開し 2→3 pt に再見積り（+1 pt）。完了追加はありません。** 残り **95 + 1 = 96 pt**。全 **47 行**、累積消化 **34 pt**、純追加 **+20 pt**。T15 の完了消化 3 pt は履歴に保持し、T16 の全受入条件を維持します。
 
 ## Deliveries
 
@@ -34,7 +34,7 @@
 | M3-T13 | done | 0 | M3-T12 | G03,G13 | owned flat buffer/record/whole sum の move、replacement、有界 cleanup report を VM/native で実行 | `f75738a` |
 | M3-T14 | done | 0 | M3-T13 | G03 | task 実行区間内の同期 call をまたぐ通常 shared/exclusive loan と borrowed payload を実行 | `642e4be` |
 | M3-T15 | done | 0 | M3-T14 | G03 | 中断/取消される owned Vec/Map/shared/weak pipeline を既存 managed service で VM/native 実行 | `c1b7887` |
-| M3-T16 | doing | 2 | M3-T15 | G03 | region-safe loan と descendant join 後の retirement を持つ owned arena task scope を VM/native 実行 | — |
+| M3-T16 | doing | 3 | M3-T15 | G03 | region-safe loan と descendant join 後の retirement を持つ owned arena task scope を VM/native 実行 | — |
 | M3-T08 | todo | 3 | M3-T07 | G12,G13 | 全実行経路で task/frame/fuel の共有上限を副作用前に適用 | — |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | 有界 channel、FIFO wakeup、背圧、所有権 commit、取消 error を採択 | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | — |
@@ -106,7 +106,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 19 − 34 = 95 pt**
+**110 + 20 − 34 = 96 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -130,9 +130,11 @@ T15 を `c1b7887` で完了（2026-10-21 11:02 JST）: invocation が既存 mana
 
 T15 roadmap 監査: `arena::managed::{Arena,Read,PublicationBudget}`、既存 owning-arena VM adapter/publication inspector、source lowerer の BeforeJoin/AfterJoin cleanup 区分、`examples/scripts/arena_owned.lang` と combined owned pipeline を確認しました。**T16 → T07 → T08** へ進みます。T16 は元の 2 pt を維持し、frame 所有 arena 状態、検査済み read/region 権限、既存 publication 検証、mixed iterative cleanup を使い、新しい中断/取消 source fixture で descendant join 後に arena を退役することを VM/native で検証します。source/MIR の region/suspension 証明を必須とし、arena 値を別 task に転送しません。契約が増えれば新しい観測可能な前提を実装前に公開/再見積りします。全 owned 統合、一般 Send/Share、channel、production embedding、全 15 gate/P1 作業を M3 に維持し、scheduler/IDL 基盤を追加しません。
 
+T16 scope/見積り監査（実装前、2026-10-21 11:08 JST）: 新しい owning-arena source 実験は、既存 arena statement が allocator 引数 loan を領域全体に保持するため、yield/check/implicit join で SRC0028 となりました。adapter だけで足りるという前回の前提が不完全でした。invocation allocator 権限の捕捉と entry temporary の終了を明示前提に加え、runtime admission 前に RFC 0007/0022/0023 の明確化、source 検証、独立 MIR の証拠を追加します。元の owning cycle/read/publication/suspension/descendant join/取消/cleanup の VM/native 受入条件は全て維持します。この行を **2→3 pt**、純追加 **+1 pt**、累積追加 **+19→+20 pt**、残り **95→96 pt** に再見積りし、47 行・消化 34 pt・新完了なしです。T16 を suspension 前に arena を終えるだけの作業に変えず、live な通常 loan を検査から除外しません。
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +19 pt | −34 pt | 95 pt |
+| 110 pt | +20 pt | −34 pt | 96 pt |
 
 ## Exit audit
 

@@ -278,7 +278,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
 #[doc(hidden)]
 pub fn task_supported(op: &b::Op) -> bool {
     match op {
-        b::Op::Import { .. } | b::Op::ArenaEnter { .. } | b::Op::ArenaExit { .. } => false,
+        b::Op::Import { .. } => false,
         b::Op::CoreCall(call) => matches!(
             call.operation,
             o::core::Operation::OptionUnwrap
@@ -315,6 +315,9 @@ pub fn task_supported(op: &b::Op) -> bool {
                 | o::core::Operation::WeakNew
                 | o::core::Operation::WeakClone
                 | o::core::Operation::WeakUpgrade
+                | o::core::Operation::ArenaNew
+                | o::core::Operation::ArenaRead
+                | o::core::Operation::ArenaReplace
         ),
         b::Op::BorrowCaseField { .. }
         | b::Op::Borrow { .. }
@@ -354,6 +357,7 @@ pub fn task_supported(op: &b::Op) -> bool {
         | b::Op::TaskYield
         | b::Op::TaskCheck
         | b::Op::TaskSaveReturn(_) => true,
+        b::Op::ArenaEnter { .. } | b::Op::ArenaExit { .. } => true,
     }
 }
 
@@ -368,7 +372,7 @@ pub fn signature_supported(
         let ty=declaration.locals[id.0 as usize].ty.ty;
         let loan=matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(..)));
         if loan {return !asynchronous;}
-        types.properties(ty).is_some_and(|p|(!asynchronous||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena)
+        types.properties(ty).is_some_and(|p|(!asynchronous||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&(!asynchronous||!p.contains_arena))
     })&&types.properties(declaration.result.ty).is_some_and(|p|(!asynchronous||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena)
 }
 /// Supported whole-sum extraction forms in the managed task adapter.
@@ -430,6 +434,8 @@ pub fn managed_type_supported(
                     | o::Constructor::Map(..)
                     | o::Constructor::Shared(_)
                     | o::Constructor::Weak(_)
+                    | o::Constructor::Arena(_)
+                    | o::Constructor::ArenaOwner(_)
                     | o::Constructor::Loan(..)) => {
                         for argument in constructor.arguments() {
                             reserve_push(budget, &mut pending)?;
@@ -437,7 +443,6 @@ pub fn managed_type_supported(
                         }
                     }
                     o::Constructor::Task(_) => {}
-                    _ => return Ok(false),
                 }
             }
             o::Type::Nominal(id) => match &types.table().definitions[id.0 as usize].kind {

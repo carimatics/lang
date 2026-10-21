@@ -70,6 +70,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let frame = Frame::new(
             proof,
             plan,
+            services.layouts,
             entry,
             frame::ActivationId(0),
             failure_records,
@@ -189,6 +190,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let frame = Frame::new(
             self.proof,
             plan,
+            self.services.layouts,
             function,
             activation,
             self.failure_records,

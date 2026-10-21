@@ -119,6 +119,8 @@ source syntax/core 型/effect の契約を追加しますが、native frame layo
 
 7 つの新 keyword と一致する既存識別子は、例 `async` → `async_value` のように改名が必要です。自動 rename は提供しません。安定 source edition はまだありません。C 宣言は同期のままで Task を公開できません。async effect の変更は互換性に影響し、将来の該当 profile の import/export に記録します。
 
+T16 allocator/arena の判断（2026-10-21 JST、実装前に実験段階の委任で採択）: arena entry は invocation allocator 権限を捕捉し、その引数 temporary だけを直後に終えます。RFC 0007 で明確化した arena-entry 契約に従い、別 binding の通常 allocator loan と通常 arena-read loan は厳密な suspension 拒否を維持します。source lowerer は ArenaEnter 直後に対応 cleanup を出力し、独立 MIR は arena loan を例外扱いせず、loan が終わった状態を検証します。各 activation は payload admission 前に preparation budget 内で自身の arena 状態を準備します。登録済み arena read lease は owner の activation/slot と起点/generation を持ち、検査済み view、publication inspection、same-region 検証、mixed iterative retirement は既存 runtime service を使います。join 済み scope の owner retirement より先に lease を終え、同じ有界 report に failure/poison 証拠を保持し、cleanup 失敗後も独立した retirement を続けます。arena 値を task 間転送せず、serialized/C/package profile は変更しません。新 source fixture で owning cycle、中断、入れ子 descendant join、取消、失敗 cleanup を VM/生成 native/リンク済み object で検証します。temporary scope の短縮は以前拒否した arena task scope の互換性拡張であり、suspension 時の loan を許す例外ではありません。
+
 ## Diagnostics and tooling
 
 専用 CST node で async 宣言/scope/prefix/statement を保持します。不正 async signature や operand 欠落でも全 token、囲む brace、後続宣言を回復で保ちます。format は空白だけを変え comment/優先順位/冪等性を維持します。LSP format は同じ CST formatter を使います。

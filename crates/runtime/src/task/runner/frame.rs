@@ -1,5 +1,6 @@
 use super::*;
 mod access;
+mod arenas;
 mod buffers;
 pub use access::Access;
 mod managed;
@@ -51,6 +52,7 @@ pub struct Frame<'l, 'ty> {
     pub types: &'ty o::VerifiedTypes,
     pub origin: m::Span,
     pub managed: Option<Managed>,
+    pub arenas: Vec<Option<crate::arena::managed::Arena<'l, 'ty>>>,
     pub function: m::FunctionId,
     pub node: f::NodeId,
     pub locals: usize,
@@ -68,9 +70,14 @@ pub struct Frame<'l, 'ty> {
     pub return_cell: usize,
 }
 impl<'l, 'ty> Frame<'l, 'ty> {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Prepared frame identity, layouts and allocator remain explicit."
+    )]
     pub fn new<P: a::Provider>(
         proof: &'ty o::tasks::VerifiedTasks,
         plan: &l::FramePlan<'l, 'ty>,
+        layouts: &'l l::Layouts<'ty>,
         function: m::FunctionId,
         activation: ActivationId,
         failure_records: std::num::NonZeroUsize,
@@ -108,6 +115,29 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         } else {
             None
         };
+        budget.charge(plan.cell_count())?;
+        let has_arenas=(0..plan.cell_count()).any(|slot|matches!(plan.cell_type(slot).map(|t|t.ty),Some(o::Type::Constructed(id))if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::ArenaOwner(_))));
+        let mut arenas = budget.vector(if has_arenas { plan.cell_count() } else { 0 })?;
+        if has_arenas {
+            for slot in 0..plan.cell_count() {
+                budget.charge(1)?;
+                let arena = if matches!(plan.cell_type(slot).map(|t|t.ty),Some(o::Type::Constructed(id))if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::ArenaOwner(_)))
+                {
+                    let arena = crate::arena::managed::Arena::prepare(
+                        layouts,
+                        Default::default(),
+                        budget.limits(),
+                        usage(budget),
+                    )
+                    .map_err(arenas::preparation)?;
+                    *budget = m::Budget::with_usage(budget.limits(), arena.usage())?;
+                    Some(arena)
+                } else {
+                    None
+                };
+                arenas.push(arena);
+            }
+        }
         let storage = plan.reserve_after(allocator, usage(budget))?;
         *budget = m::Budget::with_usage(budget.limits(), storage.usage())?;
         Ok(Self {
@@ -115,6 +145,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
             types,
             origin: proof.typed().places().declarations().functions()[function.0 as usize].span,
             managed,
+            arenas,
             function,
             node: proof.plan().functions()[function.0 as usize].entry(),
             locals: proof.typed().places().declarations().functions()[function.0 as usize]

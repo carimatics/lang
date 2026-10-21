@@ -90,6 +90,7 @@ pub(super) fn execute<P: a::Provider>(
             frame.cleanup_selected(
                 cleanup.steps.iter().filter_map(|step| match step.target {
                     b::CleanupTarget::Local(local) => Some(local.0 as usize),
+                    b::CleanupTarget::Arena(owner) => Some(owner.0 as usize),
                     b::CleanupTarget::Value(from) => Some(value(from)),
                     _ => None,
                 }),
@@ -239,6 +240,15 @@ pub(super) fn execute<P: a::Provider>(
             frame.borrow(*loan, &paths[place.0 as usize], result()?, allocator)?
         }
         b::Op::EndBorrow { loan, .. } => frame.end_loan(*loan, allocator)?,
+        b::Op::ArenaEnter {
+            owner,
+            allocator: reference,
+        } => frame.arena_enter(owner.0 as usize, value(*reference), i.span, allocator)?,
+        b::Op::ArenaExit { owner } => frame.cleanup_slot(
+            owner.0 as usize,
+            lang_runtime::cleanup::Reason::ScopeExit,
+            allocator,
+        )?,
         _ => return Err(Reason::Unsupported),
     }
     Ok(())

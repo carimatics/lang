@@ -25,6 +25,10 @@ pub enum Target {
         ty: o::Type,
         at: l::Location,
     },
+    Arena {
+        origin: Reference,
+        at: l::Location,
+    },
 }
 pub struct Loan {
     pub generation: u64,
@@ -33,6 +37,7 @@ pub struct Loan {
     pub map: Option<crate::map::Loan>,
     pub shared: Option<(crate::shared::managed::Read, o::Type)>,
     pub custody: Option<crate::shared::managed::Custody>,
+    pub arena: Option<(usize, crate::arena::managed::Read)>,
 }
 pub struct Managed {
     pub session: c::Session,
@@ -74,6 +79,7 @@ impl Managed {
             map: None,
             shared: None,
             custody: None,
+            arena: None,
         });
         Ok(Self {
             session,
@@ -282,6 +288,29 @@ impl Frame<'_, '_> {
                 failure = Some(Reason::Cleanup);
             }
         }
+        if let Some((slot, mut read)) = loan.arena.take() {
+            let arena = self
+                .arenas
+                .get_mut(slot)
+                .and_then(Option::as_mut)
+                .ok_or(Reason::Invariant)?;
+            let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
+                arena.end_read(&mut read, allocator).map_err(|_| 9u32)
+            });
+            if managed
+                .session
+                .retire(
+                    c::Slot(id.0 as usize),
+                    (),
+                    Some(self.origin),
+                    c::Reason::ScopeExit,
+                    &mut cleaner,
+                )
+                .is_err()
+            {
+                failure = Some(Reason::Cleanup);
+            }
+        }
         failure.map_or(Ok(()), Err)
     }
     pub fn end_loans<P: a::Provider>(
@@ -330,10 +359,34 @@ impl Frame<'_, '_> {
             return Ok(());
         }
         let types = self.types;
+        let arena_owner = self.is_arena_owner(slot)?;
         let managed = self.managed.as_mut().ok_or(Reason::Unsupported)?;
         let span = managed.spans[slot];
         managed.remove(slot);
         self.live[slot] = false;
+        if arena_owner {
+            let arena = self
+                .arenas
+                .get_mut(slot)
+                .and_then(Option::as_mut)
+                .ok_or(Reason::Invariant)?;
+            let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                let exit = if context.reason() == c::Reason::Failure {
+                    crate::arena::managed::Exit::Abort
+                } else {
+                    crate::arena::managed::Exit::Normal
+                };
+                arena
+                    .cleanup(exit, allocator, context, |token, allocator, _, context| {
+                        services.retire(types, token, allocator, context)
+                    })
+                    .map_err(|_| 10u32)
+            });
+            return managed
+                .session
+                .retire(c::Slot(slot), (), span, reason, &mut cleaner)
+                .map_err(|_| Reason::Cleanup);
+        }
         let cell = self
             .storage
             .as_mut()

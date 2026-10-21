@@ -85,6 +85,23 @@ fn shared_and_exclusive_loans_are_rejected_at_every_explicit_point() {
 }
 
 #[test]
+fn arena_entry_temporaries_end_but_explicit_allocator_and_read_loans_still_suspend() {
+    accepted(
+        "async fn main()->i64{arena graph(core::allocator()){yield;cancel_check;task_scope{let mut child:core::Task<i64>=spawn worker(1);}return 42;}} async fn worker(value:i64)->i64{yield;return value;}",
+    );
+    rejected(
+        "async fn main()->i64{let mut a:&core::Allocator=core::allocator();arena graph(a){yield;return 42;}}",
+        "yield;",
+        "core::allocator()",
+    );
+    rejected(
+        "async fn main()->i64{arena graph(core::allocator()){let mut n:arena i64=core::result_unwrap::<arena i64,core::ArenaError>(core::arena_new::<i64>(graph,42));match core::arena_read::<i64>(graph,n){core::Result::Ok(view)=>{yield;return (*view);},core::Result::Err(_)=>{return 0;},}}}",
+        "yield;",
+        "core::arena_read::<i64>(graph,n)",
+    );
+}
+
+#[test]
 fn spawn_and_cancel_do_not_suspend_or_consume_a_claim() {
     accepted(&format!(
         "{WORKER}async fn main()->i64{{let mut value:i64=1;let mut view:&i64=&value;let mut child:core::Task<i64>=spawn worker(1);cancel child;cancel child;return 0;}}"

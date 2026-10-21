@@ -1,6 +1,7 @@
 //! Region validation must be independent of the source frontend's HIR proof.
 use lang::{frontend, frontend::CompileLimits};
 use lang_diagnostics::SourceMap;
+use lang_mir::unit as m;
 use lang_mir::unit::ownership::{
     self as o, bodies as b, loan_activity, loans, moves, places as p, regions as g,
 };
@@ -227,6 +228,25 @@ fn arena_reentry_does_not_revive_tokens_from_the_previous_activation() {
             }
         })
         .unwrap();
+    // Reentry needs a fresh allocator argument: source lowering ends the
+    // original arena-entry temporaries immediately after authority capture.
+    let mut allocator_call = body
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match &i.op {
+            b::Op::CoreCall(call) if call.operation == o::core::Operation::Allocator => {
+                Some(call.clone())
+            }
+            _ => None,
+        })
+        .unwrap();
+    let fresh_loan = b::LoanId(body.loans as u32);
+    body.loans += 1;
+    allocator_call.result_loan = Some(fresh_loan);
+    let values = &mut table.places.functions[0].values;
+    let fresh_allocator = m::Register(values.len() as u32);
+    values.push(values[allocator.0 as usize]);
     let argument = body
         .blocks
         .iter()
@@ -258,8 +278,24 @@ fn arena_reentry_does_not_revive_tokens_from_the_previous_activation() {
                         span,
                     },
                     b::Instruction {
+                        results: vec![fresh_allocator],
+                        op: b::Op::CoreCall(allocator_call.clone()),
+                        span,
+                    },
+                    b::Instruction {
                         results: vec![],
-                        op: b::Op::ArenaEnter { owner, allocator },
+                        op: b::Op::ArenaEnter {
+                            owner,
+                            allocator: fresh_allocator,
+                        },
+                        span,
+                    },
+                    b::Instruction {
+                        results: vec![],
+                        op: b::Op::EndBorrow {
+                            loan: fresh_loan,
+                            mode: b::EndMode::IfActive,
+                        },
                         span,
                     },
                 ],

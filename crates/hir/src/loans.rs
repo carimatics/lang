@@ -1379,6 +1379,11 @@ impl Checker<'_, '_> {
                     self.scopes.len(),
                     depth + 1,
                 )?;
+                // Arena entry captures invocation allocator authority. Its
+                // argument temporaries do not become references in the region.
+                // Separately bound allocator loans remain in their outer scope.
+                self.end(span)?;
+                self.begin(span)?;
                 self.declare(*owner, Vec::new(), span)?;
                 let reaches = self.block(*body, depth + 1)?;
                 self.end(span)?;
