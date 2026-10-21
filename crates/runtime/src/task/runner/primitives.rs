@@ -144,6 +144,14 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         bits: u64,
         span: m::Span,
     ) -> Result<Flow, Reason> {
+        if let Primitive::Core {
+            operation: o::core::Operation::ChannelNew,
+            arguments,
+            ..
+        } = primitive
+        {
+            self.admit_channel_create(task, *arguments.get(1).ok_or(Reason::Invariant)?)?;
+        }
         let function = self.frame(task)?.function;
         let mut frame = frame::Access::new(&mut self.records[task].frames, &mut self.services)?;
         let paths = &self.proof.typed().places().functions()[function.0 as usize].places;
@@ -185,7 +193,16 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                     .ok_or(Reason::Invariant)?;
                 frame.replace(*from, to, span, self.allocator)?;
             }
-            Primitive::DiscardPrepared(destination) => frame.prepared[*destination] = None,
+            Primitive::DiscardPrepared(destination) => {
+                frame.prepared[*destination] = None;
+                if let Some(capture) = frame
+                    .channel_prepared
+                    .get_mut(*destination)
+                    .and_then(Option::take)
+                {
+                    frame.release_channel_capture(capture, span, self.allocator)?;
+                }
+            }
             Primitive::Forget(slots) => {
                 frame.cleanup_selected(
                     slots.iter().copied(),
@@ -366,7 +383,9 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                     },
                     span,
                 )?;
-                self.scheduler.join(&self.records[task].id, &child)?;
+                self.services
+                    .scheduler
+                    .join(&self.records[task].id, &child)?;
                 self.active = None;
                 return Ok(Flow::Suspended);
             }
@@ -380,19 +399,22 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                     .as_ref()
                     .ok_or(Reason::Invariant)?
                     .clone();
-                self.scheduler.request_cancel(&child)?;
+                self.services.scheduler.request_cancel(&child)?;
             }
             Primitive::Yield(next) => {
                 frame.node = *next;
                 self.event(task, EventKind::Yield, span)?;
-                self.scheduler.yield_now(&self.records[task].id)?;
+                self.services.scheduler.yield_now(&self.records[task].id)?;
                 self.active = None;
                 return Ok(Flow::Suspended);
             }
             Primitive::Check(next) => {
                 frame.node = *next;
                 self.event(task, EventKind::Check, span)?;
-                if self.scheduler.cancellation_point(&self.records[task].id)?
+                if self
+                    .services
+                    .scheduler
+                    .cancellation_point(&self.records[task].id)?
                     == t::Boundary::Closing
                 {
                     self.active = None;
@@ -463,7 +485,10 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                     self.fault(task, Reason::Invariant, span)?;
                 }
             }
-            Primitive::DiscardAllPrepared => frame.prepared.fill(None),
+            Primitive::DiscardAllPrepared => {
+                frame.prepared.fill(None);
+                frame.discard_channels(self.allocator)?;
+            }
             Primitive::DiscardResult => {
                 // Retain the obligation until mandatory retirement after joins.
                 frame.saved = false;
@@ -472,14 +497,14 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 if self.active.as_ref().is_some_and(|(_, cleaning)| *cleaning) {
                     for child in &self.records {
                         if child.parent == Some(task) {
-                            self.scheduler.request_cancel(&child.id)?;
+                            self.services.scheduler.request_cancel(&child.id)?;
                         }
                     }
                 } else {
                     frame.node = *next;
                     frame.closing = true;
                     let failure = frame.fault.ok_or(Reason::Invariant)?;
-                    self.scheduler.finish(
+                    self.services.scheduler.finish(
                         &self.records[task].id,
                         t::Outcome::Failed(t::FailureId(failure as u64)),
                     )?;
@@ -490,7 +515,10 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             Primitive::Children => {
                 for child in &self.records {
                     if child.parent == Some(task)
-                        && !matches!(self.scheduler.status(&child.id)?, t::Status::Complete(_))
+                        && !matches!(
+                            self.services.scheduler.status(&child.id)?,
+                            t::Status::Complete(_)
+                        )
                     {
                         return Err(Reason::Invariant);
                     }

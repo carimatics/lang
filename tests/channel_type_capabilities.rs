@@ -399,38 +399,26 @@ fn source_graph_work_memory_and_depth_are_bounded_independently() {
 }
 
 #[test]
-fn task_channel_proof_refuses_execution_before_guest_allocation() {
-    for (text, requires_services) in [
-        (
-            "async fn carry(value:core::Sender<i64>)->core::Sender<i64>{yield;return value;}async fn main()->i64{return 42;}",
-            false,
-        ),
-        (
-            "async fn carry(value:core::Receiver<i64>)->core::Receiver<i64>{yield;return value;}async fn main()->i64{return 42;}",
-            false,
-        ),
-        (
-            "async fn send(sender:core::Sender<i64>)->core::SendResult<i64>{return await core::channel_send::<i64>(&sender,20);}async fn main()->i64{return 42;}",
-            false,
-        ),
-        (
-            "fn main()->i64{let mut setup:core::ChannelSetup<i64>=core::result_unwrap::<core::ChannelSetup<i64>,core::ChannelError>(core::channel_new::<i64>(core::allocator(),1));return 42;}",
-            true,
-        ),
+fn task_channel_vm_profile_is_explicit_while_native_profile_still_refuses() {
+    for text in [
+        "async fn carry(value:core::Sender<i64>)->core::Sender<i64>{yield;return value;}async fn main()->i64{return 42;}",
+        "async fn carry(value:core::Receiver<i64>)->core::Receiver<i64>{yield;return value;}async fn main()->i64{return 42;}",
+        "async fn send(sender:core::Sender<i64>)->core::SendResult<i64>{return await core::channel_send::<i64>(&sender,20);}async fn main()->i64{return 42;}",
+        "fn main()->i64{let mut setup:core::ChannelSetup<i64>=core::result_unwrap::<core::ChannelSetup<i64>,core::ChannelError>(core::channel_new::<i64>(core::allocator(),1));return 42;}",
     ] {
         let out = analyze(text);
         assert!(out.diagnostics.is_empty(), "{:?}", out.diagnostics);
         let Program::Tasks(program) = out.result.unwrap() else {
             panic!("task proof")
         };
-        let span = program
-            .verified()
-            .typed()
-            .places()
-            .declarations()
-            .types()
-            .channel_feature_span()
-            .unwrap();
+        let types = program.verified().typed().places().declarations().types();
+        let span = types.channel_feature_span().unwrap();
+        assert!(
+            matches!(lang_runtime::layout::Layouts::compile(types,Default::default()),Err(lang_runtime::layout::Error::UnsupportedChannelProfile{span:s}) if s==span)
+        );
+        assert!(
+            matches!(lang_runtime::layout::Layouts::compile_tasks(program.verified(),Default::default()),Err(lang_runtime::layout::Error::UnsupportedChannelProfile{span:s}) if s==span)
+        );
         let mut allocator = lang_runtime::allocation::Allocator::new(
             lang_runtime::allocation::System,
             Default::default(),
@@ -441,25 +429,9 @@ fn task_channel_proof_refuses_execution_before_guest_allocation() {
             &mut allocator,
             lang_runtime::execution::Control::with_limits(Default::default()),
             Default::default(),
-        );
-        let Err(error) = result else {
-            panic!("channel VM profile was admitted")
-        };
-        if requires_services {
-            assert!(
-                matches!(
-                    error.reason,
-                    lang_runtime::task::runner::Reason::Unsupported
-                ),
-                "{error:?}"
-            );
-        } else {
-            assert!(
-                matches!(error.reason,lang_runtime::task::runner::Reason::Layout(lang_runtime::layout::Error::UnsupportedChannelProfile{span:s}) if s==span),
-                "{error:?}"
-            );
-        }
-        assert_eq!(allocator.stats().allocations, 0);
+        )
+        .unwrap();
+        assert_eq!(result.value, 42);
         assert_eq!(allocator.stats().live_allocations, 0);
         let result = lang_codegen_clif::tasks::CompiledProgram::compile(
             program.verified(),
@@ -468,24 +440,10 @@ fn task_channel_proof_refuses_execution_before_guest_allocation() {
         let Err(error) = result else {
             panic!("channel native profile was admitted")
         };
-        if requires_services {
-            let declaration = program
-                .verified()
-                .typed()
-                .places()
-                .declarations()
-                .functions()[0]
-                .span;
-            assert!(
-                matches!(error, lang_codegen_clif::tasks::Error::Unsupported { span: s } if s == declaration),
-                "{error:?}"
-            );
-        } else {
-            assert!(
-                matches!(error, lang_codegen_clif::tasks::Error::Layout(lang_runtime::layout::Error::UnsupportedChannelProfile{span:s}) if s==span),
-                "{error:?}"
-            );
-        }
+        assert!(
+            matches!(error,lang_codegen_clif::tasks::Error::Layout(lang_runtime::layout::Error::UnsupportedChannelProfile{span:s}) if s==span),
+            "{error:?}"
+        );
     }
 }
 

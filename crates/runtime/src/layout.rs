@@ -11,8 +11,8 @@ static NEXT_LAYOUT: AtomicU64 = AtomicU64::new(1);
 mod storage;
 pub(crate) use storage::ReadView;
 pub use storage::{
-    ArenaError, Immediate, Leaf, Location, OwnershipError, Preview, PreviewError, Reservation,
-    Token,
+    ArenaError, ChannelError, Immediate, Leaf, Location, OwnershipError, Preview, PreviewError,
+    Reservation, Token,
 };
 mod frame;
 pub use frame::{FramePlan, FrameStorage};
@@ -148,21 +148,44 @@ pub struct Layouts<'types> {
     entries: Vec<Option<Layout>>,
     usage: m::Usage,
 }
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Profile {
+    Ownership,
+    Tasks,
+    Channels,
+}
 impl<'types> Layouts<'types> {
     pub fn compile(types: &'types o::VerifiedTypes, limits: m::Limits) -> Result<Self, Error> {
-        Self::compile_inner(types, limits, false)
+        Self::compile_inner(types, limits, Profile::Ownership)
     }
     /// Explicit task proof is required; ordinary layout entry points still refuse it.
     pub fn compile_tasks(
         proof: &'types o::tasks::VerifiedTasks,
         limits: m::Limits,
     ) -> Result<Self, Error> {
-        Self::compile_inner(proof.typed().places().declarations().types(), limits, true)
+        Self::compile_inner(
+            proof.typed().places().declarations().types(),
+            limits,
+            Profile::Tasks,
+        )
+    }
+    /// Private channel service storage, requiring independent task/channel proof.
+    /// This grants neither endpoint authority nor wire/C/native-profile admission.
+    #[doc(hidden)]
+    pub fn compile_channel_tasks(
+        proof: &'types o::tasks::VerifiedTasks,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        Self::compile_inner(
+            proof.typed().places().declarations().types(),
+            limits,
+            Profile::Channels,
+        )
     }
     fn compile_inner(
         types: &'types o::VerifiedTypes,
         limits: m::Limits,
-        tasks: bool,
+        profile: Profile,
     ) -> Result<Self, Error> {
         let mut budget = m::Budget::with_usage(
             limits,
@@ -173,7 +196,10 @@ impl<'types> Layouts<'types> {
             },
         )?;
         budget.charge(types.table().constructed.len())?;
-        if let Some(span) = types.channel_feature_span() {
+        let tasks = profile != Profile::Ownership;
+        if let Some(span) = types.channel_feature_span()
+            && profile != Profile::Channels
+        {
             return Err(Error::UnsupportedChannelProfile { span });
         }
         if let Some(span) = types.task_feature_span()
@@ -313,7 +339,7 @@ fn dependencies(types: &o::VerifiedTypes, ty: o::Type) -> impl DoubleEndedIterat
             o::DefinitionKind::Enum(c) => cases = c,
         },
         o::Type::Constructed(id) => match types.table().constructed[id.0 as usize].constructor {
-            o::Constructor::Option(t) => fixed[0] = Some(t),
+            o::Constructor::Option(t) | o::Constructor::SendResult(t) => fixed[0] = Some(t),
             o::Constructor::Result(t, e) => fixed = [Some(t), Some(e)],
             _ => {}
         },
@@ -437,16 +463,23 @@ fn build(
                 span: entry.span,
             };
             match entry.constructor {
-                o::Constructor::Option(t) => {
-                    variants = budget.vector(2)?;
+                o::Constructor::Option(t) | o::Constructor::SendResult(t) => {
+                    let cases = if matches!(entry.constructor, o::Constructor::SendResult(_)) {
+                        3
+                    } else {
+                        2
+                    };
+                    variants = budget.vector(cases)?;
                     variants.push(aggregate(types, entries, [].into_iter(), dropping, budget)?);
-                    variants.push(aggregate(
-                        types,
-                        entries,
-                        [use_type(t)].into_iter(),
-                        dropping,
-                        budget,
-                    )?);
+                    for _ in 1..cases {
+                        variants.push(aggregate(
+                            types,
+                            entries,
+                            [use_type(t)].into_iter(),
+                            dropping,
+                            budget,
+                        )?);
+                    }
                 }
                 o::Constructor::Result(t, e) => {
                     variants = budget.vector(2)?;
@@ -468,12 +501,8 @@ fn build(
                 o::Constructor::Builtin(o::Builtin::Unit) => return Ok(simple(0, 1, Kind::Scalar)),
                 o::Constructor::ChannelSetup(_)
                 | o::Constructor::Sender(_)
-                | o::Constructor::Receiver(_)
-                | o::Constructor::SendResult(_)
-                | o::Constructor::Builtin(o::Builtin::ChannelError) => {
-                    return Err(Error::UnsupportedChannelProfile {
-                        span: types.table().constructed[id.0 as usize].span,
-                    });
+                | o::Constructor::Receiver(_) => {
+                    return Ok(simple(32, 8, Kind::Token(entry.constructor)));
                 }
                 o::Constructor::Task(_) => {
                     return Ok(Layout {
@@ -488,12 +517,14 @@ fn build(
                     | o::Builtin::Utf8Error
                     | o::Builtin::OwnershipError
                     | o::Builtin::ArenaError
+                    | o::Builtin::ChannelError
                     | o::Builtin::TaskError),
                 ) => {
                     let (size, alignment, cases, payload_offset) = match builtin {
                         o::Builtin::AllocError => (4, 4, 3, 4),
                         o::Builtin::BoundsError => (4, 4, 1, 4),
                         o::Builtin::TaskError => (4, 4, 1, 4),
+                        o::Builtin::ChannelError => (8, 4, 2, 4),
                         o::Builtin::Utf8Error => (16, 8, 1, 8),
                         o::Builtin::BufferError => (8, 4, 3, 4),
                         o::Builtin::OwnershipError => (8, 4, 6, 4),

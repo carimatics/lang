@@ -2,6 +2,7 @@ use super::*;
 mod access;
 mod arenas;
 mod buffers;
+mod channels;
 pub use access::Access;
 mod managed;
 mod maps;
@@ -28,6 +29,7 @@ pub struct Scope {
 }
 #[derive(Clone, Copy)]
 pub enum Pending {
+    Channel,
     Await {
         child: usize,
         destination: usize,
@@ -40,6 +42,16 @@ pub enum Pending {
         next: f::NodeId,
         failure: f::NodeId,
     },
+}
+pub struct ChannelWait {
+    pub operation: crate::channel::Operation,
+    pub capture: crate::channel::managed::Capture,
+    pub destination: usize,
+    pub send: bool,
+    pub payload: Option<usize>,
+    pub next: f::NodeId,
+    pub failure: f::NodeId,
+    pub span: m::Span,
 }
 #[derive(Clone, Copy)]
 pub struct ReturnTo {
@@ -65,6 +77,8 @@ pub struct Frame<'l, 'ty> {
     pub live: Vec<bool>,
     pub claims: Vec<Option<t::TaskId>>,
     pub prepared: Vec<Option<Target>>,
+    pub channel_prepared: Vec<Option<crate::channel::managed::Capture>>,
+    pub channel_wait: Option<ChannelWait>,
     pub scopes: Vec<Scope>,
     pub serial: u64,
     pub pending: Option<Pending>,
@@ -97,6 +111,19 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         claims.resize_with(plan.cell_count(), || None);
         let mut prepared = budget.vector(body.prepared)?;
         prepared.resize(body.prepared, None);
+        budget.charge(body.prepared)?;
+        let count = if proof.typed().facts()[function.0 as usize]
+            .prepared()
+            .iter()
+            .flatten()
+            .any(|p| p.channel().is_some())
+        {
+            body.prepared
+        } else {
+            0
+        };
+        let mut channel_prepared = budget.vector(count)?;
+        channel_prepared.resize_with(count, || None);
         let mut scopes = budget.vector(body.task_scopes.len())?;
         if !body.task_scopes.is_empty() {
             scopes.push(Scope {
@@ -162,6 +189,8 @@ impl<'l, 'ty> Frame<'l, 'ty> {
             live,
             claims,
             prepared,
+            channel_prepared,
+            channel_wait: None,
             scopes,
             serial: 0,
             pending: None,

@@ -40,6 +40,8 @@ pub enum Error {
     WaiterLimit { limit: usize },
     ForeignEndpoint,
     InspectionContextRequired,
+    InvalidPayload,
+    InspectionLimit,
     InvalidEndpoint,
     WrongRole,
     WrongTask,

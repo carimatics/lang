@@ -1,5 +1,6 @@
 use super::*;
 use frame::ReturnTo;
+mod channels;
 mod retirement;
 
 pub struct Record<'l, 'ty> {
@@ -23,7 +24,6 @@ pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub allocator: &'host mut a::Allocator<P>,
     pub control: e::Control<'ctrl>,
     pub budget: m::Budget,
-    pub scheduler: t::Scheduler,
     pub records: Vec<Record<'l, 'ty>>,
     pub faults: Vec<Option<Fault>>,
     pub events: Vec<Event>,
@@ -66,11 +66,17 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let completed = budget.vector(limits.tasks.total_tasks)?;
         let session = c::Session::prepare(failure_records, &mut budget)?;
         let mut scheduler = t::Scheduler::new(limits.tasks)?;
+        let span = proof.typed().places().declarations().functions()[entry.0 as usize].span;
+        let id = scheduler.start(Some(span))?;
         let services = services::Services::prepare(
             proof,
             plans,
             layouts,
             allocator,
+            scheduler,
+            &id,
+            limits.channels,
+            control.limits().live_cells.unwrap_or(usize::MAX),
             control.service_work_limit(),
             &mut budget,
         )?;
@@ -85,8 +91,6 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             allocator,
             &mut budget,
         )?;
-        let span = proof.typed().places().declarations().functions()[entry.0 as usize].span;
-        let id = scheduler.start(Some(span))?;
         frames.push(frame);
         records.push(Record {
             id,
@@ -104,7 +108,6 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             allocator,
             control,
             budget,
-            scheduler,
             records,
             faults,
             events,
@@ -189,7 +192,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .as_ref()
             .ok_or(Reason::Invariant)?;
         let cells = plan.cleanup_slots() + 1;
-        admit(self.control, self.live_frames, self.live_cells, cells)?;
+        admit(self.control, self.live_frames, self.value_cells()?, cells)?;
         let activation = frame::ActivationId(self.next_activation);
         self.next_activation = self
             .next_activation
@@ -209,7 +212,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.live_frames += 1;
         self.live_cells += cells;
         self.usage.peak_frames = self.usage.peak_frames.max(self.live_frames);
-        self.usage.peak_live_cells = self.usage.peak_live_cells.max(self.live_cells);
+        self.channel_usage()?;
         Ok(frame)
     }
     pub fn discard_result(
@@ -322,13 +325,14 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             return Ok(true);
         };
         match pending {
+            Pending::Channel => self.pending_channel(task),
             Pending::Await {
                 child,
                 destination,
                 next,
                 failure,
             } => {
-                let outcome = match self.scheduler.status(&self.records[child].id)? {
+                let outcome = match self.services.scheduler.status(&self.records[child].id)? {
                     t::Status::Complete(outcome) => outcome,
                     _ => return Err(Reason::Invariant),
                 };
@@ -386,7 +390,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     {
                         continue;
                     }
-                    match self.scheduler.status(&self.records[index].id)? {
+                    match self.services.scheduler.status(&self.records[index].id)? {
                         t::Status::Complete(t::Outcome::Failed(id)) => {
                             let frame = self.frame_mut(task)?;
                             frame.fault = Some(id.0 as usize);
@@ -401,7 +405,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                                 next,
                                 failure,
                             });
-                            self.scheduler
+                            self.services
+                                .scheduler
                                 .join(&self.records[task].id, &self.records[index].id)?;
                             self.active = None;
                             return Ok(false);
@@ -489,7 +494,9 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         destination: usize,
         span: m::Span,
     ) -> Result<(), Reason> {
-        self.scheduler.check_spawn(&self.records[task].id)?;
+        self.services
+            .scheduler
+            .check_spawn(&self.records[task].id)?;
         let mut frames = self.budget.vector(1)?;
         let session = c::Session::prepare(self.failure_records, &mut self.budget)?;
         let scope = self
@@ -522,7 +529,10 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             self.release_frame(task, frame)?;
             return Err(error);
         }
-        let child = self.scheduler.spawn(&self.records[task].id, Some(span))?;
+        let child = self
+            .services
+            .scheduler
+            .spawn(&self.records[task].id, Some(span))?;
         let index = child.index();
         frames.push(frame);
         self.records.push(Record {
@@ -550,6 +560,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let function = self.records[task].function;
         let span = self.proof.typed().places().declarations().functions()[function.0 as usize].span;
         self.event(task, EventKind::Cleanup(outcome), span)?;
+        let channel_cleanup_failed = self.cancel_channel_waits(task).is_err();
         if outcome != t::Outcome::Success
             && let Some(entry) = self.proof.plan().functions()[function.0 as usize].cancellation()
         {
@@ -559,15 +570,14 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             backend.cleanup(self, task)?;
         }
 
-        let mut cleanup_failure = self
-            .retire_children_results(
-                task,
-                if outcome == t::Outcome::Success {
-                    c::Reason::ScopeExit
-                } else {
-                    c::Reason::Failure
-                },
-            )?
+        let mut cleanup_failure = (self.retire_children_results(
+            task,
+            if outcome == t::Outcome::Success {
+                c::Reason::ScopeExit
+            } else {
+                c::Reason::Failure
+            },
+        )? || channel_cleanup_failed)
             .then_some(t::FailureId(task as u64));
         while let Some(mut frame) = self.records[task].frames.pop() {
             if self.records[task].frames.is_empty() && outcome == t::Outcome::Success && frame.saved
@@ -590,6 +600,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             }
         }
         let actual = self
+            .services
             .scheduler
             .finish_cleanup(&self.records[task].id, cleanup_failure)?;
         self.completed.push(task);
@@ -616,27 +627,34 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         if let Some((task, cleaning)) = self.active.take() {
             if cleaning {
                 let index = task.index();
+                self.cancel_channel_waits(index)?;
                 self.retire_children_results(index, c::Reason::Failure)?;
                 while let Some(frame) = self.records[index].frames.pop() {
                     self.release_frame(index, frame)?;
                 }
                 self.discard_result(index, index, c::Reason::Failure)?;
-                self.scheduler
+                self.services
+                    .scheduler
                     .finish_cleanup(&task, Some(t::FailureId(0)))?;
                 self.completed.push(index);
             } else {
-                self.scheduler
+                self.services
+                    .scheduler
                     .finish(&task, t::Outcome::Failed(t::FailureId(0)))?;
             }
         }
-        self.scheduler.request_cancel(&self.records[0].id)?;
-        while let Some(dispatch) = self.scheduler.dispatch()? {
+        self.services
+            .scheduler
+            .request_cancel(&self.records[0].id)?;
+        while let Some(dispatch) = self.services.scheduler.dispatch()? {
             match dispatch {
                 t::Dispatch::Resume(task) => self
+                    .services
                     .scheduler
                     .finish(&task, t::Outcome::Failed(t::FailureId(0)))?,
                 t::Dispatch::Cleanup { task, .. } => {
                     let index = task.index();
+                    self.cancel_channel_waits(index)?;
                     self.retire_children_results(index, c::Reason::Failure)?;
                     let mut cleanup_failure = None;
                     while let Some(frame) = self.records[index].frames.pop() {
@@ -645,7 +663,9 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         }
                     }
                     self.discard_result(index, index, c::Reason::Failure)?;
-                    self.scheduler.finish_cleanup(&task, cleanup_failure)?;
+                    self.services
+                        .scheduler
+                        .finish_cleanup(&task, cleanup_failure)?;
                     self.completed.push(index);
                 }
             }
@@ -658,7 +678,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
     }
     pub fn run<B: Backend<P>>(mut self, backend: &mut B) -> Result<Outcome, Failure> {
         let driven = (|| -> Result<(), Reason> {
-            while let Some(dispatch) = self.scheduler.dispatch()? {
+            while let Some(dispatch) = self.services.scheduler.dispatch()? {
                 match dispatch {
                     t::Dispatch::Resume(task) => {
                         let index = task.index();
@@ -681,7 +701,27 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     }
                 }
             }
-            if !self.scheduler.is_finished() {
+            if !self.services.scheduler.is_finished() {
+                if let Some(channels) = &self.services.channels
+                    && let Some(deadlock) = channels
+                        .deadlock(&self.services.scheduler)
+                        .map_err(Reason::Channel)?
+                {
+                    let task = deadlock.operation.task().index();
+                    let function = self.frame(task)?.function;
+                    let span = deadlock
+                        .operation
+                        .origin()
+                        .unwrap_or(self.frame(task)?.origin);
+                    let reason = Reason::ChannelDeadlock(deadlock.clone());
+                    self.record_execution(0, &reason, span)?;
+                    self.faults[0] = Some(Fault {
+                        reason,
+                        function,
+                        span,
+                    });
+                    return Err(Reason::ChannelDeadlock(deadlock));
+                }
                 return Err(Reason::Invariant);
             }
             Ok(())
@@ -700,7 +740,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             });
         }
         self.usage.service_work = self.services.work.used();
-        let outcome = self.scheduler.status(&self.records[0].id);
+        let outcome = self.services.scheduler.status(&self.records[0].id);
         let mut finished = (|| -> Result<i64, Reason> {
             if failed {
                 return Err(Reason::Invariant);
@@ -736,7 +776,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     function: Some(self.records[task].function),
                     span: None,
                     usage: self.usage,
-                    tasks: self.scheduler.usage(),
+                    tasks: self.services.scheduler.usage(),
                     events: self.events,
                     report,
                     poisoned,
@@ -754,7 +794,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 Ok(Outcome {
                     value,
                     usage: self.usage,
-                    tasks: self.scheduler.usage(),
+                    tasks: self.services.scheduler.usage(),
                     allocations: self.allocator.stats(),
                     events: self.events,
                     report: report.filter(|r| r.primary().is_some()),
@@ -762,7 +802,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 })
             }
             Err(reason) => {
-                let failure = match self.scheduler.status(&self.records[0].id) {
+                let failure = match self.services.scheduler.status(&self.records[0].id) {
                     Ok(t::Status::Complete(t::Outcome::Failed(id))) => id.0 as usize,
                     _ => 0,
                 };
@@ -786,7 +826,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     function,
                     span,
                     usage: self.usage,
-                    tasks: self.scheduler.usage(),
+                    tasks: self.services.scheduler.usage(),
                     events: self.events,
                     report,
                     poisoned,

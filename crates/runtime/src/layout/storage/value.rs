@@ -21,6 +21,11 @@ pub enum ArenaError {
     Unavailable,
     BorrowConflict,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChannelError {
+    InvalidCapacity,
+    Allocation(AllocError),
+}
 /// Copy leaves only; this never duplicates an owner or grants token authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Immediate {
@@ -34,6 +39,7 @@ pub enum Immediate {
     Utf8(Utf8Error),
     Ownership(OwnershipError),
     Arena(ArenaError),
+    Channel(ChannelError),
 }
 
 fn range(start: u64, size: u64) -> Result<Range<usize>, Error> {
@@ -65,6 +71,7 @@ impl Immediate {
             T::BoundsError | T::Utf8Error | T::TaskError => 1,
             T::OwnershipError => 6,
             T::ArenaError => 4,
+            T::ChannelError => 2,
             _ => return Err(Error::InvalidValue),
         };
         if case >= count {
@@ -74,6 +81,10 @@ impl Immediate {
             (T::AllocError, case, None) => Self::Allocation(alloc_value(case)?),
             (T::BoundsError, 0, None) => Self::Bounds(BoundsError::OutOfBounds),
             (T::TaskError, 0, None) => Self::TaskCancelled,
+            (T::ChannelError, 0, None) => Self::Channel(ChannelError::InvalidCapacity),
+            (T::ChannelError, 1, Some(Self::Allocation(error))) => {
+                Self::Channel(ChannelError::Allocation(error))
+            }
             (T::BufferError, 0, None) => Self::Buffer(BufferError::Bounds),
             (T::BufferError, 1, None) => Self::Buffer(BufferError::InvalidByte),
             (T::BufferError, 2, Some(Self::Allocation(error))) => {
@@ -112,6 +123,7 @@ impl Immediate {
             Self::Buffer(BufferError::Allocation(error))
             | Self::Ownership(OwnershipError::Allocation(error))
             | Self::Arena(ArenaError::Allocation(error)) => Some(Self::Allocation(error)),
+            Self::Channel(ChannelError::Allocation(error)) => Some(Self::Allocation(error)),
             Self::Utf8(Utf8Error::Invalid(offset)) => Some(Self::I64(offset)),
             _ => None,
         }
@@ -129,6 +141,8 @@ impl Immediate {
             }
             Self::Unit => return (Some(B::Unit), 0),
             Self::TaskCancelled => (B::TaskError, 0, None),
+            Self::Channel(ChannelError::InvalidCapacity) => (B::ChannelError, 0, None),
+            Self::Channel(ChannelError::Allocation(error)) => (B::ChannelError, 1, Some(error)),
             Self::Allocation(error) => (B::AllocError, alloc_tag(error), None),
             Self::Bounds(BoundsError::OutOfBounds) => (B::BoundsError, 0, None),
             Self::Buffer(error) => match error {
@@ -344,6 +358,11 @@ impl Reservation<'_, '_> {
             B::AllocError => Immediate::Allocation(alloc_value(tag)?),
             B::BoundsError => Immediate::Bounds(BoundsError::OutOfBounds),
             B::TaskError => Immediate::TaskCancelled,
+            B::ChannelError => Immediate::Channel(if tag == 0 {
+                ChannelError::InvalidCapacity
+            } else {
+                ChannelError::Allocation(alloc_value(read_u32(bytes, 4)?)?)
+            }),
             B::BufferError => Immediate::Buffer(match tag {
                 0 => BufferError::Bounds,
                 1 => BufferError::InvalidByte,

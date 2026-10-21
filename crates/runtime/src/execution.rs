@@ -176,6 +176,16 @@ impl ServiceWork {
     pub fn charge(&self, requested: u64) -> Result<(), Failure> {
         self.charge_batch(&[requested])
     }
+    /// Preflight before provider/storage effects. This does not reserve work;
+    /// the owning operation still charges again at its commit boundary.
+    pub fn check(&self, requested: u64) -> Result<(), Failure> {
+        if self.0.suspended.get() {
+            return Ok(());
+        }
+        self.0
+            .control
+            .charge_service_work(&mut self.0.usage.get(), requested)
+    }
     pub fn charge_batch(&self, events: &[u64]) -> Result<(), Failure> {
         if self.0.suspended.get() {
             return Ok(());
@@ -277,7 +287,7 @@ pub fn service_work_supported_with_c_imports(
                             | C::ChannelClone
                             | C::ChannelReceiver
                             | C::ChannelSeal
-                            | C::ChannelUnsent => false,
+                            | C::ChannelUnsent => true,
                             C::Allocator
                             | C::TextFromUtf8
                             | C::TextClone

@@ -1,0 +1,277 @@
+use super::*;
+use crate::inspection;
+
+fn inspection_error(error: inspection::Error) -> super::super::Error {
+    match error {
+        inspection::Error::ServiceWork(error) => super::super::Error::Work(error),
+        inspection::Error::Cells | inspection::Error::Work => super::super::Error::InspectionLimit,
+        _ => super::super::Error::InvalidPayload,
+    }
+}
+impl<'l, 'ty> Channels<'l, 'ty> {
+    pub fn send_readiness<P: a::Provider>(
+        &self,
+        scheduler: &mut t::Scheduler,
+        task: &t::TaskId,
+        sender: &l::Token,
+        allocator: &a::Allocator<P>,
+    ) -> Result<SendReadiness, Error> {
+        let index = self.index(sender, allocator)?;
+        if !matches!(sender.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)))
+        {
+            return Err(Error::MessageType);
+        }
+        self.hub.running(scheduler, task)?;
+        if self
+            .hub
+            .pending
+            .iter()
+            .flatten()
+            .any(|p| p.operation.task() == task)
+        {
+            return Err(super::super::Error::Busy.into());
+        }
+        if matches!(
+            scheduler
+                .cancellation_point(task)
+                .map_err(super::super::Error::from)?,
+            t::Boundary::Closing
+        ) {
+            return Ok(SendReadiness::Closing);
+        }
+        if self.hub.channels[index].sealed || self.hub.channels[index].role == Role::Retired {
+            self.hub.work.charge(1).map_err(super::super::Error::from)?;
+            Ok(SendReadiness::Closed)
+        } else {
+            Ok(SendReadiness::Open)
+        }
+    }
+    fn receiver_key<P: a::Provider>(
+        layouts: &l::Layouts<'ty>,
+        backing: &[Backing<'l, 'ty>],
+        identity: &Rc<()>,
+        observation: &inspection::Observation,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Receiver, super::super::Error> {
+        let index = usize::try_from(u64::from_le_bytes(
+            observation.bytes[24..].try_into().unwrap(),
+        ))
+        .map_err(|_| super::super::Error::InvalidPayload)?;
+        let header = a::Handle::from_token(observation.bytes[..24].try_into().unwrap())
+            .map_err(|_| super::super::Error::InvalidPayload)?;
+        let value = backing
+            .get(index)
+            .filter(|b| b.header == Some(header) && !b.retired)
+            .ok_or(super::super::Error::ForeignEndpoint)?;
+        let bytes = allocator
+            .bytes(header)
+            .map_err(|_| super::super::Error::InvalidPayload)?;
+        let word = |i: usize| u64::from_le_bytes(bytes[i * 8..i * 8 + 8].try_into().unwrap());
+        if bytes.len() != HEADER_BYTES as usize
+            || word(0) != HEADER
+            || word(3) != index as u64
+            || word(4) == 0
+            || word(5) != 1
+        {
+            return Err(super::super::Error::InvalidEndpoint);
+        }
+        let o::Type::Constructed(id) = observation.ty else {
+            return Err(super::super::Error::InvalidPayload);
+        };
+        if !matches!(layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Receiver(t) if layouts.types().equivalent(t,value.message)==Some(true))
+        {
+            return Err(super::super::Error::WrongRole);
+        }
+        Ok(Receiver(Key {
+            identity: Rc::clone(identity),
+            index,
+        }))
+    }
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Inspection borrows the invocation identity, live backing, bounded walker and allocator without adding an owner registry."
+    )]
+    fn inspect<P: a::Provider>(
+        layouts: &'l l::Layouts<'ty>,
+        backing: &[Backing<'l, 'ty>],
+        identity: &Rc<()>,
+        inspector: &mut inspection::Inspector<'l, 'ty>,
+        message: &Message<'l, 'ty>,
+        allocator: &a::Allocator<P>,
+        work: &e::ServiceWork,
+        visit: &mut dyn FnMut(&Receiver) -> Result<(), super::super::Error>,
+    ) -> Result<(), super::super::Error> {
+        let storage = message
+            .storage
+            .as_ref()
+            .ok_or(super::super::Error::InvalidPayload)?;
+        let mut read = inspector
+            .read(storage, message.span, allocator)
+            .map_err(inspection_error)?;
+        let mut quota = inspection::Work::new(usize::MAX).with_service_work(work.clone());
+        while let Some(observation) = read.next(&mut quota).map_err(inspection_error)? {
+            let o::Type::Constructed(id) = observation.ty else {
+                continue;
+            };
+            match layouts.types().table().constructed[id.0 as usize].constructor {
+                o::Constructor::Receiver(_) => visit(&Self::receiver_key(
+                    layouts,
+                    backing,
+                    identity,
+                    &observation,
+                    allocator,
+                )?)?,
+                o::Constructor::Shared(_) | o::Constructor::Weak(_) => {
+                    return Err(super::super::Error::InvalidPayload);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep the unique payload, checked endpoint, scheduler and read-only guest inspection context explicit."
+    )]
+    #[expect(
+        clippy::result_large_err,
+        reason = "A failed send returns the unique staged payload without allocating an error box at an allocation-failure boundary."
+    )]
+    pub fn send<P: a::Provider>(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        task: &t::TaskId,
+        sender: &l::Token,
+        message: Message<'l, 'ty>,
+        span: Option<Span>,
+        inspector: &mut inspection::Inspector<'l, 'ty>,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Send<Message<'l, 'ty>>, SendFailure<Message<'l, 'ty>>> {
+        let channel = match self.index(sender, allocator) {
+            Ok(index) => index,
+            Err(error) => {
+                return Err(SendFailure {
+                    error,
+                    value: message,
+                });
+            }
+        };
+        if !matches!(sender.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)))
+            || message.channel != channel
+        {
+            return Err(SendFailure {
+                error: Error::MessageType,
+                value: message,
+            });
+        }
+        let ticket = u64::from_le_bytes(sender.bytes[24..].try_into().unwrap()) as usize;
+        let key = Sender {
+            key: Key {
+                identity: Rc::clone(&self.hub.identity),
+                index: channel,
+            },
+            ticket,
+        };
+        let identity = Rc::clone(&self.hub.identity);
+        let backing = &self.backing;
+        let layouts = self.layouts;
+        let work = self.hub.work.clone();
+        self.hub
+            .send_inspected(
+                scheduler,
+                task,
+                &key,
+                message,
+                span,
+                &mut |message, visit| {
+                    Self::inspect(
+                        layouts, backing, &identity, inspector, message, allocator, &work, visit,
+                    )
+                },
+            )
+            .map_err(|f| SendFailure {
+                error: Error::Protocol(f.error),
+                value: f.value,
+            })
+    }
+    pub fn resume_send<P: a::Provider>(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        operation: &Operation,
+        inspector: &mut inspection::Inspector<'l, 'ty>,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Send<Message<'l, 'ty>>, Error> {
+        self.check(allocator)?;
+        let identity = Rc::clone(&self.hub.identity);
+        let backing = &self.backing;
+        let layouts = self.layouts;
+        let work = self.hub.work.clone();
+        Ok(self
+            .hub
+            .resume_send_inspected(scheduler, operation, &mut |message, visit| {
+                Self::inspect(
+                    layouts, backing, &identity, inspector, message, allocator, &work, visit,
+                )
+            })?)
+    }
+    pub fn receive<P: a::Provider>(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        task: &t::TaskId,
+        receiver: &l::Token,
+        span: Option<Span>,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Receive<Message<'l, 'ty>>, Error> {
+        let index = self.index(receiver, allocator)?;
+        if !matches!(receiver.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Receiver(_)))
+        {
+            return Err(Error::MessageType);
+        }
+        Ok(self.hub.receive(
+            scheduler,
+            task,
+            &mut Receiver(Key {
+                identity: Rc::clone(&self.hub.identity),
+                index,
+            }),
+            span,
+        )?)
+    }
+    pub fn resume_receive(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        operation: &Operation,
+    ) -> Result<Receive<Message<'l, 'ty>>, Error> {
+        Ok(self.hub.resume_receive(scheduler, operation)?)
+    }
+    pub fn cancel(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        operation: &Operation,
+    ) -> Result<Cancelled<Message<'l, 'ty>>, Error> {
+        Ok(self.hub.cancel(scheduler, operation)?)
+    }
+    pub fn deadlock(&self, scheduler: &t::Scheduler) -> Result<Option<Deadlock>, Error> {
+        Ok(self.hub.deadlock(scheduler)?)
+    }
+    pub fn seal<P: a::Provider>(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        receiver: &l::Token,
+        allocator: &a::Allocator<P>,
+    ) -> Result<(), Error> {
+        let index = self.index(receiver, allocator)?;
+        if !matches!(receiver.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Receiver(_)))
+        {
+            return Err(Error::MessageType);
+        }
+        self.hub.seal(
+            scheduler,
+            &Receiver(Key {
+                identity: Rc::clone(&self.hub.identity),
+                index,
+            }),
+        )?;
+        Ok(())
+    }
+}

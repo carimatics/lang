@@ -57,6 +57,11 @@ pub(super) fn execute<P: a::Provider>(
             frame.prepared[destination.0 as usize] =
                 Some(frame.place(&paths[place.0 as usize], allocator)?)
         }
+        b::Op::PrepareChannel {
+            destination,
+            endpoint,
+            ..
+        } => frame.capture_channel(value(*endpoint), destination.0 as usize, allocator)?,
         b::Op::Replace { place, value: from } => {
             let to = frame.place(&paths[place.0 as usize], allocator)?;
             frame.replace(value(*from), to, i.span, allocator)?;
@@ -70,7 +75,17 @@ pub(super) fn execute<P: a::Provider>(
                 .ok_or(Reason::Invariant)?;
             frame.replace(value(*from), to, i.span, allocator)?;
         }
-        b::Op::DiscardPrepared(destination) => frame.prepared[destination.0 as usize] = None,
+        b::Op::DiscardPrepared(destination) => {
+            let destination = destination.0 as usize;
+            frame.prepared[destination] = None;
+            if let Some(capture) = frame
+                .channel_prepared
+                .get_mut(destination)
+                .and_then(Option::take)
+            {
+                frame.release_channel_capture(capture, i.span, allocator)?;
+            }
+        }
         b::Op::DropLocal(local) | b::Op::DropLocalIfInitialized(local) => frame.cleanup_slot(
             local.0 as usize,
             lang_runtime::cleanup::Reason::Explicit,

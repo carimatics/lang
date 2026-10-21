@@ -40,6 +40,8 @@ fn preparation(error: sh::Error) -> Reason {
     }
 }
 pub struct Services<'l, 'ty> {
+    pub scheduler: t::Scheduler,
+    pub channels: Option<crate::channel::managed::Channels<'l, 'ty>>,
     pub work: e::ServiceWork,
     pub layouts: &'l l::Layouts<'ty>,
     pub drain: Option<r::Drain<'l, 'ty>>,
@@ -48,11 +50,19 @@ pub struct Services<'l, 'ty> {
     pub inspection: Option<crate::inspection::Inspector<'l, 'ty>>,
 }
 impl<'l, 'ty> Services<'l, 'ty> {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Invocation preparation shares the existing proof, frame, allocator, scheduler and finite service budgets."
+    )]
     pub fn prepare<P: a::Provider>(
         proof: &o::tasks::VerifiedTasks,
         plans: &[Option<l::FramePlan<'l, 'ty>>],
         layouts: &'l l::Layouts<'ty>,
         allocator: &a::Allocator<P>,
+        scheduler: t::Scheduler,
+        root: &t::TaskId,
+        channel_limits: crate::channel::Limits,
+        channel_cells: usize,
         work_limit: Option<u64>,
         budget: &mut m::Budget,
     ) -> Result<Self, Reason> {
@@ -60,6 +70,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
         let mut has_indirect = false;
         let mut has_shared = false;
         let mut has_arena = false;
+        let mut has_channels = false;
         for (index, plan) in plans.iter().enumerate() {
             if plan.is_none() {
                 continue;
@@ -71,14 +82,22 @@ impl<'l, 'ty> Services<'l, 'ty> {
             {
                 budget.charge(1)?;
                 has_arena |= matches!(instruction.op, b::Op::ArenaEnter { .. });
+                has_channels |= matches!(
+                    instruction.op,
+                    b::Op::PrepareChannel { .. }
+                        | b::Op::ChannelSend { .. }
+                        | b::Op::ChannelReceive { .. }
+                );
                 if let b::Op::CoreCall(call) = &instruction.op {
                     has_indirect |= indirect(call.operation);
                     has_shared |= shared(call.operation);
+                    has_channels |= call.operation.is_channel()
+                        && call.operation != o::core::Operation::ChannelUnsent;
                 }
             }
         }
         has_indirect |= has_arena;
-        let inspection = if has_arena {
+        let inspection = if has_arena || has_channels {
             let inspector = crate::inspection::Inspector::prepare(
                 layouts,
                 crate::arena::managed::Limits::default().value_cells,
@@ -115,7 +134,26 @@ impl<'l, 'ty> Services<'l, 'ty> {
         } else {
             None
         };
+        let channels = if has_channels {
+            Some(
+                crate::channel::managed::Channels::prepare(
+                    layouts,
+                    allocator,
+                    &scheduler,
+                    root,
+                    channel_limits,
+                    channel_cells,
+                    work.clone(),
+                    budget,
+                )
+                .map_err(Reason::Channel)?,
+            )
+        } else {
+            None
+        };
         Ok(Self {
+            scheduler,
+            channels,
             work,
             layouts,
             heap,
@@ -133,6 +171,11 @@ impl<'l, 'ty> Services<'l, 'ty> {
     ) -> Result<(), u32> {
         let meter = self.work.clone();
         meter.unmetered(|| {
+            let endpoint=matches!(token.leaf.ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::ChannelSetup(_)|o::Constructor::Sender(_)|o::Constructor::Receiver(_)));
+            if endpoint {
+                let channels=self.channels.as_mut().ok_or(3u32)?;
+                return channels.retire(token,&mut self.scheduler,allocator,context,|token,allocator,_,_|crate::buffer::cleanup_token(types,token,allocator).map_err(|_|3u32)).map_err(|_|3u32);
+            }
             if let Some(drain) = &mut self.drain {
                 drain.token(
                     token,

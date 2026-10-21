@@ -10,6 +10,8 @@ mod receive;
 mod send;
 mod types;
 pub use types::*;
+#[doc(hidden)]
+pub mod managed;
 
 #[cfg(test)]
 mod tests;

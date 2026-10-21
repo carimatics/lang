@@ -99,6 +99,10 @@ fn synchronous_channel_construction_selects_the_task_profile_without_hidden_susp
     );
     assert!(program.verified().typed().functions().iter().flat_map(|f|&f.blocks).flat_map(|b|&b.instructions).any(|i|matches!(&i.op,b::Op::CoreCall(call) if call.operation==o::core::Operation::ChannelNew)));
 }
+#[test]
+fn concrete_owned_channel_execution_fixture_passes_both_source_and_mir_proofs() {
+    checked(include_str!("../../../tests/fixtures/task_channels.lang"));
+}
 
 #[test]
 fn bare_send_receive_and_spawn_intrinsics_are_invalid_task_effects() {

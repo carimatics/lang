@@ -9,7 +9,7 @@ pub(crate) use observe::ReadView;
 mod transfer;
 mod value;
 pub use preview::{Preview, PreviewError};
-pub use value::{ArenaError, Immediate, OwnershipError};
+pub use value::{ArenaError, ChannelError, Immediate, OwnershipError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Location {

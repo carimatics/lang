@@ -1,0 +1,29 @@
+async fn producer(sender: core::Sender<core::Bytes>) -> i64 {
+    let mut first: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut first_set: core::Result<core::Unit, core::BufferError> = core::bytes_push(&mut first, 20);
+    let mut first_sent: core::SendResult<core::Bytes> = await core::channel_send::<core::Bytes>(&sender, first);
+    let mut second: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut second_set: core::Result<core::Unit, core::BufferError> = core::bytes_push(&mut second, 22);
+    let mut second_sent: core::SendResult<core::Bytes> = await core::channel_send::<core::Bytes>(&sender, second);
+    return 0;
+}
+
+async fn consumer(input: core::Receiver<core::Bytes>) -> i64 {
+    let mut receiver: core::Receiver<core::Bytes> = input;
+    let mut first: core::Bytes = core::option_unwrap::<core::Bytes>(await core::channel_receive::<core::Bytes>(&mut receiver));
+    let mut left: i64 = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(&first, 0));
+    let mut second: core::Bytes = core::option_unwrap::<core::Bytes>(await core::channel_receive::<core::Bytes>(&mut receiver));
+    let mut right: i64 = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(&second, 0));
+    return left + right;
+}
+
+async fn main() -> i64 {
+    let mut setup: core::ChannelSetup<core::Bytes> = core::result_unwrap::<core::ChannelSetup<core::Bytes>, core::ChannelError>(core::channel_new::<core::Bytes>(core::allocator(), 1));
+    let mut sender: core::Sender<core::Bytes> = core::channel_sender::<core::Bytes>(&setup);
+    let mut receiver: core::Receiver<core::Bytes> = core::channel_receiver::<core::Bytes>(setup);
+    let mut sending: core::Task<i64> = spawn producer(sender);
+    let mut receiving: core::Task<i64> = spawn consumer(receiver);
+    let mut result: i64 = core::result_unwrap::<i64, core::TaskError>(await receiving);
+    let mut finished: i64 = core::result_unwrap::<i64, core::TaskError>(await sending);
+    return result;
+}

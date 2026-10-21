@@ -89,6 +89,8 @@ task profile は同一 invocation の通常同期 helper と async activation �
 
 capture の一意性は動的 preparation ごとに適用します。consumer または discard が prepared slot を空にした後、loop は同じ静的 PrepareChannel を再実行できますが、前の captured instance は再使用できません。
 
+C03 実行の明確化（2026-10-21 JST、実装前に RFC 0001 の委任で受理）: `channel_unsent(Sent)` の source panic code を、既存 whole-sum unwrap の −1/−2/−3 に続く **−4** とします。未命名だった wrong-case 方針を確定し、wire tag、owning projection、別の成功結果は追加しません。VM fixture で runtime 境界を検証する条件は残ります。
+
 非公開 capture は引数の一時値 cleanup、suspension、取消の間、endpoint の protocol lifetime を保持します。一時 source endpoint の退役で captured operation を早期に close/失効させてはいけません。consumer/discard/失敗は waiter を unlink してから保持を解放し、通常の guest loan や payload の第2 owner にはしません。VM 統合の admission 前にこの lifetime を検証します。
 
 guest endpoint storage は非公開の managed token であり C/native 公開 layout ではありません。副作用前に invocation/allocator identity、role、canonical message type、live channel/ticket と枯渇を検証します。Hub の authority/registration state と既存 owner/loan ledger を再利用し、有限 message-type descriptor table は metadata であって value owner の別 registry ではありません。guest payload は既存 Reservation storage と mixed retirement を使います。setup 公開前に実際の guest queue storage/cell を準備し、累積 endpoint/registration metadata を解放まで計上し、blocked/result storage は owner の move または物理退役まで計上します。source/guest inspection に read-only invocation allocator/shared-heap context を明示渡しして実際の強い receive edge を列挙し、cache した edge inventory や呼出側の Send/cycle-free flag では代用できません。host convenience visitor を理由に source admission の検査を省略できません。失敗し得る storage/publication/control 検証は全て atomic owner transition 前に行い、reservation 初期化前に queue custody を公開しません。空 slot reservation も計上し、必須 abort/取消/drain は既存の非計量 Session/Cleaner と quarantine/report 規則を保ちます。

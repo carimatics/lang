@@ -160,6 +160,7 @@ impl Reservation<'_, '_> {
         match self.layouts.types.table().constructed[id.0 as usize].constructor {
             o::Constructor::Option(_) if expected == 1 => {}
             o::Constructor::Result(..) if expected < 2 => {}
+            o::Constructor::SendResult(_) if expected == 1 || expected == 2 => {}
             _ => return Err(Error::InvalidType(self.ty)),
         }
         let root = self.root();

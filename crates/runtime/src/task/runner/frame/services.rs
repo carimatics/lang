@@ -134,10 +134,10 @@ impl Access<'_, '_, '_> {
                 allocator,
             )
         } else {
-            let span = self
-                .managed
-                .as_ref()
-                .and_then(|m| m.spans[from])
+            let span = source
+                .initialized_field(root, 0, allocator)?
+                .1
+                .or_else(|| self.managed.as_ref().and_then(|m| m.spans[from]))
                 .unwrap_or(self.origin);
             let (source, target) = self
                 .storage
@@ -276,6 +276,9 @@ impl Access<'_, '_, '_> {
             );
         }
         let first = arguments.next().ok_or(Reason::Invariant)?;
+        if operation.is_channel() {
+            return self.channel_core(operation, first, arguments, to, span, allocator);
+        }
         if matches!(operation, O::ArenaNew | O::ArenaRead | O::ArenaReplace) {
             return self.arena_core(
                 operation,

@@ -14,6 +14,7 @@ pub mod frame;
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
     pub tasks: t::Limits,
+    pub channels: crate::channel::Limits,
     pub preparation: m::Limits,
     /// Zero disables observation. Trace storage is reserved before guest entry.
     pub trace_events: usize,
@@ -24,6 +25,7 @@ impl Default for Limits {
     fn default() -> Self {
         Self {
             tasks: Default::default(),
+            channels: Default::default(),
             preparation: Default::default(),
             trace_events: 0,
             cleanup_failure_records: c::Limits::default().failure_records,
@@ -51,6 +53,8 @@ pub struct Event {
 }
 #[derive(Debug)]
 pub enum Reason {
+    ChannelDeadlock(crate::channel::Deadlock),
+    Channel(crate::channel::managed::Error),
     Control(e::Failure),
     Schedule(t::Error),
     Layout(l::Error),
@@ -246,7 +250,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
                     && !seen[function.0 as usize] { seen[function.0 as usize]=true;reachable.push(function.0 as usize); }
             }
         }
-        let layouts=l::Layouts::compile_tasks(proof,limits.preparation)?;
+        let layouts=if types.channel_feature_span().is_some() {l::Layouts::compile_channel_tasks(proof,limits.preparation)?} else {l::Layouts::compile_tasks(proof,limits.preparation)?};
         let extra=|a:usize,b:usize,c:usize|a.checked_add(b.checked_sub(c)?);
         let previous=usage(&budget);let layout=layouts.usage();
         let initial=m::Usage {work:extra(previous.work,layout.work,types.work_used()).ok_or(Reason::Invariant)?, allocation_bytes:extra(previous.allocation_bytes,layout.allocation_bytes,types.requested_bytes()).ok_or(Reason::Invariant)?,elements:extra(previous.elements,layout.elements,types.elements_used()).ok_or(Reason::Invariant)?};
@@ -284,12 +288,18 @@ fn execute<P: a::Provider, B: Backend<P>>(
 pub fn task_supported(op: &b::Op) -> bool {
     match op {
         b::Op::PrepareChannel { .. } | b::Op::ChannelSend { .. } | b::Op::ChannelReceive { .. } => {
-            false
+            true
         }
         b::Op::Import { .. } => false,
         b::Op::CoreCall(call) => matches!(
             call.operation,
-            o::core::Operation::OptionUnwrap
+            o::core::Operation::ChannelNew
+                | o::core::Operation::ChannelSender
+                | o::core::Operation::ChannelClone
+                | o::core::Operation::ChannelReceiver
+                | o::core::Operation::ChannelSeal
+                | o::core::Operation::ChannelUnsent
+                | o::core::Operation::OptionUnwrap
                 | o::core::Operation::ResultUnwrap
                 | o::core::Operation::ResultUnwrapErr
                 | o::core::Operation::Allocator
@@ -408,15 +418,15 @@ pub fn managed_type_supported(
     budget: &mut m::Budget,
 ) -> Result<bool, Reason> {
     let mut pending = budget.vector(1)?;
-    pending.push(ty);
+    pending.push((ty, false));
     let mut seen = budget.vector(0)?;
-    while let Some(ty) = pending.pop() {
+    while let Some((ty, indirect)) = pending.pop() {
         budget.charge(seen.len().saturating_add(1))?;
-        if seen.contains(&ty) {
+        if seen.contains(&(ty, indirect)) {
             continue;
         }
         reserve_push(budget, &mut seen)?;
-        seen.push(ty);
+        seen.push((ty, indirect));
         let properties = types.properties(ty).ok_or(Reason::Invariant)?;
         if properties.is_copy
             && !properties.contains_loan
@@ -437,6 +447,7 @@ pub fn managed_type_supported(
                 match types.table().constructed[id.0 as usize].constructor {
                     o::Constructor::Builtin(_) => {}
                     constructor @ (o::Constructor::Option(_)
+                    | o::Constructor::SendResult(_)
                     | o::Constructor::Result(..)
                     | o::Constructor::Vec(_)
                     | o::Constructor::Map(..)
@@ -445,33 +456,58 @@ pub fn managed_type_supported(
                     | o::Constructor::Arena(_)
                     | o::Constructor::ArenaOwner(_)
                     | o::Constructor::Loan(..)) => {
+                        let indirect = indirect
+                            || matches!(
+                                constructor,
+                                o::Constructor::Vec(_)
+                                    | o::Constructor::Map(..)
+                                    | o::Constructor::Shared(_)
+                                    | o::Constructor::Weak(_)
+                            );
                         for argument in constructor.arguments() {
                             reserve_push(budget, &mut pending)?;
-                            pending.push(argument);
+                            pending.push((argument, indirect));
                         }
                     }
                     o::Constructor::Task(_) => {}
-                    o::Constructor::SendResult(_) => return Ok(false),
                     o::Constructor::ChannelSetup(_)
                     | o::Constructor::Sender(_)
-                    | o::Constructor::Receiver(_) => return Ok(false),
+                    | o::Constructor::Receiver(_) => {
+                        let message = types.table().constructed[id.0 as usize]
+                            .constructor
+                            .arguments()
+                            .next()
+                            .ok_or(Reason::Invariant)?;
+                        if indirect || !channel_message_supported(types, message) {
+                            return Ok(false);
+                        }
+                    }
                 }
             }
             o::Type::Nominal(id) => match &types.table().definitions[id.0 as usize].kind {
                 o::DefinitionKind::Record(fields) => {
                     for field in fields {
                         reserve_push(budget, &mut pending)?;
-                        pending.push(field.ty.ty);
+                        pending.push((field.ty.ty, indirect));
                     }
                 }
                 o::DefinitionKind::Enum(cases) => {
                     for field in cases.iter().flat_map(|c| &c.payload) {
                         reserve_push(budget, &mut pending)?;
-                        pending.push(field.ty);
+                        pending.push((field.ty, indirect));
                     }
                 }
             },
         }
     }
     Ok(true)
+}
+fn channel_message_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
+    match ty {
+        o::Type::I64 | o::Type::Bool => true,
+        o::Type::Constructed(id) => {
+            matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Builtin(b) if b!=o::Builtin::Allocator)
+        }
+        _ => false,
+    }
 }

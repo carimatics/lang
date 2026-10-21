@@ -43,6 +43,28 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                         .transpose()?;
                     let applied = (|| -> Result<bool, Reason> {
                         match &i.op {
+                            b::Op::ChannelSend { authority, payload } => {
+                                let payload = machine.frame(task)?.value(*payload);
+                                return machine.channel_send(
+                                    task,
+                                    authority.0 as usize,
+                                    payload,
+                                    output.ok_or(Reason::Invariant)?,
+                                    next,
+                                    failure,
+                                    node.span,
+                                );
+                            }
+                            b::Op::ChannelReceive { authority } => {
+                                return machine.channel_receive(
+                                    task,
+                                    authority.0 as usize,
+                                    output.ok_or(Reason::Invariant)?,
+                                    next,
+                                    failure,
+                                    node.span,
+                                );
+                            }
                             b::Op::Call {
                                 function,
                                 arguments,
@@ -86,7 +108,10 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                     },
                                     node.span,
                                 )?;
-                                machine.scheduler.join(&machine.records[task].id, &child)?;
+                                machine
+                                    .services
+                                    .scheduler
+                                    .join(&machine.records[task].id, &child)?;
                                 machine.active = None;
                                 return Ok(false);
                             }
@@ -100,12 +125,15 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                     .as_ref()
                                     .ok_or(Reason::Invariant)?
                                     .clone();
-                                machine.scheduler.request_cancel(&child)?;
+                                machine.services.scheduler.request_cancel(&child)?;
                             }
                             b::Op::TaskYield => {
                                 machine.event(task, EventKind::Yield, node.span)?;
                                 machine.frame_mut(task)?.node = next;
-                                machine.scheduler.yield_now(&machine.records[task].id)?;
+                                machine
+                                    .services
+                                    .scheduler
+                                    .yield_now(&machine.records[task].id)?;
                                 machine.active = None;
                                 return Ok(false);
                             }
@@ -113,6 +141,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                 machine.event(task, EventKind::Check, node.span)?;
                                 machine.frame_mut(task)?.node = next;
                                 if machine
+                                    .services
                                     .scheduler
                                     .cancellation_point(&machine.records[task].id)?
                                     == t::Boundary::Closing
@@ -164,6 +193,12 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                 frame.saved = true;
                             }
                             _ => {
+                                if let b::Op::CoreCall(call) = &i.op
+                                    && call.operation == o::core::Operation::ChannelNew
+                                {
+                                    let capacity = machine.frame(task)?.value(call.arguments[1]);
+                                    machine.admit_channel_create(task, capacity)?;
+                                }
                                 let mut frame = frame::Access::new(
                                     &mut machine.records[task].frames,
                                     &mut machine.services,
@@ -174,6 +209,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                     site,
                                     machine.allocator,
                                 )?;
+                                machine.channel_usage()?;
                             }
                         }
                         Ok(true)
@@ -252,6 +288,8 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                 }
                 f::Kind::DiscardPrepared { next } => {
                     machine.frame_mut(task)?.prepared.fill(None);
+                    frame::Access::new(&mut machine.records[task].frames, &mut machine.services)?
+                        .discard_channels(machine.allocator)?;
                     Some(next)
                 }
                 f::Kind::RetireReturn { next, .. } => Some(next),
@@ -286,7 +324,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                     machine.frame_mut(task)?.node = next;
                     machine.frame_mut(task)?.closing = true;
                     let failure = machine.frame(task)?.fault.ok_or(Reason::Invariant)?;
-                    machine.scheduler.finish(
+                    machine.services.scheduler.finish(
                         &machine.records[task].id,
                         t::Outcome::Failed(t::FailureId(failure as u64)),
                     )?;
@@ -321,6 +359,8 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
             at = match node.kind {
                 f::Kind::DiscardPrepared { next } => {
                     machine.frame_mut(task)?.prepared.fill(None);
+                    frame::Access::new(&mut machine.records[task].frames, &mut machine.services)?
+                        .discard_channels(machine.allocator)?;
                     next
                 }
                 f::Kind::EndTaskLoans { next } => {
@@ -330,7 +370,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                 f::Kind::CancelTaskScopes { next } => {
                     for child in &machine.records {
                         if child.parent == Some(task) {
-                            machine.scheduler.request_cancel(&child.id)?;
+                            machine.services.scheduler.request_cancel(&child.id)?;
                         }
                     }
                     next
@@ -339,7 +379,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                     for child in &machine.records {
                         if child.parent == Some(task)
                             && !matches!(
-                                machine.scheduler.status(&child.id)?,
+                                machine.services.scheduler.status(&child.id)?,
                                 t::Status::Complete(_)
                             )
                         {

@@ -93,7 +93,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
     }
     pub fn publish_sync(&mut self, task: usize) -> Result<bool, Reason> {
         if self.records[task].frames.len() == 1 {
-            self.scheduler
+            self.services
+                .scheduler
                 .finish(&self.records[task].id, t::Outcome::Success)?;
             self.active = None;
             return Ok(false);
@@ -136,7 +137,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
     pub fn propagate_sync(&mut self, task: usize) -> Result<bool, Reason> {
         let failure = self.frame(task)?.fault.ok_or(Reason::Invariant)?;
         if self.records[task].frames.len() == 1 {
-            self.scheduler.finish(
+            self.services.scheduler.finish(
                 &self.records[task].id,
                 t::Outcome::Failed(t::FailureId(failure as u64)),
             )?;
