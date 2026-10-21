@@ -73,6 +73,7 @@ M3 task execution checkpoint（2026-10-21 JST 検証）: `cargo run -- run examp
 - [RFC 0021: 上限付き構造化タスクドライバー（implemented）](docs/ja/rfcs/0021-bounded-structured-task-driver.md)
 - [RFC 0022: Source の構造化タスク（accepted）](docs/ja/rfcs/0022-source-structured-tasks.md)
 - [RFC 0023: Task MIR の境界（accepted）](docs/ja/rfcs/0023-task-mir-boundaries.md)
+- [RFC 0024: 再帰 Send/Share と service 権限（accepted）](docs/ja/rfcs/0024-send-share-and-service-authority.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

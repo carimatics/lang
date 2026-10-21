@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**16 done · 1 doing · 30 todo · 87 remaining pt**
+**16 done · 1 doing · 32 todo · 91 remaining pt**
 
 **Next: M3-A01 → decide recursive Send/Share and source service authority contracts.**
 
 Current delivery: **M3-A01**. Last executable checkpoint: **`fdfc755`, verified 2026-10-21 13:29 JST** (T08): one invocation service-work meter now covers tasks, synchronous activations and managed services/views, preserving numeric refusals and unmetered mandatory cleanup. Detached child results count as one live cell until actual move/release; finite profile validation includes unused foreign metadata before allocation. Six control tests and eleven integrated owned tests cover every work/fuel/provider refusal prefix, zero/exact/one-below, combined task/frame/cell/trace/interruption/deadline controls and cleanup panic/report truncation on VM/native. All eleven linked-object profiles also exercise finite work prefixes. Full baseline: **114 suites / 1,779 passed / 0 failed / 1 existing timing ignore**, suite-time sum **544.27s**; fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. A01 remaining acceptance: decide recursive Send/Share, shared/weak and owner/message authority, compatibility and mode boundaries, recording rationale and unverified assumptions. Expose/re-estimate missing prerequisites before implementing owned async transfer. All M3/P1 scope remains required; no M3 exit gate is complete.
 
-**This update: T08 completed (−3 pt); no additions/re-estimates.** Remaining **90 − 3 = 87 pt**, **47 rows**, **43 pt** retired, net additions **+20 pt**.
+**This update: A01 decision in progress; expose A06 (1 pt) and A05 (3 pt) before implementation (+4 pt); no completion retired yet.** Remaining **87 + 4 = 91 pt**, **49 rows**, retired **43 pt**, net additions **+24 pt**.
 
 ## Deliveries
 
@@ -38,10 +38,12 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-T08 | done | 0 | M3-T07 | G12,G13 | Enforce shared task/frame/fuel controls before effects on all execution paths | `fdfc755` |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | Accept bounded channel, FIFO wakeup, backpressure, ownership commit and cancellation errors | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | — |
-| M3-C03 | todo | 3 | M3-C02 | G04 | Run source channel fixtures and reject payload reuse in VM execution | — |
+| M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | Run source channel fixtures and reject payload reuse in VM execution | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | Match channel values, failures and cleanup through native execution | — |
 | M3-A01 | doing | 2 | M3-T09 | G01,G05 | Accept recursive Send/Share derivation and source service authority rules | — |
-| M3-A02 | todo | 3 | M3-A01 | G05 | Check source actor ownership, moves and non-sendable captures with diagnostics | — |
+| M3-A06 | todo | 1 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | — |
+| M3-A05 | todo | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
+| M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | Check source actor ownership, moves and non-sendable captures with diagnostics | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | Execute owner-isolated service state, FIFO messages and cancellation disposal | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | Match actor isolation and disposal traces in native execution | — |
 | M3-I01 | todo | 3 | — | G02 | Accept production IDL/wire/embedding profile, errors, reentry and cancellation | — |
@@ -106,7 +108,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 20 − 43 = 87 pt**
+**110 + 24 − 43 = 91 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -144,9 +146,11 @@ T08 completed at `fdfc755` (2026-10-21 13:29 JST): connected existing RFC 0013 e
 
 T08 roadmap audit: inspected source/MIR async signature restrictions, task argument/result transfer, await and retained-result disposal, and the experimental service model's manually supplied Sendable bit. A minimal owned Bytes worker argument/result still reports SRC0026, and runtime await still uses Copy publication. Next is **A01**, retaining its original **2 pt** for recursive Send/Share and owner/message authority decisions before owned channel payload and source actor proof implementation. Do not substitute one completion record for source/MIR derivation, owned async execution and concrete channel/service operations; expose newly observed prerequisite scope/estimates before implementation. Preserve all 15 gates, general async transfer, channels, production embedding, foreign/C/serialized/package and P1 work.
 
+A01 scope/estimate audit (2026-10-21 JST): source/MIR reject owned async signatures; runtime await copies child results and disposal releases Copy storage. Actor authority needs concrete channel handles. Preserve A02's complete actor ownership/move/non-sendable capture outcome and its 3 pt, adding A06/C03 dependencies. Expose **A06 (1 pt)** for independent source/MIR derivation and compile-pass/fail signature proof reusing existing transitive facts, and **A05 (3 pt)** for actual owned argument/result publication, await and disposal on VM/native with controls. A05 needs A06/T08; C03 needs A05. Continue **A01 → A06 → A05**, then channel/source actor evidence before A02 closure. Addition **+4 pt**, rows **47 → 49**, cumulative additions **+20 → +24 pt**, retired unchanged **43 pt**, remaining **87 → 91 pt**. Re-audit before implementing; add no graph/owner framework when existing facts/reservations suffice. All original gates/P1 scope remains.
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +20 pt | −43 pt | 87 pt |
+| 110 pt | +24 pt | −43 pt | 91 pt |
 
 ## Exit audit
 
@@ -179,3 +183,5 @@ T08 roadmap audit: inspected source/MIR async signature restrictions, task argum
 - T07 integration evidence and T08 audit: [RFC 0007](rfcs/0007-source-ownership-and-core-values.md), [RFC 0021](rfcs/0021-bounded-structured-task-driver.md) and [RFC 0023](rfcs/0023-task-mir-boundaries.md), last updated/verified 2026-10-21 JST; `tests/task_owned_integration.rs`, `tests/fixtures/task_owned_integrated.lang`, `tests/support/task_static.rs`, shared service/counter APIs and task frame/result accounting at `8e72ea7`, inspected/executed 2026-10-21 12:24 JST on macOS AArch64; code has no embedded update date. T08 cost/admission/cleanup rules come from [RFC 0013](rfcs/0013-service-byte-work-budget.md), last updated 2026-10-20, verified 2026-10-21 JST. No new cost formula or external performance claim is introduced.
 
 - T08 evidence and A01 audit: [RFC 0013](rfcs/0013-service-byte-work-budget.md), last updated 2026-10-20; [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md) and [RFC 0023](rfcs/0023-task-mir-boundaries.md), last updated 2026-10-21. Task counter/service/view adapters, frame/result accounting, `tests/task_controls.rs`, `tests/task_owned_integration.rs`, `tests/service_work_cli.rs`, `tests/support/task_static.rs`, source/MIR task transfer restrictions and the service experiment, inspected/executed at `fdfc755`, 2026-10-21 13:29 JST on macOS AArch64; code has no embedded update date.
+
+- A01 decision/audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md), RFCs 0005/0007/0022/0023, last updated 2026-10-21. Source/MIR type facts/task signature checks, runtime await/result disposal and the service model inspected at `b25aede`, 2026-10-21 13:37 JST on macOS AArch64; minimal owned Bytes worker reproduces SRC0026. Code has no embedded update date. The accepted decision is not implementation evidence.

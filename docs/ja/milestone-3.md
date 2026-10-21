@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**16 done · 1 doing · 30 todo · 87 remaining pt**
+**16 done · 1 doing · 32 todo · 91 remaining pt**
 
 **次: M3-A01 → 再帰 Send/Share と source service 権限の契約を決定します。**
 
 現在の作業: **M3-A01**。直近の実行検証: **`fdfc755`、2026-10-21 13:29 JST**（T08）。task/同期 activation/service/view が invocation 共通の service-work meter を使い、数値付き拒否と非計量の必須 cleanup を維持します。分離した child result は実際の移動/解放まで 1 live cell として計上し、未使用 foreign metadata を含む有限 profile を allocation 前に検証します。control 6 テストと複合 owned 統合 11 テストが、全 work/fuel/provider 拒否 prefix、ゼロ/境界値/1 未満、task/frame/cell/trace/割込み/期限の組合せ、cleanup panic/report truncation を VM/native で検証しました。全 11 linked-object profile も有限 work prefix を検証します。全 baseline: **114 suites / 1,779 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **544.27s**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target compile/lint が通過しました。A01 の残条件は再帰 Send/Share、shared/weak と owner/message 権限、互換性と mode 境界を決め、根拠と未検証の仮定を記録することです。owned async transfer の実装前に不足する前提を明示/再見積りします。全 M3/P1 scope を維持し、M3 exit gate は未完了です。
 
-**今回: T08 完了（−3 pt）、追加の作業/再見積りはありません。** 残り **90 − 3 = 87 pt**、全 **47 行**、累積消化 **43 pt**、純追加 **+20 pt**。
+**今回: A01 の決定作業中に A06（1 pt）、A05（3 pt）を実装前に明示（+4 pt）、完了消化はありません。** 残り **87 + 4 = 91 pt**、全 **49 行**、消化 **43 pt**、純追加 **+24 pt**。
 
 ## Deliveries
 
@@ -38,10 +38,12 @@
 | M3-T08 | done | 0 | M3-T07 | G12,G13 | 全実行経路で task/frame/fuel の共有上限を副作用前に適用 | `fdfc755` |
 | M3-C01 | todo | 2 | M3-T05 | G01,G04 | 有界 channel、FIFO wakeup、背圧、所有権 commit、取消 error を採択 | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | — |
-| M3-C03 | todo | 3 | M3-C02 | G04 | source channel fixture を VM 実行し payload 再利用を拒否 | — |
+| M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | source channel fixture を VM 実行し payload 再利用を拒否 | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | native で channel の値、失敗、cleanup を一致 | — |
 | M3-A01 | doing | 2 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | — |
-| M3-A02 | todo | 3 | M3-A01 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | — |
+| M3-A06 | todo | 1 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | — |
+| M3-A05 | todo | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
+| M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | — |
 | M3-I01 | todo | 3 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | — |
@@ -106,7 +108,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 20 − 43 = 87 pt**
+**110 + 24 − 43 = 91 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -144,9 +146,11 @@ T08 は `fdfc755` で完了（2026-10-21 13:29 JST）。既存 RFC 0013 event �
 
 T08 roadmap audit: source/MIR の async signature 制限、task argument/result transfer、await と retained-result disposal、実験 service model の手動 Sendable bit を確認しました。最小の owned Bytes worker 引数/結果は SRC0026 で拒否され、runtime await は Copy publication のままです。次は **A01** で、既存の **2 pt** を再帰 Send/Share と owner/message 権限の決定に維持します。channel の owned payload と source actor proof を実装する前に規則が必要です。source/MIR 導出、owned async 実行、具体的 channel/service 操作を一つの完了証拠で代用せず、実装前に新しい前提の scope/見積りを明示します。全 15 gate、一般 async transfer、channel、production embedding、foreign/C/serialized/package、P1 を維持します。
 
+A01 scope/estimate audit（2026-10-21 JST）: source/MIR は owned async signature を拒否し、runtime await は child result copy、disposal は Copy storage 解放のままです。actor authority は具体的 channel handle を必要とします。A02 の actor ownership/move/non-Send capture の全条件と 3 pt を保ち、A06/C03 依存を追加します。既存推移 fact を再利用する独立 source/MIR 導出と signature compile-pass/fail proof の **A06（1 pt）**、control を含む実際の owned 引数/結果 publication、await、disposal を VM/native で検証する **A05（3 pt）** を明示します。A05 は A06/T08、C03 は A05 に依存します。**A01 → A06 → A05**、続いて channel/source actor 証拠を揃えて A02 を完了監査します。追加 **+4 pt**、行 **47 → 49**、累積追加 **+20 → +24 pt**、消化 **43 pt** は維持、残り **87 → 91 pt**。実装前に再監査し、既存 fact/reservation で足りる箇所に graph/owner framework を追加しません。全 gate/P1 scope を維持します。
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +20 pt | −43 pt | 87 pt |
+| 110 pt | +24 pt | −43 pt | 91 pt |
 
 ## Exit audit
 
@@ -179,3 +183,5 @@ T08 roadmap audit: source/MIR の async signature 制限、task argument/result 
 - T07 統合の証拠と T08 監査: [RFC 0007](rfcs/0007-source-ownership-and-core-values.md)、[RFC 0021](rfcs/0021-bounded-structured-task-driver.md)、[RFC 0023](rfcs/0023-task-mir-boundaries.md) の最終更新/確認は 2026-10-21 JST。`tests/task_owned_integration.rs`、`tests/fixtures/task_owned_integrated.lang`、`tests/support/task_static.rs`、共有 service/counter API と task frame/result 計上を `8e72ea7`、2026-10-21 12:24 JST に macOS AArch64 で確認/実行しました。code に更新日の埋込みはありません。T08 の cost/admission/cleanup 規則は [RFC 0013](rfcs/0013-service-byte-work-budget.md)（最終更新 2026-10-20、確認 2026-10-21 JST）に基づき、新 cost 式や外部性能の主張は導入しません。
 
 - T08 の証拠と A01 audit: [RFC 0013](rfcs/0013-service-byte-work-budget.md)（最終更新 2026-10-20）、[RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md) と [RFC 0023](rfcs/0023-task-mir-boundaries.md)（最終更新 2026-10-21）。task counter/service/view adapter、frame/result 計上、`tests/task_controls.rs`、`tests/task_owned_integration.rs`、`tests/service_work_cli.rs`、`tests/support/task_static.rs`、source/MIR task transfer 制限と service 実験を `fdfc755`、2026-10-21 13:29 JST に macOS AArch64 で確認/実行しました。code に更新日の埋込みはありません。
+
+- A01 決定/audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md)、RFC 0005/0007/0022/0023 の最終更新は 2026-10-21。source/MIR type fact/task signature 検査、runtime await/result disposal、service model を `b25aede`、2026-10-21 13:37 JST に macOS AArch64 で確認し、最小 owned Bytes worker で SRC0026 を再現しました。code に更新日の埋込みはありません。受理済み決定は実装証拠ではありません。

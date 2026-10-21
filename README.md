@@ -73,6 +73,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0021: Bounded structured task driver (implemented)](docs/rfcs/0021-bounded-structured-task-driver.md)
 - [RFC 0022: Source structured tasks (accepted)](docs/rfcs/0022-source-structured-tasks.md)
 - [RFC 0023: Task MIR boundaries (accepted)](docs/rfcs/0023-task-mir-boundaries.md)
+- [RFC 0024: Recursive Send/Share and service authority (accepted)](docs/rfcs/0024-send-share-and-service-authority.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

@@ -14,6 +14,8 @@
 
 ## Summary
 
+A01 follow-up 決定（2026-10-21 JST）: [RFC 0024](0024-send-share-and-service-authority.md) は同一 invocation の logical task に対する再帰 Send/Share と mutable state projection のない interface-only producer handle を定めます。初期 Copy-only transfer subset を拡張し、loan/arena/allocator/Task transfer 禁止、checked shared 操作、独立 source/MIR proof を維持します。host thread の保証はありません。実行受理前に A06 導出と A05 owned async publication/await/disposal を検証し、A02 は具体的 channel handle 後の actor authority proof を維持します。以前の日付付き checkpoint は履歴です。channel/backpressure と foreign/C/serialized/package の決定は別途必要で、M3 gate は未完了です。
+
 RFC 0005 の厳密な構造化並行性を RFC 0021 の driver で実行する source 構文を定めます。関数は `async` を宣言し、`spawn` が scope 付きの子を作り、`await` が handle を消費し、task scope は終了前に join します。borrow は suspension を跨げません。source semantics の採択であり、source task 実行や serialized coroutine 形式の完成ではありません。
 
 T05/T06 checkpoint（2026-10-21 JST）: resolved async effect と有界 move/scope claim snapshot を、別段階の source loan 証明と結合します。await/yield/cancel_check/暗黙 join は生存 shared/exclusive loan を SRC0028 と loan 起点 span 付きで拒否し、終了する lexical loan を自身の join 前に終え、入れ子 join では外側 loan を維持します。TaskLoans だけでは実行できません。TaskProgram がこれらの source 証明と独立検証した ownership task MIR を保持し、task VM は明示 host allocator/task/control 権限でその証明を使います。`cargo run -- run examples/scripts/tasks.lang` は両 worker の yield 後に 42 を返し、CLI check と LSP は結合した source/MIR 証明を保持します。raw HIR 互換 API、REPL task submission、未対応実行/artifact adapter は各 profile を引き続き拒否します。async transfer は A01 まで scalar/finite Copy 値、初期 VM/native local は finite Copy/Task に限定します。実験段階の native continuation は JIT と別途リンクした host object で VM と値/event/cleanup が一致します。owned/loan/foreign task 実行、完全な共有 control、serialized task 形式は別の delivery に残し、契約全体の実装まで本 RFC は accepted のままです。

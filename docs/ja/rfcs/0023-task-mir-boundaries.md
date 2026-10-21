@@ -14,6 +14,8 @@
 
 ## Summary
 
+A01 follow-up 決定（2026-10-21 JST）: [RFC 0024](0024-send-share-and-service-authority.md) は同一 invocation の logical task に対する再帰 Send/Share と mutable state projection のない interface-only producer handle を定めます。初期 Copy-only transfer subset を拡張し、loan/arena/allocator/Task transfer 禁止、checked shared 操作、独立 source/MIR proof を維持します。host thread の保証はありません。実行受理前に A06 導出と A05 owned async publication/await/disposal を検証し、A02 は具体的 channel handle 後の actor authority proof を維持します。以前の日付付き checkpoint は履歴です。channel/backpressure と foreign/C/serialized/package の決定は別途必要で、M3 gate は未完了です。
+
 既存 ownership MIR に Task/TaskError 型、ABI から独立した async effect、独立検証した task 命令/scope/claim flow/suspension cleanup を追加します。型/宣言だけの証明は task flow の証明ではありません。既存同期実行/保存経路はこの profile を拒否し、意味を消去できないようにします。
 
 T11/T04–T06 checkpoint（2026-10-21 JST）: 型/effect/宣言検証を実装しました。旧 place/body、runtime layout、bytecode writer は task metadata を明示拒否し、旧 decoder は同期 effect を復元して新 tag を割り当てません。特に汎用 runtime token layout の fallback で Task/TaskError の storage を作りません。T04 で同じ body table を使う別 task 検証 entry を追加し、scope/claim/return escrow 解析と move/loan/arena region/failure plan の証明を結合しました。async failure plan は取消と primary execution failure を区別し、loan 終了、scope cancel/join、owner retirement、escrow 破棄の順を明示します。T05 で source task をこの契約へ lower し、明示 task VM driver 経由で初期 finite Copy/Task-local profile を実行します。通常 source check/LSP は結合した TaskProgram 証明を保持し、CLI run が source fixture を実行します。T06 で初期 profile を native continuation にコンパイルし、JIT と別途リンクした host object の一致を確認します。owned/loan/foreign task 実行と完全な共有 control は未実装であり、契約全体の完成まで本 RFC は accepted のままです。

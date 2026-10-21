@@ -14,6 +14,8 @@
 
 ## Summary
 
+A01 follow-up decision (2026-10-21 JST): [RFC 0024](0024-send-share-and-service-authority.md) defines recursive Send/Share for logical tasks in one invocation and interface-only producer handles without mutable state projections. It extends the initial Copy-only transfer subset while preserving no-loan/arena/allocator/Task transfer, checked shared operations and independent source/MIR proof. It makes no host-thread promise. A06 derivation and A05 owned async publication/await/disposal must pass before executable admission; A02 retains actual actor authority proof after concrete channel handles exist. Earlier dated checkpoints remain historical. Channel/backpressure and foreign/C/serialized/package decisions remain separate; no M3 gate is complete.
+
 Define the initial concurrency and cancellation baseline:
 
 - Child tasks are scoped: a parent scope cannot exit until every child completes or is cancelled and joined.
