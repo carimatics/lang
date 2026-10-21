@@ -260,15 +260,8 @@ pub fn analyze(
                     .charge(ty.span, 1)
                     .map_err(CheckError::Types)?;
                 let p = moved.bodies().properties(ty.value_type).unwrap();
-                if p.contains_loan || p.contains_arena || p.contains_allocator || p.contains_task {
+                if !p.is_send() {
                     context.error(ty.span, "async transfers cannot contain loans, arenas, allocator authority or Task claims", None, codes::INVALID_TASK)?;
-                } else if !p.is_copy {
-                    context.error(
-                        ty.span,
-                        "owned async transfers require the pending Send/Share derivation profile",
-                        None,
-                        codes::ASYNC_UNAVAILABLE,
-                    )?;
                 }
             }
         }

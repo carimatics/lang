@@ -264,13 +264,7 @@ fn metadata(typed: &b::TypedBodies, f: usize, budget: &mut m::Budget) -> Result<
         ) {
             budget.charge(1)?;
             let p = types.properties(use_.ty).unwrap();
-            if !p.is_copy
-                || p.contains_loan
-                || p.contains_arena
-                || p.contains_allocator
-                || p.contains_owner
-                || p.contains_task
-            {
+            if !p.is_send() {
                 return Err(fail(ErrorKind::UnsupportedTransfer(use_.ty), use_.span));
             }
         }

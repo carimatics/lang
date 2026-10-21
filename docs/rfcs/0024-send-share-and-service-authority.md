@@ -14,6 +14,8 @@
 
 ## Summary
 
+A06 implementation checkpoint (2026-10-21 JST): source and MIR expose compiler-derived logical-task Send/Share from their independently verified transitive type facts; no new graph cache, trait assertion, bit-copy transfer or wire tag is introduced. Async signature checks now accept owned Bytes/Text/Vec/Map, sums, recursive records/enums and checked shared/weak types. Loan/arena/allocator/Task authority remains forbidden, and ordinary move analysis consumes each spawn argument once. Seven focused tests compare both graphs, validate unused/forward-recursive signatures and aliases, reject forged MIR loan signatures at the type span and duplicate consumption, and check exact/one-below proof-work limits. VM/native continue a zero-effect Unsupported refusal for reachable owned async transfers until A05 implements publication/await/disposal. Source actor authority remains A02 after concrete channel handles. This is partial implementation evidence; RFC 0024 and all M3 gates remain incomplete.
+
 Derive two internal capabilities from verified source types: `Send` permits moving an owned value between logical tasks in one invocation; `Share` permits checked shared observation without granting mutable alias authority. Async arguments/results and channel messages require Send. No user assertion, trait syntax, closure capture syntax, implicit clone, detached task or cross-thread host ABI is added.
 
 Service state belongs to its owner task. A service handle conveys only the message/cancellation operations accepted by its interface; it never exposes a mutable state projection. The later channel/service decisions select concrete handle types and operations. Acceptance here does not implement those operations or complete an M3 gate.

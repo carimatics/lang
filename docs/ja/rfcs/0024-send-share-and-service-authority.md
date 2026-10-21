@@ -14,6 +14,8 @@
 
 ## Summary
 
+A06 実装 checkpoint（2026-10-21 JST）: source と MIR は独立に検証した推移 type fact から compiler-derived logical-task Send/Share を提供し、新 graph cache、trait 自己宣言、bit-copy transfer、wire tag を導入しません。async signature は owned Bytes/Text/Vec/Map、sum、再帰 record/enum、checked shared/weak を受理します。loan/arena/allocator/Task 権限は禁止し、通常 move 解析で spawn 引数を一度だけ消費します。重点 7 テストで両 graph、未使用/前方再帰 signature と alias、不正 MIR loan signature の type span での拒否、二重消費拒否、proof work 境界値/1 未満を確認しました。到達する owned async transfer は A05 の publication/await/disposal 実装まで VM/native で副作用前の Unsupported 拒否を維持します。source actor authority は具体的 channel handle 後の A02 に残ります。部分実装の証拠であり、RFC 0024 と全 M3 gate は未完です。
+
 検証済み source type から内部 capability を導出します。`Send` は同じ invocation の logical task 間で owned 値を移動する権限、`Share` は mutable alias 権限を与えず検査付き shared observation を行う権限です。async 引数/結果と channel message は Send を要求します。ユーザーによる宣言、trait/closure capture 構文、暗黙 clone、detached task、thread 間 host ABI は追加しません。
 
 Service state は owner task に属します。service handle は interface で受理された message/取消操作だけを与え、mutable state projection を公開しません。具体的な handle type と操作は後続の channel/service 決定で選びます。この受理だけでは操作の実装や M3 gate は完了しません。

@@ -14,6 +14,8 @@
 
 ## Summary
 
+A06 実装 checkpoint（2026-10-21 JST）: source と MIR は独立に検証した推移 type fact から compiler-derived logical-task Send/Share を提供し、新 graph cache、trait 自己宣言、bit-copy transfer、wire tag を導入しません。async signature は owned Bytes/Text/Vec/Map、sum、再帰 record/enum、checked shared/weak を受理します。loan/arena/allocator/Task 権限は禁止し、通常 move 解析で spawn 引数を一度だけ消費します。重点 7 テストで両 graph、未使用/前方再帰 signature と alias、不正 MIR loan signature の type span での拒否、二重消費拒否、proof work 境界値/1 未満を確認しました。到達する owned async transfer は A05 の publication/await/disposal 実装まで VM/native で副作用前の Unsupported 拒否を維持します。source actor authority は具体的 channel handle 後の A02 に残ります。部分実装の証拠であり、RFC 0024 と全 M3 gate は未完です。
+
 A01 follow-up 決定（2026-10-21 JST）: [RFC 0024](0024-send-share-and-service-authority.md) は同一 invocation の logical task に対する再帰 Send/Share と mutable state projection のない interface-only producer handle を定めます。初期 Copy-only transfer subset を拡張し、loan/arena/allocator/Task transfer 禁止、checked shared 操作、独立 source/MIR proof を維持します。host thread の保証はありません。実行受理前に A06 導出と A05 owned async publication/await/disposal を検証し、A02 は具体的 channel handle 後の actor authority proof を維持します。以前の日付付き checkpoint は履歴です。channel/backpressure と foreign/C/serialized/package の決定は別途必要で、M3 gate は未完了です。
 
 既存 ownership MIR に Task/TaskError 型、ABI から独立した async effect、独立検証した task 命令/scope/claim flow/suspension cleanup を追加します。型/宣言だけの証明は task flow の証明ではありません。既存同期実行/保存経路はこの profile を拒否し、意味を消去できないようにします。

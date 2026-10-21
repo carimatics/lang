@@ -320,6 +320,19 @@ pub struct Properties {
     pub contains_task: bool,
 }
 impl Properties {
+    /// RFC 0024 eligibility, derived independently from the verified MIR graph.
+    pub const fn is_send(self) -> bool {
+        !self.contains_loan
+            && !self.contains_arena
+            && !self.contains_allocator
+            && !self.contains_owner
+            && !self.contains_task
+    }
+    /// Current checked shared operations have the same transitive exclusions.
+    /// New capability-bearing constructors require their own accepted policy.
+    pub const fn is_share(self) -> bool {
+        self.is_send()
+    }
     fn from_bits(bits: u8) -> Self {
         Self {
             is_copy: bits & NONCOPY == 0,

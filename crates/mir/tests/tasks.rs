@@ -671,7 +671,7 @@ fn await_independently_checks_loans_and_copying_a_claim_is_invalid() {
 }
 
 #[test]
-fn unused_owned_async_transfer_is_an_unavailable_profile_not_a_send_assertion() {
+fn unused_owned_async_transfer_derives_send_without_a_caller_assertion() {
     let mut table = fixture();
     table
         .places
@@ -697,10 +697,16 @@ fn unused_owned_async_transfer_is_an_unavailable_profile_not_a_send_assertion() 
         )],
         ..Default::default()
     });
-    assert!(matches!(
-        reject(table).kind,
-        t::ErrorKind::UnsupportedTransfer(_)
-    ));
+    let proof = t::verify(table, Default::default()).unwrap();
+    let properties = proof
+        .typed()
+        .places()
+        .declarations()
+        .types()
+        .properties(ct(3))
+        .unwrap();
+    assert!(properties.is_send() && properties.is_share());
+    assert!(!properties.is_copy);
 }
 
 #[test]

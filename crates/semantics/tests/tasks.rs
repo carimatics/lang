@@ -298,15 +298,12 @@ fn task_error_cases_are_type_checked_but_not_executable_or_c_values() {
 }
 
 #[test]
-fn transfer_rules_keep_borrows_out_and_explicitly_defer_owned_send_derivation() {
+fn transfer_rules_keep_borrows_out_and_accept_derived_owned_signatures() {
     rejected(
         "async fn bad(value:&i64)->i64{return 0;}",
         codes::INVALID_TASK,
     );
-    rejected(
-        "async fn pending(value:core::Bytes)->core::Bytes{return value;}",
-        codes::ASYNC_UNAVAILABLE,
-    );
+    checked("async fn accepted(value:core::Bytes)->core::Bytes{return value;}");
     let (sources, mut raw) = bound("async fn main()->i64{return 0;}");
     raw.functions[0].abi = r::FunctionAbi::CExport;
     let result = tasks::analyze(raw, &sources, CheckLimits::default()).unwrap();

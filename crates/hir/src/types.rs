@@ -84,6 +84,19 @@ pub struct Properties {
     pub contains_task: bool,
 }
 impl Properties {
+    /// RFC 0024 logical-task transfer eligibility for the current type family.
+    /// The verified graph already propagates these exclusions through cycles.
+    pub const fn is_send(self) -> bool {
+        !self.contains_loan
+            && !self.contains_arena
+            && !self.contains_allocator
+            && !self.contains_task
+    }
+    /// Current checked shared operations have the same transitive exclusions.
+    /// New capability-bearing constructors require their own accepted policy.
+    pub const fn is_share(self) -> bool {
+        self.is_send()
+    }
     pub(crate) fn result_restriction(self) -> Option<(DiagnosticCode, &'static str)> {
         if self.contains_task {
             Some((
