@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**18 done · 1 doing · 30 todo · 88 remaining pt**
+**19 done · 1 doing · 29 todo · 85 remaining pt**
 
-**Next: M3-A05 → execute owned async arguments/results through move publication, consuming await and scope retirement.**
+**Next: M3-C01 → accept bounded channels, FIFO wakeup, backpressure, ownership commit and close/cancellation contracts.**
 
-Current delivery: **M3-A05**. Last executable checkpoint: **`d3b33e3`, verified 2026-10-21 14:25 JST** (A06): source/MIR independently derive recursive Send/Share; seven focused tests and the full **115 suites / 1,786 passed / 0 failed / 1 existing timing ignore** baseline pass, suite-time sum **543.02s**. fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. CLI check accepts the owned Bytes worker; run remains Unsupported with fuel 0/tasks 0. A05 remaining acceptance: admit Send signatures through existing managed frames; move arguments after preflight; retain owned result/origin metadata; move successful await into initialized/registered Ok ownership; retire unclaimed/cancelled/unpublished results once through scope cleanup with cell/heap/report/poison accounting. Execute a new owned transfer fixture on VM/generated native/linked objects, then verify failure/cancellation and every applicable control/provider prefix. Preserve all M3/P1 scope; no gate is complete.
+Current delivery: **M3-C01**. Last executable checkpoint: **`ea822bd`, verified 2026-10-21 15:23 JST** (A05): owned async arguments/results execute on VM/generated native/linked objects, preserving owning await, owner spans, reverse-publication retirement, cell/heap charges and cleanup reports. Fifteen focused tests and the full **116 suites / 1,801 passed / 0 failed / 1 existing timing ignore** baseline pass, suite-time sum **563.41s**. fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. Both transfer CLIs return 42; service-work 0 produces a numeric refusal; linked-object coverage includes thirteen profiles. C01 remaining acceptance: accept bounded channels, waiter/wakeup order, full-send policy, payload commit/recovery and close/cancellation/stalled-invocation cleanup for independent source/MIR proof and VM/native execution. The existing kernel waits only on child joins; channel execution remains unimplemented. Preserve all M3/P1 scope; no gate is complete.
 
-**This update: A06 completed (−1 pt); no new additions/re-estimates.** Remaining **89 − 1 = 88 pt**, **49 rows**, retired **46 pt**, net additions **+24 pt**.
+**This update: A05 completed (−3 pt); no new additions/re-estimates.** Remaining **88 − 3 = 85 pt**, **49 rows**, retired **49 pt**, net additions **+24 pt**.
 
 ## Deliveries
 
@@ -36,13 +36,13 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-T15 | done | 0 | M3-T14 | G03 | Execute a suspended/cancelled owned Vec/Map/shared/weak pipeline through existing managed services on VM/native | `c1b7887` |
 | M3-T16 | done | 0 | M3-T15 | G03 | Execute owned arena task scopes with region-safe loans and descendant-join-before-retirement on VM/native | `59a5070` |
 | M3-T08 | done | 0 | M3-T07 | G12,G13 | Enforce shared task/frame/fuel controls before effects on all execution paths | `fdfc755` |
-| M3-C01 | todo | 2 | M3-T05 | G01,G04 | Accept bounded channel, FIFO wakeup, backpressure, ownership commit and cancellation errors | — |
+| M3-C01 | doing | 2 | M3-T08,M3-A01,M3-A05 | G01,G04 | Accept bounded channel, FIFO wakeup, backpressure, ownership commit and cancellation errors | — |
 | M3-C02 | todo | 3 | M3-C01 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | — |
 | M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | Run source channel fixtures and reject payload reuse in VM execution | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | Match channel values, failures and cleanup through native execution | — |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | Accept recursive Send/Share derivation and source service authority rules | `9b2b68c` |
 | M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
-| M3-A05 | doing | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
+| M3-A05 | done | 0 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | `ea822bd` |
 | M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | Check source actor ownership, moves and non-sendable captures with diagnostics | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | Execute owner-isolated service state, FIFO messages and cancellation disposal | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | Match actor isolation and disposal traces in native execution | — |
@@ -69,6 +69,11 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-X01 | todo | 2 | M3-B02 | G15 | Ship runnable trusted-native and verified-script examples with explicit authority | — |
 | M3-Z01 | todo | 3 | M3-B01 | G03,G04,G05 | Record spawn/join/channel/cancellation/memory costs and preserve M2 workload evidence | — |
 | M3-Z02 | todo | 2 | M3-X01,M3-Z01 | G01,G02,G03,G04,G05,G06,G07,G08,G09,G10,G11,G12,G13,G14,G15 | Audit every gate and publish a bilingual capability guide with commands, evidence and limits | — |
+
+A05 completed at `ea822bd` (2026-10-21 JST): existing managed moves now execute Send async signatures and retained results preserve owner spans. Successful await moves its payload once and registers Result/owner initialization; unclaimed results retire newest-first through the existing mixed cleanup drain. Fifteen differential tests cover cancellation, unpublished return, nested generations, expired weak, nested owned Result, cleanup panic/truncation and primary-failure precedence. Every fuel/work/provider/interruption prefix, retained-cell admission and exact/one-below frame/cell/task/heap caps drain every allocation. Existing task regression passes 10 suites / 95 tests; both CLIs return 42 and preserve numeric refusal; thirteen linked-object profiles pass. With production inputs fixed, the full baseline passes **116 suites / 1,801 tests / 0 failures / 1 existing timing ignore**, suite-time sum **563.41s**. fmt, Clippy (**15.64s**), rustdoc (**31.71s**) and 11 fuzz-target compile/lint checks (**1.40s**) pass; no fuzz campaign is claimed. Retire the last **3 pt**; no additions/re-estimates.
+
+A05 roadmap audit: select C01 and retain its original **2 pt** after checking the remaining bounded queue, FIFO waiter/wakeup, full-send, payload commit/recovery and close/cancellation/stalled-cleanup decisions. `Scheduler` has Ready/child Waiting/Joining/Cleanup states but no channel park/wake; the old `ServiceModel` uses manual Sendable and an unbounded mailbox as a semantic model. Neither supplies production channel execution evidence. C01 decides the contract; C02 executes an actual bounded host channel fixture, C03 connects source/independent MIR and the VM fixture, and C04 proves native parity. Re-audit C02 against the actual decision before implementation and expose any missing prerequisite. A02 retains actor authority evidence after concrete handles. Preserve all 15 gates/P1, foreign/C/serialized/package, production embedding and the final guide.
+
 
 ## Progress and estimate changes
 
@@ -108,7 +113,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 24 − 46 = 88 pt**
+**110 + 24 − 49 = 85 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -156,7 +161,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +24 pt | −46 pt | 88 pt |
+| 110 pt | +24 pt | −49 pt | 85 pt |
 
 ## Exit audit
 

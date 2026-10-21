@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **18 done · 1 doing · 30 todo · 88 remaining pt** です。A01（`9b2b68c`）で RFC 0024 を受理し、A06（`d3b33e3`）で logical-task Send/Share を source/MIR で独立導出して厳密な権限/move 検査付き owned async signature を受理しました。重点 capability 7 テストと全 115 suite / 1,786 test が成功、失敗ゼロ、既存 timing ignore 1 件です。CLI check は成功し、owned async 実行は副作用前に拒否します。次は **A05** で managed 引数/結果 move、owning await 登録、scope 所有結果の退役を VM/native/リンク済み object に接続します。今回消化 **1 pt**、新たな追加/再見積りはなく、累積追加 **+24 pt**、消化 **46 pt**、収支 **110 + 24 − 46 = 88 pt**。全 15 M3/P1 gate と channel/actor/foreign/C/serialized/package/production embedding を維持します。日付付き証拠は board と [roadmap 履歴](roadmap-history.md)に保持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **19 done · 1 doing · 29 todo · 85 remaining pt** です。A05（`ea822bd`）で recursive Send の owned async 引数/結果を VM/生成 native/リンク済み object で実行し、owning await、owner 起点と有限計上、未回収/取消/未公開結果の一度限りの退役を検証しました。重点 15 テスト、13 linked-object profile、全 116 suite / 1,801 test が成功し、失敗ゼロ、既存 timing ignore 1 件です。次は **C01** の bounded channel、FIFO wakeup、backpressure と ownership commit/close/取消の決定です。今回消化 **3 pt**、新たな追加/再見積りはなく、累積追加 **+24 pt**、消化 **49 pt**、収支 **110 + 24 − 49 = 85 pt**。全 15 M3/P1 gate と channel/actor/foreign/C/serialized/package/production embedding、最終 guide を維持します。日付付き証拠は board と [roadmap 履歴](roadmap-history.md)に保持します。
 
 ## 進行中 milestone の実行
 
