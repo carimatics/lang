@@ -14,6 +14,8 @@
 
 ## Summary
 
+C05 実装 checkpoint（2026-10-21 JST）: driver は invocation/task に紐付く opaque WaitId ticket と検証済み global ordinal を発行します。check_park は事前検査、park は dispatch 解放または pending 取消時の終了、wake は正確な parked activation を検証して既存 ready task の後ろに一度追加し ticket を即失効させます。Parked task は live のまま adapter 所有 frame を保持し、取消/child failure は descendant-first cleanup acknowledge 前に readiness を失効させます。kernel 26 テストで境界、active dispatch 維持、不正/foreign/duplicate/stale wake、storage を増やさない256回再利用、最終 u64 ordinal/枯渇を確認します。`cargo run --example parked-tasks` は 42、実 frame cleanup [1,0]、全park後取消の cleanup [2,1,0]、live task 0 を検証します。kernel は guest frame/message や park ごとの storage を allocation しません。channel readiness、registration/payload custody、publication、deadlock 診断、source/MIR/VM/native channel 操作は C02/C03/C04 に残り、adapter は value cleanup 前に登録を unlink します。channel profile と M3 gate は未完です。
+
 RFC 0005/0021/0022/0024 に対し、同一 invocation 内の有限 multiple-producer, single-consumer channel を定めます。full send は未commit payload を所有して待ち、成功 enqueue で FIFO の1位置に所有権を commit します。receive は最古の commit 済み payload を一度だけ move します。close、取消、resource 拒否、closed invocation の停止に明示結果と必須 cleanup を定めます。Sender 権限から receiver/service state を参照できません。
 
 本書は protocol の決定であり、実装済み channel profile や安定 host ABI ではありません。C02 は runtime protocol、C03 は独立検証する source/MIR と VM 操作、C04 は生成 native/linked-object parity を担当します。具体的 reserved-core call catalog は C03 実装前に本書へ follow-up を記録します。別 task 言語や未検証の同期 call で suspension を隠しません。
@@ -159,4 +161,6 @@ source compile-pass/fail で endpoint capability、明示 clone、unique receive
 - [RFC 0001](0001-project-charter.md): 最終更新 2026-10-17、同日の owner 実験委任、2026-10-21 JST 確認。[RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21: strict ownership、accepted-message FIFO、取消、以前未決の backpressure 方針。
 - [RFC 0021](0021-bounded-structured-task-driver.md)、[RFC 0022](0022-source-structured-tasks.md)、[RFC 0024](0024-send-share-and-service-authority.md)、最終更新 2026-10-21: scheduler、task effect/loan、logical Send/Share。[RFC 0009](0009-whole-sum-ownership-extraction.md)、最終更新 2026-10-20: owning partial move のない whole-value extraction。
 - [RFC 0007](0007-source-ownership-and-core-values.md) と [RFC 0013](0013-service-byte-work-budget.md)、最終更新 2026-10-21、2026-10-21 JST 確認: checked publication、allocator 権限捕捉、共有 service-work/非計量 retirement。
-- `crates/runtime/src/task.rs`、`task/runner/`、`crates/semantics/src/service.rs`、source/core/MIR 境界を `224c1f2`、2026-10-21 JST に確認。コードに更新日埋込みはありません。現 driver は channel wait state を持たず、旧モデルは有限 runtime の証拠ではありません。これらは repository の事実です。上記 MPSC/role/FIFO admission/seal/abort/費用/deadlock は project decision、ergonomics/性能/reuse は仮説で、外部言語の主張は用いません。
+- `crates/runtime/src/task.rs`、`task/runner/`、`crates/semantics/src/service.rs`、source/core/MIR 境界を `224c1f2`、2026-10-21 JST に確認。コードに更新日埋込みはありません。その checkpoint の driver は readiness wait state を持たず、旧モデルは有限 runtime の証拠ではありません。これらは repository の事実です。上記 MPSC/role/FIFO admission/seal/abort/費用/deadlock は project decision、ergonomics/性能/reuse は仮説で、外部言語の主張は用いません。
+
+- C05 実装証拠: `crates/runtime/src/task.rs`、`task/tests/wait.rs`、`examples/parked-tasks.rs`。コードに更新日埋込みはなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。wait ticket は private identity と ordinal を持ち、kernel は guest message を所有せず、新 channel Source/ABI/wire の証拠にはしません。

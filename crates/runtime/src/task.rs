@@ -36,6 +36,31 @@ impl Debug for TaskId {
     }
 }
 
+/// One adapter-held readiness capability for one parked task activation.
+/// Cloning a ticket does not permit a second wake or reuse after another park.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WaitId {
+    task: TaskId,
+    ordinal: u64,
+}
+impl WaitId {
+    pub fn task(&self) -> &TaskId {
+        &self.task
+    }
+
+    /// Invocation-local registration order, never an authorization by itself.
+    pub fn ordinal(&self) -> u64 {
+        self.ordinal
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Park {
+    Waiting(WaitId),
+    /// No wait ticket is issued when this boundary closes the task.
+    Closing,
+}
+
 /// Identity in the adapter's retained, structured failure report storage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FailureId(pub u64);
@@ -81,6 +106,7 @@ pub enum Status {
     Ready,
     Running,
     Waiting { child: TaskId },
+    Parked,
     Joining,
     CleanupReady(Outcome),
     Cleaning(Outcome),
@@ -105,6 +131,8 @@ pub enum Error {
     WrongPhase,
     NotChild,
     CancellationPending,
+    StaleWait,
+    WaitIdentityExhausted,
     LiveTaskLimit { limit: usize },
     TotalTaskLimit { limit: usize },
 }
@@ -120,6 +148,7 @@ enum State {
     Ready,
     Running,
     Waiting(usize),
+    Parked(u64),
     Joining(Outcome),
     CleanupReady(Outcome),
     Cleaning(Outcome),
@@ -142,7 +171,8 @@ struct Task {
     first_child_failure: Option<(usize, FailureId)>,
 }
 
-/// One explicitly driven invocation. No global executor, threads or wakeups.
+/// One explicitly driven invocation. No global executor or threads.
+/// Readiness wakeups require a ticket issued by this invocation's driver.
 /// Preparation reserves all task/queue storage; transitions allocate no storage.
 pub struct Scheduler {
     invocation: Rc<()>,
@@ -151,6 +181,7 @@ pub struct Scheduler {
     queue: VecDeque<usize>,
     active: Option<usize>,
     usage: Usage,
+    last_wait: u64,
 }
 impl Scheduler {
     pub fn new(limits: Limits) -> Result<Self, Error> {
@@ -169,6 +200,7 @@ impl Scheduler {
             queue,
             active: None,
             usage: Usage::default(),
+            last_wait: 0,
         })
     }
 
@@ -246,6 +278,7 @@ impl Scheduler {
             State::Waiting(child) => Status::Waiting {
                 child: self.handle(child),
             },
+            State::Parked(_) => Status::Parked,
             State::Joining(_) => Status::Joining,
             State::CleanupReady(outcome) => Status::CleanupReady(outcome),
             State::Cleaning(outcome) => Status::Cleaning(outcome),
@@ -329,6 +362,56 @@ impl Scheduler {
             self.tasks[index].state = State::Waiting(child);
         }
         self.settle();
+        Ok(())
+    }
+
+    /// Preflight before an adapter publishes a registration or moves a payload.
+    /// Cancellation remains an ordinary closing boundary in `park` itself.
+    pub fn check_park(&self, task: &TaskId) -> Result<(), Error> {
+        let index = self.running(task)?;
+        if self.closing_requested(index) {
+            return Err(Error::CancellationPending);
+        }
+        self.last_wait
+            .checked_add(1)
+            .ok_or(Error::WaitIdentityExhausted)?;
+        Ok(())
+    }
+
+    /// Relinquish dispatch until the adapter reports readiness with this ticket.
+    /// The adapter retains pending owners and must unlink registrations before
+    /// frame/value cleanup; the kernel revokes only the readiness ticket.
+    pub fn park(&mut self, task: &TaskId) -> Result<Park, Error> {
+        let index = self.running(task)?;
+        if self.closing_requested(index) {
+            self.active = None;
+            self.close(index, Outcome::Success);
+            self.settle();
+            return Ok(Park::Closing);
+        }
+        let ordinal = self
+            .last_wait
+            .checked_add(1)
+            .ok_or(Error::WaitIdentityExhausted)?;
+        self.last_wait = ordinal;
+        self.active = None;
+        self.tasks[index].state = State::Parked(ordinal);
+        Ok(Park::Waiting(WaitId {
+            task: self.handle(index),
+            ordinal,
+        }))
+    }
+
+    /// Make a parked task ready once without executing guest code or taking
+    /// over the active dispatch. A successful wake immediately consumes its
+    /// capability even if the caller retained a clone.
+    pub fn wake(&mut self, wait: &WaitId) -> Result<(), Error> {
+        let index = self.index(&wait.task)?;
+        if !matches!(self.tasks[index].state, State::Parked(ordinal) if ordinal == wait.ordinal) {
+            return Err(Error::StaleWait);
+        }
+        self.tasks[index].state = State::Ready;
+        self.enqueue(index);
         Ok(())
     }
 
@@ -484,7 +567,9 @@ impl Scheduler {
             let mut changed = false;
             for index in (0..self.tasks.len()).rev() {
                 match self.tasks[index].state {
-                    State::Ready | State::Waiting(_) if self.closing_requested(index) => {
+                    State::Ready | State::Waiting(_) | State::Parked(_)
+                        if self.closing_requested(index) =>
+                    {
                         self.close(index, Outcome::Success);
                         changed = true;
                     }

@@ -14,7 +14,11 @@
 
 ## Summary
 
-C01 follow-up 決定（2026-10-21 JST）: [RFC 0025](0025-bounded-channels-and-backpressure.md) でこの invocation driver 上の channel park/wake と FIFO admission を受理しました。C05 は有限の invocation/task branded wait identity、allocation-free park/wake、二重 enqueue のない stale/duplicate wake 拒否、cleanup 前の取消時失効、安全な wait generation 枯渇を追加します。C02 が channel readiness/commit を担当し、kernel は guest message の所有/評価や MIR 解釈をしません。global ready FIFO と descendant join 後の cleanup を維持します。現在の committed driver は child-join 待機のみで、これは受理した拡張であり実装証拠ではありません。
+C05 実装 checkpoint（2026-10-21 JST）: driver は invocation/task に紐付く opaque WaitId ticket と検証済み global ordinal を発行します。check_park は事前検査、park は dispatch 解放または pending 取消時の終了、wake は正確な parked activation を検証して既存 ready task の後ろに一度追加し ticket を即失効させます。Parked task は live のまま adapter 所有 frame を保持し、取消/child failure は descendant-first cleanup acknowledge 前に readiness を失効させます。kernel 26 テストで境界、active dispatch 維持、不正/foreign/duplicate/stale wake、storage を増やさない256回再利用、最終 u64 ordinal/枯渇を確認します。`cargo run --example parked-tasks` は 42、実 frame cleanup [1,0]、全park後取消の cleanup [2,1,0]、live task 0 を検証します。kernel は guest frame/message や park ごとの storage を allocation しません。channel readiness、registration/payload custody、publication、deadlock 診断、source/MIR/VM/native channel 操作は C02/C03/C04 に残り、adapter は value cleanup 前に登録を unlink します。channel profile と M3 gate は未完です。
+
+C05 adapter 決定（2026-10-21 JST、実装前）: `check_park` は running task と invocation 全体の検証済み wait ordinal を adapter 公開前に事前検査します。`park` は allocation-free で Parked に移って `Park::Waiting(WaitId)` を返し、取消/child failure で終了する場合は ticket を発行せず `Park::Closing` を返します。opaque/non-Copy ticket は invocation-branded TaskId と唯一の ordinal を持ち、`wake(&WaitId)` は一致する parked task を ready 末尾へ一度追加して ticket を即失効させます。foreign、duplicate、取消済み、旧 generation の wake は queue/task 状態を変えず構造化失敗します。取消は Parked を child Waiting と同様に settle し、descendant join 後に cleanup します。wake 後の取消は既存 Ready/Running 境界規則に従います。ordinal 枯渇は active state を変える前に拒否します。admitted task ごとに1つの parked state で metadata を有限化し、新 allocation、guest frame、payload inventory、外部 event 権限を追加しません。channel adapter が operation span と registration custody を保持し、C02 が readiness と closed invocation の全停止を扱います。
+
+C01 follow-up 決定（2026-10-21 JST）: [RFC 0025](0025-bounded-channels-and-backpressure.md) でこの invocation driver 上の channel park/wake と FIFO admission を受理しました。C05 は有限の invocation/task branded wait identity、allocation-free park/wake、二重 enqueue のない stale/duplicate wake 拒否、cleanup 前の取消時失効、安全な wait generation 枯渇を追加します。C02 が channel readiness/commit を担当し、kernel は guest message の所有/評価や MIR 解釈をしません。global ready FIFO と descendant join 後の cleanup を維持します。C01 決定時の committed driver は child-join 待機のみで、上記 C05 が有限 readiness 拡張を実装します。
 
 RFC 0005 の下で、バックエンドに依存しないホスト駆動の scheduler kernel を追加します。kernel は親子関係とスケジュール状態、実行 adapter は guest frame、値、診断を所有します。明示的な root は 1 つで、同時に active な dispatch は最大 1 つです。ready task を FIFO で実行し、adapter が意味的境界を報告します。scope の終了は子を join し、取消/失敗では未完了の子孫へ取消要求を伝播します。guest cleanup は別の dispatch とし、実際の frame cleanup 後に確認します。
 
@@ -133,3 +137,5 @@ FIFO dispatch、通常/異常 scope 終了、入れ子、完了済み子の join
 - [RFC 0012](0012-native-ownership-continuations.md)、最終更新 2026-10-20: 実装済み native managed continuation。
 - `crates/semantics/src/lib.rs`、`crates/runtime/src/execution.rs`、[architecture](../architecture.md) を `984557d` で 2026-10-20 JST に確認。単一 task semantic model の library test 29 件は同日に成功しました。baseline であり kernel 実装の証拠ではありません。
 - 上記 scheduler の選択は project decision です。新たな外部言語/性能の主張はありません。
+
+- C05 実装証拠: `crates/runtime/src/task.rs`、`task/tests/wait.rs`、`examples/parked-tasks.rs`。コードに更新日埋込みはなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。wait ticket は private identity と ordinal を持ち、kernel は guest message を所有せず、新 channel Source/ABI/wire の証拠にはしません。

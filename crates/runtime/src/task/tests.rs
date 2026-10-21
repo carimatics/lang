@@ -1,5 +1,7 @@
 use super::*;
 
+mod wait;
+
 fn scheduler() -> Scheduler {
     Scheduler::new(Limits {
         live_tasks: 16,
