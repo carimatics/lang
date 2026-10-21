@@ -8,11 +8,13 @@
 
 **23 done · 1 doing · 27 todo · 80 remaining pt**
 
-**次: M3-C03 → 具体 channel call/error/MIR catalog を記録し、guest-owned VM source fixture を実行します。**
+**次: M3-C03 → guest queue/cell storage と VM continuation を接続し、owned source channel fixture を実行します。**
 
-現在の作業: **M3-C03**。直近の実行可能な proof checkpoint は **`e16e537`、2026-10-21 19:05 JST**（C06）で、source/MIR の独立した channel-role identity、non-Copy/storage/Send/Share と profile の副作用前拒否を検証します。重点 **11 type/admission tests**、追加の schema-2/3/4 writer 境界テスト、既存 capability 7件が成功しました。固定 production 入力の全 baseline は **119 suites / 1,838 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **532.06s**。fmt、Clippy、rustdoc、11 fuzz target compile/lint が成功しました。直近の成功する channel 実行は C02 host fixture（`4056cce`、owned payload と live 0 で42）であり、この型 checkpoint で source channel 実行は追加していません。C03 の残条件は実装前の具体 core call/error sum/typed MIR operation の記録、source/独立 MIR の suspension loan・所有権 proof、guest allocator/cell-backed Hub 統合、owned VM send/receive/close/取消/deadlock fixture と payload 再利用診断です。C04 は生成 native/linked-object parity を維持します。全 M3/P1 gate は未完です。
+現在の作業: **M3-C03**。直近の実行可能 checkpoint は **`f4fb49e`、2026-10-21 21:15 JST 検証**です。RFC 0025 に具体8 call/error/MIR catalog を記録し、source lowering と独立 MIR で channel authority、引数 loan の終了、role/type/kind、単一消費、payload 再利用診断を証明します。**MIR 権限5件、source-to-MIR 8件、別の HIR region 回帰検証が成功**しました。guest Bytes reservation 実験は通常/取消で42、owning storage identity 維持、退役 [20,22]/[22,20]、live allocation 0 です。実 guest payload storage を使う host Hub 実行であり、source VM channel fixture ではありません。固定 production 入力の全 baseline は **122 suites / 1,854 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **551.32s**。fmt、Clippy、rustdoc、全11 fuzz target compile/lint が成功しました。
 
-**今回: C06 完了（−3 pt）、新規追加 0 pt。** 残り **83 − 3 = 80 pt**、全 **51 行**、消化 **59 pt**、純追加 **+29 pt**。
+C03 の残条件: 実 guest queue-slot/metadata/cell admission、一時値 cleanup・suspension・取消を越える endpoint capture 保持、実際の endpoint を含む guest/shared storage の context 付き検査と mixed retirement、VM continuation、owned send/receive/close/取消/typed-deadlock/control fixture。layout、VM/native、旧 wire/package profile は channel admission を guest 副作用前に拒否する状態を維持します。C04 は生成 native/linked-object parity を維持します。行は doing 3 pt のままで、全 M3/P1 gate は未完です。
+
+**今回: C03 checkpoint、完了 0 pt・新規追加 0 pt。** 残り **80 + 0 − 0 = 80 pt**、全 **51 行**、消化 **59 pt**、純追加 **+29 pt**、収支 **110 + 29 − 59 = 80 pt**。
 
 ## Deliveries
 
@@ -97,6 +99,10 @@ C02 roadmap audit: Rust host key は source 型証明や guest allocator/cell-ba
 
 
 ## Progress and estimate changes
+
+C03 checkpoint `f4fb49e`（2026-10-21 JST）: 実装前に具体 source catalog を受理し、明示 prepared channel authority と source/MIR の suspension/所有権 proof を追加し、SendResult 両失敗 case の arena brand を保持し、Hub の明示 inspection context/再検査と payload owner/operation span の分離を追加しました。schema 2/3/4 は全新 type/op/core call を出力前に拒否し、VM/native profile は guest/provider allocation 前の拒否を維持します。最終 guest Bytes 実験も42、通常 [20,22]・取消 [22,20] の退役、peak live allocation 6、最終 live 0 です。全 baseline は **122 suites / 1,854 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **551.32s**、fmt、最終 Clippy（**4.48s**）、rustdoc（**53.02s**）、全11 fuzz target compile/lint（**4.15s**）が成功しました。fuzz campaign、source VM 実行、delivery/gate 完了は主張しません。
+
+C03 checkpoint の scope/順序監査: Hub authority/wait、Reservation/Frame transfer、service-work、mixed retirement interface に残条件を照合しました。catalog と proof は実行可能になりましたが、単一の guest-owned VM fixture と allocation/capture/publication/retirement/control 境界に元の **残り3 pt** を維持します。実 guest queue backing と非公開 endpoint lifetime 保持はこの成果に必要な部分であり、新 delivery ではありません。次は VM 統合を完了し、型だけの追加前提、第2言語、value-owner の別 registry を増やしません。**見積り消化0・純追加0** とし、C04 native parity、actor/foreign/C/serialized/package、production embedding、全15 gate/P1、最終 guide を維持します。
 
 C06 完了 `e16e537`（2026-10-21 JST）: RFC 0025 に具体 opaque ChannelSetup/Sender/Receiver constructor を採択し、既存 source/MIR graph で単調な Send/Share 依存を別々に独立導出しました。未使用 message も Send を要し、storage/privacy/region 検証を分離維持します。再帰/宣言順 graph、canonical role alias、不正 message/arity、move、不正 MIR、proof work/memory/elements の上限境界/1 未満と depth 拒否を検証します。重点11件と既存 capability 7件が成功し、追加の private writer 1件で schema 2/3/4 の全3 role を constructor byte 前に拒否します。旧 layout、VM/native channel admission、両 target native package は未使用 endpoint も guest/provider 副作用前に拒否します。固定入力の全 baseline は **119 suites / 1,838 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **532.06s**。fmt、Clippy（**22.75s**）、rustdoc（**53.12s**）、全11 fuzz target compile/lint（**3.17s**）が成功しました。fuzz campaign、新 wire/C layout、source channel 実行の完成は主張しません。C06 の最後の **3 pt** を消化し、**新規追加作業はありません**。
 
