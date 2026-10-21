@@ -224,7 +224,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
         while at<reachable.len(){
             let index=reachable[at];at+=1;
             let declaration=&declarations.functions()[index]; let body=&typed.functions()[index];
-            if declaration.parameters.iter().any(|id|!types.properties(declaration.locals[id.0 as usize].ty.ty).is_some_and(|p|(!declaration.effect.is_async()||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena)) || !types.properties(declaration.result.ty).is_some_and(|p|(!declaration.effect.is_async()||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena) {return Err(Reason::Unsupported);}
+            if !signature_supported(types,declaration) {return Err(Reason::Unsupported);}
 
 
             for ty in declaration.locals.iter().map(|l|l.ty.ty).chain(typed.places().functions()[index].values.iter().map(|v|v.ty)).chain(std::iter::once(declaration.result.ty)) {
@@ -275,10 +275,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
 #[doc(hidden)]
 pub fn task_supported(op: &b::Op) -> bool {
     match op {
-        b::Op::Import { .. }
-        | b::Op::BorrowCaseField { .. }
-        | b::Op::ArenaEnter { .. }
-        | b::Op::ArenaExit { .. } => false,
+        b::Op::Import { .. } | b::Op::ArenaEnter { .. } | b::Op::ArenaExit { .. } => false,
         b::Op::CoreCall(call) => matches!(
             call.operation,
             o::core::Operation::OptionUnwrap
@@ -298,7 +295,8 @@ pub fn task_supported(op: &b::Op) -> bool {
                 | o::core::Operation::TextBytes
                 | o::core::Operation::TextConcat
         ),
-        b::Op::Borrow { .. }
+        b::Op::BorrowCaseField { .. }
+        | b::Op::Borrow { .. }
         | b::Op::I64(_)
         | b::Op::Bool(_)
         | b::Op::Unit
@@ -338,6 +336,20 @@ pub fn task_supported(op: &b::Op) -> bool {
     }
 }
 
+/// Synchronous loans borrow live ancestors; no ordinary loan crosses a task transfer.
+#[doc(hidden)]
+pub fn signature_supported(
+    types: &o::VerifiedTypes,
+    declaration: &o::declarations::Function,
+) -> bool {
+    let asynchronous = declaration.effect.is_async();
+    declaration.parameters.iter().all(|id|{
+        let ty=declaration.locals[id.0 as usize].ty.ty;
+        let loan=matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(..)));
+        if loan {return !asynchronous;}
+        types.properties(ty).is_some_and(|p|(!asynchronous||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena)
+    })&&types.properties(declaration.result.ty).is_some_and(|p|(!asynchronous||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena)
+}
 /// Supported whole-sum extraction forms in the managed task adapter.
 #[doc(hidden)]
 pub fn instruction_supported(

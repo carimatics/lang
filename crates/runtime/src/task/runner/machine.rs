@@ -35,6 +35,7 @@ pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub active: Option<(t::TaskId, bool)>,
     pub failure_records: std::num::NonZeroUsize,
     pub completed: Vec<usize>,
+    pub next_activation: u64,
 }
 impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctrl, P> {
     pub fn new(
@@ -59,7 +60,15 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let completed = budget.vector(limits.tasks.total_tasks)?;
         let session = c::Session::prepare(failure_records, &mut budget)?;
         let mut scheduler = t::Scheduler::new(limits.tasks)?;
-        let frame = Frame::new(proof, plan, entry, failure_records, allocator, &mut budget)?;
+        let frame = Frame::new(
+            proof,
+            plan,
+            entry,
+            frame::ActivationId(0),
+            failure_records,
+            allocator,
+            &mut budget,
+        )?;
         let span = proof.typed().places().declarations().functions()[entry.0 as usize].span;
         let id = scheduler.start(Some(span))?;
         frames.push(frame);
@@ -95,6 +104,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             active: None,
             failure_records,
             completed,
+            next_activation: 1,
         })
     }
     pub fn event(&mut self, task: usize, kind: EventKind, span: m::Span) -> Result<(), Reason> {
@@ -155,10 +165,16 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .ok_or(Reason::Invariant)?;
         let cells = plan.cleanup_slots() + 1;
         admit(self.control, self.live_frames, self.live_cells, cells)?;
+        let activation = frame::ActivationId(self.next_activation);
+        self.next_activation = self
+            .next_activation
+            .checked_add(1)
+            .ok_or(Reason::Invariant)?;
         let frame = Frame::new(
             self.proof,
             plan,
             function,
+            activation,
             self.failure_records,
             self.allocator,
             &mut self.budget,

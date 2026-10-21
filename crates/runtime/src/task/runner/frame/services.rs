@@ -1,7 +1,7 @@
 //! Typed managed services, shared by interpreted and generated task bodies.
 use super::*;
 use crate::buffer;
-impl Frame<'_, '_> {
+impl Access<'_, '_, '_> {
     pub fn unpack_case<P: a::Provider>(
         &mut self,
         from: usize,
@@ -36,16 +36,22 @@ impl Frame<'_, '_> {
                 if field != 0 {
                     return Err(Reason::Invariant);
                 }
-                self.write(
-                    to,
-                    cell.read_immediate(root, allocator)?
-                        .payload()
-                        .ok_or(Reason::Invariant)?,
-                    allocator,
-                )?;
+                let payload = cell
+                    .read_immediate(root, allocator)?
+                    .payload()
+                    .ok_or(Reason::Invariant)?;
+                self.write(to, payload, allocator)?;
             } else {
                 let at = cell.child(root, field as u32, allocator)?;
-                self.copy_location(Location { slot: from, at }, self.root(to)?, allocator)?;
+                self.copy_location(
+                    Location {
+                        activation: self.activation,
+                        slot: from,
+                        at,
+                    },
+                    self.root(to)?,
+                    allocator,
+                )?;
             }
         }
         Ok(())
@@ -55,10 +61,9 @@ impl Frame<'_, '_> {
         location: Location,
         allocator: &a::Allocator<P>,
     ) -> Result<[u8; 32], Reason> {
-        self.available(location.slot)?;
+        self.owner(location.activation)?.available(location.slot)?;
         let start = location.at.offset() as usize;
-        self.data()?
-            .cell(location.slot)?
+        self.cell(location)?
             .data(allocator)?
             .get(start..start.checked_add(32).ok_or(Reason::Invariant)?)
             .ok_or(Reason::Invariant)?
@@ -72,8 +77,7 @@ impl Frame<'_, '_> {
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
         let start = location.at.offset() as usize;
-        self.data()?
-            .cell(location.slot)?
+        self.cell(location)?
             .data_mut(allocator)?
             .get_mut(start..start.checked_add(32).ok_or(Reason::Invariant)?)
             .ok_or(Reason::Invariant)?
@@ -96,7 +100,15 @@ impl Frame<'_, '_> {
         }
         if self.is_copy(from)? {
             let at = source.child(root, 0, allocator)?;
-            self.copy_location(Location { slot: from, at }, self.root(to)?, allocator)
+            self.copy_location(
+                Location {
+                    activation: self.activation,
+                    slot: from,
+                    at,
+                },
+                self.root(to)?,
+                allocator,
+            )
         } else {
             let span = self
                 .managed
@@ -147,6 +159,7 @@ impl Frame<'_, '_> {
                 cell.prepare_case(root, 0, allocator)?;
                 self.store_token(
                     Location {
+                        activation: self.activation,
                         slot: to,
                         at: cell.child(root, 0, allocator)?,
                     },
@@ -205,7 +218,15 @@ impl Frame<'_, '_> {
                         cell.prepare_case(root, 0, allocator)?;
                         let at = cell.child(root, 0, allocator)?;
                         let token = bytes.take_token(allocator).map_err(|_| Reason::Invariant)?;
-                        self.store_token(Location { slot: to, at }, token, allocator)?;
+                        self.store_token(
+                            Location {
+                                activation: self.activation,
+                                slot: to,
+                                at,
+                            },
+                            token,
+                            allocator,
+                        )?;
                     }
                     Err(buffer::Failure::Error(error)) => {
                         cell.prepare_case(root, 1, allocator)?;

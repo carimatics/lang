@@ -1,10 +1,10 @@
 use super::*;
-use frame::Location;
+use frame::{Access, Location};
 
 pub(super) use lang_runtime::task::runner::task_supported as supported;
 pub(super) fn execute<P: a::Provider>(
     typed: &b::TypedBodies,
-    frame: &mut Frame<'_, '_>,
+    frame: &mut Access<'_, '_, '_>,
     site: b::Site,
     allocator: &mut a::Allocator<P>,
 ) -> Result<(), Reason> {
@@ -47,7 +47,7 @@ pub(super) fn execute<P: a::Provider>(
         }
         b::Op::CopyPlace(place) | b::Op::MovePlace(place) => {
             let from = frame.place(&paths[place.0 as usize], allocator)?;
-            if frame.is_claim(from.slot)? {
+            if frame.claim_at(from)? {
                 frame.transfer(from.slot, result()?, allocator)?;
             } else {
                 frame.copy_location(from, frame.root(result()?)?, allocator)?;
@@ -114,7 +114,11 @@ pub(super) fn execute<P: a::Provider>(
                     .child(root.at, index as u32, allocator)?;
                 frame.copy_location(
                     frame.root(value(*from))?,
-                    Location { slot: to, at },
+                    Location {
+                        activation: frame.activation,
+                        slot: to,
+                        at,
+                    },
                     allocator,
                 )?;
             }
@@ -169,7 +173,11 @@ pub(super) fn execute<P: a::Provider>(
                         .child(root.at, index as u32, allocator)?;
                     frame.copy_location(
                         frame.root(value(*from))?,
-                        Location { slot: to, at },
+                        Location {
+                            activation: frame.activation,
+                            slot: to,
+                            at,
+                        },
                         allocator,
                     )?;
                 }
@@ -177,12 +185,20 @@ pub(super) fn execute<P: a::Provider>(
             }
         }
         b::Op::IsCase { value: from, case } => {
-            frame.available(value(*from))?;
-            let actual = frame
-                .data()?
-                .cell(value(*from))?
-                .case(frame.root(value(*from))?.at, allocator)?;
+            let actual = frame.case(value(*from), allocator)?;
             frame.write(result()?, l::Immediate::Bool(actual == *case), allocator)?;
+        }
+        b::Op::BorrowCaseField {
+            value: from,
+            case,
+            field,
+            guard,
+            loan,
+        } => {
+            if frame.read(value(*guard), allocator)? != l::Immediate::Bool(true) {
+                return Err(Reason::Invariant);
+            }
+            frame.borrow_case(value(*from), *case, *field, *loan, result()?, allocator)?;
         }
         b::Op::CopyCaseField {
             value: from,
@@ -193,7 +209,7 @@ pub(super) fn execute<P: a::Provider>(
             if frame.read(value(*guard), allocator)? != l::Immediate::Bool(true) {
                 return Err(Reason::Invariant);
             }
-            copy_field(frame, value(*from), *case, *field, result()?, allocator)?;
+            frame.copy_field(value(*from), *case, *field, result()?, allocator)?;
         }
         b::Op::UnpackVariant {
             value: from,
@@ -225,39 +241,4 @@ pub(super) fn execute<P: a::Provider>(
         _ => return Err(Reason::Unsupported),
     }
     Ok(())
-}
-fn copy_field<P: a::Provider>(
-    frame: &mut Frame<'_, '_>,
-    from: usize,
-    case: u32,
-    field: u32,
-    to: usize,
-    allocator: &mut a::Allocator<P>,
-) -> Result<(), Reason> {
-    frame.available(from)?;
-    let source = frame.data()?.cell(from)?;
-    let root = source.root();
-    if source.case(root, allocator)? != case {
-        return Err(Reason::Invariant);
-    }
-    if matches!(
-        source
-            .layouts()
-            .get(root.ty())
-            .ok_or(Reason::Invariant)?
-            .kind,
-        l::Kind::Error { .. }
-    ) {
-        let payload = source
-            .read_immediate(root, allocator)?
-            .payload()
-            .ok_or(Reason::Invariant)?;
-        if field != 0 {
-            return Err(Reason::Invariant);
-        }
-        frame.write(to, payload, allocator)
-    } else {
-        let at = source.child(root, field, allocator)?;
-        frame.copy_location(Location { slot: from, at }, frame.root(to)?, allocator)
-    }
 }

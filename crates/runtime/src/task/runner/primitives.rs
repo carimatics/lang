@@ -44,6 +44,13 @@ pub enum Primitive {
         place: p::PlaceId,
         to: usize,
     },
+    BorrowField {
+        from: usize,
+        case: u32,
+        field: u32,
+        loan: b::LoanId,
+        to: usize,
+    },
     EndLoan(b::LoanId),
     EndLoans,
     Core {
@@ -133,10 +140,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         span: m::Span,
     ) -> Result<Flow, Reason> {
         let function = self.frame(task)?.function;
-        let frame = self.records[task]
-            .frames
-            .last_mut()
-            .ok_or(Reason::Invariant)?;
+        let mut frame = frame::Access::new(&mut self.records[task].frames)?;
         let paths = &self.proof.typed().places().functions()[function.0 as usize].places;
         match primitive {
             Primitive::Nop => {}
@@ -156,7 +160,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             Primitive::Copy { from, to } => frame.transfer(*from, *to, self.allocator)?,
             Primitive::Load { place, to } => {
                 let from = frame.place(&paths[place.0 as usize], self.allocator)?;
-                if frame.is_claim(from.slot)? {
+                if frame.claim_at(from)? {
                     frame.transfer(from.slot, *to, self.allocator)?;
                 } else {
                     frame.copy_location(from, frame.root(*to)?, self.allocator)?;
@@ -188,6 +192,13 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 frame.borrow(*loan, &paths[place.0 as usize], *to, self.allocator)?
             }
             Primitive::EndLoan(loan) => frame.end_loan(*loan)?,
+            Primitive::BorrowField {
+                from,
+                case,
+                field,
+                loan,
+                to,
+            } => frame.borrow_case(*from, *case, *field, *loan, *to, self.allocator)?,
             Primitive::EndLoans => frame.end_loans(),
             Primitive::Core {
                 operation,
@@ -227,7 +238,11 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                             .child(root.at, index as u32, self.allocator)?;
                     frame.copy_location(
                         frame.root(*from)?,
-                        Location { slot: *to, at },
+                        Location {
+                            activation: frame.activation,
+                            slot: *to,
+                            at,
+                        },
                         self.allocator,
                     )?;
                 }
@@ -284,7 +299,11 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                         )?;
                         frame.copy_location(
                             frame.root(*from)?,
-                            Location { slot: *to, at },
+                            Location {
+                                activation: frame.activation,
+                                slot: *to,
+                                at,
+                            },
                             self.allocator,
                         )?;
                     }
@@ -296,7 +315,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 case,
                 field,
                 to,
-            } => copy_field(frame, *from, *case, *field, *to, self.allocator)?,
+            } => frame.copy_field(*from, *case, *field, *to, self.allocator)?,
             Primitive::Fields { from, case, to } => {
                 frame.unpack_case(*from, *case, to.iter().copied(), self.allocator)?;
             }
@@ -368,9 +387,10 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             }
             Primitive::Enter(id) => {
                 frame.serial = frame.serial.checked_add(1).ok_or(Reason::Invariant)?;
+                let serial = frame.serial;
                 frame.scopes.push(Scope {
                     id: *id,
-                    serial: frame.serial,
+                    serial,
                     results: None,
                 });
                 self.event(task, EventKind::ScopeEnter(id.0), span)?;
@@ -398,7 +418,8 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 });
             }
             Primitive::Save(from) => {
-                frame.transfer(*from, frame.return_cell, self.allocator)?;
+                let to = frame.return_cell;
+                frame.transfer(*from, to, self.allocator)?;
                 frame.saved = true;
             }
             Primitive::Transfer(slots) => {
@@ -465,41 +486,5 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             Primitive::Finish => return Ok(Flow::Finished),
         }
         Ok(Flow::Continue)
-    }
-}
-
-fn copy_field<P: a::Provider>(
-    frame: &mut Frame<'_, '_>,
-    from: usize,
-    case: u32,
-    field: u32,
-    to: usize,
-    allocator: &mut a::Allocator<P>,
-) -> Result<(), Reason> {
-    frame.available(from)?;
-    let source = frame.data()?.cell(from)?;
-    let root = source.root();
-    if source.case(root, allocator)? != case {
-        return Err(Reason::Invariant);
-    }
-    if matches!(
-        source
-            .layouts()
-            .get(root.ty())
-            .ok_or(Reason::Invariant)?
-            .kind,
-        l::Kind::Error { .. }
-    ) {
-        let payload = source
-            .read_immediate(root, allocator)?
-            .payload()
-            .ok_or(Reason::Invariant)?;
-        if field != 0 {
-            return Err(Reason::Invariant);
-        }
-        frame.write(to, payload, allocator)
-    } else {
-        let at = source.child(root, field, allocator)?;
-        frame.copy_location(Location { slot: from, at }, frame.root(to)?, allocator)
     }
 }

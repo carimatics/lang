@@ -4,6 +4,7 @@ use std::num::NonZeroUsize;
 
 #[derive(Clone, Copy)]
 pub struct Reference {
+    pub activation: ActivationId,
     pub loan: usize,
     pub generation: u64,
 }
@@ -135,6 +136,9 @@ impl Frame<'_, '_> {
         self.available(slot)?;
         let managed = self.managed.as_ref().ok_or(Reason::Unsupported)?;
         let reference = managed.references[slot].ok_or(Reason::Invariant)?;
+        if reference.activation != self.activation {
+            return Err(Reason::Invariant);
+        }
         let loan = managed.loans.get(reference.loan).ok_or(Reason::Invariant)?;
         if reference.generation != loan.generation {
             return Err(Reason::Invariant);
@@ -168,6 +172,7 @@ impl Frame<'_, '_> {
         entry.generation = entry.generation.checked_add(1).ok_or(Reason::Invariant)?;
         entry.target = Some(target);
         managed.references[to] = Some(Reference {
+            activation: self.activation,
             loan: loan.0 as usize,
             generation: entry.generation,
         });

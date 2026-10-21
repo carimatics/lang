@@ -1,0 +1,43 @@
+// T14: loans remain inside synchronous execution segments around suspension.
+struct Pair { first: core::Bytes, second: core::Bytes }
+
+fn bytes(value: i64) -> core::Bytes {
+    let mut b: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(b, value));
+    return b;
+}
+
+fn read(value: &core::Bytes) -> i64 {
+    return core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(value, 0));
+}
+
+fn inspect(value: &core::Option<Pair>) -> i64 {
+    match value {
+        core::Option::Some(pair) => { return read(pair.first) + read(pair.second); },
+        core::Option::None => { return 0; },
+    }
+}
+
+fn change(value: &mut Pair, depth: i64) -> core::Unit {
+    if depth < 1 {
+        value.first = bytes(7);
+        return core::Unit {};
+    }
+    return change(value, depth + -1);
+}
+
+async fn worker() -> i64 {
+    let mut pair: Pair = Pair { second: bytes(2), first: bytes(1) };
+    let mut before: i64 = read(pair.first) + read(pair.second);
+    yield;
+    let mut changed: core::Unit = change(pair, 3);
+    let mut wrapped: core::Option<Pair> = core::Option::Some(pair);
+    let mut after: i64 = inspect(wrapped);
+    yield;
+    cancel_check;
+    return before + after;
+}
+
+async fn main() -> i64 {
+    return core::result_unwrap::<i64, core::TaskError>(await worker());
+}

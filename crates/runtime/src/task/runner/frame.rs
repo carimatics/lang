@@ -1,12 +1,17 @@
 use super::*;
+mod access;
 mod buffers;
+pub use access::Access;
 mod managed;
 mod services;
 pub use managed::Managed;
 pub use managed::Target;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ActivationId(pub u64);
 #[derive(Clone, Copy)]
 pub struct Location {
+    pub activation: ActivationId,
     pub slot: usize,
     pub at: l::Location,
 }
@@ -38,6 +43,7 @@ pub struct ReturnTo {
     pub failure: f::NodeId,
 }
 pub struct Frame<'l, 'ty> {
+    pub activation: ActivationId,
     pub types: &'ty o::VerifiedTypes,
     pub origin: m::Span,
     pub managed: Option<Managed>,
@@ -62,6 +68,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         proof: &'ty o::tasks::VerifiedTasks,
         plan: &l::FramePlan<'l, 'ty>,
         function: m::FunctionId,
+        activation: ActivationId,
         failure_records: std::num::NonZeroUsize,
         allocator: &mut a::Allocator<P>,
         budget: &mut m::Budget,
@@ -85,7 +92,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         budget.charge(plan.cell_count())?;
         let needs=body.loans!=0||(0..plan.cell_count()).any(|slot| {
             let ty=plan.cell_type(slot).expect("prepared cell").ty;
-            !types.properties(ty).expect("verified type").is_copy && !matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)))
+            (types.properties(ty).expect("verified type").contains_loan||!types.properties(ty).expect("verified type").is_copy) && !matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)))
         });
         let managed = if needs {
             Some(Managed::prepare(
@@ -100,6 +107,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         let storage = plan.reserve_after(allocator, usage(budget))?;
         *budget = m::Budget::with_usage(budget.limits(), storage.usage())?;
         Ok(Self {
+            activation,
             types,
             origin: proof.typed().places().declarations().functions()[function.0 as usize].span,
             managed,
@@ -130,6 +138,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     }
     pub fn root(&self, slot: usize) -> Result<Location, Reason> {
         Ok(Location {
+            activation: self.activation,
             slot,
             at: self.data()?.cell(slot)?.root(),
         })
@@ -177,6 +186,9 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         to: Location,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
+        if from.activation != self.activation || to.activation != self.activation {
+            return Err(Reason::Invariant);
+        }
         self.available(from.slot)?;
         let source_root = self.root(from.slot)?.at;
         if self.is_reference(from.slot)? {
@@ -254,6 +266,15 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
         from.available(source)?;
+        if from.is_reference(source)? {
+            let reference = from.managed.as_ref().ok_or(Reason::Invariant)?.references[source]
+                .ok_or(Reason::Invariant)?;
+            self.managed.as_mut().ok_or(Reason::Invariant)?.references[to] = Some(reference);
+            if !from.is_copy(source)? {
+                from.forget(source);
+            }
+            return self.mark(to, self.origin);
+        }
         if from.is_copy(source)? {
             self.data()?.cell(to)?.copy_from(
                 self.root(to)?.at,
@@ -293,6 +314,9 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         self.available(from)?;
         if self.is_claim(to.slot)? {
             return self.transfer(from, to.slot, allocator);
+        }
+        if self.is_reference(from)? {
+            return self.copy_location(self.root(from)?, to, allocator);
         }
         if self
             .types
@@ -368,7 +392,11 @@ impl<'l, 'ty> Frame<'l, 'ty> {
                 }
             }
         }
-        Ok(Target::Cell(Location { slot, at }))
+        Ok(Target::Cell(Location {
+            activation: self.activation,
+            slot,
+            at,
+        }))
     }
     pub fn forget(&mut self, slot: usize) {
         self.claims[slot] = None;

@@ -522,35 +522,28 @@ async fn main()->i64 {
 
 #[test]
 fn unconnected_owned_task_profiles_refuse_before_provider_effects() {
-    for source in [
-        "async fn main()->i64 {let mut values:core::Vec<i64>=core::result_unwrap::<core::Vec<i64>,core::AllocError>(core::vec_new::<i64>(core::allocator()));yield;return core::vec_len::<i64>(values);}",
-        "fn length(value:&core::Bytes)->i64{return core::bytes_len(value);} async fn main()->i64 {let mut bytes:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut n:i64=length(bytes);yield;return n;}",
-    ] {
-        let program = prepare(source);
-        assert!(matches!(
-            lang_codegen_clif::tasks::CompiledProgram::compile(
-                program.verified(),
-                Default::default()
-            ),
-            Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
-        ));
-        let (mut allocator, trace) = tracked(usize::MAX);
-        let failure = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
-            &mut allocator,
-            e::Control::with_limits(Default::default()),
-            Default::default(),
-        )
-        .err()
-        .unwrap();
-        assert!(
-            matches!(
-                failure.reason,
-                lang_runtime::task::runner::Reason::Unsupported
-            ),
-            "{failure:?}"
-        );
-        assert_eq!(allocator.stats().requests, 0);
-        assert!(trace.borrow().active.is_empty());
-    }
+    let source = "async fn main()->i64 {let mut values:core::Vec<i64>=core::result_unwrap::<core::Vec<i64>,core::AllocError>(core::vec_new::<i64>(core::allocator()));yield;return core::vec_len::<i64>(values);}";
+    let program = prepare(source);
+    assert!(matches!(
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default()),
+        Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
+    ));
+    let (mut allocator, trace) = tracked(usize::MAX);
+    let failure = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    )
+    .err()
+    .unwrap();
+    assert!(
+        matches!(
+            failure.reason,
+            lang_runtime::task::runner::Reason::Unsupported
+        ),
+        "{failure:?}"
+    );
+    assert_eq!(allocator.stats().requests, 0);
+    assert!(trace.borrow().active.is_empty());
 }

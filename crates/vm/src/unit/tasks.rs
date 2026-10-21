@@ -13,7 +13,7 @@ use lang_runtime::{allocation as a, execution as e, layout as l, task as t};
 
 mod instructions;
 mod machine;
-use frame::{Frame, Pending};
+use frame::Pending;
 
 use lang_runtime::task::runner::frame;
 pub use lang_runtime::task::runner::{Event, EventKind, Failure, Limits, Outcome, Reason};

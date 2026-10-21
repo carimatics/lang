@@ -10,7 +10,7 @@
 
 現機能snapshot（2026-10-20 JST検証）：所有値・collection・shared／arena・C境界・VM／native実行・実験SDKと両hostのdebug検証を実装しています。[M2 capability guideと全出口監査](docs/ja/milestone-2-capabilities.md)に手順・証拠・制約をまとめています。
 
-M3 task execution checkpoint（2026-10-21 JST 検証）: `cargo run -- run examples/scripts/tasks.lang` と `cargo run --example native-structured-tasks` は 42 を出力します。VM と実験段階の native API は owned Text/Bytes、record、whole Option/Result move、同期 owned call、local loan も実行し、`cargo run -- run tests/fixtures/task_owned_buffers.lang` は 71 を出力します。対応 profile を VM/JIT/別プロセスのリンク済み object fixture で検証します。container/shared/arena の task service、同期 call をまたぐ loan、完全な共有 control、task artifact/native package、async REPL submission は M3 の残作業です。[実装 Todo](docs/ja/milestone-3.md) に checkpoint と残り scope を記録しています。
+M3 task execution checkpoint（2026-10-21 JST 検証）: `cargo run -- run examples/scripts/tasks.lang` と `cargo run --example native-structured-tasks` は 42 を出力します。VM と実験段階の native API は owned Text/Bytes、record、whole Option/Result move、同期 owned call、同期 call/borrowed payload をまたぐ通常 loan も実行します。`cargo run -- run tests/fixtures/task_owned_buffers.lang` は 71、`cargo run -- run tests/fixtures/task_sync_loans.lang` は 12 を出力します。対応 profile を VM/JIT/別プロセスのリンク済み object fixture で検証します。container/shared/arena の task service、foreign service、完全な共有 control、task artifact/native package、async REPL submission は M3 の残作業です。[実装 Todo](docs/ja/milestone-3.md) に checkpoint と残り scope を記録しています。
 
 ## ビジョン
 

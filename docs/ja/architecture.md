@@ -126,6 +126,9 @@ T12 で task scope 終了を RFC 0022 に合わせ、終了 loan/reference、joi
 
 T07 の owned 実行 checkpoint は managed reservation と cleanup Context/Report を再利用し、Text/Bytes、record、whole Option/Result move、同期 owned call、replacement を処理します。local loan sidecar は実行区間内の target/generation 権限を保持し、suspension 時の通常 loan 禁止を維持します。owner list は descendant join 後に実際の初期化逆順で retire します。事前確保した frame/task report は primary/secondary 順序、panic containment、fuel/report 枯渇後の必須 cleanup を保持します。cancelled join でも抑制 cleanup 証拠と poison 状態を host に返し、CLI は poisoned outcome を拒否します。`tests/fixtures/task_owned.lang` は 7、`tests/fixtures/task_owned_buffers.lang` は VM/JIT/別プロセスのリンク済み object で 71 を返します。同期 frame 間の loan/borrowed payload、container/shared/arena service、広い owned-variant 統合は T07 の受入条件に残し、一般 async Send/Share transfer は A01、完全な共有 control は T08、task package/C/foreign profile は未対応のままです。証拠は 2026-10-21 JST 検証で、code に更新日の埋込みはありません。T07 や M3 exit gate の完了ではありません。
 
+T14 でこの profile を、同期 call をまたぐ通常 shared/exclusive loan と borrowed Option/Result payload に拡張します。単調増加する activation ID と loan generation が現在の frame/生存同期 ancestor を指し、Rust reference や native frame pointer を保持しません。read/service と replacement は元の reservation/owner ledger を解決し、reference binding の move は sidecar を移します。`cargo run -- run tests/fixtures/task_sync_loans.lang` は 12 を出力し、VM/JIT/リンク済み object、再帰/loop/取消/panic/fuel/provider 拒否で検証しました（2026-10-21 JST、code に更新日の埋込みはありません）。source/MIR の suspension と loan escape 制限は維持します。container/shared/weak task service は T15、arena は T16、全 owned 統合は T07、完全な共有 control は T08 に残し、M3 exit gate は未完了です。
+
+
 
 ## 検証と保守
 

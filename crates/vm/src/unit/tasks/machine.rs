@@ -164,13 +164,11 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                 frame.saved = true;
                             }
                             _ => {
-                                let frame = machine.records[task]
-                                    .frames
-                                    .last_mut()
-                                    .ok_or(Reason::Invariant)?;
+                                let mut frame =
+                                    frame::Access::new(&mut machine.records[task].frames)?;
                                 instructions::execute(
                                     machine.proof.typed(),
-                                    frame,
+                                    &mut frame,
                                     site,
                                     machine.allocator,
                                 )?;

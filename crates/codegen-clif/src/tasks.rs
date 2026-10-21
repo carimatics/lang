@@ -252,21 +252,7 @@ fn prepare_program<M: Module>(
         at += 1;
         let body = &typed.functions()[index];
         let declaration = &declarations.functions()[index];
-        if declaration.parameters.iter().any(|id| {
-            !types
-                .properties(declaration.locals[id.0 as usize].ty.ty)
-                .is_some_and(|p| {
-                    (!declaration.effect.is_async() || p.is_copy)
-                        && !p.contains_loan
-                        && !p.contains_allocator
-                        && !p.contains_arena
-                })
-        }) || !types.properties(declaration.result.ty).is_some_and(|p| {
-            (!declaration.effect.is_async() || p.is_copy)
-                && !p.contains_loan
-                && !p.contains_allocator
-                && !p.contains_arena
-        }) {
+        if !r::signature_supported(types, declaration) {
             return Err(Error::Unsupported {
                 span: declaration.span,
             });
@@ -545,6 +531,22 @@ fn prepare(
                             kind: Scalar::Bool,
                         }
                     }
+                    b::Op::BorrowCaseField {
+                        value: from,
+                        case,
+                        field,
+                        guard,
+                        loan,
+                    } => {
+                        native.emit = Emit::Guard(value(*guard));
+                        Primitive::BorrowField {
+                            from: value(*from),
+                            case: *case,
+                            field: *field,
+                            loan: *loan,
+                            to: to()?,
+                        }
+                    }
                     b::Op::CopyCaseField {
                         value: from,
                         case,
@@ -730,15 +732,8 @@ impl<P: a::Provider> Invocation<'_, '_, '_, '_, '_, '_, P> {
                 })
             }
             CASE => {
-                let frame = self.machine.frame(self.task)?;
-                let slot = a as usize;
-                frame.available(slot)?;
-                Ok(u64::from(
-                    frame
-                        .data()?
-                        .cell(slot)?
-                        .case(frame.root(slot)?.at, self.machine.allocator)?,
-                ))
+                let frame = r::frame::Access::new(&mut self.machine.records[self.task].frames)?;
+                Ok(u64::from(frame.case(a as usize, self.machine.allocator)?))
             }
             PANIC => Err(r::Reason::Panic(Some(a as i64))),
             UNWRAP => Err(r::Reason::Panic(Some(a as i64))),
