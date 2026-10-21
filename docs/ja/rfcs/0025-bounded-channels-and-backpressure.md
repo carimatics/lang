@@ -8,7 +8,7 @@
 - Authors: project contributors
 - Created: 2026-10-21
 - Last updated: 2026-10-21
-- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-A02
+- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-A02
 - Supersedes: none
 - Superseded by: none
 
@@ -141,6 +141,8 @@ untrusted source は Send/Share を自己宣言せず、endpoint/task identity �
 - 暗黙 Copy endpoint や2つの owning pattern binding は retain/authority 費用を隠すか RFC 0009 を変えます。明示 setup/clone/whole move で現行規則を維持します。
 
 ## Implementation plan
+
+C02 representation audit（2026-10-21 JST）: C06 を C03 前の新たな前提として明示し、concrete role 型名/constructor、独立 source/MIR Send/Share/storage proof、legacy profile 拒否を担当します。現 source/MIR の閉じた型族は Send/Share を同値としており、この同値を Receiver に流用できません。C03 は source fixture 前に正確な core call/error/MIR catalog と guest storage/control 統合を行います。C02 完了3ptとは別に残作業3ptを追加し、実装 Todo に収支を記録します。
 
 1. C01: protocol を受理し、関連 RFC/architecture を改訂して決定と実装/gate 状態を区別します。
 2. C05 で有限の checked task park/wake、待機 identity 再利用、park/wake 前後の取消を実行し、C02 の前提を閉じます。これは channel fixture に必要な kernel の不足であり、汎用 executor framework にはしません。C02 を有限 storage、typed ownership commit、取消に照らして再監査し、さらに独立した不足前提があれば実装前に明示します。send/receive、close、blocked-sender 取消、必須破棄を通る trusted host fixture で 42 を返します。後続 adapter が使う runtime service とし、別の意味論モデル framework にしません。

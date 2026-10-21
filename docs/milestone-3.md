@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**21 done · 1 doing · 28 todo · 83 remaining pt**
+**22 done · 1 doing · 28 todo · 83 remaining pt**
 
-**Next: M3-C02 → execute bounded runtime channel send/receive, close, cancelled waiters and owned-payload retirement.**
+**Next: M3-C06 → independently verify opaque channel role types/distinct Send/Share in source/MIR and refuse legacy profiles.**
 
-Current delivery: **M3-C02**. Last executable checkpoint: **`72e759c`, verified 2026-10-21 16:34 JST** (C05): opaque wait tickets, bounded park/wake, FIFO ready resumption, stale/duplicate/foreign wake refusal and cancellation revocation. Kernel **26 tests**, the new host driver (42; normal cleanup [1,0]; all-parked cancellation [2,1,0]; live 0) and the existing driver pass. With production inputs fixed, the final baseline passes **117 suites / 1,809 tests / 0 failures / 1 existing timing ignore**, suite-time sum **564.69s**. fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. C02 remaining acceptance: bounded endpoint/queue/waiter storage; message preflight/commit; full-send FIFO head reservation; receive; seal/drain; last sender; FIFO abort payload retirement; registration custody before/after wake/cancellation; refusal ownership and an actual host fixture. Reuse C05 tickets/ready queue and existing control/ownership services; preserve source/independent MIR/VM and native channels in C03/C04. Production channels remain unimplemented; preserve all M3/P1 scope and gates.
+Current delivery: **M3-C06**. Last executable checkpoint: **`4056cce`, verified 2026-10-21 18:18 JST** (C02): bounded trusted-host Hub executes owned send/receive, FIFO head reservation, seal/last sender/abort, cancellation custody, cycle checks and work/quota boundaries. **Seventeen focused tests** and the public host fixture (42; payloads [20,22]; frames [1,0]; cancellation [9,7]; typed deadlock; live 0) pass. The fixed-production-input full baseline passes **118 suites / 1,826 tests / 0 failures / 1 existing timing ignore**, suite-time sum **568.86s**. fmt, Clippy, rustdoc and 11 fuzz-target compile/lint checks pass. C06 remaining acceptance: record concrete role type names/constructor rules; independently derive source/MIR non-Copy/storage/Send/Share; recursive/alias/unused-signature and budget refusals; pre-effect legacy layout/bytecode/native-artifact refusal. C03 retains concrete core calls/errors/typed MIR operations and the guest allocator/cell-backed VM fixture; C04 proves native/linked-object parity. Source channels and every M3/P1 gate remain incomplete.
 
-**This update: C05 completed (−2 pt); no new additions/re-estimates.** Remaining **85 − 2 = 83 pt**, **50 rows**, retired **53 pt**, net additions **+26 pt**.
+**This update: C02 completed (−3 pt), separately from newly exposed C06 (+3 pt).** Remaining **83 − 3 + 3 = 83 pt**, **51 rows**, retired **56 pt**, net additions **+29 pt**.
 
 ## Deliveries
 
@@ -38,8 +38,9 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-T08 | done | 0 | M3-T07 | G12,G13 | Enforce shared task/frame/fuel controls before effects on all execution paths | `fdfc755` |
 | M3-C01 | done | 0 | M3-T08,M3-A01,M3-A05 | G01,G04 | Accept bounded channel, FIFO wakeup, backpressure, ownership commit and cancellation errors | `2a13940` |
 | M3-C05 | done | 0 | M3-C01,M3-T08 | G04,G13 | Execute bounded task park/wake with branded wait tickets, FIFO resumption, cancellation revocation and stale-wake checks | `72e759c` |
-| M3-C02 | doing | 3 | M3-C01,M3-C05 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | — |
-| M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | Run source channel fixtures and reject payload reuse in VM execution | — |
+| M3-C02 | done | 0 | M3-C01,M3-C05 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | `4056cce` |
+| M3-C06 | doing | 3 | M3-C02,M3-A06 | G01,G04,G05 | Decide/check opaque channel role types and distinct Send/Share independently in source/MIR; refuse legacy layouts/artifacts | — |
+| M3-C03 | todo | 3 | M3-C02,M3-C06,M3-A05 | G04 | Run source channel fixtures and reject payload reuse in VM execution | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | Match channel values, failures and cleanup through native execution | — |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | Accept recursive Send/Share derivation and source service authority rules | `9b2b68c` |
 | M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
@@ -88,6 +89,13 @@ C05 completed at `72e759c` (2026-10-21 JST): extended the existing kernel with W
 C05 roadmap/sequence audit: after the two C01/C05 prerequisites, rechecked actual park/wake, FrameStorage/Reservation, task service-work and mixed cleanup interfaces. The missing kernel interface is closed; no additional scheduler framework is needed. Retain C02's original **3 pt** for bounded queue/endpoints/wait registrations, owned-payload commit/recovery, FIFO reservation and actual close/cancellation runtime fixtures. First run the host fixture returning 42 with an owned-value inventory, then accept C03's concrete core catalog and connect the source/independent MIR/VM fixture; C04 proves native/linked-object parity. Explicit pre-effect refusal for initially unsupported endpoint-bearing/publication cases must retain their complete acceptance, not remove it. Add no new owner registry, second language or unrelated horizontal hardening. Preserve all 15 gates/P1, actor authority, foreign/C/serialized/package, production embedding and the final guide.
 
 
+C02 completed at `4056cce` (2026-10-21 JST): added the actual runtime Hub, opaque setup/sender/receiver authority, private completion claims, bounded queues/waiter pool and cumulative endpoint identities. Owned values move once through full-send head reservation/global FIFO, seal/last-producer drain, abort FIFO cleanup, cancellation custody before/after wake/commit and preflight/reinspection of strong receive-authority cycles. Reuse existing shared ServiceWork and Session/Cleaner, retaining unknown native callback-panic quarantine and report truncation. **Seventeen focused tests** include every immediate/parked work prefix, metadata/position/count limits, foreign/stale claims, pool reuse, two freed slots and oldest deadlock origin. The public host fixture verifies 42, payloads [20,22], frames [1,0], cancellation [9,7], typed ChannelDeadlock and live 0; the C05 fixture remains valid. The fixed-input full baseline passes **118 suites / 1,826 tests / 0 failures / 1 existing timing ignore**, suite-time sum **568.86s**. fmt, Clippy (**77s**), rustdoc (**33.27s**) and 11 fuzz-target compile/lint checks (**3.47s**) pass. No fuzz campaign, guest-heap or source/VM/native channel completion is claimed. Retire C02's last **3 pt**.
+
+C02 representation audit (2026-10-21 JST, before implementation): the original C03 **3 pt** bundled channel role types/capability boundaries absent from source/MIR. Actual source/MIR properties still use `is_share == is_send`, and MIR Constructor has no channel roles. RFC 0025 Receiver is Send but not Share, Sender Share depends on message Send, and Setup has neither; the old closed-family exclusions cannot supply these rules. Expose independently observable **C06 (3 pt)** for concrete type names/constructors and independent graph facts, recursive/alias/unused signatures and resource budgets, and legacy layout/serialized/native-profile refusal. Keep C03's original 3 pt for the call/error catalog, instruction/loan/cleanup proof and actual VM fixture, now dependent on C06. **New addition +3 pt, rows 50 → 51, cumulative additions +26 → +29 pt**. Account this separately from completed work; add no new gate.
+
+C02 roadmap audit: Rust host keys cannot substitute for source type proof or guest allocator/cell-backed storage. Record C06's concrete role-type contract before type implementation, and accept C03's concrete call/error/MIR contract before source execution. Connect existing graph/managed reservations/inspection/mixed retirement with the Hub; add no second scheduler/language or duplicate owner registry. The next execution target is C03's source fixture; preserve owned-payload/refusal/control acceptance and C04 native parity. Retain all 15 gates/P1, actor authority, foreign/C/serialized/package, production embedding and the final guide.
+
+
 ## Progress and estimate changes
 
 Activation audit (2026-10-20 JST): 39 deliveries, initial **110 pt**. This is a bottom-up provisional forecast; the roadmap's **96 pt** are historical gate weights. At activation no work was retired and no additional work was exposed. Re-estimate changed scope explicitly before implementation. Review sequencing after two prerequisites without a new source execution fixture; T02 and T03 must not turn into an open-ended scheduler framework.
@@ -126,7 +134,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 26 − 53 = 83 pt**
+**110 + 29 − 56 = 83 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -174,7 +182,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +26 pt | −53 pt | 83 pt |
+| 110 pt | +29 pt | −56 pt | 83 pt |
 
 ## Exit audit
 

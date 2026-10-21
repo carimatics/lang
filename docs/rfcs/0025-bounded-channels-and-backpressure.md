@@ -8,7 +8,7 @@
 - Authors: project contributors
 - Created: 2026-10-21
 - Last updated: 2026-10-21
-- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-A02
+- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-A02
 - Supersedes: none
 - Superseded by: none
 
@@ -141,6 +141,8 @@ Untrusted source cannot assert Send/Share, forge endpoint/task identity, clone r
 - Implicit Copy endpoints or two owning pattern bindings would conceal retain/authority costs or change RFC 0009; explicit setup/clone/whole moves preserve current rules.
 
 ## Implementation plan
+
+C02 representation audit (2026-10-21 JST): C06 is a newly exposed pre-C03 prerequisite for concrete role type names/constructor rules, independent source/MIR Send/Share/storage proof and legacy-profile refusal. The current source/MIR closed family equates Send/Share and cannot admit Receiver by reusing that equality. C03 retains the exact core call/error/MIR catalog and guest storage/control integration before its source fixture. This audit adds 3 remaining planning points separately from C02's completed 3; the delivery board records the reconciliation.
 
 1. C01: accept this protocol, revise affected RFCs/architecture and preserve decision versus implementation/gate status.
 2. C05 executes bounded checked task park/wake, wait-identity reuse and cancellation before/after wake, closing the missing kernel prerequisite for C02. This supports the channel fixture, not a general executor framework. Re-audit C02 against bounded storage, typed ownership commit and cancellation; expose any further independently observable missing prerequisite before implementation. Execute a trusted host fixture returning 42 through send/receive, close, blocked-sender cancellation and mandatory disposal. This must be a runtime service used by later adapters, not another semantic-model framework.
