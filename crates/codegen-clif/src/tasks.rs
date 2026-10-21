@@ -295,7 +295,11 @@ fn prepare_program<M: Module>(
             }
         }
     }
-    let layouts = l::Layouts::compile_tasks(proof, limits)?;
+    let layouts = if types.channel_feature_span().is_some() {
+        l::Layouts::compile_channel_tasks(proof, limits)?
+    } else {
+        l::Layouts::compile_tasks(proof, limits)?
+    };
     let combine = |a: usize, b: usize, c: usize| {
         b.checked_sub(c)
             .and_then(|d| a.checked_add(d))
@@ -446,6 +450,27 @@ fn prepare(
                     b::Op::PreparePlace { destination, place } => Primitive::Prepare {
                         place: *place,
                         destination: destination.0 as usize,
+                    },
+                    b::Op::PrepareChannel {
+                        destination,
+                        endpoint,
+                        ..
+                    } => Primitive::PrepareChannel {
+                        from: value(*endpoint),
+                        destination: destination.0 as usize,
+                    },
+                    b::Op::ChannelSend { authority, payload } => Primitive::ChannelSend {
+                        authority: authority.0 as usize,
+                        payload: value(*payload),
+                        to: to()?,
+                        next,
+                        failure,
+                    },
+                    b::Op::ChannelReceive { authority } => Primitive::ChannelReceive {
+                        authority: authority.0 as usize,
+                        to: to()?,
+                        next,
+                        failure,
                     },
                     b::Op::Replace { place, value: from } => Primitive::Replace {
                         place: *place,

@@ -29,6 +29,23 @@ pub enum Primitive {
         place: p::PlaceId,
         destination: usize,
     },
+    PrepareChannel {
+        from: usize,
+        destination: usize,
+    },
+    ChannelSend {
+        authority: usize,
+        payload: usize,
+        to: usize,
+        next: f::NodeId,
+        failure: f::NodeId,
+    },
+    ChannelReceive {
+        authority: usize,
+        to: usize,
+        next: f::NodeId,
+        failure: f::NodeId,
+    },
     Replace {
         place: p::PlaceId,
         from: usize,
@@ -182,6 +199,42 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             Primitive::Prepare { place, destination } => {
                 frame.prepared[*destination] =
                     Some(frame.write_place(&paths[place.0 as usize], self.allocator)?)
+            }
+            Primitive::PrepareChannel { from, destination } => {
+                frame.capture_channel(*from, *destination, self.allocator)?;
+            }
+            Primitive::ChannelSend {
+                authority,
+                payload,
+                to,
+                next,
+                failure,
+            } => {
+                return self
+                    .channel_send(task, *authority, *payload, *to, *next, *failure, span)
+                    .map(|ready| {
+                        if ready {
+                            Flow::Continue
+                        } else {
+                            Flow::Suspended
+                        }
+                    });
+            }
+            Primitive::ChannelReceive {
+                authority,
+                to,
+                next,
+                failure,
+            } => {
+                return self
+                    .channel_receive(task, *authority, *to, *next, *failure, span)
+                    .map(|ready| {
+                        if ready {
+                            Flow::Continue
+                        } else {
+                            Flow::Suspended
+                        }
+                    });
             }
             Primitive::Replace { place, from } => {
                 let to = frame.write_place(&paths[place.0 as usize], self.allocator)?;
@@ -527,6 +580,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             }
             Primitive::Finish => return Ok(Flow::Finished),
         }
+        self.channel_usage()?;
         Ok(Flow::Continue)
     }
 }

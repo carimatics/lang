@@ -399,7 +399,7 @@ fn source_graph_work_memory_and_depth_are_bounded_independently() {
 }
 
 #[test]
-fn task_channel_vm_profile_is_explicit_while_native_profile_still_refuses() {
+fn task_channel_vm_and_native_profiles_are_explicit_while_old_layouts_refuse() {
     for text in [
         "async fn carry(value:core::Sender<i64>)->core::Sender<i64>{yield;return value;}async fn main()->i64{return 42;}",
         "async fn carry(value:core::Receiver<i64>)->core::Receiver<i64>{yield;return value;}async fn main()->i64{return 42;}",
@@ -433,17 +433,20 @@ fn task_channel_vm_profile_is_explicit_while_native_profile_still_refuses() {
         .unwrap();
         assert_eq!(result.value, 42);
         assert_eq!(allocator.stats().live_allocations, 0);
-        let result = lang_codegen_clif::tasks::CompiledProgram::compile(
+        let native = lang_codegen_clif::tasks::CompiledProgram::compile(
             program.verified(),
             Default::default(),
-        );
-        let Err(error) = result else {
-            panic!("channel native profile was admitted")
-        };
-        assert!(
-            matches!(error,lang_codegen_clif::tasks::Error::Layout(lang_runtime::layout::Error::UnsupportedChannelProfile{span:s}) if s==span),
-            "{error:?}"
-        );
+        )
+        .unwrap();
+        let result = native
+            .execute(
+                &mut allocator,
+                lang_runtime::execution::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(result.value, 42);
+        assert_eq!(allocator.stats().live_allocations, 0);
     }
 }
 

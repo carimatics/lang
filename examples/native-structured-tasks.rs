@@ -1,11 +1,20 @@
 //! Compile source tasks to native continuations, using the shared task driver.
+//! An optional first argument selects a source file, including channel fixtures.
 use lang_runtime::{allocation as a, execution as e};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let source_path = std::env::args_os().nth(1).map(PathBuf::from);
+    let source = source_path
+        .as_ref()
+        .map(std::fs::read)
+        .transpose()?
+        .unwrap_or_else(|| include_bytes!("scripts/tasks.lang").to_vec());
     let analyzed = lang::frontend::analyze_virtual(
         lang_diagnostics::SourceMap::new(),
-        Path::new("tasks.lang"),
-        include_bytes!("scripts/tasks.lang"),
+        source_path
+            .as_deref()
+            .unwrap_or_else(|| Path::new("tasks.lang")),
+        &source,
         None,
         Default::default(),
         None,
@@ -27,6 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Default::default(),
     )?;
     assert_eq!(allocator.stats().live_allocations, 0);
+    assert_eq!(result.tasks.live, 0);
     println!("{}", result.value);
     Ok(())
 }

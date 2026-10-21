@@ -2,6 +2,10 @@ use lang_runtime::{allocation as a, execution as e, task::runner as r};
 use lang_semantics::analysis::{Program, TaskProgram};
 use std::path::Path;
 
+#[path = "support/channel_fixtures.rs"]
+mod channel_fixtures;
+use channel_fixtures::{MANAGED_CHANNEL_FIXTURES, channel_allocator};
+
 fn prepare(text: &str) -> Box<TaskProgram> {
     let out = lang::frontend::analyze_virtual(
         lang_diagnostics::SourceMap::new(),
@@ -770,108 +774,6 @@ fn invalid_capacity_is_an_ordinary_source_error_before_queue_storage_creation() 
         assert_eq!(allocator.stats().live_allocations, 0);
         assert!(trace.borrow().live.is_empty());
     }
-}
-
-const MANAGED_CHANNEL_FIXTURES: &[(&str, &str)] = &[
-    (
-        "self-cycle",
-        include_str!("fixtures/task_channel_self_cycle.lang"),
-    ),
-    (
-        "reinspect",
-        include_str!("fixtures/task_channel_reinspect.lang"),
-    ),
-    ("mixed", include_str!("fixtures/task_channel_mixed.lang")),
-    (
-        "shared-sender",
-        include_str!("fixtures/task_channel_shared_sender.lang"),
-    ),
-    (
-        "mixed-cancel",
-        include_str!("fixtures/task_channel_mixed_cancel.lang"),
-    ),
-    ("text", include_str!("fixtures/task_channel_text.lang")),
-];
-
-#[derive(Default)]
-struct ChannelTrace {
-    calls: usize,
-    live: std::collections::BTreeSet<usize>,
-    buffers: Vec<u8>,
-    panic_buffers: Vec<u8>,
-    interrupt: Option<(usize, std::rc::Rc<e::InterruptionFlag>)>,
-}
-struct ChannelRegion {
-    id: usize,
-    storage: a::Storage,
-}
-impl a::Region for ChannelRegion {
-    fn bytes(&self) -> &[u8] {
-        self.storage.bytes()
-    }
-    fn bytes_mut(&mut self) -> &mut [u8] {
-        self.storage.bytes_mut()
-    }
-}
-struct ChannelProvider {
-    refuse: usize,
-    trace: std::rc::Rc<std::cell::RefCell<ChannelTrace>>,
-}
-impl a::Provider for ChannelProvider {
-    type Region = ChannelRegion;
-    fn allocate(&mut self, request: a::Request) -> Option<ChannelRegion> {
-        let id = {
-            let mut trace = self.trace.borrow_mut();
-            trace.calls += 1;
-            trace.calls
-        };
-        if self.refuse == id {
-            return None;
-        }
-        let storage = a::Storage::try_new(request).ok()?;
-        let mut trace = self.trace.borrow_mut();
-        assert!(trace.live.insert(id));
-        if let Some((at, flag)) = &trace.interrupt
-            && *at == id
-        {
-            flag.interrupt();
-        }
-        Some(ChannelRegion { id, storage })
-    }
-    fn deallocate(&mut self, region: ChannelRegion, request: a::Request) {
-        use a::Region as _;
-        let mut trace = self.trace.borrow_mut();
-        assert!(trace.live.remove(&region.id), "duplicate guest release");
-        let data = region.storage.bytes();
-        let byte = (data.len() == 25
-            && data[..8] == 1u64.to_le_bytes()
-            && data[8..16] == 1u64.to_le_bytes()
-            && data[16..24] == [0; 8])
-            .then(|| data[24]);
-        let panic = byte.is_some_and(|byte| trace.panic_buffers.contains(&byte));
-        if let Some(byte) = byte {
-            trace.buffers.push(byte);
-        }
-        a::System.deallocate(region.storage, request);
-        assert!(!panic, "contained mixed channel payload panic");
-    }
-}
-fn channel_allocator(
-    refuse: usize,
-) -> (
-    a::Allocator<ChannelProvider>,
-    std::rc::Rc<std::cell::RefCell<ChannelTrace>>,
-) {
-    let trace = std::rc::Rc::new(std::cell::RefCell::new(ChannelTrace::default()));
-    let allocator = a::Allocator::new(
-        ChannelProvider {
-            refuse,
-            trace: trace.clone(),
-        },
-        Default::default(),
-    )
-    .unwrap();
-    (allocator, trace)
 }
 
 #[test]

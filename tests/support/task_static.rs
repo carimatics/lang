@@ -54,6 +54,34 @@ fn standalone_task_objects_execute_generated_continuations() {
             include_str!("../fixtures/task_owned_transfer_all.lang").to_owned(),
         ),
         (
+            "channel-backpressure",
+            include_str!("../fixtures/task_channels.lang").to_owned(),
+        ),
+        (
+            "channel-self-cycle",
+            include_str!("../fixtures/task_channel_self_cycle.lang").to_owned(),
+        ),
+        (
+            "channel-reinspect",
+            include_str!("../fixtures/task_channel_reinspect.lang").to_owned(),
+        ),
+        (
+            "channel-mixed",
+            include_str!("../fixtures/task_channel_mixed.lang").to_owned(),
+        ),
+        (
+            "channel-shared-sender",
+            include_str!("../fixtures/task_channel_shared_sender.lang").to_owned(),
+        ),
+        (
+            "channel-mixed-cancel",
+            include_str!("../fixtures/task_channel_mixed_cancel.lang").to_owned(),
+        ),
+        (
+            "channel-text",
+            include_str!("../fixtures/task_channel_text.lang").to_owned(),
+        ),
+        (
             "owned-integration-panic",
             include_str!("../fixtures/task_owned_integrated.lang")
                 .replace("await scenario(false)", "await scenario(true)"),
@@ -182,8 +210,10 @@ fn main(){{
                 "owned-buffers" => "71",
                 "sync-loans" => "12",
                 "owned-integration-panic" => "panic -42",
+                label if label.starts_with("channel-") => "42",
                 _ => "panic 91",
-            }
+            },
+            "{label}"
         );
     }
 }

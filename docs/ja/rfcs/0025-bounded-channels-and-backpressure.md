@@ -14,7 +14,9 @@
 
 ## Summary
 
-C03 VM checkpoint（2026-10-22 JST）: guest header/descriptor、queue/pending Reservation、有限 metadata/cell control で source 7 fixture が42を返します。source 26件で Receiver 循環/再検査、Shared/Weak identity、検証済み opaque Sender の heap publication/置換、混合取消/退役、数値 control/provider/interruption prefix、quota、loop 再利用、513段の iterative destruction を検証します。cleanup panic/打切りでも primary failure を保持して全 allocation を退役します。moved-local 実行修正も owned VM/native 12件と全 fuel prefix が成功しました。全体検証の証拠は[実装 Todo](../milestone-3.md)に記録します。C04 と全 gate は未完で、C/wire/package admission や fuzz campaign は主張しません。
+C04 native checkpoint（2026-10-22 JST）: 明示的で検証済みの native task API が非公開 channel layout と共通 Machine の capture/send/receive 専用 primitive に対応しました。厳密差分8件で全 control/provider/interruption と resource 境界、seal、deadlock、cleanup panic/打切りの値/event/usage/failure/report が VM と一致します。standalone exact-build object 20 profile に channel 7 fixture と fuel/work prefix を含みます。native example の source-file 引数で全7 fixture が42を返します。native callback は VM 命令を解釈せず型付き service を供給します。通常/旧 layout、serialized、C/foreign、package profile の拒否を維持し、ABI は private/exact-build のままです。full baseline は125 suite / 1,893件 / 失敗0 / 既存 timing ignore 1件で成功し、fmt・Clippy・rustdoc・全11 fuzz target の compile/lint も成功しました。fuzz campaign は主張しません。 費用/両 host/安定化は未完です。
+
+C03 VM checkpoint（2026-10-22 JST）: guest header/descriptor、queue/pending Reservation、有限 metadata/cell control で source 7 fixture が42を返します。source 26件で Receiver 循環/再検査、Shared/Weak identity、検証済み opaque Sender の heap publication/置換、混合取消/退役、数値 control/provider/interruption prefix、quota、loop 再利用、513段の iterative destruction を検証します。cleanup panic/打切りでも primary failure を保持して全 allocation を退役します。moved-local 実行修正も owned VM/native 12件と全 fuel prefix が成功しました。全体検証の証拠は[実装 Todo](../milestone-3.md)に記録します。native parity は上記に記録し、全 gate は未完で、C/wire/package admission や fuzz campaign は主張しません。
 
 C06 型 checkpoint（2026-10-21 JST）: 予約された opaque `core::ChannelSetup<T>`、`core::Sender<T>`、`core::Receiver<T>` の identity を source/HIR と独立検証する MIR に保持します。既存 graph で有限な Send/Share 依存を別々に導出し、Sender の両 capability は message の Send、Receiver は Share 不可、Setup は両方不可、shared/weak は target の両 capability を要します。全 role は non-Copy で退役が必要であり、未使用 message constructor も Send を要します。重点11件は再帰/宣言順 graph、alias、不正 message/arity、move、偽造 MIR、proof resource の上限境界/1 未満、未対応 profile の admission を検証します。schema-2/3/4 writer は constructor byte 前に拒否し、実行 layout、VM/native channel admission、両 target の native package は未使用 endpoint も guest/provider 副作用前に拒否します。これは型 capability の証明であり channel 実行ではありません。具体 call/error/MIR operation、suspension loan proof、guest allocator/cell 統合、VM/native fixture は C03/C04 に残り、wire/C layout や M3 gate は完了しません。
 
@@ -26,7 +28,7 @@ C05 実装 checkpoint（2026-10-21 JST）: driver は invocation/task に紐付�
 
 RFC 0005/0021/0022/0024 に対し、同一 invocation 内の有限 multiple-producer, single-consumer channel を定めます。full send は未commit payload を所有して待ち、成功 enqueue で FIFO の1位置に所有権を commit します。receive は最古の commit 済み payload を一度だけ move します。close、取消、resource 拒否、closed invocation の停止に明示結果と必須 cleanup を定めます。Sender 権限から receiver/service state を参照できません。
 
-本 RFC は protocol と具体 source catalog を受理します。C02 は trusted-host runtime、C03 VM 証拠は上記に記録し、C04 は native/linked-object parity を担います。この決定から安定 host ABI、C/wire/package layout、別 task 言語は導きません。
+本 RFC は protocol と具体 source catalog を受理します。C02 は trusted-host runtime を実行し、C03 VM と C04 native/linked-object の証拠は上記に記録します。この決定から安定 host ABI、C/wire/package layout、別 task 言語は導きません。
 
 ## Motivation
 
@@ -87,7 +89,7 @@ producer の規定例は `let mut outcome: core::SendResult<core::Bytes> = await
 
 lowering は権限 capture と suspension を MIR に独立して明示します。構築/mint/clone/変換/seal と結果全体の抽出の typed channel operation に加え、`PrepareChannel { destination: PreparedId, endpoint: Register, role, message_type }`、`ChannelSend { authority: PreparedId, payload: Register }`、`ChannelReceive { authority: PreparedId }` を追加します。既存の有限 prepared-destination namespace を channel kind を区別して再利用し、prepared replacement/place を endpoint と偽装できません。prepare は正確な shared Sender/exclusive Receiver loan を検証し、invocation 内 endpoint 権限だけを capture します。compiler-created 引数 loan は ChannelSend/ChannelReceive 前に終了し、明示 binding の loan は lexical lifetime を保って境界で生存していれば拒否します。独立 MIR は role/type/effect、初期化、capture の単一 consumer、escape/再利用禁止、payload consume、通常 loan の不存在を検証し、不正な未使用 operation/metadata も proof を省略できません。全 failure path で prepared authority を破棄し、guest value にはできません。pending continuation は destination、next/failure edge、実際の source operation span を保ちます。
 
-task profile は同一 invocation の通常同期 helper と async activation に channel service を供給し、同期 helper は構築/mint/seal ができますが中断はできません。source channel operation は entry が同期でも task 実行 profile を選択します。metadata だけの旧 ownership API は明示拒否を維持し、endpoint 名だけで scheduler を付与しません。native、linked-object、REPL、C/foreign、persisted admission は対応 delivery が profile を証明するまで未対応とします。第2言語や native callback 内の隠れた VM 解釈は認めません。
+task profile は同一 invocation の通常同期 helper と async activation に channel service を供給し、同期 helper は構築/mint/seal ができますが中断はできません。source channel operation は entry が同期でも task 実行 profile を選択します。metadata だけの旧 ownership API は明示拒否を維持し、endpoint 名だけで scheduler を付与しません。明示的 VM/native task adapter は非公開 profile を実行し、linked object は trusted exact-build binding を使います。REPL、C/foreign、persisted admission は対応 delivery が profile を証明するまで拒否を維持します。第2言語や native callback 内の隠れた VM 解釈は認めません。
 
 capture の一意性は動的 preparation ごとに適用します。consumer または discard が prepared slot を空にした後、loop は同じ静的 PrepareChannel を再実行できますが、前の captured instance は再使用できません。
 
@@ -99,7 +101,7 @@ guest endpoint storage は非公開の managed token であり C/native 公開 l
 
 最古 pending operation の span/ordinal を持つ型付き ChannelDeadlock execution reason を追加し、取消/cleanup 前に primary として保持します。trust-boundary 拒否は channel identity/role/type error に構造化対応し、quota/control failure は既存の数値 resource 証拠に対応します。backend string で error を分類しません。ChannelError、SendResult、operation、private token metadata に schema-2/3/4 tag や公開 C/package 表現を割り当てず、旧 writer/reader/layout API は未使用でも拒否します。将来の persisted revision は別の互換性判断と migration test を要します。
 
-根拠: 名前付き result sum は Boolean flag、入れ子 Result encoding、owning field destructuring なしに2つの owner を保つ send 拒否を表します。capture/commit の分離で両 proof に loan 境界を明示し、単なる同期 CoreCall に suspension を隠しません。library は操作を組み合わせられますが proof を供給できません。既存 Reservation experiment は Bytes を Hub 経由で実行し、通常 [20,22]、取消 [22,20] の退役、合計42、live allocation 0 を確認しますが、queue slot/metadata admission、source operation、endpoint-bearing publication、native parity は証明しません。現在の VM 統合の証拠は上記に分けて記録し、native parity、費用、両 host 等価性は未検証の義務です。この決定だけで delivery/gate は完了しません。
+根拠: 名前付き result sum は Boolean flag、入れ子 Result encoding、owning field destructuring なしに2つの owner を保つ send 拒否を表します。capture/commit の分離で両 proof に loan 境界を明示し、単なる同期 CoreCall に suspension を隠しません。library は操作を組み合わせられますが proof を供給できません。既存 Reservation experiment は Bytes を Hub 経由で実行し、通常 [20,22]、取消 [22,20] の退役、合計42、live allocation 0 を確認しますが、queue slot/metadata admission、source operation、endpoint-bearing publication、native parity は証明しません。現在の VM/native 統合の証拠は上記に分けて記録し、費用と両 host 等価性は未検証の義務です。この決定だけで delivery/gate は完了しません。
 
 ### Types, authority and lifetime
 
@@ -201,11 +203,13 @@ source compile-pass/fail で endpoint capability、明示 clone、unique receive
 
 ## Open questions
 
-C03 catalog は実装前に記録しました。VM fixture で context 付き endpoint/shared publication、allocation-free な wake/取消、既存 whole-value spelling、value-owner の別 registry を使わない iterative mixed retirement を検証しました。native/linked-object parity、代表的費用、両 host 等価性は未検証です。catalog 変更は実装前の英日改訂を要し、全実装/安定条件を満たすまでは RFC を accepted に維持します。
+C03 catalog は実装前に記録しました。VM fixture で context 付き endpoint/shared publication、allocation-free な wake/取消、既存 whole-value spelling、value-owner の別 registry を使わない iterative mixed retirement を検証しました。C04 で native/linked-object parity を検証し、代表的費用と両 host 等価性は未検証です。catalog 変更は実装前の英日改訂を要し、全実装/安定条件を満たすまでは RFC を accepted に維持します。
 
 判断: **RFC 0001 の実験委任で accepted、2026-10-21 JST**。有限 MPSC、唯一の receive 権限、明示 Send/Share、非commit payload の custody、原子的な公開、FIFO admission と既存 cleanup を組み合わせて厳密な所有/loan 規則を維持します。capacity-one の trace 実験では、単純 wake で A,C,B と追越しが起き、先頭予約で A,B,C を維持しました。wake 後の B 取消、commit 後の C sender 取消、seal/abort の5 trace も各 payload の owner と一度限りの返却/退役を検証しました。これは protocol 実験であり production channel の実行証拠ではありません。受理時点ではこれらの仮定と catalog は未検証/未実装であり、後の実装証拠は上記の日付付き checkpoint に分けて記録します。
 
 ## Sources
+
+- C04 native の根拠: `crates/codegen-clif/src/tasks.rs`、native runtime primitive、`tests/native_channel_execution.rs`、`tests/support/task_static.rs`、native example。code に更新日の埋込みはなく、2026-10-22 JST に macOS AArch64 で確認/実行しました。厳密差分8件、standalone object 20 profile、native example 7結果が成功しました。private exact-build adapter は serialized/C/package format を変えず、全体検証の証拠は実装 Todo に記録します。
 
 - C03 VM の根拠: `crates/runtime/src/channel/managed/`、`retirement.rs`、managed heap/frame adapter、`tests/source_channels.rs`、`tests/task_owned_execution.rs`、7つの `task_channel*.lang` fixture。code に更新日の埋込みはなく、2026-10-22 JST に macOS AArch64 で確認/実行しました。source 26件・capability/admission 11件・owned VM/native 12件と CLI の42が7結果成功し、full baseline の最終確認は実装 Todo に記録します。
 
