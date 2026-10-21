@@ -108,6 +108,8 @@ Query graphは推移的consumerを無効化し、編集、close/reopen、新し�
 
 ## Concurrency、component、将来のtoolchain
 
+C01 で [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md) の同一 invocation の有限 MPSC、full send 待機、FIFO 先頭予約/wakeup、唯一の receive 権限、ownership commit/recovery、seal/abort、有限共有計上、全停止時の決定的失敗を受理しました。Sender metadata は queue/state projection を与えません。新 endpoint Send/Share は独立導出と循環を拒否する publication を要し、compiler-created endpoint 引数 loan は channel suspension 境界前に終えます。C05 で検証済み有限 park/wake、C02 で runtime fixture、C03 で source/MIR/VM catalog の記録/接続、C04 で native parity を行います。決定だけで channel profile、C/wire/package format、gate の実装を完了扱いにしません。2026-10-21 JST 確認。
+
 [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)はstructured cancellation/isolation方針を定めます。[RFC 0003](rfcs/0003-versioned-component-contracts.md)はversioned component契約、capability、typed failure、resource所有権を定めます。State modelやscalar/resource相互運用prototypeは判断の根拠であり、production source async、scheduler/channel、IDL/adapter、汎用mixed-mode embeddingはM3の作業です。
 
 M3 は[進行中の実装 Todo](milestone-3.md)で追跡します。[RFC 0021](rfcs/0021-bounded-structured-task-driver.md)は `crates/runtime/src/task.rs` の明示的な有界 task driver を定義します。FIFO の resume/cleanup dispatch、invocation 単位の handle、live/累積 task admission、直接の子の join、協調取消を扱います。`cargo run --example structured-tasks` は実際の host 所有 frame tree を実行し、42 を返し、通常終了/入れ子取消の両方で frame を 2,1,0 の順に破棄します。kernel 自身は guest code を実行しません。VM/native task adapter と実際の guest frame cleanup は後続作業です。独立 task MIR 証明は後述します。2026-10-21 JST に確認。M2 の実行経路や artifact 形式は変えません。

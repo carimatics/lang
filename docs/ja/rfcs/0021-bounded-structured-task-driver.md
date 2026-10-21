@@ -14,6 +14,8 @@
 
 ## Summary
 
+C01 follow-up 決定（2026-10-21 JST）: [RFC 0025](0025-bounded-channels-and-backpressure.md) でこの invocation driver 上の channel park/wake と FIFO admission を受理しました。C05 は有限の invocation/task branded wait identity、allocation-free park/wake、二重 enqueue のない stale/duplicate wake 拒否、cleanup 前の取消時失効、安全な wait generation 枯渇を追加します。C02 が channel readiness/commit を担当し、kernel は guest message の所有/評価や MIR 解釈をしません。global ready FIFO と descendant join 後の cleanup を維持します。現在の committed driver は child-join 待機のみで、これは受理した拡張であり実装証拠ではありません。
+
 RFC 0005 の下で、バックエンドに依存しないホスト駆動の scheduler kernel を追加します。kernel は親子関係とスケジュール状態、実行 adapter は guest frame、値、診断を所有します。明示的な root は 1 つで、同時に active な dispatch は最大 1 つです。ready task を FIFO で実行し、adapter が意味的境界を報告します。scope の終了は子を join し、取消/失敗では未完了の子孫へ取消要求を伝播します。guest cleanup は別の dispatch とし、実際の frame cleanup 後に確認します。
 
 最初の production task driver の契約を決めます。source async 構文は [RFC 0022](0022-source-structured-tasks.md) で採択しました。Send/Share、channel、component 取消、公開 C embedding API は別の M3 判断です。この RFC の採択だけでは G01 も構造化 source 実行も完了しません。

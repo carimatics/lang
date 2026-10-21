@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-20
+- Last updated: 2026-10-21
 - Implemented: 2026-10-20
 - Accepted: 2026-10-19
 - Tracking issue: M2-N15, M2-N05, M2-N18
@@ -21,6 +21,8 @@
 以下の動機、当初の段階的計画、日付付き部分実装checkpointは、判断とrolloutの履歴です。当時の未完了ゲートは上記根拠で完了しており、規範的契約と明示的非目標は引き続き有効です。この状態照合でsource、ABI、形式の意味論を変更しません。
 
 ## 概要
+
+C01 follow-up 決定（2026-10-21 JST）: [RFC 0025](0025-bounded-channels-and-backpressure.md) で新 channel service-work event を定めます。queue preparation 前に capacity 単位、明示 endpoint mint/clone/seal 前に1、send/receive attempt ごとに1、commit 前に1を課金します。resume/wakeup で attempt/commit を再課金せず、既存 publication 検査課金を維持します。必須 closure、取消 unlink、wake 通知、retirement は非計量 bookkeeping です。source/VM/native channel を昇格する前に同じ数値 cap/usage を公開します。既存 service event 費用は変えません。
 
 Instrumented実行contextに省略可能な累積service-work上限を追加し、VM／nativeで課金eventとusageを共有します。枯渇はterminalな制御failureとし、必須cleanupを続けます。N15で契約を記録し、N05でmanaged-service統合を実装しました。
 

@@ -1,0 +1,162 @@
+<!-- translation-of: ../../rfcs/0025-bounded-channels-and-backpressure.md -->
+
+# RFC 0025: Bounded channels and backpressure
+
+[English](../../rfcs/0025-bounded-channels-and-backpressure.md)
+
+- Status: accepted
+- Authors: project contributors
+- Created: 2026-10-21
+- Last updated: 2026-10-21
+- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-A02
+- Supersedes: none
+- Superseded by: none
+
+## Summary
+
+RFC 0005/0021/0022/0024 に対し、同一 invocation 内の有限 multiple-producer, single-consumer channel を定めます。full send は未commit payload を所有して待ち、成功 enqueue で FIFO の1位置に所有権を commit します。receive は最古の commit 済み payload を一度だけ move します。close、取消、resource 拒否、closed invocation の停止に明示結果と必須 cleanup を定めます。Sender 権限から receiver/service state を参照できません。
+
+本書は protocol の決定であり、実装済み channel profile や安定 host ABI ではありません。C02 は runtime protocol、C03 は独立検証する source/MIR と VM 操作、C04 は生成 native/linked-object parity を担当します。具体的 reserved-core call catalog は C03 実装前に本書へ follow-up を記録します。別 task 言語や未検証の同期 call で suspension を隠しません。
+
+## Motivation
+
+`224c1f2` では owned async 引数/結果を実行できますが、production scheduler の待機は child join のみで channel park/wake はありません。`semantics::ServiceModel` は呼出側指定 Sendable と非有限 mailbox を使う以前の意味論実験です。どちらも有限 production channel を実装しません。RFC 0005 は full-mailbox 方針を未決とし、受理済み message の FIFO、owner isolation、取消時の破棄を要求します。
+
+## Goals
+
+- 有限 capacity、commit 済み値の FIFO、blocked sender の FIFO admission。
+- preparation、waiting、publication、receive、retirement の全段階で payload owner を1つに保つこと。
+- VM/native 共通の close/取消/失敗優先順位と計上。
+- backend code と独立した source/MIR capability、effect、loan proof。
+
+## Non-goals
+
+capacity zero の rendezvous、複数 consumer、select、timer、priority、broadcast、detached task、OS thread、invocation 間 handle、remote transport、公開 C/component channel ABI。actor state projection や汎用 future/closure interface は定めません。
+
+## Guide-level design
+
+以下は protocol trace であり、実行可能な source spelling ではありません。
+
+```text
+capacity = 1
+send(A)           -> committed at position 0
+send(B)           -> waiting; B remains owned by the sending operation
+receive()         -> A; oldest sender becomes eligible
+resume send(B)    -> committed at position 1
+close receiver    -> seal sends; keep committed values available
+receive()         -> B
+receive()         -> closed
+```
+
+send operand は評価時に通常 source move 解析で消費します。closed send は所有 payload を失敗値に返し、move 済み source 変数を復元しません。送信 task の取消では pending payload を退役します。enqueue commit 後の sender 取消は message を取り消しません。
+
+source 構築は RFC 0009 の whole-value extraction と borrowed match を使い、owning tuple/field destructuring を仮定しません。構築 protocol は唯一の local setup 権限を使い、有限 storage を作り、sender ticket を明示発行し、setup を唯一の receiver に消費します。Setup は一時的 producer keepalive を1つ持ち、変換時に解放します。sender を発行していない receiver は既に send-closed です。setup の破棄は channel を abort します。構築 semantics をここで選び、具体的な名前/signature/失敗 sum は実装前の call catalog で決めます。
+
+## Reference semantics
+
+### Types, authority and lifetime
+
+| Authority | Copy | Send | Share | Operations |
+| --- | --- | --- | --- | --- |
+| Setup<T> | no | no | no | mint sender; consume into receiver; abort on retirement |
+| Sender<T> | no | T is Send | T is Send | explicit clone, send, retire |
+| Receiver<T> | no | T is Send | no | receive, seal, retire |
+
+これは抽象 protocol role であり source/wire tag を割り当てません。source と MIR は具体 constructor を独立導出し、未使用宣言、推移 container/shared 値も調べます。以前の閉じた型族に対する `is_share == is_send` を Receiver/Setup に流用できません。message 型 T は RFC 0024 Send と既存 storage/region 検証を満たします。Sender の Share は T の観測を許さず message の move だけを扱うため、T の Share は不要です。handle を暗黙 clone せず、Receiver の clone/shared 化による第2 consumer を認めません。
+
+Receiver/setup は queued payload storage を排他的に所有します。Sender は検証済み identity/closed-state metadata のみを保持し、receiver 退役後の queued value を生存させません。各 operation は完了/取消まで検証済み endpoint metadata を一時 pin します。count、generation、invocation identity を検証し、枯渇は副作用前に閉じて失敗します。数値 index だけでは権限を与えません。setup の keepalive 終了後、in-flight producer ticket を含む最後の sender が終わると将来の send を seal します。commit 済み値は受信できます。
+
+handle を含むだけで payload を拒否しません。receiver/setup、queue、container、shared storage を通る強い所有循環を enqueue 前に拒否し、自分の mailbox への receiver 送信も含めます。Sender identity edge は queued payload を所有しません。既存の有限 publication 検査と mixed retirement を拡張し、呼出側指定の Sendable/cycle-free bit を信頼しません。非循環 handle 転送、alias、再帰 nominal 型は検証済みの動作を維持します。失敗時の incoming payload は operation の所有下に残ります。
+
+### Capacity, preparation and commit
+
+capacity は channel/slot/allocation 上限内の検証済み正数です。zero/negative/overflow は allocation/publication 前に拒否します。host は invocation allocator/scheduler 権限と有限 channel/slot/handle/waiter 上限を明示供給し、source metadata は権限を与えません。preparation で queue storage と有限 wait bookkeeping を予約します。1 logical task の pending channel operation は最大1つで、隠れた child task を作りません。
+
+引数は左から右に一度だけ評価します。型、endpoint identity/generation、利用可能性、publication graph、destination storage を共有上限下で事前検証してから原子的な所有権移行を行います。non-Copy payload は既存 reservation と初期化 metadata を move し、token を bit-copy しません。commit 前の allocation/control 失敗は何も公開せず、初期化済み値を failure cleanup 下に保ちます。closed/invalid-publication send は元の owned payload と型付き protocol reason を返します。control/resource 枯渇は実行失敗であり、送信成功や取消値ではありません。
+
+commit 中に guest fuel、allocation、interruption、callback 境界を入れません。send commit は pending owner を除き、初期化済み queue entry を1つ追加し、enqueue 位置を記録します。receive commit は最古の queue owner を除いて destination を1つ初期化し、span、allocator identity、推移 ownership を保ちます。二重 owner や owner 不在の隙間を観測できません。cleanup callback は commit 外で実行します。中断/取消された task が保持する受信値は task の値として計上/退役し、queue item として再退役しません。
+
+### Backpressure and scheduling
+
+full send は有限 waiter を登録して task を park します。empty/open receive は唯一の receiver operation を park します。登録には検証済み task identity、continuation/origin、全体順の registration ordinal を保持します。guest loan や native stack frame は保持しません。invocation storage は未commit payload を転送/退役まで初期化済み・計上済みに保ちます。
+
+blocked sender は channel 内の登録順 FIFO で eligible になります。commit できるのは waitlist 先頭だけで、物理 storage に空きがあっても新 sender は既存 waiter の後ろに並びます。空いた slot は最古の生存 eligible sender が commit/登録解除するまでその sender に属します。その移行後も空きがあれば次の先頭を eligible にします。wake は既存 global ready queue の末尾へ一度だけ追加し、guest code を再帰実行しません。reserved turn の取消では unlink 後に次 waiter を eligible にします。receive は commit 済み値または終端 close を観測可能になると wake します。待機中に別 task が到達可能な所有関係を変える可能性があるため、parked operation が eligible になったら publication/endpoint 状態を再検証します。waitlist scan は有限かつ admission 後の allocation 不要とし、有限 link/index と既存 task identity 検証を使います。これは順序の保証であり、実時間公平性や channel 間の実行順を保証しません。
+
+send/receive は即完了できる場合も明示 async effect と potential suspension/cancellation point です。blocked でなければ現在の dispatch 内で完了でき、追加 task/yield を必須にしません。source/MIR は実際の operation 境界で生存する全通常 loan を拒否します。compiler-created 引数 temporary は endpoint 権限を private operation ticket に捕捉後、境界前に終了でき、既存 allocator capture と同様です。別 binding の loan は通常の lexical lifetime を維持します。guest reference を suspension 越しに渡しません。具体 core catalog はこの境界を両 proof に明示し、backend 特例にしません。
+
+### Close, cancellation and stalled execution
+
+receiver seal は冪等で、新 send を拒否し、waiting send に未commit payload 付き Closed を返し、commit 済み値の FIFO drain を許します。queue が空になると receive は T なしの Closed を返します。last-producer closure も同じ drain 動作です。receiver/setup 退役は abort で、最初に receive 権限を無効化して queue を切り離し、commit 済み payload を FIFO で一度だけ退役します。cleanup 失敗/report truncation 後も継続します。pending send は commit 済み queue item ではなく、Closed return または取消 cleanup まで各 operation が所有します。
+
+登録/commit 前に取消を確認します。parked operation の取消は登録を unlink/無効化し、reservation を解除してから必須 frame cleanup に進むため、古い wake は再開できません。cancelled sender は未commit payload を一度だけ退役します。cancelled receiver の frame は唯一の receiver を退役し、その handle の退役完了前に queued message を abort します。取消より先に観測した commit は維持し、receiver が既に所有する可能性のある message を rollback しません。source task 取消は RFC 0022 の terminal/TaskError 境界を保ち、通常 Closed return へ変換しません。trusted host protocol adapter は未commit payload 付き Cancelled を返せますが、返却か退役のどちらか一方だけを行います。
+
+現在の closed invocation で ready/active task がなく、未完 task と channel waiter があれば決定的な ChannelDeadlock 実行失敗にします。成功、invariant panic、無期限 busy loop としません。最古の pending 登録を起点とし、cleanup 前に記録して tree 取消を要求し、全登録/owner を必須 cleanup で drain します。join-only ancestor で blocked descendant を隠しません。外部 polling/timer/host wake 権限を将来追加する場合、この規則を変える前に production embedding の決定を要し、ambient な外部 event を仮定しません。
+
+RFC 0008/0021 の primary failure と poison 規則を維持します。先行する execution panic/control failure を primary に保ち、cleanup failure は secondary、取消/cleanup 優先順位は変えません。channel 内 commit 済み payload の破棄は FIFO、通常 frame owner は実際の初期化の逆順です。A03 は service queue を private owner state より先に破棄することを証明します。独立 channel 間の新しい全体順は約束しません。
+
+### Accounting and protocol errors
+
+queue entry、endpoint metadata、registration、pending/受信値、保持 tombstone は解放まで invocation の実 allocator/論理上限に計上します。予約済み queue slot は空でも preparation から storage 解放まで各1 live value cell として計上し、pending/result reservation は同じ storage を二重計上せず既存 cell 計上を使います。累積 metadata/ordinal 枯渇も上限で制限し、capacity は heap/cell/handle/task 上限超過を許しません。cleanup/取消 bookkeeping は新 guest allocation を要さず、RFC 0013 に従って非計量・非preemptive とします。
+
+service-work を明示拡張します。capacity サイズの queue storage preparation 前に capacity 単位、明示 mint/clone/seal 前に1単位、send/receive attempt ごとに1単位、send/receive commit 前に1単位を課金します。resume/wake だけで新しい attempt/commit 単位を再課金せず、失敗した precommit 検査でも消費済み work は残します。既存 graph/element 検査課金を維持します。waitlist unlink、wake 通知、必須 closure/retirement は bookkeeping であり、新 guest service event ではありません。課金対象の副作用前の work/fuel/interruption 拒否でも cleanup が所有権を回収できます。全 backend で同じ数値 usage と拒否起点を公開します。これは project の費用規則であり、性能測定ではありません。
+
+typed protocol 拒否は Closed と InvalidPublication を区別し、失敗 send の payload を保持します。invalid capacity/allocation は構築拒否です。foreign/stale/wrong-role identity、型不一致、receiver の二重 pending は構造化した trust-boundary failure です。channel/slot/handle/waiter/control 枯渇と ChannelDeadlock は execution failure です。具体 diagnostic variant/core error sum は実装前に記録し、backend string の分類を許しません。
+
+## Execution modes
+
+独立 source/MIR proof に具体 message/handle 型、move、終了 loan、async effect、pending continuation、commit/failure/取消 cleanup、source span を保持します。共有 invocation driver が protocol/service を持ち、VM dispatch と native 生成 continuation は同じ検証済み操作を使います。native callback は storage/scheduling service のみを行い、MIR 評価や VM fallback をしません。別リンク object を含め、値、enqueue/wakeup 順、起点、counter、report、poison、物理退役を比較します。未対応 profile は guest/provider 副作用や artifact 公開前に拒否します。
+
+型の parse や旧意味論モデルの成功だけで channel を source execution に昇格しません。constant execution は未対応です。REPL、C import/export、foreign callback、invocation 間 handle は採択済み production profile の実装まで既存拒否を維持します。OS-thread Send/Sync を推論しません。
+
+## ABI and compatibility
+
+本 follow-up は RFC 0005 の有限 full-send 方針と RFC 0024 の具体 endpoint capability を選び、通常 move/loan と owner-isolation を維持します。既存の同期/task program の動作と event 費用は変えません。後続 core catalog は reserved name と既存 call 構文を使うか、必要な構文変更を明示記録し、新しい partial-move pattern を仮定しません。
+
+C layout、公開 native ABI、serialized MIR/bytecode tag、native-package profile は割り当てません。旧 schema-2/3/4 writer/reader/runtime layout は未使用を含む channel metadata/操作を拒否し、opaque token fallback を推論しません。永続実行前に serialized task/channel revision と migration test を要します。新 handle を legacy host/foreign type 経由で持ち出せません。
+
+## Diagnostics and tooling
+
+SRC0020 move、SRC0023 storage/authority、SRC0027 async effect、SRC0028 live loan の identity と operation/loan 起点を維持します。必要な proof/adapter が完成するまで SRC0026 または構造化 unavailable-profile error を維持します。新しい有限 channel error identity は実装前に記録します。既存 CST formatter/LSP は同じ resolved call/effect fact を使って comment/span を保存し、別の緩い解析 mode を設けません。将来 debug view は role、logical channel identity、queue state、待機起点を表示し、address を表示しません。DAP/linter の完成は主張しません。
+
+## Performance and cost model
+
+admission 前に queue storage と wait metadata を有限化し、暗黙 mailbox を増大させません。endpoint clone は検証済み metadata を retain し、message を clone しません。enqueue/dequeue は reservation を move し、payload graph を deep-copy しません。publication 検証は既存 work/storage 上限で stored ownership edge を走査し得ます。取消/退役は iterative にします。定数時間、latency、throughput、allocation-free を保証しません。Z01 で両 tier-1 host の queue/保持 payload peak、send/receive/wakeup/取消 work、代表的 M2 費用を測定します。
+
+## Security and trust boundaries
+
+untrusted source は Send/Share を自己宣言せず、endpoint/task identity の偽造、receiver 権限 clone、publication 検査回避、ambient scheduler/allocator/host 権限の取得をできません。untrusted MIR と将来 wire metadata を独立再検証します。count/generation overflow や traversal 枯渇で unchecked fallback を許しません。trusted adapter は pending owner を保持し、実際の退役後だけ cleanup を acknowledge します。native provider/callback の既存 trust/no-unwind 契約を維持し、native-process sandbox にはしません。
+
+## Alternatives
+
+- 変更なしでは有限 source channel と actor service が未実装で、旧モデルでは不足します。
+- library は primitive 実装後に service を構成できますが、compiler-visible suspension、独立 move/loan proof、trusted commit semantics は単独で追加できません。
+- 非有限 queue は blocked send を省けても有限 memory/backpressure 要求を満たしません。fail-fast Full は簡単ですが、選択した waiting producer 契約を満たしません。将来の明示 try-send は default を変えず併存できます。
+- rendezvous、multi-consumer/select、並列 lock-free queue はより強い競合設計で、fairness/取消/memory-order 契約を要します。直列 invocation の FIFO から暗黙に導かず延期します。
+- 暗黙 Copy endpoint や2つの owning pattern binding は retain/authority 費用を隠すか RFC 0009 を変えます。明示 setup/clone/whole move で現行規則を維持します。
+
+## Implementation plan
+
+1. C01: protocol を受理し、関連 RFC/architecture を改訂して決定と実装/gate 状態を区別します。
+2. C05 で有限の checked task park/wake、待機 identity 再利用、park/wake 前後の取消を実行し、C02 の前提を閉じます。これは channel fixture に必要な kernel の不足であり、汎用 executor framework にはしません。C02 を有限 storage、typed ownership commit、取消に照らして再監査し、さらに独立した不足前提があれば実装前に明示します。send/receive、close、blocked-sender 取消、必須破棄を通る trusted host fixture で 42 を返します。後続 adapter が使う runtime service とし、別の意味論モデル framework にしません。
+3. C03 前に正確な core catalog、constructor graph 規則、diagnostic/error variant、typed MIR 操作を本書または採択 follow-up に記録します。source/独立 MIR/VM を繋ぎ、次の source channel fixture と payload 再利用失敗を実行します。段階的な admission が初期拒否する場合も、受理した handle-bearing/publication 条件を維持します。
+4. C04: 生成 native と linked-object の値、suspension、失敗起点/usage、退役 parity。A02/A03/A04 は具体 actor authority、state isolation、取消時の queue-before-state 破棄を担当します。
+5. 既存 embedding、resource/adversarial、両 host conformance、serialized/package、費用、最終 guide の delivery を維持します。決定や host fixture で gate を完了扱いにしません。
+
+## Test plan
+
+capacity one/exact/max/refusal、late arrival を含む sender FIFO、複数 slot 解放、closed drain、last sender、setup 放棄、receiver abort、wake 済み取消、stale/foreign/wrong-role identity、二重 wake、count/generation/ordinal 枯渇、全停止 deadlock を検証します。owned record/sum/collection/shared/weak と非循環 endpoint-bearing 値を含め、staging、commit、receive、return、retirement の全 payload を追跡します。直接/推移 strong publication cycle を原子的に拒否します。nested scope、commit 前後の取消、panic/cleanup panic/report truncation、service queue-before-state 破棄も検証します。
+
+source compile-pass/fail で endpoint capability、明示 clone、unique receiver、payload 再利用、invalid effect、live-loan suspension 拒否を証明し、不正 raw MIR で独立再検証します。VM/native/linked-object 差分で該当する全 fuel/work/provider/interruption prefix と queue/handle/waiter/frame/cell/heap/task 上限境界/1 未満を確認します。profile 実装時に raw graph/wire fuzz mutation を加え、compile を fuzz campaign としません。exit/stabilization 前に両 host conformance と Z01 測定を行います。
+
+## Open questions
+
+具体 source name/error sum/MIR form は C03 前の必須記録 follow-up で、実装時に推測してよい意味ではありません。未検証の仮定は、新 owner registry なしで既存 managed publication/retirement を endpoint edge に拡張できること、admission 済み wait link により wake/取消を allocation-free にできること、setup/clone spelling が現行 whole-value 規則で使えること、代表的費用と両 host 適合です。本 RFC から実装・安定・性能結果は導きません。
+
+判断: **RFC 0001 の実験委任で accepted、2026-10-21 JST**。有限 MPSC、唯一の receive 権限、明示 Send/Share、非commit payload の custody、原子的な公開、FIFO admission と既存 cleanup を組み合わせて厳密な所有/loan 規則を維持します。capacity-one の trace 実験では、単純 wake で A,C,B と追越しが起き、先頭予約で A,B,C を維持しました。wake 後の B 取消、commit 後の C sender 取消、seal/abort の5 trace も各 payload の owner と一度限りの返却/退役を検証しました。これは protocol 実験であり production channel の実行証拠ではありません。上記仮定と concrete core catalog は未検証/未実装のまま追跡します。
+
+## Sources
+
+- [RFC 0001](0001-project-charter.md): 最終更新 2026-10-17、同日の owner 実験委任、2026-10-21 JST 確認。[RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21: strict ownership、accepted-message FIFO、取消、以前未決の backpressure 方針。
+- [RFC 0021](0021-bounded-structured-task-driver.md)、[RFC 0022](0022-source-structured-tasks.md)、[RFC 0024](0024-send-share-and-service-authority.md)、最終更新 2026-10-21: scheduler、task effect/loan、logical Send/Share。[RFC 0009](0009-whole-sum-ownership-extraction.md)、最終更新 2026-10-20: owning partial move のない whole-value extraction。
+- [RFC 0007](0007-source-ownership-and-core-values.md) と [RFC 0013](0013-service-byte-work-budget.md)、最終更新 2026-10-21、2026-10-21 JST 確認: checked publication、allocator 権限捕捉、共有 service-work/非計量 retirement。
+- `crates/runtime/src/task.rs`、`task/runner/`、`crates/semantics/src/service.rs`、source/core/MIR 境界を `224c1f2`、2026-10-21 JST に確認。コードに更新日埋込みはありません。現 driver は channel wait state を持たず、旧モデルは有限 runtime の証拠ではありません。これらは repository の事実です。上記 MPSC/role/FIFO admission/seal/abort/費用/deadlock は project decision、ergonomics/性能/reuse は仮説で、外部言語の主張は用いません。

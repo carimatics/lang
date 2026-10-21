@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-20
+- Last updated: 2026-10-21
 - Implemented: 2026-10-20
 - Accepted: 2026-10-19
 - Tracking issue: M2-N15, M2-N05, M2-N18
@@ -21,6 +21,8 @@ Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabil
 The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
 
 ## Summary
+
+C01 follow-up decision (2026-10-21 JST): [RFC 0025](0025-bounded-channels-and-backpressure.md) assigns new channel service-work events: capacity units before queue preparation, one before explicit endpoint mint/clone/seal, one per send/receive attempt and one per commit. Resumption/wakeup does not repeat attempt/commit charges; existing publication inspection remains charged. Mandatory closure, cancellation unlink, wake notification and retirement remain unmetered bookkeeping. Source/VM/native channel execution must expose identical numeric caps/usage before promotion. Existing service event costs are unchanged.
 
 Add an optional cumulative service-work limit to the instrumented execution context. VM/native share charging events and usage. Exhaustion is a terminal control failure followed by mandatory cleanup. N15 recorded this contract; N05 implemented the managed-service integration.
 

@@ -14,6 +14,8 @@
 
 ## Summary
 
+C01 follow-up decision (2026-10-21 JST): [RFC 0025](0025-bounded-channels-and-backpressure.md) accepts bounded invocation-local MPSC, full-send waiting with uncommitted payload custody, FIFO sender admission, unique receive authority, drain-on-seal and FIFO abort retirement. It defines cancellation on either side of commit, checked endpoint publication, finite accounting and deterministic closed-invocation deadlock. C05/C02/C03/C04 must implement and validate kernel wait, runtime protocol, source/MIR/VM and generated native paths; the concrete core catalog remains mandatory before source implementation. This preserves strict no-loan-at-suspension and owner isolation; it completes no M3 gate.
+
 A01 follow-up decision (2026-10-21 JST): [RFC 0024](0024-send-share-and-service-authority.md) defines recursive Send/Share for logical tasks in one invocation and interface-only producer handles without mutable state projections. It extends the initial Copy-only transfer subset while preserving no-loan/arena/allocator/Task transfer, checked shared operations and independent source/MIR proof. It makes no host-thread promise. A06 derivation and A05 owned async publication/await/disposal must pass before executable admission; A02 retains actual actor authority proof after concrete channel handles exist. Earlier dated checkpoints remain historical. Channel/backpressure and foreign/C/serialized/package decisions remain separate; no M3 gate is complete.
 
 Define the initial concurrency and cancellation baseline:

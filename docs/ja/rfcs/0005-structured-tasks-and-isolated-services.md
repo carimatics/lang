@@ -14,6 +14,8 @@
 
 ## 概要
 
+C01 follow-up 決定（2026-10-21 JST）: [RFC 0025](0025-bounded-channels-and-backpressure.md) で同一 invocation の有限 MPSC、未commit payload を保持する full-send 待機、sender FIFO admission、唯一の receive 権限、seal 後の drain、abort 時の FIFO 退役を受理しました。commit 前後の取消、検証済み endpoint publication、有限計上、closed invocation の決定的 deadlock を定めます。C05/C02/C03/C04 で kernel 待機、runtime protocol、source/MIR/VM、生成 native を実装検証し、具体 core catalog は source 実装前の必須記録です。厳密な suspension 時 loan 禁止と owner isolation を維持し、M3 gate は未完です。
+
 A01 follow-up 決定（2026-10-21 JST）: [RFC 0024](0024-send-share-and-service-authority.md) は同一 invocation の logical task に対する再帰 Send/Share と mutable state projection のない interface-only producer handle を定めます。初期 Copy-only transfer subset を拡張し、loan/arena/allocator/Task transfer 禁止、checked shared 操作、独立 source/MIR proof を維持します。host thread の保証はありません。実行受理前に A06 導出と A05 owned async publication/await/disposal を検証し、A02 は具体的 channel handle 後の actor authority proof を維持します。以前の日付付き checkpoint は履歴です。channel/backpressure と foreign/C/serialized/package の決定は別途必要で、M3 gate は未完了です。
 
 初期concurrency／cancellation baselineを定義します。

@@ -12,6 +12,8 @@
 
 M3 task execution checkpoint（2026-10-21 JST 検証）: `cargo run -- run examples/scripts/tasks.lang` と `cargo run --example native-structured-tasks` は 42 を出力します。VM と実験段階の native API は owned Text/Bytes、record、whole Option/Result move、同期 owned call、同期 call/borrowed payload をまたぐ通常 loan も実行します。`cargo run -- run tests/fixtures/task_owned_buffers.lang` は 71、`cargo run -- run tests/fixtures/task_sync_loans.lang` は 12 を出力します。対応 profile を VM/JIT/別プロセスのリンク済み object fixture で検証します。`tests/fixtures/task_owned_pipeline.lang` の owned Vec/Map/shared/weak pipeline は suspension と取消をまたいで 42 を返し、compiler-known get/read loan と iterative cleanup に対応します。`cargo run -- run tests/fixtures/task_owned_arena.lang` も 42 を出力し、owned arena cycle を中断越しに保持し、checked read と descendant join 後に退役します。arena entry は invocation allocator 権限を捕捉して引数 temporary を終えますが、別 binding の allocator/read loan は suspension 越しを引き続き拒否します。複合 `tests/fixtures/task_owned_integrated.lang` は owned enum payload、再帰、collection、shared/weak、arena storage、入れ子 join を実行して 42 を返し、失敗版では panic −42 と順序付き cleanup 証拠を保持します。Task 実行は有限 service-work 上限を task/call/view 間で共有し、分離した return cell を解放まで計上します。`cargo run -- run --service-work 0 tests/fixtures/task_owned_buffers.lang` は数値付き拒否を報告して owner を退役します。Source/MIR は owned async signature の再帰 Send/Share を証明し、VM/native は引数/結果の managed move、owning await、未回収結果の逆公開順退役を実行します。`cargo run -- run tests/fixtures/task_owned_transfer.lang` と `cargo run -- run tests/fixtures/task_owned_transfer_all.lang` は 42 を返し、15 差分テストと 13 linked-object profile で所有権と有限 control を検証します。channel/source actor authority、foreign service、task artifact/native package、async REPL submission は M3 の残作業です。[実装 Todo](docs/ja/milestone-3.md) に checkpoint と残り scope を記録しています。
 
+Channel decision checkpoint（2026-10-21 JST）: RFC 0025 で有限 MPSC、FIFO waiting sender、ownership commit、close/取消/全停止時の破棄を受理しました。production channel は未実装です。C05 の有限 park/wake、C02 の runtime fixture、C03/C04 の source/MIR/VM/native 証拠が残り、全 M3 scope を維持します。
+
 ## ビジョン
 
 この言語では、以下を両立させます。
@@ -74,6 +76,7 @@ M3 task execution checkpoint（2026-10-21 JST 検証）: `cargo run -- run examp
 - [RFC 0022: Source の構造化タスク（accepted）](docs/ja/rfcs/0022-source-structured-tasks.md)
 - [RFC 0023: Task MIR の境界（accepted）](docs/ja/rfcs/0023-task-mir-boundaries.md)
 - [RFC 0024: 再帰 Send/Share と service 権限（accepted）](docs/ja/rfcs/0024-send-share-and-service-authority.md)
+- [RFC 0025: 有限 channel と backpressure（accepted）](docs/ja/rfcs/0025-bounded-channels-and-backpressure.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

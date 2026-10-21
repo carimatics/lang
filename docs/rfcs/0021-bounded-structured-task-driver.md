@@ -14,6 +14,8 @@
 
 ## Summary
 
+C01 follow-up decision (2026-10-21 JST): [RFC 0025](0025-bounded-channels-and-backpressure.md) accepts channel park/wake and FIFO admission on this invocation driver. C05 must add bounded invocation/task-branded wait identities, allocation-free park/wake, stale/duplicate-wake rejection without double enqueue, cancellation revocation before cleanup and safe wait-generation exhaustion. C02 supplies channel readiness and commit; the kernel must not own/evaluate guest messages or interpret MIR. Global ready FIFO and descendant-join-before-cleanup remain unchanged. The currently committed driver still has only child-join waiting; this is an accepted extension, not implemented evidence.
+
 Add one backend-neutral, host-driven scheduler kernel under RFC 0005. It owns task ancestry and scheduling state, while execution adapters own guest frames, values and diagnostics. There is one explicit root and at most one active dispatch. Ready tasks run FIFO until the adapter reports a semantic boundary. Scope exit joins children; cancellation/failure requests cancellation of unfinished descendants. Guest cleanup is a separate dispatch, acknowledged only after actual frame cleanup.
 
 This decides the first production task-driver contract. [RFC 0022](0022-source-structured-tasks.md) accepts the source async surface; Send/Share, channels, component cancellation and the public C embedding API remain separate M3 decisions. Accepting this RFC completes neither roadmap G01 nor structured source execution.
