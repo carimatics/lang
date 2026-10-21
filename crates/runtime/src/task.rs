@@ -301,6 +301,12 @@ impl Scheduler {
         Ok(self.tasks[self.index(task)?].cancellation_requested)
     }
 
+    /// No dispatch can run now, but the root has not completed. The driver must
+    /// prove a granted external readiness source or diagnose a closed deadlock.
+    pub fn is_quiescent(&self) -> bool {
+        self.active.is_none() && self.queue.is_empty() && !self.is_finished()
+    }
+
     pub fn is_finished(&self) -> bool {
         self.tasks.first().is_some_and(|task| task.state.complete())
     }
