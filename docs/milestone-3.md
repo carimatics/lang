@@ -6,13 +6,13 @@
 
 Updated: **2026-10-21 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**17 done · 1 doing · 31 todo · 89 remaining pt**
+**18 done · 1 doing · 30 todo · 88 remaining pt**
 
-**Next: M3-A06 → implement independent source/MIR Send/Share derivation and owned async signature proof.**
+**Next: M3-A05 → execute owned async arguments/results through move publication, consuming await and scope retirement.**
 
-Current delivery: **M3-A06**. Decision checkpoint: **`9b2b68c` (RFC 0024), verified 2026-10-21 JST**, repository consistency 5/5 pass. Last executable checkpoint: **`fdfc755`, verified 2026-10-21 13:29 JST** (T08), 114 suites / 1,779 passed / 0 failed / 1 existing timing ignore. A06 remaining acceptance: derive Send/Share independently from existing source/MIR transitive facts; compile-pass owned async signatures and compile-fail forbidden loan/arena/allocator/Task transfers and reuse; verify recursive graphs, aliases, unused metadata and limit boundaries. Runtime keeps pre-effect Copy-only transfer refusal until A05. Full actor authority remains A02 after concrete channel handles; all M3/P1 gates remain required.
+Current delivery: **M3-A05**. Last executable checkpoint: **`d3b33e3`, verified 2026-10-21 14:25 JST** (A06): source/MIR independently derive recursive Send/Share; seven focused tests and the full **115 suites / 1,786 passed / 0 failed / 1 existing timing ignore** baseline pass, suite-time sum **543.02s**. fmt, warnings-denied Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. CLI check accepts the owned Bytes worker; run remains Unsupported with fuel 0/tasks 0. A05 remaining acceptance: admit Send signatures through existing managed frames; move arguments after preflight; retain owned result/origin metadata; move successful await into initialized/registered Ok ownership; retire unclaimed/cancelled/unpublished results once through scope cleanup with cell/heap/report/poison accounting. Execute a new owned transfer fixture on VM/generated native/linked objects, then verify failure/cancellation and every applicable control/provider prefix. Preserve all M3/P1 scope; no gate is complete.
 
-**This update: A01 completed (−2 pt); new A06/A05 prerequisites (+4 pt) are recorded in the scope audit.** Remaining **87 + 4 − 2 = 89 pt**, **49 rows**, retired **45 pt**, net additions **+24 pt**.
+**This update: A06 completed (−1 pt); no new additions/re-estimates.** Remaining **89 − 1 = 88 pt**, **49 rows**, retired **46 pt**, net additions **+24 pt**.
 
 ## Deliveries
 
@@ -41,8 +41,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | Run source channel fixtures and reject payload reuse in VM execution | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | Match channel values, failures and cleanup through native execution | — |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | Accept recursive Send/Share derivation and source service authority rules | `9b2b68c` |
-| M3-A06 | doing | 1 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | — |
-| M3-A05 | todo | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
+| M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
+| M3-A05 | doing | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
 | M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | Check source actor ownership, moves and non-sendable captures with diagnostics | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | Execute owner-isolated service state, FIFO messages and cancellation disposal | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | Match actor isolation and disposal traces in native execution | — |
@@ -108,7 +108,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 24 − 45 = 89 pt**
+**110 + 24 − 46 = 88 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -150,9 +150,13 @@ A01 scope/estimate audit (2026-10-21 JST): source/MIR reject owned async signatu
 
 A01 completed at `9b2b68c` (2026-10-21 JST): accepted RFC 0024 under experimental delegation, with recursive Send/Share, checked shared/weak operations, strict transfer exclusions, owner/interface authority, compatibility, mode boundaries and unverified assumptions. The minimal owned Bytes worker still reports SRC0026; acceptance is not implementation. Repository consistency 5/5 passes. Retire the last 2 pt; separately audited prerequisites remain +4 pt. Select A06 (1 pt), reusing existing facts before A05 owned source execution. Full source actor proof retains A02/C03 dependencies. All 15 gates/P1 remain required.
 
+A06 completed at `d3b33e3` (2026-10-21 14:25 JST): reused independently verified source/MIR transitive facts for logical-task Send/Share and replaced Copy-only signature eligibility. Seven focused tests cover twelve owned/shared/recursive signature cases, forbidden authority/reuse diagnostics, both graph exclusions, canonical aliases, forged MIR loan signatures, duplicate owned argument consumption and exact/one-below proof-work. Existing source/MIR focused suites pass 65 tests. CLI check succeeds while VM/native keep zero-effect Unsupported admission until A05. Full baseline **115 suites / 1,786 passed / 0 failed / 1 existing timing ignore**, suite-time sum **543.02s**; fmt, Clippy (**53.55s**), rustdoc (**51.02s**) and all 11 fuzz-target compile/lint checks (**2.02s**) pass. Retire the last 1 pt; no additions/re-estimates. RFC 0024 remains accepted, with execution and actual source actor authority still pending.
+
+A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame::result`, pending await, result lists/disposal, managed owner initialization and cleanup sessions. Input transfer already has a managed move path and preflights scheduler/frame resources; returned reservations already detach after child owner cleanup. A05 must connect retained result spans, owning payload movement and sum/owner registration at await, and actual result retirement through the existing unmetered Context/Session before releasing storage/cell charges. Keep A05's **3 pt** and complete observable outcome, with a new source execution fixture first. Reuse prepared reservations, services and reports; no second owner registry or scheduler framework. Expose any newly observed prerequisite before implementing it. Channels, source actor authority, foreign/C/serialized/package, production embedding and every gate/P1 outcome remain required.
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +24 pt | −45 pt | 89 pt |
+| 110 pt | +24 pt | −46 pt | 88 pt |
 
 ## Exit audit
 
@@ -187,3 +191,5 @@ A01 completed at `9b2b68c` (2026-10-21 JST): accepted RFC 0024 under experimenta
 - T08 evidence and A01 audit: [RFC 0013](rfcs/0013-service-byte-work-budget.md), last updated 2026-10-20; [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md) and [RFC 0023](rfcs/0023-task-mir-boundaries.md), last updated 2026-10-21. Task counter/service/view adapters, frame/result accounting, `tests/task_controls.rs`, `tests/task_owned_integration.rs`, `tests/service_work_cli.rs`, `tests/support/task_static.rs`, source/MIR task transfer restrictions and the service experiment, inspected/executed at `fdfc755`, 2026-10-21 13:29 JST on macOS AArch64; code has no embedded update date.
 
 - A01 decision/audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md), RFCs 0005/0007/0022/0023, last updated 2026-10-21. Source/MIR type facts/task signature checks, runtime await/result disposal and the service model inspected at `b25aede`, 2026-10-21 13:37 JST on macOS AArch64; minimal owned Bytes worker reproduces SRC0026. Code has no embedded update date. The accepted decision is not implementation evidence.
+
+- A06 implementation and A05 audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md), [RFC 0022](rfcs/0022-source-structured-tasks.md), [RFC 0023](rfcs/0023-task-mir-boundaries.md), last updated 2026-10-21; source/MIR type/task checks, `tests/task_send_capabilities.rs`, source/MIR task tests and the existing runtime frame/await/result/cleanup APIs, inspected/executed at `d3b33e3`, 2026-10-21 14:25 JST on macOS AArch64. Code has no embedded update date. No physical-thread capability, foreign/wire format or benchmark result is inferred.

@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**17 done · 1 doing · 31 todo · 89 remaining pt**
+**18 done · 1 doing · 30 todo · 88 remaining pt**
 
-**次: M3-A06 → 独立 source/MIR Send/Share 導出と owned async signature proof を実装します。**
+**次: M3-A05 → owned async 引数/結果の move publication、consuming await、scope retirement を実行します。**
 
-現在の作業: **M3-A06**。決定 checkpoint は **`9b2b68c`（RFC 0024）、2026-10-21 JST**、repository consistency 5/5 が通過しました。直近の実行 checkpoint は **`fdfc755`、2026-10-21 13:29 JST**（T08）、全 114 suite / 1,779 test 成功、失敗ゼロ、既存 ignore 1 件です。A06 の残条件は既存推移 fact を使う独立 source/MIR Send/Share、owned async signature の compile-pass、禁止 loan/arena/allocator/Task と再利用の compile-fail、再帰 graph/alias/未使用 metadata/制限境界の検証です。runtime は A05 まで Copy-only transfer の副作用前拒否を維持します。actor authority の全条件は具体的 channel handle 後の A02 に残し、全 M3/P1 gate は未完です。
+現在の作業: **M3-A05**。直近の実行 checkpoint は **`d3b33e3`、2026-10-21 14:25 JST**（A06）。source/MIR は再帰 Send/Share を独立導出し、重点 7 テストと全 **115 suites / 1,786 passed / 0 failed / 1 existing timing ignore** が通過しました。suite-time 合計 **543.02s**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target compile/lint が通過しました。CLI check は owned Bytes worker を受理し、run は fuel 0/tasks 0 の Unsupported を維持します。A05 の残条件は既存 managed frame で Send signature を受理し、事前検査後に引数を move、owned result/起点 metadata を保持、成功 await を初期化/登録済み Ok ownership に移動し、未取得/取消/未公開結果を cell/heap/report/poison 計上付き scope cleanup で一度だけ退役することです。新 owned transfer fixture を VM/生成 native/リンク済み object で実行後、失敗/取消と該当する全 control/provider prefix を検証します。全 M3/P1 scope を維持し、gate は未完です。
 
-**今回: A01 完了（−2 pt）。新規前提 A06/A05（+4 pt）は scope audit に記録済みです。** 残り **87 + 4 − 2 = 89 pt**、全 **49 行**、消化 **45 pt**、純追加 **+24 pt**。
+**今回: A06 完了（−1 pt）、新たな追加/再見積りはありません。** 残り **89 − 1 = 88 pt**、全 **49 行**、消化 **46 pt**、純追加 **+24 pt**。
 
 ## Deliveries
 
@@ -41,8 +41,8 @@
 | M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | source channel fixture を VM 実行し payload 再利用を拒否 | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | native で channel の値、失敗、cleanup を一致 | — |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | `9b2b68c` |
-| M3-A06 | doing | 1 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | — |
-| M3-A05 | todo | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
+| M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
+| M3-A05 | doing | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
 | M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | — |
@@ -108,7 +108,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 24 − 45 = 89 pt**
+**110 + 24 − 46 = 88 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -150,9 +150,13 @@ A01 scope/estimate audit（2026-10-21 JST）: source/MIR は owned async signatu
 
 A01 は `9b2b68c` で完了（2026-10-21 JST）。実験委任に従い RFC 0024 の再帰 Send/Share、checked shared/weak 操作、厳密な transfer 除外、owner/interface 権限、互換性、mode 境界、未検証の仮定を受理しました。最小 owned Bytes worker は SRC0026 を維持し、受理を実装と区別します。repository consistency 5/5 が通過しました。最後の 2 pt を消化し、別途 audit した前提 +4 pt を維持します。A06（1 pt）で既存 fact を使ってから A05 owned source 実行へ進みます。source actor proof の全 A02/C03 依存、全 15 gate/P1 を維持します。
 
+A06 は `d3b33e3` で完了（2026-10-21 14:25 JST）。独立に検証した source/MIR 推移 fact を logical-task Send/Share に再利用し、Copy-only signature 条件を置換しました。重点 7 テストは 12 の owned/shared/再帰 signature、禁止権限/再利用の診断、両 graph の除外、canonical alias、不正 MIR loan signature、owned 引数の二重消費、proof work 境界値/1 未満を検証します。既存 source/MIR の重点 65 テストも通過しました。CLI check は成功し、VM/native は A05 まで副作用前の Unsupported を維持します。全 baseline **115 suites / 1,786 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **543.02s**。fmt、Clippy（**53.55s**）、rustdoc（**51.02s**）、全 11 fuzz target compile/lint（**2.02s**）が通過しました。最後の 1 pt を消化し、追加/再見積りはありません。RFC 0024 は accepted のままで、実行と実際の source actor authority は未完です。
+
+A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`、pending await、result list/disposal、managed owner 初期化、cleanup session を確認しました。引数は既存 managed move と scheduler/frame 事前検査を使え、return reservation は child owner cleanup 後に分離できます。A05 で retained result span、await の owning payload move と sum/owner 登録、storage/cell 計上解放前の既存非計量 Context/Session による実際の result retirement を接続します。A05 の **3 pt** と全観測条件を維持し、新 source 実行 fixture を先に繋ぎます。既存 reservation/service/report を再利用し、別 owner registry や scheduler framework は作りません。新しい前提を発見したら実装前に明示します。channel、source actor authority、foreign/C/serialized/package、production embedding、全 gate/P1 条件を維持します。
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +24 pt | −45 pt | 89 pt |
+| 110 pt | +24 pt | −46 pt | 88 pt |
 
 ## Exit audit
 
@@ -187,3 +191,5 @@ A01 は `9b2b68c` で完了（2026-10-21 JST）。実験委任に従い RFC 0024
 - T08 の証拠と A01 audit: [RFC 0013](rfcs/0013-service-byte-work-budget.md)（最終更新 2026-10-20）、[RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md) と [RFC 0023](rfcs/0023-task-mir-boundaries.md)（最終更新 2026-10-21）。task counter/service/view adapter、frame/result 計上、`tests/task_controls.rs`、`tests/task_owned_integration.rs`、`tests/service_work_cli.rs`、`tests/support/task_static.rs`、source/MIR task transfer 制限と service 実験を `fdfc755`、2026-10-21 13:29 JST に macOS AArch64 で確認/実行しました。code に更新日の埋込みはありません。
 
 - A01 決定/audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md)、RFC 0005/0007/0022/0023 の最終更新は 2026-10-21。source/MIR type fact/task signature 検査、runtime await/result disposal、service model を `b25aede`、2026-10-21 13:37 JST に macOS AArch64 で確認し、最小 owned Bytes worker で SRC0026 を再現しました。code に更新日の埋込みはありません。受理済み決定は実装証拠ではありません。
+
+- A06 実装と A05 audit: [RFC 0024](rfcs/0024-send-share-and-service-authority.md)、[RFC 0022](rfcs/0022-source-structured-tasks.md)、[RFC 0023](rfcs/0023-task-mir-boundaries.md) の最終更新は 2026-10-21。source/MIR type/task 検査、`tests/task_send_capabilities.rs`、source/MIR task テスト、既存 runtime frame/await/result/cleanup API を `d3b33e3`、2026-10-21 14:25 JST に macOS AArch64 で確認/実行しました。code に更新日の埋込みはありません。物理 thread capability、foreign/wire format、benchmark 結果は推論しません。
