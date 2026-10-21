@@ -35,6 +35,11 @@ pub enum ChannelRole {
     Sender,
     Receiver,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ServiceRole {
+    Handle,
+    Owner,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EndMode {
@@ -98,6 +103,20 @@ pub enum Op {
         payload: m::Register,
     },
     ChannelReceive {
+        authority: PreparedPlaceId,
+    },
+    PrepareService {
+        destination: PreparedPlaceId,
+        endpoint: m::Register,
+        role: ServiceRole,
+        state_type: Option<TypeUse>,
+        message_type: TypeUse,
+    },
+    ServiceSend {
+        authority: PreparedPlaceId,
+        payload: m::Register,
+    },
+    ServiceReceive {
         authority: PreparedPlaceId,
     },
     TaskCancel(p::PlaceId),
@@ -218,6 +237,18 @@ impl Op {
     pub const fn channel_suspension(&self) -> bool {
         matches!(self, Self::ChannelSend { .. } | Self::ChannelReceive { .. })
     }
+    pub const fn is_service(&self) -> bool {
+        match self {
+            Self::PrepareService { .. }
+            | Self::ServiceSend { .. }
+            | Self::ServiceReceive { .. } => true,
+            Self::CoreCall(call) => call.operation.is_service(),
+            _ => false,
+        }
+    }
+    pub const fn service_suspension(&self) -> bool {
+        matches!(self, Self::ServiceSend { .. } | Self::ServiceReceive { .. })
+    }
     pub const fn is_task(&self) -> bool {
         matches!(
             self,
@@ -238,6 +269,8 @@ impl Op {
             }
             Self::PrepareChannel { endpoint: v, .. }
             | Self::ChannelSend { payload: v, .. }
+            | Self::PrepareService { endpoint: v, .. }
+            | Self::ServiceSend { payload: v, .. }
             | Self::Copy(v)
             | Self::TaskAwait(v)
             | Self::TaskSaveReturn(v)
@@ -372,27 +405,43 @@ pub struct PreparedChannel {
     pub span: Span,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PreparedService {
+    pub site: Site,
+    pub endpoint: m::Register,
+    pub role: ServiceRole,
+    pub message_type: TypeUse,
+    pub span: Span,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PreparedDestination {
     Place(PreparedPlace),
     Channel(PreparedChannel),
+    Service(PreparedService),
 }
 impl PreparedDestination {
     pub const fn site(self) -> Site {
         match self {
             Self::Place(p) => p.site,
             Self::Channel(c) => c.site,
+            Self::Service(s) => s.site,
         }
     }
     pub const fn place(self) -> Option<PreparedPlace> {
         match self {
             Self::Place(p) => Some(p),
-            Self::Channel(_) => None,
+            Self::Channel(_) | Self::Service(_) => None,
         }
     }
     pub const fn channel(self) -> Option<PreparedChannel> {
         match self {
-            Self::Place(_) => None,
+            Self::Place(_) | Self::Service(_) => None,
             Self::Channel(c) => Some(c),
+        }
+    }
+    pub const fn service(self) -> Option<PreparedService> {
+        match self {
+            Self::Service(s) => Some(s),
+            Self::Place(_) | Self::Channel(_) => None,
         }
     }
 }
@@ -688,6 +737,7 @@ fn variant(types: &VerifiedTypes, ty: Type, shared: bool) -> Result<Type, ErrorK
                             | Builtin::ArenaError
                             | Builtin::TaskError
                             | Builtin::ChannelError
+                            | Builtin::ServiceError
                     )
             )
         ),
@@ -731,6 +781,7 @@ fn payload(types: &VerifiedTypes, ty: Type, case: u32) -> Result<Payload<'_>, Er
                 Builtin::OwnershipError => 6,
                 Builtin::ArenaError => 4,
                 Builtin::ChannelError => 2,
+                Builtin::ServiceError => 5,
                 _ => 0,
             };
             if case >= count {
@@ -740,6 +791,7 @@ fn payload(types: &VerifiedTypes, ty: Type, case: u32) -> Result<Payload<'_>, Er
                 Payload::One(Expected::Exact(Type::I64))
             } else if (b == Builtin::BufferError && case == 2)
                 || (b == Builtin::ChannelError && case == 1)
+                || (b == Builtin::ServiceError && case == 1)
                 || (matches!(b, Builtin::OwnershipError | Builtin::ArenaError) && case == 0)
             {
                 Payload::One(Expected::Builtin(Builtin::AllocError))
@@ -856,6 +908,12 @@ impl Check<'_, '_> {
         if i.op.is_channel() && self.profile != Profile::Tasks {
             return Err(Error::new(
                 ErrorKind::UnsupportedChannelProfile,
+                Some(i.span),
+            ));
+        }
+        if i.op.is_service() && self.profile != Profile::Tasks {
+            return Err(Error::new(
+                ErrorKind::UnsupportedServiceProfile,
                 Some(i.span),
             ));
         }
@@ -1092,6 +1150,104 @@ impl Check<'_, '_> {
                 if !matches!(ctor(self.types,actual),Some(Constructor::Option(t)) if self.types.equivalent(t,captured.message_type.ty)==Some(true))
                 {
                     return Err(Error::new(ErrorKind::InvalidChannelResult(actual), Some(s)));
+                }
+                Ok(())
+            }
+            Op::PrepareService {
+                endpoint,
+                role,
+                state_type,
+                message_type,
+                ..
+            } => {
+                if !self.declaration.effect.is_async() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidAsyncEffect(self.function),
+                        Some(s),
+                    ));
+                }
+                for argument in std::iter::once(message_type).chain(state_type.iter()) {
+                    within(
+                        self.types,
+                        self.declaration.span,
+                        argument.span,
+                        self.budget,
+                    )?;
+                    let properties = self.types.properties(argument.ty).ok_or_else(|| {
+                        Error::new(ErrorKind::InvalidType(argument.ty), Some(argument.span))
+                    })?;
+                    if !properties.is_send() {
+                        return Err(Error::new(
+                            ErrorKind::InvalidServiceType(argument.ty),
+                            Some(argument.span),
+                        ));
+                    }
+                }
+                let actual = self.value(*endpoint, s)?;
+                let valid = match (role, state_type, ctor(self.types, actual)) {
+                    (
+                        ServiceRole::Handle,
+                        None,
+                        Some(Constructor::Loan(LoanKind::Shared, target)),
+                    ) => matches!(ctor(self.types,target),Some(Constructor::ServiceHandle(m))
+                            if self.types.equivalent(m,message_type.ty)==Some(true)),
+                    (
+                        ServiceRole::Owner,
+                        Some(state),
+                        Some(Constructor::Loan(LoanKind::Exclusive, target)),
+                    ) => matches!(ctor(self.types,target),Some(Constructor::ServiceOwner(t,m))
+                            if self.types.equivalent(t,state.ty)==Some(true)
+                                && self.types.equivalent(m,message_type.ty)==Some(true)),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(Error::new(
+                        ErrorKind::InvalidServiceEndpoint(actual),
+                        Some(s),
+                    ));
+                }
+                self.void(i)
+            }
+            Op::ServiceSend { authority, payload } => {
+                if !self.declaration.effect.is_async() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidAsyncEffect(self.function),
+                        Some(s),
+                    ));
+                }
+                let captured = self
+                    .destination(*authority, s)?
+                    .service()
+                    .filter(|c| c.role == ServiceRole::Handle)
+                    .ok_or_else(|| Error::new(ErrorKind::PreparedKind(authority.0), Some(s)))?;
+                self.expect(*payload, E(captured.message_type.ty), s)?;
+                self.arity(i.results.len(), 1, s)?;
+                let actual = self.value(i.results[0], s)?;
+                if !matches!(ctor(self.types,actual),Some(Constructor::SendResult(m))
+                    if self.types.equivalent(m,captured.message_type.ty)==Some(true))
+                {
+                    return Err(Error::new(ErrorKind::InvalidServiceResult(actual), Some(s)));
+                }
+                Ok(())
+            }
+            Op::ServiceReceive { authority } => {
+                if !self.declaration.effect.is_async() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidAsyncEffect(self.function),
+                        Some(s),
+                    ));
+                }
+                let captured = self
+                    .destination(*authority, s)?
+                    .service()
+                    .filter(|c| c.role == ServiceRole::Owner)
+                    .ok_or_else(|| Error::new(ErrorKind::PreparedKind(authority.0), Some(s)))?;
+                self.arity(i.results.len(), 1, s)?;
+                let actual = self.value(i.results[0], s)?;
+                if !matches!(ctor(self.types,actual),Some(Constructor::Option(m))
+                    if self.types.equivalent(m,captured.message_type.ty)==Some(true))
+                {
+                    return Err(Error::new(ErrorKind::InvalidServiceResult(actual), Some(s)));
                 }
                 Ok(())
             }
@@ -1495,6 +1651,25 @@ fn function(
                         span: i.span,
                     }),
                 )),
+                Op::PrepareService {
+                    destination,
+                    endpoint,
+                    role,
+                    message_type,
+                    ..
+                } => Some((
+                    destination,
+                    PreparedDestination::Service(PreparedService {
+                        site: Site {
+                            block: m::BlockId(b as u32),
+                            order: position + 1,
+                        },
+                        endpoint,
+                        role,
+                        message_type,
+                        span: i.span,
+                    }),
+                )),
                 _ => None,
             };
             if let Some((destination, capture)) = capture {
@@ -1690,6 +1865,13 @@ fn function(
                 ..
             }
             | Op::ChannelReceive {
+                authority: destination,
+            }
+            | Op::ServiceSend {
+                authority: destination,
+                ..
+            }
+            | Op::ServiceReceive {
                 authority: destination,
             } = i.op
             {

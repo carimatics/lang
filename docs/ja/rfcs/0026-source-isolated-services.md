@@ -14,6 +14,8 @@
 
 ## Summary
 
+A02 proof checkpoint（2026-10-22 JST）: 全3 role、source 10操作/同期 MIR core signature 8種、別の PrepareService/ServiceSend/ServiceReceive を source と独立 MIR で証明します。重点13件で再帰 capability/arity/storage、owner move と producer SRC0029 起点、read-only/suspension loan、不正 role/type/capture 代用/再利用、proof budget 上限/1未満、旧 profile 拒否を検証します。managed-read synthetic root が検証済み state provenance を保持します。[owned Counter/Bytes fixture](../../../tests/fixtures/task_service.lang) は検証済みで、現 VM/native admission は guest 副作用前に拒否し、実行は A03/A04 に残ります。full baseline は **126 suite / 1,906件成功 / 失敗0 / 既存 timing ignore 1件**（suite-time 合計 **591.77s**）で成功し、fmt・Clippy（**1m 55s**）・rustdoc（**1m 19s**）・全11 fuzz target compile/lint（**4.75s**）も成功しました。fuzz campaign は主張しません。 全体の証拠は実装 Todo に記録し、受理から service 実行や安定化は導きません。
+
 invocation 内で隔離した service の opaque setup・owner・producer role、明示 core 操作、handler 境界を受理します。唯一の owner だけが state を read/置換でき、producer は enqueue と取消要求ができます。typed MIR は role・move・loan・suspension を独立検証します。受理は実行や安定化の証拠ではありません。
 
 初期 state interface は既存 managed shared/arena interface に倣い、検証済み shared read と state 全体置換を使います。exclusive state projection、暗黙 clone、actor 宣言構文、closure、第一級関数値は追加しません。state/message は Receiver/ServiceOwner を含む、独立証明した Send/storable family を許容し、循環を防ぐ publication 検査を必須とします。
@@ -43,10 +45,9 @@ struct Counter { total:i64 }
 
 fn add(owner:&mut core::ServiceOwner<Counter,i64>, amount:i64)->core::Unit {
     let mut total:i64=0;
-    {
-        let mut state:&Counter=core::result_unwrap::<&Counter,core::ServiceError>(
-            core::service_read::<Counter,i64>(owner));
-        total=state.total;
+    match core::service_read::<Counter,i64>(owner) {
+        core::Result::Ok(state) => { total=state.total; },
+        core::Result::Err(error) => { return core::panic::<core::Unit>(-6); },
     }
     return core::result_unwrap::<core::Unit,core::ServiceError>(
         core::service_replace::<Counter,i64>(owner,Counter { total:total+amount }));
@@ -61,10 +62,9 @@ async fn serve(input:core::ServiceOwner<Counter,i64>)->i64 {
         await core::service_receive::<Counter,i64>(&mut owner));
     let mut added_again:core::Unit=add(&mut owner,second);
     let mut answer:i64=0;
-    {
-        let mut state:&Counter=core::result_unwrap::<&Counter,core::ServiceError>(
-            core::service_read::<Counter,i64>(&owner));
-        answer=state.total;
+    match core::service_read::<Counter,i64>(&owner) {
+        core::Result::Ok(state) => { answer=state.total; },
+        core::Result::Err(error) => { return core::panic::<i64>(-6); },
     }
     return answer;
 }
@@ -112,7 +112,7 @@ unique Setup/Owner token が state と receive 権限を所有します。Owner 
 
 Some(M) の receive 成功が1 handler を開始します。次の receive は前 handler を finish してから FIFO の次 message を poll します。明示 finish と退役も handler を終了し、idle/closed の明示 finish は冪等です。idle の read/replace は NoActiveHandler、closed 後は Unavailable を返します。active handler は全通常 loan 終了後にのみ yield/await できます。service 取消待ちでも先取りせず、finish・次 receive・owner 退役に達します。structured task 取消/失敗は RFC 0005/0022 に従い、同じ queue-before-state 境界で service を退役します。
 
-read は正確な owner/state generation に結ぶ通常 shared loan で、provisional Result binding と検証済み origin を持ちます。owning S や mutable loan にはなりません。束縛済み read は lexical で、通常 borrow 規則により置換/finish/receive/move/drop を防ぎます。compiler-created call loan は受理した境界で終了しますが、束縛済み read を早期終了しません。
+read は正確な owner/state generation に結ぶ通常 shared loan で、provisional Result binding と検証済み origin を持ちます。既存 core read 規則で借用 Result を直ちに match し、通常 result_unwrap の T を通常 loan に特殊化できません。owning S や mutable loan にはなりません。束縛済み read は lexical で、通常 borrow 規則により置換/finish/receive/move/drop を防ぎます。compiler-created call loan は受理した境界で終了しますが、束縛済み read を早期終了しません。
 
 置換は通常 move 規則で candidate S を消費します。active owner と read が残っていないことを要します。commit 前に state 内 Receiver/ServiceOwner を含む prospective な実 strong receiver edge を、現在 commit 済み message/state ownership に対して検査します。循環拒否は InvalidPublication を返し、旧 state を変えず candidate を一度退役します。Unavailable/idle の置換も candidate を退役します。既存 replacement service が新しい sole owner を確立してから旧 state を退役し、cleanup failure は既存 primary/secondary 規則を保持します。置換時の退役順で service 最終退役の queue-before-state 境界は変えません。
 
@@ -144,7 +144,7 @@ VM、生成 native continuation、exact-build linked object は値・event・ori
 
 ## ABI and compatibility
 
-従来未知だった予約 core 名と拒否していた service program を拡張します。既存の有効な通常 task/channel program は cleanup/cost を維持します。全体置換・request 専用取消・handler 境界は source 契約であり backend の偶然ではありません。公開 ABI、source edition、artifact tag、package field、C 表現は割り当てません。persisted service metadata は独立 version の明示的 format 決定、検証、migration test を要します。
+従来未知だった予約 core 名と拒否していた service program を拡張します。既存の有効な通常 task/channel program は cleanup と論理 service-work event を維持します。compiler/preparation byte accounting は実構造体を数え続け、検証済み metadata 拡張で増加し得るため、更新時に有限 preparation limit の調整が必要な場合があります。全体置換・request 専用取消・handler 境界は source 契約であり backend の偶然ではありません。公開 ABI、source edition、artifact tag、package field、C 表現は割り当てません。persisted service metadata は独立 version の明示的 format 決定、検証、migration test を要します。
 
 ## Diagnostics and tooling
 

@@ -282,6 +282,14 @@ pub fn service_work_supported_with_c_imports(
                     .iter()
                     .all(|instruction| match &instruction.op {
                         Op::CoreCall(call) => match call.operation {
+                            C::ServiceNew
+                            | C::ServiceHandle
+                            | C::ServiceClone
+                            | C::ServiceOwner
+                            | C::ServiceRead
+                            | C::ServiceReplace
+                            | C::ServiceFinish
+                            | C::ServiceCancel => false,
                             C::ChannelNew
                             | C::ChannelSender
                             | C::ChannelClone

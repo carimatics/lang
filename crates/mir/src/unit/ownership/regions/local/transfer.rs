@@ -523,7 +523,7 @@ impl Engine {
                 }
                 Ok(0)
             }
-            O::SharedRead | O::Allocator => {
+            O::SharedRead | O::ServiceRead | O::Allocator => {
                 let root = self.synthetic(site);
                 self.result(row, root, 0, admit)?;
                 let p = self.place(root, &[], admit)?;
@@ -645,15 +645,15 @@ impl Engine {
                     }
                 }
             }
-            Op::PrepareChannel { endpoint, .. } => {
+            Op::PrepareChannel { endpoint, .. } | Op::PrepareService { endpoint, .. } => {
                 self.consume(plan, row, *endpoint);
             }
-            Op::ChannelSend { authority, payload } => {
+            Op::ChannelSend { authority, payload } | Op::ServiceSend { authority, payload } => {
                 self.consume(plan, row, *payload);
                 row[self.roots.len() * 2 + authority.0 as usize] = 0;
                 // Message Send proof excludes all arena/loan/owner brands.
             }
-            Op::ChannelReceive { authority } => {
+            Op::ChannelReceive { authority } | Op::ServiceReceive { authority } => {
                 row[self.roots.len() * 2 + authority.0 as usize] = 0;
             }
             Op::TaskAwait(value) | Op::TaskSaveReturn(value) => {

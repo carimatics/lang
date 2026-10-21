@@ -220,6 +220,13 @@ impl TypeStore {
             None
         }
     }
+    pub(super) fn constructed_span(&self, ty: r::Type) -> Option<Span> {
+        if let r::Type::Constructed(id) = ty {
+            self.nodes.get(id.0).map(|node| node.span)
+        } else {
+            None
+        }
+    }
     pub(super) fn properties(
         &self,
         ty: r::Type,
@@ -280,17 +287,24 @@ impl TypeStore {
             ));
         }
         match constructor {
-            r::TypeConstructor::ChannelSetup(_) => {
+            r::TypeConstructor::ChannelSetup(_) | r::TypeConstructor::ServiceSetup(..) => {
                 properties.is_copy = false;
                 properties.requires_drop = true;
                 properties.non_send = true;
                 properties.non_share = true;
             }
-            r::TypeConstructor::Sender(t) | r::TypeConstructor::Receiver(t) => {
+            r::TypeConstructor::Sender(t)
+            | r::TypeConstructor::Receiver(t)
+            | r::TypeConstructor::ServiceHandle(t) => {
                 properties.is_copy = false;
                 properties.requires_drop = true;
                 properties.non_share = matches!(constructor, r::TypeConstructor::Receiver(_))
                     || !self.properties(t, span)?.is_send();
+            }
+            r::TypeConstructor::ServiceOwner(..) => {
+                properties.is_copy = false;
+                properties.requires_drop = true;
+                properties.non_share = true;
             }
             r::TypeConstructor::Task(_) => {
                 properties.is_copy = false;
@@ -397,6 +411,17 @@ impl TypeStore {
                         .ok_or_else(|| input(CheckInputErrorKind::InvalidSignature, Some(span)));
                 }
                 P::Builtin(b) => r::TypeConstructor::Builtin(b),
+                P::ServiceSetup(s, m) => r::TypeConstructor::ServiceSetup(
+                    self.instantiate_with_owner(*s, arguments, owner, span, depth + 1)?,
+                    self.instantiate_with_owner(*m, arguments, owner, span, depth + 1)?,
+                ),
+                P::ServiceOwner(s, m) => r::TypeConstructor::ServiceOwner(
+                    self.instantiate_with_owner(*s, arguments, owner, span, depth + 1)?,
+                    self.instantiate_with_owner(*m, arguments, owner, span, depth + 1)?,
+                ),
+                P::ServiceHandle(m) => r::TypeConstructor::ServiceHandle(
+                    self.instantiate_with_owner(*m, arguments, owner, span, depth + 1)?,
+                ),
                 P::ChannelSetup(t) => r::TypeConstructor::ChannelSetup(
                     self.instantiate_with_owner(*t, arguments, owner, span, depth + 1)?,
                 ),
@@ -490,6 +515,7 @@ impl TypeStore {
                     B::ArenaError => F::ArenaError,
                     B::TaskError => F::TaskError,
                     B::ChannelError => F::ChannelError,
+                    B::ServiceError => F::ServiceError,
                     _ => return None,
                 },
                 [r::Type::I64; 2],

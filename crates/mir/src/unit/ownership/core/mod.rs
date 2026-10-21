@@ -10,6 +10,9 @@ pub enum TypePattern {
     Bool,
     Builtin(Builtin),
     Argument(u8),
+    ServiceSetup(&'static Self, &'static Self),
+    ServiceOwner(&'static Self, &'static Self),
+    ServiceHandle(&'static Self),
     ChannelSetup(&'static Self),
     Sender(&'static Self),
     Receiver(&'static Self),
@@ -127,6 +130,14 @@ pub enum Operation {
     OptionUnwrap,
     ResultUnwrap,
     ResultUnwrapErr,
+    ServiceNew,
+    ServiceHandle,
+    ServiceClone,
+    ServiceOwner,
+    ServiceRead,
+    ServiceReplace,
+    ServiceFinish,
+    ServiceCancel,
     ChannelNew,
     ChannelSender,
     ChannelClone,
@@ -166,6 +177,11 @@ const SETUP: TypePattern = TypePattern::ChannelSetup(&T);
 const SENDER: TypePattern = TypePattern::Sender(&T);
 const RECEIVER: TypePattern = TypePattern::Receiver(&T);
 const SEND_RESULT: TypePattern = TypePattern::SendResult(&T);
+const SERVICE_SETUP: TypePattern = TypePattern::ServiceSetup(&T, &V);
+const SERVICE_OWNER: TypePattern = TypePattern::ServiceOwner(&T, &V);
+const SERVICE_HANDLE: TypePattern = TypePattern::ServiceHandle(&T);
+const SERVICE_ERROR: TypePattern = TypePattern::Builtin(Builtin::ServiceError);
+const SEND_TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Send; 2];
 const SEND_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Send];
 const ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Storable];
 const TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Storable; 2];
@@ -186,7 +202,7 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 43] = [
+    pub const ALL: [Self; 51] = [
         Self::Allocator,
         Self::TextFromUtf8,
         Self::TextClone,
@@ -224,6 +240,14 @@ impl Operation {
         Self::OptionUnwrap,
         Self::ResultUnwrap,
         Self::ResultUnwrapErr,
+        Self::ServiceNew,
+        Self::ServiceHandle,
+        Self::ServiceClone,
+        Self::ServiceOwner,
+        Self::ServiceRead,
+        Self::ServiceReplace,
+        Self::ServiceFinish,
+        Self::ServiceCancel,
         Self::ChannelNew,
         Self::ChannelSender,
         Self::ChannelClone,
@@ -232,6 +256,19 @@ impl Operation {
         Self::ChannelUnsent,
     ];
 
+    pub const fn is_service(self) -> bool {
+        matches!(
+            self,
+            Self::ServiceNew
+                | Self::ServiceHandle
+                | Self::ServiceClone
+                | Self::ServiceOwner
+                | Self::ServiceRead
+                | Self::ServiceReplace
+                | Self::ServiceFinish
+                | Self::ServiceCancel
+        )
+    }
     pub const fn is_channel(self) -> bool {
         matches!(
             self,
@@ -282,6 +319,14 @@ impl Operation {
             Self::OptionUnwrap => "option_unwrap",
             Self::ResultUnwrap => "result_unwrap",
             Self::ResultUnwrapErr => "result_unwrap_err",
+            Self::ServiceNew => "service_new",
+            Self::ServiceHandle => "service_handle",
+            Self::ServiceClone => "service_clone",
+            Self::ServiceOwner => "service_owner",
+            Self::ServiceRead => "service_read",
+            Self::ServiceReplace => "service_replace",
+            Self::ServiceFinish => "service_finish",
+            Self::ServiceCancel => "service_cancel",
             Self::ChannelNew => "channel_new",
             Self::ChannelSender => "channel_sender",
             Self::ChannelClone => "channel_clone",
@@ -319,6 +364,33 @@ impl Operation {
         use LoanKind::{Exclusive as M, Shared as S};
         use TypePattern as P;
         let mut sig = match self {
+            Self::ServiceNew => signature(
+                SEND_TWO,
+                &[P::Loan(S, &ALLOCATOR), P::I64, T],
+                P::Result(&SERVICE_SETUP, &SERVICE_ERROR),
+            ),
+            Self::ServiceHandle => signature(
+                SEND_TWO,
+                &[P::Loan(S, &SERVICE_SETUP)],
+                P::ServiceHandle(&V),
+            ),
+            Self::ServiceClone => {
+                signature(SEND_ONE, &[P::Loan(S, &SERVICE_HANDLE)], SERVICE_HANDLE)
+            }
+            Self::ServiceOwner => signature(SEND_TWO, &[SERVICE_SETUP], SERVICE_OWNER),
+            Self::ServiceRead => signature(
+                SEND_TWO,
+                &[P::Loan(S, &SERVICE_OWNER)],
+                P::Result(&P::Loan(S, &T), &SERVICE_ERROR),
+            ),
+            Self::ServiceReplace => signature(
+                SEND_TWO,
+                &[P::Loan(M, &SERVICE_OWNER), T],
+                P::Result(&UNIT, &SERVICE_ERROR),
+            ),
+            Self::ServiceFinish => signature(SEND_TWO, &[P::Loan(M, &SERVICE_OWNER)], UNIT),
+            Self::ServiceCancel => signature(SEND_ONE, &[P::Loan(S, &SERVICE_HANDLE)], UNIT),
+
             Self::ChannelNew => signature(
                 SEND_ONE,
                 &[P::Loan(S, &ALLOCATOR), P::I64],
@@ -467,11 +539,13 @@ impl Operation {
         };
         sig.result_binding = match self {
             Self::Allocator => ResultBinding::InstanceAllocator,
-            Self::VecGet | Self::SharedRead | Self::ArenaRead => ResultBinding::ProvisionalLoan {
-                parameter: 0,
-                kind: S,
-                success: 0,
-            },
+            Self::VecGet | Self::SharedRead | Self::ArenaRead | Self::ServiceRead => {
+                ResultBinding::ProvisionalLoan {
+                    parameter: 0,
+                    kind: S,
+                    success: 0,
+                }
+            }
             Self::VecGetMut => ResultBinding::ProvisionalLoan {
                 parameter: 0,
                 kind: M,

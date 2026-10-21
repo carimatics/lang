@@ -10,6 +10,9 @@ pub enum TypePattern {
     Bool,
     Builtin(BuiltinType),
     Argument(u8),
+    ServiceSetup(&'static Self, &'static Self),
+    ServiceOwner(&'static Self, &'static Self),
+    ServiceHandle(&'static Self),
     ChannelSetup(&'static Self),
     Sender(&'static Self),
     Receiver(&'static Self),
@@ -77,6 +80,7 @@ pub enum Family {
     ArenaError,
     TaskError,
     ChannelError,
+    ServiceError,
     SendResult,
 }
 
@@ -85,6 +89,11 @@ pub enum Case {
     TaskCancelled,
     ChannelInvalidCapacity,
     ChannelAllocation,
+    ServiceInvalidCapacity,
+    ServiceAllocation,
+    ServiceUnavailable,
+    ServiceNoActiveHandler,
+    ServiceInvalidPublication,
     SendSent,
     SendClosed,
     SendInvalidPublication,
@@ -113,7 +122,7 @@ pub enum Case {
 }
 
 impl Family {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Option,
         Self::Result,
         Self::AllocError,
@@ -124,6 +133,7 @@ impl Family {
         Self::ArenaError,
         Self::TaskError,
         Self::ChannelError,
+        Self::ServiceError,
         Self::SendResult,
     ];
     pub const fn name(self) -> &'static str {
@@ -138,6 +148,7 @@ impl Family {
             Self::ArenaError => "ArenaError",
             Self::TaskError => "TaskError",
             Self::ChannelError => "ChannelError",
+            Self::ServiceError => "ServiceError",
             Self::SendResult => "SendResult",
         }
     }
@@ -153,6 +164,13 @@ impl Family {
         match self {
             Self::TaskError => &[C::TaskCancelled],
             Self::ChannelError => &[C::ChannelInvalidCapacity, C::ChannelAllocation],
+            Self::ServiceError => &[
+                C::ServiceInvalidCapacity,
+                C::ServiceAllocation,
+                C::ServiceUnavailable,
+                C::ServiceNoActiveHandler,
+                C::ServiceInvalidPublication,
+            ],
             Self::SendResult => &[C::SendSent, C::SendClosed, C::SendInvalidPublication],
             Self::Option => &[C::None, C::Some],
             Self::Result => &[C::Ok, C::Err],
@@ -179,7 +197,7 @@ impl Family {
 }
 
 impl Case {
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 33] = [
         Self::None,
         Self::Some,
         Self::Ok,
@@ -205,6 +223,11 @@ impl Case {
         Self::TaskCancelled,
         Self::ChannelInvalidCapacity,
         Self::ChannelAllocation,
+        Self::ServiceInvalidCapacity,
+        Self::ServiceAllocation,
+        Self::ServiceUnavailable,
+        Self::ServiceNoActiveHandler,
+        Self::ServiceInvalidPublication,
         Self::SendSent,
         Self::SendClosed,
         Self::SendInvalidPublication,
@@ -213,6 +236,11 @@ impl Case {
         match self {
             Self::TaskCancelled => Family::TaskError,
             Self::ChannelInvalidCapacity | Self::ChannelAllocation => Family::ChannelError,
+            Self::ServiceInvalidCapacity
+            | Self::ServiceAllocation
+            | Self::ServiceUnavailable
+            | Self::ServiceNoActiveHandler
+            | Self::ServiceInvalidPublication => Family::ServiceError,
             Self::SendSent | Self::SendClosed | Self::SendInvalidPublication => Family::SendResult,
             Self::None | Self::Some => Family::Option,
             Self::Ok | Self::Err => Family::Result,
@@ -237,6 +265,11 @@ impl Case {
             Self::TaskCancelled => "Cancelled",
             Self::ChannelInvalidCapacity => "InvalidCapacity",
             Self::ChannelAllocation => "Allocation",
+            Self::ServiceInvalidCapacity => "InvalidCapacity",
+            Self::ServiceAllocation => "Allocation",
+            Self::ServiceUnavailable => "Unavailable",
+            Self::ServiceNoActiveHandler => "NoActiveHandler",
+            Self::ServiceInvalidPublication => "InvalidPublication",
             Self::SendSent => "Sent",
             Self::SendClosed => "Closed",
             Self::SendInvalidPublication => "InvalidPublication",
@@ -277,7 +310,7 @@ impl Case {
                 &[ALLOC_ERROR]
             }
             Self::InvalidUtf8 => &[TypePattern::I64],
-            Self::ChannelAllocation => &[ALLOC_ERROR],
+            Self::ChannelAllocation | Self::ServiceAllocation => &[ALLOC_ERROR],
             _ => &[],
         }
     }
@@ -326,6 +359,16 @@ pub enum Operation {
     OptionUnwrap,
     ResultUnwrap,
     ResultUnwrapErr,
+    ServiceNew,
+    ServiceHandle,
+    ServiceClone,
+    ServiceOwner,
+    ServiceRead,
+    ServiceReplace,
+    ServiceFinish,
+    ServiceCancel,
+    ServiceSend,
+    ServiceReceive,
     ChannelNew,
     ChannelSender,
     ChannelClone,
@@ -359,6 +402,11 @@ const SETUP: TypePattern = TypePattern::ChannelSetup(&T);
 const SENDER: TypePattern = TypePattern::Sender(&T);
 const RECEIVER: TypePattern = TypePattern::Receiver(&T);
 const SEND_RESULT: TypePattern = TypePattern::SendResult(&T);
+const SERVICE_SETUP: TypePattern = TypePattern::ServiceSetup(&T, &V);
+const SERVICE_OWNER: TypePattern = TypePattern::ServiceOwner(&T, &V);
+const SERVICE_HANDLE: TypePattern = TypePattern::ServiceHandle(&T);
+const SERVICE_ERROR: TypePattern = TypePattern::Builtin(BuiltinType::ServiceError);
+const SEND_TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Send; 2];
 const SEND_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Send];
 const ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Storable];
 const TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Storable; 2];
@@ -379,7 +427,7 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 47] = [
+    pub const ALL: [Self; 57] = [
         Self::Drop,
         Self::Panic,
         Self::Allocator,
@@ -419,6 +467,16 @@ impl Operation {
         Self::OptionUnwrap,
         Self::ResultUnwrap,
         Self::ResultUnwrapErr,
+        Self::ServiceNew,
+        Self::ServiceHandle,
+        Self::ServiceClone,
+        Self::ServiceOwner,
+        Self::ServiceRead,
+        Self::ServiceReplace,
+        Self::ServiceFinish,
+        Self::ServiceCancel,
+        Self::ServiceSend,
+        Self::ServiceReceive,
         Self::ChannelNew,
         Self::ChannelSender,
         Self::ChannelClone,
@@ -429,6 +487,21 @@ impl Operation {
         Self::ChannelReceive,
     ];
 
+    pub const fn is_service(self) -> bool {
+        matches!(
+            self,
+            Self::ServiceNew
+                | Self::ServiceHandle
+                | Self::ServiceClone
+                | Self::ServiceOwner
+                | Self::ServiceRead
+                | Self::ServiceReplace
+                | Self::ServiceFinish
+                | Self::ServiceCancel
+                | Self::ServiceSend
+                | Self::ServiceReceive
+        )
+    }
     pub const fn is_channel(self) -> bool {
         matches!(
             self,
@@ -443,7 +516,10 @@ impl Operation {
         )
     }
     pub const fn is_async(self) -> bool {
-        matches!(self, Self::ChannelSend | Self::ChannelReceive)
+        matches!(
+            self,
+            Self::ChannelSend | Self::ChannelReceive | Self::ServiceSend | Self::ServiceReceive
+        )
     }
     pub const fn name(self) -> &'static str {
         match self {
@@ -486,6 +562,16 @@ impl Operation {
             Self::OptionUnwrap => "option_unwrap",
             Self::ResultUnwrap => "result_unwrap",
             Self::ResultUnwrapErr => "result_unwrap_err",
+            Self::ServiceNew => "service_new",
+            Self::ServiceHandle => "service_handle",
+            Self::ServiceClone => "service_clone",
+            Self::ServiceOwner => "service_owner",
+            Self::ServiceRead => "service_read",
+            Self::ServiceReplace => "service_replace",
+            Self::ServiceFinish => "service_finish",
+            Self::ServiceCancel => "service_cancel",
+            Self::ServiceSend => "service_send",
+            Self::ServiceReceive => "service_receive",
             Self::ChannelNew => "channel_new",
             Self::ChannelSender => "channel_sender",
             Self::ChannelClone => "channel_clone",
@@ -507,6 +593,39 @@ impl Operation {
         use LoanKind::{Exclusive as M, Shared as S};
         use TypePattern as P;
         let mut sig = match self {
+            Self::ServiceSend => {
+                signature(SEND_ONE, &[P::Loan(S, &SERVICE_HANDLE), T], SEND_RESULT)
+            }
+            Self::ServiceReceive => {
+                signature(SEND_TWO, &[P::Loan(M, &SERVICE_OWNER)], P::Option(&V))
+            }
+            Self::ServiceNew => signature(
+                SEND_TWO,
+                &[P::Loan(S, &ALLOCATOR), P::I64, T],
+                P::Result(&SERVICE_SETUP, &SERVICE_ERROR),
+            ),
+            Self::ServiceHandle => signature(
+                SEND_TWO,
+                &[P::Loan(S, &SERVICE_SETUP)],
+                P::ServiceHandle(&V),
+            ),
+            Self::ServiceClone => {
+                signature(SEND_ONE, &[P::Loan(S, &SERVICE_HANDLE)], SERVICE_HANDLE)
+            }
+            Self::ServiceOwner => signature(SEND_TWO, &[SERVICE_SETUP], SERVICE_OWNER),
+            Self::ServiceRead => signature(
+                SEND_TWO,
+                &[P::Loan(S, &SERVICE_OWNER)],
+                P::Result(&P::Loan(S, &T), &SERVICE_ERROR),
+            ),
+            Self::ServiceReplace => signature(
+                SEND_TWO,
+                &[P::Loan(M, &SERVICE_OWNER), T],
+                P::Result(&UNIT, &SERVICE_ERROR),
+            ),
+            Self::ServiceFinish => signature(SEND_TWO, &[P::Loan(M, &SERVICE_OWNER)], UNIT),
+            Self::ServiceCancel => signature(SEND_ONE, &[P::Loan(S, &SERVICE_HANDLE)], UNIT),
+
             Self::Drop => signature(ONE, &[T], UNIT),
             Self::Panic => signature(&[TypeArgumentRule::ReturnType], &[TypePattern::I64], T),
             Self::ChannelNew => signature(
@@ -659,9 +778,12 @@ impl Operation {
         };
         sig.result_binding = match self {
             Self::Allocator => ResultBinding::InstanceAllocator,
-            Self::VecGet | Self::VecGetMut | Self::MapGet | Self::SharedRead | Self::ArenaRead => {
-                ResultBinding::ProvisionalLoan { parameter: 0 }
-            }
+            Self::VecGet
+            | Self::VecGetMut
+            | Self::MapGet
+            | Self::SharedRead
+            | Self::ArenaRead
+            | Self::ServiceRead => ResultBinding::ProvisionalLoan { parameter: 0 },
             Self::ArenaNew => ResultBinding::ArenaReference { owner: 0 },
             _ => ResultBinding::Value,
         };

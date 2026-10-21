@@ -14,6 +14,8 @@
 
 ## Summary
 
+A02 proof checkpoint (2026-10-22 JST): all three roles, ten source operations/eight synchronous MIR core signatures and distinct PrepareService/ServiceSend/ServiceReceive now have source and independent MIR evidence. Thirteen tests cover recursive capability/arity/storage, owner moves and producer SRC0029 origins, read-only and suspension loans, malformed roles/types/capture substitution/reuse, exact/one-below proof budgets and old-profile refusal. Managed-read synthetic roots retain checked state provenance. The [owned Counter/Bytes fixture](../../tests/fixtures/task_service.lang) is checked and current VM/native admission refuses before guest effects; execution remains A03/A04. The full baseline passes **126 suites / 1,906 tests / zero failures / one existing timing ignore** (suite-time sum **591.77s**); fmt, Clippy (**1m 55s**), rustdoc (**1m 19s**) and all 11 fuzz-target compile/lint checks (**4.75s**) pass. No fuzz campaign is claimed. Full evidence is on the delivery board; acceptance does not imply service execution or stabilization.
+
 Accept opaque setup, owner and producer roles, explicit core operations and a handler boundary for invocation-local isolated services. Only the unique owner can read or replace state; producers can enqueue and request cancellation. Typed MIR must independently prove role, moves, loans and suspension. Acceptance is not execution or stabilization evidence.
 
 The initial state interface uses checked shared reads and whole-state replacement, following the existing managed shared/arena interface. It adds no exclusive state projection, implicit clone, actor declaration syntax, closure or first-class function value. State and messages may contain any independently proved Send/storable family, including Receiver/ServiceOwner; cycle-safe publication remains mandatory.
@@ -43,10 +45,9 @@ struct Counter { total:i64 }
 
 fn add(owner:&mut core::ServiceOwner<Counter,i64>, amount:i64)->core::Unit {
     let mut total:i64=0;
-    {
-        let mut state:&Counter=core::result_unwrap::<&Counter,core::ServiceError>(
-            core::service_read::<Counter,i64>(owner));
-        total=state.total;
+    match core::service_read::<Counter,i64>(owner) {
+        core::Result::Ok(state) => { total=state.total; },
+        core::Result::Err(error) => { return core::panic::<core::Unit>(-6); },
     }
     return core::result_unwrap::<core::Unit,core::ServiceError>(
         core::service_replace::<Counter,i64>(owner,Counter { total:total+amount }));
@@ -61,10 +62,9 @@ async fn serve(input:core::ServiceOwner<Counter,i64>)->i64 {
         await core::service_receive::<Counter,i64>(&mut owner));
     let mut added_again:core::Unit=add(&mut owner,second);
     let mut answer:i64=0;
-    {
-        let mut state:&Counter=core::result_unwrap::<&Counter,core::ServiceError>(
-            core::service_read::<Counter,i64>(&owner));
-        answer=state.total;
+    match core::service_read::<Counter,i64>(&owner) {
+        core::Result::Ok(state) => { answer=state.total; },
+        core::Result::Err(error) => { return core::panic::<i64>(-6); },
     }
     return answer;
 }
@@ -112,7 +112,7 @@ The unique Setup/Owner token owns the state and receive authority. Moving Owner 
 
 A successful receive of Some(M) begins one handler. The next receive first finishes the preceding handler, then polls the next FIFO message. Explicit finish and retirement also end the handler; explicit finish while idle/closed is idempotent. Read/replace while idle returns NoActiveHandler; after closure it returns Unavailable. An active handler may yield or await only after all ordinary loans end. A pending service cancellation does not preempt it; it reaches finish, the next receive, or owner retirement. Structured task cancellation/failure instead follows RFCs 0005/0022 and retires the service through the same queue-before-state boundary.
 
-A read is an ordinary shared loan tied to that exact owner and state generation, with provisional Result binding and checked origin. It never becomes an owning S or mutable loan. Bound reads remain lexical and prevent replacement/finish/receive/move/drop through ordinary borrow rules. Compiler-created call loans end at their accepted boundaries; they do not end an explicitly bound read early.
+A read is an ordinary shared loan tied to that exact owner and state generation, with provisional Result binding and checked origin. Match that borrowed Result immediately under the existing core read rules; ordinary result_unwrap cannot specialize T to an ordinary loan. It never becomes an owning S or mutable loan. Bound reads remain lexical and prevent replacement/finish/receive/move/drop through ordinary borrow rules. Compiler-created call loans end at their accepted boundaries; they do not end an explicitly bound read early.
 
 Replacement consumes its candidate S under ordinary move rules. It requires an active owner and no outstanding read. Before commit, inspect prospective actual strong receiver edges, including state-owned Receivers/ServiceOwners, against current committed message/state ownership. Rejected cyclic publication returns InvalidPublication, leaves the old state unchanged and retires the consumed candidate once. Unavailable/idle replacement likewise retires its candidate. The existing replacement service establishes the new sole owner before retiring old state; cleanup failures retain the existing primary/secondary rules. Replacement retirement order cannot change the service's eventual queue-before-state boundary.
 
@@ -144,7 +144,7 @@ VM, generated native continuations and exact-build linked objects must match val
 
 ## ABI and compatibility
 
-This extends formerly unknown reserved core names and rejected service programs. Previously valid ordinary task/channel programs retain their cleanup and costs. Whole-state replacement, request-only cancellation and handler boundaries are source contracts, not incidental backend behavior. No public ABI, source edition, artifact tag, package field or C representation is assigned. Persisted service metadata needs an explicit independently versioned format decision, validation and migration tests.
+This extends formerly unknown reserved core names and rejected service programs. Previously valid ordinary task/channel programs retain cleanup and logical service-work events. Compiler/preparation byte accounting continues to count actual structures and may increase as verified metadata is extended; finite preparation limits may need adjustment when upgrading. Whole-state replacement, request-only cancellation and handler boundaries are source contracts, not incidental backend behavior. No public ABI, source edition, artifact tag, package field or C representation is assigned. Persisted service metadata needs an explicit independently versioned format decision, validation and migration tests.
 
 ## Diagnostics and tooling
 

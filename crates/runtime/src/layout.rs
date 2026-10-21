@@ -34,6 +34,9 @@ pub enum Error {
     UnsupportedChannelProfile {
         span: m::Span,
     },
+    UnsupportedServiceProfile {
+        span: m::Span,
+    },
     UnsupportedTaskProfile {
         span: m::Span,
     },
@@ -197,6 +200,9 @@ impl<'types> Layouts<'types> {
         )?;
         budget.charge(types.table().constructed.len())?;
         let tasks = profile != Profile::Ownership;
+        if let Some(span) = types.service_feature_span() {
+            return Err(Error::UnsupportedServiceProfile { span });
+        }
         if let Some(span) = types.channel_feature_span()
             && profile != Profile::Channels
         {
@@ -499,6 +505,12 @@ fn build(
                     )?);
                 }
                 o::Constructor::Builtin(o::Builtin::Unit) => return Ok(simple(0, 1, Kind::Scalar)),
+                o::Constructor::ServiceSetup(..)
+                | o::Constructor::ServiceOwner(..)
+                | o::Constructor::ServiceHandle(_)
+                | o::Constructor::Builtin(o::Builtin::ServiceError) => {
+                    return Err(Error::UnsupportedServiceProfile { span: entry.span });
+                }
                 o::Constructor::ChannelSetup(_)
                 | o::Constructor::Sender(_)
                 | o::Constructor::Receiver(_) => {

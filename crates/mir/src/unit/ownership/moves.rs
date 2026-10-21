@@ -469,6 +469,11 @@ impl Context<'_, '_> {
                 destination,
                 endpoint,
                 ..
+            }
+            | Op::PrepareService {
+                destination,
+                endpoint,
+                ..
             } => {
                 self.take(state, *endpoint, s, mode)?;
                 let index = self.prepared(*destination);
@@ -481,11 +486,11 @@ impl Context<'_, '_> {
                 }
                 state[index] = Availability::Available;
             }
-            Op::ChannelSend { authority, payload } => {
+            Op::ChannelSend { authority, payload } | Op::ServiceSend { authority, payload } => {
                 self.consume(state, self.prepared(*authority), s, mode)?;
                 self.take(state, *payload, s, mode)?;
             }
-            Op::ChannelReceive { authority } => {
+            Op::ChannelReceive { authority } | Op::ServiceReceive { authority } => {
                 self.consume(state, self.prepared(*authority), s, mode)?;
             }
             Op::ReplacePrepared { destination, value } => {

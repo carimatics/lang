@@ -419,6 +419,8 @@ fn every_source_core_identity_maps_to_the_independent_mir_contract() {
                     | lang_hir::core::Operation::Panic
                     | lang_hir::core::Operation::ChannelSend
                     | lang_hir::core::Operation::ChannelReceive
+                    | lang_hir::core::Operation::ServiceSend
+                    | lang_hir::core::Operation::ServiceReceive
             ));
             continue;
         };

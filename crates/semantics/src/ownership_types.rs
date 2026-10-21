@@ -95,6 +95,9 @@ fn constructor(c: r::TypeConstructor, span: Span, profile: Profile) -> Result<o:
     use r::{BuiltinType as B, TypeConstructor as C};
     Ok(match c {
         C::ChannelSetup(t) => o::Constructor::ChannelSetup(ty(t)?),
+        C::ServiceSetup(s, m) => o::Constructor::ServiceSetup(ty(s)?, ty(m)?),
+        C::ServiceOwner(s, m) => o::Constructor::ServiceOwner(ty(s)?, ty(m)?),
+        C::ServiceHandle(m) => o::Constructor::ServiceHandle(ty(m)?),
         C::Sender(t) => o::Constructor::Sender(ty(t)?),
         C::Receiver(t) => o::Constructor::Receiver(ty(t)?),
         C::Task(t) if profile == Profile::Tasks => o::Constructor::Task(ty(t)?),
@@ -107,6 +110,7 @@ fn constructor(c: r::TypeConstructor, span: Span, profile: Profile) -> Result<o:
         C::Builtin(b) => o::Constructor::Builtin(match b {
             B::Unit => o::Builtin::Unit,
             B::ChannelError => o::Builtin::ChannelError,
+            B::ServiceError => o::Builtin::ServiceError,
             B::Text => o::Builtin::Text,
             B::Bytes => o::Builtin::Bytes,
             B::Allocator => o::Builtin::Allocator,
@@ -525,12 +529,23 @@ pub const fn core_operation(operation: lang_hir::core::Operation) -> Option<o::c
         lang_hir::core::Operation::ResultUnwrap => o::core::Operation::ResultUnwrap,
         lang_hir::core::Operation::ResultUnwrapErr => o::core::Operation::ResultUnwrapErr,
         lang_hir::core::Operation::ChannelNew => o::core::Operation::ChannelNew,
+        lang_hir::core::Operation::ServiceNew => o::core::Operation::ServiceNew,
+        lang_hir::core::Operation::ServiceHandle => o::core::Operation::ServiceHandle,
+        lang_hir::core::Operation::ServiceClone => o::core::Operation::ServiceClone,
+        lang_hir::core::Operation::ServiceOwner => o::core::Operation::ServiceOwner,
+        lang_hir::core::Operation::ServiceRead => o::core::Operation::ServiceRead,
+        lang_hir::core::Operation::ServiceReplace => o::core::Operation::ServiceReplace,
+        lang_hir::core::Operation::ServiceFinish => o::core::Operation::ServiceFinish,
+        lang_hir::core::Operation::ServiceCancel => o::core::Operation::ServiceCancel,
         lang_hir::core::Operation::ChannelSender => o::core::Operation::ChannelSender,
         lang_hir::core::Operation::ChannelClone => o::core::Operation::ChannelClone,
         lang_hir::core::Operation::ChannelReceiver => o::core::Operation::ChannelReceiver,
         lang_hir::core::Operation::ChannelSeal => o::core::Operation::ChannelSeal,
         lang_hir::core::Operation::ChannelUnsent => o::core::Operation::ChannelUnsent,
-        lang_hir::core::Operation::ChannelSend | lang_hir::core::Operation::ChannelReceive => {
+        lang_hir::core::Operation::ChannelSend
+        | lang_hir::core::Operation::ChannelReceive
+        | lang_hir::core::Operation::ServiceSend
+        | lang_hir::core::Operation::ServiceReceive => {
             return None;
         }
     })

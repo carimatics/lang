@@ -71,6 +71,7 @@ pub enum BuiltinType {
     ArenaError,
     TaskError,
     ChannelError,
+    ServiceError,
 }
 impl BuiltinType {
     pub const fn name(self) -> &'static str {
@@ -87,6 +88,7 @@ impl BuiltinType {
             Self::ArenaError => "ArenaError",
             Self::TaskError => "TaskError",
             Self::ChannelError => "ChannelError",
+            Self::ServiceError => "ServiceError",
         }
     }
     pub fn from_name(name: &str) -> Option<Self> {
@@ -103,6 +105,7 @@ impl BuiltinType {
             Self::ArenaError,
             Self::TaskError,
             Self::ChannelError,
+            Self::ServiceError,
         ]
         .into_iter()
         .find(|b| b.name() == name)
@@ -118,6 +121,9 @@ pub enum TypeConstructor {
     ChannelSetup(Type),
     Sender(Type),
     Receiver(Type),
+    ServiceSetup(Type, Type),
+    ServiceOwner(Type, Type),
+    ServiceHandle(Type),
     Vec(Type),
     Map(Type, Type),
     Shared(Type),
@@ -137,13 +143,17 @@ impl TypeConstructor {
             | Self::ChannelSetup(t)
             | Self::Sender(t)
             | Self::Receiver(t)
+            | Self::ServiceHandle(t)
             | Self::Task(t)
             | Self::Vec(t)
             | Self::Shared(t)
             | Self::Weak(t)
             | Self::Arena(t)
             | Self::Loan(_, t) => [Some(t), None],
-            Self::Result(t, e) | Self::Map(t, e) => [Some(t), Some(e)],
+            Self::Result(t, e)
+            | Self::Map(t, e)
+            | Self::ServiceSetup(t, e)
+            | Self::ServiceOwner(t, e) => [Some(t), Some(e)],
         };
         pair.into_iter().flatten()
     }

@@ -1,0 +1,12 @@
+# RFC 0026 source catalog; accepted 2026-10-22 JST.
+# Await is mandatory for send/receive; these are not synchronous MIR core calls.
+service_new|2|(&Allocator, i64, T) -> Result<ServiceSetup<T, V>, ServiceError>
+service_handle|2|(&ServiceSetup<T, V>) -> ServiceHandle<V>
+service_clone|1|(&ServiceHandle<T>) -> ServiceHandle<T>
+service_owner|2|(ServiceSetup<T, V>) -> ServiceOwner<T, V>
+service_read|2|(&ServiceOwner<T, V>) -> Result<&T, ServiceError>
+service_replace|2|(&mut ServiceOwner<T, V>, T) -> Result<Unit, ServiceError>
+service_finish|2|(&mut ServiceOwner<T, V>) -> Unit
+service_cancel|1|(&ServiceHandle<T>) -> Unit
+service_send|1|(&ServiceHandle<T>, T) -> SendResult<T>
+service_receive|2|(&mut ServiceOwner<T, V>) -> Option<V>

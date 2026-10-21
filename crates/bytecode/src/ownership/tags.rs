@@ -32,7 +32,7 @@ pub(super) fn builtin(value: B) -> Option<u8> {
         B::Utf8Error => 7,
         B::OwnershipError => 8,
         B::ArenaError => 9,
-        B::TaskError | B::ChannelError => return None,
+        B::TaskError | B::ChannelError | B::ServiceError => return None,
     })
 }
 pub(super) fn read_builtin(value: u8, offset: usize) -> Result<B, CodecError> {
@@ -100,7 +100,15 @@ pub(super) fn core(value: C) -> Option<u8> {
         C::OptionUnwrap => 34,
         C::ResultUnwrap => 35,
         C::ResultUnwrapErr => 36,
-        C::ChannelNew
+        C::ServiceNew
+        | C::ServiceHandle
+        | C::ServiceClone
+        | C::ServiceOwner
+        | C::ServiceRead
+        | C::ServiceReplace
+        | C::ServiceFinish
+        | C::ServiceCancel
+        | C::ChannelNew
         | C::ChannelSender
         | C::ChannelClone
         | C::ChannelReceiver

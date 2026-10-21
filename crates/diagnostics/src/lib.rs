@@ -248,6 +248,7 @@ pub mod codes {
     pub const ASYNC_UNAVAILABLE: DiagnosticCode = DiagnosticCode("SRC0026");
     pub const INVALID_TASK: DiagnosticCode = DiagnosticCode("SRC0027");
     pub const BORROW_ACROSS_SUSPENSION: DiagnosticCode = DiagnosticCode("SRC0028");
+    pub const SERVICE_ISOLATION: DiagnosticCode = DiagnosticCode("SRC0029");
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

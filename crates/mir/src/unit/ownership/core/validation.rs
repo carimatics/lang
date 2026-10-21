@@ -50,6 +50,7 @@ fn matches(
             owner.function == function
         }
         (TypePattern::ChannelSetup(t), Some(Constructor::ChannelSetup(a)))
+        | (TypePattern::ServiceHandle(t), Some(Constructor::ServiceHandle(a)))
         | (TypePattern::Sender(t), Some(Constructor::Sender(a)))
         | (TypePattern::Receiver(t), Some(Constructor::Receiver(a)))
         | (TypePattern::SendResult(t), Some(Constructor::SendResult(a)))
@@ -61,6 +62,8 @@ fn matches(
             matches(types, function, *t, a, arguments, budget)?
         }
         (TypePattern::Result(t, e), Some(Constructor::Result(a, b)))
+        | (TypePattern::ServiceSetup(t, e), Some(Constructor::ServiceSetup(a, b)))
+        | (TypePattern::ServiceOwner(t, e), Some(Constructor::ServiceOwner(a, b)))
         | (TypePattern::Map(t, e), Some(Constructor::Map(a, b))) => {
             matches(types, function, *t, a, arguments, budget)?
                 && matches(types, function, *e, b, arguments, budget)?

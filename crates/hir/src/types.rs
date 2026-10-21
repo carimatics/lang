@@ -190,7 +190,10 @@ fn capability_delta(constructor: Option<r::TypeConstructor>, delta: u16) -> u16 
         Some(
             r::TypeConstructor::Sender(_)
             | r::TypeConstructor::Receiver(_)
-            | r::TypeConstructor::ChannelSetup(_),
+            | r::TypeConstructor::ChannelSetup(_)
+            | r::TypeConstructor::ServiceSetup(..)
+            | r::TypeConstructor::ServiceOwner(..)
+            | r::TypeConstructor::ServiceHandle(_),
         ) => delta & NONSEND != 0,
         _ => return delta & CAPABILITIES,
     };
@@ -585,6 +588,9 @@ pub fn analyze(
             r::TypeConstructor::ChannelSetup(_) => NONCOPY | DROP | CAPABILITIES,
             r::TypeConstructor::Sender(_) => NONCOPY | DROP,
             r::TypeConstructor::Receiver(_) => NONCOPY | DROP | NONSHARE,
+            r::TypeConstructor::ServiceSetup(..) => NONCOPY | DROP | CAPABILITIES,
+            r::TypeConstructor::ServiceOwner(..) => NONCOPY | DROP | NONSHARE,
+            r::TypeConstructor::ServiceHandle(_) => NONCOPY | DROP,
             r::TypeConstructor::Arena(_) => ARENA | CAPABILITIES,
             _ => 0,
         };
@@ -678,6 +684,20 @@ pub fn analyze(
     for ty in &program.types {
         for argument in ty.constructor.arguments() {
             c.budget.charge(ty.span, 1)?;
+            if matches!(
+                ty.constructor,
+                r::TypeConstructor::ServiceSetup(..)
+                    | r::TypeConstructor::ServiceOwner(..)
+                    | r::TypeConstructor::ServiceHandle(_)
+            ) && bits[c.node(argument, ty.span)?] & NONSEND != 0
+            {
+                c.report(
+                    codes::INVALID_OWNERSHIP_TYPE,
+                    ty.span,
+                    "service state and message types must be Send",
+                    None,
+                )?;
+            }
             if matches!(
                 ty.constructor,
                 r::TypeConstructor::ChannelSetup(_)

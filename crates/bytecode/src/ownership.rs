@@ -128,6 +128,9 @@ pub enum CodecErrorKind {
     UnsupportedChannelProfile {
         span: lang_mir::unit::Span,
     },
+    UnsupportedServiceProfile {
+        span: m::Span,
+    },
     UnsupportedTaskProfile {
         span: m::Span,
     },

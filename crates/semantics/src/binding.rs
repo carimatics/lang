@@ -431,8 +431,8 @@ impl<'a> Context<'a> {
             };
             let arity = match name {
                 "Option" | "Vec" | "Task" | "ChannelSetup" | "Sender" | "Receiver"
-                | "SendResult" => 1,
-                "Result" | "Map" => 2,
+                | "SendResult" | "ServiceHandle" => 1,
+                "Result" | "Map" | "ServiceSetup" | "ServiceOwner" => 2,
                 _ if r::BuiltinType::from_name(name).is_some() => 0,
                 _ => {
                     return self.fail(
@@ -479,6 +479,9 @@ impl<'a> Context<'a> {
                 "SendResult" => r::TypeConstructor::SendResult(values[0]),
                 "Task" => r::TypeConstructor::Task(values[0]),
                 "ChannelSetup" => r::TypeConstructor::ChannelSetup(values[0]),
+                "ServiceSetup" => r::TypeConstructor::ServiceSetup(values[0], values[1]),
+                "ServiceOwner" => r::TypeConstructor::ServiceOwner(values[0], values[1]),
+                "ServiceHandle" => r::TypeConstructor::ServiceHandle(values[0]),
                 "Sender" => r::TypeConstructor::Sender(values[0]),
                 "Receiver" => r::TypeConstructor::Receiver(values[0]),
                 "Result" => r::TypeConstructor::Result(values[0], values[1]),

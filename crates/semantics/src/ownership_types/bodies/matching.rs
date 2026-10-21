@@ -495,7 +495,7 @@ impl Lowerer<'_, '_, '_> {
             Ok(origin)
         }
     }
-    pub(super) fn channel_await(
+    pub(super) fn message_await(
         &mut self,
         expression: r::ExpressionId,
         call: r::ExpressionId,
@@ -510,7 +510,7 @@ impl Lowerer<'_, '_, '_> {
             ..
         } = &source.kind
         else {
-            unreachable!("typed channel await")
+            unreachable!("typed message await")
         };
         let span = self.function.expressions[expression.0].span;
         let mark = self.actions.len();
@@ -525,41 +525,69 @@ impl Lowerer<'_, '_, '_> {
         }
         let destination = b::PreparedPlaceId(id(self.prepared)?);
         self.prepared = self.prepared.checked_add(1).ok_or(Error::Capacity)?;
-        let role = if *operation == lang_hir::core::Operation::ChannelSend {
-            b::ChannelRole::Sender
-        } else {
-            b::ChannelRole::Receiver
-        };
+        let sending = matches!(
+            operation,
+            lang_hir::core::Operation::ChannelSend | lang_hir::core::Operation::ServiceSend
+        );
+        let service = operation.is_service();
+        let message_index = usize::from(service && !sending);
         let message_type = o::TypeUse {
-            ty: ty(type_arguments[0].value_type)?,
-            span: self.c.span(type_arguments[0].span)?,
+            ty: ty(type_arguments[message_index].value_type)?,
+            span: self.c.span(type_arguments[message_index].span)?,
         };
-        self.emit(
-            block,
-            None,
+        let capture = if service {
+            b::Op::PrepareService {
+                destination,
+                endpoint: values[0],
+                role: if sending {
+                    b::ServiceRole::Handle
+                } else {
+                    b::ServiceRole::Owner
+                },
+                state_type: if sending {
+                    None
+                } else {
+                    Some(o::TypeUse {
+                        ty: ty(type_arguments[0].value_type)?,
+                        span: self.c.span(type_arguments[0].span)?,
+                    })
+                },
+                message_type,
+            }
+        } else {
             b::Op::PrepareChannel {
                 destination,
                 endpoint: values[0],
-                role,
+                role: if sending {
+                    b::ChannelRole::Sender
+                } else {
+                    b::ChannelRole::Receiver
+                },
                 message_type,
-            },
-            span,
-        )?;
-        let payload = (role == b::ChannelRole::Sender).then(|| values[1]);
+            }
+        };
+        self.emit(block, None, capture, span)?;
+        let payload = sending.then(|| values[1]);
         // Preparation captured only private protocol authority. End temporary
         // argument loans before the explicit suspension; the payload remains
         // owned until the following instruction consumes/returns/retires it.
         self.cleanup(mark, block, payload)?;
         self.actions.truncate(mark);
-        let op = if let Some(payload) = payload {
-            b::Op::ChannelSend {
+        let op = match (service, payload) {
+            (true, Some(payload)) => b::Op::ServiceSend {
                 authority: destination,
                 payload,
-            }
-        } else {
-            b::Op::ChannelReceive {
+            },
+            (true, None) => b::Op::ServiceReceive {
                 authority: destination,
-            }
+            },
+            (false, Some(payload)) => b::Op::ChannelSend {
+                authority: destination,
+                payload,
+            },
+            (false, None) => b::Op::ChannelReceive {
+                authority: destination,
+            },
         };
         let out = m::Register(id(expression.0)?);
         self.emit(block, Some(out), op, span)?;

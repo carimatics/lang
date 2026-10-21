@@ -1,0 +1,41 @@
+struct Counter { total:i64, marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut value_bytes:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(value_bytes,value));
+    return value_bytes;
+}
+
+fn add(owner:&mut core::ServiceOwner<Counter,core::Bytes>,message:&core::Bytes)->core::Unit {
+    let mut total:i64=0;
+    match core::service_read::<Counter,core::Bytes>(owner) {
+        core::Result::Ok(state)=>{ total=state.total; },
+        core::Result::Err(error)=>{ return core::panic::<core::Unit>(-6); },
+    }
+    let mut amount:i64=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(message,0));
+    return core::result_unwrap::<core::Unit,core::ServiceError>(core::service_replace::<Counter,core::Bytes>(owner,Counter { total:total+amount,marker:bytes(42) }));
+}
+
+async fn serve(input:core::ServiceOwner<Counter,core::Bytes>)->i64 {
+    let mut owner:core::ServiceOwner<Counter,core::Bytes>=input;
+    let mut first:core::Bytes=core::option_unwrap::<core::Bytes>(await core::service_receive::<Counter,core::Bytes>(&mut owner));
+    let mut added:core::Unit=add(&mut owner,&first);
+    let mut second:core::Bytes=core::option_unwrap::<core::Bytes>(await core::service_receive::<Counter,core::Bytes>(&mut owner));
+    let mut added_again:core::Unit=add(&mut owner,&second);
+    let mut answer:i64=0;
+    match core::service_read::<Counter,core::Bytes>(&owner) {
+        core::Result::Ok(state)=>{ answer=state.total; },
+        core::Result::Err(error)=>{ return core::panic::<i64>(-6); },
+    }
+    return answer;
+}
+
+async fn main()->i64 {
+    let mut setup:core::ServiceSetup<Counter,core::Bytes>=core::result_unwrap::<core::ServiceSetup<Counter,core::Bytes>,core::ServiceError>(core::service_new::<Counter,core::Bytes>(core::allocator(),1,Counter { total:0,marker:bytes(1) }));
+    let mut handle:core::ServiceHandle<core::Bytes>=core::service_handle::<Counter,core::Bytes>(&setup);
+    let mut owner:core::ServiceOwner<Counter,core::Bytes>=core::service_owner::<Counter,core::Bytes>(setup);
+    let mut serving:core::Task<i64>=spawn serve(owner);
+    let mut first:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(20));
+    let mut second:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(22));
+    return core::result_unwrap::<i64,core::TaskError>(await serving);
+}

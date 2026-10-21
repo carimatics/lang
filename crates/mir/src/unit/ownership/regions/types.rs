@@ -9,6 +9,9 @@ pub enum Kind {
     ChannelSetup(NodeId),
     Sender(NodeId),
     Receiver(NodeId),
+    ServiceSetup(NodeId, NodeId),
+    ServiceOwner(NodeId, NodeId),
+    ServiceHandle(NodeId),
     Builtin(Builtin),
     Record(Vec<NodeId>),
     Enum(Vec<Vec<NodeId>>),
@@ -132,6 +135,9 @@ pub(super) fn compile(types: &VerifiedTypes, admit: &mut Admission) -> Result<Ve
                     Constructor::ChannelSetup(t) => Kind::ChannelSetup(target(t)),
                     Constructor::Sender(t) => Kind::Sender(target(t)),
                     Constructor::Receiver(t) => Kind::Receiver(target(t)),
+                    Constructor::ServiceSetup(s, m) => Kind::ServiceSetup(target(s), target(m)),
+                    Constructor::ServiceOwner(s, m) => Kind::ServiceOwner(target(s), target(m)),
+                    Constructor::ServiceHandle(m) => Kind::ServiceHandle(target(m)),
                 }
             }
         };

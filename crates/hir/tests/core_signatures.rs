@@ -10,6 +10,9 @@ fn ty(pattern: P) -> String {
         P::Argument(1) => "V".into(),
         P::Argument(other) => panic!("unexpected type parameter {other}"),
         P::ChannelSetup(t) => format!("ChannelSetup<{}>", ty(*t)),
+        P::ServiceSetup(s, m) => format!("ServiceSetup<{}, {}>", ty(*s), ty(*m)),
+        P::ServiceOwner(s, m) => format!("ServiceOwner<{}, {}>", ty(*s), ty(*m)),
+        P::ServiceHandle(m) => format!("ServiceHandle<{}>", ty(*m)),
         P::Sender(t) => format!("Sender<{}>", ty(*t)),
         P::Receiver(t) => format!("Receiver<{}>", ty(*t)),
         P::SendResult(t) => format!("SendResult<{}>", ty(*t)),
@@ -34,6 +37,7 @@ fn every_core_signature_matches_the_accepted_rfc_table() {
         .lines()
         .chain(include_str!("../../../tests/fixtures/source-intrinsic-signatures.txt").lines())
         .chain(include_str!("../../../tests/fixtures/channel-signatures.txt").lines())
+        .chain(include_str!("../../../tests/fixtures/service-signatures.txt").lines())
         .filter(|line| !line.starts_with('#') && !line.is_empty())
         .map(|line| {
             let mut fields = line.split('|');
@@ -80,6 +84,7 @@ fn signatures_record_result_provenance_and_concrete_argument_restrictions() {
             | Operation::VecGetMut
             | Operation::MapGet
             | Operation::SharedRead
+            | Operation::ServiceRead
             | Operation::ArenaRead => R::ProvisionalLoan { parameter: 0 },
             Operation::ArenaNew => R::ArenaReference { owner: 0 },
             _ => R::Value,
@@ -87,6 +92,13 @@ fn signatures_record_result_provenance_and_concrete_argument_restrictions() {
         assert_eq!(signature.result_binding, expected, "{operation:?}");
         let rules: &[T] = if operation == Operation::Panic {
             &[T::ReturnType]
+        } else if matches!(
+            operation,
+            Operation::ServiceClone | Operation::ServiceCancel | Operation::ServiceSend
+        ) {
+            &[T::Send]
+        } else if operation.is_service() {
+            &[T::Send; 2]
         } else if operation.is_channel() && operation != Operation::ChannelUnsent {
             &[T::Send]
         } else if operation == Operation::ChannelUnsent {
@@ -142,6 +154,11 @@ fn core_case_families_and_payloads_match_the_accepted_closed_sums() {
         ("TaskError", "Cancelled", ""),
         ("ChannelError", "InvalidCapacity", ""),
         ("ChannelError", "Allocation", "AllocError"),
+        ("ServiceError", "InvalidCapacity", ""),
+        ("ServiceError", "Allocation", "AllocError"),
+        ("ServiceError", "Unavailable", ""),
+        ("ServiceError", "NoActiveHandler", ""),
+        ("ServiceError", "InvalidPublication", ""),
         ("SendResult", "Sent", ""),
         ("SendResult", "Closed", "T"),
         ("SendResult", "InvalidPublication", "T"),

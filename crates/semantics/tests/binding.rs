@@ -770,6 +770,17 @@ fn signature_source(pattern: lang_hir::core::TypePattern) -> String {
         P::Argument(_) => panic!(),
         P::Builtin(b) => format!("core::{}", b.name()),
         P::ChannelSetup(t) => format!("core::ChannelSetup<{}>", signature_source(*t)),
+        P::ServiceSetup(s, m) => format!(
+            "core::ServiceSetup<{}, {}>",
+            signature_source(*s),
+            signature_source(*m)
+        ),
+        P::ServiceOwner(s, m) => format!(
+            "core::ServiceOwner<{}, {}>",
+            signature_source(*s),
+            signature_source(*m)
+        ),
+        P::ServiceHandle(m) => format!("core::ServiceHandle<{}>", signature_source(*m)),
         P::Sender(t) => format!("core::Sender<{}>", signature_source(*t)),
         P::Receiver(t) => format!("core::Receiver<{}>", signature_source(*t)),
         P::SendResult(t) => format!("core::SendResult<{}>", signature_source(*t)),

@@ -824,6 +824,9 @@ impl<'a> Context<'a> {
                     r::TypeConstructor::ChannelSetup(_) => ("core::ChannelSetup<", ">"),
                     r::TypeConstructor::Sender(_) => ("core::Sender<", ">"),
                     r::TypeConstructor::Receiver(_) => ("core::Receiver<", ">"),
+                    r::TypeConstructor::ServiceSetup(..) => ("core::ServiceSetup<", ">"),
+                    r::TypeConstructor::ServiceOwner(..) => ("core::ServiceOwner<", ">"),
+                    r::TypeConstructor::ServiceHandle(_) => ("core::ServiceHandle<", ">"),
                     r::TypeConstructor::Vec(_) => ("core::Vec<", ">"),
                     r::TypeConstructor::Map(..) => ("core::Map<", ">"),
                     r::TypeConstructor::Shared(_) => ("shared ", ""),
@@ -856,8 +859,29 @@ impl<'a> Context<'a> {
         {
             let expected_text = self.type_text(expected, span)?;
             let actual_text = self.type_text(actual, span)?;
+            let actual_role = self.loan(actual).map_or(actual, |(_, target)| target);
+            let expected_role = self.loan(expected).map_or(expected, |(_, target)| target);
+            let producer_as_owner = matches!(
+                self.constructor(actual_role),
+                Some(r::TypeConstructor::ServiceHandle(_))
+            ) && matches!(
+                self.constructor(expected_role),
+                Some(r::TypeConstructor::ServiceOwner(..))
+            );
+            let original = if producer_as_owner {
+                self.types
+                    .as_ref()
+                    .and_then(|types| types.constructed_span(actual_role))
+                    .or(original)
+            } else {
+                original
+            };
             self.error(
-                code,
+                if producer_as_owner {
+                    codes::SERVICE_ISOLATION
+                } else {
+                    code
+                },
                 span,
                 &format!("expected `{expected_text}`, found `{actual_text}`"),
                 original,
@@ -2122,11 +2146,31 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     }
                 } else {
                     if receiver.is_some() {
+                        let producer = receiver.is_some_and(|ty| {
+                            matches!(
+                                self.context.constructor(ty),
+                                Some(r::TypeConstructor::ServiceHandle(_))
+                            )
+                        });
+                        let origin = receiver.and_then(|ty| {
+                            self.context
+                                .types
+                                .as_ref()
+                                .and_then(|types| types.constructed_span(ty))
+                        });
                         self.context.error(
-                            codes::TYPE_MISMATCH,
+                            if producer {
+                                codes::SERVICE_ISOLATION
+                            } else {
+                                codes::TYPE_MISMATCH
+                            },
                             span,
-                            "field access requires a record value",
-                            None,
+                            if producer {
+                                "service producer handles do not expose owner state"
+                            } else {
+                                "field access requires a record value"
+                            },
+                            if producer { origin } else { None },
                         )?;
                     }
                     None
@@ -2372,7 +2416,11 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
             self.context.error(
                 codes::INVALID_TASK,
                 span,
-                "channel send/receive require direct await in an async function",
+                if operation.is_service() {
+                    "service send/receive require direct await in an async function"
+                } else {
+                    "channel send/receive require direct await in an async function"
+                },
                 None,
             )?;
         }
@@ -2416,7 +2464,11 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     self.context.error(
                         codes::INVALID_OWNERSHIP_TYPE,
                         ty.span,
-                        "channel message type must be Send",
+                        if operation.is_service() {
+                            "service state and message types must be Send"
+                        } else {
+                            "channel message type must be Send"
+                        },
                         None,
                     )?;
                 }

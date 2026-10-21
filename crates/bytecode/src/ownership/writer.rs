@@ -102,6 +102,15 @@ impl Writer<'_> {
     fn constructor(&mut self, value: &o::Constructed) -> Result<(), CodecError> {
         use o::Constructor as C;
         match value.constructor {
+            C::ServiceSetup(..)
+            | C::ServiceOwner(..)
+            | C::ServiceHandle(_)
+            | C::Builtin(o::Builtin::ServiceError) => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedServiceProfile { span: value.span },
+                ));
+            }
             C::Builtin(o::Builtin::ChannelError) => {
                 return Err(error(
                     self.length,
@@ -264,6 +273,12 @@ impl Writer<'_> {
         self.span(value.span)
     }
     fn instruction(&mut self, value: &b::Instruction) -> Result<(), CodecError> {
+        if value.op.is_service() {
+            return Err(error(
+                self.length,
+                CodecErrorKind::UnsupportedServiceProfile { span: value.span },
+            ));
+        }
         if value.op.is_channel() {
             return Err(error(
                 self.length,
@@ -279,6 +294,14 @@ impl Writer<'_> {
         use b::Op as O;
         self.registers(&value.results)?;
         match &value.op {
+            b::Op::PrepareService { .. }
+            | b::Op::ServiceSend { .. }
+            | b::Op::ServiceReceive { .. } => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedServiceProfile { span: value.span },
+                ));
+            }
             b::Op::PrepareChannel { .. }
             | b::Op::ChannelSend { .. }
             | b::Op::ChannelReceive { .. } => {

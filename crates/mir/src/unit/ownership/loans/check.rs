@@ -549,7 +549,9 @@ impl Context<'_, '_> {
             | Op::TaskCheck
             | Op::TaskAwait(_)
             | Op::ChannelSend { .. }
-            | Op::ChannelReceive { .. } => {
+            | Op::ChannelReceive { .. }
+            | Op::ServiceSend { .. }
+            | Op::ServiceReceive { .. } => {
                 if mode == Mode::Check {
                     for id in 0..self.layout.loans {
                         self.budget.charge(1)?;
@@ -568,13 +570,14 @@ impl Context<'_, '_> {
                         self.consume(row, value)?;
                         self.clear(row, self.topology.value(i.results[0]))?;
                     }
-                    Op::ChannelSend { authority, payload } => {
+                    Op::ChannelSend { authority, payload }
+                    | Op::ServiceSend { authority, payload } => {
                         self.read_value(row, payload, true, s, mode)?;
                         self.consume(row, payload)?;
                         self.clear_capture(row, authority.0 as usize)?;
                         self.clear(row, self.topology.value(i.results[0]))?;
                     }
-                    Op::ChannelReceive { authority } => {
+                    Op::ChannelReceive { authority } | Op::ServiceReceive { authority } => {
                         self.clear_capture(row, authority.0 as usize)?;
                         self.clear(row, self.topology.value(i.results[0]))?;
                     }
@@ -738,6 +741,11 @@ impl Context<'_, '_> {
                 self.replacement(row, place, *value, s, mode)?;
             }
             Op::PrepareChannel {
+                destination,
+                endpoint,
+                ..
+            }
+            | Op::PrepareService {
                 destination,
                 endpoint,
                 ..

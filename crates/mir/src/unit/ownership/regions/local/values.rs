@@ -584,7 +584,9 @@ impl Engine {
                         };
                         target
                     }
-                    core::Operation::ArenaRead | core::Operation::SharedRead => {
+                    core::Operation::ArenaRead
+                    | core::Operation::SharedRead
+                    | core::Operation::ServiceRead => {
                         plan.node_for(call.type_arguments[0].ty).unwrap()
                     }
                     _ => continue,

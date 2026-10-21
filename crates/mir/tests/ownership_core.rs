@@ -144,6 +144,9 @@ fn parse(t: &mut b::BodyTable, text: &str, arguments: [o::Type; 2]) -> o::Type {
             "Vec" => o::Constructor::Vec(a),
             "Option" => o::Constructor::Option(a),
             "ChannelSetup" => o::Constructor::ChannelSetup(a),
+            "ServiceSetup" => o::Constructor::ServiceSetup(a, parse(t, fields[1], arguments)),
+            "ServiceOwner" => o::Constructor::ServiceOwner(a, parse(t, fields[1], arguments)),
+            "ServiceHandle" => o::Constructor::ServiceHandle(a),
             "Sender" => o::Constructor::Sender(a),
             "Receiver" => o::Constructor::Receiver(a),
             "SendResult" => o::Constructor::SendResult(a),
@@ -173,6 +176,7 @@ fn parse(t: &mut b::BodyTable, text: &str, arguments: [o::Type; 2]) -> o::Type {
         "OwnershipError" => o::Builtin::OwnershipError,
         "ArenaError" => o::Builtin::ArenaError,
         "ChannelError" => o::Builtin::ChannelError,
+        "ServiceError" => o::Builtin::ServiceError,
         _ => panic!("{text}"),
     };
     ctor(t, o::Constructor::Builtin(builtin))
@@ -181,8 +185,10 @@ fn rows() -> Vec<(&'static str, usize, &'static str)> {
     include_str!("../../../tests/fixtures/core-signatures.txt")
         .lines()
         .chain(include_str!("../../../tests/fixtures/channel-signatures.txt").lines())
+        .chain(include_str!("../../../tests/fixtures/service-signatures.txt").lines())
         .filter(|l| !l.starts_with('#') && !l.is_empty())
         .filter(|l| !l.starts_with("channel_send|") && !l.starts_with("channel_receive|"))
+        .filter(|l| !l.starts_with("service_send|") && !l.starts_with("service_receive|"))
         .map(|line| {
             let mut p = line.split('|');
             (
@@ -240,7 +246,13 @@ fn fixture(name: &str, arity: usize, signature: &str, variant: usize) -> Fixture
     let result = parse(&mut table, result, args);
     let lease = matches!(
         name,
-        "allocator" | "vec_get" | "vec_get_mut" | "map_get" | "shared_read" | "arena_read"
+        "allocator"
+            | "vec_get"
+            | "vec_get_mut"
+            | "map_get"
+            | "shared_read"
+            | "arena_read"
+            | "service_read"
     );
     let call = c::Call {
         operation: c::Operation::from_name(name).unwrap(),
@@ -339,7 +351,7 @@ fn body(mut f: Fixture) -> b::BodyTable {
 
 #[test]
 fn all_contracts_accept_three_independent_concrete_rfc_signatures() {
-    assert_eq!(rows().len(), 43);
+    assert_eq!(rows().len(), 51);
     let mut seen = std::collections::BTreeSet::new();
     for (name, arity, signature) in rows() {
         for variant in 0..3 {
@@ -367,6 +379,17 @@ fn all_contracts_accept_three_independent_concrete_rfc_signatures() {
 fn non_arena_calls_flow_through_types_moves_activity_and_provenance() {
     for (name, arity, signature) in rows().into_iter().filter(|r| !r.0.starts_with("arena_")) {
         let table = body(fixture(name, arity, signature, 0));
+        if name.starts_with("service_") {
+            assert!(matches!(
+                table.clone().verify(Default::default()).unwrap_err().kind,
+                o::ErrorKind::UnsupportedServiceProfile
+            ));
+            let proof = o::tasks::verify(table, Default::default()).unwrap();
+            let calls = proof.typed().facts()[0].core_calls();
+            assert_eq!(calls.len(), 1);
+            assert_eq!(calls[0].operation.name(), name);
+            continue;
+        }
         if name.starts_with("channel_") {
             assert!(matches!(
                 table.clone().verify(Default::default()).unwrap_err().kind,

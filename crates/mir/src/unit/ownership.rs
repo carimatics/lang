@@ -43,6 +43,7 @@ pub enum Builtin {
     ArenaError,
     TaskError,
     ChannelError,
+    ServiceError,
 }
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LoanKind {
@@ -71,6 +72,9 @@ pub enum Constructor {
     ChannelSetup(Type),
     Sender(Type),
     Receiver(Type),
+    ServiceSetup(Type, Type),
+    ServiceOwner(Type, Type),
+    ServiceHandle(Type),
 }
 impl Constructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
@@ -84,9 +88,13 @@ impl Constructor {
             | Self::ChannelSetup(t)
             | Self::Sender(t)
             | Self::Receiver(t)
+            | Self::ServiceHandle(t)
             | Self::Task(t)
             | Self::Loan(_, t) => [Some(t), None],
-            Self::Result(t, e) | Self::Map(t, e) => [Some(t), Some(e)],
+            Self::Result(t, e)
+            | Self::Map(t, e)
+            | Self::ServiceSetup(t, e)
+            | Self::ServiceOwner(t, e) => [Some(t), Some(e)],
             Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
         };
         args.into_iter().flatten()
@@ -172,9 +180,13 @@ pub enum ErrorKind {
     InvalidStorage(Type),
     InvalidTaskType(Type),
     InvalidChannelMessage(Type),
+    InvalidServiceType(Type),
+    InvalidServiceEndpoint(Type),
+    InvalidServiceResult(Type),
     InvalidChannelEndpoint(Type),
     InvalidChannelResult(Type),
     UnsupportedChannelProfile,
+    UnsupportedServiceProfile,
     PreparedKind(u32),
     InvalidAsyncEffect(FunctionId),
     UnsupportedTaskProfile,
@@ -398,6 +410,19 @@ impl VerifiedTypes {
     pub fn table(&self) -> &TypeTable {
         &self.table
     }
+    /// Even unused service metadata requires explicit service-profile admission.
+    pub fn service_feature_span(&self) -> Option<Span> {
+        self.table.constructed.iter().find_map(|t| {
+            matches!(
+                t.constructor,
+                Constructor::ServiceSetup(..)
+                    | Constructor::ServiceOwner(..)
+                    | Constructor::ServiceHandle(_)
+                    | Constructor::Builtin(Builtin::ServiceError)
+            )
+            .then_some(t.span)
+        })
+    }
     pub fn properties(&self, ty: Type) -> Option<Properties> {
         let index = node(&self.table, ty).ok()?;
         self.bits.get(index).copied().map(Properties::from_bits)
@@ -485,6 +510,9 @@ fn canonicalize(table: &TypeTable, budget: &mut Budget) -> Result<Vec<Type>, Err
             Constructor::ChannelSetup(t) => Constructor::ChannelSetup(child(t)),
             Constructor::Sender(t) => Constructor::Sender(child(t)),
             Constructor::Receiver(t) => Constructor::Receiver(child(t)),
+            Constructor::ServiceSetup(s, m) => Constructor::ServiceSetup(child(s), child(m)),
+            Constructor::ServiceOwner(s, m) => Constructor::ServiceOwner(child(s), child(m)),
+            Constructor::ServiceHandle(m) => Constructor::ServiceHandle(child(m)),
             Constructor::Builtin(_) | Constructor::ArenaOwner(_) => t.constructor,
         };
         let mut hasher = DefaultHasher::new();
@@ -526,9 +554,14 @@ const INSPECT: u16 = CAPABILITIES | LOAN | ARENA | ALLOCATOR | OWNER | PRIVATE |
 fn capability_delta(constructor: Option<Constructor>, delta: u16) -> u16 {
     let denied = match constructor {
         Some(Constructor::Shared(_) | Constructor::Weak(_)) => delta & CAPABILITIES != 0,
-        Some(Constructor::Sender(_) | Constructor::Receiver(_) | Constructor::ChannelSetup(_)) => {
-            delta & NONSEND != 0
-        }
+        Some(
+            Constructor::Sender(_)
+            | Constructor::Receiver(_)
+            | Constructor::ChannelSetup(_)
+            | Constructor::ServiceSetup(..)
+            | Constructor::ServiceOwner(..)
+            | Constructor::ServiceHandle(_),
+        ) => delta & NONSEND != 0,
         _ => return delta & CAPABILITIES,
     };
     if denied { CAPABILITIES } else { 0 }
@@ -849,6 +882,9 @@ fn validate(
             Constructor::ChannelSetup(_) => NONCOPY | DROP | CAPABILITIES,
             Constructor::Sender(_) => NONCOPY | DROP,
             Constructor::Receiver(_) => NONCOPY | DROP | NONSHARE,
+            Constructor::ServiceSetup(..) => NONCOPY | DROP | CAPABILITIES,
+            Constructor::ServiceOwner(..) => NONCOPY | DROP | NONSHARE,
+            Constructor::ServiceHandle(_) => NONCOPY | DROP,
             _ => 0,
         };
     }
@@ -889,6 +925,18 @@ fn validate(
         g.budget.charge(1)?;
         for argument in ty.constructor.arguments() {
             let flags = bits[node(table, argument)?];
+            if matches!(
+                ty.constructor,
+                Constructor::ServiceSetup(..)
+                    | Constructor::ServiceOwner(..)
+                    | Constructor::ServiceHandle(_)
+            ) && flags & NONSEND != 0
+            {
+                return Err(Error::new(
+                    ErrorKind::InvalidServiceType(argument),
+                    Some(ty.span),
+                ));
+            }
             if matches!(
                 ty.constructor,
                 Constructor::ChannelSetup(_) | Constructor::Sender(_) | Constructor::Receiver(_)
