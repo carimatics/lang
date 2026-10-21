@@ -8,11 +8,13 @@
 - Authors: project contributors
 - Created: 2026-10-21
 - Last updated: 2026-10-22
-- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-A02
+- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-C07, M3-A02
 - Supersedes: none
 - Superseded by: none
 
 ## Summary
+
+C07 scope audit (2026-10-22 JST, runtime `4223d7b`): the admitted Copy message family is not fully executable yet. Both [ordinary channel](../../tests/fixtures/task_channel_copy_sum.lang) and [service](../../tests/fixtures/task_service_copy_sum.lang) Option<i64> probes pass source/MIR admission but fail at send with Layout(InvalidType(ConstructedId(0))) instead of returning 42. Copy staging/closed recovery still uses scalar/error Immediate reads/writes; delivery already uses typed root transfer. C07 must execute typed Copy aggregates/sums, custody/recovery and zero inventory across applicable VM/native/linked paths and finite controls while preserving existing scalar/error logical-work events. The CLI probes do not measure allocator leakage. This exposes an implementation gap under the accepted Send contract; it changes no syntax, format, capability or semantic contract and completes no gate.
 
 A02 service catalog decision (2026-10-22 JST): [RFC 0026](0026-source-isolated-services.md) accepts opaque ServiceSetup<S,M>/ServiceOwner<S,M>/ServiceHandle<M>, owned Send/storable state/messages, checked owner read/whole replacement and message/cancellation-only producers. Receive starts a handler; finish/next receive/retirement ends it. Cancellation is an idempotent request: stop enqueue, finish an active handler, then retire committed messages FIFO before state. Source/MIR must independently prove roles, read origins, moves and suspension; adapters and old artifact/foreign profiles retain refusal until their deliveries. The ordinary composition experiment retires [1,42,7], exposing why a distinct managed boundary is required. This decision completes no delivery or gate.
 

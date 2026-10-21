@@ -1,0 +1,8 @@
+async fn main()->i64 {
+    let mut setup:core::ChannelSetup<core::Option<i64>>=core::result_unwrap::<core::ChannelSetup<core::Option<i64>>,core::ChannelError>(core::channel_new::<core::Option<i64>>(core::allocator(),1));
+    let mut sender:core::Sender<core::Option<i64>>=core::channel_sender::<core::Option<i64>>(&setup);
+    let mut receiver:core::Receiver<core::Option<i64>>=core::channel_receiver::<core::Option<i64>>(setup);
+    let mut sent:core::SendResult<core::Option<i64>>=await core::channel_send::<core::Option<i64>>(&sender,core::Option::Some(42));
+    let mut received:core::Option<i64>=core::option_unwrap::<core::Option<i64>>(await core::channel_receive::<core::Option<i64>>(&mut receiver));
+    return core::option_unwrap::<i64>(received);
+}

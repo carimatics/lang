@@ -8,11 +8,13 @@
 - Authors: Project contributors
 - Created: 2026-10-22
 - Last updated: 2026-10-22
-- Tracking issue: M3-A02, M3-A07, M3-A08, M3-A03, M3-A04
+- Tracking issue: M3-A02, M3-A07, M3-A08, M3-C07, M3-A03, M3-A04
 - Supersedes: none; completes the concrete service catalog required by RFCs 0005/0024
 - Superseded by: none
 
 ## Summary
+
+C07 prerequisite audit (2026-10-22 JST): valid Copy Option<i64> message probes are admitted but fail at send in both the service and ordinary channel VM paths at `4223d7b`. [The service probe](../../tests/fixtures/task_service_copy_sum.lang) is an expected-42 execution gap, not successful conformance evidence. Before A03's full Send state-edge work, C07 supplies typed Copy aggregate/sum staging/recovery, actual inventory and applicable cross-mode/control conformance with prior scalar/error work events preserved. A03 retains the complete accepted Send state/message contract and prospective graph validation; A04 retains service native/linked parity. Do not replace the accepted family with a new Copy-aggregate refusal or infer M3 completion from the owned-message cancellation fixtures.
 
 A08 VM checkpoint (2026-10-22 JST): the explicit Share-state private VM profile executes owned FIFO plus idle/active/parked/repeated request-only cancellation, pending payload recovery, active-handler read/replacement retention, finish/next-receive/retirement boundaries and last-producer closure. Existing backing phases, Hub sealed wake/unlink and the mixed drain retire committed messages FIFO then state without a second registry or scheduler. Closed owner/handle identities retain their header, permit idempotent operations and can transfer through messages without resurrecting state. Source/control/provider fixtures verify the real inventory, ordered panics and report truncation. Non-Share state metadata still refuses before effects; full Send state/prospective publication is A03 and native/linked parity A04. Ordinary layout, REPL, wire, C/foreign and package profiles retain refusal. Validation evidence remains on the bilingual delivery board; this checkpoint does not imply stabilization or a completed M3 gate.
 

@@ -8,11 +8,13 @@
 - Authors: project contributors
 - Created: 2026-10-21
 - Last updated: 2026-10-22
-- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-A02
+- Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-C07, M3-A02
 - Supersedes: none
 - Superseded by: none
 
 ## Summary
+
+C07 scope 監査（2026-10-22 JST、runtime `4223d7b`）: 受理した Copy message family はまだ全体を実行できません。[通常 channel](../../../tests/fixtures/task_channel_copy_sum.lang) と [service](../../../tests/fixtures/task_service_copy_sum.lang) の Option<i64> probe は source/MIR 受理後、send が Layout(InvalidType(ConstructedId(0))) になり、42を返しません。Copy staging/closed 回復は scalar/error 用 Immediate read/write のままで、delivery は既に typed root transfer です。C07 は typed Copy aggregate/sum、custody/回復、inventory 0 を対応 VM/native/別リンク経路と有限 control で実行し、既存 scalar/error の論理 work event を維持します。CLI probe で allocator leak を測定したとは主張しません。受理済み Send 契約の実装不足を明示するもので、syntax・format・capability・意味論は変更せず、gate は完了しません。
 
 A02 service catalog 決定（2026-10-22 JST）: [RFC 0026](0026-source-isolated-services.md) は opaque ServiceSetup<S,M>/ServiceOwner<S,M>/ServiceHandle<M>、owned Send/storable state/message、owner の検証済み read/全体置換、message/取消専用 producer を受理します。receive で handler を開始し、finish/次 receive/退役で終了します。取消は冪等 request で、enqueue を止め、active handler 終了後に commit 済み message を FIFO、state の順に退役します。source/MIR は role・read origin・move・suspension を独立証明し、adapter と旧 artifact/foreign profile は各 delivery まで拒否を維持します。通常の composition 実験は [1,42,7] で退役し、別の managed 境界が必要な理由を示します。この決定だけでは delivery/gate を完了しません。
 
