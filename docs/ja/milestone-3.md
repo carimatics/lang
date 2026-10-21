@@ -6,15 +6,17 @@
 
 更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**24 done · 1 doing · 26 todo · 77 remaining pt**
+**25 done · 1 doing · 25 todo · 74 remaining pt**
 
-**次: M3-C04 → owned source channel fixture を生成 native continuation と linked object で実行します。**
+**次: M3-A02 → source service の権限・owned move・producer の不正 access を検証します。**
 
-現在の作業: **M3-C04**。直近の実行可能な基盤 checkpoint は **`11769c1`、2026-10-22 00:55 JST 検証**です。C03 は完了し、VM CLI 7 fixture は42、channel 26件・capability/admission 11件・owned VM/native 12件が成功しました。Receiver 循環/再検査、Shared/Weak identity、Sender の heap publication/置換、混合取消 [122,22,120,20]、primary failure/panic/打切り、拡張6 fixture の control/provider/interruption prefix、quota、loop 再利用、513段の退役で全 allocation を退役します。production 入力固定の baseline は **124 suites / 1,885 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **552.42s**。fmt、Clippy（**1m 27s**）、rustdoc（**34.51s**）、全11 fuzz target compile/lint（**3.28s**）が成功し、fuzz campaign は主張しません。native channel 実行は未検証です。
+現在の作業: **M3-A02**。直近の実行可能な基盤 checkpoint は **`f882074`、2026-10-22 02:05 JST 検証**です。C04 は完了し、VM/native 厳密差分8件と **standalone linked-object 20 profile** が成功し、channel 7 fixture と全 fuel/work prefix を含みます。native example の7 fixture は42を返し、値/event/usage/failure/report、実退役、live inventory 0 が VM と一致します。production 入力固定の baseline は **125 suites / 1,893 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **593.16s**。fmt、Clippy（**1m 29s**、最終 cached pass **1.14s**）、rustdoc（**34.42s**）、全11 fuzz target compile/lint（**1.34s**）が成功し、fuzz campaign は主張しません。
 
-実装前に再監査した C04 の残条件: 検証済み native task adapter を非公開 channel layout に明示対応させ、capture/send/receive を既存 Machine service に lowering し、JIT と exact-build linked object で VM/native の値・event・failure/usage・退役を7 fixture と有限 control/拒否経路を含めて証明します。通常/旧 layout と wire/C/package 境界は維持します。既存 `tasks.rs` primitive compiler、共通 pending-channel 処理、trusted object binding に必要 interface があり、新 runtime や横断的前提を増やさず元の **残り3 pt** を維持します。全15 M3/P1 gate、actor/foreign/C/serialized/package、production embedding、最終 guide は引き続き必要です。
+A02 scope/estimate 監査（2026-10-22 JST）: RFC 0005/0024 は private owner state と producer の message/取消権限を要求します。既存 async move/loan と channel handle は Send proof・ownership・suspension 境界を供給しますが、単独 Sender は service 取消や queue-before-state 退役をまだ供給しません。最小の source composition 実験を先に実行し、source/MIR semantics を変える前に具体 service catalog と互換性への影響を英日 RFC に記録します。A02 の観測可能な成果は owner/producer 権限・owned move・非 Send 拒否の独立 source/MIR 診断と adapter の明示的な副作用前拒否であり、実行/取消退役は A03、native parity は A04 に属します。残タスクの監査後、**残り3 pt** を維持し、独立した観測可能な前提が判明したら実装前に追加/再見積りします。全15 M3/P1 gate、foreign/C/serialized/package、production embedding、最終 guide は引き続き必要です。
 
-**今回: C03 完了、消化3 pt・新規追加0 pt。** 残り **80 + 0 − 3 = 77 pt**、全 **51行**、消化 **62 pt**、純追加 **+29 pt**、収支 **110 + 29 − 62 = 77 pt**。doing は C04 の1行です。
+C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で検証済みの native task compiler が非公開 channel layout を選択し、capture/send/receive を既存 Machine の型付き primitive に lowering し、VM 命令を解釈しません。完全な差分 matrix は control/provider/interruption 位置、frame/task/heap/allocation cap、protocol quota、待機 sender の seal、typed deadlock、cleanup panic/打切りを検証します。native primitive 完了時に VM と同じ位置で queue-cell peak を更新し、早期停止時の差を修正しました。別プロセスの exact-build object 20 profile は channel 全7 fixture を含み、source-file 引数を受ける native example はすべて42を返します。全体検証は上記に記録しました。通常/旧 layout と serialized/C/package admission は拒否を維持します。C04 の最終 **3 pt** を消化し、追加/再見積りはなく、exit gate 完了は主張しません。
+
+**今回: C04 完了、消化3 pt・新規追加0 pt。** 残り **77 + 0 − 3 = 74 pt**、全 **51行**、消化 **65 pt**、純追加 **+29 pt**、収支 **110 + 29 − 65 = 74 pt**。doing は A02 の1行です。
 
 ## Deliveries
 
@@ -43,11 +45,11 @@
 | M3-C02 | done | 0 | M3-C01,M3-C05 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | `4056cce` |
 | M3-C06 | done | 0 | M3-C02,M3-A06 | G01,G04,G05 | Decide/check opaque channel role types and distinct Send/Share independently in source/MIR; refuse legacy layouts/artifacts | `e16e537` |
 | M3-C03 | done | 0 | M3-C02,M3-C06,M3-A05 | G04 | VM で source channel fixture を実行し payload 再利用を拒否する | `11769c1` |
-| M3-C04 | doing | 3 | M3-C03,M3-T06 | G04 | native 実行で channel の値・失敗・cleanup を一致させる | — |
+| M3-C04 | done | 0 | M3-C03,M3-T06 | G04 | native 実行で channel の値・失敗・cleanup を一致させる | `f882074` |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | `9b2b68c` |
 | M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
 | M3-A05 | done | 0 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | `ea822bd` |
-| M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | — |
+| M3-A02 | doing | 3 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | — |
 | M3-I01 | todo | 3 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | — |
@@ -148,7 +150,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 29 − 62 = 77 pt**
+**110 + 29 − 65 = 74 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -196,13 +198,15 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +29 pt | −62 pt | 77 pt |
+| 110 pt | +29 pt | −65 pt | 74 pt |
 
 ## Exit audit
 
 **0/15 ゲート完了、ゲート重み 0/96。** 作業の完了とゲートの完了は別です。source async 構文は採択済みですが、G01 には channel/backpressure と Send/Share の決定が残っています。G14 には macOS AArch64 と Windows x86-64 で実際の cross-mode 適合試験が必要です。P1 作業も M3 に残します。
 
 ## Sources
+
+- C04 working-tree の根拠: [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md)、最終更新 2026-10-22。`crates/codegen-clif/src/tasks.rs`、native runtime primitive、`tests/native_channel_execution.rs`、共通 channel test 記録器、`tests/support/task_static.rs`、`examples/native-structured-tasks.rs`。code に更新日の埋込みはなく、2026-10-22 JST に macOS AArch64 で確認/実行しました。差分8件、linked 20 profile、native example 7結果が成功し、固定入力 full baseline の最終確認は分けて記録します。
 
 - C03 `11769c1` の根拠: [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md)、最終更新 2026-10-22。managed channel、retirement/heap/frame adapter、`tests/source_channels.rs`、`tests/task_owned_execution.rs`、source 7 fixture。code に更新日の埋込みはなく、2026-10-22 JST に macOS AArch64 で確認/実行しました。C04 監査では同じ checkpoint の `crates/codegen-clif/src/tasks.rs`、`tasks/object.rs`、共通 native primitive、pending-channel continuation 処理も確認しました。
 

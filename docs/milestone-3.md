@@ -6,15 +6,17 @@
 
 Updated: **2026-10-22 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**24 done · 1 doing · 26 todo · 77 remaining pt**
+**25 done · 1 doing · 25 todo · 74 remaining pt**
 
-**Next: M3-C04 → run the owned source channel fixtures through generated native continuations and linked objects.**
+**Next: M3-A02 → check source service authority, owned moves and forbidden producer access.**
 
-Current delivery: **M3-C04**. Latest executable substrate checkpoint: **`11769c1`, verified 2026-10-22 00:55 JST**. C03 is complete: seven VM CLI fixtures return 42; 26 channel, 11 capability/admission and 12 owned VM/native tests pass. Receiver cycles/reinspection, Shared/Weak identity, Sender heap publication/replacement, mixed cancellation [122,22,120,20], primary failure/panic/truncation, six-fixture control/provider/interruption prefixes, quotas, loop reuse and 513-deep retirement drain every allocation. The fixed-production-input baseline passes **124 suites / 1,885 tests / 0 failures / 1 existing timing ignore**, suite-time sum **552.42s**. fmt, Clippy (**1m 27s**), rustdoc (**34.51s**) and all 11 fuzz-target compile/lint checks (**3.28s**) pass; no fuzz campaign is claimed. Native channel execution remains unproven.
+Current delivery: **M3-A02**. Latest executable substrate checkpoint: **`f882074`, verified 2026-10-22 02:05 JST**. C04 is complete: eight strict VM/native differential tests and **20 standalone linked-object profiles** pass, including seven channel fixtures and every fuel/work prefix. All seven native-example fixtures return 42; values/events/usage/failures/reports, actual retirement and zero live inventory match VM. The fixed-production-input baseline passes **125 suites / 1,893 tests / 0 failures / 1 existing timing ignore**, suite-time sum **593.16s**. fmt, Clippy (**1m 29s**, final cached pass **1.14s**), rustdoc (**34.42s**) and all 11 fuzz-target compile/lint checks (**1.34s**) pass; no fuzz campaign is claimed.
 
-C04 remaining acceptance, re-audited before implementation: opt the verified native task adapter into private channel layouts; lower capture/send/receive to existing Machine services; prove VM/native values, events, failures/usage and retirement through JIT and exact-build linked objects, including the seven fixtures and finite-control/refusal paths. Keep ordinary/old layout and wire/C/package boundaries. The existing `tasks.rs` primitive compiler, common pending-channel handling and trusted object binding supply the interfaces; retain the original **3 remaining pt** without a new runtime or horizontal prerequisite. All 15 M3/P1 gates, actor/foreign/C/serialized/package, production embedding and the final guide remain required.
+A02 scope/estimate audit (2026-10-22 JST): RFCs 0005/0024 require private owner state and producer message/cancellation authority. Existing async moves/loans and channel handles supply Send proofs, ownership and suspension boundaries; a bare Sender does not yet supply service cancellation or queue-before-state disposal. First run the smallest source composition experiment, then record the concrete service catalog and compatibility consequences in a bilingual RFC before changing source/MIR semantics. A02's observable outcome remains checked owner/producer authority, owned moves and non-Send rejection with independent source/MIR diagnostics and explicit pre-effect adapter refusal; execution/cancellation disposal belongs to A03 and native parity to A04. Retain **3 remaining pt** after this remaining-task audit; expose/re-estimate any separately observable prerequisite before implementation. All 15 M3/P1 gates, foreign/C/serialized/package, production embedding and the final guide remain required.
 
-**This update: C03 done, 3 completed pt and 0 newly added pt.** Remaining **80 + 0 − 3 = 77 pt**, **51 rows**, retired **62 pt**, net additions **+29 pt**; ledger **110 + 29 − 62 = 77 pt**. C04 is the sole doing row.
+C04 completed at `f882074` (2026-10-22 02:05 JST): the explicit verified native task compiler selects private channel layouts and lowers capture/send/receive to the existing Machine's typed primitives, without interpreting VM instructions. The complete differential matrices cover control/provider/interruption positions, frame/task/heap/allocation caps, protocol quotas, seal of a parked sender, typed deadlock and cleanup panic/truncation. Native primitive completion now updates queue-cell peaks at the same point as VM, fixing the early-stop discrepancy. Twenty separate-process exact-build objects cover all seven channel fixtures; the optional source-file native example returns 42 for each. Full validation is recorded above. Ordinary/old layouts and serialized/C/package admission retain refusal. Retire C04's last **3 pt**; add/re-estimate no work, and claim no exit gate.
+
+**This update: C04 done, 3 completed pt and 0 newly added pt.** Remaining **77 + 0 − 3 = 74 pt**, **51 rows**, retired **65 pt**, net additions **+29 pt**; ledger **110 + 29 − 65 = 74 pt**. A02 is the sole doing row.
 
 ## Deliveries
 
@@ -43,11 +45,11 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-C02 | done | 0 | M3-C01,M3-C05 | G04 | Execute bounded channel send/receive, close and cancelled waiter fixtures | `4056cce` |
 | M3-C06 | done | 0 | M3-C02,M3-A06 | G01,G04,G05 | Decide/check opaque channel role types and distinct Send/Share independently in source/MIR; refuse legacy layouts/artifacts | `e16e537` |
 | M3-C03 | done | 0 | M3-C02,M3-C06,M3-A05 | G04 | Run source channel fixtures and reject payload reuse in VM execution | `11769c1` |
-| M3-C04 | doing | 3 | M3-C03,M3-T06 | G04 | Match channel values, failures and cleanup through native execution | — |
+| M3-C04 | done | 0 | M3-C03,M3-T06 | G04 | Match channel values, failures and cleanup through native execution | `f882074` |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | Accept recursive Send/Share derivation and source service authority rules | `9b2b68c` |
 | M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
 | M3-A05 | done | 0 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | `ea822bd` |
-| M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | Check source actor ownership, moves and non-sendable captures with diagnostics | — |
+| M3-A02 | doing | 3 | M3-A01,M3-A06,M3-C03 | G05 | Check source actor ownership, moves and non-sendable captures with diagnostics | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | Execute owner-isolated service state, FIFO messages and cancellation disposal | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | Match actor isolation and disposal traces in native execution | — |
 | M3-I01 | todo | 3 | — | G02 | Accept production IDL/wire/embedding profile, errors, reentry and cancellation | — |
@@ -148,7 +150,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 29 − 62 = 77 pt**
+**110 + 29 − 65 = 74 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -196,13 +198,15 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +29 pt | −62 pt | 77 pt |
+| 110 pt | +29 pt | −65 pt | 74 pt |
 
 ## Exit audit
 
 **0/15 gates complete; 0/96 gate weight.** A delivery is not a gate. Source async syntax is accepted, but G01 still waits for channel/backpressure and Send/Share decisions; G14 waits for real cross-mode conformance on macOS AArch64 and Windows x86-64. No P1 work is moved out of M3.
 
 ## Sources
+
+- C04 working-tree evidence: [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md), last updated 2026-10-22; `crates/codegen-clif/src/tasks.rs`, native runtime primitives, `tests/native_channel_execution.rs`, shared channel test instrumentation, `tests/support/task_static.rs` and `examples/native-structured-tasks.rs`. No embedded code update date; inspected/executed 2026-10-22 JST on macOS AArch64. Eight differential tests, 20 linked profiles and seven native-example results pass; fixed-input full-baseline signoff is recorded separately.
 
 - C03 evidence at `11769c1`: [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md), last updated 2026-10-22; managed channels, retirement/heap/frame adapters, `tests/source_channels.rs`, `tests/task_owned_execution.rs` and seven source fixtures. No embedded code update date; inspected/executed 2026-10-22 JST on macOS AArch64. C04 audit additionally reads `crates/codegen-clif/src/tasks.rs`, `tasks/object.rs`, common native primitives and pending-channel continuation handling at that checkpoint.
 
