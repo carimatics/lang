@@ -1,6 +1,172 @@
 use super::*;
 use std::cell::RefCell;
 
+#[derive(Debug)]
+struct ContextValue {
+    id: u8,
+    owner: Span,
+}
+impl Payload for ContextValue {
+    fn owner_span(&self) -> Option<Span> {
+        Some(self.owner)
+    }
+    fn receivers(&self, _: &mut dyn FnMut(&Receiver) -> Result<(), Error>) -> Result<(), Error> {
+        Err(Error::InspectionContextRequired)
+    }
+}
+
+#[test]
+fn explicit_storage_context_is_required_and_reinspected_after_wakeup() {
+    let mut scheduler = t::Scheduler::new(t::Limits {
+        live_tasks: 2,
+        total_tasks: 2,
+    })
+    .unwrap();
+    let root = scheduler.start(None).unwrap();
+    assert!(matches!(
+        scheduler.dispatch().unwrap(),
+        Some(t::Dispatch::Resume(_))
+    ));
+    let child = scheduler.spawn(&root, None).unwrap();
+    let mut hub = Hub::<ContextValue>::prepare(
+        &scheduler,
+        &root,
+        Limits::default(),
+        e::ServiceWork::new(Some(64)),
+    )
+    .unwrap();
+    let setup = hub.create(1).unwrap();
+    let sender = hub.sender(&setup).unwrap();
+    let mut receiver = hub.receiver(setup).unwrap();
+    let owner = Span {
+        source: lang_mir::unit::SourceId(0),
+        start: 10,
+        end: 12,
+    };
+    let operation = Span {
+        start: 20,
+        end: 23,
+        ..owner
+    };
+    let error = hub
+        .send(
+            &mut scheduler,
+            &root,
+            &sender,
+            ContextValue { id: 9, owner },
+            Some(operation),
+        )
+        .unwrap_err();
+    assert_eq!(error.error, Error::InspectionContextRequired);
+    assert_eq!(error.value.id, 9);
+    assert_eq!(hub.usage().queued, 0);
+    assert!(matches!(
+        hub.send_inspected(
+            &mut scheduler,
+            &root,
+            &sender,
+            ContextValue { id: 0, owner },
+            Some(operation),
+            &mut |_, _| Ok(())
+        )
+        .unwrap(),
+        Send::Sent { position: 0 }
+    ));
+    let Send::Waiting(wait) = hub
+        .send_inspected(
+            &mut scheduler,
+            &root,
+            &sender,
+            ContextValue { id: 1, owner },
+            Some(operation),
+            &mut |_, _| Ok(()),
+        )
+        .unwrap()
+    else {
+        panic!("backpressure")
+    };
+    assert_eq!(wait.origin(), Some(operation));
+    assert!(matches!(
+        scheduler.dispatch().unwrap(),
+        Some(t::Dispatch::Resume(_))
+    ));
+    let Receive::Value { value, .. } = hub
+        .receive(&mut scheduler, &child, &mut receiver, None)
+        .unwrap()
+    else {
+        panic!("committed owner")
+    };
+    assert_eq!(value.id, 0);
+    scheduler.yield_now(&child).unwrap();
+    assert!(matches!(
+        scheduler.dispatch().unwrap(),
+        Some(t::Dispatch::Resume(_))
+    ));
+    let Send::Rejected {
+        reason: Rejection::InvalidPublication,
+        value,
+    } = hub
+        .resume_send_inspected(&mut scheduler, &wait, &mut |_, visit| visit(&receiver))
+        .unwrap()
+    else {
+        panic!("current storage now contains the destination receiver")
+    };
+    assert_eq!(value.id, 1);
+    assert_eq!(hub.usage().pending, 0);
+    assert!(matches!(
+        hub.send_inspected(
+            &mut scheduler,
+            &root,
+            &sender,
+            ContextValue { id: 2, owner },
+            Some(operation),
+            &mut |_, _| Ok(())
+        )
+        .unwrap(),
+        Send::Sent { position: 1 }
+    ));
+    hub.release_sender(&mut scheduler, &sender).unwrap();
+    scheduler.finish(&root, t::Outcome::Success).unwrap();
+    assert!(matches!(
+        scheduler.dispatch().unwrap(),
+        Some(t::Dispatch::Resume(_))
+    ));
+    let mut session = session(2);
+    hub.abort_receiver(
+        &mut scheduler,
+        &receiver,
+        &mut session,
+        c::Reason::ScopeExit,
+        &mut |value: &mut ContextValue, _| {
+            assert_eq!(value.id, 2);
+            Err(77)
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        session.report().primary().as_ref().unwrap().span,
+        Some(owner)
+    );
+    assert_eq!(session.report().cleanup_failures(), 1);
+    scheduler.finish(&child, t::Outcome::Success).unwrap();
+    while let Some(dispatch) = scheduler.dispatch().unwrap() {
+        let t::Dispatch::Cleanup { task, .. } = dispatch else {
+            panic!("finished tree")
+        };
+        scheduler.finish_cleanup(&task, None).unwrap();
+    }
+    assert!(scheduler.is_finished());
+    assert_eq!(
+        (
+            hub.usage().queued,
+            hub.usage().pending,
+            hub.usage().reserved_slots,
+            hub.usage().handles
+        ),
+        (0, 0, 0, 0)
+    );
+}
+
 fn session(records: usize) -> c::Session {
     c::Session::prepare(
         std::num::NonZeroUsize::new(records).unwrap(),

@@ -49,7 +49,11 @@ fn matches(
         (TypePattern::ArenaOwner, Some(Constructor::ArenaOwner(owner))) => {
             owner.function == function
         }
-        (TypePattern::Option(t), Some(Constructor::Option(a)))
+        (TypePattern::ChannelSetup(t), Some(Constructor::ChannelSetup(a)))
+        | (TypePattern::Sender(t), Some(Constructor::Sender(a)))
+        | (TypePattern::Receiver(t), Some(Constructor::Receiver(a)))
+        | (TypePattern::SendResult(t), Some(Constructor::SendResult(a)))
+        | (TypePattern::Option(t), Some(Constructor::Option(a)))
         | (TypePattern::Vec(t), Some(Constructor::Vec(a)))
         | (TypePattern::Shared(t), Some(Constructor::Shared(a)))
         | (TypePattern::Weak(t), Some(Constructor::Weak(a)))
@@ -109,6 +113,7 @@ pub fn check(
         let storable = !p.contains_loan && !p.contains_allocator && !p.contains_owner;
         let valid = match rule {
             TypeArgumentRule::Storable => storable,
+            TypeArgumentRule::Send => storable && p.is_send(),
             TypeArgumentRule::SharedPayload => storable && !p.contains_arena,
             TypeArgumentRule::MapKey => {
                 argument.ty == Type::I64

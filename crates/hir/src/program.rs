@@ -818,6 +818,7 @@ impl<'a> Context<'a> {
                         return self.type_fragment(text, builtin.name(), span);
                     }
                     r::TypeConstructor::Option(_) => ("core::Option<", ">"),
+                    r::TypeConstructor::SendResult(_) => ("core::SendResult<", ">"),
                     r::TypeConstructor::Result(..) => ("core::Result<", ">"),
                     r::TypeConstructor::Task(_) => ("core::Task<", ">"),
                     r::TypeConstructor::ChannelSetup(_) => ("core::ChannelSetup<", ">"),
@@ -1834,8 +1835,12 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                         .is_some_and(|f| f.effect.is_async()),
                     _ => false,
                 };
+                let direct_channel = matches!(self.function.expressions.get(value.0).map(|e| &e.kind),
+                    Some(r::ExpressionKind::CoreCall{operation,..}) if operation.is_async());
                 let previous = self.async_call;
-                if direct_async {
+                if direct_async
+                    || (direct_channel && matches!(expression.kind, r::ExpressionKind::Await(_)))
+                {
                     self.async_call = Some(*value);
                 }
                 let actual = self.expression(*value, depth + 1)?;
@@ -1848,6 +1853,8 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                         None,
                     )?;
                     None
+                } else if direct_channel && matches!(expression.kind, r::ExpressionKind::Await(_)) {
+                    actual
                 } else if let Some(r::TypeConstructor::Task(result)) =
                     actual.and_then(|ty| self.context.constructor(ty))
                 {
@@ -2361,6 +2368,14 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
         };
         let span = expression.span;
         self.context.within(span, *callee_span)?;
+        if operation.is_async() && self.async_call != Some(id) {
+            self.context.error(
+                codes::INVALID_TASK,
+                span,
+                "channel send/receive require direct await in an async function",
+                None,
+            )?;
+        }
         let signature = operation.signature();
         if arguments.len() > self.context.limits.layout.fields
             || type_arguments.len() > self.context.limits.layout.fields
@@ -2397,6 +2412,14 @@ impl<'a, 'b> FunctionChecker<'a, 'b> {
                     .as_ref()
                     .unwrap()
                     .properties(ty.value_type, ty.span)?;
+                if *rule == core::TypeArgumentRule::Send && !properties.is_send() {
+                    self.context.error(
+                        codes::INVALID_OWNERSHIP_TYPE,
+                        ty.span,
+                        "channel message type must be Send",
+                        None,
+                    )?;
+                }
                 if properties.contains_task {
                     self.context.error(
                         codes::INVALID_TASK,

@@ -495,6 +495,77 @@ impl Lowerer<'_, '_, '_> {
             Ok(origin)
         }
     }
+    pub(super) fn channel_await(
+        &mut self,
+        expression: r::ExpressionId,
+        call: r::ExpressionId,
+        block: m::BlockId,
+        depth: usize,
+    ) -> Result<m::Register> {
+        let source = &self.function.expressions[call.0];
+        let r::ExpressionKind::CoreCall {
+            operation,
+            arguments,
+            type_arguments,
+            ..
+        } = &source.kind
+        else {
+            unreachable!("typed channel await")
+        };
+        let span = self.function.expressions[expression.0].span;
+        let mark = self.actions.len();
+        let mut values = self.c.budget.vector(arguments.len())?;
+        for (index, argument) in arguments.iter().enumerate() {
+            values.push(self.argument(
+                *argument,
+                Some(self.facts.call(call).unwrap().parameters[index]),
+                block,
+                depth + 1,
+            )?);
+        }
+        let destination = b::PreparedPlaceId(id(self.prepared)?);
+        self.prepared = self.prepared.checked_add(1).ok_or(Error::Capacity)?;
+        let role = if *operation == lang_hir::core::Operation::ChannelSend {
+            b::ChannelRole::Sender
+        } else {
+            b::ChannelRole::Receiver
+        };
+        let message_type = o::TypeUse {
+            ty: ty(type_arguments[0].value_type)?,
+            span: self.c.span(type_arguments[0].span)?,
+        };
+        self.emit(
+            block,
+            None,
+            b::Op::PrepareChannel {
+                destination,
+                endpoint: values[0],
+                role,
+                message_type,
+            },
+            span,
+        )?;
+        let payload = (role == b::ChannelRole::Sender).then(|| values[1]);
+        // Preparation captured only private protocol authority. End temporary
+        // argument loans before the explicit suspension; the payload remains
+        // owned until the following instruction consumes/returns/retires it.
+        self.cleanup(mark, block, payload)?;
+        self.actions.truncate(mark);
+        let op = if let Some(payload) = payload {
+            b::Op::ChannelSend {
+                authority: destination,
+                payload,
+            }
+        } else {
+            b::Op::ChannelReceive {
+                authority: destination,
+            }
+        };
+        let out = m::Register(id(expression.0)?);
+        self.emit(block, Some(out), op, span)?;
+        self.result(expression)
+    }
+
     pub(super) fn core_call(
         &mut self,
         expression: r::ExpressionId,

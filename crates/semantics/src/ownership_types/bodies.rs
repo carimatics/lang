@@ -683,6 +683,10 @@ impl Lowerer<'_, '_, '_> {
                 b::Op::Move(value)
             }
             r::ExpressionKind::Await(value) => {
+                if matches!(&self.function.expressions[value.0].kind,r::ExpressionKind::CoreCall{operation,..} if operation.is_async())
+                {
+                    return self.channel_await(expression, *value, block, depth);
+                }
                 b::Op::TaskAwait(self.expression(*value, block, depth + 1)?)
             }
             r::ExpressionKind::Integer(value) => b::Op::I64(*value),

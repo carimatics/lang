@@ -166,7 +166,10 @@ fn captured_whole_local_reinitializes_storage_and_keeps_separate_identity() {
         block(vec![replace()], b::Term::Return(r(1))),
     ];
     let out = moved(t).unwrap();
-    let fact = out.typed().facts()[0].prepared()[0].unwrap();
+    let fact = out.typed().facts()[0].prepared()[0]
+        .unwrap()
+        .place()
+        .unwrap();
     assert_eq!(fact.place, p::PlaceId(0));
     assert_eq!(fact.span, at(10));
     assert_eq!(fact.site.block, m::BlockId(0));

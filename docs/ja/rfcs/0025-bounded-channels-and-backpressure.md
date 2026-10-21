@@ -24,7 +24,7 @@ C05 実装 checkpoint（2026-10-21 JST）: driver は invocation/task に紐付�
 
 RFC 0005/0021/0022/0024 に対し、同一 invocation 内の有限 multiple-producer, single-consumer channel を定めます。full send は未commit payload を所有して待ち、成功 enqueue で FIFO の1位置に所有権を commit します。receive は最古の commit 済み payload を一度だけ move します。close、取消、resource 拒否、closed invocation の停止に明示結果と必須 cleanup を定めます。Sender 権限から receiver/service state を参照できません。
 
-本書は protocol の決定であり、実装済み channel profile や安定 host ABI ではありません。C02 は runtime protocol、C03 は独立検証する source/MIR と VM 操作、C04 は生成 native/linked-object parity を担当します。具体的 reserved-core call catalog は C03 実装前に本書へ follow-up を記録します。別 task 言語や未検証の同期 call で suspension を隠しません。
+本書は protocol の決定であり、実装済み channel profile や安定 host ABI ではありません。C02 は runtime protocol、C03 は独立検証する source/MIR と VM 操作、C04 は生成 native/linked-object parity を担当します。具体的 reserved-core call catalog は C03 実装前に下記へ記録しています。別 task 言語や未検証の同期 call で suspension を隠しません。
 
 ## Motivation
 
@@ -61,6 +61,41 @@ send operand は評価時に通常 source move 解析で消費します。closed
 source 構築は RFC 0009 の whole-value extraction と borrowed match を使い、owning tuple/field destructuring を仮定しません。構築 protocol は唯一の local setup 権限を使い、有限 storage を作り、sender ticket を明示発行し、setup を唯一の receiver に消費します。Setup は一時的 producer keepalive を1つ持ち、変換時に解放します。sender を発行していない receiver は既に send-closed です。setup の破棄は channel を abort します。構築 semantics をここで選び、具体的な名前/signature/失敗 sum は実装前の call catalog で決めます。
 
 ## Reference semantics
+
+### Source catalog and typed MIR
+
+C03 catalog 決定（2026-10-21 JST）: **実装前に RFC 0001 の実験的委任で採択**します。既存の予約 `core` namespace、明示型引数、`await` 構文を使います。channel message の T は Send と storable を独立証明し、data のみを抽出する `channel_unsent` は既存の任意の storable T を受け付けます。通常の同期構築/検査に suspension を隠さず、send/receive は async 関数内の直接 `await` を要し、spawn、future としての保存、同期 call を認めません。
+
+| Source call (explicit `::<T>`) | Parameters | Result | Effect |
+| --- | --- | --- | --- |
+| `core::channel_new` | `&core::Allocator`, `i64` capacity | `core::Result<core::ChannelSetup<T>,core::ChannelError>` | synchronous construction |
+| `core::channel_sender` | `&core::ChannelSetup<T>` | `core::Sender<T>` | synchronous explicit mint |
+| `core::channel_clone` | `&core::Sender<T>` | `core::Sender<T>` | synchronous explicit clone |
+| `core::channel_receiver` | `core::ChannelSetup<T>` | `core::Receiver<T>` | synchronous consuming conversion |
+| `core::channel_seal` | `&mut core::Receiver<T>` | `core::Unit` | synchronous idempotent seal |
+| `core::channel_send` | `&core::Sender<T>`, `T` | `core::SendResult<T>` | direct async intrinsic |
+| `core::channel_receive` | `&mut core::Receiver<T>` | `core::Option<T>` | direct async intrinsic |
+| `core::channel_unsent` | `core::SendResult<T>` | `T` | synchronous whole-value extraction |
+
+`core::ChannelError` は有限 Copy sum で、case 順は `InvalidCapacity`、`Allocation(core::AllocError)` です。不正 capacity は storage allocation 前に返し、allocation 拒否では setup/endpoint を公開しません。channel/slot/handle/waiter/cell/control 上限と identity 枯渇は execution failure であり、構築成功や架空の domain error にしません。`core::SendResult<T>` の case 順は `Sent`、`Closed(T)`、`InvalidPublication(T)` で、通常の inline sum と同様に T から Copy/drop/Send/Share を導出します。この結果は data であって endpoint 権限ではなく、既存 core-sum 規則で case を構築/match できます。`channel_unsent` は結果全体を consume してどちらかの失敗 case の唯一 payload を move し、Sent なら既存の wrong-case unwrap 方針で panic します。owning partial move を追加しません。receive は commit 済み owner に Some(T)、drain 済み closed にだけ None を返します。
+
+直接の `await core::channel_send::<T>(...)` は一度評価して SendResult<T>、`await core::channel_receive::<T>(...)` は Option<T> を返します。現在 task の操作であり child Task claim ではないため、child await の `Result<_,TaskError>` wrapper を付けません。現在 task の取消は terminal で pending owner を退役し、Closed、None、架空の T を返しません。即時完了でも suspension/cancellation 境界です。裸の call、intrinsic の `spawn`、同期関数からの使用は INVALID_TASK です。message 適格性/arity/storage/型失敗は既存 ownership/type diagnostic identity を使って宣言/call 型 span を保ち、use-after-move と active-loan 診断も既存 identity を維持します。
+
+producer の規定例は `let mut outcome: core::SendResult<core::Bytes> = await core::channel_send::<core::Bytes>(&sender, payload);` です。borrowed match で Sent/Closed/InvalidPublication を区別し、match 終了後に `core::channel_unsent::<core::Bytes>(outcome)` で未送信 owner を回収できます。これは source 契約の sketch であり実行証拠ではありません。次の C03 fixture は実際に capacity-one storage を構築し、producer backpressure と receive を通じて owned payload を move して42を返し、全 owner を退役する必要があります。
+
+lowering は権限 capture と suspension を MIR に独立して明示します。構築/mint/clone/変換/seal と結果全体の抽出の typed channel operation に加え、`PrepareChannel { destination: PreparedId, endpoint: Register, role, message_type }`、`ChannelSend { authority: PreparedId, payload: Register }`、`ChannelReceive { authority: PreparedId }` を追加します。既存の有限 prepared-destination namespace を channel kind を区別して再利用し、prepared replacement/place を endpoint と偽装できません。prepare は正確な shared Sender/exclusive Receiver loan を検証し、invocation 内 endpoint 権限だけを capture します。compiler-created 引数 loan は ChannelSend/ChannelReceive 前に終了し、明示 binding の loan は lexical lifetime を保って境界で生存していれば拒否します。独立 MIR は role/type/effect、初期化、capture の単一 consumer、escape/再利用禁止、payload consume、通常 loan の不存在を検証し、不正な未使用 operation/metadata も proof を省略できません。全 failure path で prepared authority を破棄し、guest value にはできません。pending continuation は destination、next/failure edge、実際の source operation span を保ちます。
+
+task profile は同一 invocation の通常同期 helper と async activation に channel service を供給し、同期 helper は構築/mint/seal ができますが中断はできません。source channel operation は entry が同期でも task 実行 profile を選択します。metadata だけの旧 ownership API は明示拒否を維持し、endpoint 名だけで scheduler を付与しません。native、linked-object、REPL、C/foreign、persisted admission は対応 delivery が profile を証明するまで未対応とします。第2言語や native callback 内の隠れた VM 解釈は認めません。
+
+capture の一意性は動的 preparation ごとに適用します。consumer または discard が prepared slot を空にした後、loop は同じ静的 PrepareChannel を再実行できますが、前の captured instance は再使用できません。
+
+非公開 capture は引数の一時値 cleanup、suspension、取消の間、endpoint の protocol lifetime を保持します。一時 source endpoint の退役で captured operation を早期に close/失効させてはいけません。consumer/discard/失敗は waiter を unlink してから保持を解放し、通常の guest loan や payload の第2 owner にはしません。VM 統合の admission 前にこの lifetime を検証します。
+
+guest endpoint storage は非公開の managed token であり C/native 公開 layout ではありません。副作用前に invocation/allocator identity、role、canonical message type、live channel/ticket と枯渇を検証します。Hub の authority/registration state と既存 owner/loan ledger を再利用し、有限 message-type descriptor table は metadata であって value owner の別 registry ではありません。guest payload は既存 Reservation storage と mixed retirement を使います。setup 公開前に実際の guest queue storage/cell を準備し、累積 endpoint/registration metadata を解放まで計上し、blocked/result storage は owner の move または物理退役まで計上します。source/guest inspection に read-only invocation allocator/shared-heap context を明示渡しして実際の強い receive edge を列挙し、cache した edge inventory や呼出側の Send/cycle-free flag では代用できません。host convenience visitor を理由に source admission の検査を省略できません。失敗し得る storage/publication/control 検証は全て atomic owner transition 前に行い、reservation 初期化前に queue custody を公開しません。空 slot reservation も計上し、必須 abort/取消/drain は既存の非計量 Session/Cleaner と quarantine/report 規則を保ちます。
+
+最古 pending operation の span/ordinal を持つ型付き ChannelDeadlock execution reason を追加し、取消/cleanup 前に primary として保持します。trust-boundary 拒否は channel identity/role/type error に構造化対応し、quota/control failure は既存の数値 resource 証拠に対応します。backend string で error を分類しません。ChannelError、SendResult、operation、private token metadata に schema-2/3/4 tag や公開 C/package 表現を割り当てず、旧 writer/reader/layout API は未使用でも拒否します。将来の persisted revision は別の互換性判断と migration test を要します。
+
+根拠: 名前付き result sum は Boolean flag、入れ子 Result encoding、owning field destructuring なしに2つの owner を保つ send 拒否を表します。capture/commit の分離で両 proof に loan 境界を明示し、単なる同期 CoreCall に suspension を隠しません。library は操作を組み合わせられますが proof を供給できません。既存 Reservation experiment は Bytes を Hub 経由で実行し、通常 [20,22]、取消 [22,20] の退役、合計42、live allocation 0 を確認しますが、queue slot/metadata admission、source operation、endpoint-bearing publication、native parity は証明しません。これらの統合、費用、両 host 等価性は未検証の実装義務です。この決定だけで delivery/gate は完了しません。
 
 ### Types, authority and lifetime
 
@@ -162,7 +197,7 @@ source compile-pass/fail で endpoint capability、明示 clone、unique receive
 
 ## Open questions
 
-具体 source name/error sum/MIR form は C03 前の必須記録 follow-up で、実装時に推測してよい意味ではありません。未検証の仮定は、新 owner registry なしで既存 managed publication/retirement を endpoint edge に拡張できること、admission 済み wait link により wake/取消を allocation-free にできること、setup/clone spelling が現行 whole-value 規則で使えること、代表的費用と両 host 適合です。本 RFC から実装・安定・性能結果は導きません。
+上記 C03 catalog に source name/error sum/MIR form を実装前に記録しました。新 owner registry なしで managed publication/retirement を endpoint edge に拡張できること、admission 済み wait link により wake/取消を allocation-free にできること、setup/clone/result spelling が現行 whole-value 規則で使えること、代表的費用と両 host 適合は未検証です。採択済み catalog を変更する場合は実装前に英日を明示改訂します。この決定だけから実装・安定・性能結果は導きません。
 
 判断: **RFC 0001 の実験委任で accepted、2026-10-21 JST**。有限 MPSC、唯一の receive 権限、明示 Send/Share、非commit payload の custody、原子的な公開、FIFO admission と既存 cleanup を組み合わせて厳密な所有/loan 規則を維持します。capacity-one の trace 実験では、単純 wake で A,C,B と追越しが起き、先頭予約で A,B,C を維持しました。wake 後の B 取消、commit 後の C sender 取消、seal/abort の5 trace も各 payload の owner と一度限りの返却/退役を検証しました。これは protocol 実験であり production channel の実行証拠ではありません。上記仮定と concrete core catalog は未検証/未実装のまま追跡します。
 
@@ -176,3 +211,5 @@ source compile-pass/fail で endpoint capability、明示 clone、unique receive
 - C05 実装証拠: `crates/runtime/src/task.rs`、`task/tests/wait.rs`、`examples/parked-tasks.rs`。コードに更新日埋込みはなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。wait ticket は private identity と ordinal を持ち、kernel は guest message を所有せず、新 channel Source/ABI/wire の証拠にはしません。
 
 - C02 実装証拠: `crates/runtime/src/channel.rs`、`channel/`、`task.rs` の quiescence query、`examples/bounded-channels.rs`。コードに更新日埋込みはなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。native callback panic 時の unknown payload は RFC 0008 の既存 quarantine 契約を保ち、source/guest heap の完成や fuzz campaign は主張しません。
+
+- C03 reservation experiment: `examples/bounded-guest-channels.rs`。コードに更新日埋込みはなく、2026-10-21 JST に macOS AArch64 で実行しました。検証済みの正確な Bytes reservation、invocation allocator、既存 Hub/Session を使い、合計42、owning storage identity の維持、通常/取消の退役、live allocation 0 は experiment の証拠ですが、完全な source/queue-slot/metadata/native admission ではありません。source catalog と MIR capture protocol は project の決定であり、外部言語の主張は使用しません。

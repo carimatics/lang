@@ -39,6 +39,7 @@ pub enum Error {
     HandleLimit { limit: usize },
     WaiterLimit { limit: usize },
     ForeignEndpoint,
+    InspectionContextRequired,
     InvalidEndpoint,
     WrongRole,
     WrongTask,
@@ -141,11 +142,20 @@ pub struct Sender {
 #[derive(Debug)]
 pub struct Receiver(pub(super) Key);
 
+/// Explicit invocation storage context for publication inspection. It may read
+/// actual guest storage but must not mutate values or reenter the Hub.
+pub type PayloadInspection<'a, T> =
+    dyn FnMut(&T, &mut dyn FnMut(&Receiver) -> Result<(), Error>) -> Result<(), Error> + 'a;
+
 /// Trusted native adapters enumerate actual strong receive-authority edges.
 /// Safe source requires independent type/move/loan proof before constructing
 /// its payload wrapper; this interface is not a user-asserted Send capability.
 /// The visitor must be finite and must not mutate payloads or reenter the Hub.
 pub trait Payload {
+    /// Original payload ownership provenance, independently from wait origin.
+    fn owner_span(&self) -> Option<lang_mir::unit::Span> {
+        None
+    }
     fn receivers(&self, visit: &mut dyn FnMut(&Receiver) -> Result<(), Error>)
     -> Result<(), Error>;
 }

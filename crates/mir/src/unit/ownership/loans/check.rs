@@ -544,7 +544,12 @@ impl Context<'_, '_> {
         }
         match &i.op {
             Op::TaskScopeEnter(_) => {}
-            Op::TaskScopeExit(_) | Op::TaskYield | Op::TaskCheck | Op::TaskAwait(_) => {
+            Op::TaskScopeExit(_)
+            | Op::TaskYield
+            | Op::TaskCheck
+            | Op::TaskAwait(_)
+            | Op::ChannelSend { .. }
+            | Op::ChannelReceive { .. } => {
                 if mode == Mode::Check {
                     for id in 0..self.layout.loans {
                         self.budget.charge(1)?;
@@ -561,6 +566,16 @@ impl Context<'_, '_> {
                     Op::TaskAwait(value) => {
                         self.read_value(row, value, true, s, mode)?;
                         self.consume(row, value)?;
+                        self.clear(row, self.topology.value(i.results[0]))?;
+                    }
+                    Op::ChannelSend { authority, payload } => {
+                        self.read_value(row, payload, true, s, mode)?;
+                        self.consume(row, payload)?;
+                        self.clear_capture(row, authority.0 as usize)?;
+                        self.clear(row, self.topology.value(i.results[0]))?;
+                    }
+                    Op::ChannelReceive { authority } => {
+                        self.clear_capture(row, authority.0 as usize)?;
                         self.clear(row, self.topology.value(i.results[0]))?;
                     }
                     Op::TaskScopeExit(scope) => {
@@ -721,6 +736,18 @@ impl Context<'_, '_> {
             Op::Replace { place, value } => {
                 let place = self.place(row, *place, s, mode)?;
                 self.replacement(row, place, *value, s, mode)?;
+            }
+            Op::PrepareChannel {
+                destination,
+                endpoint,
+                ..
+            } => {
+                self.read_value(row, *endpoint, true, s, mode)?;
+                self.consume(row, *endpoint)?;
+                // Captured protocol authority is not a guest reference or
+                // an outstanding ordinary loan. The operand loan still needs
+                // its explicit EndBorrow before the suspension instruction.
+                self.clear_capture(row, destination.0 as usize)?;
             }
             Op::PreparePlace { destination, place } => {
                 let place = self.place(row, *place, s, mode)?;

@@ -10,6 +10,10 @@ pub enum TypePattern {
     Bool,
     Builtin(BuiltinType),
     Argument(u8),
+    ChannelSetup(&'static Self),
+    Sender(&'static Self),
+    Receiver(&'static Self),
+    SendResult(&'static Self),
     Option(&'static Self),
     Result(&'static Self, &'static Self),
     Vec(&'static Self),
@@ -26,6 +30,8 @@ pub enum TypePattern {
 pub enum TypeArgumentRule {
     /// No ordinary loan or allocator authority; arena brands remain tracked.
     Storable,
+    /// Independently derived logical-task message eligibility.
+    Send,
     /// Any valid result type; divergence never creates a value of it.
     ReturnType,
     /// Exactly i64 or core::Text.
@@ -70,11 +76,18 @@ pub enum Family {
     OwnershipError,
     ArenaError,
     TaskError,
+    ChannelError,
+    SendResult,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Case {
     TaskCancelled,
+    ChannelInvalidCapacity,
+    ChannelAllocation,
+    SendSent,
+    SendClosed,
+    SendInvalidPublication,
     None,
     Some,
     Ok,
@@ -100,7 +113,7 @@ pub enum Case {
 }
 
 impl Family {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 11] = [
         Self::Option,
         Self::Result,
         Self::AllocError,
@@ -110,6 +123,8 @@ impl Family {
         Self::OwnershipError,
         Self::ArenaError,
         Self::TaskError,
+        Self::ChannelError,
+        Self::SendResult,
     ];
     pub const fn name(self) -> &'static str {
         match self {
@@ -122,11 +137,13 @@ impl Family {
             Self::OwnershipError => "OwnershipError",
             Self::ArenaError => "ArenaError",
             Self::TaskError => "TaskError",
+            Self::ChannelError => "ChannelError",
+            Self::SendResult => "SendResult",
         }
     }
     pub const fn type_arguments(self) -> usize {
         match self {
-            Self::Option => 1,
+            Self::Option | Self::SendResult => 1,
             Self::Result => 2,
             _ => 0,
         }
@@ -135,6 +152,8 @@ impl Family {
         use Case as C;
         match self {
             Self::TaskError => &[C::TaskCancelled],
+            Self::ChannelError => &[C::ChannelInvalidCapacity, C::ChannelAllocation],
+            Self::SendResult => &[C::SendSent, C::SendClosed, C::SendInvalidPublication],
             Self::Option => &[C::None, C::Some],
             Self::Result => &[C::Ok, C::Err],
             Self::AllocError => &[C::AllocLimit, C::AllocOutOfMemory, C::AllocOverflow],
@@ -160,7 +179,7 @@ impl Family {
 }
 
 impl Case {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 28] = [
         Self::None,
         Self::Some,
         Self::Ok,
@@ -184,10 +203,17 @@ impl Case {
         Self::ArenaUnavailable,
         Self::ArenaBorrowConflict,
         Self::TaskCancelled,
+        Self::ChannelInvalidCapacity,
+        Self::ChannelAllocation,
+        Self::SendSent,
+        Self::SendClosed,
+        Self::SendInvalidPublication,
     ];
     pub const fn family(self) -> Family {
         match self {
             Self::TaskCancelled => Family::TaskError,
+            Self::ChannelInvalidCapacity | Self::ChannelAllocation => Family::ChannelError,
+            Self::SendSent | Self::SendClosed | Self::SendInvalidPublication => Family::SendResult,
             Self::None | Self::Some => Family::Option,
             Self::Ok | Self::Err => Family::Result,
             Self::AllocLimit | Self::AllocOutOfMemory | Self::AllocOverflow => Family::AllocError,
@@ -209,6 +235,11 @@ impl Case {
     pub const fn name(self) -> &'static str {
         match self {
             Self::TaskCancelled => "Cancelled",
+            Self::ChannelInvalidCapacity => "InvalidCapacity",
+            Self::ChannelAllocation => "Allocation",
+            Self::SendSent => "Sent",
+            Self::SendClosed => "Closed",
+            Self::SendInvalidPublication => "InvalidPublication",
             Self::None => "None",
             Self::Some => "Some",
             Self::Ok => "Ok",
@@ -240,12 +271,13 @@ impl Case {
     /// context or the match scrutinee, never from explicit case type arguments.
     pub fn payload(self) -> &'static [TypePattern] {
         match self {
-            Self::Some | Self::Ok => &[T],
+            Self::Some | Self::Ok | Self::SendClosed | Self::SendInvalidPublication => &[T],
             Self::Err => &[V],
             Self::BufferAllocation | Self::OwnershipAllocation | Self::ArenaAllocation => {
                 &[ALLOC_ERROR]
             }
             Self::InvalidUtf8 => &[TypePattern::I64],
+            Self::ChannelAllocation => &[ALLOC_ERROR],
             _ => &[],
         }
     }
@@ -294,6 +326,14 @@ pub enum Operation {
     OptionUnwrap,
     ResultUnwrap,
     ResultUnwrapErr,
+    ChannelNew,
+    ChannelSender,
+    ChannelClone,
+    ChannelReceiver,
+    ChannelSeal,
+    ChannelUnsent,
+    ChannelSend,
+    ChannelReceive,
 }
 
 const T: TypePattern = TypePattern::Argument(0);
@@ -314,6 +354,12 @@ const SHARED: TypePattern = TypePattern::Shared(&T);
 const WEAK: TypePattern = TypePattern::Weak(&T);
 const ARENA: TypePattern = TypePattern::Arena(&T);
 const OWNER: TypePattern = TypePattern::ArenaOwner;
+const CHANNEL_ERROR: TypePattern = TypePattern::Builtin(BuiltinType::ChannelError);
+const SETUP: TypePattern = TypePattern::ChannelSetup(&T);
+const SENDER: TypePattern = TypePattern::Sender(&T);
+const RECEIVER: TypePattern = TypePattern::Receiver(&T);
+const SEND_RESULT: TypePattern = TypePattern::SendResult(&T);
+const SEND_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Send];
 const ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Storable];
 const TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Storable; 2];
 const SHARED_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::SharedPayload];
@@ -333,7 +379,7 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 39] = [
+    pub const ALL: [Self; 47] = [
         Self::Drop,
         Self::Panic,
         Self::Allocator,
@@ -373,8 +419,32 @@ impl Operation {
         Self::OptionUnwrap,
         Self::ResultUnwrap,
         Self::ResultUnwrapErr,
+        Self::ChannelNew,
+        Self::ChannelSender,
+        Self::ChannelClone,
+        Self::ChannelReceiver,
+        Self::ChannelSeal,
+        Self::ChannelUnsent,
+        Self::ChannelSend,
+        Self::ChannelReceive,
     ];
 
+    pub const fn is_channel(self) -> bool {
+        matches!(
+            self,
+            Self::ChannelNew
+                | Self::ChannelSender
+                | Self::ChannelClone
+                | Self::ChannelReceiver
+                | Self::ChannelSeal
+                | Self::ChannelUnsent
+                | Self::ChannelSend
+                | Self::ChannelReceive
+        )
+    }
+    pub const fn is_async(self) -> bool {
+        matches!(self, Self::ChannelSend | Self::ChannelReceive)
+    }
     pub const fn name(self) -> &'static str {
         match self {
             Self::Drop => "drop",
@@ -416,6 +486,14 @@ impl Operation {
             Self::OptionUnwrap => "option_unwrap",
             Self::ResultUnwrap => "result_unwrap",
             Self::ResultUnwrapErr => "result_unwrap_err",
+            Self::ChannelNew => "channel_new",
+            Self::ChannelSender => "channel_sender",
+            Self::ChannelClone => "channel_clone",
+            Self::ChannelReceiver => "channel_receiver",
+            Self::ChannelSeal => "channel_seal",
+            Self::ChannelUnsent => "channel_unsent",
+            Self::ChannelSend => "channel_send",
+            Self::ChannelReceive => "channel_receive",
         }
     }
 
@@ -431,6 +509,18 @@ impl Operation {
         let mut sig = match self {
             Self::Drop => signature(ONE, &[T], UNIT),
             Self::Panic => signature(&[TypeArgumentRule::ReturnType], &[TypePattern::I64], T),
+            Self::ChannelNew => signature(
+                SEND_ONE,
+                &[P::Loan(S, &ALLOCATOR), P::I64],
+                P::Result(&SETUP, &CHANNEL_ERROR),
+            ),
+            Self::ChannelSender => signature(SEND_ONE, &[P::Loan(S, &SETUP)], SENDER),
+            Self::ChannelClone => signature(SEND_ONE, &[P::Loan(S, &SENDER)], SENDER),
+            Self::ChannelReceiver => signature(SEND_ONE, &[SETUP], RECEIVER),
+            Self::ChannelSeal => signature(SEND_ONE, &[P::Loan(M, &RECEIVER)], UNIT),
+            Self::ChannelUnsent => signature(ONE, &[SEND_RESULT], T),
+            Self::ChannelSend => signature(SEND_ONE, &[P::Loan(S, &SENDER), T], SEND_RESULT),
+            Self::ChannelReceive => signature(SEND_ONE, &[P::Loan(M, &RECEIVER)], P::Option(&T)),
             Self::OptionUnwrap => signature(ONE, &[P::Option(&T)], T),
             Self::ResultUnwrap => signature(TWO, &[P::Result(&T, &V)], T),
             Self::ResultUnwrapErr => signature(TWO, &[P::Result(&T, &V)], V),

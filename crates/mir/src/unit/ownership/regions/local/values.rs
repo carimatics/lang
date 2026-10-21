@@ -401,6 +401,13 @@ impl Engine {
                 let v = admit.copy(&[*t])?;
                 admit.push(&mut out, v)?;
             }
+            Kind::SendResult(t) => {
+                admit.push(&mut out, Vec::new())?;
+                for _ in 0..2 {
+                    let v = admit.copy(&[*t])?;
+                    admit.push(&mut out, v)?;
+                }
+            }
             Kind::Result(t, e) => {
                 for t in [*t, *e] {
                     let v = admit.copy(&[t])?;
@@ -436,7 +443,11 @@ impl Engine {
                 }
                 self.reference(v, admit)
             }
-            Kind::Record(_) | Kind::Enum(_) | Kind::Option(_) | Kind::Result(..) => {
+            Kind::Record(_)
+            | Kind::Enum(_)
+            | Kind::Option(_)
+            | Kind::Result(..)
+            | Kind::SendResult(_) => {
                 let children = Self::child_nodes(plan, node, admit)?;
                 let record = matches!(plan.nodes[node.0].kind, Kind::Record(_));
                 let mut cases = admit.budget.vector(children.len())?;
@@ -507,7 +518,11 @@ impl Engine {
         }
         if matches!(
             plan.nodes[node.0].kind,
-            Kind::Record(_) | Kind::Enum(_) | Kind::Option(_) | Kind::Result(..)
+            Kind::Record(_)
+                | Kind::Enum(_)
+                | Kind::Option(_)
+                | Kind::Result(..)
+                | Kind::SendResult(_)
         ) {
             let record = matches!(plan.nodes[node.0].kind, Kind::Record(_));
             let children = Self::child_nodes(plan, node, admit)?;

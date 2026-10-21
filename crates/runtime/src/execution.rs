@@ -272,6 +272,12 @@ pub fn service_work_supported_with_c_imports(
                     .iter()
                     .all(|instruction| match &instruction.op {
                         Op::CoreCall(call) => match call.operation {
+                            C::ChannelNew
+                            | C::ChannelSender
+                            | C::ChannelClone
+                            | C::ChannelReceiver
+                            | C::ChannelSeal
+                            | C::ChannelUnsent => false,
                             C::Allocator
                             | C::TextFromUtf8
                             | C::TextClone

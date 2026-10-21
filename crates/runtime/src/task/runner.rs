@@ -283,6 +283,9 @@ fn execute<P: a::Provider, B: Backend<P>>(
 #[doc(hidden)]
 pub fn task_supported(op: &b::Op) -> bool {
     match op {
+        b::Op::PrepareChannel { .. } | b::Op::ChannelSend { .. } | b::Op::ChannelReceive { .. } => {
+            false
+        }
         b::Op::Import { .. } => false,
         b::Op::CoreCall(call) => matches!(
             call.operation,
@@ -448,6 +451,7 @@ pub fn managed_type_supported(
                         }
                     }
                     o::Constructor::Task(_) => {}
+                    o::Constructor::SendResult(_) => return Ok(false),
                     o::Constructor::ChannelSetup(_)
                     | o::Constructor::Sender(_)
                     | o::Constructor::Receiver(_) => return Ok(false),

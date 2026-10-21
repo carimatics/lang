@@ -31,6 +31,12 @@ pub struct TaskBinding {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PreparedPlaceId(pub u32);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChannelRole {
+    Sender,
+    Receiver,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EndMode {
     Required,
     IfActive,
@@ -81,6 +87,19 @@ pub enum Op {
         arguments: Vec<m::Register>,
     },
     TaskAwait(m::Register),
+    PrepareChannel {
+        destination: PreparedPlaceId,
+        endpoint: m::Register,
+        role: ChannelRole,
+        message_type: TypeUse,
+    },
+    ChannelSend {
+        authority: PreparedPlaceId,
+        payload: m::Register,
+    },
+    ChannelReceive {
+        authority: PreparedPlaceId,
+    },
     TaskCancel(p::PlaceId),
     TaskYield,
     TaskCheck,
@@ -187,6 +206,18 @@ pub enum Op {
     },
 }
 impl Op {
+    pub const fn is_channel(&self) -> bool {
+        match self {
+            Self::PrepareChannel { .. }
+            | Self::ChannelSend { .. }
+            | Self::ChannelReceive { .. } => true,
+            Self::CoreCall(call) => call.operation.is_channel(),
+            _ => false,
+        }
+    }
+    pub const fn channel_suspension(&self) -> bool {
+        matches!(self, Self::ChannelSend { .. } | Self::ChannelReceive { .. })
+    }
     pub const fn is_task(&self) -> bool {
         matches!(
             self,
@@ -205,7 +236,9 @@ impl Op {
             Self::Add(a, b) | Self::LessThan(a, b) | Self::EqualI64(a, b) => {
                 ([Some(*a), Some(*b)], &[])
             }
-            Self::Copy(v)
+            Self::PrepareChannel { endpoint: v, .. }
+            | Self::ChannelSend { payload: v, .. }
+            | Self::Copy(v)
             | Self::TaskAwait(v)
             | Self::TaskSaveReturn(v)
             | Self::Move(v)
@@ -330,11 +363,44 @@ pub struct PreparedPlace {
     pub place: p::PlaceId,
     pub span: Span,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PreparedChannel {
+    pub site: Site,
+    pub endpoint: m::Register,
+    pub role: ChannelRole,
+    pub message_type: TypeUse,
+    pub span: Span,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PreparedDestination {
+    Place(PreparedPlace),
+    Channel(PreparedChannel),
+}
+impl PreparedDestination {
+    pub const fn site(self) -> Site {
+        match self {
+            Self::Place(p) => p.site,
+            Self::Channel(c) => c.site,
+        }
+    }
+    pub const fn place(self) -> Option<PreparedPlace> {
+        match self {
+            Self::Place(p) => Some(p),
+            Self::Channel(_) => None,
+        }
+    }
+    pub const fn channel(self) -> Option<PreparedChannel> {
+        match self {
+            Self::Place(_) => None,
+            Self::Channel(c) => Some(c),
+        }
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionFacts {
     definitions: Vec<Option<Site>>,
     loans: Vec<Option<Site>>,
-    prepared: Vec<Option<PreparedPlace>>,
+    prepared: Vec<Option<PreparedDestination>>,
     idom: Vec<u32>,
     core_calls: Vec<core::Fact>,
     needs_allocator: bool,
@@ -346,7 +412,7 @@ impl FunctionFacts {
     pub fn loans(&self) -> &[Option<Site>] {
         &self.loans
     }
-    pub fn prepared(&self) -> &[Option<PreparedPlace>] {
+    pub fn prepared(&self) -> &[Option<PreparedDestination>] {
         &self.prepared
     }
     pub fn immediate_dominators(&self) -> &[u32] {
@@ -611,6 +677,7 @@ fn variant(types: &VerifiedTypes, ty: Type, shared: bool) -> Result<Type, ErrorK
             ctor(types, ty),
             Some(
                 Constructor::Option(_)
+                    | Constructor::SendResult(_)
                     | Constructor::Result(..)
                     | Constructor::Builtin(
                         Builtin::AllocError
@@ -620,6 +687,7 @@ fn variant(types: &VerifiedTypes, ty: Type, shared: bool) -> Result<Type, ErrorK
                             | Builtin::OwnershipError
                             | Builtin::ArenaError
                             | Builtin::TaskError
+                            | Builtin::ChannelError
                     )
             )
         ),
@@ -646,6 +714,11 @@ fn payload(types: &VerifiedTypes, ty: Type, case: u32) -> Result<Payload<'_>, Er
             1 => Payload::One(Expected::Exact(t)),
             _ => return Err(invalid()),
         },
+        Some(Constructor::SendResult(t)) => match case {
+            0 => Payload::Empty,
+            1 | 2 => Payload::One(Expected::Exact(t)),
+            _ => return Err(invalid()),
+        },
         Some(Constructor::Result(t, e)) => match case {
             0 => Payload::One(Expected::Exact(t)),
             1 => Payload::One(Expected::Exact(e)),
@@ -657,6 +730,7 @@ fn payload(types: &VerifiedTypes, ty: Type, case: u32) -> Result<Payload<'_>, Er
                 Builtin::BoundsError | Builtin::Utf8Error | Builtin::TaskError => 1,
                 Builtin::OwnershipError => 6,
                 Builtin::ArenaError => 4,
+                Builtin::ChannelError => 2,
                 _ => 0,
             };
             if case >= count {
@@ -665,6 +739,7 @@ fn payload(types: &VerifiedTypes, ty: Type, case: u32) -> Result<Payload<'_>, Er
             if b == Builtin::Utf8Error {
                 Payload::One(Expected::Exact(Type::I64))
             } else if (b == Builtin::BufferError && case == 2)
+                || (b == Builtin::ChannelError && case == 1)
                 || (matches!(b, Builtin::OwnershipError | Builtin::ArenaError) && case == 0)
             {
                 Payload::One(Expected::Builtin(Builtin::AllocError))
@@ -681,7 +756,7 @@ struct Check<'a, 'b> {
     types: &'a VerifiedTypes,
     frame: &'a p::FunctionPlaces,
     declaration: &'a d::Function,
-    prepared: &'a [Option<PreparedPlace>],
+    prepared: &'a [Option<PreparedDestination>],
     function: FunctionId,
     budget: &'b mut Budget,
     core_calls: Vec<core::Fact>,
@@ -763,7 +838,7 @@ impl Check<'_, '_> {
             .check_access(self.function, p, a, span, self.budget)?;
         Ok(self.place(p, span)?.value_type)
     }
-    fn destination(&self, id: PreparedPlaceId, span: Span) -> Result<PreparedPlace, Error> {
+    fn destination(&self, id: PreparedPlaceId, span: Span) -> Result<PreparedDestination, Error> {
         self.prepared
             .get(id.0 as usize)
             .ok_or_else(|| Error::new(ErrorKind::InvalidPrepared(id.0), Some(span)))?
@@ -777,6 +852,12 @@ impl Check<'_, '_> {
                     .is_async())
         {
             return Err(Error::new(ErrorKind::UnsupportedTaskProfile, Some(i.span)));
+        }
+        if i.op.is_channel() && self.profile != Profile::Tasks {
+            return Err(Error::new(
+                ErrorKind::UnsupportedChannelProfile,
+                Some(i.span),
+            ));
         }
         let s = i.span;
         use Expected::{Builtin as B, Exact as E};
@@ -921,13 +1002,109 @@ impl Check<'_, '_> {
                 self.access(*place, p::Access::Replace(ty), s)?;
                 self.void(i)
             }
+            Op::PrepareChannel {
+                endpoint,
+                role,
+                message_type,
+                ..
+            } => {
+                if !self.declaration.effect.is_async() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidAsyncEffect(self.function),
+                        Some(s),
+                    ));
+                }
+                within(
+                    self.types,
+                    self.declaration.span,
+                    message_type.span,
+                    self.budget,
+                )?;
+                let properties = self.types.properties(message_type.ty).ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::InvalidType(message_type.ty),
+                        Some(message_type.span),
+                    )
+                })?;
+                if !properties.is_send() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidChannelMessage(message_type.ty),
+                        Some(message_type.span),
+                    ));
+                }
+                let actual = self.value(*endpoint, s)?;
+                let valid = match ctor(self.types, actual) {
+                    Some(Constructor::Loan(LoanKind::Shared, target))
+                        if *role == ChannelRole::Sender =>
+                    {
+                        matches!(ctor(self.types,target),Some(Constructor::Sender(t)) if self.types.equivalent(t,message_type.ty)==Some(true))
+                    }
+                    Some(Constructor::Loan(LoanKind::Exclusive, target))
+                        if *role == ChannelRole::Receiver =>
+                    {
+                        matches!(ctor(self.types,target),Some(Constructor::Receiver(t)) if self.types.equivalent(t,message_type.ty)==Some(true))
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    return Err(Error::new(
+                        ErrorKind::InvalidChannelEndpoint(actual),
+                        Some(s),
+                    ));
+                }
+                self.void(i)
+            }
+            Op::ChannelSend { authority, payload } => {
+                if !self.declaration.effect.is_async() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidAsyncEffect(self.function),
+                        Some(s),
+                    ));
+                }
+                let captured = self
+                    .destination(*authority, s)?
+                    .channel()
+                    .filter(|c| c.role == ChannelRole::Sender)
+                    .ok_or_else(|| Error::new(ErrorKind::PreparedKind(authority.0), Some(s)))?;
+                self.expect(*payload, E(captured.message_type.ty), s)?;
+                self.arity(i.results.len(), 1, s)?;
+                let actual = self.value(i.results[0], s)?;
+                if !matches!(ctor(self.types,actual),Some(Constructor::SendResult(t)) if self.types.equivalent(t,captured.message_type.ty)==Some(true))
+                {
+                    return Err(Error::new(ErrorKind::InvalidChannelResult(actual), Some(s)));
+                }
+                Ok(())
+            }
+            Op::ChannelReceive { authority } => {
+                if !self.declaration.effect.is_async() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidAsyncEffect(self.function),
+                        Some(s),
+                    ));
+                }
+                let captured = self
+                    .destination(*authority, s)?
+                    .channel()
+                    .filter(|c| c.role == ChannelRole::Receiver)
+                    .ok_or_else(|| Error::new(ErrorKind::PreparedKind(authority.0), Some(s)))?;
+                self.arity(i.results.len(), 1, s)?;
+                let actual = self.value(i.results[0], s)?;
+                if !matches!(ctor(self.types,actual),Some(Constructor::Option(t)) if self.types.equivalent(t,captured.message_type.ty)==Some(true))
+                {
+                    return Err(Error::new(ErrorKind::InvalidChannelResult(actual), Some(s)));
+                }
+                Ok(())
+            }
             Op::PreparePlace { place, .. } => {
                 let ty = self.place(*place, s)?.value_type;
                 self.access(*place, p::Access::Replace(ty), s)?;
                 self.void(i)
             }
             Op::ReplacePrepared { destination, value } => {
-                let captured = self.destination(*destination, s)?;
+                let captured = self
+                    .destination(*destination, s)?
+                    .place()
+                    .ok_or_else(|| Error::new(ErrorKind::PreparedKind(destination.0), Some(s)))?;
                 let ty = self.value(*value, s)?;
                 self.access(captured.place, p::Access::Replace(ty), s)?;
                 self.void(i)
@@ -1288,7 +1465,39 @@ fn function(
             if matches!(i.op, Op::CoreCall(_)) {
                 core_count = add(core_count, 1)?;
             }
-            if let Op::PreparePlace { destination, place } = i.op {
+            let capture = match i.op {
+                Op::PreparePlace { destination, place } => Some((
+                    destination,
+                    PreparedDestination::Place(PreparedPlace {
+                        site: Site {
+                            block: m::BlockId(b as u32),
+                            order: position + 1,
+                        },
+                        place,
+                        span: i.span,
+                    }),
+                )),
+                Op::PrepareChannel {
+                    destination,
+                    endpoint,
+                    role,
+                    message_type,
+                } => Some((
+                    destination,
+                    PreparedDestination::Channel(PreparedChannel {
+                        site: Site {
+                            block: m::BlockId(b as u32),
+                            order: position + 1,
+                        },
+                        endpoint,
+                        role,
+                        message_type,
+                        span: i.span,
+                    }),
+                )),
+                _ => None,
+            };
+            if let Some((destination, capture)) = capture {
                 let slot = prepared.get_mut(destination.0 as usize).ok_or_else(|| {
                     Error::new(ErrorKind::InvalidPrepared(destination.0), Some(i.span))
                 })?;
@@ -1298,14 +1507,7 @@ fn function(
                         Some(i.span),
                     ));
                 }
-                *slot = Some(PreparedPlace {
-                    site: Site {
-                        block: m::BlockId(b as u32),
-                        order: position + 1,
-                    },
-                    place,
-                    span: i.span,
-                });
+                *slot = Some(capture);
             }
         }
     }
@@ -1481,9 +1683,17 @@ fn function(
                     return Err(Error::new(ErrorKind::UndefinedLoan(loan.0), Some(span)));
                 }
             }
-            if let Op::ReplacePrepared { destination, .. } | Op::DiscardPrepared(destination) = i.op
+            if let Op::ReplacePrepared { destination, .. }
+            | Op::DiscardPrepared(destination)
+            | Op::ChannelSend {
+                authority: destination,
+                ..
+            }
+            | Op::ChannelReceive {
+                authority: destination,
+            } = i.op
             {
-                let site = c.destination(destination, i.span)?.site;
+                let site = c.destination(destination, i.span)?.site();
                 if (site.block == here.block && site.order >= here.order)
                     || (site.block != here.block
                         && !dominates(&idom, site.block.0, here.block.0, c.budget)?)

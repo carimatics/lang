@@ -42,6 +42,7 @@ pub enum Builtin {
     OwnershipError,
     ArenaError,
     TaskError,
+    ChannelError,
 }
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LoanKind {
@@ -58,6 +59,7 @@ pub enum Constructor {
     Builtin(Builtin),
     Option(Type),
     Result(Type, Type),
+    SendResult(Type),
     Vec(Type),
     Map(Type, Type),
     Shared(Type),
@@ -73,7 +75,8 @@ pub enum Constructor {
 impl Constructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
         let args = match self {
-            Self::Option(t)
+            Self::SendResult(t)
+            | Self::Option(t)
             | Self::Vec(t)
             | Self::Shared(t)
             | Self::Weak(t)
@@ -169,6 +172,10 @@ pub enum ErrorKind {
     InvalidStorage(Type),
     InvalidTaskType(Type),
     InvalidChannelMessage(Type),
+    InvalidChannelEndpoint(Type),
+    InvalidChannelResult(Type),
+    UnsupportedChannelProfile,
+    PreparedKind(u32),
     InvalidAsyncEffect(FunctionId),
     UnsupportedTaskProfile,
     ArenaInShared(Type),
@@ -379,7 +386,11 @@ impl VerifiedTypes {
         self.table.constructed.iter().find_map(|t| {
             matches!(
                 t.constructor,
-                Constructor::ChannelSetup(_) | Constructor::Sender(_) | Constructor::Receiver(_)
+                Constructor::ChannelSetup(_)
+                    | Constructor::Sender(_)
+                    | Constructor::Receiver(_)
+                    | Constructor::SendResult(_)
+                    | Constructor::Builtin(Builtin::ChannelError)
             )
             .then_some(t.span)
         })
@@ -462,6 +473,7 @@ fn canonicalize(table: &TypeTable, budget: &mut Budget) -> Result<Vec<Type>, Err
         };
         let key = match t.constructor {
             Constructor::Option(t) => Constructor::Option(child(t)),
+            Constructor::SendResult(t) => Constructor::SendResult(child(t)),
             Constructor::Result(t, e) => Constructor::Result(child(t), child(e)),
             Constructor::Vec(t) => Constructor::Vec(child(t)),
             Constructor::Map(k, v) => Constructor::Map(child(k), child(v)),
@@ -817,7 +829,7 @@ fn validate(
                 },
                 matches!(
                     ty.constructor,
-                    Constructor::Option(_) | Constructor::Result(..)
+                    Constructor::Option(_) | Constructor::Result(..) | Constructor::SendResult(_)
                 ),
             )?;
         }

@@ -465,12 +465,37 @@ impl Context<'_, '_> {
                 }
                 state[index] = Availability::Available;
             }
+            Op::PrepareChannel {
+                destination,
+                endpoint,
+                ..
+            } => {
+                self.take(state, *endpoint, s, mode)?;
+                let index = self.prepared(*destination);
+                if mode == Mode::Check && state[index].may_live() {
+                    return Err(Error {
+                        kind: ErrorKind::OverwritePrepared(*destination),
+                        primary: Some(s),
+                        secondary: None,
+                    });
+                }
+                state[index] = Availability::Available;
+            }
+            Op::ChannelSend { authority, payload } => {
+                self.consume(state, self.prepared(*authority), s, mode)?;
+                self.take(state, *payload, s, mode)?;
+            }
+            Op::ChannelReceive { authority } => {
+                self.consume(state, self.prepared(*authority), s, mode)?;
+            }
             Op::ReplacePrepared { destination, value } => {
                 let index = self.prepared(*destination);
                 self.require(state, index, s, mode)?;
                 self.take(state, *value, s, mode)?;
-                let captured =
-                    self.typed.facts()[self.function].prepared()[destination.0 as usize].unwrap();
+                let captured = self.typed.facts()[self.function].prepared()[destination.0 as usize]
+                    .unwrap()
+                    .place()
+                    .expect("verified prepared place");
                 let p = &self.typed.places().functions()[self.function].places
                     [captured.place.0 as usize];
                 if !p.projections.is_empty()

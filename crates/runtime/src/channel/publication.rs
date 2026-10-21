@@ -2,6 +2,7 @@ use super::*;
 
 struct Inspection<'a, T> {
     identity: &'a Rc<()>,
+    inspect: &'a mut PayloadInspection<'a, T>,
     channels: &'a [Channel<T>],
     work: &'a e::ServiceWork,
     visited: &'a mut [bool],
@@ -10,33 +11,34 @@ struct Inspection<'a, T> {
     cycle: bool,
 }
 impl<T: Payload> Inspection<'_, T> {
-    fn edge(&mut self, receiver: &Receiver) -> Result<(), Error> {
-        self.work.charge(1)?;
-        let key = &receiver.0;
-        if !Rc::ptr_eq(self.identity, &key.identity) {
-            return Err(Error::ForeignEndpoint);
-        }
-        let channel = self.channels.get(key.index).ok_or(Error::InvalidEndpoint)?;
-        if channel.role != Role::Receiver {
-            return Err(Error::WrongRole);
-        }
-        if key.index == self.target {
-            self.cycle = true;
-        } else if !self.visited[key.index] {
-            self.visited[key.index] = true;
-            self.stack.push(key.index);
-        }
-        Ok(())
-    }
-
     fn value(&mut self, value: &T) -> Result<(), Error> {
         self.work.charge(1)?;
-        value.receivers(&mut |receiver| {
-            if self.cycle {
-                Ok(())
-            } else {
-                self.edge(receiver)
+        let identity = self.identity;
+        let channels = self.channels;
+        let visited = &mut self.visited;
+        let stack = &mut self.stack;
+        let target = self.target;
+        let cycle = &mut self.cycle;
+        (self.inspect)(value, &mut |receiver| {
+            if *cycle {
+                return Ok(());
             }
+            self.work.charge(1)?;
+            let key = &receiver.0;
+            if !Rc::ptr_eq(identity, &key.identity) {
+                return Err(Error::ForeignEndpoint);
+            }
+            let channel = channels.get(key.index).ok_or(Error::InvalidEndpoint)?;
+            if channel.role != Role::Receiver {
+                return Err(Error::WrongRole);
+            }
+            if key.index == target {
+                *cycle = true;
+            } else if !visited[key.index] {
+                visited[key.index] = true;
+                stack.push(key.index);
+            }
+            Ok(())
         })
     }
 
@@ -59,9 +61,15 @@ impl<T: Payload> Inspection<'_, T> {
 }
 
 impl<T: Payload> Hub<T> {
-    pub(super) fn publication(&mut self, target: usize, value: &T) -> Result<bool, Error> {
+    pub(super) fn publication(
+        &mut self,
+        target: usize,
+        value: &T,
+        inspect: &mut PayloadInspection<'_, T>,
+    ) -> Result<bool, Error> {
         Inspection {
             identity: &self.identity,
+            inspect,
             channels: &self.channels,
             work: &self.work,
             visited: &mut self.visited,
@@ -72,13 +80,18 @@ impl<T: Payload> Hub<T> {
         .check(value)
     }
 
-    pub(super) fn pending_publication(&mut self, slot: usize) -> Result<bool, Error> {
+    pub(super) fn pending_publication(
+        &mut self,
+        slot: usize,
+        inspect: &mut PayloadInspection<'_, T>,
+    ) -> Result<bool, Error> {
         let pending = self.pending[slot].as_ref().unwrap();
         let Kind::Send(message) = &pending.kind else {
             return Err(Error::WrongRole);
         };
         Inspection {
             identity: &self.identity,
+            inspect,
             channels: &self.channels,
             work: &self.work,
             visited: &mut self.visited,

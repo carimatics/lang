@@ -32,7 +32,7 @@ pub(super) fn builtin(value: B) -> Option<u8> {
         B::Utf8Error => 7,
         B::OwnershipError => 8,
         B::ArenaError => 9,
-        B::TaskError => return None,
+        B::TaskError | B::ChannelError => return None,
     })
 }
 pub(super) fn read_builtin(value: u8, offset: usize) -> Result<B, CodecError> {
@@ -61,15 +61,98 @@ pub(super) fn read_builtin(value: u8, offset: usize) -> Result<B, CodecError> {
 tags!(loan, read_loan, L, Tag::LoanKind, {0=>L::Shared, 1=>L::Exclusive});
 tags!(end, read_end, E, Tag::EndMode, {0=>E::Required, 1=>E::IfActive});
 tags!(local, read_local, K, Tag::LocalKind, {0=>K::Parameter, 1=>K::Mutable, 2=>K::Pattern, 3=>K::ArenaOwner});
-tags!(core, read_core, C, Tag::CoreOperation, {
-    0=>C::Allocator, 1=>C::TextFromUtf8, 2=>C::TextClone, 3=>C::TextLen,
-    4=>C::TextBytes, 5=>C::TextEqual, 6=>C::TextConcat, 7=>C::BytesNew,
-    8=>C::BytesClone, 9=>C::BytesLen, 10=>C::BytesGet, 11=>C::BytesPush,
-    12=>C::BytesSet, 13=>C::VecNew, 14=>C::VecLen, 15=>C::VecPush,
-    16=>C::VecPop, 17=>C::VecGet, 18=>C::VecGetMut, 19=>C::MapNew,
-    20=>C::MapLen, 21=>C::MapInsert, 22=>C::MapGet, 23=>C::MapRemove,
-    24=>C::SharedNew, 25=>C::SharedClone, 26=>C::SharedRead, 27=>C::SharedReplace,
-    28=>C::WeakNew, 29=>C::WeakClone, 30=>C::WeakUpgrade, 31=>C::ArenaNew,
-    32=>C::ArenaRead, 33=>C::ArenaReplace, 34=>C::OptionUnwrap, 35=>C::ResultUnwrap,
-    36=>C::ResultUnwrapErr
-});
+pub(super) fn core(value: C) -> Option<u8> {
+    Some(match value {
+        C::Allocator => 0,
+        C::TextFromUtf8 => 1,
+        C::TextClone => 2,
+        C::TextLen => 3,
+        C::TextBytes => 4,
+        C::TextEqual => 5,
+        C::TextConcat => 6,
+        C::BytesNew => 7,
+        C::BytesClone => 8,
+        C::BytesLen => 9,
+        C::BytesGet => 10,
+        C::BytesPush => 11,
+        C::BytesSet => 12,
+        C::VecNew => 13,
+        C::VecLen => 14,
+        C::VecPush => 15,
+        C::VecPop => 16,
+        C::VecGet => 17,
+        C::VecGetMut => 18,
+        C::MapNew => 19,
+        C::MapLen => 20,
+        C::MapInsert => 21,
+        C::MapGet => 22,
+        C::MapRemove => 23,
+        C::SharedNew => 24,
+        C::SharedClone => 25,
+        C::SharedRead => 26,
+        C::SharedReplace => 27,
+        C::WeakNew => 28,
+        C::WeakClone => 29,
+        C::WeakUpgrade => 30,
+        C::ArenaNew => 31,
+        C::ArenaRead => 32,
+        C::ArenaReplace => 33,
+        C::OptionUnwrap => 34,
+        C::ResultUnwrap => 35,
+        C::ResultUnwrapErr => 36,
+        C::ChannelNew
+        | C::ChannelSender
+        | C::ChannelClone
+        | C::ChannelReceiver
+        | C::ChannelSeal
+        | C::ChannelUnsent => return None,
+    })
+}
+pub(super) fn read_core(value: u8, offset: usize) -> Result<C, CodecError> {
+    match value {
+        0 => Ok(C::Allocator),
+        1 => Ok(C::TextFromUtf8),
+        2 => Ok(C::TextClone),
+        3 => Ok(C::TextLen),
+        4 => Ok(C::TextBytes),
+        5 => Ok(C::TextEqual),
+        6 => Ok(C::TextConcat),
+        7 => Ok(C::BytesNew),
+        8 => Ok(C::BytesClone),
+        9 => Ok(C::BytesLen),
+        10 => Ok(C::BytesGet),
+        11 => Ok(C::BytesPush),
+        12 => Ok(C::BytesSet),
+        13 => Ok(C::VecNew),
+        14 => Ok(C::VecLen),
+        15 => Ok(C::VecPush),
+        16 => Ok(C::VecPop),
+        17 => Ok(C::VecGet),
+        18 => Ok(C::VecGetMut),
+        19 => Ok(C::MapNew),
+        20 => Ok(C::MapLen),
+        21 => Ok(C::MapInsert),
+        22 => Ok(C::MapGet),
+        23 => Ok(C::MapRemove),
+        24 => Ok(C::SharedNew),
+        25 => Ok(C::SharedClone),
+        26 => Ok(C::SharedRead),
+        27 => Ok(C::SharedReplace),
+        28 => Ok(C::WeakNew),
+        29 => Ok(C::WeakClone),
+        30 => Ok(C::WeakUpgrade),
+        31 => Ok(C::ArenaNew),
+        32 => Ok(C::ArenaRead),
+        33 => Ok(C::ArenaReplace),
+        34 => Ok(C::OptionUnwrap),
+        35 => Ok(C::ResultUnwrap),
+        36 => Ok(C::ResultUnwrapErr),
+        value => Err(error(
+            offset,
+            CodecErrorKind::InvalidTag {
+                tag: Tag::CoreOperation,
+                value,
+            },
+        )),
+    }
+}

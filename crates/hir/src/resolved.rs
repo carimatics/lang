@@ -70,6 +70,7 @@ pub enum BuiltinType {
     OwnershipError,
     ArenaError,
     TaskError,
+    ChannelError,
 }
 impl BuiltinType {
     pub const fn name(self) -> &'static str {
@@ -85,6 +86,7 @@ impl BuiltinType {
             Self::OwnershipError => "OwnershipError",
             Self::ArenaError => "ArenaError",
             Self::TaskError => "TaskError",
+            Self::ChannelError => "ChannelError",
         }
     }
     pub fn from_name(name: &str) -> Option<Self> {
@@ -100,6 +102,7 @@ impl BuiltinType {
             Self::OwnershipError,
             Self::ArenaError,
             Self::TaskError,
+            Self::ChannelError,
         ]
         .into_iter()
         .find(|b| b.name() == name)
@@ -110,6 +113,7 @@ pub enum TypeConstructor {
     Builtin(BuiltinType),
     Option(Type),
     Result(Type, Type),
+    SendResult(Type),
     Task(Type),
     ChannelSetup(Type),
     Sender(Type),
@@ -128,7 +132,8 @@ impl TypeConstructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
         let pair = match self {
             Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
-            Self::Option(t)
+            Self::SendResult(t)
+            | Self::Option(t)
             | Self::ChannelSetup(t)
             | Self::Sender(t)
             | Self::Receiver(t)

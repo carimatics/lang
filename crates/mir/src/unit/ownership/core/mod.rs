@@ -10,6 +10,10 @@ pub enum TypePattern {
     Bool,
     Builtin(Builtin),
     Argument(u8),
+    ChannelSetup(&'static Self),
+    Sender(&'static Self),
+    Receiver(&'static Self),
+    SendResult(&'static Self),
     Option(&'static Self),
     Result(&'static Self, &'static Self),
     Vec(&'static Self),
@@ -23,6 +27,8 @@ pub enum TypePattern {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TypeArgumentRule {
     Storable,
+    /// Independently derived logical-task message eligibility.
+    Send,
     MapKey,
     SharedPayload,
 }
@@ -121,6 +127,12 @@ pub enum Operation {
     OptionUnwrap,
     ResultUnwrap,
     ResultUnwrapErr,
+    ChannelNew,
+    ChannelSender,
+    ChannelClone,
+    ChannelReceiver,
+    ChannelSeal,
+    ChannelUnsent,
 }
 
 /// A checked whole-sum extraction: the other valid case raises this guest panic.
@@ -149,6 +161,12 @@ const SHARED: TypePattern = TypePattern::Shared(&T);
 const WEAK: TypePattern = TypePattern::Weak(&T);
 const ARENA: TypePattern = TypePattern::Arena(&T);
 const OWNER: TypePattern = TypePattern::ArenaOwner;
+const CHANNEL_ERROR: TypePattern = TypePattern::Builtin(Builtin::ChannelError);
+const SETUP: TypePattern = TypePattern::ChannelSetup(&T);
+const SENDER: TypePattern = TypePattern::Sender(&T);
+const RECEIVER: TypePattern = TypePattern::Receiver(&T);
+const SEND_RESULT: TypePattern = TypePattern::SendResult(&T);
+const SEND_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Send];
 const ONE: &[TypeArgumentRule] = &[TypeArgumentRule::Storable];
 const TWO: &[TypeArgumentRule] = &[TypeArgumentRule::Storable; 2];
 const SHARED_ONE: &[TypeArgumentRule] = &[TypeArgumentRule::SharedPayload];
@@ -168,7 +186,7 @@ const fn signature(
 }
 
 impl Operation {
-    pub const ALL: [Self; 37] = [
+    pub const ALL: [Self; 43] = [
         Self::Allocator,
         Self::TextFromUtf8,
         Self::TextClone,
@@ -206,8 +224,25 @@ impl Operation {
         Self::OptionUnwrap,
         Self::ResultUnwrap,
         Self::ResultUnwrapErr,
+        Self::ChannelNew,
+        Self::ChannelSender,
+        Self::ChannelClone,
+        Self::ChannelReceiver,
+        Self::ChannelSeal,
+        Self::ChannelUnsent,
     ];
 
+    pub const fn is_channel(self) -> bool {
+        matches!(
+            self,
+            Self::ChannelNew
+                | Self::ChannelSender
+                | Self::ChannelClone
+                | Self::ChannelReceiver
+                | Self::ChannelSeal
+                | Self::ChannelUnsent
+        )
+    }
     pub const fn name(self) -> &'static str {
         match self {
             Self::Allocator => "allocator",
@@ -247,6 +282,12 @@ impl Operation {
             Self::OptionUnwrap => "option_unwrap",
             Self::ResultUnwrap => "result_unwrap",
             Self::ResultUnwrapErr => "result_unwrap_err",
+            Self::ChannelNew => "channel_new",
+            Self::ChannelSender => "channel_sender",
+            Self::ChannelClone => "channel_clone",
+            Self::ChannelReceiver => "channel_receiver",
+            Self::ChannelSeal => "channel_seal",
+            Self::ChannelUnsent => "channel_unsent",
         }
     }
 
@@ -278,6 +319,16 @@ impl Operation {
         use LoanKind::{Exclusive as M, Shared as S};
         use TypePattern as P;
         let mut sig = match self {
+            Self::ChannelNew => signature(
+                SEND_ONE,
+                &[P::Loan(S, &ALLOCATOR), P::I64],
+                P::Result(&SETUP, &CHANNEL_ERROR),
+            ),
+            Self::ChannelSender => signature(SEND_ONE, &[P::Loan(S, &SETUP)], SENDER),
+            Self::ChannelClone => signature(SEND_ONE, &[P::Loan(S, &SENDER)], SENDER),
+            Self::ChannelReceiver => signature(SEND_ONE, &[SETUP], RECEIVER),
+            Self::ChannelSeal => signature(SEND_ONE, &[P::Loan(M, &RECEIVER)], UNIT),
+            Self::ChannelUnsent => signature(ONE, &[SEND_RESULT], T),
             Self::OptionUnwrap => signature(ONE, &[P::Option(&T)], T),
             Self::ResultUnwrap => signature(TWO, &[P::Result(&T, &V)], T),
             Self::ResultUnwrapErr => signature(TWO, &[P::Result(&T, &V)], V),

@@ -9,6 +9,22 @@ impl<T: Payload> Hub<T> {
         value: T,
         span: Option<Span>,
     ) -> Result<Send<T>, Failure<T>> {
+        let mut inspect = |value: &T, visit: &mut dyn FnMut(&Receiver) -> Result<(), Error>| {
+            value.receivers(visit)
+        };
+        self.send_inspected(scheduler, task, sender, value, span, &mut inspect)
+    }
+
+    pub fn send_inspected(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        task: &t::TaskId,
+        sender: &Sender,
+        value: T,
+        span: Option<Span>,
+        inspect: &mut PayloadInspection<'_, T>,
+    ) -> Result<Send<T>, Failure<T>> {
+        let owner_span = value.owner_span().or(span);
         let checked = (|| {
             self.running(scheduler, task)?;
             let channel = self.sender_index(sender)?;
@@ -51,7 +67,7 @@ impl<T: Payload> Hub<T> {
             });
         }
         if self.channels[channel].values.has_space() && self.channels[channel].send_head.is_none() {
-            match self.publication(channel, &value) {
+            match self.publication(channel, &value, inspect) {
                 Ok(false) => {
                     return Ok(Send::Rejected {
                         reason: Rejection::InvalidPublication,
@@ -67,7 +83,10 @@ impl<T: Payload> Hub<T> {
                     value,
                 });
             }
-            let position = match self.channels[channel].values.push(Message { value, span }) {
+            let position = match self.channels[channel].values.push(Message {
+                value,
+                span: owner_span,
+            }) {
                 Ok(position) => position,
                 Err((refusal, message)) => {
                     return Err(Failure {
@@ -113,7 +132,10 @@ impl<T: Payload> Hub<T> {
         self.pending[slot] = Some(Pending {
             operation: operation.clone(),
             channel,
-            kind: Kind::Send(Message { value, span }),
+            kind: Kind::Send(Message {
+                value,
+                span: owner_span,
+            }),
             previous: None,
             next: None,
             eligible: false,
@@ -130,6 +152,18 @@ impl<T: Payload> Hub<T> {
         &mut self,
         scheduler: &mut t::Scheduler,
         operation: &Operation,
+    ) -> Result<Send<T>, Error> {
+        let mut inspect = |value: &T, visit: &mut dyn FnMut(&Receiver) -> Result<(), Error>| {
+            value.receivers(visit)
+        };
+        self.resume_send_inspected(scheduler, operation, &mut inspect)
+    }
+
+    pub fn resume_send_inspected(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        operation: &Operation,
+        inspect: &mut PayloadInspection<'_, T>,
     ) -> Result<Send<T>, Error> {
         let slot = self.operation(operation)?;
         self.running(scheduler, operation.task())?;
@@ -171,7 +205,7 @@ impl<T: Payload> Hub<T> {
         }
         // Inspect under shared ownership; refusal/unwinding leaves the pending
         // reservation in its ledger until cancellation/normal completion.
-        if !self.pending_publication(slot)? {
+        if !self.pending_publication(slot, inspect)? {
             let p = self.remove(slot);
             self.notify(scheduler, channel)?;
             let Kind::Send(message) = p.kind else {

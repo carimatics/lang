@@ -9,6 +9,10 @@ fn ty(pattern: P) -> String {
         P::Argument(0) => "T".into(),
         P::Argument(1) => "V".into(),
         P::Argument(other) => panic!("unexpected type parameter {other}"),
+        P::ChannelSetup(t) => format!("ChannelSetup<{}>", ty(*t)),
+        P::Sender(t) => format!("Sender<{}>", ty(*t)),
+        P::Receiver(t) => format!("Receiver<{}>", ty(*t)),
+        P::SendResult(t) => format!("SendResult<{}>", ty(*t)),
         P::Option(t) => format!("Option<{}>", ty(*t)),
         P::Result(t, e) => format!("Result<{}, {}>", ty(*t), ty(*e)),
         P::Vec(t) => format!("Vec<{}>", ty(*t)),
@@ -29,6 +33,7 @@ fn every_core_signature_matches_the_accepted_rfc_table() {
     let expected: Vec<_> = include_str!("../../../tests/fixtures/core-signatures.txt")
         .lines()
         .chain(include_str!("../../../tests/fixtures/source-intrinsic-signatures.txt").lines())
+        .chain(include_str!("../../../tests/fixtures/channel-signatures.txt").lines())
         .filter(|line| !line.starts_with('#') && !line.is_empty())
         .map(|line| {
             let mut fields = line.split('|');
@@ -82,6 +87,10 @@ fn signatures_record_result_provenance_and_concrete_argument_restrictions() {
         assert_eq!(signature.result_binding, expected, "{operation:?}");
         let rules: &[T] = if operation == Operation::Panic {
             &[T::ReturnType]
+        } else if operation.is_channel() && operation != Operation::ChannelUnsent {
+            &[T::Send]
+        } else if operation == Operation::ChannelUnsent {
+            &[T::Storable]
         } else if operation.name().starts_with("map_") {
             &[T::MapKey, T::Storable]
         } else if operation.name().starts_with("shared_") || operation.name().starts_with("weak_") {
@@ -131,6 +140,11 @@ fn core_case_families_and_payloads_match_the_accepted_closed_sums() {
         ("ArenaError", "Unavailable", ""),
         ("ArenaError", "BorrowConflict", ""),
         ("TaskError", "Cancelled", ""),
+        ("ChannelError", "InvalidCapacity", ""),
+        ("ChannelError", "Allocation", "AllocError"),
+        ("SendResult", "Sent", ""),
+        ("SendResult", "Closed", "T"),
+        ("SendResult", "InvalidPublication", "T"),
     ];
     assert_eq!(expected.len(), Case::ALL.len());
     let mut seen = std::collections::BTreeSet::new();
@@ -153,7 +167,7 @@ fn core_case_families_and_payloads_match_the_accepted_closed_sums() {
         assert_eq!(
             family.type_arguments(),
             match family {
-                Family::Option => 1,
+                Family::Option | Family::SendResult => 1,
                 Family::Result => 2,
                 _ => 0,
             }

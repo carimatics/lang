@@ -823,6 +823,10 @@ impl Checker<'_, '_> {
     fn core_payload(&self, ty: r::Type, tag: core::Case) -> Option<r::Type> {
         match (self.constructor(ty), tag) {
             (Some(r::TypeConstructor::Option(t)), core::Case::Some) => Some(t),
+            (
+                Some(r::TypeConstructor::SendResult(t)),
+                core::Case::SendClosed | core::Case::SendInvalidPublication,
+            ) => Some(t),
             (Some(r::TypeConstructor::Result(t, _)), core::Case::Ok) => Some(t),
             (Some(r::TypeConstructor::Result(_, e)), core::Case::Err) => Some(e),
             _ => None,
@@ -893,9 +897,19 @@ impl Checker<'_, '_> {
             }
         } else if matches!(
             self.constructor(ty),
-            Some(r::TypeConstructor::Option(_) | r::TypeConstructor::Result(..))
+            Some(
+                r::TypeConstructor::Option(_)
+                    | r::TypeConstructor::Result(..)
+                    | r::TypeConstructor::SendResult(_)
+            )
         ) {
-            for tag in [core::Case::Some, core::Case::Ok, core::Case::Err] {
+            for tag in [
+                core::Case::Some,
+                core::Case::Ok,
+                core::Case::Err,
+                core::Case::SendClosed,
+                core::Case::SendInvalidPublication,
+            ] {
                 if let Some(payload_ty) = self.core_payload(ty, tag) {
                     let step = Step {
                         kind: StepKind::Payload(Tag::Core(tag), 0),
@@ -1290,6 +1304,28 @@ impl Checker<'_, '_> {
             O::Panic => {
                 self.diverges = true;
                 Ok(EMPTY)
+            }
+            O::ChannelUnsent => {
+                let ty = self.facts.expressions()[id.0];
+                let a = self.project(
+                    values[0],
+                    Step {
+                        kind: StepKind::Payload(Tag::Core(core::Case::SendClosed), 0),
+                        ty,
+                    },
+                    span,
+                    depth + 1,
+                )?;
+                let b = self.project(
+                    values[0],
+                    Step {
+                        kind: StepKind::Payload(Tag::Core(core::Case::SendInvalidPublication), 0),
+                        ty,
+                    },
+                    span,
+                    depth + 1,
+                )?;
+                self.join(a, b, ty, span, depth + 1)
             }
             O::OptionUnwrap | O::ResultUnwrap | O::ResultUnwrapErr => {
                 let case = match op {

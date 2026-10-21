@@ -468,7 +468,9 @@ fn build(
                 o::Constructor::Builtin(o::Builtin::Unit) => return Ok(simple(0, 1, Kind::Scalar)),
                 o::Constructor::ChannelSetup(_)
                 | o::Constructor::Sender(_)
-                | o::Constructor::Receiver(_) => {
+                | o::Constructor::Receiver(_)
+                | o::Constructor::SendResult(_)
+                | o::Constructor::Builtin(o::Builtin::ChannelError) => {
                     return Err(Error::UnsupportedChannelProfile {
                         span: types.table().constructed[id.0 as usize].span,
                     });

@@ -106,6 +106,26 @@ fn escaping_options_report_the_arena_declaration_and_store() {
 }
 
 #[test]
+fn channel_failure_data_extraction_retains_the_arena_brand_in_hir() {
+    for case in ["Closed", "InvalidPublication"] {
+        let text = ESCAPE.replace("core::Option::Some(token)", &format!("core::Option::Some(core::channel_unsent::<arena i64>(core::SendResult::{case}(token)))"));
+        let (_, analysis) = analyze(&text);
+        assert!(analysis.bodies.is_none(), "{case}");
+        assert!(
+            analysis.violations.iter().any(|v| v.kind == V::Escape),
+            "{case}"
+        );
+        assert!(
+            analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == codes::REGION_ESCAPE),
+            "{case}"
+        );
+    }
+}
+
+#[test]
 fn distinct_arena_read_replace_and_payload_storage_are_rejected() {
     for body in [
         "match core::arena_read::<i64>(one, node2) { core::Result::Ok(read) => { return (*read); }, core::Result::Err(_) => { return 0; }, }",

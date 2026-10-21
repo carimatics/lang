@@ -555,7 +555,9 @@ pub fn analyze(
                 },
                 matches!(
                     ty.constructor,
-                    r::TypeConstructor::Option(_) | r::TypeConstructor::Result(..)
+                    r::TypeConstructor::Option(_)
+                        | r::TypeConstructor::Result(..)
+                        | r::TypeConstructor::SendResult(_)
                 ),
                 &mut graph,
                 &mut reverse,

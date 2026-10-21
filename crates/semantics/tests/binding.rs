@@ -769,6 +769,10 @@ fn signature_source(pattern: lang_hir::core::TypePattern) -> String {
         P::Bool | P::Argument(1) => "bool".into(),
         P::Argument(_) => panic!(),
         P::Builtin(b) => format!("core::{}", b.name()),
+        P::ChannelSetup(t) => format!("core::ChannelSetup<{}>", signature_source(*t)),
+        P::Sender(t) => format!("core::Sender<{}>", signature_source(*t)),
+        P::Receiver(t) => format!("core::Receiver<{}>", signature_source(*t)),
+        P::SendResult(t) => format!("core::SendResult<{}>", signature_source(*t)),
         P::Option(t) => format!("core::Option<{}>", signature_source(*t)),
         P::Result(t, e) => format!(
             "core::Result<{}, {}>",
@@ -818,7 +822,11 @@ fn body_typing_instantiates_all_non_arena_core_signatures_from_real_source() {
             2 => "::<i64, bool>",
             _ => panic!(),
         };
-        let call = format!("core::{}{generics}({arguments})", operation.name());
+        let call = format!(
+            "{}core::{}{generics}({arguments})",
+            if operation.is_async() { "await " } else { "" },
+            operation.name()
+        );
         let (result, body) = match sig.result_binding {
             ResultBinding::InstanceAllocator => (
                 "i64".into(),
@@ -830,7 +838,10 @@ fn body_typing_instantiates_all_non_arena_core_signatures_from_real_source() {
             ),
             _ => (signature_source(sig.result), format!("return {call};")),
         };
-        let text = format!("fn f({parameters}) -> {result} {{ {body} }}");
+        let text = format!(
+            "{}fn f({parameters}) -> {result} {{ {body} }}",
+            if operation.is_async() { "async " } else { "" }
+        );
         let (_, analysis) = body_analysis(&text);
         assert!(
             analysis.bodies.is_some(),
@@ -856,6 +867,7 @@ fn body_typing_checks_every_core_case_payload_with_a_concrete_expected_family() 
     for case in Case::ALL {
         let result = match case.family() {
             Family::Option => "core::Option<i64>".into(),
+            Family::SendResult => "core::SendResult<i64>".into(),
             Family::Result => "core::Result<i64, bool>".into(),
             family => format!("core::{}", family.name()),
         };

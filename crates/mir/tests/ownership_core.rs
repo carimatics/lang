@@ -143,6 +143,10 @@ fn parse(t: &mut b::BodyTable, text: &str, arguments: [o::Type; 2]) -> o::Type {
         let constructor = match name {
             "Vec" => o::Constructor::Vec(a),
             "Option" => o::Constructor::Option(a),
+            "ChannelSetup" => o::Constructor::ChannelSetup(a),
+            "Sender" => o::Constructor::Sender(a),
+            "Receiver" => o::Constructor::Receiver(a),
+            "SendResult" => o::Constructor::SendResult(a),
             "Result" => o::Constructor::Result(a, parse(t, fields[1], arguments)),
             "Map" => o::Constructor::Map(a, parse(t, fields[1], arguments)),
             _ => panic!("{name}"),
@@ -168,6 +172,7 @@ fn parse(t: &mut b::BodyTable, text: &str, arguments: [o::Type; 2]) -> o::Type {
         "Utf8Error" => o::Builtin::Utf8Error,
         "OwnershipError" => o::Builtin::OwnershipError,
         "ArenaError" => o::Builtin::ArenaError,
+        "ChannelError" => o::Builtin::ChannelError,
         _ => panic!("{text}"),
     };
     ctor(t, o::Constructor::Builtin(builtin))
@@ -175,7 +180,9 @@ fn parse(t: &mut b::BodyTable, text: &str, arguments: [o::Type; 2]) -> o::Type {
 fn rows() -> Vec<(&'static str, usize, &'static str)> {
     include_str!("../../../tests/fixtures/core-signatures.txt")
         .lines()
+        .chain(include_str!("../../../tests/fixtures/channel-signatures.txt").lines())
         .filter(|l| !l.starts_with('#') && !l.is_empty())
+        .filter(|l| !l.starts_with("channel_send|") && !l.starts_with("channel_receive|"))
         .map(|line| {
             let mut p = line.split('|');
             (
@@ -332,7 +339,7 @@ fn body(mut f: Fixture) -> b::BodyTable {
 
 #[test]
 fn all_contracts_accept_three_independent_concrete_rfc_signatures() {
-    assert_eq!(rows().len(), 37);
+    assert_eq!(rows().len(), 43);
     let mut seen = std::collections::BTreeSet::new();
     for (name, arity, signature) in rows() {
         for variant in 0..3 {
@@ -359,7 +366,19 @@ fn all_contracts_accept_three_independent_concrete_rfc_signatures() {
 #[test]
 fn non_arena_calls_flow_through_types_moves_activity_and_provenance() {
     for (name, arity, signature) in rows().into_iter().filter(|r| !r.0.starts_with("arena_")) {
-        let out = fully_check(body(fixture(name, arity, signature, 0)));
+        let table = body(fixture(name, arity, signature, 0));
+        if name.starts_with("channel_") {
+            assert!(matches!(
+                table.clone().verify(Default::default()).unwrap_err().kind,
+                o::ErrorKind::UnsupportedChannelProfile
+            ));
+            let proof = o::tasks::verify(table, Default::default()).unwrap();
+            let calls = proof.typed().facts()[0].core_calls();
+            assert_eq!(calls.len(), 1);
+            assert_eq!(calls[0].operation.name(), name);
+            continue;
+        }
+        let out = fully_check(table);
         let typed = out.activity().moved().typed();
         let facts = &typed.facts()[0];
         assert_eq!(facts.core_calls().len(), 1);

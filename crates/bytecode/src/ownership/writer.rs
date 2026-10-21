@@ -102,6 +102,12 @@ impl Writer<'_> {
     fn constructor(&mut self, value: &o::Constructed) -> Result<(), CodecError> {
         use o::Constructor as C;
         match value.constructor {
+            C::Builtin(o::Builtin::ChannelError) => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedChannelProfile { span: value.span },
+                ));
+            }
             C::Builtin(v) => {
                 let tag = tags::builtin(v).ok_or_else(|| {
                     error(
@@ -152,7 +158,7 @@ impl Writer<'_> {
                 self.word(v.function.0)?;
                 self.word(v.local)?;
             }
-            C::ChannelSetup(_) | C::Sender(_) | C::Receiver(_) => {
+            C::ChannelSetup(_) | C::Sender(_) | C::Receiver(_) | C::SendResult(_) => {
                 return Err(error(
                     self.length,
                     CodecErrorKind::UnsupportedChannelProfile { span: value.span },
@@ -258,6 +264,12 @@ impl Writer<'_> {
         self.span(value.span)
     }
     fn instruction(&mut self, value: &b::Instruction) -> Result<(), CodecError> {
+        if value.op.is_channel() {
+            return Err(error(
+                self.length,
+                CodecErrorKind::UnsupportedChannelProfile { span: value.span },
+            ));
+        }
         if value.op.is_task() {
             return Err(error(
                 self.length,
@@ -267,6 +279,14 @@ impl Writer<'_> {
         use b::Op as O;
         self.registers(&value.results)?;
         match &value.op {
+            b::Op::PrepareChannel { .. }
+            | b::Op::ChannelSend { .. }
+            | b::Op::ChannelReceive { .. } => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedChannelProfile { span: value.span },
+                ));
+            }
             b::Op::TaskScopeEnter(_)
             | b::Op::TaskScopeExit(_)
             | b::Op::TaskSpawn { .. }
@@ -403,7 +423,12 @@ impl Writer<'_> {
             }
             O::CoreCall(v) => {
                 self.byte(26)?;
-                self.byte(tags::core(v.operation))?;
+                self.byte(tags::core(v.operation).ok_or_else(|| {
+                    error(
+                        self.length,
+                        CodecErrorKind::UnsupportedChannelProfile { span: value.span },
+                    )
+                })?)?;
                 self.list(&v.type_arguments, Self::type_use)?;
                 self.registers(&v.arguments)?;
                 self.optional(v.result_loan.map(|v| v.0))?;
@@ -751,12 +776,14 @@ mod task_tests {
         ));
     }
     #[test]
-    fn old_writers_refuse_each_channel_role_before_any_constructor_bytes() {
+    fn old_writers_refuse_each_channel_type_before_any_constructor_bytes() {
         for version in [2, 3, 4] {
             for constructor in [
                 o::Constructor::ChannelSetup(o::Type::I64),
                 o::Constructor::Sender(o::Type::I64),
                 o::Constructor::Receiver(o::Type::I64),
+                o::Constructor::SendResult(o::Type::I64),
+                o::Constructor::Builtin(o::Builtin::ChannelError),
             ] {
                 let mut budget = m::Budget::new(Default::default());
                 let mut w = writer(&mut budget, version);
@@ -773,6 +800,67 @@ mod task_tests {
                 assert!(w.output.unwrap().is_empty());
             }
         }
+    }
+    #[test]
+    fn channel_instructions_and_core_calls_have_no_old_wire_encoding() {
+        let mut operations = vec![
+            b::Op::PrepareChannel {
+                destination: b::PreparedPlaceId(0),
+                endpoint: m::Register(0),
+                role: b::ChannelRole::Sender,
+                message_type: o::TypeUse {
+                    ty: o::Type::I64,
+                    span: span(),
+                },
+            },
+            b::Op::ChannelSend {
+                authority: b::PreparedPlaceId(0),
+                payload: m::Register(1),
+            },
+            b::Op::ChannelReceive {
+                authority: b::PreparedPlaceId(0),
+            },
+        ];
+        for operation in o::core::Operation::ALL
+            .into_iter()
+            .filter(|op| op.is_channel())
+        {
+            assert_eq!(tags::core(operation), None);
+            operations.push(b::Op::CoreCall(o::core::Call {
+                operation,
+                type_arguments: vec![],
+                arguments: vec![],
+                result_loan: None,
+            }));
+        }
+        for version in [2, 3, 4] {
+            for op in &operations {
+                let mut budget = m::Budget::new(Default::default());
+                let mut w = writer(&mut budget, version);
+                let error = w
+                    .instruction(&b::Instruction {
+                        results: vec![m::Register(9)],
+                        op: op.clone(),
+                        span: span(),
+                    })
+                    .unwrap_err();
+                assert!(
+                    matches!(error.kind, CodecErrorKind::UnsupportedChannelProfile { span: s } if s == span())
+                );
+                assert_eq!(w.length, 0);
+                assert!(w.output.unwrap().is_empty());
+            }
+        }
+        for value in 37..=u8::MAX {
+            assert!(matches!(
+                tags::read_core(value, 0).unwrap_err().kind,
+                CodecErrorKind::InvalidTag {
+                    tag: Tag::CoreOperation,
+                    ..
+                }
+            ));
+        }
+        assert_eq!(tags::builtin(o::Builtin::ChannelError), None);
     }
     #[test]
     fn old_writers_refuse_even_scalar_async_declarations_before_output() {

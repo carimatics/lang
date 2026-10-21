@@ -22,6 +22,10 @@ pub(crate) fn source_feature(source: &r::Program) -> Option<Span> {
             return Some(span);
         }
         for e in &f.expressions {
+            if matches!(e.kind, r::ExpressionKind::CoreCall{operation,..} if operation.is_channel())
+            {
+                return Some(e.span);
+            }
             if matches!(
                 e.kind,
                 r::ExpressionKind::Spawn(_)

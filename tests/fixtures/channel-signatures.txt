@@ -1,0 +1,10 @@
+# RFC 0025 C03 source catalog; accepted 2026-10-21 JST.
+# Await is mandatory for send/receive; these are not synchronous MIR core calls.
+channel_new|1|(&Allocator, i64) -> Result<ChannelSetup<T>, ChannelError>
+channel_sender|1|(&ChannelSetup<T>) -> Sender<T>
+channel_clone|1|(&Sender<T>) -> Sender<T>
+channel_receiver|1|(ChannelSetup<T>) -> Receiver<T>
+channel_seal|1|(&mut Receiver<T>) -> Unit
+channel_send|1|(&Sender<T>, T) -> SendResult<T>
+channel_receive|1|(&mut Receiver<T>) -> Option<T>
+channel_unsent|1|(SendResult<T>) -> T

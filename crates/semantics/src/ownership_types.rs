@@ -106,6 +106,7 @@ fn constructor(c: r::TypeConstructor, span: Span, profile: Profile) -> Result<o:
         }
         C::Builtin(b) => o::Constructor::Builtin(match b {
             B::Unit => o::Builtin::Unit,
+            B::ChannelError => o::Builtin::ChannelError,
             B::Text => o::Builtin::Text,
             B::Bytes => o::Builtin::Bytes,
             B::Allocator => o::Builtin::Allocator,
@@ -124,6 +125,7 @@ fn constructor(c: r::TypeConstructor, span: Span, profile: Profile) -> Result<o:
             }
         }),
         C::Option(t) => o::Constructor::Option(ty(t)?),
+        C::SendResult(t) => o::Constructor::SendResult(ty(t)?),
         C::Result(t, e) => o::Constructor::Result(ty(t)?, ty(e)?),
         C::Vec(t) => o::Constructor::Vec(ty(t)?),
         C::Map(k, v) => o::Constructor::Map(ty(k)?, ty(v)?),
@@ -522,5 +524,14 @@ pub const fn core_operation(operation: lang_hir::core::Operation) -> Option<o::c
         lang_hir::core::Operation::OptionUnwrap => o::core::Operation::OptionUnwrap,
         lang_hir::core::Operation::ResultUnwrap => o::core::Operation::ResultUnwrap,
         lang_hir::core::Operation::ResultUnwrapErr => o::core::Operation::ResultUnwrapErr,
+        lang_hir::core::Operation::ChannelNew => o::core::Operation::ChannelNew,
+        lang_hir::core::Operation::ChannelSender => o::core::Operation::ChannelSender,
+        lang_hir::core::Operation::ChannelClone => o::core::Operation::ChannelClone,
+        lang_hir::core::Operation::ChannelReceiver => o::core::Operation::ChannelReceiver,
+        lang_hir::core::Operation::ChannelSeal => o::core::Operation::ChannelSeal,
+        lang_hir::core::Operation::ChannelUnsent => o::core::Operation::ChannelUnsent,
+        lang_hir::core::Operation::ChannelSend | lang_hir::core::Operation::ChannelReceive => {
+            return None;
+        }
     })
 }

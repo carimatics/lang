@@ -337,6 +337,29 @@ impl Engine {
         use core::Operation as O;
         let output = self.value_root(i.results[0]);
         let node = self.roots[output].node;
+        if call.operation == O::ChannelUnsent {
+            let source = self.value_root(call.arguments[0]);
+            let child = plan.nodes[self.roots[source].node.0].case(1).unwrap()[0];
+            let a = self.project(
+                plan,
+                row[source],
+                Projection {
+                    kind: ProjectionKind::Case(1, 0),
+                    node: child,
+                },
+                admit,
+            )?;
+            let b = self.project(
+                plan,
+                row[source],
+                Projection {
+                    kind: ProjectionKind::Case(2, 0),
+                    node: child,
+                },
+                admit,
+            )?;
+            return self.join(plan, a, b, node, admit, 0);
+        }
         if let Some(extract) = call.operation.extraction() {
             let source = self.value_root(call.arguments[0]);
             let source_node = self.roots[source].node;
@@ -621,6 +644,17 @@ impl Engine {
                         }
                     }
                 }
+            }
+            Op::PrepareChannel { endpoint, .. } => {
+                self.consume(plan, row, *endpoint);
+            }
+            Op::ChannelSend { authority, payload } => {
+                self.consume(plan, row, *payload);
+                row[self.roots.len() * 2 + authority.0 as usize] = 0;
+                // Message Send proof excludes all arena/loan/owner brands.
+            }
+            Op::ChannelReceive { authority } => {
+                row[self.roots.len() * 2 + authority.0 as usize] = 0;
             }
             Op::TaskAwait(value) | Op::TaskSaveReturn(value) => {
                 self.consume(plan, row, *value);

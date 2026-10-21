@@ -415,7 +415,10 @@ fn every_source_core_identity_maps_to_the_independent_mir_contract() {
         let Some(mir) = ownership_types::core_operation(source) else {
             assert!(matches!(
                 source,
-                lang_hir::core::Operation::Drop | lang_hir::core::Operation::Panic
+                lang_hir::core::Operation::Drop
+                    | lang_hir::core::Operation::Panic
+                    | lang_hir::core::Operation::ChannelSend
+                    | lang_hir::core::Operation::ChannelReceive
             ));
             continue;
         };

@@ -13,6 +13,7 @@ pub enum Kind {
     Record(Vec<NodeId>),
     Enum(Vec<Vec<NodeId>>),
     Option(NodeId),
+    SendResult(NodeId),
     Result(NodeId, NodeId),
     Vec(NodeId),
     Map(NodeId, NodeId),
@@ -33,7 +34,10 @@ impl Node {
     pub fn case(&self, case: u32) -> Option<&[NodeId]> {
         match &self.kind {
             Kind::Enum(cases) => cases.get(case as usize).map(Vec::as_slice),
-            Kind::Option(_) if case == 0 => Some(&[]),
+            Kind::Option(_) | Kind::SendResult(_) if case == 0 => Some(&[]),
+            Kind::SendResult(payload) if case == 1 || case == 2 => {
+                Some(std::slice::from_ref(payload))
+            }
             Kind::Option(payload) if case == 1 => Some(std::slice::from_ref(payload)),
             Kind::Result(ok, _) if case == 0 => Some(std::slice::from_ref(ok)),
             Kind::Result(_, err) if case == 1 => Some(std::slice::from_ref(err)),
@@ -112,6 +116,7 @@ pub(super) fn compile(types: &VerifiedTypes, admit: &mut Admission) -> Result<Ve
                 match constructor {
                     Constructor::Builtin(b) => Kind::Builtin(b),
                     Constructor::Option(t) => Kind::Option(target(t)),
+                    Constructor::SendResult(t) => Kind::SendResult(target(t)),
                     Constructor::Result(t, e) => Kind::Result(target(t), target(e)),
                     Constructor::Vec(t) => Kind::Vec(target(t)),
                     Constructor::Map(k, v) => Kind::Map(target(k), target(v)),
