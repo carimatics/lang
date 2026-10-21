@@ -6,17 +6,19 @@
 
 更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**25 done · 1 doing · 25 todo · 74 remaining pt**
+**26 done · 1 doing · 26 todo · 77 remaining pt**
 
-**次: M3-A02 → source service の権限・owned move・producer の不正 access を検証します。**
+**次: M3-A07 → owned Counter/Bytes service FIFO fixture を VM で実行します。**
 
-現在の作業: **M3-A02**。直近の実行可能な基盤 checkpoint は **`f882074`、2026-10-22 02:05 JST 検証**です。C04 は完了し、VM/native 厳密差分8件と **standalone linked-object 20 profile** が成功し、channel 7 fixture と全 fuel/work prefix を含みます。native example の7 fixture は42を返し、値/event/usage/failure/report、実退役、live inventory 0 が VM と一致します。production 入力固定の baseline は **125 suites / 1,893 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **593.16s**。fmt、Clippy（**1m 29s**、最終 cached pass **1.14s**）、rustdoc（**34.42s**）、全11 fuzz target compile/lint（**1.34s**）が成功し、fuzz campaign は主張しません。
+現在の作業: **M3-A07**。直近の実行可能な proof checkpoint は **`8944645`、2026-10-22 04:31 JST 検証**です。A02 は完了し、3 role・source 10 call/同期 MIR core signature 8種・独立 service capture・SRC0029 起点・move/read-only state/suspension・有限 proof limit が成功しました。service 13件で owned Counter/Bytes fixture と不正 role/type/capture 代用/再利用/loan 終了遅延を検証し、現 VM/native admission は service 実行を guest 副作用前に拒否します。production 入力固定の全 baseline は **126 suites / 1,906 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **591.77s**。fmt・最終 Clippy（**1m 55s**）・rustdoc（**1m 19s**）・全11 fuzz target compile/lint（**4.75s**）が成功し、fuzz campaign は主張しません。
 
-A02 scope/estimate 監査（2026-10-22 JST）: RFC 0005/0024 は private owner state と producer の message/取消権限を要求します。既存 async move/loan と channel handle は Send proof・ownership・suspension 境界を供給しますが、単独 Sender は service 取消や queue-before-state 退役をまだ供給しません。最小 source composition 実験は42、buffer 退役 [1,42,7]、live inventory 0 で、新 state が queue より先に退役することを示しました。実装前に RFC 0001 委任で accepted とした [RFC 0026](rfcs/0026-source-isolated-services.md) に opaque 3 role・core call 10種・owner read/全体置換・handler 境界・FIFO queue-before-state 退役を伴う request 専用取消を記録しました。A02 の残条件は constructor/core fact・owner/producer 診断・owned move・read/suspension proof・非 Send 拒否の独立 source/MIR 証拠と adapter の明示的な副作用前拒否であり、実行/取消退役は A03、native parity は A04 に属します。残タスクの監査後、**残り3 pt** を維持し、独立した観測可能な前提が判明したら実装前に追加/再見積りします。全15 M3/P1 gate、foreign/C/serialized/package、production embedding、最終 guide は引き続き必要です。
+A03 scope/estimate 監査（2026-10-22 JST）: `channel/managed.rs`、退役 drain、context 付き Hub inspection、task-frame shared/arena read view を確認しました。Backing に service state Reservation/generation/handler status はなく、現退役は queue → header で、private state read anchor と handler 取消 adapter も未実装です。実装前に観測可能な前提2件を明示します。**A07（3 pt）** は単一 Hub と実 state storage/read/全体置換、return/abort cleanup、共有 control で既存 owned Counter/Bytes FIFO fixture を実行します。**A08（3 pt）** は idle/active/parked 取消、pending send 回復、ordered report 付き FIFO queue-before-state 退役を実行します。A07 は Share state の明示的な初期 private profile に対応し、残る state metadata を副作用前に拒否できますが、受理済み全 Send 契約や A03 の完了ではありません。元の **A03（3 pt）** は全 Send/storable state/message、実 Receiver/ServiceOwner state edge/置換予定値の循環、publication/再検査、有限 control/quota/拒否の統合に維持します。doing は A07 のみ、A04 は native/linked parity に維持します。第二 owner registry・scheduler・横断 framework をこの分割から導きません。全15 M3/P1 gate、foreign/C/serialized/package、production embedding、最終 guide は引き続き必要です。
+
+A02 は `8944645`（2026-10-22 04:31 JST）で完了しました。source/HIR と独立 MIR が setup/owner/producer capability を分けて導出し、producer message 型引数は strong ownership では phantom です。同期8 call と別の PrepareService/ServiceSend/ServiceReceive が state/message 型、private 権限、dominance、単一消費、loan 起点を保ちます。shared-read synthetic root が state provenance を供給し、SRC0029 は constructed 型起点を保持し、通常 move/read-only/suspension 診断を維持します。proof 13件で owned fixture、canonical alias、metadata/role/kind/再利用の偽造、endpoint cleanup 遅延、budget 上限/1未満、runtime/native/旧 format/package の副作用なし拒否を検証しました。既存 signature/binding/channel 回帰も成功しました。初回全体実行は旧 identity テスト許可一覧だけで停止し、専用 async case を更新して ownership-types 全33件と全体再実行が成功しました。全体検証は上記に記録します。A02 の最終 **3 pt** を消化し、実 service 実行は A07/A08/A03/A04 に残ります。
 
 C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で検証済みの native task compiler が非公開 channel layout を選択し、capture/send/receive を既存 Machine の型付き primitive に lowering し、VM 命令を解釈しません。完全な差分 matrix は control/provider/interruption 位置、frame/task/heap/allocation cap、protocol quota、待機 sender の seal、typed deadlock、cleanup panic/打切りを検証します。native primitive 完了時に VM と同じ位置で queue-cell peak を更新し、早期停止時の差を修正しました。別プロセスの exact-build object 20 profile は channel 全7 fixture を含み、source-file 引数を受ける native example はすべて42を返します。全体検証は上記に記録しました。通常/旧 layout と serialized/C/package admission は拒否を維持します。C04 の最終 **3 pt** を消化し、追加/再見積りはなく、exit gate 完了は主張しません。
 
-**今回: C04 完了、消化3 pt・新規追加0 pt。** 残り **77 + 0 − 3 = 74 pt**、全 **51行**、消化 **65 pt**、純追加 **+29 pt**、収支 **110 + 29 − 65 = 74 pt**。doing は A02 の1行です。
+**今回: A02 完了・消化3 pt、A07/A08 を新たに明示・追加6 pt。** 残り **74 + 6 − 3 = 77 pt**、全 **53行**、消化 **68 pt**、純追加 **+35 pt**、収支 **110 + 35 − 68 = 77 pt**。doing は A07 の1行です。
 
 ## Deliveries
 
@@ -49,8 +51,10 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | `9b2b68c` |
 | M3-A06 | done | 0 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | `d3b33e3` |
 | M3-A05 | done | 0 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | `ea822bd` |
-| M3-A02 | doing | 3 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | — |
-| M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
+| M3-A02 | done | 0 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | `8944645` |
+| M3-A07 | doing | 3 | M3-A02,M3-C03 | G05 | 実 state storage/read/全体置換と有限 control で owned service FIFO source を VM 実行 | — |
+| M3-A08 | todo | 3 | M3-A07 | G05 | handler 境界の service 取消、pending send 回復、FIFO queue-before-state 退役を実行 | — |
+| M3-A03 | todo | 3 | M3-A07,M3-A08 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
 | M3-A04 | todo | 3 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | — |
 | M3-I01 | todo | 3 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | — |
 | M3-I02 | todo | 3 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | — |
@@ -150,7 +154,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 29 − 65 = 74 pt**
+**110 + 35 − 68 = 77 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -198,7 +202,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +29 pt | −65 pt | 74 pt |
+| 110 pt | +35 pt | −68 pt | 77 pt |
 
 ## Exit audit
 
