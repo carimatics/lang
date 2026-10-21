@@ -128,6 +128,8 @@ T07 の owned 実行 checkpoint は managed reservation と cleanup Context/Repo
 
 T14 でこの profile を、同期 call をまたぐ通常 shared/exclusive loan と borrowed Option/Result payload に拡張します。単調増加する activation ID と loan generation が現在の frame/生存同期 ancestor を指し、Rust reference や native frame pointer を保持しません。read/service と replacement は元の reservation/owner ledger を解決し、reference binding の move は sidecar を移します。`cargo run -- run tests/fixtures/task_sync_loans.lang` は 12 を出力し、VM/JIT/リンク済み object、再帰/loop/取消/panic/fuel/provider 拒否で検証しました（2026-10-21 JST、code に更新日の埋込みはありません）。source/MIR の suspension と loan escape 制限は維持します。container/shared/weak task service は T15、arena は T16、全 owned 統合は T07、完全な共有 control は T08 に残し、M3 exit gate は未完了です。
 
+T15 は既存 Vec/Map と managed shared/weak service を同じ invocation に接続し、heap/drain metadata を preparation budget 内で準備し、検証済み generic core descriptor を使います。frame entry が登録済み service lease を所有し、indirect location は起点 activation/loan/generation を保持します。入れ子 collection の read に shared custody を引き継ぎ、observation から新しい owning ticket を作りません。retained shared read が payload を解放する前に collection lease を終え、frame owner retirement 前に全 lease を終えます。mixed iterative cleanup は failure/poison の順序付き証拠を保ち、callback panic/report truncation 後も続行します。`tests/fixtures/task_owned_pipeline.lang` は suspension/取消をまたいで 42 を返し、VM/生成 native/別プロセスのリンク済み object で検証します。source テストは置換/削除、generation 更新、入れ子 shared observation、全 fuel/provider 拒否 prefix を検証します（2026-10-21 JST 確認、code に更新日の埋込みなし）。arena は T16、全 owned 統合は T07、完全な共有 control は T08 に残ります。async Send/Share transfer と foreign/artifact/package/C profile は維持し、M3 exit gate は未完です。
+
 
 
 ## 検証と保守

@@ -34,6 +34,10 @@ fn standalone_task_objects_execute_generated_continuations() {
             include_str!("../fixtures/task_sync_loans.lang").to_owned(),
         ),
         (
+            "owned-pipeline",
+            include_str!("../fixtures/task_owned_pipeline.lang").to_owned(),
+        ),
+        (
             "cancel",
             format!(
                 "{WORKER}async fn main()->i64{{let mut h:core::Task<i64>=spawn worker(42);cancel h;let mut r:core::Result<i64,core::TaskError>=await h;match r{{core::Result::Ok(n)=>{{return n;}},core::Result::Err(core::TaskError::Cancelled)=>{{return 7;}},}}}}"
@@ -150,7 +154,7 @@ fn main(){{
         assert_eq!(
             String::from_utf8_lossy(&output.stdout).trim(),
             match *label {
-                "join" | "aggregate" => "42",
+                "join" | "aggregate" | "owned-pipeline" => "42",
                 "cancel" | "owned-cancel" => "7",
                 "owned-buffers" => "71",
                 "sync-loans" => "12",

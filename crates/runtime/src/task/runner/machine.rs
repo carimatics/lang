@@ -36,11 +36,17 @@ pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub failure_records: std::num::NonZeroUsize,
     pub completed: Vec<usize>,
     pub next_activation: u64,
+    pub services: services::Services<'l, 'ty>,
 }
 impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctrl, P> {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep verified operands, publication context and allocator explicit at the shared backend boundary."
+    )]
     pub fn new(
         proof: &'ty o::tasks::VerifiedTasks,
         plans: &'p [Option<l::FramePlan<'l, 'ty>>],
+        layouts: &'l l::Layouts<'ty>,
         allocator: &'host mut a::Allocator<P>,
         control: e::Control<'ctrl>,
         limits: Limits,
@@ -60,6 +66,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let completed = budget.vector(limits.tasks.total_tasks)?;
         let session = c::Session::prepare(failure_records, &mut budget)?;
         let mut scheduler = t::Scheduler::new(limits.tasks)?;
+        let services = services::Services::prepare(proof, plans, layouts, allocator, &mut budget)?;
         let frame = Frame::new(
             proof,
             plan,
@@ -105,6 +112,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             failure_records,
             completed,
             next_activation: 1,
+            services,
         })
     }
     pub fn event(&mut self, task: usize, kind: EventKind, span: m::Span) -> Result<(), Reason> {
@@ -136,6 +144,14 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .frames
             .last_mut()
             .ok_or(Reason::Invariant)
+    }
+    pub fn end_loans(&mut self, task: usize) -> Result<(), Reason> {
+        let frame = self
+            .records
+            .get_mut(task)
+            .and_then(|r| r.frames.last_mut())
+            .ok_or(Reason::Invariant)?;
+        frame.end_loans(self.allocator, &mut self.services)
     }
     pub fn fault(&mut self, task: usize, reason: Reason, span: m::Span) -> Result<usize, Reason> {
         if let Some(index) = self.frame(task)?.fault {
@@ -468,7 +484,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         while let Some(mut frame) = self.records[task].frames.pop() {
             if self.records[task].frames.is_empty() && outcome == t::Outcome::Success && frame.saved
             {
-                let result = frame.result(self.allocator);
+                let result = frame.result(self.allocator, &mut self.services);
                 self.merge_frame(task, &mut frame)?;
                 self.retired(frame.function);
                 match result {
@@ -595,7 +611,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             });
         }
         let outcome = self.scheduler.status(&self.records[0].id);
-        let finished = (|| -> Result<i64, Reason> {
+        let mut finished = (|| -> Result<i64, Reason> {
             if failed {
                 return Err(Reason::Invariant);
             }
@@ -628,6 +644,11 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     poisoned,
                 });
             }
+        }
+        if let Err(reason) = self.services.close(self.allocator)
+            && finished.is_ok()
+        {
+            finished = Err(reason);
         }
         match finished {
             Ok(value) => {

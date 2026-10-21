@@ -47,8 +47,8 @@ pub(super) fn execute<P: a::Provider>(
         }
         b::Op::CopyPlace(place) | b::Op::MovePlace(place) => {
             let from = frame.place(&paths[place.0 as usize], allocator)?;
-            if frame.claim_at(from)? {
-                frame.transfer(from.slot, result()?, allocator)?;
+            if let Some(slot) = frame.claim_slot(from)? {
+                frame.transfer(slot, result()?, allocator)?;
             } else {
                 frame.copy_location(from, frame.root(result()?)?, allocator)?;
             }
@@ -84,7 +84,7 @@ pub(super) fn execute<P: a::Provider>(
         b::Op::Cleanup(cleanup) => {
             for step in &cleanup.steps {
                 if let b::CleanupTarget::Loan(loan) = step.target {
-                    frame.end_loan(loan)?;
+                    frame.end_loan(loan, allocator)?;
                 }
             }
             frame.cleanup_selected(
@@ -228,6 +228,7 @@ pub(super) fn execute<P: a::Provider>(
         }
         b::Op::CoreCall(call) => frame.core(
             call.operation,
+            call.type_arguments.iter().map(|t| t.ty),
             call.result_loan,
             call.arguments.iter().map(|r| value(*r)),
             result()?,
@@ -237,7 +238,7 @@ pub(super) fn execute<P: a::Provider>(
         b::Op::Borrow { loan, place, .. } => {
             frame.borrow(*loan, &paths[place.0 as usize], result()?, allocator)?
         }
-        b::Op::EndBorrow { loan, .. } => frame.end_loan(*loan)?,
+        b::Op::EndBorrow { loan, .. } => frame.end_loan(*loan, allocator)?,
         _ => return Err(Reason::Unsupported),
     }
     Ok(())

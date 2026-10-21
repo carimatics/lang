@@ -3,7 +3,11 @@ mod access;
 mod buffers;
 pub use access::Access;
 mod managed;
+mod maps;
 mod services;
+mod shared;
+mod targets;
+mod vectors;
 pub use managed::Managed;
 pub use managed::Target;
 
@@ -53,7 +57,7 @@ pub struct Frame<'l, 'ty> {
     pub storage: Option<l::FrameStorage<'l, 'ty>>,
     pub live: Vec<bool>,
     pub claims: Vec<Option<t::TaskId>>,
-    pub prepared: Vec<Option<Location>>,
+    pub prepared: Vec<Option<Target>>,
     pub scopes: Vec<Scope>,
     pub serial: u64,
     pub pending: Option<Pending>,
@@ -235,6 +239,15 @@ impl<'l, 'ty> Frame<'l, 'ty> {
                 .two_cells_mut(from.slot, to.slot)?;
             source.move_root_into(target, to.at, allocator)?;
             source.recycle(allocator)?;
+            if self
+                .types
+                .properties(source_root.ty())
+                .ok_or(Reason::Invariant)?
+                .contains_loan
+            {
+                let managed = self.managed.as_mut().ok_or(Reason::Invariant)?;
+                managed.references[to.slot] = managed.references[from.slot];
+            }
             self.forget(from.slot);
             return self.mark(to.slot, span);
         }
@@ -310,6 +323,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         to: Location,
         span: m::Span,
         allocator: &mut a::Allocator<P>,
+        services: &mut super::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
         self.available(from)?;
         if self.is_claim(to.slot)? {
@@ -347,7 +361,12 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         } else {
             managed.spans[from] = old_span;
         }
-        self.cleanup_slot(from, crate::cleanup::Reason::Replacement, allocator)
+        self.cleanup_slot(
+            from,
+            crate::cleanup::Reason::Replacement,
+            allocator,
+            services,
+        )
     }
     pub fn place<P: a::Provider>(
         &self,
@@ -356,7 +375,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     ) -> Result<Location, Reason> {
         match self.place_target(place, allocator)? {
             Target::Cell(location) => Ok(location),
-            Target::Allocator => Err(Reason::Invariant),
+            _ => Err(Reason::Invariant),
         }
     }
     pub fn place_target<P: a::Provider>(
@@ -409,8 +428,9 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     pub fn release<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
+        services: &mut super::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
-        let cleaned = self.cleanup_all(None, crate::cleanup::Reason::Failure, allocator);
+        let cleaned = self.cleanup_all(None, crate::cleanup::Reason::Failure, allocator, services);
         self.storage
             .as_mut()
             .ok_or(Reason::Invariant)?
@@ -423,17 +443,20 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     pub fn result<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
+        services: &mut super::services::Services<'_, '_>,
     ) -> Result<l::Reservation<'l, 'ty>, Reason> {
         self.available(self.return_cell)?;
         if let Err(reason) = self.cleanup_all(
             Some(self.return_cell),
             crate::cleanup::Reason::ScopeExit,
             allocator,
+            services,
         ) {
             let _ = self.cleanup_slot(
                 self.return_cell,
                 crate::cleanup::Reason::UnpublishedReturn,
                 allocator,
+                services,
             );
             self.storage
                 .as_mut()

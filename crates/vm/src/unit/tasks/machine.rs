@@ -164,8 +164,10 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                 frame.saved = true;
                             }
                             _ => {
-                                let mut frame =
-                                    frame::Access::new(&mut machine.records[task].frames)?;
+                                let mut frame = frame::Access::new(
+                                    &mut machine.records[task].frames,
+                                    &mut machine.services,
+                                )?;
                                 instructions::execute(
                                     machine.proof.typed(),
                                     &mut frame,
@@ -277,7 +279,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                     Some(next)
                 }
                 f::Kind::EndTaskLoans { next } => {
-                    machine.frame_mut(task)?.end_loans();
+                    machine.end_loans(task)?;
                     Some(next)
                 }
                 f::Kind::CancelTaskScopes { next } => {
@@ -322,7 +324,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                     next
                 }
                 f::Kind::EndTaskLoans { next } => {
-                    machine.frame_mut(task)?.end_loans();
+                    machine.end_loans(task)?;
                     next
                 }
                 f::Kind::CancelTaskScopes { next } => {

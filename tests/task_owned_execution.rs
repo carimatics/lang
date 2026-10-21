@@ -522,7 +522,8 @@ async fn main()->i64 {
 
 #[test]
 fn unconnected_owned_task_profiles_refuse_before_provider_effects() {
-    let source = "async fn main()->i64 {let mut values:core::Vec<i64>=core::result_unwrap::<core::Vec<i64>,core::AllocError>(core::vec_new::<i64>(core::allocator()));yield;return core::vec_len::<i64>(values);}";
+    let source =
+        "async fn main()->i64 {arena graph(core::allocator()){let mut n:i64=1;}yield;return 42;}";
     let program = prepare(source);
     assert!(matches!(
         lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default()),

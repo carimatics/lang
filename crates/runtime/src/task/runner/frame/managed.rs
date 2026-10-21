@@ -12,10 +12,27 @@ pub struct Reference {
 pub enum Target {
     Allocator,
     Cell(Location),
+    Vector {
+        origin: Reference,
+        at: l::Location,
+    },
+    Map {
+        origin: Reference,
+        at: l::Location,
+    },
+    Shared {
+        origin: Reference,
+        ty: o::Type,
+        at: l::Location,
+    },
 }
 pub struct Loan {
     pub generation: u64,
     pub target: Option<Target>,
+    pub vector: Option<crate::vector::Loan>,
+    pub map: Option<crate::map::Loan>,
+    pub shared: Option<(crate::shared::managed::Read, o::Type)>,
+    pub custody: Option<crate::shared::managed::Custody>,
 }
 pub struct Managed {
     pub session: c::Session,
@@ -53,6 +70,10 @@ impl Managed {
         entries.resize_with(loans, || Loan {
             generation: 0,
             target: None,
+            vector: None,
+            map: None,
+            shared: None,
+            custody: None,
         });
         Ok(Self {
             session,
@@ -179,22 +200,115 @@ impl Frame<'_, '_> {
         self.live[to] = true;
         Ok(())
     }
-    pub fn end_loan(&mut self, loan: b::LoanId) -> Result<(), Reason> {
-        self.managed
-            .as_mut()
-            .ok_or(Reason::Unsupported)?
+    pub fn end_loan<P: a::Provider>(
+        &mut self,
+        id: b::LoanId,
+        allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'_, '_>,
+    ) -> Result<(), Reason> {
+        let types = self.types;
+        let managed = self.managed.as_mut().ok_or(Reason::Invariant)?;
+        let loan = managed
             .loans
-            .get_mut(loan.0 as usize)
-            .ok_or(Reason::Invariant)?
-            .target = None;
-        Ok(())
-    }
-    pub fn end_loans(&mut self) {
-        if let Some(m) = &mut self.managed {
-            for loan in &mut m.loans {
-                loan.target = None;
+            .get_mut(id.0 as usize)
+            .ok_or(Reason::Invariant)?;
+        loan.target = None;
+        loan.custody = None;
+        let mut failure = None;
+        if let Some(mut read) = loan.vector.take() {
+            let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
+                read.end(services.layouts, allocator).map_err(|_| 6u32)
+            });
+            if managed
+                .session
+                .retire(
+                    c::Slot(id.0 as usize),
+                    (),
+                    Some(self.origin),
+                    c::Reason::ScopeExit,
+                    &mut cleaner,
+                )
+                .is_err()
+            {
+                failure = Some(Reason::Cleanup);
             }
         }
+        if let Some(mut read) = loan.map.take() {
+            let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
+                read.end(services.layouts, allocator).map_err(|_| 7u32)
+            });
+            if managed
+                .session
+                .retire(
+                    c::Slot(id.0 as usize),
+                    (),
+                    Some(self.origin),
+                    c::Reason::ScopeExit,
+                    &mut cleaner,
+                )
+                .is_err()
+            {
+                failure = Some(Reason::Cleanup);
+            }
+        }
+        if let Some((read, ty)) = loan.shared.take() {
+            let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                let drain = services.drain.as_mut().ok_or(8u32)?;
+                let heap = services.heap.as_mut().ok_or(8u32)?;
+                drain
+                    .end_read(
+                        read,
+                        ty,
+                        heap,
+                        allocator,
+                        context,
+                        |token, allocator, _, _| {
+                            crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                        },
+                    )
+                    .map_err(|_| 8u32)
+            });
+            if managed
+                .session
+                .retire(
+                    c::Slot(id.0 as usize),
+                    (),
+                    Some(self.origin),
+                    c::Reason::ScopeExit,
+                    &mut cleaner,
+                )
+                .is_err()
+            {
+                failure = Some(Reason::Cleanup);
+            }
+        }
+        failure.map_or(Ok(()), Err)
+    }
+    pub fn end_loans<P: a::Provider>(
+        &mut self,
+        allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'_, '_>,
+    ) -> Result<(), Reason> {
+        let count = self.managed.as_ref().map_or(0, |m| m.loans.len());
+        let mut failure = None;
+        // A retained shared read can own a collection's last strong count.
+        // Unregister all collection views before any shared read can free it.
+        for shared in [false, true] {
+            for id in (0..count).rev() {
+                if self
+                    .managed
+                    .as_ref()
+                    .is_some_and(|m| m.loans[id].shared.is_some())
+                    != shared
+                {
+                    continue;
+                }
+                if let Err(reason) = self.end_loan(b::LoanId(id as u32), allocator, services) {
+                    failure.get_or_insert(reason);
+                }
+            }
+        }
+        failure.map_or(Ok(()), Err)
     }
     pub fn loans_ended(&self) -> bool {
         self.managed
@@ -206,6 +320,7 @@ impl Frame<'_, '_> {
         slot: usize,
         reason: c::Reason,
         allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
         if !self.live[slot] {
             return Ok(());
@@ -226,8 +341,8 @@ impl Frame<'_, '_> {
             .cell_mut(slot)?;
         let mut cleaner = c::Contextual::new(
             |cell: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
-                cell.retire(allocator, context, |token, allocator, _, _| {
-                    crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                cell.retire(allocator, context, |token, allocator, _, context| {
+                    services.retire(types, token, allocator, context)
                 })
                 .map_err(|_| 4u32)?;
                 cell.recycle(allocator).map_err(|_| 5u32)
@@ -243,6 +358,7 @@ impl Frame<'_, '_> {
         slots: impl IntoIterator<Item = usize>,
         reason: c::Reason,
         allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
         if let Some(managed) = &mut self.managed {
             managed.selected.fill(false);
@@ -260,7 +376,7 @@ impl Frame<'_, '_> {
             let m = self.managed.as_ref().ok_or(Reason::Invariant)?;
             next = m.older[slot];
             if m.selected[slot]
-                && let Err(reason) = self.cleanup_slot(slot, reason, allocator)
+                && let Err(reason) = self.cleanup_slot(slot, reason, allocator, services)
             {
                 failure.get_or_insert(reason);
             }
@@ -275,14 +391,15 @@ impl Frame<'_, '_> {
         keep: Option<usize>,
         reason: c::Reason,
         allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
-        self.end_loans();
+        let ended = self.end_loans(allocator, services);
         let mut next = self.managed.as_ref().and_then(|m| m.head);
-        let mut failure = None;
+        let mut failure = ended.err();
         while let Some(slot) = next {
             next = self.managed.as_ref().ok_or(Reason::Invariant)?.older[slot];
             if Some(slot) != keep
-                && let Err(reason) = self.cleanup_slot(slot, reason, allocator)
+                && let Err(reason) = self.cleanup_slot(slot, reason, allocator, services)
             {
                 failure.get_or_insert(reason);
             }

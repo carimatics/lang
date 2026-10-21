@@ -55,6 +55,7 @@ pub enum Primitive {
     EndLoans,
     Core {
         operation: o::core::Operation,
+        type_arguments: Vec<o::Type>,
         result_loan: Option<b::LoanId>,
         arguments: Vec<usize>,
         to: usize,
@@ -140,7 +141,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         span: m::Span,
     ) -> Result<Flow, Reason> {
         let function = self.frame(task)?.function;
-        let mut frame = frame::Access::new(&mut self.records[task].frames)?;
+        let mut frame = frame::Access::new(&mut self.records[task].frames, &mut self.services)?;
         let paths = &self.proof.typed().places().functions()[function.0 as usize].places;
         match primitive {
             Primitive::Nop => {}
@@ -160,8 +161,8 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             Primitive::Copy { from, to } => frame.transfer(*from, *to, self.allocator)?,
             Primitive::Load { place, to } => {
                 let from = frame.place(&paths[place.0 as usize], self.allocator)?;
-                if frame.claim_at(from)? {
-                    frame.transfer(from.slot, *to, self.allocator)?;
+                if let Some(slot) = frame.claim_slot(from)? {
+                    frame.transfer(slot, *to, self.allocator)?;
                 } else {
                     frame.copy_location(from, frame.root(*to)?, self.allocator)?;
                 }
@@ -191,7 +192,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             Primitive::Borrow { loan, place, to } => {
                 frame.borrow(*loan, &paths[place.0 as usize], *to, self.allocator)?
             }
-            Primitive::EndLoan(loan) => frame.end_loan(*loan)?,
+            Primitive::EndLoan(loan) => frame.end_loan(*loan, self.allocator)?,
             Primitive::BorrowField {
                 from,
                 case,
@@ -199,14 +200,16 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 loan,
                 to,
             } => frame.borrow_case(*from, *case, *field, *loan, *to, self.allocator)?,
-            Primitive::EndLoans => frame.end_loans(),
+            Primitive::EndLoans => frame.end_loans(self.allocator)?,
             Primitive::Core {
                 operation,
+                type_arguments,
                 result_loan,
                 arguments,
                 to,
             } => frame.core(
                 *operation,
+                type_arguments.iter().copied(),
                 *result_loan,
                 arguments.iter().copied(),
                 *to,
@@ -215,7 +218,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             )?,
             Primitive::Cleanup { slots, loans } => {
                 for loan in loans {
-                    frame.end_loan(*loan)?;
+                    frame.end_loan(*loan, self.allocator)?;
                 }
                 frame.cleanup_selected(
                     slots.iter().copied(),
@@ -361,7 +364,11 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 return Ok(Flow::Suspended);
             }
             Primitive::Cancel(place) => {
-                let location = frame.place(&paths[place.0 as usize], self.allocator)?;
+                let frame::Target::Cell(location) =
+                    frame.place(&paths[place.0 as usize], self.allocator)?
+                else {
+                    return Err(Reason::Invariant);
+                };
                 let child = frame.claims[location.slot]
                     .as_ref()
                     .ok_or(Reason::Invariant)?

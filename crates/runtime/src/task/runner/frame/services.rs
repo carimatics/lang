@@ -58,9 +58,13 @@ impl Access<'_, '_, '_> {
     }
     pub fn token<P: a::Provider>(
         &self,
-        location: Location,
+        location: impl Into<Target>,
         allocator: &a::Allocator<P>,
     ) -> Result<[u8; 32], Reason> {
+        let location = match location.into() {
+            Target::Cell(location) => location,
+            target => return self.observed_token(target, allocator),
+        };
         self.owner(location.activation)?.available(location.slot)?;
         let start = location.at.offset() as usize;
         self.cell(location)?
@@ -72,10 +76,23 @@ impl Access<'_, '_, '_> {
     }
     pub fn store_token<P: a::Provider>(
         &self,
-        location: Location,
+        location: impl Into<Target>,
         token: [u8; 32],
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
+        let location = match location.into() {
+            Target::Cell(location) => location,
+            Target::Vector { origin, at } => {
+                return self
+                    .lease(origin)?
+                    .vector
+                    .as_ref()
+                    .ok_or(Reason::Invariant)?
+                    .write_buffer_token(self.services.layouts, at, token, allocator)
+                    .map_err(|_| Reason::Invariant);
+            }
+            _ => return Err(Reason::Invariant),
+        };
         let start = location.at.offset() as usize;
         self.cell(location)?
             .data_mut(allocator)?
@@ -97,6 +114,13 @@ impl Access<'_, '_, '_> {
         let root = source.root();
         if source.case(root, allocator)? != case {
             return Err(Reason::Panic(Some(panic_code)));
+        }
+        if self.is_reference(to)? {
+            let managed = self.frame.managed.as_mut().ok_or(Reason::Invariant)?;
+            managed.references[to] = Some(managed.references[from].ok_or(Reason::Invariant)?);
+            self.forget(from);
+            let span = self.origin;
+            return self.mark(to, span);
         }
         if self.is_copy(from)? {
             let at = source.child(root, 0, allocator)?;
@@ -175,15 +199,62 @@ impl Access<'_, '_, '_> {
         cell.initialize_order(root, [(0, span)].into_iter(), allocator)?;
         self.mark(to, span)
     }
-    pub(super) fn referenced_cell(&self, slot: usize) -> Result<Location, Reason> {
-        match self.reference(slot)? {
-            Target::Cell(cell) => Ok(cell),
-            _ => Err(Reason::Invariant),
-        }
+    pub(super) fn referenced_cell(&self, slot: usize) -> Result<Target, Reason> {
+        self.reference(slot)
     }
+    pub(super) fn loan_sum<P: a::Provider>(
+        &mut self,
+        to: usize,
+        case: u32,
+        present: bool,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        let cell = self.data()?.cell(to)?;
+        let root = cell.root();
+        cell.prepare_case(root, case, allocator)?;
+        cell.initialize_order(root, present.then_some((0, span)).into_iter(), allocator)?;
+        if !present {
+            self.frame
+                .managed
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .references[to] = None;
+        }
+        self.mark(to, span)
+    }
+    pub(super) fn retire_token<P: a::Provider>(
+        &mut self,
+        mut token: l::Token,
+        slot: usize,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        let types = self.frame.types;
+        let services = &mut self.services;
+        let managed = self.frame.managed.as_mut().ok_or(Reason::Invariant)?;
+        let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+            services.retire(types, &mut token, allocator, context)
+        });
+        managed
+            .session
+            .retire(
+                c::Slot(slot),
+                (),
+                Some(span),
+                c::Reason::Replacement,
+                &mut cleaner,
+            )
+            .map_err(|_| Reason::Cleanup)
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep verified operands, publication context and allocator explicit at the shared backend boundary."
+    )]
     pub fn core<P: a::Provider>(
         &mut self,
         operation: o::core::Operation,
+        mut type_arguments: impl ExactSizeIterator<Item = o::Type>,
         result_loan: Option<b::LoanId>,
         mut arguments: impl ExactSizeIterator<Item = usize>,
         to: usize,
@@ -204,6 +275,51 @@ impl Access<'_, '_, '_> {
         let first = arguments.next().ok_or(Reason::Invariant)?;
         if let Some(contract) = operation.extraction() {
             return self.extract(first, to, contract.case, contract.panic_code, allocator);
+        }
+        if matches!(
+            operation,
+            O::VecNew | O::VecLen | O::VecPush | O::VecPop | O::VecGet | O::VecGetMut
+        ) {
+            return self.vector_core(
+                operation,
+                type_arguments.next().ok_or(Reason::Invariant)?,
+                result_loan,
+                first,
+                arguments,
+                to,
+                span,
+                allocator,
+            );
+        }
+        if matches!(
+            operation,
+            O::MapNew | O::MapLen | O::MapInsert | O::MapGet | O::MapRemove
+        ) {
+            let key = type_arguments.next().ok_or(Reason::Invariant)?;
+            let value = type_arguments.next().ok_or(Reason::Invariant)?;
+            return self.map_core(
+                operation,
+                key,
+                value,
+                result_loan,
+                first,
+                arguments,
+                to,
+                span,
+                allocator,
+            );
+        }
+        if super::super::services::shared(operation) {
+            return self.shared_core(
+                operation,
+                type_arguments.next().ok_or(Reason::Invariant)?,
+                result_loan,
+                first,
+                arguments,
+                to,
+                span,
+                allocator,
+            );
         }
         match operation {
             O::BytesNew => {
@@ -239,9 +355,7 @@ impl Access<'_, '_, '_> {
                 self.mark(to, span)
             }
             O::BytesLen => {
-                let Target::Cell(target) = self.reference(first)? else {
-                    return Err(Reason::Invariant);
-                };
+                let target = self.reference(first)?;
                 let mut token = self.token(target, allocator)?;
                 let bytes = buffer::Bytes::from_token(&mut token, allocator)
                     .map_err(|_| Reason::Invariant)?;
@@ -253,9 +367,7 @@ impl Access<'_, '_, '_> {
                 let l::Immediate::I64(value) = self.read(second, allocator)? else {
                     return Err(Reason::Invariant);
                 };
-                let Target::Cell(target) = self.reference(first)? else {
-                    return Err(Reason::Invariant);
-                };
+                let target = self.reference(first)?;
                 let mut token = self.token(target, allocator)?;
                 let mut bytes = buffer::Bytes::from_token(&mut token, allocator)
                     .map_err(|_| Reason::Invariant)?;

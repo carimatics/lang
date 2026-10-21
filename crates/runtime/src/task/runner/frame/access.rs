@@ -1,11 +1,13 @@
 //! Ephemeral access to one synchronous activation and its live ancestors.
 //! Coordinates survive vector growth; no borrowed Rust pointer is retained.
 use super::*;
+use crate::task::runner::services::Services;
 use std::ops::{Deref, DerefMut};
 
 pub struct Access<'a, 'l, 'ty> {
     pub frame: &'a mut Frame<'l, 'ty>,
     pub ancestors: &'a mut [Frame<'l, 'ty>],
+    pub services: &'a mut Services<'l, 'ty>,
 }
 impl<'l, 'ty> Deref for Access<'_, 'l, 'ty> {
     type Target = Frame<'l, 'ty>;
@@ -19,9 +21,47 @@ impl DerefMut for Access<'_, '_, '_> {
     }
 }
 impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
-    pub fn new(frames: &'a mut [Frame<'l, 'ty>]) -> Result<Self, Reason> {
+    pub fn end_loan<P: a::Provider>(
+        &mut self,
+        id: b::LoanId,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        self.frame.end_loan(id, allocator, self.services)
+    }
+    pub fn end_loans<P: a::Provider>(
+        &mut self,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        self.frame.end_loans(allocator, self.services)
+    }
+    pub fn new(
+        frames: &'a mut [Frame<'l, 'ty>],
+        services: &'a mut Services<'l, 'ty>,
+    ) -> Result<Self, Reason> {
         let (frame, ancestors) = frames.split_last_mut().ok_or(Reason::Invariant)?;
-        Ok(Self { frame, ancestors })
+        Ok(Self {
+            frame,
+            ancestors,
+            services,
+        })
+    }
+    pub fn cleanup_slot<P: a::Provider>(
+        &mut self,
+        slot: usize,
+        reason: c::Reason,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        self.frame
+            .cleanup_slot(slot, reason, allocator, self.services)
+    }
+    pub fn cleanup_selected<P: a::Provider>(
+        &mut self,
+        slots: impl IntoIterator<Item = usize>,
+        reason: c::Reason,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        self.frame
+            .cleanup_selected(slots, reason, allocator, self.services)
     }
     pub fn owner(&self, id: ActivationId) -> Result<&Frame<'l, 'ty>, Reason> {
         if id == self.frame.activation {
@@ -50,8 +90,15 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
     fn available_at(&self, location: Location) -> Result<(), Reason> {
         self.owner(location.activation)?.available(location.slot)
     }
-    pub fn claim_at(&self, location: Location) -> Result<bool, Reason> {
-        self.owner(location.activation)?.is_claim(location.slot)
+    pub fn claim_slot(&self, target: Target) -> Result<Option<usize>, Reason> {
+        match target {
+            Target::Cell(location)
+                if self.owner(location.activation)?.is_claim(location.slot)? =>
+            {
+                Ok(Some(location.slot))
+            }
+            _ => Ok(None),
+        }
     }
     fn reference_at(&self, activation: ActivationId, slot: usize) -> Result<Target, Reason> {
         let owner = self.owner(activation)?;
@@ -74,17 +121,15 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
     pub fn reference(&self, slot: usize) -> Result<Target, Reason> {
         self.reference_at(self.frame.activation, slot)
     }
-    fn referent(&self, slot: usize) -> Result<Location, Reason> {
+    fn referent(&self, slot: usize) -> Result<Target, Reason> {
         if self.is_reference(slot)? {
-            match self.reference(slot)? {
-                Target::Cell(location) => Ok(location),
-                _ => Err(Reason::Invariant),
-            }
+            self.reference(slot)
         } else {
             self.available(slot)?;
-            self.root(slot)
+            Ok(Target::Cell(self.root(slot)?))
         }
     }
+
     pub fn place_target<P: a::Provider>(
         &self,
         place: &p::Place,
@@ -95,38 +140,31 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
             p::Root::Value(id) => self.value(id),
         };
         self.available(slot)?;
-        let mut location = self.root(slot)?;
-        for (index, projection) in place.projections.iter().enumerate() {
-            match projection.kind {
-                p::ProjectionKind::Field(field) => {
-                    location.at = self.cell(location)?.child(location.at, field, allocator)?
-                }
+        let mut target = Target::Cell(self.root(slot)?);
+        for projection in &place.projections {
+            target = match projection.kind {
+                p::ProjectionKind::Field(field) => self.target_child(target, field, allocator)?,
                 p::ProjectionKind::Dereference => {
+                    let Target::Cell(location) = target else {
+                        return Err(Reason::Invariant);
+                    };
                     if location.at != self.owner(location.activation)?.root(location.slot)?.at {
                         return Err(Reason::Invariant);
                     }
-                    match self.reference_at(location.activation, location.slot)? {
-                        Target::Cell(target) => location = target,
-                        Target::Allocator if index + 1 == place.projections.len() => {
-                            return Ok(Target::Allocator);
-                        }
-                        _ => return Err(Reason::Invariant),
-                    }
+                    self.reference_at(location.activation, location.slot)?
                 }
-            }
+            };
         }
-        Ok(Target::Cell(location))
+        Ok(target)
     }
     pub fn place<P: a::Provider>(
         &self,
         place: &p::Place,
         allocator: &a::Allocator<P>,
-    ) -> Result<Location, Reason> {
-        match self.place_target(place, allocator)? {
-            Target::Cell(location) => Ok(location),
-            _ => Err(Reason::Invariant),
-        }
+    ) -> Result<Target, Reason> {
+        self.place_target(place, allocator)
     }
+
     pub fn borrow<P: a::Provider>(
         &mut self,
         loan: b::LoanId,
@@ -143,7 +181,7 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
         allocator: &a::Allocator<P>,
     ) -> Result<u32, Reason> {
         let location = self.referent(from)?;
-        Ok(self.cell(location)?.case(location.at, allocator)?)
+        self.target_case(location, allocator)
     }
     pub fn borrow_case<P: a::Provider>(
         &mut self,
@@ -155,11 +193,11 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
         allocator: &a::Allocator<P>,
     ) -> Result<(), Reason> {
         let mut location = self.referent(from)?;
-        if self.cell(location)?.case(location.at, allocator)? != case {
+        if self.target_case(location, allocator)? != case {
             return Err(Reason::Invariant);
         }
-        location.at = self.cell(location)?.child(location.at, field, allocator)?;
-        self.frame.borrow_target(loan, Target::Cell(location), to)
+        location = self.target_child(location, field, allocator)?;
+        self.frame.borrow_target(loan, location, to)
     }
     pub fn copy_field<P: a::Provider>(
         &mut self,
@@ -170,14 +208,13 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
         let mut location = self.referent(from)?;
-        let source = self.cell(location)?;
-        if source.case(location.at, allocator)? != case {
+        if self.target_case(location, allocator)? != case {
             return Err(Reason::Invariant);
         }
         if matches!(
-            source
-                .layouts()
-                .get(location.at.ty())
+            self.services
+                .layouts
+                .get(location.at()?.ty())
                 .ok_or(Reason::Invariant)?
                 .kind,
             l::Kind::Error { .. }
@@ -185,22 +222,31 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
             if field != 0 {
                 return Err(Reason::Invariant);
             }
-            let payload = source
-                .read_immediate(location.at, allocator)?
+            let payload = self
+                .target_read(location, allocator)?
                 .payload()
                 .ok_or(Reason::Invariant)?;
             self.write(to, payload, allocator)
         } else {
-            location.at = source.child(location.at, field, allocator)?;
+            location = self.target_child(location, field, allocator)?;
             self.copy_location(location, self.root(to)?, allocator)
         }
     }
+
     pub fn copy_location<P: a::Provider>(
         &mut self,
-        from: Location,
+        from: impl Into<Target>,
         to: Location,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
+        let from = match from.into() {
+            Target::Cell(location) => location,
+            target => {
+                self.copy_observed(target, to, allocator)?;
+                let span = self.frame.origin;
+                return self.owner_mut(to.activation)?.mark(to.slot, span);
+            }
+        };
         if from.activation == self.frame.activation && to.activation == self.frame.activation {
             return self.frame.copy_location(from, to, allocator);
         }
@@ -221,12 +267,15 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
     pub fn replace<P: a::Provider>(
         &mut self,
         from: usize,
-        to: Location,
+        to: Target,
         span: m::Span,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
+        let Target::Cell(to) = to else {
+            return self.replace_indirect(from, to, span, allocator);
+        };
         if to.activation == self.frame.activation {
-            return self.frame.replace(from, to, span, allocator);
+            return self.frame.replace(from, to, span, allocator, self.services);
         }
         self.available(from)?;
         self.available_at(to)?;
@@ -268,7 +317,11 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
             old_span
         };
         self.frame.managed.as_mut().ok_or(Reason::Invariant)?.spans[from] = previous;
-        self.frame
-            .cleanup_slot(from, crate::cleanup::Reason::Replacement, allocator)
+        self.frame.cleanup_slot(
+            from,
+            crate::cleanup::Reason::Replacement,
+            allocator,
+            self.services,
+        )
     }
 }

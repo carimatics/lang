@@ -79,7 +79,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         task: usize,
         mut frame: Frame<'l, 'ty>,
     ) -> Result<bool, Reason> {
-        let result = frame.release(self.allocator);
+        let result = frame.release(self.allocator, &mut self.services);
         self.merge_frame(task, &mut frame)?;
         self.retired(frame.function);
         match result {
@@ -104,6 +104,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             Some(child.return_cell),
             c::Reason::ScopeExit,
             self.allocator,
+            &mut self.services,
         );
         if cleaned.is_ok() {
             let from = child.return_cell;

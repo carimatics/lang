@@ -141,6 +141,8 @@ pub mod machine;
 #[doc(hidden)]
 pub mod primitives;
 use frame::{Frame, Pending};
+#[doc(hidden)]
+pub mod services;
 
 fn reserve_push<T>(budget: &mut m::Budget, out: &mut Vec<T>) -> Result<(), Reason> {
     budget.charge(1)?;
@@ -262,8 +264,9 @@ fn execute<P: a::Provider, B: Backend<P>>(
             budget = m::Budget::with_usage(limits.preparation, plan.usage())?;
             plans[function] = Some(plan);
         }
-        let machine =
-            machine::Machine::new(proof, &plans, allocator, control, limits, budget, entry)?;
+        let machine = machine::Machine::new(
+            proof, &plans, &layouts, allocator, control, limits, budget, entry,
+        )?;
         Ok(machine.run(backend))
     })();
     match result {
@@ -294,6 +297,24 @@ pub fn task_supported(op: &b::Op) -> bool {
                 | o::core::Operation::TextClone
                 | o::core::Operation::TextBytes
                 | o::core::Operation::TextConcat
+                | o::core::Operation::VecNew
+                | o::core::Operation::VecLen
+                | o::core::Operation::VecPush
+                | o::core::Operation::VecPop
+                | o::core::Operation::VecGet
+                | o::core::Operation::VecGetMut
+                | o::core::Operation::MapNew
+                | o::core::Operation::MapLen
+                | o::core::Operation::MapInsert
+                | o::core::Operation::MapGet
+                | o::core::Operation::MapRemove
+                | o::core::Operation::SharedNew
+                | o::core::Operation::SharedClone
+                | o::core::Operation::SharedRead
+                | o::core::Operation::SharedReplace
+                | o::core::Operation::WeakNew
+                | o::core::Operation::WeakClone
+                | o::core::Operation::WeakUpgrade
         ),
         b::Op::BorrowCaseField { .. }
         | b::Op::Borrow { .. }
@@ -376,8 +397,14 @@ pub fn managed_type_supported(
 ) -> Result<bool, Reason> {
     let mut pending = budget.vector(1)?;
     pending.push(ty);
+    let mut seen = budget.vector(0)?;
     while let Some(ty) = pending.pop() {
-        budget.charge(1)?;
+        budget.charge(seen.len().saturating_add(1))?;
+        if seen.contains(&ty) {
+            continue;
+        }
+        reserve_push(budget, &mut seen)?;
+        seen.push(ty);
         let properties = types.properties(ty).ok_or(Reason::Invariant)?;
         if properties.is_copy
             && !properties.contains_loan
@@ -388,7 +415,7 @@ pub fn managed_type_supported(
             continue;
         }
         if properties.contains_loan
-            && !matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(..)))
+            && !matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(..)|o::Constructor::Option(_)|o::Constructor::Result(..)))
         {
             return Ok(false);
         }
@@ -399,6 +426,10 @@ pub fn managed_type_supported(
                     o::Constructor::Builtin(_) => {}
                     constructor @ (o::Constructor::Option(_)
                     | o::Constructor::Result(..)
+                    | o::Constructor::Vec(_)
+                    | o::Constructor::Map(..)
+                    | o::Constructor::Shared(_)
+                    | o::Constructor::Weak(_)
                     | o::Constructor::Loan(..)) => {
                         for argument in constructor.arguments() {
                             reserve_push(budget, &mut pending)?;

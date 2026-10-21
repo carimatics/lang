@@ -109,6 +109,7 @@ fn private_callback_contains_a_panic_and_records_its_source() {
     let mut machine = Machine::new(
         &proof,
         &plans,
+        &layouts,
         &mut allocator,
         e::Control::with_limits(Default::default()),
         Default::default(),
@@ -156,7 +157,9 @@ fn private_callback_contains_a_panic_and_records_its_source() {
     assert_eq!(fault.span, span);
     // A test-forged packet is never resumed as guest code. Retire its live frame.
     while let Some(mut frame) = machine.records[0].frames.pop() {
-        frame.release(machine.allocator).unwrap();
+        frame
+            .release(machine.allocator, &mut machine.services)
+            .unwrap();
     }
     assert_eq!(machine.allocator.stats().live_allocations, 0);
 }

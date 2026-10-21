@@ -583,6 +583,11 @@ fn prepare(
                         }
                         Primitive::Core {
                             operation: c.operation,
+                            type_arguments: {
+                                let mut arguments = budget.vector(c.type_arguments.len())?;
+                                arguments.extend(c.type_arguments.iter().map(|t| t.ty));
+                                arguments
+                            },
                             result_loan: c.result_loan,
                             arguments: slots(&c.arguments, budget)?,
                             to: to()?,
@@ -732,7 +737,10 @@ impl<P: a::Provider> Invocation<'_, '_, '_, '_, '_, '_, P> {
                 })
             }
             CASE => {
-                let frame = r::frame::Access::new(&mut self.machine.records[self.task].frames)?;
+                let frame = r::frame::Access::new(
+                    &mut self.machine.records[self.task].frames,
+                    &mut self.machine.services,
+                )?;
                 Ok(u64::from(frame.case(a as usize, self.machine.allocator)?))
             }
             PANIC => Err(r::Reason::Panic(Some(a as i64))),

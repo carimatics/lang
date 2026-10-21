@@ -1,0 +1,56 @@
+// T15: retain the existing owned collection/shared pipeline across suspension.
+struct Item { text: core::Text, bytes: core::Bytes }
+struct Store { values: core::Map<core::Text, Item>, history: core::Vec<Item> }
+
+fn bytes(value: i64) -> core::Bytes {
+    let mut b: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(b, value));
+    return b;
+}
+fn word(value: i64) -> core::Text {
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes(value)));
+}
+fn item(value: i64) -> Item { return Item { bytes: bytes(value), text: word(66) }; }
+fn score(store: &Store, query: &core::Text) -> i64 {
+    let mut found: i64 = 0;
+    match core::map_get::<core::Text, Item>(store.values, query) {
+        core::Option::Some(value) => { found = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(value.bytes, 0)); },
+        core::Option::None => { return -1; },
+    }
+    match core::vec_get::<Item>(store.history, 0) {
+        core::Result::Ok(history_item) => { return found + core::bytes_len(history_item.bytes) + core::text_len(history_item.text); },
+        core::Result::Err(_) => { return -2; },
+    }
+}
+async fn worker() -> i64 {
+    let mut history: core::Vec<Item> = core::result_unwrap::<core::Vec<Item>, core::AllocError>(core::vec_new::<Item>(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<Item>(history, item(41)));
+    let mut moved: Item = core::option_unwrap::<Item>(core::vec_pop::<Item>(history));
+    let mut values: core::Map<core::Text, Item> = core::result_unwrap::<core::Map<core::Text, Item>, core::AllocError>(core::map_new::<core::Text, Item>(core::allocator()));
+    let mut added: core::Option<Item> = core::result_unwrap::<core::Option<Item>, core::AllocError>(core::map_insert::<core::Text, Item>(values, word(65), moved));
+    let mut replaced: core::Option<Item> = core::result_unwrap::<core::Option<Item>, core::AllocError>(core::map_insert::<core::Text, Item>(values, word(65), item(40)));
+    let mut previous: Item = core::option_unwrap::<Item>(replaced);
+    let mut stored: core::Unit = core::result_unwrap::<core::Unit, core::AllocError>(core::vec_push::<Item>(history, previous));
+    let mut owner: shared Store = core::result_unwrap::<shared Store, core::OwnershipError>(core::shared_new::<Store>(core::allocator(), Store { history: history, values: values }));
+    let mut observer: weak Store = core::result_unwrap::<weak Store, core::OwnershipError>(core::weak_new::<Store>(owner));
+    let mut retained: shared Store = core::result_unwrap::<shared Store, core::OwnershipError>(core::shared_clone::<Store>(owner));
+    let mut copied_observer: weak Store = core::result_unwrap::<weak Store, core::OwnershipError>(core::weak_clone::<Store>(observer));
+    let mut query: core::Text = word(65);
+    yield;
+    cancel_check;
+    let mut dropped: core::Unit = core::drop::<shared Store>(owner);
+    let mut result: i64 = 0;
+    match core::shared_read::<Store>(retained) {
+        core::Result::Ok(view) => { result = score(view, query); },
+        core::Result::Err(_) => { return -3; },
+    }
+    let mut released: core::Unit = core::drop::<shared Store>(retained);
+    match core::weak_upgrade::<Store>(copied_observer) {
+        core::Result::Ok(_) => { return -4; },
+        core::Result::Err(core::OwnershipError::ExpiredWeak) => { return result; },
+        core::Result::Err(_) => { return -5; },
+    }
+}
+async fn main() -> i64 {
+    return core::result_unwrap::<i64, core::TaskError>(await worker());
+}
