@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**20 done · 1 doing · 29 todo · 85 remaining pt**
+**21 done · 1 doing · 28 todo · 83 remaining pt**
 
-**次: M3-C05 → channel fixture に必要な有限 task park/wake と取消時失効を実行します。**
+**次: M3-C02 → bounded runtime channel の send/receive、close、取消待機者と所有値退役を実行します。**
 
-現在の作業: **M3-C05**。直近の production 実行 checkpoint は **`ea822bd`、2026-10-21 15:23 JST**（A05）で、全 **116 suites / 1,801 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **563.41s** と fmt/Clippy/rustdoc/11 fuzz target compile/lint が成功しています。C01 の決定 **`2a13940`、2026-10-21 15:45 JST 確認** は RFC 0025、protocol trace 5 件、repository consistency 5 件、英日 metadata/heading/table と local link を検証しました。production channel の実行証拠ではありません。C05 の残条件は有限で invocation/task に紐付く wait ticket、park/wake と FIFO ready への一度限りの復帰、stale/duplicate/foreign wake の拒否、取消前後の失効と descendant join 後の実 cleanup、再利用/generation 枯渇時の副作用前拒否、既存 driver/frame/owner/control 契約の維持です。kernel は guest message を所有/評価しません。全 M3/P1 scope と gate を維持します。
+現在の作業: **M3-C02**。直近の実行 checkpoint は **`72e759c`、2026-10-21 16:34 JST**（C05）。opaque wait ticket、有限 park/wake、FIFO ready 復帰、stale/duplicate/foreign wake 拒否、取消時失効を実装しました。kernel **26 tests**、新 host driver の 42/通常 cleanup [1,0]/全park後取消 [2,1,0]/live 0、既存 host driver が成功しました。production 入力を固定した最終 baseline は **117 suites / 1,809 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **564.69s**。fmt、warnings-denied Clippy、rustdoc、全11 fuzz target compile/lint が成功しました。C02 の残条件は有限 endpoint/queue/waiter storage、message の preflight/commit、full-send FIFO 先頭予約、receive、seal/drain、last sender、abort の FIFO payload 退役、wake/取消前後の registration custody、拒否時所有権と実 host fixture です。C05 の ticket/ready queue と既存 control/ownership service を再利用し、Source/独立 MIR/VM と native channel は C03/C04 に維持します。production channel は未実装で、全 M3/P1 scope と gate を維持します。
 
-**今回: C01 完了（−2 pt）と新規 C05（+2 pt）を別計上します。** 残り **85 − 2 + 2 = 85 pt**、全 **50 行**、消化 **51 pt**、純追加 **+26 pt**。
+**今回: C05 完了（−2 pt）、新たな追加/再見積りはありません。** 残り **85 − 2 = 83 pt**、全 **50 行**、消化 **53 pt**、純追加 **+26 pt**。
 
 ## Deliveries
 
@@ -37,8 +37,8 @@
 | M3-T16 | done | 0 | M3-T15 | G03 | region-safe loan と descendant join 後の retirement を持つ owned arena task scope を VM/native 実行 | `59a5070` |
 | M3-T08 | done | 0 | M3-T07 | G12,G13 | 全実行経路で task/frame/fuel の共有上限を副作用前に適用 | `fdfc755` |
 | M3-C01 | done | 0 | M3-T08,M3-A01,M3-A05 | G01,G04 | 有界 channel、FIFO wakeup、背圧、所有権 commit、取消 error を採択 | `2a13940` |
-| M3-C05 | doing | 2 | M3-C01,M3-T08 | G04,G13 | Execute bounded task park/wake with branded wait tickets, FIFO resumption, cancellation revocation and stale-wake checks | — |
-| M3-C02 | todo | 3 | M3-C01,M3-C05 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | — |
+| M3-C05 | done | 0 | M3-C01,M3-T08 | G04,G13 | Execute bounded task park/wake with branded wait tickets, FIFO resumption, cancellation revocation and stale-wake checks | `72e759c` |
+| M3-C02 | doing | 3 | M3-C01,M3-C05 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | — |
 | M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | source channel fixture を VM 実行し payload 再利用を拒否 | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | native で channel の値、失敗、cleanup を一致 | — |
 | M3-A01 | done | 0 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | `9b2b68c` |
@@ -83,6 +83,11 @@ C01 prerequisite audit（2026-10-21 JST、実装前）: C02 の元の **3 pt** �
 C01 roadmap audit: C05 はこの channel fixture に必要な有限 wait/resume だけを実装し、guest message、独自 executor/IDL framework、外部 wake capability を持たせません。C01/C05 の2前提後に順序を再確認し、C02 の実 runtime fixture、次いで C03 の source fixture へ進めます。具体 source call catalog を受理する前に source 実装を始めません。A02 の actor authority、全 15 gate/P1、foreign/C/serialized/package、production embedding、最終 guide を維持します。
 
 
+C05 completed at `72e759c`（2026-10-21 JST）: 既存 kernel に private invocation/task identity と検証済み ordinal を持つ WaitId、check_park、park、wake、Parked state を追加しました。1 task/1 pending wait、事前確保済み queue と metadata、checked u64 枯渇で有限性を保ち、wake は既存 ready の後ろに一度だけ復帰させます。取消/child failure は ticket を実 cleanup 前に失効させ、既存 descendant-first join/retirement と primary failure を保ちます。新8件を含む **kernel 26 tests** は、quiescence/live 計上、active dispatch、foreign/不正/重複/旧 ticket、256回再利用時の storage、最終 ordinal/原子的枯渇を検証しました。実 host frame driver は42、通常 [1,0]、全park後取消 [2,1,0]、live 0、既存 driver も成功しました。最終固定入力 baseline は **117 suites / 1,809 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **564.69s**。fmt、Clippy（**94s**）、rustdoc（**33.40s**）、11 fuzz target compile/lint（**3.24s**）が成功しました。初回全体実行の既存 cross-target CLI 起動で NotFound が1件ありましたが、同一 binary の単独再実行とコード変更なしの最終全体実行は成功し、原因は未確定です。retry や SDK 検証の緩和は加えていません。C05 の最後の **2 pt** を退役し、新追加/再見積りはありません。
+
+C05 roadmap/sequence audit: C01/C05 の2前提後に、実際の park/wake、FrameStorage/Reservation、task service-work と mixed cleanup interface を再確認しました。kernel の不足は閉じ、追加 scheduler framework は不要です。C02 の元の **3 pt** を、有限 queue と endpoint/待機登録、owned payload の commit/recovery、FIFO reservation と close/取消の実 runtime fixture に維持します。まず host fixture で42と所有値 inventory を実行し、次は C03 の concrete core catalog を受理して source/独立 MIR/VM fixture を接続し、C04 で native/linked-object parity を証明します。初期 profile に未対応の endpoint-bearing/publication 条件は副作用前拒否として明示し、全受入条件を残します。新 owner registry、第二言語、無関係な horizontal hardening は追加しません。全15 gate/P1、actor authority、foreign/C/serialized/package、production embedding、最終 guide を維持します。
+
+
 ## Progress and estimate changes
 
 開始監査（2026-10-20 JST）: 39 作業、初期 **110 pt**。積上げの暫定予測です。ロードマップの **96 pt** は過去に付与したゲート重みです。開始時点では完了による消化も追加作業もありませんでした。範囲が変われば実装前に再見積りします。新しい source 実行 fixture のない前提作業が 2 件続いたら順序を再確認します。T02/T03 を際限のない scheduler framework にしません。
@@ -121,7 +126,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 26 − 51 = 85 pt**
+**110 + 26 − 53 = 83 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -169,7 +174,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +26 pt | −51 pt | 85 pt |
+| 110 pt | +26 pt | −53 pt | 83 pt |
 
 ## Exit audit
 

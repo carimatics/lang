@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **20 done · 1 doing · 29 todo · 85 remaining pt** です。C01（`2a13940`）で RFC 0025 の有限 MPSC、FIFO sender 先頭予約、ownership commit、seal/abort/取消/全停止時の契約を受理しました。protocol trace 5 件と repository consistency 5 件は成功しましたが、production channel は未実装です。次は新しい **C05（2 pt）** で bounded task park/wake と wait identity/取消時失効を実行し、その後 C02 の実 runtime fixture と C03/C04 の source/独立 MIR/VM/native に進みます。今回の **C01 消化2 pt** と **C05 新追加2 pt** を別計上し、累積追加 **+26 pt**、消化 **51 pt**、収支 **110 + 26 − 51 = 85 pt**。直近 production baseline は A05（`ea822bd`）の 116 suite / 1,801 test 成功、失敗0、既存 timing ignore 1 件です。全 15 M3/P1 gate、actor/foreign/C/serialized/package/production embedding、最終 guide を維持します。日付付き証拠は board と [roadmap 履歴](roadmap-history.md)に保持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **21 done · 1 doing · 28 todo · 83 remaining pt** です。C05（`72e759c`）で有限 wait ticket/park/wake、FIFO ready 復帰、取消失効、不正/旧 wake 拒否を実装しました。kernel 26 テスト、実 host frame driver の42と通常/取消 cleanup、最終全117 suite / 1,809 test が成功し、失敗0、既存 timing ignore 1 件です。初回の既存 CLI 起動失敗1件は単独と変更なしの最終全体で再現せず、詳細を board に記録しました。次は **C02** の実 bounded runtime queue と owned send/receive/close/取消 fixture、その後 C03/C04 の source/独立 MIR/VM/native です。今回消化 **2 pt**、新追加/再見積りはなく、累積追加 **+26 pt**、消化 **53 pt**、収支 **110 + 26 − 53 = 83 pt**。production channel は未実装で、全15 M3/P1 gate、actor/foreign/C/serialized/package/production embedding、最終 guide を維持します。日付付き証拠は board と [roadmap 履歴](roadmap-history.md)に保持します。
 
 ## 進行中 milestone の実行
 
