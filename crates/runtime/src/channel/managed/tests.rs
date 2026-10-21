@@ -271,6 +271,7 @@ fn guest_backed_bytes_cross_capacity_one_backpressure_and_retire_all_storage() {
                 first,
                 Some(span()),
                 &mut inspector,
+                None,
                 &allocator
             )
             .unwrap(),
@@ -285,6 +286,7 @@ fn guest_backed_bytes_cross_capacity_one_backpressure_and_retire_all_storage() {
             second,
             Some(span()),
             &mut inspector,
+            None,
             &allocator,
         )
         .unwrap()
@@ -316,7 +318,7 @@ fn guest_backed_bytes_cross_capacity_one_backpressure_and_retire_all_storage() {
     ));
     assert!(matches!(
         channels
-            .resume_send(&mut scheduler, &operation, &mut inspector, &allocator)
+            .resume_send(&mut scheduler, &operation, &mut inspector, None, &allocator)
             .unwrap(),
         Send::Sent { position: 1 }
     ));

@@ -548,3 +548,83 @@ fn empty_arena_task_scope_captures_authority_and_retires_before_suspension() {
         assert!(trace.borrow().active.is_empty());
     }
 }
+
+#[test]
+fn moved_owned_locals_reinitialize_in_loops_on_vm_and_native() {
+    let program = prepare(
+        r#"
+fn bytes(value:i64)->core::Bytes {
+ let mut result:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+ let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(result,value));
+ return result;
+}
+async fn main()->i64 {
+ let mut value:core::Bytes=bytes(1);
+ let mut count:i64=0;
+ while count<3 {
+  let mut moved:core::Bytes=value;
+  value=bytes(42);
+  count=count+1;
+ }
+ return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(value,0));
+}
+"#,
+    );
+    let native =
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
+            .unwrap();
+    let mut full_fuel = None;
+    for compiled in [false, true] {
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let result = if compiled {
+            native.execute(
+                &mut allocator,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+        } else {
+            lang_vm::unit::tasks::execute_entry(
+                program.verified(),
+                &mut allocator,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+        }
+        .unwrap();
+        assert_eq!(result.value, 42);
+        assert_eq!(result.tasks.live, 0);
+        assert_eq!(allocator.stats().live_allocations, 0);
+        if let Some(expected) = full_fuel {
+            assert_eq!(result.usage.fuel, expected);
+        }
+        full_fuel = Some(result.usage.fuel);
+        for fuel in 0..result.usage.fuel {
+            let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+            let control = e::Control::with_limits(e::Limits {
+                fuel: Some(fuel),
+                ..Default::default()
+            });
+            let failure = if compiled {
+                native.execute(&mut allocator, control, Default::default())
+            } else {
+                lang_vm::unit::tasks::execute_entry(
+                    program.verified(),
+                    &mut allocator,
+                    control,
+                    Default::default(),
+                )
+            }
+            .err()
+            .unwrap();
+            assert!(
+                matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Control(e::Failure::FuelExhausted)
+                ),
+                "{compiled} {fuel}: {failure:?}"
+            );
+            assert_eq!(failure.tasks.live, 0);
+            assert_eq!(allocator.stats().live_allocations, 0);
+        }
+    }
+}

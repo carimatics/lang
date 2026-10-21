@@ -1,0 +1,23 @@
+enum Message { Empty, Inbox(core::Receiver<Message>) }
+
+async fn blocked(sender:core::Sender<Message>, receiver:core::Receiver<Message>)->i64 {
+    let mut outcome:core::SendResult<Message>=await core::channel_send::<Message>(&sender,Message::Inbox(receiver));
+    let mut returned:Message=core::channel_unsent::<Message>(outcome);
+    return 42;
+}
+
+async fn main()->i64 {
+    let mut first:core::ChannelSetup<Message>=core::result_unwrap::<core::ChannelSetup<Message>,core::ChannelError>(core::channel_new::<Message>(core::allocator(),1));
+    let mut first_sender:core::Sender<Message>=core::channel_sender::<Message>(&first);
+    let mut first_receiver:core::Receiver<Message>=core::channel_receiver::<Message>(first);
+    let mut second:core::ChannelSetup<Message>=core::result_unwrap::<core::ChannelSetup<Message>,core::ChannelError>(core::channel_new::<Message>(core::allocator(),1));
+    let mut second_sender:core::Sender<Message>=core::channel_sender::<Message>(&second);
+    let mut second_receiver:core::Receiver<Message>=core::channel_receiver::<Message>(second);
+    let mut seeded:core::SendResult<Message>=await core::channel_send::<Message>(&first_sender,Message::Empty);
+    let mut waiting:core::Task<i64>=spawn blocked(first_sender,second_receiver);
+    yield;
+    let mut received:core::Option<Message>=await core::channel_receive::<Message>(&mut first_receiver);
+    let mut old:Message=core::option_unwrap::<Message>(received);
+    let mut linked:core::SendResult<Message>=await core::channel_send::<Message>(&second_sender,Message::Inbox(first_receiver));
+    return core::result_unwrap::<i64,core::TaskError>(await waiting);
+}

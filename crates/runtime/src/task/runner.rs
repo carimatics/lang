@@ -418,15 +418,15 @@ pub fn managed_type_supported(
     budget: &mut m::Budget,
 ) -> Result<bool, Reason> {
     let mut pending = budget.vector(1)?;
-    pending.push((ty, false));
+    pending.push(ty);
     let mut seen = budget.vector(0)?;
-    while let Some((ty, indirect)) = pending.pop() {
+    while let Some(ty) = pending.pop() {
         budget.charge(seen.len().saturating_add(1))?;
-        if seen.contains(&(ty, indirect)) {
+        if seen.contains(&ty) {
             continue;
         }
         reserve_push(budget, &mut seen)?;
-        seen.push((ty, indirect));
+        seen.push(ty);
         let properties = types.properties(ty).ok_or(Reason::Invariant)?;
         if properties.is_copy
             && !properties.contains_loan
@@ -456,17 +456,9 @@ pub fn managed_type_supported(
                     | o::Constructor::Arena(_)
                     | o::Constructor::ArenaOwner(_)
                     | o::Constructor::Loan(..)) => {
-                        let indirect = indirect
-                            || matches!(
-                                constructor,
-                                o::Constructor::Vec(_)
-                                    | o::Constructor::Map(..)
-                                    | o::Constructor::Shared(_)
-                                    | o::Constructor::Weak(_)
-                            );
                         for argument in constructor.arguments() {
                             reserve_push(budget, &mut pending)?;
-                            pending.push((argument, indirect));
+                            pending.push(argument);
                         }
                     }
                     o::Constructor::Task(_) => {}
@@ -478,9 +470,8 @@ pub fn managed_type_supported(
                             .arguments()
                             .next()
                             .ok_or(Reason::Invariant)?;
-                        if indirect || !channel_message_supported(types, message) {
-                            return Ok(false);
-                        }
+                        reserve_push(budget, &mut pending)?;
+                        pending.push(message);
                     }
                 }
             }
@@ -488,26 +479,17 @@ pub fn managed_type_supported(
                 o::DefinitionKind::Record(fields) => {
                     for field in fields {
                         reserve_push(budget, &mut pending)?;
-                        pending.push((field.ty.ty, indirect));
+                        pending.push(field.ty.ty);
                     }
                 }
                 o::DefinitionKind::Enum(cases) => {
                     for field in cases.iter().flat_map(|c| &c.payload) {
                         reserve_push(budget, &mut pending)?;
-                        pending.push((field.ty, indirect));
+                        pending.push(field.ty);
                     }
                 }
             },
         }
     }
     Ok(true)
-}
-fn channel_message_supported(types: &o::VerifiedTypes, ty: o::Type) -> bool {
-    match ty {
-        o::Type::I64 | o::Type::Bool => true,
-        o::Type::Constructed(id) => {
-            matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Builtin(b) if b!=o::Builtin::Allocator)
-        }
-        _ => false,
-    }
 }

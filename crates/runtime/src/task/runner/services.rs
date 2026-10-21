@@ -96,7 +96,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
                 }
             }
         }
-        has_indirect |= has_arena;
+        has_indirect |= has_arena || has_channels;
         let inspection = if has_arena || has_channels {
             let inspector = crate::inspection::Inspector::prepare(
                 layouts,
@@ -171,15 +171,16 @@ impl<'l, 'ty> Services<'l, 'ty> {
     ) -> Result<(), u32> {
         let meter = self.work.clone();
         meter.unmetered(|| {
-            let endpoint=matches!(token.leaf.ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::ChannelSetup(_)|o::Constructor::Sender(_)|o::Constructor::Receiver(_)));
-            if endpoint {
-                let channels=self.channels.as_mut().ok_or(3u32)?;
-                return channels.retire(token,&mut self.scheduler,allocator,context,|token,allocator,_,_|crate::buffer::cleanup_token(types,token,allocator).map_err(|_|3u32)).map_err(|_|3u32);
-            }
             if let Some(drain) = &mut self.drain {
-                drain.token(
+                drain.token_with_services(
                     token,
-                    self.heap.as_mut(),
+                    r::Services {
+                        heap: self.heap.as_mut(),
+                        channels: self
+                            .channels
+                            .as_mut()
+                            .map(|channels| (channels, &mut self.scheduler)),
+                    },
                     allocator,
                     context,
                     |token, allocator, _, _| {
@@ -189,6 +190,32 @@ impl<'l, 'ty> Services<'l, 'ty> {
             } else {
                 crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
             }
+        })
+    }
+    pub fn retire_message<P: a::Provider>(
+        &mut self,
+        types: &o::VerifiedTypes,
+        message: &mut crate::channel::managed::Message<'l, 'ty>,
+        allocator: &mut a::Allocator<P>,
+        context: &mut c::Context<'_>,
+    ) -> Result<(), u32> {
+        let meter = self.work.clone();
+        meter.unmetered(|| {
+            self.drain.as_mut().ok_or(3u32)?.message(
+                message,
+                r::Services {
+                    heap: self.heap.as_mut(),
+                    channels: self
+                        .channels
+                        .as_mut()
+                        .map(|channels| (channels, &mut self.scheduler)),
+                },
+                allocator,
+                context,
+                |token, allocator, _, _| {
+                    crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                },
+            )
         })
     }
     pub fn close<P: a::Provider>(&mut self, allocator: &mut a::Allocator<P>) -> Result<(), Reason> {

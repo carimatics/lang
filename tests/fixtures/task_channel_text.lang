@@ -1,0 +1,14 @@
+fn word()->core::Text {
+    let mut data:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(data,42));
+    return core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(data));
+}
+async fn main()->i64 {
+    let mut setup:core::ChannelSetup<core::Text>=core::result_unwrap::<core::ChannelSetup<core::Text>,core::ChannelError>(core::channel_new::<core::Text>(core::allocator(),1));
+    let mut sender:core::Sender<core::Text>=core::channel_sender::<core::Text>(&setup);
+    let mut receiver:core::Receiver<core::Text>=core::channel_receiver::<core::Text>(setup);
+    let mut sent:core::SendResult<core::Text>=await core::channel_send::<core::Text>(&sender,word());
+    let mut received:core::Option<core::Text>=await core::channel_receive::<core::Text>(&mut receiver);
+    let mut text:core::Text=core::option_unwrap::<core::Text>(received);
+    return core::text_len(text)+41;
+}

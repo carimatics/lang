@@ -1,0 +1,10 @@
+enum Message { Empty, Inbox(core::Receiver<Message>) }
+
+async fn main()->i64 {
+    let mut setup:core::ChannelSetup<Message>=core::result_unwrap::<core::ChannelSetup<Message>,core::ChannelError>(core::channel_new::<Message>(core::allocator(),1));
+    let mut sender:core::Sender<Message>=core::channel_sender::<Message>(&setup);
+    let mut receiver:core::Receiver<Message>=core::channel_receiver::<Message>(setup);
+    let mut outcome:core::SendResult<Message>=await core::channel_send::<Message>(&sender,Message::Inbox(receiver));
+    let mut returned:Message=core::channel_unsent::<Message>(outcome);
+    return 42;
+}

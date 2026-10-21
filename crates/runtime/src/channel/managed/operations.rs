@@ -82,10 +82,63 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         {
             return Err(super::super::Error::WrongRole);
         }
+        if word(1)
+            != Self::layout_type_index(layouts, value.message)
+                .map_err(|_| super::super::Error::InvalidPayload)?
+        {
+            return Err(super::super::Error::InvalidEndpoint);
+        }
         Ok(Receiver(Key {
             identity: Rc::clone(identity),
             index,
         }))
+    }
+    fn inspect_sender<P: a::Provider>(
+        layouts: &l::Layouts<'ty>,
+        backing: &[Backing<'l, 'ty>],
+        tickets: &[Option<a::Handle>],
+        observation: &inspection::Observation,
+        allocator: &a::Allocator<P>,
+    ) -> Result<(), super::super::Error> {
+        use super::super::Error as E;
+        let number = usize::try_from(u64::from_le_bytes(
+            observation.bytes[24..].try_into().unwrap(),
+        ))
+        .map_err(|_| E::InvalidPayload)?;
+        let handle = a::Handle::from_token(observation.bytes[..24].try_into().unwrap())
+            .map_err(|_| E::InvalidPayload)?;
+        if tickets.get(number).copied().flatten() != Some(handle) {
+            return Err(E::ForeignEndpoint);
+        }
+        let bytes = allocator.bytes(handle).map_err(|_| E::InvalidPayload)?;
+        if bytes.len() != 40 {
+            return Err(E::InvalidEndpoint);
+        }
+        let word = |i: usize| u64::from_le_bytes(bytes[i * 8..i * 8 + 8].try_into().unwrap());
+        let index = usize::try_from(word(2)).map_err(|_| E::InvalidEndpoint)?;
+        let value = backing.get(index).ok_or(E::ForeignEndpoint)?;
+        let o::Type::Constructed(id) = observation.ty else {
+            return Err(E::WrongRole);
+        };
+        if !matches!(layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(t) if layouts.types().equivalent(t,value.message)==Some(true))
+        {
+            return Err(E::WrongRole);
+        }
+        let canonical =
+            Self::layout_type_index(layouts, value.message).map_err(|_| E::InvalidPayload)?;
+        if word(0) != TICKET || word(1) != canonical || word(3) != number as u64 || word(4) == 0 {
+            return Err(E::InvalidEndpoint);
+        }
+        let header = value.header.ok_or(E::InvalidEndpoint)?;
+        let bytes = allocator.bytes(header).map_err(|_| E::InvalidPayload)?;
+        if bytes.len() != HEADER_BYTES as usize {
+            return Err(E::InvalidEndpoint);
+        }
+        let word = |i: usize| u64::from_le_bytes(bytes[i * 8..i * 8 + 8].try_into().unwrap());
+        if word(0) != HEADER || word(1) != canonical || word(3) != index as u64 {
+            return Err(E::InvalidEndpoint);
+        }
+        Ok(())
     }
     #[expect(
         clippy::too_many_arguments,
@@ -94,8 +147,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
     fn inspect<P: a::Provider>(
         layouts: &'l l::Layouts<'ty>,
         backing: &[Backing<'l, 'ty>],
+        tickets: &[Option<a::Handle>],
         identity: &Rc<()>,
         inspector: &mut inspection::Inspector<'l, 'ty>,
+        heap: Option<&crate::shared::managed::Heap<'l, 'ty>>,
         message: &Message<'l, 'ty>,
         allocator: &a::Allocator<P>,
         work: &e::ServiceWork,
@@ -121,10 +176,61 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                     &observation,
                     allocator,
                 )?)?,
-                o::Constructor::Shared(_) | o::Constructor::Weak(_) => {
-                    return Err(super::super::Error::InvalidPayload);
+                o::Constructor::Sender(_) => {
+                    Self::inspect_sender(layouts, backing, tickets, &observation, allocator)?
                 }
-                _ => {}
+                o::Constructor::Shared(target) | o::Constructor::Weak(target) => {
+                    // Independently verified Share forbids physical Receiver
+                    // ownership here. Sender's message parameter is phantom.
+                    if !layouts
+                        .types()
+                        .properties(target)
+                        .is_some_and(|p| p.is_share())
+                    {
+                        return Err(super::super::Error::InvalidPayload);
+                    }
+                    let token = l::Token {
+                        leaf: l::Leaf {
+                            ty: observation.ty,
+                            offset: 0,
+                            span: observation.span,
+                        },
+                        bytes: observation.bytes,
+                    };
+                    heap.ok_or(super::super::Error::InspectionContextRequired)?
+                        .preview_observation(&token, 0, allocator)
+                        .map_err(|_| super::super::Error::InvalidPayload)?;
+                }
+                o::Constructor::Builtin(o::Builtin::Bytes) => {
+                    let mut bytes = observation.bytes;
+                    crate::buffer::Bytes::from_token(&mut bytes, allocator)
+                        .and_then(|value| value.len(allocator))
+                        .map_err(|_| super::super::Error::InvalidPayload)?;
+                }
+                o::Constructor::Builtin(o::Builtin::Text) => {
+                    let mut bytes = observation.bytes;
+                    let text =
+                        crate::buffer::Text::from_token_metered(&mut bytes, allocator, &mut |n| {
+                            quota.service(n)
+                        })
+                        .map_err(|error| match error {
+                            crate::buffer::Fault::ServiceWork(error) => {
+                                super::super::Error::Work(error)
+                            }
+                            _ => super::super::Error::InvalidPayload,
+                        })?;
+                    let length = usize::try_from(
+                        text.len(allocator)
+                            .map_err(|_| super::super::Error::InvalidPayload)?,
+                    )
+                    .map_err(|_| super::super::Error::InvalidPayload)?;
+                    quota
+                        .charge_event(length, length as u64)
+                        .map_err(inspection_error)?;
+                    text.as_str(allocator)
+                        .map_err(|_| super::super::Error::InvalidPayload)?;
+                }
+                _ => return Err(super::super::Error::InvalidPayload),
             }
         }
         Ok(())
@@ -145,6 +251,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         message: Message<'l, 'ty>,
         span: Option<Span>,
         inspector: &mut inspection::Inspector<'l, 'ty>,
+        heap: Option<&crate::shared::managed::Heap<'l, 'ty>>,
         allocator: &a::Allocator<P>,
     ) -> Result<Send<Message<'l, 'ty>>, SendFailure<Message<'l, 'ty>>> {
         let channel = match self.index(sender, allocator) {
@@ -174,6 +281,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         };
         let identity = Rc::clone(&self.hub.identity);
         let backing = &self.backing;
+        let tickets = &self.tickets;
         let layouts = self.layouts;
         let work = self.hub.work.clone();
         self.hub
@@ -185,7 +293,8 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                 span,
                 &mut |message, visit| {
                     Self::inspect(
-                        layouts, backing, &identity, inspector, message, allocator, &work, visit,
+                        layouts, backing, tickets, &identity, inspector, heap, message, allocator,
+                        &work, visit,
                     )
                 },
             )
@@ -199,18 +308,21 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         scheduler: &mut t::Scheduler,
         operation: &Operation,
         inspector: &mut inspection::Inspector<'l, 'ty>,
+        heap: Option<&crate::shared::managed::Heap<'l, 'ty>>,
         allocator: &a::Allocator<P>,
     ) -> Result<Send<Message<'l, 'ty>>, Error> {
         self.check(allocator)?;
         let identity = Rc::clone(&self.hub.identity);
         let backing = &self.backing;
+        let tickets = &self.tickets;
         let layouts = self.layouts;
         let work = self.hub.work.clone();
         Ok(self
             .hub
             .resume_send_inspected(scheduler, operation, &mut |message, visit| {
                 Self::inspect(
-                    layouts, backing, &identity, inspector, message, allocator, &work, visit,
+                    layouts, backing, tickets, &identity, inspector, heap, message, allocator,
+                    &work, visit,
                 )
             })?)
     }

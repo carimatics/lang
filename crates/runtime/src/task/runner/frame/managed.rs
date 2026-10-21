@@ -265,10 +265,16 @@ impl Frame<'_, '_> {
                         let drain = services.drain.as_mut().ok_or(8u32)?;
                         let heap = services.heap.as_mut().ok_or(8u32)?;
                         drain
-                            .end_read(
+                            .end_read_with_services(
                                 read,
                                 ty,
-                                heap,
+                                crate::retirement::Services {
+                                    heap: Some(heap),
+                                    channels: services
+                                        .channels
+                                        .as_mut()
+                                        .map(|channels| (channels, &mut services.scheduler)),
+                                },
                                 allocator,
                                 context,
                                 |token, allocator, _, _| {

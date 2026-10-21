@@ -55,7 +55,7 @@ pub(super) fn execute<P: a::Provider>(
         }
         b::Op::PreparePlace { destination, place } => {
             frame.prepared[destination.0 as usize] =
-                Some(frame.place(&paths[place.0 as usize], allocator)?)
+                Some(frame.write_place(&paths[place.0 as usize], allocator)?)
         }
         b::Op::PrepareChannel {
             destination,
@@ -63,7 +63,7 @@ pub(super) fn execute<P: a::Provider>(
             ..
         } => frame.capture_channel(value(*endpoint), destination.0 as usize, allocator)?,
         b::Op::Replace { place, value: from } => {
-            let to = frame.place(&paths[place.0 as usize], allocator)?;
+            let to = frame.write_place(&paths[place.0 as usize], allocator)?;
             frame.replace(value(*from), to, i.span, allocator)?;
         }
         b::Op::ReplacePrepared {

@@ -1,0 +1,41 @@
+struct Store { bytes:core::Bytes }
+struct Packet { stored:shared Store, observer:weak Store, receivers:core::Vec<core::Receiver<core::Bytes>> }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut value_bytes:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(value_bytes,value));
+    return value_bytes;
+}
+
+async fn packet(value:i64)->Packet {
+    let mut leaf:core::ChannelSetup<core::Bytes>=core::result_unwrap::<core::ChannelSetup<core::Bytes>,core::ChannelError>(core::channel_new::<core::Bytes>(core::allocator(),1));
+    let mut leaf_sender:core::Sender<core::Bytes>=core::channel_sender::<core::Bytes>(&leaf);
+    let mut leaf_receiver:core::Receiver<core::Bytes>=core::channel_receiver::<core::Bytes>(leaf);
+    let mut seeded:core::SendResult<core::Bytes>=await core::channel_send::<core::Bytes>(&leaf_sender,bytes(value+100));
+    let mut receivers:core::Vec<core::Receiver<core::Bytes>>=core::result_unwrap::<core::Vec<core::Receiver<core::Bytes>>,core::AllocError>(core::vec_new::<core::Receiver<core::Bytes>>(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::AllocError>(core::vec_push::<core::Receiver<core::Bytes>>(receivers,leaf_receiver));
+    let mut stored:shared Store=core::result_unwrap::<shared Store,core::OwnershipError>(core::shared_new::<Store>(core::allocator(),Store { bytes:bytes(value) }));
+    let mut observer:weak Store=core::result_unwrap::<weak Store,core::OwnershipError>(core::weak_new::<Store>(stored));
+    return Packet { stored:stored,observer:observer,receivers:receivers };
+}
+
+async fn producer(sender:core::Sender<Packet>)->i64 {
+    let mut first:Packet=core::result_unwrap::<Packet,core::TaskError>(await packet(20));
+    let mut second:Packet=core::result_unwrap::<Packet,core::TaskError>(await packet(22));
+    let mut sent:core::SendResult<Packet>=await core::channel_send::<Packet>(&sender,first);
+    let mut blocked:core::SendResult<Packet>=await core::channel_send::<Packet>(&sender,second);
+    return core::panic::<i64>(-99);
+}
+
+async fn main()->i64 {
+    let mut setup:core::ChannelSetup<Packet>=core::result_unwrap::<core::ChannelSetup<Packet>,core::ChannelError>(core::channel_new::<Packet>(core::allocator(),1));
+    let mut sender:core::Sender<Packet>=core::channel_sender::<Packet>(&setup);
+    let mut receiver:core::Receiver<Packet>=core::channel_receiver::<Packet>(setup);
+    let mut sending:core::Task<i64>=spawn producer(sender);
+    yield; yield; yield; yield; yield;
+    yield; yield; yield; yield; yield;
+    yield; yield; yield; yield; yield;
+    yield; yield; yield; yield; yield;
+    cancel sending;
+    return 42;
+}

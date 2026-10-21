@@ -9,10 +9,12 @@ const HEADER: u64 = 0x4348_414e_4e45_4c31;
 const HEADER_BYTES: u64 = 48;
 const TICKET: u64 = 0x4348_5449_434b_4554;
 mod operations;
+mod retirement;
+pub(crate) use retirement::Retired;
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Error {
     Protocol(super::Error),
     Layout(l::Error),
@@ -54,6 +56,7 @@ struct Backing<'l, 'ty> {
     message: o::Type,
     free: Vec<l::Reservation<'l, 'ty>>,
     retired: bool,
+    draining: bool,
 }
 pub struct Message<'l, 'ty> {
     pub storage: Option<l::Reservation<'l, 'ty>>,
@@ -86,6 +89,9 @@ pub struct Capture {
 impl Capture {
     pub fn token(&self) -> &l::Token {
         &self.token
+    }
+    pub(crate) fn token_mut(&mut self) -> &mut l::Token {
+        &mut self.token
     }
 }
 impl Payload for Message<'_, '_> {
@@ -149,6 +155,33 @@ impl<'l, 'ty> Channels<'l, 'ty> {
     }
     pub const fn live_cells(&self) -> usize {
         self.cells
+    }
+    pub(crate) fn uses_layouts(&self, layouts: &l::Layouts<'ty>) -> bool {
+        std::ptr::eq(self.layouts, layouts)
+    }
+    pub(crate) fn validate_sender_observation<P: a::Provider>(
+        &self,
+        layouts: &l::Layouts<'ty>,
+        observation: &crate::inspection::Observation,
+        allocator: &a::Allocator<P>,
+    ) -> Result<(), Error> {
+        if !self.uses_layouts(layouts)
+            || !matches!(observation.ty,o::Type::Constructed(id) if matches!(layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)))
+        {
+            return Err(Error::MessageType);
+        }
+        self.index(
+            &l::Token {
+                leaf: l::Leaf {
+                    ty: observation.ty,
+                    offset: 0,
+                    span: observation.span,
+                },
+                bytes: observation.bytes,
+            },
+            allocator,
+        )?;
+        Ok(())
     }
     pub fn usage(&self) -> Usage {
         self.hub.usage()
@@ -214,7 +247,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         Ok(())
     }
     fn type_index(&self, ty: o::Type) -> Result<u64, Error> {
-        let types = self.layouts.types();
+        Self::layout_type_index(self.layouts, ty)
+    }
+    fn layout_type_index(layouts: &l::Layouts<'ty>, ty: o::Type) -> Result<u64, Error> {
+        let types = layouts.types();
         let canonical = types.canonical(ty).ok_or(Error::MessageType)?;
         Ok(match canonical {
             o::Type::I64 => 0,
@@ -360,6 +396,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             message,
             free,
             retired: false,
+            draining: false,
         });
         self.cells = cells;
         let mut bytes = [0; 32];
@@ -625,139 +662,6 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                 return Err(Error::State);
             }
             free.push(storage);
-        }
-        Ok(())
-    }
-    pub fn retire_message<P: a::Provider, F>(
-        &mut self,
-        message: &mut Message<'l, 'ty>,
-        allocator: &mut a::Allocator<P>,
-        context: &mut c::Context<'_>,
-        cleaner: F,
-    ) -> Result<(), Error>
-    where
-        F: FnMut(
-            &mut l::Token,
-            &mut a::Allocator<P>,
-            c::Reason,
-            &mut c::Context<'_>,
-        ) -> Result<(), u32>,
-    {
-        message
-            .storage
-            .as_mut()
-            .ok_or(Error::State)?
-            .retire(allocator, context, cleaner)?;
-        let storage = message.storage.take().ok_or(Error::State)?;
-        self.recycle_storage(storage, message.channel, message.extra, allocator)
-    }
-    /// Detach the endpoint and revoke/wake waiters before any payload callback.
-    /// Child retirement shares the caller's existing report and panic boundary.
-    pub fn retire<P: a::Provider, F>(
-        &mut self,
-        token: &mut l::Token,
-        scheduler: &mut t::Scheduler,
-        allocator: &mut a::Allocator<P>,
-        context: &mut c::Context<'_>,
-        mut cleaner: F,
-    ) -> Result<(), Error>
-    where
-        F: FnMut(
-            &mut l::Token,
-            &mut a::Allocator<P>,
-            c::Reason,
-            &mut c::Context<'_>,
-        ) -> Result<(), u32>,
-    {
-        let channel = self.index(token, allocator)?;
-        let o::Type::Constructed(id) = token.leaf.ty else {
-            return Err(Error::MessageType);
-        };
-        let sender = matches!(
-            self.layouts.types().table().constructed[id.0 as usize].constructor,
-            o::Constructor::Sender(_)
-        );
-        let handle = a::Handle::from_token(token.bytes[..24].try_into().unwrap())?;
-        let count = u64::from_le_bytes(allocator.bytes(handle)?[32..40].try_into().unwrap());
-        if count > 1 {
-            allocator.bytes_mut(handle)?[32..40].copy_from_slice(&(count - 1).to_le_bytes());
-            token.bytes.fill(0);
-            return Ok(());
-        }
-        if sender {
-            let ticket = usize::try_from(u64::from_le_bytes(token.bytes[24..].try_into().unwrap()))
-                .map_err(|_| Error::State)?;
-            self.hub.release_sender(
-                scheduler,
-                &Sender {
-                    key: Key {
-                        identity: Rc::clone(&self.hub.identity),
-                        index: channel,
-                    },
-                    ticket,
-                },
-            )?;
-            token.bytes.fill(0);
-            allocator.release(self.tickets[ticket].take().ok_or(Error::State)?)?;
-            if self.hub.channels[channel].role == Role::Retired
-                && self.hub.channels[channel].producers == 0
-            {
-                allocator.release(self.backing[channel].header.take().ok_or(Error::State)?)?;
-            }
-            return Ok(());
-        }
-        let role = match self.layouts.types().table().constructed[id.0 as usize].constructor {
-            o::Constructor::ChannelSetup(_) => Role::Setup,
-            o::Constructor::Receiver(_) => Role::Receiver,
-            _ => return Err(Error::MessageType),
-        };
-        self.hub.role(
-            &Key {
-                identity: Rc::clone(&self.hub.identity),
-                index: channel,
-            },
-            role,
-        )?;
-        token.bytes.fill(0);
-        allocator.bytes_mut(handle)?[32..40].copy_from_slice(&0u64.to_le_bytes());
-        if role == Role::Setup {
-            self.hub.channels[channel].producers -= 1;
-        }
-        self.hub.channels[channel].role = Role::Retired;
-        self.hub.channels[channel].sealed = true;
-        self.backing[channel].retired = true;
-        self.hub.refresh(scheduler)?;
-        while let Some(entry) = self.hub.channels[channel].values.pop() {
-            self.hub.usage.queued -= 1;
-            context.field(
-                entry.value.value,
-                entry.value.span,
-                &mut c::Contextual::new(
-                    |message: &mut Message<'l, 'ty>, _, context: &mut c::Context<'_>| {
-                        message
-                            .storage
-                            .as_mut()
-                            .ok_or(0x4348_0001u32)?
-                            .retire(allocator, context, &mut cleaner)
-                            .map_err(|_| 0x4348_0001u32)?;
-                        let storage = message.storage.take().ok_or(0x4348_0001u32)?;
-                        self.recycle_storage(storage, message.channel, message.extra, allocator)
-                            .map_err(|_| 0x4348_0001u32)
-                    },
-                ),
-            );
-        }
-        let capacity = self.hub.channels[channel].capacity;
-        self.hub.channels[channel].values.release();
-        self.hub.channels[channel].capacity = 0;
-        self.hub.usage.reserved_slots -= capacity;
-        for mut slot in self.backing[channel].free.drain(..) {
-            slot.release_storage(allocator)?;
-            self.cells -= 1;
-        }
-        self.backing[channel].free = Vec::new();
-        if self.hub.channels[channel].producers == 0 {
-            allocator.release(self.backing[channel].header.take().ok_or(Error::State)?)?;
         }
         Ok(())
     }

@@ -393,6 +393,9 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         services: &mut super::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
         self.available(from)?;
+        if !self.live[to.slot] && to.at == self.root(to.slot)?.at {
+            return self.transfer(from, to.slot, allocator);
+        }
         if self.is_claim(to.slot)? {
             return self.transfer(from, to.slot, allocator);
         }

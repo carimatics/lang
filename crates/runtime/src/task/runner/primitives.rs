@@ -181,10 +181,10 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             }
             Primitive::Prepare { place, destination } => {
                 frame.prepared[*destination] =
-                    Some(frame.place(&paths[place.0 as usize], self.allocator)?)
+                    Some(frame.write_place(&paths[place.0 as usize], self.allocator)?)
             }
             Primitive::Replace { place, from } => {
-                let to = frame.place(&paths[place.0 as usize], self.allocator)?;
+                let to = frame.write_place(&paths[place.0 as usize], self.allocator)?;
                 frame.replace(*from, to, span, self.allocator)?;
             }
             Primitive::ReplacePrepared { destination, from } => {

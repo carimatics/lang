@@ -66,21 +66,7 @@ impl Access<'_, '_, '_> {
                     c::Reason::ScopeExit,
                     &mut c::Contextual::new(
                         |capture: &mut g::Capture, _, context: &mut c::Context<'_>| {
-                            services
-                                .channels
-                                .as_mut()
-                                .ok_or(3u32)?
-                                .release_capture(
-                                    capture,
-                                    &mut services.scheduler,
-                                    allocator,
-                                    context,
-                                    |token, allocator, _, _| {
-                                        crate::buffer::cleanup_token(types, token, allocator)
-                                            .map_err(|_| 3u32)
-                                    },
-                                )
-                                .map_err(|_| 3u32)
+                            services.retire(types, capture.token_mut(), allocator, context)
                         },
                     ),
                 )

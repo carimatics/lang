@@ -533,35 +533,571 @@ async fn main()->i64 {
 }
 
 #[test]
-fn endpoint_bearing_containers_are_refused_before_the_initial_vm_profile_allocates() {
-    for ty in [
-        "core::Vec<core::Sender<i64>>",
-        "core::Map<i64,core::Receiver<i64>>",
-        "shared core::Sender<i64>",
-    ] {
-        let text = format!(
-            "async fn main()->i64{{let mut unused:core::Option<{ty}>=core::Option::None;return 42;}}"
+fn shared_sender_publication_and_replacement_keep_checked_opaque_authority() {
+    let program = prepare(include_str!("fixtures/task_channel_shared_sender.lang"));
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(result.tasks.live, 0);
+    assert_eq!(allocator.stats().live_allocations, 0);
+}
+
+#[test]
+fn a_queued_last_sender_retires_before_its_parent_channel_header() {
+    let program = prepare(
+        r#"
+struct Message { route:core::Sender<Message> }
+async fn main()->i64 {
+ let mut setup:core::ChannelSetup<Message>=core::result_unwrap::<core::ChannelSetup<Message>,core::ChannelError>(core::channel_new::<Message>(core::allocator(),1));
+ let mut sender:core::Sender<Message>=core::channel_sender::<Message>(&setup);
+ let mut receiver:core::Receiver<Message>=core::channel_receiver::<Message>(setup);
+ let mut queued:core::Sender<Message>=core::channel_clone::<Message>(&sender);
+ let mut sent:core::SendResult<Message>=await core::channel_send::<Message>(&sender,Message {route:queued});
+ let mut dropped:core::Unit=core::drop::<core::Sender<Message>>(sender);
+ return 42;
+}
+"#,
+    );
+    let (mut allocator, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert!(trace.borrow().live.is_empty());
+}
+
+#[test]
+fn shared_sender_message_parameters_do_not_become_physical_receiver_edges() {
+    let program = prepare(
+        r#"
+struct Packet { route:shared core::Sender<core::Receiver<i64>> }
+async fn main()->i64 {
+ let mut leaf:core::ChannelSetup<core::Receiver<i64>>=core::result_unwrap::<core::ChannelSetup<core::Receiver<i64>>,core::ChannelError>(core::channel_new::<core::Receiver<i64>>(core::allocator(),1));
+ let mut route:core::Sender<core::Receiver<i64>>=core::channel_sender::<core::Receiver<i64>>(&leaf);
+ let mut leaf_receiver:core::Receiver<core::Receiver<i64>>=core::channel_receiver::<core::Receiver<i64>>(leaf);
+ let mut stored:shared core::Sender<core::Receiver<i64>>=core::result_unwrap::<shared core::Sender<core::Receiver<i64>>,core::OwnershipError>(core::shared_new::<core::Sender<core::Receiver<i64>>>(core::allocator(),route));
+ let mut setup:core::ChannelSetup<Packet>=core::result_unwrap::<core::ChannelSetup<Packet>,core::ChannelError>(core::channel_new::<Packet>(core::allocator(),1));
+ let mut sender:core::Sender<Packet>=core::channel_sender::<Packet>(&setup);
+ let mut receiver:core::Receiver<Packet>=core::channel_receiver::<Packet>(setup);
+ let mut sent:core::SendResult<Packet>=await core::channel_send::<Packet>(&sender,Packet {route:stored});
+ match sent {core::SendResult::Sent=>{},_=>{return -1;},}
+ let mut incoming:core::Option<Packet>=await core::channel_receive::<Packet>(&mut receiver);
+ let mut packet:Packet=core::option_unwrap::<Packet>(incoming);
+ return 42;
+}
+"#,
+    );
+    let (mut allocator, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert!(trace.borrow().live.is_empty());
+}
+
+#[test]
+fn deep_receiver_queue_retirement_is_iterative_and_keeps_each_parent_live() {
+    let program = prepare(
+        r#"
+enum Message { Empty, Prior(core::Receiver<Message>) }
+async fn main()->i64 {
+ let mut seed:core::ChannelSetup<Message>=core::result_unwrap::<core::ChannelSetup<Message>,core::ChannelError>(core::channel_new::<Message>(core::allocator(),1));
+ let mut seed_sender:core::Sender<Message>=core::channel_sender::<Message>(&seed);
+ let mut seed_receiver:core::Receiver<Message>=core::channel_receiver::<Message>(seed);
+ let mut seeded:core::SendResult<Message>=await core::channel_send::<Message>(&seed_sender,Message::Empty);
+ let mut previous:core::Option<core::Receiver<Message>>=core::Option::Some(seed_receiver);
+ let mut count:i64=0;
+ while count<512 {
+  let mut setup:core::ChannelSetup<Message>=core::result_unwrap::<core::ChannelSetup<Message>,core::ChannelError>(core::channel_new::<Message>(core::allocator(),1));
+  let mut sender:core::Sender<Message>=core::channel_sender::<Message>(&setup);
+  let mut receiver:core::Receiver<Message>=core::channel_receiver::<Message>(setup);
+  let mut old:core::Receiver<Message>=core::option_unwrap::<core::Receiver<Message>>(previous);
+  let mut sent:core::SendResult<Message>=await core::channel_send::<Message>(&sender,Message::Prior(old));
+  previous=core::Option::Some(receiver);
+  count=count+1;
+ }
+ return 42;
+}
+"#,
+    );
+    let (mut allocator, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        r::Limits {
+            channels: lang_runtime::channel::Limits {
+                channels: 513,
+                slots: 513,
+                handles: 513,
+                waiters: 0,
+            },
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(result.tasks.live, 0);
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert!(trace.borrow().live.is_empty());
+}
+
+#[test]
+fn source_channel_quotas_refuse_one_below_exact_without_losing_custody() {
+    let program = prepare(include_str!("fixtures/task_channels.lang"));
+    let exact = lang_runtime::channel::Limits {
+        channels: 1,
+        slots: 1,
+        handles: 1,
+        waiters: 2,
+    };
+    for kind in 0..=4 {
+        let mut limits = exact;
+        match kind {
+            0 => limits.channels = 0,
+            1 => limits.slots = 0,
+            2 => limits.handles = 0,
+            3 => limits.waiters = 1,
+            _ => {}
+        }
+        let (mut allocator, trace) = channel_allocator(usize::MAX);
+        let result = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut allocator,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                channels: limits,
+                ..Default::default()
+            },
         );
-        let program = prepare(&text);
-        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        assert_eq!(allocator.stats().live_allocations, 0, "quota {kind}");
+        assert!(trace.borrow().live.is_empty(), "quota {kind}");
+        if kind == 4 {
+            assert_eq!(result.unwrap().value, 42);
+        } else {
+            let failure = result.err().unwrap();
+            use lang_runtime::channel::{Error as C, managed::Error as G};
+            assert!(
+                matches!(
+                    (kind, &failure.reason),
+                    (
+                        0,
+                        r::Reason::Channel(G::Protocol(C::ChannelLimit { limit: 0 }))
+                    ) | (
+                        1,
+                        r::Reason::Channel(G::Protocol(C::SlotLimit { limit: 0 }))
+                    ) | (
+                        2,
+                        r::Reason::Channel(G::Protocol(C::HandleLimit { limit: 0 }))
+                    ) | (
+                        3,
+                        r::Reason::Channel(G::Protocol(C::WaiterLimit { limit: 1 }))
+                    )
+                ),
+                "quota {kind}: {failure:?}"
+            );
+            assert_eq!(failure.tasks.live, 0);
+        }
+    }
+}
+
+#[test]
+fn channel_captures_and_argument_loan_slots_are_reused_across_loop_activations() {
+    let program = prepare(
+        r#"
+async fn main()->i64 {
+ let mut setup:core::ChannelSetup<i64>=core::result_unwrap::<core::ChannelSetup<i64>,core::ChannelError>(core::channel_new::<i64>(core::allocator(),1));
+ let mut sender:core::Sender<i64>=core::channel_sender::<i64>(&setup);
+ let mut receiver:core::Receiver<i64>=core::channel_receiver::<i64>(setup);
+ let mut count:i64=0;
+ let mut total:i64=0;
+ while count<42 {
+  let mut sent:core::SendResult<i64>=await core::channel_send::<i64>(&sender,1);
+  let mut received:core::Option<i64>=await core::channel_receive::<i64>(&mut receiver);
+  total=total+core::option_unwrap::<i64>(received);
+  count=count+1;
+ }
+ let mut sealed:core::Unit=core::channel_seal::<i64>(&mut receiver);
+ let mut last:core::Option<i64>=await core::channel_receive::<i64>(&mut receiver);
+ match last {core::Option::None=>{return total;},core::Option::Some(_)=>{return -1;},}
+}
+"#,
+    );
+    let (mut allocator, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(allocator.stats().live_allocations, 0);
+    assert!(trace.borrow().live.is_empty());
+}
+
+#[test]
+fn invalid_capacity_is_an_ordinary_source_error_before_queue_storage_creation() {
+    for capacity in [0, -1] {
+        let program = prepare(&format!(
+            "fn main()->i64{{match core::channel_new::<i64>(core::allocator(),{capacity}){{core::Result::Err(core::ChannelError::InvalidCapacity)=>{{return 42;}},core::Result::Err(_)=>{{return -1;}},core::Result::Ok(_)=>{{return -2;}},}}}}"
+        ));
+        let (mut allocator, trace) = channel_allocator(usize::MAX);
         let result = lang_vm::unit::tasks::execute_entry(
             program.verified(),
             &mut allocator,
             e::Control::with_limits(Default::default()),
             Default::default(),
-        );
-        assert!(
-            matches!(
-                result,
-                Err(r::Failure {
-                    reason: r::Reason::Unsupported,
-                    ..
-                })
-            ),
-            "{ty}: {:?}",
-            result.as_ref().err()
-        );
+        )
+        .unwrap();
+        assert_eq!(result.value, 42);
         assert_eq!(allocator.stats().live_allocations, 0);
-        assert_eq!(allocator.stats().peak_live_allocations, 0);
+        assert!(trace.borrow().live.is_empty());
     }
+}
+
+const MANAGED_CHANNEL_FIXTURES: &[(&str, &str)] = &[
+    (
+        "self-cycle",
+        include_str!("fixtures/task_channel_self_cycle.lang"),
+    ),
+    (
+        "reinspect",
+        include_str!("fixtures/task_channel_reinspect.lang"),
+    ),
+    ("mixed", include_str!("fixtures/task_channel_mixed.lang")),
+    (
+        "shared-sender",
+        include_str!("fixtures/task_channel_shared_sender.lang"),
+    ),
+    (
+        "mixed-cancel",
+        include_str!("fixtures/task_channel_mixed_cancel.lang"),
+    ),
+    ("text", include_str!("fixtures/task_channel_text.lang")),
+];
+
+#[derive(Default)]
+struct ChannelTrace {
+    calls: usize,
+    live: std::collections::BTreeSet<usize>,
+    buffers: Vec<u8>,
+    panic_buffers: Vec<u8>,
+    interrupt: Option<(usize, std::rc::Rc<e::InterruptionFlag>)>,
+}
+struct ChannelRegion {
+    id: usize,
+    storage: a::Storage,
+}
+impl a::Region for ChannelRegion {
+    fn bytes(&self) -> &[u8] {
+        self.storage.bytes()
+    }
+    fn bytes_mut(&mut self) -> &mut [u8] {
+        self.storage.bytes_mut()
+    }
+}
+struct ChannelProvider {
+    refuse: usize,
+    trace: std::rc::Rc<std::cell::RefCell<ChannelTrace>>,
+}
+impl a::Provider for ChannelProvider {
+    type Region = ChannelRegion;
+    fn allocate(&mut self, request: a::Request) -> Option<ChannelRegion> {
+        let id = {
+            let mut trace = self.trace.borrow_mut();
+            trace.calls += 1;
+            trace.calls
+        };
+        if self.refuse == id {
+            return None;
+        }
+        let storage = a::Storage::try_new(request).ok()?;
+        let mut trace = self.trace.borrow_mut();
+        assert!(trace.live.insert(id));
+        if let Some((at, flag)) = &trace.interrupt
+            && *at == id
+        {
+            flag.interrupt();
+        }
+        Some(ChannelRegion { id, storage })
+    }
+    fn deallocate(&mut self, region: ChannelRegion, request: a::Request) {
+        use a::Region as _;
+        let mut trace = self.trace.borrow_mut();
+        assert!(trace.live.remove(&region.id), "duplicate guest release");
+        let data = region.storage.bytes();
+        let byte = (data.len() == 25
+            && data[..8] == 1u64.to_le_bytes()
+            && data[8..16] == 1u64.to_le_bytes()
+            && data[16..24] == [0; 8])
+            .then(|| data[24]);
+        let panic = byte.is_some_and(|byte| trace.panic_buffers.contains(&byte));
+        if let Some(byte) = byte {
+            trace.buffers.push(byte);
+        }
+        a::System.deallocate(region.storage, request);
+        assert!(!panic, "contained mixed channel payload panic");
+    }
+}
+fn channel_allocator(
+    refuse: usize,
+) -> (
+    a::Allocator<ChannelProvider>,
+    std::rc::Rc<std::cell::RefCell<ChannelTrace>>,
+) {
+    let trace = std::rc::Rc::new(std::cell::RefCell::new(ChannelTrace::default()));
+    let allocator = a::Allocator::new(
+        ChannelProvider {
+            refuse,
+            trace: trace.clone(),
+        },
+        Default::default(),
+    )
+    .unwrap();
+    (allocator, trace)
+}
+
+#[test]
+fn advanced_channel_control_prefixes_preserve_all_owners() {
+    for &(name, text) in MANAGED_CHANNEL_FIXTURES {
+        let program = prepare(text);
+        let (mut allocator, trace) = channel_allocator(usize::MAX);
+        let baseline = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut allocator,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 4096,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(baseline.value, 42, "{name}");
+        assert!(trace.borrow().live.is_empty(), "{name}");
+        for (kind, total) in [
+            (0, baseline.usage.fuel),
+            (1, baseline.usage.service_work),
+            (2, baseline.usage.peak_live_cells as u64),
+            (3, baseline.events.len() as u64),
+        ] {
+            let first = u64::from(kind == 3); // Zero disables trace recording.
+            for cap in first..=total {
+                let (mut allocator, trace) = channel_allocator(usize::MAX);
+                let control = e::Control::with_limits(e::Limits {
+                    fuel: (kind == 0).then_some(cap),
+                    live_cells: (kind == 2).then_some(cap as usize),
+                    ..Default::default()
+                })
+                .and_service_work((kind == 1).then_some(cap));
+                let result = lang_vm::unit::tasks::execute_entry(
+                    program.verified(),
+                    &mut allocator,
+                    control,
+                    r::Limits {
+                        trace_events: if kind == 3 { cap as usize } else { 0 },
+                        ..Default::default()
+                    },
+                );
+                assert_eq!(
+                    allocator.stats().live_allocations,
+                    0,
+                    "{name} control {kind} cap {cap}/{total}"
+                );
+                assert!(
+                    trace.borrow().live.is_empty(),
+                    "{name} control {kind} cap {cap}/{total}"
+                );
+                if cap == total {
+                    assert_eq!(result.unwrap().value, 42, "{name} control {kind}");
+                } else {
+                    let failure = result.err().unwrap();
+                    assert_eq!(failure.tasks.live, 0, "{name} {failure:?}");
+                    match kind {
+                        0=>assert!(matches!(failure.reason,r::Reason::Control(e::Failure::FuelExhausted)),"{name} {cap}: {failure:?}"),
+                        1=>assert!(matches!(failure.reason,r::Reason::Control(e::Failure::ServiceWorkLimit{..})|r::Reason::Execution(lang_mir::unit::ownership::failure::ExecutionFailure::ServiceWorkLimit{..})),"{name} {cap}: {failure:?}"),
+                        2=>{},
+                        _=>assert!(matches!(failure.reason,r::Reason::TraceLimit),"{name} {cap}: {failure:?}"),
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn every_advanced_provider_refusal_and_interruption_position_drains_the_inventory() {
+    for &(name, text) in MANAGED_CHANNEL_FIXTURES {
+        let program = prepare(text);
+        let (mut allocator, trace) = channel_allocator(usize::MAX);
+        let baseline = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut allocator,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(baseline.value, 42, "{name}");
+        let calls = trace.borrow().calls;
+        assert!(trace.borrow().live.is_empty());
+        for at in 1..=calls {
+            for interrupt in [false, true] {
+                let (mut allocator, trace) =
+                    channel_allocator(if interrupt { usize::MAX } else { at });
+                let flag = std::rc::Rc::new(e::InterruptionFlag::new());
+                if interrupt {
+                    trace.borrow_mut().interrupt = Some((at, flag.clone()));
+                }
+                let result = lang_vm::unit::tasks::execute_entry(
+                    program.verified(),
+                    &mut allocator,
+                    e::Control::with_limits(Default::default())
+                        .and_interruption(&flag)
+                        .and_service_work(Some(baseline.usage.service_work)),
+                    Default::default(),
+                );
+                let failure = result.err().unwrap_or_else(|| {
+                    panic!("{name}: refusal {at}/{calls} interrupt={interrupt}")
+                });
+                if interrupt {
+                    assert!(
+                        matches!(failure.reason, r::Reason::Control(e::Failure::Interrupted)),
+                        "{name} {at}: {failure:?}"
+                    );
+                }
+                assert_eq!(failure.tasks.live, 0, "{name} {at}");
+                assert_eq!(
+                    allocator.stats().live_allocations,
+                    0,
+                    "{name} {at}: {failure:?}"
+                );
+                assert!(
+                    trace.borrow().live.is_empty(),
+                    "{name} {at}: {:?}",
+                    trace.borrow().live
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn cancelled_mixed_messages_retire_unpublished_before_queued_payloads() {
+    let program = prepare(include_str!("fixtures/task_channel_mixed_cancel.lang"));
+    let (mut allocator, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(trace.borrow().buffers, [122, 22, 120, 20]);
+    assert!(trace.borrow().live.is_empty());
+    assert_eq!(allocator.stats().live_allocations, 0);
+}
+
+#[test]
+fn mixed_channel_cleanup_continues_after_panic_and_report_truncation() {
+    for primary in [false, true] {
+        let text = include_str!("fixtures/task_channel_mixed.lang");
+        let text = if primary {
+            text.replace("return result;", "return core::panic::<i64>(91);")
+        } else {
+            text.to_owned()
+        };
+        let program = prepare(&text);
+        for records in [1, 8] {
+            let (mut allocator, trace) = channel_allocator(usize::MAX);
+            trace.borrow_mut().panic_buffers = vec![9, 42];
+            let failure = lang_vm::unit::tasks::execute_entry(
+                program.verified(),
+                &mut allocator,
+                e::Control::with_limits(Default::default()),
+                r::Limits {
+                    cleanup_failure_records: records,
+                    ..Default::default()
+                },
+            )
+            .err()
+            .unwrap();
+            if primary {
+                assert!(
+                    matches!(failure.reason, r::Reason::Panic(Some(91))),
+                    "{failure:?}"
+                );
+            } else {
+                assert!(matches!(failure.reason, r::Reason::Cleanup), "{failure:?}");
+            }
+            assert!(failure.poisoned);
+            let report = failure.report.as_ref().unwrap();
+            assert_eq!(report.cleanup_failures(), 2, "{failure:?}");
+            assert!(report.primary().unwrap().span.is_some());
+            if records == 1 {
+                assert!(report.secondary().is_empty());
+                assert!(report.truncated() > 0);
+            }
+            assert_eq!(trace.borrow().buffers, [9, 42]);
+            assert!(trace.borrow().live.is_empty(), "{failure:?}");
+            assert_eq!(allocator.stats().live_allocations, 0);
+            assert_eq!(failure.tasks.live, 0);
+        }
+    }
+}
+
+#[test]
+fn source_receiver_cycles_are_rejected_before_commit_and_again_after_wakeup() {
+    for text in [
+        include_str!("fixtures/task_channel_self_cycle.lang"),
+        include_str!("fixtures/task_channel_reinspect.lang"),
+    ] {
+        let program = prepare(text);
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let result = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut allocator,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 2048,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(result.value, 42);
+        assert_eq!(result.tasks.live, 0);
+        assert_eq!(allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn shared_weak_and_vec_held_receiver_payloads_use_one_mixed_retirement_drain() {
+    let program = prepare(include_str!("fixtures/task_channel_mixed.lang"));
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut allocator,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(result.tasks.live, 0);
+    assert_eq!(allocator.stats().live_allocations, 0);
 }

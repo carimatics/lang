@@ -3,7 +3,10 @@
 //! therefore reserves one frame for every possible live guest allocation;
 //! cleanup of valid unique owners cannot exhaust this pool. Publication and
 //! graph/brand admission remain the execution adapter's responsibility.
-use crate::{allocation as a, cleanup as c, layout as l, map, shared::managed as g, vector};
+use crate::{
+    allocation as a, channel::managed as ch, cleanup as c, layout as l, map, shared::managed as g,
+    task, vector,
+};
 use lang_mir::unit::{self as m, ownership as o};
 use std::fmt::{Display, Formatter};
 
@@ -14,6 +17,7 @@ pub enum Error {
     Vector(vector::Error),
     Map(map::Error),
     Shared(g::Error),
+    Channel(ch::Error),
     ForeignAllocator,
     State,
 }
@@ -35,6 +39,11 @@ impl From<map::Error> for Error {
 impl From<g::Error> for Error {
     fn from(e: g::Error) -> Self {
         Self::Shared(e)
+    }
+}
+impl From<ch::Error> for Error {
+    fn from(error: ch::Error) -> Self {
+        Self::Channel(error)
     }
 }
 impl Display for Error {
@@ -59,6 +68,15 @@ enum Frame<'l, 't> {
         level: usize,
         span: Option<m::Span>,
     },
+    Channel {
+        value: ch::Retired<'l, 't>,
+        span: Option<m::Span>,
+    },
+}
+/// Borrow the existing invocation services for one common iterative drain.
+pub(crate) struct Services<'a, 'l, 't> {
+    pub heap: Option<&'a mut g::Heap<'l, 't>>,
+    pub channels: Option<(&'a mut ch::Channels<'l, 't>, &'a mut task::Scheduler)>,
 }
 pub struct Drain<'l, 't> {
     layouts: &'l l::Layouts<'t>,
@@ -108,6 +126,32 @@ impl<'l, 't> Drain<'l, 't> {
         heap: &mut g::Heap<'l, 't>,
         allocator: &mut a::Allocator<P>,
         context: &mut c::Context<'_>,
+        cleaner: impl FnMut(
+            &mut l::Token,
+            &mut a::Allocator<P>,
+            c::Reason,
+            &mut c::Context<'_>,
+        ) -> Result<(), u32>,
+    ) -> Result<(), Error> {
+        self.end_read_with_services(
+            read,
+            ty,
+            Services {
+                heap: Some(heap),
+                channels: None,
+            },
+            allocator,
+            context,
+            cleaner,
+        )
+    }
+    pub(crate) fn end_read_with_services<P: a::Provider>(
+        &mut self,
+        read: g::Read,
+        ty: o::Type,
+        mut services: Services<'_, 'l, 't>,
+        allocator: &mut a::Allocator<P>,
+        context: &mut c::Context<'_>,
         mut cleaner: impl FnMut(
             &mut l::Token,
             &mut a::Allocator<P>,
@@ -116,17 +160,34 @@ impl<'l, 't> Drain<'l, 't> {
         ) -> Result<(), u32>,
     ) -> Result<(), Error> {
         self.check(allocator)?;
-        if !heap.uses_layouts(self.layouts) {
-            return Err(Error::State);
-        }
+        self.check_services(&services)?;
         self.vacancy()?;
-        if let Some(level) = heap.retire_read(read, ty, allocator)? {
+        if let Some(level) = services
+            .heap
+            .as_deref_mut()
+            .ok_or(Error::State)?
+            .retire_read(read, ty, allocator)?
+        {
             self.frames.push(Frame::Shared {
                 level,
                 span: context.span(),
             });
         }
-        self.run(&mut Some(heap), allocator, context, &mut cleaner)
+        self.run(&mut services, allocator, context, &mut cleaner)
+    }
+    fn check_services(&self, services: &Services<'_, 'l, 't>) -> Result<(), Error> {
+        if services
+            .heap
+            .as_ref()
+            .is_some_and(|heap| !heap.uses_layouts(self.layouts))
+            || services
+                .channels
+                .as_ref()
+                .is_some_and(|(channels, _)| !channels.uses_layouts(self.layouts))
+        {
+            return Err(Error::State);
+        }
+        Ok(())
     }
     fn check<P: a::Provider>(&self, allocator: &a::Allocator<P>) -> Result<(), Error> {
         if self.allocator != allocator.identity() {
@@ -147,7 +208,7 @@ impl<'l, 't> Drain<'l, 't> {
         &mut self,
         token: &mut l::Token,
         customer: u64,
-        heap: &mut Option<&mut g::Heap<'l, 't>>,
+        services: &mut Services<'_, 'l, 't>,
         allocator: &mut a::Allocator<P>,
         context: &mut c::Context<'_>,
         cleaner: &mut F,
@@ -193,7 +254,8 @@ impl<'l, 't> Drain<'l, 't> {
             }
             o::Constructor::Shared(_) | o::Constructor::Weak(_) => {
                 self.vacancy().map_err(|_| FAULT)?;
-                if let Some(level) = heap
+                if let Some(level) = services
+                    .heap
                     .as_deref_mut()
                     .ok_or(FAULT)?
                     .retire_obligation(token, customer, allocator)
@@ -206,12 +268,28 @@ impl<'l, 't> Drain<'l, 't> {
                 }
                 Ok(())
             }
+            o::Constructor::ChannelSetup(_)
+            | o::Constructor::Sender(_)
+            | o::Constructor::Receiver(_) => {
+                self.vacancy().map_err(|_| FAULT)?;
+                let (channels, scheduler) = services.channels.as_mut().ok_or(FAULT)?;
+                if let Some(value) = channels
+                    .begin_retirement(token, scheduler, allocator)
+                    .map_err(|_| FAULT)?
+                {
+                    self.frames.push(Frame::Channel {
+                        value,
+                        span: context.span(),
+                    });
+                }
+                Ok(())
+            }
             _ => cleaner(token, allocator, context.reason(), context),
         }
     }
     fn run<P: a::Provider, F>(
         &mut self,
-        heap: &mut Option<&mut g::Heap<'l, 't>>,
+        services: &mut Services<'_, 'l, 't>,
         allocator: &mut a::Allocator<P>,
         context: &mut c::Context<'_>,
         cleaner: &mut F,
@@ -236,11 +314,15 @@ impl<'l, 't> Drain<'l, 't> {
                     customer,
                     span,
                 } => value.next(allocator)?.map(|t| (t, *customer, *span)),
-                Frame::Shared { level, span } => heap
+                Frame::Shared { level, span } => services
+                    .heap
                     .as_deref_mut()
                     .ok_or(Error::State)?
                     .retirement_step(*level, allocator)?
                     .map(|(t, customer)| (t, customer, *span)),
+                Frame::Channel { value, span } => value
+                    .next(services.channels.as_mut().ok_or(Error::State)?.0, allocator)?
+                    .map(|token| (token, 0, *span)),
             };
             if let Some((token, customer, parent_span)) = next {
                 let span = token.leaf.span.or(parent_span);
@@ -249,7 +331,7 @@ impl<'l, 't> Drain<'l, 't> {
                     span,
                     &mut c::Contextual::new(
                         |token: &mut l::Token, _, context: &mut c::Context<'_>| {
-                            self.dispatch(token, customer, heap, allocator, context, cleaner)
+                            self.dispatch(token, customer, services, allocator, context, cleaner)
                         },
                     ),
                 );
@@ -265,7 +347,31 @@ impl<'l, 't> Drain<'l, 't> {
     pub fn token<P: a::Provider>(
         &mut self,
         token: &mut l::Token,
-        mut heap: Option<&mut g::Heap<'l, 't>>,
+        heap: Option<&mut g::Heap<'l, 't>>,
+        allocator: &mut a::Allocator<P>,
+        context: &mut c::Context<'_>,
+        cleaner: impl FnMut(
+            &mut l::Token,
+            &mut a::Allocator<P>,
+            c::Reason,
+            &mut c::Context<'_>,
+        ) -> Result<(), u32>,
+    ) -> Result<(), u32> {
+        self.token_with_services(
+            token,
+            Services {
+                heap,
+                channels: None,
+            },
+            allocator,
+            context,
+            cleaner,
+        )
+    }
+    pub(crate) fn token_with_services<P: a::Provider>(
+        &mut self,
+        token: &mut l::Token,
+        mut services: Services<'_, 'l, 't>,
         allocator: &mut a::Allocator<P>,
         context: &mut c::Context<'_>,
         mut cleaner: impl FnMut(
@@ -276,14 +382,36 @@ impl<'l, 't> Drain<'l, 't> {
         ) -> Result<(), u32>,
     ) -> Result<(), u32> {
         self.check(allocator).map_err(|_| FAULT)?;
-        if heap
-            .as_ref()
-            .is_some_and(|heap| !heap.uses_layouts(self.layouts))
-        {
+        self.check_services(&services).map_err(|_| FAULT)?;
+        self.dispatch(token, 0, &mut services, allocator, context, &mut cleaner)?;
+        self.run(&mut services, allocator, context, &mut cleaner)
+            .map_err(|_| FAULT)
+    }
+    pub(crate) fn message<P: a::Provider>(
+        &mut self,
+        message: &mut ch::Message<'l, 't>,
+        mut services: Services<'_, 'l, 't>,
+        allocator: &mut a::Allocator<P>,
+        context: &mut c::Context<'_>,
+        mut cleaner: impl FnMut(
+            &mut l::Token,
+            &mut a::Allocator<P>,
+            c::Reason,
+            &mut c::Context<'_>,
+        ) -> Result<(), u32>,
+    ) -> Result<(), u32> {
+        self.check(allocator).map_err(|_| FAULT)?;
+        self.check_services(&services).map_err(|_| FAULT)?;
+        if services.channels.is_none() {
             return Err(FAULT);
         }
-        self.dispatch(token, 0, &mut heap, allocator, context, &mut cleaner)?;
-        self.run(&mut heap, allocator, context, &mut cleaner)
+        self.vacancy().map_err(|_| FAULT)?;
+        let value = ch::Retired::message(message, allocator).map_err(|_| FAULT)?;
+        self.frames.push(Frame::Channel {
+            value,
+            span: context.span(),
+        });
+        self.run(&mut services, allocator, context, &mut cleaner)
             .map_err(|_| FAULT)
     }
 }

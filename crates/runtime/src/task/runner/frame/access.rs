@@ -164,6 +164,20 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
     ) -> Result<Target, Reason> {
         self.place_target(place, allocator)
     }
+    /// A whole local destination may be vacant after a proved move. Projection
+    /// and read addressing still require a live owner and checked loan.
+    pub fn write_place<P: a::Provider>(
+        &self,
+        place: &p::Place,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Target, Reason> {
+        if place.projections.is_empty()
+            && let p::Root::Local(id) = place.root
+        {
+            return Ok(Target::Cell(self.root(id.0 as usize)?));
+        }
+        self.place_target(place, allocator)
+    }
 
     pub fn borrow<P: a::Provider>(
         &mut self,

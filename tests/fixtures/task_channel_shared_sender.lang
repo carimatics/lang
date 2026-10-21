@@ -1,0 +1,28 @@
+struct Outbox { sender:core::Sender<i64> }
+
+fn clone_sender(owner:&shared Outbox)->core::Sender<i64> {
+    match core::shared_read::<Outbox>(owner) {
+        core::Result::Ok(view) => { return core::channel_clone::<i64>(&view.sender); },
+        core::Result::Err(_) => { return core::panic::<core::Sender<i64>>(-9); },
+    }
+}
+
+async fn main()->i64 {
+    let mut setup:core::ChannelSetup<i64>=core::result_unwrap::<core::ChannelSetup<i64>,core::ChannelError>(core::channel_new::<i64>(core::allocator(),1));
+    let mut sender:core::Sender<i64>=core::channel_sender::<i64>(&setup);
+    let mut receiver:core::Receiver<i64>=core::channel_receiver::<i64>(setup);
+    let mut owner:shared Outbox=core::result_unwrap::<shared Outbox,core::OwnershipError>(core::shared_new::<Outbox>(core::allocator(),Outbox { sender:sender }));
+    let mut replacement:core::Sender<i64>=clone_sender(&owner);
+    let mut replaced:core::Unit=core::result_unwrap::<core::Unit,core::OwnershipError>(core::shared_replace::<Outbox>(owner,Outbox { sender:replacement }));
+    let mut transport:core::ChannelSetup<shared Outbox>=core::result_unwrap::<core::ChannelSetup<shared Outbox>,core::ChannelError>(core::channel_new::<shared Outbox>(core::allocator(),1));
+    let mut transport_sender:core::Sender<shared Outbox>=core::channel_sender::<shared Outbox>(&transport);
+    let mut transport_receiver:core::Receiver<shared Outbox>=core::channel_receiver::<shared Outbox>(transport);
+    let mut published:core::SendResult<shared Outbox>=await core::channel_send::<shared Outbox>(&transport_sender,owner);
+    let mut transported:core::Option<shared Outbox>=await core::channel_receive::<shared Outbox>(&mut transport_receiver);
+    let mut recovered:shared Outbox=core::option_unwrap::<shared Outbox>(transported);
+    let mut retained:core::Sender<i64>=clone_sender(&recovered);
+    let mut released:core::Unit=core::drop::<shared Outbox>(recovered);
+    let mut sent:core::SendResult<i64>=await core::channel_send::<i64>(&retained,42);
+    let mut received:core::Option<i64>=await core::channel_receive::<i64>(&mut receiver);
+    return core::option_unwrap::<i64>(received);
+}

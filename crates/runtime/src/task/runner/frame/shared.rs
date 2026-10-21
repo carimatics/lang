@@ -82,37 +82,46 @@ impl Access<'_, '_, '_> {
                 .as_mut()
                 .ok_or(Reason::Invariant)?
                 .cell_mut(source)?;
-            let result = match ready {
-                Err(error) => Err(error),
-                Ok(()) => {
-                    self.services.opened = true;
-                    if let Some(observed) = &observed {
-                        if copy {
-                            outcome(
-                                heap.replace_observed_copy(
+            let result =
+                match ready {
+                    Err(error) => Err(error),
+                    Ok(()) => {
+                        self.services.opened = true;
+                        if let Some(observed) = &observed {
+                            if copy {
+                                outcome(heap.replace_observed_copy(
                                     observed, custody, input, span, allocator,
-                                ),
-                            )?
-                            .map(|_| None)
+                                ))?
+                                .map(|_| None)
+                            } else {
+                                outcome(heap.replace_observed_with_channels(
+                                    observed,
+                                    custody,
+                                    input,
+                                    span,
+                                    allocator,
+                                    self.services.channels.as_ref(),
+                                ))?
+                                .map(|old| {
+                                    replaced = Some(old);
+                                    None
+                                })
+                            }
                         } else {
-                            outcome(
-                                heap.replace_observed(observed, custody, input, span, allocator),
-                            )?
-                            .map(|old| {
-                                replaced = Some(old);
-                                None
-                            })
+                            outcome(if copy {
+                                heap.allocate_copy(input, Some(span), allocator)
+                            } else {
+                                heap.allocate_from_with_channels(
+                                    input,
+                                    Some(span),
+                                    allocator,
+                                    self.services.channels.as_ref(),
+                                )
+                            })?
+                            .map(|owner| Some(owner.into_token()))
                         }
-                    } else {
-                        outcome(if copy {
-                            heap.allocate_copy(input, Some(span), allocator)
-                        } else {
-                            heap.allocate_from(input, Some(span), allocator)
-                        })?
-                        .map(|owner| Some(owner.into_token()))
                     }
-                }
-            };
+                };
             let success = result.is_ok();
             if success && !copy && observed.is_none() {
                 input.recycle(allocator)?;

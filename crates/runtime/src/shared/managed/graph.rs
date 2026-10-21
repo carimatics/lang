@@ -68,6 +68,7 @@ struct Buffers<'a, 'l, 't> {
     walk: &'a mut i::Inspector<'l, 't>,
     edges: &'a mut Vec<Edge>,
     span: Option<m::Span>,
+    channels: Option<&'a crate::channel::managed::Channels<'l, 't>>,
 }
 fn collect<'l, 't, P: a::Provider>(
     registry: Registry<'_, 'l, 't>,
@@ -77,7 +78,12 @@ fn collect<'l, 't, P: a::Provider>(
     allocator: &a::Allocator<P>,
     work: &mut Work,
 ) -> Result<(), Error> {
-    let Buffers { walk, edges, span } = buffers;
+    let Buffers {
+        walk,
+        edges,
+        span,
+        channels,
+    } = buffers;
     edges.clear();
     let value = match &value {
         Value::Input(v) => *v,
@@ -116,6 +122,14 @@ fn collect<'l, 't, P: a::Provider>(
                     kind,
                     span: observation.span,
                 });
+            }
+            o::Constructor::Sender(_) => {
+                // Sender carries no owning edge to its message type. The
+                // invocation service still validates actual private authority.
+                channels
+                    .ok_or_else(|| Error::new(Kind::Unsupported(observation.ty)))?
+                    .validate_sender_observation(registry.layouts, &observation, allocator)
+                    .map_err(|_| unavailable())?;
             }
             o::Constructor::Builtin(o::Builtin::Bytes) => {
                 buffer::Bytes::from_token(&mut bytes, allocator)
@@ -171,7 +185,7 @@ impl<'l, 't> Heap<'l, 't> {
             {
                 return Err(l::Error::InvalidType(input.root().ty()).into());
             }
-            self.validate_input(input, Some(span), allocator, &mut self.work())?;
+            self.validate_input(input, Some(span), allocator, &mut self.work(), None)?;
             self.nodes[index]
                 .as_mut()
                 .unwrap()
@@ -192,6 +206,7 @@ impl<'l, 't> Heap<'l, 't> {
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
         work: &mut Work,
+        channels: Option<&crate::channel::managed::Channels<'l, 't>>,
     ) -> Result<(), Error> {
         if !std::ptr::eq(input.layouts(), self.layouts) {
             return Err(Error::new(Kind::State));
@@ -212,6 +227,7 @@ impl<'l, 't> Heap<'l, 't> {
                 walk: &mut self.walk,
                 edges: &mut self.incoming,
                 span,
+                channels,
             },
             Value::Input(input),
             0,
@@ -240,6 +256,7 @@ impl<'l, 't> Heap<'l, 't> {
         old: bool,
         allocator: &a::Allocator<P>,
         work: &mut Work,
+        channels: Option<&crate::channel::managed::Channels<'l, 't>>,
     ) -> Result<(), Error> {
         let node = self.nodes[index].as_ref().ok_or_else(unavailable)?;
         let span = node.block.span(allocator)?;
@@ -255,6 +272,7 @@ impl<'l, 't> Heap<'l, 't> {
                 walk: &mut self.walk,
                 edges,
                 span,
+                channels,
             },
             value,
             index as u64 + 1,
@@ -268,6 +286,7 @@ impl<'l, 't> Heap<'l, 't> {
         span: m::Span,
         allocator: &a::Allocator<P>,
         work: &mut Work,
+        channels: Option<&crate::channel::managed::Channels<'l, 't>>,
     ) -> Result<(), Error> {
         for edge_index in 0..self.incoming.len() {
             let incoming = self.incoming[edge_index];
@@ -284,7 +303,7 @@ impl<'l, 't> Heap<'l, 't> {
             self.graph.push(incoming.node);
             while let Some(node) = self.graph.pop() {
                 work.charge_event(1, 1)?;
-                self.existing(node, false, allocator, work)?;
+                self.existing(node, false, allocator, work, channels)?;
                 for edge in &self.found {
                     work.charge(1)?;
                     if edge.kind != STRONG {
@@ -326,6 +345,16 @@ impl<'l, 't> Heap<'l, 't> {
         span: m::Span,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Option<m::Span>, Error> {
+        self.replace_index_with_channels(index, input, span, allocator, None)
+    }
+    pub(super) fn replace_index_with_channels<P: a::Provider>(
+        &mut self,
+        index: usize,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+        channels: Option<&crate::channel::managed::Channels<'l, 't>>,
+    ) -> Result<Option<m::Span>, Error> {
         let result = (|| {
             let ty = self.nodes[index].as_ref().ok_or_else(unavailable)?.ty;
             if self.nodes[index]
@@ -345,9 +374,9 @@ impl<'l, 't> Heap<'l, 't> {
                 return Err(l::Error::InvalidType(input.root().ty()).into());
             }
             let mut work = self.work();
-            self.validate_input(input, Some(span), allocator, &mut work)?;
-            self.cycles(index, span, allocator, &mut work)?;
-            self.existing(index, true, allocator, &mut work)?;
+            self.validate_input(input, Some(span), allocator, &mut work, channels)?;
+            self.cycles(index, span, allocator, &mut work, channels)?;
+            self.existing(index, true, allocator, &mut work, channels)?;
             let old = self.nodes[index]
                 .as_mut()
                 .unwrap()

@@ -116,13 +116,24 @@ impl<'l, 't> Heap<'l, 't> {
         span: m::Span,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Option<m::Span>, Error> {
+        self.replace_observed_with_channels(token, custody, input, span, allocator, None)
+    }
+    pub(crate) fn replace_observed_with_channels<P: a::Provider>(
+        &mut self,
+        token: &l::Token,
+        custody: Option<Custody>,
+        input: &mut l::Reservation<'l, 't>,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+        channels: Option<&crate::channel::managed::Channels<'l, 't>>,
+    ) -> Result<Option<m::Span>, Error> {
         let (index, kind, _) = self
             .observed(token, custody, allocator)
             .map_err(|e| e.at(Some(span)))?;
         if kind != STRONG {
             return Err(unavailable().at(Some(span)));
         }
-        self.replace_index(index, input, span, allocator)
+        self.replace_index_with_channels(index, input, span, allocator, channels)
     }
     pub fn replace_observed_copy<P: a::Provider>(
         &mut self,

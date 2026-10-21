@@ -118,7 +118,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             if let ch::Cancelled::Send(message) = canceled {
                 let owner_span = message.span.or(Some(wait.span));
                 let types = self.proof.typed().places().declarations().types();
-                let channels = self.services.channels.as_mut().ok_or(Reason::Invariant)?;
+                let services = &mut self.services;
                 let session = &mut self.records[task].frames[index]
                     .managed
                     .as_mut()
@@ -133,17 +133,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         c::Reason::Failure,
                         &mut c::Contextual::new(
                             |message: &mut g::Message<'l, 'ty>, _, context: &mut c::Context<'_>| {
-                                channels
-                                    .retire_message(
-                                        message,
-                                        allocator,
-                                        context,
-                                        |token, allocator, _, _| {
-                                            crate::buffer::cleanup_token(types, token, allocator)
-                                                .map_err(|_| 3u32)
-                                        },
-                                    )
-                                    .map_err(|_| 3u32)
+                                services.retire_message(types, message, allocator, context)
                             },
                         ),
                     )
@@ -308,6 +298,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 message,
                 Some(span),
                 self.services.inspection.as_mut().ok_or(Reason::Invariant)?,
+                self.services.heap.as_ref(),
                 self.allocator,
             );
         match outcome {
@@ -481,6 +472,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     &mut self.services.scheduler,
                     &wait.operation,
                     self.services.inspection.as_mut().ok_or(Reason::Invariant)?,
+                    self.services.heap.as_ref(),
                     self.allocator,
                 )
                 .map_err(failure)

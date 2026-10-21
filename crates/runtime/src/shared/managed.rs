@@ -459,7 +459,16 @@ impl<'l, 't> Heap<'l, 't> {
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Strong, Error> {
-        self.allocate(input, span, allocator, false)
+        self.allocate(input, span, allocator, false, None)
+    }
+    pub(crate) fn allocate_from_with_channels<P: a::Provider>(
+        &mut self,
+        input: &mut l::Reservation<'l, 't>,
+        span: Option<m::Span>,
+        allocator: &mut a::Allocator<P>,
+        channels: Option<&crate::channel::managed::Channels<'l, 't>>,
+    ) -> Result<Strong, Error> {
+        self.allocate(input, span, allocator, false, channels)
     }
     pub fn allocate_copy<P: a::Provider>(
         &mut self,
@@ -467,7 +476,7 @@ impl<'l, 't> Heap<'l, 't> {
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Strong, Error> {
-        self.allocate(input, span, allocator, true)
+        self.allocate(input, span, allocator, true, None)
     }
     fn allocate<P: a::Provider>(
         &mut self,
@@ -475,6 +484,7 @@ impl<'l, 't> Heap<'l, 't> {
         span: Option<m::Span>,
         allocator: &mut a::Allocator<P>,
         copy: bool,
+        channels: Option<&crate::channel::managed::Channels<'l, 't>>,
     ) -> Result<Strong, Error> {
         let result = (|| {
             let owner = self.owner(allocator)?;
@@ -493,7 +503,7 @@ impl<'l, 't> Heap<'l, 't> {
             {
                 return Err(l::Error::InvalidType(ty).into());
             }
-            self.validate_input(input, span, allocator, &mut work)?;
+            self.validate_input(input, span, allocator, &mut work, channels)?;
             if word(allocator.bytes(owner)?, 8) >= self.limits.nodes as u64 {
                 return Err(limit());
             }

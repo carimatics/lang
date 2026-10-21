@@ -7,12 +7,14 @@
 - Status: accepted
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-21
+- Last updated: 2026-10-22
 - Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-A02
 - Supersedes: none
 - Superseded by: none
 
 ## Summary
+
+C03 VM checkpoint（2026-10-22 JST）: guest header/descriptor、queue/pending Reservation、有限 metadata/cell control で source 7 fixture が42を返します。source 26件で Receiver 循環/再検査、Shared/Weak identity、検証済み opaque Sender の heap publication/置換、混合取消/退役、数値 control/provider/interruption prefix、quota、loop 再利用、513段の iterative destruction を検証します。cleanup panic/打切りでも primary failure を保持して全 allocation を退役します。moved-local 実行修正も owned VM/native 12件と全 fuel prefix が成功しました。全体検証の証拠は[実装 Todo](../milestone-3.md)に記録します。C04 と全 gate は未完で、C/wire/package admission や fuzz campaign は主張しません。
 
 C06 型 checkpoint（2026-10-21 JST）: 予約された opaque `core::ChannelSetup<T>`、`core::Sender<T>`、`core::Receiver<T>` の identity を source/HIR と独立検証する MIR に保持します。既存 graph で有限な Send/Share 依存を別々に導出し、Sender の両 capability は message の Send、Receiver は Share 不可、Setup は両方不可、shared/weak は target の両 capability を要します。全 role は non-Copy で退役が必要であり、未使用 message constructor も Send を要します。重点11件は再帰/宣言順 graph、alias、不正 message/arity、move、偽造 MIR、proof resource の上限境界/1 未満、未対応 profile の admission を検証します。schema-2/3/4 writer は constructor byte 前に拒否し、実行 layout、VM/native channel admission、両 target の native package は未使用 endpoint も guest/provider 副作用前に拒否します。これは型 capability の証明であり channel 実行ではありません。具体 call/error/MIR operation、suspension loan proof、guest allocator/cell 統合、VM/native fixture は C03/C04 に残り、wire/C layout や M3 gate は完了しません。
 
@@ -24,7 +26,7 @@ C05 実装 checkpoint（2026-10-21 JST）: driver は invocation/task に紐付�
 
 RFC 0005/0021/0022/0024 に対し、同一 invocation 内の有限 multiple-producer, single-consumer channel を定めます。full send は未commit payload を所有して待ち、成功 enqueue で FIFO の1位置に所有権を commit します。receive は最古の commit 済み payload を一度だけ move します。close、取消、resource 拒否、closed invocation の停止に明示結果と必須 cleanup を定めます。Sender 権限から receiver/service state を参照できません。
 
-本書は protocol の決定であり、実装済み channel profile や安定 host ABI ではありません。C02 は runtime protocol、C03 は独立検証する source/MIR と VM 操作、C04 は生成 native/linked-object parity を担当します。具体的 reserved-core call catalog は C03 実装前に下記へ記録しています。別 task 言語や未検証の同期 call で suspension を隠しません。
+本 RFC は protocol と具体 source catalog を受理します。C02 は trusted-host runtime、C03 VM 証拠は上記に記録し、C04 は native/linked-object parity を担います。この決定から安定 host ABI、C/wire/package layout、別 task 言語は導きません。
 
 ## Motivation
 
@@ -81,7 +83,7 @@ C03 catalog 決定（2026-10-21 JST）: **実装前に RFC 0001 の実験的委�
 
 直接の `await core::channel_send::<T>(...)` は一度評価して SendResult<T>、`await core::channel_receive::<T>(...)` は Option<T> を返します。現在 task の操作であり child Task claim ではないため、child await の `Result<_,TaskError>` wrapper を付けません。現在 task の取消は terminal で pending owner を退役し、Closed、None、架空の T を返しません。即時完了でも suspension/cancellation 境界です。裸の call、intrinsic の `spawn`、同期関数からの使用は INVALID_TASK です。message 適格性/arity/storage/型失敗は既存 ownership/type diagnostic identity を使って宣言/call 型 span を保ち、use-after-move と active-loan 診断も既存 identity を維持します。
 
-producer の規定例は `let mut outcome: core::SendResult<core::Bytes> = await core::channel_send::<core::Bytes>(&sender, payload);` です。borrowed match で Sent/Closed/InvalidPublication を区別し、match 終了後に `core::channel_unsent::<core::Bytes>(outcome)` で未送信 owner を回収できます。これは source 契約の sketch であり実行証拠ではありません。次の C03 fixture は実際に capacity-one storage を構築し、producer backpressure と receive を通じて owned payload を move して42を返し、全 owner を退役する必要があります。
+producer の規定例は `let mut outcome: core::SendResult<core::Bytes> = await core::channel_send::<core::Bytes>(&sender, payload);` です。borrowed match で Sent/Closed/InvalidPublication を区別し、match 終了後に `core::channel_unsent::<core::Bytes>(outcome)` で未送信 owner を回収できます。上記の日付付き C03 source fixture はこの綴りで capacity-one backpressure と receive を実行し、42を返して全 owner を退役します。
 
 lowering は権限 capture と suspension を MIR に独立して明示します。構築/mint/clone/変換/seal と結果全体の抽出の typed channel operation に加え、`PrepareChannel { destination: PreparedId, endpoint: Register, role, message_type }`、`ChannelSend { authority: PreparedId, payload: Register }`、`ChannelReceive { authority: PreparedId }` を追加します。既存の有限 prepared-destination namespace を channel kind を区別して再利用し、prepared replacement/place を endpoint と偽装できません。prepare は正確な shared Sender/exclusive Receiver loan を検証し、invocation 内 endpoint 権限だけを capture します。compiler-created 引数 loan は ChannelSend/ChannelReceive 前に終了し、明示 binding の loan は lexical lifetime を保って境界で生存していれば拒否します。独立 MIR は role/type/effect、初期化、capture の単一 consumer、escape/再利用禁止、payload consume、通常 loan の不存在を検証し、不正な未使用 operation/metadata も proof を省略できません。全 failure path で prepared authority を破棄し、guest value にはできません。pending continuation は destination、next/failure edge、実際の source operation span を保ちます。
 
@@ -89,7 +91,7 @@ task profile は同一 invocation の通常同期 helper と async activation �
 
 capture の一意性は動的 preparation ごとに適用します。consumer または discard が prepared slot を空にした後、loop は同じ静的 PrepareChannel を再実行できますが、前の captured instance は再使用できません。
 
-C03 実行の明確化（2026-10-21 JST、実装前に RFC 0001 の委任で受理）: `channel_unsent(Sent)` の source panic code を、既存 whole-sum unwrap の −1/−2/−3 に続く **−4** とします。未命名だった wrong-case 方針を確定し、wire tag、owning projection、別の成功結果は追加しません。VM fixture で runtime 境界を検証する条件は残ります。
+C03 実行の明確化（2026-10-21 JST、実装前に RFC 0001 の委任で受理）: `channel_unsent(Sent)` の source panic code を、既存 whole-sum unwrap の −1/−2/−3 に続く **−4** とします。未命名だった wrong-case 方針を確定し、wire tag、owning projection、別の成功結果は追加しません。VM source fixture で境界と live allocation 0 を検証しました（2026-10-22 JST）。
 
 非公開 capture は引数の一時値 cleanup、suspension、取消の間、endpoint の protocol lifetime を保持します。一時 source endpoint の退役で captured operation を早期に close/失効させてはいけません。consumer/discard/失敗は waiter を unlink してから保持を解放し、通常の guest loan や payload の第2 owner にはしません。VM 統合の admission 前にこの lifetime を検証します。
 
@@ -97,7 +99,7 @@ guest endpoint storage は非公開の managed token であり C/native 公開 l
 
 最古 pending operation の span/ordinal を持つ型付き ChannelDeadlock execution reason を追加し、取消/cleanup 前に primary として保持します。trust-boundary 拒否は channel identity/role/type error に構造化対応し、quota/control failure は既存の数値 resource 証拠に対応します。backend string で error を分類しません。ChannelError、SendResult、operation、private token metadata に schema-2/3/4 tag や公開 C/package 表現を割り当てず、旧 writer/reader/layout API は未使用でも拒否します。将来の persisted revision は別の互換性判断と migration test を要します。
 
-根拠: 名前付き result sum は Boolean flag、入れ子 Result encoding、owning field destructuring なしに2つの owner を保つ send 拒否を表します。capture/commit の分離で両 proof に loan 境界を明示し、単なる同期 CoreCall に suspension を隠しません。library は操作を組み合わせられますが proof を供給できません。既存 Reservation experiment は Bytes を Hub 経由で実行し、通常 [20,22]、取消 [22,20] の退役、合計42、live allocation 0 を確認しますが、queue slot/metadata admission、source operation、endpoint-bearing publication、native parity は証明しません。これらの統合、費用、両 host 等価性は未検証の実装義務です。この決定だけで delivery/gate は完了しません。
+根拠: 名前付き result sum は Boolean flag、入れ子 Result encoding、owning field destructuring なしに2つの owner を保つ send 拒否を表します。capture/commit の分離で両 proof に loan 境界を明示し、単なる同期 CoreCall に suspension を隠しません。library は操作を組み合わせられますが proof を供給できません。既存 Reservation experiment は Bytes を Hub 経由で実行し、通常 [20,22]、取消 [22,20] の退役、合計42、live allocation 0 を確認しますが、queue slot/metadata admission、source operation、endpoint-bearing publication、native parity は証明しません。現在の VM 統合の証拠は上記に分けて記録し、native parity、費用、両 host 等価性は未検証の義務です。この決定だけで delivery/gate は完了しません。
 
 ### Types, authority and lifetime
 
@@ -199,11 +201,13 @@ source compile-pass/fail で endpoint capability、明示 clone、unique receive
 
 ## Open questions
 
-上記 C03 catalog に source name/error sum/MIR form を実装前に記録しました。新 owner registry なしで managed publication/retirement を endpoint edge に拡張できること、admission 済み wait link により wake/取消を allocation-free にできること、setup/clone/result spelling が現行 whole-value 規則で使えること、代表的費用と両 host 適合は未検証です。採択済み catalog を変更する場合は実装前に英日を明示改訂します。この決定だけから実装・安定・性能結果は導きません。
+C03 catalog は実装前に記録しました。VM fixture で context 付き endpoint/shared publication、allocation-free な wake/取消、既存 whole-value spelling、value-owner の別 registry を使わない iterative mixed retirement を検証しました。native/linked-object parity、代表的費用、両 host 等価性は未検証です。catalog 変更は実装前の英日改訂を要し、全実装/安定条件を満たすまでは RFC を accepted に維持します。
 
-判断: **RFC 0001 の実験委任で accepted、2026-10-21 JST**。有限 MPSC、唯一の receive 権限、明示 Send/Share、非commit payload の custody、原子的な公開、FIFO admission と既存 cleanup を組み合わせて厳密な所有/loan 規則を維持します。capacity-one の trace 実験では、単純 wake で A,C,B と追越しが起き、先頭予約で A,B,C を維持しました。wake 後の B 取消、commit 後の C sender 取消、seal/abort の5 trace も各 payload の owner と一度限りの返却/退役を検証しました。これは protocol 実験であり production channel の実行証拠ではありません。上記仮定と concrete core catalog は未検証/未実装のまま追跡します。
+判断: **RFC 0001 の実験委任で accepted、2026-10-21 JST**。有限 MPSC、唯一の receive 権限、明示 Send/Share、非commit payload の custody、原子的な公開、FIFO admission と既存 cleanup を組み合わせて厳密な所有/loan 規則を維持します。capacity-one の trace 実験では、単純 wake で A,C,B と追越しが起き、先頭予約で A,B,C を維持しました。wake 後の B 取消、commit 後の C sender 取消、seal/abort の5 trace も各 payload の owner と一度限りの返却/退役を検証しました。これは protocol 実験であり production channel の実行証拠ではありません。受理時点ではこれらの仮定と catalog は未検証/未実装であり、後の実装証拠は上記の日付付き checkpoint に分けて記録します。
 
 ## Sources
+
+- C03 VM の根拠: `crates/runtime/src/channel/managed/`、`retirement.rs`、managed heap/frame adapter、`tests/source_channels.rs`、`tests/task_owned_execution.rs`、7つの `task_channel*.lang` fixture。code に更新日の埋込みはなく、2026-10-22 JST に macOS AArch64 で確認/実行しました。source 26件・capability/admission 11件・owned VM/native 12件と CLI の42が7結果成功し、full baseline の最終確認は実装 Todo に記録します。
 
 - [RFC 0001](0001-project-charter.md): 最終更新 2026-10-17、同日の owner 実験委任、2026-10-21 JST 確認。[RFC 0005](0005-structured-tasks-and-isolated-services.md)、最終更新 2026-10-21: strict ownership、accepted-message FIFO、取消、以前未決の backpressure 方針。
 - [RFC 0021](0021-bounded-structured-task-driver.md)、[RFC 0022](0022-source-structured-tasks.md)、[RFC 0024](0024-send-share-and-service-authority.md)、最終更新 2026-10-21: scheduler、task effect/loan、logical Send/Share。[RFC 0009](0009-whole-sum-ownership-extraction.md)、最終更新 2026-10-20: owning partial move のない whole-value extraction。
