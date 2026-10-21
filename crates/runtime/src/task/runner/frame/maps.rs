@@ -88,7 +88,8 @@ impl Access<'_, '_, '_> {
             &mut token,
             allocator,
         )
-        .map_err(fault)?;
+        .map_err(fault)?
+        .with_service_work(self.services.work.clone());
         if operation == O::MapLen {
             let length = owner.len(allocator).map_err(fault)?;
             return self.write(to, l::Immediate::I64(length), allocator);

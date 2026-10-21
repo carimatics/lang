@@ -40,6 +40,7 @@ fn preparation(error: sh::Error) -> Reason {
     }
 }
 pub struct Services<'l, 'ty> {
+    pub work: e::ServiceWork,
     pub layouts: &'l l::Layouts<'ty>,
     pub drain: Option<r::Drain<'l, 'ty>>,
     pub heap: Option<sh::Heap<'l, 'ty>>,
@@ -52,8 +53,10 @@ impl<'l, 'ty> Services<'l, 'ty> {
         plans: &[Option<l::FramePlan<'l, 'ty>>],
         layouts: &'l l::Layouts<'ty>,
         allocator: &a::Allocator<P>,
+        work_limit: Option<u64>,
         budget: &mut m::Budget,
     ) -> Result<Self, Reason> {
+        let work = e::ServiceWork::new(work_limit);
         let mut has_indirect = false;
         let mut has_shared = false;
         let mut has_arena = false;
@@ -94,7 +97,8 @@ impl<'l, 'ty> Services<'l, 'ty> {
         let heap = if has_shared {
             let heap =
                 sh::Heap::prepare(layouts, Default::default(), budget.limits(), usage(budget))
-                    .map_err(preparation)?;
+                    .map_err(preparation)?
+                    .with_service_work(work.clone());
             *budget = m::Budget::with_usage(budget.limits(), heap.usage())?;
             Some(heap)
         } else {
@@ -112,6 +116,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
             None
         };
         Ok(Self {
+            work,
             layouts,
             heap,
             drain,
@@ -126,29 +131,35 @@ impl<'l, 'ty> Services<'l, 'ty> {
         allocator: &mut a::Allocator<P>,
         context: &mut c::Context<'_>,
     ) -> Result<(), u32> {
-        if let Some(drain) = &mut self.drain {
-            drain.token(
-                token,
-                self.heap.as_mut(),
-                allocator,
-                context,
-                |token, allocator, _, _| {
-                    crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
-                },
-            )
-        } else {
-            crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
-        }
+        let meter = self.work.clone();
+        meter.unmetered(|| {
+            if let Some(drain) = &mut self.drain {
+                drain.token(
+                    token,
+                    self.heap.as_mut(),
+                    allocator,
+                    context,
+                    |token, allocator, _, _| {
+                        crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                    },
+                )
+            } else {
+                crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+            }
+        })
     }
     pub fn close<P: a::Provider>(&mut self, allocator: &mut a::Allocator<P>) -> Result<(), Reason> {
-        if self.opened {
-            self.heap
-                .as_mut()
-                .ok_or(Reason::Invariant)?
-                .close(allocator)
-                .map_err(preparation)?;
-            self.opened = false;
-        }
-        Ok(())
+        let meter = self.work.clone();
+        meter.unmetered(|| {
+            if self.opened {
+                self.heap
+                    .as_mut()
+                    .ok_or(Reason::Invariant)?
+                    .close(allocator)
+                    .map_err(preparation)?;
+                self.opened = false;
+            }
+            Ok(())
+        })
     }
 }

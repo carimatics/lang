@@ -84,6 +84,11 @@ impl From<e::Failure> for Reason {
         Self::Control(e)
     }
 }
+impl Reason {
+    fn service(error: &(dyn std::error::Error + 'static)) -> Self {
+        e::service_failure(error).map_or(Self::Invariant, Self::Control)
+    }
+}
 #[derive(Debug)]
 pub struct Failure {
     pub reason: Reason,
@@ -212,7 +217,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
     };
     let prepared=(||->Result<_,Reason>{
         control.check()?;
-        if control.service_work_limit().is_some(){return Err(Reason::Unsupported);}
+        if control.service_work_limit().is_some()&&(!declarations.imports().is_empty()||!e::service_work_supported(proof.plan())){return Err(Reason::Unsupported);}
         let entry=entry.ok_or(Reason::Entry)?;
         let decl=declarations.functions().get(entry.0 as usize).ok_or(Reason::Entry)?;
         if !decl.parameters.is_empty() || decl.result.ty!=o::Type::I64 {return Err(Reason::Entry);}

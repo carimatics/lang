@@ -96,7 +96,7 @@ fn allocator()->a::Allocator<a::System>{{a::Allocator::new(a::System,Default::de
 fn compare(proof:&lang_mir::unit::ownership::tasks::VerifiedTasks,native:&lang_codegen_clif::tasks::LinkedProgram<'_,()>,control:e::Control<'_>,limits:r::Limits)->Result<r::Outcome,r::Failure>{{
     let mut va=allocator();let mut na=allocator();let expected=lang_vm::unit::tasks::execute_entry(proof,&mut va,control,limits);let actual=native.execute(&mut na,control,limits);
     assert_eq!(va.stats(),na.stats());assert_eq!(na.stats().live_allocations,0);
-    match (&expected,&actual){{(Ok(a),Ok(b))=>{{assert_eq!(a.value,b.value);assert_eq!(a.events,b.events);assert_eq!(a.usage,b.usage);assert_eq!(a.tasks,b.tasks);}},(Err(a),Err(b))=>{{assert_eq!(format!("{{:?}}",a.reason),format!("{{:?}}",b.reason));assert_eq!(a.span,b.span);assert_eq!(a.function,b.function);assert_eq!(a.events,b.events);assert_eq!(a.usage,b.usage);assert_eq!(a.tasks,b.tasks);assert_eq!(b.tasks.live,0);}},_=>panic!("VM/object result differs")}}actual
+    match (&expected,&actual){{(Ok(a),Ok(b))=>{{assert_eq!(a.value,b.value);assert_eq!(a.events,b.events);assert_eq!(a.usage,b.usage);assert_eq!(a.tasks,b.tasks);}},(Err(a),Err(b))=>{{assert_eq!(format!("{{:?}}",a.reason),format!("{{:?}}",b.reason));assert_eq!(a.span,b.span);assert_eq!(a.function,b.function);assert_eq!(a.events,b.events);assert_eq!(a.usage,b.usage);assert_eq!(a.tasks,b.tasks);assert_eq!(a.poisoned,b.poisoned);assert_eq!(format!("{{:?}}",a.report),format!("{{:?}}",b.report));assert_eq!(b.tasks.live,0);}},_=>panic!("VM/object result differs")}}actual
 }}
 fn main(){{
     let args:Vec<_>=std::env::args().collect();let text=std::fs::read_to_string(&args[1]).unwrap();let original=std::fs::read(&args[2]).unwrap();
@@ -109,6 +109,7 @@ fn main(){{
     let limits=r::Limits{{trace_events:512,..Default::default()}};let control=e::Control::with_limits(Default::default());
     let baseline=compare(proof.verified(),&native,control,limits);let usage=match &baseline{{Ok(o)=>o.usage,Err(e)=>e.usage}};
     for fuel in 0..=usage.fuel{{let _=compare(proof.verified(),&native,e::Control::with_limits(e::Limits{{fuel:Some(fuel),..Default::default()}}),limits);}}
+    for work in 0..=usage.service_work{{let _=compare(proof.verified(),&native,control.and_service_work(Some(work)),limits);}}
     match baseline{{Ok(out)=>println!("{{}}",out.value),Err(error)=>{{let r::Reason::Panic(Some(code))=error.reason else{{panic!("unexpected linked task failure")}};assert!(matches!(code,91|-42));println!("panic {{code}}");}}}}
 }}
 "#)).unwrap();

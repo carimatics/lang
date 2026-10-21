@@ -103,16 +103,16 @@ fn unsupported_execution_and_artifact_modes_refuse_before_effects() {
     assert!(matches!(error.reason, vm::Reason::Unsupported));
     assert_eq!(allocator.stats().requests, 0);
     let proof = prepare(include_str!("../crates/syntax/tests/fixtures/tasks.lang"));
-    let error = vm::execute_entry(
+    let output = vm::execute_entry(
         proof.verified(),
         &mut allocator,
         control().and_service_work(Some(100)),
         Default::default(),
     )
-    .err()
     .unwrap();
-    assert!(matches!(error.reason, vm::Reason::Unsupported));
-    assert_eq!(allocator.stats().requests, 0);
+    assert_eq!(output.value, 42);
+    assert_eq!(output.usage.service_work, 0);
+    assert_eq!(allocator.stats().live_allocations, 0);
     let source = "async fn main()->i64{yield;return 42;}";
     let analysis = lang::frontend::analyze_virtual(
         lang_diagnostics::SourceMap::new(),

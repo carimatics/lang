@@ -212,106 +212,111 @@ impl Frame<'_, '_> {
         allocator: &mut a::Allocator<P>,
         services: &mut crate::task::runner::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
-        let types = self.types;
-        let managed = self.managed.as_mut().ok_or(Reason::Invariant)?;
-        let loan = managed
-            .loans
-            .get_mut(id.0 as usize)
-            .ok_or(Reason::Invariant)?;
-        loan.target = None;
-        loan.custody = None;
-        let mut failure = None;
-        if let Some(mut read) = loan.vector.take() {
-            let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
-                read.end(services.layouts, allocator).map_err(|_| 6u32)
-            });
-            if managed
-                .session
-                .retire(
-                    c::Slot(id.0 as usize),
-                    (),
-                    Some(self.origin),
-                    c::Reason::ScopeExit,
-                    &mut cleaner,
-                )
-                .is_err()
-            {
-                failure = Some(Reason::Cleanup);
-            }
-        }
-        if let Some(mut read) = loan.map.take() {
-            let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
-                read.end(services.layouts, allocator).map_err(|_| 7u32)
-            });
-            if managed
-                .session
-                .retire(
-                    c::Slot(id.0 as usize),
-                    (),
-                    Some(self.origin),
-                    c::Reason::ScopeExit,
-                    &mut cleaner,
-                )
-                .is_err()
-            {
-                failure = Some(Reason::Cleanup);
-            }
-        }
-        if let Some((read, ty)) = loan.shared.take() {
-            let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
-                let drain = services.drain.as_mut().ok_or(8u32)?;
-                let heap = services.heap.as_mut().ok_or(8u32)?;
-                drain
-                    .end_read(
-                        read,
-                        ty,
-                        heap,
-                        allocator,
-                        context,
-                        |token, allocator, _, _| {
-                            crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
-                        },
-                    )
-                    .map_err(|_| 8u32)
-            });
-            if managed
-                .session
-                .retire(
-                    c::Slot(id.0 as usize),
-                    (),
-                    Some(self.origin),
-                    c::Reason::ScopeExit,
-                    &mut cleaner,
-                )
-                .is_err()
-            {
-                failure = Some(Reason::Cleanup);
-            }
-        }
-        if let Some((slot, mut read)) = loan.arena.take() {
-            let arena = self
-                .arenas
-                .get_mut(slot)
-                .and_then(Option::as_mut)
+        let meter = services.work.clone();
+        meter.unmetered(|| {
+            let types = self.types;
+            let managed = self.managed.as_mut().ok_or(Reason::Invariant)?;
+            let loan = managed
+                .loans
+                .get_mut(id.0 as usize)
                 .ok_or(Reason::Invariant)?;
-            let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
-                arena.end_read(&mut read, allocator).map_err(|_| 9u32)
-            });
-            if managed
-                .session
-                .retire(
-                    c::Slot(id.0 as usize),
-                    (),
-                    Some(self.origin),
-                    c::Reason::ScopeExit,
-                    &mut cleaner,
-                )
-                .is_err()
-            {
-                failure = Some(Reason::Cleanup);
+            loan.target = None;
+            loan.custody = None;
+            let mut failure = None;
+            if let Some(mut read) = loan.vector.take() {
+                let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
+                    read.end(services.layouts, allocator).map_err(|_| 6u32)
+                });
+                if managed
+                    .session
+                    .retire(
+                        c::Slot(id.0 as usize),
+                        (),
+                        Some(self.origin),
+                        c::Reason::ScopeExit,
+                        &mut cleaner,
+                    )
+                    .is_err()
+                {
+                    failure = Some(Reason::Cleanup);
+                }
             }
-        }
-        failure.map_or(Ok(()), Err)
+            if let Some(mut read) = loan.map.take() {
+                let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
+                    read.end(services.layouts, allocator).map_err(|_| 7u32)
+                });
+                if managed
+                    .session
+                    .retire(
+                        c::Slot(id.0 as usize),
+                        (),
+                        Some(self.origin),
+                        c::Reason::ScopeExit,
+                        &mut cleaner,
+                    )
+                    .is_err()
+                {
+                    failure = Some(Reason::Cleanup);
+                }
+            }
+            if let Some((read, ty)) = loan.shared.take() {
+                let mut cleaner =
+                    c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                        let drain = services.drain.as_mut().ok_or(8u32)?;
+                        let heap = services.heap.as_mut().ok_or(8u32)?;
+                        drain
+                            .end_read(
+                                read,
+                                ty,
+                                heap,
+                                allocator,
+                                context,
+                                |token, allocator, _, _| {
+                                    crate::buffer::cleanup_token(types, token, allocator)
+                                        .map_err(|_| 3u32)
+                                },
+                            )
+                            .map_err(|_| 8u32)
+                    });
+                if managed
+                    .session
+                    .retire(
+                        c::Slot(id.0 as usize),
+                        (),
+                        Some(self.origin),
+                        c::Reason::ScopeExit,
+                        &mut cleaner,
+                    )
+                    .is_err()
+                {
+                    failure = Some(Reason::Cleanup);
+                }
+            }
+            if let Some((slot, mut read)) = loan.arena.take() {
+                let arena = self
+                    .arenas
+                    .get_mut(slot)
+                    .and_then(Option::as_mut)
+                    .ok_or(Reason::Invariant)?;
+                let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
+                    arena.end_read(&mut read, allocator).map_err(|_| 9u32)
+                });
+                if managed
+                    .session
+                    .retire(
+                        c::Slot(id.0 as usize),
+                        (),
+                        Some(self.origin),
+                        c::Reason::ScopeExit,
+                        &mut cleaner,
+                    )
+                    .is_err()
+                {
+                    failure = Some(Reason::Cleanup);
+                }
+            }
+            failure.map_or(Ok(()), Err)
+        })
     }
     pub fn end_loans<P: a::Provider>(
         &mut self,
@@ -351,60 +356,64 @@ impl Frame<'_, '_> {
         allocator: &mut a::Allocator<P>,
         services: &mut crate::task::runner::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
-        if !self.live[slot] {
-            return Ok(());
-        }
-        if !self.is_owner(slot)? {
-            self.forget(slot);
-            return Ok(());
-        }
-        let types = self.types;
-        let arena_owner = self.is_arena_owner(slot)?;
-        let managed = self.managed.as_mut().ok_or(Reason::Unsupported)?;
-        let span = managed.spans[slot];
-        managed.remove(slot);
-        self.live[slot] = false;
-        if arena_owner {
-            let arena = self
-                .arenas
-                .get_mut(slot)
-                .and_then(Option::as_mut)
-                .ok_or(Reason::Invariant)?;
-            let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
-                let exit = if context.reason() == c::Reason::Failure {
-                    crate::arena::managed::Exit::Abort
-                } else {
-                    crate::arena::managed::Exit::Normal
-                };
-                arena
-                    .cleanup(exit, allocator, context, |token, allocator, _, context| {
+        let meter = services.work.clone();
+        meter.unmetered(|| {
+            if !self.live[slot] {
+                return Ok(());
+            }
+            if !self.is_owner(slot)? {
+                self.forget(slot);
+                return Ok(());
+            }
+            let types = self.types;
+            let arena_owner = self.is_arena_owner(slot)?;
+            let managed = self.managed.as_mut().ok_or(Reason::Unsupported)?;
+            let span = managed.spans[slot];
+            managed.remove(slot);
+            self.live[slot] = false;
+            if arena_owner {
+                let arena = self
+                    .arenas
+                    .get_mut(slot)
+                    .and_then(Option::as_mut)
+                    .ok_or(Reason::Invariant)?;
+                let mut cleaner =
+                    c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                        let exit = if context.reason() == c::Reason::Failure {
+                            crate::arena::managed::Exit::Abort
+                        } else {
+                            crate::arena::managed::Exit::Normal
+                        };
+                        arena
+                            .cleanup(exit, allocator, context, |token, allocator, _, context| {
+                                services.retire(types, token, allocator, context)
+                            })
+                            .map_err(|_| 10u32)
+                    });
+                return managed
+                    .session
+                    .retire(c::Slot(slot), (), span, reason, &mut cleaner)
+                    .map_err(|_| Reason::Cleanup);
+            }
+            let cell = self
+                .storage
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .cell_mut(slot)?;
+            let mut cleaner = c::Contextual::new(
+                |cell: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
+                    cell.retire(allocator, context, |token, allocator, _, context| {
                         services.retire(types, token, allocator, context)
                     })
-                    .map_err(|_| 10u32)
-            });
-            return managed
+                    .map_err(|_| 4u32)?;
+                    cell.recycle(allocator).map_err(|_| 5u32)
+                },
+            );
+            managed
                 .session
-                .retire(c::Slot(slot), (), span, reason, &mut cleaner)
-                .map_err(|_| Reason::Cleanup);
-        }
-        let cell = self
-            .storage
-            .as_mut()
-            .ok_or(Reason::Invariant)?
-            .cell_mut(slot)?;
-        let mut cleaner = c::Contextual::new(
-            |cell: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
-                cell.retire(allocator, context, |token, allocator, _, context| {
-                    services.retire(types, token, allocator, context)
-                })
-                .map_err(|_| 4u32)?;
-                cell.recycle(allocator).map_err(|_| 5u32)
-            },
-        );
-        managed
-            .session
-            .retire(c::Slot(slot), cell, span, reason, &mut cleaner)
-            .map_err(|_| Reason::Cleanup)
+                .retire(c::Slot(slot), cell, span, reason, &mut cleaner)
+                .map_err(|_| Reason::Cleanup)
+        })
     }
     pub fn cleanup_selected<P: a::Provider>(
         &mut self,

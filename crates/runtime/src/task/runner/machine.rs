@@ -66,11 +66,19 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let completed = budget.vector(limits.tasks.total_tasks)?;
         let session = c::Session::prepare(failure_records, &mut budget)?;
         let mut scheduler = t::Scheduler::new(limits.tasks)?;
-        let services = services::Services::prepare(proof, plans, layouts, allocator, &mut budget)?;
+        let services = services::Services::prepare(
+            proof,
+            plans,
+            layouts,
+            allocator,
+            control.service_work_limit(),
+            &mut budget,
+        )?;
         let frame = Frame::new(
             proof,
             plan,
             services.layouts,
+            &services.work,
             entry,
             frame::ActivationId(0),
             failure_records,
@@ -168,13 +176,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.frame_mut(task)?.fault = Some(task);
         Ok(task)
     }
-    pub fn retired(&mut self, function: m::FunctionId) {
+    pub fn retired(&mut self, function: m::FunctionId, retained_result: bool) {
         self.live_frames -= 1;
         self.live_cells -= self.plans[function.0 as usize]
             .as_ref()
             .unwrap()
             .cleanup_slots()
-            + 1;
+            + usize::from(!retained_result);
     }
     pub fn prepare_frame(&mut self, function: m::FunctionId) -> Result<Frame<'l, 'ty>, Reason> {
         let plan = self.plans[function.0 as usize]
@@ -191,6 +199,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             self.proof,
             plan,
             self.services.layouts,
+            &self.services.work,
             function,
             activation,
             self.failure_records,
@@ -206,6 +215,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
     pub fn discard_result(&mut self, task: usize) -> Result<(), Reason> {
         if let Some(mut result) = self.records[task].result.take() {
             result.release_storage(self.allocator)?;
+            self.live_cells -= 1;
         }
         Ok(())
     }
@@ -295,6 +305,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                             let mut result = child.result.take().ok_or(Reason::Invariant)?;
                             cell.copy_from(at, &result, result.root(), self.allocator)?;
                             result.release_storage(self.allocator)?;
+                            self.live_cells -= 1;
                         } else {
                             cell.write_immediate(at, l::Immediate::TaskCancelled, self.allocator)?;
                         }
@@ -488,7 +499,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             {
                 let result = frame.result(self.allocator, &mut self.services);
                 self.merge_frame(task, &mut frame)?;
-                self.retired(frame.function);
+                self.retired(frame.function, result.is_ok());
                 match result {
                     Ok(result) => self.records[task].result = Some(result),
                     Err(Reason::Cleanup) => {
@@ -612,6 +623,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 span,
             });
         }
+        self.usage.service_work = self.services.work.used();
         let outcome = self.scheduler.status(&self.records[0].id);
         let mut finished = (|| -> Result<i64, Reason> {
             if failed {
@@ -622,6 +634,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     let mut result = self.records[0].result.take().ok_or(Reason::Invariant)?;
                     let value = result.read_immediate(result.root(), self.allocator)?;
                     result.release_storage(self.allocator)?;
+                    self.live_cells -= 1;
                     match value {
                         l::Immediate::I64(value) => Ok(value),
                         _ => Err(Reason::Invariant),

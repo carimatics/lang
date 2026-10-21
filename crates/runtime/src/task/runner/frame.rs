@@ -78,6 +78,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         proof: &'ty o::tasks::VerifiedTasks,
         plan: &l::FramePlan<'l, 'ty>,
         layouts: &'l l::Layouts<'ty>,
+        work: &e::ServiceWork,
         function: m::FunctionId,
         activation: ActivationId,
         failure_records: std::num::NonZeroUsize,
@@ -129,7 +130,8 @@ impl<'l, 'ty> Frame<'l, 'ty> {
                         budget.limits(),
                         usage(budget),
                     )
-                    .map_err(arenas::preparation)?;
+                    .map_err(arenas::preparation)?
+                    .with_service_work(work.clone());
                     *budget = m::Budget::with_usage(budget.limits(), arena.usage())?;
                     Some(arena)
                 } else {

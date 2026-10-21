@@ -146,7 +146,7 @@ impl Access<'_, '_, '_> {
                 Ok(read) => {
                     let at = heap
                         .view(read, ty, allocator)
-                        .map_err(|_| Reason::Invariant)?
+                        .map_err(|error| Reason::service(&error))?
                         .root();
                     self.frame
                         .borrow_target(id, Target::Shared { origin, ty, at }, to)?;

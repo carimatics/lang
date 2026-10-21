@@ -57,7 +57,8 @@ impl Access<'_, '_, '_> {
         let target = self.referenced_cell(first)?;
         let mut token = self.token(target, allocator)?;
         let mut owner = v::Vector::from_token(self.services.layouts, ty, &mut token, allocator)
-            .map_err(fault)?;
+            .map_err(fault)?
+            .with_service_work(self.services.work.clone());
         match operation {
             O::VecGet | O::VecGetMut => {
                 let l::Immediate::I64(index) =

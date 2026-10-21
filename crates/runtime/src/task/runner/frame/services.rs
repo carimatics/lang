@@ -72,7 +72,7 @@ impl Access<'_, '_, '_> {
             .get(start..start.checked_add(32).ok_or(Reason::Invariant)?)
             .ok_or(Reason::Invariant)?
             .try_into()
-            .map_err(|_| Reason::Invariant)
+            .map_err(|error| Reason::service(&error))
     }
     pub fn store_token<P: a::Provider>(
         &self,
@@ -89,7 +89,7 @@ impl Access<'_, '_, '_> {
                     .as_ref()
                     .ok_or(Reason::Invariant)?
                     .write_buffer_token(self.services.layouts, at, token, allocator)
-                    .map_err(|_| Reason::Invariant);
+                    .map_err(|error| Reason::service(&error));
             }
             _ => return Err(Reason::Invariant),
         };
@@ -230,22 +230,25 @@ impl Access<'_, '_, '_> {
         span: m::Span,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
-        let types = self.frame.types;
-        let services = &mut self.services;
-        let managed = self.frame.managed.as_mut().ok_or(Reason::Invariant)?;
-        let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
-            services.retire(types, &mut token, allocator, context)
-        });
-        managed
-            .session
-            .retire(
-                c::Slot(slot),
-                (),
-                Some(span),
-                c::Reason::Replacement,
-                &mut cleaner,
-            )
-            .map_err(|_| Reason::Cleanup)
+        let meter = self.services.work.clone();
+        meter.unmetered(|| {
+            let types = self.frame.types;
+            let services = &mut self.services;
+            let managed = self.frame.managed.as_mut().ok_or(Reason::Invariant)?;
+            let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                services.retire(types, &mut token, allocator, context)
+            });
+            managed
+                .session
+                .retire(
+                    c::Slot(slot),
+                    (),
+                    Some(span),
+                    c::Reason::Replacement,
+                    &mut cleaner,
+                )
+                .map_err(|_| Reason::Cleanup)
+        })
     }
     #[allow(
         clippy::too_many_arguments,
@@ -345,7 +348,9 @@ impl Access<'_, '_, '_> {
                     Ok(mut bytes) => {
                         cell.prepare_case(root, 0, allocator)?;
                         let at = cell.child(root, 0, allocator)?;
-                        let token = bytes.take_token(allocator).map_err(|_| Reason::Invariant)?;
+                        let token = bytes
+                            .take_token(allocator)
+                            .map_err(|error| Reason::service(&error))?;
                         self.store_token(
                             Location {
                                 activation: self.activation,
@@ -361,7 +366,7 @@ impl Access<'_, '_, '_> {
                         let at = cell.child(root, 0, allocator)?;
                         cell.write_immediate(at, l::Immediate::Allocation(error), allocator)?;
                     }
-                    Err(buffer::Failure::Fault(_)) => return Err(Reason::Invariant),
+                    Err(buffer::Failure::Fault(error)) => return Err(Reason::service(&error)),
                 }
                 cell.initialize_order(root, [(0, span)].into_iter(), allocator)?;
                 self.mark(to, span)
@@ -370,8 +375,10 @@ impl Access<'_, '_, '_> {
                 let target = self.reference(first)?;
                 let mut token = self.token(target, allocator)?;
                 let bytes = buffer::Bytes::from_token(&mut token, allocator)
-                    .map_err(|_| Reason::Invariant)?;
-                let length = bytes.len(allocator).map_err(|_| Reason::Invariant)?;
+                    .map_err(|error| Reason::service(&error))?;
+                let length = bytes
+                    .len(allocator)
+                    .map_err(|error| Reason::service(&error))?;
                 self.write(to, l::Immediate::I64(length), allocator)
             }
             O::BytesPush => {
@@ -382,14 +389,18 @@ impl Access<'_, '_, '_> {
                 let target = self.reference(first)?;
                 let mut token = self.token(target, allocator)?;
                 let mut bytes = buffer::Bytes::from_token(&mut token, allocator)
-                    .map_err(|_| Reason::Invariant)?;
-                let outcome = bytes.push(allocator, value);
-                let token = bytes.take_token(allocator).map_err(|_| Reason::Invariant)?;
+                    .map_err(|error| Reason::service(&error))?;
+                let meter = self.services.work.clone();
+                let outcome =
+                    bytes.push_metered(allocator, value, &mut |amount| meter.charge(amount));
+                let token = bytes
+                    .take_token(allocator)
+                    .map_err(|error| Reason::service(&error))?;
                 self.store_token(target, token, allocator)?;
                 let outcome = match outcome {
                     Ok(()) => Ok(l::Immediate::Unit),
                     Err(buffer::Failure::Error(error)) => Err(l::Immediate::Buffer(error)),
-                    Err(buffer::Failure::Fault(_)) => return Err(Reason::Invariant),
+                    Err(buffer::Failure::Fault(error)) => return Err(Reason::service(&error)),
                 };
                 self.immediate_result(to, outcome, span, allocator)
             }

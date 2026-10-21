@@ -2,6 +2,9 @@
 use super::*;
 use crate::arena::managed as g;
 pub(super) fn preparation(error: g::Error) -> Reason {
+    if let Some(failure) = crate::execution::service_failure(&error) {
+        return Reason::Control(failure);
+    }
     match error.kind {
         g::Kind::Layout(e) => Reason::Layout(e),
         _ => Reason::Invariant,

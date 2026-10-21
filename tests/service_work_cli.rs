@@ -110,6 +110,23 @@ fn source_and_loaded_buffers_preserve_numeric_budgets_and_guest_faults() {
 }
 
 #[test]
+fn source_tasks_share_service_work_and_preserve_numeric_refusals() {
+    let files = Files::new(include_str!("fixtures/task_owned_buffers.lang"));
+    let refused = run(&files, &["--service-work", "0"], false);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(refused.stdout.is_empty());
+    let message = stderr(&refused);
+    assert!(
+        message.contains("ServiceWorkLimit { limit: 0, used: 0, requested: 1 }"),
+        "{message}"
+    );
+    assert!(message.contains("source.lang"), "{message}");
+    let admitted = run(&files, &["--service-work", "18446744073709551615"], false);
+    assert!(admitted.status.success(), "{}", stderr(&admitted));
+    assert_eq!(admitted.stdout, b"71\n");
+}
+
+#[test]
 fn unused_managed_functions_are_admitted_and_active_work_keeps_numeric_limits() {
     let text = format!(
         "{BUFFER}\n{}",

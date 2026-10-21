@@ -143,3 +143,5 @@ Code変更では、対象のbehavior regressionを先に確認し、repository�
 現在の契約はこの文書とRFCに保持します。時系列の実装記録は該当Todoや日付付きレビューへ置き、所定interfaceと検証が完了したら実装状態を更新します。古い「残作業」の段落をこの文書へ複製しません。
 
 情報源: repository実装、lockfile、受理済みRFC、[M2完了監査](milestone-2-capabilities.md)。`e60e3d9`で2026-10-20 JSTに確認しました。個別RFCの更新日と過去の外部情報源の日付はリンク先に保持しています。この整理では言語、ABI、serialized contractを変更しません。
+
+T08 は invocation 共通の ServiceWork counter を各 task、同期 activation、managed service/view へ接続します。未使用 foreign metadata を含む unit 全体の有限 control 検証と RFC 0013 の既存 event を適用し、guest-frame marshalling に新 event を加えません。Buffer 拒否時は owner token を保ち、数値付き work failure は function/span と cleanup 証拠を保持します。必須の lease 終了、retirement、result 破棄、heap close は非計量です。分離した task result は移動/解放まで 1 live cell と数え、保持中の別 frame admission を拒否できます。ゼロ/境界値/1 未満と統合 work/fuel/provider prefix は cleanup panic/report truncation を含め VM/生成 native で一致し、同期実行と task の flat-buffer cost も一致します。リンク済み object の差分検証も有限 work prefix を実行します。一般 async transfer と foreign/C/serialized/package profile の境界は維持します。2026-10-21 JST 確認、code に更新日の埋込みはありません。

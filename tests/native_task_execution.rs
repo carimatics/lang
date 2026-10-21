@@ -339,14 +339,15 @@ fn every_native_provider_refusal_retires_unpublished_and_admitted_storage() {
     }
 }
 #[test]
-fn unsupported_native_task_operations_and_controls_refuse_before_guest_effects() {
+fn unsupported_native_task_operations_and_finite_foreign_metadata_refuse_before_effects() {
     let foreign =
         prepare("extern fn host(value:i64)->i64; async fn main()->i64{yield;return host(42);}");
     assert!(matches!(
         CompiledProgram::compile(foreign.verified(), Default::default()),
         Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
     ));
-    let proof = prepare(include_str!("../examples/scripts/tasks.lang"));
+    // Finite work validation includes unused foreign declarations.
+    let proof = prepare("extern fn host(value:i64)->i64; async fn main()->i64{yield;return 42;}");
     let native = CompiledProgram::compile(proof.verified(), Default::default()).unwrap();
     let mut allocator = allocator();
     assert!(matches!(

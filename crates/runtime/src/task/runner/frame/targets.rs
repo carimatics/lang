@@ -37,23 +37,23 @@ macro_rules! observe {
             Target::Cell(location) => {
                 let $view = $s.cell(location)?;
                 let $at = location.at;
-                $body.map_err(|_| Reason::Invariant)
+                $body.map_err(|error| Reason::service(&error))
             }
             Target::Vector { origin, at } => {
                 let loan = $s.lease(origin)?.vector.as_ref().ok_or(Reason::Invariant)?;
                 let $view = loan
                     .view($s.services.layouts, $allocator)
-                    .map_err(|_| Reason::Invariant)?;
+                    .map_err(|error| Reason::service(&error))?;
                 let $at = at;
-                $body.map_err(|_| Reason::Invariant)
+                $body.map_err(|error| Reason::service(&error))
             }
             Target::Map { origin, at } => {
                 let loan = $s.lease(origin)?.map.as_ref().ok_or(Reason::Invariant)?;
                 let $view = loan
                     .view($s.services.layouts, $allocator)
-                    .map_err(|_| Reason::Invariant)?;
+                    .map_err(|error| Reason::service(&error))?;
                 let $at = at;
-                $body.map_err(|_| Reason::Invariant)
+                $body.map_err(|error| Reason::service(&error))
             }
             Target::Shared { origin, ty, at } => {
                 let (read, read_ty) = $s.lease(origin)?.shared.ok_or(Reason::Invariant)?;
@@ -66,14 +66,14 @@ macro_rules! observe {
                     .as_ref()
                     .ok_or(Reason::Invariant)?
                     .view(read, ty, $allocator)
-                    .map_err(|_| Reason::Invariant)?;
+                    .map_err(|error| Reason::service(&error))?;
                 let $at = at;
-                $body.map_err(|_| Reason::Invariant)
+                $body.map_err(|error| Reason::service(&error))
             }
             Target::Arena { origin, at } => {
                 let $view = $s.arena_view(origin, $allocator)?;
                 let $at = at;
-                $body.map_err(|_| Reason::Invariant)
+                $body.map_err(|error| Reason::service(&error))
             }
             _ => Err(Reason::Invariant),
         }
@@ -121,11 +121,11 @@ impl Access<'_, '_, '_> {
                 span,
                 allocator,
             )
-            .map_err(|_| Reason::Invariant)?;
+            .map_err(|error| Reason::service(&error))?;
             None
         } else {
             read.replace_from(self.services.layouts, at, input, span, allocator)
-                .map_err(|_| Reason::Invariant)?
+                .map_err(|error| Reason::service(&error))?
         };
         if !copy {
             self.frame.managed.as_mut().ok_or(Reason::Invariant)?.spans[from] = old;
@@ -176,7 +176,7 @@ impl Access<'_, '_, '_> {
                         .as_ref()
                         .ok_or(Reason::Invariant)?
                         .custody(read, ty, allocator)
-                        .map_err(|_| Reason::Invariant)?,
+                        .map_err(|error| Reason::service(&error))?,
                 ))
             }
             _ => Ok(None),
@@ -249,25 +249,25 @@ impl Access<'_, '_, '_> {
             Target::Arena { origin, at } => self
                 .arena_view(origin, allocator)?
                 .copy_into(at, destination, to.at, allocator)
-                .map_err(|_| Reason::Invariant),
+                .map_err(|error| Reason::service(&error)),
             Target::Vector { origin, at } => self
                 .lease(origin)?
                 .vector
                 .as_ref()
                 .ok_or(Reason::Invariant)?
                 .view(self.services.layouts, allocator)
-                .map_err(|_| Reason::Invariant)?
+                .map_err(|error| Reason::service(&error))?
                 .copy_into(at, destination, to.at, allocator)
-                .map_err(|_| Reason::Invariant),
+                .map_err(|error| Reason::service(&error)),
             Target::Map { origin, at } => self
                 .lease(origin)?
                 .map
                 .as_ref()
                 .ok_or(Reason::Invariant)?
                 .view(self.services.layouts, allocator)
-                .map_err(|_| Reason::Invariant)?
+                .map_err(|error| Reason::service(&error))?
                 .copy_into(at, destination, to.at, allocator)
-                .map_err(|_| Reason::Invariant),
+                .map_err(|error| Reason::service(&error)),
             Target::Shared { origin, ty, at } => {
                 let (read, read_ty) = self.lease(origin)?.shared.ok_or(Reason::Invariant)?;
                 if ty != read_ty {
@@ -278,7 +278,7 @@ impl Access<'_, '_, '_> {
                     .as_ref()
                     .ok_or(Reason::Invariant)?
                     .view(read, ty, allocator)
-                    .map_err(|_| Reason::Invariant)?
+                    .map_err(|error| Reason::service(&error))?
                     .copy_to(at, destination, to.at, allocator)?;
                 Ok(())
             }

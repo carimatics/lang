@@ -115,24 +115,142 @@ fn compare_failures(
 const ORDER: &[u8] = &[77, 40, 41, 0, 0, 11, 9, 8];
 
 #[test]
+fn every_service_work_prefix_preserves_numeric_refusal_and_mixed_owner_retirement() {
+    let program = prepare(SOURCE);
+    let native =
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
+            .unwrap();
+    let (mut base, _) = allocator(usize::MAX);
+    let work = execute(&program, &native, true, &mut base, control())
+        .unwrap()
+        .usage
+        .service_work;
+    assert!(work > 0);
+    for prefix in 0..work {
+        let mut expected = None;
+        for compiled in [false, true] {
+            let (mut allocator, trace) = allocator(usize::MAX);
+            let failure = execute(
+                &program,
+                &native,
+                compiled,
+                &mut allocator,
+                control().and_service_work(Some(prefix)),
+            )
+            .err()
+            .unwrap();
+            let (limit, used, requested) = match failure.reason {
+                lang_runtime::task::runner::Reason::Control(e::Failure::ServiceWorkLimit {
+                    limit,
+                    used,
+                    requested,
+                })
+                | lang_runtime::task::runner::Reason::Execution(
+                    lang_mir::unit::ownership::failure::ExecutionFailure::ServiceWorkLimit {
+                        limit,
+                        used,
+                        requested,
+                    },
+                ) => (limit, used, requested),
+                _ => panic!("prefix {prefix}, native {compiled}: {failure:?}"),
+            };
+            assert_eq!(limit, prefix);
+            assert_eq!(used, failure.usage.service_work);
+            assert!(used <= limit && used + requested > limit);
+            assert!(!failure.poisoned);
+            assert_eq!(failure.tasks.live, 0);
+            assert_eq!(allocator.stats().live_allocations, 0);
+            assert!(trace.borrow().live.is_empty());
+            if let Some((previous, buffers, stats)) = &expected {
+                compare_failures(previous, &failure);
+                assert_eq!(buffers, &trace.borrow().buffers);
+                assert_eq!(*stats, allocator.stats());
+            } else {
+                expected = Some((failure, trace.borrow().buffers.clone(), allocator.stats()));
+            }
+        }
+    }
+}
+
+#[test]
+fn service_refusal_remains_primary_when_cleanup_panics_and_report_truncates() {
+    let program = prepare(SOURCE);
+    let native =
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
+            .unwrap();
+    let (mut base, _) = allocator(usize::MAX);
+    let work = execute(&program, &native, true, &mut base, control())
+        .unwrap()
+        .usage
+        .service_work;
+    for records in [1, 32] {
+        let mut expected = None;
+        for compiled in [false, true] {
+            let (mut allocator, trace) = allocator(usize::MAX);
+            trace.borrow_mut().panic_buffers = vec![77, 40, 41, 0, 11, 9, 8];
+            let failure = execute_with(
+                &program,
+                &native,
+                compiled,
+                &mut allocator,
+                control().and_service_work(Some(work - 1)),
+                lang_runtime::task::runner::Limits {
+                    cleanup_failure_records: records,
+                    trace_events: 1024,
+                    ..Default::default()
+                },
+            )
+            .err()
+            .unwrap();
+            assert!(
+                matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Control(
+                        e::Failure::ServiceWorkLimit { .. }
+                    ) | lang_runtime::task::runner::Reason::Execution(
+                        lang_mir::unit::ownership::failure::ExecutionFailure::ServiceWorkLimit { .. }
+                    )
+                ),
+                "{failure:?}"
+            );
+            assert!(failure.poisoned);
+            assert_eq!(failure.tasks.live, 0);
+            let report = failure.report.as_ref().unwrap();
+            assert!(report.cleanup_failures() > 0);
+            if records == 1 {
+                assert!(report.secondary().is_empty());
+                assert!(report.truncated() > 0);
+            }
+            assert_eq!(allocator.stats().live_allocations, 0);
+            assert!(trace.borrow().live.is_empty());
+            if let Some(previous) = &expected {
+                compare_failures(previous, &failure);
+            } else {
+                expected = Some(failure);
+            }
+        }
+    }
+}
+
+#[test]
 fn every_combined_fuel_prefix_matches_failures_reports_and_exact_retirement() {
     let program = prepare(SOURCE);
     let native =
         lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
             .unwrap();
     let (mut base, _) = allocator(usize::MAX);
-    let fuel = execute(&program, &native, true, &mut base, control())
+    let baseline = execute(&program, &native, true, &mut base, control())
         .unwrap()
-        .usage
-        .fuel;
-    for prefix in 0..fuel {
+        .usage;
+    for prefix in 0..baseline.fuel {
         let mut expected = None;
         for compiled in [false, true] {
             let (mut allocator, trace) = allocator(usize::MAX);
             let control = e::Control::with_limits(e::Limits {
                 fuel: Some(prefix),
                 ..Default::default()
-            });
+            })
+            .and_service_work(Some(baseline.service_work));
             let failure = execute(&program, &native, compiled, &mut allocator, control)
                 .err()
                 .unwrap();
@@ -168,15 +286,24 @@ fn every_combined_provider_refusal_matches_reports_and_retires_every_obligation(
         lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
             .unwrap();
     let (mut base, _) = allocator(usize::MAX);
-    execute(&program, &native, true, &mut base, control()).unwrap();
+    let work = execute(&program, &native, true, &mut base, control())
+        .unwrap()
+        .usage
+        .service_work;
     let attempts = base.provider().unwrap().at;
     for fail in 1..=attempts {
         let mut expected = None;
         for compiled in [false, true] {
             let (mut allocator, trace) = allocator(fail);
-            let failure = execute(&program, &native, compiled, &mut allocator, control())
-                .err()
-                .unwrap();
+            let failure = execute(
+                &program,
+                &native,
+                compiled,
+                &mut allocator,
+                control().and_service_work(Some(work)),
+            )
+            .err()
+            .unwrap();
             assert_eq!(
                 failure.tasks.live, 0,
                 "request {fail}, native {compiled}: {failure:?}"
