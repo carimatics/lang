@@ -35,6 +35,8 @@ async fn main() -> i64 {
 }
 ```
 
+T07 partial execution checkpoint (2026-10-21 JST): [RFC 0023](0023-task-mir-boundaries.md) records real owned Text/Bytes, records, whole sums, synchronous owned calls and local loans on VM/generated native/linked objects. Cancellation and failure retire actual owners with bounded ordered reports, including suppressed cleanup evidence under cancelled joins. Cross-frame loans, container/shared/arena task services and wider integration remain T07 work; this checkpoint completes no M3 gate. Async transfers still require the existing finite Copy profile pending A01.
+
 ## Motivation
 
 The bounded host task driver executes a tree and retires real host-owned frames, but source has no task syntax/effects or independently verified task MIR. Existing source declarations require `let mut name: Type = expression;`; this proposal preserves that grammar and explicit typing. The candidate fixture fails the existing parser at `async`, `yield` and task expressions; accepting them as ordinary identifiers or ignoring unknown statements would lose concurrency semantics.

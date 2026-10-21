@@ -1,4 +1,9 @@
 use super::*;
+mod buffers;
+mod managed;
+mod services;
+pub use managed::Managed;
+pub use managed::Target;
 
 #[derive(Clone, Copy)]
 pub struct Location {
@@ -33,6 +38,9 @@ pub struct ReturnTo {
     pub failure: f::NodeId,
 }
 pub struct Frame<'l, 'ty> {
+    pub types: &'ty o::VerifiedTypes,
+    pub origin: m::Span,
+    pub managed: Option<Managed>,
     pub function: m::FunctionId,
     pub node: f::NodeId,
     pub locals: usize,
@@ -51,9 +59,10 @@ pub struct Frame<'l, 'ty> {
 }
 impl<'l, 'ty> Frame<'l, 'ty> {
     pub fn new<P: a::Provider>(
-        proof: &o::tasks::VerifiedTasks,
+        proof: &'ty o::tasks::VerifiedTasks,
         plan: &l::FramePlan<'l, 'ty>,
         function: m::FunctionId,
+        failure_records: std::num::NonZeroUsize,
         allocator: &mut a::Allocator<P>,
         budget: &mut m::Budget,
     ) -> Result<Self, Reason> {
@@ -72,9 +81,28 @@ impl<'l, 'ty> Frame<'l, 'ty> {
                 results: None,
             });
         }
+        let types = proof.typed().places().declarations().types();
+        budget.charge(plan.cell_count())?;
+        let needs=body.loans!=0||(0..plan.cell_count()).any(|slot| {
+            let ty=plan.cell_type(slot).expect("prepared cell").ty;
+            !types.properties(ty).expect("verified type").is_copy && !matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)))
+        });
+        let managed = if needs {
+            Some(Managed::prepare(
+                plan.cell_count(),
+                body.loans,
+                failure_records,
+                budget,
+            )?)
+        } else {
+            None
+        };
         let storage = plan.reserve_after(allocator, usage(budget))?;
         *budget = m::Budget::with_usage(budget.limits(), storage.usage())?;
         Ok(Self {
+            types,
+            origin: proof.typed().places().declarations().functions()[function.0 as usize].span,
+            managed,
             function,
             node: proof.plan().functions()[function.0 as usize].entry(),
             locals: proof.typed().places().declarations().functions()[function.0 as usize]
@@ -130,8 +158,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     ) -> Result<(), Reason> {
         let cell = self.data()?.cell(slot)?;
         cell.write_immediate(cell.root(), value, allocator)?;
-        self.live[slot] = true;
-        Ok(())
+        self.mark(slot, self.origin)
     }
     pub fn is_claim(&self, slot: usize) -> Result<bool, Reason> {
         Ok(matches!(
@@ -151,15 +178,57 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
         self.available(from.slot)?;
-        self.data()?.cell(to.slot)?.copy_from(
-            to.at,
-            self.data()?.cell(from.slot)?,
-            from.at,
-            allocator,
-        )?;
-        self.live[to.slot] = true;
-        Ok(())
+        let source_root = self.root(from.slot)?.at;
+        if self.is_reference(from.slot)? {
+            if from.at != source_root || to.at != self.root(to.slot)?.at {
+                return Err(Reason::Unsupported);
+            }
+            let reference = self.managed.as_ref().ok_or(Reason::Unsupported)?.references[from.slot];
+            self.managed.as_mut().ok_or(Reason::Unsupported)?.references[to.slot] = reference;
+            if !self.is_copy(from.slot)? {
+                self.forget(from.slot);
+            }
+        } else if self.is_allocator(from.slot)? {
+            if from.at != source_root || to.at != self.root(to.slot)?.at {
+                return Err(Reason::Unsupported);
+            }
+            if !self.is_copy(from.slot)? {
+                self.forget(from.slot);
+            }
+        } else if self
+            .types
+            .properties(from.at.ty())
+            .ok_or(Reason::Invariant)?
+            .is_copy
+        {
+            self.data()?.cell(to.slot)?.copy_from(
+                to.at,
+                self.data()?.cell(from.slot)?,
+                from.at,
+                allocator,
+            )?;
+        } else {
+            if from.at != source_root || from.slot == to.slot {
+                return Err(Reason::Unsupported);
+            }
+            let span = self
+                .managed
+                .as_ref()
+                .and_then(|m| m.spans[from.slot])
+                .unwrap_or(self.origin);
+            let (source, target) = self
+                .storage
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .two_cells_mut(from.slot, to.slot)?;
+            source.move_root_into(target, to.at, allocator)?;
+            source.recycle(allocator)?;
+            self.forget(from.slot);
+            return self.mark(to.slot, span);
+        }
+        self.mark(to.slot, self.origin)
     }
+
     pub fn transfer<P: a::Provider>(
         &mut self,
         from: usize,
@@ -180,49 +249,140 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     pub fn copy_from_frame<P: a::Provider>(
         &mut self,
         to: usize,
-        from: &Self,
+        from: &mut Self,
         source: usize,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
         from.available(source)?;
-        self.data()?.cell(to)?.copy_from(
-            self.root(to)?.at,
-            from.data()?.cell(source)?,
-            from.root(source)?.at,
-            allocator,
-        )?;
-        self.live[to] = true;
-        Ok(())
+        if from.is_copy(source)? {
+            self.data()?.cell(to)?.copy_from(
+                self.root(to)?.at,
+                from.data()?.cell(source)?,
+                from.root(source)?.at,
+                allocator,
+            )?;
+            self.mark(to, self.origin)
+        } else {
+            if from.is_reference(source)? || from.is_claim(source)? {
+                return Err(Reason::Unsupported);
+            }
+            let span = from
+                .managed
+                .as_ref()
+                .and_then(|m| m.spans[source])
+                .unwrap_or(from.origin);
+            let target = self.storage.as_ref().ok_or(Reason::Invariant)?.cell(to)?;
+            let cell = from
+                .storage
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .cell_mut(source)?;
+            cell.move_root_into(target, target.root(), allocator)?;
+            cell.recycle(allocator)?;
+            from.forget(source);
+            self.mark(to, span)
+        }
+    }
+    pub fn replace<P: a::Provider>(
+        &mut self,
+        from: usize,
+        to: Location,
+        span: m::Span,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        self.available(from)?;
+        if self.is_claim(to.slot)? {
+            return self.transfer(from, to.slot, allocator);
+        }
+        if self
+            .types
+            .properties(to.at.ty())
+            .ok_or(Reason::Invariant)?
+            .is_copy
+        {
+            return self.copy_location(self.root(from)?, to, allocator);
+        }
+        if from == to.slot {
+            return Err(Reason::Invariant);
+        }
+        let old_span = {
+            let (target, incoming) = self
+                .storage
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .two_cells_mut(to.slot, from)?;
+            target.exchange_root_at(to.at, incoming, span, allocator)?
+        };
+        let root = self.root(to.slot)?.at;
+        let managed = self.managed.as_mut().ok_or(Reason::Invariant)?;
+        if to.at == root {
+            let previous = managed.spans[to.slot];
+            managed.remove(to.slot);
+            managed.insert(to.slot, span);
+            managed.spans[from] = previous;
+        } else {
+            managed.spans[from] = old_span;
+        }
+        self.cleanup_slot(from, crate::cleanup::Reason::Replacement, allocator)
     }
     pub fn place<P: a::Provider>(
         &self,
         place: &p::Place,
         allocator: &a::Allocator<P>,
     ) -> Result<Location, Reason> {
-        let slot = match place.root {
+        match self.place_target(place, allocator)? {
+            Target::Cell(location) => Ok(location),
+            Target::Allocator => Err(Reason::Invariant),
+        }
+    }
+    pub fn place_target<P: a::Provider>(
+        &self,
+        place: &p::Place,
+        allocator: &a::Allocator<P>,
+    ) -> Result<Target, Reason> {
+        let mut slot = match place.root {
             p::Root::Local(id) => id.0 as usize,
             p::Root::Value(id) => self.value(id),
         };
         self.available(slot)?;
         let mut at = self.root(slot)?.at;
-        for projection in &place.projections {
+        for (index, projection) in place.projections.iter().enumerate() {
             match projection.kind {
                 p::ProjectionKind::Field(field) => {
                     at = self.data()?.cell(slot)?.child(at, field, allocator)?
                 }
-                _ => return Err(Reason::Unsupported),
+                p::ProjectionKind::Dereference => {
+                    if at != self.root(slot)?.at {
+                        return Err(Reason::Unsupported);
+                    }
+                    match self.reference(slot)? {
+                        Target::Cell(target) => {
+                            slot = target.slot;
+                            at = target.at;
+                        }
+                        Target::Allocator if index + 1 == place.projections.len() => {
+                            return Ok(Target::Allocator);
+                        }
+                        _ => return Err(Reason::Invariant),
+                    }
+                }
             }
         }
-        Ok(Location { slot, at })
+        Ok(Target::Cell(Location { slot, at }))
     }
     pub fn forget(&mut self, slot: usize) {
         self.claims[slot] = None;
+        if let Some(m) = &mut self.managed {
+            m.references[slot] = None;
+            m.remove(slot);
+        }
         self.live[slot] = false;
     }
     pub fn release<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
     ) -> Result<(), Reason> {
+        let cleaned = self.cleanup_all(None, crate::cleanup::Reason::Failure, allocator);
         self.storage
             .as_mut()
             .ok_or(Reason::Invariant)?
@@ -230,13 +390,35 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         self.storage = None;
         self.claims.fill(None);
         self.live.fill(false);
-        Ok(())
+        cleaned
     }
     pub fn result<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
     ) -> Result<l::Reservation<'l, 'ty>, Reason> {
         self.available(self.return_cell)?;
+        if let Err(reason) = self.cleanup_all(
+            Some(self.return_cell),
+            crate::cleanup::Reason::ScopeExit,
+            allocator,
+        ) {
+            let _ = self.cleanup_slot(
+                self.return_cell,
+                crate::cleanup::Reason::UnpublishedReturn,
+                allocator,
+            );
+            self.storage
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .release(allocator)?;
+            self.storage = None;
+            self.live.fill(false);
+            self.claims.fill(None);
+            return Err(reason);
+        }
+        if let Some(m) = &mut self.managed {
+            m.remove(self.return_cell);
+        }
         let result = self
             .storage
             .as_mut()

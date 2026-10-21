@@ -35,6 +35,8 @@ async fn main() -> i64 {
 }
 ```
 
+T07 部分実行 checkpoint（2026-10-21 JST）: [RFC 0023](0023-task-mir-boundaries.md) に、実際の owned Text/Bytes、record、whole sum、同期 owned call、local loan を VM/生成 native/リンク済み object で実行する契約を記録します。取消/失敗は実 owner を retire し、有界で順序付きの report を保持して、cancelled join の抑制 cleanup 証拠も公開します。frame 間 loan、container/shared/arena の task service、広い統合は T07 に残り、この checkpoint で M3 gate は完了しません。async transfer は A01 まで既存 finite Copy profile を要します。
+
 ## Motivation
 
 有界 host task driver は木と実 host frame の破棄を実行しますが、source の task 構文/effect、独立検証 task MIR は未実装です。既存宣言の `let mut name: Type = expression;` と明示型を維持します。候補 fixture は現在の parser で `async`、`yield`、task expression に失敗します。識別子扱いや未知 statement の無視では並行性の意味が失われます。

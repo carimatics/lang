@@ -15,9 +15,11 @@ use std::mem::ManuallyDrop;
 
 mod context;
 mod mir;
+mod session;
 pub use context::{Cleaner, Context, Contextual};
 pub use lang_mir::unit::ownership::failure::{Cause, ExecutionFailure};
 pub use mir::{MirLayout, RecordDrain, RecordOrder};
+pub use session::Session;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Limits {

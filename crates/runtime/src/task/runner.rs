@@ -3,7 +3,7 @@
     clippy::result_large_err,
     reason = "Preserve failure evidence inline during cleanup."
 )]
-use crate::{allocation as a, execution as e, layout as l, task as t};
+use crate::{allocation as a, cleanup as c, execution as e, layout as l, task as t};
 use lang_mir::unit::{
     self as m,
     ownership::{self as o, bodies as b, failure as f, places as p},
@@ -11,12 +11,24 @@ use lang_mir::unit::{
 use std::fmt::{Display, Formatter};
 #[doc(hidden)]
 pub mod frame;
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct Limits {
     pub tasks: t::Limits,
     pub preparation: m::Limits,
     /// Zero disables observation. Trace storage is reserved before guest entry.
     pub trace_events: usize,
+    /// Includes the primary record; zero refuses execution before guest entry.
+    pub cleanup_failure_records: usize,
+}
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            tasks: Default::default(),
+            preparation: Default::default(),
+            trace_events: 0,
+            cleanup_failure_records: c::Limits::default().failure_records,
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EventKind {
@@ -50,6 +62,7 @@ pub enum Reason {
     Panic(Option<i64>),
     Cancelled,
     TraceLimit,
+    Cleanup,
 }
 impl From<l::Error> for Reason {
     fn from(e: l::Error) -> Self {
@@ -79,6 +92,8 @@ pub struct Failure {
     pub usage: e::Usage,
     pub tasks: t::Usage,
     pub events: Vec<Event>,
+    pub report: Option<c::Report>,
+    pub poisoned: bool,
 }
 impl Display for Failure {
     fn fmt(&self, out: &mut Formatter<'_>) -> std::fmt::Result {
@@ -92,6 +107,9 @@ pub struct Outcome {
     pub tasks: t::Usage,
     pub allocations: a::Stats,
     pub events: Vec<Event>,
+    /// Suppressed cleanup evidence, including a cancelled child's cleanup.
+    pub report: Option<c::Report>,
+    pub poisoned: bool,
 }
 
 fn usage(budget: &m::Budget) -> m::Usage {
@@ -187,6 +205,8 @@ fn execute<P: a::Provider, B: Backend<P>>(
         usage: Default::default(),
         tasks: Default::default(),
         events: Vec::new(),
+        report: None,
+        poisoned: false,
     };
     let prepared=(||->Result<_,Reason>{
         control.check()?;
@@ -204,15 +224,17 @@ fn execute<P: a::Provider, B: Backend<P>>(
         while at<reachable.len(){
             let index=reachable[at];at+=1;
             let declaration=&declarations.functions()[index]; let body=&typed.functions()[index];
-            if body.loans!=0 {return Err(Reason::Unsupported);}
+            if declaration.parameters.iter().any(|id|!types.properties(declaration.locals[id.0 as usize].ty.ty).is_some_and(|p|(!declaration.effect.is_async()||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena)) || !types.properties(declaration.result.ty).is_some_and(|p|(!declaration.effect.is_async()||p.is_copy)&&!p.contains_loan&&!p.contains_allocator&&!p.contains_arena) {return Err(Reason::Unsupported);}
+
+
             for ty in declaration.locals.iter().map(|l|l.ty.ty).chain(typed.places().functions()[index].values.iter().map(|v|v.ty)).chain(std::iter::once(declaration.result.ty)) {
                 budget.charge(1)?;
                 let claim=matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
-                if !claim && !types.properties(ty).is_some_and(|p|p.is_copy&&!p.contains_loan&&!p.contains_arena&&!p.contains_allocator&&!p.contains_owner){return Err(Reason::Unsupported);}
+                if !claim && !managed_type_supported(types,ty,&mut budget)? {return Err(Reason::Unsupported);}
             }
             for instruction in body.blocks.iter().flat_map(|b|&b.instructions){
                 budget.charge(1)?;
-                if !backend.supported(&instruction.op){return Err(Reason::Unsupported);}
+                if !backend.supported(&instruction.op)||!instruction_supported(typed,index,instruction){return Err(Reason::Unsupported);}
                 if let b::Op::Call {function,..}|b::Op::TaskSpawn {function,..}=instruction.op
                     && !seen[function.0 as usize] { seen[function.0 as usize]=true;reachable.push(function.0 as usize); }
             }
@@ -250,20 +272,34 @@ fn execute<P: a::Provider, B: Backend<P>>(
     }
 }
 
-/// Initial finite Copy task adapter profile, shared by VM and native admission.
 #[doc(hidden)]
-pub fn finite_copy_supported(op: &b::Op) -> bool {
+pub fn task_supported(op: &b::Op) -> bool {
     match op {
         b::Op::Import { .. }
-        | b::Op::Borrow { .. }
         | b::Op::BorrowCaseField { .. }
         | b::Op::ArenaEnter { .. }
         | b::Op::ArenaExit { .. } => false,
         b::Op::CoreCall(call) => matches!(
             call.operation,
-            o::core::Operation::OptionUnwrap | o::core::Operation::ResultUnwrap
+            o::core::Operation::OptionUnwrap
+                | o::core::Operation::ResultUnwrap
+                | o::core::Operation::ResultUnwrapErr
+                | o::core::Operation::Allocator
+                | o::core::Operation::BytesNew
+                | o::core::Operation::BytesPush
+                | o::core::Operation::BytesLen
+                | o::core::Operation::BytesGet
+                | o::core::Operation::BytesSet
+                | o::core::Operation::BytesClone
+                | o::core::Operation::TextFromUtf8
+                | o::core::Operation::TextLen
+                | o::core::Operation::TextEqual
+                | o::core::Operation::TextClone
+                | o::core::Operation::TextBytes
+                | o::core::Operation::TextConcat
         ),
-        b::Op::I64(_)
+        b::Op::Borrow { .. }
+        | b::Op::I64(_)
         | b::Op::Bool(_)
         | b::Op::Unit
         | b::Op::Panic(_)
@@ -300,4 +336,82 @@ pub fn finite_copy_supported(op: &b::Op) -> bool {
         | b::Op::TaskCheck
         | b::Op::TaskSaveReturn(_) => true,
     }
+}
+
+/// Supported whole-sum extraction forms in the managed task adapter.
+#[doc(hidden)]
+pub fn instruction_supported(
+    typed: &b::TypedBodies,
+    function: usize,
+    instruction: &b::Instruction,
+) -> bool {
+    let b::Op::UnpackVariant { value, .. } = instruction.op else {
+        return true;
+    };
+    let ty = typed.places().functions()[function].values[value.0 as usize].ty;
+    let types = typed.places().declarations().types();
+    types.properties(ty).is_some_and(|p| p.is_copy)
+        || instruction.results.is_empty()
+        || (instruction.results.len() == 1
+            && matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Option(_)|o::Constructor::Result(..))))
+}
+/// Initial managed task service family; traversal is iterative and budgeted.
+#[doc(hidden)]
+pub fn managed_type_supported(
+    types: &o::VerifiedTypes,
+    ty: o::Type,
+    budget: &mut m::Budget,
+) -> Result<bool, Reason> {
+    let mut pending = budget.vector(1)?;
+    pending.push(ty);
+    while let Some(ty) = pending.pop() {
+        budget.charge(1)?;
+        let properties = types.properties(ty).ok_or(Reason::Invariant)?;
+        if properties.is_copy
+            && !properties.contains_loan
+            && !properties.contains_allocator
+            && !properties.contains_arena
+            && !properties.contains_owner
+        {
+            continue;
+        }
+        if properties.contains_loan
+            && !matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(..)))
+        {
+            return Ok(false);
+        }
+        match ty {
+            o::Type::I64 | o::Type::Bool => {}
+            o::Type::Constructed(id) => {
+                match types.table().constructed[id.0 as usize].constructor {
+                    o::Constructor::Builtin(_) => {}
+                    constructor @ (o::Constructor::Option(_)
+                    | o::Constructor::Result(..)
+                    | o::Constructor::Loan(..)) => {
+                        for argument in constructor.arguments() {
+                            reserve_push(budget, &mut pending)?;
+                            pending.push(argument);
+                        }
+                    }
+                    o::Constructor::Task(_) => {}
+                    _ => return Ok(false),
+                }
+            }
+            o::Type::Nominal(id) => match &types.table().definitions[id.0 as usize].kind {
+                o::DefinitionKind::Record(fields) => {
+                    for field in fields {
+                        reserve_push(budget, &mut pending)?;
+                        pending.push(field.ty.ty);
+                    }
+                }
+                o::DefinitionKind::Enum(cases) => {
+                    for field in cases.iter().flat_map(|c| &c.payload) {
+                        reserve_push(budget, &mut pending)?;
+                        pending.push(field.ty);
+                    }
+                }
+            },
+        }
+    }
+    Ok(true)
 }

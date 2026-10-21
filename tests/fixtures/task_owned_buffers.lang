@@ -1,0 +1,35 @@
+// T07 execution checkpoint: whole owned sums and flat-buffer services.
+struct Bundle { bytes: core::Bytes, text: core::Text }
+
+fn bytes(value: i64) -> core::Bytes {
+    let mut result: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(result, value));
+    return result;
+}
+
+fn text(value: i64) -> core::Text {
+    return core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(bytes(value)));
+}
+
+fn carry(value: core::Option<Bundle>) -> core::Option<Bundle> { return value; }
+
+async fn worker() -> i64 {
+    let mut source: core::Bytes = bytes(65);
+    let mut cloned: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_clone(core::allocator(), source));
+    let mut changed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_set(cloned, 0, 66));
+    let mut packet: Bundle = core::option_unwrap::<Bundle>(carry(core::Option::Some(Bundle { text: text(67), bytes: cloned })));
+    yield;
+    cancel_check;
+    let mut duplicate: core::Text = core::result_unwrap::<core::Text, core::AllocError>(core::text_clone(core::allocator(), packet.text));
+    let mut joined: core::Text = core::result_unwrap::<core::Text, core::AllocError>(core::text_concat(core::allocator(), packet.text, duplicate));
+    let mut encoded: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::text_bytes(core::allocator(), joined));
+    let mut byte: i64 = core::result_unwrap::<i64, core::BoundsError>(core::bytes_get(packet.bytes, 0));
+    if core::text_equal(packet.text, duplicate) {
+        return byte + core::bytes_len(encoded) + core::text_len(joined) + core::bytes_len(source);
+    }
+    return 0;
+}
+
+async fn main() -> i64 {
+    return core::result_unwrap::<i64, core::TaskError>(await worker());
+}

@@ -670,6 +670,18 @@ fn run_tasks(
     .map_err(failure)?;
     match vm::tasks::execute_entry(proof, &mut allocator, limits.control(), Default::default()) {
         Ok(output) => {
+            if output.poisoned || output.report.is_some() {
+                let mut stderr = io::stderr().lock();
+                writeln!(
+                    stderr,
+                    "error[runtime]: task cleanup failed; execution instance is poisoned"
+                )
+                .map_err(failure)?;
+                if let Some(report) = &output.report {
+                    print_task_cleanup(&mut stderr, report)?;
+                }
+                return Ok(1);
+            }
             writeln!(io::stdout().lock(), "{}", output.value).map_err(failure)?;
             Ok(0)
         }
@@ -681,6 +693,9 @@ fn run_tasks(
                 error.usage.fuel, error.tasks.admitted
             )
             .map_err(failure)?;
+            if let Some(report) = &error.report {
+                print_task_cleanup(&mut stderr, report)?;
+            }
             let declarations = proof.typed().places().declarations();
             if let Some(function) = error.function {
                 let name = &declarations.functions()[function.0 as usize].name;
@@ -701,6 +716,33 @@ fn run_tasks(
             Ok(1)
         }
     }
+}
+
+fn print_task_cleanup(
+    stderr: &mut impl Write,
+    report: &lang_runtime::cleanup::Report,
+) -> Result<(), CliError> {
+    for (index, record) in report
+        .primary()
+        .into_iter()
+        .chain(report.secondary())
+        .enumerate()
+    {
+        let label = if index == 0 { "primary" } else { "secondary" };
+        writeln!(stderr, "  {label}: {:?} at {:?}", record.kind, record.span).map_err(failure)?;
+    }
+    if report.truncated() != 0 {
+        writeln!(
+            stderr,
+            "  {} additional failure records",
+            report.truncated()
+        )
+        .map_err(failure)?;
+    }
+    if report.quarantined() != 0 {
+        writeln!(stderr, "  {} quarantined host values", report.quarantined()).map_err(failure)?;
+    }
+    Ok(())
 }
 
 fn run_copy(

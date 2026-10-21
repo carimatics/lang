@@ -39,6 +39,23 @@ pub enum Primitive {
     },
     DiscardPrepared(usize),
     Forget(Vec<usize>),
+    Borrow {
+        loan: b::LoanId,
+        place: p::PlaceId,
+        to: usize,
+    },
+    EndLoan(b::LoanId),
+    EndLoans,
+    Core {
+        operation: o::core::Operation,
+        result_loan: Option<b::LoanId>,
+        arguments: Vec<usize>,
+        to: usize,
+    },
+    Cleanup {
+        slots: Vec<usize>,
+        loans: Vec<b::LoanId>,
+    },
     Record {
         to: usize,
         fields: Vec<usize>,
@@ -48,6 +65,7 @@ pub enum Primitive {
         to: usize,
         case: u32,
         payload: Vec<usize>,
+        order: Vec<(u32, m::Span)>,
     },
     Field {
         from: usize,
@@ -150,27 +168,49 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             }
             Primitive::Replace { place, from } => {
                 let to = frame.place(&paths[place.0 as usize], self.allocator)?;
-                if frame.is_claim(to.slot)? {
-                    frame.transfer(*from, to.slot, self.allocator)?;
-                } else {
-                    frame.copy_location(frame.root(*from)?, to, self.allocator)?;
-                }
+                frame.replace(*from, to, span, self.allocator)?;
             }
             Primitive::ReplacePrepared { destination, from } => {
                 let to = frame.prepared[*destination]
                     .take()
                     .ok_or(Reason::Invariant)?;
-                if frame.is_claim(to.slot)? {
-                    frame.transfer(*from, to.slot, self.allocator)?;
-                } else {
-                    frame.copy_location(frame.root(*from)?, to, self.allocator)?;
-                }
+                frame.replace(*from, to, span, self.allocator)?;
             }
             Primitive::DiscardPrepared(destination) => frame.prepared[*destination] = None,
             Primitive::Forget(slots) => {
-                for slot in slots {
-                    frame.forget(*slot);
+                frame.cleanup_selected(
+                    slots.iter().copied(),
+                    crate::cleanup::Reason::Explicit,
+                    self.allocator,
+                )?;
+            }
+            Primitive::Borrow { loan, place, to } => {
+                frame.borrow(*loan, &paths[place.0 as usize], *to, self.allocator)?
+            }
+            Primitive::EndLoan(loan) => frame.end_loan(*loan)?,
+            Primitive::EndLoans => frame.end_loans(),
+            Primitive::Core {
+                operation,
+                result_loan,
+                arguments,
+                to,
+            } => frame.core(
+                *operation,
+                *result_loan,
+                arguments.iter().copied(),
+                *to,
+                span,
+                self.allocator,
+            )?,
+            Primitive::Cleanup { slots, loans } => {
+                for loan in loans {
+                    frame.end_loan(*loan)?;
                 }
+                frame.cleanup_selected(
+                    slots.iter().copied(),
+                    crate::cleanup::Reason::ScopeExit,
+                    self.allocator,
+                )?;
             }
             Primitive::Record { to, fields, order } => {
                 let root = frame.root(*to)?;
@@ -191,9 +231,14 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                         self.allocator,
                     )?;
                 }
-                frame.live[*to] = true;
+                frame.mark(*to, span)?;
             }
-            Primitive::Variant { to, case, payload } => {
+            Primitive::Variant {
+                to,
+                case,
+                payload,
+                order,
+            } => {
                 let root = frame.root(*to)?;
                 let builtin = match root.at.ty() {
                     o::Type::Constructed(id) => match self
@@ -226,6 +271,11 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                         .data()?
                         .cell(*to)?
                         .prepare_case(root.at, *case, self.allocator)?;
+                    frame.data()?.cell(*to)?.initialize_order(
+                        root.at,
+                        order.iter().copied(),
+                        self.allocator,
+                    )?;
                     for (index, from) in payload.iter().enumerate() {
                         let at = frame.data()?.cell(*to)?.child(
                             root.at,
@@ -238,7 +288,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                             self.allocator,
                         )?;
                     }
-                    frame.live[*to] = true;
+                    frame.mark(*to, span)?;
                 }
             }
             Primitive::Field {
@@ -248,9 +298,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 to,
             } => copy_field(frame, *from, *case, *field, *to, self.allocator)?,
             Primitive::Fields { from, case, to } => {
-                for (field, to) in to.iter().enumerate() {
-                    copy_field(frame, *from, *case, field as u32, *to, self.allocator)?;
-                }
+                frame.unpack_case(*from, *case, to.iter().copied(), self.allocator)?;
             }
             Primitive::Call {
                 function,
@@ -362,47 +410,18 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 }
             }
             Primitive::Publish => {
-                if self.records[task].frames.len() == 1 {
-                    self.scheduler
-                        .finish(&self.records[task].id, t::Outcome::Success)?;
-                    self.active = None;
-                    return Ok(Flow::Suspended);
-                }
-                let mut child = self.records[task].frames.pop().ok_or(Reason::Invariant)?;
-                let returned = child.returned.ok_or(Reason::Invariant)?;
-                let parent = self.records[task]
-                    .frames
-                    .last_mut()
-                    .ok_or(Reason::Invariant)?;
-                parent.copy_from_frame(
-                    returned.destination,
-                    &child,
-                    child.return_cell,
-                    self.allocator,
-                )?;
-                parent.node = returned.next;
-                child.release(self.allocator)?;
-                self.retired(child.function);
-                return Ok(Flow::Switch);
+                return Ok(if self.publish_sync(task)? {
+                    Flow::Switch
+                } else {
+                    Flow::Suspended
+                });
             }
             Primitive::Propagate => {
-                let failure = frame.fault.ok_or(Reason::Invariant)?;
-                if self.records[task].frames.len() == 1 {
-                    self.scheduler.finish(
-                        &self.records[task].id,
-                        t::Outcome::Failed(t::FailureId(failure as u64)),
-                    )?;
-                    self.active = None;
-                    return Ok(Flow::Suspended);
-                }
-                let mut child = self.records[task].frames.pop().ok_or(Reason::Invariant)?;
-                let returned = child.returned.ok_or(Reason::Invariant)?;
-                child.release(self.allocator)?;
-                self.retired(child.function);
-                let parent = self.frame_mut(task)?;
-                parent.fault = Some(failure);
-                parent.node = returned.failure;
-                return Ok(Flow::Switch);
+                return Ok(if self.propagate_sync(task)? {
+                    Flow::Switch
+                } else {
+                    Flow::Suspended
+                });
             }
             Primitive::RecordFailure => {
                 if frame.fault.is_none() {
@@ -411,7 +430,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             }
             Primitive::DiscardAllPrepared => frame.prepared.fill(None),
             Primitive::DiscardResult => {
-                frame.live[frame.return_cell] = false;
+                // Retain the obligation until mandatory retirement after joins.
                 frame.saved = false;
             }
             Primitive::Close(next) => {

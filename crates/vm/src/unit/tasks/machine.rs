@@ -256,31 +256,9 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                 }
                 f::Kind::RetireReturn { next, .. } => Some(next),
                 f::Kind::PublishReturn => {
-                    if machine.records[task].frames.len() == 1 {
-                        machine
-                            .scheduler
-                            .finish(&machine.records[task].id, t::Outcome::Success)?;
-                        machine.active = None;
+                    if !machine.publish_sync(task)? {
                         return Ok(());
                     }
-                    let mut child = machine.records[task]
-                        .frames
-                        .pop()
-                        .ok_or(Reason::Invariant)?;
-                    let returned = child.returned.ok_or(Reason::Invariant)?;
-                    let parent = machine.records[task]
-                        .frames
-                        .last_mut()
-                        .ok_or(Reason::Invariant)?;
-                    parent.copy_from_frame(
-                        returned.destination,
-                        &child,
-                        child.return_cell,
-                        machine.allocator,
-                    )?;
-                    parent.node = returned.next;
-                    child.release(machine.allocator)?;
-                    machine.retired(child.function);
                     continue;
                 }
                 f::Kind::Raise { failure, next } => {
@@ -296,11 +274,14 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                 f::Kind::RetireFailure { next } => Some(next),
                 f::Kind::DiscardResult { next } => {
                     let frame = machine.frame_mut(task)?;
-                    frame.live[frame.return_cell] = false;
+                    // Retain the obligation until mandatory retirement after joins.
                     frame.saved = false;
                     Some(next)
                 }
-                f::Kind::EndTaskLoans { next } => Some(next),
+                f::Kind::EndTaskLoans { next } => {
+                    machine.frame_mut(task)?.end_loans();
+                    Some(next)
+                }
                 f::Kind::CancelTaskScopes { next } => {
                     machine.frame_mut(task)?.node = next;
                     machine.frame_mut(task)?.closing = true;
@@ -313,25 +294,9 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                     return Ok(());
                 }
                 f::Kind::PropagateFailure => {
-                    let failure = machine.frame(task)?.fault.ok_or(Reason::Invariant)?;
-                    if machine.records[task].frames.len() == 1 {
-                        machine.scheduler.finish(
-                            &machine.records[task].id,
-                            t::Outcome::Failed(t::FailureId(failure as u64)),
-                        )?;
-                        machine.active = None;
+                    if !machine.propagate_sync(task)? {
                         return Ok(());
                     }
-                    let mut child = machine.records[task]
-                        .frames
-                        .pop()
-                        .ok_or(Reason::Invariant)?;
-                    let returned = child.returned.ok_or(Reason::Invariant)?;
-                    child.release(machine.allocator)?;
-                    machine.retired(child.function);
-                    let parent = machine.frame_mut(task)?;
-                    parent.fault = Some(failure);
-                    parent.node = returned.failure;
                     continue;
                 }
                 f::Kind::JoinTaskScopes { .. } | f::Kind::FinishTask => {
@@ -358,7 +323,10 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                     machine.frame_mut(task)?.prepared.fill(None);
                     next
                 }
-                f::Kind::EndTaskLoans { next } => next,
+                f::Kind::EndTaskLoans { next } => {
+                    machine.frame_mut(task)?.end_loans();
+                    next
+                }
                 f::Kind::CancelTaskScopes { next } => {
                     for child in &machine.records {
                         if child.parent == Some(task) {
@@ -385,7 +353,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                 f::Kind::DiscardResult { next } => {
                     let frame = machine.frame_mut(task)?;
                     frame.saved = false;
-                    frame.live[frame.return_cell] = false;
+                    // Retain the obligation until mandatory retirement after joins.
                     next
                 }
                 f::Kind::FinishTask => break,

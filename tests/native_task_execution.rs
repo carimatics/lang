@@ -340,11 +340,10 @@ fn every_native_provider_refusal_retires_unpublished_and_admitted_storage() {
 }
 #[test]
 fn unsupported_native_task_operations_and_controls_refuse_before_guest_effects() {
-    let owned = prepare(
-        "async fn main()->i64{let mut bytes:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));yield;return 42;}",
-    );
+    let foreign =
+        prepare("extern fn host(value:i64)->i64; async fn main()->i64{yield;return host(42);}");
     assert!(matches!(
-        CompiledProgram::compile(owned.verified(), Default::default()),
+        CompiledProgram::compile(foreign.verified(), Default::default()),
         Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
     ));
     let proof = prepare(include_str!("../examples/scripts/tasks.lang"));

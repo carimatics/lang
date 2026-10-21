@@ -1,7 +1,7 @@
 use super::*;
 use frame::Location;
 
-pub(super) use lang_runtime::task::runner::finite_copy_supported as supported;
+pub(super) use lang_runtime::task::runner::task_supported as supported;
 pub(super) fn execute<P: a::Provider>(
     typed: &b::TypedBodies,
     frame: &mut Frame<'_, '_>,
@@ -59,11 +59,7 @@ pub(super) fn execute<P: a::Provider>(
         }
         b::Op::Replace { place, value: from } => {
             let to = frame.place(&paths[place.0 as usize], allocator)?;
-            if frame.is_claim(to.slot)? {
-                frame.transfer(value(*from), to.slot, allocator)?;
-            } else {
-                frame.copy_location(frame.root(value(*from))?, to, allocator)?;
-            }
+            frame.replace(value(*from), to, i.span, allocator)?;
         }
         b::Op::ReplacePrepared {
             destination,
@@ -72,25 +68,34 @@ pub(super) fn execute<P: a::Provider>(
             let to = frame.prepared[destination.0 as usize]
                 .take()
                 .ok_or(Reason::Invariant)?;
-            if frame.is_claim(to.slot)? {
-                frame.transfer(value(*from), to.slot, allocator)?;
-            } else {
-                frame.copy_location(frame.root(value(*from))?, to, allocator)?;
-            }
+            frame.replace(value(*from), to, i.span, allocator)?;
         }
         b::Op::DiscardPrepared(destination) => frame.prepared[destination.0 as usize] = None,
-        b::Op::DropLocal(local) | b::Op::DropLocalIfInitialized(local) => {
-            frame.forget(local.0 as usize)
-        }
-        b::Op::DropValue(from) | b::Op::DropValueIfAvailable(from) => frame.forget(value(*from)),
+        b::Op::DropLocal(local) | b::Op::DropLocalIfInitialized(local) => frame.cleanup_slot(
+            local.0 as usize,
+            lang_runtime::cleanup::Reason::Explicit,
+            allocator,
+        )?,
+        b::Op::DropValue(from) | b::Op::DropValueIfAvailable(from) => frame.cleanup_slot(
+            value(*from),
+            lang_runtime::cleanup::Reason::Explicit,
+            allocator,
+        )?,
         b::Op::Cleanup(cleanup) => {
             for step in &cleanup.steps {
-                match step.target {
-                    b::CleanupTarget::Local(local) => frame.forget(local.0 as usize),
-                    b::CleanupTarget::Value(from) => frame.forget(value(from)),
-                    _ => return Err(Reason::Unsupported),
+                if let b::CleanupTarget::Loan(loan) = step.target {
+                    frame.end_loan(loan)?;
                 }
             }
+            frame.cleanup_selected(
+                cleanup.steps.iter().filter_map(|step| match step.target {
+                    b::CleanupTarget::Local(local) => Some(local.0 as usize),
+                    b::CleanupTarget::Value(from) => Some(value(from)),
+                    _ => None,
+                }),
+                lang_runtime::cleanup::Reason::ScopeExit,
+                allocator,
+            )?;
         }
         b::Op::Record { fields, .. } => {
             let to = result()?;
@@ -145,6 +150,18 @@ pub(super) fn execute<P: a::Provider>(
                     .data()?
                     .cell(to)?
                     .prepare_case(root.at, *case, allocator)?;
+                frame.data()?.cell(to)?.initialize_order(
+                    root.at,
+                    payload.iter().enumerate().map(|(index, from)| {
+                        (
+                            index as u32,
+                            typed.places().functions()[frame.function.0 as usize].values
+                                [from.0 as usize]
+                                .span,
+                        )
+                    }),
+                    allocator,
+                )?;
                 for (index, from) in payload.iter().enumerate() {
                     let at = frame
                         .data()?
@@ -156,7 +173,7 @@ pub(super) fn execute<P: a::Provider>(
                         allocator,
                     )?;
                 }
-                frame.live[to] = true;
+                frame.mark(to, i.span)?;
             }
         }
         b::Op::IsCase { value: from, case } => {
@@ -186,36 +203,25 @@ pub(super) fn execute<P: a::Provider>(
             if frame.read(value(*guard), allocator)? != l::Immediate::Bool(true) {
                 return Err(Reason::Invariant);
             }
-            for (field, to) in i.results.iter().enumerate() {
-                copy_field(
-                    frame,
-                    value(*from),
-                    *case,
-                    field as u32,
-                    value(*to),
-                    allocator,
-                )?;
-            }
+            frame.unpack_case(
+                value(*from),
+                *case,
+                i.results.iter().map(|r| value(*r)),
+                allocator,
+            )?;
         }
-        b::Op::CoreCall(call) => {
-            let from = value(call.arguments[0]);
-            let expected = if call.operation == o::core::Operation::OptionUnwrap {
-                1
-            } else {
-                0
-            };
-            frame.available(from)?;
-            if frame
-                .data()?
-                .cell(from)?
-                .case(frame.root(from)?.at, allocator)?
-                != expected
-            {
-                return Err(Reason::Panic(None));
-            }
-            copy_field(frame, from, expected, 0, result()?, allocator)?;
+        b::Op::CoreCall(call) => frame.core(
+            call.operation,
+            call.result_loan,
+            call.arguments.iter().map(|r| value(*r)),
+            result()?,
+            i.span,
+            allocator,
+        )?,
+        b::Op::Borrow { loan, place, .. } => {
+            frame.borrow(*loan, &paths[place.0 as usize], result()?, allocator)?
         }
-        b::Op::EndBorrow { .. } => {}
+        b::Op::EndBorrow { loan, .. } => frame.end_loan(*loan)?,
         _ => return Err(Reason::Unsupported),
     }
     Ok(())

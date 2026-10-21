@@ -97,6 +97,7 @@ enum Emit {
     Unwrap {
         from: usize,
         case: u32,
+        panic_code: i64,
     },
     Panic(usize),
 }
@@ -251,7 +252,21 @@ fn prepare_program<M: Module>(
         at += 1;
         let body = &typed.functions()[index];
         let declaration = &declarations.functions()[index];
-        if body.loans != 0 {
+        if declaration.parameters.iter().any(|id| {
+            !types
+                .properties(declaration.locals[id.0 as usize].ty.ty)
+                .is_some_and(|p| {
+                    (!declaration.effect.is_async() || p.is_copy)
+                        && !p.contains_loan
+                        && !p.contains_allocator
+                        && !p.contains_arena
+                })
+        }) || !types.properties(declaration.result.ty).is_some_and(|p| {
+            (!declaration.effect.is_async() || p.is_copy)
+                && !p.contains_loan
+                && !p.contains_allocator
+                && !p.contains_arena
+        }) {
             return Err(Error::Unsupported {
                 span: declaration.span,
             });
@@ -271,13 +286,10 @@ fn prepare_program<M: Module>(
             budget.charge(1)?;
             let claim = matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
             if !claim
-                && !types.properties(ty).is_some_and(|p| {
-                    p.is_copy
-                        && !p.contains_loan
-                        && !p.contains_arena
-                        && !p.contains_allocator
-                        && !p.contains_owner
-                })
+                && !r::managed_type_supported(types, ty, &mut budget).map_err(|e| match e {
+                    r::Reason::Resource(e) => Error::Resource(e),
+                    e => backend(format!("{e:?}")),
+                })?
             {
                 return Err(Error::Unsupported {
                     span: declaration.span,
@@ -286,7 +298,7 @@ fn prepare_program<M: Module>(
         }
         for i in body.blocks.iter().flat_map(|b| &b.instructions) {
             budget.charge(1)?;
-            if !supported(&i.op) {
+            if !supported(&i.op) || !r::instruction_supported(typed, index, i) {
                 return Err(Error::Unsupported { span: i.span });
             }
             if let b::Op::Call { function, .. } | b::Op::TaskSpawn { function, .. } = i.op
@@ -352,7 +364,7 @@ fn prepare_program<M: Module>(
 }
 
 fn supported(op: &b::Op) -> bool {
-    r::finite_copy_supported(op)
+    r::task_supported(op)
 }
 
 fn prepare(
@@ -475,14 +487,16 @@ fn prepare(
                     }
                     b::Op::Cleanup(c) => {
                         let mut v = budget.vector(c.steps.len())?;
+                        let mut loans = budget.vector(c.steps.len())?;
                         for step in &c.steps {
-                            v.push(match step.target {
-                                b::CleanupTarget::Local(l) => l.0 as usize,
-                                b::CleanupTarget::Value(r) => value(r),
+                            match step.target {
+                                b::CleanupTarget::Local(l) => v.push(l.0 as usize),
+                                b::CleanupTarget::Value(r) => v.push(value(r)),
+                                b::CleanupTarget::Loan(loan) => loans.push(loan),
                                 _ => return Err(Error::Unsupported { span: i.span }),
-                            });
+                            }
                         }
-                        Primitive::Forget(v)
+                        Primitive::Cleanup { slots: v, loans }
                     }
                     b::Op::Record {
                         fields,
@@ -504,11 +518,23 @@ fn prepare(
                             order,
                         }
                     }
-                    b::Op::Variant { case, payload } => Primitive::Variant {
-                        to: to()?,
-                        case: *case,
-                        payload: slots(payload, budget)?,
-                    },
+                    b::Op::Variant { case, payload } => {
+                        let mut order = budget.vector(payload.len())?;
+                        order.extend(payload.iter().enumerate().map(|(index, from)| {
+                            (
+                                index as u32,
+                                typed.places().functions()[function.0 as usize].values
+                                    [from.0 as usize]
+                                    .span,
+                            )
+                        }));
+                        Primitive::Variant {
+                            to: to()?,
+                            case: *case,
+                            payload: slots(payload, budget)?,
+                            order,
+                        }
+                    }
                     b::Op::IsCase { value: from, case } => {
                         native.emit = Emit::Case {
                             from: value(*from),
@@ -546,17 +572,17 @@ fn prepare(
                         }
                     }
                     b::Op::CoreCall(c) => {
-                        let from = value(c.arguments[0]);
-                        let case = if c.operation == o::core::Operation::OptionUnwrap {
-                            1
-                        } else {
-                            0
-                        };
-                        native.emit = Emit::Unwrap { from, case };
-                        Primitive::Field {
-                            from,
-                            case,
-                            field: 0,
+                        if let Some(contract) = c.operation.extraction() {
+                            native.emit = Emit::Unwrap {
+                                from: value(c.arguments[0]),
+                                case: contract.case,
+                                panic_code: contract.panic_code,
+                            };
+                        }
+                        Primitive::Core {
+                            operation: c.operation,
+                            result_loan: c.result_loan,
+                            arguments: slots(&c.arguments, budget)?,
                             to: to()?,
                         }
                     }
@@ -594,7 +620,12 @@ fn prepare(
                         failure,
                     },
                     b::Op::TaskSaveReturn(from) => Primitive::Save(value(*from)),
-                    b::Op::EndBorrow { .. } => Primitive::Nop,
+                    b::Op::Borrow { loan, place, .. } => Primitive::Borrow {
+                        loan: *loan,
+                        place: *place,
+                        to: to()?,
+                    },
+                    b::Op::EndBorrow { loan, .. } => Primitive::EndLoan(*loan),
                     _ => return Err(Error::Unsupported { span: i.span }),
                 }
             }
@@ -630,6 +661,7 @@ fn prepare(
             f::Kind::RecordFailure { .. } => Primitive::RecordFailure,
             f::Kind::DiscardPrepared { .. } => Primitive::DiscardAllPrepared,
             f::Kind::DiscardResult { .. } => Primitive::DiscardResult,
+            f::Kind::EndTaskLoans { .. } => Primitive::EndLoans,
             f::Kind::CancelTaskScopes { next } => Primitive::Close(next),
             f::Kind::JoinTaskScopes { .. } => Primitive::Children,
             f::Kind::FinishTask => Primitive::Finish,
@@ -709,7 +741,7 @@ impl<P: a::Provider> Invocation<'_, '_, '_, '_, '_, '_, P> {
                 ))
             }
             PANIC => Err(r::Reason::Panic(Some(a as i64))),
-            UNWRAP => Err(r::Reason::Panic(None)),
+            UNWRAP => Err(r::Reason::Panic(Some(a as i64))),
             RAISE => Err(r::Reason::Execution(
                 node.raised.ok_or(r::Reason::Invariant)?,
             )),
@@ -924,8 +956,7 @@ fn emit<M: Module>(
             match node.kind {
                 f::Kind::Entry { next, .. }
                 | f::Kind::RetireReturn { next, .. }
-                | f::Kind::RetireFailure { next }
-                | f::Kind::EndTaskLoans { next } => {
+                | f::Kind::RetireFailure { next } => {
                     b.ins().jump(blocks[next.0 as usize], &[]);
                 }
                 f::Kind::Fuel { next, failure, .. } => {
@@ -1000,14 +1031,18 @@ fn emit<M: Module>(
                             b.switch_to_block(good);
                             b.ins().iconst(types::I64, 0)
                         }
-                        Emit::Unwrap { from, case } => {
+                        Emit::Unwrap {
+                            from,
+                            case,
+                            panic_code,
+                        } => {
                             let actual = read(&mut b, sig, packet, index, CASE, from, failure);
                             let valid = b.ins().icmp_imm_u(IntCC::Equal, actual, i64::from(case));
                             let good = b.create_block();
                             let bad = b.create_block();
                             b.ins().brif(valid, good, &[], bad, &[]);
                             b.switch_to_block(bad);
-                            call_imm(&mut b, sig, packet, index, UNWRAP, 0);
+                            call_imm(&mut b, sig, packet, index, UNWRAP, panic_code as u64);
                             b.ins().jump(failure, &[]);
                             b.switch_to_block(good);
                             b.ins().iconst(types::I64, 0)
@@ -1030,6 +1065,7 @@ fn emit<M: Module>(
                 | f::Kind::DiscardPrepared { next }
                 | f::Kind::RecordFailure { next }
                 | f::Kind::DiscardResult { next }
+                | f::Kind::EndTaskLoans { next }
                 | f::Kind::CancelTaskScopes { next }
                 | f::Kind::JoinTaskScopes { next } => {
                     let status = call_imm(&mut b, sig, packet, index, APPLY, 0);

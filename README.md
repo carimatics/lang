@@ -10,7 +10,7 @@ The project is currently defining semantics and validating architecture. There i
 
 Current capability snapshot (verified 2026-10-20 JST): ownership, collections, shared/arena storage, C boundaries, VM/native execution, an experimental SDK and both-host debugger validation are implemented. See the [M2 capability guide and complete exit audit](docs/milestone-2-capabilities.md) for workflows, evidence and limits.
 
-M3 task execution checkpoint (verified 2026-10-21 JST): `cargo run -- run examples/scripts/tasks.lang` prints 42 through scoped spawn/yield/join; `cargo run --example native-structured-tasks` compiles that source to native continuations and also prints 42. VM and experimental native APIs support finite Copy/Task locals, with a separate linked-object fixture. Owned/loan/foreign task execution, complete shared controls, task artifacts/native packages and async REPL submissions remain M3 work. The [active board](docs/milestone-3.md) records evidence and remaining scope.
+M3 task execution checkpoint (verified 2026-10-21 JST): `cargo run -- run examples/scripts/tasks.lang` and `cargo run --example native-structured-tasks` print 42. The VM and experimental native API also execute owned Text/Bytes, records, whole Option/Result moves, synchronous owned calls and local loans; `cargo run -- run tests/fixtures/task_owned_buffers.lang` prints 71. VM/JIT/separately linked object fixtures cover the admitted profile. Container/shared/arena task services, loans through synchronous calls, full shared controls, task artifacts/native packages and async REPL submissions remain M3 work. The [delivery board](docs/milestone-3.md) records the checkpoint and remaining scope.
 
 ## Vision
 

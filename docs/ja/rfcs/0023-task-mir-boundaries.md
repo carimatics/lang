@@ -64,6 +64,8 @@ T04 cancellation plan の補足（2026-10-21 JST）: async failure plan に、pr
 
 ## Execution modes
 
+T07 owned adapter の判断（実装前、2026-10-21 JST）: managed reservation、token service、iterative retirement、既存 cleanup Context/Report を再利用します。有界の task-owned cleanup session が同期 call-stack entry を中断越しに借用せず report/poison 状態を持ち、事前確保した frame 記録に実際の owner 初期化順と通常 loan の参照先/generation を保持します。non-Copy root/payload は move して元の obligation を終え、claim と allocator 権限は別表現を維持します。join 前に通常 loan を終え、保護結果/owner を一度だけ retire し、RFC 0021 の primary/secondary 優先順位で task report を結合します。native callback は準備済み metadata 上の型付き storage/service/cleanup を処理し、MIR 命令 dispatch は行いません。owned source fixture を先に接続し、対応 owned-local family、同期 move/loan、取消/失敗 prefix を検証してから T07 を閉じます。一般 async transfer は A01、完全な共有 control は T08、foreign/production embedding は各判断に残します。source/C/wire 形式は導入しません。
+
 T12 の順序明確化（実装前、2026-10-21 JST）: RFC 0022 の既存契約を維持し、source の task scope 終了では exiting loan/reference の cleanup を join 前、通常 owner/value cleanup を当該 join と未回収 result retirement 後に lower します。return は result を一度 escrow に置き、入れ子 scope を内側から閉じ、各 scope の local をその join 後に retire します。既存 MIR 命令を並べ替え、新しい source semantics/wire tag は導入しません。runtime は scope に公開順の result chain を保持し、全 child の join 後に公開逆順で未回収結果を破棄します。await 済みの穴を再破棄せず、失敗/取消でも同じ inventory を使います。T07 の owner admission 前に source/MIR と VM/native region 解放でこの順序を検証します。
 
 T06 native の判断（実装前、2026-10-21 JST）: invocation driver、型付き frame/claim/result 状態、scheduling/storage primitive を runtime で共有し、backend ごとに明示 resume/cleanup entry を持ちます。MIR node dispatch は VM backend に残します。Cranelift が native block、演算、比較、分岐、失敗 edge、有界 continuation 選択を生成し、native callback は型付き storage/scheduling/control/failure primitive だけを処理して MIR 命令/body を評価しません。private invocation packet は有効範囲内の context と検査済み callback entry を保持し、C embedding API や serialized interface ではありません。native 呼出しは通常/中断/取消 continuation の生成 function address を選択します。初期 finite Copy/Task profile で VM と値/event/失敗起点/cleanup を一致させ、厳密に一致する生成 code/metadata と compiler build を信頼する native object 実行も確認します。別の serialized revision 採択までは既存 task artifact/native package の拒否を維持します。managed frame/result layout を再利用し、scheduler/IDL framework や別 IR を追加しません。
@@ -75,6 +77,8 @@ T05 adapter の判断（実装前、2026-10-21 JST）: 証明を受け取る tas
 adapter 実装後は VM/JIT/AOT が同じ検証済み task 契約を使います。native task は continuation を compile し、MIR 解釈や VM fallback を使いません。それまでは既存同期 adapter が binding/allocation/副作用前に task profile を拒否します。現在の profile で定数実行/component task は未対応です。
 
 T12 実装（2026-10-21 JST）: source lowering は通常 scope join と入れ子 return の各境界で cleanup を分割し、既存の独立 task/move/loan 証明で MIR を再検証します。runtime scope は割り当て不要の公開 link stack を保持し、結果を全 join まで維持して新しい順に retire します。取消/失敗でも RetireFailure より前に処理します。await 済みの穴は一度だけ飛ばし、mandatory abort でも同じ inventory を保持します。provider region の実行で公開順の両方向と遅い sibling を VM/native で検査し、source test で通常/入れ子 return 終了の owned local と loan の順序を検査します。owned 実行は T07 まで拒否し、wire/packet revision は割り当てません。
+
+T07 実行 checkpoint（2026-10-21 JST）: VM/生成 native continuation で Text/Bytes、owning record、whole Option/Result extraction、同期 owned 引数/戻り値、field replacement、同一 frame 内の通常 loan を実行します。事前確保した owner list が実際の初期化逆順を保持し、move は後続 cleanup 前に元の登録を外します。有界 cleanup session が既存 Context/Report と reservation の iterative retirement を使います。task report は選択された terminal failure を先頭にし、完了 task の report を完了順に結合します。frame report は callback 順を保持します。RFC 0021 に従い取消を primary に保ち、成功した invocation outcome でも抑制された cleanup 証拠と poison 状態を公開します。CLI は poisoned outcome を拒否します。callback 失敗/panic や report truncation 後も cleanup を継続し、allocator provider の unwind 禁止契約は維持します。native service callback は MIR を解釈しません。owned 取消 source は 7、flat-buffer/whole-sum source は VM/JIT/リンク済み object で 71 を返します。T07 の部分 checkpoint であり、同期 frame 間の loan/borrowed pattern payload、container/shared/arena service、広い owned-variant 統合は引き続き副作用前に明示拒否します。async transfer は A01 まで finite Copy とし、foreign service、完全な共有 control、serialized task profile は各未完判断に残します。
 
 ## ABI and compatibility
 
@@ -121,6 +125,8 @@ in-memory T04 証明に blocking question はありません。上記の命令/c
 判断: **RFC 0001 実験段階の委任で accepted、2026-10-21 JST**。段階的な拒否で既存 semantics を維持し、実行権限を作りません。必要な表現の前提であり、新 milestone gate や T04–T08 の縮小ではありません。
 
 ## Sources
+
+- T07 owned checkpoint の根拠: `crates/runtime/src/cleanup/session.rs`、`crates/runtime/src/task/runner/frame/`、`machine/retirement.rs`、VM/native task adapter、`tests/task_owned_execution.rs`、`crates/runtime/tests/cleanup_session.rs`、`tests/fixtures/task_owned_buffers.lang`、`tests/support/task_static.rs`。更新日の埋込みはなく、2026-10-21 JST に macOS AArch64 で確認/実行しました。[RFC 0007](0007-source-ownership-and-core-values.md) と [RFC 0009](0009-whole-sum-ownership-extraction.md) は既存 core/whole-sum 契約の根拠で、最終更新は 2026-10-20、確認日は 2026-10-21 JST です。意図的に cleanup provider を panic させるのは containment 試験であり、provider からの unwind を許可しません。
 
 - T12 順序の根拠: `crates/semantics/src/ownership_types/bodies.rs`、`crates/runtime/src/task/runner/`、`crates/vm/src/unit/tasks/machine.rs`、`tests/task_retirement.rs`、`tests/fixtures/task_owned.lang`、`examples/scripts/task_result_retirement.lang`。code の埋込み更新日はなく、2026-10-21 JST に確認/実行しました。owned source fixture は lowering のみを証明し、provider region の実行順検証は対応済み finite Copy task を使います。
 

@@ -89,7 +89,7 @@ fn task_layout_is_explicit_and_cleanup_keeps_only_typed_return_storage() {
 
 #[test]
 fn unsupported_execution_and_artifact_modes_refuse_before_effects() {
-    let source = "async fn main()->i64{let mut bytes:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));yield;return 42;}";
+    let source = "extern fn host(value:i64)->i64; async fn main()->i64{yield;return host(42);}";
     let proof = prepare(source);
     let mut allocator = allocator();
     let error = vm::execute_entry(

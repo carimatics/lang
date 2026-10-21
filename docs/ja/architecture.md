@@ -124,6 +124,9 @@ Package-aware build/test/lint/doc、package manager/installer、拡張LSP/DAP、
 
 T12 で task scope 終了を RFC 0022 に合わせ、終了 loan/reference、join、公開逆順の未回収 result retirement、当該 scope の通常 local cleanup の順にします。return は result を escrow に置き、入れ子 scope を内側から閉じます。runtime の scope/result link は必要な全 join まで完了 sibling を保持し、await 済みの穴を一度だけ消費します。失敗/取消も owner retirement 前の join phase で同じ inventory を処理します。source/MIR と VM/native provider region の fixture で順序を検証し、owned task 実行は T07 に残します（2026-10-21 JST）。
 
+T07 の owned 実行 checkpoint は managed reservation と cleanup Context/Report を再利用し、Text/Bytes、record、whole Option/Result move、同期 owned call、replacement を処理します。local loan sidecar は実行区間内の target/generation 権限を保持し、suspension 時の通常 loan 禁止を維持します。owner list は descendant join 後に実際の初期化逆順で retire します。事前確保した frame/task report は primary/secondary 順序、panic containment、fuel/report 枯渇後の必須 cleanup を保持します。cancelled join でも抑制 cleanup 証拠と poison 状態を host に返し、CLI は poisoned outcome を拒否します。`tests/fixtures/task_owned.lang` は 7、`tests/fixtures/task_owned_buffers.lang` は VM/JIT/別プロセスのリンク済み object で 71 を返します。同期 frame 間の loan/borrowed payload、container/shared/arena service、広い owned-variant 統合は T07 の受入条件に残し、一般 async Send/Share transfer は A01、完全な共有 control は T08、task package/C/foreign profile は未対応のままです。証拠は 2026-10-21 JST 検証で、code に更新日の埋込みはありません。T07 や M3 exit gate の完了ではありません。
+
+
 ## 検証と保守
 
 Code変更では、対象のbehavior regressionを先に確認し、repositoryのfmt/Clippy/test/doc baselineを実行します。Source/format fixtureと、backend間の値、failure span、cleanup、resource accountingを保持します。Native target実行、debugger実行、sanitizer／coverage-guided fuzz campaign、性能測定は別々の根拠であり、compileだけでは成立しません。
