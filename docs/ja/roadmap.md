@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **16 done · 1 doing · 32 todo · 91 remaining pt** です。T08（`fdfc755`）は全 114 suite / 1,779 test 成功、失敗ゼロ、既存 timing ignore 1 件です。A01 で [RFC 0024](rfcs/0024-send-share-and-service-authority.md) の再帰 logical-task Send/Share と interface-only service 権限を受理し、transfer 実装や gate 完了と区別します。audit で A06 独立 source/MIR 導出（1 pt）、A05 owned async 実行（3 pt）を明示し、A02 は具体的 channel handle 後の全 actor proof を維持します。新作業 **+4 pt**、今回完了消化なし、累積追加 **+24 pt**、消化 **43 pt**、収支 **110 + 24 − 43 = 91 pt**。**A01 → A06 → A05**、続いて channel/source actor 証拠へ進みます。全 15 M3/P1 gate と foreign/C/serialized/package/production embedding を維持します。日付付き証拠は board と [roadmap 履歴](roadmap-history.md)に保持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **17 done · 1 doing · 31 todo · 89 remaining pt** です。T08（`fdfc755`）は全 114 suite / 1,779 test 成功、失敗ゼロ、既存 timing ignore 1 件です。A01（`9b2b68c`）で [RFC 0024](rfcs/0024-send-share-and-service-authority.md) の再帰 logical-task Send/Share と interface-only service 権限を受理し、transfer 実装や gate 完了と区別します。audit で A06 独立 source/MIR 導出（1 pt）、A05 owned async 実行（3 pt）を明示し、A02 は具体的 channel handle 後の全 actor proof を維持します。A01 完了消化 **2 pt**、新規前提 **+4 pt**、累積追加 **+24 pt**、消化 **45 pt**、収支 **110 + 24 − 45 = 89 pt**。repository consistency 5/5 が通過し、**A06 → A05**、続いて channel/source actor 証拠へ進みます。全 15 M3/P1 gate と foreign/C/serialized/package/production embedding を維持します。日付付き証拠は board と [roadmap 履歴](roadmap-history.md)に保持します。
 
 ## 進行中 milestone の実行
 

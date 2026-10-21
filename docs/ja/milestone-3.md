@@ -6,13 +6,13 @@
 
 更新日: **2026-10-21 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**16 done · 1 doing · 32 todo · 91 remaining pt**
+**17 done · 1 doing · 31 todo · 89 remaining pt**
 
-**次: M3-A01 → 再帰 Send/Share と source service 権限の契約を決定します。**
+**次: M3-A06 → 独立 source/MIR Send/Share 導出と owned async signature proof を実装します。**
 
-現在の作業: **M3-A01**。直近の実行検証: **`fdfc755`、2026-10-21 13:29 JST**（T08）。task/同期 activation/service/view が invocation 共通の service-work meter を使い、数値付き拒否と非計量の必須 cleanup を維持します。分離した child result は実際の移動/解放まで 1 live cell として計上し、未使用 foreign metadata を含む有限 profile を allocation 前に検証します。control 6 テストと複合 owned 統合 11 テストが、全 work/fuel/provider 拒否 prefix、ゼロ/境界値/1 未満、task/frame/cell/trace/割込み/期限の組合せ、cleanup panic/report truncation を VM/native で検証しました。全 11 linked-object profile も有限 work prefix を検証します。全 baseline: **114 suites / 1,779 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **544.27s**。fmt、warnings-denied Clippy、rustdoc、全 11 fuzz target compile/lint が通過しました。A01 の残条件は再帰 Send/Share、shared/weak と owner/message 権限、互換性と mode 境界を決め、根拠と未検証の仮定を記録することです。owned async transfer の実装前に不足する前提を明示/再見積りします。全 M3/P1 scope を維持し、M3 exit gate は未完了です。
+現在の作業: **M3-A06**。決定 checkpoint は **`9b2b68c`（RFC 0024）、2026-10-21 JST**、repository consistency 5/5 が通過しました。直近の実行 checkpoint は **`fdfc755`、2026-10-21 13:29 JST**（T08）、全 114 suite / 1,779 test 成功、失敗ゼロ、既存 ignore 1 件です。A06 の残条件は既存推移 fact を使う独立 source/MIR Send/Share、owned async signature の compile-pass、禁止 loan/arena/allocator/Task と再利用の compile-fail、再帰 graph/alias/未使用 metadata/制限境界の検証です。runtime は A05 まで Copy-only transfer の副作用前拒否を維持します。actor authority の全条件は具体的 channel handle 後の A02 に残し、全 M3/P1 gate は未完です。
 
-**今回: A01 の決定作業中に A06（1 pt）、A05（3 pt）を実装前に明示（+4 pt）、完了消化はありません。** 残り **87 + 4 = 91 pt**、全 **49 行**、消化 **43 pt**、純追加 **+24 pt**。
+**今回: A01 完了（−2 pt）。新規前提 A06/A05（+4 pt）は scope audit に記録済みです。** 残り **87 + 4 − 2 = 89 pt**、全 **49 行**、消化 **45 pt**、純追加 **+24 pt**。
 
 ## Deliveries
 
@@ -40,8 +40,8 @@
 | M3-C02 | todo | 3 | M3-C01 | G04 | 有界 channel の送受信、close、待機者取消 fixture を実行 | — |
 | M3-C03 | todo | 3 | M3-C02,M3-A05 | G04 | source channel fixture を VM 実行し payload 再利用を拒否 | — |
 | M3-C04 | todo | 3 | M3-C03,M3-T06 | G04 | native で channel の値、失敗、cleanup を一致 | — |
-| M3-A01 | doing | 2 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | — |
-| M3-A06 | todo | 1 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | — |
+| M3-A01 | done | 0 | M3-T09 | G01,G05 | 再帰的 Send/Share 導出と source service 権限規則を採択 | `9b2b68c` |
+| M3-A06 | doing | 1 | M3-A01,M3-T11 | G05 | Derive Send/Share independently in source/MIR and check owned async signatures with compile-pass/fail evidence | — |
 | M3-A05 | todo | 3 | M3-A06,M3-T08 | G03,G05,G13 | Execute owned async arguments/results with move publication, consuming await, retained-result disposal and controls on VM/native | — |
 | M3-A02 | todo | 3 | M3-A01,M3-A06,M3-C03 | G05 | actor 所有権、move、送信不能 capture を診断付きで検査 | — |
 | M3-A03 | todo | 3 | M3-A02,M3-C03 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | — |
@@ -108,7 +108,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 24 − 43 = 91 pt**
+**110 + 24 − 45 = 89 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -148,9 +148,11 @@ T08 roadmap audit: source/MIR の async signature 制限、task argument/result 
 
 A01 scope/estimate audit（2026-10-21 JST）: source/MIR は owned async signature を拒否し、runtime await は child result copy、disposal は Copy storage 解放のままです。actor authority は具体的 channel handle を必要とします。A02 の actor ownership/move/non-Send capture の全条件と 3 pt を保ち、A06/C03 依存を追加します。既存推移 fact を再利用する独立 source/MIR 導出と signature compile-pass/fail proof の **A06（1 pt）**、control を含む実際の owned 引数/結果 publication、await、disposal を VM/native で検証する **A05（3 pt）** を明示します。A05 は A06/T08、C03 は A05 に依存します。**A01 → A06 → A05**、続いて channel/source actor 証拠を揃えて A02 を完了監査します。追加 **+4 pt**、行 **47 → 49**、累積追加 **+20 → +24 pt**、消化 **43 pt** は維持、残り **87 → 91 pt**。実装前に再監査し、既存 fact/reservation で足りる箇所に graph/owner framework を追加しません。全 gate/P1 scope を維持します。
 
+A01 は `9b2b68c` で完了（2026-10-21 JST）。実験委任に従い RFC 0024 の再帰 Send/Share、checked shared/weak 操作、厳密な transfer 除外、owner/interface 権限、互換性、mode 境界、未検証の仮定を受理しました。最小 owned Bytes worker は SRC0026 を維持し、受理を実装と区別します。repository consistency 5/5 が通過しました。最後の 2 pt を消化し、別途 audit した前提 +4 pt を維持します。A06（1 pt）で既存 fact を使ってから A05 owned source 実行へ進みます。source actor proof の全 A02/C03 依存、全 15 gate/P1 を維持します。
+
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +24 pt | −43 pt | 91 pt |
+| 110 pt | +24 pt | −45 pt | 89 pt |
 
 ## Exit audit
 
