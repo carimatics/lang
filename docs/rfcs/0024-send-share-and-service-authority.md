@@ -7,12 +7,14 @@
 - Status: accepted
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-21
+- Last updated: 2026-10-22
 - Tracking issue: M3-A01, M3-A02, M3-A05, M3-A06
 - Supersedes: none
 - Superseded by: none
 
 ## Summary
+
+A02 service catalog decision (2026-10-22 JST): [RFC 0026](0026-source-isolated-services.md) accepts opaque ServiceSetup<S,M>/ServiceOwner<S,M>/ServiceHandle<M>, owned Send/storable state/messages, checked owner read/whole replacement and message/cancellation-only producers. Receive starts a handler; finish/next receive/retirement ends it. Cancellation is an idempotent request: stop enqueue, finish an active handler, then retire committed messages FIFO before state. Source/MIR must independently prove roles, read origins, moves and suspension; adapters and old artifact/foreign profiles retain refusal until their deliveries. The ordinary composition experiment retires [1,42,7], exposing why a distinct managed boundary is required. This decision completes no delivery or gate.
 
 C06 type checkpoint (2026-10-21 JST): reserved opaque `core::ChannelSetup<T>`, `core::Sender<T>` and `core::Receiver<T>` now retain identity through source/HIR and independently verified MIR. Distinct budgeted Send/Share dependencies reuse the existing graph: Sender depends on message Send for both capabilities; Receiver is never Share; Setup has neither; shared/weak require both target capabilities. Every role is non-Copy and requires retirement; even unused message constructors require Send. Eleven focused tests cover recursive/declaration-order graphs, aliases, invalid messages/arity, moves, forged MIR, exact/one-below proof resources and unavailable-profile admission. Schema-2/3/4 writers refuse roles before constructor bytes, and executable layouts, VM/native channel admission and both-target native packages refuse unused endpoints before guest/provider effects. This proves type capabilities, not channel execution. Concrete calls/errors/MIR operations, suspension-loan proof, guest allocator/cell integration and VM/native fixtures remain C03/C04; no wire/C layout or M3 gate is completed.
 

@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-21
+- Last updated: 2026-10-22
 - Implemented: 2026-10-20
 - Accepted: 2026-10-19
 - Tracking issue: M2-N15, M2-N05, M2-N18
@@ -21,6 +21,8 @@ Verified 2026-10-20 JST against the [M2 completion audit](../milestone-2-capabil
 The motivation, original staged plan and dated partial checkpoints below record the decision/rollout history. Their former pending gates are closed by the evidence above; normative contracts and explicit non-goals remain in force. This status reconciliation changes no source, ABI or format semantics.
 
 ## Summary
+
+Service follow-up decision (2026-10-22 JST): [RFC 0026](0026-source-isolated-services.md) reuses channel capacity/mint/clone/send/receive attempt/commit charges and existing actual managed observation, typed replacement and publication events. Fixed service role/generation checks, explicit handler finish, cancellation notification, wake/unlink and mandatory queue/state retirement are unmetered bookkeeping. Guest fuel/polls remain; state operations do not invent payload copies or duplicate frame-marshalling events. This additive unavailable source profile changes no previously admitted program's charges, artifact tags or cost-profile encoding; both adapters must prove the same numeric usage before admission.
 
 C01 follow-up decision (2026-10-21 JST): [RFC 0025](0025-bounded-channels-and-backpressure.md) assigns new channel service-work events: capacity units before queue preparation, one before explicit endpoint mint/clone/seal, one per send/receive attempt and one per commit. Resumption/wakeup does not repeat attempt/commit charges; existing publication inspection remains charged. Mandatory closure, cancellation unlink, wake notification and retirement remain unmetered bookkeeping. Source/VM/native channel execution must expose identical numeric caps/usage before promotion. Existing service event costs are unchanged.
 

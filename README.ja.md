@@ -81,6 +81,8 @@ C06 型 checkpoint（2026-10-21 JST）: opaque `core::ChannelSetup<T>`、`core::
 - [RFC 0023: Task MIR の境界（accepted）](docs/ja/rfcs/0023-task-mir-boundaries.md)
 - [RFC 0024: 再帰 Send/Share と service 権限（accepted）](docs/ja/rfcs/0024-send-share-and-service-authority.md)
 - [RFC 0025: 有限 channel と backpressure（accepted）](docs/ja/rfcs/0025-bounded-channels-and-backpressure.md)
+
+- [RFC 0026: Source isolated service（accepted）](docs/ja/rfcs/0026-source-isolated-services.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

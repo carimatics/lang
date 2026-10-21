@@ -1,0 +1,22 @@
+fn bytes(value:i64)->core::Bytes {
+    let mut value_bytes:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(value_bytes,value));
+    return value_bytes;
+}
+async fn owner(initial:core::Bytes,inbox:core::Receiver<core::Bytes>)->i64 {
+    let mut state:core::Bytes=initial;
+    state=bytes(42);
+    yield;
+    yield;
+    return core::bytes_len(&state);
+}
+async fn main()->i64 {
+    let mut setup:core::ChannelSetup<core::Bytes>=core::result_unwrap::<core::ChannelSetup<core::Bytes>,core::ChannelError>(core::channel_new::<core::Bytes>(core::allocator(),1));
+    let mut sender:core::Sender<core::Bytes>=core::channel_sender::<core::Bytes>(&setup);
+    let mut inbox:core::Receiver<core::Bytes>=core::channel_receiver::<core::Bytes>(setup);
+    let mut queued:core::SendResult<core::Bytes>=await core::channel_send::<core::Bytes>(&sender,bytes(7));
+    let mut serving:core::Task<i64>=spawn owner(bytes(1),inbox);
+    yield;
+    cancel serving;
+    return 42;
+}

@@ -7,12 +7,14 @@
 - Status: accepted
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-21
+- Last updated: 2026-10-22
 - Tracking issue: M3-A01, M3-A02, M3-A05, M3-A06
 - Supersedes: none
 - Superseded by: none
 
 ## Summary
+
+A02 service catalog 決定（2026-10-22 JST）: [RFC 0026](0026-source-isolated-services.md) は opaque ServiceSetup<S,M>/ServiceOwner<S,M>/ServiceHandle<M>、owned Send/storable state/message、owner の検証済み read/全体置換、message/取消専用 producer を受理します。receive で handler を開始し、finish/次 receive/退役で終了します。取消は冪等 request で、enqueue を止め、active handler 終了後に commit 済み message を FIFO、state の順に退役します。source/MIR は role・read origin・move・suspension を独立証明し、adapter と旧 artifact/foreign profile は各 delivery まで拒否を維持します。通常の composition 実験は [1,42,7] で退役し、別の managed 境界が必要な理由を示します。この決定だけでは delivery/gate を完了しません。
 
 C06 型 checkpoint（2026-10-21 JST）: 予約された opaque `core::ChannelSetup<T>`、`core::Sender<T>`、`core::Receiver<T>` の identity を source/HIR と独立検証する MIR に保持します。既存 graph で有限な Send/Share 依存を別々に導出し、Sender の両 capability は message の Send、Receiver は Share 不可、Setup は両方不可、shared/weak は target の両 capability を要します。全 role は non-Copy で退役が必要であり、未使用 message constructor も Send を要します。重点11件は再帰/宣言順 graph、alias、不正 message/arity、move、偽造 MIR、proof resource の上限境界/1 未満、未対応 profile の admission を検証します。schema-2/3/4 writer は constructor byte 前に拒否し、実行 layout、VM/native channel admission、両 target の native package は未使用 endpoint も guest/provider 副作用前に拒否します。これは型 capability の証明であり channel 実行ではありません。具体 call/error/MIR operation、suspension loan proof、guest allocator/cell 統合、VM/native fixture は C03/C04 に残り、wire/C layout や M3 gate は完了しません。
 

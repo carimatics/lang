@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中:** [実装 Todo](milestone-3.md) は **25 done · 1 doing · 25 todo · 74 remaining pt**。C04 は `f882074` で完了し、VM/native channel の厳密差分8件と standalone linked-object 20 profile が成功し、native example の全7 fixture は42を返します。固定入力の baseline **125 suite・1,893件成功・失敗0・既存 ignore 1件** と fmt、Clippy、rustdoc、全11 fuzz target compile/lint が成功しました。**消化3 pt・新規追加0 pt**、残り **77 + 0 − 3 = 74 pt**。private owner state、producer の message/取消権限と未決定の具体 service catalog を監査し、**A02 doing・3 pt** を選択します。最小 source 実験を行い、実装前に英日で決定を記録します。全15 M3/P1 gate、foreign/C/serialized/package、production embedding、最終 guide を維持します。
+**M3 は進行中:** [実装 Todo](milestone-3.md) は **25 done · 1 doing · 25 todo · 74 remaining pt**。C04 は `f882074` で完了し、VM/native channel の厳密差分8件と standalone linked-object 20 profile が成功し、native example の全7 fixture は42を返します。固定入力の baseline **125 suite・1,893件成功・失敗0・既存 ignore 1件** と fmt、Clippy、rustdoc、全11 fuzz target compile/lint が成功しました。**消化3 pt・新規追加0 pt**、残り **77 + 0 − 3 = 74 pt**。source composition 実験の退役 [1,42,7] と、具体 catalog を受理した [RFC 0026](rfcs/0026-source-isolated-services.md) を踏まえ、**A02 doing・3 pt** を維持します。source/MIR role・move/read/suspension proof と明示 adapter 拒否が残り、VM service 実行は A03、native parity は A04 です。全15 M3/P1 gate、foreign/C/serialized/package、production embedding、最終 guide を維持します。
 
 ## 進行中 milestone の実行
 

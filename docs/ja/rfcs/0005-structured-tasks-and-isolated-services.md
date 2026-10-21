@@ -7,12 +7,14 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-21
+- Last updated: 2026-10-22
 - Tracking issue:
 - Supersedes:
 - Superseded by:
 
 ## 概要
+
+A02 service catalog 決定（2026-10-22 JST）: [RFC 0026](0026-source-isolated-services.md) は opaque ServiceSetup<S,M>/ServiceOwner<S,M>/ServiceHandle<M>、owned Send/storable state/message、owner の検証済み read/全体置換、message/取消専用 producer を受理します。receive で handler を開始し、finish/次 receive/退役で終了します。取消は冪等 request で、enqueue を止め、active handler 終了後に commit 済み message を FIFO、state の順に退役します。source/MIR は role・read origin・move・suspension を独立証明し、adapter と旧 artifact/foreign profile は各 delivery まで拒否を維持します。通常の composition 実験は [1,42,7] で退役し、別の managed 境界が必要な理由を示します。この決定だけでは delivery/gate を完了しません。
 
 C01 follow-up 決定（2026-10-21 JST）: [RFC 0025](0025-bounded-channels-and-backpressure.md) で同一 invocation の有限 MPSC、未commit payload を保持する full-send 待機、sender FIFO admission、唯一の receive 権限、seal 後の drain、abort 時の FIFO 退役を受理しました。commit 前後の取消、検証済み endpoint publication、有限計上、closed invocation の決定的 deadlock を定めます。C05/C02/C03/C04 で kernel 待機、runtime protocol、source/MIR/VM、生成 native を実装検証し、具体 core catalog は source 実装前の必須記録です。厳密な suspension 時 loan 禁止と owner isolation を維持し、M3 gate は未完です。
 

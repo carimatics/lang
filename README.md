@@ -81,6 +81,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0023: Task MIR boundaries (accepted)](docs/rfcs/0023-task-mir-boundaries.md)
 - [RFC 0024: Recursive Send/Share and service authority (accepted)](docs/rfcs/0024-send-share-and-service-authority.md)
 - [RFC 0025: Bounded channels and backpressure (accepted)](docs/rfcs/0025-bounded-channels-and-backpressure.md)
+
+- [RFC 0026: Source isolated services (accepted)](docs/rfcs/0026-source-isolated-services.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

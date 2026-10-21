@@ -7,12 +7,14 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-21
+- Last updated: 2026-10-22
 - Tracking issue:
 - Supersedes:
 - Superseded by:
 
 ## Summary
+
+A02 service catalog decision (2026-10-22 JST): [RFC 0026](0026-source-isolated-services.md) accepts opaque ServiceSetup<S,M>/ServiceOwner<S,M>/ServiceHandle<M>, owned Send/storable state/messages, checked owner read/whole replacement and message/cancellation-only producers. Receive starts a handler; finish/next receive/retirement ends it. Cancellation is an idempotent request: stop enqueue, finish an active handler, then retire committed messages FIFO before state. Source/MIR must independently prove roles, read origins, moves and suspension; adapters and old artifact/foreign profiles retain refusal until their deliveries. The ordinary composition experiment retires [1,42,7], exposing why a distinct managed boundary is required. This decision completes no delivery or gate.
 
 C01 follow-up decision (2026-10-21 JST): [RFC 0025](0025-bounded-channels-and-backpressure.md) accepts bounded invocation-local MPSC, full-send waiting with uncommitted payload custody, FIFO sender admission, unique receive authority, drain-on-seal and FIFO abort retirement. It defines cancellation on either side of commit, checked endpoint publication, finite accounting and deterministic closed-invocation deadlock. C05/C02/C03/C04 must implement and validate kernel wait, runtime protocol, source/MIR/VM and generated native paths; the concrete core catalog remains mandatory before source implementation. This preserves strict no-loan-at-suspension and owner isolation; it completes no M3 gate.
 
