@@ -1,14 +1,14 @@
 use super::*;
 use crate::channel::managed as g;
 
-fn failure(error: g::Error) -> Reason {
+pub(super) fn failure(error: g::Error) -> Reason {
     match error {
         g::Error::Protocol(crate::channel::Error::Work(e)) => Reason::Control(e),
         g::Error::Layout(l::Error::ServiceWork(e)) => Reason::Control(e),
         error => Reason::Channel(error),
     }
 }
-fn allocation(error: &g::Error) -> Option<crate::buffer::AllocError> {
+pub(super) fn allocation(error: &g::Error) -> Option<crate::buffer::AllocError> {
     let error = match error {
         g::Error::Allocation(e) | g::Error::Layout(l::Error::Allocation(e)) => e,
         _ => return None,

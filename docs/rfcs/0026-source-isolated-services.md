@@ -8,13 +8,13 @@
 - Authors: Project contributors
 - Created: 2026-10-22
 - Last updated: 2026-10-22
-- Tracking issue: M3-A02, M3-A03, M3-A04
+- Tracking issue: M3-A02, M3-A07, M3-A08, M3-A03, M3-A04
 - Supersedes: none; completes the concrete service catalog required by RFCs 0005/0024
 - Superseded by: none
 
 ## Summary
 
-A02 proof checkpoint (2026-10-22 JST): all three roles, ten source operations/eight synchronous MIR core signatures and distinct PrepareService/ServiceSend/ServiceReceive now have source and independent MIR evidence. Thirteen tests cover recursive capability/arity/storage, owner moves and producer SRC0029 origins, read-only and suspension loans, malformed roles/types/capture substitution/reuse, exact/one-below proof budgets and old-profile refusal. Managed-read synthetic roots retain checked state provenance. The [owned Counter/Bytes fixture](../../tests/fixtures/task_service.lang) is checked and current VM/native admission refuses before guest effects; execution remains A03/A04. The full baseline passes **126 suites / 1,906 tests / zero failures / one existing timing ignore** (suite-time sum **591.77s**); fmt, Clippy (**1m 55s**), rustdoc (**1m 19s**) and all 11 fuzz-target compile/lint checks (**4.75s**) pass. No fuzz campaign is claimed. Full evidence is on the delivery board; acceptance does not imply service execution or stabilization.
+A07 VM checkpoint (2026-10-22 JST): the owned Counter/Bytes fixture executes 20+22=42 through the existing Hub and task driver, with one actual state Reservation, checked generation/read-count loans, whole replacement, FIFO backpressure and queue-before-state owner retirement. State/read storage and observations use existing finite allocation/cell/preparation/ServiceWork controls. This explicit initial private VM profile requires Share state and refuses remaining state metadata and service_cancel before effects. Source/MIR proof still covers the complete accepted Send contract; the narrower implementation is not A03 completion. A08 supplies handler-boundary cancellation and automatic closed-state retirement, A03 completes Send state edges/prospective publication and integration, and A04 supplies native/linked parity. Ordinary layout, REPL, wire, C/foreign and package profiles retain refusal. Validation evidence is recorded on the bilingual delivery board; acceptance and this VM checkpoint do not imply stabilization.
 
 Accept opaque setup, owner and producer roles, explicit core operations and a handler boundary for invocation-local isolated services. Only the unique owner can read or replace state; producers can enqueue and request cancellation. Typed MIR must independently prove role, moves, loans and suspension. Acceptance is not execution or stabilization evidence.
 
@@ -38,7 +38,7 @@ OS-thread execution, detached tasks, traits/asserted Send, mutable state project
 
 ## Guide-level design
 
-This is accepted spelling; it is not claimed executable before A02/A03.
+This is accepted spelling. The initial A07 VM profile executes Share state; the complete Send contract and cancellation remain A08/A03.
 
 ```text
 struct Counter { total:i64 }
@@ -132,7 +132,7 @@ Use the existing iterative mixed drain, mandatory unmetered cleanup, panic quara
 
 Add typed core operations for the eight synchronous calls. Add PrepareService { destination, endpoint, role, state_type, message_type }, ServiceSend { authority,payload } and ServiceReceive { authority }. state_type is present only for Owner receive. Reuse the bounded prepared namespace with a distinct service role/kind; channel/place authority cannot substitute for it. Independent MIR checks exact role, canonical types, effect, initialized input, single capture consumption, no capture escape/reuse, payload move, read origin/generation and no live ordinary loan at suspension. Capture only private invocation-local authority; end temporary endpoint loans before suspension. Malformed unused operations/metadata cannot skip proof.
 
-Preserve lossless syntax and operation/loan/move/state origins. Old ordinary layout, REPL, C/foreign, schema-2/3/4 codec and native-package paths refuse service metadata before guest/provider effects, including unused constructors. A02 proves semantics with explicit adapter refusal; A03 admits verified private VM execution, and A04 admits generated native execution after parity. Acceptance cannot silently expand any of those profiles.
+Preserve lossless syntax and operation/loan/move/state origins. Old ordinary layout, REPL, C/foreign, schema-2/3/4 codec and native-package paths refuse service metadata before guest/provider effects, including unused constructors. A02 proves semantics independently. A07 admits explicit Share-state private VM execution, A08 adds handler-boundary cancellation, A03 completes Send state/publication/control integration, and A04 admits generated native execution after parity. Acceptance cannot silently expand any of those profiles.
 
 Extend the existing Hub/managed channel backing for service role/status and one actual state Reservation owned by its unique token. The Hub remains the only owner of committed/pending messages. Read graph edges from actual guest/state/queue/shared storage under checked read-only context; do not add a second owner registry, trust a cached edge inventory or accept caller-supplied capability/acyclic flags. Prospective whole replacement substitutes only that state during cycle inspection; resumed pending sends re-inspect the current graph. Validate Handle publication/replacement into Shared/Weak using explicit service context, including actual live identity even when no strong receive edge exists.
 
@@ -168,7 +168,7 @@ No change leaves the reproduced cancellation/disposal hole and no cancellation h
 
 ## Implementation plan
 
-A02 implements constructor facts/core catalog, producer/owner diagnostics, ordinary read/move/suspension proof and independent MIR with old/backend pre-effect refusal. Audit actual runtime prerequisites before A03: execute a new owned-state service fixture with FIFO and cancellation/disposal through existing managed services; expose/re-estimate any independent missing outcome rather than hide it in A02. A04 proves generated-native and separately linked parity. Update RFCs 0005/0024, architecture, the bilingual board and roadmap alongside evidence. Gates, both-host embedding, measurements and the final capability guide remain separate acceptance conditions.
+A02 implements constructor facts/core catalog, producer/owner diagnostics, ordinary read/move/suspension proof and independent MIR with old/backend pre-effect refusal. The runtime scope audit exposes A07 for the owned Share-state FIFO VM fixture and A08 for handler-boundary cancellation/disposal, retaining A03 for complete Send state/message edges, prospective publication and control/quota/refusal integration. A04 proves generated-native and separately linked parity. Update RFCs 0005/0024, architecture, the bilingual board and roadmap alongside evidence. Gates, both-host embedding, measurements and the final capability guide remain separate acceptance conditions.
 
 ## Test plan
 
@@ -178,7 +178,7 @@ Execute 20+22=42, full/empty FIFO/backpressure, pending send recovery, cancel id
 
 ## Open questions
 
-No blocking semantic question remains for A02. Unverified implementation assumptions: existing Hub inspection can include prospective state without duplicating custody; read generations and provisional loan binding can reuse existing managed views; the mixed drain can order queue then state without extra per-retirement allocation. Validate these with the first runtime fixture and expose missing prerequisites. Representative cost, both-host behavior and later persisted/foreign representation remain unverified; do not infer them from acceptance.
+No blocking semantic question remains for A02. A07 verifies reuse of managed loan generations, one backing state Reservation and queue-before-state mixed retirement without a second owner registry or per-retirement allocation. Prospective non-Share state inspection and cancellation integration remain A08/A03 assumptions to validate. Representative cost, both-host behavior and later persisted/foreign representation remain unverified; do not infer them from acceptance.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-22 JST**. Explicit roles, ordinary loans/moves, whole-state publication and an observable handler boundary preserve RFC 0005 isolation/cancellation without a new source language, unrestricted mutable projection or interpreter fallback. The composition experiment demonstrates why the ownership boundary is required. Assumptions above are recorded rather than treated as implementation evidence.
 

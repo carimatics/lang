@@ -289,7 +289,7 @@ pub fn service_work_supported_with_c_imports(
                             | C::ServiceRead
                             | C::ServiceReplace
                             | C::ServiceFinish
-                            | C::ServiceCancel => false,
+                            | C::ServiceCancel => true,
                             C::ChannelNew
                             | C::ChannelSender
                             | C::ChannelClone

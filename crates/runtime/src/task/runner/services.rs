@@ -87,12 +87,16 @@ impl<'l, 'ty> Services<'l, 'ty> {
                     b::Op::PrepareChannel { .. }
                         | b::Op::ChannelSend { .. }
                         | b::Op::ChannelReceive { .. }
+                        | b::Op::PrepareService { .. }
+                        | b::Op::ServiceSend { .. }
+                        | b::Op::ServiceReceive { .. }
                 );
                 if let b::Op::CoreCall(call) = &instruction.op {
                     has_indirect |= indirect(call.operation);
                     has_shared |= shared(call.operation);
                     has_channels |= call.operation.is_channel()
                         && call.operation != o::core::Operation::ChannelUnsent;
+                    has_channels |= call.operation.is_service();
                 }
             }
         }

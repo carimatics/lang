@@ -133,6 +133,9 @@ fn usage(budget: &m::Budget) -> m::Usage {
 #[doc(hidden)]
 pub trait Backend<P: a::Provider> {
     fn supported(&self, op: &b::Op) -> bool;
+    fn services_supported(&self) -> bool {
+        false
+    }
     fn resume(
         &mut self,
         proof: &o::tasks::VerifiedTasks,
@@ -241,7 +244,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
             for ty in declaration.locals.iter().map(|l|l.ty.ty).chain(typed.places().functions()[index].values.iter().map(|v|v.ty)).chain(std::iter::once(declaration.result.ty)) {
                 budget.charge(1)?;
                 let claim=matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
-                if !claim && !managed_type_supported(types,ty,&mut budget)? {return Err(Reason::Unsupported);}
+                if !claim && !managed_type_supported_profile(types,ty,&mut budget,backend.services_supported())? {return Err(Reason::Unsupported);}
             }
             for instruction in body.blocks.iter().flat_map(|b|&b.instructions){
                 budget.charge(1)?;
@@ -250,7 +253,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
                     && !seen[function.0 as usize] { seen[function.0 as usize]=true;reachable.push(function.0 as usize); }
             }
         }
-        let layouts=if types.channel_feature_span().is_some() {l::Layouts::compile_channel_tasks(proof,limits.preparation)?} else {l::Layouts::compile_tasks(proof,limits.preparation)?};
+        let layouts=if types.service_feature_span().is_some() && backend.services_supported() {l::Layouts::compile_service_tasks(proof,limits.preparation)?} else if types.channel_feature_span().is_some() {l::Layouts::compile_channel_tasks(proof,limits.preparation)?} else {l::Layouts::compile_tasks(proof,limits.preparation)?};
         let extra=|a:usize,b:usize,c:usize|a.checked_add(b.checked_sub(c)?);
         let previous=usage(&budget);let layout=layouts.usage();
         let initial=m::Usage {work:extra(previous.work,layout.work,types.work_used()).ok_or(Reason::Invariant)?, allocation_bytes:extra(previous.allocation_bytes,layout.allocation_bytes,types.requested_bytes()).ok_or(Reason::Invariant)?,elements:extra(previous.elements,layout.elements,types.elements_used()).ok_or(Reason::Invariant)?};
@@ -420,6 +423,14 @@ pub fn managed_type_supported(
     ty: o::Type,
     budget: &mut m::Budget,
 ) -> Result<bool, Reason> {
+    managed_type_supported_profile(types, ty, budget, false)
+}
+fn managed_type_supported_profile(
+    types: &o::VerifiedTypes,
+    ty: o::Type,
+    budget: &mut m::Budget,
+    services: bool,
+) -> Result<bool, Reason> {
     let mut pending = budget.vector(1)?;
     pending.push(ty);
     let mut seen = budget.vector(0)?;
@@ -467,7 +478,18 @@ pub fn managed_type_supported(
                     o::Constructor::Task(_) => {}
                     o::Constructor::ServiceSetup(..)
                     | o::Constructor::ServiceOwner(..)
-                    | o::Constructor::ServiceHandle(_) => return Ok(false),
+                    | o::Constructor::ServiceHandle(_) => {
+                        if !services {
+                            return Ok(false);
+                        }
+                        for argument in types.table().constructed[id.0 as usize]
+                            .constructor
+                            .arguments()
+                        {
+                            reserve_push(budget, &mut pending)?;
+                            pending.push(argument);
+                        }
+                    }
                     o::Constructor::ChannelSetup(_)
                     | o::Constructor::Sender(_)
                     | o::Constructor::Receiver(_) => {

@@ -10,7 +10,9 @@ const HEADER_BYTES: u64 = 48;
 const TICKET: u64 = 0x4348_5449_434b_4554;
 mod operations;
 mod retirement;
+mod service;
 pub(crate) use retirement::Retired;
+pub(crate) use service::Read as ServiceRead;
 #[cfg(test)]
 mod tests;
 
@@ -22,6 +24,7 @@ pub enum Error {
     Preparation(m::Error),
     Cells { requested: usize, limit: usize },
     MessageType,
+    Service(l::ServiceError),
     State,
 }
 impl From<super::Error> for Error {
@@ -57,6 +60,7 @@ struct Backing<'l, 'ty> {
     free: Vec<l::Reservation<'l, 'ty>>,
     retired: bool,
     draining: bool,
+    service: Option<service::State<'l, 'ty>>,
 }
 pub struct Message<'l, 'ty> {
     pub storage: Option<l::Reservation<'l, 'ty>>,
@@ -166,7 +170,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         allocator: &a::Allocator<P>,
     ) -> Result<(), Error> {
         if !self.uses_layouts(layouts)
-            || !matches!(observation.ty,o::Type::Constructed(id) if matches!(layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)))
+            || !matches!(observation.ty,o::Type::Constructed(id) if matches!(layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)|o::Constructor::ServiceHandle(_)))
         {
             return Err(Error::MessageType);
         }
@@ -201,7 +205,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         allocator: &mut a::Allocator<P>,
     ) -> Result<Capture, Error> {
         self.index(token, allocator)?;
-        if !matches!(token.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)|o::Constructor::Receiver(_)))
+        if !matches!(token.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)|o::Constructor::Receiver(_)|o::Constructor::ServiceHandle(_)|o::Constructor::ServiceOwner(..)))
         {
             return Err(Error::MessageType);
         }
@@ -277,6 +281,11 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                 o::Constructor::ChannelSetup(t)
                 | o::Constructor::Sender(t)
                 | o::Constructor::Receiver(t),
+            )
+            | Some(
+                o::Constructor::ServiceSetup(_, t)
+                | o::Constructor::ServiceOwner(_, t)
+                | o::Constructor::ServiceHandle(t),
             ) => Ok(t),
             _ => Err(Error::MessageType),
         }
@@ -303,9 +312,19 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         span: Option<Span>,
         allocator: &mut a::Allocator<P>,
     ) -> Result<l::Token, Error> {
+        self.create_inner(endpoint, capacity, span, allocator, &mut None)
+    }
+    fn create_inner<P: a::Provider>(
+        &mut self,
+        endpoint: o::Type,
+        capacity: i64,
+        span: Option<Span>,
+        allocator: &mut a::Allocator<P>,
+        service: &mut Option<service::State<'l, 'ty>>,
+    ) -> Result<l::Token, Error> {
         self.check(allocator)?;
         let message = self.message(endpoint)?;
-        if !matches!(endpoint,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::ChannelSetup(_)))
+        if !matches!(endpoint,o::Type::Constructed(id) if matches!((self.layouts.types().table().constructed[id.0 as usize].constructor,service.is_some()),(o::Constructor::ChannelSetup(_),false)|(o::Constructor::ServiceSetup(..),true)))
         {
             return Err(Error::MessageType);
         }
@@ -397,6 +416,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             free,
             retired: false,
             draining: false,
+            service: service.take(),
         });
         self.cells = cells;
         let mut bytes = [0; 32];
@@ -425,7 +445,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         let handle = a::Handle::from_token(token.bytes[..24].try_into().unwrap())?;
         let number = usize::try_from(u64::from_le_bytes(token.bytes[24..].try_into().unwrap()))
             .map_err(|_| Error::State)?;
-        let sender = matches!(constructor, o::Constructor::Sender(_));
+        let sender = matches!(
+            constructor,
+            o::Constructor::Sender(_) | o::Constructor::ServiceHandle(_)
+        );
         let index = if sender {
             if self.tickets.get(number).copied().flatten() != Some(handle) {
                 return Err(Error::State);
@@ -455,6 +478,25 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             number
         };
         let backing = self.backing.get(index).ok_or(Error::State)?;
+        let service = matches!(
+            constructor,
+            o::Constructor::ServiceSetup(..)
+                | o::Constructor::ServiceOwner(..)
+                | o::Constructor::ServiceHandle(_)
+        );
+        if service != backing.service.is_some() {
+            return Err(Error::MessageType);
+        }
+        if let o::Constructor::ServiceSetup(state, _) | o::Constructor::ServiceOwner(state, _) =
+            constructor
+            && self
+                .layouts
+                .types()
+                .equivalent(state, backing.service.as_ref().ok_or(Error::State)?.ty)
+                != Some(true)
+        {
+            return Err(Error::MessageType);
+        }
         let header = backing.header.ok_or(Error::State)?;
         if !sender && header != handle {
             return Err(Error::State);
@@ -472,7 +514,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             return Err(Error::State);
         }
         if !sender {
-            let expected = if matches!(constructor, o::Constructor::ChannelSetup(_)) {
+            let expected = if matches!(
+                constructor,
+                o::Constructor::ChannelSetup(_) | o::Constructor::ServiceSetup(..)
+            ) {
                 Role::Setup
             } else {
                 Role::Receiver
@@ -504,11 +549,11 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         let o::Type::Constructed(id) = result else {
             return Err(Error::MessageType);
         };
-        if !matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(t) if self.layouts.types().equivalent(t,self.backing[channel].message)==Some(true))
+        if !matches!((self.layouts.types().table().constructed[id.0 as usize].constructor,self.backing[channel].service.is_some()),(o::Constructor::Sender(t),false)|(o::Constructor::ServiceHandle(t),true) if self.layouts.types().equivalent(t,self.backing[channel].message)==Some(true))
         {
             return Err(Error::MessageType);
         }
-        let source_sender = matches!(source.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)));
+        let source_sender = matches!(source.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)|o::Constructor::ServiceHandle(_)));
         if !source_sender {
             self.hub.role(
                 &Key {
@@ -572,7 +617,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         result: o::Type,
         allocator: &mut a::Allocator<P>,
     ) -> Result<l::Token, Error> {
-        if !matches!(source.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::ChannelSetup(_)))
+        if !matches!(source.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::ChannelSetup(_)|o::Constructor::ServiceSetup(..)))
         {
             return Err(Error::MessageType);
         }
@@ -580,8 +625,25 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         let o::Type::Constructed(id) = result else {
             return Err(Error::MessageType);
         };
-        if !matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Receiver(t) if self.layouts.types().equivalent(t,self.backing[channel].message)==Some(true))
-        {
+        let constructor = self.layouts.types().table().constructed[id.0 as usize].constructor;
+        let valid = match (constructor, self.backing[channel].service.as_ref()) {
+            (o::Constructor::Receiver(message), None) => {
+                self.layouts
+                    .types()
+                    .equivalent(message, self.backing[channel].message)
+                    == Some(true)
+            }
+            (o::Constructor::ServiceOwner(state, message), Some(service)) => {
+                self.layouts.types().equivalent(state, service.ty) == Some(true)
+                    && self
+                        .layouts
+                        .types()
+                        .equivalent(message, self.backing[channel].message)
+                        == Some(true)
+            }
+            _ => false,
+        };
+        if !valid {
             return Err(Error::MessageType);
         }
         self.hub
@@ -609,7 +671,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         span: Option<Span>,
         allocator: &mut a::Allocator<P>,
     ) -> Result<Message<'l, 'ty>, Error> {
-        if !matches!(endpoint.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)))
+        if !matches!(endpoint.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)|o::Constructor::ServiceHandle(_)))
         {
             return Err(Error::MessageType);
         }

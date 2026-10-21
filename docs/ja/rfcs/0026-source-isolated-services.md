@@ -8,13 +8,13 @@
 - Authors: Project contributors
 - Created: 2026-10-22
 - Last updated: 2026-10-22
-- Tracking issue: M3-A02, M3-A03, M3-A04
+- Tracking issue: M3-A02, M3-A07, M3-A08, M3-A03, M3-A04
 - Supersedes: なし。RFC 0005/0024 が要求する具体 service catalog を補完
 - Superseded by: なし
 
 ## Summary
 
-A02 proof checkpoint（2026-10-22 JST）: 全3 role、source 10操作/同期 MIR core signature 8種、別の PrepareService/ServiceSend/ServiceReceive を source と独立 MIR で証明します。重点13件で再帰 capability/arity/storage、owner move と producer SRC0029 起点、read-only/suspension loan、不正 role/type/capture 代用/再利用、proof budget 上限/1未満、旧 profile 拒否を検証します。managed-read synthetic root が検証済み state provenance を保持します。[owned Counter/Bytes fixture](../../../tests/fixtures/task_service.lang) は検証済みで、現 VM/native admission は guest 副作用前に拒否し、実行は A03/A04 に残ります。full baseline は **126 suite / 1,906件成功 / 失敗0 / 既存 timing ignore 1件**（suite-time 合計 **591.77s**）で成功し、fmt・Clippy（**1m 55s**）・rustdoc（**1m 19s**）・全11 fuzz target compile/lint（**4.75s**）も成功しました。fuzz campaign は主張しません。 全体の証拠は実装 Todo に記録し、受理から service 実行や安定化は導きません。
+A07 VM checkpoint（2026-10-22 JST）: owned Counter/Bytes fixture は既存 Hub と task driver で 20+22=42 を実行し、実 state Reservation 1個・generation/read-count 検証 loan・全体置換・FIFO backpressure・queue-before-state owner 退役を使います。state/read storage と observation は既存の有限 allocation/cell/preparation/ServiceWork control を使います。明示した初期 private VM profile は Share state を要求し、残りの state metadata と service_cancel は副作用前に拒否します。source/MIR proof は受理済みの完全な Send 契約を検証しており、狭い実装 profile は A03 完了ではありません。A08 が handler 境界の取消と closed-state 自動退役、A03 が Send state edge/prospective publication と統合、A04 が native/別リンク parity を担います。ordinary layout・REPL・wire・C/foreign・package は拒否を保ちます。検証証拠は英日実装 Todo に記録し、受理やこの VM checkpoint から安定化を導きません。
 
 invocation 内で隔離した service の opaque setup・owner・producer role、明示 core 操作、handler 境界を受理します。唯一の owner だけが state を read/置換でき、producer は enqueue と取消要求ができます。typed MIR は role・move・loan・suspension を独立検証します。受理は実行や安定化の証拠ではありません。
 
@@ -38,7 +38,7 @@ OS thread 実行、detached task、trait/自己申告 Send、mutable state proje
 
 ## Guide-level design
 
-受理した spelling です。A02/A03 より前の実行可能性は主張しません。
+受理した spelling です。初期 A07 VM profile は Share state を実行し、完全な Send 契約と取消は A08/A03 に残ります。
 
 ```text
 struct Counter { total:i64 }
@@ -132,7 +132,7 @@ handler に返った message は通常の owner local であり queue item で�
 
 同期8操作に typed core operation を追加します。PrepareService { destination, endpoint, role, state_type, message_type }、ServiceSend { authority,payload }、ServiceReceive { authority } を追加し、state_type は Owner receive にのみ保持します。既存の有限 prepared namespace を service 専用 role/kind で再利用し、channel/place 権限を代用できません。独立 MIR は正確な role・canonical type・effect・入力初期化・capture の単一消費・escape/再利用禁止・payload move・read origin/generation・suspension 時の通常 loan 不在を検証します。private な invocation 内権限だけを capture し、suspension 前に一時 endpoint loan を終了します。不正な未使用 operation/metadata も proof を省略できません。
 
-lossless syntax と operation/loan/move/state origin を保ちます。旧 ordinary layout、REPL、C/foreign、schema-2/3/4 codec、native-package は未使用 constructor を含む service metadata を guest/provider 副作用前に拒否します。A02 は adapter の明示拒否を維持して semantics を証明し、A03 は検証済み private VM 実行、A04 は parity 確認後の生成 native 実行を許容します。受理だけでは profile を拡張しません。
+lossless syntax と operation/loan/move/state origin を保ちます。旧 ordinary layout、REPL、C/foreign、schema-2/3/4 codec、native-package は未使用 constructor を含む service metadata を guest/provider 副作用前に拒否します。A02 は semantics を独立証明します。A07 が明示した Share-state private VM 実行、A08 が handler 境界の取消、A03 が完全な Send state/publication/control 統合を接続し、A04 が parity 確認後の生成 native 実行を許容します。受理だけでは profile を拡張しません。
 
 既存 Hub/managed channel backing に service role/status と unique token が所有する実 state Reservation 1個を追加します。commit/pending message の唯一の owner は Hub のままです。実 guest/state/queue/shared storage の graph edge を検証済み read-only context で読み、第二の owner registry、cached edge inventory の信用、caller の capability/acyclic flag は導入しません。prospective 全体置換の循環検査はその state だけを差替え、再開した pending send は現在 graph を再検査します。Shared/Weak 内 Handle の publication/置換は明示 service context で検証し、strong receive edge がなくても実 live identity を検証します。
 
@@ -168,7 +168,7 @@ untrusted code は role identity の構築、Send/Share の自己申告、produc
 
 ## Implementation plan
 
-A02 は constructor fact/core catalog、producer/owner 診断、通常 read/move/suspension proof、独立 MIR と旧/backend の副作用前拒否を実装します。A03 前に実 runtime 前提を監査し、既存 managed service で FIFO と取消/退役を持つ新 owned-state service fixture を実行し、独立した不足 outcome は A02 に隠さず追加/再見積りします。A04 は生成 native/別リンク parity を証明します。RFC 0005/0024、architecture、英日 board/roadmap を証拠と同時に更新します。gate、両 host embedding、測定、最終 capability guide は別の受入条件です。
+A02 は constructor fact/core catalog、producer/owner 診断、通常 read/move/suspension proof、独立 MIR と旧/backend の副作用前拒否を実装します。runtime scope audit は owned Share-state FIFO VM fixture の A07 と handler 境界取消/退役の A08 を追加し、完全な Send state/message edge・prospective publication・control/quota/refusal 統合を A03 に維持します。A04 は生成 native/別リンク parity を証明します。RFC 0005/0024、architecture、英日 board/roadmap を証拠と同時に更新します。gate、両 host embedding、測定、最終 capability guide は別の受入条件です。
 
 ## Test plan
 
@@ -178,7 +178,7 @@ Copy/owned/nested/recursive state/message、helper read、owner への合法 mov
 
 ## Open questions
 
-A02 の意味論を妨げる未決事項はありません。未検証の実装仮説: 既存 Hub の inspection が custody を重複せず prospective state を含められること、read generation/provisional loan binding が既存 managed view を再利用できること、mixed drain が退役ごとの追加 allocation なしで queue → state を順序付けられること。最初の runtime fixture で検証し、不足前提を明示します。代表的 cost、両 host、将来の persisted/foreign 表現は未検証で、受理から推測しません。
+A02 の意味論を妨げる未決事項はありません。A07 は managed loan generation・backing 内の state Reservation 1個・queue-before-state mixed retirement の再利用を、owner registry の追加や退役ごとの allocation なしで検証します。prospective non-Share state inspection と取消統合は A08/A03 で検証する仮説に残ります。代表的 cost、両 host、将来の persisted/foreign 表現は未検証で、受理から推測しません。
 
 決定: **RFC 0001 の実験段階委任により accepted、2026-10-22 JST**。明示 role、通常 loan/move、state 全体 publication、観測可能な handler 境界により、新 source 言語・無制限 mutable projection・interpreter fallback なしで RFC 0005 の isolation/取消を保ちます。composition 実験は ownership 境界が必要な理由を示します。上記仮説は実装証拠として扱わず記録します。
 

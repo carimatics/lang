@@ -12,7 +12,7 @@ mod storage;
 pub(crate) use storage::ReadView;
 pub use storage::{
     ArenaError, ChannelError, Immediate, Leaf, Location, OwnershipError, Preview, PreviewError,
-    Reservation, Token,
+    Reservation, ServiceError, Token,
 };
 mod frame;
 pub use frame::{FramePlan, FrameStorage};
@@ -156,6 +156,7 @@ enum Profile {
     Ownership,
     Tasks,
     Channels,
+    Services,
 }
 impl<'types> Layouts<'types> {
     pub fn compile(types: &'types o::VerifiedTypes, limits: m::Limits) -> Result<Self, Error> {
@@ -185,6 +186,19 @@ impl<'types> Layouts<'types> {
             Profile::Channels,
         )
     }
+    /// Initial private service storage. Full Send state admission remains a
+    /// separate delivery; the first VM profile requires receiver-free Share S.
+    #[doc(hidden)]
+    pub fn compile_service_tasks(
+        proof: &'types o::tasks::VerifiedTasks,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        Self::compile_inner(
+            proof.typed().places().declarations().types(),
+            limits,
+            Profile::Services,
+        )
+    }
     fn compile_inner(
         types: &'types o::VerifiedTypes,
         limits: m::Limits,
@@ -200,11 +214,24 @@ impl<'types> Layouts<'types> {
         )?;
         budget.charge(types.table().constructed.len())?;
         let tasks = profile != Profile::Ownership;
-        if let Some(span) = types.service_feature_span() {
+        if let Some(span) = types.service_feature_span()
+            && profile != Profile::Services
+        {
             return Err(Error::UnsupportedServiceProfile { span });
         }
+        if profile == Profile::Services {
+            for entry in &types.table().constructed {
+                budget.charge(1)?;
+                if let o::Constructor::ServiceSetup(state, _)
+                | o::Constructor::ServiceOwner(state, _) = entry.constructor
+                    && types.properties(state).is_none_or(|p| !p.is_share())
+                {
+                    return Err(Error::UnsupportedServiceProfile { span: entry.span });
+                }
+            }
+        }
         if let Some(span) = types.channel_feature_span()
-            && profile != Profile::Channels
+            && !matches!(profile, Profile::Channels | Profile::Services)
         {
             return Err(Error::UnsupportedChannelProfile { span });
         }
@@ -505,15 +532,12 @@ fn build(
                     )?);
                 }
                 o::Constructor::Builtin(o::Builtin::Unit) => return Ok(simple(0, 1, Kind::Scalar)),
-                o::Constructor::ServiceSetup(..)
-                | o::Constructor::ServiceOwner(..)
-                | o::Constructor::ServiceHandle(_)
-                | o::Constructor::Builtin(o::Builtin::ServiceError) => {
-                    return Err(Error::UnsupportedServiceProfile { span: entry.span });
-                }
                 o::Constructor::ChannelSetup(_)
                 | o::Constructor::Sender(_)
-                | o::Constructor::Receiver(_) => {
+                | o::Constructor::Receiver(_)
+                | o::Constructor::ServiceSetup(..)
+                | o::Constructor::ServiceOwner(..)
+                | o::Constructor::ServiceHandle(_) => {
                     return Ok(simple(32, 8, Kind::Token(entry.constructor)));
                 }
                 o::Constructor::Task(_) => {
@@ -530,6 +554,7 @@ fn build(
                     | o::Builtin::OwnershipError
                     | o::Builtin::ArenaError
                     | o::Builtin::ChannelError
+                    | o::Builtin::ServiceError
                     | o::Builtin::TaskError),
                 ) => {
                     let (size, alignment, cases, payload_offset) = match builtin {
@@ -537,6 +562,7 @@ fn build(
                         o::Builtin::BoundsError => (4, 4, 1, 4),
                         o::Builtin::TaskError => (4, 4, 1, 4),
                         o::Builtin::ChannelError => (8, 4, 2, 4),
+                        o::Builtin::ServiceError => (8, 4, 5, 4),
                         o::Builtin::Utf8Error => (16, 8, 1, 8),
                         o::Builtin::BufferError => (8, 4, 3, 4),
                         o::Builtin::OwnershipError => (8, 4, 6, 4),

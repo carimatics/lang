@@ -3,6 +3,7 @@ mod access;
 mod arenas;
 mod buffers;
 mod channels;
+mod isolated;
 pub use access::Access;
 mod managed;
 mod maps;
@@ -116,7 +117,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
             .prepared()
             .iter()
             .flatten()
-            .any(|p| p.channel().is_some())
+            .any(|p| p.channel().is_some() || p.service().is_some())
         {
             body.prepared
         } else {

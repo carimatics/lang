@@ -25,6 +25,10 @@ pub enum Target {
         ty: o::Type,
         at: l::Location,
     },
+    Service {
+        origin: Reference,
+        at: l::Location,
+    },
     Arena {
         origin: Reference,
         at: l::Location,
@@ -36,6 +40,7 @@ pub struct Loan {
     pub vector: Option<crate::vector::Loan>,
     pub map: Option<crate::map::Loan>,
     pub shared: Option<(crate::shared::managed::Read, o::Type)>,
+    pub(crate) service: Option<crate::channel::managed::ServiceRead>,
     pub custody: Option<crate::shared::managed::Custody>,
     pub arena: Option<(usize, crate::arena::managed::Read)>,
 }
@@ -78,6 +83,7 @@ impl Managed {
             vector: None,
             map: None,
             shared: None,
+            service: None,
             custody: None,
             arena: None,
         });
@@ -297,6 +303,16 @@ impl Frame<'_, '_> {
                 {
                     failure = Some(Reason::Cleanup);
                 }
+            }
+            if let Some(read) = loan.service.take()
+                && services
+                    .channels
+                    .as_mut()
+                    .ok_or(Reason::Invariant)?
+                    .end_service_read(read, allocator)
+                    .is_err()
+            {
+                failure = Some(Reason::Cleanup);
             }
             if let Some((slot, mut read)) = loan.arena.take() {
                 let arena = self

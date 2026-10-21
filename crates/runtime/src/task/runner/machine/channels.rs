@@ -101,6 +101,20 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
         Ok(())
     }
+    pub fn admit_service_create(&self, task: usize, capacity: usize) -> Result<(), Reason> {
+        let l::Immediate::I64(capacity) = self.frame(task)?.read(capacity, self.allocator)? else {
+            return Err(Reason::Invariant);
+        };
+        if capacity > 0 {
+            self.channel_admit(
+                usize::try_from(capacity)
+                    .ok()
+                    .and_then(|n| n.checked_add(1))
+                    .ok_or(Reason::Invariant)?,
+            )?;
+        }
+        Ok(())
+    }
     pub(super) fn cancel_channel_waits(&mut self, task: usize) -> Result<(), Reason> {
         let mut failed = false;
         for index in (0..self.records[task].frames.len()).rev() {

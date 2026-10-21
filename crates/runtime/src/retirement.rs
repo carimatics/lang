@@ -270,7 +270,10 @@ impl<'l, 't> Drain<'l, 't> {
             }
             o::Constructor::ChannelSetup(_)
             | o::Constructor::Sender(_)
-            | o::Constructor::Receiver(_) => {
+            | o::Constructor::Receiver(_)
+            | o::Constructor::ServiceSetup(..)
+            | o::Constructor::ServiceOwner(..)
+            | o::Constructor::ServiceHandle(_) => {
                 self.vacancy().map_err(|_| FAULT)?;
                 let (channels, scheduler) = services.channels.as_mut().ok_or(FAULT)?;
                 if let Some(value) = channels

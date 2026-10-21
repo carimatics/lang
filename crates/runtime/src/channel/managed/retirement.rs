@@ -58,6 +58,18 @@ impl<'l, 'ty> Retired<'l, 'ty> {
                     .begin_retirement(message.span.or(entry.value.span), allocator)?;
                 self.message = Some(message);
             } else {
+                if let Some(state) = channels.backing[channel].service.as_mut()
+                    && let Some(mut storage) = state.storage.take()
+                {
+                    storage.begin_retirement(state.span, allocator)?;
+                    self.message = Some(Message {
+                        storage: Some(storage),
+                        span: state.span,
+                        channel,
+                        extra: true,
+                    });
+                    continue;
+                }
                 channels.finish_retirement(channel, allocator)?;
                 self.channel = None;
                 return Ok(None);
@@ -86,7 +98,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             token.bytes.fill(0);
             return Ok(None);
         }
-        if matches!(constructor, o::Constructor::Sender(_)) {
+        if matches!(
+            constructor,
+            o::Constructor::Sender(_) | o::Constructor::ServiceHandle(_)
+        ) {
             let ticket = usize::try_from(u64::from_le_bytes(token.bytes[24..].try_into().unwrap()))
                 .map_err(|_| Error::State)?;
             self.hub.release_sender(
@@ -110,8 +125,8 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             return Ok(None);
         }
         let role = match constructor {
-            o::Constructor::ChannelSetup(_) => Role::Setup,
-            o::Constructor::Receiver(_) => Role::Receiver,
+            o::Constructor::ChannelSetup(_) | o::Constructor::ServiceSetup(..) => Role::Setup,
+            o::Constructor::Receiver(_) | o::Constructor::ServiceOwner(..) => Role::Receiver,
             _ => return Err(Error::MessageType),
         };
         self.hub.role(
@@ -121,6 +136,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             },
             role,
         )?;
+        self.service_boundary(channel)?;
         token.bytes.fill(0);
         allocator.bytes_mut(handle)?[32..40].copy_from_slice(&0u64.to_le_bytes());
         if role == Role::Setup {

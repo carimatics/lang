@@ -17,7 +17,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         allocator: &a::Allocator<P>,
     ) -> Result<SendReadiness, Error> {
         let index = self.index(sender, allocator)?;
-        if !matches!(sender.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)))
+        if !matches!(sender.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)|o::Constructor::ServiceHandle(_)))
         {
             return Err(Error::MessageType);
         }
@@ -78,8 +78,20 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         let o::Type::Constructed(id) = observation.ty else {
             return Err(super::super::Error::InvalidPayload);
         };
-        if !matches!(layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Receiver(t) if layouts.types().equivalent(t,value.message)==Some(true))
-        {
+        let valid = match (
+            layouts.types().table().constructed[id.0 as usize].constructor,
+            value.service.as_ref(),
+        ) {
+            (o::Constructor::Receiver(t), None) => {
+                layouts.types().equivalent(t, value.message) == Some(true)
+            }
+            (o::Constructor::ServiceOwner(state, t), Some(service)) => {
+                layouts.types().equivalent(t, value.message) == Some(true)
+                    && layouts.types().equivalent(state, service.ty) == Some(true)
+            }
+            _ => false,
+        };
+        if !valid {
             return Err(super::super::Error::WrongRole);
         }
         if word(1)
@@ -120,7 +132,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         let o::Type::Constructed(id) = observation.ty else {
             return Err(E::WrongRole);
         };
-        if !matches!(layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(t) if layouts.types().equivalent(t,value.message)==Some(true))
+        if !matches!((layouts.types().table().constructed[id.0 as usize].constructor,value.service.is_some()),(o::Constructor::Sender(t),false)|(o::Constructor::ServiceHandle(t),true) if layouts.types().equivalent(t,value.message)==Some(true))
         {
             return Err(E::WrongRole);
         }
@@ -160,8 +172,39 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             .storage
             .as_ref()
             .ok_or(super::super::Error::InvalidPayload)?;
+        Self::inspect_value(
+            layouts,
+            backing,
+            tickets,
+            identity,
+            inspector,
+            heap,
+            storage,
+            message.span,
+            allocator,
+            work,
+            visit,
+        )
+    }
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Inspection borrows the existing invocation graph, storage and bounded work context without duplicating owners."
+    )]
+    pub(super) fn inspect_value<P: a::Provider>(
+        layouts: &'l l::Layouts<'ty>,
+        backing: &[Backing<'l, 'ty>],
+        tickets: &[Option<a::Handle>],
+        identity: &Rc<()>,
+        inspector: &mut inspection::Inspector<'l, 'ty>,
+        heap: Option<&crate::shared::managed::Heap<'l, 'ty>>,
+        storage: &l::Reservation<'l, 'ty>,
+        span: Option<Span>,
+        allocator: &a::Allocator<P>,
+        work: &e::ServiceWork,
+        visit: &mut dyn FnMut(&Receiver) -> Result<(), super::super::Error>,
+    ) -> Result<(), super::super::Error> {
         let mut read = inspector
-            .read(storage, message.span, allocator)
+            .read(storage, span, allocator)
             .map_err(inspection_error)?;
         let mut quota = inspection::Work::new(usize::MAX).with_service_work(work.clone());
         while let Some(observation) = read.next(&mut quota).map_err(inspection_error)? {
@@ -169,14 +212,10 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                 continue;
             };
             match layouts.types().table().constructed[id.0 as usize].constructor {
-                o::Constructor::Receiver(_) => visit(&Self::receiver_key(
-                    layouts,
-                    backing,
-                    identity,
-                    &observation,
-                    allocator,
-                )?)?,
-                o::Constructor::Sender(_) => {
+                o::Constructor::Receiver(_) | o::Constructor::ServiceOwner(..) => visit(
+                    &Self::receiver_key(layouts, backing, identity, &observation, allocator)?,
+                )?,
+                o::Constructor::Sender(_) | o::Constructor::ServiceHandle(_) => {
                     Self::inspect_sender(layouts, backing, tickets, &observation, allocator)?
                 }
                 o::Constructor::Shared(target) | o::Constructor::Weak(target) => {
@@ -263,7 +302,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                 });
             }
         };
-        if !matches!(sender.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)))
+        if !matches!(sender.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Sender(_)|o::Constructor::ServiceHandle(_)))
             || message.channel != channel
         {
             return Err(SendFailure {
@@ -335,11 +374,12 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         allocator: &a::Allocator<P>,
     ) -> Result<Receive<Message<'l, 'ty>>, Error> {
         let index = self.index(receiver, allocator)?;
-        if !matches!(receiver.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Receiver(_)))
+        if !matches!(receiver.leaf.ty,o::Type::Constructed(id) if matches!(self.layouts.types().table().constructed[id.0 as usize].constructor,o::Constructor::Receiver(_)|o::Constructor::ServiceOwner(..)))
         {
             return Err(Error::MessageType);
         }
-        Ok(self.hub.receive(
+        self.service_boundary(index)?;
+        let received = self.hub.receive(
             scheduler,
             task,
             &mut Receiver(Key {
@@ -347,14 +387,20 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                 index,
             }),
             span,
-        )?)
+        )?;
+        self.service_received(index, matches!(&received, Receive::Value { .. }))?;
+        Ok(received)
     }
     pub fn resume_receive(
         &mut self,
         scheduler: &mut t::Scheduler,
         operation: &Operation,
     ) -> Result<Receive<Message<'l, 'ty>>, Error> {
-        Ok(self.hub.resume_receive(scheduler, operation)?)
+        let slot = self.hub.operation(operation)?;
+        let index = self.hub.pending[slot].as_ref().ok_or(Error::State)?.channel;
+        let received = self.hub.resume_receive(scheduler, operation)?;
+        self.service_received(index, matches!(&received, Receive::Value { .. }))?;
+        Ok(received)
     }
     pub fn cancel(
         &mut self,

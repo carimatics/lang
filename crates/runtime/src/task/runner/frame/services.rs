@@ -276,6 +276,17 @@ impl Access<'_, '_, '_> {
             );
         }
         let first = arguments.next().ok_or(Reason::Invariant)?;
+        if operation.is_service() {
+            return self.service_core(
+                operation,
+                result_loan,
+                first,
+                arguments,
+                to,
+                span,
+                allocator,
+            );
+        }
         if operation.is_channel() {
             return self.channel_core(operation, first, arguments, to, span, allocator);
         }

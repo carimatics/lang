@@ -13,6 +13,7 @@ impl Target {
             Self::Vector { at, .. }
             | Self::Map { at, .. }
             | Self::Shared { at, .. }
+            | Self::Service { at, .. }
             | Self::Arena { at, .. } => Ok(at),
             _ => Err(Reason::Invariant),
         }
@@ -26,6 +27,7 @@ impl Target {
             Self::Vector { origin, .. } => Self::Vector { origin, at },
             Self::Map { origin, .. } => Self::Map { origin, at },
             Self::Shared { origin, ty, .. } => Self::Shared { origin, ty, at },
+            Self::Service { origin, .. } => Self::Service { origin, at },
             Self::Arena { origin, .. } => Self::Arena { origin, at },
             _ => return Err(Reason::Invariant),
         })
@@ -67,6 +69,18 @@ macro_rules! observe {
                     .ok_or(Reason::Invariant)?
                     .view(read, ty, $allocator)
                     .map_err(|error| Reason::service(&error))?;
+                let $at = at;
+                $body.map_err(|error| Reason::service(&error))
+            }
+            Target::Service { origin, at } => {
+                let read = $s.lease(origin)?.service.ok_or(Reason::Invariant)?;
+                let $view = $s
+                    .services
+                    .channels
+                    .as_ref()
+                    .ok_or(Reason::Invariant)?
+                    .service_view(read, $allocator)
+                    .map_err(Reason::Channel)?;
                 let $at = at;
                 $body.map_err(|error| Reason::service(&error))
             }
@@ -145,6 +159,7 @@ impl Access<'_, '_, '_> {
             || loan.vector.is_some()
             || loan.map.is_some()
             || loan.shared.is_some()
+            || loan.service.is_some()
             || loan.arena.is_some()
         {
             return Err(Reason::Invariant);
@@ -246,6 +261,19 @@ impl Access<'_, '_, '_> {
         }
         let destination = self.cell(to)?;
         match target {
+            Target::Service { origin, at } => {
+                let read = self.lease(origin)?.service.ok_or(Reason::Invariant)?;
+                let source = self
+                    .services
+                    .channels
+                    .as_ref()
+                    .ok_or(Reason::Invariant)?
+                    .service_view(read, allocator)
+                    .map_err(Reason::Channel)?;
+                source
+                    .copy_into(at, destination, to.at, allocator)
+                    .map_err(|error| Reason::service(&error))
+            }
             Target::Arena { origin, at } => self
                 .arena_view(origin, allocator)?
                 .copy_into(at, destination, to.at, allocator)

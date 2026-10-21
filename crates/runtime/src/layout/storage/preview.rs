@@ -250,6 +250,16 @@ impl<'l, 't> Preview<'l, 't> {
             Immediate::Bool(b) => return self.text(if b { "true" } else { "false" }),
             Immediate::Unit => return self.text("core::Unit {}"),
             Immediate::TaskCancelled => return self.text("core::TaskError::Cancelled"),
+            Immediate::Service(v) => (
+                match v {
+                    ServiceError::InvalidCapacity => "core::ServiceError::InvalidCapacity",
+                    ServiceError::Allocation(_) => "core::ServiceError::Allocation",
+                    ServiceError::Unavailable => "core::ServiceError::Unavailable",
+                    ServiceError::NoActiveHandler => "core::ServiceError::NoActiveHandler",
+                    ServiceError::InvalidPublication => "core::ServiceError::InvalidPublication",
+                },
+                value.payload(),
+            ),
             Immediate::Channel(v) => (
                 match v {
                     ChannelError::InvalidCapacity => "core::ChannelError::InvalidCapacity",

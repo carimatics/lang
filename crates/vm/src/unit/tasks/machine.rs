@@ -3,6 +3,9 @@ use frame::Scope;
 use lang_runtime::task::runner::{self as runner, machine};
 pub(super) struct Interpreter;
 impl<P: a::Provider> runner::Backend<P> for Interpreter {
+    fn services_supported(&self) -> bool {
+        true
+    }
     fn supported(&self, op: &b::Op) -> bool {
         instructions::supported(op)
     }
@@ -43,7 +46,8 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                         .transpose()?;
                     let applied = (|| -> Result<bool, Reason> {
                         match &i.op {
-                            b::Op::ChannelSend { authority, payload } => {
+                            b::Op::ChannelSend { authority, payload }
+                            | b::Op::ServiceSend { authority, payload } => {
                                 let payload = machine.frame(task)?.value(*payload);
                                 return machine.channel_send(
                                     task,
@@ -55,7 +59,8 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                     node.span,
                                 );
                             }
-                            b::Op::ChannelReceive { authority } => {
+                            b::Op::ChannelReceive { authority }
+                            | b::Op::ServiceReceive { authority } => {
                                 return machine.channel_receive(
                                     task,
                                     authority.0 as usize,
@@ -194,10 +199,18 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                             }
                             _ => {
                                 if let b::Op::CoreCall(call) = &i.op
-                                    && call.operation == o::core::Operation::ChannelNew
+                                    && matches!(
+                                        call.operation,
+                                        o::core::Operation::ChannelNew
+                                            | o::core::Operation::ServiceNew
+                                    )
                                 {
                                     let capacity = machine.frame(task)?.value(call.arguments[1]);
-                                    machine.admit_channel_create(task, capacity)?;
+                                    if call.operation == o::core::Operation::ServiceNew {
+                                        machine.admit_service_create(task, capacity)?;
+                                    } else {
+                                        machine.admit_channel_create(task, capacity)?;
+                                    }
                                 }
                                 let mut frame = frame::Access::new(
                                     &mut machine.records[task].frames,

@@ -123,7 +123,7 @@ fn collect<'l, 't, P: a::Provider>(
                     span: observation.span,
                 });
             }
-            o::Constructor::Sender(_) => {
+            o::Constructor::Sender(_) | o::Constructor::ServiceHandle(_) => {
                 // Sender carries no owning edge to its message type. The
                 // invocation service still validates actual private authority.
                 channels

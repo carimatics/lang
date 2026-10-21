@@ -1,7 +1,17 @@
 use super::*;
 use frame::{Access, Location};
 
-pub(super) use lang_runtime::task::runner::task_supported as supported;
+pub(super) fn supported(op: &b::Op) -> bool {
+    match op {
+        b::Op::PrepareService { .. } | b::Op::ServiceSend { .. } | b::Op::ServiceReceive { .. } => {
+            true
+        }
+        b::Op::CoreCall(call) if call.operation.is_service() => {
+            call.operation != o::core::Operation::ServiceCancel
+        }
+        _ => lang_runtime::task::runner::task_supported(op),
+    }
+}
 pub(super) fn execute<P: a::Provider>(
     typed: &b::TypedBodies,
     frame: &mut Access<'_, '_, '_>,
@@ -58,6 +68,11 @@ pub(super) fn execute<P: a::Provider>(
                 Some(frame.write_place(&paths[place.0 as usize], allocator)?)
         }
         b::Op::PrepareChannel {
+            destination,
+            endpoint,
+            ..
+        }
+        | b::Op::PrepareService {
             destination,
             endpoint,
             ..

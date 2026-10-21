@@ -26,6 +26,14 @@ pub enum ChannelError {
     InvalidCapacity,
     Allocation(AllocError),
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ServiceError {
+    InvalidCapacity,
+    Allocation(AllocError),
+    Unavailable,
+    NoActiveHandler,
+    InvalidPublication,
+}
 /// Copy leaves only; this never duplicates an owner or grants token authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Immediate {
@@ -40,6 +48,7 @@ pub enum Immediate {
     Ownership(OwnershipError),
     Arena(ArenaError),
     Channel(ChannelError),
+    Service(ServiceError),
 }
 
 fn range(start: u64, size: u64) -> Result<Range<usize>, Error> {
@@ -72,6 +81,7 @@ impl Immediate {
             T::OwnershipError => 6,
             T::ArenaError => 4,
             T::ChannelError => 2,
+            T::ServiceError => 5,
             _ => return Err(Error::InvalidValue),
         };
         if case >= count {
@@ -85,6 +95,13 @@ impl Immediate {
             (T::ChannelError, 1, Some(Self::Allocation(error))) => {
                 Self::Channel(ChannelError::Allocation(error))
             }
+            (T::ServiceError, 0, None) => Self::Service(ServiceError::InvalidCapacity),
+            (T::ServiceError, 1, Some(Self::Allocation(error))) => {
+                Self::Service(ServiceError::Allocation(error))
+            }
+            (T::ServiceError, 2, None) => Self::Service(ServiceError::Unavailable),
+            (T::ServiceError, 3, None) => Self::Service(ServiceError::NoActiveHandler),
+            (T::ServiceError, 4, None) => Self::Service(ServiceError::InvalidPublication),
             (T::BufferError, 0, None) => Self::Buffer(BufferError::Bounds),
             (T::BufferError, 1, None) => Self::Buffer(BufferError::InvalidByte),
             (T::BufferError, 2, Some(Self::Allocation(error))) => {
@@ -124,6 +141,7 @@ impl Immediate {
             | Self::Ownership(OwnershipError::Allocation(error))
             | Self::Arena(ArenaError::Allocation(error)) => Some(Self::Allocation(error)),
             Self::Channel(ChannelError::Allocation(error)) => Some(Self::Allocation(error)),
+            Self::Service(ServiceError::Allocation(error)) => Some(Self::Allocation(error)),
             Self::Utf8(Utf8Error::Invalid(offset)) => Some(Self::I64(offset)),
             _ => None,
         }
@@ -143,6 +161,13 @@ impl Immediate {
             Self::TaskCancelled => (B::TaskError, 0, None),
             Self::Channel(ChannelError::InvalidCapacity) => (B::ChannelError, 0, None),
             Self::Channel(ChannelError::Allocation(error)) => (B::ChannelError, 1, Some(error)),
+            Self::Service(error) => match error {
+                ServiceError::InvalidCapacity => (B::ServiceError, 0, None),
+                ServiceError::Allocation(error) => (B::ServiceError, 1, Some(error)),
+                ServiceError::Unavailable => (B::ServiceError, 2, None),
+                ServiceError::NoActiveHandler => (B::ServiceError, 3, None),
+                ServiceError::InvalidPublication => (B::ServiceError, 4, None),
+            },
             Self::Allocation(error) => (B::AllocError, alloc_tag(error), None),
             Self::Bounds(BoundsError::OutOfBounds) => (B::BoundsError, 0, None),
             Self::Buffer(error) => match error {
@@ -362,6 +387,13 @@ impl Reservation<'_, '_> {
                 ChannelError::InvalidCapacity
             } else {
                 ChannelError::Allocation(alloc_value(read_u32(bytes, 4)?)?)
+            }),
+            B::ServiceError => Immediate::Service(match tag {
+                0 => ServiceError::InvalidCapacity,
+                1 => ServiceError::Allocation(alloc_value(read_u32(bytes, 4)?)?),
+                2 => ServiceError::Unavailable,
+                3 => ServiceError::NoActiveHandler,
+                _ => ServiceError::InvalidPublication,
             }),
             B::BufferError => Immediate::Buffer(match tag {
                 0 => BufferError::Bounds,

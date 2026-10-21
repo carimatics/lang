@@ -334,6 +334,49 @@ fn service_program() -> Box<lang_semantics::analysis::TaskProgram> {
 }
 
 #[test]
+fn initial_service_layout_admits_share_state_and_refuses_receiver_state() {
+    let program = service_program();
+    let layouts = lang_runtime::layout::Layouts::compile_service_tasks(
+        program.verified(),
+        Default::default(),
+    )
+    .unwrap();
+    let types = program.verified().typed().places().declarations().types();
+    for (index, entry) in types.table().constructed.iter().enumerate() {
+        let expected = match entry.constructor {
+            o::Constructor::ServiceSetup(..)
+            | o::Constructor::ServiceOwner(..)
+            | o::Constructor::ServiceHandle(..) => Some(32),
+            o::Constructor::Builtin(o::Builtin::ServiceError) => Some(8),
+            _ => None,
+        };
+        if let Some(size) = expected {
+            assert_eq!(
+                layouts
+                    .get(o::Type::Constructed(o::ConstructedId(index as u32)))
+                    .unwrap()
+                    .size,
+                size
+            );
+        }
+    }
+    let out = analyze(
+        "fn carry(owner:core::ServiceOwner<core::Receiver<i64>,i64>)->core::ServiceOwner<core::Receiver<i64>,i64>{return owner;}async fn main()->i64{yield;return 42;}",
+    );
+    assert!(out.diagnostics.is_empty(), "{:?}", out.diagnostics);
+    let Program::Tasks(program) = out.result.unwrap() else {
+        panic!("task proof")
+    };
+    assert!(matches!(
+        lang_runtime::layout::Layouts::compile_service_tasks(
+            program.verified(),
+            Default::default()
+        ),
+        Err(lang_runtime::layout::Error::UnsupportedServiceProfile { .. })
+    ));
+}
+
+#[test]
 fn owned_service_source_preserves_distinct_state_message_and_capture_authority() {
     use o::bodies::{Op, ServiceRole};
     let program = service_program();
@@ -375,27 +418,23 @@ fn owned_service_source_preserves_distinct_state_message_and_capture_authority()
     )
     .unwrap();
     let before = allocator.stats();
-    let failure = match lang_vm::unit::tasks::execute_entry(
+    let outcome = lang_vm::unit::tasks::execute_entry(
         program.verified(),
         &mut allocator,
         lang_runtime::execution::Control::with_limits(Default::default()),
         Default::default(),
-    ) {
-        Err(failure) => failure,
-        Ok(_) => panic!("service execution profile must remain unavailable"),
-    };
-    assert!(matches!(
-        failure.reason,
-        lang_runtime::task::runner::Reason::Unsupported
-    ));
-    assert_eq!(allocator.stats(), before);
+    )
+    .unwrap();
+    assert_eq!(outcome.value, 42);
+    assert_eq!(allocator.stats().live_allocations, before.live_allocations);
+    let after = allocator.stats();
     let native =
         lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default());
     assert!(matches!(
         native,
         Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
     ));
-    assert_eq!(allocator.stats(), before);
+    assert_eq!(allocator.stats(), after);
     let span = types.service_feature_span().unwrap();
     assert!(
         matches!(lang_runtime::layout::Layouts::compile_tasks(program.verified(),Default::default()),
