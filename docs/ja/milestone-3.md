@@ -6,11 +6,15 @@
 
 更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**30 done · 1 doing · 23 todo · 68 remaining pt**
+**31 done · 1 doing · 22 todo · 65 remaining pt**
 
-**次: M3-A04 → 既存 primitive へ service lowering を接続し、生成 native/別リンク parity を検証します。**
+**次: M3-I01 → 既存 component 契約を基礎に production IDL/wire/embedding profile を決定します。**
 
-現在の作業: **M3-A04（3 pt）**。直近の成功した実装 checkpoint は **`8d945b0`、2026-10-22 09:02 JST 検証**です。残る受入条件は service type/layout/core/MIR の検査付き native 受理、既存 Machine primitive を使う生成 lowering、対応する全 VM/native control/quota/provider/割込み/report/cleanup parity と service の別リンク object です。VM/MIR evaluator fallback を使わず native continuation を生成し、旧 ordinary/wire/C/foreign/package 拒否を保ちます。
+現在の作業: **M3-I01（3 pt）**。直近の実行 checkpoint は **`cfd9641`、2026-10-22 10:50 JST 検証**です。残る受入条件は、scalar/record/variant/sequence value、resource の所有権/borrow、grant、構造化 error、再入/cancellation、有界 validation と互換性/移行を含む production の versioned IDL/wire/embedding 契約を受理し、既存 component/runtime 契約との対応・判断理由・未検証仮説を記録することです。parser・codec・生成 binding の実行は I02/I03/I04 に残します。doing は I01 のみです。
+
+A04 を `cfd9641` で完了（2026-10-22 10:50 JST）: 明示 private native task adapter が検査付き service type/layout と service MIR/core operation を受理し、capture/send/receive を既存 primitive に lower します。ServiceNew は provider 副作用前に capacity と state cell を事前検査し、生成された演算/CFG/continuation と共通 Machine の役割を保ちます。VM/MIR evaluator fallback・新 primitive ABI・owner registry・永続 schema は追加しません。**native/type/VM の重点77件**が成功し、元の64段 fixture の全 control/provider/割込み matrix も含みます。profile ごとに一度準備する最終 native suite は **33件、51.64s**で成功しました。継続する全 prefix 検証には小さい graph と4段の再帰を使い、64段で深さと control 上限の境界を確認します。基本 service 14 fixture と小さい再帰 profile を含む **別リンク object 全40 profile**が成功しました。native example は `tests/fixtures/task_service_state_replace.lang` で **42**を返します。source 固定の全 baseline は **127 suite・1,977件成功・失敗0・既存 timing ignore 1件**、suite-time 合計 **712.14s**です。fmt・warnings-denied Clippy（test module の重複 import 修正後の最終再実行 **2.74s**）・rustdoc（**37.86s**）・全11 fuzz target compile/lint（**1.33s**）も成功しました。fuzz campaign やテスト時間から runtime 性能を主張しません。ordinary/REPL/wire/C/foreign/package の拒否は維持します。**消化3 pt・新規追加0 pt**、残り **68 + 0 − 3 = 65 pt**です。M3 exit gate 完了は主張しません。
+
+A04 後の roadmap/I01 scope 監査（2026-10-22 JST）: 受理済み RFC 0003、現 component metadata、candidate schema-2 codec、canonical resource table、trusted scalar/resource application fixture を確認し、I01 の **3 pt**を維持します。これらは production IDL・rich value wire codec・生成 C/guest binding・実 production embedding/callback 受理をまだ供給しません。I01 で完全な versioned 境界と error/再入/cancellation/移行 policy を決定してから I02–I04 を実装し、既存 validation/resource/failure 機構を再利用します。doing は I01 のみ、追加/再見積り **0 pt**とし、resource/grant/embedding/control・両 host conformance・計測・全 M3/P1 gate・最終 guide を維持します。
 
 A03 を `8d945b0` で完了（2026-10-22 09:02 JST）: private VM で独立に証明した完全な Send/storable state/message を実行します。既存 backing/state Reservation 1個と有界 Hub walk で実 Receiver/ServiceOwner state と committed queue を検査し、置換候補だけを代入し、再開 send を再検査します。owner/edge registry や scheduler は追加しません。再帰循環の拒否/回復、nested owner/Vec 置換、shared/weak producer identity/phantom-M publication が inventory 0 で成功しました。runtime probe は循環/work 拒否時に旧 bytes/generation と候補 custody を保ち、旧 queue 1/4件で候補だけの work を比較し、両 ownership tree を一度退役します。**重点85件**と **state CLI fixture 全6個が42**を返す検証が通過し、64段の cleanup・選択した全 control/provider/割込み prefix・quota 上限/1 不足・nested panic/打切り report を含みます。source 固定の全 baseline は **126 suite・1,944件成功・失敗0・既存 timing ignore 1件**、suite-time 合計 **643.80s**。fmt・Clippy（**2分47秒**）・rustdoc（**37.71s**）・全11 fuzz target compile/lint（**1.58s**）も成功しました。fuzz campaign や M3 gate 完了は主張しません。**消化3 pt・新規追加0 pt**、残り **71 + 0 − 3 = 68 pt**。service の生成 native/別リンク parity は A04 に残します。
 
@@ -74,8 +78,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-A07 | done | 0 | M3-A02,M3-C03 | G05 | 実 state storage/read/全体置換と有限 control で owned service FIFO source を VM 実行 | `d90de9b` |
 | M3-A08 | done | 0 | M3-A07 | G05 | handler 境界の service 取消、pending send 回復、FIFO queue-before-state 退役を実行 | `4223d7b` |
 | M3-A03 | done | 0 | M3-A07,M3-A08,M3-C07 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | `8d945b0` |
-| M3-A04 | doing | 3 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | — |
-| M3-I01 | todo | 3 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | — |
+| M3-A04 | done | 0 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | `cfd9641` |
+| M3-I01 | doing | 3 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | — |
 | M3-I02 | todo | 3 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | — |
 | M3-I03 | todo | 3 | M3-I02 | G06 | scalar/record/variant/sequence を独立した上限付き encode/decode | — |
 | M3-I04 | todo | 3 | M3-I03 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | — |
@@ -173,7 +177,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 37 − 79 = 68 pt**
+**110 + 37 − 82 = 65 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -221,7 +225,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +37 pt | −79 pt | 68 pt |
+| 110 pt | +37 pt | −82 pt | 65 pt |
 
 ## Exit audit
 
@@ -270,3 +274,4 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 - C07 の証拠/A03 scope 監査: [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md) と [RFC 0026](rfcs/0026-source-isolated-services.md) の最終更新は 2026-10-22。共通 task/channel typed storage、実 service backing/inspection/publication、`tests/source_channels.rs`、`tests/source_services.rs`、`tests/native_channel_execution.rs`、Copy CLI fixture 10個、`tests/support/task_static.rs` を参照します。code に更新日の埋込みはなく、`7d1a71a`、2026-10-22 07:37 JST、macOS AArch64 で確認/実行/検証しました。
 
 - A03 の証拠/A04 scope 監査: [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)・[RFC 0024](rfcs/0024-send-share-and-service-authority.md)・[RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md)・[RFC 0026](rfcs/0026-source-isolated-services.md) の最終更新は 2026-10-22。実 channel/service state publication と layout 受理、`tests/source_services.rs`、state fixture 6個、runtime service 境界 probe、native task compiler/runner を参照します。code に更新日の埋込みはなく、`8d945b0`、2026-10-22 09:02 JST、macOS AArch64 で確認/実行/検証しました。
+- A04 証拠/I01 scope 監査: [RFC 0023](rfcs/0023-task-mir-boundaries.md)・[RFC 0026](rfcs/0026-source-isolated-services.md)（最終更新2026-10-22）と [RFC 0003](rfcs/0003-versioned-component-contracts.md)（最終更新2026-10-17）。native task compiler、共通 primitive、service type/source/native suite、共通 fixture catalog、別リンク driver、既存 component metadata/codec/resource/application API を `cfd9641` で確認・実行し、2026-10-22 10:50 JST、macOS AArch64 で検証しました。code に更新日の埋込みはありません。
