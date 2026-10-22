@@ -30,6 +30,8 @@ Opaque resource 型 checkpoint（2026-10-22 JST）: `cargo test --test component
 
 Component binding checkpoint（2026-10-22 JST）: `cargo test --test component_bindings` で version 付き source-name/MIR-ID map と独立 IDL→MIR resource/type/effect 照合、未使用/偽造 metadata、厳密 quota を検証します。`lang::frontend::component::analyze` は contract・code・検証済み map を保持する受動的 unit を返します。実 provider/transfer/embedding call は[実装 Todo](docs/ja/milestone-3.md)に残ります。
 
+Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_grants --test component_native_registration` で全 unit の typed grant を inventory lookup 前に検証し、厳密な source/contract snapshot の組合せ、実 native invoke/user pointer と code/user owner を保持する不変 binding を確認します。未使用 import・偽造 grant・後段失敗・厳密上限/1不足の preparation quota を検証します。実 resource transfer と callback 呼出しは[実装 Todo](docs/ja/milestone-3.md)に残ります。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

@@ -1,10 +1,12 @@
 pub mod adapter;
 pub mod bindings;
 pub mod codec;
+pub mod grants;
 pub mod host_value;
 pub mod idl;
 pub mod instantiation;
 pub mod lockfile;
+pub mod native;
 pub mod negotiation;
 pub mod resource;
 pub mod serialization;

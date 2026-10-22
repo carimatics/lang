@@ -30,6 +30,8 @@ Opaque resource type checkpoint (2026-10-22 JST): `cargo test --test component_r
 
 Component binding checkpoint (2026-10-22 JST): `cargo test --test component_bindings` checks the versioned source-name/MIR-ID map and independent IDL-to-MIR resource/type/effect agreement, including unused/forged metadata and exact quotas. `lang::frontend::component::analyze` returns a passive unit containing contract, code and checked maps. Actual providers, transfers and embedding calls remain on the [delivery board](docs/milestone-3.md).
 
+Typed import grant checkpoint (2026-10-23 JST): `cargo test --test component_grants --test component_native_registration` verifies whole-unit typed grants before inventory lookup, exact source/contract snapshot pairing, and immutable bindings retaining actual native invoke/user pointers and code/user owners. Unused imports, forged grants, late failure and exact/one-below preparation quotas are covered. Actual resource transfers and callback invocation remain on the [delivery board](docs/milestone-3.md).
+
 ## Vision
 
 The language should combine:

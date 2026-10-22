@@ -161,7 +161,7 @@ impl Session {
             kind: ErrorKind::Budget(error.kind),
         }
     }
-    fn charge(&mut self, n: usize, at: usize) -> Result<(), Error> {
+    pub(super) fn charge(&mut self, n: usize, at: usize) -> Result<(), Error> {
         self.budget.charge(n).map_err(|e| Self::budget_error(at, e))
     }
     fn cap(&self, n: usize, max: usize, kind: LimitKind, at: usize) -> Result<(), Error> {
@@ -190,7 +190,7 @@ impl Session {
             kind: ErrorKind::Budget(m::ErrorKind::ArithmeticOverflow),
         })
     }
-    fn count(&mut self, n: usize, at: usize) -> Result<(), Error> {
+    pub(super) fn count(&mut self, n: usize, at: usize) -> Result<(), Error> {
         let total = Self::add(self.elements, n, at)?;
         self.cap(total, self.limits.elements, LimitKind::Elements, at)?;
         self.charge(n, at)?;
@@ -208,7 +208,7 @@ impl Session {
         self.serialized = total;
         Ok(())
     }
-    fn vector<T>(&mut self, n: usize, at: usize) -> Result<Vec<T>, Error> {
+    pub(super) fn vector<T>(&mut self, n: usize, at: usize) -> Result<Vec<T>, Error> {
         self.budget.vector(n).map_err(|e| Self::budget_error(at, e))
     }
     fn push<T>(&mut self, v: &mut Vec<T>, value: T, at: usize) -> Result<(), Error> {

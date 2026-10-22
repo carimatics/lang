@@ -298,6 +298,25 @@ pub fn select_provider<'a>(
     grants: &CapabilityGrants,
     s: &mut Session,
 ) -> Result<Selection<'a>> {
+    select(consumer, import, providers, Some(grants), s)
+}
+/// Only the whole-unit typed-grant gate may omit the legacy capability-name
+/// check. This remains metadata selection and publishes no live implementation.
+pub(in crate::component) fn select_granted_provider<'a>(
+    consumer: &'a Contract,
+    import: usize,
+    providers: &[Provider<'a>],
+    s: &mut Session,
+) -> Result<Selection<'a>> {
+    select(consumer, import, providers, None, s)
+}
+fn select<'a>(
+    consumer: &'a Contract,
+    import: usize,
+    providers: &[Provider<'a>],
+    grants: Option<&CapabilityGrants>,
+    s: &mut Session,
+) -> Result<Selection<'a>> {
     admit(consumer, s)?;
     let Some(request) = consumer.document().imports.get(import) else {
         return Err(error(SelectionErrorKind::InvalidImport, import, None));
@@ -305,7 +324,7 @@ pub fn select_provider<'a>(
     let ci = interface(consumer, &request.interface.value, s)?;
     let iface = &consumer.document().interfaces[ci];
     s.cap(
-        grants.capabilities.len(),
+        grants.map_or(0, |g| g.capabilities.len()),
         s.limits.metadata.declarations,
         LimitKind::Declarations,
         0,
@@ -315,8 +334,8 @@ pub fn select_provider<'a>(
         let member = function(iface, &name.value, s)?
             .ok_or_else(|| s.error(0, WireErrorKind::Unresolved))?;
         let f = &iface.functions[member];
-        let mut found = false;
-        for grant in &grants.capabilities {
+        let mut found = grants.is_none();
+        for grant in grants.into_iter().flat_map(|g| &g.capabilities) {
             s.cap(
                 grant.len(),
                 s.limits.string_bytes,
