@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-17
+- Last updated: 2026-10-22
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -15,6 +15,8 @@
 ## Summary
 
 Define a backend-neutral, versioned component contract that describes package identity, scalar function imports and exports, and the capability required by each import. Keep embedding-local host-function identifiers outside the portable metadata. Before execution, validate the contract against explicit capability grants, logical import bindings, and the typed host-function registry, producing a validated wrapper or a structured error.
+
+Production follow-up (2026-10-22 JST): accepted [RFC 0027](0027-production-component-interface.md) defines strict JSON IDL v1, rich LCMP schema 3, typed value frames and a separate component C ABI v1, including shared/exclusive access, original-context callbacks and cancellation. This resolves the production policy beyond this RFC's scalar/resource prototypes; schema 1/2 and C profile 1 keep their existing meanings and restrictions. Acceptance is not implementation or stabilization. Source/MIR, adapters, grants, artifacts/native packages and both-host conformance remain explicit M3 deliveries.
 
 The executable prototype supports `i64 -> i64` host imports, records `i64` and `bool` scalar function types, provides a bounded experimental schema-1 scalar-metadata codec, provides a generation-tagged table for owned resources with explicit shared and exclusive borrow tokens, and traces backend-neutral canonical ownership transfer and failure cleanup. These are design evidence, not a stable serialized format or a WebAssembly Interface Types (WIT) implementation.
 

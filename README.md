@@ -87,6 +87,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0025: Bounded channels and backpressure (accepted)](docs/rfcs/0025-bounded-channels-and-backpressure.md)
 
 - [RFC 0026: Source isolated services (accepted)](docs/rfcs/0026-source-isolated-services.md)
+- [RFC 0027: Production component IDL, wire and embedding profile (accepted)](docs/rfcs/0027-production-component-interface.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

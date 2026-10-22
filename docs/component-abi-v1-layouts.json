@@ -1,0 +1,24 @@
+{
+  "profile": "lang-component-c-v1",
+  "status": "reference-decision-vectors",
+  "targets": ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
+  "pointer_bytes": 8,
+  "layout": {
+    "header": {"size": 8, "align": 4, "offsets": {"size": 0, "version": 4}},
+    "bytes": {"size": 16, "align": 8, "offsets": {"data": 0, "length": 8}},
+    "mut_bytes": {"size": 16, "align": 8, "offsets": {"data": 0, "length": 8}},
+    "context": {"size": 48, "align": 8, "offsets": {"engine": 8, "invocation": 16, "scope": 24, "reserved": 32}},
+    "error": {"size": 104, "align": 8, "offsets": {"diagnostic": 8, "limit_kind": 12, "limit": 16, "attempted": 24, "input_digest": 32, "source_id": 64, "start": 68, "end": 72, "detail_code": 76, "flags": 80, "reserved0": 84, "reserved": 88}},
+    "limits": {"size": 160, "align": 8, "offsets": {"fuel": 8, "trace_frames": 136, "reserved": 144}},
+    "allocator": {"size": 48, "align": 8, "offsets": {"user": 8, "allocate": 16, "deallocate": 24, "reserved": 32}},
+    "config": {"size": 240, "align": 8, "offsets": {"mode": 8, "flags": 12, "allocator": 16, "ceiling": 64, "reserved": 224}},
+    "import": {"size": 96, "align": 8, "offsets": {"function_key": 8, "signature": 24, "invoke": 56, "user": 64, "flags": 72, "reserved0": 76, "reserved": 80}},
+    "resource_type": {"size": 56, "align": 8, "offsets": {"resource_key": 8, "destroy": 24, "user": 32, "reserved": 40}},
+    "provider_config": {"size": 88, "align": 8, "offsets": {"contract": 8, "imports": 24, "import_count": 32, "resource_types": 40, "resource_type_count": 48, "owner": 56, "release_owner": 64, "reserved": 72}},
+    "native_image": {"size": 64, "align": 8, "offsets": {"metadata": 8, "program": 24, "owner": 32, "release_owner": 40, "reserved": 48}},
+    "instance_config": {"size": 200, "align": 8, "offsets": {"grants": 8, "grant_count": 16, "ceiling": 24, "reserved": 184}},
+    "result_info": {"size": 56, "align": 8, "offsets": {"kind": 8, "flags": 12, "omitted_records": 16, "suppressed_count": 24, "frame_count": 32, "reserved": 40}},
+    "usage": {"size": 96, "align": 8, "offsets": {"fuel": 8, "canonical_indices": 72, "reserved": 80}},
+    "api": {"size": 280, "align": 8, "offsets": {"engine_create": 8, "module_bind_native": 40, "context_call": 128, "context_resource_drop": 224, "context_resource_read": 232, "context_resource_write": 240, "context_resource_keep": 248, "context_resource_take": 256, "reserved": 264}}
+  }
+}

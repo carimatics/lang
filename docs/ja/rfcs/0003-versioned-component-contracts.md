@@ -7,7 +7,7 @@
 - Status：accepted
 - Authors：Project contributors
 - Created：2026-10-16
-- Last updated：2026-10-17
+- Last updated：2026-10-22
 - Tracking issue：
 - Supersedes：
 - Superseded by：
@@ -15,6 +15,8 @@
 ## 概要
 
 Package identity、scalar function import／export、各importが要求するcapabilityを記述する、backend非依存でversion付きのcomponent contractを定義します。Embedding固有のhost-function identifierはportable metadataの外に置きます。実行前にcontractを明示的なcapability grant、論理import binding、型付きhost-function registryに対して検証し、検証済みwrapperまたはstructured errorを生成します。
+
+Production follow-up（2026-10-22 JST）: 受理した [RFC 0027](0027-production-component-interface.md) は厳密 JSON IDL v1・rich LCMP schema 3・typed value frame・別の component C ABI v1 と、shared/exclusive access・元 context の callback・cancellation を定義します。本 RFC の scalar/resource prototype を越える production policy を決定し、schema 1/2 と C profile 1 の既存解釈/制限は保ちます。受理は実装/安定化ではありません。source/MIR・adapter・grant・artifact/native package・両 host conformance は明示的な M3 delivery に残します。
 
 実行可能prototypeは `i64 -> i64` host importをsupportし、`i64`／`bool` scalar function typeを記録し、boundedな実験的schema-1 scalar-metadata codecと、明示的なshared／exclusive borrow tokenを持つgeneration tag付きowned-resource tableを提供します。このcodecはdesign evidenceであり、stableなserialized formatでもWebAssembly Interface Types（WIT）実装でもありません。
 

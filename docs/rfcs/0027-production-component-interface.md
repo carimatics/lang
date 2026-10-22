@@ -1,0 +1,233 @@
+<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0027-production-component-interface.md -->
+
+# RFC 0027: Production component IDL, wire and embedding profile
+
+[日本語版](../ja/rfcs/0027-production-component-interface.md)
+
+- Status: accepted
+- Authors: Project contributors
+- Created: 2026-10-22
+- Last updated: 2026-10-22
+- Tracking issue: M3-I01 through M3-I08, M3-R01 through M3-B02
+- Supersedes:
+- Superseded by:
+
+## Summary
+
+Define component IDL v1, rich component-contract schema 3, typed value-frame v1 and a separate component C ABI v1. Preserve [RFC 0003](0003-versioned-component-contracts.md)'s capability, negotiation, ownership, failure and poisoning rules. A native host loads verified source or a validated artifact, supplies typed imports and grants, calls a script export and receives a nested guest callback within one accounted invocation. Generated native bodies continue to execute native arithmetic/control; adapters never interpret MIR as a fallback.
+
+This is an implementation decision, not implementation or stabilization evidence. Existing scalar/resource application prototypes and M2 C profile 1 do not implement this profile. The delivery board owns execution and both-host evidence; B02 owns public C stabilization.
+
+## Motivation
+
+At `7381e09`, `ComponentContractValueType` admits only I64, Bool, Own and Borrow. The representative application test executes scalar/resource results and lock replay, but its canonical tables wrap backend-produced host data rather than component resources/calls in source MIR. Its existing test passes on 2026-10-22 JST. The independent MIR constructor graph has task/channel/service roles but no nominal component resource. RFC 0023 and the executable task boundary test retain explicit old-codec refusal. These are useful foundations, not a rich IDL, callable production adapter or serialized task profile.
+
+WIT and the Canonical ABI provide the strongest external interface/resource reference. Their current specifications also include gated concurrency features; this RFC does not assume that WIT is synchronous-only. A native profile must still decide its concrete source mapping, grants, shared/exclusive access, C lifetime and cancellation policy. A library around the scalar prototype cannot establish these compiler and trust boundaries.
+
+## Goals
+
+- A bounded, independently validated contract for scalar, record, variant and sequence values, including canonical resource ownership/access.
+- Explicit interface projection, exact locks and capabilities before lookup or effects.
+- Actual source/MIR/VM/generated-native/linked integration, shared accounting, logical mixed stacks, nested callbacks and cooperative cancellation.
+- Versioned metadata/artifact/native-package rollout with old formats preserved and unsupported profiles refused.
+- Real C callers and equivalent results, ownership, failures, quotas and cleanup on both tier-1 hosts before stabilization.
+
+## Non-goals
+
+WIT syntax/binary compatibility, the WebAssembly component target, detached tasks, asynchronous native callback stacks, OS-thread execution of guest tasks, arbitrary foreign exception recovery, Rust/native-source layout stability, cyclic wire object identity, and ambient filesystem/network/process authority. The IDL is a declaration document, not another executable source language.
+
+## Guide-level design
+
+IDL v1 is UTF-8 JSON, with no BOM, comments, duplicate object keys, unknown fields or ignored extensions. The only JSON numeric field in the declaration grammar is the exact integer token `1` in `idl`; SemVer is text. Existing identifier and SemVer validation applies. One file describes one component package and a closed set of interface projections:
+
+```json
+{
+  "idl": 1,
+  "package": "demo:counter",
+  "version": "1.0.0",
+  "interfaces": [{
+    "key": "demo:counter/api",
+    "resources": ["counter"],
+    "types": [{"name": "request", "record": [
+      {"name": "delta", "type": "i64"},
+      {"name": "label", "type": "text"}
+    ]}],
+    "functions": [{
+      "name": "apply", "effect": "sync",
+      "params": [
+        {"name": "state", "type": {"borrow-mut": "counter"}},
+        {"name": "request", "type": "request"}
+      ],
+      "result": {"result": {"ok": "i64", "err": "text"}},
+      "capability": "demo.counter.apply"
+    }]
+  }],
+  "imports": [],
+  "exports": ["demo:counter/api"]
+}
+```
+
+Every listed key is required, including empty arrays. Each type declaration has `name` and exactly one of `record`, `variant`, `alias`. A variant is an ordered nonempty array of `{ "name": identifier, "type": Type }`; a payloadless case uses `unit`. Record fields and parameters are ordered `{name,type}` entries. Names are unique in their respective scopes. Alias payload is a Type. Functions have exactly the fields shown; `effect` is `sync` or `task`. There is one result type; multiple logical results use a record.
+
+Type is a primitive string (`unit`, `i64`, `bool`, `text`, `bytes`), a local/qualified named value type, or exactly one constructor object: `{"list":Type}`, `{"option":Type}`, `{"result":{"ok":Type,"err":Type}}`, `{"own":Resource}`, `{"borrow":Resource}`, `{"borrow-mut":Resource}`. Resources and value names occupy distinct namespaces. A qualified name is `namespace:package/interface.name`; a local name resolves only in the enclosing interface. Resource names must resolve to declared resources. Borrow forms are permitted only as direct parameters; no borrowed result or stored/aggregate borrow is admitted. Owned resources may occur in records, variants and lists. Alias and value dependencies must form a DAG, including through list/option/result; recursive data crosses this boundary through resources rather than cyclic value schemas.
+
+An import is `{ "interface": InterfaceKey, "version": Requirement, "members": [MemberName] }`, with a nonempty unique member projection. Requirement is either `{"exact":SemVer}` or `{"interval":{"min":SemVer,"max":SemVer,"prerelease":Bool}}`; no textual range guessing occurs. Referenced interface declarations supply those members' types and capabilities. Exports name local-package interface declarations and expose their listed members. Interface keys, type/resource names and capability names use RFC 0003's conservative ASCII grammar; paths are data, not file access. Missing/mismatched capabilities are errors even if a corresponding source import is unused.
+
+Generated guest declarations map `i64`/`bool`/Unit, Text/Bytes, Vec, Option/Result, records and variants to the existing source families. A nominal opaque component-resource owner and direct shared/exclusive resource parameters require independent source/MIR admission; they are not integers, C pointers or user-asserted capabilities. Owners move once and require retirement. Resource ownership has neither Send nor Share in v1; resource loans cannot suspend, escape or be captured. Ordinary source async rules still apply. Only `task` exports may map to an async source entry; their parameters/results must independently satisfy Send. Native host imports remain synchronous. Source/MIR proofs and generated declarations must agree on every effect and type before execution.
+
+Generated source uses the existing frontend: a tag declaration and alias such as `struct CounterKind {}` / `type Counter = core::ComponentResource<CounterKind>;`, and `extern "component" fn apply(state: &mut Counter, request: Request) -> core::Result<i64, core::Text>;`. A versioned compiler binding input maps qualified tag names to resource keys, component import names to interface/member keys, and exported interface members to existing public source function names. This is compiler data, not an ambient grant or a second source language. The validated IDL must agree with every mapping, signature and effect. A tag can be named/constructed as ordinary data but cannot construct a resource owner; only checked component transfers produce owners. Component imports have a distinct ABI/effect identity and never substitute for Host/C imports. The map and complete independent resource/type/loan/effect facts must survive MIR/artifact validation. I06 implements this accepted extension; ordinary/old profiles keep refusal.
+
+## Reference semantics
+
+### Validation, binding and authority
+
+Validation proceeds through bounded JSON syntax, closed-field/name checks, complete type/resource/effect validation, import/export projections and canonicalization. Reject all invalid metadata, including unused declarations. Import resolution then reuses RFC 0003's order: verify grants before inventory lookup, exact-lock matching without fallback, normalized version/prerelease filtering, complete structural projection and deterministic highest-version selection with ambiguity refusal. Retain immutable validated bindings and the actual code owner; later registry changes never silently rebind a live instance.
+
+Match record field names/order/types, variant case names/order/payloads, resource keys and ownership/access modes, function effects, parameter/result order/types and capabilities exactly. Parameter spelling is diagnostic information, not structural ABI identity. Additive unrequested provider members remain compatible. Value aliases resolve before comparison; named value keys and their reachable definitions participate in projection validation. Resource keys retain RFC 0003's version-independent lineage only after version selection; runtime instance/table provenance is still independently checked.
+
+`borrow` acquires a shared runtime token and `borrow-mut` an exclusive token. Whole-call preflight walks all nested owned resource leaves and all direct borrow arguments before any transfer: reject stale/wrong-instance/type handles, duplicate owners, own/borrow aliases, conflicting loans, insufficient destination capacity, invalid wire and unmet controls. Repeated shared aliases are permitted; any exclusive alias conflicts. Reserve backing storage and destination entries before commit. Commit installs destinations and retires old indices atomically, allocating nothing and invoking no callback/destructor. Failed preflight preserves live ownership; consumed work/allocation counters and never-reusable identities are not rolled back. Indices never wrap or become authority through deserialization.
+
+Runtime resource kinds are sealed per registered provider implementation. A validated interface binding maps each static resource key to its negotiated runtime kind; preflight checks that kind and actual table/instance provenance as well as the static key. A compatible package version alone cannot reinterpret another implementation's backing bytes. Resource publication retains the originating provider/code owner and its context-accounted backing allocation. Other components may move, lend or drop a valid owner; only the registered implementation may access backing bytes. Read/write access uses checked shared/exclusive view leases in the current scope, with nested reborrow permitted only under the parent's actual loan authority. Views expire before return transfer and cannot survive callback return or suspension. No serialized key/index supplies implementation authority.
+
+All dynamic borrow scopes end before owned cleanup, innermost first. Unreturned/transferred owners retire in reverse acquisition order; an uncommitted result remains callee-owned. Post-commit failure never rolls ownership back. Declared `result` errors are values. Panic/trap/control failures use explicit failure flow, preserve the selected primary and callsite, continue mandatory cleanup unmetered, retain ordered suppressed failures and count omitted records. A destructor is unlinked before one attempt and never retried. Incomplete cleanup, invariant violation, host-callback panic/contract violation or destructor failure poisons the instance. Ordinary declared errors, interruption/cancellation and guest panic/trap permit reuse only after complete cleanup and invariant revalidation. Preserve RFC 0003's existing failure precedence rather than replacing an earlier failure during cleanup.
+
+### IDL and metadata bounds
+
+IDL defaults are 1 MiB source, depth 64, 4,096 declarations, 65,536 cumulative field/case/parameter/projection elements, 64 KiB per string, 16 MiB requested compiler metadata storage and 1,000,000 preparation work units. Function arity is at most 256. These are independently configurable finite limits with checked conversions and arithmetic, charged before allocation/traversal. Parser recovery is bounded and diagnostic-only; no partial valid contract escapes after any error. Reuse the project's Budget/resource diagnostics rather than a second accounting framework.
+
+Canonical contract encoding is `LCMP`, little-endian u32 schema `3`, kind byte `0`, followed by these count-prefixed sections in order: package key/full SemVer; resource keys; named value declarations; interface declarations; requirements; exact locks; exported interface keys. Reuse schema 2's string/key/SemVer/requirement/lock representations. Resources and value declarations sort by complete key; interfaces/requirements/locks/exports sort by interface key; members sort by name. Fields, cases and parameters preserve declaration order. Counts and string byte lengths are u32. Duplicate, noncanonical order, unknown tags/fields and trailing bytes are errors.
+
+Value declaration kinds are `0` record plus named fields, `1` variant plus named payload cases, `2` alias plus Type. Value-type tags are `0` i64, `1` bool, `2` own plus complete resource key, `3` shared borrow plus key, `4` exclusive borrow plus key, `5` unit, `6` text, `7` bytes, `8` list plus Type, `9` option plus Type, `10` result plus ok/err Types, `11` named plus complete value key. An interface stores its key and members. A member stores name, effect byte (`0` sync, `1` task), ordered named parameters, one result Type and capability. A requirement stores its interface key, normalized requirement and sorted required member names; exact locks keep schema 2's complete key/version/digest encoding. Exports are sorted interface keys. Every reference resolves in the closed declaration set; canonical output never depends on map iteration or backend types.
+
+Schema 3 report kind `1` encodes: policy u8 (redacted 0, sanitized 1), primary Record, u32 suppressed count and Records, poisoned u8, omitted u64, nine Usage u64 counters in the reference header's order, u32 frame count and Frames (outermost first). Every boolean/presence byte is exactly 0/1; optional data follows its presence byte. Record is category u8, phase u8, diagnostic string, optional message string, optional `(limit-kind u8,limit u64,attempted u64)`, optional origin Frame. Frame is mode u8 (VM 0, JIT 1, AOT 2, host 3, adapter 4), module/provider digest[32], function/member id u32 and optional Span `(source-id,start,end)` as u32. Spans require start ≤ end; resolution against the retained checked manifest is separate from data decoding and never opens paths. Omitted count saturates at u64::MAX during mandatory cleanup; other counter exhaustion refuses before the next effect. Categories are panic 0, trap 1, destructor 2, cancellation 3, interruption 4, limit 5, admission 6, host-contract 7. Phases are call 0, cleanup 1, admission 2. Suppressed records are cleanup failures; destructor/host-contract failures and instance-poisoned require poisoned=true. Limit records require numeric data; other categories forbid it. Redacted reports forbid messages. Unknown values, inconsistent category/phase/diagnostic combinations and excess bounds fail closed. Schema-2 bytes remain unchanged.
+
+The closed diagnostic set below also defines fixed C admission diagnostic IDs; zero means no C diagnostic and is invalid in a failure Record. Each row names the allowed category/phase. Cleanup reentry is a destructor failure. A host-origin panic poisons; a guest panic/trap permits reuse only after complete cleanup.
+
+| C ID | Diagnostic | Category / phase |
+| --- | --- | --- |
+| 1 | component.invalid-request | admission / admission |
+| 2 | component.unsupported-version | admission / admission |
+| 3 | component.missing-capability | admission / admission |
+| 4 | component.incompatible-interface | admission / admission |
+| 5 | component.invalid-metadata | admission / admission |
+| 6 | component.invalid-wire | admission / admission |
+| 7 | component.resource | admission / admission |
+| 8 | component.reentry | admission / admission |
+| 9 | component.unsupported-profile | admission / admission |
+| 10 | component.unknown-export | admission / admission |
+| 11 | component.instance-poisoned | admission / admission |
+| 12 | component.limit | limit / admission or call |
+| 13 | component.call.cancelled | cancellation / call |
+| 14 | component.call.interrupted | interruption / call |
+| 15 | component.host-contract | host-contract / call or cleanup |
+| 16 | component.boundary.panic | panic / call |
+| 17 | component.boundary.trap | trap / call |
+| 18 | component.boundary.destructor-failure | destructor / cleanup |
+
+Limit-kind values 0–16, in order, are fuel, service-work, host-calls, heap-bytes, live-allocations, frames, live-cells, live-tasks, canonical-indices, preparation-work, metadata-bytes, value-elements, serialization-bytes, depth, decoder-allocation-bytes, suppressed-records and trace-frames. Optional suppressed/trace capacity limits truncate evidence with omitted counts rather than interrupt mandatory cleanup. C error numeric fields are zero unless the diagnostic is component.limit.
+
+### Typed value frame v1
+
+The frame header is `LCVL`, u32 version `1`, kind byte (`0` parameter tuple, `1` result), 32-byte signature digest and u32 body length. Body follows immediately with no padding or trailing data. The digest is SHA-256 of the function projection: complete function key, effect, capability, ordered parameter Types, result Type and reachable named definitions/resources in canonical key order; omit parameter spellings and unrelated declarations, and encode references by complete key. This preserves additive-provider compatibility. Require the negotiated signature before interpreting the body.
+
+The signature digest preimage is `LCSG`, u32 version 1, complete function-key string, effect byte, capability string, u32 parameter count and Types without parameter names, result Type, sorted count-prefixed reachable resource keys, then sorted count-prefixed reachable non-alias value declarations. Use schema 3's strings/Types/declarations and resolve aliases before collecting/encoding the reachable set. References use complete keys. Hash exactly these bytes with SHA-256. Unrelated declarations and parameter spellings therefore cannot change a compatible projection's digest.
+
+| Type | Body encoding |
+| --- | --- |
+| Unit | No bytes |
+| i64 | Eight little-endian two's-complement bytes |
+| bool | One canonical byte, exactly 0 or 1 |
+| Text / Bytes | u32 byte length then UTF-8 / arbitrary bytes |
+| list | u32 element count then elements in order |
+| record | Fields in declaration order |
+| variant | u32 case ordinal then selected payload |
+| option / result | One byte: None/Ok = 0, Some/Err = 1; selected payload follows |
+| own / borrow / borrow-mut | Nonzero u32 canonical boundary index, only with an active typed call context |
+
+Data-only encode/decode refuses schemas containing resources. Contextual frames contain untrusted index claims; they grant no owner or loan until whole-call preflight succeeds against the originating table. Resource indices never enter persistent metadata, saved data values or portable packages. A result transfer validates/allocates the complete caller representation before commit. Generated bindings expose whether argument ownership committed on failure, return unchanged owners on pre-commit refusal, and release every accepted owner explicitly on later drop. Buffer release alone does not release independently committed resource owners; instance close drains remaining owners after all calls/borrows end.
+
+Defaults are 64 MiB per frame, depth 128, 1,000,000 cumulative value elements and 128 MiB requested decoder buffers, with existing preparation/work limits. Verify lengths, minimum remaining input, checked multiplication, cumulative counts, UTF-8, tags and signature before reserving/following references. Traverse values/cleanup iteratively. The call shares allocation/byte/work budgets with nested calls; per-frame limits cannot reset invocation counters. Wire boolean strictness is separate from RFC 0003's scalar-lane lifting rule, which remains unchanged for the old scalar prototype.
+
+### Embedding, callbacks and cancellation
+
+Use a separate `lang_component_v1_*` C surface with opaque engine/module/instance/result handles. Public structs begin with u32 size/version and reserved-zero fields; lengths/counters are fixed u64 and are checked before conversion to host sizes. A byte view is `(const uint8_t*,u64)`; null is valid only for zero length. Return owned buffers only through engine allocation and a matching release API. Handles/code/user objects retain their documented owner lifetime and thread affinity; callbacks use typed C function pointers. No Rust layout, native frame address, HostFunctionId or unwind payload is exposed.
+
+The required operations are API/version query; engine create/destroy; module load from source or validated artifact; provider/import registration with retained code/user ownership; instance create/close; export call; callback-context nested call/check/allocate/release; result/report inspection/release; resource drop; and invocation interruption. Request/response objects and the API table have explicit size/version checks. The reference C header fixes the surface now; I04 generates it and independent complete layout/fingerprint vectors before executable publication; B02 freezes that header only after both-host conformance and migration tests. Missing fields/unknown version/reserved bits fail before publication; rejected requests leave output slots untouched. Existing C profile 1 signatures and reentry refusal stay unchanged.
+
+An admitted call returns either a value (including a declared Err) or a structured boundary failure with origin, usage, commit state, reports and logical stack. Metadata/grant/signature/preflight failures invoke no guest/host callback and do not transfer owners. Typed generated wrappers encode/decode canonical frames, keep call-local buffers/borrows live, and use the same whole-call resource adapter. Raw pointer validity and retained code/user lifetime remain obligations of trusted native callers; untrusted source/metadata/bytes receive complete validation.
+
+Every root call owns one invocation context: original allocator identity, grants/bindings, fuel/service-work/host-call counters, heap/live-allocation/live-cell/frame/task limits, interruption flag, failure state and logical stack. A native-to-VM/JIT/AOT call and nested callback consume that same context, not a fresh budget or provider. Engine/module preparation has its own bounded compiler budget. A callback cannot enter an active instance through a root API; it must use a dynamic child token from the current callback context. The token expires at callback return, remains on the owner thread, and cannot be retained, forged or used during preflight/commit/cleanup.
+
+Reentry defaults to denied. Registration may explicitly allow nested guest calls; validated child entry remains subject to grants, recursion/frame limits, active resource loans, instance poison and original failure state. Child guest calls are synchronous exports; nested task exports are refused before effects. Root task exports drive the existing structured task tree to completion before returning to C, can invoke synchronous host callbacks, and retain strict source/MIR suspension-loan checks. No C callback stack or source loan survives a task suspension. Reentry never grants producer access to service state or bypasses owner isolation.
+
+Interruption is a cooperative invocation flag; task cancellation remains the existing ancestry/handler-boundary protocol. Observe the shared flag/control order before call admission/commit, at guest safe points and immediately on callback return. A callback may check/propagate it through the supplied context; arbitrary blocking native code cannot be forcibly preempted. After commit, cancellation retires callee-owned arguments/results and descendants without rollback. Return no successful value after an observed primary cancellation/interruption. Mandatory borrow ending, owner cleanup and failure projection remain unmetered. Preserve a prior primary and its ordered suppressed evidence across later boundaries. Logical frames identify guest mode/function/span, adapter transitions and host callbacks under one parent invocation; reports retain code/source owners until released.
+
+Host callbacks admitted to the accounted profile allocate through the supplied context allocator; guest/callback allocations share the actual provider's counters and original release requests. Arbitrary allocations performed independently by trusted native libraries are outside that allocator's enforceable budget. Instance close refuses active calls/loans, then drains exactly once and records/poisons on destructor failure. Engine destruction refuses live dependent handles. No silent forced free, retry or counter reset is permitted.
+
+## Execution modes
+
+VM, JIT and AOT consume the same independently verified component declarations, bindings, resource preflight/commit, control and cleanup contracts. Native bodies generate computation/CFG and call typed services; neither callbacks nor package startup run a hidden VM/MIR evaluator. Explicit VM execution remains available for verified scripts. Native images are trusted and require exact image/compiler/SDK pairing; a hash is not native sandbox proof. The later WebAssembly target may adapt this contract but is not WIT/Canonical ABI conformance evidence.
+
+## ABI and compatibility
+
+IDL v1, LCMP schema 3, LCVL v1, component C ABI v1, source-program schema and private native packet/package revisions are independent namespaces. Schema 1/2 component bytes and old scalar/resource APIs keep their interpretation. LANGBC schemas 1–4 and M2 C/native package readers retain their existing profile and explicit task/service refusal. Never insert new tags into an old schema or reinterpret ordinary C imports as component authority.
+
+Before serialized task/component publication, I07 must accept a follow-up specifying the next LANGBC revision, all task/channel/service/component types and operations, source spans, cleanup/claim/effect proofs, exact tags, budgets and compatibility fixtures. I08 separately revises private native task/component records, native-package metadata/startup/SDK matching and both-host installed linking. These required M3 deliveries cannot disappear behind source loading or in-memory objects. I06 first adds independent nominal resource/component-call source/MIR proof and old-profile refusal; actual adapters/grants/callbacks remain R/P/E work. New public source declarations and diagnostics require the same paired decision before admission. Unsupported modes refuse before provider/guest effects or output publication.
+
+### Component C ABI v1 reference
+
+The complete normative surface is [component-abi-v1.h](../component-abi-v1.h); [layout vectors](../component-abi-v1-layouts.json) record independent expected sizes/alignments and selected offsets for both tier-1 targets. This reference is a decision artifact, not an implemented library. I04 generates the same surface and full layout/signature fingerprints. All concrete structs require exact size/version and reserved-zero fields; views are the documented fixed-layout leaves. Read/write named fields, never C padding. The API table is 280 bytes on both targets. All 32 entries are non-null; an unavailable execution mode returns unsupported-profile. C11/C++20 target compilation proves header/layout compatibility only, not Windows runtime conformance.
+
+Operations with a result output (call, context_call, instance_close, provider_drop and resource drops) use statuses 0/1 for admitted completion with a value/failure result handle. Other operations use 0 for success; context_check also uses 1 for an already-latched failure without a result output. Callback invoke uses 0/1 for value/report buffers. Other statuses (invalid-request 2, unsupported-version 3, busy 4, stale 5, out-of-memory 6) leave success outputs untouched; a valid initialized error slot may receive fixed diagnostic/numeric fields. Its optional input digest, source ID, byte span and detail code identify the primary source/IDL/artifact diagnostic without allocating: flags low bits select none/source/IDL/artifact = 0/1/2/3 and bit 2 marks a valid span. Unused fields are zero. Source/IDL detail codes retain SRC/IDL numeric identities; unknown artifact detail may be zero while retaining its offset. Result kind distinguishes a value, including declared Err, from a boundary failure. Result bytes are LCVL or LCMP schema-3 report bytes; inspection is immutable and views live until result release. Failed output buffers never expose partial values. Successful instance_close/provider_drop/resource drops set the result output to null; failure returns a report handle.
+
+Engine configuration selects VM 0, JIT 1 or trusted native AOT 2 and finite ceilings. Flags bit 0 permits explicitly host-sanitized messages; all other bits are zero, default redacted. Source format 0 and LANGBC format 1 load only in VM/JIT modes; unsupported JIT availability fails closed. Native AOT uses module_bind_native with bounded package metadata plus an exact SDK-owned opaque program/code owner, after image/compiler/SDK validation and before private-data access. Never load/execute an unknown native constructor to discover compatibility. A successful provider/native registration consumes its supplied owner and calls release_owner once after all immutable bindings/values release it; failed registration preserves caller ownership. Allocator and owner-release callbacks are non-unwinding/infallible native lifetime operations. Their code/user storage must remain live through their final return.
+
+A module load snapshots source/artifact/IDL binding data and validates all exports/imports before publication. bind_export takes an LCMP schema-3 consumer projection containing exactly one requirement/member and binds only the specified instance's matching export. Grants scope registry lookup by the declared capability before provider discovery. A root call uses a one-shot control handle; consumed controls cannot reset quotas, and child context_call has no replacement control/allocator/grant parameter. Only interrupt is cross-thread, and its control lifetime must cover the operation. Other engine operations are owner-thread calls. Active root entry rejects new root calls/registry mutation/close; immutable result inspection/release and allowed context operations remain available.
+
+Context tokens are versioned values containing engine, never-reused invocation/scope IDs and reserved fields. They retain no stack address. Each use checks current engine/thread, live dynamic scope, callback policy and phase; copying a token grants no longer lifetime. An expired copied token is rejected while the engine is alive. After an owning opaque handle is released, its pointer is invalid and must not be used; runtime stale checks do not promise to validate arbitrary/double-freed native pointers. Public module handles may release while immutable instance bindings retain their owners; provider close follows the live-binding rule below. Instance close refuses active calls/loans; once admitted it consumes the instance handle, invalidates live export bindings and drains owners once, even if it returns a cleanup failure. Remaining live binding/result handles keep required code/report storage alive until release. Engine destroy refuses dependent live handles.
+
+resource_publish copies a native caller's backing bytes through the instance's accounted allocator, validates provider/type identity and publishes one canonical owner only on success. context_resource_publish moves a live context buffer into a resource of the current implementation; refusal preserves that buffer. Registered per-type destructors receive the backing once, after unlink, then the runtime frees it with its original request. context_resource_read/write require current implementation authority and actual read/exclusive/owner rights; temporary view leases and parameter loans end before returned-owner commit. No caller may free engine backing directly. Resource drops during cleanup use the same ordered Session; cleanup forbids publication and reentry. Context report scratch remains bounded/reserved; inability to allocate optional cleanup text records omission, not a new primary or skipped destructor. context_resource_keep/take atomically move a scope owner to/from the provider's persistent holder, with a fresh never-reused index, complete preflight and no ownership change on refusal. They reject active loans and cleanup-phase calls. Returning a persistent owner requires taking it into the call scope first. Provider close refuses active calls/live function bindings, then unregisters and drains persistent owners once; its code/user owner remains retained by outstanding resource values/reports until their final release. It returns a null result on success or a cleanup report on failure, consuming the provider handle after admitted close. Backing publication in v1 uses registered host resource kinds; scripts hold/move/borrow/drop opaque owners and compose their typed methods. Fresh host reports admit only call-phase panic/trap/host-contract failures; declared errors are values and control failures come from the checked context. Record the component service-work event catalog in RFC 0013 before P02 admission, preserving all existing program costs.
+
+A host callback returns a context-allocated value/report buffer whose ownership is consumed by the adapter. Its remaining temporary buffers/results are reclaimed at callback exit; published resource backing is retained by its owner. A previously latched child/control failure propagates unchanged, including if the callback returns success; CALL_FAILED may then return null. A fresh callback report is validated, attributed to the current host call and cannot forge earlier guest origins or replace an existing primary. Malformed host results are host-contract failures and poison. Normal-phase context allocation/control failure latches the invocation failure; optional cleanup-report allocation cannot replace the primary. The callback's actual C stack is gone before any later task suspension. Result-buffer release does not consume independently committed resource owners; generated bindings implement explicit owner drop and preserve pre-commit input owners.
+
+## Diagnostics and tooling
+
+Keep byte spans into the original IDL through normalized declarations, diagnostics and generated source mappings. IDL0001 syntax/UTF-8, IDL0002 duplicate/unknown field, IDL0003 name/reference, IDL0004 invalid type/effect/borrow, IDL0005 projection/version, IDL0006 resource bound, IDL0007 incompatible version and IDL0008 unsupported profile are stable identities. Include path plus primary/related spans; never substitute a string for a structured runtime failure. JSON formatting is deterministic tooling over a validated document; binary canonicalization is independent of whitespace/property order. Language formatting, LSP and debugger source identities continue existing contracts. Generated bindings document ownership/access, capabilities, effects, commit state and buffer release; diagnostics point back to IDL and source call sites.
+
+## Performance and cost model
+
+Parsing, graph/projection verification, hashing, negotiated bindings and generated wrappers consume bounded preparation work/storage. Canonical values can require UTF-8 checks, copies and allocations; resource calls require table validation, reservation and ownership/loan bookkeeping. Callbacks add logical frames and control checks. Immutable verified plans can be reused, but dynamic grants/provenance/loans/limits cannot be erased by caching. Direct native specialization needs observational equivalence. No zero-copy, overhead, code-size or startup improvement is claimed. Z01 measures actual admitted concurrency/boundary workloads while retaining M2 workloads; test durations are not benchmarks.
+
+## Security and trust boundaries
+
+Treat IDL, schemas, value frames, script artifacts and provider metadata as untrusted bounded data. Grant checks precede provider discovery. Metadata names, digests, serialized indices and unsafe source scopes grant no authority. Admission cannot execute a native constructor to discover compatibility. Native C callers/providers remain trusted and must contain foreign exceptions; only known unwinding Rust callbacks may use contained catch_unwind, including panic-payload disposal. Abort is not recoverable. Cleanup cannot reenter, and poison cannot be reset by rebuilding a context. Source verification and logical capabilities are not an in-process native plugin sandbox.
+
+## Alternatives
+
+- No change: scalar/resource prototypes cannot express or execute the required rich interface.
+- Library/tool wrapping: useful for generated typed wrappers, insufficient for independent MIR effects, provenance, callback controls and artifact validation.
+- Full WIT/Canonical ABI: strongest interoperability route, including current gated async support, but requires a Wasm target/linear-memory/task model and does not itself specify this native C/source mapping. Preserve an eventual adapter rather than claim compatibility now.
+- A custom executable interface language or pointer-based native structs: introduces another frontend or host layout/lifetime dependence. Strict declaration JSON and typed bounded frames give a smaller explicit compatibility contract, at copy/validation cost.
+
+## Implementation plan
+
+I02 supplies bounded IDL parsing/checking and spans. I03 supplies rich metadata/value codecs, independent canonical vectors, exact report-tag vectors and malformed/budget tests. I06 supplies source/MIR component-resource/call/effect proof and unavailable-profile refusal. I04 generates typed C/guest bindings and the full header/layout vectors. I05 negotiates interface/version compatibility. R01–R03 connect actual resource transfers, loans, cleanup and failure paths; P01/P02 enforce actual typed grants and bounded metadata/adapter work. E01–E04 execute host/script calls, nested synchronous callbacks, original-context failures and mixed stacks/cancellation. L01–L04 prove combined limits. I07 and I08 deliver serialized task/component and native-package profiles explicitly before B01. B01/B02 prove both-host conformance and stabilize C migration; X/Z deliver runnable plugin examples, costs and the final guide. Re-audit each 1–3-point delivery against executable evidence before implementation; add missing prerequisites visibly, without replacing source fixtures with horizontal scaffolding.
+
+## Test plan
+
+Use independent JSON/binary vectors and exact/one-below byte/count/depth/work/allocation tests; duplicate/unknown fields, invalid Unicode/names/refs/effects/loans, cyclic types, canonical ordering, malformed/truncated/trailing frames and old-schema refusal. Compare structural projection, semver/prerelease/build ambiguity and exact-lock replay independently from codecs. Preserve original ownership under every preflight refusal and prove single commit/stale indices, shared/exclusive conflicts, nested owners and reverse cleanup. Exercise real C generated wrappers calling verified source/artifacts and callbacks on VM/JIT/linked AOT, including root task/channel/service fixtures. Compare values, usage, commit state, resource/heap inventory, spans, logical stacks, primary/suppressed/omitted reports and poison at every relevant control/provider/interruption boundary. Check callback grant failures, reentry policy, expired/wrong-thread tokens, recursive budgets, host allocations and cancellation before/after commit/callback. Run isolated installed packages and migration tests on macOS AArch64 and Windows x86-64 MSVC. Fuzz compile/lint is not a fuzz campaign; add campaigns and measured costs under their own recorded evidence.
+
+## Open questions
+
+No blocking semantic question after reference-header/report-tag review. Optional follow-ups include a WIT adapter, asynchronous native callbacks, recursive value schemas and sendable external resource kinds; none may silently weaken v1 admission. Unverified assumptions are compiler/runtime reuse cost, generated-C ergonomics, combined callback/task integration and both-host execution/startup behavior. No performance or implementation result is inferred from delegated acceptance.
+
+Review outcome: **accepted under RFC 0001's experimental delegation, 2026-10-22 JST, before production implementation**. The strict declaration document and independent version namespaces extend the existing component/resource/cleanup machinery while preserving old C and artifact profiles. Shared/exclusive resource access, synchronous nested callbacks, original invocation accounting and explicit failure/ownership phases resolve the production policy without relaxing suspension loans or introducing a native VM fallback. Two existing executable probes pass; the final reference header passes 112 C layout assertions per target and C++20 syntax on both tier-1 targets. These are decision/compatibility evidence, not production execution or Windows runtime evidence. Source/MIR/resource/callback integration, complete generated fingerprints, serialized task/native-package rollout, costs and both-host execution remain unverified implementation requirements on the board.
+
+## Sources
+
+- Repository facts: component enum/application fixture, independent MIR constructors and task boundary code inspected at `7381e09`, verified 2026-10-22 JST; code has no embedded update date. Referenced RFC 0003 follow-up is updated 2026-10-22; RFC 0006 last updated 2026-10-17, RFCs 0008/0015/0017/0019/0020 2026-10-20 and RFC 0023 2026-10-22. The existing application/task boundary probes are not production embedding evidence.
+- [WIT specification](https://github.com/WebAssembly/component-model/blob/d6a17ea9f828f44c4659d70c35822ab53d2a8a1d/design/mvp/WIT.md): no in-document update date; latest path commit `d6a17ea9`, 2026-09-15 17:03 UTC, verified 2026-10-22 JST. Facts: declarative interface types and explicit owned/borrowed resources; this RFC's JSON, access modes and tags are project decisions.
+- [Canonical ABI](https://github.com/WebAssembly/component-model/blob/2e7895c76905cd3fb7e6be4ac632258972b1f688/design/mvp/CanonicalABI.md): no in-document update date; latest path commit `2e7895c7`, 2026-10-13 19:06 UTC, verified 2026-10-22 JST. Facts: typed lifting/lowering, resource tables/borrow scopes and gated concurrency machinery. Native layouts/reentry policy here are not claims of Canonical ABI conformance.
+- [Concurrency explainer](https://github.com/WebAssembly/component-model/blob/0220da84209397d9067c19cac83dae969aa85a7b/design/mvp/Concurrency.md): no in-document update date; latest path commit dated 2026-10-15, verified 2026-10-22 JST. It documents gated concurrency, cancellation and reentrance; v1's synchronous native callback policy is a project choice.
+- [JSON RFC 8259](https://www.rfc-editor.org/rfc/rfc8259), published December 2017, verified 2026-10-22 JST: JSON syntax and UTF-8 interchange. Duplicate/unknown-field refusal and IDL bounds are project requirements.
+- [Rustonomicon FFI](https://doc.rust-lang.org/nomicon/ffi.html) and [SemVer 2.0.0](https://semver.org/spec/v2.0.0.html): living documents without published update dates, verified 2026-10-22 JST. Facts: foreign unwind/lifetime obligations and semver precedence/compatibility conventions. RFC 0003 retains the project's stricter exact build-sensitive locks.

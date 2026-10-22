@@ -87,6 +87,7 @@ C06 型 checkpoint（2026-10-21 JST）: opaque `core::ChannelSetup<T>`、`core::
 - [RFC 0025: 有限 channel と backpressure（accepted）](docs/ja/rfcs/0025-bounded-channels-and-backpressure.md)
 
 - [RFC 0026: Source isolated service（accepted）](docs/ja/rfcs/0026-source-isolated-services.md)
+- [RFC 0027: Production component IDL・wire・embedding profile（accepted）](docs/ja/rfcs/0027-production-component-interface.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
