@@ -425,6 +425,15 @@ pub fn managed_type_supported(
 ) -> Result<bool, Reason> {
     managed_type_supported_profile(types, ty, budget, false)
 }
+/// Explicit private service adapter admission over the same verified type graph.
+#[doc(hidden)]
+pub fn managed_service_type_supported(
+    types: &o::VerifiedTypes,
+    ty: o::Type,
+    budget: &mut m::Budget,
+) -> Result<bool, Reason> {
+    managed_type_supported_profile(types, ty, budget, true)
+}
 fn managed_type_supported_profile(
     types: &o::VerifiedTypes,
     ty: o::Type,

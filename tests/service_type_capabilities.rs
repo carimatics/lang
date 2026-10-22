@@ -429,12 +429,18 @@ fn owned_service_source_preserves_distinct_state_message_and_capture_authority()
     assert_eq!(allocator.stats().live_allocations, before.live_allocations);
     let after = allocator.stats();
     let native =
-        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default());
-    assert!(matches!(
-        native,
-        Err(lang_codegen_clif::tasks::Error::Unsupported { .. })
-    ));
+        lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
+            .unwrap();
     assert_eq!(allocator.stats(), after);
+    let outcome = native
+        .execute(
+            &mut allocator,
+            lang_runtime::execution::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
+    assert_eq!(outcome.value, 42);
+    assert_eq!(allocator.stats().live_allocations, 0);
     let span = types.service_feature_span().unwrap();
     assert!(
         matches!(lang_runtime::layout::Layouts::compile_tasks(program.verified(),Default::default()),

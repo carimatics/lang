@@ -192,6 +192,9 @@ impl<P: a::Provider> r::Backend<P> for Adapter<'_, '_> {
     fn supported(&self, op: &b::Op) -> bool {
         supported(op)
     }
+    fn services_supported(&self) -> bool {
+        true
+    }
     fn resume(
         &mut self,
         proof: &o::tasks::VerifiedTasks,
@@ -226,6 +229,7 @@ fn prepare_program<M: Module>(
     let typed = proof.typed();
     let declarations = typed.places().declarations();
     let types = declarations.types();
+    let services = types.service_feature_span().is_some();
     let declaration = declarations
         .functions()
         .get(entry.0 as usize)
@@ -271,12 +275,17 @@ fn prepare_program<M: Module>(
         {
             budget.charge(1)?;
             let claim = matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
-            if !claim
-                && !r::managed_type_supported(types, ty, &mut budget).map_err(|e| match e {
+            let storage_supported = claim
+                || (if services {
+                    r::managed_service_type_supported(types, ty, &mut budget)
+                } else {
+                    r::managed_type_supported(types, ty, &mut budget)
+                })
+                .map_err(|e| match e {
                     r::Reason::Resource(e) => Error::Resource(e),
                     e => backend(format!("{e:?}")),
-                })?
-            {
+                })?;
+            if !storage_supported {
                 return Err(Error::Unsupported {
                     span: declaration.span,
                 });
@@ -295,7 +304,9 @@ fn prepare_program<M: Module>(
             }
         }
     }
-    let layouts = if types.channel_feature_span().is_some() {
+    let layouts = if services {
+        l::Layouts::compile_service_tasks(proof, limits)?
+    } else if types.channel_feature_span().is_some() {
         l::Layouts::compile_channel_tasks(proof, limits)?
     } else {
         l::Layouts::compile_tasks(proof, limits)?
@@ -354,7 +365,13 @@ fn prepare_program<M: Module>(
 }
 
 fn supported(op: &b::Op) -> bool {
-    r::task_supported(op)
+    match op {
+        b::Op::PrepareService { .. } | b::Op::ServiceSend { .. } | b::Op::ServiceReceive { .. } => {
+            true
+        }
+        b::Op::CoreCall(call) if call.operation.is_service() => true,
+        _ => r::task_supported(op),
+    }
 }
 
 fn prepare(
@@ -455,23 +472,31 @@ fn prepare(
                         destination,
                         endpoint,
                         ..
+                    }
+                    | b::Op::PrepareService {
+                        destination,
+                        endpoint,
+                        ..
                     } => Primitive::PrepareChannel {
                         from: value(*endpoint),
                         destination: destination.0 as usize,
                     },
-                    b::Op::ChannelSend { authority, payload } => Primitive::ChannelSend {
+                    b::Op::ChannelSend { authority, payload }
+                    | b::Op::ServiceSend { authority, payload } => Primitive::ChannelSend {
                         authority: authority.0 as usize,
                         payload: value(*payload),
                         to: to()?,
                         next,
                         failure,
                     },
-                    b::Op::ChannelReceive { authority } => Primitive::ChannelReceive {
-                        authority: authority.0 as usize,
-                        to: to()?,
-                        next,
-                        failure,
-                    },
+                    b::Op::ChannelReceive { authority } | b::Op::ServiceReceive { authority } => {
+                        Primitive::ChannelReceive {
+                            authority: authority.0 as usize,
+                            to: to()?,
+                            next,
+                            failure,
+                        }
+                    }
                     b::Op::Replace { place, value: from } => Primitive::Replace {
                         place: *place,
                         from: value(*from),

@@ -162,12 +162,20 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         span: m::Span,
     ) -> Result<Flow, Reason> {
         if let Primitive::Core {
-            operation: o::core::Operation::ChannelNew,
+            operation,
             arguments,
             ..
         } = primitive
         {
-            self.admit_channel_create(task, *arguments.get(1).ok_or(Reason::Invariant)?)?;
+            match operation {
+                o::core::Operation::ChannelNew => {
+                    self.admit_channel_create(task, *arguments.get(1).ok_or(Reason::Invariant)?)?;
+                }
+                o::core::Operation::ServiceNew => {
+                    self.admit_service_create(task, *arguments.get(1).ok_or(Reason::Invariant)?)?;
+                }
+                _ => {}
+            }
         }
         let function = self.frame(task)?.function;
         let mut frame = frame::Access::new(&mut self.records[task].frames, &mut self.services)?;

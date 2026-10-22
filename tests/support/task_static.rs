@@ -4,6 +4,8 @@ use super::*;
 use std::{fs, path::PathBuf, process::Command};
 #[path = "rust_artifacts.rs"]
 mod artifacts;
+#[path = "service_fixtures.rs"]
+mod service_fixtures;
 struct Files(PathBuf);
 impl Drop for Files {
     fn drop(&mut self) {
@@ -118,12 +120,21 @@ fn standalone_task_objects_execute_generated_continuations() {
                 "{WORKER}async fn bad()->i64{{return core::panic::<i64>(91);}}async fn main()->i64{{let mut h:core::Task<i64>=spawn bad();let mut s:core::Task<i64>=spawn worker(42);let mut r:core::Result<i64,core::TaskError>=await h;return 0;}}"
             ),
         ),
-    ];
+    ]
+    .into_iter()
+    .map(|(label, source)| (label.to_owned(), source, true))
+    .chain(service_fixtures::fixtures().map(|(label, source)| {
+        (format!("service-{label}"), source.to_owned(), label != "deep-state")
+    }))
+    .chain(std::iter::once(service_fixtures::recursive_prefix_fixture()).map(|(label, source)| {
+        (format!("service-{label}"), source, true)
+    }))
+    .collect::<Vec<_>>();
     let mut objects = Vec::new();
     let mut declarations = String::new();
     let mut symbols = String::new();
     let mut ordinal = 0;
-    for (label, text) in &profiles {
+    for (label, text, _) in &profiles {
         let proof = prepare(text);
         let object =
             lang_codegen_clif::tasks::ObjectArtifact::emit(proof.verified(), Default::default())
@@ -149,6 +160,7 @@ fn standalone_task_objects_execute_generated_continuations() {
 use lang_runtime::{{allocation as a,execution as e,task::runner as r}};
 unsafe extern "C" {{ {declarations} }}
 fn allocator()->a::Allocator<a::System>{{a::Allocator::new(a::System,Default::default()).unwrap()}}
+fn caps(total:u64,all:bool)->Vec<u64>{{if all{{(0..=total).collect()}}else{{let mut caps=vec![0,1.min(total),total.saturating_sub(1),total];caps.sort_unstable();caps.dedup();caps}}}}
 fn compare(proof:&lang_mir::unit::ownership::tasks::VerifiedTasks,native:&lang_codegen_clif::tasks::LinkedProgram<'_,()>,control:e::Control<'_>,limits:r::Limits)->Result<r::Outcome,r::Failure>{{
     let mut va=allocator();let mut na=allocator();let expected=lang_vm::unit::tasks::execute_entry(proof,&mut va,control,limits);let actual=native.execute(&mut na,control,limits);
     assert_eq!(va.stats(),na.stats());assert_eq!(na.stats().live_allocations,0);
@@ -164,8 +176,9 @@ fn main(){{
     let native=unsafe{{object.bind((),|_,symbol|match symbol{{{symbols}_=>None}},Default::default())}}.unwrap();
     let limits=r::Limits{{trace_events:512,..Default::default()}};let control=e::Control::with_limits(Default::default());
     let baseline=compare(proof.verified(),&native,control,limits);let usage=match &baseline{{Ok(o)=>o.usage,Err(e)=>e.usage}};
-    for fuel in 0..=usage.fuel{{let _=compare(proof.verified(),&native,e::Control::with_limits(e::Limits{{fuel:Some(fuel),..Default::default()}}),limits);}}
-    for work in 0..=usage.service_work{{let _=compare(proof.verified(),&native,control.and_service_work(Some(work)),limits);}}
+    let all=args[3]=="all";
+    for fuel in caps(usage.fuel,all){{let _=compare(proof.verified(),&native,e::Control::with_limits(e::Limits{{fuel:Some(fuel),..Default::default()}}),limits);}}
+    for work in caps(usage.service_work,all){{let _=compare(proof.verified(),&native,control.and_service_work(Some(work)),limits);}}
     match baseline{{Ok(out)=>println!("{{}}",out.value),Err(error)=>{{let r::Reason::Panic(Some(code))=error.reason else{{panic!("unexpected linked task failure")}};assert!(matches!(code,91|-42));println!("panic {{code}}");}}}}
 }}
 "#)).unwrap();
@@ -210,10 +223,11 @@ fn main(){{
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    for ((label, _), object) in profiles.iter().zip(&objects) {
+    for ((label, _, exhaustive), object) in profiles.iter().zip(&objects) {
         let output = Command::new(&executable)
             .arg(files.0.join(format!("{label}.lang")))
             .arg(object)
+            .arg(if *exhaustive { "all" } else { "boundaries" })
             .output()
             .unwrap();
         assert!(
@@ -223,14 +237,14 @@ fn main(){{
         );
         assert_eq!(
             String::from_utf8_lossy(&output.stdout).trim(),
-            match *label {
+            match label.as_str() {
                 "join" | "aggregate" | "owned-pipeline" | "owned-arena" | "owned-integration"
                 | "owned-transfer" | "owned-transfer-all" => "42",
                 "cancel" | "owned-cancel" => "7",
                 "owned-buffers" => "71",
                 "sync-loans" => "12",
                 "owned-integration-panic" => "panic -42",
-                label if label.starts_with("channel-") => "42",
+                label if label.starts_with("channel-") || label.starts_with("service-") => "42",
                 _ => "panic 91",
             },
             "{label}"

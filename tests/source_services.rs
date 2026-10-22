@@ -1,3 +1,31 @@
+// The enclosing test binary chooses its crate-root service backend. Each
+// verified profile is prepared once; every execution has a fresh invocation.
+#[allow(
+    dead_code,
+    reason = "The native test binary supplies its own crate-root adapter."
+)]
+mod service_backend {
+    pub(super) struct Prepared<'p>(&'p lang_mir::unit::ownership::tasks::VerifiedTasks);
+    pub(super) fn prepare(proof: &lang_mir::unit::ownership::tasks::VerifiedTasks) -> Prepared<'_> {
+        Prepared(proof)
+    }
+    impl Prepared<'_> {
+        #[expect(
+            clippy::result_large_err,
+            reason = "Preserve complete task failure and cleanup evidence."
+        )]
+        pub(super) fn execute<P: lang_runtime::allocation::Provider>(
+            &self,
+            allocator: &mut lang_runtime::allocation::Allocator<P>,
+            control: lang_runtime::execution::Control<'_>,
+            limits: lang_runtime::task::runner::Limits,
+        ) -> Result<lang_runtime::task::runner::Outcome, lang_runtime::task::runner::Failure>
+        {
+            lang_vm::unit::tasks::execute_entry(self.0, allocator, control, limits)
+        }
+    }
+}
+
 use lang_runtime::{allocation as a, execution as e, task::runner as r};
 use lang_semantics::analysis::{Program, TaskProgram};
 use std::path::Path;
@@ -6,62 +34,16 @@ use std::path::Path;
     dead_code,
     reason = "Reuse the shared allocator/trace adapter; its channel-only source catalog is exercised by source_channels."
 )]
-mod channel_fixtures;
+pub(crate) mod channel_fixtures;
 use channel_fixtures::channel_allocator;
 
-const SERVICE_SHUTDOWN_FIXTURES: &[(&str, &str)] = &[
-    ("idle", include_str!("fixtures/task_service_cancel.lang")),
-    (
-        "active",
-        include_str!("fixtures/task_service_active_cancel.lang"),
-    ),
-];
-
-const SERVICE_COPY_FIXTURES: &[(&str, &str)] = &[
-    (
-        "copy-unit",
-        include_str!("fixtures/task_service_copy_unit.lang"),
-    ),
-    (
-        "copy-option",
-        include_str!("fixtures/task_service_copy_sum.lang"),
-    ),
-    (
-        "copy-aggregate",
-        include_str!("fixtures/task_service_copy.lang"),
-    ),
-    (
-        "copy-cancel",
-        include_str!("fixtures/task_service_copy_cancel.lang"),
-    ),
-    (
-        "copy-recover",
-        include_str!("fixtures/task_service_copy_recover.lang"),
-    ),
-];
-
-const SERVICE_STATE_FIXTURES: &[(&str, &str)] = &[
-    (
-        "receiver-state",
-        include_str!("fixtures/task_service_owned_state.lang"),
-    ),
-    (
-        "state-cycle",
-        include_str!("fixtures/task_service_state_cycle.lang"),
-    ),
-    (
-        "state-reinspect",
-        include_str!("fixtures/task_service_state_reinspect.lang"),
-    ),
-    (
-        "state-replace",
-        include_str!("fixtures/task_service_state_replace.lang"),
-    ),
-    (
-        "state-shared-handle",
-        include_str!("fixtures/task_service_state_shared_handle.lang"),
-    ),
-];
+#[path = "support/service_fixtures.rs"]
+#[allow(
+    dead_code,
+    reason = "Source-only cases use selected catalogs; native and linked suites use the complete catalog."
+)]
+pub(crate) mod service_fixtures;
+use service_fixtures::{SERVICE_COPY_FIXTURES, SERVICE_SHUTDOWN_FIXTURES, SERVICE_STATE_FIXTURES};
 
 fn prepare(text: &str) -> Box<TaskProgram> {
     let out = lang::frontend::analyze_virtual(
@@ -88,9 +70,9 @@ fn allocator() -> a::Allocator<a::System> {
 #[test]
 fn receiver_owned_state_executes_fifo_reads_and_retires_its_nested_queue() {
     let program = prepare(include_str!("fixtures/task_service_owned_state.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let result = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
+    let result = execution.execute(
         &mut heap,
         e::Control::with_limits(Default::default()),
         r::Limits {
@@ -114,9 +96,9 @@ fn receiver_owned_state_executes_fifo_reads_and_retires_its_nested_queue() {
 #[test]
 fn publication_follows_actual_service_state_and_returns_a_rejected_recursive_owner() {
     let program = prepare(include_str!("fixtures/task_service_state_cycle.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let result = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
+    let result = execution.execute(
         &mut heap,
         e::Control::with_limits(Default::default()),
         Default::default(),
@@ -135,9 +117,9 @@ fn publication_follows_actual_service_state_and_returns_a_rejected_recursive_own
 #[test]
 fn resumed_sends_reinspect_receivers_queued_under_service_state_after_wakeup() {
     let program = prepare(include_str!("fixtures/task_service_state_reinspect.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let result = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
+    let result = execution.execute(
         &mut heap,
         e::Control::with_limits(Default::default()),
         r::Limits {
@@ -168,9 +150,9 @@ fn resumed_sends_reinspect_receivers_queued_under_service_state_after_wakeup() {
 #[test]
 fn whole_replacement_moves_nested_service_owners_and_vector_held_receivers_once() {
     let program = prepare(include_str!("fixtures/task_service_state_replace.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let result = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
+    let result = execution.execute(
         &mut heap,
         e::Control::with_limits(Default::default()),
         Default::default(),
@@ -191,9 +173,9 @@ fn shared_weak_service_handles_keep_checked_authority_and_phantom_receiver_param
     let program = prepare(include_str!(
         "fixtures/task_service_state_shared_handle.lang"
     ));
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let result = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
+    let result = execution.execute(
         &mut heap,
         e::Control::with_limits(Default::default()),
         Default::default(),
@@ -212,9 +194,9 @@ fn shared_weak_service_handles_keep_checked_authority_and_phantom_receiver_param
 #[test]
 fn recursive_service_state_retirement_is_iterative_and_keeps_nested_headers_live() {
     let program = prepare(include_str!("fixtures/task_service_state_deep.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let result = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
+    let result = execution.execute(
         &mut heap,
         e::Control::with_limits(Default::default()),
         r::Limits {
@@ -241,6 +223,7 @@ fn recursive_service_state_retirement_is_iterative_and_keeps_nested_headers_live
 #[test]
 fn owned_receiver_state_quotas_refuse_one_below_exact_and_keep_real_inventory() {
     let program = prepare(include_str!("fixtures/task_service_owned_state.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let exact = lang_runtime::channel::Limits {
         channels: 2,
         slots: 2,
@@ -257,8 +240,7 @@ fn owned_receiver_state_quotas_refuse_one_below_exact_and_keep_real_inventory() 
             _ => {}
         }
         let (mut heap, trace) = channel_allocator(usize::MAX);
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(Default::default()),
             r::Limits {
@@ -318,20 +300,21 @@ fn nested_owner_state_cleanup_keeps_primary_panics_and_continues_after_truncatio
             fixture.to_owned()
         };
         let program = prepare(&source);
+        let execution = crate::service_backend::prepare(program.verified());
         for records in [1, 8] {
             let (mut heap, trace) = channel_allocator(usize::MAX);
             trace.borrow_mut().panic_buffers = vec![9, 109];
-            let failure = lang_vm::unit::tasks::execute_entry(
-                program.verified(),
-                &mut heap,
-                e::Control::with_limits(Default::default()),
-                r::Limits {
-                    cleanup_failure_records: records,
-                    ..Default::default()
-                },
-            )
-            .err()
-            .expect("nested cleanup panics");
+            let failure = execution
+                .execute(
+                    &mut heap,
+                    e::Control::with_limits(Default::default()),
+                    r::Limits {
+                        cleanup_failure_records: records,
+                        ..Default::default()
+                    },
+                )
+                .err()
+                .expect("nested cleanup panics");
             if primary {
                 assert!(
                     matches!(failure.reason, r::Reason::Panic(Some(91))),
@@ -364,6 +347,7 @@ fn nested_owner_state_cleanup_keeps_primary_panics_and_continues_after_truncatio
 #[test]
 fn copy_service_message_quotas_keep_queued_and_uncommitted_storage_accounted() {
     let program = prepare(&channel_fixtures::copy_quota_source(true));
+    let execution = crate::service_backend::prepare(program.verified());
     let exact = lang_runtime::channel::Limits {
         channels: 1,
         slots: 1,
@@ -380,8 +364,7 @@ fn copy_service_message_quotas_keep_queued_and_uncommitted_storage_accounted() {
             _ => {}
         }
         let (mut heap, trace) = channel_allocator(usize::MAX);
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(Default::default()),
             r::Limits {
@@ -429,17 +412,18 @@ fn copy_service_message_quotas_keep_queued_and_uncommitted_storage_accounted() {
 #[test]
 fn state_and_message_owners_survive_fifo_backpressure_and_helper_read_loans() {
     let program = fixture();
+    let execution = crate::service_backend::prepare(program.verified());
     let mut allocator = allocator();
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut allocator,
-        e::Control::with_limits(Default::default()),
-        r::Limits {
-            trace_events: 2048,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut allocator,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 2048,
+                ..Default::default()
+            },
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert_eq!(outcome.tasks.live, 0);
     assert_eq!(allocator.stats().live_allocations, 0);
@@ -457,20 +441,20 @@ fn state_and_message_owners_survive_fifo_backpressure_and_helper_read_loans() {
 #[test]
 fn every_finite_work_and_fuel_prefix_drains_service_state_and_inflight_payloads() {
     let program = fixture();
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let baseline = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()).and_service_work(Some(u64::MAX)),
-        Default::default(),
-    )
-    .unwrap();
+    let baseline = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()).and_service_work(Some(u64::MAX)),
+            Default::default(),
+        )
+        .unwrap();
     assert_eq!(baseline.value, 42);
     assert_eq!(heap.stats().live_allocations, 0);
     for work in 0..=baseline.usage.service_work {
         let mut heap = allocator();
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(Default::default()).and_service_work(Some(work)),
             Default::default(),
@@ -493,8 +477,7 @@ fn every_finite_work_and_fuel_prefix_drains_service_state_and_inflight_payloads(
     }
     for fuel in 0..=baseline.usage.fuel {
         let mut heap = allocator();
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(e::Limits {
                 fuel: Some(fuel),
@@ -522,14 +505,15 @@ fn every_finite_work_and_fuel_prefix_drains_service_state_and_inflight_payloads(
 #[test]
 fn state_storage_counts_against_allocation_and_live_cell_limits() {
     let program = fixture();
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let baseline = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        Default::default(),
-    )
-    .unwrap();
+    let baseline = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
     let peak = heap.stats().peak_live_allocations;
     for allocations in 0..=peak {
         let mut heap = a::Allocator::new(
@@ -540,8 +524,7 @@ fn state_storage_counts_against_allocation_and_live_cell_limits() {
             },
         )
         .unwrap();
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(Default::default()),
             Default::default(),
@@ -560,8 +543,7 @@ fn state_storage_counts_against_allocation_and_live_cell_limits() {
     }
     for cells in 0..=baseline.usage.peak_live_cells {
         let mut heap = allocator();
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(e::Limits {
                 live_cells: Some(cells),
@@ -586,21 +568,21 @@ fn state_storage_counts_against_allocation_and_live_cell_limits() {
 #[test]
 fn trace_prefixes_release_retained_capture_and_state_authority() {
     let program = fixture();
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let baseline = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        r::Limits {
-            trace_events: 2048,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let baseline = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 2048,
+                ..Default::default()
+            },
+        )
+        .unwrap();
     for trace in 1..=baseline.events.len() {
         let mut heap = allocator();
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(Default::default()),
             r::Limits {
@@ -626,29 +608,37 @@ fn trace_prefixes_release_retained_capture_and_state_authority() {
 }
 
 #[test]
-fn non_share_state_metadata_is_admitted_only_by_the_private_service_vm() {
+fn non_share_state_metadata_is_admitted_by_private_service_task_adapters() {
     for text in [
         "fn carry(owner:core::ServiceOwner<core::Receiver<i64>,i64>)->core::ServiceOwner<core::Receiver<i64>,i64>{return owner;}async fn main()->i64{yield;return 42;}",
         "fn carry(owner:core::ServiceOwner<core::Vec<core::Receiver<i64>>,i64>)->core::ServiceOwner<core::Vec<core::Receiver<i64>>,i64>{return owner;}async fn main()->i64{yield;return 42;}",
     ] {
         let program = prepare(text);
+        let execution = crate::service_backend::prepare(program.verified());
         let mut heap = allocator();
-        let outcome = lang_vm::unit::tasks::execute_entry(
+        let outcome = execution
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(outcome.value, 42);
+        assert_eq!(heap.stats().live_allocations, 0);
+        let native = lang_codegen_clif::tasks::CompiledProgram::compile(
             program.verified(),
-            &mut heap,
-            e::Control::with_limits(Default::default()),
             Default::default(),
         )
         .unwrap();
+        let outcome = native
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(outcome.value, 42);
         assert_eq!(heap.stats().live_allocations, 0);
-        assert!(
-            lang_codegen_clif::tasks::CompiledProgram::compile(
-                program.verified(),
-                Default::default()
-            )
-            .is_err()
-        );
     }
 }
 
@@ -704,14 +694,15 @@ async fn main()->i64 {
 "#
     );
     let program = prepare(&text);
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let result = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        Default::default(),
-    )
-    .unwrap();
+    let result = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
     assert_eq!(result.value, 42);
     assert_eq!(heap.stats().live_allocations, 0);
 }
@@ -719,14 +710,15 @@ async fn main()->i64 {
 #[test]
 fn idle_cancellation_closes_state_and_recovers_owned_messages_with_live_identities() {
     let program = prepare(include_str!("fixtures/task_service_cancel.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        Default::default(),
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert_eq!(heap.stats().live_allocations, 0);
 }
@@ -734,17 +726,18 @@ fn idle_cancellation_closes_state_and_recovers_owned_messages_with_live_identiti
 #[test]
 fn active_cancellation_preserves_reads_and_replacement_until_boundary_and_recovers_parked_send() {
     let program = prepare(include_str!("fixtures/task_service_active_cancel.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        r::Limits {
-            trace_events: 2048,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 2048,
+                ..Default::default()
+            },
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert!(
         outcome
@@ -792,17 +785,18 @@ async fn main()->i64 {
 "#
     );
     let program = prepare(&text);
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        r::Limits {
-            trace_events: 2048,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 2048,
+                ..Default::default()
+            },
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert!(
         outcome
@@ -867,14 +861,15 @@ async fn main()->i64 {{
 "#
         );
         let program = prepare(&text);
+        let execution = crate::service_backend::prepare(program.verified());
         let mut heap = allocator();
-        let outcome = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
-            &mut heap,
-            e::Control::with_limits(Default::default()),
-            Default::default(),
-        )
-        .unwrap();
+        let outcome = execution
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(outcome.value, 42, "explicit finish {explicit}");
         assert_eq!(heap.stats().live_allocations, 0);
     }
@@ -906,17 +901,18 @@ async fn main()->i64 {{
 "#
     );
     let program = prepare(&text);
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        r::Limits {
-            trace_events: 2048,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 2048,
+                ..Default::default()
+            },
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert!(
         outcome
@@ -954,14 +950,15 @@ async fn main()->i64 {{
 "#
     );
     let program = prepare(&text);
+    let execution = crate::service_backend::prepare(program.verified());
     let mut heap = allocator();
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        Default::default(),
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert_eq!(heap.stats().live_allocations, 0);
 }
@@ -982,14 +979,15 @@ fn cancellation_retires_committed_queue_before_state_and_never_duplicates_pendin
         ),
     ] {
         let program = prepare(text);
+        let execution = crate::service_backend::prepare(program.verified());
         let (mut heap, trace) = channel_allocator(usize::MAX);
-        let outcome = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
-            &mut heap,
-            e::Control::with_limits(Default::default()),
-            Default::default(),
-        )
-        .unwrap();
+        let outcome = execution
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(outcome.value, 42, "{name}");
         assert_eq!(trace.borrow().buffers, expected, "{name}");
         assert!(trace.borrow().live.is_empty());
@@ -1019,20 +1017,21 @@ fn cancellation_cleanup_continues_in_order_after_panics_and_report_truncation() 
                 text.to_owned()
             };
             let program = prepare(&text);
+            let execution = crate::service_backend::prepare(program.verified());
             for records in [1, 8] {
                 let (mut heap, trace) = channel_allocator(usize::MAX);
                 trace.borrow_mut().panic_buffers = if active { vec![22, 9] } else { vec![20, 7] };
-                let failure = lang_vm::unit::tasks::execute_entry(
-                    program.verified(),
-                    &mut heap,
-                    e::Control::with_limits(Default::default()),
-                    r::Limits {
-                        cleanup_failure_records: records,
-                        ..Default::default()
-                    },
-                )
-                .err()
-                .expect("two cleanup panics");
+                let failure = execution
+                    .execute(
+                        &mut heap,
+                        e::Control::with_limits(Default::default()),
+                        r::Limits {
+                            cleanup_failure_records: records,
+                            ..Default::default()
+                        },
+                    )
+                    .err()
+                    .expect("two cleanup panics");
                 if primary {
                     assert!(
                         matches!(failure.reason, r::Reason::Panic(Some(91))),
@@ -1079,23 +1078,23 @@ fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
         .chain(SERVICE_STATE_FIXTURES)
     {
         let program = prepare(text);
+        let execution = crate::service_backend::prepare(program.verified());
         let mut heap = allocator();
-        let baseline = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
-            &mut heap,
-            e::Control::with_limits(Default::default()).and_service_work(Some(u64::MAX)),
-            r::Limits {
-                trace_events: 2048,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+        let baseline = execution
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()).and_service_work(Some(u64::MAX)),
+                r::Limits {
+                    trace_events: 2048,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         assert_eq!(baseline.value, 42);
         assert_eq!(heap.stats().live_allocations, 0);
         for work in 0..=baseline.usage.service_work {
             let mut heap = allocator();
-            let result = lang_vm::unit::tasks::execute_entry(
-                program.verified(),
+            let result = execution.execute(
                 &mut heap,
                 e::Control::with_limits(Default::default()).and_service_work(Some(work)),
                 Default::default(),
@@ -1120,8 +1119,7 @@ fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
         }
         for fuel in 0..=baseline.usage.fuel {
             let mut heap = allocator();
-            let result = lang_vm::unit::tasks::execute_entry(
-                program.verified(),
+            let result = execution.execute(
                 &mut heap,
                 e::Control::with_limits(e::Limits {
                     fuel: Some(fuel),
@@ -1146,8 +1144,7 @@ fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
         }
         for cells in 0..=baseline.usage.peak_live_cells {
             let mut heap = allocator();
-            let result = lang_vm::unit::tasks::execute_entry(
-                program.verified(),
+            let result = execution.execute(
                 &mut heap,
                 e::Control::with_limits(e::Limits {
                     live_cells: Some(cells),
@@ -1169,8 +1166,7 @@ fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
         }
         for events in 1..=baseline.events.len() {
             let mut heap = allocator();
-            let result = lang_vm::unit::tasks::execute_entry(
-                program.verified(),
+            let result = execution.execute(
                 &mut heap,
                 e::Control::with_limits(Default::default()),
                 r::Limits {
@@ -1204,14 +1200,15 @@ fn every_shutdown_provider_refusal_and_interruption_position_drains_the_real_inv
         .chain(SERVICE_STATE_FIXTURES)
     {
         let program = prepare(text);
+        let execution = crate::service_backend::prepare(program.verified());
         let (mut heap, trace) = channel_allocator(usize::MAX);
-        let baseline = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
-            &mut heap,
-            e::Control::with_limits(Default::default()),
-            Default::default(),
-        )
-        .unwrap();
+        let baseline = execution
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(baseline.value, 42);
         let calls = trace.borrow().calls;
         assert!(trace.borrow().live.is_empty());
@@ -1222,16 +1219,18 @@ fn every_shutdown_provider_refusal_and_interruption_position_drains_the_real_inv
                 if interrupt {
                     trace.borrow_mut().interrupt = Some((at, flag.clone()));
                 }
-                let failure = lang_vm::unit::tasks::execute_entry(
-                    program.verified(),
-                    &mut heap,
-                    e::Control::with_limits(Default::default())
-                        .and_interruption(&flag)
-                        .and_service_work(Some(baseline.usage.service_work)),
-                    Default::default(),
-                )
-                .err()
-                .unwrap_or_else(|| panic!("{name} provider {at}/{calls} interrupt={interrupt}"));
+                let failure = execution
+                    .execute(
+                        &mut heap,
+                        e::Control::with_limits(Default::default())
+                            .and_interruption(&flag)
+                            .and_service_work(Some(baseline.usage.service_work)),
+                        Default::default(),
+                    )
+                    .err()
+                    .unwrap_or_else(|| {
+                        panic!("{name} provider {at}/{calls} interrupt={interrupt}")
+                    });
                 if interrupt {
                     assert!(
                         matches!(failure.reason, r::Reason::Control(e::Failure::Interrupted)),
@@ -1263,14 +1262,15 @@ fn requested_active_service_closes_at_explicit_finish_or_owner_return() {
             text.replace(boundary,&format!("    let mut explicit_finish:core::Unit=core::service_finish::<State,core::Bytes>(&mut owner);\n{boundary}"))
         };
         let program = prepare(&text);
+        let execution = crate::service_backend::prepare(program.verified());
         let (mut heap, trace) = channel_allocator(usize::MAX);
-        let outcome = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
-            &mut heap,
-            e::Control::with_limits(Default::default()),
-            Default::default(),
-        )
-        .unwrap();
+        let outcome = execution
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(outcome.value, 42);
         let buffers = &trace.borrow().buffers;
         assert!(
@@ -1319,14 +1319,15 @@ async fn main()->i64 {{
 "#
         );
         let program = prepare(&text);
+        let execution = crate::service_backend::prepare(program.verified());
         let (mut heap, trace) = channel_allocator(usize::MAX);
-        let outcome = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
-            &mut heap,
-            e::Control::with_limits(Default::default()),
-            Default::default(),
-        )
-        .unwrap();
+        let outcome = execution
+            .execute(
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                Default::default(),
+            )
+            .unwrap();
         assert_eq!(outcome.value, 42);
         assert_eq!(trace.borrow().buffers, [20, 22, 7]);
         assert!(trace.borrow().live.is_empty());
@@ -1337,6 +1338,7 @@ async fn main()->i64 {{
 #[test]
 fn shutdown_protocol_quotas_refuse_one_below_exact_without_losing_payloads() {
     let program = prepare(include_str!("fixtures/task_service_active_cancel.lang"));
+    let execution = crate::service_backend::prepare(program.verified());
     let exact = lang_runtime::channel::Limits {
         channels: 1,
         slots: 1,
@@ -1353,8 +1355,7 @@ fn shutdown_protocol_quotas_refuse_one_below_exact_without_losing_payloads() {
             _ => {}
         }
         let (mut heap, trace) = channel_allocator(usize::MAX);
-        let result = lang_vm::unit::tasks::execute_entry(
-            program.verified(),
+        let result = execution.execute(
             &mut heap,
             e::Control::with_limits(Default::default()),
             r::Limits {
@@ -1402,17 +1403,18 @@ fn cancellation_after_sender_wakeup_before_commit_recovers_both_unpublished_payl
         1,
     );
     let program = prepare(&text);
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        r::Limits {
-            trace_events: 2048,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                trace_events: 2048,
+                ..Default::default()
+            },
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert!(
         outcome
@@ -1455,14 +1457,15 @@ async fn main()->i64 {{
 "#
     );
     let program = prepare(&text);
+    let execution = crate::service_backend::prepare(program.verified());
     let (mut heap, trace) = channel_allocator(usize::MAX);
-    let outcome = lang_vm::unit::tasks::execute_entry(
-        program.verified(),
-        &mut heap,
-        e::Control::with_limits(Default::default()),
-        Default::default(),
-    )
-    .unwrap();
+    let outcome = execution
+        .execute(
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
     assert_eq!(outcome.value, 42);
     assert_eq!(trace.borrow().buffers, [7]);
     assert!(trace.borrow().live.is_empty());
