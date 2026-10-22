@@ -26,6 +26,13 @@ pub enum ErrorKind {
 pub enum Error {
     Wire(wire::Error),
     Selection(wire::SelectionError),
+    Resource {
+        import: m::ImportId,
+        tag: m::DefinitionId,
+        source: Option<m::Span>,
+        contract: Option<m::Span>,
+        kind: ResourceErrorKind,
+    },
     Admission {
         kind: ErrorKind,
         import: Option<m::ImportId>,
@@ -33,6 +40,12 @@ pub enum Error {
         contract: Option<m::Span>,
         grant: Option<usize>,
     },
+}
+#[derive(Debug)]
+pub enum ResourceErrorKind {
+    UnknownTag,
+    UnknownImport,
+    Registration(native::RegistrationError),
 }
 impl From<wire::Error> for Error {
     fn from(e: wire::Error) -> Self {
@@ -92,6 +105,44 @@ impl<'a> Bindings<'a> {
     }
     pub fn imports(&self) -> &[BoundImport<'a>] {
         &self.imports
+    }
+    /// Resolve a source tag for one actual native call. Different selected
+    /// implementations may bind the same static key to distinct runtime kinds.
+    pub fn resource_kind(
+        &self,
+        import: m::ImportId,
+        tag: m::DefinitionId,
+        session: &mut wire::Session,
+    ) -> Result<native::ResourceKind<'a>, Error> {
+        let source = self
+            .unit
+            .code()
+            .declarations()
+            .types()
+            .table()
+            .definitions
+            .get(tag.0 as usize)
+            .map(|d| d.span);
+        let fail = |contract, kind| Error::Resource {
+            import,
+            tag,
+            source,
+            contract,
+            kind,
+        };
+        let r = self
+            .unit
+            .resource(tag)
+            .ok_or_else(|| fail(None, ResourceErrorKind::UnknownTag))?;
+        let key = &self.contract.document().interfaces[r.interface].resources[r.resource];
+        session.charge(1, 0)?;
+        let target = self
+            .resolve(import)
+            .ok_or_else(|| fail(Some(key.span), ResourceErrorKind::UnknownImport))?;
+        target
+            .provider
+            .resource_kind(&key.value, session)
+            .map_err(|e| fail(Some(key.span), ResourceErrorKind::Registration(e)))
     }
     pub fn resolve(&self, id: m::ImportId) -> Option<&BoundImport<'a>> {
         self.imports.get(id.0 as usize)

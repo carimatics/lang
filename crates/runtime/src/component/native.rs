@@ -20,6 +20,12 @@ pub struct Bytes {
     pub length: u64,
 }
 #[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct MutBytes {
+    pub data: *mut u8,
+    pub length: u64,
+}
+#[repr(C)]
 pub struct Engine {
     _private: [u8; 0],
 }
@@ -28,6 +34,7 @@ pub struct Buffer {
     _private: [u8; 0],
 }
 #[repr(C)]
+#[derive(Clone, Copy, Debug)]
 pub struct Context {
     pub header: Header,
     pub engine: *mut Engine,
@@ -38,6 +45,8 @@ pub struct Context {
 /// The signature in docs/component-abi-v1.h. Calling it requires a live,
 /// owner-thread component context and valid canonical input/output storage.
 pub type Invoke = unsafe extern "C" fn(*mut c_void, *const Context, Bytes, *mut *mut Buffer) -> u32;
+pub type Destroy =
+    unsafe extern "C" fn(*mut c_void, *const Context, MutBytes, *mut *mut Buffer) -> u32;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Method {
@@ -49,17 +58,56 @@ pub struct Method {
     pub flags: u32,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ResourceType {
+    pub interface: usize,
+    pub resource: usize,
+    pub destroy: Destroy,
+    pub user: *mut c_void,
+}
+
+/// A live implementation identity. Equal static keys from separately registered
+/// providers cannot authorize access to one another's backing storage.
+#[derive(Clone, Copy)]
+pub struct ResourceKind<'a> {
+    provider: &'a Provider<'a>,
+    registration: usize,
+}
+impl<'a> ResourceKind<'a> {
+    pub fn key(&self) -> &'a super::negotiation::ResourceTypeKey {
+        let r = self.registration();
+        &self.provider.metadata.contract.document().interfaces[r.interface].resources[r.resource]
+            .value
+    }
+    pub const fn provider(&self) -> &'a Provider<'a> {
+        self.provider
+    }
+    pub fn registration(&self) -> &'a ResourceType {
+        &self.provider.resources[self.registration]
+    }
+    pub fn same_implementation(&self, other: ResourceKind<'_>) -> bool {
+        std::ptr::eq(self.provider, other.provider) && self.registration == other.registration
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RegistrationErrorKind {
     UnknownMember,
     DuplicateMember,
     MissingMember,
+    UnknownResource,
+    DuplicateResource,
+    MissingResource,
     Flags,
 }
 #[derive(Debug)]
 pub enum RegistrationError {
     Wire(wire::Error),
     Method {
+        kind: RegistrationErrorKind,
+        index: usize,
+    },
+    Resource {
         kind: RegistrationErrorKind,
         index: usize,
     },
@@ -81,6 +129,7 @@ impl std::error::Error for RegistrationError {}
 pub struct Provider<'a> {
     metadata: wire::Provider<'a>,
     methods: &'a [Method],
+    resources: &'a [ResourceType],
     owner: &'a dyn CodeOwner,
 }
 impl<'a> Provider<'a> {
@@ -90,8 +139,18 @@ impl<'a> Provider<'a> {
         owner: &'a dyn CodeOwner,
         session: &mut wire::Session,
     ) -> Result<Self, RegistrationError> {
+        Self::with_resources(metadata, methods, &[], owner, session)
+    }
+    pub fn with_resources(
+        metadata: wire::Provider<'a>,
+        methods: &'a [Method],
+        resources: &'a [ResourceType],
+        owner: &'a dyn CodeOwner,
+        session: &mut wire::Session,
+    ) -> Result<Self, RegistrationError> {
         wire::encode_contract(metadata.contract, session)?;
         session.count(methods.len(), 0)?;
+        session.count(resources.len(), 0)?;
         let d = metadata.contract.document();
         for (index, method) in methods.iter().enumerate() {
             let error = |kind| RegistrationError::Method { kind, index };
@@ -125,6 +184,35 @@ impl<'a> Provider<'a> {
                 return Err(error(RegistrationErrorKind::DuplicateMember));
             }
         }
+        for (index, resource) in resources.iter().enumerate() {
+            let error = |kind| RegistrationError::Resource { kind, index };
+            let interface = d
+                .interfaces
+                .get(resource.interface)
+                .filter(|i| resource.resource < i.resources.len())
+                .ok_or_else(|| error(RegistrationErrorKind::UnknownResource))?;
+            let mut exported = false;
+            for key in &d.exports {
+                session.charge(
+                    key.value.package().namespace().len()
+                        + key.value.package().package().len()
+                        + key.value.interface().len()
+                        + 1,
+                    0,
+                )?;
+                exported |= key.value == interface.key.value;
+            }
+            if !exported {
+                return Err(error(RegistrationErrorKind::UnknownResource));
+            }
+            session.charge(index, 0)?;
+            if resources[..index]
+                .iter()
+                .any(|r| r.interface == resource.interface && r.resource == resource.resource)
+            {
+                return Err(error(RegistrationErrorKind::DuplicateResource));
+            }
+        }
         // Every declared export must have a live implementation, including unused ones.
         for (interface, i) in d.interfaces.iter().enumerate() {
             session.charge(1, 0)?;
@@ -142,6 +230,18 @@ impl<'a> Provider<'a> {
             if !exported {
                 continue;
             }
+            for resource in 0..i.resources.len() {
+                session.charge(resources.len().saturating_add(1), 0)?;
+                if !resources
+                    .iter()
+                    .any(|r| r.interface == interface && r.resource == resource)
+                {
+                    return Err(RegistrationError::Resource {
+                        kind: RegistrationErrorKind::MissingResource,
+                        index: resources.len(),
+                    });
+                }
+            }
             for member in 0..i.functions.len() {
                 session.charge(methods.len().saturating_add(1), 0)?;
                 if !methods
@@ -158,6 +258,7 @@ impl<'a> Provider<'a> {
         Ok(Self {
             metadata,
             methods,
+            resources,
             owner,
         })
     }
@@ -166,6 +267,36 @@ impl<'a> Provider<'a> {
     }
     pub fn methods(&self) -> &'a [Method] {
         self.methods
+    }
+    pub fn resource_kind(
+        &'a self,
+        key: &super::negotiation::ResourceTypeKey,
+        session: &mut wire::Session,
+    ) -> Result<ResourceKind<'a>, RegistrationError> {
+        session.charge(1, 0)?;
+        let bytes = key
+            .interface()
+            .package()
+            .namespace()
+            .len()
+            .saturating_add(key.interface().package().package().len())
+            .saturating_add(key.interface().interface().len())
+            .saturating_add(key.resource().len())
+            .saturating_add(1);
+        for registration in 0..self.resources.len() {
+            session.charge(bytes, 0)?;
+            let kind = ResourceKind {
+                provider: self,
+                registration,
+            };
+            if kind.key() == key {
+                return Ok(kind);
+            }
+        }
+        Err(RegistrationError::Resource {
+            kind: RegistrationErrorKind::UnknownResource,
+            index: self.resources.len(),
+        })
     }
     pub fn retains_code<T>(&self, owner: &T) -> bool {
         std::ptr::addr_eq(self.owner as *const dyn CodeOwner, owner as *const T)

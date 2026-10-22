@@ -59,11 +59,12 @@ impl<'p> ObjectArtifact<'p> {
             ObjectBuilder::new(isa, "lang-tasks-r1", default_libcall_names()).map_err(backend)?,
         );
         let (functions, _ids, budget) =
-            prepare_program(proof, entry, limits, &mut module, &prefix)?;
+            prepare_program(proof, entry, limits, &mut module, &prefix, false)?;
         let bytes = module.finish().emit().map_err(backend)?;
         Ok(Self {
             bytes,
             image: Image {
+                component: None,
                 proof,
                 entry,
                 functions,

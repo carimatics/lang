@@ -50,9 +50,104 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         allocator: &'host mut a::Allocator<P>,
         control: e::Control<'ctrl>,
         limits: Limits,
-        mut budget: m::Budget,
+        budget: m::Budget,
         entry: m::FunctionId,
     ) -> Result<Self, Reason> {
+        Self::new_with_arguments(
+            proof,
+            plans,
+            layouts,
+            allocator,
+            control,
+            limits,
+            budget,
+            entry,
+            &[],
+        )
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep root transport, verified program, allocator and original controls explicit."
+    )]
+    pub fn new_with_arguments(
+        proof: &'ty o::tasks::VerifiedTasks,
+        plans: &'p [Option<l::FramePlan<'l, 'ty>>],
+        layouts: &'l l::Layouts<'ty>,
+        allocator: &'host mut a::Allocator<P>,
+        control: e::Control<'ctrl>,
+        limits: Limits,
+        budget: m::Budget,
+        entry: m::FunctionId,
+        arguments: &[EntryArgument],
+    ) -> Result<Self, Reason> {
+        Self::new_inner(
+            proof, plans, layouts, allocator, control, limits, budget, entry, arguments, None,
+        )
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep component program, root transport and original invocation services explicit."
+    )]
+    pub fn new_component(
+        proof: &'ty o::tasks::VerifiedTasks,
+        plans: &'p [Option<l::FramePlan<'l, 'ty>>],
+        layouts: &'l l::Layouts<'ty>,
+        allocator: &'host mut a::Allocator<P>,
+        control: e::Control<'ctrl>,
+        limits: Limits,
+        budget: m::Budget,
+        entry: m::FunctionId,
+        arguments: &[EntryArgument],
+        component: &'l mut dyn crate::component::execution::Host,
+    ) -> Result<Self, Reason> {
+        Self::new_inner(
+            proof,
+            plans,
+            layouts,
+            allocator,
+            control,
+            limits,
+            budget,
+            entry,
+            arguments,
+            Some(component),
+        )
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "One constructor preserves ordinary and component frame/control semantics."
+    )]
+    fn new_inner(
+        proof: &'ty o::tasks::VerifiedTasks,
+        plans: &'p [Option<l::FramePlan<'l, 'ty>>],
+        layouts: &'l l::Layouts<'ty>,
+        allocator: &'host mut a::Allocator<P>,
+        control: e::Control<'ctrl>,
+        limits: Limits,
+        mut budget: m::Budget,
+        entry: m::FunctionId,
+        arguments: &[EntryArgument],
+        mut component: Option<&'l mut dyn crate::component::execution::Host>,
+    ) -> Result<Self, Reason> {
+        let declaration = &proof.typed().places().declarations().functions()[entry.0 as usize];
+        if declaration.parameters.len() != arguments.len()
+            || (component.is_none()
+                && declaration
+                    .parameters
+                    .iter()
+                    .zip(arguments)
+                    .any(|(id, argument)| {
+                        Some(declaration.locals[id.0 as usize].ty.ty) != argument.ty()
+                    }))
+        {
+            return Err(Reason::Entry);
+        }
+        if let Some(host) = component.as_deref() {
+            if !host.corresponds(proof, entry) || !host.control_matches(control) {
+                return Err(Reason::Entry);
+            }
+            host.validate(arguments, allocator)?;
+        }
         let plan = plans[entry.0 as usize].as_ref().ok_or(Reason::Invariant)?;
         let cells = plan.cleanup_slots() + 1;
         admit(control, 0, 0, cells)?;
@@ -68,7 +163,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let mut scheduler = t::Scheduler::new(limits.tasks)?;
         let span = proof.typed().places().declarations().functions()[entry.0 as usize].span;
         let id = scheduler.start(Some(span))?;
-        let services = services::Services::prepare(
+        let mut services = services::Services::prepare(
             proof,
             plans,
             layouts,
@@ -80,7 +175,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             control.service_work_limit(),
             &mut budget,
         )?;
-        let frame = Frame::new(
+        let mut frame = Frame::new(
             proof,
             plan,
             services.layouts,
@@ -91,6 +186,47 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             allocator,
             &mut budget,
         )?;
+        let staged = (|| -> Result<(), Reason> {
+            if let Some(host) = component.as_deref_mut() {
+                host.prepare_arguments(arguments, allocator)?;
+            }
+            for (index, (parameter, argument)) in
+                declaration.parameters.iter().zip(arguments).enumerate()
+            {
+                if let Some(value) = argument.immediate() {
+                    frame.write(parameter.0 as usize, value, allocator)?;
+                } else {
+                    let claim = component.as_deref().ok_or(Reason::Entry)?.argument(index)?;
+                    frame
+                        .data()?
+                        .cell(parameter.0 as usize)?
+                        .data_mut(allocator)?
+                        .copy_from_slice(&claim.token());
+                }
+            }
+            control.check()?;
+            if let Some(host) = component.as_deref_mut() {
+                host.commit_arguments(allocator)?;
+            }
+            for (parameter, argument) in declaration.parameters.iter().zip(arguments) {
+                if matches!(argument, EntryArgument::Resource(_)) {
+                    frame.mark(parameter.0 as usize, frame.origin)?;
+                }
+            }
+            Ok(())
+        })();
+        if let Err(error) = staged {
+            if let Some(host) = component.as_deref_mut() {
+                host.abort_arguments();
+            }
+            frame
+                .storage
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .release(allocator)?;
+            return Err(error);
+        }
+        services.component = component;
         frames.push(frame);
         records.push(Record {
             id,
@@ -676,7 +812,81 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
         Ok(())
     }
-    pub fn run<B: Backend<P>>(mut self, backend: &mut B) -> Result<Outcome, Failure> {
+    fn finish_root(&mut self) -> Result<crate::component::execution::Value, Reason> {
+        use crate::component::{execution::Value, storage::Claim};
+        if self.services.component.is_some() {
+            self.control.check()?;
+        }
+        let result = self.records[0].result.as_ref().ok_or(Reason::Invariant)?;
+        let ty = result.value.root().ty();
+        let types = self.proof.typed().places().declarations().types();
+        let resource = matches!(ty, o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor, o::Constructor::ComponentResource(_)));
+        let mut token = if resource {
+            Some(
+                result
+                    .value
+                    .read_token(result.value.root(), self.allocator)?,
+            )
+        } else {
+            None
+        };
+        let value = if let Some(token) = &token {
+            Value::Resource(Claim::from_token(token.bytes).map_err(Reason::Component)?)
+        } else {
+            Value::Copy(
+                result
+                    .value
+                    .read_immediate(result.value.root(), self.allocator)?,
+            )
+        };
+        let value = if let Some(host) = self.services.component.as_deref_mut() {
+            host.prepare_result(value, self.allocator)?
+        } else {
+            value
+        };
+        let mut result = self.records[0].result.take().ok_or(Reason::Invariant)?;
+        // The live component table retains the original guest obligation while
+        // its caller representation is staged. Releasing this private return
+        // cell therefore does not release the resource or publish its ticket.
+        if let Err(error) = result.value.release_storage(self.allocator) {
+            self.records[0].result = Some(result);
+            if let Some(host) = self.services.component.as_deref_mut() {
+                host.abort_arguments();
+            }
+            return Err(error.into());
+        }
+        self.live_cells -= 1;
+        if let Some(host) = self.services.component.as_deref_mut()
+            && let Err(reason) = host.commit_result(self.allocator)
+        {
+            host.abort_arguments();
+            // A failed preflight has made no ownership write. The physical
+            // resource still belongs to the guest even though its cell is gone.
+            if let Some(token) = token.as_mut() {
+                let services = &mut self.services;
+                let allocator = &mut self.allocator;
+                let session = self.records[0].session.as_mut().ok_or(Reason::Invariant)?;
+                let mut cleaner = c::Contextual::new(
+                    |token: &mut &mut l::Token, _, context: &mut c::Context<'_>| {
+                        services.retire(types, token, allocator, context)
+                    },
+                );
+                let _ = session.retire(
+                    c::Slot(0),
+                    token,
+                    Some(result.span),
+                    c::Reason::UnpublishedReturn,
+                    &mut cleaner,
+                );
+            }
+            return Err(reason);
+        }
+        Ok(value)
+    }
+    pub fn run<B: Backend<P>>(
+        mut self,
+        backend: &mut B,
+    ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
         let driven = (|| -> Result<(), Reason> {
             while let Some(dispatch) = self.services.scheduler.dispatch()? {
                 match dispatch {
@@ -741,29 +951,21 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
         self.usage.service_work = self.services.work.used();
         let outcome = self.services.scheduler.status(&self.records[0].id);
-        let mut finished = (|| -> Result<i64, Reason> {
+        let mut finished = (|| -> Result<(), Reason> {
             if failed {
                 return Err(Reason::Invariant);
             }
             match outcome.map_err(Reason::from)? {
-                t::Status::Complete(t::Outcome::Success) => {
-                    let mut result = self.records[0].result.take().ok_or(Reason::Invariant)?;
-                    let value = result
-                        .value
-                        .read_immediate(result.value.root(), self.allocator)?;
-                    result.value.release_storage(self.allocator)?;
-                    self.live_cells -= 1;
-                    match value {
-                        l::Immediate::I64(value) => Ok(value),
-                        _ => Err(Reason::Invariant),
-                    }
-                }
+                t::Status::Complete(t::Outcome::Success) => Ok(()),
                 t::Status::Complete(t::Outcome::Cancelled) => Err(Reason::Cancelled),
                 t::Status::Complete(t::Outcome::Failed(_)) => Err(Reason::Invariant),
                 _ => Err(Reason::Invariant),
             }
         })();
         for task in 0..self.records.len() {
+            if task == 0 && finished.is_ok() {
+                continue;
+            }
             let owner = self.records[task].parent.unwrap_or(task);
             let discarded = self.discard_result(task, owner, c::Reason::ScopeExit);
             if matches!(discarded, Ok(true)) && finished.is_ok() {
@@ -787,6 +989,34 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             && finished.is_ok()
         {
             finished = Err(reason);
+        }
+        let finished = finished.and_then(|()| {
+            let result = self.finish_root();
+            if let Err(reason) = &result {
+                let function = self.records[0].function;
+                let span = self.proof.typed().places().declarations().functions()
+                    [function.0 as usize]
+                    .span;
+                let _ = self.record_execution(0, reason, span);
+            }
+            result
+        });
+        if finished.is_err() {
+            let function = self.records[0].function;
+            let span =
+                self.proof.typed().places().declarations().functions()[function.0 as usize].span;
+            if let Some(host) = self.services.component.as_deref_mut() {
+                host.abort_arguments();
+            }
+            // A failed final check or representation preflight never publishes
+            // the escrowed result; mandatory cleanup still uses its guest ticket.
+            if self
+                .discard_result(0, 0, c::Reason::UnpublishedReturn)
+                .is_err()
+                && let Some(session) = self.records[0].session.as_mut()
+            {
+                session.execution(c::ExecutionFailure::Invariant, Some(span));
+            }
         }
         match finished {
             Ok(value) => {

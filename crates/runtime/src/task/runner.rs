@@ -53,6 +53,7 @@ pub struct Event {
 }
 #[derive(Debug)]
 pub enum Reason {
+    Component(crate::component::storage::Error),
     ChannelDeadlock(crate::channel::Deadlock),
     Channel(crate::channel::managed::Error),
     Control(e::Failure),
@@ -110,8 +111,8 @@ impl Display for Failure {
     }
 }
 impl std::error::Error for Failure {}
-pub struct Outcome {
-    pub value: i64,
+pub struct Outcome<V = i64> {
+    pub value: V,
     pub usage: e::Usage,
     pub tasks: t::Usage,
     pub allocations: a::Stats,
@@ -119,6 +120,45 @@ pub struct Outcome {
     /// Suppressed cleanup evidence, including a cancelled child's cleanup.
     pub report: Option<c::Report>,
     pub poisoned: bool,
+}
+impl<V> Outcome<V> {
+    pub fn map<W>(self, map: impl FnOnce(V) -> W) -> Outcome<W> {
+        Outcome {
+            value: map(self.value),
+            usage: self.usage,
+            tasks: self.tasks,
+            allocations: self.allocations,
+            events: self.events,
+            report: self.report,
+            poisoned: self.poisoned,
+        }
+    }
+}
+
+/// Private root argument transport. Owning component values are admitted by
+/// the component entry layer; these Copy leaves carry no allocator authority.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EntryArgument {
+    I64(i64),
+    Bool(bool),
+    Resource(crate::component::storage::Claim),
+}
+impl EntryArgument {
+    pub const fn ty(self) -> Option<o::Type> {
+        match self {
+            Self::I64(_) => Some(o::Type::I64),
+            Self::Bool(_) => Some(o::Type::Bool),
+            Self::Resource(_) => None,
+        }
+    }
+    pub const fn immediate(self) -> Option<l::Immediate> {
+        match self {
+            Self::I64(v) => Some(l::Immediate::I64(v)),
+            Self::Bool(v) => Some(l::Immediate::Bool(v)),
+            Self::Resource(_) => None,
+        }
+    }
 }
 
 fn usage(budget: &m::Budget) -> m::Usage {
@@ -186,7 +226,7 @@ pub fn execute_entry<P: a::Provider, B: Backend<P>>(
         .iter()
         .position(|f| f.name == "main")
         .map(|i| m::FunctionId(i as u32));
-    execute(backend, proof, entry, allocator, control, limits)
+    execute(backend, proof, entry, allocator, control, limits, &[])
 }
 pub fn execute_function<P: a::Provider, B: Backend<P>>(
     backend: &mut B,
@@ -196,7 +236,35 @@ pub fn execute_function<P: a::Provider, B: Backend<P>>(
     control: e::Control<'_>,
     limits: Limits,
 ) -> Result<Outcome, Failure> {
-    execute(backend, proof, Some(function), allocator, control, limits)
+    execute(
+        backend,
+        proof,
+        Some(function),
+        allocator,
+        control,
+        limits,
+        &[],
+    )
+}
+#[doc(hidden)]
+pub fn execute_function_with_arguments<P: a::Provider, B: Backend<P>>(
+    backend: &mut B,
+    proof: &o::tasks::VerifiedTasks,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[EntryArgument],
+) -> Result<Outcome, Failure> {
+    execute(
+        backend,
+        proof,
+        Some(function),
+        allocator,
+        control,
+        limits,
+        arguments,
+    )
 }
 fn execute<P: a::Provider, B: Backend<P>>(
     backend: &mut B,
@@ -205,7 +273,65 @@ fn execute<P: a::Provider, B: Backend<P>>(
     allocator: &mut a::Allocator<P>,
     control: e::Control<'_>,
     limits: Limits,
+    arguments: &[EntryArgument],
 ) -> Result<Outcome, Failure> {
+    execute_profile(
+        backend, proof, entry, allocator, control, limits, arguments, None,
+    )
+    .map(|outcome| {
+        outcome.map(|value| match value {
+            crate::component::execution::Value::Copy(l::Immediate::I64(value)) => value,
+            _ => unreachable!("ordinary root admission requires an i64 result"),
+        })
+    })
+}
+#[doc(hidden)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep component proof, root transport and original invocation authority explicit."
+)]
+pub fn execute_component<P: a::Provider, B: Backend<P>>(
+    backend: &mut B,
+    program: &crate::component::program::Program<'_>,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[EntryArgument],
+    host: &mut dyn crate::component::execution::Host,
+) -> Result<Outcome<crate::component::execution::Value>, Failure> {
+    execute_profile(
+        backend,
+        program.proof(),
+        Some(function),
+        allocator,
+        control,
+        limits,
+        arguments,
+        Some((program, host)),
+    )
+}
+#[allow(
+    clippy::too_many_arguments,
+    reason = "One preparation path preserves existing and component execution semantics."
+)]
+fn execute_profile<P: a::Provider, B: Backend<P>>(
+    backend: &mut B,
+    proof: &o::tasks::VerifiedTasks,
+    entry: Option<m::FunctionId>,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[EntryArgument],
+    component: Option<(
+        &crate::component::program::Program<'_>,
+        &mut dyn crate::component::execution::Host,
+    )>,
+) -> Result<Outcome<crate::component::execution::Value>, Failure> {
+    let (program, component) = match component {
+        Some((program, host)) => (Some(program), Some(host)),
+        None => (None, None),
+    };
     let typed = proof.typed();
     let declarations = typed.places().declarations();
     let types = declarations.types();
@@ -223,12 +349,20 @@ fn execute<P: a::Provider, B: Backend<P>>(
         poisoned: false,
     };
     let prepared=(||->Result<_,Reason>{
-        if let Some(span)=declarations.component_feature_span(){return Err(Reason::Layout(l::Error::UnsupportedComponentProfile{span}));}
+        if let Some(span)=declarations.component_feature_span() && program.is_none(){return Err(Reason::Layout(l::Error::UnsupportedComponentProfile{span}));}
         control.check()?;
         if control.service_work_limit().is_some()&&(!declarations.imports().is_empty()||!e::service_work_supported(proof.plan())){return Err(Reason::Unsupported);}
         let entry=entry.ok_or(Reason::Entry)?;
+        if program.is_some_and(|program|!program.is_export(entry)){return Err(Reason::Entry);}
         let decl=declarations.functions().get(entry.0 as usize).ok_or(Reason::Entry)?;
-        if !decl.parameters.is_empty() || decl.result.ty!=o::Type::I64 {return Err(Reason::Entry);}
+        if decl.parameters.len()!=arguments.len() || (program.is_none() && decl.result.ty!=o::Type::I64) {return Err(Reason::Entry);}
+        if let Some(host)=component.as_deref(){
+            if !host.corresponds(proof,entry)||!host.control_matches(control){return Err(Reason::Entry);}
+            host.validate(arguments,allocator)?;
+        } else {for (parameter, argument) in decl.parameters.iter().zip(arguments) {
+            if Some(decl.locals[parameter.0 as usize].ty.ty) != argument.ty() { return Err(Reason::Entry); }
+        }
+        }
         if limits.tasks.live_tasks==0 {return Err(t::Error::LiveTaskLimit{limit:0}.into());}
         if limits.tasks.total_tasks==0 {return Err(t::Error::TotalTaskLimit{limit:0}.into());}
         let mut budget=m::Budget::with_usage(limits.preparation, m::Usage{work:proof.plan().work_used(),allocation_bytes:proof.plan().requested_bytes(),elements:proof.plan().elements_used()})?;
@@ -245,7 +379,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
             for ty in declaration.locals.iter().map(|l|l.ty.ty).chain(typed.places().functions()[index].values.iter().map(|v|v.ty)).chain(std::iter::once(declaration.result.ty)) {
                 budget.charge(1)?;
                 let claim=matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
-                if !claim && !managed_type_supported_profile(types,ty,&mut budget,backend.services_supported())? {return Err(Reason::Unsupported);}
+                if !claim && !managed_type_supported_profile(types,ty,&mut budget,backend.services_supported(),program.is_some())? {return Err(Reason::Unsupported);}
             }
             for instruction in body.blocks.iter().flat_map(|b|&b.instructions){
                 budget.charge(1)?;
@@ -254,7 +388,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
                     && !seen[function.0 as usize] { seen[function.0 as usize]=true;reachable.push(function.0 as usize); }
             }
         }
-        let layouts=if types.service_feature_span().is_some() && backend.services_supported() {l::Layouts::compile_service_tasks(proof,limits.preparation)?} else if types.channel_feature_span().is_some() {l::Layouts::compile_channel_tasks(proof,limits.preparation)?} else {l::Layouts::compile_tasks(proof,limits.preparation)?};
+        let layouts=if let Some(program)=program {l::Layouts::compile_component_program(program,limits.preparation)?} else if types.service_feature_span().is_some() && backend.services_supported() {l::Layouts::compile_service_tasks(proof,limits.preparation)?} else if types.channel_feature_span().is_some() {l::Layouts::compile_channel_tasks(proof,limits.preparation)?} else {l::Layouts::compile_tasks(proof,limits.preparation)?};
         let extra=|a:usize,b:usize,c:usize|a.checked_add(b.checked_sub(c)?);
         let previous=usage(&budget);let layout=layouts.usage();
         let initial=m::Usage {work:extra(previous.work,layout.work,types.work_used()).ok_or(Reason::Invariant)?, allocation_bytes:extra(previous.allocation_bytes,layout.allocation_bytes,types.requested_bytes()).ok_or(Reason::Invariant)?,elements:extra(previous.elements,layout.elements,types.elements_used()).ok_or(Reason::Invariant)?};
@@ -277,9 +411,16 @@ fn execute<P: a::Provider, B: Backend<P>>(
             budget = m::Budget::with_usage(limits.preparation, plan.usage())?;
             plans[function] = Some(plan);
         }
-        let machine = machine::Machine::new(
-            proof, &plans, &layouts, allocator, control, limits, budget, entry,
-        )?;
+        let machine = if let Some(component) = component {
+            machine::Machine::new_component(
+                proof, &plans, &layouts, allocator, control, limits, budget, entry, arguments,
+                component,
+            )?
+        } else {
+            machine::Machine::new_with_arguments(
+                proof, &plans, &layouts, allocator, control, limits, budget, entry, arguments,
+            )?
+        };
         Ok(machine.run(backend))
     })();
     match result {
@@ -424,7 +565,7 @@ pub fn managed_type_supported(
     ty: o::Type,
     budget: &mut m::Budget,
 ) -> Result<bool, Reason> {
-    managed_type_supported_profile(types, ty, budget, false)
+    managed_type_supported_profile(types, ty, budget, false, false)
 }
 /// Explicit private service adapter admission over the same verified type graph.
 #[doc(hidden)]
@@ -433,13 +574,22 @@ pub fn managed_service_type_supported(
     ty: o::Type,
     budget: &mut m::Budget,
 ) -> Result<bool, Reason> {
-    managed_type_supported_profile(types, ty, budget, true)
+    managed_type_supported_profile(types, ty, budget, true, false)
+}
+#[doc(hidden)]
+pub fn managed_component_type_supported(
+    types: &o::VerifiedTypes,
+    ty: o::Type,
+    budget: &mut m::Budget,
+) -> Result<bool, Reason> {
+    managed_type_supported_profile(types, ty, budget, true, true)
 }
 fn managed_type_supported_profile(
     types: &o::VerifiedTypes,
     ty: o::Type,
     budget: &mut m::Budget,
     services: bool,
+    components: bool,
 ) -> Result<bool, Reason> {
     let mut pending = budget.vector(1)?;
     pending.push(ty);
@@ -469,7 +619,11 @@ fn managed_type_supported_profile(
             o::Type::I64 | o::Type::Bool => {}
             o::Type::Constructed(id) => {
                 match types.table().constructed[id.0 as usize].constructor {
-                    o::Constructor::ComponentResource(_) => return Ok(false),
+                    o::Constructor::ComponentResource(_) => {
+                        if !components {
+                            return Ok(false);
+                        }
+                    }
                     o::Constructor::Builtin(_) => {}
                     constructor @ (o::Constructor::Option(_)
                     | o::Constructor::SendResult(_)

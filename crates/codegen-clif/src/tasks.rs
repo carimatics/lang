@@ -121,6 +121,7 @@ pub struct CompiledProgram<'p> {
     image: Image<'p>,
 }
 struct Image<'p> {
+    component: Option<&'p lang_runtime::component::program::Program<'p>>,
     proof: &'p o::tasks::VerifiedTasks,
     entry: m::FunctionId,
     functions: Vec<Option<Function>>,
@@ -144,12 +145,47 @@ impl<'p> CompiledProgram<'p> {
         entry: m::FunctionId,
         limits: m::Limits,
     ) -> Result<Self, Error> {
+        Self::compile_function_inner(proof, entry, limits, false, None)
+    }
+    #[doc(hidden)]
+    pub fn compile_function_with_arguments(
+        proof: &'p o::tasks::VerifiedTasks,
+        entry: m::FunctionId,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        Self::compile_function_inner(proof, entry, limits, true, None)
+    }
+    #[doc(hidden)]
+    pub fn compile_component(
+        program: &'p lang_runtime::component::program::Program<'p>,
+        entry: m::FunctionId,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        if !program.is_export(entry) {
+            return Err(Error::Entry);
+        }
+        Self::compile_function_inner(program.proof(), entry, limits, true, Some(program))
+    }
+    fn compile_function_inner(
+        proof: &'p o::tasks::VerifiedTasks,
+        entry: m::FunctionId,
+        limits: m::Limits,
+        arguments: bool,
+        component: Option<&'p lang_runtime::component::program::Program<'p>>,
+    ) -> Result<Self, Error> {
         let mut owner = super::OwnedJitModule(Some(JITModule::new(
             JITBuilder::new(default_libcall_names()).map_err(backend)?,
         )));
         let module = owner.0.as_mut().expect("new module");
-        let (mut functions, ids, budget) =
-            prepare_program(proof, entry, limits, module, "lang_tasks_r1")?;
+        let (mut functions, ids, budget) = prepare_program_profile(
+            proof,
+            entry,
+            limits,
+            module,
+            "lang_tasks_r1",
+            arguments,
+            component,
+        )?;
         module.finalize_definitions().map_err(backend)?;
         for (index, id) in ids {
             functions[index].as_mut().expect("prepared function").code =
@@ -158,6 +194,7 @@ impl<'p> CompiledProgram<'p> {
         Ok(Self {
             _owner: owner,
             image: Image {
+                component,
                 proof,
                 entry,
                 functions,
@@ -184,6 +221,56 @@ impl<'p> CompiledProgram<'p> {
             allocator,
             control,
             limits,
+        )
+    }
+    #[doc(hidden)]
+    pub fn execute_with_arguments<P: a::Provider>(
+        &self,
+        allocator: &mut a::Allocator<P>,
+        control: e::Control<'_>,
+        limits: r::Limits,
+        arguments: &[r::EntryArgument],
+    ) -> Result<r::Outcome, r::Failure> {
+        r::execute_function_with_arguments(
+            &mut Adapter(&self.image),
+            self.image.proof,
+            self.image.entry,
+            allocator,
+            control,
+            limits,
+            arguments,
+        )
+    }
+    #[doc(hidden)]
+    pub fn execute_component<P: a::Provider>(
+        &self,
+        allocator: &mut a::Allocator<P>,
+        control: e::Control<'_>,
+        limits: r::Limits,
+        arguments: &[r::EntryArgument],
+        host: &mut dyn lang_runtime::component::execution::Host,
+    ) -> Result<r::Outcome<lang_runtime::component::execution::Value>, r::Failure> {
+        let Some(program) = self.image.component else {
+            return Err(r::Failure {
+                reason: r::Reason::Entry,
+                function: Some(self.image.entry),
+                span: None,
+                usage: Default::default(),
+                tasks: Default::default(),
+                events: Vec::new(),
+                report: None,
+                poisoned: false,
+            });
+        };
+        r::execute_component(
+            &mut Adapter(&self.image),
+            program,
+            self.image.entry,
+            allocator,
+            control,
+            limits,
+            arguments,
+            host,
         )
     }
 }
@@ -225,10 +312,24 @@ fn prepare_program<M: Module>(
     limits: m::Limits,
     module: &mut M,
     prefix: &str,
+    arguments: bool,
+) -> Result<PreparedProgram, Error> {
+    prepare_program_profile(proof, entry, limits, module, prefix, arguments, None)
+}
+fn prepare_program_profile<M: Module>(
+    proof: &o::tasks::VerifiedTasks,
+    entry: m::FunctionId,
+    limits: m::Limits,
+    module: &mut M,
+    prefix: &str,
+    arguments: bool,
+    component: Option<&lang_runtime::component::program::Program<'_>>,
 ) -> Result<PreparedProgram, Error> {
     let typed = proof.typed();
     let declarations = typed.places().declarations();
-    if let Some(span) = declarations.component_feature_span() {
+    if let Some(span) = declarations.component_feature_span()
+        && component.is_none()
+    {
         return Err(Error::Layout(l::Error::UnsupportedComponentProfile {
             span,
         }));
@@ -239,7 +340,16 @@ fn prepare_program<M: Module>(
         .functions()
         .get(entry.0 as usize)
         .ok_or(Error::Entry)?;
-    if !declaration.parameters.is_empty() || declaration.result.ty != o::Type::I64 {
+    if (!arguments && !declaration.parameters.is_empty())
+        || (component.is_none() && declaration.result.ty != o::Type::I64)
+        || (component.is_none()
+            && declaration.parameters.iter().any(|id| {
+                !matches!(
+                    declaration.locals[id.0 as usize].ty.ty,
+                    o::Type::I64 | o::Type::Bool
+                )
+            }))
+    {
         return Err(Error::Entry);
     }
     let mut budget = m::Budget::with_usage(
@@ -281,7 +391,9 @@ fn prepare_program<M: Module>(
             budget.charge(1)?;
             let claim = matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
             let storage_supported = claim
-                || (if services {
+                || (if component.is_some() {
+                    r::managed_component_type_supported(types, ty, &mut budget)
+                } else if services {
                     r::managed_service_type_supported(types, ty, &mut budget)
                 } else {
                     r::managed_type_supported(types, ty, &mut budget)
@@ -309,7 +421,9 @@ fn prepare_program<M: Module>(
             }
         }
     }
-    let layouts = if services {
+    let layouts = if let Some(component) = component {
+        l::Layouts::compile_component_program(component, limits)?
+    } else if services {
         l::Layouts::compile_service_tasks(proof, limits)?
     } else if types.channel_feature_span().is_some() {
         l::Layouts::compile_channel_tasks(proof, limits)?
@@ -349,7 +463,7 @@ fn prepare_program<M: Module>(
             usage(&budget),
         )?;
         budget = m::Budget::with_usage(limits, plan.usage())?;
-        let nodes = prepare(proof, function, &plan, &mut budget)?;
+        let nodes = prepare(proof, function, &plan, &mut budget, component.is_some())?;
         let symbol = format!("{prefix}_f{index}");
         let (id, metadata) = emit(
             module,
@@ -384,11 +498,14 @@ fn prepare(
     function: m::FunctionId,
     plan: &l::FramePlan<'_, '_>,
     budget: &mut m::Budget,
+    component: bool,
 ) -> Result<Vec<Node>, Error> {
     let typed = proof.typed();
     let body = &typed.functions()[function.0 as usize];
     let declarations = typed.places().declarations();
-    if let Some(span) = declarations.component_feature_span() {
+    if let Some(span) = declarations.component_feature_span()
+        && !component
+    {
         return Err(Error::Layout(l::Error::UnsupportedComponentProfile {
             span,
         }));

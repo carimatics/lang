@@ -1,0 +1,231 @@
+//! Native component cleanup bridge. Engine tokens reference stable engine
+//! storage; active borrowed pointers are cleared before a callback scope ends.
+use lang_mir::unit as m;
+use lang_runtime::{
+    cleanup as c,
+    component::{
+        execution::Invoker,
+        native,
+        storage::{Detached, Memory},
+    },
+    execution as e,
+};
+use std::{
+    ptr,
+    sync::atomic::{AtomicU64, Ordering},
+    thread::{self, ThreadId},
+};
+
+static NEXT_INVOCATION: AtomicU64 = AtomicU64::new(1);
+const MAGIC: u64 = 0x636f_6d70_6374_7831;
+struct State {
+    magic: u64,
+    thread: ThreadId,
+    invocation: u64,
+    scope: Option<u64>,
+    next_scope: Option<u64>,
+    control: *const e::Control<'static>,
+    memory: Option<*mut (dyn Memory + 'static)>,
+    last: Option<native::Context>,
+}
+pub struct Engine {
+    state: Vec<State>,
+}
+impl Engine {
+    pub fn prepare(budget: &mut m::Budget) -> Result<Self, m::Error> {
+        let mut state = budget.vector(1)?;
+        state.push(State {
+            magic: MAGIC,
+            thread: thread::current().id(),
+            invocation: 0,
+            scope: None,
+            next_scope: Some(1),
+            control: ptr::null(),
+            memory: None,
+            last: None,
+        });
+        Ok(Self { state })
+    }
+    pub fn begin<'a, 'ctrl>(
+        &'a mut self,
+        control: e::Control<'ctrl>,
+    ) -> Result<Invocation<'a, 'ctrl>, u32> {
+        let state = &mut self.state[0];
+        if state.thread != thread::current().id() || state.scope.is_some() {
+            return Err(4);
+        }
+        let id = NEXT_INVOCATION
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+            .map_err(|_| 2u32)?;
+        state.invocation = id;
+        Ok(Invocation {
+            engine: self,
+            control,
+        })
+    }
+    pub fn last_context(&self) -> Option<native::Context> {
+        self.state[0].last
+    }
+    pub fn check(&self, context: &native::Context) -> u32 {
+        if context.engine != ptr::from_ref(&self.state[0]).cast_mut().cast() {
+            return 5;
+        }
+        check(&self.state[0], context)
+    }
+}
+fn check(state: &State, context: &native::Context) -> u32 {
+    if state.magic != MAGIC
+        || state.thread != thread::current().id()
+        || context.header.size != size_of::<native::Context>() as u32
+        || context.header.version != 1
+        || context.reserved != [0; 2]
+    {
+        return 2;
+    }
+    if state.scope != Some(context.scope)
+        || state.invocation != context.invocation
+        || state.control.is_null()
+        || state.memory.is_none()
+    {
+        return 5;
+    }
+    0
+}
+/// Check a token supplied to this private bridge. The full public component C
+/// table is a later embedding delivery; this primitive shares original control.
+///
+/// # Safety
+/// `context` must point to readable initialized bytes, and its engine must be
+/// an Engine created here that remains alive. A copied expired scope is valid
+/// input and is refused before any active borrowed pointer is accessed.
+pub unsafe extern "C" fn context_check(context: *const native::Context) -> u32 {
+    if context.is_null() {
+        return 2;
+    }
+    // SAFETY: the caller supplies readable context bytes and a live matching
+    // engine. Scope/thread/header checks precede active pointer restoration.
+    let context = unsafe { &*context };
+    if context.engine.is_null() {
+        return 5;
+    }
+    // SAFETY: engine provenance/liveness is the trusted native caller contract.
+    let state = unsafe { &*context.engine.cast::<State>() };
+    let status = check(state, context);
+    if status != 0 {
+        return status;
+    }
+    // SAFETY: the active scope guard keeps the original control alive and clears
+    // this pointer before callback return; no stack address is in the token.
+    match unsafe { &*state.control }.check() {
+        Ok(()) => 0,
+        Err(_) => 1,
+    }
+}
+/// Private bridge inspection used by native adapters and conformance probes.
+///
+/// # Safety
+/// The pointer/engine requirements are the same as `context_check`.
+pub unsafe extern "C" fn context_allocator_identity(context: *const native::Context) -> u64 {
+    if context.is_null() {
+        return 0;
+    }
+    // SAFETY: caller supplies readable context and matching live engine bytes.
+    let context = unsafe { &*context };
+    if context.engine.is_null() {
+        return 0;
+    }
+    let state = unsafe { &*context.engine.cast::<State>() };
+    if check(state, context) != 0 {
+        return 0;
+    }
+    // SAFETY: the scope is active and owner-thread; Active retains and clears
+    // this original borrowed allocator before callback return.
+    unsafe { &*state.memory.expect("active memory") }
+        .identity()
+        .get()
+}
+
+pub struct Invocation<'a, 'ctrl> {
+    engine: &'a mut Engine,
+    control: e::Control<'ctrl>,
+}
+struct Active {
+    state: *mut State,
+}
+impl Drop for Active {
+    fn drop(&mut self) {
+        // SAFETY: the engine's reserved single state never moves; the guard ends
+        // before its unique engine borrow. No native callback is active at Drop.
+        let state = unsafe { &mut *self.state };
+        state.scope = None;
+        state.control = ptr::null();
+        state.memory = None;
+    }
+}
+impl Invoker for Invocation<'_, '_> {
+    fn control_matches(&self, control: e::Control<'_>) -> bool {
+        self.control.same_configuration(control)
+    }
+    fn destroy(
+        &mut self,
+        kind: native::ResourceKind<'_>,
+        backing: &mut Detached<'_>,
+        memory: &mut dyn Memory,
+        _: &mut c::Context<'_>,
+    ) -> Result<(), u32> {
+        let state = &mut self.engine.state[0];
+        if state.thread != thread::current().id() || state.scope.is_some() {
+            return Err(4);
+        }
+        let scope = state.next_scope.ok_or(2u32)?;
+        state.next_scope = scope.checked_add(1);
+        let context = native::Context {
+            header: native::Header {
+                size: size_of::<native::Context>() as u32,
+                version: 1,
+            },
+            engine: ptr::from_mut(state).cast(),
+            invocation: state.invocation,
+            scope,
+            reserved: [0; 2],
+        };
+        state.scope = Some(scope);
+        state.last = Some(context);
+        // SAFETY: both lifetimes are erased only during Active's scope. The
+        // callback uses the original allocator/control; Active clears all
+        // pointers before either borrowed value can be moved or released.
+        state.control = unsafe {
+            std::mem::transmute::<*const e::Control<'_>, *const e::Control<'static>>(ptr::from_ref(
+                &self.control,
+            ))
+        };
+        state.memory = Some(unsafe {
+            std::mem::transmute::<*mut (dyn Memory + '_), *mut (dyn Memory + 'static)>(
+                ptr::from_mut(memory),
+            )
+        });
+        let _active = Active {
+            state: ptr::from_mut(state),
+        };
+        let bytes = backing.bytes_mut(memory).map_err(|_| 17u32)?;
+        let bytes = native::MutBytes {
+            data: bytes.as_mut_ptr(),
+            length: bytes.len() as u64,
+        };
+        let record = kind.registration();
+        let mut failure = ptr::null_mut();
+        // SAFETY: the registration retains the real code/user owner. Backing is
+        // uniquely detached and remains live through the call. The context
+        // points at stable engine storage with this live owner-thread scope;
+        // the native provider obeys the component-v1 no-unwind/view contract.
+        let status = unsafe { (record.destroy)(record.user, &context, bytes, &mut failure) };
+        if !failure.is_null() {
+            return Err(18);
+        }
+        match status {
+            0 => Ok(()),
+            1 => Err(19),
+            _ => Err(18),
+        }
+    }
+}

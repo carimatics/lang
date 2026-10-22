@@ -160,8 +160,36 @@ enum Profile {
     Tasks,
     Channels,
     Services,
+    Components { tasks: bool },
 }
 impl<'types> Layouts<'types> {
+    #[doc(hidden)]
+    pub fn compile_component_program(
+        program: &'types crate::component::program::Program<'_>,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        Self::compile_inner(
+            program.proof().typed().places().declarations().types(),
+            limits,
+            Profile::Components { tasks: true },
+        )
+    }
+    /// Private component storage requires the independent IDL/MIR unit proof.
+    /// Tokens remain claims checked by the live resource adapter; this admits
+    /// no ordinary runtime, wire, C-profile or native-package representation.
+    #[doc(hidden)]
+    pub fn compile_component(
+        unit: &'types crate::component::bindings::Unit,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        Self::compile_inner(
+            unit.code().declarations().types(),
+            limits,
+            Profile::Components {
+                tasks: matches!(unit.code(), crate::component::bindings::Code::Tasks(_)),
+            },
+        )
+    }
     pub fn compile(types: &'types o::VerifiedTypes, limits: m::Limits) -> Result<Self, Error> {
         Self::compile_inner(types, limits, Profile::Ownership)
     }
@@ -215,16 +243,27 @@ impl<'types> Layouts<'types> {
             },
         )?;
         budget.charge(types.table().constructed.len())?;
-        let tasks = profile != Profile::Ownership;
-        if let Some(span) = types.component_feature_span() {
+        let tasks = match profile {
+            Profile::Components { tasks } => tasks,
+            profile => profile != Profile::Ownership,
+        };
+        if let Some(span) = types.component_feature_span()
+            && !matches!(profile, Profile::Components { .. })
+        {
             return Err(Error::UnsupportedComponentProfile { span });
         }
         if let Some(span) = types.service_feature_span()
-            && profile != Profile::Services
+            && !matches!(
+                profile,
+                Profile::Services | Profile::Components { tasks: true }
+            )
         {
             return Err(Error::UnsupportedServiceProfile { span });
         }
-        if profile == Profile::Services {
+        if matches!(
+            profile,
+            Profile::Services | Profile::Components { tasks: true }
+        ) {
             for entry in &types.table().constructed {
                 budget.charge(1)?;
                 if let o::Constructor::ServiceSetup(state, _)
@@ -236,7 +275,10 @@ impl<'types> Layouts<'types> {
             }
         }
         if let Some(span) = types.channel_feature_span()
-            && !matches!(profile, Profile::Channels | Profile::Services)
+            && !matches!(
+                profile,
+                Profile::Channels | Profile::Services | Profile::Components { tasks: true }
+            )
         {
             return Err(Error::UnsupportedChannelProfile { span });
         }
@@ -502,7 +544,7 @@ fn build(
             };
             match entry.constructor {
                 o::Constructor::ComponentResource(_) => {
-                    return Err(Error::UnsupportedComponentProfile { span: entry.span });
+                    return Ok(simple(32, 8, Kind::Token(entry.constructor)));
                 }
                 o::Constructor::Option(t) | o::Constructor::SendResult(t) => {
                     let cases = if matches!(entry.constructor, o::Constructor::SendResult(_)) {

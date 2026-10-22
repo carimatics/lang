@@ -48,3 +48,44 @@ pub fn execute_function<P: a::Provider>(
         limits,
     )
 }
+
+#[doc(hidden)]
+pub fn execute_function_with_arguments<P: a::Provider>(
+    proof: &o::tasks::VerifiedTasks,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[lang_runtime::task::runner::EntryArgument],
+) -> Result<Outcome, Failure> {
+    lang_runtime::task::runner::execute_function_with_arguments(
+        &mut machine::Interpreter,
+        proof,
+        function,
+        allocator,
+        control,
+        limits,
+        arguments,
+    )
+}
+#[doc(hidden)]
+pub fn execute_component<P: a::Provider>(
+    program: &lang_runtime::component::program::Program<'_>,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[lang_runtime::task::runner::EntryArgument],
+    host: &mut dyn lang_runtime::component::execution::Host,
+) -> Result<Outcome<lang_runtime::component::execution::Value>, Failure> {
+    lang_runtime::task::runner::execute_component(
+        &mut machine::Interpreter,
+        program,
+        function,
+        allocator,
+        control,
+        limits,
+        arguments,
+        host,
+    )
+}

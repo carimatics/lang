@@ -39,7 +39,25 @@ fn preparation(error: sh::Error) -> Reason {
         _ => Reason::Invariant,
     }
 }
+fn cleanup_leaf<P: a::Provider>(
+    component: &mut Option<&mut dyn crate::component::execution::Host>,
+    types: &o::VerifiedTypes,
+    token: &mut l::Token,
+    allocator: &mut a::Allocator<P>,
+    context: &mut c::Context<'_>,
+) -> Result<(), u32> {
+    if matches!(token.leaf.ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::ComponentResource(_)))
+    {
+        component
+            .as_deref_mut()
+            .ok_or(3u32)?
+            .retire(token, allocator, context)
+    } else {
+        crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+    }
+}
 pub struct Services<'l, 'ty> {
+    pub component: Option<&'l mut dyn crate::component::execution::Host>,
     pub scheduler: t::Scheduler,
     pub channels: Option<crate::channel::managed::Channels<'l, 'ty>>,
     pub work: e::ServiceWork,
@@ -156,6 +174,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
             None
         };
         Ok(Self {
+            component: None,
             scheduler,
             channels,
             work,
@@ -175,6 +194,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
     ) -> Result<(), u32> {
         let meter = self.work.clone();
         meter.unmetered(|| {
+            let component = &mut self.component;
             if let Some(drain) = &mut self.drain {
                 drain.token_with_services(
                     token,
@@ -187,12 +207,12 @@ impl<'l, 'ty> Services<'l, 'ty> {
                     },
                     allocator,
                     context,
-                    |token, allocator, _, _| {
-                        crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                    |token, allocator, _, context| {
+                        cleanup_leaf(component, types, token, allocator, context)
                     },
                 )
             } else {
-                crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                cleanup_leaf(component, types, token, allocator, context)
             }
         })
     }
@@ -205,6 +225,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
     ) -> Result<(), u32> {
         let meter = self.work.clone();
         meter.unmetered(|| {
+            let component = &mut self.component;
             self.drain.as_mut().ok_or(3u32)?.message(
                 message,
                 r::Services {
@@ -216,8 +237,8 @@ impl<'l, 'ty> Services<'l, 'ty> {
                 },
                 allocator,
                 context,
-                |token, allocator, _, _| {
-                    crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                |token, allocator, _, context| {
+                    cleanup_leaf(component, types, token, allocator, context)
                 },
             )
         })
@@ -231,6 +252,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
     ) -> Result<(), u32> {
         let meter = self.work.clone();
         meter.unmetered(|| {
+            let component = &mut self.component;
             self.drain.as_mut().ok_or(3u32)?.channel(
                 value,
                 r::Services {
@@ -242,8 +264,8 @@ impl<'l, 'ty> Services<'l, 'ty> {
                 },
                 allocator,
                 context,
-                |token, allocator, _, _| {
-                    crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
+                |token, allocator, _, context| {
+                    cleanup_leaf(component, types, token, allocator, context)
                 },
             )
         })

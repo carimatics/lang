@@ -17,6 +17,7 @@ use lang_runtime::HostFunctionRegistry;
 pub use target_lexicon::Triple;
 
 pub mod c_abi;
+pub mod component;
 mod debug;
 mod source_debug;
 mod windows_unwind;

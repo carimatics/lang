@@ -4,7 +4,7 @@
 //! duplicate their integer representation. The table, rather than Rust move
 //! semantics, enforces generation, borrow, and exactly-once release rules.
 
-use std::collections::BTreeSet;
+use lang_mir::unit as m;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -22,6 +22,25 @@ pub struct OwnedResourceHandle {
 }
 
 impl OwnedResourceHandle {
+    pub(crate) fn token(self) -> [u8; 24] {
+        let mut bytes = [0; 24];
+        bytes[..8].copy_from_slice(&self.table.to_le_bytes());
+        bytes[8..12].copy_from_slice(&self.slot.to_le_bytes());
+        bytes[16..].copy_from_slice(&self.generation.to_le_bytes());
+        bytes
+    }
+    pub(crate) fn from_token(bytes: [u8; 24]) -> Result<Self, ResourceTableError> {
+        let table = u64::from_le_bytes(bytes[..8].try_into().expect("fixed token"));
+        let generation = u64::from_le_bytes(bytes[16..].try_into().expect("fixed token"));
+        if bytes[12..16] != [0; 4] || table == 0 || generation == 0 {
+            return Err(ResourceTableError::InvalidToken);
+        }
+        Ok(Self {
+            table,
+            slot: u32::from_le_bytes(bytes[8..12].try_into().expect("fixed token")),
+            generation,
+        })
+    }
     pub const fn slot(self) -> u32 {
         self.slot
     }
@@ -87,7 +106,7 @@ impl Display for BorrowedResourceHandle {
 struct ResourceSlot<T> {
     generation: u64,
     value: Option<T>,
-    shared_borrows: BTreeSet<u64>,
+    shared_borrows: usize,
     exclusive_borrow: Option<u64>,
 }
 
@@ -96,13 +115,13 @@ impl<T> ResourceSlot<T> {
         Self {
             generation,
             value: Some(value),
-            shared_borrows: BTreeSet::new(),
+            shared_borrows: 0,
             exclusive_borrow: None,
         }
     }
 
     fn active_shared(&self) -> usize {
-        self.shared_borrows.len()
+        self.shared_borrows
     }
 
     fn active_exclusive(&self) -> bool {
@@ -114,7 +133,9 @@ impl<T> ResourceSlot<T> {
 pub struct ResourceTable<T> {
     identity: Option<u64>,
     slots: Vec<ResourceSlot<T>>,
-    free_slots: BTreeSet<u32>,
+    free_slots: Vec<u32>,
+    borrows: Vec<BorrowedResourceHandle>,
+    capacity: Option<(usize, usize)>,
     next_borrow_id: u64,
     active_resources: usize,
 }
@@ -126,7 +147,9 @@ impl<T> Default for ResourceTable<T> {
                 .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
                 .ok(),
             slots: Vec::new(),
-            free_slots: BTreeSet::new(),
+            free_slots: Vec::new(),
+            borrows: Vec::new(),
+            capacity: None,
             next_borrow_id: FIRST_BORROW_ID,
             active_resources: 0,
         }
@@ -138,12 +161,76 @@ impl<T> ResourceTable<T> {
         Self::default()
     }
 
+    /// Reserve trusted locator storage before entry. No insert, loan or release
+    /// may grow these vectors in the prepared profile. Payload backing remains
+    /// separately owned/accounted by the original instance allocator.
+    pub fn prepare(
+        resources: usize,
+        borrows: usize,
+        budget: &mut m::Budget,
+    ) -> Result<Self, PreparationError> {
+        u32::try_from(resources)
+            .map_err(|_| PreparationError::Table(ResourceTableError::CapacityExhausted))?;
+        let slots = budget.vector(resources).map_err(PreparationError::Budget)?;
+        let free_slots = budget.vector(resources).map_err(PreparationError::Budget)?;
+        let loans = budget.vector(borrows).map_err(PreparationError::Budget)?;
+        let table = Self {
+            slots,
+            free_slots,
+            borrows: loans,
+            capacity: Some((resources, borrows)),
+            ..Self::new()
+        };
+        if table.identity.is_none() {
+            return Err(PreparationError::Table(
+                ResourceTableError::TableIdExhausted,
+            ));
+        }
+        Ok(table)
+    }
+
+    pub(crate) const fn identity(&self) -> Option<u64> {
+        self.identity
+    }
+    pub(crate) fn check_insert(&self) -> Result<(), ResourceTableError> {
+        self.identity.ok_or(ResourceTableError::TableIdExhausted)?;
+        if self.free_slots.is_empty()
+            && self
+                .capacity
+                .is_some_and(|(count, _)| self.slots.len() >= count)
+        {
+            return Err(ResourceTableError::CapacityExhausted);
+        }
+        Ok(())
+    }
+    pub(crate) fn check_release(
+        &self,
+        owner: OwnedResourceHandle,
+    ) -> Result<(), ResourceTableError> {
+        let slot = self.resolve_owned(owner)?;
+        if slot.active_shared() != 0 || slot.active_exclusive() {
+            return Err(ResourceTableError::ResourceInUse {
+                owner,
+                active_shared: slot.active_shared(),
+                active_exclusive: slot.active_exclusive(),
+            });
+        }
+        Ok(())
+    }
+    pub(crate) fn owned_value(&self, owner: OwnedResourceHandle) -> Result<&T, ResourceTableError> {
+        Ok(self
+            .resolve_owned(owner)?
+            .value
+            .as_ref()
+            .expect("live resource"))
+    }
+
     pub fn insert(&mut self, value: T) -> Result<OwnedResourceHandle, ResourceTableError> {
         let table = self.identity.ok_or(ResourceTableError::TableIdExhausted)?;
-        let handle = if let Some(slot_index) = self.free_slots.pop_first() {
+        let handle = if let Some(slot_index) = self.free_slots.pop() {
             let slot = &mut self.slots[slot_index as usize];
             debug_assert!(slot.value.is_none());
-            debug_assert!(slot.shared_borrows.is_empty());
+            debug_assert_eq!(slot.shared_borrows, 0);
             debug_assert!(slot.exclusive_borrow.is_none());
             slot.value = Some(value);
             OwnedResourceHandle {
@@ -152,8 +239,28 @@ impl<T> ResourceTable<T> {
                 generation: slot.generation,
             }
         } else {
+            if self
+                .capacity
+                .is_some_and(|(resources, _)| self.slots.len() >= resources)
+            {
+                return Err(ResourceTableError::CapacityExhausted);
+            }
             let slot_index = u32::try_from(self.slots.len())
                 .map_err(|_| ResourceTableError::CapacityExhausted)?;
+            self.slots
+                .try_reserve(1)
+                .map_err(|_| ResourceTableError::AllocationFailed)?;
+            // Release must never allocate, including for the legacy prototype.
+            let count = self
+                .slots
+                .len()
+                .checked_add(1)
+                .ok_or(ResourceTableError::CapacityExhausted)?;
+            if self.free_slots.capacity() < count {
+                self.free_slots
+                    .try_reserve_exact(count - self.free_slots.len())
+                    .map_err(|_| ResourceTableError::AllocationFailed)?;
+            }
             self.slots
                 .push(ResourceSlot::occupied(FIRST_GENERATION, value));
             OwnedResourceHandle {
@@ -182,15 +289,21 @@ impl<T> ResourceTable<T> {
             }
         }
 
-        let borrow_id = self.allocate_borrow_id()?;
-        self.resolve_owned_mut(owner)?
+        self.reserve_borrow()?;
+        let shared = self
+            .resolve_owned(owner)?
             .shared_borrows
-            .insert(borrow_id);
-        Ok(BorrowedResourceHandle {
+            .checked_add(1)
+            .ok_or(ResourceTableError::BorrowCapacityExhausted)?;
+        let borrow_id = self.allocate_borrow_id()?;
+        let borrowed = BorrowedResourceHandle {
             owner,
             borrow_id,
             kind: ResourceBorrowKind::Shared,
-        })
+        };
+        self.resolve_owned_mut(owner)?.shared_borrows = shared;
+        self.borrows.push(borrowed);
+        Ok(borrowed)
     }
 
     pub fn borrow_exclusive(
@@ -209,13 +322,16 @@ impl<T> ResourceTable<T> {
             }
         }
 
+        self.reserve_borrow()?;
         let borrow_id = self.allocate_borrow_id()?;
         self.resolve_owned_mut(owner)?.exclusive_borrow = Some(borrow_id);
-        Ok(BorrowedResourceHandle {
+        let borrowed = BorrowedResourceHandle {
             owner,
             borrow_id,
             kind: ResourceBorrowKind::Exclusive,
-        })
+        };
+        self.borrows.push(borrowed);
+        Ok(borrowed)
     }
 
     pub fn get_borrowed(&self, borrowed: BorrowedResourceHandle) -> Result<&T, ResourceTableError> {
@@ -239,11 +355,20 @@ impl<T> ResourceTable<T> {
         &mut self,
         borrowed: BorrowedResourceHandle,
     ) -> Result<(), ResourceTableError> {
+        let index = self
+            .borrows
+            .iter()
+            .position(|b| *b == borrowed)
+            .ok_or(ResourceTableError::StaleBorrowedHandle(borrowed))?;
         let slot = self
             .resolve_owned_mut(borrowed.owner)
             .map_err(|_| ResourceTableError::StaleBorrowedHandle(borrowed))?;
         let was_active = match borrowed.kind {
-            ResourceBorrowKind::Shared => slot.shared_borrows.remove(&borrowed.borrow_id),
+            ResourceBorrowKind::Shared if slot.shared_borrows != 0 => {
+                slot.shared_borrows -= 1;
+                true
+            }
+            ResourceBorrowKind::Shared => false,
             ResourceBorrowKind::Exclusive => {
                 if slot.exclusive_borrow == Some(borrowed.borrow_id) {
                     slot.exclusive_borrow = None;
@@ -256,6 +381,7 @@ impl<T> ResourceTable<T> {
         if !was_active {
             return Err(ResourceTableError::StaleBorrowedHandle(borrowed));
         }
+        self.borrows.swap_remove(index);
         Ok(())
     }
 
@@ -282,7 +408,8 @@ impl<T> ResourceTable<T> {
 
         self.active_resources -= 1;
         if reusable {
-            self.free_slots.insert(owner.slot);
+            let index = self.free_slots.partition_point(|slot| *slot > owner.slot);
+            self.free_slots.insert(index, owner.slot);
         }
         Ok(value)
     }
@@ -302,6 +429,18 @@ impl<T> ResourceTable<T> {
             .checked_add(1)
             .ok_or(ResourceTableError::BorrowIdExhausted)?;
         Ok(borrow_id)
+    }
+
+    fn reserve_borrow(&mut self) -> Result<(), ResourceTableError> {
+        if self
+            .capacity
+            .is_some_and(|(_, borrows)| self.borrows.len() >= borrows)
+        {
+            return Err(ResourceTableError::BorrowCapacityExhausted);
+        }
+        self.borrows
+            .try_reserve(1)
+            .map_err(|_| ResourceTableError::AllocationFailed)
     }
 
     fn resolve_owned(
@@ -343,7 +482,7 @@ impl<T> ResourceTable<T> {
         let slot = self
             .resolve_owned(borrowed.owner)
             .map_err(|_| ResourceTableError::StaleBorrowedHandle(borrowed))?;
-        if !Self::borrow_is_active(slot, borrowed) {
+        if !self.borrow_is_active(slot, borrowed) {
             return Err(ResourceTableError::StaleBorrowedHandle(borrowed));
         }
         Ok(slot)
@@ -353,20 +492,17 @@ impl<T> ResourceTable<T> {
         &mut self,
         borrowed: BorrowedResourceHandle,
     ) -> Result<&mut ResourceSlot<T>, ResourceTableError> {
-        let slot = self
-            .resolve_owned_mut(borrowed.owner)
-            .map_err(|_| ResourceTableError::StaleBorrowedHandle(borrowed))?;
-        if !Self::borrow_is_active(slot, borrowed) {
-            return Err(ResourceTableError::StaleBorrowedHandle(borrowed));
-        }
-        Ok(slot)
+        self.resolve_borrowed(borrowed)?;
+        self.resolve_owned_mut(borrowed.owner)
+            .map_err(|_| ResourceTableError::StaleBorrowedHandle(borrowed))
     }
 
-    fn borrow_is_active(slot: &ResourceSlot<T>, borrowed: BorrowedResourceHandle) -> bool {
-        match borrowed.kind {
-            ResourceBorrowKind::Shared => slot.shared_borrows.contains(&borrowed.borrow_id),
-            ResourceBorrowKind::Exclusive => slot.exclusive_borrow == Some(borrowed.borrow_id),
-        }
+    fn borrow_is_active(&self, slot: &ResourceSlot<T>, borrowed: BorrowedResourceHandle) -> bool {
+        self.borrows.contains(&borrowed)
+            && match borrowed.kind {
+                ResourceBorrowKind::Shared => slot.shared_borrows != 0,
+                ResourceBorrowKind::Exclusive => slot.exclusive_borrow == Some(borrowed.borrow_id),
+            }
     }
 }
 
@@ -375,6 +511,9 @@ pub enum ResourceTableError {
     TableIdExhausted,
     CapacityExhausted,
     BorrowIdExhausted,
+    BorrowCapacityExhausted,
+    AllocationFailed,
+    InvalidToken,
     StaleOwnedHandle(OwnedResourceHandle),
     StaleBorrowedHandle(BorrowedResourceHandle),
     BorrowConflict {
@@ -401,6 +540,13 @@ impl Display for ResourceTableError {
             Self::BorrowIdExhausted => {
                 formatter.write_str("component resource borrow identifiers are exhausted")
             }
+            Self::BorrowCapacityExhausted => {
+                formatter.write_str("component resource borrow table is full")
+            }
+            Self::AllocationFailed => {
+                formatter.write_str("component resource locator allocation failed")
+            }
+            Self::InvalidToken => formatter.write_str("invalid private resource token"),
             Self::StaleOwnedHandle(owner) => {
                 write!(formatter, "owned component handle {owner} is stale")
             }
@@ -433,9 +579,76 @@ impl Display for ResourceTableError {
 
 impl Error for ResourceTableError {}
 
+#[derive(Debug)]
+pub enum PreparationError {
+    Budget(m::Error),
+    Table(ResourceTableError),
+}
+impl Display for PreparationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "component resource preparation: {self:?}")
+    }
+}
+impl Error for PreparationError {}
+
 #[cfg(test)]
 mod tests {
     use super::{OwnedResourceHandle, ResourceBorrowKind, ResourceTable, ResourceTableError};
+
+    #[test]
+    fn prepared_table_has_exact_budget_and_fixed_owner_and_loan_capacity() {
+        use lang_mir::unit as m;
+        let mut budget = m::Budget::new(Default::default());
+        ResourceTable::<i64>::prepare(2, 1, &mut budget).unwrap();
+        let limits = m::Limits {
+            work: budget.work_used(),
+            allocations: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+            ..Default::default()
+        };
+        let mut table = ResourceTable::prepare(2, 1, &mut m::Budget::new(limits)).unwrap();
+        for below in [
+            m::Limits {
+                allocations: limits.allocations - 1,
+                ..limits
+            },
+            m::Limits {
+                elements: limits.elements - 1,
+                ..limits
+            },
+        ] {
+            assert!(ResourceTable::<i64>::prepare(2, 1, &mut m::Budget::new(below)).is_err());
+        }
+        let capacities = (
+            table.slots.capacity(),
+            table.free_slots.capacity(),
+            table.borrows.capacity(),
+        );
+        let zero = table.insert(0).unwrap();
+        let one = table.insert(1).unwrap();
+        assert_eq!(table.insert(2), Err(ResourceTableError::CapacityExhausted));
+        let borrowed = table.borrow_shared(zero).unwrap();
+        assert_eq!(
+            table.borrow_shared(zero),
+            Err(ResourceTableError::BorrowCapacityExhausted)
+        );
+        table.end_borrow(borrowed).unwrap();
+        table.release(one).unwrap();
+        table.release(zero).unwrap();
+        let replacement = table.insert(3).unwrap();
+        assert_eq!(replacement.slot(), zero.slot());
+        let borrowed = table.borrow_exclusive(replacement).unwrap();
+        table.end_borrow(borrowed).unwrap();
+        table.release(replacement).unwrap();
+        assert_eq!(
+            (
+                table.slots.capacity(),
+                table.free_slots.capacity(),
+                table.borrows.capacity()
+            ),
+            capacities
+        );
+    }
 
     #[test]
     fn foreign_table_tokens_cannot_read_mutate_end_or_release_resources() {
