@@ -1,0 +1,5 @@
+pub struct CounterKind {}
+pub struct Request {delta:i64,label:core::Text}
+pub fn apply(state:&mut core::ComponentResource<CounterKind>,request:Request)->core::Result<i64,core::Text> {
+    return core::Result::Ok(request.delta);
+}

@@ -216,6 +216,8 @@ pub enum ImportAbi {
     #[default]
     Host,
     C,
+    /// Declaration identity only; component binding proof grants no authority.
+    Component,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

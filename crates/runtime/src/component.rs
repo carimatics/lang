@@ -1,4 +1,5 @@
 pub mod adapter;
+pub mod bindings;
 pub mod codec;
 pub mod host_value;
 pub mod idl;

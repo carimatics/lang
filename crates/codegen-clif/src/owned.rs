@@ -2671,6 +2671,11 @@ impl Display for Error {
 }
 impl std::error::Error for Error {}
 fn reject_c_interface(flow: &f::Elaborated) -> Result<(), Error> {
+    if let Some(span) = typed(flow).places().declarations().component_feature_span() {
+        return Err(Error::Layout(l::Error::UnsupportedComponentProfile {
+            span,
+        }));
+    }
     if let Some(span) = typed(flow)
         .places()
         .declarations()

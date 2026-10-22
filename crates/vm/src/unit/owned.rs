@@ -174,7 +174,6 @@ fn reject_unavailable_profile(
         .typed()
         .places()
         .declarations()
-        .types()
         .component_feature_span()
     {
         return Err(rejected(

@@ -326,10 +326,34 @@ impl ExpressionInference {
 }
 
 fn check_program_internal(
+    source: r::Program,
+    sources: &SourceMap,
+    limits: CheckLimits,
+    infer: Option<ExpressionInference>,
+) -> Result<SourceAnalysis, CheckError> {
+    check_program_profile(source, sources, limits, infer, SourceProfile::Inferred)
+}
+
+/// Component compilation selects the shared ownership contract even for
+/// scalar-only exports. This proves no component binding or authority.
+pub fn analyze_ownership_program(
+    source: r::Program,
+    sources: &SourceMap,
+    limits: CheckLimits,
+) -> Result<SourceAnalysis, CheckError> {
+    check_program_profile(source, sources, limits, None, SourceProfile::Ownership)
+}
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SourceProfile {
+    Inferred,
+    Ownership,
+}
+fn check_program_profile(
     mut source: r::Program,
     sources: &SourceMap,
     limits: CheckLimits,
     infer: Option<ExpressionInference>,
+    profile: SourceProfile,
 ) -> Result<SourceAnalysis, CheckError> {
     if let Some(span) = crate::tasks::feature_span(&source, sources, limits)? {
         let checked = crate::tasks::analyze(source, sources, limits)?;
@@ -382,6 +406,9 @@ fn check_program_internal(
         types: None,
     };
     let mut ownership_span = source.types.first().map(|first| first.span);
+    if ownership_span.is_none() && profile == SourceProfile::Ownership {
+        ownership_span = source.modules.first().map(|module| module.span);
+    }
     if ownership_span.is_none() {
         // ABI identities, including unused scalar C declarations, select the
         // ownership contract. Bound and charge this foreign-input scan too.
@@ -396,7 +423,7 @@ fn check_program_internal(
         }
         for import in &source.imports {
             context.charge(root)?;
-            if import.abi == r::ImportAbi::C {
+            if import.abi != r::ImportAbi::Host {
                 ownership_span = Some(import.span);
                 break;
             }
@@ -1131,6 +1158,16 @@ impl<'a> Context<'a> {
             }
             self.type_use(host.span, host.result, false)?;
             match host.abi {
+                // Complete IDL/key/signature/effect agreement is a separate
+                // component binding proof, never a Host/C adapter fallback.
+                r::ImportAbi::Component => {
+                    if let Some(store) = &self.types {
+                        let p = store.properties(host.result.value_type, host.result.span)?;
+                        if let Some((code, message)) = p.result_restriction() {
+                            self.error(code, host.result.span, message, None)?;
+                        }
+                    }
+                }
                 r::ImportAbi::Host => {
                     if host.parameters.len() != 1
                         || host.parameters[0].ty.value_type != r::Type::I64

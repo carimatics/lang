@@ -28,6 +28,8 @@ Production codec checkpoint (2026-10-22 JST): `cargo test --test component_wire`
 
 Opaque resource type checkpoint (2026-10-22 JST): `cargo test --test component_resource_types` checks nominal `core::ComponentResource<Tag>` ownership in source and independent MIR, move/drop rules, neither Send nor Share, original spans and old-profile refusal. Tags remain ordinary data. Checked component bindings/calls and actual resource execution remain on the [delivery board](docs/milestone-3.md).
 
+Component binding checkpoint (2026-10-22 JST): `cargo test --test component_bindings` checks the versioned source-name/MIR-ID map and independent IDL-to-MIR resource/type/effect agreement, including unused/forged metadata and exact quotas. `lang::frontend::component::analyze` returns a passive unit containing contract, code and checked maps. Actual providers, transfers and embedding calls remain on the [delivery board](docs/milestone-3.md).
+
 ## Vision
 
 The language should combine:

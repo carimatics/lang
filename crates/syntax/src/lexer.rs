@@ -124,6 +124,7 @@ pub enum TokenKind {
     Root,
     Extern,
     CAbi,
+    ComponentAbi,
     Unsafe,
     Struct,
     Enum,
@@ -314,7 +315,11 @@ impl Lexer<'_> {
         if bytes[start..].starts_with(b"/*") {
             return self.block_comment();
         }
-        // RFC 0008's exact ABI marker is a token, not a string literal.
+        // Exact ABI markers are tokens, not general string literals.
+        if bytes[start..].starts_with(b"\"component\"") {
+            self.cursor += 11;
+            return Ok(TokenKind::ComponentAbi);
+        }
         if bytes[start..].starts_with(b"\"C\"") {
             self.cursor += 3;
             return Ok(TokenKind::CAbi);

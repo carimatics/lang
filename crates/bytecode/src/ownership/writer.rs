@@ -589,6 +589,12 @@ impl Writer<'_> {
         self.list(&types.definitions, Self::definition)?;
         self.list(&types.constructed, Self::constructor)?;
         self.list(declarations.imports(), |s, v| {
+            if v.abi == d::ImportAbi::Component {
+                return Err(error(
+                    s.length,
+                    CodecErrorKind::UnsupportedComponentProfile { span: v.span },
+                ));
+            }
             if s.version < 4 && v.abi != d::ImportAbi::Host {
                 return Err(error(
                     s.length,
@@ -597,7 +603,12 @@ impl Writer<'_> {
             }
             s.string(&v.name)?;
             if s.version == 4 {
-                s.byte(tags::import_abi(v.abi))?;
+                s.byte(tags::import_abi(v.abi).ok_or_else(|| {
+                    error(
+                        s.length,
+                        CodecErrorKind::UnsupportedComponentProfile { span: v.span },
+                    )
+                })?)?;
             }
             s.span(v.span)?;
             s.list(&v.parameters, Self::type_use)?;
@@ -627,6 +638,12 @@ pub(super) fn encode(program: Program, limits: CodecLimits) -> Result<Vec<u8>, C
         .map_err(|e| error(0, CodecErrorKind::Budget(e)))?;
     let typed = program.flow.source().activity().moved().typed();
     let declarations = typed.places().declarations();
+    if let Some(span) = declarations.component_feature_span() {
+        return Err(error(
+            0,
+            CodecErrorKind::UnsupportedComponentProfile { span },
+        ));
+    }
     budget
         .charge(declarations.imports().len())
         .and_then(|()| budget.charge(declarations.functions().len()))

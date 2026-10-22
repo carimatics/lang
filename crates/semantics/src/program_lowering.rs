@@ -156,7 +156,7 @@ fn lower_unit(
     if let Some(span) = input
         .imports
         .iter()
-        .find(|i| i.abi == r::ImportAbi::C)
+        .find(|i| i.abi != r::ImportAbi::Host)
         .map(|i| i.span)
         .or_else(|| {
             input

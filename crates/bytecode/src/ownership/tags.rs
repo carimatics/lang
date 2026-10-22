@@ -14,9 +14,29 @@ macro_rules! tags {
         }
     };
 }
-tags!(import_abi, read_import_abi, o::declarations::ImportAbi, Tag::ImportAbi, {
-    0 => o::declarations::ImportAbi::Host, 1 => o::declarations::ImportAbi::C
-});
+pub(super) fn import_abi(value: o::declarations::ImportAbi) -> Option<u8> {
+    match value {
+        o::declarations::ImportAbi::Host => Some(0),
+        o::declarations::ImportAbi::C => Some(1),
+        o::declarations::ImportAbi::Component => None,
+    }
+}
+pub(super) fn read_import_abi(
+    value: u8,
+    offset: usize,
+) -> Result<o::declarations::ImportAbi, CodecError> {
+    match value {
+        0 => Ok(o::declarations::ImportAbi::Host),
+        1 => Ok(o::declarations::ImportAbi::C),
+        value => Err(error(
+            offset,
+            CodecErrorKind::InvalidTag {
+                tag: Tag::ImportAbi,
+                value,
+            },
+        )),
+    }
+}
 tags!(function_abi, read_function_abi, o::declarations::FunctionAbi, Tag::FunctionAbi, {
     0 => o::declarations::FunctionAbi::Guest, 1 => o::declarations::FunctionAbi::CExport
 });

@@ -24,6 +24,7 @@ pub enum ImportAbi {
     #[default]
     Host,
     C,
+    Component,
 }
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum FunctionAbi {
@@ -80,6 +81,15 @@ pub struct VerifiedDeclarations {
     elements: usize,
 }
 impl VerifiedDeclarations {
+    /// Even unused component declarations require the component profile.
+    pub fn component_feature_span(&self) -> Option<Span> {
+        self.types.component_feature_span().or_else(|| {
+            self.imports
+                .iter()
+                .find(|i| i.abi == ImportAbi::Component)
+                .map(|i| i.span)
+        })
+    }
     pub fn task_feature_span(&self) -> Option<Span> {
         self.types.task_feature_span().or_else(|| {
             self.functions.iter().find_map(|f| match f.effect {
@@ -450,7 +460,12 @@ fn validate(
             c.type_use(import.span, *t)?;
         }
         c.type_use(import.span, import.result)?;
-        if import.abi == ImportAbi::C {
+        if import.abi == ImportAbi::Component {
+            for parameter in &import.parameters {
+                c.signature(import.span, *parameter, false, false)?;
+            }
+            c.signature(import.span, import.result, true, false)?;
+        } else if import.abi == ImportAbi::C {
             c.c_limit(
                 import.parameters.len(),
                 256,

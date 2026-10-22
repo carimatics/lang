@@ -414,6 +414,7 @@ fn construct_declarations<'a>(
             abi: match import.abi {
                 r::ImportAbi::Host => d::ImportAbi::Host,
                 r::ImportAbi::C => d::ImportAbi::C,
+                r::ImportAbi::Component => d::ImportAbi::Component,
             },
             name: c.text(&import.qualified_name)?,
             span: c.span(import.span)?,

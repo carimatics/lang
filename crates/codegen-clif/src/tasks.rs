@@ -228,6 +228,11 @@ fn prepare_program<M: Module>(
 ) -> Result<PreparedProgram, Error> {
     let typed = proof.typed();
     let declarations = typed.places().declarations();
+    if let Some(span) = declarations.component_feature_span() {
+        return Err(Error::Layout(l::Error::UnsupportedComponentProfile {
+            span,
+        }));
+    }
     let types = declarations.types();
     let services = types.service_feature_span().is_some();
     let declaration = declarations
@@ -383,6 +388,11 @@ fn prepare(
     let typed = proof.typed();
     let body = &typed.functions()[function.0 as usize];
     let declarations = typed.places().declarations();
+    if let Some(span) = declarations.component_feature_span() {
+        return Err(Error::Layout(l::Error::UnsupportedComponentProfile {
+            span,
+        }));
+    }
     let locals = declarations.functions()[function.0 as usize].locals.len();
     let value = |r: m::Register| locals + r.0 as usize;
     let slots = |source: &[m::Register], budget: &mut m::Budget| -> Result<Vec<usize>, Error> {

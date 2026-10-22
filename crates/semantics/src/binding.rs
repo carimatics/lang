@@ -675,7 +675,9 @@ impl<'a> Context<'a> {
             .find(|id| tree.node(*id).unwrap().kind() == S::Type)
             .unwrap();
         Ok(r::HostImport {
-            abi: if tree.node(item.syntax()).unwrap().kind() == S::ForeignImport {
+            abi: if direct_tokens(tree, item.syntax()).any(|t| t.kind == K::ComponentAbi) {
+                r::ImportAbi::Component
+            } else if tree.node(item.syntax()).unwrap().kind() == S::ForeignImport {
                 r::ImportAbi::C
             } else {
                 r::ImportAbi::Host

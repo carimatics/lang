@@ -1,4 +1,5 @@
 //! Shared host-facing source analysis; snapshots survive diagnostics/failure.
+pub mod component;
 use lang_bytecode::unit::Program;
 use lang_diagnostics::{Diagnostic, Label, Severity, SourceMap, codes};
 use lang_hir::{
@@ -111,6 +112,30 @@ fn finish(
     limits: CompileLimits,
     wrapper: Option<&str>,
 ) -> Analysis {
+    finish_profile(sources, modules, limits, wrapper, Profile::Inferred)
+}
+#[derive(Clone, Copy)]
+enum Profile {
+    Inferred,
+    Component,
+}
+fn component_source(
+    mut sources: SourceMap,
+    display: &Path,
+    bytes: &[u8],
+    root: Option<&Path>,
+    limits: CompileLimits,
+) -> Analysis {
+    let modules = load_virtual(&mut sources, display, bytes, root, limits.modules);
+    finish_profile(sources, modules, limits, None, Profile::Component)
+}
+fn finish_profile(
+    sources: SourceMap,
+    modules: Result<ModuleAnalysis, ModuleLoadError>,
+    limits: CompileLimits,
+    wrapper: Option<&str>,
+    profile: Profile,
+) -> Analysis {
     let modules = match modules {
         Ok(m) => m,
         Err(e) => return Analysis::failure(sources, vec![], AnalysisError::Module(e)),
@@ -143,7 +168,14 @@ fn finish(
             r::FunctionId(index),
         )
     } else {
-        analysis::analyze(program, &sources, limits.typing, limits.ownership)
+        match profile {
+            Profile::Inferred => {
+                analysis::analyze(program, &sources, limits.typing, limits.ownership)
+            }
+            Profile::Component => {
+                analysis::analyze_ownership(program, &sources, limits.typing, limits.ownership)
+            }
+        }
     };
     let checked = match checked {
         Ok(c) => c,

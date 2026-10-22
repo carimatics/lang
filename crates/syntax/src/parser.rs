@@ -587,8 +587,9 @@ impl<'a> Parser<'a> {
     fn item(&mut self) -> Result<()> {
         let public = self.peek() == Some(K::Pub);
         let kind = self.lookahead(usize::from(public));
-        let foreign =
-            kind == Some(K::Extern) && self.lookahead(usize::from(public) + 1) == Some(K::CAbi);
+        let abi = self.lookahead(usize::from(public) + 1);
+        let component = kind == Some(K::Extern) && abi == Some(K::ComponentAbi);
+        let foreign = kind == Some(K::Extern) && matches!(abi, Some(K::CAbi | K::ComponentAbi));
         let node = match kind {
             Some(K::Fn) => SyntaxKind::Function,
             Some(K::Async) => SyntaxKind::AsyncFunction,
@@ -596,13 +597,20 @@ impl<'a> Parser<'a> {
             Some(K::Enum) => SyntaxKind::Enum,
             Some(K::Mod) => SyntaxKind::Module,
             Some(K::Use) => SyntaxKind::Import,
-            Some(K::Extern) if foreign && public => SyntaxKind::ForeignExport,
+            Some(K::Extern) if foreign && public && !component => SyntaxKind::ForeignExport,
             Some(K::Extern) if foreign => SyntaxKind::ForeignImport,
             Some(K::Extern) => SyntaxKind::Host,
             _ => SyntaxKind::Error,
         };
         self.start(node)?;
         let public = self.eat(K::Pub)?;
+        if public && component {
+            self.missing(
+                ExpectedSyntax::Item,
+                "component exports are public guest functions selected by binding input",
+                None,
+            )?;
+        }
         if public
             && !foreign
             && !matches!(kind, Some(K::Fn | K::Async | K::Struct | K::Enum | K::Mod))
@@ -647,8 +655,8 @@ impl<'a> Parser<'a> {
             }
             Some(K::Extern) if foreign => {
                 self.bump()?;
-                self.expect(K::CAbi)?;
-                if public {
+                self.expect(if component { K::ComponentAbi } else { K::CAbi })?;
+                if public && !component {
                     self.function()?;
                 } else {
                     self.expect(K::Fn)?;

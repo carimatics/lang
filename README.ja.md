@@ -28,6 +28,8 @@ Production codec checkpoint（2026-10-22 JST）: `cargo test --test component_wi
 
 Opaque resource 型 checkpoint（2026-10-22 JST）: `cargo test --test component_resource_types` で source/独立 MIR の nominal `core::ComponentResource<Tag>` 所有権、move/drop、Send/Share 不許可、元 span、旧 profile の拒否を検証します。tag は通常 data として扱えます。検証済み component binding/call と実 resource 実行は[実装 Todo](docs/ja/milestone-3.md)に残ります。
 
+Component binding checkpoint（2026-10-22 JST）: `cargo test --test component_bindings` で version 付き source-name/MIR-ID map と独立 IDL→MIR resource/type/effect 照合、未使用/偽造 metadata、厳密 quota を検証します。`lang::frontend::component::analyze` は contract・code・検証済み map を保持する受動的 unit を返します。実 provider/transfer/embedding call は[実装 Todo](docs/ja/milestone-3.md)に残ります。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

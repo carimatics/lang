@@ -32,6 +32,9 @@ impl TaskProgram {
     pub fn verified(&self) -> &o::tasks::VerifiedTasks {
         &self.mir
     }
+    pub fn into_verified(self) -> o::tasks::VerifiedTasks {
+        self.mir
+    }
     pub const fn feature_span(&self) -> Span {
         self.feature_span
     }
@@ -234,13 +237,40 @@ pub fn analyze(
     typing: h::CheckLimits,
     limits: OwnershipLimits,
 ) -> Result<Analysis, Error> {
+    analyze_using(source, sources, typing, limits, h::analyze_program)
+}
+pub fn analyze_ownership(
+    source: r::Program,
+    sources: &SourceMap,
+    typing: h::CheckLimits,
+    limits: OwnershipLimits,
+) -> Result<Analysis, Error> {
+    analyze_using(
+        source,
+        sources,
+        typing,
+        limits,
+        h::analyze_ownership_program,
+    )
+}
+fn analyze_using(
+    source: r::Program,
+    sources: &SourceMap,
+    typing: h::CheckLimits,
+    limits: OwnershipLimits,
+    check: impl FnOnce(
+        r::Program,
+        &SourceMap,
+        h::CheckLimits,
+    ) -> Result<h::SourceAnalysis, h::CheckError>,
+) -> Result<Analysis, Error> {
     if let Some(span) =
         lang_hir::tasks::feature_span(&source, sources, typing).map_err(Error::Hir)?
     {
         return analyze_tasks(source, sources, typing, limits, span);
     }
     let root = source.modules.first().map(|m| m.span);
-    let checked = h::analyze_program(source, sources, typing).map_err(Error::Hir)?;
+    let checked = check(source, sources, typing).map_err(Error::Hir)?;
     finish(checked, sources, limits, root)
 }
 

@@ -223,6 +223,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
         poisoned: false,
     };
     let prepared=(||->Result<_,Reason>{
+        if let Some(span)=declarations.component_feature_span(){return Err(Reason::Layout(l::Error::UnsupportedComponentProfile{span}));}
         control.check()?;
         if control.service_work_limit().is_some()&&(!declarations.imports().is_empty()||!e::service_work_supported(proof.plan())){return Err(Reason::Unsupported);}
         let entry=entry.ok_or(Reason::Entry)?;

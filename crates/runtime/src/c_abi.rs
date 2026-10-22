@@ -92,6 +92,9 @@ pub enum CollisionKind {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    UnsupportedComponentProfile {
+        span: m::Span,
+    },
     Resource(m::Error),
     Limit {
         kind: LimitKind,
@@ -316,6 +319,9 @@ impl<'a> Builder<'a> {
         }
     }
     fn compile(mut self) -> Result<Artifact> {
+        if let Some(span) = self.source.component_feature_span() {
+            return Err(Error::UnsupportedComponentProfile { span });
+        }
         for import in self.source.imports() {
             self.budget.charge(1)?;
             if import.abi == ImportAbi::C {
