@@ -1,24 +1,334 @@
 {
   "profile": "lang-component-c-v1",
-  "status": "reference-decision-vectors",
-  "targets": ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"],
+  "status": "generated-reference-vectors",
+  "targets": [
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc"
+  ],
   "pointer_bytes": 8,
   "layout": {
-    "header": {"size": 8, "align": 4, "offsets": {"size": 0, "version": 4}},
-    "bytes": {"size": 16, "align": 8, "offsets": {"data": 0, "length": 8}},
-    "mut_bytes": {"size": 16, "align": 8, "offsets": {"data": 0, "length": 8}},
-    "context": {"size": 48, "align": 8, "offsets": {"engine": 8, "invocation": 16, "scope": 24, "reserved": 32}},
-    "error": {"size": 104, "align": 8, "offsets": {"diagnostic": 8, "limit_kind": 12, "limit": 16, "attempted": 24, "input_digest": 32, "source_id": 64, "start": 68, "end": 72, "detail_code": 76, "flags": 80, "reserved0": 84, "reserved": 88}},
-    "limits": {"size": 160, "align": 8, "offsets": {"fuel": 8, "trace_frames": 136, "reserved": 144}},
-    "allocator": {"size": 48, "align": 8, "offsets": {"user": 8, "allocate": 16, "deallocate": 24, "reserved": 32}},
-    "config": {"size": 240, "align": 8, "offsets": {"mode": 8, "flags": 12, "allocator": 16, "ceiling": 64, "reserved": 224}},
-    "import": {"size": 96, "align": 8, "offsets": {"function_key": 8, "signature": 24, "invoke": 56, "user": 64, "flags": 72, "reserved0": 76, "reserved": 80}},
-    "resource_type": {"size": 56, "align": 8, "offsets": {"resource_key": 8, "destroy": 24, "user": 32, "reserved": 40}},
-    "provider_config": {"size": 88, "align": 8, "offsets": {"contract": 8, "imports": 24, "import_count": 32, "resource_types": 40, "resource_type_count": 48, "owner": 56, "release_owner": 64, "reserved": 72}},
-    "native_image": {"size": 64, "align": 8, "offsets": {"metadata": 8, "program": 24, "owner": 32, "release_owner": 40, "reserved": 48}},
-    "instance_config": {"size": 200, "align": 8, "offsets": {"grants": 8, "grant_count": 16, "ceiling": 24, "reserved": 184}},
-    "result_info": {"size": 56, "align": 8, "offsets": {"kind": 8, "flags": 12, "omitted_records": 16, "suppressed_count": 24, "frame_count": 32, "reserved": 40}},
-    "usage": {"size": 96, "align": 8, "offsets": {"fuel": 8, "canonical_indices": 72, "reserved": 80}},
-    "api": {"size": 280, "align": 8, "offsets": {"engine_create": 8, "module_bind_native": 40, "context_call": 128, "context_resource_drop": 224, "context_resource_read": 232, "context_resource_write": 240, "context_resource_keep": 248, "context_resource_take": 256, "reserved": 264}}
+    "bytes": {
+      "size": 16,
+      "align": 8,
+      "offsets": {
+        "data": 0,
+        "length": 8
+      }
+    },
+    "mut_bytes": {
+      "size": 16,
+      "align": 8,
+      "offsets": {
+        "data": 0,
+        "length": 8
+      }
+    },
+    "header": {
+      "size": 8,
+      "align": 4,
+      "offsets": {
+        "size": 0,
+        "version": 4
+      }
+    },
+    "context": {
+      "size": 48,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "engine": 8,
+        "invocation": 16,
+        "scope": 24,
+        "reserved": 32
+      }
+    },
+    "error": {
+      "size": 104,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "diagnostic": 8,
+        "limit_kind": 12,
+        "limit": 16,
+        "attempted": 24,
+        "input_digest": 32,
+        "source_id": 64,
+        "start": 68,
+        "end": 72,
+        "detail_code": 76,
+        "flags": 80,
+        "reserved0": 84,
+        "reserved": 88
+      }
+    },
+    "limits": {
+      "size": 160,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "fuel": 8,
+        "service_work": 16,
+        "host_calls": 24,
+        "heap_bytes": 32,
+        "live_allocations": 40,
+        "frames": 48,
+        "live_cells": 56,
+        "live_tasks": 64,
+        "canonical_indices": 72,
+        "preparation_work": 80,
+        "metadata_bytes": 88,
+        "value_elements": 96,
+        "serialization_bytes": 104,
+        "depth": 112,
+        "decoder_allocation_bytes": 120,
+        "suppressed_records": 128,
+        "trace_frames": 136,
+        "reserved": 144
+      }
+    },
+    "allocator": {
+      "size": 48,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "user": 8,
+        "allocate": 16,
+        "deallocate": 24,
+        "reserved": 32
+      }
+    },
+    "config": {
+      "size": 240,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "mode": 8,
+        "flags": 12,
+        "allocator": 16,
+        "ceiling": 64,
+        "reserved": 224
+      }
+    },
+    "resource_type": {
+      "size": 56,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "resource_key": 8,
+        "destroy": 24,
+        "user": 32,
+        "reserved": 40
+      }
+    },
+    "import": {
+      "size": 96,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "function_key": 8,
+        "signature": 24,
+        "invoke": 56,
+        "user": 64,
+        "flags": 72,
+        "reserved0": 76,
+        "reserved": 80
+      }
+    },
+    "provider_config": {
+      "size": 88,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "contract": 8,
+        "imports": 24,
+        "import_count": 32,
+        "resource_types": 40,
+        "resource_type_count": 48,
+        "owner": 56,
+        "release_owner": 64,
+        "reserved": 72
+      }
+    },
+    "native_image": {
+      "size": 64,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "metadata": 8,
+        "program": 24,
+        "owner": 32,
+        "release_owner": 40,
+        "reserved": 48
+      }
+    },
+    "instance_config": {
+      "size": 200,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "grants": 8,
+        "grant_count": 16,
+        "ceiling": 24,
+        "reserved": 184
+      }
+    },
+    "result_info": {
+      "size": 56,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "kind": 8,
+        "flags": 12,
+        "omitted_records": 16,
+        "suppressed_count": 24,
+        "frame_count": 32,
+        "reserved": 40
+      }
+    },
+    "usage": {
+      "size": 96,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "fuel": 8,
+        "service_work": 16,
+        "host_calls": 24,
+        "peak_heap_bytes": 32,
+        "peak_live_allocations": 40,
+        "peak_frames": 48,
+        "peak_live_cells": 56,
+        "peak_live_tasks": 64,
+        "canonical_indices": 72,
+        "reserved": 80
+      }
+    },
+    "api": {
+      "size": 280,
+      "align": 8,
+      "offsets": {
+        "header": 0,
+        "engine_create": 8,
+        "engine_destroy": 16,
+        "module_load": 24,
+        "module_drop": 32,
+        "module_bind_native": 40,
+        "provider_register": 48,
+        "provider_drop": 56,
+        "instance_create": 64,
+        "instance_close": 72,
+        "bind_export": 80,
+        "binding_drop": 88,
+        "control_create": 96,
+        "interrupt": 104,
+        "control_drop": 112,
+        "call": 120,
+        "context_call": 128,
+        "context_check": 136,
+        "context_buffer_create": 144,
+        "context_buffer_drop": 152,
+        "buffer_mut_bytes": 160,
+        "result_info": 168,
+        "result_usage": 176,
+        "result_bytes": 184,
+        "result_drop": 192,
+        "resource_drop": 200,
+        "resource_publish": 208,
+        "context_resource_publish": 216,
+        "context_resource_drop": 224,
+        "context_resource_read": 232,
+        "context_resource_write": 240,
+        "context_resource_keep": 248,
+        "context_resource_take": 256,
+        "reserved": 264
+      }
+    }
+  },
+  "fingerprints": {
+    "aarch64-apple-darwin": {
+      "layout": "cd4e21b899369e2263f310cac37670435829a1a61b8d46847c6d1ea5b30a2158",
+      "signatures": {
+        "allocate_fn": "ab2200f469dad316f587fa85f6ef06c81b50977c506c5049313674ce6a5cb2e1",
+        "deallocate_fn": "97a3db687d5c5ec3d4d479ceab770159cf669f5d1a957686420a23b70be1abd0",
+        "release_fn": "e2f9078dd82eb1716f1e4e8bd799ca6c6ae7a349aa5cb9eb932bcb971ebe07c0",
+        "invoke_fn": "82041a5061f5bb8c6350eb02375067a603c94d505f87e3bb990e232d02103e9a",
+        "resource_destroy_fn": "3ecd1ffe91f92732ad3f3a423c1f05455a516e6a216a5f941519657e894f870d",
+        "engine_create": "057b4c6f3a0418dedf4f5cfb9d9ed27d7f77360ba89651a1652e0d5b7ea6a073",
+        "engine_destroy": "9e0525042c2f98d6e4f2abf98ca43075882a1761c1128868af73e19052f49da1",
+        "module_load": "ffeb17192f9bca443749fb9d223f0c50d9b028e1a67faa68d9b2958aa43d6b36",
+        "module_drop": "a158dd4793eb11a20e86ce16b5c53523a9e58ef43e01a003358d1f418ed9c720",
+        "module_bind_native": "e65d52c7fcb728abe6f02c900dc719d38d5af0a8d330ebb3b63fa9d7a8d915e6",
+        "provider_register": "6eb1a47fae38fe517b3ab89a51f68b94e2ccc1dac866534ea54332e8a1e99446",
+        "provider_drop": "98137c7024b75dfcccc0223abb9a29cb61e7db56514e1cada78fb76ac930da6a",
+        "instance_create": "21e6eb08c7a08e97c2c0fc9b81c092a1acdc65b6ea4aee416b919582b60cbff8",
+        "instance_close": "43b9b33d4d9e5756c16ad258a10cbd94d05585d195a3e7e17be7f4a7996fe07c",
+        "bind_export": "7aa614f9dcf53c62ad8bf2760c574f820189ce921e473b1a394de857974aff9b",
+        "binding_drop": "01e2fc236f2e129dc941ad0897c12ea0399b91c8445652f52befdc8b8e822b7b",
+        "control_create": "97ba44a5979e615ad62cb7e50191dd9d09ba30d427729467b13632de716095d2",
+        "interrupt": "45b4b659501aa4f081e63fc07da42dd10c71b11ad34e62702991f9490a364c0a",
+        "control_drop": "f35c6f9b764d909b23d2ffb55ccf074f50ade3dedad0c2ab563a1bdd2a281ebe",
+        "call": "184898e8f628e1e92e11f5144ae5d45d781c55b94c4ad144a94cf589d1fc91b3",
+        "context_call": "2859b5eec46c83971eee8a3f1e7db57a11b8fdacb72d528c7b5841fe52cb64f7",
+        "context_check": "1d936716ad246d76524aab812fea571c86ee77c827fa1fa3ad8b0645328356db",
+        "context_buffer_create": "d1bbed6b1cfb1350a63918d394a3658677a419e49b329b5f5cdb5a712fe4d87f",
+        "context_buffer_drop": "bf07c84d53fa61d076e0364234e70318f1c006ceb874e03a4f8397b2fdde5f92",
+        "buffer_mut_bytes": "1900e3edb6b4ba0c9ec197d19284ba060d22bfd3094be4c217847185d4345898",
+        "result_info": "24c37ff10f8cdd56979900f8523dcb391c191371cfdff3df3192cebc3b335580",
+        "result_usage": "88f6a00e4fafc32fe0cb2ac56c94a9f4561b86726569d835e546e6ae00c53d70",
+        "result_bytes": "33ecfc1d586cd816478f3d6eb545f7bc2d37a64f4a29e7d31c0bccf753d5d919",
+        "result_drop": "ee7ed39c212ac34c9cec119c01bac4e290834b59e28130e4cfb1671be4a5943d",
+        "resource_drop": "c81c916cef5747b781665404e3954132d19bfbc2eecada1f926edcc4322da31e",
+        "resource_publish": "50281b2efe41608404f0ca884542687d8698e3cda92668a87cfe4cc2acde0a46",
+        "context_resource_publish": "a9acae52cfb6e35ab681ec85bb41d6292f9b8cbedfecac271d7fb50da6fc5f28",
+        "context_resource_drop": "2a98190124d11053a686d70227b5b3715afa97337f5ce5ff31509d1e6479c9eb",
+        "context_resource_read": "99d384cda3cf9fb45c9c981b86b778a0bc7af038ac29cdbcd1c2207a9f312634",
+        "context_resource_write": "de5ad75468c6c8676079a2fa439ad4aeb9080695f45583271c0b4bf4b8e6852e",
+        "context_resource_keep": "0e17309565bbf08d9d825dd58988441f269edb939dcd8913463116ba2bd095be",
+        "context_resource_take": "ec6c13d2986c50a6b45fde060743353388f70454f529733f02f16ba137d76f7f",
+        "get_api": "1f2dd9f37274091954ce69f2faa5284bc8ae2d2282f2e530b7f64aec732842b3"
+      }
+    },
+    "x86_64-pc-windows-msvc": {
+      "layout": "10be527c713a7f5d82c90cc74d27b5c9498407405f28af31225dbdc717596f8a",
+      "signatures": {
+        "allocate_fn": "bc7322da453f5bebf80becb4af878bfb2018750a5a3b658ebf936ded0f49fa78",
+        "deallocate_fn": "d3e231c442fa4e1c600a83d33123d83c4d05e91a65e5183bfaf53d25c4ebb54e",
+        "release_fn": "05c53dd5f6dc9f42bf23373e44f60380923229290bb054a69adc8cd552f3b160",
+        "invoke_fn": "83d9a0c4fea22a677ea1a29361cf853ea86c23f809b46c89b6c2434547a6278a",
+        "resource_destroy_fn": "c2724ca1b54789d1b9ecca50aa420ee43d9723268b4c2ad1f23796443f2718d2",
+        "engine_create": "b834475258f31443c5e79ada618a3545c657eaacc07567ac4a34de319ffb06bc",
+        "engine_destroy": "6706e2ac127c50c78d54899139fcf2c7a284a16e3d8f7feb1354669354db29e9",
+        "module_load": "f7ec2c637bb6a87bdb2318522e0083771ab4044973922cd2213db9343aafa94e",
+        "module_drop": "3e086a90748a4eecf6bed73373db221d1f7e29fb4f706309d56320eb0df244b0",
+        "module_bind_native": "a4d99cab6e93510f9f09a32dcb5db6f9b84c758471364e57b785b0673814a37a",
+        "provider_register": "a040dec93b5628b632096094dfa96cb6083cf1217f1946bb49695c526febe315",
+        "provider_drop": "0711c764a2177c1b7fccbbec25eee4e012a87420b96b5367196d65dcb65680d9",
+        "instance_create": "24918a0092728e7116c0a512637822ea897807d6732809472bc7a9d91b0dc06c",
+        "instance_close": "9bffda79e21d5bafbcc754fba01f10db55eab611ce4b1a42fc5b76ef523bea3c",
+        "bind_export": "ec56a943062f0b20af21441edbdeba0b3d38f38c56d757be43b317d5f6656146",
+        "binding_drop": "0422604624f68b1279c749fbf32c481dc11106267f0e34a3a554343e1bb9ad88",
+        "control_create": "ebbf89fa3317062e7678ee75a0e528b61aabea7487d56b644e81e94b2a8b0fa0",
+        "interrupt": "d2f327d82b4f96e0173e1ede163f33f1da27afc0f2bb465232152e8fe8989eab",
+        "control_drop": "208b9c54fc8e80c8fee2ce4fc0edabd702288f900c22923a3b00b096d5277f9b",
+        "call": "f6edad40bee89308f96f1b04e0bc77d478660a281d37cc8b087c26eee735ae99",
+        "context_call": "f68792a5510fd680920f7e751e925fc2d6799063598ce342a05526ca61514109",
+        "context_check": "312d8d44b6aefa89fe66006c5e22fbcd9abb7f3b9a2b6330e69e4f945b42a721",
+        "context_buffer_create": "e1ed74234258b3d99157e2142dea7f949b91c336577df771d9fce9eb2f7cf4ee",
+        "context_buffer_drop": "1db31063a9f6f94445627d6d74ae7344e80955892ff67ad1c712f5d8adc41448",
+        "buffer_mut_bytes": "f82eb906dd9a1fdad11c58179d5cd29972ee57923ecd6957b9ec50be23e6269a",
+        "result_info": "4c71f1e075de5d5860267481cdf45fd4740d3139bf6bff68b9849d4085c0a77a",
+        "result_usage": "ab81d550c8147b22bcc68d9045e7566bb329c82864cfbe055b7e7e511c12b527",
+        "result_bytes": "9aebca2f73f638d75a64d1125c422736acd2f3f8d616b7f6aa859d6ff1000e3b",
+        "result_drop": "a176b950889fff9430922b861a72b04f3aed567f6747550c7c4945c5e8ed6c60",
+        "resource_drop": "559096086e5ddce9941b4cb87211a4d42712ea48dc9251f512c76b326c625c29",
+        "resource_publish": "03d6c57cf01f051b6016ac2be5a20bf3ab3a17f49b255eb98daf85ad097b3638",
+        "context_resource_publish": "125106c57b06eedc673993357cf4d76690435017ba6d02a0ff78d568bf2ec35c",
+        "context_resource_drop": "0b22601c300e59547df632f5c9a92fb602ae2acc357ad1b62ba6b2227b491937",
+        "context_resource_read": "7ac63ad98085cb195f16f42da32fa7a6520149e6eb4096bb8697dc02fbfb3df8",
+        "context_resource_write": "463887fd1cea27af9effa34ead89395ef93697a0c41ad8905a1a2e725e8c7b2f",
+        "context_resource_keep": "57284b7565609436e731bfeb1d834c498373e22390134e844c5d1eb2fd1e00d4",
+        "context_resource_take": "3db738c61efb6b9d427a8d11a5e2a201471ed36baff6b276dc22889b18be68fe",
+        "get_api": "7e4c5c8607fd9dd30f99866220787ec927f5905e69264fcac4343e164f193236"
+      }
+    }
   }
 }

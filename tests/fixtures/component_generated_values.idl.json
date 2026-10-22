@@ -1,0 +1,32 @@
+{
+  "idl": 1,
+  "package": "demo:generated",
+  "version": "1.0.0",
+  "interfaces": [{
+    "key": "demo:generated/api",
+    "resources": [],
+    "types": [
+      {"name": "choice", "variant": [
+        {"name": "none", "type": "unit"},
+        {"name": "some", "type": "i64"}
+      ]},
+      {"name": "request", "record": [
+        {"name": "fn", "type": "i64"},
+        {"name": "component-key", "type": "bool"},
+        {"name": "hello-world", "type": "text"},
+        {"name": "payload", "type": "bytes"},
+        {"name": "values", "type": {"list": {"option": "i64"}}},
+        {"name": "result", "type": {"result": {"ok": "unit", "err": "bool"}}},
+        {"name": "choice", "type": "choice"}
+      ]},
+      {"name": "alias-request", "alias": "request"}
+    ],
+    "functions": [
+      {"name": "choices", "effect": "sync", "params": [{"name": "value", "type": {"option": {"result": {"ok": "bool", "err": "i64"}}}}], "result": {"option": {"result": {"ok": "bool", "err": "i64"}}}, "capability": "demo.generated.choices"},
+      {"name": "echo", "effect": "sync", "params": [{"name": "value", "type": "alias-request"}], "result": "request", "capability": "demo.generated.echo"},
+      {"name": "units", "effect": "sync", "params": [{"name": "value", "type": {"list": "unit"}}], "result": {"list": "unit"}, "capability": "demo.generated.units"}
+    ]
+  }],
+  "imports": [],
+  "exports": ["demo:generated/api"]
+}

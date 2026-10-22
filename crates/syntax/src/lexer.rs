@@ -503,3 +503,16 @@ fn keyword(text: &str) -> TokenKind {
         _ => TokenKind::Identifier,
     }
 }
+
+/// A declaration identifier usable by generated source without escaping.
+/// `core` is reserved by binding, in addition to the lexical keywords.
+pub fn is_declaration_identifier(text: &str) -> bool {
+    let mut bytes = text.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == b'_')
+        && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'_')
+        && text != "core"
+        && keyword(text) == TokenKind::Identifier
+}

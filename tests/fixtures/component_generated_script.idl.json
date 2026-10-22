@@ -1,0 +1,20 @@
+{
+  "idl": 1,
+  "package": "demo:script",
+  "version": "1.0.0",
+  "interfaces": [{
+    "key": "demo:script/api",
+    "resources": [],
+    "types": [{"name": "request", "record": [
+      {"name": "value", "type": "i64"},
+      {"name": "flag", "type": "bool"}
+    ]}],
+    "functions": [{
+      "name": "echo", "effect": "sync",
+      "params": [{"name": "request", "type": "request"}],
+      "result": "request", "capability": "demo.script.echo"
+    }]
+  }],
+  "imports": [],
+  "exports": ["demo:script/api"]
+}

@@ -9,7 +9,8 @@ mod lexer;
 mod parser;
 
 pub use lexer::{
-    InputError, InputErrorKind, LexError, LexLimits, Lexed, Token, TokenKind, add_source, lex,
+    InputError, InputErrorKind, LexError, LexLimits, Lexed, Token, TokenKind, add_source,
+    is_declaration_identifier, lex,
 };
 pub use parser::{
     ExpectedSyntax, NodeId, ParseError, ParseLimits, SyntaxElement, SyntaxKind, SyntaxNode,

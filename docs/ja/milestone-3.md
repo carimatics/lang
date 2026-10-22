@@ -4,13 +4,13 @@
 
 [English](../milestone-3.md) · [Exit gates](../roadmap.md#milestone-3-concurrency-and-embedding)
 
-更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
+更新日: **2026-10-23 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
 **36 done · 1 doing · 21 todo · 62 remaining pt**
 
 **次: M3-I04 → 型付き C/guest binding と最初の検証済み source fixture を生成します。**
 
-現在の作業: **M3-I04（3 pt）**。直近の実行 checkpoint は **I06 の `0646497`、2026-10-22 21:18 JST 検証**です。残る受入条件は、検証済み IDL から決定的に生成する C/guest 宣言と version 付き binding input、両 target description の完全 ABI size/alignment/field offset/signature fingerprint、独立 MIR contract と照合する型付き native-host/script 生成 fixture、不正/名前衝突/拒否ケースと検証証拠です。受理済み参照 header と I02/I03/I06 graph/codec/proof を再利用します。最初の生成 source fixture を優先し、registry・汎用 schema framework・第2 language は設けません。doing は I04 のみで、実 grant/resource/callback・serialized/installed profile・両 host runtime conformance は後続の必須 delivery に残ります。
+現在の作業: **M3-I04（3 pt）**。直近の実行 checkpoint は **未コミット I04 worktree、2026-10-23 02:39 JST 検証**です。構造的 C 型修正後の最終 baseline は **136 suites / 2,059 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **707.00s**で成功しました。workspace/fuzz fmt・Clippy（**1m 54s**）・rustdoc（**35.04s**）・全**14 fuzz target compile/lint（1.28s）**が成功し、**production 263 + validation 254 file**の hash は一致しました。生成テスト10件は厳密上限/1不足 quota・元 origin・canonical Rust/C bytes・cast なしの構造型/list 再利用・VM/JIT で42を返して usage が一致する source 実行を含みます。各 target の全139 field offset・38 signature、C11/C++20 target syntax、example command も成功しました。古い lang-syntax check cache の再構築で意味論や SDK 検証は変更していません。残る受入条件は code commit の記録と、次 delivery の監査/選択です。この checkpoint は delivery 完了ではなく、doing は I04 のみです。実 grant/resource/callback・serialized/installed profile・両 host runtime conformance・計測・最終 guide は必須に維持し、campaign や追加 gate は主張しません。
 
 I06 を `0646497` で完了（2026-10-22 21:18 JST 検証）: 厳密な component source/import identity、version 付き qualified-name/MIR-ID map、完全 IDL/code/map を保持する受動的 unit を実装しました。独立 MIR は resource key・nominal record/variant 対応・alias 解決済み data constructor・順序付き payload・直接 shared/exclusive loan・effect・public guest export・完全 import/export projection を未使用 entry も含めて検証します。source snapshot identity と元 code/contract span を保持し、不正/重複/欠落/偽造 metadata・Host/C 代用を拒否します。**binding 13件・source 3件・resource 回帰14件**、**syntax 62件**、厳密上限/1不足 quota と40段の深い照合が成功しました。source 固定の全 baseline は **134 suites / 2,049 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **707.67s**。workspace/fuzz fmt・Clippy（**55.05s**）・rustdoc（**1m 08s**）・全**14 fuzz target compile/lint（4.38s）**が成功し、全**259 source file**の hash は一致しました。E0460 の cache 再構築は意味論や SDK 検証を変更していません。fuzz campaign・実 grant/transfer/callback・component artifact/package rollout・Windows runtime conformance・追加 gate は主張しません。I06 の最後の **3 pt** を消化し、**追加/再見積り0 pt**、残り **65 + 0 − 3 = 62 pt**、台帳 **110 + 48 − 96 = 62 pt**です。
 
