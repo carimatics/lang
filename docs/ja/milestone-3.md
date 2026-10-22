@@ -6,11 +6,15 @@
 
 更新日: **2026-10-23 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**36 done · 1 doing · 21 todo · 62 remaining pt**
+**37 done · 1 doing · 20 todo · 59 remaining pt**
 
-**次: M3-I04 → 型付き C/guest binding と最初の検証済み source fixture を生成します。**
+**次: M3-I05 → rich interface/version 交渉を副作用前に検証します。**
 
-現在の作業: **M3-I04（3 pt）**。直近の実行 checkpoint は **未コミット I04 worktree、2026-10-23 02:39 JST 検証**です。構造的 C 型修正後の最終 baseline は **136 suites / 2,059 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **707.00s**で成功しました。workspace/fuzz fmt・Clippy（**1m 54s**）・rustdoc（**35.04s**）・全**14 fuzz target compile/lint（1.28s）**が成功し、**production 263 + validation 254 file**の hash は一致しました。生成テスト10件は厳密上限/1不足 quota・元 origin・canonical Rust/C bytes・cast なしの構造型/list 再利用・VM/JIT で42を返して usage が一致する source 実行を含みます。各 target の全139 field offset・38 signature、C11/C++20 target syntax、example command も成功しました。古い lang-syntax check cache の再構築で意味論や SDK 検証は変更していません。残る受入条件は code commit の記録と、次 delivery の監査/選択です。この checkpoint は delivery 完了ではなく、doing は I04 のみです。実 grant/resource/callback・serialized/installed profile・両 host runtime conformance・計測・最終 guide は必須に維持し、campaign や追加 gate は主張しません。
+現在の作業: **M3-I05（2 pt）**。直近の実行 checkpoint は **I04 の `adb2e03`、2026-10-23 02:39 JST 検証**です。残る受入条件は、有限予算の rich IDL interface/member/type/effect/capability projection 照合、既存 exact/interval/prerelease/build-sensitive version policy、決定的な互換最高版の選択と曖昧性拒否、fallback なしの exact-lock replay、非互換/未使用 metadata と quota の副作用前拒否です。I03 の alias 解決済み LCSG preimage と既存 version policy を再利用し、digest 一致だけでなく構造 bytes を比較します。選択された受動的 plan は provider/resource/実行権限を付与しません。doing は I05 のみです。実 typed grant・resource/callback・serialized/installed profile・両 host runtime conformance・計測・最終 guide は必須に維持します。
+
+I04 を `adb2e03` で完了（2026-10-23 02:39 JST 検証）: 有限予算で決定的な guest/C generator・version-1 compiler input・元 IDL origin・構造的 C 型共有・canonical 型付き value codec・root/context forwarding を実装しました。生成回帰10件は全 constructor/alias/effect・resource import move・名前/header 衝突・不正/切断 frame・厳密上限/1不足 budget・cast なしの復号 list 再利用を検査します。生成 source は独立 MIR を通り VM/JIT で42を返して usage が一致し、native C frame は独立 Rust bytes と一致しました。両 target description の C11/C++20・全**139 field offset / 38 signature**・reference packer replay・完全 fingerprint と example command が成功しました。最終 source 固定 baseline は **136 suites / 2,059 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **707.00s**。workspace/fuzz fmt・Clippy（**1m 54s**）・rustdoc（**35.04s**）・**14 fuzz target compile/lint（1.28s）**が成功し、**production 263 + validation 254 file**の hash は一致しました。修正前の baseline は最終証拠に使わず、古い lang-syntax check metadata は意味論/SDK 変更なしに再構築しました。mock forwarding/source 計算は production embedding や Windows 実行を証明せず、campaign や追加 gate は主張しません。最後の **3 pt**を消化し、**追加/再見積り0 pt**、残り **62 + 0 − 3 = 59 pt**、台帳 **110 + 48 − 99 = 59 pt**です。
+
+I04 roadmap/sequence 監査（2026-10-23 JST）: 次の生成 source fixture が実行でき、I09/I06 の前提作業がその checkpoint に到達しました。I05 を再確認すると、既存 negotiation は i64/bool/own/shared-borrow だけを表現し、検証済み rich IDL と canonical signature preimage は揃っています。rich projection・既存 version/lock policy・有限 preparation の I05 を元の **2 pt**に維持し、唯一の doing に選びます。実 typed grant が互換な交渉結果を使うよう P01 に I05 依存を追加し、delivery や P01 の成果/見積りは増やしません。第2 type language・registry・汎用 schema framework は不要です。全 P1・実 transfer/callback/control 境界・I07/I08 artifact/package・両 host runtime 証拠・計測・最終 guide を維持します。
 
 I06 を `0646497` で完了（2026-10-22 21:18 JST 検証）: 厳密な component source/import identity、version 付き qualified-name/MIR-ID map、完全 IDL/code/map を保持する受動的 unit を実装しました。独立 MIR は resource key・nominal record/variant 対応・alias 解決済み data constructor・順序付き payload・直接 shared/exclusive loan・effect・public guest export・完全 import/export projection を未使用 entry も含めて検証します。source snapshot identity と元 code/contract span を保持し、不正/重複/欠落/偽造 metadata・Host/C 代用を拒否します。**binding 13件・source 3件・resource 回帰14件**、**syntax 62件**、厳密上限/1不足 quota と40段の深い照合が成功しました。source 固定の全 baseline は **134 suites / 2,049 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **707.67s**。workspace/fuzz fmt・Clippy（**55.05s**）・rustdoc（**1m 08s**）・全**14 fuzz target compile/lint（4.38s）**が成功し、全**259 source file**の hash は一致しました。E0460 の cache 再構築は意味論や SDK 検証を変更していません。fuzz campaign・実 grant/transfer/callback・component artifact/package rollout・Windows runtime conformance・追加 gate は主張しません。I06 の最後の **3 pt** を消化し、**追加/再見積り0 pt**、残り **65 + 0 − 3 = 62 pt**、台帳 **110 + 48 − 96 = 62 pt**です。
 
@@ -106,9 +110,9 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-I03 | done | 0 | M3-I02 | G06 | LCMP3 contract/report・LCVL1/LCSG1 value/signature codec を独立 canonical/不正/budget vector で検証 | `228daf2` |
 | M3-I09 | done | 0 | M3-I02,M3-I03 | G01,G06,G07 | opaque nominal component resource の型・能力・move を検証し未対応実行を拒否 | `13db0a6` |
 | M3-I06 | done | 0 | M3-I02,M3-I03,M3-I09 | G01,G06,G07 | component binding map と resource-key/call/signature/effect/loan facts を source/MIR で独立検証し旧 profile 拒否を維持 | `0646497` |
-| M3-I04 | doing | 3 | M3-I03,M3-I06 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | — |
-| M3-I05 | todo | 2 | M3-I03 | G06 | interface/version 交渉と非互換 metadata を副作用前に検証 | — |
-| M3-P01 | todo | 2 | M3-I04 | G08 | typed import の明示 grant を必須とし欠落/不一致 capability を拒否 | — |
+| M3-I04 | done | 0 | M3-I03,M3-I06 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | `adb2e03` |
+| M3-I05 | doing | 2 | M3-I03 | G06 | interface/version 交渉と非互換 metadata を副作用前に検証 | — |
+| M3-P01 | todo | 2 | M3-I04,M3-I05 | G08 | typed import の明示 grant を必須とし欠落/不一致 capability を拒否 | — |
 | M3-R01 | todo | 3 | M3-I04,M3-P01 | G07 | 実 context の resource index と whole-call preflight/commit を検証・実行し、commit 前拒否時に owner を保持 | — |
 | M3-R02 | todo | 3 | M3-R01 | G07 | borrow scope、generation、所有権移転、poison を適用 | — |
 | M3-R03 | todo | 3 | M3-R02 | G07 | VM/native の error、取消、不正入力で resource cleanup を一致 | — |
@@ -203,7 +207,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 48 − 96 = 62 pt**
+**110 + 48 − 99 = 59 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -251,7 +255,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +48 pt | −96 pt | 62 pt |
+| 110 pt | +48 pt | −99 pt | 59 pt |
 
 ## Exit audit
 
@@ -259,6 +263,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 ## Sources
 
+- I04 実装/I05 順序監査: [RFC 0027](rfcs/0027-production-component-interface.md) は2026-10-23更新。`adb2e03` の generator/IDL origin/version-1 map code・完全 ABI/reference packer・生成 C/source fixture・example command を2026-10-23 02:39 JST、macOS AArch64 で検証しました。code に更新日の埋込みはありません。I05 に向け既存 `InterfaceValueType`・version/lock 選択・rich signature preimage を調査しました。両 target compile は Windows 実行ではなく、fuzz 証拠は14 target compile/lint で campaign ではありません。
 - I06 実装証拠: [RFC 0027](rfcs/0027-production-component-interface.md) は2026-10-22更新。source marker/profile/名前 resolver、受動的 IDL/MIR unit、独立 binding/type/effect/loan checker、旧 profile 拒否、binding 13件/source 3件/resource 14件の test、第14 fuzz target を2026-10-22 21:18 JST、macOS AArch64 で調査/実行/検証しました。code に更新日の埋込みはありません。両 target の package 拒否は Windows runtime conformance ではなく、fuzz 証拠は compile/lint で campaign ではありません。
 - I09 実装/source mapping 監査: [RFC 0027](rfcs/0027-production-component-interface.md) は2026-10-22更新。source binding/type/capability 検証、独立 MIR canonicalization/privacy/move/region、runtime/VM/codec 拒否と integration 回帰14件を2026-10-22 19:09 JST、macOS AArch64 で調査/実行/検証しました。code に更新日の埋込みはありません。両 target description の package 拒否は Windows runtime conformance ではありません。全13 fuzz target の compile/lint であり campaign は行っていません。
 - I03 実装/I06 sequence 監査: [RFC 0027](rfcs/0027-production-component-interface.md) の最終更新は 2026-10-22。wire Session/I/O/contract/report/value・IDL proof・独立 reference packer/golden と23 wire/13 IDL test を `228daf2`、2026-10-22 15:30 JST、macOS AArch64 で確認/実行/検証しました。HIR/MIR ABI enum と constructor graph も確認しました。code に更新日の埋込みはありません。13 fuzz target は compile/lint の証拠であり campaign ではありません。
