@@ -8,7 +8,7 @@
 - Authors: Project contributors
 - Created: 2026-10-22
 - Last updated: 2026-10-22
-- Tracking issue: M3-I01 through M3-I08, M3-R01 through M3-B02
+- Tracking issue: M3-I01 through M3-I09, M3-R01 through M3-B02
 - Supersedes:
 - Superseded by:
 
@@ -75,7 +75,9 @@ import は `{ "interface": InterfaceKey, "version": Requirement, "members": [Mem
 
 生成 guest 宣言は i64/bool/Unit、Text/Bytes、Vec、Option/Result、record/variant を既存 source family に対応させます。nominal opaque component-resource owner と直接 shared/exclusive resource parameter は独立した source/MIR 受理を必要とし、整数・C pointer・利用者の capability assertion ではありません。owner は一度 move され、退役が必要です。v1 の resource ownership は Send/Share を持ちません。resource loan は suspend・escape・capture できません。通常の source async 規則も適用します。async source entry に対応するのは `task` export だけで、その引数/結果は独立に Send を満たす必要があります。native host import は同期です。実行前に source/MIR proof と生成宣言の全 effect/type が一致しなければなりません。
 
-生成 source は既存 frontend を使います。例えば `struct CounterKind {}`、`type Counter = core::ComponentResource<CounterKind>;` と `extern "component" fn apply(state: &mut Counter, request: Request) -> core::Result<i64, core::Text>;` です。versioned compiler binding input が qualified tag name→resource key、component import name→interface/member key、export member→既存 public source function name を対応させます。これは compiler data であり、ambient grant や別 source language ではありません。検証した IDL と全 mapping/signature/effect が一致する必要があります。tag は通常 data として命名/構築できますが resource owner を構築できず、検査付き component transfer だけが owner を生成します。component import は別 ABI/effect identity を持ち、Host/C import と置換しません。map と独立した resource/type/loan/effect の全事実を MIR/artifact 検証で保持します。I06 がこの拡張を実装し、通常/旧 profile は拒否を維持します。
+生成 source は既存 frontend を使います。`struct CounterKind {}` のような tag 宣言と `core::ComponentResource<CounterKind>` の直接型注釈を使い、`extern "component" fn apply(state: &mut core::ComponentResource<CounterKind>, request: Request) -> core::Result<i64, core::Text>;` と記述します。version 付き compiler binding input は qualified tag name を resource key、component import name を interface/member key、exported interface member を既存 public source function name に対応させます。これは compiler data であり、ambient grant や第2 source language ではありません。検証済み IDL は全 mapping・signature・effect と一致する必要があります。tag は通常 data として命名/構築できますが、resource owner を構築できず、検証済み component transfer だけが owner を生成します。component import は Host/C と異なる ABI/effect identity を持ち、代用できません。map と独立した完全な resource/type/loan/effect facts は MIR/artifact 検証を通じて保持します。I09 が opaque 型 proof/拒否、I06 が検証済み binding/call/effect を接続し、通常/旧 profile は拒否を維持します。
+
+source mapping 改訂（2026-10-22 JST）: I09 の実行可能な実験で、既存 frontend に型別名宣言の grammar がないことを確認しました。以前の例示 `type Counter = ...;` を直接型注釈に置き換え、binding の前提として新たな型別名機能を追加しません。tag は nominal identity であり resource の保存 payload ではないため、field の性質は opaque owner に伝播しません。未実装 generator の表記変更であり、移行対象の受理済み source program・artifact bytes・runtime ABI はありません。完全な検証済み map/call/effect 境界は I06 に維持します。
 
 ## Reference semantics
 
@@ -211,9 +213,11 @@ IDL・schema・value frame・script artifact・provider metadata は未信頼の
 
 ## Implementation plan
 
-I02 が有界 IDL parse/check/span、I03 が rich metadata/value codec・独立 canonical vector・厳密 report tag/vector・不正/budget test、I06 が source/MIR component-resource/call/effect proof と未対応拒否、I04 が型付き C/guest binding と完全 header/layout vector、I05 が interface/version negotiation を供給します。R01–R03 で実 resource transfer/loan/cleanup/failure、P01/P02 で実 typed grant と有界 metadata/adapter work を接続します。E01–E04 は host/script call・同期 nested callback・元 context の failure・mixed stack/cancellation、L01–L04 は合算 limit を実証します。I07/I08 は B01 前に serialized task/component と native-package profile を明示的に供給します。B01/B02 は両 host conformance/C migration 安定化、X/Z は runnable plugin example・cost・最終 guide を担当します。各1–3点の delivery を実行証拠で再監査し、欠けた前提は可視化してから実装し、source fixture を横断基盤だけで置換しません。
+I02 が有界 IDL parse/check/span、I03 が rich metadata/value codec・独立 canonical vector・厳密 report tag/vector・不正/budget test、I09 が opaque resource type/capability/move proof と未対応拒否、I06 が検証済み source/MIR component binding/call/effect、I04 が型付き C/guest binding と完全 header/layout vector、I05 が interface/version negotiation を供給します。R01–R03 で実 resource transfer/loan/cleanup/failure、P01/P02 で実 typed grant と有界 metadata/adapter work を接続します。E01–E04 は host/script call・同期 nested callback・元 context の failure・mixed stack/cancellation、L01–L04 は合算 limit を実証します。I07/I08 は B01 前に serialized task/component と native-package profile を明示的に供給します。B01/B02 は両 host conformance/C migration 安定化、X/Z は runnable plugin example・cost・最終 guide を担当します。各1–3点の delivery を実行証拠で再監査し、欠けた前提は可視化してから実装し、source fixture を横断基盤だけで置換しません。
 
 ## Test plan
+
+I09 opaque 型 checkpoint（2026-10-22 JST）: source と独立 MIR は `core::ComponentResource<Tag>` を nominal な move-only owner として受理し、retirement を要求して Send/Share を許しません。nominal tag は同一性を示し物理 payload ではないため、field の storage/region 性質を伝播しません。元 source span と tag privacy を lowering 後も保持します。通常 tag 構築では owner を生成できず、不正 tag ID・二重消費・偽造 retirement を拒否します。現行全 runtime layout・ownership VM entry・schema-2/3/4 writer・native package は未使用 resource metadata も実行/出力前に拒否します。型/proof の受理であり、検証済み resource-key binding・component import ABI/call/effect proof は I06、実 transfer/adapter は R01 に残ります。既存 source grammar に型別名がないため generator は直接型注釈を使います。
 
 I03 実装 checkpoint（2026-10-22 JST）: production wire module に LCMP3 contract/report・alias 解決済み LCSG1 projection・LCVL1 data-only frame を実装しました。wire 23件と IDL 回帰13件で、独立 bytes/digest・完全な version/lock/type・厳密順序/tag・未使用の不正 graph・全 quota 境界・1,024段の値・byte を持たない element・累積 preparation usage・旧 bytes の一致を検証します。独立 reference packer は17 golden entry を再生成します。preparation Session の上限は累積 MIR Budget と入れ子 metadata cap を使い、保持する検査済み data-depth fact で profile 上限の迂回を防ぎます。API は実行 binding・runtime allocator identity・grant・owner・loan を与えません。data-only codec は resource を含む signature を拒否し、contextual index は R01 の実 whole-call preflight へ接続します。実 provider/control 接続は P02、embedding/callback は E01–E04 に残ります。RFC 全体は accepted であり implemented/stabilized ではありません。
 

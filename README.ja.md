@@ -26,6 +26,8 @@ IDL v1 検査 checkpoint（2026-10-22 JST 検証）: `cargo run --example compon
 
 Production codec checkpoint（2026-10-22 JST）: `cargo test --test component_wire` で LCMP schema 3 contract/report・alias 解決済み LCSG signature digest・LCVL data-only frame を独立 vector と照合します。rich value は record/case/parameter 順序・厳密 tag・UTF-8 を保持し、単一 preparation session で bytes/work/elements/requested buffer を累積計上します。resource を含む schema は後続の実 call context を要し、data-only API は拒否します。schema-2 bytes は一致を維持します。source/MIR component proof・生成 binding・runtime grant/resource/callback は[実装 Todo](docs/ja/milestone-3.md)に残ります。
 
+Opaque resource 型 checkpoint（2026-10-22 JST）: `cargo test --test component_resource_types` で source/独立 MIR の nominal `core::ComponentResource<Tag>` 所有権、move/drop、Send/Share 不許可、元 span、旧 profile の拒否を検証します。tag は通常 data として扱えます。検証済み component binding/call と実 resource 実行は[実装 Todo](docs/ja/milestone-3.md)に残ります。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

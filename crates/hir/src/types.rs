@@ -535,6 +535,14 @@ pub fn analyze(
             return Err(input(InputError::SpanOutsideOwner, Some(ty.span)));
         }
         let mut depth = 1usize;
+        if let r::TypeConstructor::ComponentResource(tag) = ty.constructor {
+            c.node(r::Type::Nominal(tag), ty.span)?;
+            let definition = &program.definitions[tag.0];
+            if !definition.public {
+                bits[base + index] |= PRIVATE;
+                private[base + index] = Some(definition.name.span);
+            }
+        }
         for argument in ty.constructor.arguments() {
             c.node(argument, ty.span)?;
             if let r::Type::Constructed(id) = argument {
@@ -572,7 +580,8 @@ pub fn analyze(
                 .limit(ty.span, "constructed type depth limit exceeded"));
         }
         generic_depth.push(depth);
-        bits[base + index] = match ty.constructor {
+        bits[base + index] |= match ty.constructor {
+            r::TypeConstructor::ComponentResource(_) => NONCOPY | DROP | CAPABILITIES,
             r::TypeConstructor::Builtin(r::BuiltinType::Text | r::BuiltinType::Bytes) => {
                 NONCOPY | DROP
             }

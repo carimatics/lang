@@ -124,6 +124,8 @@ pub enum TypeConstructor {
     ServiceSetup(Type, Type),
     ServiceOwner(Type, Type),
     ServiceHandle(Type),
+    /// Opaque owner identity. The nominal tag is not a stored payload.
+    ComponentResource(DefinitionId),
     Vec(Type),
     Map(Type, Type),
     Shared(Type),
@@ -137,7 +139,7 @@ pub enum TypeConstructor {
 impl TypeConstructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
         let pair = match self {
-            Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
+            Self::Builtin(_) | Self::ArenaOwner(_) | Self::ComponentResource(_) => [None, None],
             Self::SendResult(t)
             | Self::Option(t)
             | Self::ChannelSetup(t)

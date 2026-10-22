@@ -287,7 +287,9 @@ impl TypeStore {
             ));
         }
         match constructor {
-            r::TypeConstructor::ChannelSetup(_) | r::TypeConstructor::ServiceSetup(..) => {
+            r::TypeConstructor::ChannelSetup(_)
+            | r::TypeConstructor::ServiceSetup(..)
+            | r::TypeConstructor::ComponentResource(_) => {
                 properties.is_copy = false;
                 properties.requires_drop = true;
                 properties.non_send = true;

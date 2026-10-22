@@ -131,6 +131,9 @@ pub enum CodecErrorKind {
     UnsupportedServiceProfile {
         span: m::Span,
     },
+    UnsupportedComponentProfile {
+        span: m::Span,
+    },
     UnsupportedTaskProfile {
         span: m::Span,
     },

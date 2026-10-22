@@ -265,7 +265,7 @@ pub fn analyze(
                     .map_err(CheckError::Types)?;
                 let p = moved.bodies().properties(ty.value_type).unwrap();
                 if !p.is_send() {
-                    context.error(ty.span, "async transfers cannot contain loans, arenas, allocator authority or Task claims", None, codes::INVALID_TASK)?;
+                    context.error(ty.span, "async transfers require Send values without loans, arenas, allocator authority, Task claims or component resources", None, codes::INVALID_TASK)?;
                 }
             }
         }

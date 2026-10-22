@@ -75,6 +75,8 @@ pub enum Constructor {
     ServiceSetup(Type, Type),
     ServiceOwner(Type, Type),
     ServiceHandle(Type),
+    /// Nominal, opaque owner identity; the tag is not a physical referent.
+    ComponentResource(DefinitionId),
 }
 impl Constructor {
     pub fn arguments(self) -> impl Iterator<Item = Type> {
@@ -95,7 +97,7 @@ impl Constructor {
             | Self::Map(t, e)
             | Self::ServiceSetup(t, e)
             | Self::ServiceOwner(t, e) => [Some(t), Some(e)],
-            Self::Builtin(_) | Self::ArenaOwner(_) => [None, None],
+            Self::Builtin(_) | Self::ArenaOwner(_) | Self::ComponentResource(_) => [None, None],
         };
         args.into_iter().flatten()
     }
@@ -410,6 +412,12 @@ impl VerifiedTypes {
     pub fn table(&self) -> &TypeTable {
         &self.table
     }
+    /// Includes unused metadata. Type proof confers no execution authority.
+    pub fn component_feature_span(&self) -> Option<Span> {
+        self.table.constructed.iter().find_map(|t| {
+            matches!(t.constructor, Constructor::ComponentResource(_)).then_some(t.span)
+        })
+    }
     /// Even unused service metadata requires explicit service-profile admission.
     pub fn service_feature_span(&self) -> Option<Span> {
         self.table.constructed.iter().find_map(|t| {
@@ -513,7 +521,9 @@ fn canonicalize(table: &TypeTable, budget: &mut Budget) -> Result<Vec<Type>, Err
             Constructor::ServiceSetup(s, m) => Constructor::ServiceSetup(child(s), child(m)),
             Constructor::ServiceOwner(s, m) => Constructor::ServiceOwner(child(s), child(m)),
             Constructor::ServiceHandle(m) => Constructor::ServiceHandle(child(m)),
-            Constructor::Builtin(_) | Constructor::ArenaOwner(_) => t.constructor,
+            Constructor::Builtin(_)
+            | Constructor::ArenaOwner(_)
+            | Constructor::ComponentResource(_) => t.constructor,
         };
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
@@ -844,6 +854,13 @@ fn validate(
     for (i, ty) in table.constructed.iter().enumerate() {
         g.span(ty.span)?;
         let mut depth = 1;
+        if let Constructor::ComponentResource(tag) = ty.constructor {
+            let tag_node = node(table, Type::Nominal(tag)).map_err(|mut error| {
+                error.span = Some(ty.span);
+                error
+            })?;
+            bits[base + i] |= bits[tag_node] & PRIVATE;
+        }
         for argument in ty.constructor.arguments() {
             g.budget.charge(1)?;
             if let Type::Constructed(id) = argument {
@@ -868,7 +885,8 @@ fn validate(
         }
         cap(depth, g.budget.limits().depth, super::LimitKind::Depth)?;
         depths.push(depth);
-        bits[base + i] = match ty.constructor {
+        bits[base + i] |= match ty.constructor {
+            Constructor::ComponentResource(_) => NONCOPY | DROP | CAPABILITIES,
             Constructor::Builtin(Builtin::Text | Builtin::Bytes)
             | Constructor::Vec(_)
             | Constructor::Map(..)

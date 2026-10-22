@@ -94,6 +94,7 @@ fn ty(ty: r::Type) -> Result<o::Type> {
 fn constructor(c: r::TypeConstructor, span: Span, profile: Profile) -> Result<o::Constructor> {
     use r::{BuiltinType as B, TypeConstructor as C};
     Ok(match c {
+        C::ComponentResource(tag) => o::Constructor::ComponentResource(m::DefinitionId(id(tag.0)?)),
         C::ChannelSetup(t) => o::Constructor::ChannelSetup(ty(t)?),
         C::ServiceSetup(s, m) => o::Constructor::ServiceSetup(ty(s)?, ty(m)?),
         C::ServiceOwner(s, m) => o::Constructor::ServiceOwner(ty(s)?, ty(m)?),

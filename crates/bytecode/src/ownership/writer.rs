@@ -173,6 +173,12 @@ impl Writer<'_> {
                     CodecErrorKind::UnsupportedChannelProfile { span: value.span },
                 ));
             }
+            C::ComponentResource(_) => {
+                return Err(error(
+                    self.length,
+                    CodecErrorKind::UnsupportedComponentProfile { span: value.span },
+                ));
+            }
             C::Task(_) => {
                 return Err(error(
                     self.length,
@@ -822,6 +828,24 @@ mod task_tests {
                 assert_eq!(w.length, 0);
                 assert!(w.output.unwrap().is_empty());
             }
+        }
+    }
+    #[test]
+    fn all_old_writers_refuse_resource_identity_without_emitting_bytes() {
+        for version in [2, 3, 4] {
+            let mut budget = m::Budget::new(Default::default());
+            let mut w = writer(&mut budget, version);
+            let error = w
+                .constructor(&o::Constructed {
+                    constructor: o::Constructor::ComponentResource(m::DefinitionId(0)),
+                    span: span(),
+                })
+                .unwrap_err();
+            assert!(
+                matches!(error.kind, CodecErrorKind::UnsupportedComponentProfile { span: s } if s == span())
+            );
+            assert_eq!(w.length, 0);
+            assert!(w.output.unwrap().is_empty());
         }
     }
     #[test]

@@ -6,6 +6,7 @@ pub struct NodeId(pub usize);
 pub enum Kind {
     Scalar,
     Task,
+    ComponentResource(DefinitionId),
     ChannelSetup(NodeId),
     Sender(NodeId),
     Receiver(NodeId),
@@ -117,6 +118,7 @@ pub(super) fn compile(types: &VerifiedTypes, admit: &mut Admission) -> Result<Ve
                 let constructor = table.constructed[id.0 as usize].constructor;
                 admit.edges(constructor.arguments().count(), span)?;
                 match constructor {
+                    Constructor::ComponentResource(tag) => Kind::ComponentResource(tag),
                     Constructor::Builtin(b) => Kind::Builtin(b),
                     Constructor::Option(t) => Kind::Option(target(t)),
                     Constructor::SendResult(t) => Kind::SendResult(target(t)),

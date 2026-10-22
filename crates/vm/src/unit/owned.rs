@@ -141,7 +141,7 @@ fn reject_c_interface(
     flow: &f::Elaborated,
     function: Option<m::FunctionId>,
 ) -> Result<(), Failure> {
-    reject_task_profile(flow, function)?;
+    reject_unavailable_profile(flow, function)?;
     if let Some(span) = flow
         .source()
         .activity()
@@ -163,10 +163,26 @@ fn reject_c_interface(
     clippy::result_large_err,
     reason = "Preserve inline failure reports without allocating during rejection."
 )]
-fn reject_task_profile(
+fn reject_unavailable_profile(
     flow: &f::Elaborated,
     function: Option<m::FunctionId>,
 ) -> Result<(), Failure> {
+    if let Some(span) = flow
+        .source()
+        .activity()
+        .moved()
+        .typed()
+        .places()
+        .declarations()
+        .types()
+        .component_feature_span()
+    {
+        return Err(rejected(
+            Reason::Preparation(l::Error::UnsupportedComponentProfile { span }),
+            function,
+            Some(span),
+        ));
+    }
     if let Some(span) = flow
         .source()
         .activity()

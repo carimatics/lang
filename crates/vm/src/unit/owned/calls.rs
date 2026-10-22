@@ -314,7 +314,7 @@ fn execute_with<P: a::Provider>(
     }
     .ok_or_else(|| rejected(Reason::Entry, None, None))?;
     let function = m::FunctionId(entry as u32);
-    reject_task_profile(flow, Some(function))?;
+    reject_unavailable_profile(flow, Some(function))?;
     if imports.is_none() {
         reject_c_interface(flow, Some(function))?;
     }

@@ -26,7 +26,8 @@ fuzz_target!(|bytes: &[u8]| {
     for i in 0..usize::from(byte(0) % 32) {
         let a = ty(byte(3 * i + 3));
         let b = ty(byte(3 * i + 4));
-        let constructor = match byte(3 * i + 2) % 18 {
+        let constructor = match byte(3 * i + 2) % 19 {
+            18 => Constructor::ComponentResource(m::DefinitionId(u32::from(byte(3 * i + 3)))),
             16 => Constructor::Task(a),
             17 => Constructor::Builtin(Builtin::TaskError),
             0 => Constructor::Builtin(Builtin::Unit),
@@ -97,6 +98,7 @@ fuzz_target!(|bytes: &[u8]| {
                 matches!(
                     error,
                     lang_runtime::layout::Error::Resource { .. }
+                        | lang_runtime::layout::Error::UnsupportedComponentProfile { .. }
                         | lang_runtime::layout::Error::Overflow
                         | lang_runtime::layout::Error::Allocation(
                             lang_runtime::allocation::Error::Overflow

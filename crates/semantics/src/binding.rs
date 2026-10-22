@@ -431,7 +431,7 @@ impl<'a> Context<'a> {
             };
             let arity = match name {
                 "Option" | "Vec" | "Task" | "ChannelSetup" | "Sender" | "Receiver"
-                | "SendResult" | "ServiceHandle" => 1,
+                | "SendResult" | "ServiceHandle" | "ComponentResource" => 1,
                 "Result" | "Map" | "ServiceSetup" | "ServiceOwner" => 2,
                 _ if r::BuiltinType::from_name(name).is_some() => 0,
                 _ => {
@@ -475,6 +475,17 @@ impl<'a> Context<'a> {
                     .value_type;
             }
             let constructor = match name {
+                "ComponentResource" => {
+                    let r::Type::Nominal(tag) = values[0] else {
+                        return self.fail(
+                            codes::INVALID_OWNERSHIP_TYPE,
+                            span,
+                            "component resource tags must name a nominal type",
+                            None,
+                        );
+                    };
+                    r::TypeConstructor::ComponentResource(tag)
+                }
                 "Option" => r::TypeConstructor::Option(values[0]),
                 "SendResult" => r::TypeConstructor::SendResult(values[0]),
                 "Task" => r::TypeConstructor::Task(values[0]),

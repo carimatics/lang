@@ -37,6 +37,9 @@ pub enum Error {
     UnsupportedServiceProfile {
         span: m::Span,
     },
+    UnsupportedComponentProfile {
+        span: m::Span,
+    },
     UnsupportedTaskProfile {
         span: m::Span,
     },
@@ -213,6 +216,9 @@ impl<'types> Layouts<'types> {
         )?;
         budget.charge(types.table().constructed.len())?;
         let tasks = profile != Profile::Ownership;
+        if let Some(span) = types.component_feature_span() {
+            return Err(Error::UnsupportedComponentProfile { span });
+        }
         if let Some(span) = types.service_feature_span()
             && profile != Profile::Services
         {
@@ -495,6 +501,9 @@ fn build(
                 span: entry.span,
             };
             match entry.constructor {
+                o::Constructor::ComponentResource(_) => {
+                    return Err(Error::UnsupportedComponentProfile { span: entry.span });
+                }
                 o::Constructor::Option(t) | o::Constructor::SendResult(t) => {
                     let cases = if matches!(entry.constructor, o::Constructor::SendResult(_)) {
                         3

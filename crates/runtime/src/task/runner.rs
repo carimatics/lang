@@ -468,6 +468,7 @@ fn managed_type_supported_profile(
             o::Type::I64 | o::Type::Bool => {}
             o::Type::Constructed(id) => {
                 match types.table().constructed[id.0 as usize].constructor {
+                    o::Constructor::ComponentResource(_) => return Ok(false),
                     o::Constructor::Builtin(_) => {}
                     constructor @ (o::Constructor::Option(_)
                     | o::Constructor::SendResult(_)

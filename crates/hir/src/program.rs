@@ -812,6 +812,11 @@ impl<'a> Context<'a> {
                     input(CheckInputErrorKind::InvalidConstructed(id.0), Some(span))
                 })?;
                 let (prefix, suffix) = match constructor {
+                    r::TypeConstructor::ComponentResource(tag) => {
+                        self.type_fragment(text, "core::ComponentResource<", span)?;
+                        self.write_type(r::Type::Nominal(tag), span, depth + 1, text)?;
+                        return self.type_fragment(text, ">", span);
+                    }
                     r::TypeConstructor::ArenaOwner(_) => ("arena-owner", ""),
                     r::TypeConstructor::Builtin(builtin) => {
                         self.type_fragment(text, "core::", span)?;

@@ -26,6 +26,8 @@ IDL v1 checking checkpoint (verified 2026-10-22 JST): `cargo run --example compo
 
 Production codec checkpoint (2026-10-22 JST): `cargo test --test component_wire` verifies LCMP schema 3 contracts/reports, alias-resolved LCSG signature digests and LCVL data-only frames against independent vectors. Rich values retain record/case/parameter order, strict tags and UTF-8; one preparation session accounts cumulative bytes/work/elements/requested buffers. Resource-bearing schemas require the later actual call context and are refused by the data-only API. Schema-2 bytes remain exact. Source/MIR component proof, generated bindings and runtime grants/resources/callbacks remain on the [delivery board](docs/milestone-3.md).
 
+Opaque resource type checkpoint (2026-10-22 JST): `cargo test --test component_resource_types` checks nominal `core::ComponentResource<Tag>` ownership in source and independent MIR, move/drop rules, neither Send nor Share, original spans and old-profile refusal. Tags remain ordinary data. Checked component bindings/calls and actual resource execution remain on the [delivery board](docs/milestone-3.md).
+
 ## Vision
 
 The language should combine:
