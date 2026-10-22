@@ -1,0 +1,28 @@
+{
+  "idl": 1,
+  "package": "demo:consumer",
+  "version": "1.0.0",
+  "interfaces": [{
+    "key": "demo:counter/api",
+    "resources": ["counter"],
+    "types": [{"name": "request", "record": [
+      {"name": "delta", "type": "i64"},
+      {"name": "label", "type": "text"}
+    ]}],
+    "functions": [{
+      "name": "apply", "effect": "sync",
+      "params": [
+        {"name": "state", "type": {"borrow-mut": "counter"}},
+        {"name": "request", "type": "request"}
+      ],
+      "result": {"result": {"ok": "i64", "err": "text"}},
+      "capability": "demo.counter.apply"
+    }]
+  }],
+  "imports": [{
+    "interface": "demo:counter/api",
+    "version": {"interval": {"min": "1.0.0", "max": "2.0.0", "prerelease": false}},
+    "members": ["apply"]
+  }],
+  "exports": []
+}

@@ -297,7 +297,7 @@ impl VersionRequirement {
         }
     }
 
-    fn matches(&self, version: &SemanticVersion) -> bool {
+    pub(super) fn matches(&self, version: &SemanticVersion) -> bool {
         match self {
             Self::Exact(expected) => expected == version,
             Self::Interval {
@@ -312,7 +312,10 @@ impl VersionRequirement {
         }
     }
 
-    fn matches_bounds_ignoring_prerelease_policy(&self, version: &SemanticVersion) -> bool {
+    pub(super) fn matches_bounds_ignoring_prerelease_policy(
+        &self,
+        version: &SemanticVersion,
+    ) -> bool {
         match self {
             Self::Exact(expected) => expected == version,
             Self::Interval {

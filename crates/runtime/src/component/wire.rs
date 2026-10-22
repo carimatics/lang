@@ -5,9 +5,11 @@ use std::fmt;
 mod contract;
 mod io;
 mod report;
+mod selection;
 mod value;
 pub use contract::*;
 pub use report::*;
+pub use selection::*;
 pub use value::*;
 
 #[derive(Clone, Copy, Debug)]

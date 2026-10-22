@@ -1,6 +1,10 @@
 #![no_main]
 use lang_mir::unit::SourceId;
-use lang_runtime::component::{idl, wire};
+use lang_runtime::component::{
+    CapabilityGrants, idl,
+    serialization::{DigestAlgorithm, VersionedDigest},
+    wire,
+};
 use libfuzzer_sys::fuzz_target;
 use std::sync::OnceLock;
 
@@ -26,6 +30,18 @@ fn signature() -> &'static wire::Signature<'static> {
         .unwrap()
     })
 }
+fn consumer() -> &'static wire::Contract {
+    static CONSUMER: OnceLock<wire::Contract> = OnceLock::new();
+    CONSUMER.get_or_init(|| {
+        let doc = idl::check(
+            SourceId(1),
+            include_bytes!("../../tests/fixtures/component_counter_consumer.idl.json"),
+            Default::default(),
+        )
+        .unwrap();
+        wire::Contract::new(doc, vec![], &mut wire::Session::new(Default::default())).unwrap()
+    })
+}
 fuzz_target!(|input: &[u8]| {
     let Some((&kind, bytes)) = input.split_first() else {
         return;
@@ -49,7 +65,7 @@ fuzz_target!(|input: &[u8]| {
         allocation_bytes: 512 * 1024,
     };
     let mut session = wire::Session::new(limits);
-    match kind % 4 {
+    match kind % 5 {
         0 => {
             if let Ok(c) = wire::decode_contract(SourceId(0), bytes, &mut session)
                 && let Ok(encoded) = wire::encode_contract(&c, &mut wire::Session::new(limits))
@@ -62,6 +78,26 @@ fuzz_target!(|input: &[u8]| {
                 && let Ok(encoded) = wire::encode_report(&r, &mut wire::Session::new(limits))
             {
                 assert_eq!(encoded, bytes);
+            }
+        }
+        4 => {
+            if let Ok(contract) = wire::decode_contract(SourceId(0), bytes, &mut session) {
+                let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![kind; 32]).unwrap();
+                let provider = wire::Provider {
+                    contract: &contract,
+                    digest: &digest,
+                };
+                let providers = [provider, provider];
+                let mut grants = CapabilityGrants::new();
+                grants.grant("demo.counter.apply");
+                let count = 1 + (usize::from(kind) & 1);
+                let _ = wire::select_provider(
+                    consumer(),
+                    0,
+                    &providers[..count],
+                    &grants,
+                    &mut session,
+                );
             }
         }
         n => {
