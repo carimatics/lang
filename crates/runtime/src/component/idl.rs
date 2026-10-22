@@ -134,6 +134,7 @@ pub fn check(source: m::SourceId, input: &[u8], limits: Limits) -> Result<Checke
             },
             declarations: c.declarations,
             elements: c.elements,
+            data_depth: c.data_depth,
         },
     })
 }
@@ -144,6 +145,39 @@ struct Context {
     budget: m::Budget,
     declarations: usize,
     elements: usize,
+    data_depth: usize,
+}
+// Binary metadata has already checked its closed fields, names and counts.
+// Reuse the complete independent graph/projection proof and cumulative budget.
+pub(super) fn check_decoded(
+    mut document: Document,
+    limits: Limits,
+    budget: m::Budget,
+    declarations: usize,
+    elements: usize,
+) -> (Result<CheckedDocument, Error>, m::Budget) {
+    let mut c = Context {
+        source: document.source,
+        limits,
+        budget,
+        declarations,
+        elements,
+        data_depth: 0,
+    };
+    let result = validate::check(&mut document, &mut c).map(|()| CheckedDocument {
+        document,
+        usage: Usage {
+            budget: m::Usage {
+                work: c.budget.work_used(),
+                allocation_bytes: c.budget.allocation_bytes(),
+                elements: c.budget.elements_used(),
+            },
+            declarations,
+            elements,
+            data_depth: c.data_depth,
+        },
+    });
+    (result, c.budget)
 }
 impl Context {
     fn new(source: m::SourceId, limits: Limits) -> Self {
@@ -152,6 +186,7 @@ impl Context {
             limits,
             declarations: 0,
             elements: 0,
+            data_depth: 0,
             budget: m::Budget::new(m::Limits {
                 work: limits.work,
                 allocations: limits.allocation_bytes,

@@ -437,6 +437,7 @@ impl<'a, 'c> Graph<'a, 'c> {
                     }
                     self.c
                         .cap(value.depth, self.c.limits.depth, LimitKind::Depth, span)?;
+                    self.c.data_depth = self.c.data_depth.max(value.depth);
                     facts[id] = value;
                     states[id] = 2;
                     continue;

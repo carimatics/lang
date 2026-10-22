@@ -1,0 +1,56 @@
+{
+  "idl": 1,
+  "package": "demo:values",
+  "version": "1.2.3-alpha.1+build.001",
+  "interfaces": [{
+    "key": "demo:values/api",
+    "resources": ["unused-owner"],
+    "types": [
+      {"name":"leaf","record":[
+        {"name":"code","type":"i64"},
+        {"name":"flag","type":"bool"},
+        {"name":"label","type":"text"},
+        {"name":"blob","type":"bytes"}
+      ]},
+      {"name":"choice","variant":[
+        {"name":"none","type":"unit"},
+        {"name":"entry","type":"leaf"}
+      ]},
+      {"name":"batch","alias":{"list":"choice"}},
+      {"name":"hidden-owner","alias":{"own":"unused-owner"}},
+      {"name":"summary","record":[
+        {"name":"empty","type":"unit"},
+        {"name":"total","type":"i64"},
+        {"name":"enabled","type":"bool"},
+        {"name":"title","type":"text"},
+        {"name":"raw","type":"bytes"},
+        {"name":"items","type":"batch"},
+        {"name":"maybe","type":{"option":"leaf"}},
+        {"name":"outcome","type":{"result":{"ok":"leaf","err":"text"}}}
+      ]}
+    ],
+    "functions": [
+      {"name":"apply","effect":"sync","params":[{"name":"request","type":"summary"}],
+       "result":{"result":{"ok":"summary","err":"text"}},"capability":"demo.values.apply"},
+      {"name":"tick","effect":"task","params":[],"result":"i64","capability":"demo.values.tick"},
+      {"name":"borrow-state","effect":"sync","params":[
+        {"name":"read","type":{"borrow":"unused-owner"}},
+        {"name":"write","type":{"borrow-mut":"unused-owner"}}
+      ],"result":{"own":"unused-owner"},"capability":"demo.values.state"}
+    ]
+  },{
+    "key":"zzdemo:host/log","resources":["writer"],
+    "types":[{"name":"message","record":[{"name":"text","type":"text"}]}],
+    "functions":[{"name":"write","effect":"sync","params":[
+      {"name":"message","type":"message"},{"name":"writer","type":{"borrow":"writer"}}
+    ],"result":"unit","capability":"zzdemo.host.write"}]
+  },{
+    "key":"zzdemo:host/metrics","resources":[],"types":[],
+    "functions":[{"name":"read","effect":"sync","params":[],"result":"i64","capability":"zzdemo.host.read"}]
+  }],
+  "imports": [
+    {"interface":"zzdemo:host/log","version":{"interval":{"min":"1.0.0-alpha","max":"2.0.0","prerelease":true}},"members":["write"]},
+    {"interface":"zzdemo:host/metrics","version":{"exact":"3.2.1+audit.001"},"members":["read"]}
+  ],
+  "exports": ["demo:values/api"]
+}

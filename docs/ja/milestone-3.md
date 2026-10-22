@@ -10,7 +10,7 @@
 
 **次: M3-I03 → 独立 canonical vector で有界な rich metadata/value codec を検証します。**
 
-現在の作業: **M3-I03（3 pt）**。直近の実行 checkpoint は **`6816a74`、2026-10-22 13:55 JST 検証**の I02 です。残る受入条件は RFC 0027 の LCMP schema 3 contract/report・LCVL v1 value frame・LCSG v1 signature digest の有界 encode/decode、独立 canonical vector、厳密 tag/order/Unicode/ref/digest 検査、不正/truncated/trailing 入力と各上限の境界/1不足です。旧 schema 2 bytes を保持し、value data を resource authority にしません。doing は I03 のみで、I03 の実装や G06 の完了は主張しません。
+現在の作業: **M3-I03（3 pt）**。直近の実行 checkpoint は **bd51fe2 を基点とする未 commit の I03 tree、2026-10-22 15:30 JST 検証**です。wire 23件と IDL 回帰13件、独立 packer の17 golden entry が成功しました。source 固定の全 baseline は **130 suites / 2,016 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **720.36s**。workspace/fuzz fmt・全 target/feature Clippy（**2m 07s**）・rustdoc（**39.77s**）・全13 fuzz target compile/lint（**4.04s**）も成功し、検証前後の257 source file の hash は一致しました。fuzz campaign は主張しません。残る受入条件は commit と code 証拠の監査です。doing は I03 のみ、残り3 pt・追加0 pt を維持し、delivery/G06 や実 contextual resource/embedding は完了扱いにしません。
 
 I02 を `6816a74` で完了（2026-10-22 13:55 JST 検証）: 有界 JSON/schema/反復 DAG 検証、元 source span、閉じた field/name/type/resource/effect/projection 検査、正規化宣言を実装しました。未使用の不正 metadata・循環・aggregate/result borrow・resource を含む task signature・非同期 native import も拒否します。公開13件と parser 3件、全公開 quota の厳密上限/1不足、2,048段 constructor・2,000段 alias・8,192段 JSON、counter 成功/cycle 拒否の実行例が成功しました。source 固定の全 baseline は **129 suites / 1,993 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **731.96s**。workspace/fuzz fmt、Clippy（**37.97s**）、rustdoc（**39.82s**）、全12 fuzz target compile/lint（**4.24s**）が成功しました。fuzz campaign・新しい wire/C/package/実行権限・追加 gate 完了は主張しません。最後の **3 pt** を消化し、**追加/再見積り0 pt**、残り **71 + 0 − 3 = 68 pt**です。
 

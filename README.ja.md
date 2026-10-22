@@ -24,6 +24,8 @@ C06 型 checkpoint（2026-10-21 JST）: opaque `core::ChannelSetup<T>`、`core::
 
 IDL v1 検査 checkpoint（2026-10-22 JST 検証）: `cargo run --example component-idl -- tests/fixtures/component_counter.idl.json` で完全な宣言文書を検査します。有界な検査器は source span を保持し、未使用宣言の不正、循環、borrow/effect の競合、不正 projection を拒否して宣言順序を正規化します。循環型の拒否例は両方の位置を伴う `IDL0004` を報告します。I02 の実装であり、codec・生成 binding・source/MIR component call・authority・production embedding は[実装 Todo](docs/ja/milestone-3.md)に残ります。
 
+Production codec checkpoint（2026-10-22 JST）: `cargo test --test component_wire` で LCMP schema 3 contract/report・alias 解決済み LCSG signature digest・LCVL data-only frame を独立 vector と照合します。rich value は record/case/parameter 順序・厳密 tag・UTF-8 を保持し、単一 preparation session で bytes/work/elements/requested buffer を累積計上します。resource を含む schema は後続の実 call context を要し、data-only API は拒否します。schema-2 bytes は一致を維持します。source/MIR component proof・生成 binding・runtime grant/resource/callback は[実装 Todo](docs/ja/milestone-3.md)に残ります。
+
 ## ビジョン
 
 この言語では、以下を両立させます。

@@ -99,6 +99,7 @@ pub struct Usage {
     pub budget: m::Usage,
     pub declarations: usize,
     pub elements: usize,
+    pub data_depth: usize,
 }
 
 /// Immutable declaration proof. It is neither an executable nor a capability grant.

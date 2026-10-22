@@ -7,6 +7,7 @@ pub mod lockfile;
 pub mod negotiation;
 pub mod resource;
 pub mod serialization;
+pub mod wire;
 
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashSet};

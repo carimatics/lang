@@ -24,6 +24,8 @@ C06 type checkpoint (2026-10-21 JST): opaque `core::ChannelSetup<T>`, `core::Sen
 
 IDL v1 checking checkpoint (verified 2026-10-22 JST): `cargo run --example component-idl -- tests/fixtures/component_counter.idl.json` checks the complete declaration document. The bounded checker retains source spans, rejects invalid unused declarations, cycles, borrow/effect conflicts and projections, and normalizes declaration ordering. The invalid-cycle fixture reports `IDL0004` with both locations. This supplies I02; codecs, generated bindings, source/MIR component calls, authority and production embedding remain tracked on the [delivery board](docs/milestone-3.md).
 
+Production codec checkpoint (2026-10-22 JST): `cargo test --test component_wire` verifies LCMP schema 3 contracts/reports, alias-resolved LCSG signature digests and LCVL data-only frames against independent vectors. Rich values retain record/case/parameter order, strict tags and UTF-8; one preparation session accounts cumulative bytes/work/elements/requested buffers. Resource-bearing schemas require the later actual call context and are refused by the data-only API. Schema-2 bytes remain exact. Source/MIR component proof, generated bindings and runtime grants/resources/callbacks remain on the [delivery board](docs/milestone-3.md).
+
 ## Vision
 
 The language should combine:

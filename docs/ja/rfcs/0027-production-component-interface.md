@@ -16,7 +16,7 @@
 
 component IDL v1、rich component-contract schema 3、typed value-frame v1、独立した component C ABI v1 を定義します。[RFC 0003](0003-versioned-component-contracts.md) の capability・negotiation・所有権・failure・poison 規則を維持します。native host が検証済み source または検証した artifact を読み込み、型付き import と grant を供給して script export を呼び、同じ計上対象 invocation で nested guest callback を受け取ります。native body の演算/制御は生成 native code のままです。adapter は MIR 解釈へ fallback しません。
 
-これは実装方針の決定であり、実装や安定化の証拠ではありません。既存 scalar/resource application prototype と M2 C profile 1 はこの profile の実装ではありません。実行と両 host の証拠は実装 Todo、公開 C の安定化は B02 が管理します。
+この profile は accepted です。下記の IDL/codec checkpoint で一部を実装していますが、source/MIR component proof・実 grant/resource/callback・production embedding・両 host 実行は実装 Todo に残ります。既存 scalar/resource application prototype と M2 C profile 1 は別 profile のままです。公開 C の安定化は実 conformance 後に B02 が管理します。
 
 ## Motivation
 
@@ -214,6 +214,8 @@ IDL・schema・value frame・script artifact・provider metadata は未信頼の
 I02 が有界 IDL parse/check/span、I03 が rich metadata/value codec・独立 canonical vector・厳密 report tag/vector・不正/budget test、I06 が source/MIR component-resource/call/effect proof と未対応拒否、I04 が型付き C/guest binding と完全 header/layout vector、I05 が interface/version negotiation を供給します。R01–R03 で実 resource transfer/loan/cleanup/failure、P01/P02 で実 typed grant と有界 metadata/adapter work を接続します。E01–E04 は host/script call・同期 nested callback・元 context の failure・mixed stack/cancellation、L01–L04 は合算 limit を実証します。I07/I08 は B01 前に serialized task/component と native-package profile を明示的に供給します。B01/B02 は両 host conformance/C migration 安定化、X/Z は runnable plugin example・cost・最終 guide を担当します。各1–3点の delivery を実行証拠で再監査し、欠けた前提は可視化してから実装し、source fixture を横断基盤だけで置換しません。
 
 ## Test plan
+
+I03 実装 checkpoint（2026-10-22 JST）: production wire module に LCMP3 contract/report・alias 解決済み LCSG1 projection・LCVL1 data-only frame を実装しました。wire 23件と IDL 回帰13件で、独立 bytes/digest・完全な version/lock/type・厳密順序/tag・未使用の不正 graph・全 quota 境界・1,024段の値・byte を持たない element・累積 preparation usage・旧 bytes の一致を検証します。独立 reference packer は17 golden entry を再生成します。preparation Session の上限は累積 MIR Budget と入れ子 metadata cap を使い、保持する検査済み data-depth fact で profile 上限の迂回を防ぎます。API は実行 binding・runtime allocator identity・grant・owner・loan を与えません。data-only codec は resource を含む signature を拒否し、contextual index は R01 の実 whole-call preflight へ接続します。実 provider/control 接続は P02、embedding/callback は E01–E04 に残ります。RFC 全体は accepted であり implemented/stabilized ではありません。
 
 I02 実装 checkpoint（2026-10-22 JST）: runtime IDL module に有限な JSON/schema/graph 検証・span 保持・宣言の正規化を実装しました。公開 integration 13件、parser 3件、正常/不正 JSON fixture、有界な `component-idl` 実行例でこの段階を検証します。検査済み wrapper は runtime grant・binding・owner・callback 権限を与えません。RFC の残部は後続 delivery の証拠待ちの accepted であり、implemented/stabilized ではありません。
 
