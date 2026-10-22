@@ -1,0 +1,43 @@
+struct State { inbox:core::Receiver<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>, marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut buffer:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(buffer,value));
+    return buffer;
+}
+
+fn require_invalid(result:&core::SendResult<core::Option<core::ServiceOwner<State,i64>>>)->core::Unit {
+    match result {
+        core::SendResult::InvalidPublication(value)=>{ return core::Unit {}; },
+        core::SendResult::Closed(closed)=>{ return core::panic::<core::Unit>(-98); },
+        core::SendResult::Sent=>{ return core::panic::<core::Unit>(-99); },
+    }
+}
+
+async fn blocked(sender:core::Sender<core::Option<core::ServiceOwner<State,i64>>>,input:core::ServiceOwner<State,i64>)->i64 {
+    let mut result:core::SendResult<core::Option<core::ServiceOwner<State,i64>>>=await core::channel_send::<core::Option<core::ServiceOwner<State,i64>>>(&sender,core::Option::Some(input));
+    let mut checked:core::Unit=require_invalid(&result);
+    let mut returned:core::Option<core::ServiceOwner<State,i64>>=core::channel_unsent::<core::Option<core::ServiceOwner<State,i64>>>(result);
+    let mut owner:core::ServiceOwner<State,i64>=core::option_unwrap::<core::ServiceOwner<State,i64>>(returned);
+    let mut answer:i64=core::option_unwrap::<i64>(await core::service_receive::<State,i64>(&mut owner));
+    return answer;
+}
+
+async fn main()->i64 {
+    let mut relay:core::ChannelSetup<core::Option<core::ServiceOwner<State,i64>>>=core::result_unwrap::<core::ChannelSetup<core::Option<core::ServiceOwner<State,i64>>>,core::ChannelError>(core::channel_new::<core::Option<core::ServiceOwner<State,i64>>>(core::allocator(),1));
+    let mut sender:core::Sender<core::Option<core::ServiceOwner<State,i64>>>=core::channel_sender::<core::Option<core::ServiceOwner<State,i64>>>(&relay);
+    let mut receiver:core::Receiver<core::Option<core::ServiceOwner<State,i64>>>=core::channel_receiver::<core::Option<core::ServiceOwner<State,i64>>>(relay);
+    let mut inbox:core::ChannelSetup<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>=core::result_unwrap::<core::ChannelSetup<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>,core::ChannelError>(core::channel_new::<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>(core::allocator(),1));
+    let mut inbox_sender:core::Sender<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>=core::channel_sender::<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>(&inbox);
+    let mut inbox_receiver:core::Receiver<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>=core::channel_receiver::<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>(inbox);
+    let mut setup:core::ServiceSetup<State,i64>=core::result_unwrap::<core::ServiceSetup<State,i64>,core::ServiceError>(core::service_new::<State,i64>(core::allocator(),1,State { inbox:inbox_receiver,marker:bytes(7) }));
+    let mut handle:core::ServiceHandle<i64>=core::service_handle::<State,i64>(&setup);
+    let mut owner:core::ServiceOwner<State,i64>=core::service_owner::<State,i64>(setup);
+    let mut seeded:core::SendResult<core::Option<core::ServiceOwner<State,i64>>>=await core::channel_send::<core::Option<core::ServiceOwner<State,i64>>>(&sender,core::Option::None);
+    let mut sending:core::Task<i64>=spawn blocked(sender,owner);
+    yield;
+    let mut removed:core::Option<core::ServiceOwner<State,i64>>=core::option_unwrap::<core::Option<core::ServiceOwner<State,i64>>>(await core::channel_receive::<core::Option<core::ServiceOwner<State,i64>>>(&mut receiver));
+    let mut linked:core::SendResult<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>=await core::channel_send::<core::Receiver<core::Option<core::ServiceOwner<State,i64>>>>(&inbox_sender,receiver);
+    let mut sent:core::SendResult<i64>=await core::service_send::<i64>(&handle,42);
+    return core::result_unwrap::<i64,core::TaskError>(await sending);
+}

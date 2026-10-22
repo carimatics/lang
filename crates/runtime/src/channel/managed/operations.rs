@@ -158,33 +158,41 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         clippy::too_many_arguments,
         reason = "Inspection borrows the invocation identity, live backing, bounded walker and allocator without adding an owner registry."
     )]
-    fn inspect<P: a::Provider>(
+    pub(super) fn inspect_publication<P: a::Provider>(
         layouts: &'l l::Layouts<'ty>,
         backing: &[Backing<'l, 'ty>],
         tickets: &[Option<a::Handle>],
         identity: &Rc<()>,
         inspector: &mut inspection::Inspector<'l, 'ty>,
         heap: Option<&crate::shared::managed::Heap<'l, 'ty>>,
-        message: &Message<'l, 'ty>,
+        root: PublicationRoot<'_, Message<'l, 'ty>>,
         allocator: &a::Allocator<P>,
         work: &e::ServiceWork,
         visit: &mut dyn FnMut(&Receiver) -> Result<(), super::super::Error>,
     ) -> Result<(), super::super::Error> {
-        let storage = message
-            .storage
-            .as_ref()
-            .ok_or(super::super::Error::InvalidPayload)?;
+        let (storage, span) = match root {
+            PublicationRoot::Message(message) => (
+                message
+                    .storage
+                    .as_ref()
+                    .ok_or(super::super::Error::InvalidPayload)?,
+                message.span,
+            ),
+            PublicationRoot::State(index) => {
+                let backing = backing
+                    .get(index)
+                    .ok_or(super::super::Error::InvalidEndpoint)?;
+                let Some(state) = backing.service.as_ref() else {
+                    return Ok(());
+                };
+                let Some(storage) = state.storage.as_ref() else {
+                    return Ok(());
+                };
+                (storage, state.span)
+            }
+        };
         Self::inspect_value(
-            layouts,
-            backing,
-            tickets,
-            identity,
-            inspector,
-            heap,
-            storage,
-            message.span,
-            allocator,
-            work,
+            layouts, backing, tickets, identity, inspector, heap, storage, span, allocator, work,
             visit,
         )
     }
@@ -326,14 +334,14 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         let layouts = self.layouts;
         let work = self.hub.work.clone();
         self.hub
-            .send_inspected(
+            .send_with_publication(
                 scheduler,
                 task,
                 &key,
                 message,
                 span,
                 &mut |message, visit| {
-                    Self::inspect(
+                    Self::inspect_publication(
                         layouts, backing, tickets, &identity, inspector, heap, message, allocator,
                         &work, visit,
                     )
@@ -360,8 +368,8 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         let work = self.hub.work.clone();
         Ok(self
             .hub
-            .resume_send_inspected(scheduler, operation, &mut |message, visit| {
-                Self::inspect(
+            .resume_send_with_publication(scheduler, operation, &mut |message, visit| {
+                Self::inspect_publication(
                     layouts, backing, tickets, &identity, inspector, heap, message, allocator,
                     &work, visit,
                 )

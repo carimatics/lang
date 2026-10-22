@@ -2,7 +2,7 @@ use super::*;
 
 struct Inspection<'a, T> {
     identity: &'a Rc<()>,
-    inspect: &'a mut PayloadInspection<'a, T>,
+    inspect: &'a mut PublicationInspection<'a, T>,
     channels: &'a [Channel<T>],
     work: &'a e::ServiceWork,
     visited: &'a mut [bool],
@@ -11,8 +11,10 @@ struct Inspection<'a, T> {
     cycle: bool,
 }
 impl<T: Payload> Inspection<'_, T> {
-    fn value(&mut self, value: &T) -> Result<(), Error> {
-        self.work.charge(1)?;
+    fn value(&mut self, value: PublicationRoot<'_, T>) -> Result<(), Error> {
+        if matches!(&value, PublicationRoot::Message(_)) {
+            self.work.charge(1)?;
+        }
         let identity = self.identity;
         let channels = self.channels;
         let visited = &mut self.visited;
@@ -42,7 +44,7 @@ impl<T: Payload> Inspection<'_, T> {
         })
     }
 
-    fn check(mut self, value: &T) -> Result<bool, Error> {
+    fn check(mut self, value: PublicationRoot<'_, T>) -> Result<bool, Error> {
         self.visited.fill(false);
         self.stack.clear();
         self.value(value)?;
@@ -50,10 +52,13 @@ impl<T: Payload> Inspection<'_, T> {
         while !self.cycle {
             let Some(index) = self.stack.pop() else { break };
             for entry in channels[index].values.entries() {
-                self.value(&entry.value.value)?;
+                self.value(PublicationRoot::Message(&entry.value.value))?;
                 if self.cycle {
                     break;
                 }
+            }
+            if !self.cycle {
+                self.value(PublicationRoot::State(index))?;
             }
         }
         Ok(!self.cycle)
@@ -65,7 +70,7 @@ impl<T: Payload> Hub<T> {
         &mut self,
         target: usize,
         value: &T,
-        inspect: &mut PayloadInspection<'_, T>,
+        inspect: &mut PublicationInspection<'_, T>,
     ) -> Result<bool, Error> {
         Inspection {
             identity: &self.identity,
@@ -77,13 +82,37 @@ impl<T: Payload> Hub<T> {
             target,
             cycle: false,
         }
-        .check(value)
+        .check(PublicationRoot::Message(value))
+    }
+
+    /// Check the prospective state of an existing or not-yet-published channel.
+    /// The read-only adapter substitutes only this root; all reached messages
+    /// and other states are read from their actual committed storage.
+    pub(crate) fn state_publication(
+        &mut self,
+        target: usize,
+        inspect: &mut PublicationInspection<'_, T>,
+    ) -> Result<bool, Error> {
+        if target > self.channels.len() {
+            return Err(Error::InvalidEndpoint);
+        }
+        Inspection {
+            identity: &self.identity,
+            inspect,
+            channels: &self.channels,
+            work: &self.work,
+            visited: &mut self.visited,
+            stack: &mut self.inspection,
+            target,
+            cycle: false,
+        }
+        .check(PublicationRoot::State(target))
     }
 
     pub(super) fn pending_publication(
         &mut self,
         slot: usize,
-        inspect: &mut PayloadInspection<'_, T>,
+        inspect: &mut PublicationInspection<'_, T>,
     ) -> Result<bool, Error> {
         let pending = self.pending[slot].as_ref().unwrap();
         let Kind::Send(message) = &pending.kind else {
@@ -99,6 +128,6 @@ impl<T: Payload> Hub<T> {
             target: pending.channel,
             cycle: false,
         }
-        .check(&message.value)
+        .check(PublicationRoot::Message(&message.value))
     }
 }

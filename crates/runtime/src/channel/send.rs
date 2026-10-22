@@ -24,6 +24,23 @@ impl<T: Payload> Hub<T> {
         span: Option<Span>,
         inspect: &mut PayloadInspection<'_, T>,
     ) -> Result<Send<T>, Failure<T>> {
+        self.send_with_publication(scheduler, task, sender, value, span, &mut |root, visit| {
+            match root {
+                PublicationRoot::Message(value) => inspect(value, visit),
+                PublicationRoot::State(_) => Ok(()),
+            }
+        })
+    }
+
+    pub(crate) fn send_with_publication(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        task: &t::TaskId,
+        sender: &Sender,
+        value: T,
+        span: Option<Span>,
+        inspect: &mut PublicationInspection<'_, T>,
+    ) -> Result<Send<T>, Failure<T>> {
         let owner_span = value.owner_span().or(span);
         let checked = (|| {
             self.running(scheduler, task)?;
@@ -164,6 +181,18 @@ impl<T: Payload> Hub<T> {
         scheduler: &mut t::Scheduler,
         operation: &Operation,
         inspect: &mut PayloadInspection<'_, T>,
+    ) -> Result<Send<T>, Error> {
+        self.resume_send_with_publication(scheduler, operation, &mut |root, visit| match root {
+            PublicationRoot::Message(value) => inspect(value, visit),
+            PublicationRoot::State(_) => Ok(()),
+        })
+    }
+
+    pub(crate) fn resume_send_with_publication(
+        &mut self,
+        scheduler: &mut t::Scheduler,
+        operation: &Operation,
+        inspect: &mut PublicationInspection<'_, T>,
     ) -> Result<Send<T>, Error> {
         let slot = self.operation(operation)?;
         self.running(scheduler, operation.task())?;

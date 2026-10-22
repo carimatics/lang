@@ -149,6 +149,18 @@ pub struct Receiver(pub(super) Key);
 pub type PayloadInspection<'a, T> =
     dyn FnMut(&T, &mut dyn FnMut(&Receiver) -> Result<(), Error>) -> Result<(), Error> + 'a;
 
+/// Actual roots of the existing queue/state ownership graph. The channel
+/// index selects its backing; it does not cache or assert ownership edges.
+pub(crate) enum PublicationRoot<'a, T> {
+    Message(&'a T),
+    State(usize),
+}
+pub(crate) type PublicationInspection<'a, T> = dyn FnMut(
+        PublicationRoot<'_, T>,
+        &mut dyn FnMut(&Receiver) -> Result<(), Error>,
+    ) -> Result<(), Error>
+    + 'a;
+
 /// Trusted native adapters enumerate actual strong receive-authority edges.
 /// Safe source requires independent type/move/loan proof before constructing
 /// its payload wrapper; this interface is not a user-asserted Send capability.

@@ -1,0 +1,45 @@
+struct Outbox { handle:core::ServiceHandle<core::Receiver<i64>> }
+struct State { stored:shared Outbox, observer:weak Outbox, inbox:core::Receiver<i64> }
+
+fn clone_handle(stored:&shared Outbox)->core::ServiceHandle<core::Receiver<i64>> {
+    match core::shared_read::<Outbox>(stored) {
+        core::Result::Ok(view)=>{ return core::service_clone::<core::Receiver<i64>>(&view.handle); },
+        core::Result::Err(error)=>{ return core::panic::<core::ServiceHandle<core::Receiver<i64>>>(-9); },
+    }
+}
+
+async fn main()->i64 {
+    let mut sink:core::ServiceSetup<i64,core::Receiver<i64>>=core::result_unwrap::<core::ServiceSetup<i64,core::Receiver<i64>>,core::ServiceError>(core::service_new::<i64,core::Receiver<i64>>(core::allocator(),1,7));
+    let mut first:core::ServiceHandle<core::Receiver<i64>>=core::service_handle::<i64,core::Receiver<i64>>(&sink);
+    let mut sink_owner:core::ServiceOwner<i64,core::Receiver<i64>>=core::service_owner::<i64,core::Receiver<i64>>(sink);
+    let mut stored:shared Outbox=core::result_unwrap::<shared Outbox,core::OwnershipError>(core::shared_new::<Outbox>(core::allocator(),Outbox { handle:first }));
+    let mut observer:weak Outbox=core::result_unwrap::<weak Outbox,core::OwnershipError>(core::weak_new::<Outbox>(&stored));
+    let mut replacement:core::ServiceHandle<core::Receiver<i64>>=clone_handle(&stored);
+    let mut replaced:core::Unit=core::result_unwrap::<core::Unit,core::OwnershipError>(core::shared_replace::<Outbox>(&mut stored,Outbox { handle:replacement }));
+    let mut empty:core::ChannelSetup<i64>=core::result_unwrap::<core::ChannelSetup<i64>,core::ChannelError>(core::channel_new::<i64>(core::allocator(),1));
+    let mut inbox:core::Receiver<i64>=core::channel_receiver::<i64>(empty);
+    let mut setup:core::ServiceSetup<State,i64>=core::result_unwrap::<core::ServiceSetup<State,i64>,core::ServiceError>(core::service_new::<State,i64>(core::allocator(),1,State { stored:stored,observer:observer,inbox:inbox }));
+    let mut handle:core::ServiceHandle<i64>=core::service_handle::<State,i64>(&setup);
+    let mut owner:core::ServiceOwner<State,i64>=core::service_owner::<State,i64>(setup);
+    let mut seeded:core::SendResult<i64>=await core::service_send::<i64>(&handle,42);
+    let mut answer:i64=core::option_unwrap::<i64>(await core::service_receive::<State,i64>(&mut owner));
+    let mut retained:core::Option<core::ServiceHandle<core::Receiver<i64>>>=core::Option::None;
+    match core::service_read::<State,i64>(&owner) {
+        core::Result::Ok(state)=>{
+            let mut upgraded:shared Outbox=core::result_unwrap::<shared Outbox,core::OwnershipError>(core::weak_upgrade::<Outbox>(&state.observer));
+            retained=core::Option::Some(clone_handle(&upgraded));
+        },
+        core::Result::Err(error)=>{ return core::panic::<i64>(-6); },
+    }
+    let mut kept:core::ServiceHandle<core::Receiver<i64>>=core::option_unwrap::<core::ServiceHandle<core::Receiver<i64>>>(retained);
+    let mut cancelled:core::Unit=core::service_cancel::<i64>(&handle);
+    let mut finished:core::Unit=core::service_finish::<State,i64>(&mut owner);
+    let mut payload:core::ChannelSetup<i64>=core::result_unwrap::<core::ChannelSetup<i64>,core::ChannelError>(core::channel_new::<i64>(core::allocator(),1));
+    let mut payload_sender:core::Sender<i64>=core::channel_sender::<i64>(&payload);
+    let mut payload_receiver:core::Receiver<i64>=core::channel_receiver::<i64>(payload);
+    let mut value:core::SendResult<i64>=await core::channel_send::<i64>(&payload_sender,42);
+    let mut sent:core::SendResult<core::Receiver<i64>>=await core::service_send::<core::Receiver<i64>>(&kept,payload_receiver);
+    let mut recovered:core::Receiver<i64>=core::option_unwrap::<core::Receiver<i64>>(await core::service_receive::<i64,core::Receiver<i64>>(&mut sink_owner));
+    let mut received:i64=core::option_unwrap::<i64>(await core::channel_receive::<i64>(&mut recovered));
+    return answer+received+ -42;
+}

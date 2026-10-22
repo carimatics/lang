@@ -40,6 +40,29 @@ const SERVICE_COPY_FIXTURES: &[(&str, &str)] = &[
     ),
 ];
 
+const SERVICE_STATE_FIXTURES: &[(&str, &str)] = &[
+    (
+        "receiver-state",
+        include_str!("fixtures/task_service_owned_state.lang"),
+    ),
+    (
+        "state-cycle",
+        include_str!("fixtures/task_service_state_cycle.lang"),
+    ),
+    (
+        "state-reinspect",
+        include_str!("fixtures/task_service_state_reinspect.lang"),
+    ),
+    (
+        "state-replace",
+        include_str!("fixtures/task_service_state_replace.lang"),
+    ),
+    (
+        "state-shared-handle",
+        include_str!("fixtures/task_service_state_shared_handle.lang"),
+    ),
+];
+
 fn prepare(text: &str) -> Box<TaskProgram> {
     let out = lang::frontend::analyze_virtual(
         lang_diagnostics::SourceMap::new(),
@@ -60,6 +83,282 @@ fn fixture() -> Box<TaskProgram> {
 }
 fn allocator() -> a::Allocator<a::System> {
     a::Allocator::new(a::System, Default::default()).unwrap()
+}
+
+#[test]
+fn receiver_owned_state_executes_fifo_reads_and_retires_its_nested_queue() {
+    let program = prepare(include_str!("fixtures/task_service_owned_state.lang"));
+    let (mut heap, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut heap,
+        e::Control::with_limits(Default::default()),
+        r::Limits {
+            trace_events: 2048,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        heap.stats().live_allocations,
+        0,
+        "{:?}",
+        result.as_ref().err()
+    );
+    assert!(trace.borrow().live.is_empty());
+    assert_eq!(result.unwrap().value, 42);
+    let mut buffers = trace.borrow().buffers.clone();
+    buffers.sort_unstable();
+    assert_eq!(buffers, [3, 7, 20, 22]);
+}
+
+#[test]
+fn publication_follows_actual_service_state_and_returns_a_rejected_recursive_owner() {
+    let program = prepare(include_str!("fixtures/task_service_state_cycle.lang"));
+    let (mut heap, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut heap,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    );
+    assert_eq!(
+        heap.stats().live_allocations,
+        0,
+        "{:?}",
+        result.as_ref().err()
+    );
+    assert!(trace.borrow().live.is_empty());
+    assert_eq!(result.unwrap().value, 42);
+    assert_eq!(trace.borrow().buffers, [7]);
+}
+
+#[test]
+fn resumed_sends_reinspect_receivers_queued_under_service_state_after_wakeup() {
+    let program = prepare(include_str!("fixtures/task_service_state_reinspect.lang"));
+    let (mut heap, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut heap,
+        e::Control::with_limits(Default::default()),
+        r::Limits {
+            trace_events: 4096,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        heap.stats().live_allocations,
+        0,
+        "{:?}",
+        result.as_ref().err()
+    );
+    assert!(trace.borrow().live.is_empty());
+    let result = result.unwrap();
+    assert_eq!(result.value, 42);
+    assert_eq!(trace.borrow().buffers, [7]);
+    assert!(
+        result
+            .events
+            .iter()
+            .filter(|event| event.task == 1 && event.kind == r::EventKind::Resume)
+            .count()
+            >= 2
+    );
+}
+
+#[test]
+fn whole_replacement_moves_nested_service_owners_and_vector_held_receivers_once() {
+    let program = prepare(include_str!("fixtures/task_service_state_replace.lang"));
+    let (mut heap, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut heap,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    );
+    assert_eq!(
+        heap.stats().live_allocations,
+        0,
+        "{:?}",
+        result.as_ref().err()
+    );
+    assert!(trace.borrow().live.is_empty());
+    assert_eq!(result.unwrap().value, 42);
+    assert_eq!(trace.borrow().buffers, [7, 107, 22, 20, 9, 109]);
+}
+
+#[test]
+fn shared_weak_service_handles_keep_checked_authority_and_phantom_receiver_parameters() {
+    let program = prepare(include_str!(
+        "fixtures/task_service_state_shared_handle.lang"
+    ));
+    let (mut heap, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut heap,
+        e::Control::with_limits(Default::default()),
+        Default::default(),
+    );
+    assert_eq!(
+        heap.stats().live_allocations,
+        0,
+        "{:?}",
+        result.as_ref().err()
+    );
+    assert!(trace.borrow().live.is_empty());
+    assert_eq!(result.unwrap().value, 42);
+    assert!(trace.borrow().buffers.is_empty());
+}
+
+#[test]
+fn recursive_service_state_retirement_is_iterative_and_keeps_nested_headers_live() {
+    let program = prepare(include_str!("fixtures/task_service_state_deep.lang"));
+    let (mut heap, trace) = channel_allocator(usize::MAX);
+    let result = lang_vm::unit::tasks::execute_entry(
+        program.verified(),
+        &mut heap,
+        e::Control::with_limits(Default::default()),
+        r::Limits {
+            channels: lang_runtime::channel::Limits {
+                channels: 64,
+                slots: 64,
+                handles: 0,
+                waiters: 0,
+            },
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        heap.stats().live_allocations,
+        0,
+        "{:?}",
+        result.as_ref().err()
+    );
+    assert!(trace.borrow().live.is_empty());
+    assert_eq!(result.unwrap().value, 42);
+    assert_eq!(trace.borrow().buffers, (0..64).rev().collect::<Vec<_>>());
+}
+
+#[test]
+fn owned_receiver_state_quotas_refuse_one_below_exact_and_keep_real_inventory() {
+    let program = prepare(include_str!("fixtures/task_service_owned_state.lang"));
+    let exact = lang_runtime::channel::Limits {
+        channels: 2,
+        slots: 2,
+        handles: 2,
+        waiters: 2,
+    };
+    for kind in 0..=4 {
+        let mut channels = exact;
+        match kind {
+            0 => channels.channels -= 1,
+            1 => channels.slots -= 1,
+            2 => channels.handles -= 1,
+            3 => channels.waiters -= 1,
+            _ => {}
+        }
+        let (mut heap, trace) = channel_allocator(usize::MAX);
+        let result = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            r::Limits {
+                channels,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            heap.stats().live_allocations,
+            0,
+            "quota {kind}: {:?}",
+            result.as_ref().err()
+        );
+        assert!(trace.borrow().live.is_empty(), "quota {kind}");
+        if kind == 4 {
+            assert_eq!(result.unwrap().value, 42);
+        } else {
+            use lang_runtime::channel::{Error as C, managed::Error as G};
+            let failure = result.err().expect("one below quota");
+            assert!(
+                matches!(
+                    (kind, &failure.reason),
+                    (
+                        0,
+                        r::Reason::Channel(G::Protocol(C::ChannelLimit { limit: 1 }))
+                    ) | (
+                        1,
+                        r::Reason::Channel(G::Protocol(C::SlotLimit { limit: 1 }))
+                    ) | (
+                        2,
+                        r::Reason::Channel(G::Protocol(C::HandleLimit { limit: 1 }))
+                    ) | (
+                        3,
+                        r::Reason::Channel(G::Protocol(C::WaiterLimit { limit: 1 }))
+                    )
+                ),
+                "quota {kind}: {failure:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_owner_state_cleanup_keeps_primary_panics_and_continues_after_truncation() {
+    let fixture = include_str!("fixtures/task_service_state_replace.lang");
+    for primary in [false, true] {
+        let source = if primary {
+            format!(
+                "{}return core::panic::<i64>(91);}}\nasync fn main{}",
+                fixture
+                    .split("    let mut second:core::Bytes=")
+                    .next()
+                    .unwrap(),
+                fixture.split("async fn main").nth(1).unwrap()
+            )
+        } else {
+            fixture.to_owned()
+        };
+        let program = prepare(&source);
+        for records in [1, 8] {
+            let (mut heap, trace) = channel_allocator(usize::MAX);
+            trace.borrow_mut().panic_buffers = vec![9, 109];
+            let failure = lang_vm::unit::tasks::execute_entry(
+                program.verified(),
+                &mut heap,
+                e::Control::with_limits(Default::default()),
+                r::Limits {
+                    cleanup_failure_records: records,
+                    ..Default::default()
+                },
+            )
+            .err()
+            .expect("nested cleanup panics");
+            if primary {
+                assert!(
+                    matches!(failure.reason, r::Reason::Panic(Some(91))),
+                    "{failure:?}"
+                );
+            } else {
+                assert!(matches!(failure.reason, r::Reason::Cleanup), "{failure:?}");
+            }
+            let report = failure.report.as_ref().unwrap();
+            assert!(failure.poisoned);
+            assert_eq!(report.cleanup_failures(), 2);
+            if records == 1 {
+                assert!(report.secondary().is_empty());
+                assert!(report.truncated() > 0);
+            }
+            let buffers = &trace.borrow().buffers;
+            let at = |byte| buffers.iter().position(|value| *value == byte).unwrap();
+            assert!(at(7) < at(107));
+            assert!(at(9) < at(109));
+            let mut sorted = buffers.clone();
+            sorted.sort_unstable();
+            assert_eq!(sorted, [7, 9, 20, 22, 107, 109]);
+            assert_eq!(heap.stats().live_allocations, 0);
+            assert!(trace.borrow().live.is_empty());
+            assert_eq!(failure.tasks.live, 0);
+        }
+    }
 }
 
 #[test]
@@ -327,24 +626,29 @@ fn trace_prefixes_release_retained_capture_and_state_authority() {
 }
 
 #[test]
-fn non_share_state_refuses_before_allocator_effects() {
+fn non_share_state_metadata_is_admitted_only_by_the_private_service_vm() {
     for text in [
         "fn carry(owner:core::ServiceOwner<core::Receiver<i64>,i64>)->core::ServiceOwner<core::Receiver<i64>,i64>{return owner;}async fn main()->i64{yield;return 42;}",
         "fn carry(owner:core::ServiceOwner<core::Vec<core::Receiver<i64>>,i64>)->core::ServiceOwner<core::Vec<core::Receiver<i64>>,i64>{return owner;}async fn main()->i64{yield;return 42;}",
     ] {
         let program = prepare(text);
         let mut heap = allocator();
-        let before = heap.stats();
+        let outcome = lang_vm::unit::tasks::execute_entry(
+            program.verified(),
+            &mut heap,
+            e::Control::with_limits(Default::default()),
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(outcome.value, 42);
+        assert_eq!(heap.stats().live_allocations, 0);
         assert!(
-            lang_vm::unit::tasks::execute_entry(
+            lang_codegen_clif::tasks::CompiledProgram::compile(
                 program.verified(),
-                &mut heap,
-                e::Control::with_limits(Default::default()),
                 Default::default()
             )
             .is_err()
         );
-        assert_eq!(heap.stats(), before);
     }
 }
 
@@ -772,6 +1076,7 @@ fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
     for &(name, text) in SERVICE_SHUTDOWN_FIXTURES
         .iter()
         .chain(SERVICE_COPY_FIXTURES)
+        .chain(SERVICE_STATE_FIXTURES)
     {
         let program = prepare(text);
         let mut heap = allocator();
@@ -804,8 +1109,10 @@ fn every_shutdown_work_fuel_trace_and_cell_prefix_drains_all_owners() {
             if work < baseline.usage.service_work {
                 let failure = result.err().expect("work prefix");
                 assert!(
-                    matches!(failure.reason,r::Reason::Control(e::Failure::ServiceWorkLimit {limit,..}) if limit==work),
-                    "{failure:?}"
+                    matches!(failure.reason,
+                        r::Reason::Control(e::Failure::ServiceWorkLimit {limit,..})
+                        | r::Reason::Execution(lang_mir::unit::ownership::failure::ExecutionFailure::ServiceWorkLimit {limit,..}) if limit==work),
+                    "{name} work {work}: {failure:?}"
                 );
             } else {
                 assert_eq!(result.unwrap().value, 42);
@@ -894,6 +1201,7 @@ fn every_shutdown_provider_refusal_and_interruption_position_drains_the_real_inv
     for &(name, text) in SERVICE_SHUTDOWN_FIXTURES
         .iter()
         .chain(SERVICE_COPY_FIXTURES)
+        .chain(SERVICE_STATE_FIXTURES)
     {
         let program = prepare(text);
         let (mut heap, trace) = channel_allocator(usize::MAX);

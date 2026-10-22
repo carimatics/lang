@@ -1,0 +1,19 @@
+struct State { child:core::Option<core::ServiceOwner<State,i64>>, marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut buffer:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(buffer,value));
+    return buffer;
+}
+
+async fn main()->i64 {
+    let mut chain:core::Option<core::ServiceOwner<State,i64>>=core::Option::None;
+    let mut depth:i64=0;
+    while depth<64 {
+        let mut setup:core::ServiceSetup<State,i64>=core::result_unwrap::<core::ServiceSetup<State,i64>,core::ServiceError>(core::service_new::<State,i64>(core::allocator(),1,State { child:chain,marker:bytes(depth) }));
+        let mut owner:core::ServiceOwner<State,i64>=core::service_owner::<State,i64>(setup);
+        chain=core::Option::Some(owner);
+        depth=depth+1;
+    }
+    return 42;
+}

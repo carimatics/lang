@@ -367,13 +367,13 @@ fn initial_service_layout_admits_share_state_and_refuses_receiver_state() {
     let Program::Tasks(program) = out.result.unwrap() else {
         panic!("task proof")
     };
-    assert!(matches!(
+    assert!(
         lang_runtime::layout::Layouts::compile_service_tasks(
             program.verified(),
             Default::default()
-        ),
-        Err(lang_runtime::layout::Error::UnsupportedServiceProfile { .. })
-    ));
+        )
+        .is_ok()
+    );
 }
 
 #[test]

@@ -110,8 +110,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             .types()
             .properties(ty)
             .ok_or(Error::MessageType)?;
-        if !properties.is_share()
-            || !properties.is_send()
+        if !properties.is_send()
             || self.layouts.types().equivalent(ty, input.root().ty()) != Some(true)
             || !std::ptr::eq(input.layouts(), self.layouts)
         {
@@ -127,7 +126,14 @@ impl<'l, 'ty> Channels<'l, 'ty> {
                 .checked_add(1)
                 .ok_or(Error::State)?,
         )?;
-        self.inspect_state(input, span, inspector, heap, allocator)?;
+        self.inspect_state(
+            self.hub.channels.len(),
+            input,
+            span,
+            inspector,
+            heap,
+            allocator,
+        )?;
         let mut storage = l::Reservation::allocate(self.layouts, ty, allocator)?;
         let transfer = if properties.is_copy {
             storage.copy_from_with_service_work(
@@ -184,27 +190,37 @@ impl<'l, 'ty> Channels<'l, 'ty> {
         Ok(index)
     }
     fn inspect_state<P: a::Provider>(
-        &self,
+        &mut self,
+        target: usize,
         input: &l::Reservation<'l, 'ty>,
         span: Option<Span>,
         inspector: &mut crate::inspection::Inspector<'l, 'ty>,
         heap: Option<&crate::shared::managed::Heap<'l, 'ty>>,
         allocator: &a::Allocator<P>,
     ) -> Result<(), Error> {
-        Self::inspect_value(
-            self.layouts,
-            &self.backing,
-            &self.tickets,
-            &self.hub.identity,
-            inspector,
-            heap,
-            input,
-            span,
-            allocator,
-            &self.hub.work,
-            &mut |_| Err(super::super::Error::InvalidPayload),
-        )
-        .map_err(Error::Protocol)
+        let identity = Rc::clone(&self.hub.identity);
+        let backing = &self.backing;
+        let tickets = &self.tickets;
+        let layouts = self.layouts;
+        let work = self.hub.work.clone();
+        let accepted = self
+            .hub
+            .state_publication(target, &mut |root, visit| match root {
+                PublicationRoot::State(index) if index == target => Self::inspect_value(
+                    layouts, backing, tickets, &identity, inspector, heap, input, span, allocator,
+                    &work, visit,
+                ),
+                root => Self::inspect_publication(
+                    layouts, backing, tickets, &identity, inspector, heap, root, allocator, &work,
+                    visit,
+                ),
+            })
+            .map_err(Error::Protocol)?;
+        if accepted {
+            Ok(())
+        } else {
+            Err(Error::Service(l::ServiceError::InvalidPublication))
+        }
     }
     pub(crate) fn service_read<P: a::Provider>(
         &mut self,
@@ -291,7 +307,7 @@ impl<'l, 'ty> Channels<'l, 'ty> {
             return Err(Error::State);
         }
         let generation = state.generation.checked_add(1).ok_or(Error::State)?;
-        self.inspect_state(incoming, Some(span), inspector, heap, allocator)?;
+        self.inspect_state(index, incoming, Some(span), inspector, heap, allocator)?;
         let state = self.backing[index]
             .service
             .as_mut()

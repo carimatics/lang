@@ -1,0 +1,35 @@
+struct State { relay:core::Receiver<core::ServiceOwner<State,i64>>, marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut buffer:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(buffer,value));
+    return buffer;
+}
+
+fn require_invalid(result:&core::SendResult<core::ServiceOwner<State,i64>>)->core::Unit {
+    match result {
+        core::SendResult::InvalidPublication(value)=>{ return core::Unit {}; },
+        core::SendResult::Closed(closed)=>{ return core::panic::<core::Unit>(-98); },
+        core::SendResult::Sent=>{ return core::panic::<core::Unit>(-99); },
+    }
+}
+
+async fn main()->i64 {
+    let mut relay:core::ChannelSetup<core::ServiceOwner<State,i64>>=core::result_unwrap::<core::ChannelSetup<core::ServiceOwner<State,i64>>,core::ChannelError>(core::channel_new::<core::ServiceOwner<State,i64>>(core::allocator(),1));
+    let mut sender:core::Sender<core::ServiceOwner<State,i64>>=core::channel_sender::<core::ServiceOwner<State,i64>>(&relay);
+    let mut receiver:core::Receiver<core::ServiceOwner<State,i64>>=core::channel_receiver::<core::ServiceOwner<State,i64>>(relay);
+    let mut setup:core::ServiceSetup<State,i64>=core::result_unwrap::<core::ServiceSetup<State,i64>,core::ServiceError>(core::service_new::<State,i64>(core::allocator(),1,State { relay:receiver,marker:bytes(7) }));
+    let mut handle:core::ServiceHandle<i64>=core::service_handle::<State,i64>(&setup);
+    let mut owner:core::ServiceOwner<State,i64>=core::service_owner::<State,i64>(setup);
+    let mut outcome:core::SendResult<core::ServiceOwner<State,i64>>=await core::channel_send::<core::ServiceOwner<State,i64>>(&sender,owner);
+    let mut checked:core::Unit=require_invalid(&outcome);
+    let mut recovered:core::ServiceOwner<State,i64>=core::channel_unsent::<core::ServiceOwner<State,i64>>(outcome);
+    let mut sent:core::SendResult<i64>=await core::service_send::<i64>(&handle,42);
+    let mut answer:i64=core::option_unwrap::<i64>(await core::service_receive::<State,i64>(&mut recovered));
+    let mut marker:i64=0;
+    match core::service_read::<State,i64>(&recovered) {
+        core::Result::Ok(state)=>{ marker=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&state.marker,0)); },
+        core::Result::Err(error)=>{ return core::panic::<i64>(-6); },
+    }
+    return answer+marker+ -7;
+}

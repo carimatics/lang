@@ -186,8 +186,7 @@ impl<'types> Layouts<'types> {
             Profile::Channels,
         )
     }
-    /// Initial private service storage. Full Send state admission remains a
-    /// separate delivery; the first VM profile requires receiver-free Share S.
+    /// Private service storage with independently proved Send/storable state.
     #[doc(hidden)]
     pub fn compile_service_tasks(
         proof: &'types o::tasks::VerifiedTasks,
@@ -224,7 +223,7 @@ impl<'types> Layouts<'types> {
                 budget.charge(1)?;
                 if let o::Constructor::ServiceSetup(state, _)
                 | o::Constructor::ServiceOwner(state, _) = entry.constructor
-                    && types.properties(state).is_none_or(|p| !p.is_share())
+                    && types.properties(state).is_none_or(|p| !p.is_send())
                 {
                     return Err(Error::UnsupportedServiceProfile { span: entry.span });
                 }

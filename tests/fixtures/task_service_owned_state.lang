@@ -1,0 +1,35 @@
+struct State { inbox:core::Receiver<core::Bytes>, marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut buffer:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(buffer,value));
+    return buffer;
+}
+
+async fn serve(input:core::ServiceOwner<State,core::Bytes>)->i64 {
+    let mut owner:core::ServiceOwner<State,core::Bytes>=input;
+    let mut first:core::Bytes=core::option_unwrap::<core::Bytes>(await core::service_receive::<State,core::Bytes>(&mut owner));
+    let mut marker:i64=0;
+    match core::service_read::<State,core::Bytes>(&owner) {
+        core::Result::Ok(state)=>{ marker=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&state.marker,0)); },
+        core::Result::Err(error)=>{ return core::panic::<i64>(-6); },
+    }
+    let mut second:core::Bytes=core::option_unwrap::<core::Bytes>(await core::service_receive::<State,core::Bytes>(&mut owner));
+    let mut left:i64=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&first,0));
+    let mut right:i64=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&second,0));
+    return left+right+marker+ -7;
+}
+
+async fn main()->i64 {
+    let mut inbox:core::ChannelSetup<core::Bytes>=core::result_unwrap::<core::ChannelSetup<core::Bytes>,core::ChannelError>(core::channel_new::<core::Bytes>(core::allocator(),1));
+    let mut inbox_sender:core::Sender<core::Bytes>=core::channel_sender::<core::Bytes>(&inbox);
+    let mut inbox_receiver:core::Receiver<core::Bytes>=core::channel_receiver::<core::Bytes>(inbox);
+    let mut queued:core::SendResult<core::Bytes>=await core::channel_send::<core::Bytes>(&inbox_sender,bytes(3));
+    let mut setup:core::ServiceSetup<State,core::Bytes>=core::result_unwrap::<core::ServiceSetup<State,core::Bytes>,core::ServiceError>(core::service_new::<State,core::Bytes>(core::allocator(),1,State { inbox:inbox_receiver,marker:bytes(7) }));
+    let mut handle:core::ServiceHandle<core::Bytes>=core::service_handle::<State,core::Bytes>(&setup);
+    let mut owner:core::ServiceOwner<State,core::Bytes>=core::service_owner::<State,core::Bytes>(setup);
+    let mut serving:core::Task<i64>=spawn serve(owner);
+    let mut first:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(20));
+    let mut second:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(22));
+    return core::result_unwrap::<i64,core::TaskError>(await serving);
+}

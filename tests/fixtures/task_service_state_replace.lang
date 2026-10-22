@@ -1,0 +1,47 @@
+struct State { nested:core::ServiceOwner<core::Bytes,i64>, inboxes:core::Vec<core::Receiver<core::Bytes>>, marker:core::Bytes }
+
+fn bytes(value:i64)->core::Bytes {
+    let mut buffer:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(buffer,value));
+    return buffer;
+}
+
+fn state(value:i64)->State {
+    let mut nested_setup:core::ServiceSetup<core::Bytes,i64>=core::result_unwrap::<core::ServiceSetup<core::Bytes,i64>,core::ServiceError>(core::service_new::<core::Bytes,i64>(core::allocator(),1,bytes(value+100)));
+    let mut nested:core::ServiceOwner<core::Bytes,i64>=core::service_owner::<core::Bytes,i64>(nested_setup);
+    let mut setup:core::ChannelSetup<core::Bytes>=core::result_unwrap::<core::ChannelSetup<core::Bytes>,core::ChannelError>(core::channel_new::<core::Bytes>(core::allocator(),1));
+    let mut inbox:core::Receiver<core::Bytes>=core::channel_receiver::<core::Bytes>(setup);
+    let mut inboxes:core::Vec<core::Receiver<core::Bytes>>=core::result_unwrap::<core::Vec<core::Receiver<core::Bytes>>,core::AllocError>(core::vec_new::<core::Receiver<core::Bytes>>(core::allocator()));
+    let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::AllocError>(core::vec_push::<core::Receiver<core::Bytes>>(inboxes,inbox));
+    return State { nested:nested,inboxes:inboxes,marker:bytes(value) };
+}
+
+async fn serve(input:core::ServiceOwner<State,core::Bytes>)->i64 {
+    let mut owner:core::ServiceOwner<State,core::Bytes>=input;
+    let mut first:core::Bytes=core::option_unwrap::<core::Bytes>(await core::service_receive::<State,core::Bytes>(&mut owner));
+    let mut before:i64=0;
+    match core::service_read::<State,core::Bytes>(&owner) {
+        core::Result::Ok(old)=>{ before=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&old.marker,0)); },
+        core::Result::Err(old_error)=>{ return core::panic::<i64>(-6); },
+    }
+    let mut replaced:core::Unit=core::result_unwrap::<core::Unit,core::ServiceError>(core::service_replace::<State,core::Bytes>(&mut owner,state(9)));
+    let mut second:core::Bytes=core::option_unwrap::<core::Bytes>(await core::service_receive::<State,core::Bytes>(&mut owner));
+    let mut after:i64=0;
+    match core::service_read::<State,core::Bytes>(&owner) {
+        core::Result::Ok(new)=>{ after=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&new.marker,0)); },
+        core::Result::Err(new_error)=>{ return core::panic::<i64>(-7); },
+    }
+    let mut left:i64=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&first,0));
+    let mut right:i64=core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(&second,0));
+    return left+right+before+after+ -16;
+}
+
+async fn main()->i64 {
+    let mut setup:core::ServiceSetup<State,core::Bytes>=core::result_unwrap::<core::ServiceSetup<State,core::Bytes>,core::ServiceError>(core::service_new::<State,core::Bytes>(core::allocator(),1,state(7)));
+    let mut handle:core::ServiceHandle<core::Bytes>=core::service_handle::<State,core::Bytes>(&setup);
+    let mut owner:core::ServiceOwner<State,core::Bytes>=core::service_owner::<State,core::Bytes>(setup);
+    let mut serving:core::Task<i64>=spawn serve(owner);
+    let mut first:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(20));
+    let mut second:core::SendResult<core::Bytes>=await core::service_send::<core::Bytes>(&handle,bytes(22));
+    return core::result_unwrap::<i64,core::TaskError>(await serving);
+}
