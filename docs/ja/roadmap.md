@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **39 done · 1 doing · 19 todo · 58 remaining pt**です。P01 の commit 済み checkpoint `ff94b34` は **139 suite / 2,079件 / 失敗0 / 既存 timing ignore 1**、fmt/Clippy/rustdoc・全14 fuzz target compile/lint が成功しています。現在の R01 probe は、実 backing・登録 kind・import ごとの resource binding・非公開 layout の関連25テストが成功しました。既存 VM/native root API が引数なし/i64 戻り値のため、entry 監査で **R04（3 pt）**を公開しました。実所有権/cleanup を伴う source resource 引数/結果の実行に R04 のみを選び、その後 R01 の全 call の context 付き resource preflight/commit を完了します。今回の監査は**消化0 pt・新規追加3 pt**、残り **55 + 3 − 0 = 58 pt**、台帳 **110 + 52 − 104 = 58**です。R01 の3 ptと元の全成果を維持します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。後続の全 resource/callback/control・I07/I08 artifact/package・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **40 done · 1 doing · 18 todo · 55 remaining pt**です。R04 の `f06bd95` は、元 allocator/provider/code 所有権・実 destructor callback・保護した結果公開を用い、直接所有する Resource 引数/結果を既存 VM/生成 native engine で実行します。source を固定した最終 baseline は **141 suites / 2,095 tests / zero failures / one existing timing ignore**、fmt/Clippy/rustdoc・全14 fuzz target compile/lint が成功しました。R01 のみを選択し、具体的な残件監査後も完全な context 付き frame/入れ子 owner/直接 loan preflight/commit の **3 pt**を維持します。R04 完了の消化は **3 pt**、追加は **0 pt**、残り **58 + 0 − 3 = 55 pt**、台帳 **110 + 52 − 107 = 55**です。前提監査/完了を合わせて、**消化3 pt・新規追加3 pt**を分けて報告します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。後続の全 resource/callback/control・I07/I08 artifact/package・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
 
 ## 進行中 milestone の実行
 
