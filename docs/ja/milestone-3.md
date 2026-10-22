@@ -6,11 +6,15 @@
 
 更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**32 done · 1 doing · 24 todo · 71 remaining pt**
+**33 done · 1 doing · 23 todo · 68 remaining pt**
 
-**次: M3-I02 → IDL v1 の最初の valid/invalid fixture を有界 parser/checker で検証します。**
+**次: M3-I03 → 独立 canonical vector で有界な rich metadata/value codec を検証します。**
 
-現在の作業: **M3-I02（3 pt）**。直近の実行 checkpoint は **`ff93e76` を基点とする未 commit の I02 tree、2026-10-22 13:55 JST 検証**です。公開 checker 13件と parser 3件が成功し、有界な実行例は counter fixture を検査して cycle fixture を元/関連 span 付きで拒否します。完全な declaration/type/resource/effect/projection 検証と全公開 quota の厳密上限/1不足を実装しました。source を固定した全 baseline は **129 suites / 1,993 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **731.96s**、fmt・Clippy（**37.97s**）・rustdoc（**39.82s**）・全12 fuzz target compile/lint（**4.24s**）が成功しました。fuzz campaign は主張しません。残る受入条件は commit と code 証拠の監査です。検査済み契約は実行/resource/callback 権限を与えません。doing は I02 のみであり、checkpoint を delivery や G06 の完了とは扱いません。
+現在の作業: **M3-I03（3 pt）**。直近の実行 checkpoint は **`6816a74`、2026-10-22 13:55 JST 検証**の I02 です。残る受入条件は RFC 0027 の LCMP schema 3 contract/report・LCVL v1 value frame・LCSG v1 signature digest の有界 encode/decode、独立 canonical vector、厳密 tag/order/Unicode/ref/digest 検査、不正/truncated/trailing 入力と各上限の境界/1不足です。旧 schema 2 bytes を保持し、value data を resource authority にしません。doing は I03 のみで、I03 の実装や G06 の完了は主張しません。
+
+I02 を `6816a74` で完了（2026-10-22 13:55 JST 検証）: 有界 JSON/schema/反復 DAG 検証、元 source span、閉じた field/name/type/resource/effect/projection 検査、正規化宣言を実装しました。未使用の不正 metadata・循環・aggregate/result borrow・resource を含む task signature・非同期 native import も拒否します。公開13件と parser 3件、全公開 quota の厳密上限/1不足、2,048段 constructor・2,000段 alias・8,192段 JSON、counter 成功/cycle 拒否の実行例が成功しました。source 固定の全 baseline は **129 suites / 1,993 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **731.96s**。workspace/fuzz fmt、Clippy（**37.97s**）、rustdoc（**39.82s**）、全12 fuzz target compile/lint（**4.24s**）が成功しました。fuzz campaign・新しい wire/C/package/実行権限・追加 gate 完了は主張しません。最後の **3 pt** を消化し、**追加/再見積り0 pt**、残り **71 + 0 − 3 = 68 pt**です。
+
+I02/I03 scope 監査（2026-10-22 JST）: I02 の平坦な検査済み model と既存 schema-2 serialization/Budget/SHA-256 を確認しました。I03 は受理済みの rich contract/report・value/signature codec と独立 vector の outcome を元の **3 pt** に維持します。現在の codec は scalar/resource と旧 report だけに対応するため、旧形式を保持して明示 schema 3 を追加し、codec data を binding/grant としません。追加の横断基盤や前提行は設けません。I03 後に source 実行までの順序を再監査し、I06 → I04 と実 grant/resource/callback へ進みます。I07/I08 artifact/package・両 host conformance・計測・全 P1・最終 guide を維持します。
 
 I01 を `1f477fa` で完了（2026-10-22 12:12 JST）: RFC 0001 の実験期委任に基づき、理由・移行・未検証仮説を記録して RFC 0027 を受理しました。厳密 JSON IDL v1・LCMP schema 3・LCVL/LCSG v1・別 component C ABI v1 と、shared/exclusive resource access・全 call preflight/commit・元 allocator/control/failure context・同期 nested callback・root task cancellation を定め、既存 invariant を維持します。規範 header は API 32 entry・table 280 bytes・固定 error 104 bytesです。macOS AArch64/Windows x86-64 MSVC target で各112独立 layout assertion と C++20 syntax が成功しました。これは cross-compile 証拠です。既存 application/task-boundary probe は各1件、repository consistency は5/5成功です。Rust 実装は変更せず、新 production/Windows runtime/benchmark の証拠とはしません。source/MIR・実 resource/grant/callback adapter・serialized task・native package は明示実装に残します。I01 の最終 **3 pt**を消化し、下記で **9 pt**を別途追加します。残り **65 + 9 − 3 = 71 pt**です。
 
@@ -84,8 +88,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-A03 | done | 0 | M3-A07,M3-A08,M3-C07 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | `8d945b0` |
 | M3-A04 | done | 0 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | `cfd9641` |
 | M3-I01 | done | 0 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | `1f477fa` |
-| M3-I02 | doing | 3 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | — |
-| M3-I03 | todo | 3 | M3-I02 | G06 | scalar/record/variant/sequence を独立した上限付き encode/decode | — |
+| M3-I02 | done | 0 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | `6816a74` |
+| M3-I03 | doing | 3 | M3-I02 | G06 | LCMP3 contract/report・LCVL1/LCSG1 value/signature codec を独立 canonical/不正/budget vector で検証 | — |
 | M3-I06 | todo | 3 | M3-I02,M3-I03 | G01,G06,G07 | opaque component resource/call/effect を source/MIR で独立検証し、旧 profile 拒否を維持する | — |
 | M3-I04 | todo | 3 | M3-I03,M3-I06 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | — |
 | M3-I05 | todo | 2 | M3-I03 | G06 | interface/version 交渉と非互換 metadata を副作用前に検証 | — |
@@ -184,7 +188,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 46 − 85 = 71 pt**
+**110 + 46 − 88 = 68 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -232,13 +236,15 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +46 pt | −85 pt | 71 pt |
+| 110 pt | +46 pt | −88 pt | 68 pt |
 
 ## Exit audit
 
 **2/15 gates complete; 10/96 gate weight.** G01 の受理条件は accepted/implemented の RFC 0021–0026、すなわち厳密 source async/suspension・task scheduling・Send/Share・有界 channel/backpressure/error・service isolation/cancellation で立証します。G02 の受理条件は `1f477fa` の受理済み RFC 0027 と規範 versioned wire/C surface が、互換性・typed failure・再入・cancellation 対応を含めて満たします。これらは受理 gate です。G03–G15 は実装・合算 control・両 host runtime/conformance・安定化・example の条件を維持し、header cross-compile で G14 を満たしません。P1 は M3 外へ移しません。
 
 ## Sources
+
+- I02 実装/I03 scope 監査: [RFC 0027](rfcs/0027-production-component-interface.md) の最終更新は 2026-10-22。runtime IDL model/parser/schema/graph、schema-2 serialization、公開13/parser 3 test、正常/不正 fixture と実行例を `6816a74`、2026-10-22 13:55 JST、macOS AArch64 で確認/実行/検証しました。code に更新日の埋込みはありません。全検証中の source hash は一致し、12 fuzz target は compile/lint の証拠です。
 
 - A08 実装/C07 監査: [RFC 0026](rfcs/0026-source-isolated-services.md) と [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md)、最終更新 2026-10-22。backing phase/wake/unlink、mixed drain、frame/Machine adapter、source service 21件を `4223d7b`、2026-10-22 06:39 JST、macOS AArch64 で確認/実行/検証しました。今回追加の Copy-sum service/channel probe は同 runtime で06:43 JSTに実行し send で停止し、`machine/channels.rs` に scalar Copy 経路を確認しました。code に埋め込み更新日はありません。期待42の成功や CLI での allocator leak 測定は主張しません。
 

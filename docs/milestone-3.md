@@ -6,11 +6,15 @@
 
 Updated: **2026-10-22 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**32 done · 1 doing · 24 todo · 71 remaining pt**
+**33 done · 1 doing · 23 todo · 68 remaining pt**
 
-**Next: M3-I02 → validate the first IDL v1 fixtures with bounded parsing/checking.**
+**Next: M3-I03 → validate bounded rich metadata/value codecs with independent canonical vectors.**
 
-Current delivery: **M3-I02 (3 pt)**. Last executable checkpoint: **uncommitted I02 tree based on `ff93e76`, verified 2026-10-22 13:55 JST**. Thirteen public checker tests and three parser tests pass; the bounded example checks the counter fixture and refuses the cycle fixture with original/related spans. Complete declaration/type/resource/effect/projection validation and every public quota's exact/one-below checks are implemented. The fixed-source full baseline passes **129 suites / 1,993 passed / 0 failed / 1 existing timing ignore**, suite-time sum **731.96s**; fmt, Clippy (**37.97s**), rustdoc (**39.82s**) and all 12 fuzz-target compile/lint checks (**4.24s**) pass. No fuzz campaign is claimed. Remaining acceptance: commit and audit the code evidence. The checked contract grants no execution, resources or callbacks. Only I02 is doing; this checkpoint does not complete the delivery or G06.
+Current delivery: **M3-I03 (3 pt)**. Last executable checkpoint: **I02 at `6816a74`, verified 2026-10-22 13:55 JST**. Remaining acceptance: bounded encode/decode for RFC 0027 LCMP schema 3 contracts/reports, LCVL v1 value frames and LCSG v1 signature digests; independent canonical vectors; exact tag/order/Unicode/reference/digest validation; malformed/truncated/trailing input and exact/one-below limits. Preserve schema-2 bytes and keep value data distinct from resource authority. Only I03 is doing; no I03 implementation or G06 completion is claimed.
+
+I02 completed at `6816a74` (verified 2026-10-22 13:55 JST): bounded JSON/schema/iterative DAG checking retains original source spans, closes every field/name/type/resource/effect/projection and normalizes declarations. Invalid unused metadata, cycles, aggregate/result borrows, resource-bearing task signatures and asynchronous native imports are refused. Thirteen public and three parser tests, every public quota at exact/one-below bounds, 2,048 constructors, 2,000 aliases, 8,192 JSON levels and successful-counter/rejected-cycle examples pass. The fixed-source full baseline passes **129 suites / 1,993 passed / 0 failed / 1 existing timing ignore**, suite-time sum **731.96s**. Workspace/fuzz fmt, Clippy (**37.97s**), rustdoc (**39.82s**) and all 12 fuzz-target compile/lint checks (**4.24s**) pass. No fuzz campaign, new wire/C/package/execution authority or additional gate completion is claimed. Retire the last **3 pt**, with **0 additions/re-estimates**: **71 + 0 − 3 = 68 pt** remain.
+
+I02/I03 scope audit (2026-10-22 JST): inspected I02’s flat checked model and the existing schema-2 serialization, Budget and SHA-256. Retain I03’s original **3 pt** for the accepted rich contract/report, value/signature codecs and independent vectors. Current codecs cover scalar/resources and the old report only: preserve them while adding explicit schema 3, without turning codec data into bindings/grants. Add no horizontal framework or prerequisite row. Re-audit the source-execution sequence after I03, then proceed I06 → I04 and actual grants/resources/callbacks. I07/I08 artifacts/packages, both-host conformance, measurements, all P1 work and the final guide remain required.
 
 I01 completed at `1f477fa` (2026-10-22 12:12 JST): accepted RFC 0027 under RFC 0001's experimental delegation with rationale, migration and unverified assumptions. It fixes strict JSON IDL v1, LCMP schema 3, LCVL/LCSG v1 and a separate component C ABI v1; shared/exclusive resource access, whole-call preflight/commit, original allocator/control/failure context, synchronous nested callbacks and root task cancellation preserve existing invariants. The normative header has 32 API entries, a 280-byte API table and 104-byte fixed error; 112 independent layout assertions per target and C++20 syntax pass for macOS AArch64 and Windows x86-64 MSVC targets. This is cross-compilation evidence. Existing application and task-boundary probes each pass one test, and repository consistency passes 5/5. No Rust implementation changed and no new production/Windows-runtime/benchmark claim is made. Source/MIR, actual resource/grant/callback adapters, serialized tasks and native packages remain explicit implementation work. Retire I01's last **3 pt**; separately expose **9 pt** below: **65 + 9 − 3 = 71 pt**.
 
@@ -84,8 +88,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-A03 | done | 0 | M3-A07,M3-A08,M3-C07 | G05 | Execute owner-isolated service state, FIFO messages and cancellation disposal | `8d945b0` |
 | M3-A04 | done | 0 | M3-A03,M3-C04 | G05 | Match actor isolation and disposal traces in native execution | `cfd9641` |
 | M3-I01 | done | 0 | — | G02 | Accept production IDL/wire/embedding profile, errors, reentry and cancellation | `1f477fa` |
-| M3-I02 | doing | 3 | M3-I01 | G06 | Parse/check a versioned IDL with bounded diagnostics and invalid-schema fixtures | — |
-| M3-I03 | todo | 3 | M3-I02 | G06 | Encode/decode bounded scalar, record, variant and sequence values independently | — |
+| M3-I02 | done | 0 | M3-I01 | G06 | Parse/check a versioned IDL with bounded diagnostics and invalid-schema fixtures | `6816a74` |
+| M3-I03 | doing | 3 | M3-I02 | G06 | Implement LCMP3 contract/report and LCVL1/LCSG1 value/signature codecs with independent canonical/malformed/budget vectors | — |
 | M3-I06 | todo | 3 | M3-I02,M3-I03 | G01,G06,G07 | Check opaque component resource/call/effect source and MIR independently; retain old-profile refusal | — |
 | M3-I04 | todo | 3 | M3-I03,M3-I06 | G06,G14 | Generate C/guest bindings for a typed native-host/script fixture | — |
 | M3-I05 | todo | 2 | M3-I03 | G06 | Validate interface/version negotiation and incompatible metadata before effects | — |
@@ -184,7 +188,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 46 − 85 = 71 pt**
+**110 + 46 − 88 = 68 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -232,13 +236,15 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +46 pt | −85 pt | 71 pt |
+| 110 pt | +46 pt | −88 pt | 68 pt |
 
 ## Exit audit
 
 **2/15 gates complete; 10/96 gate weight.** G01's acceptance requirement is proved by accepted/implemented RFCs 0021–0026: strict source async/suspension, task scheduling, Send/Share, bounded channel/backpressure/errors and service isolation/cancellation. G02's acceptance requirement is proved by accepted RFC 0027 and its normative versioned wire/C surface at `1f477fa`, including compatibility, typed failures, reentry and cancellation mapping. These are acceptance gates. G03–G15 retain their actual implementation, combined-control, both-host runtime/conformance, stabilization and example requirements; header cross-compilation does not satisfy G14. No P1 work is moved out of M3.
 
 ## Sources
+
+- I02 implementation/I03 scope audit: [RFC 0027](rfcs/0027-production-component-interface.md), last updated 2026-10-22; runtime IDL model/parser/schema/graph, schema-2 serialization, 13 public/3 parser tests, valid/invalid fixtures and examples inspected/executed/verified at `6816a74` on 2026-10-22 13:55 JST, macOS AArch64. Code has no embedded update date. Source hashes match across the full validation; 12 fuzz targets provide compile/lint evidence only.
 
 - A08 implementation/C07 audit: [RFC 0026](rfcs/0026-source-isolated-services.md) and [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md), last updated 2026-10-22; backing phases/wake/unlink, mixed drain, frame/Machine adapters and 21 source-service tests inspected/executed/verified at `4223d7b`, 2026-10-22 06:39 JST on macOS AArch64. Copy-sum service/channel probes added by this audit were executed against that runtime at 06:43 JST and fail at send; `machine/channels.rs` exposes the scalar Copy branch. Code has no embedded update date. Expected 42 is not claimed successful; allocator leakage is not measured by the CLI.
 
