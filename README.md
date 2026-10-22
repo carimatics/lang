@@ -22,6 +22,8 @@ A04 native implementation boundary (2026-10-22 JST): the explicit private task c
 
 C06 type checkpoint (2026-10-21 JST): opaque `core::ChannelSetup<T>`, `core::Sender<T>` and `core::Receiver<T>` retain identity through source/HIR and independently verified MIR. Distinct budgeted Send/Share dependencies reuse the existing graph: Sender depends on message Send for both capabilities; Receiver is never Share; Setup has neither; shared/weak require both target capabilities. Every role is non-Copy and requires retirement; even unused message constructors require Send. Eleven focused tests cover recursive/declaration-order graphs, aliases, invalid messages/arity, moves, forged MIR and proof/profile resource boundaries. Schema-2/3/4 writers, ordinary/old task layouts, native packages retain pre-effect refusal. The explicit VM/native task profiles above extend execution without introducing a wire/C layout or completing an M3 gate.
 
+IDL v1 checking checkpoint (verified 2026-10-22 JST): `cargo run --example component-idl -- tests/fixtures/component_counter.idl.json` checks the complete declaration document. The bounded checker retains source spans, rejects invalid unused declarations, cycles, borrow/effect conflicts and projections, and normalizes declaration ordering. The invalid-cycle fixture reports `IDL0004` with both locations. This supplies I02; codecs, generated bindings, source/MIR component calls, authority and production embedding remain tracked on the [delivery board](docs/milestone-3.md).
+
 ## Vision
 
 The language should combine:

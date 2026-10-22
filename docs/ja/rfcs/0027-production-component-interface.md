@@ -215,6 +215,8 @@ I02 が有界 IDL parse/check/span、I03 が rich metadata/value codec・独立 
 
 ## Test plan
 
+I02 実装 checkpoint（2026-10-22 JST）: runtime IDL module に有限な JSON/schema/graph 検証・span 保持・宣言の正規化を実装しました。公開 integration 13件、parser 3件、正常/不正 JSON fixture、有界な `component-idl` 実行例でこの段階を検証します。検査済み wrapper は runtime grant・binding・owner・callback 権限を与えません。RFC の残部は後続 delivery の証拠待ちの accepted であり、implemented/stabilized ではありません。
+
 独立 JSON/binary vector、byte/count/depth/work/allocation の厳密上限/1不足、重複/未知 field、不正 Unicode/name/ref/effect/loan、型循環、canonical 順序、不正/truncated/trailing frame、旧 schema 拒否を検証します。構造 projection・SemVer/prerelease/build 曖昧さ・exact-lock replay を codec と独立に比較します。全 preflight 拒否で元 ownership を保ち、一度の commit/stale index、shared/exclusive 競合、nested owner、逆順 cleanup を証明します。生成 wrapper の実 C caller で検証 source/artifact/callback を VM/JIT/別リンク AOT から呼び、root task/channel/service fixture を含めます。値・usage・commit state・resource/heap inventory・span・logical stack・primary/suppressed/omitted report・poison を対応する全 control/provider/割込み境界で比較します。callback grant 拒否・再入 policy・失効/別 thread token・再帰 budget・host allocation・commit/callback 前後取消も検証します。macOS AArch64/Windows x86-64 MSVC で isolated installed package と migration を実行します。fuzz compile/lint を campaign とせず、campaign/計測は別の記録付き証拠とします。
 
 ## Open questions

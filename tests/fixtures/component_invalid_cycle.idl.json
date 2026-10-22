@@ -1,0 +1,17 @@
+{
+  "idl": 1,
+  "package": "demo:invalid",
+  "version": "1.0.0",
+  "interfaces": [
+    {
+      "key": "demo:invalid/cycle",
+      "resources": [],
+      "types": [
+        {"name": "loop", "alias": {"list": "loop"}}
+      ],
+      "functions": []
+    }
+  ],
+  "imports": [],
+  "exports": []
+}

@@ -22,6 +22,8 @@ A04 native 実装境界（2026-10-22 JST）: 明示 private task compiler は検
 
 C06 型 checkpoint（2026-10-21 JST）: opaque `core::ChannelSetup<T>`、`core::Sender<T>`、`core::Receiver<T>` の identity を source/HIR と独立検証する MIR に保持します。既存 graph で有限な Send/Share 依存を別々に導出し、Sender の両 capability は message の Send、Receiver は Share 不可、Setup は両方不可、shared/weak は target の両 capability を要します。全 role は non-Copy で退役が必要であり、未使用 message constructor も Send を要します。重点11件で再帰/宣言順 graph、alias、不正 message/arity、move、偽造 MIR、proof/profile resource 境界を検証します。schema-2/3/4 writer、通常/旧 task layout、native package は副作用前の拒否を維持します。上記の明示的 VM/native task profile は実行を拡張しますが、wire/C layout や M3 gate は完了しません。
 
+IDL v1 検査 checkpoint（2026-10-22 JST 検証）: `cargo run --example component-idl -- tests/fixtures/component_counter.idl.json` で完全な宣言文書を検査します。有界な検査器は source span を保持し、未使用宣言の不正、循環、borrow/effect の競合、不正 projection を拒否して宣言順序を正規化します。循環型の拒否例は両方の位置を伴う `IDL0004` を報告します。I02 の実装であり、codec・生成 binding・source/MIR component call・authority・production embedding は[実装 Todo](docs/ja/milestone-3.md)に残ります。
+
 ## ビジョン
 
 この言語では、以下を両立させます。
