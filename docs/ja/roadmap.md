@@ -12,11 +12,11 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **34 done · 1 doing · 23 todo · 67 remaining pt**です。I03 は `228daf2` で rich contract/report・signature・data-only codec を完了し、source 固定の全 baseline は **130 suite / 2,016件 / 失敗0 / 既存 timing ignore 1**、fmt・Clippy・rustdoc・全13 fuzz target compile/lint が成功しました。fuzz campaign は主張しません。I06 再調査で、検証済み binding/call/effect proof 前の opaque resource 型・独立 capability/move・旧 profile 拒否を **I09（2 pt）**として追加し、doing は I09 のみです。**消化0 pt・新規追加2 pt**、残り **65 + 2 = 67 pt**、台帳 **110 + 48 − 91 = 67**。G01/G02 は **10/96 gate weight、2/15 gate**のままです。G03–G15・全 P1・実 grant/resource/callback・I07/I08 artifact/package・両 host runtime conformance・計測・最終 guide を維持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **35 done · 1 doing · 22 todo · 65 remaining pt**です。I09 を `13db0a6` で完了し、opaque source/MIR resource identity・Send/Share 不許可・move/retirement/privacy/span proof・未対応 profile 拒否を実装しました。集中回帰14件と source 固定の全 baseline **131 suite / 2,031件 / 失敗0 / 既存 timing ignore 1**、workspace/fuzz fmt・Clippy・rustdoc・全13 fuzz target compile/lint が成功しました。campaign や実 resource transfer は主張しません。順序監査で、検証済み binding map・専用 component ABI・独立 call/type/effect proof の **I06（3 pt）**のみ doing に選び、I04 の型付き source fixture へ進みます。前提監査/完了を合わせて**消化2 pt・新規追加2 pt**、残り **65 + 2 − 2 = 65 pt**、台帳 **110 + 48 − 93 = 65**。G01/G02 は **10/96 gate weight、2/15 gate**のままです。G03–G15・全 P1・実 grant/resource/callback・I07/I08 artifact/package・両 host runtime conformance・計測・最終 guide を維持します。
 
 ## 進行中 milestone の実行
 
-M3 の source/task/channel/service 契約は受理済みで、対応する VM/native profile で実行します。RFC 0027 の IDL と独立 codec を実装しました。I09 opaque 型/拒否 → I06 source/MIR binding/call proof → I04 生成 binding と進み、実 grant/resource/callback と明示 I07/I08 artifact/package rollout は Todo の依存に従います。I02/I03 後の順序監査に基づき、必要な opaque resource/call proof の後は型付き source fixture を優先し、横断基盤を増やしません。残工数の積み上げ見積りと96点の exit-gate weight は別に扱います。M2 計測を維持し、Z01 で実 concurrency/boundary cost を計測します。
+M3 の source/task/channel/service 契約は受理済みで、対応する VM/native profile で実行します。RFC 0027 の IDL と独立 codec を実装しました。I09 で opaque 型/拒否境界を実装しました。I06 source/MIR binding/call proof → I04 生成 binding と進み、実 grant/resource/callback と明示 I07/I08 artifact/package rollout は Todo の依存に従います。I02/I03 後の順序監査に基づき、必要な opaque resource/call proof の後は型付き source fixture を優先し、横断基盤を増やしません。残工数の積み上げ見積りと96点の exit-gate weight は別に扱います。M2 計測を維持し、Z01 で実 concurrency/boundary cost を計測します。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 

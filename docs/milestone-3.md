@@ -6,11 +6,15 @@
 
 Updated: **2026-10-22 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**34 done · 1 doing · 23 todo · 67 remaining pt**
+**35 done · 1 doing · 22 todo · 65 remaining pt**
 
-**Next: M3-I09 → derive opaque resource identity/capabilities and refuse unsupported execution.**
+**Next: M3-I06 → connect checked component binding/call/effect source and MIR proof.**
 
-Current delivery: **M3-I09 (2 pt)**. Last executable checkpoint: **uncommitted I09, verified 2026-10-22 19:09 JST**. Fourteen resource-type/source/MIR/VM/package regressions and 34 bytecode tests pass. The fixed-source full baseline passes **131 suites / 2,031 passed / 0 failed / 1 existing timing ignore**, suite-time sum **736.83s**; workspace/fuzz fmt, warnings-denied Clippy (**3m 12s**), rustdoc (**1m 09s**) and all 13 fuzz-target compile/lint checks (**3.22s**) pass. All 257 production-source files, including cfg-tests, hash identically before/after; source, tests and fixtures stayed fixed. No fuzz campaign is claimed. Remaining acceptance: code/evidence commits and completion/sequence audit. I06 retains checked binding/resource-key/import ABI/call/signature/effect/loan proof. Only I09 is doing; no resource execution or additional gate completion is claimed.
+Current delivery: **M3-I06 (3 pt)**. Last executable checkpoint: **I09 at `13db0a6`, verified 2026-10-22 19:09 JST**. Remaining acceptance: the versioned checked binding input; distinct component import ABI/source marker; exact resource-key, nominal type, call, signature, sync/task export and direct-loan facts through source and independent MIR; original spans, invalid/unused map/metadata and forged-call refusal; pre-effect refusal in unsupported runtime/bytecode/native-package profiles. Reuse I09’s opaque owner/capability/move/retirement proof. Only I06 is doing; no I06 execution or additional gate completion is claimed.
+
+I09 completed at `13db0a6` (verified 2026-10-22 19:09 JST): nominal opaque source/MIR `core::ComponentResource<Tag>` preserves tag privacy and original spans, requires single consume/retirement, and is neither Send nor Share. Tags remain ordinary data and contribute no stored payload/region dependency. Fourteen integration tests prove nominal distinction/repeated annotations, nonconstructibility, invalid tag/arity/private signatures, forged IDs/retirement, direct loans, exact/cumulative budgets and unused metadata refusal. All current task/runtime layouts, VM entry points, schema-2/3/4 constructor writers and both-target native package admission retain pre-effect refusal. The fixed-source full baseline passes **131 suites / 2,031 passed / 0 failed / 1 existing timing ignore**, suite-time sum **736.83s**. Workspace/fuzz fmt, Clippy (**3m 12s**), rustdoc (**1m 09s**) and all 13 fuzz-target compile/lint checks (**3.22s**) pass; 257 source-file hashes match. No fuzz campaign, actual resource transfer or Windows runtime conformance is claimed. Retire the last **2 pt**, with **0 further additions/re-estimates** at completion: **67 + 0 − 2 = 65 pt**. Across the I09 scope audit and completion, report **2 completed pt · 2 newly added pt** separately; ledger **110 + 48 − 93 = 65 pt**.
+
+I09 roadmap/sequence audit (2026-10-22 JST): rechecked the concrete I06 remainder after the opaque-type boundary. The lexer recognizes only the C ABI marker, import enums remain Host/C, and frontend analysis has no component binding input. Retain I06’s **3 pt** for the accepted versioned binding map, component ABI and independent call/type/effect proof, selecting it as the sole doing row. First add the smallest component source proof fixture, then connect generated typed native-host/script bindings in I04; add no owner registry, second language or general mapping framework. The source-alias example was corrected in RFC 0027 because the executable experiment found no alias grammar; direct annotations preserve the accepted outcome. Keep actual grants/resources/callbacks, I07/I08 artifacts/packages, both-host runtime conformance, all P1 work, measurements and the final guide required.
 
 I06 prerequisite/estimate audit (2026-10-22 JST): reinspection found separate work in source type binding, transitive capabilities/moves, independent MIR identity/validation, and exhaustive old-profile refusals before component call mapping can be tested. Expose **I09 (2 pt)** for this observable opaque-type boundary; retain I06’s **3 pt** for the binding/call/effect proof, with I09 as a prerequisite. No outcome is deleted or counted complete. Rows **57→58**, net additions **+46→+48 pt**, retired unchanged **91 pt**, remaining **65 + 2 = 67 pt**. Continue I09 → I06 → I04; review the first source fixture immediately after these prerequisites.
 
@@ -96,8 +100,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-I01 | done | 0 | — | G02 | Accept production IDL/wire/embedding profile, errors, reentry and cancellation | `1f477fa` |
 | M3-I02 | done | 0 | M3-I01 | G06 | Parse/check a versioned IDL with bounded diagnostics and invalid-schema fixtures | `6816a74` |
 | M3-I03 | done | 0 | M3-I02 | G06 | Implement LCMP3 contract/report and LCVL1/LCSG1 value/signature codecs with independent canonical/malformed/budget vectors | `228daf2` |
-| M3-I09 | doing | 2 | M3-I02,M3-I03 | G01,G06,G07 | Verify opaque nominal component resource types/capabilities/moves and refuse unsupported execution | — |
-| M3-I06 | todo | 3 | M3-I02,M3-I03,M3-I09 | G01,G06,G07 | Check opaque component resource/call/effect source and MIR independently; retain old-profile refusal | — |
+| M3-I09 | done | 0 | M3-I02,M3-I03 | G01,G06,G07 | Verify opaque nominal component resource types/capabilities/moves and refuse unsupported execution | `13db0a6` |
+| M3-I06 | doing | 3 | M3-I02,M3-I03,M3-I09 | G01,G06,G07 | Verify component binding maps and resource-key/call/signature/effect/loan facts independently in source/MIR; retain old-profile refusal | — |
 | M3-I04 | todo | 3 | M3-I03,M3-I06 | G06,G14 | Generate C/guest bindings for a typed native-host/script fixture | — |
 | M3-I05 | todo | 2 | M3-I03 | G06 | Validate interface/version negotiation and incompatible metadata before effects | — |
 | M3-P01 | todo | 2 | M3-I04 | G08 | Require explicit typed import grants and reject missing/mismatched capabilities | — |
@@ -195,7 +199,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 48 − 91 = 67 pt**
+**110 + 48 − 93 = 65 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -243,7 +247,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +48 pt | −91 pt | 67 pt |
+| 110 pt | +48 pt | −93 pt | 65 pt |
 
 ## Exit audit
 
