@@ -6,11 +6,15 @@
 
 更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**35 done · 1 doing · 22 todo · 65 remaining pt**
+**36 done · 1 doing · 21 todo · 62 remaining pt**
 
-**次: M3-I06 → 検証済み component binding/call/effect を source/MIR proof に接続します。**
+**次: M3-I04 → 型付き C/guest binding と最初の検証済み source fixture を生成します。**
 
-現在の作業: **M3-I06（3 pt）**。直近の実行 checkpoint は **未 commit の I06、2026-10-22 21:18 JST 検証**です。binding 13件・source 3件・resource 回帰14件・全62 syntax test が成功しました。source 固定の全 baseline は **134 suites / 2,049 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **707.67s**。workspace/fuzz fmt・全 target/feature の warnings-denied Clippy（**55.05s**）・rustdoc（**1m 08s**）・全**14 fuzz target compile/lint（4.38s）**が成功し、全**259 source file**の前後 hash は一致しました。source・cfg-test・test・fixture を固定しました。古い lang_mir/bytecode check cache は対象生成物の再構築で解消し、意味論や SDK 検証を変更していません。残る受入条件は code/evidence と完了/順序監査 commit です。fuzz campaign・実 grant/transfer/callback・serialized component namespace・Windows runtime conformance・追加 gate は主張せず、doing は I06 のみです。
+現在の作業: **M3-I04（3 pt）**。直近の実行 checkpoint は **I06 の `0646497`、2026-10-22 21:18 JST 検証**です。残る受入条件は、検証済み IDL から決定的に生成する C/guest 宣言と version 付き binding input、両 target description の完全 ABI size/alignment/field offset/signature fingerprint、独立 MIR contract と照合する型付き native-host/script 生成 fixture、不正/名前衝突/拒否ケースと検証証拠です。受理済み参照 header と I02/I03/I06 graph/codec/proof を再利用します。最初の生成 source fixture を優先し、registry・汎用 schema framework・第2 language は設けません。doing は I04 のみで、実 grant/resource/callback・serialized/installed profile・両 host runtime conformance は後続の必須 delivery に残ります。
+
+I06 を `0646497` で完了（2026-10-22 21:18 JST 検証）: 厳密な component source/import identity、version 付き qualified-name/MIR-ID map、完全 IDL/code/map を保持する受動的 unit を実装しました。独立 MIR は resource key・nominal record/variant 対応・alias 解決済み data constructor・順序付き payload・直接 shared/exclusive loan・effect・public guest export・完全 import/export projection を未使用 entry も含めて検証します。source snapshot identity と元 code/contract span を保持し、不正/重複/欠落/偽造 metadata・Host/C 代用を拒否します。**binding 13件・source 3件・resource 回帰14件**、**syntax 62件**、厳密上限/1不足 quota と40段の深い照合が成功しました。source 固定の全 baseline は **134 suites / 2,049 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **707.67s**。workspace/fuzz fmt・Clippy（**55.05s**）・rustdoc（**1m 08s**）・全**14 fuzz target compile/lint（4.38s）**が成功し、全**259 source file**の hash は一致しました。E0460 の cache 再構築は意味論や SDK 検証を変更していません。fuzz campaign・実 grant/transfer/callback・component artifact/package rollout・Windows runtime conformance・追加 gate は主張しません。I06 の最後の **3 pt** を消化し、**追加/再見積り0 pt**、残り **65 + 0 − 3 = 62 pt**、台帳 **110 + 48 − 96 = 62 pt**です。
+
+I06 roadmap/sequence 監査（2026-10-22 JST）: 検証済み graph・wire/signature codec・独立 source/MIR binding unit が揃いました。I04 の残作業を再確認し、受理済み15,042-byte参照 C header と一部 target vector は decision artifact であり、production binding generator は未実装と確認しました。具体的な C/guest 生成物・完全 layout/signature vector・型付き fixture の I04 を元の **3 pt**に維持し、唯一の doing に選びます。同じ検証済み contract と名前表記規則を使い、最小の生成 guest fixture を先に接続します。compile/layout proof は canonical host/script 実行や Windows runtime conformance ではなく、実境界には P01/R01–R03/E01–E04 と I07/I08 が引き続き必須です。追加の前提 row・横断 framework は設けず、全 P1・両 host 検証・計測・最終 guide を維持します。
 
 I09 を `13db0a6` で完了（2026-10-22 19:09 JST 検証）: nominal opaque source/MIR `core::ComponentResource<Tag>` は tag privacy と元 span を保持し、single-consume/retirement を要求して Send/Share を許しません。tag は通常 data であり保存 payload/region 依存を作りません。integration 14件で nominal 区別/反復注釈・構築禁止・不正 tag/arity/private signature・偽造 ID/retirement・直接 loan・厳密/累積 budget・未使用 metadata 拒否を検証しました。現行全 task/runtime layout・VM entry・schema-2/3/4 constructor writer・両 target の native package admission は副作用前拒否を維持します。source 固定の全 baseline は **131 suites / 2,031 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **736.83s**。workspace/fuzz fmt・Clippy（**3m 12s**）・rustdoc（**1m 09s**）・全13 fuzz target compile/lint（**3.22s**）が成功し、257 source file の前後 hash は一致しました。fuzz campaign・実 resource transfer・Windows runtime conformance は主張しません。最後の **2 pt** を消化し、完了時の**追加/再見積り0 pt**、残り **67 + 0 − 2 = 65 pt**です。I09 範囲監査と完了を合わせ、**消化2 pt・新規追加2 pt**を別に報告し、台帳は **110 + 48 − 93 = 65 pt**です。
 
@@ -101,8 +105,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-I02 | done | 0 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | `6816a74` |
 | M3-I03 | done | 0 | M3-I02 | G06 | LCMP3 contract/report・LCVL1/LCSG1 value/signature codec を独立 canonical/不正/budget vector で検証 | `228daf2` |
 | M3-I09 | done | 0 | M3-I02,M3-I03 | G01,G06,G07 | opaque nominal component resource の型・能力・move を検証し未対応実行を拒否 | `13db0a6` |
-| M3-I06 | doing | 3 | M3-I02,M3-I03,M3-I09 | G01,G06,G07 | component binding map と resource-key/call/signature/effect/loan facts を source/MIR で独立検証し旧 profile 拒否を維持 | — |
-| M3-I04 | todo | 3 | M3-I03,M3-I06 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | — |
+| M3-I06 | done | 0 | M3-I02,M3-I03,M3-I09 | G01,G06,G07 | component binding map と resource-key/call/signature/effect/loan facts を source/MIR で独立検証し旧 profile 拒否を維持 | `0646497` |
+| M3-I04 | doing | 3 | M3-I03,M3-I06 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | — |
 | M3-I05 | todo | 2 | M3-I03 | G06 | interface/version 交渉と非互換 metadata を副作用前に検証 | — |
 | M3-P01 | todo | 2 | M3-I04 | G08 | typed import の明示 grant を必須とし欠落/不一致 capability を拒否 | — |
 | M3-R01 | todo | 3 | M3-I04,M3-P01 | G07 | 実 context の resource index と whole-call preflight/commit を検証・実行し、commit 前拒否時に owner を保持 | — |
@@ -199,7 +203,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 48 − 93 = 65 pt**
+**110 + 48 − 96 = 62 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -247,7 +251,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +48 pt | −93 pt | 65 pt |
+| 110 pt | +48 pt | −96 pt | 62 pt |
 
 ## Exit audit
 
