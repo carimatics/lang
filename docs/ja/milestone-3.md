@@ -6,11 +6,15 @@
 
 更新日: **2026-10-22 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**31 done · 1 doing · 22 todo · 65 remaining pt**
+**32 done · 1 doing · 24 todo · 71 remaining pt**
 
-**次: M3-I01 → 既存 component 契約を基礎に production IDL/wire/embedding profile を決定します。**
+**次: M3-I02 → IDL v1 の最初の valid/invalid fixture を有界 parser/checker で検証します。**
 
-現在の作業: **M3-I01（3 pt）**。直近の実行 checkpoint は **`cfd9641`、2026-10-22 10:50 JST 検証**です。残る受入条件は、scalar/record/variant/sequence value、resource の所有権/borrow、grant、構造化 error、再入/cancellation、有界 validation と互換性/移行を含む production の versioned IDL/wire/embedding 契約を受理し、既存 component/runtime 契約との対応・判断理由・未検証仮説を記録することです。parser・codec・生成 binding の実行は I02/I03/I04 に残します。doing は I01 のみです。
+現在の作業: **M3-I02（3 pt）**。直近の実行/decision checkpoint は **`1f477fa`、2026-10-22 12:12 JST 検証**です。残る受入条件は IDL v1 宣言文書全体の有界 parse/check、元 span の保持、byte/depth/count/work/allocation 上限、重複/未知 field と不正 type/resource/effect/projection graph の拒否、最初の valid/invalid IDL fixture の実行です。受理した正規化契約を使い、実行/resource/callback authority は付与しません。doing は I02 のみです。
+
+I01 を `1f477fa` で完了（2026-10-22 12:12 JST）: RFC 0001 の実験期委任に基づき、理由・移行・未検証仮説を記録して RFC 0027 を受理しました。厳密 JSON IDL v1・LCMP schema 3・LCVL/LCSG v1・別 component C ABI v1 と、shared/exclusive resource access・全 call preflight/commit・元 allocator/control/failure context・同期 nested callback・root task cancellation を定め、既存 invariant を維持します。規範 header は API 32 entry・table 280 bytes・固定 error 104 bytesです。macOS AArch64/Windows x86-64 MSVC target で各112独立 layout assertion と C++20 syntax が成功しました。これは cross-compile 証拠です。既存 application/task-boundary probe は各1件、repository consistency は5/5成功です。Rust 実装は変更せず、新 production/Windows runtime/benchmark の証拠とはしません。source/MIR・実 resource/grant/callback adapter・serialized task・native package は明示実装に残します。I01 の最終 **3 pt**を消化し、下記で **9 pt**を別途追加します。残り **65 + 9 − 3 = 71 pt**です。
+
+I01 前提/見積り監査（2026-10-22 JST）: 現 MIR に nominal component-resource/call identity がなく、task codec は task/channel/service profile を明示拒否し、installed native record/package は既存 M2 profile のみです。binding 前の独立 source/MIR component proof に **I06（3 pt）**、resource 実行後の serialized task/component revision 受理と実 conformance に **I07（3 pt）**、exact SDK 対応の installed native task/component package に **I08（3 pt）**を明示します。R01 実 adapter 前に P01 grant、E01/P02 前に I07、B01 前に I08 を要求します。元の source/foreign/C/serialized/package outcome を維持し、M2 を再開したりメモリ内 object を package と数えたりしません。行 **54→57**、純追加 **+37→+46 pt**、消化 **82→85 pt**、I01 完了後の残り **65→71 pt**です。次の各行は暫定見積りを維持し、実装前に実残条件を再監査します。I02/I03 後に source 実行順を見直し、無関係な基盤を拡張しません。
 
 A04 を `cfd9641` で完了（2026-10-22 10:50 JST）: 明示 private native task adapter が検査付き service type/layout と service MIR/core operation を受理し、capture/send/receive を既存 primitive に lower します。ServiceNew は provider 副作用前に capacity と state cell を事前検査し、生成された演算/CFG/continuation と共通 Machine の役割を保ちます。VM/MIR evaluator fallback・新 primitive ABI・owner registry・永続 schema は追加しません。**native/type/VM の重点77件**が成功し、元の64段 fixture の全 control/provider/割込み matrix も含みます。profile ごとに一度準備する最終 native suite は **33件、51.64s**で成功しました。継続する全 prefix 検証には小さい graph と4段の再帰を使い、64段で深さと control 上限の境界を確認します。基本 service 14 fixture と小さい再帰 profile を含む **別リンク object 全40 profile**が成功しました。native example は `tests/fixtures/task_service_state_replace.lang` で **42**を返します。source 固定の全 baseline は **127 suite・1,977件成功・失敗0・既存 timing ignore 1件**、suite-time 合計 **712.14s**です。fmt・warnings-denied Clippy（test module の重複 import 修正後の最終再実行 **2.74s**）・rustdoc（**37.86s**）・全11 fuzz target compile/lint（**1.33s**）も成功しました。fuzz campaign やテスト時間から runtime 性能を主張しません。ordinary/REPL/wire/C/foreign/package の拒否は維持します。**消化3 pt・新規追加0 pt**、残り **68 + 0 − 3 = 65 pt**です。M3 exit gate 完了は主張しません。
 
@@ -79,17 +83,19 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-A08 | done | 0 | M3-A07 | G05 | handler 境界の service 取消、pending send 回復、FIFO queue-before-state 退役を実行 | `4223d7b` |
 | M3-A03 | done | 0 | M3-A07,M3-A08,M3-C07 | G05 | owner 分離した service state、FIFO message、取消時の破棄を実行 | `8d945b0` |
 | M3-A04 | done | 0 | M3-A03,M3-C04 | G05 | native で actor 分離と破棄 trace を一致 | `cfd9641` |
-| M3-I01 | doing | 3 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | — |
-| M3-I02 | todo | 3 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | — |
+| M3-I01 | done | 0 | — | G02 | production IDL/wire/embedding profile、error、再入、取消を採択 | `1f477fa` |
+| M3-I02 | doing | 3 | M3-I01 | G06 | version 付き IDL を parse/check し有界診断と不正 schema を検証 | — |
 | M3-I03 | todo | 3 | M3-I02 | G06 | scalar/record/variant/sequence を独立した上限付き encode/decode | — |
-| M3-I04 | todo | 3 | M3-I03 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | — |
+| M3-I06 | todo | 3 | M3-I02,M3-I03 | G01,G06,G07 | opaque component resource/call/effect を source/MIR で独立検証し、旧 profile 拒否を維持する | — |
+| M3-I04 | todo | 3 | M3-I03,M3-I06 | G06,G14 | typed native-host/script fixture 用の C/guest binding を生成 | — |
 | M3-I05 | todo | 2 | M3-I03 | G06 | interface/version 交渉と非互換 metadata を副作用前に検証 | — |
-| M3-R01 | todo | 3 | M3-I04 | G07 | 実 adapter で resource preflight/commit/rollback を実行 | — |
+| M3-P01 | todo | 2 | M3-I04 | G08 | typed import の明示 grant を必須とし欠落/不一致 capability を拒否 | — |
+| M3-R01 | todo | 3 | M3-I04,M3-P01 | G07 | 実 adapter で resource preflight/commit/rollback を実行 | — |
 | M3-R02 | todo | 3 | M3-R01 | G07 | borrow scope、generation、所有権移転、poison を適用 | — |
 | M3-R03 | todo | 3 | M3-R02 | G07 | VM/native の error、取消、不正入力で resource cleanup を一致 | — |
-| M3-P01 | todo | 2 | M3-I04 | G08 | typed import の明示 grant を必須とし欠落/不一致 capability を拒否 | — |
-| M3-P02 | todo | 3 | M3-P01,M3-I05 | G08 | metadata/adapter 作業量を制限し不正 import を副作用前に拒否 | — |
-| M3-E01 | todo | 3 | M3-I04,M3-P01 | G09 | native host が検証済み script を読み込み生成 typed API を呼び出し | — |
+| M3-I07 | todo | 3 | M3-I06,M3-R03 | G06,G09,G14 | task/channel/service/component artifact の versioned profile を受理し、独立検証と旧 vector を保って実行する | — |
+| M3-P02 | todo | 3 | M3-P01,M3-I05,M3-I07 | G08 | metadata/adapter 作業量を制限し不正 import を副作用前に拒否 | — |
+| M3-E01 | todo | 3 | M3-I04,M3-P01,M3-I07 | G09 | native host が検証済み script を読み込み生成 typed API を呼び出し | — |
 | M3-E02 | todo | 3 | M3-E01 | G09 | script から native host を呼び入れ子 guest callback を受信 | — |
 | M3-E03 | todo | 3 | M3-E02,M3-R03 | G09 | typed failure、元の context、再入規則、poison を mode 間で維持 | — |
 | M3-E04 | todo | 3 | M3-E03,M3-T07 | G10 | callback を跨いで logical mixed stack、取消、cleanup を維持 | — |
@@ -97,7 +103,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-L02 | todo | 3 | M3-T08,M3-E03 | G12 | guest/host を跨ぐ再帰/frame/live-task 合算上限を適用 | — |
 | M3-L03 | todo | 3 | M3-E04,M3-T08 | G13 | VM/JIT/AOT と callback 境界で interruption を一貫して観測 | — |
 | M3-L04 | todo | 3 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | 敵対的な資源枯渇でも必須 cleanup を完了 | — |
-| M3-B01 | todo | 3 | M3-L04,M3-A04 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | — |
+| M3-I08 | todo | 3 | M3-I07,M3-E04,M3-P02 | G08,G09,G14 | exact SDK record による installed native task/component package の emit/bind と両 host startup を検証する | — |
+| M3-B01 | todo | 3 | M3-L04,M3-A04,M3-I08 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | — |
 | M3-B02 | todo | 3 | M3-B01 | G14 | C embedding API と生成 binding を移行試験付きで安定化 | — |
 | M3-X01 | todo | 2 | M3-B02 | G15 | 権限を明示する trusted-native/verified-script の実行可能例を提供 | — |
 | M3-Z01 | todo | 3 | M3-B01 | G03,G04,G05 | spawn/join/channel/取消/メモリ費用を記録し M2 workload の証拠を維持 | — |
@@ -177,7 +184,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 37 − 82 = 65 pt**
+**110 + 46 − 85 = 71 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -225,11 +232,11 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +37 pt | −82 pt | 65 pt |
+| 110 pt | +46 pt | −85 pt | 71 pt |
 
 ## Exit audit
 
-**0/15 ゲート完了、ゲート重み 0/96。** 作業の完了とゲートの完了は別です。source async 構文は採択済みですが、G01 には channel/backpressure と Send/Share の決定が残っています。G14 には macOS AArch64 と Windows x86-64 で実際の cross-mode 適合試験が必要です。P1 作業も M3 に残します。
+**2/15 gates complete; 10/96 gate weight.** G01 の受理条件は accepted/implemented の RFC 0021–0026、すなわち厳密 source async/suspension・task scheduling・Send/Share・有界 channel/backpressure/error・service isolation/cancellation で立証します。G02 の受理条件は `1f477fa` の受理済み RFC 0027 と規範 versioned wire/C surface が、互換性・typed failure・再入・cancellation 対応を含めて満たします。これらは受理 gate です。G03–G15 は実装・合算 control・両 host runtime/conformance・安定化・example の条件を維持し、header cross-compile で G14 を満たしません。P1 は M3 外へ移しません。
 
 ## Sources
 
@@ -275,3 +282,4 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 - A03 の証拠/A04 scope 監査: [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md)・[RFC 0024](rfcs/0024-send-share-and-service-authority.md)・[RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md)・[RFC 0026](rfcs/0026-source-isolated-services.md) の最終更新は 2026-10-22。実 channel/service state publication と layout 受理、`tests/source_services.rs`、state fixture 6個、runtime service 境界 probe、native task compiler/runner を参照します。code に更新日の埋込みはなく、`8d945b0`、2026-10-22 09:02 JST、macOS AArch64 で確認/実行/検証しました。
 - A04 証拠/I01 scope 監査: [RFC 0023](rfcs/0023-task-mir-boundaries.md)・[RFC 0026](rfcs/0026-source-isolated-services.md)（最終更新2026-10-22）と [RFC 0003](rfcs/0003-versioned-component-contracts.md)（最終更新2026-10-17）。native task compiler、共通 primitive、service type/source/native suite、共通 fixture catalog、別リンク driver、既存 component metadata/codec/resource/application API を `cfd9641` で確認・実行し、2026-10-22 10:50 JST、macOS AArch64 で検証しました。code に更新日の埋込みはありません。
+- I01 証拠/rollout 監査: [RFC 0027](rfcs/0027-production-component-interface.md)・[RFC 0003](rfcs/0003-versioned-component-contracts.md) は2026-10-22更新。規範 [C header](../component-abi-v1.h) と [layout vector](../component-abi-v1-layouts.json)、既存 application/task-boundary code を `1f477fa` で確認し、2026-10-22 12:12 JSTに検証しました。C11/C++20 target compile は Windows runtime 実行を意味しません。一次参照の WIT 最終 path commit は2026-09-15、Canonical ABI は2026-10-13、Concurrency は2026-10-15、RFC 8259 は2017年12月公開です。Rust FFI/SemVer は更新日なし、2026-10-22確認。詳細 URL と事実/判断/仮説の区分は RFC 0027 に記録しています。

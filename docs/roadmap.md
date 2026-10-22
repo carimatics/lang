@@ -12,11 +12,11 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 M2 is complete: 18/18 gates, 113/113 historical gate weight. The [completed board](milestone-2.md) records its deliveries and estimate reconciliation; the [capability guide](milestone-2-capabilities.md) records actual source/VM/native/C/SDK/debug evidence and limits. These counts describe M2, not all future work.
 
-**M3 is active:** the [delivery board](milestone-3.md) tracks **31 done · 1 doing · 22 todo · 65 remaining pt**. A04 completed at `cfd9641`: checked private service admission/layouts and existing native primitives execute state, FIFO messages, cancellation and retirement without a VM/MIR fallback. **77 focused tests**, the final **33-test native suite**, **40 linked-object profiles** and the native state-replacement example returning 42 pass. The frozen-source baseline passes **127 suites / 1,977 tests / zero failures / one existing timing ignore**; fmt, Clippy, rustdoc and all 11 fuzz-target compile/lint checks pass. Retain **I01 (3 pt)** for the production IDL/wire/embedding decision, reusing the existing component/resource/failure contracts before parser/codec/binding implementation. Select only I01 doing. **3 completed pt · 0 newly added pt**, **68 + 0 − 3 = 65 pt** remain. All 15 M3/P1 gates, foreign/C/serialized/package admission, both-host conformance/production embedding, measurements and the final guide remain required.
+**M3 is active:** the [delivery board](milestone-3.md) tracks **32 done · 1 doing · 24 todo · 71 remaining pt**. I01 completed at `1f477fa`: RFC 0027 accepts the production IDL/wire/component-C contract with explicit ownership, callbacks, cancellation, compatibility and retained legacy profiles. The normative header passes 112 layout assertions per tier-1 target and C++20 syntax; two existing executable probes and repository consistency 5/5 pass. Production runtime remains implementation work. The audit exposes I06 source/MIR proof, I07 serialized task/component artifacts and I08 installed native packages (**+9 pt**), preserving all original outcomes. Select only **I02 (3 pt)** for bounded IDL fixtures. **3 completed pt · 9 newly added pt**, **65 + 9 − 3 = 71 pt** remain. Exact acceptance evidence closes G01/G02 (**10/96 gate weight, 2/15 gates**); G03–G15, all P1 work, both-host runtime conformance, measurements and the final guide remain required.
 
 ## Active milestone execution
 
-M3 uses accepted task, Send/Share, channel and service contracts with independently verified MIR and VM/generated-native/linked execution for the admitted profile. The next decision is I01's production IDL/wire/embedding boundary, building on RFC 0003's existing component/resource/failure machinery; I02–I04 separately deliver the bounded parser, value codec and generated bindings before resource/grant/callback integration. Use the delivery board's bottom-up estimates rather than the 96-point gate weights. Preserve measured M2 workload baselines and record actual concurrency costs in Z01; test durations are not runtime benchmarks.
+M3's source/task/channel/service contracts are accepted and execute in the admitted VM/native profile. RFC 0027 now fixes the production component boundary. Continue I02 bounded IDL → I03 independent codecs → I06 source/MIR proof → I04 generated bindings; actual grants/resources/callbacks and explicit I07/I08 artifact/package rollout follow the board dependencies. Re-audit after two prerequisites without a new source execution fixture. Use bottom-up remaining estimates separately from the 96-point exit-gate weights. Preserve M2 measurements; Z01 measures actual concurrency/boundary costs.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -28,19 +28,19 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Exit-gate weight snapshot verified on 2026-10-20 (JST). Overall arithmetic aggregates historical gate weights; it is not an overall effort estimate. Current M2 delivery progress is above and in the linked board.
+Snapshot of exit-gate weights verified 2026-10-22 JST. Acceptance weights are separate from remaining-effort estimates; use the active M3 delivery board above for current bottom-up remaining work. The completed M2 record remains unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
-| 3 — concurrency and embedding | 0 pt | 96 pt | 0.0% |
+| 3 — concurrency and embedding | 10 pt | 96 pt | 10.4% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **411 pt** | **764 pt** | **53.8%** |
+| **Overall** | **421 pt** | **764 pt** | **55.1%** |
 
 ## Milestone 0: design baseline
 
@@ -198,12 +198,12 @@ Exit: representative command-line programs match VM semantics and performance is
 
 ## Milestone 3: concurrency and embedding
 
-**Progress: 0 / 96 pt (0.0%).**
+**Progress: 10 / 96 pt (10.4%).**
 
 Entry satisfied: Milestone 2 supplies ownership and cleanup semantics on both execution paths, and the repository review is complete. RFCs 0003 and 0005 remain the accepted semantic baseline; their prototypes do not complete production IDL, scheduler, or sandbox work. [The active delivery board](milestone-3.md) records implementation scope and estimates. The source VM already bounds frames and live cells; this milestone extends accounting across tasks, native code, and host callbacks.
 
-- [ ] **P0 — Accept remaining scheduler/channel/backpressure/error contracts, send/share derivation, and source async syntax without relaxing RFC 0005.** — 5 pt
-- [ ] **P0 — Accept the production component IDL/wire profile and embedding ABI, including compatibility, typed failures, callback reentrancy, and cancellation mapping to RFC 0003.** — 5 pt
+- [x] **P0 — Accept remaining scheduler/channel/backpressure/error contracts, send/share derivation, and source async syntax without relaxing RFC 0005.** — 5 pt
+- [x] **P0 — Accept the production component IDL/wire profile and embedding ABI, including compatibility, typed failures, callback reentrancy, and cancellation mapping to RFC 0003.** — 5 pt
 - [ ] **P0 — Implement structured task lifetimes and deterministic cancellation cleanup.** — 8 pt
 - [ ] **P0 — Implement channels with bounded backpressure and cancellation behavior.** — 5 pt
 - [ ] **P0 — Enforce actor isolation and accepted data-race capability rules.** — 8 pt

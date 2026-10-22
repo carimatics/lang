@@ -6,11 +6,15 @@
 
 Updated: **2026-10-22 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**31 done · 1 doing · 22 todo · 65 remaining pt**
+**32 done · 1 doing · 24 todo · 71 remaining pt**
 
-**Next: M3-I01 → decide the production IDL/wire/embedding profile on the existing component contracts.**
+**Next: M3-I02 → validate the first IDL v1 fixtures with bounded parsing/checking.**
 
-Current delivery: **M3-I01 (3 pt)**. Last executable checkpoint: **`cfd9641`, verified 2026-10-22 10:50 JST**. Remaining acceptance: accept the production versioned IDL/wire/embedding contract, including scalar/record/variant/sequence values, resource ownership/borrows, grants, structured errors, reentry/cancellation, bounded validation and compatibility/migration; record rationale and unverified assumptions against the existing component/runtime contracts. I02/I03/I04 retain parser, codec and generated-binding execution. Only I01 is doing.
+Current delivery: **M3-I02 (3 pt)**. Last executable/decision checkpoint: **`1f477fa`, verified 2026-10-22 12:12 JST**. Remaining acceptance: parse/check the complete IDL v1 declaration document under byte/depth/count/work/allocation limits, retain original spans, reject duplicate/unknown fields and invalid type/resource/effect/projection graphs, and run the first valid/invalid IDL fixtures. Use the accepted normalized contract without granting execution, resources or callbacks. Only I02 is doing.
+
+I01 completed at `1f477fa` (2026-10-22 12:12 JST): accepted RFC 0027 under RFC 0001's experimental delegation with rationale, migration and unverified assumptions. It fixes strict JSON IDL v1, LCMP schema 3, LCVL/LCSG v1 and a separate component C ABI v1; shared/exclusive resource access, whole-call preflight/commit, original allocator/control/failure context, synchronous nested callbacks and root task cancellation preserve existing invariants. The normative header has 32 API entries, a 280-byte API table and 104-byte fixed error; 112 independent layout assertions per target and C++20 syntax pass for macOS AArch64 and Windows x86-64 MSVC targets. This is cross-compilation evidence. Existing application and task-boundary probes each pass one test, and repository consistency passes 5/5. No Rust implementation changed and no new production/Windows-runtime/benchmark claim is made. Source/MIR, actual resource/grant/callback adapters, serialized tasks and native packages remain explicit implementation work. Retire I01's last **3 pt**; separately expose **9 pt** below: **65 + 9 − 3 = 71 pt**.
+
+I01 prerequisite/estimate audit (2026-10-22 JST): the current MIR has no nominal component-resource/call identity, task codecs explicitly refuse the task/channel/service profile, and installed native records/packages admit only their existing M2 profiles. Expose **I06 (3 pt)** for independent source/MIR component proof before bindings; **I07 (3 pt)** for an accepted serialized task/component revision and actual conformance after resource execution; **I08 (3 pt)** for installed native task/component packages with exact SDK pairing. Require P01 grants before R01 actual adapters; add I07 before E01/P02 and I08 before B01. These retain the original source/foreign/C/serialized/package outcomes and do not reopen M2 or count in-memory objects as packages. Rows **54→57**, net additions **+37→+46 pt**, retired **82→85 pt**, remaining **65→71 pt** after I01 completion. Retain each next row's provisional estimate and re-audit its actual remaining tasks before implementation; review the source-execution sequence after I02/I03 rather than expanding unrelated infrastructure.
 
 A04 completed at `cfd9641` (2026-10-22 10:50 JST): the explicit private native task adapter selects checked service types/layouts, admits service MIR/core operations and lowers capture/send/receive to existing primitives. ServiceNew preflights capacity plus its state cell before provider effects; generated arithmetic/CFG/continuations and the common Machine retain distinct roles without a VM/MIR evaluator fallback, new primitive ABI, owner registry or persistent schema. **77 focused native/type/VM tests** passed, including the original 64-level fixture's complete control/provider/interruption matrices. The final prepared-once native suite passes **33 tests in 51.64s**; exhaustive regression prefixes use small graphs and four-level recursion, while 64 levels check depth and control boundaries. All **40 separately linked object profiles** pass, including fourteen base service fixtures and the small recursive profile. The native example returns **42** for `tests/fixtures/task_service_state_replace.lang`. The frozen-source full baseline passes **127 suites / 1,977 tests / 0 failures / 1 existing timing ignore**, suite-time sum **712.14s**; fmt, warnings-denied Clippy (**2.74s** final rerun after fixing duplicate test-module imports), rustdoc (**37.86s**) and all 11 fuzz-target compile/lint checks (**1.33s**) pass. No fuzz campaign or runtime performance claim follows from test durations. Ordinary/REPL/wire/C/foreign/package refusals remain. Retire **3 pt**, add **0 pt**: **68 + 0 − 3 = 65 pt**. No M3 exit gate is claimed.
 
@@ -79,17 +83,19 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-A08 | done | 0 | M3-A07 | G05 | Execute handler-boundary service cancellation, pending-send recovery and FIFO queue-before-state retirement | `4223d7b` |
 | M3-A03 | done | 0 | M3-A07,M3-A08,M3-C07 | G05 | Execute owner-isolated service state, FIFO messages and cancellation disposal | `8d945b0` |
 | M3-A04 | done | 0 | M3-A03,M3-C04 | G05 | Match actor isolation and disposal traces in native execution | `cfd9641` |
-| M3-I01 | doing | 3 | — | G02 | Accept production IDL/wire/embedding profile, errors, reentry and cancellation | — |
-| M3-I02 | todo | 3 | M3-I01 | G06 | Parse/check a versioned IDL with bounded diagnostics and invalid-schema fixtures | — |
+| M3-I01 | done | 0 | — | G02 | Accept production IDL/wire/embedding profile, errors, reentry and cancellation | `1f477fa` |
+| M3-I02 | doing | 3 | M3-I01 | G06 | Parse/check a versioned IDL with bounded diagnostics and invalid-schema fixtures | — |
 | M3-I03 | todo | 3 | M3-I02 | G06 | Encode/decode bounded scalar, record, variant and sequence values independently | — |
-| M3-I04 | todo | 3 | M3-I03 | G06,G14 | Generate C/guest bindings for a typed native-host/script fixture | — |
+| M3-I06 | todo | 3 | M3-I02,M3-I03 | G01,G06,G07 | Check opaque component resource/call/effect source and MIR independently; retain old-profile refusal | — |
+| M3-I04 | todo | 3 | M3-I03,M3-I06 | G06,G14 | Generate C/guest bindings for a typed native-host/script fixture | — |
 | M3-I05 | todo | 2 | M3-I03 | G06 | Validate interface/version negotiation and incompatible metadata before effects | — |
-| M3-R01 | todo | 3 | M3-I04 | G07 | Execute canonical resource preflight/commit/rollback through actual adapters | — |
+| M3-P01 | todo | 2 | M3-I04 | G08 | Require explicit typed import grants and reject missing/mismatched capabilities | — |
+| M3-R01 | todo | 3 | M3-I04,M3-P01 | G07 | Execute canonical resource preflight/commit/rollback through actual adapters | — |
 | M3-R02 | todo | 3 | M3-R01 | G07 | Enforce borrow scopes, generations, ownership transfer and poisoning | — |
 | M3-R03 | todo | 3 | M3-R02 | G07 | Match resource cleanup across VM/native errors, cancellation and malformed inputs | — |
-| M3-P01 | todo | 2 | M3-I04 | G08 | Require explicit typed import grants and reject missing/mismatched capabilities | — |
-| M3-P02 | todo | 3 | M3-P01,M3-I05 | G08 | Bound metadata/adapter work and reject malformed/untrusted imports before effects | — |
-| M3-E01 | todo | 3 | M3-I04,M3-P01 | G09 | Native host loads a verified script and invokes the generated typed API | — |
+| M3-I07 | todo | 3 | M3-I06,M3-R03 | G06,G09,G14 | Accept and execute the versioned task/channel/service/component artifact profile with independent validation and old vectors | — |
+| M3-P02 | todo | 3 | M3-P01,M3-I05,M3-I07 | G08 | Bound metadata/adapter work and reject malformed/untrusted imports before effects | — |
+| M3-E01 | todo | 3 | M3-I04,M3-P01,M3-I07 | G09 | Native host loads a verified script and invokes the generated typed API | — |
 | M3-E02 | todo | 3 | M3-E01 | G09 | Script calls the native host and receives a nested guest callback | — |
 | M3-E03 | todo | 3 | M3-E02,M3-R03 | G09 | Preserve typed failures, original context, reentry policy and poison across modes | — |
 | M3-E04 | todo | 3 | M3-E03,M3-T07 | G10 | Preserve logical mixed stacks, cancellation and cleanup across callbacks | — |
@@ -97,7 +103,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-L02 | todo | 3 | M3-T08,M3-E03 | G12 | Enforce combined recursion/frame/live-task limits across guest/host calls | — |
 | M3-L03 | todo | 3 | M3-E04,M3-T08 | G13 | Observe interruption consistently in VM/JIT/AOT and callback boundaries | — |
 | M3-L04 | todo | 3 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | Exercise adversarial resource exhaustion without losing mandatory cleanup | — |
-| M3-B01 | todo | 3 | M3-L04,M3-A04 | G14 | Pass ownership/failure/capability/resource conformance on both tier-1 hosts | — |
+| M3-I08 | todo | 3 | M3-I07,M3-E04,M3-P02 | G08,G09,G14 | Emit/bind installed native task/component packages with exact SDK records and both-host startup evidence | — |
+| M3-B01 | todo | 3 | M3-L04,M3-A04,M3-I08 | G14 | Pass ownership/failure/capability/resource conformance on both tier-1 hosts | — |
 | M3-B02 | todo | 3 | M3-B01 | G14 | Stabilize the documented C embedding API and generated bindings with migration tests | — |
 | M3-X01 | todo | 2 | M3-B02 | G15 | Ship runnable trusted-native and verified-script examples with explicit authority | — |
 | M3-Z01 | todo | 3 | M3-B01 | G03,G04,G05 | Record spawn/join/channel/cancellation/memory costs and preserve M2 workload evidence | — |
@@ -177,7 +184,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 37 − 82 = 65 pt**
+**110 + 46 − 85 = 71 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -225,11 +232,11 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +37 pt | −82 pt | 65 pt |
+| 110 pt | +46 pt | −85 pt | 71 pt |
 
 ## Exit audit
 
-**0/15 gates complete; 0/96 gate weight.** A delivery is not a gate. Source async syntax is accepted, but G01 still waits for channel/backpressure and Send/Share decisions; G14 waits for real cross-mode conformance on macOS AArch64 and Windows x86-64. No P1 work is moved out of M3.
+**2/15 gates complete; 10/96 gate weight.** G01's acceptance requirement is proved by accepted/implemented RFCs 0021–0026: strict source async/suspension, task scheduling, Send/Share, bounded channel/backpressure/errors and service isolation/cancellation. G02's acceptance requirement is proved by accepted RFC 0027 and its normative versioned wire/C surface at `1f477fa`, including compatibility, typed failures, reentry and cancellation mapping. These are acceptance gates. G03–G15 retain their actual implementation, combined-control, both-host runtime/conformance, stabilization and example requirements; header cross-compilation does not satisfy G14. No P1 work is moved out of M3.
 
 ## Sources
 
@@ -275,3 +282,4 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 - A03 evidence/A04 scope audit: [RFC 0005](rfcs/0005-structured-tasks-and-isolated-services.md), [RFC 0024](rfcs/0024-send-share-and-service-authority.md), [RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md) and [RFC 0026](rfcs/0026-source-isolated-services.md), last updated 2026-10-22; actual channel/service state publication and layout admission, `tests/source_services.rs`, six state fixtures, runtime service boundary probes, native task compiler/runner. Code has no embedded update date; inspected/executed/verified at `8d945b0` on 2026-10-22 09:02 JST, macOS AArch64.
 - A04 evidence/I01 scope audit: [RFC 0023](rfcs/0023-task-mir-boundaries.md) and [RFC 0026](rfcs/0026-source-isolated-services.md), last updated 2026-10-22; [RFC 0003](rfcs/0003-versioned-component-contracts.md), last updated 2026-10-17. Native task compiler/common primitives, service type/source/native suites, shared fixture catalog/linked driver and existing component metadata/codec/resource/application APIs inspected/executed at `cfd9641`, verified 2026-10-22 10:50 JST on macOS AArch64. Code has no embedded update date.
+- I01 evidence/rollout audit: [RFC 0027](rfcs/0027-production-component-interface.md) and [RFC 0003](rfcs/0003-versioned-component-contracts.md), updated 2026-10-22; normative [C header](component-abi-v1.h)/[layout vectors](component-abi-v1-layouts.json) and existing application/task-boundary code inspected at `1f477fa`, verified 2026-10-22 12:12 JST. C11/C++20 target compilation is not Windows runtime execution. Primary-source path updates: WIT 2026-09-15, Canonical ABI 2026-10-13, Concurrency 2026-10-15; RFC 8259 published December 2017; Rust FFI/SemVer publish no update date, verified 2026-10-22. Full URLs and fact/decision/hypothesis separation are in RFC 0027.

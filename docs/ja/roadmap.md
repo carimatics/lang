@@ -12,11 +12,11 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **31 done · 1 doing · 22 todo · 65 remaining pt**です。A04 は `cfd9641` で完了し、検査付き private service 受理/layout と既存 native primitive で state・FIFO message・取消・退役を VM/MIR fallback なしに実行します。**重点77件**、最終 **native suite 33件**、**linked-object 40 profile**、42を返す native state-replacement example が成功しました。source 固定の baseline は **127 suite・1,977件成功・失敗0・既存 timing ignore 1件**で、fmt・Clippy・rustdoc・全11 fuzz target compile/lint も成功しました。既存 component/resource/failure 契約を再利用し、parser/codec/binding 実装前に production IDL/wire/embedding を決定する **I01（3 pt）**を維持し、doing は I01 のみとします。**消化3 pt・新規追加0 pt**、残り **68 + 0 − 3 = 65 pt**です。全15 M3/P1 gate・foreign/C/serialized/package 受理・両 host conformance/production embedding・計測・最終 guide は引き続き必要です。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **32 done · 1 doing · 24 todo · 71 remaining pt**です。I01 は `1f477fa` で完了し、RFC 0027 で所有権・callback・cancellation・互換性・旧 profile 維持を明示した production IDL/wire/component-C 契約を受理しました。規範 header は両 tier-1 target の各112 layout assertion と C++20 syntax、既存実行 probe 2件、repository consistency 5/5 が成功しました。production runtime は実装の残作業です。元 outcome を保つため、I06 source/MIR proof・I07 serialized task/component artifact・I08 installed native package（**+9 pt**）を明示しました。有界 IDL fixture の **I02（3 pt）**のみ doing とします。**消化3 pt・新規追加9 pt**、残り **65 + 9 − 3 = 71 pt**です。厳密な受理証拠で G01/G02（**10/96 gate weight、2/15 gate**）を完了とし、G03–G15・全 P1・両 host runtime conformance・計測・最終 guide は維持します。
 
 ## 進行中 milestone の実行
 
-M3 は受理済み task・Send/Share・channel・service 契約に基づき、独立検証 MIR と、受理した profile の VM/生成 native/別リンク実行を使います。次は RFC 0003 の既存 component/resource/failure 機構に基づく I01 の production IDL/wire/embedding 境界決定です。I02–I04 で有界 parser・value codec・生成 binding を別々に供給してから resource/grant/callback を統合します。96点の gate weight ではなく、実装 Todo の積み上げ見積りを使ってください。計測済み M2 workload baseline を維持し、実際の concurrency cost は Z01 に記録します。テスト時間は runtime benchmark ではありません。
+M3 の source/task/channel/service 契約は受理済みで、対応する VM/native profile で実行します。RFC 0027 で production component 境界を決定しました。I02 有界 IDL → I03 独立 codec → I06 source/MIR proof → I04 生成 binding と進み、実 grant/resource/callback と明示 I07/I08 artifact/package rollout は Todo の依存に従います。新 source 実行 fixture なしで前提が2件続いたら再監査します。残工数の積み上げ見積りと96点の exit-gate weight は別に扱います。M2 計測を維持し、Z01 で実 concurrency/boundary cost を測ります。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
@@ -28,19 +28,19 @@ M3 は受理済み task・Send/Share・channel・service 契約に基づき、�
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-20（JST）に確認した受入条件の重みのsnapshotです。全体の計算は履歴上の重みの集計であり、全体作業量の見積もりではありません。現在のM2実装状況は上記とリンク先のTodoを参照してください。
+2026-10-22（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、現在の積み上げ残数は上記の M3 実装 Todo を参照してください。M2 の完了記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
-| 3 — concurrencyとembedding | 0 pt | 96 pt | 0.0% |
+| 3 — concurrencyとembedding | 10 pt | 96 pt | 10.4% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **411 pt** | **764 pt** | **53.8%** |
+| **全体** | **421 pt** | **764 pt** | **55.1%** |
 
 ## Milestone 0：設計baseline
 
@@ -198,12 +198,12 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 
 ## Milestone 3：concurrencyとembedding
 
-**進捗：0 / 96 pt（0.0%）。**
+**進捗：10 / 96 pt（10.4%）。**
 
 開始条件は充足済みです。Milestone 2 は両実行経路の所有権/cleanup semantics を提供し、リポジトリレビューも完了しました。RFC 0003/0005 を受理済み意味論の基準とし、prototype で production IDL/scheduler/sandbox を完了扱いにしません。[進行中の実装 Todo](milestone-3.md)で範囲と見積りを追跡します。source VM の既存 frame/live-cell 上限を task、native code、host callback 全体へ拡張します。
 
-- [ ] **P0 — RFC 0005を緩和せず、残るscheduler／channel／backpressure／error contract、send／share導出、source async構文を受理する。** — 5 pt
-- [ ] **P0 — Production component IDL／wire profileとembedding ABIを受理し、compatibility、typed failure、callback reentrancy、RFC 0003へのcancellation対応を決める。** — 5 pt
+- [x] **P0 — RFC 0005を緩和せず、残るscheduler／channel／backpressure／error contract、send／share導出、source async構文を受理する。** — 5 pt
+- [x] **P0 — Production component IDL／wire profileとembedding ABIを受理し、compatibility、typed failure、callback reentrancy、RFC 0003へのcancellation対応を決める。** — 5 pt
 - [ ] **P0 — Structured task lifetimeとdeterministic cancellation cleanupを実装する。** — 8 pt
 - [ ] **P0 — Bounded backpressure／cancellation behavior付きchannelを実装する。** — 5 pt
 - [ ] **P0 — Actor isolationとaccept済みdata-race capability ruleを強制する。** — 8 pt
