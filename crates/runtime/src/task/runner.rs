@@ -53,6 +53,7 @@ pub struct Event {
 }
 #[derive(Debug)]
 pub enum Reason {
+    Instance(crate::component::execution::InstanceError),
     Native(crate::component::execution::NativeFailure),
     ComponentFrame(crate::component::wire::Error),
     Component(crate::component::storage::Error),
@@ -303,7 +304,7 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
     arguments: &[EntryArgument],
     host: &mut dyn crate::component::execution::Host,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
-    execute_profile(
+    let result = execute_profile(
         backend,
         program.proof(),
         Some(function),
@@ -311,8 +312,43 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
         control,
         limits,
         arguments,
-        Some((program, host)),
-    )
+        Some((program, &mut *host)),
+    );
+    let poisoned = match &result {
+        Ok(outcome) => outcome.poisoned,
+        Err(failure) => failure.poisoned,
+    };
+    let completion = if poisoned {
+        crate::component::execution::Completion::Poisoned
+    } else {
+        crate::component::execution::Completion::Clean
+    };
+    match (result, host.complete(completion, allocator)) {
+        (result, Ok(())) => result,
+        (Err(mut failure), Err(_)) => {
+            failure.poisoned = true;
+            if let Some(report) = failure.report.as_mut() {
+                report.append_invariant(failure.span);
+            }
+            Err(failure)
+        }
+        (Ok(outcome), Err(reason)) => {
+            let mut report = outcome.report;
+            if let Some(report) = report.as_mut() {
+                report.append_invariant(None);
+            }
+            Err(Failure {
+                reason,
+                function: Some(function),
+                span: None,
+                usage: outcome.usage,
+                tasks: outcome.tasks,
+                events: outcome.events,
+                report,
+                poisoned: true,
+            })
+        }
+    }
 }
 #[allow(
     clippy::too_many_arguments,

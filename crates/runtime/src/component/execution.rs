@@ -13,9 +13,12 @@ use crate::{
 };
 use lang_mir::unit::{self as m, ownership as o};
 mod call;
+mod instance;
 mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{NativeArguments, NativeContext, NativeFailure, NativeReturn, ResourceArgument};
+use instance::Phase;
+pub use instance::{Completion, Instance, InstanceError};
 pub(crate) use result::read_parameters;
 pub(crate) use result::read_result;
 
@@ -91,6 +94,7 @@ pub trait Invoker {
 /// Private data/cleanup service used by both existing backends. Guest bodies
 /// remain in their interpreter/generated-code dispatchers.
 pub trait Host {
+    fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason>;
     fn read_native_arguments(
         &mut self,
         read: &mut dyn FnMut(&mut wire::Session) -> Result<NativeArguments, Reason>,
@@ -139,7 +143,9 @@ pub trait Host {
     fn arguments_committed(&self) -> bool;
 }
 
-pub struct Invocation<'p, 'u, 'resources, 'code, 'native> {
+pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
+    instance: &'state mut Instance<'p, 'u>,
+    finished: bool,
     program: &'p Program<'u>,
     function: m::FunctionId,
     resources: &'resources mut Resources<'code>,
@@ -160,14 +166,18 @@ pub struct Invocation<'p, 'u, 'resources, 'code, 'native> {
 fn fault(error: storage::Error) -> Reason {
     Reason::Component(error)
 }
-impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, 'native> {
+impl<'state, 'p, 'u, 'resources, 'code, 'native>
+    Invocation<'state, 'p, 'u, 'resources, 'code, 'native>
+{
     pub fn prepare(
-        program: &'p Program<'u>,
+        instance: &'state mut Instance<'p, 'u>,
         function: m::FunctionId,
         resources: &'resources mut Resources<'code>,
         invoker: &'native mut dyn Invoker,
         budget: &mut m::Budget,
     ) -> Result<Self, Reason> {
+        instance.ready()?;
+        let program = instance.program;
         if !program.is_export(function) {
             return Err(Reason::Entry);
         }
@@ -177,7 +187,10 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
         let output_claims = budget.vector(resources.capacity())?;
         let caller = resources.host();
         let guest = resources.new_holder().map_err(fault)?;
+        instance.phase = Phase::Active;
         Ok(Self {
+            instance,
+            finished: false,
             program,
             function,
             resources,
@@ -401,7 +414,26 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
         Ok(arguments)
     }
 }
-impl Host for Invocation<'_, '_, '_, '_, '_> {
+impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
+    fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason> {
+        self.finished = true;
+        let closed = self.transfer.is_none()
+            && self.loans.iter().all(Option::is_none)
+            && !self.holding_output
+            && self.output_claims.is_empty()
+            && self
+                .resources
+                .scope_closed(self.caller, self.guest, &self.inputs, None, memory)
+                .is_ok();
+        if matches!(completion, Completion::Poisoned) || !closed {
+            self.instance.phase = Phase::Poisoned;
+        }
+        if closed {
+            Ok(())
+        } else {
+            Err(Reason::Instance(InstanceError::ScopeNotClosed))
+        }
+    }
     fn read_native_arguments(
         &mut self,
         read: &mut dyn FnMut(&mut wire::Session) -> Result<NativeArguments, Reason>,
@@ -844,8 +876,10 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
     }
     fn abort_arguments(&mut self) {
         self.holding_output = false;
-        if let Some(ticket) = self.transfer.take() {
-            let _ = self.resources.abort_transfer(ticket);
+        if let Some(ticket) = self.transfer.take()
+            && self.resources.abort_transfer(ticket).is_err()
+        {
+            self.instance.phase = Phase::Poisoned;
         }
     }
     fn arguments_committed(&self) -> bool {
@@ -1011,6 +1045,15 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
         }
     }
     fn commit_result(&mut self, memory: &mut dyn Memory) -> Result<(), Reason> {
+        if self.loans.iter().any(Option::is_some)
+            || self
+                .resources
+                .scope_closed(self.caller, self.guest, &self.inputs, self.transfer, memory)
+                .is_err()
+        {
+            self.instance.phase = Phase::Poisoned;
+            return Err(Reason::Instance(InstanceError::ScopeNotClosed));
+        }
         if let Some(transfer) = self.transfer {
             self.resources
                 .commit_transfer(transfer, memory)
@@ -1022,11 +1065,19 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
         Ok(())
     }
 }
-impl Drop for Invocation<'_, '_, '_, '_, '_> {
+impl Drop for Invocation<'_, '_, '_, '_, '_, '_> {
     fn drop(&mut self) {
+        if self.committed && !self.finished {
+            self.instance.phase = Phase::Poisoned;
+        }
         self.abort_arguments();
         for loan in self.loans.iter_mut().filter_map(Option::take) {
-            let _ = self.resources.end_loan(loan);
+            if self.resources.end_loan(loan).is_err() {
+                self.instance.phase = Phase::Poisoned;
+            }
+        }
+        if self.instance.phase != Phase::Poisoned {
+            self.instance.phase = Phase::Ready;
         }
     }
 }

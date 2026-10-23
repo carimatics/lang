@@ -33,7 +33,10 @@ struct Destroyed {
 #[derive(Clone, Copy)]
 enum NativeCase {
     Owned,
+    OwnedReturn,
     Shared,
+    Reborrow(bool),
+    Abandoned,
     Declared,
     WrongKind,
     WrongKindOwned,
@@ -107,7 +110,7 @@ impl Case {
     fn native_owned(self) -> bool {
         matches!(
             self,
-            Self::Native(NativeCase::Owned | NativeCase::WrongKindOwned)
+            Self::Native(NativeCase::Owned | NativeCase::OwnedReturn | NativeCase::WrongKindOwned)
         )
     }
     fn native_declared(self) -> bool {
@@ -134,10 +137,16 @@ impl Case {
             | Self::LoanCleanup
             | Self::LoanFuelCleanup(_) => Some(false),
             Self::Native(native) => {
-                if matches!(native, NativeCase::Owned | NativeCase::WrongKindOwned) {
+                if matches!(
+                    native,
+                    NativeCase::Owned | NativeCase::OwnedReturn | NativeCase::WrongKindOwned
+                ) {
                     None
                 } else {
-                    Some(!matches!(native, NativeCase::Shared))
+                    Some(!matches!(
+                        native,
+                        NativeCase::Shared | NativeCase::Reborrow(false)
+                    ))
                 }
             }
             Self::ExclusiveLoan | Self::NativeView => Some(true),
@@ -223,7 +232,11 @@ impl Case {
     fn returns_resource(self) -> bool {
         matches!(
             self,
-            Self::Return | Self::ReturnFrame | Self::ReturnCleanupFailure | Self::LoanReturn(_)
+            Self::Return
+                | Self::ReturnFrame
+                | Self::ReturnCleanupFailure
+                | Self::LoanReturn(_)
+                | Self::Native(NativeCase::OwnedReturn)
         )
     }
     fn failing_cleanup(self) -> bool {
@@ -281,7 +294,23 @@ unsafe extern "C" fn native_apply(
             return Err(2);
         }
         state.method_calls.set(state.method_calls.get() + 1);
-        state.method_context.set(Some(unsafe { *context }));
+        let previous = state.method_context.replace(Some(unsafe { *context }));
+        if matches!(state.native, Some(NativeCase::Reborrow(_)))
+            && let Some(previous) = previous
+        {
+            let mut stale = native::Bytes {
+                data: ptr::null(),
+                length: 99,
+            };
+            if unsafe {
+                lang_codegen_clif::component::context_resource_read(&previous, 1, &mut stale)
+            } != 5
+                || !stale.data.is_null()
+                || stale.length != 99
+            {
+                return Err(2);
+            }
+        }
         if arguments.length < 61
             || arguments.length > 1024
             || arguments.data.is_null()
@@ -364,7 +393,10 @@ unsafe extern "C" fn native_apply(
             lang_codegen_clif::component::context_resource_write(context, index, &mut writable)
         };
         let after = before + delta;
-        if matches!(state.native, Some(NativeCase::Shared)) {
+        if matches!(
+            state.native,
+            Some(NativeCase::Shared | NativeCase::Reborrow(false))
+        ) {
             if status != 7 || !writable.data.is_null() || writable.length != 0 {
                 return Err(2);
             }
@@ -600,6 +632,32 @@ fn source_native_member_operates_on_the_original_borrowed_backing() {
 }
 
 #[test]
+fn source_helper_reborrows_reach_the_original_native_backing() {
+    for exclusive in [false, true] {
+        assert_eq!(
+            run_source(Case::Native(NativeCase::Reborrow(exclusive))),
+            (true, true)
+        );
+    }
+}
+
+#[test]
+fn abandoned_committed_loan_expires_but_keeps_the_instance_poisoned() {
+    assert_eq!(
+        run_source(Case::Native(NativeCase::Abandoned)),
+        (false, true)
+    );
+}
+
+#[test]
+fn native_view_expires_before_the_mutated_original_owner_returns_to_the_caller() {
+    assert_eq!(
+        run_source(Case::Native(NativeCase::OwnedReturn)),
+        (true, true)
+    );
+}
+
+#[test]
 fn native_member_kind_and_missing_session_refusals_preserve_original_provenance() {
     assert_eq!(
         run_source(Case::Native(NativeCase::WrongKind)),
@@ -798,7 +856,10 @@ fn run_source(case: Case) -> (bool, bool) {
         );
     let mut host_json: serde_json::Value =
         serde_json::from_slice(include_bytes!("fixtures/component_counter.idl.json")).unwrap();
-    if matches!(case, Case::Native(NativeCase::Shared)) {
+    if matches!(
+        case,
+        Case::Native(NativeCase::Shared | NativeCase::Reborrow(false))
+    ) {
         host_json["interfaces"][0]["functions"][0]["params"][0]["type"] =
             json!({"borrow":"counter"});
     }
@@ -973,6 +1034,11 @@ fn run_source(case: Case) -> (bool, bool) {
                 "core::Result<i64,core::Text>",
                 "let mut request:Request=Request{delta:1,label:label};return host_apply(value,request);",
             )
+        } else if matches!(case, Case::Native(NativeCase::OwnedReturn)) {
+            (
+                "core::ComponentResource<CounterKind>",
+                "let mut state:core::ComponentResource<CounterKind>=value;let mut raw:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut label:core::Text=core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(raw));let mut request:Request=Request{delta:1,label:label};let mut ignored:i64=core::result_unwrap::<i64,core::Text>(host_apply(state,request));return state;",
+            )
         } else if case.native_owned() {
             (
                 "i64",
@@ -994,7 +1060,21 @@ fn run_source(case: Case) -> (bool, bool) {
         let source = format!(
             "{prefix}pub fn consume(value:{ty},number:i64{extra})->{result}{{{body}}}fn add(value:{ty},number:i64)->i64{{return leaf(value,number);}}fn leaf(value:{ty},number:i64)->i64{{return number+1;}}"
         );
-        if matches!(case, Case::Native(NativeCase::Shared)) {
+        let source = if matches!(case, Case::Native(NativeCase::Reborrow(_))) {
+            let source = source.replace(
+                "return core::result_unwrap::<i64,core::Text>(host_apply(value,request));",
+                "return native_middle(value,request);",
+            );
+            format!(
+                "{source}fn native_middle(value:{ty},request:Request)->i64{{return native_leaf(value,request);}}fn native_leaf(value:{ty},request:Request)->i64{{return core::result_unwrap::<i64,core::Text>(host_apply(value,request));}}"
+            )
+        } else {
+            source
+        };
+        if matches!(
+            case,
+            Case::Native(NativeCase::Shared | NativeCase::Reborrow(false))
+        ) {
             source.replace("host_apply(state:&mut", "host_apply(state:&")
         } else {
             source
@@ -1248,8 +1328,9 @@ fn run_source(case: Case) -> (bool, bool) {
             control
         };
         let mut bridge = engine.begin(bridge_control).unwrap();
+        let mut instance = execution::Instance::new(&program);
         let mut invocation = execution::Invocation::prepare(
-            &program,
+            &mut instance,
             m::FunctionId(0),
             &mut values,
             &mut bridge,
@@ -1265,6 +1346,7 @@ fn run_source(case: Case) -> (bool, bool) {
             arguments.push(EntryArgument::Resource(extra_input.unwrap()));
         }
         let mut expected_body = None;
+        let mut replay = None;
         if case.loan().is_some() {
             let mut frame_values = wire::Values {
                 roots: vec![wire::ValueId(0), wire::ValueId(1)],
@@ -1329,6 +1411,9 @@ fn run_source(case: Case) -> (bool, bool) {
                 continue;
             }
             let encoded = encoded.unwrap();
+            if matches!(case, Case::Native(NativeCase::Reborrow(_))) {
+                replay = Some(encoded.clone());
+            }
             let before = allocator.stats();
             for index in [0_u32, 3] {
                 let mut bad = encoded.clone();
@@ -1371,7 +1456,7 @@ fn run_source(case: Case) -> (bool, bool) {
                 let foreign = arguments.clone();
                 drop(invocation);
                 invocation = execution::Invocation::prepare(
-                    &program,
+                    &mut instance,
                     m::FunctionId(0),
                     &mut values,
                     &mut bridge,
@@ -1681,6 +1766,43 @@ fn run_source(case: Case) -> (bool, bool) {
         } else if matches!(case, Case::NestedReturnBudget) {
             invocation.prepare_output(&mut limited_output).unwrap();
         }
+        if matches!(case, Case::Native(NativeCase::Abandoned)) {
+            execution::Host::prepare_arguments(&mut invocation, &arguments, &allocator).unwrap();
+            execution::Host::commit_arguments(&mut invocation, &mut allocator).unwrap();
+            assert_eq!(invocation.active_loans(), 1);
+            drop(invocation);
+            assert!(instance.poisoned());
+            let before = attempts.get();
+            assert!(matches!(
+                execution::Invocation::prepare(
+                    &mut instance,
+                    m::FunctionId(0),
+                    &mut values,
+                    &mut bridge,
+                    &mut budget
+                )
+                .err(),
+                Some(lang_runtime::task::runner::Reason::Instance(
+                    execution::InstanceError::Poisoned
+                ))
+            ));
+            assert_eq!(attempts.get(), before);
+            assert_eq!(destroyed.method_calls.get(), 0);
+            release_caller(
+                &mut values,
+                input,
+                kind,
+                &mut allocator,
+                &mut bridge,
+                &mut budget,
+            );
+            assert!(values.is_empty());
+            assert_eq!(destroyed.calls.get(), 1);
+            assert_eq!(destroyed.value.get(), 41);
+            assert_eq!(allocator.stats().live_allocations, 0);
+            previous = Some((false, true, Default::default()));
+            continue;
+        }
         let outcome = if compiled {
             native.execute_component(
                 &mut allocator,
@@ -1707,6 +1829,88 @@ fn run_source(case: Case) -> (bool, bool) {
             "call returned a live resource loan"
         );
         drop(invocation);
+        let poisoned = match &outcome {
+            Ok(outcome) => outcome.poisoned,
+            Err(failure) => failure.poisoned,
+        };
+        assert_eq!(instance.poisoned(), poisoned);
+        if poisoned {
+            let before = attempts.get();
+            let refused = execution::Invocation::prepare(
+                &mut instance,
+                m::FunctionId(0),
+                &mut values,
+                &mut bridge,
+                &mut budget,
+            )
+            .err()
+            .expect("poison must persist into the next root entry");
+            assert!(matches!(
+                refused,
+                lang_runtime::task::runner::Reason::Instance(execution::InstanceError::Poisoned)
+            ));
+            assert_eq!(attempts.get(), before);
+        } else {
+            let retry = execution::Invocation::prepare(
+                &mut instance,
+                m::FunctionId(0),
+                &mut values,
+                &mut bridge,
+                &mut budget,
+            )
+            .expect("complete non-poisoned cleanup permits the next root preparation");
+            drop(retry);
+        }
+        if let Some(encoded) = replay {
+            assert!(outcome.is_ok());
+            let mut again = execution::Invocation::prepare(
+                &mut instance,
+                m::FunctionId(0),
+                &mut values,
+                &mut bridge,
+                &mut budget,
+            )
+            .unwrap();
+            let arguments = again
+                .decode_arguments(&encoded, &[input], &allocator, &mut session)
+                .unwrap();
+            again.prepare_output(&mut session).unwrap();
+            let repeated = if compiled {
+                native.execute_component(
+                    &mut allocator,
+                    control,
+                    Default::default(),
+                    &arguments,
+                    &mut again,
+                )
+            } else {
+                lang_vm::unit::tasks::execute_component(
+                    &program,
+                    m::FunctionId(0),
+                    &mut allocator,
+                    control,
+                    Default::default(),
+                    &arguments,
+                    &mut again,
+                )
+            }
+            .unwrap();
+            assert_eq!(again.active_loans(), 0);
+            drop(again);
+            assert!(!instance.poisoned());
+            assert!(!repeated.poisoned);
+            let execution::Value::Frame(frame) = repeated.value else {
+                panic!("native replay requires its canonical result");
+            };
+            assert_eq!(
+                frame.values().nodes,
+                vec![wire::Value::I64(if case.loan() == Some(true) {
+                    43
+                } else {
+                    42
+                })]
+            );
+        }
         if matches!(case, Case::Native(NativeCase::Interrupt)) {
             assert!(destroyed.method_control_checked.get());
         }
@@ -2101,8 +2305,29 @@ fn run_source(case: Case) -> (bool, bool) {
             );
             assert_eq!(
                 values.bytes(result, holder, kind, &allocator).unwrap(),
-                41_i64.to_le_bytes()
+                (if destroyed.method_changed.get() {
+                    42_i64
+                } else {
+                    41_i64
+                })
+                .to_le_bytes()
             );
+            if case.native().is_some() {
+                assert_eq!(destroyed.method_calls.get(), 1);
+                let expired = destroyed.method_context.get().unwrap();
+                let mut bytes = native::Bytes {
+                    data: ptr::null(),
+                    length: 99,
+                };
+                assert_eq!(
+                    unsafe {
+                        lang_codegen_clif::component::context_resource_read(&expired, 1, &mut bytes)
+                    },
+                    5
+                );
+                assert!(bytes.data.is_null());
+                assert_eq!(bytes.length, 99);
+            }
             assert_eq!(
                 allocator.stats().live_allocations,
                 if case.loan().is_some() { 4 } else { 2 }
@@ -2143,10 +2368,20 @@ fn run_source(case: Case) -> (bool, bool) {
         }
         if case.loan().is_some() {
             if case.native().is_some() {
-                assert_eq!(destroyed.method_calls.get(), 1);
+                assert_eq!(
+                    destroyed.method_calls.get(),
+                    if matches!(case, Case::Native(NativeCase::Reborrow(_))) {
+                        2
+                    } else {
+                        1
+                    }
+                );
                 assert_eq!(
                     destroyed.method_changed.get(),
-                    !matches!(case, Case::Native(NativeCase::Shared))
+                    !matches!(
+                        case,
+                        Case::Native(NativeCase::Shared | NativeCase::Reborrow(false))
+                    )
                 );
                 let expired = destroyed.method_context.get().unwrap();
                 let mut bytes = native::Bytes {
@@ -2170,7 +2405,7 @@ fn run_source(case: Case) -> (bool, bool) {
             assert_eq!(
                 values.bytes(input, holder, kind, &allocator).unwrap(),
                 (if destroyed.method_changed.get() {
-                    42_i64
+                    41_i64 + destroyed.method_calls.get() as i64
                 } else {
                     41_i64
                 })
@@ -2201,7 +2436,7 @@ fn run_source(case: Case) -> (bool, bool) {
         assert_eq!(
             destroyed.value.get(),
             if destroyed.method_changed.get() {
-                42
+                41 + destroyed.method_calls.get() as i64
             } else {
                 41
             }

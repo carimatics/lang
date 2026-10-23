@@ -126,6 +126,13 @@ pub struct Report {
     cleanup_failures: usize,
 }
 impl Report {
+    pub(crate) fn append_invariant(&mut self, span: Option<Span>) {
+        self.record(FailureRecord {
+            kind: FailureKind::Execution(ExecutionFailure::Invariant),
+            span,
+            slot: None,
+        });
+    }
     pub const fn primary(&self) -> Option<&FailureRecord> {
         self.primary.as_ref()
     }
@@ -956,6 +963,38 @@ impl<T, C: Cleaner<T>> Drop for Frame<'_, T, C> {
                 }
             }
             self.drain_all(Reason::Failure);
+        }
+    }
+}
+
+#[cfg(test)]
+mod report_tests {
+    use super::*;
+
+    #[test]
+    fn final_invariant_preserves_the_primary_and_the_original_record_bound() {
+        for records in [1, 2] {
+            let mut budget = lang_mir::unit::Budget::new(Default::default());
+            let mut session =
+                Session::prepare(std::num::NonZeroUsize::new(records).unwrap(), &mut budget)
+                    .unwrap();
+            session.execution(ExecutionFailure::FuelLimit, None);
+            let mut report = session.into_report();
+            report.append_invariant(None);
+            assert_eq!(
+                report.primary().unwrap().kind,
+                FailureKind::Execution(ExecutionFailure::FuelLimit)
+            );
+            if records == 1 {
+                assert!(report.secondary().is_empty());
+                assert_eq!(report.truncated(), 1);
+            } else {
+                assert_eq!(
+                    report.secondary()[0].kind,
+                    FailureKind::Execution(ExecutionFailure::Invariant)
+                );
+                assert_eq!(report.truncated(), 0);
+            }
         }
     }
 }

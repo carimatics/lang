@@ -352,6 +352,63 @@ impl<'a> Resources<'a> {
         }
         Ok(allocator.bytes(backing.data)?)
     }
+    /// Validate the original table without allocating, calling native code or
+    /// changing ownership. Only the preflighted return transfer may retain a
+    /// guest owner before publication; completion permits none.
+    pub(crate) fn scope_closed(
+        &self,
+        caller: Holder,
+        guest: Holder,
+        inputs: &[Input],
+        transfer: Option<Transfer>,
+        memory: &dyn Memory,
+    ) -> Result<(), Error> {
+        self.check_allocator(memory)?;
+        self.check_holder(caller)?;
+        self.check_holder(guest)?;
+        for input in inputs
+            .iter()
+            .filter(|input| !matches!(input.access, Access::Own))
+        {
+            self.backing(input.claim, caller, memory)?;
+        }
+        match (self.pending, transfer) {
+            (None, None) => {}
+            (Some(pending), Some(ticket))
+                if pending.ticket == ticket
+                    && pending.from == guest
+                    && pending.to == self.host() => {}
+            _ => return Err(Error::State),
+        }
+        for (owner, backing) in self.values.entries() {
+            let bytes = memory.bytes(backing.header)?;
+            if bytes.len() != HEADER_BYTES as usize
+                || bytes[..8] != MAGIC.to_le_bytes()
+                || bytes[8..32] != owner.token()
+            {
+                return Err(Error::State);
+            }
+            let ticket = u64::from_le_bytes(bytes[32..40].try_into().expect("checked header"));
+            let scope = u64::from_le_bytes(bytes[40..48].try_into().expect("checked header"));
+            if ticket == 0
+                || self.next_ticket.is_some_and(|next| ticket >= next)
+                || self.next_holder.is_some_and(|next| scope >= next)
+            {
+                return Err(Error::State);
+            }
+            memory.bytes(backing.data)?;
+            if scope == guest.scope
+                && !(transfer.is_some()
+                    && self.plans.iter().any(|plan| {
+                        plan.original == Claim { owner, ticket }
+                            && matches!(plan.access, Access::Own)
+                    }))
+            {
+                return Err(Error::State);
+            }
+        }
+        Ok(())
+    }
     /// Preflight every owner before reserving fresh authority tickets. Dropping
     /// the prepared transfer preserves input ownership; reserved tickets expire.
     pub fn preflight<'r, 'host>(
@@ -728,5 +785,156 @@ impl<'a> Detached<'a> {
         allocator.release(backing.header)?;
         self.backing = None;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::negotiation::{InterfaceKey, PackageKey};
+    use super::*;
+    use crate::component::{
+        idl, native,
+        serialization::{DigestAlgorithm, VersionedDigest},
+        wire,
+    };
+    use std::{ffi::c_void, ptr};
+
+    extern "C" fn invoke(
+        _: *mut c_void,
+        _: *const native::Context,
+        _: native::Bytes,
+        _: *mut *mut native::Buffer,
+    ) -> u32 {
+        0
+    }
+    extern "C" fn destroy(
+        _: *mut c_void,
+        _: *const native::Context,
+        _: native::MutBytes,
+        _: *mut *mut native::Buffer,
+    ) -> u32 {
+        0
+    }
+
+    #[test]
+    fn scope_validation_checks_physical_headers_and_the_exact_return_transfer() {
+        let document = idl::check(
+            m::SourceId(1),
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/component_counter.idl.json"
+            )),
+            Default::default(),
+        )
+        .unwrap();
+        let mut session = wire::Session::new(Default::default());
+        let contract = wire::Contract::new(document, vec![], &mut session).unwrap();
+        let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
+        let methods = [native::Method {
+            interface: 0,
+            member: 0,
+            invoke,
+            user: ptr::null_mut(),
+            flags: 0,
+        }];
+        let descriptors = [native::ResourceType {
+            interface: 0,
+            resource: 0,
+            destroy,
+            user: ptr::null_mut(),
+        }];
+        let provider = native::Provider::with_resources(
+            wire::Provider {
+                contract: &contract,
+                digest: &digest,
+            },
+            &methods,
+            &descriptors,
+            &(),
+            &mut session,
+        )
+        .unwrap();
+        let key = ResourceTypeKey::new(
+            InterfaceKey::new(PackageKey::new("demo", "counter"), "api"),
+            "counter",
+        );
+        let kind = provider.resource_kind(&key, &mut session).unwrap();
+        let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut budget = m::Budget::new(Default::default());
+        let mut resources = Resources::prepare(&allocator, 1, 1, &mut budget).unwrap();
+        let guest = resources.new_holder().unwrap();
+        let claim = resources
+            .publish(kind, guest, &41_i64.to_le_bytes(), &mut allocator)
+            .unwrap();
+        let caller = resources.host();
+        assert!(matches!(
+            resources.scope_closed(caller, guest, &[], None, &allocator),
+            Err(Error::State)
+        ));
+        let transfer = resources
+            .prepare_transfer(&[claim], guest, caller, &allocator)
+            .unwrap();
+        let returned = resources.prepared_claim(transfer, 0).unwrap();
+        let header = resources.values.owned_value(claim.owner).unwrap().header;
+        let before = allocator.stats();
+        resources
+            .scope_closed(caller, guest, &[], Some(transfer), &allocator)
+            .unwrap();
+        for (offset, invalid, original) in [
+            (32, 0_u64.to_le_bytes(), claim.ticket.to_le_bytes()),
+            (32, u64::MAX.to_le_bytes(), claim.ticket.to_le_bytes()),
+            (
+                8,
+                0_u64.to_le_bytes(),
+                claim.owner.token()[..8].try_into().unwrap(),
+            ),
+            (
+                24,
+                (u64::from_le_bytes(claim.owner.token()[16..24].try_into().unwrap()) ^ 1)
+                    .to_le_bytes(),
+                claim.owner.token()[16..24].try_into().unwrap(),
+            ),
+            (40, u64::MAX.to_le_bytes(), guest.scope.to_le_bytes()),
+        ] {
+            allocator.bytes_mut(header).unwrap()[offset..offset + 8].copy_from_slice(&invalid);
+            assert!(matches!(
+                resources.scope_closed(caller, guest, &[], Some(transfer), &allocator),
+                Err(Error::State)
+            ));
+            allocator.bytes_mut(header).unwrap()[offset..offset + 8].copy_from_slice(&original);
+            resources
+                .scope_closed(caller, guest, &[], Some(transfer), &allocator)
+                .unwrap();
+        }
+        assert_eq!(allocator.stats(), before);
+        resources.commit_transfer(transfer, &mut allocator).unwrap();
+        resources
+            .scope_closed(caller, guest, &[], None, &allocator)
+            .unwrap();
+        let borrowed = [Input {
+            claim: returned,
+            access: Access::Shared,
+        }];
+        allocator.bytes_mut(header).unwrap()[32..40].copy_from_slice(&claim.ticket.to_le_bytes());
+        assert!(matches!(
+            resources.scope_closed(caller, guest, &borrowed, None, &allocator),
+            Err(Error::StaleClaim)
+        ));
+        allocator.bytes_mut(header).unwrap()[32..40]
+            .copy_from_slice(&returned.ticket.to_le_bytes());
+        resources
+            .scope_closed(caller, guest, &borrowed, None, &allocator)
+            .unwrap();
+        assert!(resources.validate(claim, guest, &key, &allocator).is_err());
+        resources
+            .validate(returned, caller, &key, &allocator)
+            .unwrap();
+        resources
+            .detach(returned, caller, &allocator)
+            .unwrap()
+            .release(&mut allocator)
+            .unwrap();
+        assert_eq!(allocator.stats().live_allocations, 0);
+        assert!(resources.is_empty());
     }
 }

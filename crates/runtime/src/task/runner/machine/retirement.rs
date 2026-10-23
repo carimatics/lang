@@ -38,7 +38,11 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 ),
             ) => c::ExecutionFailure::AllocationLimit,
             Reason::Layout(l::Error::CellLimit { .. }) => c::ExecutionFailure::CellLimit,
-            Reason::Invariant | Reason::Layout(_) => c::ExecutionFailure::Invariant,
+            Reason::Invariant
+            | Reason::Layout(_)
+            | Reason::Instance(crate::component::execution::InstanceError::ScopeNotClosed) => {
+                c::ExecutionFailure::Invariant
+            }
             Reason::Native(
                 crate::component::execution::NativeFailure::Invocation(_)
                 | crate::component::execution::NativeFailure::MissingResult

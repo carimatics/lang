@@ -456,6 +456,23 @@ impl<T> ResourceTable<T> {
         self.active_resources
     }
 
+    pub(crate) fn entries(&self) -> impl Iterator<Item = (OwnedResourceHandle, &T)> {
+        self.slots.iter().enumerate().filter_map(|(index, slot)| {
+            slot.value.as_ref().map(|value| {
+                (
+                    OwnedResourceHandle {
+                        table: self
+                            .identity
+                            .expect("occupied prepared table has an identity"),
+                        slot: u32::try_from(index).expect("resource slots are bounded by u32"),
+                        generation: slot.generation,
+                    },
+                    value,
+                )
+            })
+        })
+    }
+
     pub const fn is_empty(&self) -> bool {
         self.active_resources == 0
     }
