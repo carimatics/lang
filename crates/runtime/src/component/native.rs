@@ -298,6 +298,40 @@ impl<'a> Provider<'a> {
             index: self.resources.len(),
         })
     }
+    pub(crate) fn resource_kind_bytes(
+        &'a self,
+        key: &[u8],
+        budget: &mut lang_mir::unit::Budget,
+    ) -> Result<ResourceKind<'a>, u32> {
+        budget.charge(key.len()).map_err(|_| 12u32)?;
+        for registration in 0..self.resources.len() {
+            let kind = ResourceKind {
+                provider: self,
+                registration,
+            };
+            let typed = kind.key();
+            let interface = typed.interface();
+            let package = interface.package();
+            let parts = [
+                package.namespace().as_bytes(),
+                b":",
+                package.package().as_bytes(),
+                b"/",
+                interface.interface().as_bytes(),
+                b".",
+                typed.resource().as_bytes(),
+            ];
+            let mut remaining = Some(key);
+            for part in parts {
+                budget.charge(part.len()).map_err(|_| 12u32)?;
+                remaining = remaining.and_then(|bytes| bytes.strip_prefix(part));
+            }
+            if remaining == Some(&[][..]) {
+                return Ok(kind);
+            }
+        }
+        Err(7)
+    }
     pub fn retains_code<T>(&self, owner: &T) -> bool {
         std::ptr::addr_eq(self.owner as *const dyn CodeOwner, owner as *const T)
     }

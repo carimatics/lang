@@ -302,6 +302,45 @@ impl<'a> Resources<'a> {
         out[40..48].copy_from_slice(&holder.scope.to_le_bytes());
         Ok(claim)
     }
+    /// Publish an existing context buffer without copying or changing its
+    /// allocation request. Refusal leaves that original buffer with its caller.
+    pub(crate) fn publish_backing(
+        &mut self,
+        kind: ResourceKind<'a>,
+        holder: Holder,
+        data: a::Handle,
+        allocator: &mut dyn Memory,
+    ) -> Result<Claim, Error> {
+        self.idle()?;
+        self.check_allocator(allocator)?;
+        self.check_holder(holder)?;
+        self.values.check_insert()?;
+        allocator.request(data)?;
+        let request = a::Request::new(HEADER_BYTES, 8)?;
+        allocator.check(&[request])?;
+        let ticket = self.tickets(1)?;
+        let header = allocator.allocate(request)?;
+        let out = match allocator.bytes_mut(header) {
+            Ok(bytes) if bytes.len() == HEADER_BYTES as usize => bytes,
+            _ => {
+                allocator.release(header)?;
+                return Err(Error::State);
+            }
+        };
+        let owner = match self.values.insert(Backing { kind, data, header }) {
+            Ok(owner) => owner,
+            Err(error) => {
+                allocator.release(header)?;
+                return Err(error.into());
+            }
+        };
+        let claim = Claim { owner, ticket };
+        out[..8].copy_from_slice(&MAGIC.to_le_bytes());
+        out[8..32].copy_from_slice(&owner.token());
+        out[32..40].copy_from_slice(&ticket.to_le_bytes());
+        out[40..48].copy_from_slice(&holder.scope.to_le_bytes());
+        Ok(claim)
+    }
     fn backing(
         &self,
         claim: Claim,

@@ -14,9 +14,13 @@ use crate::{
 use lang_mir::unit::{self as m, ownership as o};
 mod call;
 mod instance;
+mod native_result;
 mod result;
 pub(crate) use call::ReadRoot;
-pub use call::{NativeArguments, NativeContext, NativeFailure, NativeReturn, ResourceArgument};
+pub use call::{
+    NativeArguments, NativeContext, NativeFailure, NativeResourceFailure, NativeResult,
+    NativeReturn, ResourceArgument,
+};
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError};
 pub(crate) use result::read_parameters;
@@ -106,7 +110,19 @@ pub trait Host {
         span: m::Span,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
-    ) -> Result<wire::Values, Reason>;
+    ) -> Result<NativeResult, Reason>;
+    fn commit_native_result(
+        &mut self,
+        result: &mut NativeResult,
+        memory: &mut dyn Memory,
+    ) -> Result<(), Reason>;
+    fn discard_native_result(
+        &mut self,
+        result: &mut NativeResult,
+        cleanup: &mut c::Session,
+        span: m::Span,
+        memory: &mut dyn Memory,
+    ) -> Result<(), Reason>;
     fn indirect_input(&self) -> bool;
     fn result_session(&mut self) -> Result<&mut wire::Session, Reason>;
     fn abandon_result(
@@ -254,6 +270,14 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
     pub fn active_loans(&self) -> usize {
         self.loans.iter().filter(|loan| loan.is_some()).count()
     }
+    fn abort_transfer(&mut self) {
+        self.holding_output = false;
+        if let Some(ticket) = self.transfer.take()
+            && self.resources.abort_transfer(ticket).is_err()
+        {
+            self.instance.phase = Phase::Poisoned;
+        }
+    }
 
     fn retire_claim(
         &mut self,
@@ -262,9 +286,19 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         memory: &mut dyn Memory,
         context: &mut c::Context<'_>,
     ) -> Result<(), u32> {
+        self.retire_from_holder(claim, self.guest, span, memory, context)
+    }
+    fn retire_from_holder(
+        &mut self,
+        claim: Claim,
+        holder: Holder,
+        span: Option<m::Span>,
+        memory: &mut dyn Memory,
+        context: &mut c::Context<'_>,
+    ) -> Result<(), u32> {
         let mut backing = self
             .resources
-            .detach(claim, self.guest, memory)
+            .detach(claim, holder, memory)
             .map_err(|_| 17u32)?;
         let kind = backing.kind().map_err(|_| 17u32)?;
         let mut cleanup =
@@ -415,7 +449,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         Ok(arguments)
     }
 }
-impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
+impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
+    for Invocation<'state, 'p, 'u, 'resources, 'code, 'native>
+{
     fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason> {
         self.finished = true;
         let closed = self.transfer.is_none()
@@ -452,12 +488,12 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
         span: m::Span,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
-    ) -> Result<wire::Values, Reason> {
+    ) -> Result<NativeResult, Reason> {
         let session = self.output_session.take().ok_or(Reason::Unsupported)?;
         let mut created = Vec::new();
         let mut owned = Vec::new();
         let mut native_holder = None;
-        let result = (|| -> Result<wire::Values, Reason> {
+        let mut result = (|| -> Result<NativeResult, Reason> {
             let bindings = self.program.bindings();
             let target = bindings.resolve(import).ok_or(Reason::Entry)?;
             if target.method().flags != 0 {
@@ -510,21 +546,22 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
             let mut seen = session
                 .vector(uses.len(), 0)
                 .map_err(Reason::ComponentFrame)?;
+            let native_capacity = uses
+                .len()
+                .checked_add(self.resources.capacity())
+                .ok_or(Reason::Invariant)?;
             let mut views = session
-                .vector(uses.len(), 0)
+                .vector(native_capacity, 0)
                 .map_err(Reason::ComponentFrame)?;
             let mut accepted = session
-                .vector(uses.len(), 0)
+                .vector(native_capacity, 0)
                 .map_err(Reason::ComponentFrame)?;
             arguments.consumed = session
                 .vector(uses.len(), 0)
                 .map_err(Reason::ComponentFrame)?;
-            if uses
-                .iter()
-                .any(|used| matches!(used.access, wire::ResourceAccess::Own))
             {
                 arguments.cleanup = Some(c::Session::prepare(
-                    std::num::NonZeroUsize::new(uses.len().saturating_add(1))
+                    std::num::NonZeroUsize::new(native_capacity.saturating_add(1))
                         .ok_or(Reason::Invariant)?,
                     budget,
                 )?);
@@ -600,12 +637,13 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                 kinds.push(kind);
                 accesses.push(access);
             }
+            let native = self.resources.new_holder().map_err(fault)?;
+            native_holder = Some(native);
             if !inputs.is_empty() {
                 created = session
                     .vector(inputs.len(), 0)
                     .map_err(Reason::ComponentFrame)?;
                 created.resize(inputs.len(), None);
-                let native = self.resources.new_holder().map_err(fault)?;
                 let transfer = self
                     .resources
                     .prepare_call(inputs.iter().copied(), self.guest, native, memory)
@@ -634,9 +672,8 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                         .consumed
                         .push(arguments.resources[(used.index.get() - 1) as usize].claim);
                 }
-                owned = accepted;
-                native_holder = Some(native);
             }
+            owned = accepted;
             for index in 0..uses.len() {
                 let (authority, bytes) = if matches!(uses[index].access, wire::ResourceAccess::Own)
                 {
@@ -668,9 +705,17 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                     bytes,
                 });
             }
-            let mut context = call::CallContext::new(self.resources, memory, budget, &views);
+            let mut context = call::CallContext::new(
+                self.resources,
+                memory,
+                budget,
+                &mut views,
+                &mut owned,
+                native,
+                target.provider(),
+            );
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
-            let decoded = (|| -> Result<wire::Values, Reason> {
+            let decoded = (|| -> Result<NativeResult, Reason> {
                 self.invoker.check_control().map_err(Reason::Control)?;
                 let returned =
                     returned.map_err(|status| Reason::Native(NativeFailure::Invocation(status)))?;
@@ -708,10 +753,51 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                         Reason::Native(NativeFailure::InvalidResult(error))
                     }
                 })?;
-                if !resources.is_empty() {
-                    return Err(Reason::Unsupported);
+                let mut nodes = session
+                    .vector(resources.len(), 0)
+                    .map_err(Reason::ComponentFrame)?;
+                let mut claims = session
+                    .vector(resources.len(), 0)
+                    .map_err(Reason::ComponentFrame)?;
+                let mut originals = session
+                    .vector(resources.len(), 0)
+                    .map_err(Reason::ComponentFrame)?;
+                for used in resources {
+                    let failure = |kind| {
+                        Reason::Native(NativeFailure::Resource {
+                            index: used.index.get(),
+                            kind,
+                        })
+                    };
+                    let view = context
+                        .views
+                        .get((used.index.get() - 1) as usize)
+                        .ok_or_else(|| failure(NativeResourceFailure::UnknownIndex))?;
+                    let call::NativeAuthority::Own(claim, _) = view.authority else {
+                        return Err(failure(NativeResourceFailure::NotOwned));
+                    };
+                    if used.access != wire::ResourceAccess::Own || view.kind.key() != used.key {
+                        return Err(failure(NativeResourceFailure::WrongKind));
+                    }
+                    session
+                        .charge(originals.len().saturating_add(1), 0)
+                        .map_err(Reason::ComponentFrame)?;
+                    if originals.contains(&claim) {
+                        return Err(failure(NativeResourceFailure::Aliased));
+                    }
+                    nodes.push(used.value.0);
+                    claims.push(claim);
+                    originals.push(claim);
                 }
-                Ok(values)
+                Ok(NativeResult {
+                    values,
+                    nodes,
+                    claims,
+                    originals,
+                    holder: native_holder,
+                    transfer: None,
+                    committed: false,
+                })
             })();
             let closed = context.close();
             match decoded {
@@ -730,6 +816,12 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
         }
         let mut cleanup_failed = false;
         for (claim, position) in owned.into_iter().rev() {
+            if result
+                .as_ref()
+                .is_ok_and(|value| value.originals.contains(&claim))
+            {
+                continue;
+            }
             let holder = native_holder.ok_or(Reason::Invariant)?;
             let cleanup = arguments.cleanup.as_mut().ok_or(Reason::Invariant)?;
             let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
@@ -759,19 +851,58 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                 )
                 .is_err();
         }
-        self.output_session = Some(session);
-        match result {
-            Err(error) => Err(error),
-            Ok(values) => {
-                if cleanup_failed {
-                    return Err(Reason::Cleanup);
-                }
-                if let Some(error) = ending {
-                    return Err(fault(error));
-                }
-                Ok(values)
+        if result.is_ok() && (cleanup_failed || ending.is_some()) {
+            if let Ok(value) = &mut result {
+                let _ = self.abort_native_result(
+                    value,
+                    arguments.cleanup.as_mut().ok_or(Reason::Invariant)?,
+                    span,
+                    memory,
+                );
             }
+            result = Err(if cleanup_failed {
+                Reason::Cleanup
+            } else {
+                fault(ending.expect("observed ending failure"))
+            });
         }
+        if let Ok(value) = &mut result
+            && let Err(error) = self.prepare_native_result(value, memory)
+        {
+            let _ = self.abort_native_result(
+                value,
+                arguments.cleanup.as_mut().ok_or(Reason::Invariant)?,
+                span,
+                memory,
+            );
+            result = Err(error);
+        }
+        self.output_session = Some(session);
+        result
+    }
+    fn commit_native_result(
+        &mut self,
+        result: &mut NativeResult,
+        memory: &mut dyn Memory,
+    ) -> Result<(), Reason> {
+        if let Some(ticket) = result.transfer {
+            self.resources
+                .commit_transfer(ticket, memory)
+                .map_err(fault)?;
+            result.transfer = None;
+        }
+        result.committed = true;
+        result.originals.clear();
+        Ok(())
+    }
+    fn discard_native_result(
+        &mut self,
+        result: &mut NativeResult,
+        cleanup: &mut c::Session,
+        span: m::Span,
+        memory: &mut dyn Memory,
+    ) -> Result<(), Reason> {
+        self.abort_native_result(result, cleanup, span, memory)
     }
     fn indirect_input(&self) -> bool {
         self.input_frame
@@ -975,12 +1106,7 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
         Ok(())
     }
     fn abort_arguments(&mut self) {
-        self.holding_output = false;
-        if let Some(ticket) = self.transfer.take()
-            && self.resources.abort_transfer(ticket).is_err()
-        {
-            self.instance.phase = Phase::Poisoned;
-        }
+        self.abort_transfer();
     }
     fn arguments_committed(&self) -> bool {
         self.committed
@@ -1170,7 +1296,7 @@ impl Drop for Invocation<'_, '_, '_, '_, '_, '_> {
         if self.committed && !self.finished {
             self.instance.phase = Phase::Poisoned;
         }
-        self.abort_arguments();
+        self.abort_transfer();
         for loan in self.loans.iter_mut().filter_map(Option::take) {
             if self.resources.end_loan(loan).is_err() {
                 self.instance.phase = Phase::Poisoned;

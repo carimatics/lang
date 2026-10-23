@@ -120,3 +120,32 @@ pub unsafe extern "C" fn context_resource_write(
         Err(status) => status,
     }
 }
+
+/// # Safety
+/// Context and key storage remain readable for this synchronous operation;
+/// output is writable and aligned. Only registered keys and live context
+/// buffers can publish an owner; refusal leaves buffer/output unchanged.
+pub unsafe extern "C" fn context_resource_publish(
+    context: *const native::Context,
+    key: native::Bytes,
+    buffer: *mut native::Buffer,
+    output: *mut u32,
+) -> u32 {
+    if output.is_null() || key.data.is_null() || key.length > isize::MAX as u64 {
+        return 2;
+    }
+    // SAFETY: the native caller guarantees this readable key region. Context
+    // validation and cumulative work admission precede key inspection/use.
+    match unsafe {
+        with_call(context, false, |call| {
+            let key = std::slice::from_raw_parts(key.data, key.length as usize);
+            call.resource_publish(key, buffer)
+        })
+    } {
+        Ok(index) => {
+            unsafe { output.write(index) };
+            0
+        }
+        Err(status) => status,
+    }
+}

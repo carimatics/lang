@@ -17,8 +17,8 @@ use std::{
 };
 mod context;
 pub use context::{
-    buffer_mut_bytes, context_buffer_create, context_buffer_drop, context_resource_read,
-    context_resource_write,
+    buffer_mut_bytes, context_buffer_create, context_buffer_drop, context_resource_publish,
+    context_resource_read, context_resource_write,
 };
 
 static NEXT_INVOCATION: AtomicU64 = AtomicU64::new(1);

@@ -25,6 +25,10 @@ struct Destroyed {
     native: Option<NativeCase>,
     batch: bool,
     list: bool,
+    native_result: bool,
+    fresh_result: bool,
+    published: Cell<usize>,
+    result_shape: Option<NativeShape>,
     interruption: Cell<*const e::InterruptionFlag>,
     value: Cell<i64>,
     allocator: Cell<u64>,
@@ -52,6 +56,12 @@ enum NativeCase {
     Fuel(u64),
     HostCalls(u64),
     Cells(usize),
+    ResultIndex(u32),
+}
+#[derive(Clone, Copy, Debug)]
+enum NativeShape {
+    List,
+    Record,
 }
 #[derive(Clone, Copy)]
 enum Case {
@@ -65,6 +75,14 @@ enum Case {
     NativeTransfer(NativeCase, bool),
     NativeBatch(NativeCase, bool),
     NativeList(NativeCase, bool),
+    NativeResult(NativeCase),
+    NativeFresh(NativeCase),
+    NativeBorrowResult(NativeCase),
+    NativeFreshUnused(NativeCase),
+    NativeFreshFailure(NativeCase),
+    NativeAggregate(NativeCase, NativeShape),
+    NativeFreshLoan(NativeCase),
+    NativeWrongResultKind,
     MixedLoan(bool),
     LoanReturn(bool),
     LoanAliases,
@@ -107,48 +125,108 @@ enum Case {
 impl Case {
     fn native(self) -> Option<NativeCase> {
         match self {
+            Self::NativeWrongResultKind => Some(NativeCase::Owned),
             Self::NativeView => Some(NativeCase::Owned),
             Self::Native(native)
             | Self::NativeTransfer(native, _)
             | Self::NativeBatch(native, _)
-            | Self::NativeList(native, _) => Some(native),
+            | Self::NativeList(native, _)
+            | Self::NativeResult(native)
+            | Self::NativeFresh(native)
+            | Self::NativeFreshUnused(native)
+            | Self::NativeFreshFailure(native)
+            | Self::NativeAggregate(native, _)
+            | Self::NativeFreshLoan(native)
+            | Self::NativeBorrowResult(native) => Some(native),
             _ => None,
         }
     }
     fn native_owned(self) -> bool {
         matches!(
             self,
-            Self::Native(NativeCase::Owned | NativeCase::OwnedReturn | NativeCase::WrongKindOwned)
+            Self::NativeWrongResultKind
+                | Self::Native(
+                    NativeCase::Owned | NativeCase::OwnedReturn | NativeCase::WrongKindOwned
+                )
                 | Self::NativeTransfer(..)
                 | Self::NativeBatch(..)
                 | Self::NativeList(..)
+                | Self::NativeResult(_)
+                | Self::NativeFresh(_)
+                | Self::NativeFreshUnused(_)
+                | Self::NativeFreshFailure(_)
+                | Self::NativeAggregate(..)
+                | Self::NativeBorrowResult(_)
         )
     }
     fn native_transfer(self) -> bool {
         matches!(
             self,
-            Self::NativeTransfer(..) | Self::NativeBatch(_, false) | Self::NativeList(..)
+            Self::NativeWrongResultKind
+                | Self::NativeTransfer(..)
+                | Self::NativeBatch(_, false)
+                | Self::NativeList(..)
+                | Self::NativeResult(_)
+                | Self::NativeFresh(_)
+                | Self::NativeFreshUnused(_)
+                | Self::NativeFreshFailure(_)
+                | Self::NativeAggregate(..)
         )
     }
     fn native_batch(self) -> bool {
-        matches!(self, Self::NativeBatch(..) | Self::NativeList(..))
+        matches!(
+            self,
+            Self::NativeBatch(..) | Self::NativeList(..) | Self::NativeAggregate(..)
+        )
     }
     fn native_declared(self) -> bool {
         matches!(self.native(), Some(NativeCase::Declared))
     }
+    fn native_result(self) -> bool {
+        matches!(
+            self,
+            Self::NativeWrongResultKind
+                | Self::NativeResult(_)
+                | Self::NativeFresh(_)
+                | Self::NativeFreshFailure(_)
+                | Self::NativeBorrowResult(_)
+                | Self::NativeFreshLoan(_)
+        )
+    }
+    fn fresh_result(self) -> bool {
+        matches!(
+            self,
+            Self::NativeFresh(_)
+                | Self::NativeFreshUnused(_)
+                | Self::NativeFreshFailure(_)
+                | Self::NativeFreshLoan(_)
+        )
+    }
+    fn native_shape(self) -> Option<NativeShape> {
+        if let Self::NativeAggregate(_, shape) = self {
+            Some(shape)
+        } else {
+            None
+        }
+    }
     fn native_poison(self) -> bool {
         matches!(
+            self,
+            Self::NativeBorrowResult(_) | Self::NativeWrongResultKind
+        ) || matches!(
             self.native(),
             Some(
                 NativeCase::Malformed
                     | NativeCase::NoResult
                     | NativeCase::ForeignResult
                     | NativeCase::BadStatus
+                    | NativeCase::ResultIndex(_)
             )
         )
     }
     fn loan(self) -> Option<bool> {
         match self {
+            Self::NativeFreshLoan(_) => Some(true),
             Self::SharedLoan
             | Self::LoanAliases
             | Self::LoanCapacity
@@ -252,11 +330,17 @@ impl Case {
     fn returns_resource(self) -> bool {
         matches!(
             self,
-            Self::Return
+            Self::NativeWrongResultKind
+                | Self::Return
                 | Self::ReturnFrame
                 | Self::ReturnCleanupFailure
                 | Self::LoanReturn(_)
                 | Self::Native(NativeCase::OwnedReturn)
+                | Self::NativeResult(_)
+                | Self::NativeFresh(_)
+                | Self::NativeFreshFailure(_)
+                | Self::NativeBorrowResult(_)
+                | Self::NativeFreshLoan(_)
         )
     }
     fn failing_cleanup(self) -> bool {
@@ -269,6 +353,7 @@ impl Case {
                 | Self::LoanFuelCleanup(_)
                 | Self::NativeTransfer(_, true)
                 | Self::NativeList(_, true)
+                | Self::NativeFreshFailure(_)
         )
     }
 }
@@ -352,7 +437,13 @@ unsafe extern "C" fn native_apply(
         if declared && &arguments[61..] != "寿司".as_bytes() {
             return Err(2);
         }
-        let payload = if declared { 11usize } else { 9 };
+        let payload = match state.result_shape {
+            Some(NativeShape::List) => 12usize,
+            Some(NativeShape::Record) => 29,
+            None if state.native_result => 4,
+            None if declared => 11,
+            None => 9,
+        };
         let index = u32::from_le_bytes(arguments[45..49].try_into().unwrap());
         let delta = i64::from_le_bytes(arguments[49..57].try_into().unwrap());
         let mut buffer = ptr::null_mut();
@@ -452,11 +543,98 @@ unsafe extern "C" fn native_apply(
             unsafe { std::slice::from_raw_parts_mut(writable.data, 8) }
                 .copy_from_slice(&after.to_le_bytes());
         }
+        let mut result_index = index;
+        if state.fresh_result {
+            let mut backing = ptr::null_mut();
+            let status = unsafe {
+                lang_codegen_clif::component::context_buffer_create(context, 8, 8, &mut backing)
+            };
+            if status != 0 {
+                return Err(status);
+            }
+            let mut bytes = native::MutBytes {
+                data: ptr::null_mut(),
+                length: 0,
+            };
+            let status = unsafe {
+                lang_codegen_clif::component::buffer_mut_bytes(context, backing, &mut bytes)
+            };
+            if status != 0 || bytes.length != 8 || bytes.data.is_null() {
+                return Err(2);
+            }
+            unsafe { std::slice::from_raw_parts_mut(bytes.data, 8) }
+                .copy_from_slice(&after.to_le_bytes());
+            let mut untouched = 777_u32;
+            let wrong = b"demo:counter/api.unknown";
+            if unsafe {
+                lang_codegen_clif::component::context_resource_publish(
+                    context,
+                    native::Bytes {
+                        data: wrong.as_ptr(),
+                        length: wrong.len() as u64,
+                    },
+                    backing,
+                    &mut untouched,
+                )
+            } != 7
+                || untouched != 777
+            {
+                return Err(2);
+            }
+            let key = b"demo:counter/api.counter";
+            let status = unsafe {
+                lang_codegen_clif::component::context_resource_publish(
+                    context,
+                    native::Bytes {
+                        data: key.as_ptr(),
+                        length: key.len() as u64,
+                    },
+                    backing,
+                    &mut result_index,
+                )
+            };
+            if status != 0 {
+                return Err(status);
+            }
+            state.published.set(state.published.get() + 1);
+            if result_index != 2
+                || unsafe { lang_codegen_clif::component::context_buffer_drop(context, backing) }
+                    != 5
+            {
+                return Err(2);
+            }
+        }
+        if let Some(NativeCase::ResultIndex(index)) = state.native {
+            result_index = index;
+        }
         let encoded = unsafe { std::slice::from_raw_parts_mut(encoded.data, 45 + payload) };
         encoded[..45].copy_from_slice(&arguments[..45]);
         encoded[8] = 1;
         encoded[41..45].copy_from_slice(&(payload as u32).to_le_bytes());
-        if declared {
+        if let Some(shape) = state.result_shape {
+            let extra = match state.native {
+                Some(NativeCase::ResultIndex(index)) => index,
+                _ => 2,
+            };
+            match shape {
+                NativeShape::List => {
+                    encoded[45..49].copy_from_slice(&2_u32.to_le_bytes());
+                    encoded[49..53].copy_from_slice(&index.to_le_bytes());
+                    encoded[53..57].copy_from_slice(&extra.to_le_bytes());
+                }
+                NativeShape::Record => {
+                    encoded[45..49].copy_from_slice(&index.to_le_bytes());
+                    encoded[49..53].copy_from_slice(&6_u32.to_le_bytes());
+                    encoded[53..59].copy_from_slice("寿司".as_bytes());
+                    encoded[59..63].copy_from_slice(&3_u32.to_le_bytes());
+                    encoded[63..66].copy_from_slice(&[0, 128, 255]);
+                    encoded[66..70].copy_from_slice(&1_u32.to_le_bytes());
+                    encoded[70..74].copy_from_slice(&extra.to_le_bytes());
+                }
+            }
+        } else if state.native_result {
+            encoded[45..49].copy_from_slice(&result_index.to_le_bytes());
+        } else if declared {
             encoded[45] = 1;
             encoded[46..50].copy_from_slice(&6_u32.to_le_bytes());
             encoded[50..56].copy_from_slice("寿司".as_bytes());
@@ -678,6 +856,138 @@ fn source_native_member_accepts_and_retires_the_actual_owner() {
         run_source(Case::NativeTransfer(NativeCase::Owned, false)),
         (true, true)
     );
+}
+
+#[test]
+fn native_owned_result_returns_the_original_mutated_owner_on_both_engines() {
+    assert_eq!(
+        run_source(Case::NativeResult(NativeCase::Owned)),
+        (true, true)
+    );
+}
+
+#[test]
+fn native_buffer_publication_returns_a_fresh_owner_and_preserves_refused_buffers() {
+    assert_eq!(
+        run_source(Case::NativeFresh(NativeCase::Owned)),
+        (true, true)
+    );
+}
+
+#[test]
+fn native_result_refuses_borrowed_and_out_of_range_resource_authority() {
+    assert_eq!(run_source(Case::NativeWrongResultKind), (false, true));
+    assert_eq!(
+        run_source(Case::NativeBorrowResult(NativeCase::Owned)),
+        (false, true)
+    );
+    for index in [0, 2, u32::MAX] {
+        assert_eq!(
+            run_source(Case::NativeResult(NativeCase::ResultIndex(index))),
+            (false, true)
+        );
+    }
+}
+
+#[test]
+fn native_unreturned_and_unpublished_owners_retire_before_success_or_failure() {
+    assert_eq!(
+        run_source(Case::NativeFreshUnused(NativeCase::Owned)),
+        (true, true)
+    );
+    for mode in [
+        NativeCase::Owned,
+        NativeCase::Malformed,
+        NativeCase::Interrupt,
+    ] {
+        assert_eq!(run_source(Case::NativeFreshFailure(mode)), (false, true));
+    }
+}
+
+#[test]
+fn native_owned_results_expire_and_retire_after_malformed_or_interrupted_returns() {
+    for mode in [
+        NativeCase::Malformed,
+        NativeCase::NoResult,
+        NativeCase::ForeignResult,
+        NativeCase::BadStatus,
+        NativeCase::Interrupt,
+    ] {
+        assert_eq!(run_source(Case::NativeResult(mode)), (false, true));
+        assert_eq!(run_source(Case::NativeFresh(mode)), (false, true));
+    }
+}
+
+#[test]
+fn native_owned_result_provider_and_fuel_prefixes_keep_original_custody_or_retire_it() {
+    for fresh in [false, true] {
+        let cases: Vec<_> = (0..112)
+            .map(|offset| {
+                let mode = NativeCase::Oom(offset);
+                run_source(if fresh {
+                    Case::NativeFresh(mode)
+                } else {
+                    Case::NativeResult(mode)
+                })
+            })
+            .collect();
+        assert!(cases.contains(&(false, false)));
+        assert!(cases.contains(&(false, true)));
+        assert!(cases.contains(&(true, true)));
+        for fuel in 0..160 {
+            let mode = NativeCase::Fuel(fuel);
+            run_source(if fresh {
+                Case::NativeFresh(mode)
+            } else {
+                Case::NativeResult(mode)
+            });
+        }
+    }
+}
+
+#[test]
+fn native_owned_lists_and_records_stage_all_storage_before_owner_publication() {
+    for shape in [NativeShape::List, NativeShape::Record] {
+        assert_eq!(
+            run_source(Case::NativeAggregate(NativeCase::Owned, shape)),
+            (true, true)
+        );
+        for mode in [
+            NativeCase::ResultIndex(0),
+            NativeCase::ResultIndex(1),
+            NativeCase::ResultIndex(u32::MAX),
+            NativeCase::Malformed,
+            NativeCase::Interrupt,
+        ] {
+            assert_eq!(
+                run_source(Case::NativeAggregate(mode, shape)),
+                (false, true)
+            );
+        }
+        let results: Vec<_> = (0..128)
+            .map(|offset| run_source(Case::NativeAggregate(NativeCase::Oom(offset), shape)))
+            .collect();
+        assert!(results.contains(&(false, false)));
+        assert!(results.contains(&(false, true)));
+        assert!(results.contains(&(true, true)));
+    }
+}
+
+#[test]
+fn native_fresh_results_preserve_the_original_caller_and_expire_root_loans() {
+    assert_eq!(
+        run_source(Case::NativeFreshLoan(NativeCase::Owned)),
+        (true, true)
+    );
+    for mode in [NativeCase::Malformed, NativeCase::Interrupt] {
+        assert_eq!(run_source(Case::NativeFreshLoan(mode)), (false, true));
+    }
+    let results: Vec<_> = (0..112)
+        .map(|offset| run_source(Case::NativeFreshLoan(NativeCase::Oom(offset))))
+        .collect();
+    assert!(results.contains(&(false, false)));
+    assert!(results.contains(&(false, true)));
+    assert!(results.contains(&(true, true)));
 }
 
 #[test]
@@ -996,6 +1306,16 @@ fn run_source(case: Case) -> (bool, bool) {
     if case.native_transfer() {
         host_json["interfaces"][0]["functions"][0]["params"][0]["type"] = json!({"own":"counter"});
     }
+    if case.native_result() {
+        host_json["interfaces"][0]["functions"][0]["result"] = json!({"own":"counter"});
+    }
+    if matches!(case, Case::NativeWrongResultKind) {
+        host_json["interfaces"][0]["resources"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!("other"));
+        host_json["interfaces"][0]["functions"][0]["result"] = json!({"own":"other"});
+    }
     if case.native_batch() {
         host_json["interfaces"][0]["types"][0]["record"]
             .as_array_mut()
@@ -1005,6 +1325,18 @@ fn run_source(case: Case) -> (bool, bool) {
             host_json["interfaces"][0]["types"][0]["record"][2]["type"] =
                 json!({"list":{"own":"counter"}});
         }
+    }
+    if let Some(shape) = case.native_shape() {
+        host_json["interfaces"][0]["functions"][0]["result"] = match shape {
+            NativeShape::List => json!({"list":{"own":"counter"}}),
+            NativeShape::Record => {
+                host_json["interfaces"][0]["types"].as_array_mut().unwrap().push(json!({"name":"bundle","record":[
+                    {"name":"value","type":{"own":"counter"}}, {"name":"label","type":"text"},
+                    {"name":"payload","type":"bytes"}, {"name":"items","type":{"list":{"own":"counter"}}}
+                ]}));
+                json!("bundle")
+            }
+        };
     }
     if matches!(
         case,
@@ -1017,6 +1349,16 @@ fn run_source(case: Case) -> (bool, bool) {
         {"key":"demo:consumer/api","resources":[],"types":[],"functions":[{"name":"consume","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}},{"name":"number","type":"i64"}],"result":if return_resource{json!({"own":"demo:counter/api.counter"})}else{json!("i64")},"capability":"demo.consumer.consume"}]}
     ],"imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":["apply"]}],"exports":["demo:consumer/api"]});
     let mut consumer = consumer;
+    if matches!(case, Case::NativeWrongResultKind) {
+        consumer["interfaces"][1]["functions"][0]["result"] =
+            json!({"own":"demo:counter/api.other"});
+    }
+    if let Some(shape) = case.native_shape() {
+        consumer["interfaces"][1]["functions"][0]["result"] = match shape {
+            NativeShape::List => json!({"list":{"own":"demo:counter/api.counter"}}),
+            NativeShape::Record => json!("demo:counter/api.bundle"),
+        };
+    }
     if case.native_declared() {
         consumer["interfaces"][1]["functions"][0]["result"] =
             json!({"result":{"ok":"i64","err":"text"}});
@@ -1189,6 +1531,24 @@ fn run_source(case: Case) -> (bool, bool) {
                 "core::ComponentResource<CounterKind>",
                 "let mut state:core::ComponentResource<CounterKind>=value;let mut raw:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut label:core::Text=core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(raw));let mut request:Request=Request{delta:1,label:label};let mut ignored:i64=core::result_unwrap::<i64,core::Text>(host_apply(state,request));return state;",
             )
+        } else if let Some(shape) = case.native_shape() {
+            (
+                match shape {
+                    NativeShape::List => "core::Vec<core::ComponentResource<CounterKind>>",
+                    NativeShape::Record => "Bundle",
+                },
+                "let mut state:core::ComponentResource<CounterKind>=value;let mut raw:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut label:core::Text=core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(raw));let mut request:Request=Request{delta:1,label:label};return host_apply(state,request);",
+            )
+        } else if matches!(case, Case::NativeFreshLoan(_)) {
+            (
+                "core::ComponentResource<CounterKind>",
+                "let mut raw:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut label:core::Text=core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(raw));let mut request:Request=Request{delta:1,label:label};return host_apply(value,request);",
+            )
+        } else if case.native_result() {
+            (
+                "core::ComponentResource<CounterKind>",
+                "let mut state:core::ComponentResource<CounterKind>=value;let mut raw:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut label:core::Text=core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(raw));let mut request:Request=Request{delta:1,label:label};return host_apply(state,request);",
+            )
         } else if case.native_owned() {
             (
                 "i64",
@@ -1237,6 +1597,30 @@ fn run_source(case: Case) -> (bool, bool) {
     } else {
         source
     };
+    let source = if case.native_result() {
+        source.replace(
+            "->core::Result<i64,core::Text>;",
+            "->core::ComponentResource<CounterKind>;",
+        )
+    } else {
+        source
+    };
+    let source = if let Some(shape) = case.native_shape() {
+        let ty = match shape {
+            NativeShape::List => "core::Vec<core::ComponentResource<CounterKind>>",
+            NativeShape::Record => "Bundle",
+        };
+        let source = source.replace("->core::Result<i64,core::Text>;", &format!("->{ty};"));
+        if matches!(shape, NativeShape::Record) {
+            format!(
+                "{source}pub struct Bundle{{value:core::ComponentResource<CounterKind>,label:core::Text,payload:core::Bytes,items:core::Vec<core::ComponentResource<CounterKind>>}}"
+            )
+        } else {
+            source
+        }
+    } else {
+        source
+    };
     let source = if case.native_batch() {
         source
             .replace(
@@ -1271,6 +1655,27 @@ fn run_source(case: Case) -> (bool, bool) {
     } else {
         source.to_owned()
     };
+    let source = if matches!(case, Case::NativeWrongResultKind) {
+        format!(
+            "{}pub struct OtherKind{{}}",
+            source.replace(
+                "->core::ComponentResource<CounterKind>",
+                "->core::ComponentResource<OtherKind>"
+            )
+        )
+    } else {
+        source
+    };
+    let mut resource_bindings = vec![f::Resource {
+        tag: "CounterKind".into(),
+        resource: ResourceTypeKey::new(interface.clone(), "counter"),
+    }];
+    if matches!(case, Case::NativeWrongResultKind) {
+        resource_bindings.push(f::Resource {
+            tag: "OtherKind".into(),
+            resource: ResourceTypeKey::new(interface.clone(), "other"),
+        });
+    }
     let out = f::analyze(f::Request {
         sources: SourceMap::new(),
         display: Path::new("component-consume.lang"),
@@ -1280,10 +1685,7 @@ fn run_source(case: Case) -> (bool, bool) {
         document: checked(),
         bindings: f::Input {
             version: 1,
-            resources: vec![f::Resource {
-                tag: "CounterKind".into(),
-                resource: ResourceTypeKey::new(interface.clone(), "counter"),
-            }],
+            resources: resource_bindings,
             imports: vec![f::Import {
                 source: "host_apply".into(),
                 member: bindings::MemberKey {
@@ -1330,6 +1732,10 @@ fn run_source(case: Case) -> (bool, bool) {
         native: case.native(),
         batch: case.native_batch(),
         list: matches!(case, Case::NativeList(..)),
+        native_result: case.native_result(),
+        fresh_result: case.fresh_result(),
+        published: Cell::new(0),
+        result_shape: case.native_shape(),
         interruption: Cell::new(ptr::null()),
         value: Cell::new(0),
         allocator: Cell::new(0),
@@ -1353,12 +1759,20 @@ fn run_source(case: Case) -> (bool, bool) {
         },
         flags: 0,
     }];
-    let resources = [native::ResourceType {
+    let mut resources = vec![native::ResourceType {
         interface: 0,
         resource: 0,
         destroy,
         user: ptr::from_ref(&destroyed).cast_mut().cast(),
     }];
+    if matches!(case, Case::NativeWrongResultKind) {
+        resources.push(native::ResourceType {
+            interface: 0,
+            resource: 1,
+            destroy,
+            user: ptr::from_ref(&destroyed).cast_mut().cast(),
+        });
+    }
     let providers = [native::Provider::with_resources(
         wire::Provider {
             contract: &host,
@@ -1412,6 +1826,7 @@ fn run_source(case: Case) -> (bool, bool) {
     let mut previous = None;
     for compiled in [false, true] {
         destroyed.calls.set(0);
+        destroyed.published.set(0);
         destroyed.method_calls.set(0);
         destroyed.method_changed.set(false);
         destroyed.method_control_checked.set(false);
@@ -2108,7 +2523,7 @@ fn run_source(case: Case) -> (bool, bool) {
                 ));
                 assert_eq!(attempts.get(), 2);
             }
-            if let Some(NativeCase::Oom(_)) = case.native() {
+            if let Some(NativeCase::Oom(offset)) = case.native() {
                 assert!(
                     matches!(
                         failure.reason,
@@ -2120,7 +2535,8 @@ fn run_source(case: Case) -> (bool, bool) {
                                 lang_runtime::layout::Error::Allocation(a::Error::OutOfMemory)
                             )
                     ),
-                    "{failure:?}"
+                    "offset {offset}, shape {:?}: {failure:?}",
+                    case.native_shape()
                 );
             }
             if let Some(NativeCase::Fuel(_)) = case.native() {
@@ -2256,11 +2672,15 @@ fn run_source(case: Case) -> (bool, bool) {
             }
             if committed && case.loan().is_none() {
                 assert!(values.is_empty());
-                assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
+                assert_eq!(
+                    destroyed.calls.get(),
+                    (if extra { 2 } else { 1 }) + destroyed.published.get()
+                );
             } else {
                 assert_eq!(
                     destroyed.calls.get(),
                     usize::from(committed && extra && !case.loan_aliases())
+                        + destroyed.published.get()
                 );
                 if matches!(case, Case::Capacity) {
                     assert!(matches!(
@@ -2330,7 +2750,10 @@ fn run_source(case: Case) -> (bool, bool) {
                 }
             }
             if case.loan().is_some() {
-                assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
+                assert_eq!(
+                    destroyed.calls.get(),
+                    (if extra { 2 } else { 1 }) + destroyed.published.get()
+                );
                 assert_eq!(
                     destroyed.value.get(),
                     if destroyed.method_changed.get() {
@@ -2353,7 +2776,7 @@ fn run_source(case: Case) -> (bool, bool) {
         assert!(!case.failing_cleanup());
         assert!(committed);
         if matches!(case, Case::FrameOutput | Case::ReturnFrame)
-            || (case.native().is_some() && !case.native_declared())
+            || (case.native().is_some() && !case.native_declared() && case.native_shape().is_none())
         {
             let execution::Value::Frame(frame) = &outcome.value else {
                 panic!("explicit frame result required");
@@ -2377,7 +2800,63 @@ fn run_source(case: Case) -> (bool, bool) {
                 outcome.value = execution::Value::Copy(lang_runtime::layout::Immediate::I64(42));
             }
         }
-        if case.native_declared() {
+        if let Some(shape) = case.native_shape() {
+            let execution::Value::Frame(frame) = &outcome.value else {
+                panic!("native aggregate result frame");
+            };
+            let claims = frame.resources();
+            assert_eq!(claims.len(), 2);
+            assert_eq!(destroyed.calls.get(), 0);
+            assert_eq!(claims[0].token()[..24], input.token()[..24]);
+            assert_eq!(claims[1].token()[..24], extra_input.unwrap().token()[..24]);
+            let root = &frame.values().nodes[frame.values().roots[0].0];
+            let ids = match (shape, root) {
+                (NativeShape::List, wire::Value::List(ids)) => ids.clone(),
+                (NativeShape::Record, wire::Value::Record(fields)) => {
+                    assert_eq!(fields.len(), 4);
+                    assert_eq!(
+                        frame.values().nodes[fields[1].0],
+                        wire::Value::Text("寿司".into())
+                    );
+                    assert_eq!(
+                        frame.values().nodes[fields[2].0],
+                        wire::Value::Bytes(vec![0, 128, 255])
+                    );
+                    let wire::Value::List(items) = &frame.values().nodes[fields[3].0] else {
+                        panic!("native owned list field");
+                    };
+                    assert_eq!(items.len(), 1);
+                    vec![fields[0], items[0]]
+                }
+                _ => panic!("wrong native aggregate result"),
+            };
+            assert_eq!(ids.len(), 2);
+            for (position, id) in ids.iter().enumerate() {
+                assert_eq!(
+                    frame.values().nodes[id.0],
+                    wire::Value::Resource(
+                        lang_runtime::component::adapter::BoundaryResourceIndex::new(
+                            position as u32 + 1
+                        )
+                        .unwrap()
+                    )
+                );
+                assert_eq!(
+                    values
+                        .bytes(claims[position], holder, kind, &allocator)
+                        .unwrap(),
+                    42_i64.to_le_bytes()
+                );
+                release_caller(
+                    &mut values,
+                    claims[position],
+                    kind,
+                    &mut allocator,
+                    &mut bridge,
+                    &mut budget,
+                );
+            }
+        } else if case.native_declared() {
             let execution::Value::Frame(frame) = &outcome.value else {
                 panic!("declared native result frame required");
             };
@@ -2492,17 +2971,29 @@ fn run_source(case: Case) -> (bool, bool) {
             let execution::Value::Resource(result) = outcome.value else {
                 panic!("resource result required")
             };
-            let original = if case.loan().is_some() {
+            let original = if case.loan().is_some() && !case.fresh_result() {
                 extra_input.unwrap()
             } else {
                 input
             };
             assert_ne!(original, result);
-            assert_eq!(destroyed.calls.get(), 0);
-            assert!(
+            assert_eq!(
+                destroyed.calls.get(),
+                if case.loan().is_some() {
+                    0
+                } else {
+                    destroyed.published.get()
+                }
+            );
+            assert_eq!(
+                original.token()[..24] == result.token()[..24],
+                !case.fresh_result()
+            );
+            assert_eq!(
                 values
                     .validate(original, holder, kind.key(), &allocator)
-                    .is_err()
+                    .is_ok(),
+                case.loan().is_some() && case.fresh_result()
             );
             assert_eq!(
                 values.bytes(result, holder, kind, &allocator).unwrap(),
@@ -2600,7 +3091,7 @@ fn run_source(case: Case) -> (bool, bool) {
             }
             assert_eq!(
                 destroyed.calls.get(),
-                usize::from(extra && !case.loan_aliases())
+                usize::from(extra && !case.loan_aliases()) + destroyed.published.get()
             );
             assert_eq!(values.len(), if case.loan_aliases() { 2 } else { 1 });
             assert_eq!(
@@ -2633,7 +3124,10 @@ fn run_source(case: Case) -> (bool, bool) {
             }
         }
         assert!(values.is_empty());
-        assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
+        assert_eq!(
+            destroyed.calls.get(),
+            (if extra { 2 } else { 1 }) + destroyed.published.get()
+        );
         assert_eq!(
             destroyed.value.get(),
             if destroyed.method_changed.get() {

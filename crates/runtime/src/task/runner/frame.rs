@@ -4,6 +4,7 @@ mod arenas;
 mod buffers;
 mod channels;
 mod component;
+pub(super) use component::ResourceValues;
 mod isolated;
 pub use access::Access;
 mod managed;

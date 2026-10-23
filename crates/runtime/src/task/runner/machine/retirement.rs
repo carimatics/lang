@@ -46,7 +46,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             Reason::Native(
                 crate::component::execution::NativeFailure::Invocation(_)
                 | crate::component::execution::NativeFailure::MissingResult
-                | crate::component::execution::NativeFailure::InvalidResult(_),
+                | crate::component::execution::NativeFailure::InvalidResult(_)
+                | crate::component::execution::NativeFailure::Resource { .. },
             ) => c::ExecutionFailure::Invariant,
             _ => c::ExecutionFailure::Fault,
         };

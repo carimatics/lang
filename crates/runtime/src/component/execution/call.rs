@@ -12,9 +12,23 @@ pub struct NativeReturn {
 #[derive(Debug)]
 pub enum NativeFailure {
     Invocation(u32),
-    Status { code: u32, bytes: Vec<u8> },
+    Status {
+        code: u32,
+        bytes: Vec<u8>,
+    },
     MissingResult,
     InvalidResult(wire::Error),
+    Resource {
+        index: u32,
+        kind: NativeResourceFailure,
+    },
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NativeResourceFailure {
+    UnknownIndex,
+    NotOwned,
+    WrongKind,
+    Aliased,
 }
 #[derive(Clone, Copy)]
 pub struct ResourceArgument {
@@ -28,6 +42,28 @@ pub struct NativeArguments {
     /// old claims to discard consumed tokens while retiring their containers.
     pub(crate) consumed: Vec<Claim>,
     pub(crate) cleanup: Option<c::Session>,
+}
+/// Unpublished native result. The original table retains custody until every
+/// guest representation is ready. A failed staging operation must abort this
+/// receipt and retire its original claims through the same cleanup Session.
+pub struct NativeResult {
+    pub(crate) values: wire::Values,
+    pub(crate) nodes: Vec<usize>,
+    pub(crate) claims: Vec<Claim>,
+    pub(crate) originals: Vec<Claim>,
+    pub(crate) holder: Option<Holder>,
+    pub(crate) transfer: Option<Transfer>,
+    pub(crate) committed: bool,
+}
+impl NativeResult {
+    pub(crate) fn claim(&self, node: usize) -> Result<Claim, Reason> {
+        let index = self
+            .nodes
+            .iter()
+            .position(|value| *value == node)
+            .ok_or(Reason::Entry)?;
+        self.claims.get(index).copied().ok_or(Reason::Entry)
+    }
 }
 pub(crate) enum ReadRoot<'l, 't> {
     Value(l::ReadView<'l, 't>),
@@ -50,6 +86,11 @@ pub trait NativeContext {
     ) -> Result<super::super::native::MutBytes, u32>;
     fn resource_read(&self, index: u32) -> Result<super::super::native::Bytes, u32>;
     fn resource_write(&self, index: u32) -> Result<super::super::native::MutBytes, u32>;
+    fn resource_publish(
+        &mut self,
+        key: &[u8],
+        buffer: *mut super::super::native::Buffer,
+    ) -> Result<u32, u32>;
 }
 
 pub(crate) struct NativeView<'a> {
@@ -74,24 +115,33 @@ impl BufferSlot {
     }
 }
 pub(crate) struct CallContext<'r, 'm, 'b, 'a> {
-    pub resources: &'r Resources<'a>,
+    pub resources: &'r mut Resources<'a>,
     pub memory: &'m mut dyn Memory,
     pub budget: &'b mut m::Budget,
-    pub views: &'r [NativeView<'a>],
+    pub views: &'r mut Vec<NativeView<'a>>,
+    pub owners: &'r mut Vec<(Claim, usize)>,
+    pub holder: Holder,
+    pub provider: &'a super::super::native::Provider<'a>,
     buffers: Vec<BufferSlot>,
 }
 impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
     pub fn new(
-        resources: &'r Resources<'a>,
+        resources: &'r mut Resources<'a>,
         memory: &'m mut dyn Memory,
         budget: &'b mut m::Budget,
-        views: &'r [NativeView<'a>],
+        views: &'r mut Vec<NativeView<'a>>,
+        owners: &'r mut Vec<(Claim, usize)>,
+        holder: Holder,
+        provider: &'a super::super::native::Provider<'a>,
     ) -> Self {
         Self {
             resources,
             memory,
             budget,
             views,
+            owners,
+            holder,
+            provider,
             buffers: Vec::new(),
         }
     }
@@ -153,6 +203,44 @@ impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
     }
 }
 impl NativeContext for CallContext<'_, '_, '_, '_> {
+    fn resource_publish(
+        &mut self,
+        key: &[u8],
+        buffer: *mut super::super::native::Buffer,
+    ) -> Result<u32, u32> {
+        self.budget.charge(self.buffers.len()).map_err(|_| 12u32)?;
+        let slot = self.slot(buffer)?;
+        let kind = self.provider.resource_kind_bytes(key, self.budget)?;
+        let index = u32::try_from(self.views.len())
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or(12u32)?;
+        if self.views.len() == self.views.capacity() || self.owners.len() == self.owners.capacity()
+        {
+            return Err(12);
+        }
+        let allocation = self.buffers[slot].header[0].allocation.ok_or(5u32)?;
+        let bytes = self.memory.bytes_mut(allocation).map_err(|_| 17u32)?;
+        let bytes = super::super::native::MutBytes {
+            data: bytes.as_mut_ptr(),
+            length: bytes.len() as u64,
+        };
+        let claim = self
+            .resources
+            .publish_backing(kind, self.holder, allocation, self.memory)
+            .map_err(|_| 12u32)?;
+        // The complete metadata capacity and index were checked before custody
+        // moved; publication now performs no allocation or foreign callback.
+        self.buffers[slot].header[0].allocation = None;
+        self.owners.push((claim, self.views.len()));
+        self.views.push(NativeView {
+            authority: NativeAuthority::Own(claim, self.holder),
+            kind,
+            access: super::super::idl::Access::Exclusive,
+            bytes,
+        });
+        Ok(index)
+    }
     fn allocator_identity(&self) -> u64 {
         self.memory.identity().get()
     }

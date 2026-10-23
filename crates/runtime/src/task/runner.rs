@@ -663,7 +663,7 @@ pub fn component_import_supported(
             return Ok(false);
         }
     }
-    managed_type_supported_profile(types, declaration.result.ty, budget, true, false)
+    managed_type_supported_profile(types, declaration.result.ty, budget, true, true)
 }
 fn managed_type_supported_profile(
     types: &o::VerifiedTypes,

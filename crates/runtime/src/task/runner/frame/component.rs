@@ -4,7 +4,7 @@ use super::*;
 use crate::{
     buffer,
     component::{
-        execution::{FrameArgument, Host},
+        execution::{FrameArgument, Host, NativeResult},
         wire,
     },
     retirement as r, vector,
@@ -13,6 +13,26 @@ pub(super) struct Referent<'l, 't> {
     pub slot: usize,
     pub node: usize,
     pub value: Option<l::Reservation<'l, 't>>,
+}
+#[derive(Clone, Copy)]
+pub(crate) enum ResourceValues<'a> {
+    Arguments(&'a dyn Host),
+    Native(&'a NativeResult),
+}
+impl ResourceValues<'_> {
+    fn claim(
+        self,
+        node: usize,
+        budget: &mut m::Budget,
+    ) -> Result<crate::component::storage::Claim, Reason> {
+        match self {
+            Self::Arguments(host) => host.argument(node),
+            Self::Native(result) => {
+                budget.charge(result.nodes.len())?;
+                result.claim(node)
+            }
+        }
+    }
 }
 enum Inline {
     Read(l::Location, wire::ValueId),
@@ -94,7 +114,7 @@ fn shape<P: a::Provider>(
     cell: &l::Reservation<'_, '_>,
     root: wire::ValueId,
     values: &wire::Values,
-    host: Option<&dyn Host>,
+    host: Option<ResourceValues<'_>>,
     allocator: &mut a::Allocator<P>,
     budget: &mut m::Budget,
     span: m::Span,
@@ -132,7 +152,9 @@ fn shape<P: a::Provider>(
                 store(
                     cell,
                     at,
-                    host.ok_or(Reason::Unsupported)?.argument(id.0)?.token(),
+                    host.ok_or(Reason::Unsupported)?
+                        .claim(id.0, budget)?
+                        .token(),
                     allocator,
                 )?;
             }
@@ -231,6 +253,16 @@ impl<'l, 't> Frame<'l, 't> {
         services: &mut crate::task::runner::services::Services<'l, 't>,
         session: &mut c::Session,
     ) -> Result<(), Reason> {
+        self.discard_partial_except(slot, allocator, services, session, &[])
+    }
+    pub fn discard_partial_except<P: a::Provider>(
+        &mut self,
+        slot: usize,
+        allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'l, 't>,
+        session: &mut c::Session,
+        unpublished: &[crate::component::storage::Claim],
+    ) -> Result<(), Reason> {
         let types = self.types;
         let span = self.origin;
         let cell = self
@@ -245,7 +277,7 @@ impl<'l, 't> Frame<'l, 't> {
                         if token.bytes == [0; 32] {
                             Ok(())
                         } else {
-                            services.retire(types, token, allocator, context)
+                            services.retire_except(types, token, allocator, context, unpublished)
                         }
                     })
                     .map_err(|_| 4u32)
@@ -388,7 +420,7 @@ impl<'l, 't> Frame<'l, 't> {
             slot,
             argument.root(),
             values,
-            Some(host),
+            Some(ResourceValues::Arguments(host)),
             allocator,
             budget,
             ready,
@@ -400,12 +432,12 @@ impl<'l, 't> Frame<'l, 't> {
         clippy::too_many_arguments,
         reason = "One typed marshaller serves admitted input arenas and canonical native results."
     )]
-    pub fn stage_values<P: a::Provider>(
+    pub(crate) fn stage_values<P: a::Provider>(
         &mut self,
         slot: usize,
         root_value: wire::ValueId,
         values: &wire::Values,
-        host: Option<&dyn Host>,
+        host: Option<ResourceValues<'_>>,
         allocator: &mut a::Allocator<P>,
         budget: &mut m::Budget,
         ready: &mut Vec<usize>,

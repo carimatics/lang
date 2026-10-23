@@ -106,6 +106,10 @@ impl<'l, 'ty> Services<'l, 'ty> {
                 .flat_map(|b| &b.instructions)
             {
                 budget.charge(1)?;
+                // Canonical native results may construct owning lists even
+                // when source code contains no collection operation itself.
+                has_indirect |= matches!(instruction.op, b::Op::Import { import, .. }
+                    if proof.typed().places().declarations().imports()[import.0 as usize].abi == o::declarations::ImportAbi::Component);
                 has_arena |= matches!(instruction.op, b::Op::ArenaEnter { .. });
                 has_channels |= matches!(
                     instruction.op,
