@@ -30,7 +30,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         }
         let types = self.proof.typed().places().declarations().types();
         let layouts = self.services.layouts;
-        let values = {
+        let mut values = {
             let allocator = &*self.allocator;
             let mut read = |session: &mut crate::component::wire::Session| {
                 execution::read_parameters(&roots, layouts, types, allocator, session)
@@ -46,7 +46,48 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             .component
             .as_deref_mut()
             .ok_or(Reason::Unsupported)?
-            .invoke_native(import, values, self.allocator, &mut self.budget)?;
+            .invoke_native(import, &mut values, span, self.allocator, &mut self.budget);
+        if let Err(reason) = &result {
+            self.record_execution(task, reason, span)?;
+        }
+        if let Some(cleanup) = values.cleanup.take() {
+            self.records[task]
+                .session
+                .as_mut()
+                .ok_or(Reason::Invariant)?
+                .append(cleanup);
+        }
+        if !values.consumed.is_empty() {
+            let frame = self.records[task]
+                .frames
+                .last_mut()
+                .ok_or(Reason::Invariant)?;
+            let mut failure = None;
+            for argument in arguments {
+                let slot = frame.value(*argument);
+                if frame.is_owner(slot)?
+                    && let Err(reason) = frame.cleanup_slot_except(
+                        slot,
+                        if result.is_err() {
+                            c::Reason::Failure
+                        } else {
+                            c::Reason::ScopeExit
+                        },
+                        self.allocator,
+                        &mut self.services,
+                        &values.consumed,
+                    )
+                {
+                    failure.get_or_insert(reason);
+                }
+            }
+            if result.is_ok()
+                && let Some(reason) = failure
+            {
+                return Err(reason);
+            }
+        }
+        let result = result?;
         self.control.check()?;
         if result.roots.len() != 1 {
             return Err(Reason::Invariant);

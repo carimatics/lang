@@ -23,6 +23,8 @@ struct Destroyed {
     method_control_checked: Cell<bool>,
     method_context: Cell<Option<native::Context>>,
     native: Option<NativeCase>,
+    batch: bool,
+    list: bool,
     interruption: Cell<*const e::InterruptionFlag>,
     value: Cell<i64>,
     allocator: Cell<u64>,
@@ -60,6 +62,9 @@ enum Case {
     ExclusiveLoan,
     NativeView,
     Native(NativeCase),
+    NativeTransfer(NativeCase, bool),
+    NativeBatch(NativeCase, bool),
+    NativeList(NativeCase, bool),
     MixedLoan(bool),
     LoanReturn(bool),
     LoanAliases,
@@ -103,7 +108,10 @@ impl Case {
     fn native(self) -> Option<NativeCase> {
         match self {
             Self::NativeView => Some(NativeCase::Owned),
-            Self::Native(native) => Some(native),
+            Self::Native(native)
+            | Self::NativeTransfer(native, _)
+            | Self::NativeBatch(native, _)
+            | Self::NativeList(native, _) => Some(native),
             _ => None,
         }
     }
@@ -111,15 +119,27 @@ impl Case {
         matches!(
             self,
             Self::Native(NativeCase::Owned | NativeCase::OwnedReturn | NativeCase::WrongKindOwned)
+                | Self::NativeTransfer(..)
+                | Self::NativeBatch(..)
+                | Self::NativeList(..)
         )
     }
+    fn native_transfer(self) -> bool {
+        matches!(
+            self,
+            Self::NativeTransfer(..) | Self::NativeBatch(_, false) | Self::NativeList(..)
+        )
+    }
+    fn native_batch(self) -> bool {
+        matches!(self, Self::NativeBatch(..) | Self::NativeList(..))
+    }
     fn native_declared(self) -> bool {
-        matches!(self, Self::Native(NativeCase::Declared))
+        matches!(self.native(), Some(NativeCase::Declared))
     }
     fn native_poison(self) -> bool {
         matches!(
-            self,
-            Self::Native(
+            self.native(),
+            Some(
                 NativeCase::Malformed
                     | NativeCase::NoResult
                     | NativeCase::ForeignResult
@@ -247,6 +267,8 @@ impl Case {
                 | Self::FuelCleanup(_)
                 | Self::LoanCleanup
                 | Self::LoanFuelCleanup(_)
+                | Self::NativeTransfer(_, true)
+                | Self::NativeList(_, true)
         )
     }
 }
@@ -321,7 +343,9 @@ unsafe extern "C" fn native_apply(
         let arguments =
             unsafe { std::slice::from_raw_parts(arguments.data, arguments.length as usize) };
         let label_len = u32::from_le_bytes(arguments[57..61].try_into().unwrap()) as usize;
-        if arguments.len() != 61 + label_len {
+        if arguments.len()
+            != 61 + label_len + if state.batch { 4 } else { 0 } + if state.list { 4 } else { 0 }
+        {
             return Err(2);
         }
         let declared = matches!(state.native, Some(NativeCase::Declared));
@@ -410,6 +434,23 @@ unsafe extern "C" fn native_apply(
             unsafe { std::slice::from_raw_parts_mut(writable.data, 8) }
                 .copy_from_slice(&after.to_le_bytes());
             state.method_changed.set(true);
+        }
+        if state.batch {
+            if state.list && arguments[61 + label_len..65 + label_len] != 1_u32.to_le_bytes() {
+                return Err(2);
+            }
+            let extra = u32::from_le_bytes(arguments[arguments.len() - 4..].try_into().unwrap());
+            if extra != 2 || index != 1 {
+                return Err(2);
+            }
+            let status = unsafe {
+                lang_codegen_clif::component::context_resource_write(context, extra, &mut writable)
+            };
+            if status != 0 || writable.length != 8 || writable.data.is_null() {
+                return Err(2);
+            }
+            unsafe { std::slice::from_raw_parts_mut(writable.data, 8) }
+                .copy_from_slice(&after.to_le_bytes());
         }
         let encoded = unsafe { std::slice::from_raw_parts_mut(encoded.data, 45 + payload) };
         encoded[..45].copy_from_slice(&arguments[..45]);
@@ -632,6 +673,101 @@ fn source_native_member_operates_on_the_original_borrowed_backing() {
 }
 
 #[test]
+fn source_native_member_accepts_and_retires_the_actual_owner() {
+    assert_eq!(
+        run_source(Case::NativeTransfer(NativeCase::Owned, false)),
+        (true, true)
+    );
+}
+
+#[test]
+fn owning_native_arguments_retire_after_declared_and_malformed_results() {
+    assert_eq!(
+        run_source(Case::NativeTransfer(NativeCase::Declared, false)),
+        (true, true)
+    );
+    for mode in [
+        NativeCase::Malformed,
+        NativeCase::NoResult,
+        NativeCase::ForeignResult,
+        NativeCase::BadStatus,
+        NativeCase::WrongKindOwned,
+    ] {
+        assert_eq!(run_source(Case::NativeTransfer(mode, false)), (false, true));
+    }
+}
+
+#[test]
+fn owning_native_batch_rebases_direct_and_nested_resources_and_retires_both() {
+    for borrowed in [false, true] {
+        assert_eq!(
+            run_source(Case::NativeBatch(NativeCase::Owned, borrowed)),
+            (true, true)
+        );
+        assert_eq!(
+            run_source(Case::NativeBatch(NativeCase::Malformed, borrowed)),
+            (false, true)
+        );
+        let results: Vec<_> = (0..96)
+            .map(|offset| run_source(Case::NativeBatch(NativeCase::Oom(offset), borrowed)))
+            .collect();
+        assert!(results.contains(&(false, false)));
+        assert!(results.contains(&(false, true)));
+        assert!(results.contains(&(true, true)));
+    }
+}
+
+#[test]
+fn owning_native_list_arguments_drain_consumed_tokens_and_actual_vector_storage() {
+    assert_eq!(
+        run_source(Case::NativeList(NativeCase::Owned, false)),
+        (true, true)
+    );
+    for mode in [NativeCase::Malformed, NativeCase::Interrupt] {
+        assert_eq!(run_source(Case::NativeList(mode, false)), (false, true));
+    }
+    assert_eq!(
+        run_source(Case::NativeList(NativeCase::Malformed, true)),
+        (false, true)
+    );
+    let results: Vec<_> = (0..112)
+        .map(|offset| run_source(Case::NativeList(NativeCase::Oom(offset), false)))
+        .collect();
+    assert!(results.contains(&(false, false)));
+    assert!(results.contains(&(false, true)));
+    assert!(results.contains(&(true, true)));
+}
+
+#[test]
+fn owning_native_arguments_retire_after_interruption_and_destructor_failure() {
+    assert_eq!(
+        run_source(Case::NativeTransfer(NativeCase::Interrupt, false)),
+        (false, true)
+    );
+    assert_eq!(
+        run_source(Case::NativeTransfer(NativeCase::Owned, true)),
+        (false, true)
+    );
+    assert_eq!(
+        run_source(Case::NativeTransfer(NativeCase::Malformed, true)),
+        (false, true)
+    );
+}
+
+#[test]
+fn owning_native_arguments_preserve_or_retire_custody_at_every_provider_prefix() {
+    let results: Vec<_> = (0..96)
+        .map(|offset| run_source(Case::NativeTransfer(NativeCase::Oom(offset), false)))
+        .collect();
+    assert!(results.contains(&(false, false)));
+    assert!(results.contains(&(false, true)));
+    assert!(results.contains(&(true, true)));
+    for fuel in 0..160 {
+        run_source(Case::NativeTransfer(NativeCase::Fuel(fuel), false));
+    }
+}
+
+#[test]
 fn source_helper_reborrows_reach_the_original_native_backing() {
     for exclusive in [false, true] {
         assert_eq!(
@@ -839,6 +975,7 @@ fn release_caller(
 fn run_source(case: Case) -> (bool, bool) {
     let return_resource = case.returns_resource();
     let extra = case.loan_extra()
+        || case.native_batch()
         || case.scalars()
         || case.envelope() != 0
         || case.data()
@@ -856,6 +993,19 @@ fn run_source(case: Case) -> (bool, bool) {
         );
     let mut host_json: serde_json::Value =
         serde_json::from_slice(include_bytes!("fixtures/component_counter.idl.json")).unwrap();
+    if case.native_transfer() {
+        host_json["interfaces"][0]["functions"][0]["params"][0]["type"] = json!({"own":"counter"});
+    }
+    if case.native_batch() {
+        host_json["interfaces"][0]["types"][0]["record"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"name":"extra","type":{"own":"counter"}}));
+        if matches!(case, Case::NativeList(..)) {
+            host_json["interfaces"][0]["types"][0]["record"][2]["type"] =
+                json!({"list":{"own":"counter"}});
+        }
+    }
     if matches!(
         case,
         Case::Native(NativeCase::Shared | NativeCase::Reborrow(false))
@@ -1082,6 +1232,31 @@ fn run_source(case: Case) -> (bool, bool) {
     } else {
         source.to_owned()
     };
+    let source = if case.native_transfer() {
+        source.replace("host_apply(state:&mut", "host_apply(state:")
+    } else {
+        source
+    };
+    let source = if case.native_batch() {
+        source
+            .replace(
+                "delta:i64,label:core::Text}",
+                "delta:i64,label:core::Text,extra:core::ComponentResource<CounterKind>}",
+            )
+            .replace(
+                "Request{delta:1,label:label}",
+                "Request{delta:1,label:label,extra:extra}",
+            )
+    } else {
+        source
+    };
+    let source = if matches!(case, Case::NativeList(..)) {
+        source.replace("label:core::Text,extra:core::ComponentResource<CounterKind>", "label:core::Text,extra:core::Vec<core::ComponentResource<CounterKind>>")
+            .replace("let mut request:Request=Request", "let mut items:core::Vec<core::ComponentResource<CounterKind>> =core::result_unwrap::<core::Vec<core::ComponentResource<CounterKind>>,core::AllocError>(core::vec_new::<core::ComponentResource<CounterKind>>(core::allocator()));let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::AllocError>(core::vec_push::<core::ComponentResource<CounterKind>>(items,extra));let mut request:Request=Request")
+            .replace("label:label,extra:extra", "label:label,extra:items")
+    } else {
+        source
+    };
     let interface = InterfaceKey::new(PackageKey::new("demo", "counter"), "api");
     let source = if case.data_list() {
         "pub struct CounterKind{}pub struct Request{delta:i64,label:core::Text}extern \"component\" fn host_apply(state:&mut core::ComponentResource<CounterKind>,request:Request)->core::Result<i64,core::Text>;pub struct Bundle{value:core::ComponentResource<CounterKind>,label:core::Text,payload:core::Bytes}pub fn consume(items:core::Vec<Bundle>)->core::Vec<Bundle>{return carry(items);}fn carry(items:core::Vec<Bundle>)->core::Vec<Bundle>{return items;}".to_owned()
@@ -1126,7 +1301,11 @@ fn run_source(case: Case) -> (bool, bool) {
         },
         limits: Default::default(),
     });
-    assert!(out.diagnostics.is_empty(), "{:?}", out.diagnostics);
+    assert!(
+        out.diagnostics.is_empty(),
+        "{:?}\n{source}",
+        out.diagnostics
+    );
     let unit = out.result.unwrap();
     let mut session = wire::Session::new(Default::default());
     let consumer = wire::Contract::new(checked(), vec![], &mut session).unwrap();
@@ -1149,15 +1328,15 @@ fn run_source(case: Case) -> (bool, bool) {
         method_control_checked: Cell::new(false),
         method_context: Cell::new(None),
         native: case.native(),
+        batch: case.native_batch(),
+        list: matches!(case, Case::NativeList(..)),
         interruption: Cell::new(ptr::null()),
         value: Cell::new(0),
         allocator: Cell::new(0),
         context: Cell::new(None),
         fail: case.failing_cleanup(),
-        cancelled: matches!(
-            case,
-            Case::Cancelled | Case::LoanCancelled | Case::Native(NativeCase::Interrupt)
-        ),
+        cancelled: matches!(case.native(), Some(NativeCase::Interrupt))
+            || matches!(case, Case::Cancelled | Case::LoanCancelled),
     };
     let methods = [native::Method {
         interface: 0,
@@ -1223,8 +1402,8 @@ fn run_source(case: Case) -> (bool, bool) {
     )
     .unwrap();
     let kind = if matches!(
-        case,
-        Case::Native(NativeCase::WrongKind | NativeCase::WrongKindOwned)
+        case.native(),
+        Some(NativeCase::WrongKind | NativeCase::WrongKindOwned)
     ) {
         alternative.resource_kind(kind.key(), &mut session).unwrap()
     } else {
@@ -1347,7 +1526,7 @@ fn run_source(case: Case) -> (bool, bool) {
         }
         let mut expected_body = None;
         let mut replay = None;
-        if case.loan().is_some() {
+        if case.loan().is_some() || case.native_declared() {
             let mut frame_values = wire::Values {
                 roots: vec![wire::ValueId(0), wire::ValueId(1)],
                 nodes: vec![
@@ -1911,7 +2090,7 @@ fn run_source(case: Case) -> (bool, bool) {
                 })]
             );
         }
-        if matches!(case, Case::Native(NativeCase::Interrupt)) {
+        if matches!(case.native(), Some(NativeCase::Interrupt)) {
             assert!(destroyed.method_control_checked.get());
         }
         if let Err(failure) = outcome {
@@ -1967,7 +2146,7 @@ fn run_source(case: Case) -> (bool, bool) {
                     )
                 ));
             }
-            if matches!(case, Case::Native(NativeCase::Interrupt)) {
+            if matches!(case.native(), Some(NativeCase::Interrupt)) {
                 assert!(matches!(
                     failure.reason,
                     lang_runtime::task::runner::Reason::Control(e::Failure::Interrupted)
@@ -1991,6 +2170,28 @@ fn run_source(case: Case) -> (bool, bool) {
             if case.failing_cleanup() || case.native_poison() {
                 assert!(failure.poisoned);
                 assert!(failure.report.as_ref().unwrap().primary().is_some());
+                if case.native_transfer()
+                    && case.failing_cleanup()
+                    && destroyed.method_calls.get() != 0
+                {
+                    let report = failure.report.as_ref().unwrap();
+                    assert!(report.cleanup_failures() >= 1);
+                    if case.native_poison() {
+                        assert!(matches!(
+                            report.primary().unwrap().kind,
+                            lang_runtime::cleanup::FailureKind::Execution(
+                                lang_runtime::cleanup::ExecutionFailure::Invariant
+                            )
+                        ));
+                        assert!(!report.secondary().is_empty());
+                        assert!(
+                            report
+                                .secondary()
+                                .iter()
+                                .all(|failure| failure.span.is_some())
+                        );
+                    }
+                }
             } else {
                 assert!(!failure.poisoned, "{failure:?}");
             }

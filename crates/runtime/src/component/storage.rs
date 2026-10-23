@@ -713,6 +713,21 @@ impl<'a> Resources<'a> {
             })
         }
     }
+    pub(crate) fn owned_view(
+        &self,
+        claim: Claim,
+        holder: Holder,
+        kind: ResourceKind<'_>,
+        memory: &mut dyn Memory,
+    ) -> Result<super::native::MutBytes, Error> {
+        self.bytes(claim, holder, kind, memory)?;
+        let backing = self.backing(claim, holder, memory)?;
+        let bytes = memory.bytes_mut(backing.data)?;
+        Ok(super::native::MutBytes {
+            data: bytes.as_mut_ptr(),
+            length: bytes.len() as u64,
+        })
+    }
     /// Unlink before the registered destructor is attempted. The caller must
     /// invoke that actual descriptor under its live original invocation context,
     /// then release both allocations even if destruction reports a failure.

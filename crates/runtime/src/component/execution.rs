@@ -102,7 +102,8 @@ pub trait Host {
     fn invoke_native(
         &mut self,
         import: m::ImportId,
-        arguments: NativeArguments,
+        arguments: &mut NativeArguments,
+        span: m::Span,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
     ) -> Result<wire::Values, Reason>;
@@ -447,12 +448,15 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
     fn invoke_native(
         &mut self,
         import: m::ImportId,
-        arguments: NativeArguments,
+        arguments: &mut NativeArguments,
+        span: m::Span,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
     ) -> Result<wire::Values, Reason> {
         let session = self.output_session.take().ok_or(Reason::Unsupported)?;
         let mut created = Vec::new();
+        let mut owned = Vec::new();
+        let mut native_holder = None;
         let result = (|| -> Result<wire::Values, Reason> {
             let bindings = self.program.bindings();
             let target = bindings.resolve(import).ok_or(Reason::Entry)?;
@@ -509,9 +513,26 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
             let mut views = session
                 .vector(uses.len(), 0)
                 .map_err(Reason::ComponentFrame)?;
+            let mut accepted = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            arguments.consumed = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            if uses
+                .iter()
+                .any(|used| matches!(used.access, wire::ResourceAccess::Own))
+            {
+                arguments.cleanup = Some(c::Session::prepare(
+                    std::num::NonZeroUsize::new(uses.len().saturating_add(1))
+                        .ok_or(Reason::Invariant)?,
+                    budget,
+                )?);
+            }
             for (position, used) in uses.iter().enumerate() {
-                let wire::ResourceAccess::Borrow(access) = used.access else {
-                    return Err(Reason::Unsupported);
+                let access = match used.access {
+                    wire::ResourceAccess::Own => super::idl::Access::Exclusive,
+                    wire::ResourceAccess::Borrow(access) => access,
                 };
                 let argument = *arguments
                     .resources
@@ -533,6 +554,9 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                     .resource_kind(used.key, session)
                     .map_err(|_| Reason::Entry)?;
                 if let Some(parent) = argument.parent {
+                    if matches!(used.access, wire::ResourceAccess::Own) {
+                        return Err(Reason::Entry);
+                    }
                     let index = self
                         .indices
                         .iter()
@@ -561,9 +585,14 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                         .map_err(fault)?;
                     inputs.push(storage::Input {
                         claim: argument.claim,
-                        access: match access {
-                            super::idl::Access::Shared => storage::Access::Shared,
-                            super::idl::Access::Exclusive => storage::Access::Exclusive,
+                        access: match used.access {
+                            wire::ResourceAccess::Own => storage::Access::Own,
+                            wire::ResourceAccess::Borrow(super::idl::Access::Shared) => {
+                                storage::Access::Shared
+                            }
+                            wire::ResourceAccess::Borrow(super::idl::Access::Exclusive) => {
+                                storage::Access::Exclusive
+                            }
                         },
                     });
                     positions.push(position);
@@ -581,6 +610,17 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                     .resources
                     .prepare_call(inputs.iter().copied(), self.guest, native, memory)
                     .map_err(fault)?;
+                for (index, position) in positions.iter().enumerate() {
+                    if matches!(uses[*position].access, wire::ResourceAccess::Own) {
+                        match self.resources.prepared_claim(transfer, index) {
+                            Ok(claim) => accepted.push((claim, *position)),
+                            Err(error) => {
+                                let _ = self.resources.abort_transfer(transfer);
+                                return Err(fault(error));
+                            }
+                        }
+                    }
+                }
                 if let Err(error) = self.resources.commit_call(transfer, memory, &mut created) {
                     let _ = self.resources.abort_transfer(transfer);
                     return Err(fault(error));
@@ -588,15 +628,41 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                 for (index, position) in positions.iter().enumerate() {
                     loans[*position] = created[index];
                 }
+                for (_, position) in &accepted {
+                    let used = &uses[*position];
+                    arguments
+                        .consumed
+                        .push(arguments.resources[(used.index.get() - 1) as usize].claim);
+                }
+                owned = accepted;
+                native_holder = Some(native);
             }
             for index in 0..uses.len() {
-                let loan = loans[index].ok_or(Reason::Invariant)?;
-                let bytes = self
-                    .resources
-                    .view(loan, kinds[index], accesses[index], memory)
-                    .map_err(fault)?;
+                let (authority, bytes) = if matches!(uses[index].access, wire::ResourceAccess::Own)
+                {
+                    let claim = owned
+                        .iter()
+                        .find(|(_, position)| *position == index)
+                        .map(|(claim, _)| *claim)
+                        .ok_or(Reason::Invariant)?;
+                    let holder = native_holder.ok_or(Reason::Invariant)?;
+                    (
+                        call::NativeAuthority::Own(claim, holder),
+                        self.resources
+                            .owned_view(claim, holder, kinds[index], memory)
+                            .map_err(fault)?,
+                    )
+                } else {
+                    let loan = loans[index].ok_or(Reason::Invariant)?;
+                    (
+                        call::NativeAuthority::Loan(loan),
+                        self.resources
+                            .view(loan, kinds[index], accesses[index], memory)
+                            .map_err(fault)?,
+                    )
+                };
                 views.push(call::NativeView {
-                    loan,
+                    authority,
                     kind: kinds[index],
                     access: accesses[index],
                     bytes,
@@ -662,10 +728,44 @@ impl Host for Invocation<'_, '_, '_, '_, '_, '_> {
                 ending.get_or_insert(error);
             }
         }
+        let mut cleanup_failed = false;
+        for (claim, position) in owned.into_iter().rev() {
+            let holder = native_holder.ok_or(Reason::Invariant)?;
+            let cleanup = arguments.cleanup.as_mut().ok_or(Reason::Invariant)?;
+            let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                let mut backing = self
+                    .resources
+                    .detach(claim, holder, memory)
+                    .map_err(|_| 17u32)?;
+                let kind = backing.kind().map_err(|_| 17u32)?;
+                let mut destroy =
+                    c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                        self.invoker.destroy(kind, &mut backing, memory, context)
+                    });
+                context.field((), Some(span), &mut destroy);
+                backing.release(memory).map_err(|_| 17u32)
+            });
+            cleanup_failed |= cleanup
+                .retire(
+                    c::Slot(position),
+                    (),
+                    Some(span),
+                    if result.is_err() {
+                        c::Reason::Failure
+                    } else {
+                        c::Reason::ScopeExit
+                    },
+                    &mut cleaner,
+                )
+                .is_err();
+        }
         self.output_session = Some(session);
         match result {
             Err(error) => Err(error),
             Ok(values) => {
+                if cleanup_failed {
+                    return Err(Reason::Cleanup);
+                }
                 if let Some(error) = ending {
                     return Err(fault(error));
                 }

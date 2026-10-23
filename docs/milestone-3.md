@@ -4,13 +4,17 @@
 
 [日本語版](ja/milestone-3.md) · [Exit gates](roadmap.md#milestone-3-concurrency-and-embedding)
 
-Updated: **2026-10-23 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
+Updated: **2026-10-24 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**44 done · 1 doing · 16 todo · 49 remaining pt**
+**44 done · 1 doing · 17 todo · 52 remaining pt**
 
-**Next: M3-R03 → match actual native-boundary resource cleanup across errors, cancellation and malformed inputs.**
+**Next: M3-R06 → execute actual owning native-import arguments and mandatory retirement.**
 
-Current delivery: **M3-R03 (3 pt)**. Last committed executable checkpoint: **R02 at `2adfeb8`, verified 2026-10-23 18:05 JST**; 41 source regressions, 151 runtime unit tests and the complete 141-suite / 2,130-pass fixed-input baseline succeed. Remaining acceptance: real native-boundary resource custody and retirement must match on VM/native across success, failure, cancellation and malformed input/output, preserving pre-commit callers, the primary/suppressed failures and poison. The current import profile supports data/direct loans and still refuses owning-resource imports. Run that smallest bound source fixture first and expose any missing prerequisite before implementation. R03 alone is doing. E01–E04, I07/I08, shared controls, both-host runtime conformance, measurements/P1 and the final guide remain required.
+R06 implementation/validation checkpoint (verified **2026-10-24 04:35 JST**, macOS AArch64): **47 source regressions** pass on VM/generated native, including actual native-holder custody, direct and record/list owning arguments, mixed own/loan batches, original backing mutation and exactly-once destruction. Declared errors, malformed/missing/foreign results, interruption, destructor failure, 160 fuel prefixes and provider-failure prefixes preserve or retire all accepted owners and release every original allocation. Consumed-token receipts reach the common iterative container drain; direct argument metadata growth uses the same bounded wire Session. Native failure remains primary when destruction also fails, with suppressed spans and persistent poison. **151 runtime unit tests** pass. With inputs fixed, the full baseline passes **141 suites / 2,136 passed / 0 failed / 1 existing timing ignore**, suite-time sum **728.29 s**, test-log interval **2,840.94 s** (including test build). Workspace/fuzz fmt, warnings-denied workspace Clippy (**2m 43s**), rustdoc (**44.90s**) and all **14 fuzz-target** compile/lint checks pass; no campaign is claimed. Before/after hashes match across **790 tracked inputs** (`8d3a5b1d8feb3ab0f64627d0a1dbb3889f55e47deb71d6b47463c383af632bfe`). The earlier superseded/interrupted run is not final evidence. The private import profile still refuses owning native results; full public embedding/reentry, persistent provider ownership, installed profiles, unified controls and both-host runtime evidence remain tracked work. R06 remains doing until its code/evidence commit is recorded.
+
+Current delivery: **M3-R06 (3 pt)**. Last committed executable checkpoint: **R02 at `2adfeb8`, verified 2026-10-23 18:05 JST**. The next bound source experiment passes binding/MIR admission but native compilation refuses its owning import with `Unsupported` at the call span. Remaining acceptance: whole-call own/loan preflight, native-holder commit, original backing access and mandatory original-destructor retirement; unchanged callers before commit and complete cleanup after failure on both engines. R06 alone is doing. R03 retains owning native results and complete malformed/error/cancellation conformance; all later/P1 gates remain required.
+
+R03/R06 prerequisite audit (2026-10-24 JST): the actual `host_apply(Resource, Request)` fixture exposes missing owning import admission, typed argument resource-index rebasing, native custody and consumed-source cleanup. Expose **R06 (3 pt)** before implementation, reusing the original resource table, canonical codec, shared Machine and cleanup sessions. No second owner registry or evaluator is introduced. Keep R03 at **3 pt** after reviewing its owning-result/publication and cross-boundary failure conditions. Rows **61→62**, additions **+58→+61**, retired **119** unchanged; **0 completed pt · 3 newly added pt**, remaining **49 + 3 − 0 = 52 pt**, ledger **110 + 61 − 119 = 52**.
 
 R02 completed at `2adfeb8` (verified **2026-10-23 18:05 JST**): actual source-helper views/reborrow and owning return preserve the original backing, call holders and generations; the checked Program-bound Instance retains poison and permits reuse only after completed cleanup and original-table/caller-claim revalidation. The complete fixed-input validation checkpoint below passes. Retire its last **3 pt**, with **0 additions/re-estimates**: **52 + 0 − 3 = 49 pt**, ledger **110 + 58 − 119 = 49**. This cycle reports **3 completed pt · 0 newly added pt**. Rows remain 61: **44 done · 1 doing · 16 todo** after selecting R03. G01/G02 remain **2/15 gates, 10/96 gate weight**.
 
@@ -163,7 +167,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-P01 | done | 0 | M3-I04,M3-I05 | G08 | Require explicit typed import grants and reject missing/mismatched capabilities | `ff94b34` |
 | M3-R01 | done | 0 | M3-I04,M3-P01,M3-R04,M3-R05 | G07 | Validate contextual resource indices and execute whole-call preflight/commit through actual adapters; preserve owners on pre-commit refusal | `f3b086c` |
 | M3-R02 | done | 0 | M3-R01,M3-E05 | G07 | Enforce borrow scopes, generations, ownership transfer and poisoning | `2adfeb8` |
-| M3-R03 | doing | 3 | M3-R02 | G07 | Match resource cleanup across VM/native errors, cancellation and malformed inputs | — |
+| M3-R06 | doing | 3 | M3-R02 | G07 | Execute whole-call owning native-import arguments with original custody and mandatory retirement | — |
+| M3-R03 | todo | 3 | M3-R02,M3-R06 | G07 | Match resource cleanup across VM/native errors, cancellation and malformed inputs | — |
 | M3-R04 | done | 0 | M3-I04,M3-P01 | G07 | Execute independently bound source resource arguments/results on VM/native with actual allocator/provider/code ownership and mandatory cleanup; retain old-profile refusal | f06bd95 |
 | M3-R05 | done | 0 | M3-I04,M3-P01,M3-R04 | G07 | Transport rich owning source arguments/results through existing VM/native engines with nested owners, original allocator/code ownership, staging cleanup and return escrow | `3a3bbc4` |
 | M3-I07 | todo | 3 | M3-I06,M3-R03 | G06,G09,G14 | Accept and execute the versioned task/channel/service/component artifact profile with independent validation and old vectors | — |
@@ -258,7 +263,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 58 − 119 = 49 pt**
+**110 + 61 − 119 = 52 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -306,7 +311,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +58 pt | −119 pt | 49 pt |
+| 110 pt | +61 pt | −119 pt | 52 pt |
 
 ## Exit audit
 

@@ -180,6 +180,8 @@ T07 integration now combines the admitted owned source families in `tests/fixtur
 
 
 
+R06 owning-import checkpoint (2026-10-24 JST): synchronous native imports now accept direct and nested owning Resource arguments alongside direct loans on both source engines. Typed parameter reading rebases resource indices across roots. Whole-call kind/alias/capacity and parent-authority checks reserve all commit receipts and cleanup reports before moving original-table tickets to the actual native holder. Owned backing views validate that holder and originating implementation; loans expire before native-owned backing is detached and destroyed. The retained native destructor and original allocator retire each accepted owner even after malformed results, interruption or allocation failure. Bounded commit receipts let source cleanup discard consumed resource tokens while still retiring record/list/data storage; they supply no new ownership authority. Native failure evidence precedes appended destructor failures, retaining poison and call spans. The private Rust Host hook now takes mutable NativeArguments and the original call span. Owning native results, complete foreign callbacks/public embedding, installed artifacts and both-host conformance remain tracked work; no source/C/wire/artifact format changes.
+
 ## Validation and maintenance
 
 Run focused behavior regressions, then the repository fmt/Clippy/test/doc baseline for code changes. Preserve source/format fixtures and differential values, failure spans, cleanup and resource accounting. Native target execution, debugger execution, sanitizer/coverage-guided fuzz campaigns and performance measurements are distinct evidence; compilation alone does not establish them.

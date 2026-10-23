@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-22
-- Last updated: 2026-10-23
+- Last updated: 2026-10-24
 - Tracking issue: M3-I01 through M3-I09, M3-R01 through M3-B02
 - Supersedes:
 - Superseded by:
@@ -274,6 +274,8 @@ E05 native member 実行 checkpoint（2026-10-23 JST）: 両既存 engine は受
 R02 instance lifecycle 実装の決定（2026-10-23 JST）: 実 shared/exclusive source helper reborrow fixture は VM/native で通りました。既存の元 table holder と arena generation を維持し、resource 権限 token や owner registry は追加しません。非公開の再利用可能な実行 Instance が検証済み Program と ready/active/poisoned lifecycle を root Invocation 間で保持します。poisoned/active instance は準備/provider 副作用前に拒否します。両 source engine は共通 runner を通して完了を報告し、完全 cleanup と元 table/header/allocator の不変条件再検査が通った場合のみ再利用を許可します。永続 poison は native 契約/不変条件違反・destructor 失敗を含む既存の最終 cleanup 判定に従います。完了判定なしで commit 済み invocation を Drop すると poison し、commit 前の正常な準備放棄は abort 後に ready へ戻せます。poisoned instance でも cleanup は継続します。非公開 Rust entry caller は Instance を呼び出し間で保持し、既存 C/source/wire/artifact format は変更しません。実装前に RFC 0001 の実験期委任で受理し、入れ子 foreign callback entry は E01–E04 に維持します。
 
 R02 実行 instance checkpoint（2026-10-23 JST）: 非公開 root entry は検証済み Program に結び付く Instance を必須とします。ready/active/poisoned 状態を Invocation 間で保持し、metadata/provider allocation 前に poison を拒否します。既存 table holder と arena generation は各実 call の識別に維持します。両 engine は完了報告を共有します。return ticket の commit 前に借用元の各 caller claim と元 table/allocator/header の generation・ticket・holder を再照合し、その事前検査済み return transfer に属する owner だけを guest scope に許可します。完了時には guest owner・root loan・pending transfer・未公開 output が残らないことを要求し、失敗時は poison を維持して、先行 primary を置換せず有限の invariant 診断を追加します。commit 済み Invocation を完了判定なしで Drop すると、fallback loan cleanup を継続しながら poison を維持し、正常な準備放棄は再試行できます。source fixture は同じ Instance で実 native call を再実行し、次の live callback 内で旧 context を拒否して、backing 変更と最後の元 destructor を確認します。非公開 Rust caller は `execution::Instance::new(&program)` を呼び出し間で保持して `Invocation::prepare` に渡し、既存 C/source/wire/artifact format は変更しません。完全 foreign callback と installed public instance は後続 delivery に維持します。
+
+R06 所有 import checkpoint（2026-10-24 JST）: 同期 native import は、直接 loan とともに直接/入れ子の所有 Resource 引数を両 source engine で受理します。型付き引数読出しは root 間の resource index を再配置します。全 call の kind/alias/capacity・親権限を検査し、commit receipt と cleanup report を全予約してから、元 table ticket を実 native holder へ移します。所有 backing view は holder と元 implementation を照合し、loan を終了してから native 所有 backing を detach/破棄します。不正結果・割り込み・確保失敗後も、保持済み native destructor と元 allocator が受入済み owner を全て退役します。有限の commit receipt により source cleanup は消費済み resource token を除外し、record/list/data storage を退役します。receipt は新しい所有権限を持ちません。native failure 証拠を destructor failure の追加より先に記録し、poison と call span を維持します。非公開 Rust Host hook は可変 NativeArguments と元 call span を受け取るようになります。native 所有結果・完全 foreign callback/public embedding・installed artifact・両 host conformance は追跡済み後続作業に維持し、source/C/wire/artifact format は変更しません。
 
 ## Sources
 

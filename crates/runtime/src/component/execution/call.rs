@@ -24,6 +24,10 @@ pub struct ResourceArgument {
 pub struct NativeArguments {
     pub(crate) values: wire::Values,
     pub(crate) resources: Vec<ResourceArgument>,
+    /// A commit receipt, not another owner store. Source cells use these exact
+    /// old claims to discard consumed tokens while retiring their containers.
+    pub(crate) consumed: Vec<Claim>,
+    pub(crate) cleanup: Option<c::Session>,
 }
 pub(crate) enum ReadRoot<'l, 't> {
     Value(l::ReadView<'l, 't>),
@@ -49,10 +53,14 @@ pub trait NativeContext {
 }
 
 pub(crate) struct NativeView<'a> {
-    pub loan: storage::Loan,
+    pub authority: NativeAuthority,
     pub kind: ResourceKind<'a>,
     pub access: super::super::idl::Access,
     pub bytes: super::super::native::MutBytes,
+}
+pub(crate) enum NativeAuthority {
+    Loan(storage::Loan),
+    Own(Claim, storage::Holder),
 }
 struct BufferHeader {
     allocation: Option<a::Handle>,
@@ -133,9 +141,14 @@ impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
     fn view(&self, index: u32) -> Result<&NativeView<'a>, u32> {
         let index = index.checked_sub(1).ok_or(7u32)? as usize;
         let view = self.views.get(index).ok_or(7u32)?;
-        self.resources
-            .check_view(view.loan, view.kind, view.access)
-            .map_err(|_| 7u32)?;
+        match view.authority {
+            NativeAuthority::Loan(loan) => self.resources.check_view(loan, view.kind, view.access),
+            NativeAuthority::Own(claim, holder) => self
+                .resources
+                .bytes(claim, holder, view.kind, self.memory)
+                .map(|_| ()),
+        }
+        .map_err(|_| 7u32)?;
         Ok(view)
     }
 }

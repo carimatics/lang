@@ -180,6 +180,8 @@ T07 統合は `tests/fixtures/task_owned_integrated.lang` で対応済み owned 
 
 
 
+R06 所有 import checkpoint（2026-10-24 JST）: 同期 native import は、直接 loan とともに直接/入れ子の所有 Resource 引数を両 source engine で受理します。型付き引数読出しは root 間の resource index を再配置します。全 call の kind/alias/capacity・親権限を検査し、commit receipt と cleanup report を全予約してから、元 table ticket を実 native holder へ移します。所有 backing view は holder と元 implementation を照合し、loan を終了してから native 所有 backing を detach/破棄します。不正結果・割り込み・確保失敗後も、保持済み native destructor と元 allocator が受入済み owner を全て退役します。有限の commit receipt により source cleanup は消費済み resource token を除外し、record/list/data storage を退役します。receipt は新しい所有権限を持ちません。native failure 証拠を destructor failure の追加より先に記録し、poison と call span を維持します。非公開 Rust Host hook は可変 NativeArguments と元 call span を受け取るようになります。native 所有結果・完全 foreign callback/public embedding・installed artifact・両 host conformance は追跡済み後続作業に維持し、source/C/wire/artifact format は変更しません。
+
 ## 検証と保守
 
 Code変更では、対象のbehavior regressionを先に確認し、repositoryのfmt/Clippy/test/doc baselineを実行します。Source/format fixtureと、backend間の値、failure span、cleanup、resource accountingを保持します。Native target実行、debugger実行、sanitizer／coverage-guided fuzz campaign、性能測定は別々の根拠であり、compileだけでは成立しません。

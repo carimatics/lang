@@ -434,6 +434,16 @@ impl Frame<'_, '_> {
         allocator: &mut a::Allocator<P>,
         services: &mut crate::task::runner::services::Services<'_, '_>,
     ) -> Result<(), Reason> {
+        self.cleanup_slot_except(slot, reason, allocator, services, &[])
+    }
+    pub fn cleanup_slot_except<P: a::Provider>(
+        &mut self,
+        slot: usize,
+        reason: c::Reason,
+        allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'_, '_>,
+        consumed: &[crate::component::storage::Claim],
+    ) -> Result<(), Reason> {
         let meter = services.work.clone();
         meter.unmetered(|| {
             if !self.live[slot] {
@@ -481,7 +491,7 @@ impl Frame<'_, '_> {
             let mut cleaner = c::Contextual::new(
                 |cell: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
                     cell.retire(allocator, context, |token, allocator, _, context| {
-                        services.retire(types, token, allocator, context)
+                        services.retire_except(types, token, allocator, context, consumed)
                     })
                     .map_err(|_| 4u32)?;
                     cell.recycle(allocator).map_err(|_| 5u32)

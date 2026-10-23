@@ -24,7 +24,9 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
         session.charge(1, 0).map_err(Reason::ComponentFrame)?;
         let id = match root {
             ReadRoot::Resource(resource) => {
-                resources.push(*resource);
+                session
+                    .push(&mut resources, *resource, 0)
+                    .map_err(Reason::ComponentFrame)?;
                 let index = u32::try_from(resources.len())
                     .ok()
                     .and_then(crate::component::adapter::BoundaryResourceIndex::new)
@@ -37,8 +39,18 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
             }
             ReadRoot::Value(root) => {
                 let frame = read_value(*root, layouts, types, allocator, session)?;
-                if !frame.resources.is_empty() {
-                    return Err(Reason::Unsupported);
+                let resource_base = resources.len();
+                for claim in frame.resources {
+                    session
+                        .push(
+                            &mut resources,
+                            ResourceArgument {
+                                claim,
+                                parent: None,
+                            },
+                            0,
+                        )
+                        .map_err(Reason::ComponentFrame)?;
                 }
                 let base = values.nodes.len();
                 let id = wire::ValueId(
@@ -52,6 +64,13 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
                         Ok(())
                     };
                     match &mut node {
+                        wire::Value::Resource(index) => {
+                            *index = u32::try_from(resource_base)
+                                .ok()
+                                .and_then(|base| base.checked_add(index.get()))
+                                .and_then(crate::component::adapter::BoundaryResourceIndex::new)
+                                .ok_or(Reason::Invariant)?;
+                        }
                         wire::Value::Record(fields) | wire::Value::List(fields) => {
                             for id in fields {
                                 rebase(id)?;
@@ -72,7 +91,12 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
         };
         values.roots.push(id);
     }
-    Ok(NativeArguments { values, resources })
+    Ok(NativeArguments {
+        values,
+        resources,
+        consumed: Vec::new(),
+        cleanup: None,
+    })
 }
 enum Aggregate {
     Record,

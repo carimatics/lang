@@ -659,7 +659,7 @@ pub fn component_import_supported(
         {
             continue;
         }
-        if !managed_type_supported_profile(types, ty, budget, true, false)? {
+        if !managed_type_supported_profile(types, ty, budget, true, true)? {
             return Ok(false);
         }
     }

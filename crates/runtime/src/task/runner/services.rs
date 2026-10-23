@@ -45,9 +45,16 @@ fn cleanup_leaf<P: a::Provider>(
     token: &mut l::Token,
     allocator: &mut a::Allocator<P>,
     context: &mut c::Context<'_>,
+    consumed: &[crate::component::storage::Claim],
 ) -> Result<(), u32> {
     if matches!(token.leaf.ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::ComponentResource(_)))
     {
+        if crate::component::storage::Claim::from_token(token.bytes)
+            .is_ok_and(|claim| consumed.contains(&claim))
+        {
+            token.bytes.fill(0);
+            return Ok(());
+        }
         component
             .as_deref_mut()
             .ok_or(3u32)?
@@ -192,6 +199,16 @@ impl<'l, 'ty> Services<'l, 'ty> {
         allocator: &mut a::Allocator<P>,
         context: &mut c::Context<'_>,
     ) -> Result<(), u32> {
+        self.retire_except(types, token, allocator, context, &[])
+    }
+    pub fn retire_except<P: a::Provider>(
+        &mut self,
+        types: &o::VerifiedTypes,
+        token: &mut l::Token,
+        allocator: &mut a::Allocator<P>,
+        context: &mut c::Context<'_>,
+        consumed: &[crate::component::storage::Claim],
+    ) -> Result<(), u32> {
         let meter = self.work.clone();
         meter.unmetered(|| {
             let component = &mut self.component;
@@ -208,11 +225,11 @@ impl<'l, 'ty> Services<'l, 'ty> {
                     allocator,
                     context,
                     |token, allocator, _, context| {
-                        cleanup_leaf(component, types, token, allocator, context)
+                        cleanup_leaf(component, types, token, allocator, context, consumed)
                     },
                 )
             } else {
-                cleanup_leaf(component, types, token, allocator, context)
+                cleanup_leaf(component, types, token, allocator, context, consumed)
             }
         })
     }
@@ -238,7 +255,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
                 allocator,
                 context,
                 |token, allocator, _, context| {
-                    cleanup_leaf(component, types, token, allocator, context)
+                    cleanup_leaf(component, types, token, allocator, context, &[])
                 },
             )
         })
@@ -265,7 +282,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
                 allocator,
                 context,
                 |token, allocator, _, context| {
-                    cleanup_leaf(component, types, token, allocator, context)
+                    cleanup_leaf(component, types, token, allocator, context, &[])
                 },
             )
         })
