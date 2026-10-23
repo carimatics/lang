@@ -159,7 +159,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let failure_records =
             std::num::NonZeroUsize::new(limits.cleanup_failure_records).ok_or(Reason::Invariant)?;
         let completed = budget.vector(limits.tasks.total_tasks)?;
-        let session = c::Session::prepare(failure_records, &mut budget)?;
+        let mut session = c::Session::prepare(failure_records, &mut budget)?;
+        let mut input_ready = budget.vector(declaration.parameters.len())?;
         let mut scheduler = t::Scheduler::new(limits.tasks)?;
         let span = proof.typed().places().declarations().functions()[entry.0 as usize].span;
         let id = scheduler.start(Some(span))?;
@@ -175,6 +176,24 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             control.service_work_limit(),
             &mut budget,
         )?;
+        if services.drain.is_none()
+            && component
+                .as_deref()
+                .is_some_and(|host| host.indirect_input())
+        {
+            let drain = crate::retirement::Drain::prepare(
+                layouts,
+                allocator,
+                budget.limits(),
+                usage(&budget),
+            )
+            .map_err(|error| match error {
+                crate::retirement::Error::Layout(error) => Reason::Layout(error),
+                _ => Reason::Invariant,
+            })?;
+            budget = m::Budget::with_usage(budget.limits(), drain.usage())?;
+            services.drain = Some(drain);
+        }
         let mut frame = Frame::new(
             proof,
             plan,
@@ -195,6 +214,17 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             {
                 if let Some(value) = argument.immediate() {
                     frame.write(parameter.0 as usize, value, allocator)?;
+                } else if let EntryArgument::Frame(argument) = argument {
+                    frame.stage_component(
+                        parameter.0 as usize,
+                        *argument,
+                        component.as_deref().ok_or(Reason::Entry)?,
+                        allocator,
+                        &mut budget,
+                        &mut input_ready,
+                        &mut services.drain,
+                        &mut session,
+                    )?;
                 } else {
                     let claim = component.as_deref().ok_or(Reason::Entry)?.argument(index)?;
                     frame
@@ -209,14 +239,44 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 host.commit_arguments(allocator)?;
             }
             for (parameter, argument) in declaration.parameters.iter().zip(arguments) {
-                if matches!(argument, EntryArgument::Resource(_)) {
+                if matches!(
+                    argument,
+                    EntryArgument::Resource(_) | EntryArgument::Frame(_)
+                ) {
                     frame.mark(parameter.0 as usize, frame.origin)?;
                 }
             }
             Ok(())
         })();
         if let Err(error) = staged {
-            if let Some(host) = component.as_deref_mut() {
+            services.component = component;
+            for slot in input_ready.into_iter().rev() {
+                let cell = frame
+                    .storage
+                    .as_mut()
+                    .ok_or(Reason::Invariant)?
+                    .cell_mut(slot)?;
+                let types = proof.typed().places().declarations().types();
+                let mut cleanup = c::Contextual::new(
+                    |cell: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
+                        cell.retire(allocator, context, |token, allocator, _, context| {
+                            if token.bytes == [0; 32] {
+                                return Ok(());
+                            }
+                            services.retire(types, token, allocator, context)
+                        })
+                        .map_err(|_| 4u32)
+                    },
+                );
+                let _ = session.retire(
+                    c::Slot(slot),
+                    cell,
+                    Some(frame.origin),
+                    c::Reason::Failure,
+                    &mut cleanup,
+                );
+            }
+            if let Some(host) = services.component.as_deref_mut() {
                 host.abort_arguments();
             }
             frame
@@ -224,6 +284,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 .as_mut()
                 .ok_or(Reason::Invariant)?
                 .release(allocator)?;
+            services.close(allocator)?;
             return Err(error);
         }
         services.component = component;
@@ -812,6 +873,88 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
         Ok(())
     }
+    fn abandon_frame_result(&mut self, span: m::Span) -> Result<(), Reason> {
+        let host = self
+            .services
+            .component
+            .as_deref_mut()
+            .ok_or(Reason::Invariant)?;
+        let allocator = &mut self.allocator;
+        let session = self.records[0].session.as_mut().ok_or(Reason::Invariant)?;
+        let mut cleanup = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+            host.abandon_result(*allocator, context)
+        });
+        let _ = session.retire(
+            c::Slot(0),
+            (),
+            Some(span),
+            c::Reason::UnpublishedReturn,
+            &mut cleanup,
+        );
+        Ok(())
+    }
+
+    fn finish_frame_root(&mut self) -> Result<crate::component::execution::Value, Reason> {
+        use crate::component::execution::{self, Value};
+        let types = self.proof.typed().places().declarations().types();
+        let result = self.records[0].result.as_ref().ok_or(Reason::Invariant)?;
+        let host = self
+            .services
+            .component
+            .as_deref_mut()
+            .ok_or(Reason::Invariant)?;
+        let frame =
+            execution::read_result(&result.value, types, self.allocator, host.result_session()?)?;
+        let value = host.prepare_result(Value::Frame(frame), self.allocator)?;
+        let mut result = self.records[0].result.take().ok_or(Reason::Invariant)?;
+        // Resource leaves stay in the original table's escrow. Builtin data
+        // owners are retired after their complete caller representation exists.
+        let retired = {
+            let services = &mut self.services;
+            let allocator = &mut self.allocator;
+            let session = self.records[0].session.as_mut().ok_or(Reason::Invariant)?;
+            let mut cleanup = c::Contextual::new(
+                |value: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
+                    value
+                        .retire(allocator, context, |token, allocator, _, context| {
+                            services.retire(types, token, allocator, context)
+                        })
+                        .map_err(|_| 4u32)
+                },
+            );
+            session.retire(
+                c::Slot(0),
+                &mut result.value,
+                Some(result.span),
+                c::Reason::ScopeExit,
+                &mut cleanup,
+            )
+        };
+        let released = result.value.release_storage(self.allocator);
+        if released.is_ok() {
+            self.live_cells -= 1;
+        }
+        if retired.is_err() || released.is_err() {
+            self.abandon_frame_result(result.span)?;
+            return Err(released.err().map(Reason::from).unwrap_or(Reason::Cleanup));
+        }
+        if let Err(reason) = self.control.check() {
+            self.abandon_frame_result(result.span)?;
+            return Err(reason.into());
+        }
+        if let Err(reason) = self
+            .services
+            .component
+            .as_deref_mut()
+            .ok_or(Reason::Invariant)?
+            .commit_result(self.allocator)
+        {
+            self.abandon_frame_result(result.span)?;
+            return Err(reason);
+        }
+        Ok(value)
+    }
+
     fn finish_root(&mut self) -> Result<crate::component::execution::Value, Reason> {
         use crate::component::{execution::Value, storage::Claim};
         if self.services.component.is_some() {
@@ -821,6 +964,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let ty = result.value.root().ty();
         let types = self.proof.typed().places().declarations().types();
         let resource = matches!(ty, o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor, o::Constructor::ComponentResource(_)));
+        if self.services.component.is_some()
+            && !resource
+            && ty != o::Type::I64
+            && ty != o::Type::Bool
+        {
+            return self.finish_frame_root();
+        }
         let mut token = if resource {
             Some(
                 result

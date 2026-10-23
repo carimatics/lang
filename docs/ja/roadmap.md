@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **40 done · 1 doing · 18 todo · 55 remaining pt**です。R04 の `f06bd95` は、元 allocator/provider/code 所有権・実 destructor callback・保護した結果公開を用い、直接所有する Resource 引数/結果を既存 VM/生成 native engine で実行します。source を固定した最終 baseline は **141 suites / 2,095 tests / zero failures / one existing timing ignore**、fmt/Clippy/rustdoc・全14 fuzz target compile/lint が成功しました。R01 のみを選択し、具体的な残件監査後も完全な context 付き frame/入れ子 owner/直接 loan preflight/commit の **3 pt**を維持します。R04 完了の消化は **3 pt**、追加は **0 pt**、残り **58 + 0 − 3 = 55 pt**、台帳 **110 + 52 − 107 = 55**です。前提監査/完了を合わせて、**消化3 pt・新規追加3 pt**を分けて報告します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。後続の全 resource/callback/control・I07/I08 artifact/package・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **40 done · 1 doing · 19 todo · 58 remaining pt**です。R05 の working tree にある rich 所有値 source transport は **VM/native source 26テスト**と入力固定の **141 suite / 2,112テスト**の baseline が成功し、**2026-10-23 11:04 JST** に検証しました。最後の3 pt は R05 の commit と監査後に消化します。先行 scope 監査では**追加3 pt・未消化**、残り **55 + 3 − 0 = 58 pt**、台帳 **110 + 55 − 107 = 58**です。R01 の完全な context 付き frame/index/入れ子 owner/直接 loan preflight/commit の **3 pt**を維持します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。後続の全 resource/callback/control・I07/I08 artifact/package・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
 
 ## 進行中 milestone の実行
 

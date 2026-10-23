@@ -18,6 +18,14 @@ use super::negotiation::ResourceTypeKey;
 pub struct BoundaryResourceIndex(NonZeroU32);
 
 impl BoundaryResourceIndex {
+    /// A nonzero boundary claim, without resource lookup or ownership authority.
+    pub const fn new(raw: u32) -> Option<Self> {
+        match NonZeroU32::new(raw) {
+            Some(index) => Some(Self(index)),
+            None => None,
+        }
+    }
+
     pub const fn get(self) -> u32 {
         self.0.get()
     }

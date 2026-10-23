@@ -53,6 +53,7 @@ pub struct Event {
 }
 #[derive(Debug)]
 pub enum Reason {
+    ComponentFrame(crate::component::wire::Error),
     Component(crate::component::storage::Error),
     ChannelDeadlock(crate::channel::Deadlock),
     Channel(crate::channel::managed::Error),
@@ -143,20 +144,21 @@ pub enum EntryArgument {
     I64(i64),
     Bool(bool),
     Resource(crate::component::storage::Claim),
+    Frame(crate::component::execution::FrameArgument),
 }
 impl EntryArgument {
     pub const fn ty(self) -> Option<o::Type> {
         match self {
             Self::I64(_) => Some(o::Type::I64),
             Self::Bool(_) => Some(o::Type::Bool),
-            Self::Resource(_) => None,
+            Self::Resource(_) | Self::Frame(_) => None,
         }
     }
     pub const fn immediate(self) -> Option<l::Immediate> {
         match self {
             Self::I64(v) => Some(l::Immediate::I64(v)),
             Self::Bool(v) => Some(l::Immediate::Bool(v)),
-            Self::Resource(_) => None,
+            Self::Resource(_) | Self::Frame(_) => None,
         }
     }
 }

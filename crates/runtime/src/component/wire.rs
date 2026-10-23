@@ -155,6 +155,13 @@ impl Session {
     fn error(&self, offset: usize, kind: ErrorKind) -> Error {
         Error { offset, kind }
     }
+    pub(super) fn value_bytes(&self, count: usize, at: usize) -> Result<(), Error> {
+        self.cap(count, self.limits.bytes, LimitKind::Bytes, at)
+    }
+    pub(super) fn text_bytes(&self, count: usize, at: usize) -> Result<(), Error> {
+        self.value_bytes(count, at)?;
+        self.cap(count, self.limits.string_bytes, LimitKind::StringBytes, at)
+    }
     fn budget_error(offset: usize, error: m::Error) -> Error {
         Error {
             offset,
@@ -211,7 +218,7 @@ impl Session {
     pub(super) fn vector<T>(&mut self, n: usize, at: usize) -> Result<Vec<T>, Error> {
         self.budget.vector(n).map_err(|e| Self::budget_error(at, e))
     }
-    fn push<T>(&mut self, v: &mut Vec<T>, value: T, at: usize) -> Result<(), Error> {
+    pub(super) fn push<T>(&mut self, v: &mut Vec<T>, value: T, at: usize) -> Result<(), Error> {
         if v.len() == v.capacity() {
             let capacity = v.capacity().saturating_mul(2).max(4);
             self.budget

@@ -193,6 +193,9 @@ impl<'a> Resources<'a> {
     pub fn len(&self) -> usize {
         self.values.len()
     }
+    pub(crate) const fn capacity(&self) -> usize {
+        self.capacity
+    }
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
@@ -337,6 +340,37 @@ impl<'a> Resources<'a> {
             committed: false,
         })
     }
+    /// Read-only whole-batch admission before any caller/callee representation
+    /// allocates. The iterator borrows prepared caller transport; no ledger or
+    /// ticket is changed, and no native/provider callback is invoked.
+    pub(crate) fn check_transfer(
+        &self,
+        claims: impl Iterator<Item = Claim> + Clone,
+        from: Holder,
+        to: Holder,
+        allocator: &dyn Memory,
+    ) -> Result<(), Error> {
+        self.idle()?;
+        self.check_allocator(allocator)?;
+        self.check_holder(from)?;
+        self.check_holder(to)?;
+        if claims.clone().count() > self.capacity {
+            return Err(Error::Capacity);
+        }
+        for (index, claim) in claims.clone().enumerate() {
+            self.backing(claim, from, allocator)?;
+            self.values.check_release(claim.owner)?;
+            if claims
+                .clone()
+                .take(index)
+                .any(|prior| prior.owner == claim.owner)
+            {
+                return Err(Error::AliasedOwner);
+            }
+        }
+        Ok(())
+    }
+
     pub fn prepare_transfer(
         &mut self,
         claims: &[Claim],
@@ -344,23 +378,10 @@ impl<'a> Resources<'a> {
         to: Holder,
         allocator: &dyn Memory,
     ) -> Result<Transfer, Error> {
-        self.idle()?;
-        self.check_allocator(allocator)?;
-        self.check_holder(from)?;
-        self.check_holder(to)?;
-        if claims.len() > self.capacity {
-            return Err(Error::Capacity);
-        }
+        self.check_transfer(claims.iter().copied(), from, to, allocator)?;
         self.plans.clear();
-        for (index, claim) in claims.iter().enumerate() {
+        for claim in claims {
             let backing = self.backing(*claim, from, allocator)?;
-            self.values.check_release(claim.owner)?;
-            if claims[..index]
-                .iter()
-                .any(|prior| prior.owner == claim.owner)
-            {
-                return Err(Error::AliasedOwner);
-            }
             self.plans.push(Plan {
                 original: *claim,
                 next: *claim,

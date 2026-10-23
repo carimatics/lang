@@ -366,16 +366,37 @@ pub enum Value {
     Bytes(Vec<u8>),
     List(Vec<ValueId>),
     Record(Vec<ValueId>),
-    Variant { case: u32, payload: ValueId },
+    Variant {
+        case: u32,
+        payload: ValueId,
+    },
     None,
     Some(ValueId),
     Ok(ValueId),
     Err(ValueId),
+    /// An untrusted call-local index. Only the live component adapter may
+    /// validate it against its original table and commit ownership or a loan.
+    Resource(crate::component::adapter::BoundaryResourceIndex),
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Values {
     pub roots: Vec<ValueId>,
     pub nodes: Vec<Value>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ResourceAccess {
+    Own,
+    Borrow(Access),
+}
+/// Structural evidence only. The live adapter must admit every use against
+/// its original table before it stages or publishes an owning value.
+pub(crate) struct ResourceUse<'a> {
+    pub value: ValueId,
+    pub index: crate::component::adapter::BoundaryResourceIndex,
+    pub key: &'a ResourceTypeKey,
+    pub access: ResourceAccess,
+    pub offset: usize,
 }
 fn roots<'a>(
     sig: &'a Signature<'_>,
@@ -400,6 +421,29 @@ pub fn encode_values(
     if !sig.data_only {
         return Err(session.error(0, ErrorKind::ResourceContextRequired));
     }
+    encode_value_frame(sig, kind, values, session, None)
+}
+
+/// Structural encoding for the live adapter only. Indices remain claims;
+/// the adapter must validate the complete call before granting any authority.
+pub(crate) fn encode_contextual_values<'a>(
+    sig: &Signature<'a>,
+    kind: FrameKind,
+    values: &Values,
+    session: &mut Session,
+) -> Result<(Vec<u8>, Vec<ResourceUse<'a>>), Error> {
+    let mut uses = Vec::new();
+    let bytes = encode_value_frame(sig, kind, values, session, Some(&mut uses))?;
+    Ok((bytes, uses))
+}
+
+fn encode_value_frame<'a>(
+    sig: &Signature<'a>,
+    kind: FrameKind,
+    values: &Values,
+    session: &mut Session,
+    mut uses: Option<&mut Vec<ResourceUse<'a>>>,
+) -> Result<Vec<u8>, Error> {
     let expected = if kind == FrameKind::Parameters {
         sig.function.params.len()
     } else {
@@ -430,6 +474,7 @@ pub fn encode_values(
             .cap(depth, w.session.limits.depth, LimitKind::Depth, at)?;
         w.session.charge(1, at)?;
         let ty = resolve(sig.document, ty, w.session)?;
+        let value_id = value;
         let value = values
             .nodes
             .get(value.0)
@@ -439,6 +484,29 @@ pub fn encode_values(
             (TypeKind::Unit, Value::Unit) => {}
             (TypeKind::I64, Value::I64(n)) => w.raw(&n.to_le_bytes())?,
             (TypeKind::Bool, Value::Bool(b)) => w.u8(u8::from(*b))?,
+            (kind @ (TypeKind::Own(_) | TypeKind::Borrow { .. }), Value::Resource(index)) => {
+                if let Some(uses) = uses.as_deref_mut() {
+                    let (key, access) = match kind {
+                        TypeKind::Own(key) => (&key.value, ResourceAccess::Own),
+                        TypeKind::Borrow { resource, access } => {
+                            (&resource.value, ResourceAccess::Borrow(*access))
+                        }
+                        _ => unreachable!("resource kind"),
+                    };
+                    w.session.push(
+                        uses,
+                        ResourceUse {
+                            value: value_id,
+                            index: *index,
+                            key,
+                            access,
+                            offset: at,
+                        },
+                        at,
+                    )?;
+                }
+                w.u32(index.get())?;
+            }
             (TypeKind::Text, Value::Text(t)) => w.string(t)?,
             (TypeKind::Bytes, Value::Bytes(b)) => {
                 let n = u32::try_from(b.len())
@@ -511,6 +579,27 @@ pub fn decode_values(
     if !sig.data_only {
         return Err(session.error(0, ErrorKind::ResourceContextRequired));
     }
+    decode_value_frame(sig, kind, bytes, session, None)
+}
+
+pub(crate) fn decode_contextual_values<'a>(
+    sig: &Signature<'a>,
+    kind: FrameKind,
+    bytes: &[u8],
+    session: &mut Session,
+) -> Result<(Values, Vec<ResourceUse<'a>>), Error> {
+    let mut uses = Vec::new();
+    let values = decode_value_frame(sig, kind, bytes, session, Some(&mut uses))?;
+    Ok((values, uses))
+}
+
+fn decode_value_frame<'a>(
+    sig: &Signature<'a>,
+    kind: FrameKind,
+    bytes: &[u8],
+    session: &mut Session,
+    mut uses: Option<&mut Vec<ResourceUse<'a>>>,
+) -> Result<Values, Error> {
     let mut r = Reader::new(bytes, session)?;
     r.header(b"LCVL", 1, kind.tag())?;
     if r.array::<32>()? != sig.digest {
@@ -588,6 +677,31 @@ pub fn decode_values(
                     TypeKind::Unit => Value::Unit,
                     TypeKind::I64 => Value::I64(i64::from_le_bytes(r.array()?)),
                     TypeKind::Bool => Value::Bool(r.boolean()?),
+                    kind @ (TypeKind::Own(_) | TypeKind::Borrow { .. }) => {
+                        let index = crate::component::adapter::BoundaryResourceIndex::new(r.u32()?)
+                            .ok_or_else(|| r.session.error(at, ErrorKind::ValueType))?;
+                        if let Some(uses) = uses.as_deref_mut() {
+                            let (key, access) = match kind {
+                                TypeKind::Own(key) => (&key.value, ResourceAccess::Own),
+                                TypeKind::Borrow { resource, access } => {
+                                    (&resource.value, ResourceAccess::Borrow(*access))
+                                }
+                                _ => unreachable!("resource kind"),
+                            };
+                            r.session.push(
+                                uses,
+                                ResourceUse {
+                                    value: ValueId(nodes.len()),
+                                    index,
+                                    key,
+                                    access,
+                                    offset: at,
+                                },
+                                at,
+                            )?;
+                        }
+                        Value::Resource(index)
+                    }
                     TypeKind::Text => Value::Text(r.string()?),
                     TypeKind::Bytes => {
                         let n = r.u32()? as usize;
@@ -678,7 +792,6 @@ pub fn decode_values(
                             DefinitionKind::Alias(_) => unreachable!("resolved alias"),
                         }
                     }
-                    _ => return Err(r.session.error(at, ErrorKind::ResourceContextRequired)),
                 }
             }
         };

@@ -3,6 +3,7 @@ mod access;
 mod arenas;
 mod buffers;
 mod channels;
+mod component;
 mod isolated;
 pub use access::Access;
 mod managed;
