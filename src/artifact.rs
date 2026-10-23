@@ -6,7 +6,7 @@
 )]
 
 use crate::frontend::{self, CompileLimits, ScriptError};
-use lang_bytecode::{ownership as owned, unit as copy};
+use lang_bytecode::{ownership as owned, tasks, unit as copy};
 use lang_diagnostics::SourceMap;
 use lang_mir::unit as m;
 use lang_semantics::analysis::Program as SourceProgram;
@@ -17,6 +17,7 @@ pub struct Limits {
     pub bytes: usize,
     pub copy: m::Limits,
     pub ownership: owned::VerificationLimits,
+    pub tasks: lang_mir::unit::ownership::tasks::Limits,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -24,6 +25,7 @@ impl Default for Limits {
             bytes: 64 * 1024 * 1024,
             copy: m::Limits::default(),
             ownership: owned::VerificationLimits::default(),
+            tasks: Default::default(),
         }
     }
 }
@@ -34,25 +36,23 @@ impl Default for Limits {
 pub enum Program {
     Copy(copy::Program),
     Ownership(owned::Program),
+    Tasks(tasks::Program),
 }
 #[derive(Debug)]
 pub enum CompileError {
     Script(ScriptError),
     Copy(copy::CodecError),
     Ownership(owned::CodecError),
+    Tasks(owned::CodecError),
     MissingEntry,
-    UnsupportedTaskProfile { span: lang_diagnostics::Span },
 }
 impl Display for CompileError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Script(e) => Display::fmt(e, f),
             Self::Copy(e) => Display::fmt(e, f),
-            Self::Ownership(e) => Display::fmt(e, f),
+            Self::Ownership(e) | Self::Tasks(e) => Display::fmt(e, f),
             Self::MissingEntry => f.write_str("missing ownership MIR script entry"),
-            Self::UnsupportedTaskProfile { .. } => {
-                f.write_str("task artifacts require an accepted serialized task format")
-            }
         }
     }
 }
@@ -62,12 +62,13 @@ pub enum DecodeError {
     Envelope(copy::CodecError),
     Copy(copy::CodecError),
     Ownership(owned::CodecError),
+    Tasks(owned::CodecError),
 }
 impl Display for DecodeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Envelope(e) | Self::Copy(e) => Display::fmt(e, f),
-            Self::Ownership(e) => Display::fmt(e, f),
+            Self::Ownership(e) | Self::Tasks(e) => Display::fmt(e, f),
         }
     }
 }
@@ -84,9 +85,33 @@ pub fn compile(
 ) -> Result<Vec<u8>, CompileError> {
     frontend::check_script_entry(program.source(), sources).map_err(CompileError::Script)?;
     match program {
-        SourceProgram::Tasks(program) => Err(CompileError::UnsupportedTaskProfile {
-            span: program.feature_span(),
-        }),
+        SourceProgram::Tasks(program) => {
+            let table = program
+                .into_verified()
+                .into_plan()
+                .into_source()
+                .into_activity()
+                .into_moved()
+                .into_typed()
+                .into_table();
+            let entry = table
+                .places
+                .declarations
+                .functions
+                .iter()
+                .position(|f| f.name == "main")
+                .map(|i| m::FunctionId(i as u32))
+                .ok_or(CompileError::MissingEntry)?;
+            tasks::encode(
+                table,
+                Some(entry),
+                tasks::CodecLimits {
+                    bytes: limits.bytes,
+                    verification: limits.tasks,
+                },
+            )
+            .map_err(CompileError::Tasks)
+        }
         SourceProgram::Copy(program) => {
             let program = frontend::compile_script(&program, sources, compile)
                 .map_err(CompileError::Script)?;
@@ -167,6 +192,15 @@ pub fn decode(bytes: &[u8], limits: Limits) -> Result<Program, DecodeError> {
         )
         .map(Program::Ownership)
         .map_err(DecodeError::Ownership),
+        5 => tasks::decode(
+            bytes,
+            tasks::CodecLimits {
+                bytes: limits.bytes,
+                verification: limits.tasks,
+            },
+        )
+        .map(Program::Tasks)
+        .map_err(DecodeError::Tasks),
         value => Err(envelope(8, copy::CodecErrorKind::Version(value))),
     }
 }

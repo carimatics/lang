@@ -184,3 +184,64 @@ pub(super) fn read_core(value: u8, offset: usize) -> Result<C, CodecError> {
         )),
     }
 }
+
+pub(super) fn task_builtin(value: B) -> Option<u8> {
+    match value {
+        B::TaskError => Some(10),
+        B::ChannelError => Some(11),
+        B::ServiceError => Some(12),
+        _ => builtin(value),
+    }
+}
+pub(super) fn read_task_builtin(value: u8, offset: usize) -> Result<B, CodecError> {
+    match value {
+        10 => Ok(B::TaskError),
+        11 => Ok(B::ChannelError),
+        12 => Ok(B::ServiceError),
+        _ => read_builtin(value, offset),
+    }
+}
+pub(super) fn task_core(value: C) -> Option<u8> {
+    match value {
+        C::ServiceNew => Some(37),
+        C::ServiceHandle => Some(38),
+        C::ServiceClone => Some(39),
+        C::ServiceOwner => Some(40),
+        C::ServiceRead => Some(41),
+        C::ServiceReplace => Some(42),
+        C::ServiceFinish => Some(43),
+        C::ServiceCancel => Some(44),
+        C::ChannelNew => Some(45),
+        C::ChannelSender => Some(46),
+        C::ChannelClone => Some(47),
+        C::ChannelReceiver => Some(48),
+        C::ChannelSeal => Some(49),
+        C::ChannelUnsent => Some(50),
+        _ => core(value),
+    }
+}
+pub(super) fn read_task_core(value: u8, offset: usize) -> Result<C, CodecError> {
+    match value {
+        37 => Ok(C::ServiceNew),
+        38 => Ok(C::ServiceHandle),
+        39 => Ok(C::ServiceClone),
+        40 => Ok(C::ServiceOwner),
+        41 => Ok(C::ServiceRead),
+        42 => Ok(C::ServiceReplace),
+        43 => Ok(C::ServiceFinish),
+        44 => Ok(C::ServiceCancel),
+        45 => Ok(C::ChannelNew),
+        46 => Ok(C::ChannelSender),
+        47 => Ok(C::ChannelClone),
+        48 => Ok(C::ChannelReceiver),
+        49 => Ok(C::ChannelSeal),
+        50 => Ok(C::ChannelUnsent),
+        _ => read_core(value, offset),
+    }
+}
+tags!(channel_role, read_channel_role, o::bodies::ChannelRole, Tag::ChannelRole, {
+    0 => o::bodies::ChannelRole::Sender, 1 => o::bodies::ChannelRole::Receiver
+});
+tags!(service_role, read_service_role, o::bodies::ServiceRole, Tag::ServiceRole, {
+    0 => o::bodies::ServiceRole::Handle, 1 => o::bodies::ServiceRole::Owner
+});

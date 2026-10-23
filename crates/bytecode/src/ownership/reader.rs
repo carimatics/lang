@@ -8,7 +8,8 @@ struct Reader<'a> {
     offset: usize,
     limits: CodecLimits,
     budget: m::Budget,
-    totals: [usize; 6],
+    totals: [usize; 8],
+    task_limits: Option<o::tasks::Limits>,
     source_bytes: usize,
 }
 impl Reader<'_> {
@@ -60,6 +61,8 @@ impl Reader<'_> {
             Table::Instructions => Some(3),
             Table::Loans => Some(4),
             Table::Prepared => Some(5),
+            Table::TaskScopes => Some(6),
+            Table::TaskBindings => Some(7),
             _ => None,
         };
         let next = if let Some(i) = slot {
@@ -185,7 +188,11 @@ impl Reader<'_> {
         use o::Constructor as C;
         let offset = self.offset;
         let constructor = match self.byte()? {
-            0 => C::Builtin(self.kind(tags::read_builtin)?),
+            0 => C::Builtin(self.kind(if self.version == 5 {
+                tags::read_task_builtin
+            } else {
+                tags::read_builtin
+            })?),
             1 => C::Option(self.ty()?),
             2 => C::Result(self.ty()?, self.ty()?),
             3 => C::Vec(self.ty()?),
@@ -198,6 +205,15 @@ impl Reader<'_> {
                 function: m::FunctionId(self.word()?),
                 local: self.word()?,
             }),
+            10 if self.version == 5 => C::Task(self.ty()?),
+            11 if self.version == 5 => C::ChannelSetup(self.ty()?),
+            12 if self.version == 5 => C::Sender(self.ty()?),
+            13 if self.version == 5 => C::Receiver(self.ty()?),
+            14 if self.version == 5 => C::SendResult(self.ty()?),
+            15 if self.version == 5 => C::ServiceSetup(self.ty()?, self.ty()?),
+            16 if self.version == 5 => C::ServiceOwner(self.ty()?, self.ty()?),
+            17 if self.version == 5 => C::ServiceHandle(self.ty()?),
+            18 if self.version == 5 => C::ComponentResource(m::DefinitionId(self.word()?)),
             v => return Err(self.invalid(Tag::Constructor, v, offset)),
         };
         Ok(o::Constructed {
@@ -246,7 +262,13 @@ impl Reader<'_> {
     fn import(&mut self) -> Result<d::Import, CodecError> {
         Ok(d::Import {
             name: self.name()?,
-            abi: if self.version == 4 {
+            abi: if self.version == 5 {
+                let offset = self.offset;
+                match self.byte()? {
+                    2 => d::ImportAbi::Component,
+                    v => tags::read_import_abi(v, offset)?,
+                }
+            } else if self.version == 4 {
                 self.kind(tags::read_import_abi)?
             } else {
                 d::ImportAbi::Host
@@ -271,13 +293,22 @@ impl Reader<'_> {
     }
     fn function(&mut self) -> Result<d::Function, CodecError> {
         Ok(d::Function {
-            effect: d::FunctionEffect::Synchronous,
             name: self.name()?,
             public: self.boolean()?,
-            abi: if self.version == 4 {
+            abi: if self.version >= 4 {
                 self.kind(tags::read_function_abi)?
             } else {
                 d::FunctionAbi::Guest
+            },
+            effect: if self.version == 5 {
+                let offset = self.offset;
+                match self.byte()? {
+                    0 => d::FunctionEffect::Synchronous,
+                    1 => d::FunctionEffect::Asynchronous { span: self.span()? },
+                    v => return Err(self.invalid(Tag::FunctionEffect, v, offset)),
+                }
+            } else {
+                d::FunctionEffect::Synchronous
             },
             span: self.span()?,
             signature_span: self.span()?,
@@ -320,19 +351,21 @@ impl Reader<'_> {
             span: self.span()?,
         })
     }
-    fn cleanup(&mut self) -> Result<b::CleanupStep, CodecError> {
+    fn cleanup_target(&mut self) -> Result<b::CleanupTarget, CodecError> {
         let offset = self.offset;
         let tag = self.byte()?;
         let id = self.word()?;
-        let target = match tag {
+        Ok(match tag {
             0 => b::CleanupTarget::Local(d::LocalId(id)),
             1 => b::CleanupTarget::Value(m::Register(id)),
             2 => b::CleanupTarget::Loan(b::LoanId(id)),
             3 => b::CleanupTarget::Arena(d::LocalId(id)),
             v => return Err(self.invalid(Tag::CleanupTarget, v, offset)),
-        };
+        })
+    }
+    fn cleanup(&mut self) -> Result<b::CleanupStep, CodecError> {
         Ok(b::CleanupStep {
-            target,
+            target: self.cleanup_target()?,
             span: self.span()?,
         })
     }
@@ -409,7 +442,11 @@ impl Reader<'_> {
                 arguments: self.registers()?,
             },
             26 => O::CoreCall(o::core::Call {
-                operation: self.kind(tags::read_core)?,
+                operation: self.kind(if self.version == 5 {
+                    tags::read_task_core
+                } else {
+                    tags::read_core
+                })?,
                 type_arguments: self.list(
                     Table::Fields,
                     self.budget.limits().fields,
@@ -450,6 +487,51 @@ impl Reader<'_> {
                 case: self.word()?,
                 guard: m::Register(self.word()?),
             },
+            34 if self.version == 5 => O::TaskScopeEnter(b::TaskScopeId(self.word()?)),
+            35 if self.version == 5 => O::TaskScopeExit(b::TaskScopeId(self.word()?)),
+            36 if self.version == 5 => O::TaskSpawn {
+                function: m::FunctionId(self.word()?),
+                arguments: self.registers()?,
+            },
+            37 if self.version == 5 => O::TaskAwait(m::Register(self.word()?)),
+            38 if self.version == 5 => O::TaskCancel(p::PlaceId(self.word()?)),
+            39 if self.version == 5 => O::TaskYield,
+            40 if self.version == 5 => O::TaskCheck,
+            41 if self.version == 5 => O::TaskSaveReturn(m::Register(self.word()?)),
+            42 if self.version == 5 => O::PrepareChannel {
+                destination: b::PreparedPlaceId(self.word()?),
+                endpoint: m::Register(self.word()?),
+                role: self.kind(tags::read_channel_role)?,
+                message_type: self.type_use()?,
+            },
+            43 if self.version == 5 => O::ChannelSend {
+                authority: b::PreparedPlaceId(self.word()?),
+                payload: m::Register(self.word()?),
+            },
+            44 if self.version == 5 => O::ChannelReceive {
+                authority: b::PreparedPlaceId(self.word()?),
+            },
+            45 if self.version == 5 => O::PrepareService {
+                destination: b::PreparedPlaceId(self.word()?),
+                endpoint: m::Register(self.word()?),
+                role: self.kind(tags::read_service_role)?,
+                state_type: {
+                    let offset = self.offset;
+                    match self.byte()? {
+                        0 => None,
+                        1 => Some(self.type_use()?),
+                        v => return Err(self.invalid(Tag::OptionalId, v, offset)),
+                    }
+                },
+                message_type: self.type_use()?,
+            },
+            46 if self.version == 5 => O::ServiceSend {
+                authority: b::PreparedPlaceId(self.word()?),
+                payload: m::Register(self.word()?),
+            },
+            47 if self.version == 5 => O::ServiceReceive {
+                authority: b::PreparedPlaceId(self.word()?),
+            },
             v => return Err(self.invalid(Tag::Instruction, v, offset)),
         };
         Ok(b::Instruction {
@@ -475,6 +557,7 @@ impl Reader<'_> {
                 else_target: self.target()?,
             },
             3 => b::Term::Unreachable,
+            4 if self.version == 5 => b::Term::ReturnSaved,
             v => return Err(self.invalid(Tag::Terminator, v, offset)),
         };
         Ok(b::Terminator {
@@ -499,8 +582,26 @@ impl Reader<'_> {
         let loans = self.count(Table::Loans, self.limits.verification.bodies.loans, 0)?;
         let prepared = self.count(Table::Prepared, self.limits.verification.bodies.prepared, 0)?;
         Ok(b::FunctionBody {
-            task_scopes: Vec::new(),
-            task_bindings: Vec::new(),
+            task_scopes: if let Some(cfg) = self.task_limits {
+                self.list(Table::TaskScopes, cfg.scopes, 13, |s| {
+                    Ok(b::TaskScope {
+                        parent: s.optional()?.map(b::TaskScopeId),
+                        span: s.span()?,
+                    })
+                })?
+            } else {
+                Vec::new()
+            },
+            task_bindings: if let Some(cfg) = self.task_limits {
+                self.list(Table::TaskBindings, cfg.bindings, 9, |s| {
+                    Ok(b::TaskBinding {
+                        target: s.cleanup_target()?,
+                        scope: b::TaskScopeId(s.word()?),
+                    })
+                })?
+            } else {
+                Vec::new()
+            },
             loans,
             prepared,
             blocks: self.list(Table::Blocks, self.budget.limits().blocks, 33, Self::block)?,
@@ -525,12 +626,12 @@ impl Reader<'_> {
             14,
             Self::constructor,
         )?;
-        let abi_byte = usize::from(self.version == 4);
+        let abi_byte = usize::from(self.version >= 4);
         let imports = self.list(Table::Imports, cfg.imports, 33 + abi_byte, Self::import)?;
         let functions = self.list(
             Table::Functions,
             cfg.functions,
-            46 + abi_byte,
+            46 + abi_byte + usize::from(self.version == 5),
             Self::function,
         )?;
         let places = self.list(Table::Functions, functions.len(), 8, |s| {
@@ -544,7 +645,12 @@ impl Reader<'_> {
                 )?,
             })
         })?;
-        let bodies = self.list(Table::Functions, functions.len(), 12, Self::body)?;
+        let bodies = self.list(
+            Table::Functions,
+            functions.len(),
+            if self.version == 5 { 20 } else { 12 },
+            Self::body,
+        )?;
         let entry = self.optional()?.map(m::FunctionId);
         Ok((
             b::BodyTable {
@@ -567,7 +673,23 @@ impl Reader<'_> {
     }
 }
 
+pub(super) struct Decoded {
+    pub table: b::BodyTable,
+    pub entry: Option<m::FunctionId>,
+    pub budget: m::Budget,
+    pub offset: usize,
+}
+
 pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, CodecError> {
+    let raw = decode_tables(bytes, limits, None)?;
+    verify(raw.table, raw.entry, raw.budget, limits, raw.offset)
+}
+
+pub(super) fn decode_tables(
+    bytes: &[u8],
+    limits: CodecLimits,
+    task_limits: Option<o::tasks::Limits>,
+) -> Result<Decoded, CodecError> {
     if bytes.len() > limits.bytes {
         return Err(error(
             0,
@@ -584,7 +706,11 @@ pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, Codec
         return Err(error(0, CodecErrorKind::BadMagic));
     }
     let version = u16::from_le_bytes(bytes[8..10].try_into().unwrap());
-    if !matches!(version, 2..=4) {
+    if if task_limits.is_some() {
+        version != 5
+    } else {
+        !matches!(version, 2..=4)
+    } {
         return Err(error(8, CodecErrorKind::Version(version)));
     }
     let flags = u16::from_le_bytes(bytes[10..12].try_into().unwrap());
@@ -603,18 +729,39 @@ pub(super) fn decode(bytes: &[u8], limits: CodecLimits) -> Result<Program, Codec
         offset: HEADER,
         limits,
         budget: m::Budget::new(limits.budget_limits()),
-        totals: [0; 6],
+        totals: [0; 8],
+        task_limits,
         source_bytes: 0,
     };
     reader.charge(4)?;
+    if version == 5 {
+        match reader.byte()? {
+            0 => {}
+            1 => return Err(error(HEADER, CodecErrorKind::UnsupportedProfile(1))),
+            value => {
+                return Err(error(
+                    HEADER,
+                    CodecErrorKind::InvalidTag {
+                        tag: Tag::Profile,
+                        value,
+                    },
+                ));
+            }
+        }
+    }
     let (table, entry) = reader.table()?;
     if reader.offset != bytes.len() {
         return Err(reader.fail(CodecErrorKind::TrailingBytes));
     }
-    if version != 4 && (version == 3) != reader.seen_panic {
+    if version < 4 && (version == 3) != reader.seen_panic {
         return Err(error(8, CodecErrorKind::ProfileVersion(version)));
     }
-    verify(table, entry, reader.budget, limits, reader.offset)
+    Ok(Decoded {
+        table,
+        entry,
+        budget: reader.budget,
+        offset: reader.offset,
+    })
 }
 
 #[cfg(test)]
@@ -627,7 +774,8 @@ pub(super) fn instruction_fixture(bytes: &[u8]) -> Result<b::Instruction, CodecE
         offset: 0,
         limits,
         budget: m::Budget::new(limits.budget_limits()),
-        totals: [0; 6],
+        totals: [0; 8],
+        task_limits: None,
         source_bytes: 0,
     };
     let result = reader.instruction()?;

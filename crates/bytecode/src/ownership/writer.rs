@@ -105,20 +105,27 @@ impl Writer<'_> {
             C::ServiceSetup(..)
             | C::ServiceOwner(..)
             | C::ServiceHandle(_)
-            | C::Builtin(o::Builtin::ServiceError) => {
+            | C::Builtin(o::Builtin::ServiceError)
+                if self.version < 5 =>
+            {
                 return Err(error(
                     self.length,
                     CodecErrorKind::UnsupportedServiceProfile { span: value.span },
                 ));
             }
-            C::Builtin(o::Builtin::ChannelError) => {
+            C::Builtin(o::Builtin::ChannelError) if self.version < 5 => {
                 return Err(error(
                     self.length,
                     CodecErrorKind::UnsupportedChannelProfile { span: value.span },
                 ));
             }
             C::Builtin(v) => {
-                let tag = tags::builtin(v).ok_or_else(|| {
+                let tag = (if self.version == 5 {
+                    tags::task_builtin(v)
+                } else {
+                    tags::builtin(v)
+                })
+                .ok_or_else(|| {
                     error(
                         self.length,
                         CodecErrorKind::UnsupportedTaskProfile { span: value.span },
@@ -167,11 +174,22 @@ impl Writer<'_> {
                 self.word(v.function.0)?;
                 self.word(v.local)?;
             }
-            C::ChannelSetup(_) | C::Sender(_) | C::Receiver(_) | C::SendResult(_) => {
-                return Err(error(
-                    self.length,
-                    CodecErrorKind::UnsupportedChannelProfile { span: value.span },
-                ));
+            C::ChannelSetup(v) | C::Sender(v) | C::Receiver(v) | C::SendResult(v) => {
+                if self.version < 5 {
+                    return Err(error(
+                        self.length,
+                        CodecErrorKind::UnsupportedChannelProfile { span: value.span },
+                    ));
+                }
+                let tag = match value.constructor {
+                    C::ChannelSetup(_) => 11,
+                    C::Sender(_) => 12,
+                    C::Receiver(_) => 13,
+                    C::SendResult(_) => 14,
+                    _ => unreachable!(),
+                };
+                self.byte(tag)?;
+                self.ty(v)?;
             }
             C::ComponentResource(_) => {
                 return Err(error(
@@ -179,11 +197,28 @@ impl Writer<'_> {
                     CodecErrorKind::UnsupportedComponentProfile { span: value.span },
                 ));
             }
-            C::Task(_) => {
-                return Err(error(
-                    self.length,
-                    CodecErrorKind::UnsupportedTaskProfile { span: value.span },
-                ));
+            C::Task(v) => {
+                if self.version < 5 {
+                    return Err(error(
+                        self.length,
+                        CodecErrorKind::UnsupportedTaskProfile { span: value.span },
+                    ));
+                }
+                self.byte(10)?;
+                self.ty(v)?;
+            }
+            C::ServiceSetup(state, message) | C::ServiceOwner(state, message) => {
+                self.byte(if matches!(value.constructor, C::ServiceSetup(..)) {
+                    15
+                } else {
+                    16
+                })?;
+                self.ty(state)?;
+                self.ty(message)?;
+            }
+            C::ServiceHandle(message) => {
+                self.byte(17)?;
+                self.ty(message)?;
             }
         }
         self.span(value.span)
@@ -215,7 +250,9 @@ impl Writer<'_> {
         self.list(values, |s, v| s.word(v.0))
     }
     fn function(&mut self, value: &d::Function) -> Result<(), CodecError> {
-        if let d::FunctionEffect::Asynchronous { span } = value.effect {
+        if let d::FunctionEffect::Asynchronous { span } = value.effect
+            && self.version < 5
+        {
             return Err(error(
                 self.length,
                 CodecErrorKind::UnsupportedTaskProfile { span },
@@ -229,8 +266,17 @@ impl Writer<'_> {
         }
         self.string(&value.name)?;
         self.boolean(value.public)?;
-        if self.version == 4 {
+        if self.version >= 4 {
             self.byte(tags::function_abi(value.abi))?;
+        }
+        if self.version == 5 {
+            match value.effect {
+                d::FunctionEffect::Synchronous => self.byte(0)?,
+                d::FunctionEffect::Asynchronous { span } => {
+                    self.byte(1)?;
+                    self.span(span)?;
+                }
+            }
         }
         self.span(value.span)?;
         self.span(value.signature_span)?;
@@ -279,19 +325,19 @@ impl Writer<'_> {
         self.span(value.span)
     }
     fn instruction(&mut self, value: &b::Instruction) -> Result<(), CodecError> {
-        if value.op.is_service() {
+        if self.version < 5 && value.op.is_service() {
             return Err(error(
                 self.length,
                 CodecErrorKind::UnsupportedServiceProfile { span: value.span },
             ));
         }
-        if value.op.is_channel() {
+        if self.version < 5 && value.op.is_channel() {
             return Err(error(
                 self.length,
                 CodecErrorKind::UnsupportedChannelProfile { span: value.span },
             ));
         }
-        if value.op.is_task() {
+        if self.version < 5 && value.op.is_task() {
             return Err(error(
                 self.length,
                 CodecErrorKind::UnsupportedTaskProfile { span: value.span },
@@ -300,34 +346,85 @@ impl Writer<'_> {
         use b::Op as O;
         self.registers(&value.results)?;
         match &value.op {
-            b::Op::PrepareService { .. }
-            | b::Op::ServiceSend { .. }
-            | b::Op::ServiceReceive { .. } => {
-                return Err(error(
-                    self.length,
-                    CodecErrorKind::UnsupportedServiceProfile { span: value.span },
-                ));
+            O::TaskScopeEnter(scope) => {
+                self.byte(34)?;
+                self.word(scope.0)?;
             }
-            b::Op::PrepareChannel { .. }
-            | b::Op::ChannelSend { .. }
-            | b::Op::ChannelReceive { .. } => {
-                return Err(error(
-                    self.length,
-                    CodecErrorKind::UnsupportedChannelProfile { span: value.span },
-                ));
+            O::TaskScopeExit(scope) => {
+                self.byte(35)?;
+                self.word(scope.0)?;
             }
-            b::Op::TaskScopeEnter(_)
-            | b::Op::TaskScopeExit(_)
-            | b::Op::TaskSpawn { .. }
-            | b::Op::TaskAwait(_)
-            | b::Op::TaskCancel(_)
-            | b::Op::TaskYield
-            | b::Op::TaskCheck
-            | b::Op::TaskSaveReturn(_) => {
-                return Err(error(
-                    self.length,
-                    CodecErrorKind::UnsupportedTaskProfile { span: value.span },
-                ));
+            O::TaskSpawn {
+                function,
+                arguments,
+            } => {
+                self.byte(36)?;
+                self.word(function.0)?;
+                self.registers(arguments)?;
+            }
+            O::TaskAwait(task) => {
+                self.byte(37)?;
+                self.word(task.0)?;
+            }
+            O::TaskCancel(place) => {
+                self.byte(38)?;
+                self.word(place.0)?;
+            }
+            O::TaskYield => self.byte(39)?,
+            O::TaskCheck => self.byte(40)?,
+            O::TaskSaveReturn(value) => {
+                self.byte(41)?;
+                self.word(value.0)?;
+            }
+            O::PrepareChannel {
+                destination,
+                endpoint,
+                role,
+                message_type,
+            } => {
+                self.byte(42)?;
+                self.word(destination.0)?;
+                self.word(endpoint.0)?;
+                self.byte(tags::channel_role(*role))?;
+                self.type_use(message_type)?;
+            }
+            O::ChannelSend { authority, payload } => {
+                self.byte(43)?;
+                self.word(authority.0)?;
+                self.word(payload.0)?;
+            }
+            O::ChannelReceive { authority } => {
+                self.byte(44)?;
+                self.word(authority.0)?;
+            }
+            O::PrepareService {
+                destination,
+                endpoint,
+                role,
+                state_type,
+                message_type,
+            } => {
+                self.byte(45)?;
+                self.word(destination.0)?;
+                self.word(endpoint.0)?;
+                self.byte(tags::service_role(*role))?;
+                match state_type {
+                    None => self.byte(0)?,
+                    Some(ty) => {
+                        self.byte(1)?;
+                        self.type_use(ty)?;
+                    }
+                }
+                self.type_use(message_type)?;
+            }
+            O::ServiceSend { authority, payload } => {
+                self.byte(46)?;
+                self.word(authority.0)?;
+                self.word(payload.0)?;
+            }
+            O::ServiceReceive { authority } => {
+                self.byte(47)?;
+                self.word(authority.0)?;
             }
             O::Panic(code) => {
                 self.byte(33)?;
@@ -452,12 +549,19 @@ impl Writer<'_> {
             }
             O::CoreCall(v) => {
                 self.byte(26)?;
-                self.byte(tags::core(v.operation).ok_or_else(|| {
-                    error(
-                        self.length,
-                        CodecErrorKind::UnsupportedChannelProfile { span: value.span },
-                    )
-                })?)?;
+                self.byte(
+                    (if self.version == 5 {
+                        tags::task_core(v.operation)
+                    } else {
+                        tags::core(v.operation)
+                    })
+                    .ok_or_else(|| {
+                        error(
+                            self.length,
+                            CodecErrorKind::UnsupportedChannelProfile { span: value.span },
+                        )
+                    })?,
+                )?;
                 self.list(&v.type_arguments, Self::type_use)?;
                 self.registers(&v.arguments)?;
                 self.optional(v.result_loan.map(|v| v.0))?;
@@ -523,6 +627,7 @@ impl Writer<'_> {
     }
     fn terminator(&mut self, value: &b::Terminator) -> Result<(), CodecError> {
         match &value.kind {
+            b::Term::ReturnSaved if self.version == 5 => self.byte(4)?,
             b::Term::ReturnSaved => {
                 return Err(error(
                     self.length,
@@ -553,20 +658,25 @@ impl Writer<'_> {
     }
     fn unit(&mut self, program: &Program, payload: u32) -> Result<(), CodecError> {
         let typed = program.flow.source().activity().moved().typed();
-        if let Some(span) = typed.places().declarations().types().channel_feature_span() {
+        if let Some(span) = typed.places().declarations().types().channel_feature_span()
+            && self.version < 5
+        {
             return Err(error(
                 self.length,
                 CodecErrorKind::UnsupportedChannelProfile { span },
             ));
         }
-        if let Some(span) = typed.places().declarations().task_feature_span() {
+        if let Some(span) = typed.places().declarations().task_feature_span()
+            && self.version < 5
+        {
             return Err(error(
                 self.length,
                 CodecErrorKind::UnsupportedTaskProfile { span },
             ));
         }
         for (index, body) in typed.functions().iter().enumerate() {
-            if !body.task_scopes.is_empty() || !body.task_bindings.is_empty() {
+            if self.version < 5 && (!body.task_scopes.is_empty() || !body.task_bindings.is_empty())
+            {
                 return Err(error(
                     self.length,
                     CodecErrorKind::UnsupportedTaskProfile {
@@ -579,6 +689,9 @@ impl Writer<'_> {
         self.bytes(&self.version.to_le_bytes())?;
         self.bytes(&0_u16.to_le_bytes())?;
         self.word(payload)?;
+        if self.version == 5 {
+            self.byte(0)?;
+        }
         let typed = program.flow.source().activity().moved().typed();
         let declarations = typed.places().declarations();
         let types = declarations.types().table();
@@ -602,7 +715,7 @@ impl Writer<'_> {
                 ));
             }
             s.string(&v.name)?;
-            if s.version == 4 {
+            if s.version >= 4 {
                 s.byte(tags::import_abi(v.abi).ok_or_else(|| {
                     error(
                         s.length,
@@ -622,6 +735,23 @@ impl Writer<'_> {
         self.list(typed.functions(), |s, v| {
             s.count(v.loans)?;
             s.count(v.prepared)?;
+            if s.version == 5 {
+                s.list(&v.task_scopes, |s, scope| {
+                    s.optional(scope.parent.map(|v| v.0))?;
+                    s.span(scope.span)
+                })?;
+                s.list(&v.task_bindings, |s, binding| {
+                    let (tag, id) = match binding.target {
+                        b::CleanupTarget::Local(v) => (0, v.0),
+                        b::CleanupTarget::Value(v) => (1, v.0),
+                        b::CleanupTarget::Loan(v) => (2, v.0),
+                        b::CleanupTarget::Arena(v) => (3, v.0),
+                    };
+                    s.byte(tag)?;
+                    s.word(id)?;
+                    s.word(binding.scope.0)
+                })?;
+            }
             s.list(&v.blocks, |s, v| {
                 s.registers(&v.parameters)?;
                 s.list(&v.instructions, Self::instruction)?;
@@ -634,6 +764,16 @@ impl Writer<'_> {
 }
 
 pub(super) fn encode(program: Program, limits: CodecLimits) -> Result<Vec<u8>, CodecError> {
+    encode_version(program, limits, None)
+}
+pub(super) fn encode_tasks(program: Program, limits: CodecLimits) -> Result<Vec<u8>, CodecError> {
+    encode_version(program, limits, Some(5))
+}
+fn encode_version(
+    program: Program,
+    limits: CodecLimits,
+    version: Option<u16>,
+) -> Result<Vec<u8>, CodecError> {
     let mut budget = m::Budget::with_usage(limits.budget_limits(), program.usage())
         .map_err(|e| error(0, CodecErrorKind::Budget(e)))?;
     let typed = program.flow.source().activity().moved().typed();
@@ -648,7 +788,9 @@ pub(super) fn encode(program: Program, limits: CodecLimits) -> Result<Vec<u8>, C
         .charge(declarations.imports().len())
         .and_then(|()| budget.charge(declarations.functions().len()))
         .map_err(|e| error(0, CodecErrorKind::Budget(e)))?;
-    let version = if declarations
+    let version = if let Some(version) = version {
+        version
+    } else if declarations
         .imports()
         .iter()
         .any(|i| i.abi == d::ImportAbi::C)

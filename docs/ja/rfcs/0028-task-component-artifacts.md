@@ -18,6 +18,8 @@ backend に依存しない task/channel/service MIR と完全な component 宣�
 
 RFC 0001 の2026-10-17 JSTの委任に基づく受理は format の決定を記録し、loader の実装/安定化を意味しません。I10 が形式を決定し、続く I11 は最初の保存 task fixture の実行を必須とし、I07 が channel/service/component 統合を完了します。private native record・native package/SDK の受入・両 host installed 実行は引き続き I08 の範囲です。
 
+実装 checkpoint（2026-10-24 JST）: I11 は Task profile 0 を共通 codec に追加し、独立 task proof・明示 entry ID・source 削除後の CLI 実行・VM/生成 native の所有値/channel/service fixture・独立 byte vector・累積上限を検証します。Component profile 1 は未対応として明示拒否し、完全 document/map admission は I07、installed native profile は I08 の残作業です。全 schema 5 の実装/安定化を意味しないため Status は accepted を維持します。
+
 ## 動機
 
 `4ba991d` では `examples/scripts/tasks.lang` を source から実行できますが、artifact compile は “task artifacts require an accepted serialized task format” で拒否し、出力を公開しません。旧 codec は未使用 metadata を含む async 宣言・task scope・channel/service 型・component identity を意図的に拒否します。メモリ内実行や source 読み込みでは M3 の artifact 要件を満たせません。これは2026-10-24 JSTに検証した repository の観測であり、性能測定ではありません。
@@ -178,7 +180,7 @@ task・owned transfer・統合 channel/service・component resource/loan/import/
 
 ## 未解決事項
 
-未解決の意味論 blocker はありません。未検証の実装仮説は、schema 2–4 との codec traversal 共有が保守可能であること、既存累積 verifier API が全 IDL/map 準備コストを reset せず引き継げること、空 library table が完全 task verifier に通ることです。I11/I07 で検証し、field/tag/proof 要件/互換性を変える前に本決定を改訂します。性能と両 host 同等性は測定事項であり、仮定を証拠扱いしません。
+未解決の意味論 blocker はありません。I11 の focused test で空 library table と累積 task-codec proof を確認しました。残る未検証の実装仮説は、schema 2–4 との codec traversal 共有が引き続き保守可能であること、既存累積 verifier API が全 IDL/map 準備コストを reset せず引き継げることです。I07 で検証し、field/tag/proof 要件/互換性を変える前に本決定を改訂します。性能と両 host 同等性は測定事項であり、仮定を証拠扱いしません。
 
 ## 出典
 

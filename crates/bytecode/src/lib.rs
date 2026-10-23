@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ownership;
+pub mod tasks;
 pub mod unit;
 
 use std::error::Error;

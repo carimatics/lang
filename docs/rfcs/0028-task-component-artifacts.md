@@ -18,6 +18,8 @@ Accept **LANGBC schema 5** for backend-neutral task/channel/service MIR and comp
 
 Acceptance under RFC 0001's 2026-10-17 JST delegation records a format decision, not an implemented or stabilized loader. I10 decides the format; I11 must next execute the first stored task fixture; I07 completes channel/service/component integration. I08 still owns private native records, native-package/SDK admission and both-host installed execution.
 
+Implementation checkpoint (2026-10-24 JST): I11 adds Task profile 0 to the shared codec, with independent task proof, explicit entry identity, CLI execution after source deletion, VM/generated-native owned/channel/service fixtures, independent bytes and cumulative ceilings. Component profile 1 explicitly refuses as unavailable; complete document/map admission remains I07 and installed native profiles remain I08. Status stays accepted because the complete schema-5 profile is not implemented or stabilized.
+
 ## Motivation
 
 At `4ba991d`, `examples/scripts/tasks.lang` executes from source, but artifact compilation refuses with “task artifacts require an accepted serialized task format” and publishes no output. The old codec intentionally refuses asynchronous declarations, task scopes, channel/service types and component identities, including unused metadata. In-memory execution and source loading cannot satisfy the M3 artifact requirement. These are repository observations verified 2026-10-24 JST, not performance measurements.
@@ -178,7 +180,7 @@ Execute source→artifact→decode→VM/generated-native fixtures for tasks, own
 
 ## Open questions
 
-No unresolved semantic blocker. Unverified implementation assumptions: sharing codec traversal with schemas 2–4 is maintainable; existing cumulative verifier APIs can carry all IDL/map preparation charges without resetting; the empty library table passes the complete task verifier. I11/I07 must test these and revise this decision before changing a field, tag, proof requirement or compatibility consequence. Performance and both-host equivalence remain measurements, not assumptions treated as evidence.
+No unresolved semantic blocker. I11's focused tests confirm the empty library table and cumulative task-codec proof. Unverified implementation assumptions remain: sharing codec traversal with schemas 2–4 stays maintainable, and existing cumulative verifier APIs can carry all IDL/map preparation charges without resetting. I07 must test these and revise this decision before changing a field, tag, proof requirement or compatibility consequence. Performance and both-host equivalence remain measurements, not assumptions treated as evidence.
 
 ## Sources
 

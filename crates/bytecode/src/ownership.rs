@@ -75,6 +75,8 @@ pub enum Table {
     Loans,
     Prepared,
     Elements,
+    TaskScopes,
+    TaskBindings,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Tag {
@@ -94,7 +96,32 @@ pub enum Tag {
     EndMode,
     Terminator,
     OptionalId,
+    Profile,
+    FunctionEffect,
+    ChannelRole,
+    ServiceRole,
 }
+/// Task-only contract failures. Common verification phases reuse their
+/// existing error variants, preserving both spans without enlarging legacy
+/// codec errors or allocating an error box after resource exhaustion.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TaskErrorKind {
+    Scope(u32),
+    Binding(o::bodies::CleanupTarget),
+    Stack,
+    Claim,
+    Escape,
+    ReturnEscrow,
+    UnsupportedTransfer(o::Type),
+    Limit,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TaskError {
+    pub kind: TaskErrorKind,
+    pub primary: Option<m::Span>,
+    pub secondary: Option<m::Span>,
+}
+
 #[derive(Debug)]
 pub enum CodecErrorKind {
     TooLarge {
@@ -122,6 +149,8 @@ pub enum CodecErrorKind {
     IntegerOverflow,
     AllocationFailed,
     InvalidEntry,
+    UnsupportedProfile(u8),
+    Tasks(TaskError),
     UnsupportedCInterface {
         span: m::Span,
     },
@@ -278,4 +307,135 @@ pub fn encode(
         0,
     )?;
     writer::encode(program, limits)
+}
+
+fn verify_tasks(
+    table: o::bodies::BodyTable,
+    entry: Option<m::FunctionId>,
+    mut budget: m::Budget,
+    limits: crate::tasks::CodecLimits,
+    offset: usize,
+) -> Result<crate::tasks::Program, CodecError> {
+    if entry.is_some() {
+        budget
+            .charge(1)
+            .map_err(|e| error(offset, CodecErrorKind::Budget(e)))?;
+    }
+    let usage = m::Usage {
+        work: budget.work_used(),
+        allocation_bytes: budget.allocation_bytes(),
+        elements: budget.elements_used(),
+    };
+    let proof = o::tasks::verify_with_usage(table, limits.verification, usage)
+        .map_err(|e| error(offset, task_error(e)))?;
+    let declarations = proof.typed().places().declarations();
+    if let Some(span) = declarations.component_feature_span() {
+        return Err(error(
+            offset,
+            CodecErrorKind::UnsupportedComponentProfile { span },
+        ));
+    }
+    if let Some(id) = entry {
+        let function = declarations
+            .functions()
+            .get(id.0 as usize)
+            .ok_or_else(|| error(offset, CodecErrorKind::InvalidEntry))?;
+        if !function.parameters.is_empty() || function.result.ty != o::Type::I64 {
+            return Err(error(offset, CodecErrorKind::InvalidEntry));
+        }
+    }
+    Ok(crate::tasks::Program { proof, entry })
+}
+
+pub(crate) fn decode_tasks(
+    bytes: &[u8],
+    limits: crate::tasks::CodecLimits,
+) -> Result<crate::tasks::Program, CodecError> {
+    let raw = reader::decode_tables(bytes, limits.shared(), Some(limits.verification))?;
+    verify_tasks(raw.table, raw.entry, raw.budget, limits, raw.offset)
+}
+
+pub(crate) fn encode_tasks(
+    table: o::bodies::BodyTable,
+    entry: Option<m::FunctionId>,
+    limits: crate::tasks::CodecLimits,
+) -> Result<Vec<u8>, CodecError> {
+    let shared = limits.shared();
+    if limits.bytes < HEADER + 1 {
+        return Err(error(
+            0,
+            CodecErrorKind::TooLarge {
+                limit: limits.bytes,
+                requested: HEADER + 1,
+            },
+        ));
+    }
+    let program = verify_tasks(
+        table,
+        entry,
+        m::Budget::new(shared.budget_limits()),
+        limits,
+        0,
+    )?;
+    let entry = program.entry;
+    writer::encode_tasks(
+        Program {
+            flow: program.proof.into_plan(),
+            entry,
+        },
+        shared,
+    )
+}
+
+fn task_error(e: o::tasks::Error) -> CodecErrorKind {
+    use o::tasks::ErrorKind as K;
+    let kind = match e.kind {
+        K::Resource(kind) => return CodecErrorKind::Budget(m::Error::new(kind)),
+        K::Types(kind) => {
+            return CodecErrorKind::Types(o::Error {
+                kind,
+                span: e.primary,
+            });
+        }
+        K::Moves(kind) => {
+            return CodecErrorKind::Moves(o::moves::Error {
+                kind,
+                primary: e.primary,
+                secondary: e.secondary,
+            });
+        }
+        K::Activity(kind) => {
+            return CodecErrorKind::Activity(o::loan_activity::Error {
+                kind,
+                primary: e.primary,
+                secondary: e.secondary,
+            });
+        }
+        K::Loans(kind) => {
+            return CodecErrorKind::Loans(o::loans::Error {
+                kind,
+                primary: e.primary,
+                secondary: e.secondary,
+            });
+        }
+        K::Failure(kind) => {
+            return CodecErrorKind::Failure(o::failure::Error {
+                kind,
+                primary: e.primary,
+            });
+        }
+        K::Scope(id) => TaskErrorKind::Scope(id),
+        K::Binding(target) => TaskErrorKind::Binding(target),
+        K::Stack => TaskErrorKind::Stack,
+        K::Claim => TaskErrorKind::Claim,
+        K::Escape => TaskErrorKind::Escape,
+        K::ReturnEscrow => TaskErrorKind::ReturnEscrow,
+        K::UnsupportedTransfer(ty) => TaskErrorKind::UnsupportedTransfer(ty),
+        K::Limit => TaskErrorKind::Limit,
+    };
+    CodecErrorKind::Tasks(TaskError {
+        kind,
+        primary: e.primary,
+        secondary: e.secondary,
+    })
 }

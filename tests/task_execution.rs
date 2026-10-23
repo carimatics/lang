@@ -88,7 +88,7 @@ fn task_layout_is_explicit_and_cleanup_keeps_only_typed_return_storage() {
 }
 
 #[test]
-fn unsupported_execution_and_artifact_modes_refuse_before_effects() {
+fn task_artifacts_load_while_native_packages_still_refuse_before_effects() {
     let source = "extern fn host(value:i64)->i64; async fn main()->i64{yield;return host(42);}";
     let proof = prepare(source);
     let mut allocator = allocator();
@@ -129,9 +129,11 @@ fn unsupported_execution_and_artifact_modes_refuse_before_effects() {
         Default::default(),
         Default::default(),
     );
+    let bytes = result.unwrap();
+    assert_eq!(&bytes[8..10], &5u16.to_le_bytes());
     assert!(matches!(
-        result,
-        Err(lang::artifact::CompileError::UnsupportedTaskProfile { .. })
+        lang::artifact::decode(&bytes, Default::default()).unwrap(),
+        lang::artifact::Program::Tasks(_)
     ));
     if cfg!(any(
         all(target_os = "macos", target_arch = "aarch64"),

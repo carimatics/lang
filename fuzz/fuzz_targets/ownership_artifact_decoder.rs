@@ -33,6 +33,25 @@ fn limits() -> CodecLimits {
     cfg
 }
 fn check(bytes: &[u8]) {
+    let base = limits();
+    let tasks = lang_bytecode::tasks::CodecLimits {
+        bytes: base.bytes,
+        verification: lang_mir::unit::ownership::tasks::Limits {
+            bodies: base.verification.bodies,
+            scopes: 128,
+            bindings: 128,
+            state_cells: 4096,
+            loan_nodes: 1024,
+            loan_words: 4096,
+            failure_nodes: 1024,
+            ..Default::default()
+        },
+    };
+    if let Ok(program) = lang_bytecode::tasks::decode(bytes, tasks) {
+        let (table, entry) = program.into_parts();
+        let encoded = lang_bytecode::tasks::encode(table, entry, Default::default()).unwrap();
+        assert_eq!(encoded, bytes);
+    }
     if let Ok(program) = decode(bytes, limits()) {
         let (table, entry) = program.into_parts();
         // Encoding is a new operation with a new budget. No runtime allocator,
@@ -46,6 +65,7 @@ fuzz_target!(|bytes: &[u8]| {
     for source in [
         include_str!("../../crates/bytecode/tests/fixtures/unit-v2-main-42.hex"),
         include_str!("../../crates/bytecode/tests/fixtures/unit-v2-bytes.hex"),
+        include_str!("../../crates/bytecode/tests/fixtures/unit-v5-task-42.hex"),
     ] {
         let mut seed: Vec<u8> = source
             .split_whitespace()

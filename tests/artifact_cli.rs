@@ -455,3 +455,30 @@ fn c_aware_schema_four_loads_without_source_or_implicit_c_authority() {
     assert!(stderr.contains("fuel 0, host calls 0"), "{stderr}");
     assert!(stderr.contains("service work 0"), "{stderr}");
 }
+
+#[test]
+fn task_artifact_survives_source_deletion_and_retains_runtime_controls() {
+    let directory = Directory::new();
+    let source = directory.source("tasks.lang", include_str!("../examples/scripts/tasks.lang"));
+    let artifact = directory.file("tasks.lbc");
+    let source_result = run_source(&source);
+    ok(&source_result);
+    ok(&compile(&source, &artifact));
+    assert_eq!(
+        &std::fs::read(&artifact).unwrap()[8..10],
+        &5u16.to_le_bytes()
+    );
+    std::fs::remove_file(&source).unwrap();
+    let loaded = run_loaded(&artifact);
+    ok(&loaded);
+    same(&source_result, &loaded);
+    let limited = cli(&[
+        "run".as_ref(),
+        "--artifact".as_ref(),
+        "--fuel".as_ref(),
+        "0".as_ref(),
+        artifact.as_os_str(),
+    ]);
+    assert!(!limited.status.success());
+    assert!(String::from_utf8_lossy(&limited.stderr).contains("fuel"));
+}

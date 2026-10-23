@@ -69,6 +69,7 @@ Versionの名前空間は独立しています。Component prototypeのschema番
 | Source program schema 2 | RFC 0011のownership program。明示的panicとC metadataを含まない |
 | Source program schema 3 | RFC 0014のownership program。明示的panicを含み、C metadataを含まない |
 | Source program schema 4 | RFC 0017のC対応ownership program。明示的panicの有無は問わず、metadataはC実行authorityを与えない |
+| Source program schema 5 | RFC 0028 task/channel/service MIR と独立 task proof を実装。Component document/map は受理済みだが loader は未対応として明示拒否 |
 | Private ownership native revision 1/2/3 | RFC 0012・0014が定める通常／C対応／明示的panicの規約 |
 | C profile 1とobject bridge 1 | 外部の有限C値／descriptorと、それとは別のprivate per-image binding slot |
 | Native record schema 1 | RFC 0018の元objectとcompiler record。厳密なportable bytes/build/targetに結び付く |
@@ -149,6 +150,8 @@ A04 native 実装境界（2026-10-22 JST）: 明示 private task compiler は検
 I01 production 境界決定（2026-10-22 JST）: 受理した [RFC 0027](rfcs/0027-production-component-interface.md) は厳密 JSON IDL v1・rich LCMP schema 3・LCVL/LCSG v1・別 component C ABI v1 と、検証した参照 header/layout vector を定義します。binding は動的 provider/resource provenance・shared/exclusive loan・preflight/commit・元 allocator/control・同期 nested callback・最初の failure と cleanup/poison を保ちます。root task export は共通 task tree を実行し、nested async C stack は受理しません。旧 C profile/artifact namespace の拒否を維持します。source/MIR proof・実 adapter/grant/callback・serialized task/native-package revision・両 host conformance は実装の残作業です。header target compile は実行証拠ではありません。
 
 I10 artifact 形式決定（2026-10-24 JST）: 受理した [RFC 0028](rfcs/0028-task-component-artifacts.md) は LANGBC schema 5 の明示 task/channel/service/component tag・effect/scope/claim・元 span 付き完全 IDL document/binding map・累積 loading budget を定義します。読み込みは生 MIR から既存 task/ownership/loan/failure/binding proof を独立再構築し、source の再 parse や grant/native pointer の復元を行いません。schema 1–4 と別 C/wire/package namespace は不変です。これは決定であり実装証拠ではなく、I11 が最初の保存 task の VM/native 実行、I07 が全 profile 統合、I08 が installed package/SDK の両 host 証拠を担当します。
+
+I11 保存 task checkpoint（2026-10-24 JST）: `lang-bytecode::tasks` は共通 codec に schema 5 専用分岐を追加し、async-token span・scope/claim・channel/service authority と累積 task/ownership/loan/failure proof を decode 時に再構築します。旧 ownership API は schema 5 を拒否し、旧 byte/tag の意味は維持します。`lang compile` と `run --artifact` は task profile を扱い、明示 entry ID で実行し、元 source 削除後も動作します。独立 byte vector と owned/channel/service fixture は VM/生成 native の value・usage・event・cleanup が一致し、再 encode は同じ byte を返します。Component profile 1 は公開前に明示拒否し、完全 document/map admission は I07、installed package/SDK は I08 に残ります。
 
 whole-local write preparation は証明済み move 後の空き slot を許可し、read/projection addressing は live owner を要求するままです。再初期化で新 owner を一度移動します。channel chain が露出した既存の有効 MIR の境界を、channel を使わない VM/native loop と全 fuel prefix で検証しました。syntax・ownership rule・artifact format は変わりません。2026-10-22 JST 確認。
 

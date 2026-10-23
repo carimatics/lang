@@ -82,6 +82,10 @@ impl VerifiedTasks {
     pub fn plan(&self) -> &failure::Elaborated {
         &self.plan
     }
+    /// Consume the task proof and recover its checked ownership/failure plan.
+    pub fn into_plan(self) -> failure::Elaborated {
+        self.plan
+    }
     pub fn typed(&self) -> &b::TypedBodies {
         self.plan.source().activity().moved().typed()
     }

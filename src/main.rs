@@ -21,7 +21,7 @@ impl ExecutionOptions {
     }
 }
 
-const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n";
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n\nArtifact schemas: Copy/ownership/C 1-4; tasks/channels/services 5. Component artifacts are not yet supported.\n";
 enum Command {
     Check {
         file: PathBuf,
@@ -633,7 +633,7 @@ fn run_script(
     };
     if let lang_semantics::analysis::Program::Tasks(program) = &typed {
         drop(stderr);
-        return run_tasks(program.verified(), limits);
+        return run_tasks(program.verified(), None, limits);
     }
     if let lang_semantics::analysis::Program::Ownership(program) = &typed {
         drop(stderr);
@@ -661,6 +661,7 @@ fn run_script(
 
 fn run_tasks(
     proof: &lang_mir::unit::ownership::tasks::VerifiedTasks,
+    entry: Option<lang_mir::unit::FunctionId>,
     limits: ExecutionOptions,
 ) -> Result<u8, CliError> {
     let mut allocator = lang_runtime::allocation::Allocator::new(
@@ -668,7 +669,18 @@ fn run_tasks(
         Default::default(),
     )
     .map_err(failure)?;
-    match vm::tasks::execute_entry(proof, &mut allocator, limits.control(), Default::default()) {
+    let result = if let Some(entry) = entry {
+        vm::tasks::execute_function(
+            proof,
+            entry,
+            &mut allocator,
+            limits.control(),
+            Default::default(),
+        )
+    } else {
+        vm::tasks::execute_entry(proof, &mut allocator, limits.control(), Default::default())
+    };
+    match result {
         Ok(output) => {
             if output.poisoned || output.report.is_some() {
                 let mut stderr = io::stderr().lock();
@@ -939,6 +951,12 @@ fn run_artifact(file: PathBuf, limits: ExecutionOptions) -> Result<u8, CliError>
                 .entry()
                 .ok_or_else(|| failure("artifact has no script entry"))?;
             run_owned(program.flow(), OwnedEntry::Function(entry), limits)
+        }
+        lang::artifact::Program::Tasks(program) => {
+            let entry = program
+                .entry()
+                .ok_or_else(|| failure("artifact has no script entry"))?;
+            run_tasks(program.proof(), Some(entry), limits)
         }
     }
 }
