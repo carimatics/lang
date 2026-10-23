@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **42 done · 1 doing · 18 todo · 55 remaining pt**です。R01 の `f3b086c` は入力固定の **141 suite / 2,120テスト** baseline が成功しました（**2026-10-23 12:27 JST** 検証）。次の実 native member source fixture は独立 MIR/Program 受理を通り、native Import 準備が副作用前に拒否します。元 context 上の保持済み実 native 呼び出し/canonical transport として **E05（3 pt）**を公開し、R02 の前に E05 のみを選択します。positive fixture は実 Resource backing の変更と42を要求します。R02 の検証済み view・入れ子 reborrow・generation/所有権・poison/reuse の全 **3 pt**を維持します。この前提監査は**消化0 pt・追加3 pt**、残り **52 + 3 − 0 = 55 pt**、台帳 **110 + 58 − 113 = 55**です。G01/G02 は **10/96 gate weight、2/15 gate**のままです。E01–E04・後続の全 resource/callback/control・I07/I08 artifact/package・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **43 done · 1 doing · 17 todo · 52 remaining pt**です。E05 の `a13272b` は両 source engine で保持済み実 native member を実行し、**source 回帰38件**と入力固定の **141スイート / 2,125 passed** baseline が成功しました（**2026-10-23 15:32 JST** 検証）。最後の **3 pt**を完了し、**完了時の追加/再見積もりは0 pt**、残り **55 + 0 − 3 = 52 pt**、台帳 **110 + 58 − 116 = 52**です。前提監査/完了の**消化3 pt・新規追加3 pt**は分けて報告します。親権限下の source reborrow から実 backing への到達、stale/foreign/generation/所有権拒否、完全 cleanup/不変条件再検査後の永続 poison/reuse として、**R02（3 pt）**のみを選択します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。R03・E01–E04・I07/I08 artifact/package・共有 control・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
 
 ## 進行中 milestone の実行
 
