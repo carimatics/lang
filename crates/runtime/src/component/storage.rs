@@ -4,7 +4,9 @@
 use super::{
     native::ResourceKind,
     negotiation::ResourceTypeKey,
-    resource::{self, OwnedResourceHandle, ResourceTable},
+    resource::{
+        self, BorrowedResourceHandle, OwnedResourceHandle, ResourceBorrowKind, ResourceTable,
+    },
 };
 use crate::allocation as a;
 use lang_mir::unit as m;
@@ -86,10 +88,29 @@ struct Backing<'a> {
     header: a::Handle,
 }
 #[derive(Clone, Copy)]
+pub(crate) enum Access {
+    Own,
+    Shared,
+    Exclusive,
+}
+#[derive(Clone, Copy)]
+pub(crate) struct Input {
+    pub claim: Claim,
+    pub access: Access,
+}
+#[derive(Clone, Copy)]
+pub(crate) struct Loan {
+    borrowed: BorrowedResourceHandle,
+    claim: Claim,
+    caller: Holder,
+    guest: Holder,
+}
+#[derive(Clone, Copy)]
 struct Plan {
     original: Claim,
     next: Claim,
     header: a::Handle,
+    access: Access,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Transfer {
@@ -149,6 +170,7 @@ pub struct Resources<'a> {
     pending: Option<Pending>,
     plans: Vec<Plan>,
     capacity: usize,
+    borrows: usize,
 }
 impl<'a> Resources<'a> {
     pub fn prepare(
@@ -162,7 +184,7 @@ impl<'a> Resources<'a> {
             .map_err(resource::PreparationError::Budget)?;
         let values = ResourceTable::prepare(capacity, borrows, budget)?;
         let plans = budget
-            .vector(capacity)
+            .vector(capacity.checked_add(borrows).ok_or(Error::Capacity)?)
             .map_err(resource::PreparationError::Budget)?;
         Ok(Self {
             values,
@@ -173,6 +195,7 @@ impl<'a> Resources<'a> {
             pending: None,
             plans,
             capacity,
+            borrows,
         })
     }
     pub fn host(&self) -> Holder {
@@ -195,6 +218,9 @@ impl<'a> Resources<'a> {
     }
     pub(crate) const fn capacity(&self) -> usize {
         self.capacity
+    }
+    pub(crate) fn input_capacity(&self) -> usize {
+        self.capacity + self.borrows
     }
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
@@ -340,9 +366,72 @@ impl<'a> Resources<'a> {
             committed: false,
         })
     }
-    /// Read-only whole-batch admission before any caller/callee representation
-    /// allocates. The iterator borrows prepared caller transport; no ledger or
-    /// ticket is changed, and no native/provider callback is invoked.
+    /// Read-only whole-call admission. Shared aliases are permitted; every
+    /// owner/exclusive collision is refused before staging provider storage.
+    pub(crate) fn check_call(
+        &self,
+        inputs: impl Iterator<Item = Input> + Clone,
+        from: Holder,
+        to: Holder,
+        allocator: &dyn Memory,
+    ) -> Result<(), Error> {
+        self.idle()?;
+        self.check_inputs(inputs, from, to, allocator)
+    }
+    fn check_inputs(
+        &self,
+        inputs: impl Iterator<Item = Input> + Clone,
+        from: Holder,
+        to: Holder,
+        allocator: &dyn Memory,
+    ) -> Result<(), Error> {
+        self.check_allocator(allocator)?;
+        self.check_holder(from)?;
+        self.check_holder(to)?;
+        let owners = inputs
+            .clone()
+            .filter(|i| matches!(i.access, Access::Own))
+            .count();
+        let borrows = inputs
+            .clone()
+            .filter(|i| !matches!(i.access, Access::Own))
+            .count();
+        if owners > self.capacity || borrows > self.borrows {
+            return Err(Error::Capacity);
+        }
+        self.values.check_borrow_reservation(borrows)?;
+        for (index, input) in inputs.clone().enumerate() {
+            self.backing(input.claim, from, allocator)?;
+            if inputs.clone().take(index).any(|prior| {
+                prior.claim.owner == input.claim.owner
+                    && !(matches!(prior.access, Access::Shared)
+                        && matches!(input.access, Access::Shared))
+            }) {
+                return Err(Error::AliasedOwner);
+            }
+            match input.access {
+                Access::Own => self.values.check_release(input.claim.owner)?,
+                access => {
+                    let shared = inputs
+                        .clone()
+                        .filter(|i| {
+                            i.claim.owner == input.claim.owner && matches!(i.access, Access::Shared)
+                        })
+                        .count();
+                    self.values.check_borrow(
+                        input.claim.owner,
+                        if matches!(access, Access::Shared) {
+                            ResourceBorrowKind::Shared
+                        } else {
+                            ResourceBorrowKind::Exclusive
+                        },
+                        shared,
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
     pub(crate) fn check_transfer(
         &self,
         claims: impl Iterator<Item = Claim> + Clone,
@@ -350,27 +439,16 @@ impl<'a> Resources<'a> {
         to: Holder,
         allocator: &dyn Memory,
     ) -> Result<(), Error> {
-        self.idle()?;
-        self.check_allocator(allocator)?;
-        self.check_holder(from)?;
-        self.check_holder(to)?;
-        if claims.clone().count() > self.capacity {
-            return Err(Error::Capacity);
-        }
-        for (index, claim) in claims.clone().enumerate() {
-            self.backing(claim, from, allocator)?;
-            self.values.check_release(claim.owner)?;
-            if claims
-                .clone()
-                .take(index)
-                .any(|prior| prior.owner == claim.owner)
-            {
-                return Err(Error::AliasedOwner);
-            }
-        }
-        Ok(())
+        self.check_call(
+            claims.map(|claim| Input {
+                claim,
+                access: Access::Own,
+            }),
+            from,
+            to,
+            allocator,
+        )
     }
-
     pub fn prepare_transfer(
         &mut self,
         claims: &[Claim],
@@ -378,19 +456,45 @@ impl<'a> Resources<'a> {
         to: Holder,
         allocator: &dyn Memory,
     ) -> Result<Transfer, Error> {
-        self.check_transfer(claims.iter().copied(), from, to, allocator)?;
+        self.prepare_call(
+            claims.iter().copied().map(|claim| Input {
+                claim,
+                access: Access::Own,
+            }),
+            from,
+            to,
+            allocator,
+        )
+    }
+    pub(crate) fn prepare_call(
+        &mut self,
+        inputs: impl Iterator<Item = Input> + Clone,
+        from: Holder,
+        to: Holder,
+        allocator: &dyn Memory,
+    ) -> Result<Transfer, Error> {
+        self.check_call(inputs.clone(), from, to, allocator)?;
         self.plans.clear();
-        for claim in claims {
-            let backing = self.backing(*claim, from, allocator)?;
+        for input in inputs {
+            let backing = self.backing(input.claim, from, allocator)?;
             self.plans.push(Plan {
-                original: *claim,
-                next: *claim,
+                original: input.claim,
+                next: input.claim,
                 header: backing.header,
+                access: input.access,
             });
         }
-        let first = self.tickets(claims.len())?;
-        for (index, plan) in self.plans.iter_mut().enumerate() {
-            plan.next.ticket = first + index as u64;
+        let owners = self
+            .plans
+            .iter()
+            .filter(|p| matches!(p.access, Access::Own))
+            .count();
+        let mut next = self.tickets(owners)?;
+        for plan in &mut self.plans {
+            if matches!(plan.access, Access::Own) {
+                plan.next.ticket = next;
+                next = next.saturating_add(1);
+            }
         }
         let serial = self.next_transfer.ok_or(Error::Exhausted)?;
         self.next_transfer = serial.checked_add(1);
@@ -420,26 +524,90 @@ impl<'a> Resources<'a> {
         ticket: Transfer,
         allocator: &mut dyn Memory,
     ) -> Result<(), Error> {
-        self.check_allocator(allocator)?;
+        if self.plans.iter().any(|p| !matches!(p.access, Access::Own)) {
+            return Err(Error::State);
+        }
+        self.commit_call_inner(ticket, allocator, None)
+    }
+    pub(crate) fn commit_call(
+        &mut self,
+        ticket: Transfer,
+        allocator: &mut dyn Memory,
+        loans: &mut [Option<Loan>],
+    ) -> Result<(), Error> {
+        self.commit_call_inner(ticket, allocator, Some(loans))
+    }
+    fn commit_call_inner(
+        &mut self,
+        ticket: Transfer,
+        allocator: &mut dyn Memory,
+        mut loans: Option<&mut [Option<Loan>]>,
+    ) -> Result<(), Error> {
         let pending = self
             .pending
             .filter(|p| p.ticket == ticket)
             .ok_or(Error::State)?;
-        // Staging caller representation may allocate; revalidate every source
-        // before the first write. The write phase has no fallible operation.
-        for plan in &self.plans {
-            self.backing(plan.original, pending.from, allocator)?;
-            self.values.check_release(plan.original.owner)?;
+        if loans.as_ref().is_some_and(|l| l.len() != self.plans.len()) {
+            return Err(Error::State);
         }
-        for plan in &self.plans {
-            let bytes = allocator
-                .bytes_mut(plan.header)
-                .expect("preflight holds live exact header bounds");
-            bytes[32..40].copy_from_slice(&plan.next.ticket.to_le_bytes());
-            bytes[40..48].copy_from_slice(&pending.to.scope.to_le_bytes());
+        self.check_inputs(
+            self.plans.iter().map(|p| Input {
+                claim: p.original,
+                access: p.access,
+            }),
+            pending.from,
+            pending.to,
+            allocator,
+        )?;
+        // All bounds, identifiers, conflicts and vector capacity were checked.
+        // These operations invoke no provider/native callback or allocation.
+        for (index, plan) in self.plans.iter().enumerate() {
+            match plan.access {
+                Access::Own => {
+                    let bytes = allocator
+                        .bytes_mut(plan.header)
+                        .expect("preflight holds live exact header bounds");
+                    bytes[32..40].copy_from_slice(&plan.next.ticket.to_le_bytes());
+                    bytes[40..48].copy_from_slice(&pending.to.scope.to_le_bytes());
+                }
+                access => {
+                    let borrowed = if matches!(access, Access::Shared) {
+                        self.values.borrow_shared(plan.original.owner)
+                    } else {
+                        self.values.borrow_exclusive(plan.original.owner)
+                    }
+                    .expect("complete batch preflight reserves compatible table borrows");
+                    loans
+                        .as_deref_mut()
+                        .expect("borrow call reserves its result slots")[index] = Some(Loan {
+                        borrowed,
+                        claim: plan.original,
+                        caller: pending.from,
+                        guest: pending.to,
+                    });
+                }
+            }
         }
         self.pending = None;
         self.plans.clear();
+        Ok(())
+    }
+    pub(crate) fn check_loan(
+        &self,
+        loan: Loan,
+        claim: Claim,
+        guest: Holder,
+        allocator: &dyn Memory,
+    ) -> Result<(), Error> {
+        if loan.claim != claim || loan.guest != guest {
+            return Err(Error::WrongHolder);
+        }
+        self.values.get_borrowed(loan.borrowed)?;
+        self.backing(claim, loan.caller, allocator)?;
+        Ok(())
+    }
+    pub(crate) fn end_loan(&mut self, loan: Loan) -> Result<(), Error> {
+        self.values.end_borrow(loan.borrowed)?;
         Ok(())
     }
     /// Unlink before the registered destructor is attempted. The caller must

@@ -29,6 +29,19 @@ enum Case {
     Consume,
     Frame,
     FrameOutput,
+    SharedLoan,
+    ExclusiveLoan,
+    MixedLoan(bool),
+    LoanReturn(bool),
+    LoanAliases,
+    LoanCapacity,
+    LoanConflict(u8),
+    LoanOom(bool, usize),
+    LoanFuel(bool, u64),
+    LoanCells(usize),
+    LoanCancelled,
+    LoanCleanup,
+    LoanFuelCleanup(u64),
     Nested,
     NestedReturn,
     NestedReturnBudget,
@@ -58,6 +71,36 @@ enum Case {
     ReturnCleanupFailure,
 }
 impl Case {
+    fn loan(self) -> Option<bool> {
+        match self {
+            Self::SharedLoan
+            | Self::LoanAliases
+            | Self::LoanCapacity
+            | Self::LoanCells(_)
+            | Self::LoanCancelled
+            | Self::LoanCleanup
+            | Self::LoanFuelCleanup(_) => Some(false),
+            Self::ExclusiveLoan => Some(true),
+            Self::LoanConflict(mask) => Some(mask & 1 != 0),
+            Self::MixedLoan(exclusive)
+            | Self::LoanReturn(exclusive)
+            | Self::LoanOom(exclusive, _)
+            | Self::LoanFuel(exclusive, _) => Some(exclusive),
+            _ => None,
+        }
+    }
+    fn loan_extra(self) -> bool {
+        self.loan().is_some() && !matches!(self, Self::SharedLoan | Self::ExclusiveLoan)
+    }
+    fn loan_aliases(self) -> bool {
+        matches!(
+            self,
+            Self::LoanAliases | Self::LoanCapacity | Self::LoanConflict(_)
+        )
+    }
+    fn second_exclusive(self) -> bool {
+        matches!(self,Self::LoanConflict(mask) if mask&2!=0)
+    }
     fn envelope(self) -> usize {
         match self {
             Self::Variant => 4,
@@ -118,13 +161,17 @@ impl Case {
     fn returns_resource(self) -> bool {
         matches!(
             self,
-            Self::Return | Self::ReturnFrame | Self::ReturnCleanupFailure
+            Self::Return | Self::ReturnFrame | Self::ReturnCleanupFailure | Self::LoanReturn(_)
         )
     }
     fn failing_cleanup(self) -> bool {
         matches!(
             self,
-            Self::DestructorFailure | Self::ReturnCleanupFailure | Self::FuelCleanup(_)
+            Self::DestructorFailure
+                | Self::ReturnCleanupFailure
+                | Self::FuelCleanup(_)
+                | Self::LoanCleanup
+                | Self::LoanFuelCleanup(_)
         )
     }
 }
@@ -301,6 +348,65 @@ fn explicit_frame_output_covers_scalar_and_direct_resource_results() {
 }
 
 #[test]
+fn direct_shared_and_exclusive_resource_loans_execute_without_consuming_caller() {
+    assert_eq!(run_source(Case::SharedLoan), (true, true));
+    assert_eq!(run_source(Case::ExclusiveLoan), (true, true));
+}
+
+#[test]
+fn mixed_owning_resource_and_direct_loans_commit_as_one_call_and_expire_before_return() {
+    for exclusive in [false, true] {
+        assert_eq!(run_source(Case::MixedLoan(exclusive)), (true, true));
+        assert_eq!(run_source(Case::LoanReturn(exclusive)), (true, true));
+    }
+    assert_eq!(run_source(Case::LoanAliases), (true, true));
+}
+#[test]
+fn direct_loans_and_owning_inputs_preserve_callers_across_provider_refusals() {
+    for exclusive in [false, true] {
+        let results: Vec<_> = (0..48)
+            .map(|offset| run_source(Case::LoanOom(exclusive, offset)))
+            .collect();
+        assert!(results.contains(&(false, false)));
+        assert!(results.contains(&(false, true)));
+        assert!(results.contains(&(true, true)));
+    }
+}
+#[test]
+fn direct_loans_expire_after_fuel_cell_and_interruption_failures() {
+    for exclusive in [false, true] {
+        let results: Vec<_> = (0..32)
+            .map(|fuel| run_source(Case::LoanFuel(exclusive, fuel)))
+            .collect();
+        assert!(results.contains(&(false, true)));
+        assert!(results.contains(&(true, true)));
+    }
+    let results: Vec<_> = (0..64)
+        .map(|cap| run_source(Case::LoanCells(cap)))
+        .collect();
+    assert!(results.contains(&(false, false)));
+    assert!(results.contains(&(false, true)));
+    assert!(results.contains(&(true, true)));
+    assert_eq!(run_source(Case::LoanCancelled), (false, false));
+}
+#[test]
+fn complete_shared_alias_batch_capacity_is_refused_before_provider_effects() {
+    assert_eq!(run_source(Case::LoanCapacity), (false, false));
+}
+#[test]
+fn incompatible_direct_loan_aliases_are_refused_as_a_complete_batch() {
+    for mask in [1, 2, 3] {
+        assert_eq!(run_source(Case::LoanConflict(mask)), (false, false));
+    }
+}
+
+#[test]
+fn direct_loans_expire_before_owned_cleanup_failure_and_preserve_the_primary_error() {
+    assert_eq!(run_source(Case::LoanCleanup), (false, true));
+    assert_eq!(run_source(Case::LoanFuelCleanup(0)), (false, true));
+}
+
+#[test]
 fn source_resource_fuel_prefixes_retire_once_after_commit_on_both_backends() {
     let results: Vec<_> = (0..16).map(|fuel| run_source(Case::Fuel(fuel))).collect();
     assert!(results.contains(&(false, true)));
@@ -336,9 +442,39 @@ fn source_resource_cleanup_failure_preserves_the_original_fuel_failure() {
     run_source(Case::FuelCleanup(0));
 }
 
+fn release_caller(
+    values: &mut storage::Resources<'_>,
+    claim: storage::Claim,
+    kind: native::ResourceKind<'_>,
+    allocator: &mut a::Allocator<Failing>,
+    invoker: &mut dyn execution::Invoker,
+    budget: &mut m::Budget,
+) {
+    let mut backing = values.detach(claim, values.host(), allocator).unwrap();
+    let mut cleanup =
+        lang_runtime::cleanup::Session::prepare(std::num::NonZeroUsize::new(2).unwrap(), budget)
+            .unwrap();
+    let mut cleaner = lang_runtime::cleanup::Contextual::new(
+        |_: &mut (), _, context: &mut lang_runtime::cleanup::Context<'_>| {
+            execution::Invoker::destroy(invoker, kind, &mut backing, allocator, context)
+        },
+    );
+    let retired = cleanup.retire(
+        lang_runtime::cleanup::Slot(0),
+        (),
+        None,
+        lang_runtime::cleanup::Reason::ScopeExit,
+        &mut cleaner,
+    );
+    backing.release(allocator).unwrap();
+    retired.unwrap();
+    assert!(!cleanup.is_poisoned());
+}
+
 fn run_source(case: Case) -> (bool, bool) {
     let return_resource = case.returns_resource();
-    let extra = case.scalars()
+    let extra = case.loan_extra()
+        || case.scalars()
         || case.envelope() != 0
         || case.data()
         || case.list()
@@ -359,11 +495,26 @@ fn run_source(case: Case) -> (bool, bool) {
         {"key":"demo:consumer/api","resources":[],"types":[],"functions":[{"name":"consume","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}},{"name":"number","type":"i64"}],"result":if return_resource{json!({"own":"demo:counter/api.counter"})}else{json!("i64")},"capability":"demo.consumer.consume"}]}
     ],"imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":["apply"]}],"exports":["demo:consumer/api"]});
     let mut consumer = consumer;
+    if let Some(exclusive) = case.loan() {
+        consumer["interfaces"][1]["functions"][0]["params"][0]["type"] = if exclusive {
+            json!({"borrow-mut":"demo:counter/api.counter"})
+        } else {
+            json!({"borrow":"demo:counter/api.counter"})
+        };
+    }
     if extra {
         consumer["interfaces"][1]["functions"][0]["params"]
             .as_array_mut()
             .unwrap()
             .push(json!({"name":"extra","type":{"own":"demo:counter/api.counter"}}));
+    }
+    if case.loan_aliases() {
+        consumer["interfaces"][1]["functions"][0]["params"][2]["type"] = if case.second_exclusive()
+        {
+            json!({"borrow-mut":"demo:counter/api.counter"})
+        } else {
+            json!({"borrow":"demo:counter/api.counter"})
+        };
     }
     if matches!(case, Case::Capacity) {
         for name in ["third", "fourth"] {
@@ -473,6 +624,41 @@ fn run_source(case: Case) -> (bool, bool) {
     } else {
         "pub struct CounterKind{}pub struct Request{delta:i64,label:core::Text}extern \"component\" fn host_apply(state:&mut core::ComponentResource<CounterKind>,request:Request)->core::Result<i64,core::Text>;pub fn consume(value:core::ComponentResource<CounterKind>,number:i64)->i64{return number+1;}"
     };
+    let source = if let Some(exclusive) = case.loan() {
+        let ty = if exclusive {
+            "&mut core::ComponentResource<CounterKind>"
+        } else {
+            "&core::ComponentResource<CounterKind>"
+        };
+        let prefix = source.split("pub fn consume").next().unwrap();
+        let extra = if case.loan_aliases() {
+            format!(
+                ",extra:{}",
+                if case.second_exclusive() {
+                    "&mut core::ComponentResource<CounterKind>"
+                } else {
+                    "&core::ComponentResource<CounterKind>"
+                }
+            )
+        } else if extra {
+            ",extra:core::ComponentResource<CounterKind>".into()
+        } else {
+            String::new()
+        };
+        let (result, body) = if return_resource {
+            (
+                "core::ComponentResource<CounterKind>",
+                "let mut n:i64=add(value,number);return extra;",
+            )
+        } else {
+            ("i64", "return add(value,number);")
+        };
+        format!(
+            "{prefix}pub fn consume(value:{ty},number:i64{extra})->{result}{{{body}}}fn add(value:{ty},number:i64)->i64{{return leaf(value,number);}}fn leaf(value:{ty},number:i64)->i64{{return number+1;}}"
+        )
+    } else {
+        source.to_owned()
+    };
     let interface = InterfaceKey::new(PackageKey::new("demo", "counter"), "api");
     let source = if case.data_list() {
         "pub struct CounterKind{}pub struct Request{delta:i64,label:core::Text}extern \"component\" fn host_apply(state:&mut core::ComponentResource<CounterKind>,request:Request)->core::Result<i64,core::Text>;pub struct Bundle{value:core::ComponentResource<CounterKind>,label:core::Text,payload:core::Bytes}pub fn consume(items:core::Vec<Bundle>)->core::Vec<Bundle>{return carry(items);}fn carry(items:core::Vec<Bundle>)->core::Vec<Bundle>{return items;}".to_owned()
@@ -539,7 +725,7 @@ fn run_source(case: Case) -> (bool, bool) {
         allocator: Cell::new(0),
         context: Cell::new(None),
         fail: case.failing_cleanup(),
-        cancelled: matches!(case, Case::Cancelled),
+        cancelled: matches!(case, Case::Cancelled | Case::LoanCancelled),
     };
     let methods = [native::Method {
         interface: 0,
@@ -606,7 +792,11 @@ fn run_source(case: Case) -> (bool, bool) {
         let mut values = storage::Resources::prepare(
             &allocator,
             if matches!(case, Case::Capacity) { 2 } else { 4 },
-            4,
+            if matches!(case, Case::LoanCapacity) {
+                1
+            } else {
+                4
+            },
             &mut budget,
         )
         .unwrap();
@@ -623,19 +813,29 @@ fn run_source(case: Case) -> (bool, bool) {
         | Case::DataOom(offset)
         | Case::ListOom(offset)
         | Case::DeepListOom(offset)
+        | Case::LoanOom(_, offset)
         | Case::DataListOom(offset) = case
         {
             fail_at.set(Some(attempts.get() + offset));
         }
         let interruption = e::InterruptionFlag::new();
-        if matches!(case, Case::Cancelled) {
+        if matches!(case, Case::Cancelled | Case::LoanCancelled) {
             interruption.interrupt();
         }
         let control = e::Control::with_limits(e::Limits {
-            fuel: if let Case::Fuel(fuel) | Case::FuelCleanup(fuel) = case {
+            fuel: if let Case::Fuel(fuel)
+            | Case::FuelCleanup(fuel)
+            | Case::LoanFuel(_, fuel)
+            | Case::LoanFuelCleanup(fuel) = case
+            {
                 Some(fuel)
             } else {
                 e::Limits::default().fuel
+            },
+            live_cells: if let Case::LoanCells(cap) = case {
+                Some(cap)
+            } else {
+                None
             },
             ..Default::default()
         })
@@ -672,6 +872,154 @@ fn run_source(case: Case) -> (bool, bool) {
             arguments.push(EntryArgument::Resource(extra_input.unwrap()));
         }
         let mut expected_body = None;
+        if case.loan().is_some() {
+            let mut frame_values = wire::Values {
+                roots: vec![wire::ValueId(0), wire::ValueId(1)],
+                nodes: vec![
+                    wire::Value::Resource(
+                        lang_runtime::component::adapter::BoundaryResourceIndex::new(1).unwrap(),
+                    ),
+                    wire::Value::I64(41),
+                ],
+            };
+            let mut claims = vec![input];
+            if extra {
+                claims.push(extra_input.unwrap());
+                frame_values.nodes.push(wire::Value::Resource(
+                    lang_runtime::component::adapter::BoundaryResourceIndex::new(
+                        if case.loan_aliases() { 1 } else { 2 },
+                    )
+                    .unwrap(),
+                ));
+                frame_values.roots.push(wire::ValueId(2));
+            }
+            let encoded =
+                invocation.encode_arguments(&frame_values, &claims, &allocator, &mut session);
+            if matches!(case, Case::LoanCapacity | Case::LoanConflict(_)) {
+                if matches!(case, Case::LoanCapacity) {
+                    assert!(matches!(
+                        encoded,
+                        Err(lang_runtime::task::runner::Reason::Component(
+                            storage::Error::Capacity
+                        ))
+                    ));
+                } else {
+                    assert!(matches!(
+                        encoded,
+                        Err(lang_runtime::task::runner::Reason::Component(
+                            storage::Error::AliasedOwner
+                        ))
+                    ));
+                }
+                assert!(!execution::Host::arguments_committed(&invocation));
+                assert_eq!(invocation.active_loans(), 0);
+                drop(invocation);
+                assert_eq!(attempts.get(), 4);
+                assert_eq!(destroyed.calls.get(), 0);
+                for claim in claims {
+                    release_caller(
+                        &mut values,
+                        claim,
+                        kind,
+                        &mut allocator,
+                        &mut bridge,
+                        &mut budget,
+                    );
+                }
+                assert_eq!(destroyed.calls.get(), 2);
+                assert_eq!(allocator.stats().live_allocations, 0);
+                previous = Some((false, false, Default::default()));
+                continue;
+            }
+            let encoded = encoded.unwrap();
+            let before = allocator.stats();
+            for index in [0_u32, 3] {
+                let mut bad = encoded.clone();
+                bad[45..49].copy_from_slice(&index.to_le_bytes());
+                assert!(
+                    invocation
+                        .decode_arguments(&bad, &claims, &allocator, &mut session)
+                        .is_err()
+                );
+                assert_eq!(allocator.stats(), before);
+                assert_eq!(invocation.active_loans(), 0);
+            }
+            let mut bad = encoded.clone();
+            bad[9] ^= 1;
+            assert!(matches!(
+                invocation.decode_arguments(&bad, &claims, &allocator, &mut session),
+                Err(lang_runtime::task::runner::Reason::ComponentFrame(
+                    wire::Error {
+                        kind: wire::ErrorKind::Signature,
+                        ..
+                    }
+                ))
+            ));
+            if extra && !case.loan_aliases() {
+                let mut aliased = encoded.clone();
+                aliased[57..61].copy_from_slice(&1_u32.to_le_bytes());
+                assert!(matches!(
+                    invocation.decode_arguments(&aliased, &claims, &allocator, &mut session),
+                    Err(lang_runtime::task::runner::Reason::Component(
+                        storage::Error::AliasedOwner
+                    ))
+                ));
+                assert_eq!(attempts.get(), 4);
+                assert_eq!(invocation.active_loans(), 0);
+            }
+            arguments = invocation
+                .decode_arguments(&encoded, &claims, &allocator, &mut session)
+                .unwrap();
+            if matches!(case, Case::SharedLoan | Case::ExclusiveLoan) {
+                let foreign = arguments.clone();
+                drop(invocation);
+                invocation = execution::Invocation::prepare(
+                    &program,
+                    m::FunctionId(0),
+                    &mut values,
+                    &mut bridge,
+                    &mut budget,
+                )
+                .unwrap();
+                arguments = invocation
+                    .decode_arguments(&encoded, &claims, &allocator, &mut session)
+                    .unwrap();
+                let stale = arguments.clone();
+                arguments = invocation
+                    .decode_arguments(&encoded, &claims, &allocator, &mut session)
+                    .unwrap();
+                for rejected in [foreign, stale] {
+                    let failure = if compiled {
+                        native.execute_component(
+                            &mut allocator,
+                            control,
+                            Default::default(),
+                            &rejected,
+                            &mut invocation,
+                        )
+                    } else {
+                        lang_vm::unit::tasks::execute_component(
+                            &program,
+                            m::FunctionId(0),
+                            &mut allocator,
+                            control,
+                            Default::default(),
+                            &rejected,
+                            &mut invocation,
+                        )
+                    }
+                    .err()
+                    .expect("foreign or replaced loan frame must be refused");
+                    assert!(matches!(
+                        failure.reason,
+                        lang_runtime::task::runner::Reason::Entry
+                    ));
+                    assert!(!execution::Host::arguments_committed(&invocation));
+                    assert_eq!(invocation.active_loans(), 0);
+                    assert_eq!(allocator.stats(), before);
+                }
+            }
+        }
         if matches!(case, Case::Frame | Case::FrameOutput) || case.nested() {
             let mut values = wire::Values {
                 roots: vec![wire::ValueId(0), wire::ValueId(1), wire::ValueId(2)],
@@ -954,6 +1302,11 @@ fn run_source(case: Case) -> (bool, bool) {
             )
         };
         let committed = execution::Host::arguments_committed(&invocation);
+        assert_eq!(
+            invocation.active_loans(),
+            0,
+            "call returned a live resource loan"
+        );
         drop(invocation);
         if let Err(failure) = outcome {
             if matches!(case, Case::NestedReturnBudget) {
@@ -975,13 +1328,22 @@ fn run_source(case: Case) -> (bool, bool) {
             } else {
                 assert!(!failure.poisoned, "{failure:?}");
             }
-            if matches!(case, Case::DestructorFailure | Case::ReturnCleanupFailure) {
+            if matches!(
+                case,
+                Case::DestructorFailure | Case::ReturnCleanupFailure | Case::LoanCleanup
+            ) {
                 assert_eq!(
                     failure.report.as_ref().unwrap().primary().unwrap().kind,
                     lang_runtime::cleanup::FailureKind::Cleanup(19)
                 );
             }
-            if matches!(case, Case::Fuel(_) | Case::FuelCleanup(_)) {
+            if matches!(
+                case,
+                Case::Fuel(_)
+                    | Case::FuelCleanup(_)
+                    | Case::LoanFuel(..)
+                    | Case::LoanFuelCleanup(_)
+            ) {
                 assert!(matches!(
                     failure.report.as_ref().unwrap().primary().unwrap().kind,
                     lang_runtime::cleanup::FailureKind::Execution(
@@ -989,7 +1351,7 @@ fn run_source(case: Case) -> (bool, bool) {
                     )
                 ));
             }
-            if matches!(case, Case::Cancelled) {
+            if matches!(case, Case::Cancelled | Case::LoanCancelled) {
                 assert!(matches!(
                     failure.reason,
                     lang_runtime::task::runner::Reason::Control(e::Failure::Interrupted)
@@ -1008,6 +1370,7 @@ fn run_source(case: Case) -> (bool, bool) {
                     | Case::ListOom(_)
                     | Case::DeepListOom(_)
                     | Case::DataListOom(_)
+                    | Case::LoanOom(..)
             ) {
                 assert!(matches!(
                     failure.reason,
@@ -1016,11 +1379,22 @@ fn run_source(case: Case) -> (bool, bool) {
                     )
                 ));
             }
-            if committed {
+            if matches!(case, Case::LoanCells(_)) {
+                assert!(matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Execution(
+                        lang_mir::unit::ownership::failure::ExecutionFailure::CellLimit
+                    )
+                ));
+            }
+            if committed && case.loan().is_none() {
                 assert!(values.is_empty());
                 assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
             } else {
-                assert_eq!(destroyed.calls.get(), 0);
+                assert_eq!(
+                    destroyed.calls.get(),
+                    usize::from(committed && extra && !case.loan_aliases())
+                );
                 if matches!(case, Case::Capacity) {
                     assert!(matches!(
                         failure.reason,
@@ -1032,7 +1406,24 @@ fn run_source(case: Case) -> (bool, bool) {
                     values.bytes(input, holder, kind, &allocator).unwrap(),
                     41_i64.to_le_bytes()
                 );
-                for claim in [Some(input), extra_input].into_iter().flatten() {
+                if committed && extra && !case.loan_aliases() {
+                    assert!(
+                        values
+                            .validate(extra_input.unwrap(), holder, kind.key(), &allocator)
+                            .is_err()
+                    );
+                }
+                for claim in [
+                    Some(input),
+                    if !committed || case.loan_aliases() {
+                        extra_input
+                    } else {
+                        None
+                    },
+                ]
+                .into_iter()
+                .flatten()
+                {
                     let mut backing = values.detach(claim, holder, &allocator).unwrap();
                     let mut cleanup = lang_runtime::cleanup::Session::prepare(
                         std::num::NonZeroUsize::new(2).unwrap(),
@@ -1050,17 +1441,26 @@ fn run_source(case: Case) -> (bool, bool) {
                             )
                         },
                     );
-                    cleanup
-                        .retire(
-                            lang_runtime::cleanup::Slot(0),
-                            (),
-                            None,
-                            lang_runtime::cleanup::Reason::ScopeExit,
-                            &mut cleaner,
-                        )
-                        .unwrap();
+                    let retired = cleanup.retire(
+                        lang_runtime::cleanup::Slot(0),
+                        (),
+                        None,
+                        lang_runtime::cleanup::Reason::ScopeExit,
+                        &mut cleaner,
+                    );
                     backing.release(&mut allocator).unwrap();
+                    if case.failing_cleanup() {
+                        assert!(retired.is_err());
+                        assert!(cleanup.is_poisoned());
+                    } else {
+                        retired.unwrap();
+                    }
                 }
+            }
+            if case.loan().is_some() {
+                assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
+                assert_eq!(destroyed.value.get(), 41);
+                assert_eq!(engine.check(&destroyed.context.get().unwrap()), 5);
             }
             assert_eq!(allocator.stats().live_allocations, 0);
             let evidence = (false, committed, failure.usage);
@@ -1195,18 +1595,26 @@ fn run_source(case: Case) -> (bool, bool) {
             let execution::Value::Resource(result) = outcome.value else {
                 panic!("resource result required")
             };
-            assert_ne!(input, result);
+            let original = if case.loan().is_some() {
+                extra_input.unwrap()
+            } else {
+                input
+            };
+            assert_ne!(original, result);
             assert_eq!(destroyed.calls.get(), 0);
             assert!(
                 values
-                    .validate(input, holder, kind.key(), &allocator)
+                    .validate(original, holder, kind.key(), &allocator)
                     .is_err()
             );
             assert_eq!(
                 values.bytes(result, holder, kind, &allocator).unwrap(),
                 41_i64.to_le_bytes()
             );
-            assert_eq!(allocator.stats().live_allocations, 2);
+            assert_eq!(
+                allocator.stats().live_allocations,
+                if case.loan().is_some() { 4 } else { 2 }
+            );
             let mut backing = values.detach(result, holder, &allocator).unwrap();
             let mut cleanup = lang_runtime::cleanup::Session::prepare(
                 std::num::NonZeroUsize::new(2).unwrap(),
@@ -1241,12 +1649,45 @@ fn run_source(case: Case) -> (bool, bool) {
                 execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
             );
         }
+        if case.loan().is_some() {
+            assert_eq!(
+                destroyed.calls.get(),
+                usize::from(extra && !case.loan_aliases())
+            );
+            assert_eq!(values.len(), if case.loan_aliases() { 2 } else { 1 });
+            assert_eq!(
+                values.bytes(input, holder, kind, &allocator).unwrap(),
+                41_i64.to_le_bytes()
+            );
+            // Detach also proves every call loan has expired before returning.
+            release_caller(
+                &mut values,
+                input,
+                kind,
+                &mut allocator,
+                &mut bridge,
+                &mut budget,
+            );
+            if case.loan_aliases() {
+                release_caller(
+                    &mut values,
+                    extra_input.unwrap(),
+                    kind,
+                    &mut allocator,
+                    &mut bridge,
+                    &mut budget,
+                );
+            }
+        }
         assert!(values.is_empty());
         assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
         assert_eq!(destroyed.value.get(), 41);
         assert_eq!(engine.check(&destroyed.context.get().unwrap()), 5);
         assert_eq!(allocator.stats().live_allocations, 0);
         assert!(!outcome.poisoned);
+        if let Case::LoanCells(cap) = case {
+            assert!(outcome.usage.peak_live_cells <= cap);
+        }
         let evidence = (true, committed, outcome.usage);
         if let Some(previous) = previous {
             assert_eq!(evidence, previous);

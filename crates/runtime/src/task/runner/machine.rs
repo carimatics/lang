@@ -149,7 +149,19 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             host.validate(arguments, allocator)?;
         }
         let plan = plans[entry.0 as usize].as_ref().ok_or(Reason::Invariant)?;
-        let cells = plan.cleanup_slots() + 1;
+        let component_cells = if component.is_some() {
+            let types = proof.typed().places().declarations().types();
+            declaration.parameters.iter().filter(|slot|matches!(declaration.locals[slot.0 as usize].ty.ty,
+                o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(..)))).count()
+                .checked_mul(2).ok_or(Reason::Invariant)?
+        } else {
+            0
+        };
+        let cells = plan
+            .cleanup_slots()
+            .checked_add(1)
+            .and_then(|n| n.checked_add(component_cells))
+            .ok_or(Reason::Invariant)?;
         admit(control, 0, 0, cells)?;
         let mut records = budget.vector(limits.tasks.total_tasks)?;
         let mut faults = budget.vector(limits.tasks.total_tasks)?;
@@ -207,6 +219,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         )?;
         let staged = (|| -> Result<(), Reason> {
             if let Some(host) = component.as_deref_mut() {
+                frame.prepare_component_inputs(&declaration.parameters, &mut budget)?;
                 host.prepare_arguments(arguments, allocator)?;
             }
             for (index, (parameter, argument)) in
@@ -250,6 +263,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         })();
         if let Err(error) = staged {
             services.component = component;
+            let _ = frame.end_loans(allocator, &mut services);
             for slot in input_ready.into_iter().rev() {
                 let cell = frame
                     .storage
@@ -376,13 +390,19 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.frame_mut(task)?.fault = Some(task);
         Ok(task)
     }
-    pub fn retired(&mut self, function: m::FunctionId, retained_result: bool) {
+    pub fn retired(
+        &mut self,
+        function: m::FunctionId,
+        retained_result: bool,
+        component_cells: usize,
+    ) {
         self.live_frames -= 1;
         self.live_cells -= self.plans[function.0 as usize]
             .as_ref()
             .unwrap()
             .cleanup_slots()
-            + usize::from(!retained_result);
+            + usize::from(!retained_result)
+            + component_cells;
     }
     pub fn prepare_frame(&mut self, function: m::FunctionId) -> Result<Frame<'l, 'ty>, Reason> {
         let plan = self.plans[function.0 as usize]
@@ -781,7 +801,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             {
                 let result = frame.result(self.allocator, &mut self.services);
                 self.merge_frame(task, &mut frame)?;
-                self.retired(frame.function, result.is_ok());
+                self.retired(frame.function, result.is_ok(), frame.component_cells());
                 match result {
                     Ok(result) => self.records[task].result = Some(result),
                     Err(Reason::Cleanup) => {

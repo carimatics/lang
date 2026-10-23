@@ -9,6 +9,11 @@ use crate::{
     },
     retirement as r, vector,
 };
+pub(super) struct Referent<'l, 't> {
+    pub slot: usize,
+    pub node: usize,
+    pub value: Option<l::Reservation<'l, 't>>,
+}
 enum Inline {
     Read(l::Location, wire::ValueId),
     Finish(l::Location, u32),
@@ -214,6 +219,107 @@ fn unpublished<P: a::Provider>(
     buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
 }
 impl<'l, 't> Frame<'l, 't> {
+    pub fn component_cells(&self) -> usize {
+        self.component_inputs.len() * 2
+    }
+    pub fn prepare_component_inputs(
+        &mut self,
+        parameters: &[o::declarations::LocalId],
+        budget: &mut m::Budget,
+    ) -> Result<(), Reason> {
+        let mut count = 0usize;
+        for slot in parameters {
+            if self.is_reference(slot.0 as usize)? {
+                count += 1;
+            }
+        }
+        if count == 0 {
+            return Ok(());
+        }
+        let mut referents = budget.vector(count)?;
+        for slot in parameters.iter().map(|slot| slot.0 as usize) {
+            if self.is_reference(slot)? {
+                referents.push(Referent {
+                    slot,
+                    node: 0,
+                    value: None,
+                });
+            }
+        }
+        let managed = self.managed.as_mut().ok_or(Reason::Invariant)?;
+        let total = managed
+            .loans
+            .len()
+            .checked_add(count)
+            .ok_or(Reason::Invariant)?;
+        u32::try_from(total).map_err(|_| Reason::Invariant)?;
+        let mut loans = budget.vector(total)?;
+        loans.append(&mut managed.loans);
+        loans.resize_with(total, || managed::Loan {
+            generation: 0,
+            target: None,
+            vector: None,
+            map: None,
+            shared: None,
+            service: None,
+            custody: None,
+            arena: None,
+            component: None,
+        });
+        managed.loans = loans;
+        self.component_inputs = referents;
+        Ok(())
+    }
+    fn stage_component_loan<P: a::Provider>(
+        &mut self,
+        slot: usize,
+        argument: FrameArgument,
+        host: &dyn Host,
+        allocator: &mut a::Allocator<P>,
+    ) -> Result<(), Reason> {
+        let o::Type::Constructed(id) = self.root(slot)?.at.ty() else {
+            return Err(Reason::Entry);
+        };
+        let o::Constructor::Loan(_, ty) = self.types.table().constructed[id.0 as usize].constructor
+        else {
+            return Err(Reason::Entry);
+        };
+        if !matches!(ty,o::Type::Constructed(id) if matches!(self.types.table().constructed[id.0 as usize].constructor,o::Constructor::ComponentResource(_)))
+        {
+            return Err(Reason::Entry);
+        }
+        let index = self
+            .component_inputs
+            .iter()
+            .position(|r| r.slot == slot)
+            .ok_or(Reason::Invariant)?;
+        let claim = host.argument(argument.root().0)?;
+        let mut value =
+            l::Reservation::allocate(self.data()?.cell(slot)?.layouts(), ty, allocator)?;
+        let written = value
+            .data_mut(allocator)
+            .map(|bytes| bytes.copy_from_slice(&claim.token()));
+        if let Err(error) = written {
+            value.release_storage(allocator)?;
+            return Err(error.into());
+        }
+        let at = value.root();
+        self.component_inputs[index].node = argument.root().0;
+        self.component_inputs[index].value = Some(value);
+        let managed = self.managed.as_mut().ok_or(Reason::Invariant)?;
+        let loan = managed.loans.len() - self.component_inputs.len() + index;
+        managed.loans[loan].component = Some(index);
+        let origin = managed::Reference {
+            activation: self.activation,
+            loan,
+            generation: 1,
+        };
+        self.borrow_target(
+            b::LoanId(loan as u32),
+            Target::Component { origin, at },
+            slot,
+        )
+    }
     #[allow(
         clippy::too_many_arguments,
         reason = "Keep original allocator, bounded workspaces and the existing cleanup services explicit."
@@ -230,6 +336,9 @@ impl<'l, 't> Frame<'l, 't> {
         session: &mut c::Session,
     ) -> Result<(), Reason> {
         let values = host.frame(argument)?;
+        if self.is_reference(slot)? {
+            return self.stage_component_loan(slot, argument, host, allocator);
+        }
         let count = values.nodes.len();
         let mut inline = budget.vector(count.checked_mul(2).ok_or(Reason::Invariant)?)?;
         let mut data = budget.vector(count)?;
@@ -429,5 +538,35 @@ impl<'l, 't> Frame<'l, 't> {
             }
         }
         staged
+    }
+}
+
+impl<'l, 't> Access<'_, 'l, 't> {
+    pub(super) fn component_view<P: a::Provider>(
+        &self,
+        origin: managed::Reference,
+        allocator: &a::Allocator<P>,
+    ) -> Result<&l::Reservation<'l, 't>, Reason> {
+        let index = self.lease(origin)?.component.ok_or(Reason::Invariant)?;
+        let owner = if origin.activation == self.frame.activation {
+            &*self.frame
+        } else {
+            self.ancestors
+                .iter()
+                .find(|f| f.activation == origin.activation)
+                .ok_or(Reason::Invariant)?
+        };
+        let referent = owner.component_inputs.get(index).ok_or(Reason::Invariant)?;
+        let value = referent.value.as_ref().ok_or(Reason::Invariant)?;
+        let claim = crate::component::storage::Claim::from_token(
+            value.read_token(value.root(), allocator)?.bytes,
+        )
+        .map_err(Reason::Component)?;
+        self.services
+            .component
+            .as_deref()
+            .ok_or(Reason::Invariant)?
+            .check_argument_loan(referent.node, claim, allocator)?;
+        Ok(value)
     }
 }

@@ -58,7 +58,7 @@ impl FrameArgument {
 struct InputFrame {
     generation: u64,
     values: wire::Values,
-    claims: Vec<Claim>,
+    claims: Vec<storage::Input>,
     nodes: Vec<usize>,
     requires_drain: bool,
 }
@@ -97,6 +97,13 @@ pub trait Host {
         memory: &dyn Memory,
     ) -> Result<(), Reason>;
     fn argument(&self, index: usize) -> Result<Claim, Reason>;
+    fn check_argument_loan(
+        &self,
+        index: usize,
+        claim: Claim,
+        memory: &dyn Memory,
+    ) -> Result<(), Reason>;
+    fn end_argument_loan(&mut self, index: usize) -> Result<(), Reason>;
     fn commit_arguments(&mut self, memory: &mut dyn Memory) -> Result<(), Reason>;
     fn abort_arguments(&mut self);
     fn retire(
@@ -117,8 +124,9 @@ pub struct Invocation<'p, 'u, 'resources, 'code, 'native> {
     invoker: &'native mut dyn Invoker,
     caller: Holder,
     guest: Holder,
-    inputs: Vec<Claim>,
+    inputs: Vec<storage::Input>,
     indices: Vec<usize>,
+    loans: Vec<Option<storage::Loan>>,
     transfer: Option<Transfer>,
     committed: bool,
     input_frame: Option<InputFrame>,
@@ -141,8 +149,9 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
         if !program.is_export(function) {
             return Err(Reason::Entry);
         }
-        let inputs = budget.vector(resources.capacity())?;
-        let indices = budget.vector(resources.capacity())?;
+        let inputs = budget.vector(resources.input_capacity())?;
+        let indices = budget.vector(resources.input_capacity())?;
+        let loans = budget.vector(resources.input_capacity())?;
         let output_claims = budget.vector(resources.capacity())?;
         let caller = resources.host();
         let guest = resources.new_holder().map_err(fault)?;
@@ -155,6 +164,7 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
             guest,
             inputs,
             indices,
+            loans,
             transfer: None,
             committed: false,
             input_frame: None,
@@ -204,6 +214,10 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
         self.output_session = Some(session);
         Ok(())
     }
+    /// Dynamic argument loans remaining in this invocation's original table.
+    pub fn active_loans(&self) -> usize {
+        self.loans.iter().filter(|loan| loan.is_some()).count()
+    }
 
     fn retire_claim(
         &mut self,
@@ -251,21 +265,21 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
         resources: &[Claim],
         memory: &dyn Memory,
         session: &mut wire::Session,
-    ) -> Result<(Vec<Claim>, Vec<usize>), Reason> {
+    ) -> Result<(Vec<storage::Input>, Vec<usize>), Reason> {
         if self.committed
             || self.transfer.is_some()
             || values.roots.len() != self.declaration().parameters.len()
         {
             return Err(Reason::Entry);
         }
-        if uses.len() > self.resources.capacity() {
+        if uses.len() > self.resources.input_capacity() {
             return Err(fault(storage::Error::Capacity));
         }
         session
             .charge(
                 uses.len()
                     .saturating_mul(uses.len())
-                    .saturating_mul(5)
+                    .saturating_mul(9)
                     .saturating_add(values.roots.len()),
                 0,
             )
@@ -277,9 +291,13 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
             .vector(uses.len(), 0)
             .map_err(Reason::ComponentFrame)?;
         for used in uses {
-            if used.access != wire::ResourceAccess::Own {
-                return Err(Reason::Unsupported);
-            }
+            let access = match used.access {
+                wire::ResourceAccess::Own => storage::Access::Own,
+                wire::ResourceAccess::Borrow(super::idl::Access::Shared) => storage::Access::Shared,
+                wire::ResourceAccess::Borrow(super::idl::Access::Exclusive) => {
+                    storage::Access::Exclusive
+                }
+            };
             let claim = *resources.get((used.index.get() - 1) as usize).ok_or({
                 Reason::ComponentFrame(wire::Error {
                     offset: used.offset,
@@ -289,11 +307,11 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
             self.resources
                 .validate(claim, self.caller, used.key, memory)
                 .map_err(fault)?;
-            claims.push(claim);
+            claims.push(storage::Input { claim, access });
             nodes.push(used.value.0);
         }
         self.resources
-            .check_transfer(claims.iter().copied(), self.caller, self.guest, memory)
+            .check_call(claims.iter().copied(), self.caller, self.guest, memory)
             .map_err(fault)?;
         Ok((claims, nodes))
     }
@@ -430,7 +448,7 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
             }
             return self
                 .resources
-                .check_transfer(
+                .check_call(
                     frame.claims.iter().copied(),
                     self.caller,
                     self.guest,
@@ -483,14 +501,19 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
         } else {
             for (index, arg) in arguments.iter().enumerate() {
                 if let EntryArgument::Resource(claim) = arg {
-                    self.inputs.push(*claim);
+                    self.inputs.push(storage::Input {
+                        claim: *claim,
+                        access: storage::Access::Own,
+                    });
                     self.indices.push(index);
                 }
             }
         }
+        self.loans.clear();
+        self.loans.resize(self.inputs.len(), None);
         self.transfer = Some(
             self.resources
-                .prepare_transfer(&self.inputs, self.caller, self.guest, memory)
+                .prepare_call(self.inputs.iter().copied(), self.caller, self.guest, memory)
                 .map_err(fault)?,
         );
         Ok(())
@@ -507,10 +530,52 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
     }
     fn commit_arguments(&mut self, memory: &mut dyn Memory) -> Result<(), Reason> {
         self.resources
-            .commit_transfer(self.transfer.ok_or(Reason::Invariant)?, memory)
+            .commit_call(
+                self.transfer.ok_or(Reason::Invariant)?,
+                memory,
+                &mut self.loans,
+            )
             .map_err(fault)?;
         self.transfer = None;
         self.committed = true;
+        Ok(())
+    }
+    fn check_argument_loan(
+        &self,
+        index: usize,
+        claim: Claim,
+        memory: &dyn Memory,
+    ) -> Result<(), Reason> {
+        if !self.committed {
+            return Err(Reason::Entry);
+        }
+        let position = self
+            .indices
+            .iter()
+            .position(|i| *i == index)
+            .ok_or(Reason::Entry)?;
+        let loan = self
+            .loans
+            .get(position)
+            .copied()
+            .flatten()
+            .ok_or(Reason::Entry)?;
+        self.resources
+            .check_loan(loan, claim, self.guest, memory)
+            .map_err(fault)
+    }
+    fn end_argument_loan(&mut self, index: usize) -> Result<(), Reason> {
+        if !self.committed {
+            return Ok(());
+        }
+        let position = self
+            .indices
+            .iter()
+            .position(|i| *i == index)
+            .ok_or(Reason::Entry)?;
+        if let Some(loan) = self.loans.get_mut(position).ok_or(Reason::Entry)?.take() {
+            self.resources.end_loan(loan).map_err(fault)?;
+        }
         Ok(())
     }
     fn abort_arguments(&mut self) {
@@ -696,5 +761,8 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
 impl Drop for Invocation<'_, '_, '_, '_, '_> {
     fn drop(&mut self) {
         self.abort_arguments();
+        for loan in self.loans.iter_mut().filter_map(Option::take) {
+            let _ = self.resources.end_loan(loan);
+        }
     }
 }

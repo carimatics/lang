@@ -14,6 +14,7 @@ impl Target {
             | Self::Map { at, .. }
             | Self::Shared { at, .. }
             | Self::Service { at, .. }
+            | Self::Component { at, .. }
             | Self::Arena { at, .. } => Ok(at),
             _ => Err(Reason::Invariant),
         }
@@ -28,6 +29,7 @@ impl Target {
             Self::Map { origin, .. } => Self::Map { origin, at },
             Self::Shared { origin, ty, .. } => Self::Shared { origin, ty, at },
             Self::Service { origin, .. } => Self::Service { origin, at },
+            Self::Component { origin, .. } => Self::Component { origin, at },
             Self::Arena { origin, .. } => Self::Arena { origin, at },
             _ => return Err(Reason::Invariant),
         })
@@ -86,6 +88,11 @@ macro_rules! observe {
             }
             Target::Arena { origin, at } => {
                 let $view = $s.arena_view(origin, $allocator)?;
+                let $at = at;
+                $body.map_err(|error| Reason::service(&error))
+            }
+            Target::Component { origin, at } => {
+                let $view = $s.component_view(origin, $allocator)?;
                 let $at = at;
                 $body.map_err(|error| Reason::service(&error))
             }
@@ -161,6 +168,7 @@ impl Access<'_, '_, '_> {
             || loan.shared.is_some()
             || loan.service.is_some()
             || loan.arena.is_some()
+            || loan.component.is_some()
         {
             return Err(Reason::Invariant);
         }

@@ -33,6 +33,10 @@ pub enum Target {
         origin: Reference,
         at: l::Location,
     },
+    Component {
+        origin: Reference,
+        at: l::Location,
+    },
 }
 pub struct Loan {
     pub generation: u64,
@@ -43,6 +47,7 @@ pub struct Loan {
     pub(crate) service: Option<crate::channel::managed::ServiceRead>,
     pub custody: Option<crate::shared::managed::Custody>,
     pub arena: Option<(usize, crate::arena::managed::Read)>,
+    pub component: Option<usize>,
 }
 pub struct Managed {
     pub session: c::Session,
@@ -86,6 +91,7 @@ impl Managed {
             service: None,
             custody: None,
             arena: None,
+            component: None,
         });
         Ok(Self {
             session,
@@ -229,6 +235,38 @@ impl Frame<'_, '_> {
             loan.target = None;
             loan.custody = None;
             let mut failure = None;
+            if let Some(index) = loan.component.take() {
+                let referent = self
+                    .component_inputs
+                    .get_mut(index)
+                    .ok_or(Reason::Invariant)?;
+                let node = referent.node;
+                let mut value = referent.value.take().ok_or(Reason::Invariant)?;
+                let mut cleaner = c::Contextual::new(
+                    |value: &mut &mut l::Reservation<'_, '_>, _, _: &mut c::Context<'_>| {
+                        let ended = services
+                            .component
+                            .as_deref_mut()
+                            .ok_or(17u32)
+                            .and_then(|host| host.end_argument_loan(node).map_err(|_| 17u32));
+                        let released = value.release_storage(allocator).map_err(|_| 17u32);
+                        ended.and(released)
+                    },
+                );
+                if managed
+                    .session
+                    .retire(
+                        c::Slot(id.0 as usize),
+                        &mut value,
+                        Some(self.origin),
+                        c::Reason::ScopeExit,
+                        &mut cleaner,
+                    )
+                    .is_err()
+                {
+                    failure = Some(Reason::Cleanup);
+                }
+            }
             if let Some(mut read) = loan.vector.take() {
                 let mut cleaner = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| {
                     read.end(services.layouts, allocator).map_err(|_| 6u32)
@@ -354,6 +392,13 @@ impl Frame<'_, '_> {
                 if self
                     .managed
                     .as_ref()
+                    .is_some_and(|m| m.loans[id].component.is_some())
+                {
+                    continue;
+                }
+                if self
+                    .managed
+                    .as_ref()
                     .is_some_and(|m| m.loans[id].shared.is_some())
                     != shared
                 {
@@ -362,6 +407,17 @@ impl Frame<'_, '_> {
                 if let Err(reason) = self.end_loan(b::LoanId(id as u32), allocator, services) {
                     failure.get_or_insert(reason);
                 }
+            }
+        }
+        // Source reborrows end before their originating component argument.
+        for id in (0..count).rev() {
+            if self
+                .managed
+                .as_ref()
+                .is_some_and(|m| m.loans[id].component.is_some())
+                && let Err(reason) = self.end_loan(b::LoanId(id as u32), allocator, services)
+            {
+                failure.get_or_insert(reason);
             }
         }
         failure.map_or(Ok(()), Err)

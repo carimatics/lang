@@ -273,6 +273,44 @@ impl<T> ResourceTable<T> {
         Ok(handle)
     }
 
+    /// Read-only admission for a complete prepared invocation. Reserve all
+    /// identifiers and locator capacity before any borrow state is changed.
+    pub(crate) fn check_borrow_reservation(&self, count: usize) -> Result<(), ResourceTableError> {
+        let total = self
+            .borrows
+            .len()
+            .checked_add(count)
+            .ok_or(ResourceTableError::BorrowCapacityExhausted)?;
+        if self.capacity.is_none_or(|(_, cap)| total > cap) || total > self.borrows.capacity() {
+            return Err(ResourceTableError::BorrowCapacityExhausted);
+        }
+        self.next_borrow_id
+            .checked_add(u64::try_from(count).map_err(|_| ResourceTableError::BorrowIdExhausted)?)
+            .ok_or(ResourceTableError::BorrowIdExhausted)?;
+        Ok(())
+    }
+    pub(crate) fn check_borrow(
+        &self,
+        owner: OwnedResourceHandle,
+        requested: ResourceBorrowKind,
+        shared_count: usize,
+    ) -> Result<(), ResourceTableError> {
+        let slot = self.resolve_owned(owner)?;
+        if slot.active_exclusive()
+            || (requested == ResourceBorrowKind::Exclusive && slot.active_shared() != 0)
+        {
+            return Err(ResourceTableError::BorrowConflict {
+                owner,
+                requested,
+                active_shared: slot.active_shared(),
+                active_exclusive: slot.active_exclusive(),
+            });
+        }
+        slot.shared_borrows
+            .checked_add(shared_count)
+            .ok_or(ResourceTableError::BorrowCapacityExhausted)?;
+        Ok(())
+    }
     pub fn borrow_shared(
         &mut self,
         owner: OwnedResourceHandle,
@@ -594,6 +632,42 @@ impl Error for PreparationError {}
 #[cfg(test)]
 mod tests {
     use super::{OwnedResourceHandle, ResourceBorrowKind, ResourceTable, ResourceTableError};
+
+    #[test]
+    fn prepared_batch_refusals_preserve_existing_borrows_and_identifiers() {
+        let mut budget = lang_mir::unit::Budget::new(Default::default());
+        let mut table = ResourceTable::prepare(2, 2, &mut budget).unwrap();
+        let first = table.insert(41).unwrap();
+        let second = table.insert(42).unwrap();
+        let loan = table.borrow_shared(first).unwrap();
+        let next = table.next_borrow_id;
+        assert!(matches!(
+            table.check_borrow(first, ResourceBorrowKind::Exclusive, 0),
+            Err(ResourceTableError::BorrowConflict { .. })
+        ));
+        assert_eq!(
+            table.check_borrow_reservation(2),
+            Err(ResourceTableError::BorrowCapacityExhausted)
+        );
+        table.check_borrow_reservation(1).unwrap();
+        table
+            .check_borrow(first, ResourceBorrowKind::Shared, 1)
+            .unwrap();
+        assert_eq!(table.next_borrow_id, next);
+        assert_eq!(table.borrows.len(), 1);
+        assert_eq!(*table.get_borrowed(loan).unwrap(), 41);
+        table.end_borrow(loan).unwrap();
+        table.next_borrow_id = u64::MAX;
+        assert_eq!(
+            table.check_borrow_reservation(1),
+            Err(ResourceTableError::BorrowIdExhausted)
+        );
+        table.check_borrow_reservation(0).unwrap();
+        assert!(table.borrows.is_empty());
+        assert_eq!(table.next_borrow_id, u64::MAX);
+        assert_eq!(table.release(first).unwrap(), 41);
+        assert_eq!(table.release(second).unwrap(), 42);
+    }
 
     #[test]
     fn prepared_table_has_exact_budget_and_fixed_owner_and_loan_capacity() {
