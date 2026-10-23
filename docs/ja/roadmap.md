@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **47 done · 1 doing · 16 todo · 49 remaining pt**です。I10 の `51459cb` で完全な [LANGBC schema 5 決定](rfcs/0028-task-component-artifacts.md) を受理し、独立46-byte envelope pack・旧 profile の公開前拒否・repository consistency 5件が成功しました（2026-10-24 06:32 JST）。I11 のみ doing とし、共通 codec・累積独立検証・source 削除後の保存 task の実 VM/native fixture を必須とします。I07 は完全 channel/service/component 統合の3 ptを維持します。完了時は**消化2 pt・追加0 pt**、前提監査と合わせて**消化2 pt・新規追加5 pt**、残り **51 + 0 − 2 = 49 pt**、台帳 **110 + 66 − 127 = 49**です。G01/G02 は **10/96 gate weight、2/15 gate**のまま、後続/P1・両 host 証拠・最終 guide は全て必須です。2026-10-24 JST 更新。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **48 done · 1 doing · 15 todo · 46 remaining pt**です。I11 の `669cc4e` は保存 task MIR の独立検証と、source 削除後 CLI・8種類の owned/channel/service fixture の VM/生成 native 実行を実装しました（2026-10-24 07:50 JST）。**142スイート / 2,152 passed / 0 failed / 既存ignore 1件**、fmt・Clippy・rustdoc・14 fuzz target compile/lint が成功し、796入力 file の前後 hash が一致しました。**消化3 pt・追加0 pt**、I10/I11 と前提監査を合わせて**消化5 pt・新規追加5 pt**、残り **49 + 0 − 3 = 46 pt**、台帳 **110 + 66 − 130 = 46**です。次は I07 のみ doing とし、未対応の Component profile 1 の完全 document/map・元 snapshot/span・累積 budget・独立 binding proof・実 decode 後呼び出しを最小 fixture から再監査します。G01/G02 は **10/96 gate weight、2/15 gate**のままで、後続/P1・両 host 証拠・最終 guide は全て必須です。2026-10-24 JST 更新。
 
 ## 進行中 milestone の実行
 
