@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **43 done · 1 doing · 17 todo · 52 remaining pt**です。E05 の `a13272b` は両 source engine で保持済み実 native member を実行し、**source 回帰38件**と入力固定の **141スイート / 2,125 passed** baseline が成功しました（**2026-10-23 15:32 JST** 検証）。最後の **3 pt**を完了し、**完了時の追加/再見積もりは0 pt**、残り **55 + 0 − 3 = 52 pt**、台帳 **110 + 58 − 116 = 52**です。前提監査/完了の**消化3 pt・新規追加3 pt**は分けて報告します。親権限下の source reborrow から実 backing への到達、stale/foreign/generation/所有権拒否、完全 cleanup/不変条件再検査後の永続 poison/reuse として、**R02（3 pt）**のみを選択します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。R03・E01–E04・I07/I08 artifact/package・共有 control・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **44 done · 1 doing · 16 todo · 49 remaining pt**です。R02 の `2adfeb8` は **source 回帰41件**、**runtime 単体151件**、入力固定の **141スイート / 2,130 passed** baseline が成功しました（**2026-10-23 18:05 JST** 検証）。実 source の reborrow/view・owning return と永続 instance poison/retry・元 table/caller claim の再検査を接続しました。最後の **3 pt**を完了し、**追加/再見積もりは0 pt**、残り **52 + 0 − 3 = 49 pt**、台帳 **110 + 58 − 119 = 49**です。**消化3 pt・新規追加0 pt**は分けて報告します。error・cancel・不正入力をまたぐ実 native 境界の owner/result/loan cleanup として、**R03（3 pt）**のみを選択します。現在の native import は data/直接 loan を受理し、owning resource signature を拒否します。その bound source fixture を先に実行し、欠ける前提があれば実装前に公開します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。E01–E04・I07/I08・共有 control・両 host runtime conformance・計測/P1・最終 guide は必須に維持します。
 
 ## 進行中 milestone の実行
 
