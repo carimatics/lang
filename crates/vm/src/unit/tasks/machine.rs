@@ -70,6 +70,13 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                                     node.span,
                                 );
                             }
+                            b::Op::Import { import, arguments } => machine.import_native(
+                                task,
+                                *import,
+                                arguments,
+                                output.ok_or(Reason::Invariant)?,
+                                node.span,
+                            )?,
                             b::Op::Call {
                                 function,
                                 arguments,

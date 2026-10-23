@@ -64,6 +64,9 @@ pub struct Claim {
     ticket: u64,
 }
 impl Claim {
+    pub(crate) fn same_owner(self, other: Self) -> bool {
+        self.owner == other.owner
+    }
     pub fn token(self) -> [u8; 32] {
         let mut bytes = [0; 32];
         bytes[..24].copy_from_slice(&self.owner.token());
@@ -609,6 +612,49 @@ impl<'a> Resources<'a> {
     pub(crate) fn end_loan(&mut self, loan: Loan) -> Result<(), Error> {
         self.values.end_borrow(loan.borrowed)?;
         Ok(())
+    }
+    pub(crate) fn check_view(
+        &self,
+        loan: Loan,
+        kind: ResourceKind<'_>,
+        access: super::idl::Access,
+    ) -> Result<(), Error> {
+        let backing = self.values.get_borrowed(loan.borrowed)?;
+        if !backing.kind.same_implementation(kind) {
+            return Err(Error::Implementation);
+        }
+        if access == super::idl::Access::Exclusive
+            && loan.borrowed.kind() != ResourceBorrowKind::Exclusive
+        {
+            return Err(
+                resource::ResourceTableError::SharedBorrowCannotMutate(loan.borrowed).into(),
+            );
+        }
+        Ok(())
+    }
+    pub(crate) fn view(
+        &self,
+        loan: Loan,
+        kind: ResourceKind<'_>,
+        access: super::idl::Access,
+        memory: &mut dyn Memory,
+    ) -> Result<super::native::MutBytes, Error> {
+        self.check_loan(loan, loan.claim, loan.guest, memory)?;
+        self.check_view(loan, kind, access)?;
+        let backing = self.values.get_borrowed(loan.borrowed)?;
+        if access == super::idl::Access::Exclusive {
+            let bytes = memory.bytes_mut(backing.data)?;
+            Ok(super::native::MutBytes {
+                data: bytes.as_mut_ptr(),
+                length: bytes.len() as u64,
+            })
+        } else {
+            let bytes = memory.bytes(backing.data)?;
+            Ok(super::native::MutBytes {
+                data: bytes.as_ptr().cast_mut(),
+                length: bytes.len() as u64,
+            })
+        }
     }
     /// Unlink before the registered destructor is attempted. The caller must
     /// invoke that actual descriptor under its live original invocation context,

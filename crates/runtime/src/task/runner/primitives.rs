@@ -114,6 +114,11 @@ pub enum Primitive {
         next: f::NodeId,
         failure: f::NodeId,
     },
+    Import {
+        import: m::ImportId,
+        arguments: Vec<m::Register>,
+        to: usize,
+    },
     Spawn {
         function: m::FunctionId,
         arguments: Vec<m::Register>,
@@ -417,6 +422,11 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 self.call(task, *function, arguments, *to, *next, *failure)?;
                 return Ok(Flow::Switch);
             }
+            Primitive::Import {
+                import,
+                arguments,
+                to,
+            } => self.import_native(task, *import, arguments, *to, span)?,
             Primitive::Spawn {
                 function,
                 arguments,

@@ -3,6 +3,7 @@ use frame::{Access, Location};
 
 pub(super) fn supported(op: &b::Op) -> bool {
     match op {
+        b::Op::Import { .. } => true,
         b::Op::PrepareService { .. } | b::Op::ServiceSend { .. } | b::Op::ServiceReceive { .. } => {
             true
         }

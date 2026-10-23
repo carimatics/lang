@@ -27,6 +27,8 @@ impl std::error::Error for Error {}
 pub struct Program<'a> {
     bindings: &'a grants::Bindings<'a>,
     proof: Cow<'a, o::tasks::VerifiedTasks>,
+    native_calls: bool,
+    usage: m::Usage,
 }
 impl<'a> Program<'a> {
     pub fn prepare(bindings: &'a grants::Bindings<'a>, limits: m::Limits) -> Result<Self, Error> {
@@ -60,13 +62,48 @@ impl<'a> Program<'a> {
         {
             return Err(Error::Correspondence);
         }
-        Ok(Self { bindings, proof })
+        let mut budget = m::Budget::with_usage(
+            limits,
+            m::Usage {
+                work: proof.plan().work_used(),
+                allocation_bytes: proof.plan().requested_bytes(),
+                elements: proof.plan().elements_used(),
+            },
+        )?;
+        let mut native_calls = false;
+        for instruction in proof
+            .typed()
+            .functions()
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+        {
+            budget.charge(1)?;
+            native_calls |= matches!(instruction.op, o::bodies::Op::Import { .. });
+        }
+        let usage = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        Ok(Self {
+            bindings,
+            proof,
+            native_calls,
+            usage,
+        })
     }
     pub const fn bindings(&self) -> &'a grants::Bindings<'a> {
         self.bindings
     }
     pub fn proof(&self) -> &o::tasks::VerifiedTasks {
         &self.proof
+    }
+    pub const fn native_calls(&self) -> bool {
+        self.native_calls
+    }
+    pub const fn usage(&self) -> m::Usage {
+        self.usage
     }
     pub fn is_export(&self, function: m::FunctionId) -> bool {
         self.bindings

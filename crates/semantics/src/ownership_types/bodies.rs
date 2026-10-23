@@ -735,11 +735,19 @@ impl Lowerer<'_, '_, '_> {
                 let mark = self.actions.len();
                 let mut parameters = self.c.budget.vector(match callee {
                     r::Callable::Guest(f) => self.input.source().functions[f.0].parameters.len(),
+                    r::Callable::Host(import) => {
+                        self.input.source().imports[import.0].parameters.len()
+                    }
                     _ => 0,
                 })?;
                 if let r::Callable::Guest(f) = callee {
                     for p in &self.input.source().functions[f.0].parameters {
                         parameters.push(self.input.functions()[f.0].locals()[p.0]);
+                    }
+                }
+                if let r::Callable::Host(import) = callee {
+                    for parameter in &self.input.source().imports[import.0].parameters {
+                        parameters.push(parameter.ty.value_type);
                     }
                 }
                 let arguments = self.arguments(arguments, Some(&parameters), block, depth)?;

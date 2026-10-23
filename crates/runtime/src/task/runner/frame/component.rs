@@ -94,7 +94,7 @@ fn shape<P: a::Provider>(
     cell: &l::Reservation<'_, '_>,
     root: wire::ValueId,
     values: &wire::Values,
-    host: &dyn Host,
+    host: Option<&dyn Host>,
     allocator: &mut a::Allocator<P>,
     budget: &mut m::Budget,
     span: m::Span,
@@ -129,7 +129,12 @@ fn shape<P: a::Provider>(
                 ) {
                     return Err(Reason::Entry);
                 }
-                store(cell, at, host.argument(id.0)?.token(), allocator)?;
+                store(
+                    cell,
+                    at,
+                    host.ok_or(Reason::Unsupported)?.argument(id.0)?.token(),
+                    allocator,
+                )?;
             }
             wire::Value::Text(_) | wire::Value::Bytes(_) | wire::Value::List(_) => {
                 let kind = &cell.layouts().get(at.ty()).ok_or(Reason::Entry)?.kind;
@@ -219,6 +224,46 @@ fn unpublished<P: a::Provider>(
     buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
 }
 impl<'l, 't> Frame<'l, 't> {
+    pub fn discard_partial<P: a::Provider>(
+        &mut self,
+        slot: usize,
+        allocator: &mut a::Allocator<P>,
+        services: &mut crate::task::runner::services::Services<'l, 't>,
+        session: &mut c::Session,
+    ) -> Result<(), Reason> {
+        let types = self.types;
+        let span = self.origin;
+        let cell = self
+            .storage
+            .as_mut()
+            .ok_or(Reason::Invariant)?
+            .cell_mut(slot)?;
+        let retired = {
+            let mut cleaner = c::Contextual::new(
+                |cell: &mut &mut l::Reservation<'_, '_>, _, context: &mut c::Context<'_>| {
+                    cell.retire(allocator, context, |token, allocator, _, context| {
+                        if token.bytes == [0; 32] {
+                            Ok(())
+                        } else {
+                            services.retire(types, token, allocator, context)
+                        }
+                    })
+                    .map_err(|_| 4u32)
+                },
+            );
+            session.retire(
+                c::Slot(slot),
+                &mut *cell,
+                Some(span),
+                c::Reason::Failure,
+                &mut cleaner,
+            )
+        };
+        let cleared = cell.recycle(allocator);
+        retired
+            .map_err(|_| Reason::Cleanup)
+            .and(cleared.map_err(Reason::from))
+    }
     pub fn component_cells(&self) -> usize {
         self.component_inputs.len() * 2
     }
@@ -339,6 +384,34 @@ impl<'l, 't> Frame<'l, 't> {
         if self.is_reference(slot)? {
             return self.stage_component_loan(slot, argument, host, allocator);
         }
+        self.stage_values(
+            slot,
+            argument.root(),
+            values,
+            Some(host),
+            allocator,
+            budget,
+            ready,
+            drain,
+            session,
+        )
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "One typed marshaller serves admitted input arenas and canonical native results."
+    )]
+    pub fn stage_values<P: a::Provider>(
+        &mut self,
+        slot: usize,
+        root_value: wire::ValueId,
+        values: &wire::Values,
+        host: Option<&dyn Host>,
+        allocator: &mut a::Allocator<P>,
+        budget: &mut m::Budget,
+        ready: &mut Vec<usize>,
+        drain: &mut Option<r::Drain<'l, 't>>,
+        session: &mut c::Session,
+    ) -> Result<(), Reason> {
         let count = values.nodes.len();
         let mut inline = budget.vector(count.checked_mul(2).ok_or(Reason::Invariant)?)?;
         let mut data = budget.vector(count)?;
@@ -350,7 +423,7 @@ impl<'l, 't> Frame<'l, 't> {
         let span = self.origin;
         shape(
             root,
-            argument.root(),
+            root_value,
             values,
             host,
             allocator,
@@ -542,6 +615,37 @@ impl<'l, 't> Frame<'l, 't> {
 }
 
 impl<'l, 't> Access<'_, 'l, 't> {
+    pub fn native_resource<P: a::Provider>(
+        &self,
+        slot: usize,
+        allocator: &a::Allocator<P>,
+    ) -> Result<crate::component::execution::ResourceArgument, Reason> {
+        let target = self.reference(slot)?;
+        let claim =
+            crate::component::storage::Claim::from_token(self.observed_token(target, allocator)?)
+                .map_err(Reason::Component)?;
+        let parent = if let Target::Component { origin, .. } = target {
+            let index = self.lease(origin)?.component.ok_or(Reason::Invariant)?;
+            let owner = if origin.activation == self.frame.activation {
+                &*self.frame
+            } else {
+                self.ancestors
+                    .iter()
+                    .find(|f| f.activation == origin.activation)
+                    .ok_or(Reason::Invariant)?
+            };
+            Some(
+                owner
+                    .component_inputs
+                    .get(index)
+                    .ok_or(Reason::Invariant)?
+                    .node,
+            )
+        } else {
+            None
+        };
+        Ok(crate::component::execution::ResourceArgument { claim, parent })
+    }
     pub(super) fn component_view<P: a::Provider>(
         &self,
         origin: managed::Reference,

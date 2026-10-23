@@ -354,11 +354,11 @@ fn prepare_program_profile<M: Module>(
     }
     let mut budget = m::Budget::with_usage(
         limits,
-        m::Usage {
+        component.map(|p| p.usage()).unwrap_or(m::Usage {
             work: proof.plan().work_used(),
             allocation_bytes: proof.plan().requested_bytes(),
             elements: proof.plan().elements_used(),
-        },
+        }),
     )?;
     let mut reachable = budget.vector(typed.functions().len())?;
     let mut seen = budget.vector(typed.functions().len())?;
@@ -410,6 +410,17 @@ fn prepare_program_profile<M: Module>(
         }
         for i in body.blocks.iter().flat_map(|b| &b.instructions) {
             budget.charge(1)?;
+            if let b::Op::Import { import, .. } = i.op {
+                let program = component.ok_or(Error::Unsupported { span: i.span })?;
+                if !r::component_import_supported(program, import, &mut budget).map_err(
+                    |error| match error {
+                        r::Reason::Resource(error) => Error::Resource(error),
+                        error => backend(format!("{error:?}")),
+                    },
+                )? {
+                    return Err(Error::Unsupported { span: i.span });
+                }
+            }
             if !supported(&i.op) || !r::instruction_supported(typed, index, i) {
                 return Err(Error::Unsupported { span: i.span });
             }
@@ -485,6 +496,7 @@ fn prepare_program_profile<M: Module>(
 
 fn supported(op: &b::Op) -> bool {
     match op {
+        b::Op::Import { .. } => true,
         b::Op::PrepareService { .. } | b::Op::ServiceSend { .. } | b::Op::ServiceReceive { .. } => {
             true
         }
@@ -770,6 +782,11 @@ fn prepare(
                             to: to()?,
                         }
                     }
+                    b::Op::Import { import, arguments } => Primitive::Import {
+                        import: *import,
+                        arguments: copied(budget, arguments)?,
+                        to: to()?,
+                    },
                     b::Op::Call {
                         function,
                         arguments,
@@ -819,7 +836,6 @@ fn prepare(
                         slots.push(owner.0 as usize);
                         Primitive::Forget(slots)
                     }
-                    _ => return Err(Error::Unsupported { span: i.span }),
                 }
             }
             f::Kind::Transfer { block, arm, .. } => {

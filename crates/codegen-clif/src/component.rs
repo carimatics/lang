@@ -1,10 +1,10 @@
-//! Native component cleanup bridge. Engine tokens reference stable engine
+//! Native component callback bridge. Engine tokens reference stable engine
 //! storage; active borrowed pointers are cleared before a callback scope ends.
 use lang_mir::unit as m;
 use lang_runtime::{
     cleanup as c,
     component::{
-        execution::Invoker,
+        execution::{Invoker, NativeContext, NativeReturn},
         native,
         storage::{Detached, Memory},
     },
@@ -14,6 +14,11 @@ use std::{
     ptr,
     sync::atomic::{AtomicU64, Ordering},
     thread::{self, ThreadId},
+};
+mod context;
+pub use context::{
+    buffer_mut_bytes, context_buffer_create, context_buffer_drop, context_resource_read,
+    context_resource_write,
 };
 
 static NEXT_INVOCATION: AtomicU64 = AtomicU64::new(1);
@@ -26,6 +31,7 @@ struct State {
     next_scope: Option<u64>,
     control: *const e::Control<'static>,
     memory: Option<*mut (dyn Memory + 'static)>,
+    call: Option<*mut (dyn NativeContext + 'static)>,
     last: Option<native::Context>,
 }
 pub struct Engine {
@@ -42,6 +48,7 @@ impl Engine {
             next_scope: Some(1),
             control: ptr::null(),
             memory: None,
+            call: None,
             last: None,
         });
         Ok(Self { state })
@@ -85,7 +92,7 @@ fn check(state: &State, context: &native::Context) -> u32 {
     if state.scope != Some(context.scope)
         || state.invocation != context.invocation
         || state.control.is_null()
-        || state.memory.is_none()
+        || (state.memory.is_none() && state.call.is_none())
     {
         return 5;
     }
@@ -140,9 +147,14 @@ pub unsafe extern "C" fn context_allocator_identity(context: *const native::Cont
     }
     // SAFETY: the scope is active and owner-thread; Active retains and clears
     // this original borrowed allocator before callback return.
-    unsafe { &*state.memory.expect("active memory") }
-        .identity()
-        .get()
+    if let Some(call) = state.call {
+        // SAFETY: the active callback guard retains the original context.
+        unsafe { &*call }.allocator_identity()
+    } else {
+        unsafe { &*state.memory.expect("active memory") }
+            .identity()
+            .get()
+    }
 }
 
 pub struct Invocation<'a, 'ctrl> {
@@ -160,11 +172,65 @@ impl Drop for Active {
         state.scope = None;
         state.control = ptr::null();
         state.memory = None;
+        state.call = None;
     }
 }
 impl Invoker for Invocation<'_, '_> {
+    fn check_control(&self) -> Result<(), e::Failure> {
+        self.control.check()
+    }
     fn control_matches(&self, control: e::Control<'_>) -> bool {
         self.control.same_configuration(control)
+    }
+    fn invoke(
+        &mut self,
+        method: &native::Method,
+        parameters: &[u8],
+        call: &mut dyn NativeContext,
+    ) -> Result<NativeReturn, u32> {
+        let state = &mut self.engine.state[0];
+        if state.thread != thread::current().id() || state.scope.is_some() {
+            return Err(4);
+        }
+        let scope = state.next_scope.ok_or(2u32)?;
+        state.next_scope = scope.checked_add(1);
+        let context = native::Context {
+            header: native::Header {
+                size: size_of::<native::Context>() as u32,
+                version: 1,
+            },
+            engine: ptr::from_mut(state).cast(),
+            invocation: state.invocation,
+            scope,
+            reserved: [0; 2],
+        };
+        state.scope = Some(scope);
+        state.last = Some(context);
+        // SAFETY: Active clears both borrowed pointers before this invocation
+        // or the original callback capabilities can move or be released.
+        state.control = unsafe {
+            std::mem::transmute::<*const e::Control<'_>, *const e::Control<'static>>(ptr::from_ref(
+                &self.control,
+            ))
+        };
+        state.call = Some(unsafe {
+            std::mem::transmute::<*mut (dyn NativeContext + '_), *mut (dyn NativeContext + 'static)>(
+                ptr::from_mut(call),
+            )
+        });
+        let _active = Active {
+            state: ptr::from_mut(state),
+        };
+        let arguments = native::Bytes {
+            data: parameters.as_ptr(),
+            length: parameters.len() as u64,
+        };
+        let mut buffer = ptr::null_mut();
+        // SAFETY: the binding retains actual code/user owners. Input bytes and
+        // original capabilities stay live through this owner-thread callback;
+        // native implementations obey the fixed no-unwind/view contract.
+        let status = unsafe { (method.invoke)(method.user, &context, arguments, &mut buffer) };
+        Ok(NativeReturn { status, buffer })
     }
     fn destroy(
         &mut self,

@@ -12,7 +12,11 @@ use crate::{
     task::runner::{EntryArgument, Reason},
 };
 use lang_mir::unit::{self as m, ownership as o};
+mod call;
 mod result;
+pub(crate) use call::ReadRoot;
+pub use call::{NativeArguments, NativeContext, NativeFailure, NativeReturn, ResourceArgument};
+pub(crate) use result::read_parameters;
 pub(crate) use result::read_result;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,6 +72,13 @@ struct InputFrame {
 /// may be supplied. Mandatory cleanup remains unmetered.
 pub trait Invoker {
     fn control_matches(&self, control: crate::execution::Control<'_>) -> bool;
+    fn check_control(&self) -> Result<(), crate::execution::Failure>;
+    fn invoke(
+        &mut self,
+        method: &super::native::Method,
+        parameters: &[u8],
+        context: &mut dyn NativeContext,
+    ) -> Result<NativeReturn, u32>;
     fn destroy(
         &mut self,
         kind: ResourceKind<'_>,
@@ -80,6 +91,17 @@ pub trait Invoker {
 /// Private data/cleanup service used by both existing backends. Guest bodies
 /// remain in their interpreter/generated-code dispatchers.
 pub trait Host {
+    fn read_native_arguments(
+        &mut self,
+        read: &mut dyn FnMut(&mut wire::Session) -> Result<NativeArguments, Reason>,
+    ) -> Result<NativeArguments, Reason>;
+    fn invoke_native(
+        &mut self,
+        import: m::ImportId,
+        arguments: NativeArguments,
+        memory: &mut dyn Memory,
+        budget: &mut m::Budget,
+    ) -> Result<wire::Values, Reason>;
     fn indirect_input(&self) -> bool;
     fn result_session(&mut self) -> Result<&mut wire::Session, Reason>;
     fn abandon_result(
@@ -380,6 +402,245 @@ impl<'p, 'u, 'resources, 'code, 'native> Invocation<'p, 'u, 'resources, 'code, '
     }
 }
 impl Host for Invocation<'_, '_, '_, '_, '_> {
+    fn read_native_arguments(
+        &mut self,
+        read: &mut dyn FnMut(&mut wire::Session) -> Result<NativeArguments, Reason>,
+    ) -> Result<NativeArguments, Reason> {
+        read(
+            self.output_session
+                .as_deref_mut()
+                .ok_or(Reason::Unsupported)?,
+        )
+    }
+    fn invoke_native(
+        &mut self,
+        import: m::ImportId,
+        arguments: NativeArguments,
+        memory: &mut dyn Memory,
+        budget: &mut m::Budget,
+    ) -> Result<wire::Values, Reason> {
+        let session = self.output_session.take().ok_or(Reason::Unsupported)?;
+        let mut created = Vec::new();
+        let result = (|| -> Result<wire::Values, Reason> {
+            let bindings = self.program.bindings();
+            let target = bindings.resolve(import).ok_or(Reason::Entry)?;
+            if target.method().flags != 0 {
+                return Err(Reason::Unsupported);
+            }
+            let function = *bindings
+                .unit()
+                .imports()
+                .get(import.0 as usize)
+                .ok_or(Reason::Entry)?;
+            let document = bindings.contract().document();
+            let interface = &document.interfaces[function.interface];
+            let member = &interface.functions[function.member];
+            let signature = wire::Signature::new(
+                bindings.contract(),
+                &interface.key.value,
+                &member.name.value,
+                session,
+            )
+            .map_err(Reason::ComponentFrame)?;
+            let (bytes, uses) = wire::encode_contextual_values(
+                &signature,
+                wire::FrameKind::Parameters,
+                &arguments.values,
+                session,
+            )
+            .map_err(Reason::ComponentFrame)?;
+            if uses.len() != arguments.resources.len() {
+                return Err(Reason::Entry);
+            }
+            session
+                .charge(uses.len().saturating_mul(uses.len()).saturating_mul(9), 0)
+                .map_err(Reason::ComponentFrame)?;
+            let mut loans = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            loans.resize(uses.len(), None);
+            let mut kinds = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            let mut accesses = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            let mut inputs = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            let mut positions = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            let mut seen = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            let mut views = session
+                .vector(uses.len(), 0)
+                .map_err(Reason::ComponentFrame)?;
+            for (position, used) in uses.iter().enumerate() {
+                let wire::ResourceAccess::Borrow(access) = used.access else {
+                    return Err(Reason::Unsupported);
+                };
+                let argument = *arguments
+                    .resources
+                    .get((used.index.get() - 1) as usize)
+                    .ok_or(Reason::Entry)?;
+                if seen
+                    .iter()
+                    .any(|(prior, mode): &(Claim, super::idl::Access)| {
+                        prior.same_owner(argument.claim)
+                            && (*mode != super::idl::Access::Shared
+                                || access != super::idl::Access::Shared)
+                    })
+                {
+                    return Err(fault(storage::Error::AliasedOwner));
+                }
+                seen.push((argument.claim, access));
+                let kind = target
+                    .provider()
+                    .resource_kind(used.key, session)
+                    .map_err(|_| Reason::Entry)?;
+                if let Some(parent) = argument.parent {
+                    let index = self
+                        .indices
+                        .iter()
+                        .position(|i| *i == parent)
+                        .ok_or(Reason::Entry)?;
+                    let loan = self
+                        .loans
+                        .get(index)
+                        .copied()
+                        .flatten()
+                        .ok_or(Reason::Entry)?;
+                    self.resources
+                        .check_loan(loan, argument.claim, self.guest, memory)
+                        .map_err(fault)?;
+                    self.resources
+                        .check_view(loan, kind, access)
+                        .map_err(fault)?;
+                    loans[position] = Some(loan);
+                } else {
+                    self.resources
+                        .validate(argument.claim, self.guest, used.key, memory)
+                        .map_err(fault)?;
+                    // Implementation matching precedes callback/view publication.
+                    self.resources
+                        .bytes(argument.claim, self.guest, kind, memory)
+                        .map_err(fault)?;
+                    inputs.push(storage::Input {
+                        claim: argument.claim,
+                        access: match access {
+                            super::idl::Access::Shared => storage::Access::Shared,
+                            super::idl::Access::Exclusive => storage::Access::Exclusive,
+                        },
+                    });
+                    positions.push(position);
+                }
+                kinds.push(kind);
+                accesses.push(access);
+            }
+            if !inputs.is_empty() {
+                created = session
+                    .vector(inputs.len(), 0)
+                    .map_err(Reason::ComponentFrame)?;
+                created.resize(inputs.len(), None);
+                let native = self.resources.new_holder().map_err(fault)?;
+                let transfer = self
+                    .resources
+                    .prepare_call(inputs.iter().copied(), self.guest, native, memory)
+                    .map_err(fault)?;
+                if let Err(error) = self.resources.commit_call(transfer, memory, &mut created) {
+                    let _ = self.resources.abort_transfer(transfer);
+                    return Err(fault(error));
+                }
+                for (index, position) in positions.iter().enumerate() {
+                    loans[*position] = created[index];
+                }
+            }
+            for index in 0..uses.len() {
+                let loan = loans[index].ok_or(Reason::Invariant)?;
+                let bytes = self
+                    .resources
+                    .view(loan, kinds[index], accesses[index], memory)
+                    .map_err(fault)?;
+                views.push(call::NativeView {
+                    loan,
+                    kind: kinds[index],
+                    access: accesses[index],
+                    bytes,
+                });
+            }
+            let mut context = call::CallContext::new(self.resources, memory, budget, &views);
+            let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
+            let decoded = (|| -> Result<wire::Values, Reason> {
+                self.invoker.check_control().map_err(Reason::Control)?;
+                let returned =
+                    returned.map_err(|status| Reason::Native(NativeFailure::Invocation(status)))?;
+                if returned.status > 1 {
+                    return Err(Reason::Native(NativeFailure::Invocation(returned.status)));
+                }
+                if returned.status != 0 {
+                    let bytes = if returned.buffer.is_null() {
+                        Vec::new()
+                    } else {
+                        context.result(returned.buffer, session)?
+                    };
+                    return Err(Reason::Native(NativeFailure::Status {
+                        code: returned.status,
+                        bytes,
+                    }));
+                }
+                if returned.buffer.is_null() {
+                    return Err(Reason::Native(NativeFailure::MissingResult));
+                }
+                let bytes = context.result(returned.buffer, session)?;
+                let (values, resources) = wire::decode_contextual_values(
+                    &signature,
+                    wire::FrameKind::Result,
+                    &bytes,
+                    session,
+                )
+                .map_err(|error| {
+                    if matches!(
+                        error.kind,
+                        wire::ErrorKind::Limit { .. } | wire::ErrorKind::Budget(_)
+                    ) {
+                        Reason::ComponentFrame(error)
+                    } else {
+                        Reason::Native(NativeFailure::InvalidResult(error))
+                    }
+                })?;
+                if !resources.is_empty() {
+                    return Err(Reason::Unsupported);
+                }
+                Ok(values)
+            })();
+            let closed = context.close();
+            match decoded {
+                Err(error) => Err(error),
+                Ok(values) => {
+                    closed?;
+                    Ok(values)
+                }
+            }
+        })();
+        let mut ending = None;
+        for loan in created.into_iter().rev().flatten() {
+            if let Err(error) = self.resources.end_loan(loan) {
+                ending.get_or_insert(error);
+            }
+        }
+        self.output_session = Some(session);
+        match result {
+            Err(error) => Err(error),
+            Ok(values) => {
+                if let Some(error) = ending {
+                    return Err(fault(error));
+                }
+                Ok(values)
+            }
+        }
+    }
     fn indirect_input(&self) -> bool {
         self.input_frame
             .as_ref()
@@ -425,6 +686,9 @@ impl Host for Invocation<'_, '_, '_, '_, '_> {
         let decl = self.declaration();
         if self.committed || self.transfer.is_some() || arguments.len() != decl.parameters.len() {
             return Err(Reason::Entry);
+        }
+        if self.program.native_calls() && self.output_session.is_none() {
+            return Err(Reason::Unsupported);
         }
         let result = decl.result.ty;
         let needs_output =

@@ -18,11 +18,35 @@ use std::{cell::Cell, ffi::c_void, path::Path, ptr, rc::Rc};
 
 struct Destroyed {
     calls: Cell<usize>,
+    method_calls: Cell<usize>,
+    method_changed: Cell<bool>,
+    method_control_checked: Cell<bool>,
+    method_context: Cell<Option<native::Context>>,
+    native: Option<NativeCase>,
+    interruption: Cell<*const e::InterruptionFlag>,
     value: Cell<i64>,
     allocator: Cell<u64>,
     context: Cell<Option<native::Context>>,
     fail: bool,
     cancelled: bool,
+}
+#[derive(Clone, Copy)]
+enum NativeCase {
+    Owned,
+    Shared,
+    Declared,
+    WrongKind,
+    WrongKindOwned,
+    MissingSession,
+    Malformed,
+    NoResult,
+    ForeignResult,
+    BadStatus,
+    Interrupt,
+    Oom(usize),
+    Fuel(u64),
+    HostCalls(u64),
+    Cells(usize),
 }
 #[derive(Clone, Copy)]
 enum Case {
@@ -31,6 +55,8 @@ enum Case {
     FrameOutput,
     SharedLoan,
     ExclusiveLoan,
+    NativeView,
+    Native(NativeCase),
     MixedLoan(bool),
     LoanReturn(bool),
     LoanAliases,
@@ -71,6 +97,33 @@ enum Case {
     ReturnCleanupFailure,
 }
 impl Case {
+    fn native(self) -> Option<NativeCase> {
+        match self {
+            Self::NativeView => Some(NativeCase::Owned),
+            Self::Native(native) => Some(native),
+            _ => None,
+        }
+    }
+    fn native_owned(self) -> bool {
+        matches!(
+            self,
+            Self::Native(NativeCase::Owned | NativeCase::WrongKindOwned)
+        )
+    }
+    fn native_declared(self) -> bool {
+        matches!(self, Self::Native(NativeCase::Declared))
+    }
+    fn native_poison(self) -> bool {
+        matches!(
+            self,
+            Self::Native(
+                NativeCase::Malformed
+                    | NativeCase::NoResult
+                    | NativeCase::ForeignResult
+                    | NativeCase::BadStatus
+            )
+        )
+    }
     fn loan(self) -> Option<bool> {
         match self {
             Self::SharedLoan
@@ -80,7 +133,14 @@ impl Case {
             | Self::LoanCancelled
             | Self::LoanCleanup
             | Self::LoanFuelCleanup(_) => Some(false),
-            Self::ExclusiveLoan => Some(true),
+            Self::Native(native) => {
+                if matches!(native, NativeCase::Owned | NativeCase::WrongKindOwned) {
+                    None
+                } else {
+                    Some(!matches!(native, NativeCase::Shared))
+                }
+            }
+            Self::ExclusiveLoan | Self::NativeView => Some(true),
             Self::LoanConflict(mask) => Some(mask & 1 != 0),
             Self::MixedLoan(exclusive)
             | Self::LoanReturn(exclusive)
@@ -90,7 +150,9 @@ impl Case {
         }
     }
     fn loan_extra(self) -> bool {
-        self.loan().is_some() && !matches!(self, Self::SharedLoan | Self::ExclusiveLoan)
+        self.loan().is_some()
+            && self.native().is_none()
+            && !matches!(self, Self::SharedLoan | Self::ExclusiveLoan)
     }
     fn loan_aliases(self) -> bool {
         matches!(
@@ -202,6 +264,182 @@ extern "C" fn unused(
 ) -> u32 {
     2
 }
+unsafe extern "C" fn native_apply(
+    user: *mut c_void,
+    context: *const native::Context,
+    arguments: native::Bytes,
+    output: *mut *mut native::Buffer,
+) -> u32 {
+    // SAFETY: registration retains the actual user/code owner. The engine
+    // supplies live canonical bytes and a unique original callback scope.
+    let state = unsafe { &*user.cast::<Destroyed>() };
+    let result = (|| -> Result<(), u32> {
+        if unsafe { lang_codegen_clif::component::context_check(context) } != 0
+            || unsafe { lang_codegen_clif::component::context_allocator_identity(context) }
+                != state.allocator.get()
+        {
+            return Err(2);
+        }
+        state.method_calls.set(state.method_calls.get() + 1);
+        state.method_context.set(Some(unsafe { *context }));
+        if arguments.length < 61
+            || arguments.length > 1024
+            || arguments.data.is_null()
+            || output.is_null()
+        {
+            return Err(2);
+        }
+        let arguments =
+            unsafe { std::slice::from_raw_parts(arguments.data, arguments.length as usize) };
+        let label_len = u32::from_le_bytes(arguments[57..61].try_into().unwrap()) as usize;
+        if arguments.len() != 61 + label_len {
+            return Err(2);
+        }
+        let declared = matches!(state.native, Some(NativeCase::Declared));
+        if declared && &arguments[61..] != "寿司".as_bytes() {
+            return Err(2);
+        }
+        let payload = if declared { 11usize } else { 9 };
+        let index = u32::from_le_bytes(arguments[45..49].try_into().unwrap());
+        let delta = i64::from_le_bytes(arguments[49..57].try_into().unwrap());
+        let mut buffer = ptr::null_mut();
+        let status = unsafe {
+            lang_codegen_clif::component::context_buffer_create(
+                context,
+                (45 + payload) as u64,
+                1,
+                &mut buffer,
+            )
+        };
+        if status != 0 {
+            return Err(status);
+        }
+        let mut encoded = native::MutBytes {
+            data: ptr::null_mut(),
+            length: 0,
+        };
+        let status = unsafe {
+            lang_codegen_clif::component::buffer_mut_bytes(context, buffer, &mut encoded)
+        };
+        if status != 0 {
+            return Err(status);
+        }
+        if encoded.length != (45 + payload) as u64 || encoded.data.is_null() {
+            return Err(2);
+        }
+        let mut invalid = native::Bytes {
+            data: ptr::null(),
+            length: 99,
+        };
+        if unsafe { lang_codegen_clif::component::context_resource_read(context, 0, &mut invalid) }
+            != 7
+            || !invalid.data.is_null()
+            || invalid.length != 99
+        {
+            return Err(2);
+        }
+        let mut original = native::Bytes {
+            data: ptr::null(),
+            length: 0,
+        };
+        let status = unsafe {
+            lang_codegen_clif::component::context_resource_read(context, index, &mut original)
+        };
+        if status != 0 {
+            return Err(status);
+        }
+        if original.length != 8 || original.data.is_null() {
+            return Err(2);
+        }
+        let before = i64::from_le_bytes(
+            unsafe { std::slice::from_raw_parts(original.data, 8) }
+                .try_into()
+                .unwrap(),
+        );
+        let mut writable = native::MutBytes {
+            data: ptr::null_mut(),
+            length: 0,
+        };
+        let status = unsafe {
+            lang_codegen_clif::component::context_resource_write(context, index, &mut writable)
+        };
+        let after = before + delta;
+        if matches!(state.native, Some(NativeCase::Shared)) {
+            if status != 7 || !writable.data.is_null() || writable.length != 0 {
+                return Err(2);
+            }
+        } else {
+            if status != 0 {
+                return Err(status);
+            }
+            if writable.length != 8 || writable.data.is_null() {
+                return Err(2);
+            }
+            unsafe { std::slice::from_raw_parts_mut(writable.data, 8) }
+                .copy_from_slice(&after.to_le_bytes());
+            state.method_changed.set(true);
+        }
+        let encoded = unsafe { std::slice::from_raw_parts_mut(encoded.data, 45 + payload) };
+        encoded[..45].copy_from_slice(&arguments[..45]);
+        encoded[8] = 1;
+        encoded[41..45].copy_from_slice(&(payload as u32).to_le_bytes());
+        if declared {
+            encoded[45] = 1;
+            encoded[46..50].copy_from_slice(&6_u32.to_le_bytes());
+            encoded[50..56].copy_from_slice("寿司".as_bytes());
+        } else {
+            encoded[45] = 0;
+            encoded[46..54].copy_from_slice(&after.to_le_bytes());
+        }
+        if matches!(state.native, Some(NativeCase::Malformed)) {
+            encoded[9] ^= 1;
+        }
+        unsafe {
+            output.write(if matches!(state.native, Some(NativeCase::NoResult)) {
+                ptr::null_mut()
+            } else if matches!(state.native, Some(NativeCase::ForeignResult)) {
+                ptr::without_provenance_mut(1)
+            } else {
+                buffer
+            })
+        };
+        if matches!(state.native, Some(NativeCase::Interrupt)) {
+            // SAFETY: the real invocation flag outlives this synchronous callback.
+            unsafe { &*state.interruption.get() }.interrupt();
+            let mut refused = native::Bytes {
+                data: ptr::null(),
+                length: 99,
+            };
+            let read = unsafe {
+                lang_codegen_clif::component::context_resource_read(context, index, &mut refused)
+            };
+            let mut untouched = ptr::without_provenance_mut(1);
+            let create = unsafe {
+                lang_codegen_clif::component::context_buffer_create(context, 1, 1, &mut untouched)
+            };
+            let drop =
+                unsafe { lang_codegen_clif::component::context_buffer_drop(context, buffer) };
+            let again =
+                unsafe { lang_codegen_clif::component::context_buffer_drop(context, buffer) };
+            state.method_control_checked.set(
+                read == 1
+                    && refused.data.is_null()
+                    && refused.length == 99
+                    && create == 1
+                    && untouched == ptr::without_provenance_mut(1)
+                    && drop == 0
+                    && again == 5,
+            );
+        }
+        Ok(())
+    })();
+    if matches!(state.native, Some(NativeCase::BadStatus)) {
+        2
+    } else {
+        result.err().map(|_| 1).unwrap_or(0)
+    }
+}
+
 unsafe extern "C" fn destroy(
     user: *mut c_void,
     context: *const native::Context,
@@ -354,6 +592,75 @@ fn direct_shared_and_exclusive_resource_loans_execute_without_consuming_caller()
 }
 
 #[test]
+fn source_native_member_operates_on_the_original_borrowed_backing() {
+    assert_eq!(run_source(Case::NativeView), (true, true));
+    assert_eq!(run_source(Case::Native(NativeCase::Owned)), (true, true));
+    assert_eq!(run_source(Case::Native(NativeCase::Shared)), (true, true));
+    assert_eq!(run_source(Case::Native(NativeCase::Declared)), (true, true));
+}
+
+#[test]
+fn native_member_kind_and_missing_session_refusals_preserve_original_provenance() {
+    assert_eq!(
+        run_source(Case::Native(NativeCase::WrongKind)),
+        (false, true)
+    );
+    assert_eq!(
+        run_source(Case::Native(NativeCase::WrongKindOwned)),
+        (false, true)
+    );
+    assert_eq!(
+        run_source(Case::Native(NativeCase::MissingSession)),
+        (false, false)
+    );
+}
+#[test]
+fn malformed_native_results_poison_after_unmetered_buffer_and_loan_cleanup() {
+    for mode in [
+        NativeCase::Malformed,
+        NativeCase::NoResult,
+        NativeCase::ForeignResult,
+        NativeCase::BadStatus,
+    ] {
+        assert_eq!(run_source(Case::Native(mode)), (false, true));
+    }
+}
+#[test]
+fn native_member_provider_refusals_preserve_or_retire_every_accepted_owner() {
+    let results: Vec<_> = (0..64)
+        .map(|offset| run_source(Case::Native(NativeCase::Oom(offset))))
+        .collect();
+    assert!(results.contains(&(false, false)));
+    assert!(results.contains(&(false, true)));
+    assert!(results.contains(&(true, true)));
+}
+#[test]
+fn native_member_control_prefixes_and_callback_interruption_do_not_publish_success() {
+    let fuel: Vec<_> = (0..64)
+        .map(|fuel| run_source(Case::Native(NativeCase::Fuel(fuel))))
+        .collect();
+    assert!(fuel.contains(&(false, true)));
+    assert!(fuel.contains(&(true, true)));
+    let cells: Vec<_> = (0..64)
+        .map(|cap| run_source(Case::Native(NativeCase::Cells(cap))))
+        .collect();
+    assert!(cells.contains(&(false, false)));
+    assert!(cells.contains(&(true, true)));
+    assert_eq!(
+        run_source(Case::Native(NativeCase::HostCalls(0))),
+        (false, true)
+    );
+    assert_eq!(
+        run_source(Case::Native(NativeCase::HostCalls(1))),
+        (true, true)
+    );
+    assert_eq!(
+        run_source(Case::Native(NativeCase::Interrupt)),
+        (false, true)
+    );
+}
+
+#[test]
 fn mixed_owning_resource_and_direct_loans_commit_as_one_call_and_expire_before_return() {
     for exclusive in [false, true] {
         assert_eq!(run_source(Case::MixedLoan(exclusive)), (true, true));
@@ -489,12 +796,24 @@ fn run_source(case: Case) -> (bool, bool) {
                 | Case::NestedReturnMissing
                 | Case::Capacity
         );
-    let host_json: serde_json::Value =
+    let mut host_json: serde_json::Value =
         serde_json::from_slice(include_bytes!("fixtures/component_counter.idl.json")).unwrap();
+    if matches!(case, Case::Native(NativeCase::Shared)) {
+        host_json["interfaces"][0]["functions"][0]["params"][0]["type"] =
+            json!({"borrow":"counter"});
+    }
     let consumer = json!({"idl":1,"package":"demo:consumer","version":"1.0.0","interfaces":[host_json["interfaces"][0].clone(),
         {"key":"demo:consumer/api","resources":[],"types":[],"functions":[{"name":"consume","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}},{"name":"number","type":"i64"}],"result":if return_resource{json!({"own":"demo:counter/api.counter"})}else{json!("i64")},"capability":"demo.consumer.consume"}]}
     ],"imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":["apply"]}],"exports":["demo:consumer/api"]});
     let mut consumer = consumer;
+    if case.native_declared() {
+        consumer["interfaces"][1]["functions"][0]["result"] =
+            json!({"result":{"ok":"i64","err":"text"}});
+        consumer["interfaces"][1]["functions"][0]["params"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"name":"label","type":"text"}));
+    }
     if let Some(exclusive) = case.loan() {
         consumer["interfaces"][1]["functions"][0]["params"][0]["type"] = if exclusive {
             json!({"borrow-mut":"demo:counter/api.counter"})
@@ -624,14 +943,18 @@ fn run_source(case: Case) -> (bool, bool) {
     } else {
         "pub struct CounterKind{}pub struct Request{delta:i64,label:core::Text}extern \"component\" fn host_apply(state:&mut core::ComponentResource<CounterKind>,request:Request)->core::Result<i64,core::Text>;pub fn consume(value:core::ComponentResource<CounterKind>,number:i64)->i64{return number+1;}"
     };
-    let source = if let Some(exclusive) = case.loan() {
-        let ty = if exclusive {
+    let source = if case.loan().is_some() || case.native().is_some() {
+        let ty = if case.native_owned() {
+            "core::ComponentResource<CounterKind>"
+        } else if case.loan() == Some(true) {
             "&mut core::ComponentResource<CounterKind>"
         } else {
             "&core::ComponentResource<CounterKind>"
         };
         let prefix = source.split("pub fn consume").next().unwrap();
-        let extra = if case.loan_aliases() {
+        let extra = if case.native_declared() {
+            ",label:core::Text".into()
+        } else if case.loan_aliases() {
             format!(
                 ",extra:{}",
                 if case.second_exclusive() {
@@ -645,7 +968,22 @@ fn run_source(case: Case) -> (bool, bool) {
         } else {
             String::new()
         };
-        let (result, body) = if return_resource {
+        let (result, body) = if case.native_declared() {
+            (
+                "core::Result<i64,core::Text>",
+                "let mut request:Request=Request{delta:1,label:label};return host_apply(value,request);",
+            )
+        } else if case.native_owned() {
+            (
+                "i64",
+                "let mut state:core::ComponentResource<CounterKind>=value;let mut raw:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut label:core::Text=core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(raw));let mut request:Request=Request{delta:1,label:label};return core::result_unwrap::<i64,core::Text>(host_apply(state,request));",
+            )
+        } else if case.native().is_some() {
+            (
+                "i64",
+                "let mut raw:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));let mut label:core::Text=core::result_unwrap::<core::Text,core::Utf8Error>(core::text_from_utf8(raw));let mut request:Request=Request{delta:1,label:label};return core::result_unwrap::<i64,core::Text>(host_apply(value,request));",
+            )
+        } else if return_resource {
             (
                 "core::ComponentResource<CounterKind>",
                 "let mut n:i64=add(value,number);return extra;",
@@ -653,9 +991,14 @@ fn run_source(case: Case) -> (bool, bool) {
         } else {
             ("i64", "return add(value,number);")
         };
-        format!(
+        let source = format!(
             "{prefix}pub fn consume(value:{ty},number:i64{extra})->{result}{{{body}}}fn add(value:{ty},number:i64)->i64{{return leaf(value,number);}}fn leaf(value:{ty},number:i64)->i64{{return number+1;}}"
-        )
+        );
+        if matches!(case, Case::Native(NativeCase::Shared)) {
+            source.replace("host_apply(state:&mut", "host_apply(state:&")
+        } else {
+            source
+        }
     } else {
         source.to_owned()
     };
@@ -710,7 +1053,7 @@ fn run_source(case: Case) -> (bool, bool) {
     let host = wire::Contract::new(
         idl::check(
             m::SourceId(71),
-            include_bytes!("fixtures/component_counter.idl.json"),
+            &serde_json::to_vec(&host_json).unwrap(),
             Default::default(),
         )
         .unwrap(),
@@ -721,17 +1064,34 @@ fn run_source(case: Case) -> (bool, bool) {
     let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
     let destroyed = Destroyed {
         calls: Cell::new(0),
+        method_calls: Cell::new(0),
+        method_changed: Cell::new(false),
+        method_control_checked: Cell::new(false),
+        method_context: Cell::new(None),
+        native: case.native(),
+        interruption: Cell::new(ptr::null()),
         value: Cell::new(0),
         allocator: Cell::new(0),
         context: Cell::new(None),
         fail: case.failing_cleanup(),
-        cancelled: matches!(case, Case::Cancelled | Case::LoanCancelled),
+        cancelled: matches!(
+            case,
+            Case::Cancelled | Case::LoanCancelled | Case::Native(NativeCase::Interrupt)
+        ),
     };
     let methods = [native::Method {
         interface: 0,
         member: 0,
-        invoke: unused,
-        user: ptr::null_mut(),
+        invoke: if case.native().is_some() {
+            native_apply
+        } else {
+            unused
+        },
+        user: if case.native().is_some() {
+            ptr::from_ref(&destroyed).cast_mut().cast()
+        } else {
+            ptr::null_mut()
+        },
         flags: 0,
     }];
     let resources = [native::ResourceType {
@@ -774,9 +1134,29 @@ fn run_source(case: Case) -> (bool, bool) {
     let kind = bindings
         .resource_kind(m::ImportId(0), m::DefinitionId(0), &mut session)
         .unwrap();
+    let alternative = native::Provider::with_resources(
+        providers[0].metadata(),
+        &methods,
+        &resources,
+        &destroyed,
+        &mut session,
+    )
+    .unwrap();
+    let kind = if matches!(
+        case,
+        Case::Native(NativeCase::WrongKind | NativeCase::WrongKindOwned)
+    ) {
+        alternative.resource_kind(kind.key(), &mut session).unwrap()
+    } else {
+        kind
+    };
     let mut previous = None;
     for compiled in [false, true] {
         destroyed.calls.set(0);
+        destroyed.method_calls.set(0);
+        destroyed.method_changed.set(false);
+        destroyed.method_control_checked.set(false);
+        destroyed.method_context.set(None);
         let attempts = Rc::new(Cell::new(0));
         let fail_at = Rc::new(Cell::new(None));
         let mut allocator = a::Allocator::new(
@@ -818,12 +1198,18 @@ fn run_source(case: Case) -> (bool, bool) {
         {
             fail_at.set(Some(attempts.get() + offset));
         }
+        if let Some(NativeCase::Oom(offset)) = case.native() {
+            fail_at.set(Some(attempts.get() + offset));
+        }
         let interruption = e::InterruptionFlag::new();
+        destroyed.interruption.set(ptr::from_ref(&interruption));
         if matches!(case, Case::Cancelled | Case::LoanCancelled) {
             interruption.interrupt();
         }
         let control = e::Control::with_limits(e::Limits {
-            fuel: if let Case::Fuel(fuel)
+            fuel: if let Some(NativeCase::Fuel(fuel)) = case.native() {
+                Some(fuel)
+            } else if let Case::Fuel(fuel)
             | Case::FuelCleanup(fuel)
             | Case::LoanFuel(_, fuel)
             | Case::LoanFuelCleanup(fuel) = case
@@ -832,10 +1218,17 @@ fn run_source(case: Case) -> (bool, bool) {
             } else {
                 e::Limits::default().fuel
             },
-            live_cells: if let Case::LoanCells(cap) = case {
+            live_cells: if let Some(NativeCase::Cells(cap)) = case.native() {
+                Some(cap)
+            } else if let Case::LoanCells(cap) = case {
                 Some(cap)
             } else {
                 None
+            },
+            host_calls: if let Some(NativeCase::HostCalls(cap)) = case.native() {
+                Some(cap)
+            } else {
+                e::Limits::default().host_calls
             },
             ..Default::default()
         })
@@ -883,6 +1276,10 @@ fn run_source(case: Case) -> (bool, bool) {
                 ],
             };
             let mut claims = vec![input];
+            if case.native_declared() {
+                frame_values.nodes.push(wire::Value::Text("寿司".into()));
+                frame_values.roots.push(wire::ValueId(2));
+            }
             if extra {
                 claims.push(extra_input.unwrap());
                 frame_values.nodes.push(wire::Value::Resource(
@@ -1272,8 +1669,10 @@ fn run_source(case: Case) -> (bool, bool) {
         }
         if matches!(
             case,
-            Case::NestedReturn | Case::FrameOutput | Case::ReturnFrame
-        ) || case.data()
+            Case::NestedReturn | Case::FrameOutput | Case::ReturnFrame | Case::NativeView
+        ) || (case.native().is_some()
+            && !matches!(case, Case::Native(NativeCase::MissingSession)))
+            || case.data()
             || case.list()
             || case.scalars()
             || case.envelope() != 0
@@ -1308,7 +1707,70 @@ fn run_source(case: Case) -> (bool, bool) {
             "call returned a live resource loan"
         );
         drop(invocation);
+        if matches!(case, Case::Native(NativeCase::Interrupt)) {
+            assert!(destroyed.method_control_checked.get());
+        }
         if let Err(failure) = outcome {
+            if let Some(NativeCase::WrongKind | NativeCase::WrongKindOwned) = case.native() {
+                assert!(matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Component(storage::Error::Implementation)
+                ));
+                assert_eq!(destroyed.method_calls.get(), 0);
+            }
+            if matches!(case, Case::Native(NativeCase::MissingSession)) {
+                assert!(matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Unsupported
+                ));
+                assert_eq!(attempts.get(), 2);
+            }
+            if let Some(NativeCase::Oom(_)) = case.native() {
+                assert!(
+                    matches!(
+                        failure.reason,
+                        lang_runtime::task::runner::Reason::Panic(_)
+                            | lang_runtime::task::runner::Reason::Native(
+                                execution::NativeFailure::Status { code: 1, .. }
+                            )
+                            | lang_runtime::task::runner::Reason::Layout(
+                                lang_runtime::layout::Error::Allocation(a::Error::OutOfMemory)
+                            )
+                    ),
+                    "{failure:?}"
+                );
+            }
+            if let Some(NativeCase::Fuel(_)) = case.native() {
+                assert!(matches!(
+                    failure.report.as_ref().unwrap().primary().unwrap().kind,
+                    lang_runtime::cleanup::FailureKind::Execution(
+                        lang_runtime::cleanup::ExecutionFailure::FuelLimit
+                    )
+                ));
+            }
+            if let Some(NativeCase::HostCalls(_)) = case.native() {
+                assert!(matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Control(e::Failure::HostCallLimit)
+                ));
+                assert_eq!(destroyed.method_calls.get(), 0);
+            }
+            if let Some(NativeCase::Cells(_)) = case.native() {
+                assert!(matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Execution(
+                        lang_runtime::cleanup::ExecutionFailure::CellLimit
+                    )
+                ));
+            }
+            if matches!(case, Case::Native(NativeCase::Interrupt)) {
+                assert!(matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Control(e::Failure::Interrupted)
+                ));
+                assert_eq!(destroyed.method_calls.get(), 1);
+                assert!(destroyed.method_changed.get());
+            }
             if matches!(case, Case::NestedReturnBudget) {
                 assert!(matches!(
                     failure.reason,
@@ -1322,7 +1784,7 @@ fn run_source(case: Case) -> (bool, bool) {
                 ));
                 assert_eq!(attempts.get(), 4);
             }
-            if case.failing_cleanup() {
+            if case.failing_cleanup() || case.native_poison() {
                 assert!(failure.poisoned);
                 assert!(failure.report.as_ref().unwrap().primary().is_some());
             } else {
@@ -1404,7 +1866,12 @@ fn run_source(case: Case) -> (bool, bool) {
                 }
                 assert_eq!(
                     values.bytes(input, holder, kind, &allocator).unwrap(),
-                    41_i64.to_le_bytes()
+                    (if destroyed.method_changed.get() {
+                        42_i64
+                    } else {
+                        41_i64
+                    })
+                    .to_le_bytes()
                 );
                 if committed && extra && !case.loan_aliases() {
                     assert!(
@@ -1459,7 +1926,14 @@ fn run_source(case: Case) -> (bool, bool) {
             }
             if case.loan().is_some() {
                 assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
-                assert_eq!(destroyed.value.get(), 41);
+                assert_eq!(
+                    destroyed.value.get(),
+                    if destroyed.method_changed.get() {
+                        42
+                    } else {
+                        41
+                    }
+                );
                 assert_eq!(engine.check(&destroyed.context.get().unwrap()), 5);
             }
             assert_eq!(allocator.stats().live_allocations, 0);
@@ -1473,7 +1947,9 @@ fn run_source(case: Case) -> (bool, bool) {
         let mut outcome = outcome.unwrap_or_else(|_| unreachable!());
         assert!(!case.failing_cleanup());
         assert!(committed);
-        if matches!(case, Case::FrameOutput | Case::ReturnFrame) {
+        if matches!(case, Case::FrameOutput | Case::ReturnFrame)
+            || (case.native().is_some() && !case.native_declared())
+        {
             let execution::Value::Frame(frame) = &outcome.value else {
                 panic!("explicit frame result required");
             };
@@ -1496,7 +1972,23 @@ fn run_source(case: Case) -> (bool, bool) {
                 outcome.value = execution::Value::Copy(lang_runtime::layout::Immediate::I64(42));
             }
         }
-        if matches!(case, Case::NestedReturn)
+        if case.native_declared() {
+            let execution::Value::Frame(frame) = &outcome.value else {
+                panic!("declared native result frame required");
+            };
+            assert!(frame.resources().is_empty());
+            let wire::Value::Err(payload) = &frame.values().nodes[frame.values().roots[0].0] else {
+                panic!("declared Err must remain a value");
+            };
+            assert_eq!(
+                frame.values().nodes[payload.0],
+                wire::Value::Text("寿司".into())
+            );
+            assert_eq!(
+                &frame.bytes()[45..],
+                &[&[1_u8][..], &6_u32.to_le_bytes(), "寿司".as_bytes()].concat()
+            );
+        } else if matches!(case, Case::NestedReturn)
             || case.data()
             || case.list()
             || case.scalars()
@@ -1650,6 +2142,26 @@ fn run_source(case: Case) -> (bool, bool) {
             );
         }
         if case.loan().is_some() {
+            if case.native().is_some() {
+                assert_eq!(destroyed.method_calls.get(), 1);
+                assert_eq!(
+                    destroyed.method_changed.get(),
+                    !matches!(case, Case::Native(NativeCase::Shared))
+                );
+                let expired = destroyed.method_context.get().unwrap();
+                let mut bytes = native::Bytes {
+                    data: ptr::null(),
+                    length: 99,
+                };
+                assert_eq!(
+                    unsafe {
+                        lang_codegen_clif::component::context_resource_read(&expired, 1, &mut bytes)
+                    },
+                    5
+                );
+                assert!(bytes.data.is_null());
+                assert_eq!(bytes.length, 99);
+            }
             assert_eq!(
                 destroyed.calls.get(),
                 usize::from(extra && !case.loan_aliases())
@@ -1657,7 +2169,12 @@ fn run_source(case: Case) -> (bool, bool) {
             assert_eq!(values.len(), if case.loan_aliases() { 2 } else { 1 });
             assert_eq!(
                 values.bytes(input, holder, kind, &allocator).unwrap(),
-                41_i64.to_le_bytes()
+                (if destroyed.method_changed.get() {
+                    42_i64
+                } else {
+                    41_i64
+                })
+                .to_le_bytes()
             );
             // Detach also proves every call loan has expired before returning.
             release_caller(
@@ -1681,10 +2198,23 @@ fn run_source(case: Case) -> (bool, bool) {
         }
         assert!(values.is_empty());
         assert_eq!(destroyed.calls.get(), if extra { 2 } else { 1 });
-        assert_eq!(destroyed.value.get(), 41);
+        assert_eq!(
+            destroyed.value.get(),
+            if destroyed.method_changed.get() {
+                42
+            } else {
+                41
+            }
+        );
         assert_eq!(engine.check(&destroyed.context.get().unwrap()), 5);
         assert_eq!(allocator.stats().live_allocations, 0);
         assert!(!outcome.poisoned);
+        if let Some(NativeCase::Cells(cap)) = case.native() {
+            assert!(outcome.usage.peak_live_cells <= cap);
+        }
+        if case.native().is_some() {
+            assert_eq!(outcome.usage.host_calls, 1);
+        }
         if let Case::LoanCells(cap) = case {
             assert!(outcome.usage.peak_live_cells <= cap);
         }

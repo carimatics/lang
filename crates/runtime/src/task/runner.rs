@@ -53,6 +53,7 @@ pub struct Event {
 }
 #[derive(Debug)]
 pub enum Reason {
+    Native(crate::component::execution::NativeFailure),
     ComponentFrame(crate::component::wire::Error),
     Component(crate::component::storage::Error),
     ChannelDeadlock(crate::channel::Deadlock),
@@ -367,7 +368,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         }
         if limits.tasks.live_tasks==0 {return Err(t::Error::LiveTaskLimit{limit:0}.into());}
         if limits.tasks.total_tasks==0 {return Err(t::Error::TotalTaskLimit{limit:0}.into());}
-        let mut budget=m::Budget::with_usage(limits.preparation, m::Usage{work:proof.plan().work_used(),allocation_bytes:proof.plan().requested_bytes(),elements:proof.plan().elements_used()})?;
+        let mut budget=m::Budget::with_usage(limits.preparation, program.map(|p|p.usage()).unwrap_or(m::Usage{work:proof.plan().work_used(),allocation_bytes:proof.plan().requested_bytes(),elements:proof.plan().elements_used()}))?;
         let mut reachable=budget.vector(typed.functions().len())?;
         let mut seen=budget.vector(typed.functions().len())?; seen.resize(typed.functions().len(),false);
         reachable.push(entry.0 as usize); seen[entry.0 as usize]=true;
@@ -385,6 +386,10 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
             }
             for instruction in body.blocks.iter().flat_map(|b|&b.instructions){
                 budget.charge(1)?;
+                if let b::Op::Import{import,..}=instruction.op {
+                    let program=program.ok_or(Reason::Unsupported)?;
+                    if !component_import_supported(program,import,&mut budget)?{return Err(Reason::Unsupported);}
+                }
                 if !backend.supported(&instruction.op)||!instruction_supported(typed,index,instruction){return Err(Reason::Unsupported);}
                 if let b::Op::Call {function,..}|b::Op::TaskSpawn {function,..}=instruction.op
                     && !seen[function.0 as usize] { seen[function.0 as usize]=true;reachable.push(function.0 as usize); }
@@ -585,6 +590,44 @@ pub fn managed_component_type_supported(
     budget: &mut m::Budget,
 ) -> Result<bool, Reason> {
     managed_type_supported_profile(types, ty, budget, true, true)
+}
+/// Admission for the first live native-member profile. Full owning native
+/// resource operations and callback reentry retain their later delivery gates.
+pub fn component_import_supported(
+    program: &crate::component::program::Program<'_>,
+    import: m::ImportId,
+    budget: &mut m::Budget,
+) -> Result<bool, Reason> {
+    let Some(binding) = program.bindings().resolve(import) else {
+        return Ok(false);
+    };
+    if binding.method().flags != 0 {
+        return Ok(false);
+    }
+    let declarations = program.proof().typed().places().declarations();
+    let Some(declaration) = declarations.imports().get(import.0 as usize) else {
+        return Ok(false);
+    };
+    let bound = program.bindings().unit().imports()[import.0 as usize];
+    if program.bindings().contract().document().interfaces[bound.interface].functions[bound.member]
+        .effect
+        .value
+        != crate::component::idl::Effect::Sync
+    {
+        return Ok(false);
+    }
+    let types = declarations.types();
+    for parameter in &declaration.parameters {
+        let ty = parameter.ty;
+        if matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Loan(_,o::Type::Constructed(target)) if matches!(types.table().constructed[target.0 as usize].constructor,o::Constructor::ComponentResource(_))))
+        {
+            continue;
+        }
+        if !managed_type_supported_profile(types, ty, budget, true, false)? {
+            return Ok(false);
+        }
+    }
+    managed_type_supported_profile(types, declaration.result.ty, budget, true, false)
 }
 fn managed_type_supported_profile(
     types: &o::VerifiedTypes,

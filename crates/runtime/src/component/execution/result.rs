@@ -3,6 +3,77 @@
 //! vector element access on the same validated allocator/layout path.
 use super::*;
 use crate::{allocation as a, buffer, vector};
+
+pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
+    roots: &[ReadRoot<'l, 't>],
+    layouts: &'l l::Layouts<'t>,
+    types: &o::VerifiedTypes,
+    allocator: &a::Allocator<P>,
+    session: &mut wire::Session,
+) -> Result<NativeArguments, Reason> {
+    let mut values = wire::Values {
+        roots: session
+            .vector(roots.len(), 0)
+            .map_err(Reason::ComponentFrame)?,
+        nodes: Vec::new(),
+    };
+    let mut resources = session
+        .vector(roots.len(), 0)
+        .map_err(Reason::ComponentFrame)?;
+    for root in roots {
+        session.charge(1, 0).map_err(Reason::ComponentFrame)?;
+        let id = match root {
+            ReadRoot::Resource(resource) => {
+                resources.push(*resource);
+                let index = u32::try_from(resources.len())
+                    .ok()
+                    .and_then(crate::component::adapter::BoundaryResourceIndex::new)
+                    .ok_or(Reason::Invariant)?;
+                let id = wire::ValueId(values.nodes.len());
+                session
+                    .push(&mut values.nodes, wire::Value::Resource(index), 0)
+                    .map_err(Reason::ComponentFrame)?;
+                id
+            }
+            ReadRoot::Value(root) => {
+                let frame = read_value(*root, layouts, types, allocator, session)?;
+                if !frame.resources.is_empty() {
+                    return Err(Reason::Unsupported);
+                }
+                let base = values.nodes.len();
+                let id = wire::ValueId(
+                    base.checked_add(frame.values.roots[0].0)
+                        .ok_or(Reason::Invariant)?,
+                );
+                for mut node in frame.values.nodes {
+                    let mut rebase = |id: &mut wire::ValueId| -> Result<(), Reason> {
+                        session.charge(1, 0).map_err(Reason::ComponentFrame)?;
+                        id.0 = id.0.checked_add(base).ok_or(Reason::Invariant)?;
+                        Ok(())
+                    };
+                    match &mut node {
+                        wire::Value::Record(fields) | wire::Value::List(fields) => {
+                            for id in fields {
+                                rebase(id)?;
+                            }
+                        }
+                        wire::Value::Variant { payload, .. }
+                        | wire::Value::Some(payload)
+                        | wire::Value::Ok(payload)
+                        | wire::Value::Err(payload) => rebase(payload)?,
+                        _ => {}
+                    }
+                    session
+                        .push(&mut values.nodes, node, 0)
+                        .map_err(Reason::ComponentFrame)?;
+                }
+                id
+            }
+        };
+        values.roots.push(id);
+    }
+    Ok(NativeArguments { values, resources })
+}
 enum Aggregate {
     Record,
     List,
@@ -27,12 +98,19 @@ pub(crate) fn read_result<P: a::Provider>(
     allocator: &a::Allocator<P>,
     session: &mut wire::Session,
 ) -> Result<FrameResult, Reason> {
-    let layouts = value.layouts();
+    read_value(value.observe()?, value.layouts(), types, allocator, session)
+}
+fn read_value<'l, 't, P: a::Provider>(
+    root: l::ReadView<'l, 't>,
+    layouts: &'l l::Layouts<'t>,
+    types: &o::VerifiedTypes,
+    allocator: &a::Allocator<P>,
+    session: &mut wire::Session,
+) -> Result<FrameResult, Reason> {
     let mut work = Vec::new();
     let mut stack = Vec::new();
     let mut nodes = Vec::new();
     let mut resources = Vec::new();
-    let root = value.observe()?;
     session
         .push(&mut work, Work::Read(root, root.root()), 0)
         .map_err(Reason::ComponentFrame)?;
