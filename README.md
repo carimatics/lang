@@ -98,6 +98,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 - [RFC 0026: Source isolated services (accepted)](docs/rfcs/0026-source-isolated-services.md)
 - [RFC 0027: Production component IDL, wire and embedding profile (accepted)](docs/rfcs/0027-production-component-interface.md)
+- [RFC 0028: Serialized task and component MIR (accepted)](docs/rfcs/0028-task-component-artifacts.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

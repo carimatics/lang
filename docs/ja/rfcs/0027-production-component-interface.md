@@ -188,6 +188,8 @@ IDL v1、LCMP schema 3、LCVL v1、component C ABI v1、source-program schema、
 
 serialized task/component 公開前に、I07 で次 LANGBC revision、全 task/channel/service/component 型と operation、source span、cleanup/claim/effect proof、厳密 tag、budget、互換 fixture の follow-up を受理する必要があります。I08 は private native task/component record、native-package metadata/startup/SDK 対応、両 host の installed link を別に改訂します。これらの必須 M3 delivery を source load/メモリ内 object の陰に隠しません。I06 が先に nominal resource/component-call の source/MIR proof と旧 profile 拒否を実装し、実 adapter/grant/callback は R/P/E に残します。新公開 source 宣言/diagnostic も受理前に対応する日英 decision を更新します。未対応 mode は provider/guest 副作用や output 公開前に拒否します。
 
+I10 で受理した [RFC 0028](0028-task-component-artifacts.md)（2026-10-24）は、この LANGBC schema 5 の field/tag・完全 document/map・独立 proof・累積 budget・互換 vector の follow-up を満たします。I11 が最初の保存 task 実行、I07 が全 profile 実装を担当し、決定の受理だけで実行対応を主張しません。
+
 ### Component C ABI v1 reference
 
 完全な規範 surface は [component-abi-v1.h](../../component-abi-v1.h)、[layout vector](../../component-abi-v1-layouts.json) は各 tier-1 target の独立した期待 size/alignment・全139 field offset・38 signature fingerprint を記録します。参照物は引き続き decision artifact であり library 実装ではありません。I04 は同じ surface と完全 fingerprint を導出し、独立 reference packer は規範 header と target compiler layout を読み取ります。concrete struct は厳密 size/version と reserved-zero を要求し、view は規定の固定 layout leaf です。C padding ではなく named field だけを読み書きします。API table は両 target とも280 bytesで、全32 entry は non-null、利用できない mode は unsupported-profile を返します。C11/C++20 の target compile は header/layout 互換だけを証明し、Windows の runtime conformance ではありません。

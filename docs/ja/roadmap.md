@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **46 done · 1 doing · 15 todo · 46 remaining pt**です。R03 の `0e7b8ae` は **source 回帰55件**、**runtime 単体151件**、入力固定の **141スイート / 2,144 passed** baseline が成功しました（**2026-10-24 06:12 JST** 検証）。元/新規 native 所有結果、rich caller staging、loan 失効、未返却/未公開 owner の退役を両 source engine で実行します。**3 pt**を消化し、**追加/再見積もりは0 pt**、残り **49 + 0 − 3 = 46 pt**、台帳 **110 + 61 − 125 = 46**です。**消化3 pt・新規追加0 pt**を分けて報告します。次は **I07**のみを選択し、最小 task artifact fixture は受理済み serialized task format がないため公開前に拒否しました。互換性の決定を受理し、有限 encode/decode・独立検証・旧 vector・実 VM/native artifact 実行に対する queued **3 pt**を実装前に再監査します。G01/G02 は **10/96 gate weight、2/15 gate**のままです。全ての後続/P1 要件と最終 guide は必須です。2026-10-24 JST 更新。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **46 done · 1 doing · 17 todo · 51 remaining pt**です。R03 の `0e7b8ae` は source 回帰55件・runtime 単体151件・141スイート / 2,144 passed の入力固定 baseline が成功しました（2026-10-24 06:12 JST）。I07 の format 決定・MIR codec・component metadata・CLI/実行統合の具体的残件を監査し、**I10（2 pt）**と **I11（3 pt）**を実装前に公開しました。doing は I10 のみ、続く I11 は保存 task MIR の実 VM/native fixture を必須とします。I07 は全 profile 統合の **3 pt**を維持します。**消化0 pt・新規追加5 pt**、残り **46 + 5 − 0 = 51 pt**、台帳 **110 + 66 − 125 = 51**です。G01/G02 は **10/96 gate weight、2/15 gate**のまま、後続/P1・両 host 証拠・最終 guide は全て必須です。2026-10-24 JST 更新。
 
 ## 進行中 milestone の実行
 

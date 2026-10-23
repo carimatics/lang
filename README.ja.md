@@ -98,6 +98,7 @@ Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_
 
 - [RFC 0026: Source isolated service（accepted）](docs/ja/rfcs/0026-source-isolated-services.md)
 - [RFC 0027: Production component IDL・wire・embedding profile（accepted）](docs/ja/rfcs/0027-production-component-interface.md)
+- [RFC 0028: Task と component MIR の直列化（accepted）](docs/ja/rfcs/0028-task-component-artifacts.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
