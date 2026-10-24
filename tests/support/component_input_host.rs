@@ -23,6 +23,12 @@ operation!(probe_engine_create,engine_create,(c:*const ffi::Config,o:*mut *mut f
 operation!(probe_engine_destroy,engine_destroy,(v:*mut ffi::Engine,e:*mut ffi::Error)->u32);
 operation!(probe_module_load,module_load,(v:*mut ffi::Engine,f:u32,p:ffi::Bytes,c:ffi::Bytes,o:*mut *mut ffi::Module,e:*mut ffi::Error)->u32);
 operation!(probe_module_drop,module_drop,(v:*mut ffi::Module,e:*mut ffi::Error)->u32);
+operation!(probe_provider_register,provider_register,(v:*mut ffi::Engine,c:*const ffi::ProviderConfig,o:*mut *mut ffi::Provider,e:*mut ffi::Error)->u32);
+operation!(probe_provider_drop,provider_drop,(v:*mut ffi::Provider,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
+operation!(probe_context_check,context_check,(c:*const ffi::Context,e:*mut ffi::Error)->u32);
+operation!(probe_context_buffer_create,context_buffer_create,(c:*const ffi::Context,n:u64,a:u64,o:*mut *mut ffi::Buffer,e:*mut ffi::Error)->u32);
+operation!(probe_context_buffer_drop,context_buffer_drop,(c:*const ffi::Context,b:*mut ffi::Buffer,e:*mut ffi::Error)->u32);
+operation!(probe_buffer_mut_bytes,buffer_mut_bytes,(c:*const ffi::Context,b:*mut ffi::Buffer,o:*mut ffi::MutBytes,e:*mut ffi::Error)->u32);
 operation!(probe_instance_create,instance_create,(v:*mut ffi::Module,c:*const ffi::InstanceConfig,o:*mut *mut ffi::Instance,e:*mut ffi::Error)->u32);
 operation!(probe_instance_close,instance_close,(v:*mut ffi::Instance,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
 operation!(probe_bind_export,bind_export,(v:*mut ffi::Instance,p:ffi::Bytes,o:*mut *mut ffi::Binding,e:*mut ffi::Error)->u32);

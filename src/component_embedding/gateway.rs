@@ -1,12 +1,13 @@
 //! Component C operation implementations. No API query/table is published yet.
 mod admission;
+mod registration;
 use super::{Limits as ModuleLimits, Module, ffi, load};
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component};
 use lang_mir::unit as m;
 use lang_runtime::{
     allocation as a,
     component::{
-        CapabilityGrants, execution, grants, program,
+        CapabilityGrants, execution, grants, native, program,
         serialization::{DigestAlgorithm, VersionedDigest},
         storage, wire,
     },
@@ -32,6 +33,8 @@ struct Data {
     allocator: a::Allocator<ForeignProvider<'static>>,
     values: storage::Resources<'static>,
     limits: ModuleLimits,
+    inventory: Vec<native::Provider<'static>>,
+    registrations: Vec<Rc<Registered>>,
 }
 struct Metadata {
     magic: u64,
@@ -45,6 +48,22 @@ struct Loaded {
     module: Rc<Module>,
     digest: [u8; 32],
 }
+struct Registered {
+    provider: Option<native::Provider<'static>>,
+    bindings: Cell<usize>,
+}
+struct ImportLease(Rc<Registered>);
+impl Drop for ImportLease {
+    fn drop(&mut self) {
+        let count = self.0.bindings.get();
+        debug_assert!(count > 0);
+        self.0.bindings.set(count - 1);
+    }
+}
+struct ProviderHandle {
+    engine: NonNull<Metadata>,
+    registration: Rc<Registered>,
+}
 struct InstanceData {
     engine: NonNull<Metadata>,
     module: Rc<Module>,
@@ -52,6 +71,9 @@ struct InstanceData {
     closed: Cell<bool>,
     ceiling: ffi::Limits,
     digest: [u8; 32],
+    grants: Vec<registration::Grant>,
+    providers: Vec<native::Provider<'static>>,
+    leases: RefCell<Vec<ImportLease>>,
 }
 struct InstanceHandle(Rc<InstanceData>);
 struct Binding {
@@ -198,6 +220,28 @@ fn project_failure(
     let bytes = wire::encode_report(&report, &mut session).ok()?;
     Some((report, bytes))
 }
+macro_rules! checked_context_operation {
+    ($name:ident, $target:ident, ($($argument:ident: $kind:ty),* $(,)?) ) => {
+        /// # Safety
+        /// Context, outputs and initialized error storage obey the exact native
+        /// callback contract and remain valid for this complete operation.
+        pub unsafe extern "C" fn $name($($argument: $kind,)* error: *mut ffi::Error) -> u32 {
+            // SAFETY: the caller retains the initialized native error object.
+            if !unsafe { error_ready(error) } { return INVALID; }
+            // SAFETY: the original bridge validates header/thread/invocation/
+            // scope/control before restoring any borrowed native capability.
+            unsafe { component::$target($($argument),*) }
+        }
+    };
+}
+checked_context_operation!(context_check, context_check, (context: *const ffi::Context));
+checked_context_operation!(context_buffer_create, context_buffer_create,
+    (context: *const ffi::Context, length: u64, alignment: u64, output: *mut *mut ffi::Buffer));
+checked_context_operation!(context_buffer_drop, context_buffer_drop,
+    (context: *const ffi::Context, buffer: *mut ffi::Buffer));
+checked_context_operation!(buffer_mut_bytes, buffer_mut_bytes,
+    (context: *const ffi::Context, buffer: *mut ffi::Buffer, output: *mut ffi::MutBytes));
+
 struct Active<'a>(&'a Cell<bool>);
 impl Drop for Active<'_> {
     fn drop(&mut self) {
@@ -371,12 +415,20 @@ fn prepare(config: ffi::Config) -> Result<Box<Data>, u32> {
     limits.metadata.bytes = limits.input_bytes;
     limits.metadata.serialization_bytes = size(config.ceiling.serialization_bytes)?;
     limits.metadata.depth = size(config.ceiling.depth)?;
+    limits.metadata.work = limits.metadata.work.min(budget_limits.work);
+    limits.metadata.allocation_bytes = limits
+        .metadata
+        .allocation_bytes
+        .min(budget_limits.allocations);
+    limits.metadata.elements = limits.metadata.elements.min(budget_limits.elements);
     Ok(Box::new(Data {
         config,
         bridge,
         allocator,
         values,
         limits,
+        inventory: Vec::new(),
+        registrations: Vec::new(),
     }))
 }
 
@@ -565,6 +617,152 @@ pub unsafe extern "C" fn module_load(
 }
 
 /// # Safety
+/// Exact live engine and initialized configuration/output/error storage are
+/// retained through return. Native descriptor arrays/views are readable, and
+/// owner/code/user storage satisfies registration::prepare's lifetime contract.
+pub unsafe extern "C" fn provider_register(
+    engine: *mut ffi::Engine,
+    config: *const ffi::ProviderConfig,
+    output: *mut *mut ffi::Provider,
+    error: *mut ffi::Error,
+) -> u32 {
+    // SAFETY: caller retains these initialized descriptor and output objects.
+    if output.is_null() || !unsafe { error_ready(error) } || !unsafe { header(config) } {
+        return INVALID;
+    }
+    // SAFETY: the engine is this gateway's exact live owner-thread handle.
+    let identity = match unsafe { metadata(engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    // SAFETY: live engine metadata is retained until successful destruction.
+    let owner = unsafe { identity.as_ref() };
+    if owner.active.get() {
+        return BUSY;
+    }
+    let Some(next_handles) = owner.handles.get().checked_add(1) else {
+        return OOM;
+    };
+    // SAFETY: no active root or callback borrows this original execution data.
+    let data = unsafe { &mut *owner.data.as_ptr() };
+    // SAFETY: the caller supplies the initialized complete checked C record.
+    let config = unsafe { config.read() };
+    let prepared = (|| {
+        let mut session = wire::Session::new(data.limits.metadata);
+        let count = data.inventory.len().checked_add(1).ok_or(OOM)?;
+        session.count(count, 0).map_err(|_| INVALID)?;
+        let mut inventory = session.vector(count, 0).map_err(|_| INVALID)?;
+        let mut registrations = session.vector(count, 0).map_err(|_| INVALID)?;
+        for provider in &data.inventory {
+            session.charge(1, 0).map_err(|_| INVALID)?;
+            inventory.push(provider.clone());
+        }
+        for registration in &data.registrations {
+            session.charge(1, 0).map_err(|_| INVALID)?;
+            registrations.push(registration.clone());
+        }
+        session
+            .retained::<ProviderHandle>(1, 0)
+            .map_err(|_| INVALID)?;
+        let mut registration = session
+            .shared(
+                || Registered {
+                    provider: None,
+                    bindings: Cell::new(0),
+                },
+                0,
+            )
+            .map_err(|_| INVALID)?;
+        // SAFETY: all descriptor/code/user lifetimes are the caller contract;
+        // every fallible publication allocation/counter was admitted above.
+        let provider = unsafe { registration::prepare(&config, &mut session) }?;
+        Rc::get_mut(&mut registration)
+            .expect("unpublished unique registration")
+            .provider = Some(provider.clone());
+        inventory.push(provider);
+        registrations.push(registration.clone());
+        let handle = Box::new(ProviderHandle {
+            engine: identity,
+            registration,
+        });
+        Ok::<_, u32>((inventory, registrations, handle))
+    })();
+    let (inventory, registrations, handle) = match prepared {
+        Ok(value) => value,
+        Err(status) => {
+            let diagnostic = admission::Failure::new(wire::Diagnostic::InvalidMetadata);
+            // SAFETY: a refusal replaces only the initialized error object.
+            unsafe { error.write(diagnostic.error) };
+            return status;
+        }
+    };
+    data.inventory = inventory;
+    data.registrations = registrations;
+    owner.handles.set(next_handles);
+    // SAFETY: transfer is complete; publish exactly this retained handle last.
+    unsafe { output.write(Box::into_raw(handle).cast()) };
+    OK
+}
+
+/// # Safety
+/// Exact live provider and initialized result/error slots remain valid. The
+/// provider must not be used after an admitted successful close.
+pub unsafe extern "C" fn provider_drop(
+    provider: *mut ffi::Provider,
+    output: *mut *mut ffi::Result,
+    error: *mut ffi::Error,
+) -> u32 {
+    // SAFETY: caller retains initialized readable error and writable output.
+    if provider.is_null() || output.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: the caller supplies this gateway's exact live provider handle.
+    let handle = unsafe { &*provider.cast::<ProviderHandle>() };
+    // SAFETY: the dependent handle keeps its engine metadata alive.
+    let owner = match unsafe { owner(&handle.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if owner.active.get() || handle.registration.bindings.get() != 0 {
+        return BUSY;
+    }
+    let Some(next_handles) = owner.handles.get().checked_sub(1) else {
+        return INVALID;
+    };
+    // SAFETY: owner-thread close has no active mutable execution borrow.
+    let data = unsafe { &mut *owner.data.as_ptr() };
+    let Some(index) = data
+        .registrations
+        .iter()
+        .position(|r| Rc::ptr_eq(r, &handle.registration))
+    else {
+        return INVALID;
+    };
+    let Some(original) = handle.registration.provider.as_ref() else {
+        return INVALID;
+    };
+    if !data
+        .inventory
+        .get(index)
+        .is_some_and(|p| p.same_registration(original))
+    {
+        return INVALID;
+    }
+    // No persistent holder is created by the current registered-call profile.
+    // Future keep/take retirement must run before these exact leases unlink.
+    data.inventory.remove(index);
+    data.registrations.remove(index);
+    owner.handles.set(next_handles);
+    // SAFETY: this consumes the exact unique public handle after unlink; any
+    // resource/report lease retains the original code owner independently.
+    unsafe {
+        drop(Box::from_raw(provider.cast::<ProviderHandle>()));
+        output.write(ptr::null_mut());
+    }
+    OK
+}
+
+/// # Safety
 /// All handles/descriptors/output slots are initialized valid C objects from
 /// this gateway, retained for this owner-thread operation.
 pub unsafe extern "C" fn instance_create(
@@ -573,6 +771,7 @@ pub unsafe extern "C" fn instance_create(
     output: *mut *mut ffi::Instance,
     error: *mut ffi::Error,
 ) -> u32 {
+    // SAFETY: initialized descriptors and writable slots outlive this operation.
     if module.is_null()
         || output.is_null()
         || !unsafe { error_ready(error) }
@@ -580,8 +779,9 @@ pub unsafe extern "C" fn instance_create(
     {
         return INVALID;
     }
-    // SAFETY: caller supplies the exact live module and complete descriptor.
+    // SAFETY: exact live module and complete initialized configuration.
     let (module, config) = unsafe { (&*module.cast::<Loaded>(), config.read()) };
+    // SAFETY: module retains its original engine metadata.
     let owner = match unsafe { owner(&module.engine) } {
         Ok(v) => v,
         Err(s) => return s,
@@ -589,39 +789,88 @@ pub unsafe extern "C" fn instance_create(
     if owner.active.get() {
         return BUSY;
     }
+    // SAFETY: the nested local descriptor is a complete initialized object.
     if !unsafe { header(ptr::from_ref(&config.ceiling)) }
         || config.ceiling.reserved != [0; 2]
         || config.reserved != [0; 2]
     {
         return INVALID;
     }
-    // Native registry/grant connection remains a separate unfinished path;
-    // this prototype must refuse it before publishing any instance.
-    if config.grant_count != 0 || !module.module.unit().imports().is_empty() {
-        return INVALID;
-    }
-    // SAFETY: no active operation borrows mutable execution storage.
-    let data = unsafe { &mut *owner.data.as_ptr() };
-    let mut session = wire::Session::new(data.limits.metadata);
-    let providers = [];
-    if grants::prepare(
-        module.module.unit(),
-        module.module.contract(),
-        &[],
-        || &providers,
-        &mut session,
-    )
-    .is_err()
-    {
-        return INVALID;
-    }
-    let state = match execution::InstanceState::prepare(&mut data.values) {
-        Ok(v) => v,
-        Err(_) => return INVALID,
-    };
-    if retain(owner).is_err() {
+    let Some(next_handles) = owner.handles.get().checked_add(1) else {
         return OOM;
-    }
+    };
+    // SAFETY: no active root borrows owner-thread execution data.
+    let data = unsafe { &mut *owner.data.as_ptr() };
+    let prepared = (|| {
+        let mut session = wire::Session::new(data.limits.metadata);
+        // SAFETY: native caller retains all initialized grant views and bytes.
+        let grants =
+            unsafe { registration::grants(config.grants, config.grant_count, &mut session) }?;
+        let mut views = session.vector(grants.len(), 0).map_err(|_| INVALID)?;
+        for grant in &grants {
+            views.push(grant.view());
+        }
+        let bound = grants::prepare(
+            module.module.unit(),
+            module.module.contract(),
+            &views,
+            || &data.inventory,
+            &mut session,
+        )
+        .map_err(|_| INVALID)?;
+        let mut providers = session
+            .vector(bound.imports().len(), 0)
+            .map_err(|_| INVALID)?;
+        let mut registrations: Vec<Rc<Registered>> = session
+            .vector(bound.imports().len(), 0)
+            .map_err(|_| INVALID)?;
+        for import in bound.imports() {
+            let selected = import.provider();
+            session
+                .charge(data.registrations.len(), 0)
+                .map_err(|_| INVALID)?;
+            let registration = data
+                .registrations
+                .iter()
+                .find(|r| {
+                    r.provider
+                        .as_ref()
+                        .is_some_and(|p| p.same_registration(selected))
+                })
+                .ok_or(INVALID)?;
+            session
+                .charge(registrations.len(), 0)
+                .map_err(|_| INVALID)?;
+            if registrations.iter().any(|r| Rc::ptr_eq(r, registration)) {
+                continue;
+            }
+            let retained = selected.clone().into_owned().map_err(|_| INVALID)?;
+            registration.bindings.get().checked_add(1).ok_or(OOM)?;
+            providers.push(retained);
+            registrations.push(registration.clone());
+        }
+        session
+            .retained::<InstanceData>(1, 0)
+            .map_err(|_| INVALID)?;
+        session.retained::<usize>(2, 0).map_err(|_| INVALID)?;
+        session
+            .retained::<InstanceHandle>(1, 0)
+            .map_err(|_| INVALID)?;
+        let mut leases = session
+            .vector(registrations.len(), 0)
+            .map_err(|_| INVALID)?;
+        // Every fallible step precedes fresh holder and lease acquisition.
+        let state = execution::InstanceState::prepare(&mut data.values).map_err(|_| INVALID)?;
+        for registration in registrations {
+            registration.bindings.set(registration.bindings.get() + 1);
+            leases.push(ImportLease(registration));
+        }
+        Ok::<_, u32>((grants, providers, leases, state))
+    })();
+    let (grants, providers, leases, state) = match prepared {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
     let instance = Box::new(InstanceHandle(Rc::new(InstanceData {
         engine: module.engine,
         module: module.module.clone(),
@@ -629,12 +878,15 @@ pub unsafe extern "C" fn instance_create(
         closed: Cell::new(false),
         ceiling: bounds(data.config.ceiling, config.ceiling),
         digest: module.digest,
+        grants,
+        providers,
+        leases: RefCell::new(leases),
     })));
-    // SAFETY: complete preparation succeeded; publish the opaque instance last.
+    owner.handles.set(next_handles);
+    // SAFETY: publish only after the complete checked transaction succeeds.
     unsafe { output.write(Box::into_raw(instance).cast()) };
     OK
 }
-
 /// # Safety
 /// Instance, projection and initialized output/error slots remain live for the
 /// operation. Projection bytes contain no callable or resource authority.
@@ -859,6 +1111,7 @@ pub unsafe extern "C" fn instance_close(
         return BUSY;
     }
     value.closed.set(true);
+    value.leases.borrow_mut().clear();
     if release(owner).is_err() {
         return INVALID;
     }
@@ -923,12 +1176,17 @@ pub unsafe extern "C" fn call(
             .and_service_work(Some(ceiling.service_work))
             .and_interruption(&control.flag);
         let mut session = wire::Session::new(data.limits.metadata);
-        let providers = [];
+        let mut views = session
+            .vector(binding.instance.grants.len(), 0)
+            .map_err(|_| INVALID)?;
+        for grant in &binding.instance.grants {
+            views.push(grant.view());
+        }
         let bound = grants::prepare(
             binding.instance.module.unit(),
             binding.instance.module.contract(),
-            &[],
-            || &providers,
+            &views,
+            || &binding.instance.providers,
             &mut session,
         )
         .map_err(|_| INVALID)?;

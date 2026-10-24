@@ -281,7 +281,8 @@ impl Session {
             kind: ErrorKind::Budget(error.kind),
         }
     }
-    pub(super) fn charge(&mut self, n: usize, at: usize) -> Result<(), Error> {
+    /// Charge cumulative preparation work; a refused operation does not refund it.
+    pub fn charge(&mut self, n: usize, at: usize) -> Result<(), Error> {
         self.budget.charge(n).map_err(|e| Self::budget_error(at, e))
     }
     fn cap(&self, n: usize, max: usize, kind: LimitKind, at: usize) -> Result<(), Error> {
@@ -310,7 +311,8 @@ impl Session {
             kind: ErrorKind::Budget(m::ErrorKind::ArithmeticOverflow),
         })
     }
-    pub(super) fn count(&mut self, n: usize, at: usize) -> Result<(), Error> {
+    /// Admit cumulative canonical elements before traversing a native array.
+    pub fn count(&mut self, n: usize, at: usize) -> Result<(), Error> {
         let total = Self::add(self.elements, n, at)?;
         self.cap(total, self.limits.elements, LimitKind::Elements, at)?;
         self.charge(n, at)?;
@@ -328,12 +330,14 @@ impl Session {
         self.serialized = total;
         Ok(())
     }
-    pub(super) fn retained<T>(&mut self, n: usize, at: usize) -> Result<(), Error> {
+    /// Admit retained metadata storage before its allocation or ownership transfer.
+    pub fn retained<T>(&mut self, n: usize, at: usize) -> Result<(), Error> {
         self.budget
             .allocate::<T>(n)
             .map_err(|e| Self::budget_error(at, e))
     }
-    pub(super) fn shared<T>(
+    /// Admit payload/reference-count storage before invoking the owner factory.
+    pub fn shared<T>(
         &mut self,
         value: impl FnOnce() -> T,
         at: usize,
@@ -344,7 +348,8 @@ impl Session {
         self.retained::<usize>(2, at)?;
         Ok(std::rc::Rc::new(value()))
     }
-    pub(super) fn vector<T>(&mut self, n: usize, at: usize) -> Result<Vec<T>, Error> {
+    /// Admit and reserve a bounded metadata vector before populating it.
+    pub fn vector<T>(&mut self, n: usize, at: usize) -> Result<Vec<T>, Error> {
         self.budget.vector(n).map_err(|e| Self::budget_error(at, e))
     }
     pub(super) fn push<T>(&mut self, v: &mut Vec<T>, value: T, at: usize) -> Result<(), Error> {

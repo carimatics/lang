@@ -446,6 +446,86 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
     let mut unsupported_artifact = bytes.clone();
     unsupported_artifact[8..10].copy_from_slice(&255_u16.to_le_bytes());
     let unsupported_artifact_digest = <sha2::Sha256 as sha2::Digest>::digest(&unsupported_artifact);
+    let host_idl = br#"{
+      "idl":1,"package":"demo:host","version":"1.0.0",
+      "interfaces":[{"key":"demo:host/api","resources":[],"types":[],
+        "functions":[{"name":"add","effect":"sync","params":[{"name":"value","type":"i64"}],"result":"i64","capability":"host.add"}]}],
+      "imports":[],"exports":["demo:host/api"]
+    }"#;
+    let host_document = idl::check(m::SourceId(0), host_idl, Default::default()).unwrap();
+    let mut host_session = wire::Session::new(Default::default());
+    let host_contract = wire::Contract::new(host_document, vec![], &mut host_session).unwrap();
+    let native_contract = wire::encode_contract(&host_contract, &mut host_session).unwrap();
+    let native_signature = wire::Signature::new(
+        &host_contract,
+        &host_contract.document().interfaces[0].key.value,
+        "add",
+        &mut host_session,
+    )
+    .unwrap()
+    .digest();
+    let host_generated = g::c::generate(&host_contract, target, Default::default()).unwrap();
+    let host_function = &host_generated.functions[0];
+    let mut host_json: serde_json::Value = serde_json::from_slice(host_idl).unwrap();
+    let mut script_json: serde_json::Value = serde_json::from_slice(IDL).unwrap();
+    script_json["interfaces"]
+        .as_array_mut()
+        .unwrap()
+        .push(host_json["interfaces"][0].clone());
+    script_json["imports"] = serde_json::json!([{"interface":"demo:host/api","version":{"exact":"1.0.0"},"members":["add"]}]);
+    let native_idl = serde_json::to_vec(&script_json).unwrap();
+    let document = idl::check(m::SourceId(1), &native_idl, Default::default()).unwrap();
+    let generated = g::guest(&document, Default::default()).unwrap();
+    let native_source = format!(
+        "{}\n{} {{return {}(p0);}}",
+        generated.declarations,
+        generated.exports[0].declaration,
+        generated.bindings.imports[0].source
+    );
+    let analysis = f::analyze(f::Request {
+        sources: SourceMap::new(),
+        display: Path::new("component-source.lang"),
+        bytes: native_source.as_bytes(),
+        root: None,
+        compile: Default::default(),
+        document,
+        bindings: generated.bindings,
+        limits: Default::default(),
+    });
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:?}",
+        analysis.diagnostics
+    );
+    let native_artifact = lang::artifact::component::encode(
+        analysis.result.unwrap(),
+        m::Source {
+            path: "component-idl.json".into(),
+            text: std::str::from_utf8(&native_idl).unwrap().into(),
+        },
+        None,
+        Default::default(),
+    )
+    .unwrap();
+    host_json["package"] = serde_json::json!("demo:grant");
+    host_json["exports"] = serde_json::json!([]);
+    host_json["imports"] = script_json["imports"].clone();
+    let grant_json = serde_json::to_vec(&host_json).unwrap();
+    let grant = wire::Contract::new(
+        idl::check(m::SourceId(2), &grant_json, Default::default()).unwrap(),
+        vec![],
+        &mut host_session,
+    )
+    .unwrap();
+    let native_grant = wire::encode_contract(&grant, &mut host_session).unwrap();
+    let registry_host = include_str!("support/component_registry_host.c")
+        .replace("@HOST_ARGUMENTS@", &host_function.arguments)
+        .replace("@HOST_RESULT@", &host_function.result)
+        .replace("@HOST_NAME@", &host_function.name)
+        .replace("@ROOT_ARGUMENTS@", &function.arguments)
+        .replace("@ROOT_RESULT@", &function.result)
+        .replace("@ROOT_NAME@", &function.name);
+    let native_header = host_generated.header;
     let declarations = array("source", source.as_bytes())
         + &array("idl", IDL)
         + &array("artifact", &bytes)
@@ -455,11 +535,19 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         + &array("invalid_digest", &invalid_digest)
         + &array("invalid_utf8_digest", &invalid_utf8_digest)
         + &array("unsupported_artifact", &unsupported_artifact)
-        + &array("unsupported_artifact_digest", &unsupported_artifact_digest);
+        + &array("unsupported_artifact_digest", &unsupported_artifact_digest)
+        + &array("native_contract", &native_contract)
+        + &array("native_signature", &native_signature)
+        + &array("native_key", b"demo:host/api.add")
+        + &array("native_idl", &native_idl)
+        + &array("native_source", native_source.as_bytes())
+        + &array("native_artifact", &native_artifact)
+        + &array("native_grant", &native_grant);
     let c = format!(
         r#"
 #define _POSIX_C_SOURCE 200112L
 {header}
+{native_header}
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -488,6 +576,13 @@ extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_compone
 extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);
 extern uint32_t probe_result_drop(lang_component_v1_result *,lang_component_v1_error *);
 extern uint32_t probe_report(lang_component_v1_bytes,uint32_t,uint32_t);
+extern uint32_t probe_provider_register(lang_component_v1_engine *,const lang_component_v1_provider_config *,lang_component_v1_provider **,lang_component_v1_error *);
+extern uint32_t probe_provider_drop(lang_component_v1_provider *,lang_component_v1_result **,lang_component_v1_error *);
+extern uint32_t probe_context_check(const lang_component_v1_context *,lang_component_v1_error *);
+extern uint32_t probe_context_buffer_create(const lang_component_v1_context *,uint64_t,uint64_t,lang_component_v1_buffer **,lang_component_v1_error *);
+extern uint32_t probe_context_buffer_drop(const lang_component_v1_context *,lang_component_v1_buffer *,lang_component_v1_error *);
+extern uint32_t probe_buffer_mut_bytes(const lang_component_v1_context *,lang_component_v1_buffer *,lang_component_v1_mut_bytes *,lang_component_v1_error *);
+{registry_host}
 static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract) {{
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
     lang_component_v1_instance *instance=NULL;lang_component_v1_binding *binding=NULL;
@@ -697,12 +792,15 @@ uint32_t fixture(void) {{
                 lang_component_v1_api api={{0}};
                 api.engine_create=probe_engine_create;api.engine_destroy=probe_engine_destroy;
                 api.module_load=probe_module_load;api.module_drop=probe_module_drop;
+                api.provider_register=probe_provider_register;api.provider_drop=probe_provider_drop;
+                api.context_check=probe_context_check;api.context_buffer_create=probe_context_buffer_create;
+                api.context_buffer_drop=probe_context_buffer_drop;api.buffer_mut_bytes=probe_buffer_mut_bytes;
                 api.instance_create=probe_instance_create;api.instance_close=probe_instance_close;
                 api.bind_export=probe_bind_export;api.binding_drop=probe_binding_drop;
                 api.control_create=probe_control_create;api.control_drop=probe_control_drop;api.interrupt=probe_interrupt;
                 api.call=probe_api_call;api.result_info=probe_result_info;api.result_usage=probe_result_usage;
                 api.result_bytes=probe_result_bytes;api.result_drop=probe_result_drop;
-                for(mode=0;mode<2;++mode){{config.mode=mode;bound_case(&api,&config,format,program,metadata);}}
+                for(mode=0;mode<2;++mode){{config.mode=mode;bound_case(&api,&config,format,program,metadata);registry_case(&api,&config,format);}}
             }}
         }}
         module=probe_load(format,code,code_length,contract,idl_length,allocator);assert(module);

@@ -217,7 +217,9 @@ impl<'a> Provider<'a> {
             Registration::Owned(data) => &data.resources,
         }
     }
-    fn same_registration(&self, other: &Provider<'_>) -> bool {
+    /// Compare the original immutable lease identity, without granting access
+    /// or equating separately registered implementations of the same keys.
+    pub fn same_registration(&self, other: &Provider<'_>) -> bool {
         match (&self.data, &other.data) {
             (Registration::Borrowed(a), Registration::Borrowed(b)) => {
                 std::ptr::eq(Rc::as_ptr(a).cast::<()>(), Rc::as_ptr(b).cast::<()>())
