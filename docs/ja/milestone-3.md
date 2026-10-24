@@ -6,13 +6,15 @@
 
 更新日: **2026-10-25 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**54 done · 1 doing · 14 todo · 43 remaining pt**
+**54 done · 1 doing · 15 todo · 45 remaining pt**
 
-**次: M3-E02 → 元invocationで検証済みnative host → 同期guest child呼び出しを実行。**
+**次: M3-E11 → scopedな元allocator viewでsourceを実行し、その後E02のchild entryへ進む。**
 
 R06 実装/検証 checkpoint（**2026-10-24 04:35 JST**、macOS AArch64 検証）: 実 native holder の custody、直接/record/list の所有引数、own/loan 混在 batch、元 backing の変更と一度だけの破棄を含む **source 回帰47件**が VM/生成 native で成功しました。宣言済み error、不正/欠落/foreign 結果、割り込み、destructor 失敗、160通りの fuel 上限と provider 失敗位置で、受入済み owner を保持または退役し、元 allocation を全解放します。消費済み token の receipt は共通の反復 container drain まで届き、直接引数の metadata 拡張も同じ有限 wire Session を使います。破棄も失敗した場合は native failure を primary に維持し、suppressed span と永続 poison を保持します。**runtime 単体151件**も成功しました。入力固定の全 baseline は **141 suites / 2,136 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **728.29 s**、test log の時間幅は test build を含め **2,840.94 s**です。workspace/fuzz fmt、warnings-denied workspace Clippy（**2m 43s**）、rustdoc（**44.90s**）、全 **14 fuzz target** の compile/lint が成功し、campaign は主張しません。**追跡対象790ファイル**の前後 hash が一致しました（`8d3a5b1d8feb3ab0f64627d0a1dbb3889f55e47deb71d6b47463c383af632bfe`）。先の修正前/中断 run は最終証拠ではありません。非公開 import profile は native 所有結果をまだ拒否し、完全 public embedding/reentry・永続 provider 所有権・installed profile・統一 control・両 host runtime 証拠は追跡済み後続作業です。code 証拠は `8914a50` です。
 
-現在の作業: **M3-E02（3 pt）** — VM/JITで実native C hostから同期guest childを呼びます。完全検証済みの最後の実行checkpoint: **`879a534`、2026-10-25 01:02 JST検証**、macOS AArch64。元fuel/host-call/workのscoped source呼び出し間での累積計量と、E08のcaller resource custodyを実行します。残る条件は検証済み動的child entry・元allocator/準備予算とloan/grantの受け渡し・親の生存frame/cell/task計量・外側scope復元です。E03/E04/L04の失敗/poison条件も維持します。counter共有や新しいroot呼び出しだけではこの結果を満たしません。doingはE02だけです。公開C・installed/両host/P1・最終guideも引き続き必須です。
+現在の作業: **M3-E11（2 pt）** — typed source実行のための元allocatorの安全なscoped view。完全検証済みの最後の実行checkpoint: **`879a534`、2026-10-25 01:02 JST検証**、macOS AArch64。2026-10-25 01:09 JSTのcompiler probeで型消去memoryとtyped entryの不一致を確認しました。残る条件はidentity/table/provider regionを増やさない全操作委譲・元handle/provenance/limit/usageの維持・VM/JIT source/退役の証拠です。doingはE11だけとし、その後E02へ戻ります。後続/P1・両host・最終guideの全条件は未完了です。
+
+E02 allocator受け渡し前提監査（2026-10-25 JST）: 実callbackは元allocatorを`storage::Memory`として受けますが、VM/JITのsource entryは`Allocator<P>`を要求します。compiler probeはその呼び出し箇所でE0308になりました。別allocatorへの置換や、想定した具体型へのraw castは使いません。**E11（2 pt）** として、全操作を元allocatorへ委譲し、identity・handle・request・limit・統計・元provider regionを保つscoped typed viewを明示します。viewはlocator storeやallocationを所有せず、drop時に元ownerをdrainしません。実VM/JIT source実行・入れ子view・grow/copy/swap・foreign/stale/limit/OOM拒否・元backing退役を完了条件にします。E02は検証済み動的child entry・元engine/scope/予算・loan/grant受け渡し・親生存計量として **3 pt** を維持し、E03/E04/L04の失敗・mixed stack・合算control条件も残します。**消化0 pt・新規明示+2 pt（1行）**。行数 **69 → 70**、**54 done · 1 doing · 15 todo · 45 remaining pt**、台帳 **110 + 82 − 147 = 45**。doingはE11だけとし、全gate/P1要件は不変です。
 
 E10 は `879a534` で完了（**2026-10-25 01:02 JST検証**、macOS AArch64）: 明示InvocationAccountingがscoped source呼び出し間で元fuel/host-call counterとServiceWorkを保持します。VM/nativeのstep/import eventが同じcounterへ課金し、成功・entry前失敗の不変usage snapshotが累積履歴を保持します。Control設定の変更はentry前に拒否し、保持counter metadataをholder取得前に計上します。canonical準備workの拒否は新しいSessionでも保持します。**新規accounting回帰4件とscoped-root全13件**が成功し、合算fuel枯渇での元owner退役・host-call拒否でのcaller所有権保持・work上限一致/1不足時の全owner保持または退役・元allocation/code ownerの全解放を検証しました。入力固定の検証は **146 suites / 2,202 passed / 0 failed / 既存timing ignore 1件**、suite時間合計 **709.10秒**、build/待ち込みtest-log区間 **831.54秒**です。workspace/fuzz fmt、警告拒否のworkspace Clippy（**10.27秒**）、rustdoc（**35.31秒**）、全 **15 fuzz target**のcheck（**6.55秒**）/Clippy（**0.42秒**）が成功し、campaignは実行していません。**検証用820入力**（`60d72a9045c3656a50ecc7d60c479c4b83d9f5d0eda3170799ed9e2e91145697`）とmain入力（`524d41f6e75da39434819a9c5bf31af7bf702b4a83ad6f10e58f81a10a899cbd`）の前後hashが一致しました。変更していないWindows benchmark checkoutのCRLF/LF差だけを正規化すると、**非Markdown 720入力**を含む全820入力が一致します。[RFC 0027](rfcs/0027-production-component-interface.md)の判断とarchitecture checkpointは2026-10-25付で、codeに埋込更新日はありません。**E10の最後の2 ptを消化し、追加/再見積りは0 pt**。行数 **69**、**54 done · 1 doing · 14 todo · 43 remaining pt**、台帳 **110 + 80 − 147 = 43**です。doingはE02だけへ戻し、gateは **3/15・18/96 weight**のままです。counter共有はchild/context/allocator/loan権限を与えず、E02・合算生存上限・native失敗/mixed stack統合・公開C・installed/両host/P1・最終guideの完了も意味しません。
 
@@ -239,7 +241,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-E09 | todo | 3 | M3-E08,M3-E03 | G07,G09 | C callbackの永続keep/takeとprovider closeを元owner/destructor・loan/poison/cleanup規則で実行 | — |
 | M3-E01 | todo | 3 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I08 | G09 | 全32操作のC entryを公開し、対応installed modeで生成typed host callを実行 | — |
 | M3-E10 | done | 0 | M3-E08,M3-P02 | G09,G12 | child entry統合前にscoped VM/JIT source呼び出し間で元fuel/host-call/service-workの累積計量を実行 | `879a534` |
-| M3-E02 | doing | 3 | M3-E08,M3-E07,M3-E06,M3-E10 | G09 | script から native host を呼び入れ子 guest callback を受信 | — |
+| M3-E11 | doing | 2 | M3-E08,M3-E10 | G09,G12 | 元handle・limit・統計・provider副作用を保つscoped allocator viewでVM/JIT sourceを実行 | — |
+| M3-E02 | todo | 3 | M3-E08,M3-E07,M3-E06,M3-E10,M3-E11 | G09 | script から native host を呼び入れ子 guest callback を受信 | — |
 | M3-E03 | todo | 3 | M3-E02,M3-R03 | G09 | typed failure、元の context、再入規則、poison を mode 間で維持 | — |
 | M3-E04 | todo | 3 | M3-E03,M3-T07,M3-E09 | G10 | callback を跨いで logical mixed stack、取消、cleanup を維持 | — |
 | M3-E05 | done | 0 | M3-I04,M3-P01,M3-R01 | G07,G09 | canonical transport・実直接 Resource backing 変更・元 allocator/context・scope の完全 cleanup により VM/native source から保持済み native member を実行 | `a13272b` |
@@ -328,7 +331,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 80 − 147 = 43 pt**
+**110 + 82 − 147 = 45 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -376,7 +379,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +80 pt | −147 pt | 43 pt |
+| 110 pt | +82 pt | −147 pt | 45 pt |
 
 ## Exit audit
 
