@@ -145,6 +145,7 @@ pub trait Host {
     fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason>;
     fn read_native_arguments(
         &mut self,
+        budget: &mut m::Budget,
         read: &mut dyn FnMut(&mut wire::Session) -> Result<NativeArguments, Reason>,
     ) -> Result<NativeArguments, Reason>;
     fn invoke_native(
@@ -200,7 +201,12 @@ pub trait Host {
         memory: &mut dyn Memory,
         context: &mut c::Context<'_>,
     ) -> Result<(), u32>;
-    fn prepare_result(&mut self, value: Value, memory: &dyn Memory) -> Result<Value, Reason>;
+    fn prepare_result(
+        &mut self,
+        value: Value,
+        memory: &dyn Memory,
+        budget: &mut m::Budget,
+    ) -> Result<Value, Reason>;
     fn commit_result(&mut self, memory: &mut dyn Memory) -> Result<(), Reason>;
     fn arguments_committed(&self) -> bool;
 }
@@ -614,13 +620,15 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
     }
     fn read_native_arguments(
         &mut self,
+        budget: &mut m::Budget,
         read: &mut dyn FnMut(&mut wire::Session) -> Result<NativeArguments, Reason>,
     ) -> Result<NativeArguments, Reason> {
-        read(
-            self.output_session
-                .as_deref_mut()
-                .ok_or(Reason::Unsupported)?,
-        )
+        let session = self
+            .output_session
+            .as_deref_mut()
+            .ok_or(Reason::Unsupported)?;
+        let mut preparation = session.scope_preparation(budget).map_err(Reason::from)?;
+        read(&mut preparation)
     }
     fn invoke_native(
         &mut self,
@@ -652,18 +660,20 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             let document = bindings.contract().document();
             let interface = &document.interfaces[function.interface];
             let member = &interface.functions[function.member];
+            let mut preparation = session.scope_preparation(budget).map_err(Reason::from)?;
+            let prepared_session = &mut *preparation;
             let signature = wire::Signature::new(
                 bindings.contract(),
                 &interface.key.value,
                 &member.name.value,
-                session,
+                prepared_session,
             )
             .map_err(Reason::from)?;
             let (bytes, uses) = wire::encode_contextual_values(
                 &signature,
                 wire::FrameKind::Parameters,
                 &arguments.values,
-                session,
+                prepared_session,
             )
             .map_err(Reason::from)?;
             if uses.len() != arguments.resources.len() {
@@ -672,28 +682,46 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             if let Some(namespace) = self.resource_namespace {
                 namespace.check(uses.len() as u64)?;
             }
-            session
+            prepared_session
                 .charge(uses.len().saturating_mul(uses.len()).saturating_mul(9), 0)
                 .map_err(Reason::from)?;
-            let mut loans = session.vector(uses.len(), 0).map_err(Reason::from)?;
+            let mut loans = prepared_session
+                .vector(uses.len(), 0)
+                .map_err(Reason::from)?;
             loans.resize(uses.len(), None);
-            let mut kinds = session.vector(uses.len(), 0).map_err(Reason::from)?;
-            let mut accesses = session.vector(uses.len(), 0).map_err(Reason::from)?;
-            let mut inputs = session.vector(uses.len(), 0).map_err(Reason::from)?;
-            let mut positions = session.vector(uses.len(), 0).map_err(Reason::from)?;
-            let mut seen = session.vector(uses.len(), 0).map_err(Reason::from)?;
+            let mut kinds = prepared_session
+                .vector(uses.len(), 0)
+                .map_err(Reason::from)?;
+            let mut accesses = prepared_session
+                .vector(uses.len(), 0)
+                .map_err(Reason::from)?;
+            let mut inputs = prepared_session
+                .vector(uses.len(), 0)
+                .map_err(Reason::from)?;
+            let mut positions = prepared_session
+                .vector(uses.len(), 0)
+                .map_err(Reason::from)?;
+            let mut seen = prepared_session
+                .vector(uses.len(), 0)
+                .map_err(Reason::from)?;
             let native_capacity = uses
                 .len()
                 .checked_add(self.resources.capacity())
                 .ok_or(Reason::Invariant)?;
-            let mut views = session.vector(native_capacity, 0).map_err(Reason::from)?;
-            let mut accepted = session.vector(native_capacity, 0).map_err(Reason::from)?;
-            arguments.consumed = session.vector(uses.len(), 0).map_err(Reason::from)?;
+            let mut views = prepared_session
+                .vector(native_capacity, 0)
+                .map_err(Reason::from)?;
+            let mut accepted = prepared_session
+                .vector(native_capacity, 0)
+                .map_err(Reason::from)?;
+            arguments.consumed = prepared_session
+                .vector(uses.len(), 0)
+                .map_err(Reason::from)?;
             {
                 arguments.cleanup = Some(c::Session::prepare(
                     std::num::NonZeroUsize::new(native_capacity.saturating_add(1))
                         .ok_or(Reason::Invariant)?,
-                    budget,
+                    prepared_session.preparation_budget(),
                 )?);
             }
             for (position, used) in uses.iter().enumerate() {
@@ -718,7 +746,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 seen.push((argument.claim, access));
                 let kind = target
                     .provider()
-                    .resource_kind(used.key, session)
+                    .resource_kind(used.key, prepared_session)
                     .map_err(|_| Reason::Entry)?;
                 let kind = (self.normalize)(kind)?;
                 if let Some(parent) = argument.parent {
@@ -771,7 +799,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             let native = self.resources.new_holder().map_err(fault)?;
             native_holder = Some(native);
             if !inputs.is_empty() {
-                created = session.vector(inputs.len(), 0).map_err(Reason::from)?;
+                created = prepared_session
+                    .vector(inputs.len(), 0)
+                    .map_err(Reason::from)?;
                 created.resize(inputs.len(), None);
                 let transfer = self
                     .resources
@@ -834,6 +864,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     bytes,
                 });
             }
+            drop(preparation);
             let normalize = self.normalize;
             let kind = |key: &[u8], budget: &mut m::Budget| {
                 let kind = target.provider().resource_kind_bytes(key, budget)?;
@@ -877,6 +908,10 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     return Err(Reason::Native(NativeFailure::MissingResult));
                 }
                 let bytes = context.result(returned.buffer, session)?;
+                let mut preparation = session
+                    .scope_preparation(context.budget)
+                    .map_err(Reason::from)?;
+                let session = &mut *preparation;
                 let (values, resources) = wire::decode_contextual_values(
                     &signature,
                     wire::FrameKind::Result,
@@ -1285,7 +1320,12 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         token.bytes.fill(0);
         self.retire_claim(claim, token.leaf.span, memory, context)
     }
-    fn prepare_result(&mut self, mut value: Value, memory: &dyn Memory) -> Result<Value, Reason> {
+    fn prepare_result(
+        &mut self,
+        mut value: Value,
+        memory: &dyn Memory,
+        budget: &mut m::Budget,
+    ) -> Result<Value, Reason> {
         if self.transfer.is_some() || !self.committed {
             return Err(Reason::Invariant);
         }
@@ -1294,6 +1334,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 .output_session
                 .as_deref_mut()
                 .ok_or(Reason::Invariant)?;
+            let mut preparation = session.scope_preparation(budget).map_err(Reason::from)?;
+            let session = &mut *preparation;
             let mut nodes = session.vector(1, 0).map_err(Reason::from)?;
             let mut roots = session.vector(1, 0).map_err(Reason::from)?;
             let mut resources = session
@@ -1324,6 +1366,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 let mut session_scope = self.output_session.take().ok_or(Reason::Unsupported)?;
                 let session = &mut *session_scope;
                 let staged = (|| -> Result<_, Reason> {
+                    let mut preparation =
+                        session.scope_preparation(budget).map_err(Reason::from)?;
+                    let session = &mut *preparation;
                     let resource_base = self
                         .resource_namespace
                         .map(|n| n.result(frame.resources.len()))

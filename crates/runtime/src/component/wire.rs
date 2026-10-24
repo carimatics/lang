@@ -209,6 +209,11 @@ impl Session {
             service_work: None,
         }
     }
+    /// Internal metadata prepared during the active canonical phase uses the
+    /// same ledger checkpoint as its wire operations.
+    pub(super) fn preparation_budget(&mut self) -> &mut m::Budget {
+        &mut self.budget
+    }
     /// Lend the original preparation ledger while retaining this Session's
     /// cumulative allowance. Charges survive every exit, including unwind.
     pub fn scope_preparation<'s>(

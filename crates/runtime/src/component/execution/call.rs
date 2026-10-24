@@ -210,6 +210,10 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             .allocation
             .ok_or(Reason::Invariant)?;
         let bytes = self.memory.bytes(allocation).map_err(|e| fault(e.into()))?;
+        let mut preparation = session
+            .scope_preparation(self.budget)
+            .map_err(Reason::from)?;
+        let session = &mut *preparation;
         session.value_bytes(bytes.len(), 0).map_err(Reason::from)?;
         session.value_work(bytes.len(), 0).map_err(Reason::from)?;
         let mut out = session.vector(bytes.len(), 0).map_err(Reason::from)?;

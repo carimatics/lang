@@ -969,9 +969,14 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .component
             .as_deref_mut()
             .ok_or(Reason::Invariant)?;
-        let frame =
-            execution::read_result(&result.value, types, self.allocator, host.result_session()?)?;
-        let value = host.prepare_result(Value::Frame(frame), self.allocator)?;
+        let frame = {
+            let session = host.result_session()?;
+            let mut preparation = session
+                .scope_preparation(self.budget)
+                .map_err(Reason::from)?;
+            execution::read_result(&result.value, types, self.allocator, &mut preparation)?
+        };
+        let value = host.prepare_result(Value::Frame(frame), self.allocator, self.budget)?;
         let mut result = self.records[0].result.take().ok_or(Reason::Invariant)?;
         // Resource leaves stay in the original table's escrow. Builtin data
         // owners are retired after their complete caller representation exists.
@@ -1056,7 +1061,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             )
         };
         let value = if let Some(host) = self.services.component.as_deref_mut() {
-            host.prepare_result(value, self.allocator)?
+            host.prepare_result(value, self.allocator, self.budget)?
         } else {
             value
         };

@@ -39,7 +39,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 .component
                 .as_deref_mut()
                 .ok_or(Reason::Unsupported)?
-                .read_native_arguments(&mut read)?
+                .read_native_arguments(self.budget, &mut read)?
         };
         let parent_live = e::LiveUsage {
             frames: self.live_frames,

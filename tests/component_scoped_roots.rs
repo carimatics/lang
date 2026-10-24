@@ -195,6 +195,8 @@ struct Child {
     wire_attempt: Cell<Option<m::Usage>>,
     wire_work: usize,
     wire_total: Cell<Option<wire::Usage>>,
+    reply_work: Cell<Option<usize>>,
+    reply_before: Cell<Option<m::Usage>>,
     preparation_after: Cell<Option<m::Usage>>,
 }
 impl Child {
@@ -221,6 +223,8 @@ impl Child {
             wire_attempt: Cell::new(None),
             wire_work,
             wire_total: Cell::new(None),
+            reply_work: Cell::new(None),
+            reply_before: Cell::new(None),
             preparation_after: Cell::new(None),
         }
     }
@@ -319,6 +323,39 @@ impl execution::StorageOperation for OriginalBudget<'_> {
         Ok(())
     }
 }
+/// Reserve the original preparation work allowance around the native i64
+/// reply's 53-byte copy, forcing copy/decode refusal at an exact boundary.
+struct ReplyWindow<'a> {
+    target: &'a Child,
+    remaining: usize,
+}
+impl execution::StorageOperation for ReplyWindow<'_> {
+    fn run(
+        &mut self,
+        _: &mut storage::Resources<'_>,
+        _: &mut dyn storage::Memory,
+        budget: &mut m::Budget,
+        _: storage::Holder,
+        _: &e::InvocationAccounting,
+    ) -> Result<(), u32> {
+        assert_eq!(
+            self.target.budget_address.get(),
+            Some(std::ptr::from_mut(&mut *budget) as usize)
+        );
+        let available = budget
+            .limits()
+            .work
+            .checked_sub(budget.work_used())
+            .ok_or(6u32)?;
+        budget
+            .charge(available.checked_sub(self.remaining).ok_or(6u32)?)
+            .map_err(|_| 6u32)?;
+        self.target
+            .reply_before
+            .set(Some(preparation_usage(budget)));
+        Ok(())
+    }
+}
 struct BudgetInvoker<'a> {
     original: &'a mut dyn execution::Invoker,
     target: &'a Child,
@@ -349,7 +386,16 @@ impl execution::Invoker for BudgetInvoker<'_> {
         context: &mut dyn execution::NativeContext,
     ) -> Result<execution::NativeReturn, u32> {
         context.with_storage(&mut OriginalBudget(self.target))?;
-        self.original.invoke(method, parameters, context)
+        let returned = self.original.invoke(method, parameters, context)?;
+        if returned.status == 0
+            && let Some(remaining) = self.target.reply_work.get()
+        {
+            context.with_storage(&mut ReplyWindow {
+                target: self.target,
+                remaining,
+            })?;
+        }
+        Ok(returned)
     }
     fn destroy(
         &mut self,
@@ -2108,5 +2154,73 @@ fn child_grant_session_caps_keep_original_history_and_parent_cleanup() {
             panic!("canonical refusal after metadata");
         };
         assert!(!success && retained < total);
+    }
+}
+
+#[test]
+fn canonical_reply_copy_spends_the_original_child_ledger_before_decode_refusal() {
+    for compiled in [false, true] {
+        for remaining in [0, 52, 53] {
+            let mut h = Harness::new();
+            h.preparation_limits.work = usize::MAX;
+            h.preparation_limits.allocations = usize::MAX;
+            h.preparation_limits.elements = usize::MAX;
+            let child = Rc::new(Child::new(&mut h.values, compiled, 1, usize::MAX));
+            child.reply_work.set(Some(remaining));
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let failure = h
+                .call_control(
+                    registration,
+                    "create",
+                    None,
+                    compiled,
+                    e::Control::with_limits(e::Limits::unbounded()),
+                )
+                .err()
+                .expect("canonical reply/decode work refusal");
+            assert!(matches!(
+                failure.reason,
+                r::Reason::Native(execution::NativeFailure::Status { code: 1, .. })
+            ));
+            let before = child.reply_before.get().unwrap();
+            let after = child.wire_attempt.get().unwrap();
+            let spent = if remaining == 53 { 53 } else { 0 };
+            assert_eq!(before.work, usize::MAX - remaining);
+            assert_eq!(after.work - before.work, spent);
+            assert_eq!(after.work, before.work + spent);
+            if spent == 53 {
+                assert!(after.allocation_bytes >= before.allocation_bytes + 53);
+                assert!(after.elements >= before.elements + 53);
+            } else {
+                assert_eq!(after.allocation_bytes, before.allocation_bytes);
+                assert_eq!(after.elements, before.elements);
+            }
+            assert!(
+                child.preparation_after.get().is_none(),
+                "child fails before the parent publishes a resource"
+            );
+            assert_eq!(child.value.get(), 0);
+            assert_eq!(watch.produced.get(), 0);
+            assert_eq!(watch.destroyed.get(), 0);
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+            assert_eq!(h.engine.check(&child.parent.get().unwrap()), 5);
+            assert_eq!(h.engine.check(&child.nested.get().unwrap()), 5);
+            let (retry, retry_watch) = h.registration(false);
+            let execution::Value::Resource(claim) =
+                h.call(retry, "create", None, compiled).unwrap().value
+            else {
+                panic!("ready parent");
+            };
+            let (cleanup, _) = h.registration(false);
+            h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+            assert_eq!(retry_watch.produced.get(), 1);
+            assert_eq!(retry_watch.destroyed.get(), 1);
+            assert_eq!(retry_watch.released.get(), 1);
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(h.values.is_empty());
+        }
     }
 }
