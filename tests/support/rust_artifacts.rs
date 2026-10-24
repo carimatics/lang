@@ -10,10 +10,11 @@ pub fn library(name: &str) -> PathBuf {
             "build",
             "--locked",
             "--offline",
-            "--bin",
-            "lang",
+            "--lib",
             "--message-format=json",
         ]);
+        // This query needs rlibs only. Rebuilding the CLI here can transiently
+        // unlink CARGO_BIN_EXE_lang while parallel native tests execute it.
         if lang_codegen_clif::sdk::BUILD_PROFILE == "release" {
             cargo.arg("--release");
         }

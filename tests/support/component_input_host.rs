@@ -1,5 +1,5 @@
 //! Private native-host experiment. This exports no component-v1 query/table.
-use lang::component_embedding::{self as embedding, Module, ffi};
+use lang::component_embedding::{self as embedding, Module, ffi, gateway};
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component, tasks};
 use lang_mir::unit as m;
 use lang_runtime::{
@@ -8,6 +8,33 @@ use lang_runtime::{
     execution as e,
 };
 use std::{ffi::c_void, ptr};
+
+macro_rules! operation {
+    ($name:ident,$target:ident,($($arg:ident:$ty:ty),*$(,)?)->$out:ty) => {
+        #[unsafe(no_mangle)]
+        unsafe extern "C" fn $name($($arg:$ty),*)->$out {
+            // SAFETY: the native fixture supplies the exact C signature's
+            // live objects/storage through this complete forwarded operation.
+            unsafe {gateway::$target($($arg),*)}
+        }
+    };
+}
+operation!(probe_engine_create,engine_create,(c:*const ffi::Config,o:*mut *mut ffi::Engine,e:*mut ffi::Error)->u32);
+operation!(probe_engine_destroy,engine_destroy,(v:*mut ffi::Engine,e:*mut ffi::Error)->u32);
+operation!(probe_module_load,module_load,(v:*mut ffi::Engine,f:u32,p:ffi::Bytes,c:ffi::Bytes,o:*mut *mut ffi::Module,e:*mut ffi::Error)->u32);
+operation!(probe_module_drop,module_drop,(v:*mut ffi::Module,e:*mut ffi::Error)->u32);
+operation!(probe_instance_create,instance_create,(v:*mut ffi::Module,c:*const ffi::InstanceConfig,o:*mut *mut ffi::Instance,e:*mut ffi::Error)->u32);
+operation!(probe_instance_close,instance_close,(v:*mut ffi::Instance,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
+operation!(probe_bind_export,bind_export,(v:*mut ffi::Instance,p:ffi::Bytes,o:*mut *mut ffi::Binding,e:*mut ffi::Error)->u32);
+operation!(probe_binding_drop,binding_drop,(v:*mut ffi::Binding,e:*mut ffi::Error)->u32);
+operation!(probe_control_create,control_create,(v:*mut ffi::Engine,c:*const ffi::Limits,o:*mut *mut ffi::Control,e:*mut ffi::Error)->u32);
+operation!(probe_control_drop,control_drop,(v:*mut ffi::Control,e:*mut ffi::Error)->u32);
+operation!(probe_interrupt,interrupt,(v:*mut ffi::Control)->());
+operation!(probe_api_call,call,(b:*mut ffi::Binding,c:*mut ffi::Control,p:ffi::Bytes,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
+operation!(probe_result_info,result_info,(v:*const ffi::Result,o:*mut ffi::ResultInfo,e:*mut ffi::Error)->u32);
+operation!(probe_result_usage,result_usage,(v:*const ffi::Result,o:*mut ffi::Usage,e:*mut ffi::Error)->u32);
+operation!(probe_result_bytes,result_bytes,(v:*const ffi::Result,o:*mut ffi::Bytes,e:*mut ffi::Error)->u32);
+operation!(probe_result_drop,result_drop,(v:*mut ffi::Result,e:*mut ffi::Error)->u32);
 
 struct Probe {
     module: Module,
@@ -184,6 +211,115 @@ unsafe extern "C" fn probe_drop(probe: *mut c_void) {
 }
 unsafe extern "C" {
     fn fixture() -> u32;
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u32 {
+    // SAFETY: the native caller retains this exact immutable result view.
+    let bytes = unsafe { input(bytes.data, bytes.length) }.unwrap();
+    let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
+    assert_eq!(report.policy, wire::MessagePolicy::Redacted);
+    assert!(report.primary.message.is_none());
+    assert!(!report.poisoned);
+    let origin = report.primary.origin.as_ref().unwrap();
+    assert_eq!(
+        origin.mode,
+        if mode == 1 {
+            wire::Mode::Jit
+        } else {
+            wire::Mode::Vm
+        }
+    );
+    assert_ne!(origin.digest, [0; 32]);
+    assert!(origin.span.is_some());
+    match case {
+        0 => {
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Panic);
+            assert!(report.primary.limit.is_none());
+        }
+        1 => {
+            let limit = report.primary.limit.unwrap();
+            assert_eq!(limit.kind, wire::ReportLimitKind::Fuel);
+            assert_eq!((limit.limit, limit.attempted), (0, 1));
+        }
+        2 => {
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Interrupted);
+            assert!(report.primary.limit.is_none());
+        }
+        3 => {
+            let limit = report.primary.limit.unwrap();
+            assert_eq!(limit.kind, wire::ReportLimitKind::ServiceWork);
+            assert_eq!(limit.limit, 0);
+            assert!(limit.attempted > 0);
+        }
+        _ => panic!("unknown report case"),
+    }
+    0
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn probe_engine_lifecycle(
+    config: *const ffi::Config,
+    format: u32,
+    code: ffi::Bytes,
+    idl: ffi::Bytes,
+) -> u32 {
+    let mut error = ffi::Error {
+        header: ffi::Header {
+            size: std::mem::size_of::<ffi::Error>() as u32,
+            version: 1,
+        },
+        diagnostic: 0,
+        limit_kind: 0,
+        limit: 0,
+        attempted: 0,
+        input_digest: [0; 32],
+        source_id: 0,
+        start: 0,
+        end: 0,
+        detail_code: 0,
+        flags: 0,
+        reserved0: 0,
+        reserved: [0; 2],
+    };
+    let sentinel = ptr::without_provenance_mut(42);
+    let mut engine = sentinel;
+    // SAFETY: C retains the complete initialized config, byte views and
+    // original allocator owner through this complete native lifecycle.
+    assert_eq!(
+        unsafe { gateway::engine_create(config, &mut engine, &mut error) },
+        0
+    );
+    assert_ne!(engine, sentinel);
+    let mut module = sentinel.cast::<ffi::Module>();
+    // SAFETY: this exact live engine and views remain valid until return.
+    assert_eq!(
+        unsafe { gateway::module_load(engine, 99, code, idl, &mut module, &mut error) },
+        2
+    );
+    assert_eq!(module, sentinel.cast());
+    // SAFETY: complete checked module preparation snapshots its views.
+    assert_eq!(
+        unsafe { gateway::module_load(engine, format, code, idl, &mut module, &mut error) },
+        0
+    );
+    // SAFETY: the engine remains live while a dependent module exists.
+    assert_eq!(unsafe { gateway::engine_destroy(engine, &mut error) }, 4);
+    // SAFETY: close each exact live opaque handle once, in dependency order.
+    assert_eq!(unsafe { gateway::module_drop(module, &mut error) }, 0);
+    // SAFETY: all dependents closed; original allocator callbacks remain live.
+    assert_eq!(unsafe { gateway::engine_destroy(engine, &mut error) }, 0);
+    // SAFETY: a copied initialized descriptor is valid for this test.
+    let mut unavailable = unsafe { *config };
+    unavailable.mode = 2;
+    let mut untouched = sentinel;
+    // SAFETY: unsupported mode must refuse without output publication.
+    assert_eq!(
+        unsafe { gateway::engine_create(&unavailable, &mut untouched, &mut error) },
+        3
+    );
+    assert_eq!(untouched, sentinel);
+    0
 }
 fn main() {
     // SAFETY: the linked C fixture performs its complete native host lifecycle.

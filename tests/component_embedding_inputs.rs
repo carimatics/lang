@@ -29,7 +29,7 @@ fn source_input() -> String {
     let document = idl::check(m::SourceId(1), IDL, Default::default()).unwrap();
     let generated = g::guest(&document, Default::default()).unwrap();
     format!(
-        "{}\n{} {{return p0 + 1;}}",
+        "{}\n{} {{if p0 < 0 {{return core::panic::<i64>(77);}} return p0 + 1;}}",
         generated.declarations, generated.exports[0].declaration
     )
 }
@@ -412,8 +412,23 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
                 .join(",")
         )
     };
-    let declarations =
-        array("source", source.as_bytes()) + &array("idl", IDL) + &array("artifact", &bytes);
+    let mut consumer: serde_json::Value = serde_json::from_slice(IDL).unwrap();
+    consumer["package"] = serde_json::json!("demo:caller");
+    consumer["exports"] = serde_json::json!([]);
+    consumer["imports"] = serde_json::json!([{"interface":"demo:embed/api","version":{"exact":"1.0.0"},"members":["answer"]}]);
+    let consumer = serde_json::to_vec(&consumer).unwrap();
+    let mut projection_session = wire::Session::new(Default::default());
+    let consumer = wire::Contract::new(
+        idl::check(m::SourceId(71), &consumer, Default::default()).unwrap(),
+        vec![],
+        &mut projection_session,
+    )
+    .unwrap();
+    let projection = wire::encode_contract(&consumer, &mut projection_session).unwrap();
+    let declarations = array("source", source.as_bytes())
+        + &array("idl", IDL)
+        + &array("artifact", &bytes)
+        + &array("projection", &projection);
     let c = format!(
         r#"
 #define _POSIX_C_SOURCE 200112L
@@ -428,6 +443,95 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
 extern void *probe_load(uint32_t,const uint8_t *,uint64_t,const uint8_t *,uint64_t,lang_component_v1_allocator);
 extern uint32_t probe_call(void *,uint32_t,const uint8_t *,uint64_t,uint8_t *,uint64_t,uint64_t *);
 extern void probe_drop(void *);
+extern uint32_t probe_engine_lifecycle(const lang_component_v1_config *,uint32_t,lang_component_v1_bytes,lang_component_v1_bytes);
+extern uint32_t probe_engine_create(const lang_component_v1_config *,lang_component_v1_engine **,lang_component_v1_error *);
+extern uint32_t probe_engine_destroy(lang_component_v1_engine *,lang_component_v1_error *);
+extern uint32_t probe_module_load(lang_component_v1_engine *,uint32_t,lang_component_v1_bytes,lang_component_v1_bytes,lang_component_v1_module **,lang_component_v1_error *);
+extern uint32_t probe_module_drop(lang_component_v1_module *,lang_component_v1_error *);
+extern uint32_t probe_instance_create(lang_component_v1_module *,const lang_component_v1_instance_config *,lang_component_v1_instance **,lang_component_v1_error *);
+extern uint32_t probe_instance_close(lang_component_v1_instance *,lang_component_v1_result **,lang_component_v1_error *);
+extern uint32_t probe_bind_export(lang_component_v1_instance *,lang_component_v1_bytes,lang_component_v1_binding **,lang_component_v1_error *);
+extern uint32_t probe_binding_drop(lang_component_v1_binding *,lang_component_v1_error *);
+extern uint32_t probe_control_create(lang_component_v1_engine *,const lang_component_v1_limits *,lang_component_v1_control **,lang_component_v1_error *);
+extern uint32_t probe_control_drop(lang_component_v1_control *,lang_component_v1_error *);
+extern void probe_interrupt(lang_component_v1_control *);
+extern uint32_t probe_api_call(lang_component_v1_binding *,lang_component_v1_control *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
+extern uint32_t probe_result_info(const lang_component_v1_result *,lang_component_v1_result_info *,lang_component_v1_error *);
+extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_component_v1_usage *,lang_component_v1_error *);
+extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);
+extern uint32_t probe_result_drop(lang_component_v1_result *,lang_component_v1_error *);
+extern uint32_t probe_report(lang_component_v1_bytes,uint32_t,uint32_t);
+static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract) {{
+    lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
+    lang_component_v1_instance *instance=NULL;lang_component_v1_binding *binding=NULL;
+    lang_component_v1_error error={{0}};lang_component_v1_instance_config options={{0}};
+    lang_component_v1_bytes request={{projection,sizeof(projection)}};
+    uint8_t *p=(uint8_t *)malloc((size_t)program.length),*c=contract.length?(uint8_t *)malloc((size_t)contract.length):NULL;
+    uint32_t repeat;assert(p);memcpy(p,program.data,(size_t)program.length);program.data=p;
+    if(contract.length){{assert(c);memcpy(c,contract.data,(size_t)contract.length);contract.data=c;}}
+    error.header.size=sizeof(error);error.header.version=1;
+    options.header.size=sizeof(options);options.header.version=1;options.ceiling=config->ceiling;
+    assert(api->header.version==0); /* Private fixture; no version-1 publication. */
+    assert(api->engine_create(config,&engine,&error)==0);
+    assert(api->module_load(engine,format,program,contract,&module,&error)==0);
+    assert(api->instance_create(module,&options,&instance,&error)==0);
+    assert(api->bind_export(instance,request,&binding,&error)==0);
+    assert(api->module_drop(module,&error)==0);
+    memset(p,0,(size_t)program.length);free(p);if(c){{memset(c,0,(size_t)contract.length);free(c);}}
+    assert(api->engine_destroy(engine,&error)==4);
+    for(repeat=0;repeat<2;++repeat){{
+        lang_component_v1_control *control=NULL;lang_component_v1_bytes bytes;
+        lang_component_v1_usage usage={{0}};lang_component_v1_result *untouched=(lang_component_v1_result *)(uintptr_t)42;
+        uint8_t scratch[1024];{arguments_type} args={{0}};{result_type} result=0;
+        lc_value_writer w={{0}};lc_value_reader r={{0}};lc_value_outcome out;
+        usage.header.size=sizeof(usage);usage.header.version=1;
+        assert(api->control_create(engine,&config->ceiling,&control,&error)==0);
+        args.p0=41;w.data=scratch;w.capacity=sizeof(scratch);w.left.work=1000000;w.left.elements=1000;w.left.depth=128;
+        out={name}_call(api,control,binding,&args,&w,&error);
+        assert(out.status==0&&out.commit==1&&out.poisoned==0&&out.result);
+        assert(api->result_bytes(out.result,&bytes,&error)==0);
+        r.data=bytes.data;r.length=bytes.length;r.left.work=1000000;r.left.elements=1000;r.left.depth=128;r.contextual=1;
+        assert({name}_decode_result(&r,&result)&&result==42);
+        assert(api->result_usage(out.result,&usage,&error)==0&&usage.fuel>0&&usage.service_work>0);
+        {{lang_component_v1_bytes input={{scratch,w.at}};assert(api->call(binding,control,input,&untouched,&error)==2);assert(untouched==(lang_component_v1_result *)(uintptr_t)42);}}
+        assert(api->result_drop(out.result,&error)==0);
+        assert(api->control_drop(control,&error)==0);
+    }}
+    for(repeat=0;repeat<4;++repeat){{
+        lang_component_v1_control *control=NULL;lang_component_v1_limits limits=config->ceiling;
+        lang_component_v1_bytes bytes;lang_component_v1_result_info info={{0}};
+        uint8_t scratch[1024];{arguments_type} args={{0}};lc_value_writer w={{0}};lc_value_outcome out;
+        if(repeat==1)limits.fuel=0;if(repeat==3)limits.service_work=0;
+        assert(api->control_create(engine,&limits,&control,&error)==0);
+        if(repeat==2)api->interrupt(control);
+        args.p0=repeat==0?-1:41;w.data=scratch;w.capacity=sizeof(scratch);w.left.work=1000000;w.left.elements=1000;w.left.depth=128;
+        out={name}_call(api,control,binding,&args,&w,&error);
+        assert(out.status==1&&out.result&&out.poisoned==0);
+        if(repeat==0)assert(out.commit==1);
+        if(repeat>=2)assert(out.commit==0);
+        info.header.size=sizeof(info);info.header.version=1;
+        assert(api->result_info(out.result,&info,&error)==0&&info.kind==1&&info.frame_count==1);
+        assert(api->result_bytes(out.result,&bytes,&error)==0);
+        assert(probe_report(bytes,config->mode,repeat)==0);
+        assert(api->result_drop(out.result,&error)==0);
+        assert(api->control_drop(control,&error)==0);
+    }}
+    {{
+        lang_component_v1_control *control=NULL;lang_component_v1_bytes bytes;
+        uint8_t scratch[1024];{arguments_type} args={{0}};{result_type} result=0;
+        lc_value_writer w={{0}};lc_value_reader r={{0}};lc_value_outcome out;
+        assert(api->control_create(engine,&config->ceiling,&control,&error)==0);
+        args.p0=41;w.data=scratch;w.capacity=sizeof(scratch);w.left.work=1000000;w.left.elements=1000;w.left.depth=128;
+        out={name}_call(api,control,binding,&args,&w,&error);assert(out.status==0&&out.result);
+        assert(api->result_bytes(out.result,&bytes,&error)==0);
+        r.data=bytes.data;r.length=bytes.length;r.left.work=1000000;r.left.elements=1000;r.left.depth=128;r.contextual=1;
+        assert({name}_decode_result(&r,&result)&&result==42);
+        assert(api->result_drop(out.result,&error)==0);assert(api->control_drop(control,&error)==0);
+    }}
+    {{lang_component_v1_result *closed=(lang_component_v1_result *)(uintptr_t)42;assert(api->instance_close(instance,&closed,&error)==0&&closed==NULL);}}
+    assert(api->binding_drop(binding,&error)==0);
+    assert(api->engine_destroy(engine,&error)==0);
+}}
 typedef struct request {{void *data;uint64_t size,alignment;uint32_t live;}} request;
 typedef struct owner {{request requests[8192];uint64_t allocated,released,live;}} owner;
 static uint8_t *LANG_COMPONENT_V1_CALL allocate(void *user,uint64_t size,uint64_t alignment) {{
@@ -481,6 +585,32 @@ uint32_t fixture(void) {{
         uint8_t *contract=idl_length?(uint8_t *)malloc((size_t)idl_length):NULL;
         void *module;assert(code);memcpy(code,format?artifact:source,(size_t)code_length);
         if(idl_length){{assert(contract);memcpy(contract,idl,(size_t)idl_length);}}
+        {{
+            lang_component_v1_config config={{0}};
+            lang_component_v1_bytes program={{code,code_length}},metadata={{contract,idl_length}};
+            config.header.size=sizeof(config);config.header.version=1;config.mode=format;
+            config.allocator=allocator;
+            config.ceiling.header.size=sizeof(config.ceiling);config.ceiling.header.version=1;
+            config.ceiling.fuel=1000000;config.ceiling.service_work=1000000;config.ceiling.host_calls=1000;
+            config.ceiling.heap_bytes=1048576;config.ceiling.live_allocations=128;config.ceiling.frames=64;
+            config.ceiling.live_cells=10000;config.ceiling.live_tasks=64;config.ceiling.canonical_indices=4;
+            config.ceiling.preparation_work=1000000;config.ceiling.metadata_bytes=1048576;
+            config.ceiling.value_elements=65536;config.ceiling.serialization_bytes=1048576;
+            config.ceiling.depth=128;config.ceiling.decoder_allocation_bytes=16777216;
+            config.ceiling.suppressed_records=64;config.ceiling.trace_frames=64;
+            assert(probe_engine_lifecycle(&config,format,program,metadata)==0);
+            {{
+                lang_component_v1_api api={{0}};
+                api.engine_create=probe_engine_create;api.engine_destroy=probe_engine_destroy;
+                api.module_load=probe_module_load;api.module_drop=probe_module_drop;
+                api.instance_create=probe_instance_create;api.instance_close=probe_instance_close;
+                api.bind_export=probe_bind_export;api.binding_drop=probe_binding_drop;
+                api.control_create=probe_control_create;api.control_drop=probe_control_drop;api.interrupt=probe_interrupt;
+                api.call=probe_api_call;api.result_info=probe_result_info;api.result_usage=probe_result_usage;
+                api.result_bytes=probe_result_bytes;api.result_drop=probe_result_drop;
+                for(mode=0;mode<2;++mode){{config.mode=mode;bound_case(&api,&config,format,program,metadata);}}
+            }}
+        }}
         module=probe_load(format,code,code_length,contract,idl_length,allocator);assert(module);
         memset(code,0,(size_t)code_length);free(code);
         if(contract){{memset(contract,0,(size_t)idl_length);free(contract);}}
@@ -529,13 +659,16 @@ uint32_t fixture(void) {{
     );
     let driver = files.0.join("driver.rs");
     std::fs::write(&driver, include_str!("support/component_input_host.rs")).unwrap();
-    let lang = artifacts::library("lang");
+    let dependency = artifacts::library("lang_runtime");
     let mut rustc = Command::new("rustc");
     rustc
         .arg("--edition=2024")
         .arg(&driver)
         .arg("-L")
-        .arg(format!("dependency={}", lang.parent().unwrap().display()))
+        .arg(format!(
+            "dependency={}",
+            dependency.parent().unwrap().display()
+        ))
         .arg("-C")
         .arg(format!("link-arg={}", object.display()))
         .arg("-o")

@@ -2,6 +2,7 @@
 //!
 //! This preparation layer supplies no C API table or execution authority.
 pub mod ffi;
+pub mod gateway;
 
 use crate::{artifact, component_bindings as generated, frontend};
 use lang_diagnostics::SourceMap;

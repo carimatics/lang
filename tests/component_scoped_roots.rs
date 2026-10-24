@@ -28,6 +28,8 @@ struct Owner {
     released: Rc<Cell<usize>>,
     allocator: u64,
     backing: Cell<usize>,
+    expected_engine: Cell<usize>,
+    expected_gateway: Cell<usize>,
     fail: bool,
 }
 impl Drop for Owner {
@@ -114,6 +116,16 @@ unsafe extern "C" fn make(
         // SAFETY: the owning registration and live adapter retain user, context
         // and all canonical parameter bytes through this callback.
         let owner = unsafe { &*user.cast::<Owner>() };
+        if owner.expected_engine.get() != 0 {
+            assert_eq!(
+                unsafe { (*context).engine } as usize,
+                owner.expected_engine.get()
+            );
+            // SAFETY: this actual callback's engine is retained by Harness.
+            let gateway =
+                unsafe { lang_codegen_clif::component::gateway_owner((*context).engine) }.unwrap();
+            assert_eq!(gateway.as_ptr() as usize, owner.expected_gateway.get());
+        }
         assert_eq!(
             unsafe { lang_codegen_clif::component::context_check(context) },
             0
@@ -353,6 +365,8 @@ impl Harness {
             released: released.clone(),
             allocator: self.allocator.identity().get(),
             backing: Cell::new(0),
+            expected_engine: Cell::new(0),
+            expected_gateway: Cell::new(0),
             fail,
         });
         let watch = Watch {
@@ -480,6 +494,69 @@ impl Harness {
                 })
                 .unwrap()
         })
+    }
+}
+
+#[test]
+fn gateway_identity_matches_actual_callbacks_across_wrapper_moves_without_extending_scopes() {
+    for compiled in [false, true] {
+        let tag = Box::new(42_u64);
+        let mut harness = Harness::new();
+        let owner = std::ptr::NonNull::from(&*tag).cast();
+        let handle = harness.engine.attach_gateway(owner).unwrap();
+        assert_eq!(handle, harness.engine.native_handle());
+        assert_eq!(harness.engine.attach_gateway(owner), Err(2));
+        let mut harness = Box::new(harness);
+        assert_eq!(handle, harness.engine.native_handle());
+        // SAFETY: the boxed harness and tag retain both live allocations.
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::gateway_owner(handle) }.unwrap(),
+            owner
+        );
+        let (provider, watch) = harness.registration(false);
+        let native_owner = watch.owner.upgrade().unwrap();
+        native_owner.expected_engine.set(handle as usize);
+        native_owner.expected_gateway.set(owner.as_ptr() as usize);
+        drop(native_owner);
+        let result = harness
+            .call(provider.clone(), "create", None, compiled)
+            .unwrap();
+        let execution::Value::Resource(claim) = result.value else {
+            panic!("resource result")
+        };
+        let result = harness
+            .call(provider, "consume", Some(claim), compiled)
+            .unwrap();
+        assert!(matches!(
+            result.value,
+            execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+        ));
+        assert_eq!(watch.destroyed.get(), 1);
+        let expired = harness.engine.last_context().unwrap();
+        assert_eq!(harness.engine.check(&expired), 5);
+        // SAFETY: engine identity remains live while callback scope expired.
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::gateway_owner(handle) }.unwrap(),
+            owner
+        );
+        let address = handle as usize;
+        std::thread::scope(|scope| {
+            scope
+                .spawn(move || {
+                    // SAFETY: owner thread is idle and retains the live engine
+                    // until join. Rejection happens before gateway dereference.
+                    assert_eq!(
+                        unsafe {
+                            lang_codegen_clif::component::gateway_owner(
+                                address as *mut native::Engine,
+                            )
+                        },
+                        Err(4)
+                    );
+                })
+                .join()
+                .unwrap();
+        });
     }
 }
 fn retained_roundtrip(compiled: bool, fresh: bool) -> (e::Usage, e::Usage) {

@@ -11,7 +11,8 @@ use lang_runtime::{
     execution as e,
 };
 use std::{
-    ptr,
+    ffi::c_void,
+    ptr::{self, NonNull},
     sync::atomic::{AtomicU64, Ordering},
     thread::{self, ThreadId},
 };
@@ -33,6 +34,7 @@ struct State {
     memory: Option<*mut (dyn Memory + 'static)>,
     call: Option<*mut (dyn NativeContext + 'static)>,
     last: Option<native::Context>,
+    gateway: Option<NonNull<c_void>>,
 }
 pub struct Engine {
     state: Vec<State>,
@@ -50,8 +52,27 @@ impl Engine {
             memory: None,
             call: None,
             last: None,
+            gateway: None,
         });
         Ok(Self { state })
+    }
+    /// Stable opaque identity used by callback contexts. Moving this wrapper
+    /// does not move its reserved State allocation. It grants no live scope.
+    pub fn native_handle(&self) -> *mut native::Engine {
+        ptr::from_ref(&self.state[0]).cast_mut().cast()
+    }
+    /// Attach immutable gateway routing identity once. This bridge never
+    /// dereferences or owns the pointer; its caller retains the actual owner.
+    pub fn attach_gateway(&mut self, owner: NonNull<c_void>) -> Result<*mut native::Engine, u32> {
+        let state = &mut self.state[0];
+        if state.thread != thread::current().id() || state.scope.is_some() {
+            return Err(4);
+        }
+        if state.gateway.is_some() {
+            return Err(2);
+        }
+        state.gateway = Some(owner);
+        Ok(self.native_handle())
     }
     pub fn begin<'a, 'ctrl>(
         &'a mut self,
@@ -79,6 +100,28 @@ impl Engine {
         }
         check(&self.state[0], context)
     }
+}
+/// Read only the engine's routing identity. Dynamic context authority still
+/// requires the original invocation/scope checks; this creates no context.
+///
+/// # Safety
+/// A non-null handle must originate from a live Engine::native_handle. The
+/// bridge and the gateway's separately retained owner must remain live for
+/// any caller access. No borrowed program/native-call pointer is returned.
+pub unsafe fn gateway_owner(engine: *mut native::Engine) -> Result<NonNull<c_void>, u32> {
+    if engine.is_null() {
+        return Err(2);
+    }
+    // SAFETY: caller retains the exact live engine allocation through this
+    // access. Foreign-thread calls read only its immutable identity fields.
+    let state = unsafe { &*engine.cast::<State>() };
+    if state.magic != MAGIC {
+        return Err(2);
+    }
+    if state.thread != thread::current().id() {
+        return Err(4);
+    }
+    state.gateway.ok_or(2)
 }
 fn check(state: &State, context: &native::Context) -> u32 {
     if state.magic != MAGIC

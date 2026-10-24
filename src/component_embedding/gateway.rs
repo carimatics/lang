@@ -1,0 +1,1238 @@
+//! Component C operation implementations. No API query/table is published yet.
+use super::{Limits as ModuleLimits, Module, ffi, load};
+use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component};
+use lang_mir::unit as m;
+use lang_runtime::{
+    allocation as a,
+    component::{
+        CapabilityGrants, execution, grants, program,
+        serialization::{DigestAlgorithm, VersionedDigest},
+        storage, wire,
+    },
+    execution as e,
+    task::runner as r,
+};
+use sha2::{Digest, Sha256};
+use std::{
+    cell::{Cell, RefCell},
+    ptr::{self, NonNull},
+    rc::Rc,
+};
+
+const OK: u32 = 0;
+const INVALID: u32 = 2;
+const UNSUPPORTED: u32 = 3;
+const BUSY: u32 = 4;
+const OOM: u32 = 6;
+const MAGIC: u64 = 0x636f_6d70_6777_7631;
+struct Data {
+    config: ffi::Config,
+    bridge: component::Engine,
+    allocator: a::Allocator<ForeignProvider<'static>>,
+    values: storage::Resources<'static>,
+    limits: ModuleLimits,
+}
+struct Metadata {
+    magic: u64,
+    engine: *mut ffi::Engine,
+    handles: Cell<usize>,
+    active: Cell<bool>,
+    data: NonNull<Data>,
+}
+struct Loaded {
+    engine: NonNull<Metadata>,
+    module: Rc<Module>,
+    digest: [u8; 32],
+}
+struct InstanceData {
+    engine: NonNull<Metadata>,
+    module: Rc<Module>,
+    state: RefCell<execution::InstanceState>,
+    closed: Cell<bool>,
+    ceiling: ffi::Limits,
+    digest: [u8; 32],
+}
+struct InstanceHandle(Rc<InstanceData>);
+struct Binding {
+    instance: Rc<InstanceData>,
+    entry: m::FunctionId,
+}
+struct Control {
+    engine: NonNull<Metadata>,
+    ceiling: ffi::Limits,
+    flag: e::InterruptionFlag,
+    used: Cell<bool>,
+}
+enum ResultBody {
+    Value(execution::FrameResult),
+    Failure(Box<r::Failure>),
+}
+struct CallResult {
+    instance: Rc<InstanceData>,
+    body: ResultBody,
+    usage: e::Usage,
+    committed: bool,
+    poisoned: bool,
+    allocations: a::Stats,
+    tasks: lang_runtime::task::Usage,
+    report: Option<(wire::Report, Vec<u8>)>,
+}
+
+fn project_failure(
+    failure: &r::Failure,
+    ceiling: ffi::Limits,
+    digest: [u8; 32],
+    mode: u32,
+    entry: m::FunctionId,
+    allocations: a::Stats,
+) -> Option<(wire::Report, Vec<u8>)> {
+    // More complex native/resource/cleanup provenance is not yet connected;
+    // preserve the actual failure, never fabricate suppressed diagnostics.
+    if failure
+        .report
+        .as_ref()
+        .is_some_and(|r| !r.secondary().is_empty())
+    {
+        return None;
+    }
+    let mut limit = None;
+    let (category, diagnostic) = match failure.reason {
+        r::Reason::Panic(_)
+        | r::Reason::Execution(lang_mir::unit::ownership::failure::ExecutionFailure::Panic) => {
+            (wire::Category::Panic, wire::Diagnostic::Panic)
+        }
+        r::Reason::Cancelled => (wire::Category::Cancellation, wire::Diagnostic::Cancelled),
+        r::Reason::Control(e::Failure::Interrupted | e::Failure::DeadlineExceeded)
+        | r::Reason::Execution(
+            lang_mir::unit::ownership::failure::ExecutionFailure::Interrupted
+            | lang_mir::unit::ownership::failure::ExecutionFailure::DeadlineExceeded,
+        ) => (wire::Category::Interruption, wire::Diagnostic::Interrupted),
+        r::Reason::Control(e::Failure::FuelExhausted)
+        | r::Reason::Execution(lang_mir::unit::ownership::failure::ExecutionFailure::FuelLimit) => {
+            limit = Some(wire::LimitDetail {
+                kind: wire::ReportLimitKind::Fuel,
+                limit: ceiling.fuel,
+                attempted: failure.usage.fuel.saturating_add(1),
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        r::Reason::Control(e::Failure::HostCallLimit)
+        | r::Reason::Execution(
+            lang_mir::unit::ownership::failure::ExecutionFailure::HostCallLimit,
+        ) => {
+            limit = Some(wire::LimitDetail {
+                kind: wire::ReportLimitKind::HostCalls,
+                limit: ceiling.host_calls,
+                attempted: failure.usage.host_calls.saturating_add(1),
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        r::Reason::Control(e::Failure::ServiceWorkLimit {
+            limit: maximum,
+            used,
+            requested,
+        }) => {
+            limit = Some(wire::LimitDetail {
+                kind: wire::ReportLimitKind::ServiceWork,
+                limit: maximum,
+                attempted: used.saturating_add(requested),
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        _ => return None,
+    };
+    let frame = wire::Frame {
+        mode: if mode == 1 {
+            wire::Mode::Jit
+        } else {
+            wire::Mode::Vm
+        },
+        digest,
+        member: failure.function.unwrap_or(entry).0,
+        span: failure.span,
+    };
+    let frames = if ceiling.trace_frames == 0 {
+        vec![]
+    } else {
+        vec![frame.clone()]
+    };
+    let omitted = failure.report.as_ref().map_or(0, |r| r.truncated() as u64)
+        + u64::from(ceiling.trace_frames == 0);
+    let report = wire::Report {
+        policy: wire::MessagePolicy::Redacted,
+        primary: wire::Record {
+            category,
+            phase: wire::Phase::Call,
+            diagnostic,
+            message: None,
+            limit,
+            origin: Some(frame),
+        },
+        suppressed: vec![],
+        poisoned: failure.poisoned,
+        omitted,
+        usage: wire::ReportUsage {
+            fuel: failure.usage.fuel,
+            service_work: failure.usage.service_work,
+            host_calls: failure.usage.host_calls,
+            peak_heap_bytes: allocations.peak_live_bytes,
+            peak_live_allocations: allocations.peak_live_allocations as u64,
+            peak_frames: failure.usage.peak_frames as u64,
+            peak_live_cells: failure.usage.peak_live_cells as u64,
+            peak_live_tasks: failure.tasks.peak_live as u64,
+            canonical_indices: 0,
+        },
+        frames,
+    };
+    // Mandatory projection is outside guest control charging, bounded to this
+    // fixed primary/top-frame representation. It cannot refund/reset a root.
+    let mut session = wire::Session::new(wire::Limits {
+        bytes: 4096,
+        serialization_bytes: 4096,
+        allocation_bytes: 65536,
+        work: 65536,
+        elements: 1024,
+        ..Default::default()
+    });
+    let bytes = wire::encode_report(&report, &mut session).ok()?;
+    Some((report, bytes))
+}
+struct Active<'a>(&'a Cell<bool>);
+impl Drop for Active<'_> {
+    fn drop(&mut self) {
+        self.0.set(false);
+    }
+}
+fn bounds(a: ffi::Limits, b: ffi::Limits) -> ffi::Limits {
+    macro_rules! merge { ($($name:ident),* $(,)?) => { ffi::Limits {
+        header:a.header,reserved:[0;2],$($name:a.$name.min(b.$name)),*
+    } }; }
+    merge!(
+        fuel,
+        service_work,
+        host_calls,
+        heap_bytes,
+        live_allocations,
+        frames,
+        live_cells,
+        live_tasks,
+        canonical_indices,
+        preparation_work,
+        metadata_bytes,
+        value_elements,
+        serialization_bytes,
+        depth,
+        decoder_allocation_bytes,
+        suppressed_records,
+        trace_frames
+    )
+}
+unsafe fn owner(reference: &NonNull<Metadata>) -> Result<&Metadata, u32> {
+    // SAFETY: a live dependent keeps metadata alive. Read only immutable engine
+    // identity until its original bridge verifies the calling owner thread.
+    let handle = unsafe { reference.as_ref().engine };
+    // SAFETY: this exact engine remains retained by that dependent handle.
+    let checked = unsafe { metadata(handle) }?;
+    if checked != *reference {
+        return Err(INVALID);
+    }
+    // SAFETY: callers keep this borrow within the current native operation.
+    Ok(unsafe { &*reference.as_ptr() })
+}
+fn retain(owner: &Metadata) -> Result<(), u32> {
+    owner
+        .handles
+        .set(owner.handles.get().checked_add(1).ok_or(OOM)?);
+    Ok(())
+}
+fn release(owner: &Metadata) -> Result<(), u32> {
+    owner
+        .handles
+        .set(owner.handles.get().checked_sub(1).ok_or(INVALID)?);
+    Ok(())
+}
+fn meter(
+    s: &mut wire::Session,
+    limits: ModuleLimits,
+    work: usize,
+    bytes: usize,
+    elements: usize,
+) -> Result<(), u32> {
+    let mut budget =
+        m::Budget::with_usage(limits.preparation, s.preparation_usage()).map_err(|_| INVALID)?;
+    budget.charge(work).map_err(|_| INVALID)?;
+    budget.bytes(bytes).map_err(|_| INVALID)?;
+    budget.allocate::<()>(elements).map_err(|_| INVALID)?;
+    *s = wire::Session::with_usage(
+        limits.metadata,
+        m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        },
+    )
+    .map_err(|_| INVALID)?;
+    Ok(())
+}
+unsafe fn header<T>(value: *const T) -> bool {
+    if value.is_null() {
+        return false;
+    }
+    // SAFETY: callers supply an initialized readable object of the exact C
+    // type; its first named fields are always the fixed size/version header.
+    let header = unsafe { value.cast::<ffi::Header>().read() };
+    header.size == std::mem::size_of::<T>() as u32 && header.version == 1
+}
+unsafe fn error_ready(error: *mut ffi::Error) -> bool {
+    // SAFETY: the caller supplies a readable initialized error slot.
+    unsafe { header(error) }
+}
+unsafe fn metadata(engine: *mut ffi::Engine) -> Result<NonNull<Metadata>, u32> {
+    // SAFETY: caller supplies this gateway's exact live opaque engine. The
+    // bridge checks owner thread before this separate metadata is followed.
+    let owner = unsafe { component::gateway_owner(engine) }?;
+    let owner = owner.cast::<Metadata>();
+    // SAFETY: gateway creation attached precisely this stable live Metadata.
+    if unsafe { owner.as_ref().magic } != MAGIC {
+        return Err(INVALID);
+    }
+    Ok(owner)
+}
+unsafe fn bytes<'a>(view: ffi::Bytes) -> Result<&'a [u8], u32> {
+    let length = usize::try_from(view.length).map_err(|_| INVALID)?;
+    if length > isize::MAX as usize || (length != 0 && view.data.is_null()) {
+        return Err(INVALID);
+    }
+    if length == 0 {
+        return Ok(&[]);
+    }
+    // SAFETY: native callers retain the entire readable range through return.
+    // The module loader snapshots every byte it retains.
+    Ok(unsafe { std::slice::from_raw_parts(view.data, length) })
+}
+fn prepare(config: ffi::Config) -> Result<Box<Data>, u32> {
+    if config.flags & !1 != 0
+        || config.reserved != [0; 2]
+        || config.allocator.reserved != [0; 2]
+        || config.ceiling.reserved != [0; 2]
+    {
+        return Err(INVALID);
+    }
+    if config.mode > 2 {
+        return Err(INVALID);
+    }
+    if config.mode == 2 {
+        return Err(UNSUPPORTED);
+    }
+    let (Some(allocate), Some(deallocate)) =
+        (config.allocator.allocate, config.allocator.deallocate)
+    else {
+        return Err(INVALID);
+    };
+    let size = |n| usize::try_from(n).map_err(|_| INVALID);
+    let budget_limits = m::Limits {
+        work: size(config.ceiling.preparation_work)?,
+        allocations: size(config.ceiling.decoder_allocation_bytes)?,
+        elements: size(config.ceiling.value_elements)?,
+        ..Default::default()
+    };
+    let capacity = size(config.ceiling.canonical_indices)?;
+    if capacity > u32::MAX as usize {
+        return Err(INVALID);
+    }
+    // SAFETY: engine_create's native contract retains allocator code/user
+    // through engine_destroy and all original regions; no callback is called
+    // during this metadata admission. Exact typed callbacks are retained.
+    let provider =
+        unsafe { ForeignProvider::component(allocate, deallocate, config.allocator.user) };
+    let allocator = a::Allocator::new(
+        provider,
+        a::Limits {
+            request_bytes: config.ceiling.heap_bytes,
+            live_bytes: config.ceiling.heap_bytes,
+            cumulative_bytes: u64::MAX,
+            live_allocations: size(config.ceiling.live_allocations)?,
+            ..Default::default()
+        },
+    )
+    .map_err(|_| INVALID)?;
+    let mut budget = m::Budget::new(budget_limits);
+    budget.allocate::<Data>(1).map_err(|_| OOM)?;
+    budget.allocate::<Metadata>(1).map_err(|_| OOM)?;
+    let values = storage::Resources::prepare(&allocator, capacity, capacity, &mut budget)
+        .map_err(|_| OOM)?;
+    let bridge = component::Engine::prepare(&mut budget).map_err(|_| OOM)?;
+    let mut limits = ModuleLimits {
+        input_bytes: size(config.ceiling.metadata_bytes)?,
+        preparation: budget_limits,
+        ..Default::default()
+    };
+    limits.metadata.bytes = limits.input_bytes;
+    limits.metadata.serialization_bytes = size(config.ceiling.serialization_bytes)?;
+    limits.metadata.depth = size(config.ceiling.depth)?;
+    Ok(Box::new(Data {
+        config,
+        bridge,
+        allocator,
+        values,
+        limits,
+    }))
+}
+
+/// # Safety
+/// Input/output/error objects are initialized valid C objects. Allocator
+/// code/user remains live until successful engine destruction; callbacks obey
+/// the unique storage, exact retirement and no-unwind/no-reentry contract.
+pub unsafe extern "C" fn engine_create(
+    config: *const ffi::Config,
+    output: *mut *mut ffi::Engine,
+    error: *mut ffi::Error,
+) -> u32 {
+    // SAFETY: the caller retains these initialized readable descriptor slots.
+    if output.is_null() || !unsafe { error_ready(error) } || !unsafe { header(config) } {
+        return INVALID;
+    }
+    // SAFETY: the exact Config header was checked and caller retains all fields.
+    let config = unsafe { config.read() };
+    // SAFETY: these nested initialized descriptors are local field copies.
+    if !unsafe { header(ptr::from_ref(&config.allocator)) }
+        || !unsafe { header(ptr::from_ref(&config.ceiling)) }
+    {
+        return INVALID;
+    }
+    let mut data = match prepare(config) {
+        Ok(data) => data,
+        Err(status) => return status,
+    };
+    let mut owner = Box::new(Metadata {
+        magic: MAGIC,
+        engine: data.bridge.native_handle(),
+        handles: Cell::new(0),
+        active: Cell::new(false),
+        data: NonNull::from(&mut *data),
+    });
+    let handle = match data
+        .bridge
+        .attach_gateway(NonNull::from(&mut *owner).cast())
+    {
+        Ok(handle) => handle,
+        Err(status) => return status,
+    };
+    let _ = Box::into_raw(data);
+    let _ = Box::into_raw(owner);
+    // SAFETY: success publishes this exact retained engine only at the end.
+    unsafe { output.write(handle) };
+    OK
+}
+
+/// # Safety
+/// Engine and error are exact live handles/initialized C objects from this
+/// gateway. No dependent handle may be used after successful destruction.
+pub unsafe extern "C" fn engine_destroy(engine: *mut ffi::Engine, error: *mut ffi::Error) -> u32 {
+    // SAFETY: the caller retains this initialized error slot.
+    if !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: engine is the exact gateway handle under the stated contract.
+    let owner = match unsafe { metadata(engine) } {
+        Ok(owner) => owner,
+        Err(status) => return status,
+    };
+    // SAFETY: metadata lives until this operation's final successful drop.
+    let reference = unsafe { owner.as_ref() };
+    if reference.active.get() || reference.handles.get() != 0 {
+        return BUSY;
+    }
+    // SAFETY: no active/dependent operation borrows this exact Data allocation.
+    let data = unsafe { reference.data.as_ref() };
+    if !data.values.is_empty() {
+        return BUSY;
+    }
+    // Keep the original allocator alive until every managed region is gone.
+    let _identity = data.allocator.identity();
+    // SAFETY: only successful creation published these exact Box allocations;
+    // after all dependents close they are uniquely consumed exactly once.
+    unsafe {
+        drop(Box::from_raw(reference.data.as_ptr()));
+        drop(Box::from_raw(owner.as_ptr()));
+    }
+    OK
+}
+
+/// # Safety
+/// All native views/output/error objects are valid for the operation; engine
+/// is this gateway's live handle. No foreign byte reference is retained.
+pub unsafe extern "C" fn module_load(
+    engine: *mut ffi::Engine,
+    format: u32,
+    program: ffi::Bytes,
+    contract: ffi::Bytes,
+    output: *mut *mut ffi::Module,
+    error: *mut ffi::Error,
+) -> u32 {
+    // SAFETY: caller retains this initialized error/output storage.
+    if output.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: supplied engine must be this gateway's live handle.
+    let owner = match unsafe { metadata(engine) } {
+        Ok(owner) => owner,
+        Err(status) => return status,
+    };
+    // SAFETY: engine's stable metadata is retained by its live handle.
+    let reference = unsafe { owner.as_ref() };
+    if reference.active.get() {
+        return BUSY;
+    }
+    // SAFETY: only this owner thread accesses immutable Data preparation limits.
+    let data = unsafe { reference.data.as_ref() };
+    if data.config.mode > 1 {
+        return UNSUPPORTED;
+    }
+    // SAFETY: input views remain readable for this complete operation.
+    let (program, contract) = match (unsafe { bytes(program) }, unsafe { bytes(contract) }) {
+        (Ok(p), Ok(c)) => (p, c),
+        _ => return INVALID,
+    };
+    let module = match load(format, program, contract, data.limits) {
+        Ok(module) => module,
+        Err(_) => return INVALID,
+    };
+    let mut budget = match m::Budget::with_usage(data.limits.preparation, module.usage()) {
+        Ok(v) => v,
+        Err(_) => return INVALID,
+    };
+    if budget.charge(program.len()).is_err() || budget.allocate::<Loaded>(1).is_err() {
+        return INVALID;
+    }
+    let digest = Sha256::digest(program).into();
+    let Some(count) = reference.handles.get().checked_add(1) else {
+        return OOM;
+    };
+    let module = Box::new(Loaded {
+        engine: owner,
+        module: Rc::new(module),
+        digest,
+    });
+    reference.handles.set(count);
+    // SAFETY: publication follows the entire checked preparation transaction.
+    unsafe { output.write(Box::into_raw(module).cast()) };
+    OK
+}
+
+/// # Safety
+/// All handles/descriptors/output slots are initialized valid C objects from
+/// this gateway, retained for this owner-thread operation.
+pub unsafe extern "C" fn instance_create(
+    module: *mut ffi::Module,
+    config: *const ffi::InstanceConfig,
+    output: *mut *mut ffi::Instance,
+    error: *mut ffi::Error,
+) -> u32 {
+    if module.is_null()
+        || output.is_null()
+        || !unsafe { error_ready(error) }
+        || !unsafe { header(config) }
+    {
+        return INVALID;
+    }
+    // SAFETY: caller supplies the exact live module and complete descriptor.
+    let (module, config) = unsafe { (&*module.cast::<Loaded>(), config.read()) };
+    let owner = match unsafe { owner(&module.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if owner.active.get() {
+        return BUSY;
+    }
+    if !unsafe { header(ptr::from_ref(&config.ceiling)) }
+        || config.ceiling.reserved != [0; 2]
+        || config.reserved != [0; 2]
+    {
+        return INVALID;
+    }
+    // Native registry/grant connection remains a separate unfinished path;
+    // this prototype must refuse it before publishing any instance.
+    if config.grant_count != 0 || !module.module.unit().imports().is_empty() {
+        return INVALID;
+    }
+    // SAFETY: no active operation borrows mutable execution storage.
+    let data = unsafe { &mut *owner.data.as_ptr() };
+    let mut session = wire::Session::new(data.limits.metadata);
+    let providers = [];
+    if grants::prepare(
+        module.module.unit(),
+        module.module.contract(),
+        &[],
+        || &providers,
+        &mut session,
+    )
+    .is_err()
+    {
+        return INVALID;
+    }
+    let state = match execution::InstanceState::prepare(&mut data.values) {
+        Ok(v) => v,
+        Err(_) => return INVALID,
+    };
+    if retain(owner).is_err() {
+        return OOM;
+    }
+    let instance = Box::new(InstanceHandle(Rc::new(InstanceData {
+        engine: module.engine,
+        module: module.module.clone(),
+        state: RefCell::new(state),
+        closed: Cell::new(false),
+        ceiling: bounds(data.config.ceiling, config.ceiling),
+        digest: module.digest,
+    })));
+    // SAFETY: complete preparation succeeded; publish the opaque instance last.
+    unsafe { output.write(Box::into_raw(instance).cast()) };
+    OK
+}
+
+/// # Safety
+/// Instance, projection and initialized output/error slots remain live for the
+/// operation. Projection bytes contain no callable or resource authority.
+pub unsafe extern "C" fn bind_export(
+    instance: *mut ffi::Instance,
+    projection: ffi::Bytes,
+    output: *mut *mut ffi::Binding,
+    error: *mut ffi::Error,
+) -> u32 {
+    if instance.is_null() || output.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: caller retains the exact live instance handle.
+    let instance = unsafe { &(*instance.cast::<InstanceHandle>()).0 };
+    let owner = match unsafe { owner(&instance.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if owner.active.get() {
+        return BUSY;
+    }
+    if instance.closed.get() {
+        return INVALID;
+    }
+    // SAFETY: same owner thread accesses immutable preparation settings/views.
+    let data = unsafe { owner.data.as_ref() };
+    let projection = match unsafe { bytes(projection) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    let prepared = (|| -> Result<m::FunctionId, u32> {
+        let mut session = wire::Session::new(data.limits.metadata);
+        let consumer =
+            wire::decode_contract(m::SourceId(0), projection, &mut session).map_err(|_| INVALID)?;
+        let doc = consumer.document();
+        if doc.imports.len() != 1 || doc.imports[0].members.len() != 1 {
+            return Err(INVALID);
+        }
+        let request = &doc.imports[0];
+        let interface = doc
+            .interfaces
+            .iter()
+            .find(|i| i.key.value == request.interface.value)
+            .ok_or(INVALID)?;
+        let function = interface
+            .functions
+            .iter()
+            .find(|f| f.name.value == request.members[0].value)
+            .ok_or(INVALID)?;
+        let encoded =
+            wire::encode_contract(instance.module.contract(), &mut session).map_err(|_| INVALID)?;
+        let cap = &function.capability.value;
+        meter(
+            &mut session,
+            data.limits,
+            encoded.len().saturating_add(cap.len()),
+            32usize.saturating_add(cap.len()),
+            33,
+        )?;
+        let digest =
+            VersionedDigest::new(DigestAlgorithm::Sha256, Sha256::digest(&encoded).to_vec())
+                .map_err(|_| INVALID)?;
+        let mut capabilities = CapabilityGrants::new();
+        capabilities.grant(cap.as_str());
+        let providers = [wire::Provider {
+            contract: instance.module.contract(),
+            digest: &digest,
+        }];
+        let selected = wire::select_provider(&consumer, 0, &providers, &capabilities, &mut session)
+            .map_err(|_| INVALID)?;
+        if selected.members().len() != 1 {
+            return Err(INVALID);
+        }
+        let member = selected.members()[0].actual;
+        instance
+            .module
+            .unit()
+            .exports()
+            .iter()
+            .find_map(|(id, f)| {
+                (f.interface == selected.provider_interface() && f.member == member).then_some(*id)
+            })
+            .ok_or(INVALID)
+    })();
+    let entry = match prepared {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if retain(owner).is_err() {
+        return OOM;
+    }
+    let binding = Box::new(Binding {
+        instance: instance.clone(),
+        entry,
+    });
+    // SAFETY: complete typed/versioned selection succeeded before publication.
+    unsafe { output.write(Box::into_raw(binding).cast()) };
+    OK
+}
+
+/// # Safety
+/// Binding/error are exact live gateway objects; close the binding only once.
+pub unsafe extern "C" fn binding_drop(binding: *mut ffi::Binding, error: *mut ffi::Error) -> u32 {
+    if binding.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: caller retains this exact live dependent.
+    let reference = unsafe { &*binding.cast::<Binding>() };
+    let owner = match unsafe { owner(&reference.instance.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if owner.active.get() {
+        return BUSY;
+    }
+    if release(owner).is_err() {
+        return INVALID;
+    }
+    // SAFETY: consume the exact unique opaque binding after admission.
+    unsafe { drop(Box::from_raw(binding.cast::<Binding>())) };
+    OK
+}
+
+/// # Safety
+/// Engine, limits and output/error slots are initialized live native objects.
+pub unsafe extern "C" fn control_create(
+    engine: *mut ffi::Engine,
+    limits: *const ffi::Limits,
+    output: *mut *mut ffi::Control,
+    error: *mut ffi::Error,
+) -> u32 {
+    if output.is_null() || !unsafe { error_ready(error) } || !unsafe { header(limits) } {
+        return INVALID;
+    }
+    let pointer = match unsafe { metadata(engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    // SAFETY: checked engine is retained and caller supplied complete limits.
+    let (owner, limits) = unsafe { (pointer.as_ref(), limits.read()) };
+    if owner.active.get() {
+        return BUSY;
+    }
+    if limits.reserved != [0; 2] {
+        return INVALID;
+    }
+    // SAFETY: owner thread reads immutable engine configuration.
+    let ceiling = bounds(unsafe { owner.data.as_ref() }.config.ceiling, limits);
+    if retain(owner).is_err() {
+        return OOM;
+    }
+    let control = Box::new(Control {
+        engine: pointer,
+        ceiling,
+        flag: e::InterruptionFlag::new(),
+        used: Cell::new(false),
+    });
+    // SAFETY: fresh one-shot control publishes only after admission.
+    unsafe { output.write(Box::into_raw(control).cast()) };
+    OK
+}
+
+/// # Safety
+/// The exact live control is retained through this potentially cross-thread
+/// operation. Its owner must not destroy it concurrently.
+pub unsafe extern "C" fn interrupt(control: *mut ffi::Control) {
+    if control.is_null() {
+        return;
+    }
+    // SAFETY: borrow only the immutable atomic flag field; no owner-thread
+    // Cell or engine execution storage is followed by a foreign thread.
+    let flag = unsafe { &*ptr::addr_of!((*control.cast::<Control>()).flag) };
+    flag.interrupt();
+}
+
+/// # Safety
+/// Exact live control/error are retained through this owner-thread operation.
+pub unsafe extern "C" fn control_drop(control: *mut ffi::Control, error: *mut ffi::Error) -> u32 {
+    if control.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: native caller supplies the exact live control.
+    let control_ref = unsafe { &*control.cast::<Control>() };
+    let owner = match unsafe { owner(&control_ref.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if owner.active.get() {
+        return BUSY;
+    }
+    if release(owner).is_err() {
+        return INVALID;
+    }
+    // SAFETY: consume the exact unique control after all use ended.
+    unsafe { drop(Box::from_raw(control.cast::<Control>())) };
+    OK
+}
+
+/// # Safety
+/// Instance/result/error slots are exact live native objects. A successful
+/// close invalidates the instance handle; outstanding bindings remain closed.
+pub unsafe extern "C" fn instance_close(
+    instance: *mut ffi::Instance,
+    output: *mut *mut ffi::Result,
+    error: *mut ffi::Error,
+) -> u32 {
+    if instance.is_null() || output.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: caller retains this exact instance handle.
+    let value = unsafe { &(*instance.cast::<InstanceHandle>()).0 };
+    let owner = match unsafe { owner(&value.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if owner.active.get() {
+        return BUSY;
+    }
+    // Full holder-specific retirement remains unfinished; never silently
+    // discard an actual retained owner in this private scalar experiment.
+    if !unsafe { owner.data.as_ref() }.values.is_empty() {
+        return BUSY;
+    }
+    value.closed.set(true);
+    if release(owner).is_err() {
+        return INVALID;
+    }
+    // SAFETY: consume the exact handle once; success has no failure result.
+    unsafe {
+        drop(Box::from_raw(instance.cast::<InstanceHandle>()));
+        output.write(ptr::null_mut())
+    };
+    OK
+}
+
+/// # Safety
+/// Exact live binding/control and initialized output/error slots remain valid
+/// through the operation. Argument storage is a readable canonical byte view.
+pub unsafe extern "C" fn call(
+    binding: *mut ffi::Binding,
+    control: *mut ffi::Control,
+    arguments: ffi::Bytes,
+    output: *mut *mut ffi::Result,
+    error: *mut ffi::Error,
+) -> u32 {
+    if binding.is_null() || control.is_null() || output.is_null() || !unsafe { error_ready(error) }
+    {
+        return INVALID;
+    }
+    // SAFETY: native caller retains these exact live opaque objects.
+    let (binding, control) = unsafe { (&*binding.cast::<Binding>(), &*control.cast::<Control>()) };
+    let owner = match unsafe { owner(&binding.instance.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if owner.active.get() {
+        return BUSY;
+    }
+    if binding.instance.engine != control.engine
+        || binding.instance.closed.get()
+        || control.used.get()
+    {
+        return INVALID;
+    }
+    // SAFETY: view remains readable for this complete operation.
+    let arguments = match unsafe { bytes(arguments) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    // A valid control is one-shot even when later preparation refuses entry.
+    control.used.set(true);
+    owner.active.set(true);
+    let active = Active(&owner.active);
+    // SAFETY: owner-thread active guard excludes other mutable root operations.
+    let data = unsafe { &mut *owner.data.as_ptr() };
+    let ceiling = bounds(binding.instance.ceiling, control.ceiling);
+    let as_size = |n| usize::try_from(n).map_err(|_| INVALID);
+    let execute = (|| -> Result<CallResult, u32> {
+        let limits = e::Limits {
+            fuel: Some(ceiling.fuel),
+            host_calls: Some(ceiling.host_calls),
+            frames: Some(as_size(ceiling.frames)?),
+            live_cells: Some(as_size(ceiling.live_cells)?),
+        };
+        let invocation = e::Control::with_limits(limits)
+            .and_service_work(Some(ceiling.service_work))
+            .and_interruption(&control.flag);
+        let mut session = wire::Session::new(data.limits.metadata);
+        let providers = [];
+        let bound = grants::prepare(
+            binding.instance.module.unit(),
+            binding.instance.module.contract(),
+            &[],
+            || &providers,
+            &mut session,
+        )
+        .map_err(|_| INVALID)?;
+        let program = program::Program::prepare(&bound, Default::default()).map_err(|_| INVALID)?;
+        let runtime = r::Limits {
+            tasks: lang_runtime::task::Limits {
+                live_tasks: as_size(ceiling.live_tasks)?,
+                ..Default::default()
+            },
+            preparation: data.limits.preparation,
+            cleanup_failure_records: as_size(ceiling.suppressed_records)?.saturating_add(1),
+            ..Default::default()
+        };
+        let generated = if data.config.mode == 1 {
+            Some(
+                lang_codegen_clif::tasks::CompiledProgram::compile_component(
+                    &program,
+                    binding.entry,
+                    data.limits.preparation,
+                )
+                .map_err(|_| INVALID)?,
+            )
+        } else {
+            None
+        };
+        let mut invoker = data.bridge.begin(invocation)?;
+        let mut budget = m::Budget::new(data.limits.preparation);
+        let mut state = binding.instance.state.try_borrow_mut().map_err(|_| BUSY)?;
+        state
+            .with_program(&program, |instance| {
+                let early = |reason: r::Reason,
+                             service_work: u64,
+                             allocations: a::Stats|
+                 -> Result<CallResult, u32> {
+                    if !matches!(reason, r::Reason::Control(_)) {
+                        return Err(INVALID);
+                    }
+                    let failure = r::Failure {
+                        reason,
+                        function: Some(binding.entry),
+                        span: Some(
+                            binding
+                                .instance
+                                .module
+                                .unit()
+                                .code()
+                                .declarations()
+                                .functions()[binding.entry.0 as usize]
+                                .signature_span,
+                        ),
+                        usage: e::Usage {
+                            service_work,
+                            ..Default::default()
+                        },
+                        tasks: Default::default(),
+                        events: vec![],
+                        report: None,
+                        poisoned: false,
+                    };
+                    let report = project_failure(
+                        &failure,
+                        ceiling,
+                        binding.instance.digest,
+                        data.config.mode,
+                        binding.entry,
+                        allocations,
+                    );
+                    Ok(CallResult {
+                        instance: binding.instance.clone(),
+                        body: ResultBody::Failure(Box::new(failure)),
+                        usage: e::Usage {
+                            service_work,
+                            ..Default::default()
+                        },
+                        committed: false,
+                        poisoned: false,
+                        allocations,
+                        tasks: Default::default(),
+                        report,
+                    })
+                };
+                let mut host = match execution::Invocation::prepare_owned(
+                    instance,
+                    binding.entry,
+                    &mut data.values,
+                    &mut invoker,
+                    &mut budget,
+                ) {
+                    Ok(v) => v,
+                    Err(reason) => return early(reason, 0, data.allocator.stats()),
+                };
+                // Resource-index rebasing is unfinished: empty authority cannot
+                // accidentally authorize a resource claim in this scalar probe.
+                let arguments =
+                    match host.decode_arguments(arguments, &[], &data.allocator, &mut session) {
+                        Ok(v) => v,
+                        Err(reason) => {
+                            return early(reason, host.service_work_used(), data.allocator.stats());
+                        }
+                    };
+                if let Err(reason) = host.prepare_output(&mut session) {
+                    return early(reason, host.service_work_used(), data.allocator.stats());
+                }
+                let outcome = if let Some(generated) = generated {
+                    generated.execute_component(
+                        &mut data.allocator,
+                        invocation,
+                        runtime,
+                        &arguments,
+                        &mut host,
+                    )
+                } else {
+                    lang_vm::unit::tasks::execute_component(
+                        &program,
+                        binding.entry,
+                        &mut data.allocator,
+                        invocation,
+                        runtime,
+                        &arguments,
+                        &mut host,
+                    )
+                };
+                let committed = execution::Host::arguments_committed(&host);
+                let allocations = data.allocator.stats();
+                match outcome {
+                    Ok(outcome) => {
+                        let execution::Value::Frame(frame) = outcome.value else {
+                            return Err(INVALID);
+                        };
+                        Ok(CallResult {
+                            instance: binding.instance.clone(),
+                            body: ResultBody::Value(frame),
+                            usage: outcome.usage,
+                            committed,
+                            poisoned: outcome.poisoned,
+                            allocations,
+                            tasks: outcome.tasks,
+                            report: None,
+                        })
+                    }
+                    Err(failure) => {
+                        let usage = failure.usage;
+                        let tasks = failure.tasks;
+                        let poisoned = failure.poisoned;
+                        let report = project_failure(
+                            &failure,
+                            ceiling,
+                            binding.instance.digest,
+                            data.config.mode,
+                            binding.entry,
+                            allocations,
+                        );
+                        Ok(CallResult {
+                            instance: binding.instance.clone(),
+                            body: ResultBody::Failure(Box::new(failure)),
+                            usage,
+                            committed,
+                            poisoned,
+                            allocations,
+                            tasks,
+                            report,
+                        })
+                    }
+                }
+            })
+            .map_err(|_| INVALID)?
+    })();
+    drop(active);
+    let value = match execute {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    let status = if matches!(value.body, ResultBody::Failure(_)) {
+        1
+    } else {
+        OK
+    };
+    if retain(owner).is_err() {
+        return OOM;
+    }
+    // SAFETY: admitted completion publishes one immutable owned result handle.
+    unsafe { output.write(Box::into_raw(Box::new(value)).cast()) };
+    status
+}
+
+/// # Safety
+/// Result and initialized info/error slots are exact live native objects.
+pub unsafe extern "C" fn result_info(
+    result: *const ffi::Result,
+    output: *mut ffi::ResultInfo,
+    error: *mut ffi::Error,
+) -> u32 {
+    if result.is_null() || !unsafe { header(output) } || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: exact immutable result remains live through inspection.
+    let value = unsafe { &*result.cast::<CallResult>() };
+    if let Err(s) = unsafe { owner(&value.instance.engine) } {
+        return s;
+    }
+    let (kind, records, omitted, frames) = match &value.body {
+        ResultBody::Value(_) => (0, 0, 0, 0),
+        ResultBody::Failure(f) => {
+            if let Some((report, _)) = &value.report {
+                (
+                    1,
+                    report.suppressed.len(),
+                    report.omitted,
+                    report.frames.len(),
+                )
+            } else {
+                (
+                    1,
+                    f.report.as_ref().map_or(0, |r| r.secondary().len()),
+                    f.report.as_ref().map_or(0, |r| r.truncated() as u64),
+                    0,
+                )
+            }
+        }
+    };
+    // SAFETY: output was initialized and header checked; named fields only.
+    unsafe {
+        *output = ffi::ResultInfo {
+            header: (*output).header,
+            kind,
+            flags: u32::from(value.committed) | (u32::from(value.poisoned) * 2),
+            omitted_records: omitted,
+            suppressed_count: records as u64,
+            frame_count: frames as u64,
+            reserved: [0; 2],
+        }
+    };
+    OK
+}
+
+/// # Safety
+/// Exact immutable result and initialized usage/error slots remain live.
+pub unsafe extern "C" fn result_usage(
+    result: *const ffi::Result,
+    output: *mut ffi::Usage,
+    error: *mut ffi::Error,
+) -> u32 {
+    if result.is_null() || !unsafe { header(output) } || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: exact result retains its original engine and immutable usage.
+    let value = unsafe { &*result.cast::<CallResult>() };
+    if let Err(s) = unsafe { owner(&value.instance.engine) } {
+        return s;
+    }
+    // SAFETY: initialized output header was checked before publication.
+    unsafe {
+        *output = ffi::Usage {
+            header: (*output).header,
+            fuel: value.usage.fuel,
+            service_work: value.usage.service_work,
+            host_calls: value.usage.host_calls,
+            peak_heap_bytes: value.allocations.peak_live_bytes,
+            peak_live_allocations: value.allocations.peak_live_allocations as u64,
+            peak_frames: value.usage.peak_frames as u64,
+            peak_live_cells: value.usage.peak_live_cells as u64,
+            peak_live_tasks: value.tasks.peak_live as u64,
+            canonical_indices: 0,
+            reserved: [0; 2],
+        }
+    };
+    OK
+}
+
+/// # Safety
+/// Result/output/error slots are valid and live. Returned immutable bytes
+/// borrow the result handle and expire only when that handle is released.
+pub unsafe extern "C" fn result_bytes(
+    result: *const ffi::Result,
+    output: *mut ffi::Bytes,
+    error: *mut ffi::Error,
+) -> u32 {
+    if result.is_null() || output.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: exact result remains retained throughout this immutable view.
+    let value = unsafe { &*result.cast::<CallResult>() };
+    if let Err(s) = unsafe { owner(&value.instance.engine) } {
+        return s;
+    }
+    let bytes = match &value.body {
+        ResultBody::Value(frame) => frame.bytes(),
+        ResultBody::Failure(_) => match &value.report {
+            Some((_, bytes)) => bytes.as_slice(),
+            None => return INVALID,
+        },
+    };
+    // SAFETY: complete canonical bytes are retained by this result handle.
+    unsafe {
+        output.write(ffi::Bytes {
+            data: bytes.as_ptr(),
+            length: bytes.len() as u64,
+        })
+    };
+    OK
+}
+
+/// # Safety
+/// Exact unique live result/error objects are retained through release.
+pub unsafe extern "C" fn result_drop(result: *mut ffi::Result, error: *mut ffi::Error) -> u32 {
+    if result.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: immutable result still retains its original engine metadata.
+    let value = unsafe { &*result.cast::<CallResult>() };
+    let owner = match unsafe { owner(&value.instance.engine) } {
+        Ok(v) => v,
+        Err(s) => return s,
+    };
+    if release(owner).is_err() {
+        return INVALID;
+    }
+    // SAFETY: only decoder-owned representation is released; independent
+    // resource ownership is never inferred from or retired by these bytes.
+    unsafe { drop(Box::from_raw(result.cast::<CallResult>())) };
+    OK
+}
+
+/// # Safety
+/// Module is the unique live module handle from this gateway, closed once;
+/// the initialized error slot remains valid for the complete operation.
+pub unsafe extern "C" fn module_drop(module: *mut ffi::Module, error: *mut ffi::Error) -> u32 {
+    // SAFETY: native caller retains initialized error and exact module handle.
+    if module.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: only successful module_load publishes this exact Loaded Box.
+    let loaded = unsafe { &*module.cast::<Loaded>() };
+    // SAFETY: the dependent handle keeps its engine live; resolve checks thread.
+    let owner = unsafe { loaded.engine.as_ref() };
+    let handle = owner.engine;
+    // SAFETY: handle derives from the retained original engine.
+    if let Err(status) = unsafe { metadata(handle) } {
+        return status;
+    }
+    if owner.active.get() {
+        return BUSY;
+    }
+    let Some(count) = owner.handles.get().checked_sub(1) else {
+        return INVALID;
+    };
+    owner.handles.set(count);
+    // SAFETY: the exact unique handle is consumed once after all admission.
+    unsafe { drop(Box::from_raw(module.cast::<Loaded>())) };
+    OK
+}

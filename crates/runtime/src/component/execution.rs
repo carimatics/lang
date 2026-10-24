@@ -315,6 +315,11 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
     pub fn active_loans(&self) -> usize {
         self.loans.iter().filter(|loan| loan.is_some()).count()
     }
+    /// Service work already charged during this root's canonical preparation.
+    /// Reading it does not create a counter or reset a failed admission latch.
+    pub fn service_work_used(&self) -> u64 {
+        self.work.used()
+    }
     fn abort_transfer(&mut self) {
         self.holding_output = false;
         if let Some(ticket) = self.transfer.take()
