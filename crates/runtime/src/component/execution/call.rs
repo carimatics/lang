@@ -257,10 +257,7 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         self.accounting
     }
     fn child_profile_supported(&self) -> bool {
-        let limits = self.budget.limits();
-        limits.work == usize::MAX
-            && limits.allocations == usize::MAX
-            && limits.elements == usize::MAX
+        true
     }
     fn with_storage(&mut self, operation: &mut dyn StorageOperation) -> Result<(), u32> {
         operation.run(

@@ -172,6 +172,26 @@ impl<'l, 't> Inspector<'l, 't> {
             return Err(l::Error::State.into());
         }
         let mut budget = m::Budget::with_usage(limits, initial).map_err(l::Error::from)?;
+        Self::prepare_with_budget(layouts, cells, &mut budget)
+    }
+    /// Prepare with the original cumulative budget; accepted prefixes survive failure.
+    pub fn prepare_with_budget(
+        layouts: &'l l::Layouts<'t>,
+        cells: usize,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Error> {
+        let initial = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        let base = layouts.usage();
+        if initial.work < base.work
+            || initial.allocation_bytes < base.allocation_bytes
+            || initial.elements < base.elements
+        {
+            return Err(l::Error::State.into());
+        }
         let pending = budget.vector(cells).map_err(l::Error::from)?;
         Ok(Self {
             layouts,

@@ -100,6 +100,26 @@ impl<'l, 't> Drain<'l, 't> {
             return Err(Error::State);
         }
         let mut budget = m::Budget::with_usage(limits, initial).map_err(l::Error::from)?;
+        Self::prepare_with_budget(layouts, allocator, &mut budget)
+    }
+    /// Prepare with the original cumulative budget; accepted prefixes survive failure.
+    pub fn prepare_with_budget<P: a::Provider>(
+        layouts: &'l l::Layouts<'t>,
+        allocator: &a::Allocator<P>,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Error> {
+        let initial = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        let base = layouts.usage();
+        if initial.work < base.work
+            || initial.allocation_bytes < base.allocation_bytes
+            || initial.elements < base.elements
+        {
+            return Err(Error::State);
+        }
         let capacity = allocator.limits().live_allocations;
         let frames = budget.vector(capacity).map_err(l::Error::from)?;
         Ok(Self {

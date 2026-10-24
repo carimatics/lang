@@ -302,20 +302,30 @@ impl<'l, 't> Heap<'l, 't> {
             return Err(Error::new(Kind::State));
         }
         let mut budget = m::Budget::with_usage(host, initial).map_err(l::Error::from)?;
+        Self::prepare_with_budget(layouts, limits, &mut budget)
+    }
+    /// Prepare with the original cumulative budget; accepted prefixes survive failure.
+    pub fn prepare_with_budget(
+        layouts: &'l l::Layouts<'t>,
+        limits: Limits,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Error> {
+        let initial = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        let base = layouts.usage();
+        if initial.work < base.work
+            || initial.allocation_bytes < base.allocation_bytes
+            || initial.elements < base.elements
+        {
+            return Err(Error::new(Kind::State));
+        }
         let mut nodes = budget.vector(limits.slots).map_err(l::Error::from)?;
         budget.charge(limits.slots).map_err(l::Error::from)?;
         nodes.resize_with(limits.slots, || None);
-        let walk = i::Inspector::prepare(
-            layouts,
-            limits.value_cells,
-            host,
-            m::Usage {
-                work: budget.work_used(),
-                allocation_bytes: budget.allocation_bytes(),
-                elements: budget.elements_used(),
-            },
-        )?;
-        budget = m::Budget::with_usage(host, walk.usage()).map_err(l::Error::from)?;
+        let walk = i::Inspector::prepare_with_budget(layouts, limits.value_cells, budget)?;
         let incoming = budget.vector(limits.value_cells).map_err(l::Error::from)?;
         let old_edges = budget.vector(limits.value_cells).map_err(l::Error::from)?;
         let found = budget.vector(limits.value_cells).map_err(l::Error::from)?;

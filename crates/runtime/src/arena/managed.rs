@@ -324,6 +324,26 @@ impl<'l, 't> Arena<'l, 't> {
             return Err(Error::new(Kind::State));
         }
         let mut budget = m::Budget::with_usage(host_limits, initial).map_err(l::Error::from)?;
+        Self::prepare_with_budget(layouts, limits, &mut budget)
+    }
+    /// Prepare with the original cumulative budget; accepted prefixes survive failure.
+    pub fn prepare_with_budget(
+        layouts: &'l l::Layouts<'t>,
+        limits: Limits,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Error> {
+        let initial = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        let base = layouts.usage();
+        if initial.work < base.work
+            || initial.allocation_bytes < base.allocation_bytes
+            || initial.elements < base.elements
+        {
+            return Err(Error::new(Kind::State));
+        }
         let nodes = budget.vector(limits.nodes).map_err(l::Error::from)?;
         let pending = budget.vector(limits.value_cells).map_err(l::Error::from)?;
         let opening = a::Request::new(

@@ -202,17 +202,11 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 .as_deref()
                 .is_some_and(|host| host.indirect_input())
         {
-            let drain = crate::retirement::Drain::prepare(
-                layouts,
-                allocator,
-                budget.limits(),
-                usage(budget),
-            )
-            .map_err(|error| match error {
+            let drain = crate::retirement::Drain::prepare_with_budget(layouts, allocator, budget)
+                .map_err(|error| match error {
                 crate::retirement::Error::Layout(error) => Reason::Layout(error),
                 _ => Reason::Invariant,
             })?;
-            *budget = m::Budget::with_usage(budget.limits(), drain.usage())?;
             services.drain = Some(drain);
         }
         let mut frame = Frame::new(

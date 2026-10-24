@@ -135,38 +135,33 @@ impl<'l, 'ty> Services<'l, 'ty> {
         }
         has_indirect |= has_arena || has_channels;
         let inspection = if has_arena || has_channels {
-            let inspector = crate::inspection::Inspector::prepare(
+            let inspector = crate::inspection::Inspector::prepare_with_budget(
                 layouts,
                 crate::arena::managed::Limits::default().value_cells,
-                budget.limits(),
-                usage(budget),
+                budget,
             )
             .map_err(|e| match e {
                 crate::inspection::Error::Layout(e) => Reason::Layout(e),
                 _ => Reason::Invariant,
             })?;
-            *budget = m::Budget::with_usage(budget.limits(), inspector.usage())?;
             Some(inspector)
         } else {
             None
         };
         let heap = if has_shared {
-            let heap =
-                sh::Heap::prepare(layouts, Default::default(), budget.limits(), usage(budget))
-                    .map_err(preparation)?
-                    .with_service_work(work.clone());
-            *budget = m::Budget::with_usage(budget.limits(), heap.usage())?;
+            let heap = sh::Heap::prepare_with_budget(layouts, Default::default(), budget)
+                .map_err(preparation)?
+                .with_service_work(work.clone());
             Some(heap)
         } else {
             None
         };
         let drain = if has_indirect {
-            let drain = r::Drain::prepare(layouts, allocator, budget.limits(), usage(budget))
-                .map_err(|e| match e {
+            let drain =
+                r::Drain::prepare_with_budget(layouts, allocator, budget).map_err(|e| match e {
                     r::Error::Layout(e) => Reason::Layout(e),
                     _ => Reason::Invariant,
                 })?;
-            *budget = m::Budget::with_usage(budget.limits(), drain.usage())?;
             Some(drain)
         } else {
             None

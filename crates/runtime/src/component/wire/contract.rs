@@ -672,6 +672,7 @@ pub fn decode_contract(
     session: &mut Session,
 ) -> Result<Contract, Error> {
     session.metadata(|session, limits| {
+        let proof_initial = session.preparation_usage();
         session.cap(1, session.limits.depth, LimitKind::Depth, 0)?;
         if bytes.len() > u32::MAX as usize {
             return Err(session.error(0, ErrorKind::InvalidSchema));
@@ -896,8 +897,14 @@ pub fn decode_contract(
             &mut p.r.session.budget,
             m::Budget::new(m::Limits::default()),
         );
-        let (document, budget) =
-            idl::check_decoded(document, limits, budget, p.declarations, p.elements);
+        let (document, budget) = idl::check_decoded(
+            document,
+            limits,
+            budget,
+            p.declarations,
+            p.elements,
+            proof_initial,
+        );
         p.r.session.budget = budget;
         let document = document.map_err(|e| {
             p.r.session

@@ -176,7 +176,8 @@ unsafe extern "C" fn make(
         }
         Ok(())
     })();
-    result.map_or_else(|status| status, |()| 0)
+    // Native host-error status is 1; context-operation status codes are separate.
+    result.map_or_else(|_| 1, |()| 0)
 }
 struct Child {
     unit: bindings::Unit,
@@ -198,6 +199,7 @@ struct Child {
     reply_work: Cell<Option<usize>>,
     reply_before: Cell<Option<m::Usage>>,
     preparation_after: Cell<Option<m::Usage>>,
+    failure: RefCell<Option<String>>,
 }
 impl Child {
     fn new(
@@ -226,6 +228,7 @@ impl Child {
             reply_work: Cell::new(None),
             reply_before: Cell::new(None),
             preparation_after: Cell::new(None),
+            failure: RefCell::new(None),
         }
     }
     unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
@@ -474,8 +477,8 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                             &mut invoker,
                             budget,
                         )
-                        .unwrap();
-                        invocation.prepare_output(session).unwrap();
+                        .map_err(|_| 1u32)?;
+                        invocation.prepare_output(session).map_err(|_| 1u32)?;
                         let outcome = execute_memory_with_budget(
                             program,
                             function,
@@ -489,7 +492,10 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                             &mut invocation,
                             Some(budget),
                         )
-                        .map_err(|_| 1u32)?;
+                        .map_err(|error| {
+                            self.target.failure.replace(Some(format!("{error:?}")));
+                            1u32
+                        })?;
                         self.target
                             .preparation_after
                             .set(Some(preparation_usage(budget)));
@@ -571,7 +577,8 @@ unsafe extern "C" fn tick(
         unsafe { output.write(buffer) };
         Ok(())
     })();
-    result.map_or_else(|status| status, |()| 0)
+    // Native host-error status is 1; context-operation status codes are separate.
+    result.map_or_else(|_| 1, |()| 0)
 }
 
 fn host_document() -> serde_json::Value {
@@ -813,19 +820,6 @@ enum MemoryAccess {
     NestedView,
 }
 
-fn execute_memory<P: a::Provider>(
-    program: &program::Program<'_>,
-    function: m::FunctionId,
-    generated: Option<&lang_codegen_clif::tasks::CompiledProgram<'_>>,
-    allocator: &mut a::Allocator<P>,
-    control: CallControl<'_>,
-    arguments: &[EntryArgument],
-    host: &mut dyn execution::Host,
-) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
-    execute_memory_with_budget(
-        program, function, generated, allocator, control, arguments, host, None,
-    )
-}
 #[allow(
     clippy::too_many_arguments,
     reason = "Keep original optional preparation budget explicit at the fixture's VM/native boundary."
@@ -888,8 +882,30 @@ struct CallControl<'a> {
     preparation: m::Limits,
 }
 
+struct TestProvider {
+    calls: Rc<Cell<usize>>,
+    failure: Rc<Cell<Option<usize>>>,
+}
+impl a::Provider for TestProvider {
+    type Region = <a::System as a::Provider>::Region;
+    fn allocate(&mut self, request: a::Request) -> Option<Self::Region> {
+        let index = self.calls.get();
+        self.calls.set(index + 1);
+        if self.failure.get() == Some(index) {
+            None
+        } else {
+            a::Provider::allocate(&mut a::System, request)
+        }
+    }
+    fn deallocate(&mut self, region: Self::Region, request: a::Request) {
+        a::Provider::deallocate(&mut a::System, region, request);
+    }
+}
 struct Harness {
-    allocator: a::Allocator<a::System>,
+    allocator: a::Allocator<TestProvider>,
+    provider_calls: Rc<Cell<usize>>,
+    provider_failure: Rc<Cell<Option<usize>>>,
+    preparation_trace: Option<Rc<Cell<Option<m::Usage>>>>,
     values: storage::Resources<'static>,
     state: execution::InstanceState,
     engine: lang_codegen_clif::component::Engine,
@@ -898,13 +914,25 @@ struct Harness {
 }
 impl Harness {
     fn new() -> Self {
-        let allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        let provider_calls = Rc::new(Cell::new(0));
+        let provider_failure = Rc::new(Cell::new(None));
+        let allocator = a::Allocator::new(
+            TestProvider {
+                calls: provider_calls.clone(),
+                failure: provider_failure.clone(),
+            },
+            Default::default(),
+        )
+        .unwrap();
         let mut budget = m::Budget::new(Default::default());
         let mut values = storage::Resources::prepare(&allocator, 4, 4, &mut budget).unwrap();
         let state = execution::InstanceState::prepare(&mut values).unwrap();
         let engine = lang_codegen_clif::component::Engine::prepare(&mut budget).unwrap();
         Self {
             allocator,
+            provider_calls,
+            provider_failure,
+            preparation_trace: None,
             values,
             state,
             engine,
@@ -1014,6 +1042,8 @@ impl Harness {
             engine,
             memory_access,
             preparation_limits,
+            preparation_trace,
+            ..
         } = self;
         let memory_access = *memory_access;
         let preparation_limits = *preparation_limits;
@@ -1045,8 +1075,10 @@ impl Harness {
                     invocation.prepare_output(session).unwrap();
                     let arguments: Vec<_> =
                         input.into_iter().map(EntryArgument::Resource).collect();
-                    let mut outcome = match memory_access {
-                        MemoryAccess::Original => execute_memory(
+                    let mut execution_budget = m::Budget::new(preparation_limits);
+                    let borrowed_preparation = preparation_trace.is_some();
+                    let result = match memory_access {
+                        MemoryAccess::Original => execute_memory_with_budget(
                             program,
                             function,
                             generated.as_ref(),
@@ -1057,10 +1089,15 @@ impl Harness {
                             },
                             &arguments,
                             &mut invocation,
+                            if borrowed_preparation {
+                                Some(&mut execution_budget)
+                            } else {
+                                None
+                            },
                         ),
                         MemoryAccess::View => {
                             let mut view = a::Allocator::borrow(allocator).unwrap();
-                            execute_memory(
+                            execute_memory_with_budget(
                                 program,
                                 function,
                                 generated.as_ref(),
@@ -1071,12 +1108,17 @@ impl Harness {
                                 },
                                 &arguments,
                                 &mut invocation,
+                                if borrowed_preparation {
+                                    Some(&mut execution_budget)
+                                } else {
+                                    None
+                                },
                             )
                         }
                         MemoryAccess::NestedView => {
                             let mut first = a::Allocator::borrow(allocator).unwrap();
                             let mut second = a::Allocator::borrow(&mut first).unwrap();
-                            execute_memory(
+                            execute_memory_with_budget(
                                 program,
                                 function,
                                 generated.as_ref(),
@@ -1087,9 +1129,18 @@ impl Harness {
                                 },
                                 &arguments,
                                 &mut invocation,
+                                if borrowed_preparation {
+                                    Some(&mut execution_budget)
+                                } else {
+                                    None
+                                },
                             )
                         }
-                    }?;
+                    };
+                    if let Some(trace) = preparation_trace {
+                        trace.set(Some(preparation_usage(&execution_budget)));
+                    }
+                    let mut outcome = result?;
                     if let execution::Value::Frame(frame) = &outcome.value {
                         outcome.value = match frame.values().nodes.as_slice() {
                             [wire::Value::Resource(_)] if frame.resources().len() == 1 => {
@@ -1257,13 +1308,159 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
 }
 
 #[test]
-fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
+fn finite_callback_budget_boundaries_repeats_and_every_provider_refusal_retire_owners() {
+    fn run(
+        compiled: bool,
+        repetitions: usize,
+        limits: m::Limits,
+        failure: Option<usize>,
+    ) -> (bool, m::Usage, usize) {
+        let mut h = Harness::new();
+        h.preparation_limits = limits;
+        h.provider_failure.set(failure);
+        let trace = Rc::new(Cell::new(None));
+        h.preparation_trace = Some(trace.clone());
+        let child = Rc::new(Child::new(&mut h.values, compiled, repetitions, usize::MAX));
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let result = h.call_control(
+            registration,
+            "create",
+            None,
+            compiled,
+            e::Control::with_limits(e::Limits::unbounded()),
+        );
+        let usage = trace.get().expect("original root preparation ledger");
+        let calls = h.provider_calls.get();
+        let succeeded = result.is_ok();
+        h.provider_failure.set(None);
+        h.preparation_trace = None;
+        h.preparation_limits = Default::default();
+        match result {
+            Ok(created) => {
+                assert_eq!(child.value.get(), 42);
+                let execution::Value::Resource(claim) = created.value else {
+                    panic!("original owner")
+                };
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+            }
+            Err(error) => {
+                assert!(
+                    !error.poisoned,
+                    "{error:?}; child={:?}",
+                    child.failure.borrow()
+                );
+            }
+        }
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        assert_eq!(watch.destroyed.get(), watch.produced.get());
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+
+        // A failed child must not poison or consume the next original parent call.
+        let (next, next_watch) = h.registration(false);
+        let next = h.call(next, "create", None, compiled).unwrap();
+        let execution::Value::Resource(claim) = next.value else {
+            panic!("next owner")
+        };
+        let (cleanup, _) = h.registration(false);
+        h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+        assert_eq!(next_watch.produced.get(), 1);
+        assert_eq!(next_watch.destroyed.get(), 1);
+        assert_eq!(next_watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        (succeeded, usage, calls)
+    }
+    let wide = m::Limits::default();
+    let mut reference = Vec::new();
+    for compiled in [false, true] {
+        let mut previous = None;
+        for repetitions in [1, 2] {
+            let (ok, complete, calls) = run(compiled, repetitions, wide, None);
+            assert!(ok, "finite baseline for {repetitions} children");
+            if compiled {
+                assert_eq!(
+                    complete,
+                    reference[repetitions - 1],
+                    "VM/native preparation costs"
+                );
+            } else {
+                reference.push(complete);
+            }
+            if let Some(before) = previous {
+                let before: m::Usage = before;
+                assert!(complete.work > before.work);
+                assert!(complete.allocation_bytes > before.allocation_bytes);
+                assert!(complete.elements > before.elements);
+            }
+            for dimension in 0..3 {
+                for exact in [false, true] {
+                    let mut limits = wide;
+                    let ceiling = match dimension {
+                        0 => complete.work,
+                        1 => complete.allocation_bytes,
+                        _ => complete.elements,
+                    } - usize::from(!exact);
+                    match dimension {
+                        0 => limits.work = ceiling,
+                        1 => limits.allocations = ceiling,
+                        _ => limits.elements = ceiling,
+                    }
+                    let (ok, accepted, _) = run(compiled, repetitions, limits, None);
+                    assert_eq!(ok, exact, "dimension {dimension}, {repetitions} children");
+                    assert!(
+                        match dimension {
+                            0 => accepted.work,
+                            1 => accepted.allocation_bytes,
+                            _ => accepted.elements,
+                        } <= ceiling
+                    );
+                    if exact {
+                        assert_eq!(accepted, complete);
+                    }
+                }
+                if let Some(before) = previous {
+                    let mut limits = wide;
+                    match dimension {
+                        0 => limits.work = before.work,
+                        1 => limits.allocations = before.allocation_bytes,
+                        _ => limits.elements = before.elements,
+                    }
+                    assert!(
+                        !run(compiled, repetitions, limits, None).0,
+                        "repeated children share dimension {dimension}"
+                    );
+                }
+            }
+            assert!(calls > 0);
+            for failure in 0..calls {
+                assert!(
+                    !run(compiled, repetitions, wide, Some(failure)).0,
+                    "provider refusal {failure}"
+                );
+            }
+            previous = Some(complete);
+        }
+    }
+}
+
+fn original_native_callback_roundtrip(unbounded: bool) {
     for compiled in [false, true] {
         for repetitions in [1, 2] {
             let mut h = Harness::new();
-            h.preparation_limits.work = usize::MAX;
-            h.preparation_limits.allocations = usize::MAX;
-            h.preparation_limits.elements = usize::MAX;
+            if unbounded {
+                h.preparation_limits.work = usize::MAX;
+                h.preparation_limits.allocations = usize::MAX;
+                h.preparation_limits.elements = usize::MAX;
+            }
             let child = Rc::new(Child::new(&mut h.values, compiled, repetitions, usize::MAX));
             let (registration, watch) = h.registration_child(false, Some(child.clone()));
             let control = e::Control::with_limits(e::Limits::unbounded());
@@ -1317,15 +1514,23 @@ fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
 }
 
 #[test]
+fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
+    original_native_callback_roundtrip(true);
+}
+
+#[test]
+fn finite_original_preparation_executes_guest_children_and_releases_original_owners() {
+    original_native_callback_roundtrip(false);
+}
+#[test]
 fn private_child_profile_refuses_unconnected_finite_policies_before_native_effects() {
     for compiled in [false, true] {
-        for policy in 0..4 {
+        for policy in 0..3 {
             let mut h = Harness::new();
-            if policy != 3 {
-                h.preparation_limits.work = usize::MAX;
-                h.preparation_limits.allocations = usize::MAX;
-                h.preparation_limits.elements = usize::MAX;
-            }
+            h.preparation_limits.work = usize::MAX;
+            h.preparation_limits.allocations = usize::MAX;
+            h.preparation_limits.elements = usize::MAX;
+
             let child = Rc::new(Child::new(&mut h.values, compiled, 1, usize::MAX));
             let (registration, watch) = h.registration_child(false, Some(child.clone()));
             let mut limits = e::Limits::unbounded();
@@ -2224,6 +2429,286 @@ fn canonical_reply_copy_spends_the_original_child_ledger_before_decode_refusal()
         }
     }
 }
+#[test]
+fn decoded_metadata_proof_cost_excludes_unrelated_original_precharges() {
+    let unit = stored_unit();
+    let mut seed = wire::Session::new(Default::default());
+    let contract = wire::artifact::source_contract(&unit, &mut seed, 65_536).unwrap();
+    let bytes = wire::encode_contract(&contract, &mut seed).unwrap();
+    for canonical in [false, true] {
+        let mut reference = None;
+        for initial in [
+            m::Usage::default(),
+            m::Usage {
+                work: 17,
+                allocation_bytes: 27_000_000,
+                elements: 92_608,
+            },
+        ] {
+            let mut budget = m::Budget::with_usage(Default::default(), initial).unwrap();
+            let mut session = wire::Session::new(Default::default());
+            let proof = {
+                let mut scope = session.scope_preparation(&mut budget).unwrap();
+                let contract = if canonical {
+                    wire::decode_contract(m::SourceId(0), &bytes, &mut scope).unwrap()
+                } else {
+                    wire::artifact::source_contract(&unit, &mut scope, 65_536).unwrap()
+                };
+                contract.checked().usage().budget
+            };
+            let after = preparation_usage(&budget);
+            let delta = m::Usage {
+                work: after.work - initial.work,
+                allocation_bytes: after.allocation_bytes - initial.allocation_bytes,
+                elements: after.elements - initial.elements,
+            };
+            assert_eq!(session.usage().work, delta.work);
+            assert_eq!(session.usage().allocation_bytes, delta.allocation_bytes);
+            assert_eq!(session.preparation_usage().elements, delta.elements);
+            if let Some((expected_proof, expected_delta)) = reference {
+                assert_eq!(
+                    proof, expected_proof,
+                    "immutable proof excludes global caller history"
+                );
+                assert_eq!(
+                    delta, expected_delta,
+                    "original ledger keeps every actual local charge"
+                );
+            } else {
+                reference = Some((proof, delta));
+            }
+        }
+    }
+}
+
+#[test]
+fn borrowed_runtime_pools_keep_costs_failed_prefixes_and_guest_refusal() {
+    use lang_runtime::{
+        arena::managed as arena, inspection, layout, retirement, shared::managed as shared,
+    };
+    let h = Harness::new();
+    let (registration, watch) = h.registration(false);
+    prepared(registration, |program, _| {
+        let layouts =
+            layout::Layouts::compile_component_program(program, Default::default()).unwrap();
+        let function = entry(program, "create");
+        let frame = layout::FramePlan::compile_tasks_after(
+            &layouts,
+            program.proof(),
+            function,
+            Default::default(),
+            usize::MAX,
+            program.usage(),
+        )
+        .unwrap();
+        let base = frame.usage();
+        let initial = m::Usage {
+            work: base.work + 17,
+            allocation_bytes: base.allocation_bytes + 23,
+            elements: base.elements + 29,
+        };
+        let allocator = a::Allocator::new(
+            a::System,
+            a::Limits {
+                live_allocations: 64,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let arena_limits = arena::Limits {
+            nodes: 3,
+            value_cells: 5,
+            readers: 2,
+            ..Default::default()
+        };
+        let heap_limits = shared::Limits {
+            nodes: 3,
+            slots: 4,
+            tickets: 5,
+            readers: 2,
+            value_cells: 6,
+            ..Default::default()
+        };
+        for stage in 0..5 {
+            let run = |budget: &mut m::Budget| -> Result<m::Usage, String> {
+                match stage {
+                    0 => {
+                        let plan = layout::FramePlan::compile_tasks_after(
+                            &layouts,
+                            program.proof(),
+                            function,
+                            budget.limits(),
+                            usize::MAX,
+                            program.usage(),
+                        )
+                        .map_err(|e| format!("{e:?}"))?;
+                        plan.prepare_pool_with_budget(budget)
+                            .map(|v| v.usage())
+                            .map_err(|e| format!("{e:?}"))
+                    }
+                    1 => arena::Arena::prepare_with_budget(&layouts, arena_limits, budget)
+                        .map(|v| v.usage())
+                        .map_err(|e| format!("{e:?}")),
+                    2 => inspection::Inspector::prepare_with_budget(&layouts, 5, budget)
+                        .map(|v| v.usage())
+                        .map_err(|e| format!("{e:?}")),
+                    3 => shared::Heap::prepare_with_budget(&layouts, heap_limits, budget)
+                        .map(|v| v.usage())
+                        .map_err(|e| format!("{e:?}")),
+                    _ => retirement::Drain::prepare_with_budget(&layouts, &allocator, budget)
+                        .map(|v| v.usage())
+                        .map_err(|e| format!("{e:?}")),
+                }
+            };
+            let owned = match stage {
+                0 => frame.prepare_pool_after(initial).unwrap().usage(),
+                1 => arena::Arena::prepare(&layouts, arena_limits, Default::default(), initial)
+                    .unwrap()
+                    .usage(),
+                2 => inspection::Inspector::prepare(&layouts, 5, Default::default(), initial)
+                    .unwrap()
+                    .usage(),
+                3 => shared::Heap::prepare(&layouts, heap_limits, Default::default(), initial)
+                    .unwrap()
+                    .usage(),
+                _ => retirement::Drain::prepare(&layouts, &allocator, Default::default(), initial)
+                    .unwrap()
+                    .usage(),
+            };
+            let mut budget = m::Budget::with_usage(Default::default(), initial).unwrap();
+            assert_eq!(run(&mut budget).unwrap(), owned, "stage {stage}");
+            assert_eq!(preparation_usage(&budget), owned);
+            let fields = |v: m::Usage| [v.work, v.allocation_bytes, v.elements];
+            for dimension in 0..3 {
+                if fields(owned)[dimension] == fields(initial)[dimension] {
+                    continue;
+                }
+                for exact in [false, true] {
+                    let mut limits = m::Limits::default();
+                    let ceiling = fields(owned)[dimension] - usize::from(!exact);
+                    match dimension {
+                        0 => limits.work = ceiling,
+                        1 => limits.allocations = ceiling,
+                        _ => limits.elements = ceiling,
+                    }
+                    let mut budget = m::Budget::with_usage(limits, initial).unwrap();
+                    assert_eq!(
+                        run(&mut budget).is_ok(),
+                        exact,
+                        "stage {stage}, dimension {dimension}"
+                    );
+                    assert_eq!(budget.limits(), limits);
+                    let after = preparation_usage(&budget);
+                    if exact {
+                        assert_eq!(after, owned);
+                    } else {
+                        assert!(
+                            fields(after)
+                                .iter()
+                                .zip(fields(initial))
+                                .all(|(a, b)| *a >= b)
+                        );
+                        if stage == 1 || stage == 3 {
+                            assert!(
+                                after.allocation_bytes > initial.allocation_bytes,
+                                "accepted allocation prefix in stage {stage}"
+                            );
+                        }
+                        assert!(run(&mut budget).is_err());
+                        let repeated = preparation_usage(&budget);
+                        assert!(
+                            fields(repeated)
+                                .iter()
+                                .zip(fields(after))
+                                .all(|(a, b)| *a >= b)
+                        );
+                        assert!(fields(repeated)[dimension] <= ceiling);
+                    }
+                }
+            }
+            let mut invalid = m::Budget::new(Default::default());
+            assert!(run(&mut invalid).is_err());
+            assert_eq!(preparation_usage(&invalid), m::Usage::default());
+        }
+        // Failure after bounded host pools must keep their accepted charges.
+        let mut overflow = m::Budget::with_usage(Default::default(), initial).unwrap();
+        let arena_overflow = arena::Limits {
+            readers: usize::MAX,
+            ..arena_limits
+        };
+        assert!(
+            arena::Arena::prepare_with_budget(&layouts, arena_overflow, &mut overflow).is_err()
+        );
+        assert!(overflow.allocation_bytes() > initial.allocation_bytes);
+        let accepted = preparation_usage(&overflow);
+        assert!(
+            arena::Arena::prepare_with_budget(&layouts, arena_overflow, &mut overflow).is_err()
+        );
+        assert!(overflow.allocation_bytes() > accepted.allocation_bytes);
+        let mut overflow = m::Budget::with_usage(Default::default(), initial).unwrap();
+        let heap_overflow = shared::Limits {
+            tickets: usize::MAX,
+            ..heap_limits
+        };
+        assert!(shared::Heap::prepare_with_budget(&layouts, heap_overflow, &mut overflow).is_err());
+        assert!(overflow.allocation_bytes() > initial.allocation_bytes);
+
+        struct Refusing(Rc<Cell<usize>>);
+        impl a::Provider for Refusing {
+            type Region = a::NoRegion;
+            fn allocate(&mut self, _: a::Request) -> Option<Self::Region> {
+                self.0.set(self.0.get() + 1);
+                None
+            }
+            fn deallocate(&mut self, region: Self::Region, _: a::Request) {
+                match region {}
+            }
+        }
+        let calls = Rc::new(Cell::new(0));
+        let mut refusing = a::Allocator::new(Refusing(calls.clone()), Default::default()).unwrap();
+        let mut budget = m::Budget::with_usage(Default::default(), initial).unwrap();
+        let pool_cost = frame.prepare_pool_after(initial).unwrap().usage();
+        let changed = m::Limits {
+            depth: 1,
+            ..Default::default()
+        };
+        let mut mismatch = m::Budget::with_usage(changed, initial).unwrap();
+        assert!(matches!(
+            frame.prepare_pool_with_budget(&mut mismatch),
+            Err(layout::Error::State)
+        ));
+        assert!(matches!(
+            frame.reserve_with_budget(&mut refusing, &mut mismatch),
+            Err(layout::Error::State)
+        ));
+        assert_eq!(preparation_usage(&mismatch), initial);
+        assert_eq!(calls.get(), 0);
+        for attempt in 1..=2 {
+            let before = preparation_usage(&budget);
+            assert!(matches!(
+                frame.reserve_with_budget(&mut refusing, &mut budget),
+                Err(layout::Error::Allocation(a::Error::OutOfMemory))
+            ));
+            let after = preparation_usage(&budget);
+            assert_eq!(after.work - before.work, pool_cost.work - initial.work);
+            assert_eq!(
+                after.allocation_bytes - before.allocation_bytes,
+                pool_cost.allocation_bytes - initial.allocation_bytes
+            );
+            assert_eq!(
+                after.elements - before.elements,
+                pool_cost.elements - initial.elements
+            );
+            assert_eq!(calls.get(), attempt);
+            assert_eq!(refusing.stats().live_allocations, 0);
+        }
+        assert_eq!(allocator.stats().requests, 0);
+    });
+    assert_eq!(watch.released.get(), 1);
+    assert_eq!(h.allocator.stats().live_allocations, 0);
+    assert!(h.values.is_empty());
+}
+
 #[test]
 fn borrowed_layout_and_frame_failures_keep_every_precharged_dimension() {
     let h = Harness::new();

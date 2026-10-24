@@ -64,7 +64,7 @@ mod decoded_budget_tests {
         };
         let limits = m::Limits::default();
         let budget = m::Budget::with_usage(limits, initial).unwrap();
-        let (result, budget) = check_decoded(document, Limits::default(), budget, 2, 0);
+        let (result, budget) = check_decoded(document, Limits::default(), budget, 2, 0, initial);
         let Err(error) = result else {
             panic!("duplicate decoded interface was accepted");
         };
@@ -197,7 +197,22 @@ pub(super) fn check_decoded(
     budget: m::Budget,
     declarations: usize,
     elements: usize,
+    proof_initial: m::Usage,
 ) -> (Result<CheckedDocument, Error>, m::Budget) {
+    if proof_initial.work > budget.work_used()
+        || proof_initial.allocation_bytes > budget.allocation_bytes()
+        || proof_initial.elements > budget.elements_used()
+    {
+        return (
+            Err(Error {
+                code: Code::Resource,
+                reason: Reason::Budget(m::ErrorKind::ArithmeticOverflow),
+                span: document.package.span,
+                related: None,
+            }),
+            budget,
+        );
+    }
     let mut c = Context {
         source: document.source,
         limits,
@@ -210,9 +225,9 @@ pub(super) fn check_decoded(
         document,
         usage: Usage {
             budget: m::Usage {
-                work: c.budget.work_used(),
-                allocation_bytes: c.budget.allocation_bytes(),
-                elements: c.budget.elements_used(),
+                work: c.budget.work_used() - proof_initial.work,
+                allocation_bytes: c.budget.allocation_bytes() - proof_initial.allocation_bytes,
+                elements: c.budget.elements_used() - proof_initial.elements,
             },
             declarations,
             elements,

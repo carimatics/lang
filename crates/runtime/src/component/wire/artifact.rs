@@ -45,6 +45,8 @@ pub fn prepare(
             depth: limits.depth.min(session.limits.depth),
             ..limits
         };
+        // The proof bounds this graph's comparison, not unrelated caller preparation.
+        let proof_initial = session.preparation_usage();
         let counts = write::measure(&document, &mappings, sources, session, binding_limit)?;
         let budget = m::Budget::with_usage(session.budget.limits(), session.preparation_usage())
             .map_err(|e| Session::budget_error(0, e))?;
@@ -54,6 +56,7 @@ pub fn prepare(
             budget,
             counts.declarations,
             counts.elements,
+            proof_initial,
         );
         session.budget = budget;
         let document = result.map_err(|e| session.error(0, ErrorKind::Declaration(e)))?;

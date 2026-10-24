@@ -499,9 +499,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
             Some(budget)
         }else{None};
         if let Some(program) = program {
-            let preparation = limits.preparation;
-            let allowed = component.as_deref().is_some_and(|host| host.reentry_supported())
-                && preparation.work == usize::MAX && preparation.allocations == usize::MAX && preparation.elements == usize::MAX;
+            let allowed = component.as_deref().is_some_and(|host| host.reentry_supported());
             component_budget.as_mut().ok_or(Reason::Invariant)?.charge(program.bindings().imports().len())?;
             if !allowed && program.bindings().imports().iter().any(|import| import.method().flags & 1 != 0) {
                 return Err(Reason::Unsupported);

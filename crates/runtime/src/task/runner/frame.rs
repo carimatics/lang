@@ -160,15 +160,13 @@ impl<'l, 'ty> Frame<'l, 'ty> {
                 budget.charge(1)?;
                 let arena = if matches!(plan.cell_type(slot).map(|t|t.ty),Some(o::Type::Constructed(id))if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::ArenaOwner(_)))
                 {
-                    let arena = crate::arena::managed::Arena::prepare(
+                    let arena = crate::arena::managed::Arena::prepare_with_budget(
                         layouts,
                         Default::default(),
-                        budget.limits(),
-                        usage(budget),
+                        budget,
                     )
                     .map_err(arenas::preparation)?
                     .with_service_work(work.clone());
-                    *budget = m::Budget::with_usage(budget.limits(), arena.usage())?;
                     Some(arena)
                 } else {
                     None
@@ -176,8 +174,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
                 arenas.push(arena);
             }
         }
-        let storage = plan.reserve_after(allocator, usage(budget))?;
-        *budget = m::Budget::with_usage(budget.limits(), storage.usage())?;
+        let storage = plan.reserve_with_budget(allocator, budget)?;
         Ok(Self {
             activation,
             types,

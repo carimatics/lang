@@ -338,6 +338,21 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         Ok(pool)
     }
 
+    /// Reserve on the original budget, retaining metadata charges if guest admission fails.
+    pub fn reserve_with_budget<P: Provider>(
+        &self,
+        allocator: &mut Allocator<P>,
+        budget: &mut m::Budget,
+    ) -> Result<FrameStorage<'layouts, 'types>, Error> {
+        if budget.limits() != self.limits || !covers(usage(budget), self.usage) {
+            return Err(Error::State);
+        }
+        allocator.check(&self.requests)?;
+        let mut pool = self.prepare_pool_with_budget(budget)?;
+        pool.admit(self, allocator)?;
+        Ok(pool)
+    }
+
     /// Prepare only bounded host wrappers, without an allocator callback or
     /// guest region. Prepare before outermost guest entry; admission can then
     /// reuse this capacity for plans from the same layouts/type graph.
@@ -353,6 +368,17 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             return Err(Error::State);
         }
         let mut budget = m::Budget::with_usage(self.limits, initial)?;
+        self.prepare_pool_with_budget(&mut budget)
+    }
+    /// Prepare wrappers on the original cumulative budget without guest effects.
+    pub fn prepare_pool_with_budget(
+        &self,
+        budget: &mut m::Budget,
+    ) -> Result<FrameStorage<'layouts, 'types>, Error> {
+        let initial = usage(budget);
+        if budget.limits() != self.limits || !covers(initial, self.usage) {
+            return Err(Error::State);
+        }
         budget.charge(self.cells.len())?;
         let cells = budget.vector(self.cells.len())?;
         Ok(FrameStorage {
@@ -360,7 +386,7 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             layouts: self.layouts,
             capacity: self.cells.len(),
             preparation: initial,
-            usage: usage(&budget),
+            usage: usage(budget),
             released: true,
         })
     }
