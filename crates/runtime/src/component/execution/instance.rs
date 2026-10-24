@@ -40,6 +40,10 @@ impl InstanceState {
     pub fn poisoned(&self) -> bool {
         self.phase == Phase::Poisoned
     }
+    /// Mandatory external-owner cleanup can add poison, never clear it.
+    pub fn poison(&mut self) {
+        self.phase = Phase::Poisoned;
+    }
     pub fn with_program<'p, 'u, T>(
         &mut self,
         program: &'p Program<'u>,

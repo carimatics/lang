@@ -23,6 +23,9 @@ operation!(probe_engine_create,engine_create,(c:*const ffi::Config,o:*mut *mut f
 operation!(probe_engine_destroy,engine_destroy,(v:*mut ffi::Engine,e:*mut ffi::Error)->u32);
 operation!(probe_module_load,module_load,(v:*mut ffi::Engine,f:u32,p:ffi::Bytes,c:ffi::Bytes,o:*mut *mut ffi::Module,e:*mut ffi::Error)->u32);
 operation!(probe_module_drop,module_drop,(v:*mut ffi::Module,e:*mut ffi::Error)->u32);
+operation!(probe_resource_publish,resource_publish,(i:*mut ffi::Instance,p:*mut ffi::Provider,k:ffi::Bytes,b:ffi::Bytes,a:u64,o:*mut u32,e:*mut ffi::Error)->u32);
+operation!(probe_resource_drop,resource_drop,(i:*mut ffi::Instance,r:u32,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
+operation!(probe_context_resource_write,context_resource_write,(c:*const ffi::Context,r:u32,o:*mut ffi::MutBytes,e:*mut ffi::Error)->u32);
 operation!(probe_provider_register,provider_register,(v:*mut ffi::Engine,c:*const ffi::ProviderConfig,o:*mut *mut ffi::Provider,e:*mut ffi::Error)->u32);
 operation!(probe_provider_drop,provider_drop,(v:*mut ffi::Provider,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
 operation!(probe_context_check,context_check,(c:*const ffi::Context,e:*mut ffi::Error)->u32);

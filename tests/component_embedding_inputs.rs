@@ -526,6 +526,173 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         .replace("@ROOT_RESULT@", &function.result)
         .replace("@ROOT_NAME@", &function.name);
     let native_header = host_generated.header;
+    let resource_host_json = serde_json::json!({
+        "idl":1,"package":"demo:res","version":"1.0.0",
+        "interfaces":[{"key":"demo:res/api","resources":["item"],"types":[],
+            "functions":[{"name":"touch","effect":"sync","params":[{"name":"item","type":{"borrow-mut":"item"}}],
+                "result":"i64","capability":"res.touch"}]}],
+        "imports":[],"exports":["demo:res/api"]
+    });
+    let resource_host_idl = serde_json::to_vec(&resource_host_json).unwrap();
+    let mut resource_session = wire::Session::new(Default::default());
+    let resource_host = wire::Contract::new(
+        idl::check(m::SourceId(0), &resource_host_idl, Default::default()).unwrap(),
+        vec![],
+        &mut resource_session,
+    )
+    .unwrap();
+    let resource_host_contract =
+        wire::encode_contract(&resource_host, &mut resource_session).unwrap();
+    let resource_method_signature = wire::Signature::new(
+        &resource_host,
+        &resource_host.document().interfaces[0].key.value,
+        "touch",
+        &mut resource_session,
+    )
+    .unwrap()
+    .digest();
+    let mut resource_caller = resource_host_json.clone();
+    resource_caller["package"] = serde_json::json!("demo:rescaller");
+    resource_caller["interfaces"].as_array_mut().unwrap().push(serde_json::json!({
+        "key":"demo:rescaller/api","resources":[],"types":[],
+        "functions":[{"name":"run","effect":"sync","params":[{"name":"item","type":{"borrow-mut":"demo:res/api.item"}}],
+            "result":"i64","capability":"res.run"}]
+    }));
+    resource_caller["imports"] = serde_json::json!([{"interface":"demo:res/api","version":{"exact":"1.0.0"},"members":["touch"]}]);
+    resource_caller["exports"] = serde_json::json!(["demo:rescaller/api"]);
+    resource_caller["interfaces"][1]["functions"].as_array_mut().unwrap().push(serde_json::json!({
+        "name":"relay","effect":"sync","params":[{"name":"item","type":{"own":"demo:res/api.item"}}],
+        "result":{"own":"demo:res/api.item"},"capability":"res.relay"
+    }));
+    let resource_idl = serde_json::to_vec(&resource_caller).unwrap();
+    let document = idl::check(m::SourceId(1), &resource_idl, Default::default()).unwrap();
+    let guest = g::guest(&document, Default::default()).unwrap();
+    let bodies = guest
+        .exports
+        .iter()
+        .map(|export| {
+            let value = if export.member.member == "relay" {
+                "p0".to_owned()
+            } else {
+                format!("{}(p0)", guest.bindings.imports[0].source)
+            };
+            format!("{} {{return {value};}}", export.declaration)
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let resource_program = format!("{}\n{bodies}", guest.declarations);
+    let analysis = f::analyze(f::Request {
+        sources: SourceMap::new(),
+        display: Path::new("component-source.lang"),
+        bytes: resource_program.as_bytes(),
+        root: None,
+        compile: Default::default(),
+        document,
+        bindings: guest.bindings,
+        limits: Default::default(),
+    });
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:?}",
+        analysis.diagnostics
+    );
+    let resource_artifact = lang::artifact::component::encode(
+        analysis.result.unwrap(),
+        m::Source {
+            path: "component-idl.json".into(),
+            text: String::from_utf8(resource_idl.clone()).unwrap(),
+        },
+        None,
+        Default::default(),
+    )
+    .unwrap();
+    let mut resource_grant_json = resource_host_json.clone();
+    resource_grant_json["package"] = serde_json::json!("demo:resgrant");
+    resource_grant_json["imports"] = resource_caller["imports"].clone();
+    resource_grant_json["exports"] = serde_json::json!([]);
+    let resource_grant = wire::encode_contract(
+        &wire::Contract::new(
+            idl::check(
+                m::SourceId(2),
+                &serde_json::to_vec(&resource_grant_json).unwrap(),
+                Default::default(),
+            )
+            .unwrap(),
+            vec![],
+            &mut resource_session,
+        )
+        .unwrap(),
+        &mut resource_session,
+    )
+    .unwrap();
+    let mut resource_request_json = resource_caller.clone();
+    resource_request_json["package"] = serde_json::json!("demo:resclient");
+    resource_request_json["exports"] = serde_json::json!([]);
+    resource_request_json["imports"] = serde_json::json!([{"interface":"demo:rescaller/api","version":{"exact":"1.0.0"},"members":["run"]}]);
+    let resource_projection = wire::encode_contract(
+        &wire::Contract::new(
+            idl::check(
+                m::SourceId(3),
+                &serde_json::to_vec(&resource_request_json).unwrap(),
+                Default::default(),
+            )
+            .unwrap(),
+            vec![],
+            &mut resource_session,
+        )
+        .unwrap(),
+        &mut resource_session,
+    )
+    .unwrap();
+    let resource_codecs = wire::Contract::new(
+        idl::check(m::SourceId(4), &resource_idl, Default::default()).unwrap(),
+        vec![],
+        &mut resource_session,
+    )
+    .unwrap();
+    resource_request_json["imports"][0]["members"] = serde_json::json!(["relay"]);
+    let resource_relay_projection = wire::encode_contract(
+        &wire::Contract::new(
+            idl::check(
+                m::SourceId(3),
+                &serde_json::to_vec(&resource_request_json).unwrap(),
+                Default::default(),
+            )
+            .unwrap(),
+            vec![],
+            &mut resource_session,
+        )
+        .unwrap(),
+        &mut resource_session,
+    )
+    .unwrap();
+    let resource_header = g::c::generate(&resource_codecs, target, Default::default()).unwrap();
+    let resource_host_header = g::c::generate(&resource_host, target, Default::default()).unwrap();
+    let resource_touch = resource_host_header
+        .functions
+        .iter()
+        .find(|f| f.member.member == "touch")
+        .unwrap();
+    let resource_run = resource_header
+        .functions
+        .iter()
+        .find(|f| f.member.member == "run")
+        .unwrap();
+    let resource_relay = resource_header
+        .functions
+        .iter()
+        .find(|f| f.member.member == "relay")
+        .unwrap();
+    let resources_host = include_str!("support/component_resources_host.c")
+        .replace("@RESOURCE_HOST_ARGS@", &resource_touch.arguments)
+        .replace("@RESOURCE_HOST_RESULT@", &resource_touch.result)
+        .replace("@RESOURCE_HOST_NAME@", &resource_touch.name)
+        .replace("@RESOURCE_ROOT_ARGS@", &resource_run.arguments)
+        .replace("@RESOURCE_ROOT_RESULT@", &resource_run.result)
+        .replace("@RESOURCE_ROOT_NAME@", &resource_run.name)
+        .replace("@RESOURCE_RELAY_ARGS@", &resource_relay.arguments)
+        .replace("@RESOURCE_RELAY_RESULT@", &resource_relay.result)
+        .replace("@RESOURCE_RELAY_NAME@", &resource_relay.name);
     let declarations = array("source", source.as_bytes())
         + &array("idl", IDL)
         + &array("artifact", &bytes)
@@ -542,12 +709,23 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         + &array("native_idl", &native_idl)
         + &array("native_source", native_source.as_bytes())
         + &array("native_artifact", &native_artifact)
-        + &array("native_grant", &native_grant);
+        + &array("native_grant", &native_grant)
+        + &array("resource_host_contract", &resource_host_contract)
+        + &array("resource_method_signature", &resource_method_signature)
+        + &array("resource_method_key", b"demo:res/api.touch")
+        + &array("resource_key", b"demo:res/api.item")
+        + &array("resource_grant", &resource_grant)
+        + &array("resource_projection", &resource_projection)
+        + &array("resource_relay_projection", &resource_relay_projection)
+        + &array("resource_program", resource_program.as_bytes())
+        + &array("resource_idl", &resource_idl)
+        + &array("resource_artifact", &resource_artifact);
     let c = format!(
         r#"
 #define _POSIX_C_SOURCE 200112L
 {header}
 {native_header}
+{resource_header}
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -582,7 +760,11 @@ extern uint32_t probe_context_check(const lang_component_v1_context *,lang_compo
 extern uint32_t probe_context_buffer_create(const lang_component_v1_context *,uint64_t,uint64_t,lang_component_v1_buffer **,lang_component_v1_error *);
 extern uint32_t probe_context_buffer_drop(const lang_component_v1_context *,lang_component_v1_buffer *,lang_component_v1_error *);
 extern uint32_t probe_buffer_mut_bytes(const lang_component_v1_context *,lang_component_v1_buffer *,lang_component_v1_mut_bytes *,lang_component_v1_error *);
+extern uint32_t probe_resource_publish(lang_component_v1_instance *,lang_component_v1_provider *,lang_component_v1_bytes,lang_component_v1_bytes,uint64_t,uint32_t *,lang_component_v1_error *);
+extern uint32_t probe_resource_drop(lang_component_v1_instance *,uint32_t,lang_component_v1_result **,lang_component_v1_error *);
+extern uint32_t probe_context_resource_write(const lang_component_v1_context *,uint32_t,lang_component_v1_mut_bytes *,lang_component_v1_error *);
 {registry_host}
+{resources_host}
 static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract) {{
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
     lang_component_v1_instance *instance=NULL;lang_component_v1_binding *binding=NULL;
@@ -793,6 +975,8 @@ uint32_t fixture(void) {{
                 api.engine_create=probe_engine_create;api.engine_destroy=probe_engine_destroy;
                 api.module_load=probe_module_load;api.module_drop=probe_module_drop;
                 api.provider_register=probe_provider_register;api.provider_drop=probe_provider_drop;
+                api.resource_publish=probe_resource_publish;api.resource_drop=probe_resource_drop;
+                api.context_resource_write=probe_context_resource_write;
                 api.context_check=probe_context_check;api.context_buffer_create=probe_context_buffer_create;
                 api.context_buffer_drop=probe_context_buffer_drop;api.buffer_mut_bytes=probe_buffer_mut_bytes;
                 api.instance_create=probe_instance_create;api.instance_close=probe_instance_close;
@@ -800,7 +984,7 @@ uint32_t fixture(void) {{
                 api.control_create=probe_control_create;api.control_drop=probe_control_drop;api.interrupt=probe_interrupt;
                 api.call=probe_api_call;api.result_info=probe_result_info;api.result_usage=probe_result_usage;
                 api.result_bytes=probe_result_bytes;api.result_drop=probe_result_drop;
-                for(mode=0;mode<2;++mode){{config.mode=mode;bound_case(&api,&config,format,program,metadata);registry_case(&api,&config,format);}}
+                for(mode=0;mode<2;++mode){{config.mode=mode;bound_case(&api,&config,format,program,metadata);registry_case(&api,&config,format);resource_case(&api,&config,format,0);resource_case(&api,&config,format,1);}}
             }}
         }}
         module=probe_load(format,code,code_length,contract,idl_length,allocator);assert(module);
@@ -823,6 +1007,7 @@ uint32_t fixture(void) {{
 }}
 "#,
         header = header.header,
+        resource_header = resource_host_header.header + &resource_header.header,
         declarations = declarations,
         arguments_type = function.arguments,
         result_type = function.result,

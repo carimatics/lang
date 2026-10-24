@@ -1,6 +1,7 @@
 //! Component C operation implementations. No API query/table is published yet.
 mod admission;
 mod registration;
+mod resources;
 use super::{Limits as ModuleLimits, Module, ffi, load};
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component};
 use lang_mir::unit as m;
@@ -14,6 +15,7 @@ use lang_runtime::{
     execution as e,
     task::runner as r,
 };
+pub use resources::{resource_drop, resource_publish};
 use sha2::{Digest, Sha256};
 use std::{
     cell::{Cell, RefCell},
@@ -74,6 +76,7 @@ struct InstanceData {
     grants: Vec<registration::Grant>,
     providers: Vec<native::Provider<'static>>,
     leases: RefCell<Vec<ImportLease>>,
+    indices: RefCell<Vec<storage::Claim>>,
 }
 struct InstanceHandle(Rc<InstanceData>);
 struct Binding {
@@ -89,6 +92,10 @@ struct Control {
 enum ResultBody {
     Value(execution::FrameResult),
     Failure(Box<r::Failure>),
+    Cleanup {
+        report: Box<lang_runtime::cleanup::Report>,
+        _code: Vec<native::ResourceKind<'static>>,
+    },
 }
 struct CallResult {
     instance: Rc<InstanceData>,
@@ -97,6 +104,7 @@ struct CallResult {
     committed: bool,
     poisoned: bool,
     allocations: a::Stats,
+    canonical_indices: u64,
     tasks: lang_runtime::task::Usage,
     report: Option<(wire::Report, Vec<u8>)>,
 }
@@ -108,6 +116,7 @@ fn project_failure(
     mode: u32,
     entry: m::FunctionId,
     allocations: a::Stats,
+    canonical_indices: u64,
 ) -> Option<(wire::Report, Vec<u8>)> {
     // More complex native/resource/cleanup provenance is not yet connected;
     // preserve the actual failure, never fabricate suppressed diagnostics.
@@ -120,6 +129,17 @@ fn project_failure(
     }
     let mut limit = None;
     let (category, diagnostic) = match failure.reason {
+        r::Reason::ComponentIndices {
+            limit: maximum,
+            attempted,
+        } => {
+            limit = Some(wire::LimitDetail {
+                kind: wire::ReportLimitKind::CanonicalIndices,
+                limit: maximum,
+                attempted,
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
         r::Reason::Panic(_)
         | r::Reason::Execution(lang_mir::unit::ownership::failure::ExecutionFailure::Panic) => {
             (wire::Category::Panic, wire::Diagnostic::Panic)
@@ -203,7 +223,7 @@ fn project_failure(
             peak_frames: failure.usage.peak_frames as u64,
             peak_live_cells: failure.usage.peak_live_cells as u64,
             peak_live_tasks: failure.tasks.peak_live as u64,
-            canonical_indices: 0,
+            canonical_indices,
         },
         frames,
     };
@@ -235,6 +255,8 @@ macro_rules! checked_context_operation {
     };
 }
 checked_context_operation!(context_check, context_check, (context: *const ffi::Context));
+checked_context_operation!(context_resource_write, context_resource_write,
+    (context: *const ffi::Context, index: u32, output: *mut ffi::MutBytes));
 checked_context_operation!(context_buffer_create, context_buffer_create,
     (context: *const ffi::Context, length: u64, alignment: u64, output: *mut *mut ffi::Buffer));
 checked_context_operation!(context_buffer_drop, context_buffer_drop,
@@ -859,15 +881,19 @@ pub unsafe extern "C" fn instance_create(
         let mut leases = session
             .vector(registrations.len(), 0)
             .map_err(|_| INVALID)?;
+        let index_capacity =
+            usize::try_from(bounds(data.config.ceiling, config.ceiling).canonical_indices)
+                .map_err(|_| INVALID)?;
+        let indices = session.vector(index_capacity, 0).map_err(|_| INVALID)?;
         // Every fallible step precedes fresh holder and lease acquisition.
         let state = execution::InstanceState::prepare(&mut data.values).map_err(|_| INVALID)?;
         for registration in registrations {
             registration.bindings.set(registration.bindings.get() + 1);
             leases.push(ImportLease(registration));
         }
-        Ok::<_, u32>((grants, providers, leases, state))
+        Ok::<_, u32>((grants, providers, leases, state, indices))
     })();
-    let (grants, providers, leases, state) = match prepared {
+    let (grants, providers, leases, state, indices) = match prepared {
         Ok(v) => v,
         Err(s) => return s,
     };
@@ -881,6 +907,7 @@ pub unsafe extern "C" fn instance_create(
         grants,
         providers,
         leases: RefCell::new(leases),
+        indices: RefCell::new(indices),
     })));
     owner.handles.set(next_handles);
     // SAFETY: publish only after the complete checked transaction succeeds.
@@ -1093,34 +1120,8 @@ pub unsafe extern "C" fn instance_close(
     output: *mut *mut ffi::Result,
     error: *mut ffi::Error,
 ) -> u32 {
-    if instance.is_null() || output.is_null() || !unsafe { error_ready(error) } {
-        return INVALID;
-    }
-    // SAFETY: caller retains this exact instance handle.
-    let value = unsafe { &(*instance.cast::<InstanceHandle>()).0 };
-    let owner = match unsafe { owner(&value.engine) } {
-        Ok(v) => v,
-        Err(s) => return s,
-    };
-    if owner.active.get() {
-        return BUSY;
-    }
-    // Full holder-specific retirement remains unfinished; never silently
-    // discard an actual retained owner in this private scalar experiment.
-    if !unsafe { owner.data.as_ref() }.values.is_empty() {
-        return BUSY;
-    }
-    value.closed.set(true);
-    value.leases.borrow_mut().clear();
-    if release(owner).is_err() {
-        return INVALID;
-    }
-    // SAFETY: consume the exact handle once; success has no failure result.
-    unsafe {
-        drop(Box::from_raw(instance.cast::<InstanceHandle>()));
-        output.write(ptr::null_mut())
-    };
-    OK
+    // SAFETY: forward the caller's exact native lifetime/output contract.
+    unsafe { resources::close(instance, output, error) }
 }
 
 /// # Safety
@@ -1146,6 +1147,9 @@ pub unsafe extern "C" fn call(
     if owner.active.get() {
         return BUSY;
     }
+    let Some(next_result_handles) = owner.handles.get().checked_add(1) else {
+        return OOM;
+    };
     if binding.instance.engine != control.engine
         || binding.instance.closed.get()
         || control.used.get()
@@ -1221,7 +1225,10 @@ pub unsafe extern "C" fn call(
                              service_work: u64,
                              allocations: a::Stats|
                  -> Result<CallResult, u32> {
-                    if !matches!(reason, r::Reason::Control(_)) {
+                    if !matches!(
+                        reason,
+                        r::Reason::Control(_) | r::Reason::ComponentIndices { .. }
+                    ) {
                         return Err(INVALID);
                     }
                     let failure = r::Failure {
@@ -1253,6 +1260,7 @@ pub unsafe extern "C" fn call(
                         data.config.mode,
                         binding.entry,
                         allocations,
+                        binding.instance.indices.borrow().len() as u64,
                     );
                     Ok(CallResult {
                         instance: binding.instance.clone(),
@@ -1264,6 +1272,7 @@ pub unsafe extern "C" fn call(
                         committed: false,
                         poisoned: false,
                         allocations,
+                        canonical_indices: binding.instance.indices.borrow().len() as u64,
                         tasks: Default::default(),
                         report,
                     })
@@ -1278,15 +1287,24 @@ pub unsafe extern "C" fn call(
                     Ok(v) => v,
                     Err(reason) => return early(reason, 0, data.allocator.stats()),
                 };
-                // Resource-index rebasing is unfinished: empty authority cannot
-                // accidentally authorize a resource claim in this scalar probe.
-                let arguments =
-                    match host.decode_arguments(arguments, &[], &data.allocator, &mut session) {
-                        Ok(v) => v,
-                        Err(reason) => {
-                            return early(reason, host.service_work_used(), data.allocator.stats());
-                        }
-                    };
+                let namespace = execution::ResourceNamespace::new(
+                    u32::try_from(binding.instance.indices.borrow().len()).map_err(|_| INVALID)?,
+                    u32::try_from(ceiling.canonical_indices).map_err(|_| INVALID)?,
+                );
+                if let Err(reason) = host.resource_namespace(namespace) {
+                    return early(reason, host.service_work_used(), data.allocator.stats());
+                }
+                let arguments = match host.decode_arguments(
+                    arguments,
+                    &binding.instance.indices.borrow(),
+                    &data.allocator,
+                    &mut session,
+                ) {
+                    Ok(v) => v,
+                    Err(reason) => {
+                        return early(reason, host.service_work_used(), data.allocator.stats());
+                    }
+                };
                 if let Err(reason) = host.prepare_output(&mut session) {
                     return early(reason, host.service_work_used(), data.allocator.stats());
                 }
@@ -1316,6 +1334,13 @@ pub unsafe extern "C" fn call(
                         let execution::Value::Frame(frame) = outcome.value else {
                             return Err(INVALID);
                         };
+                        {
+                            let mut indices = binding.instance.indices.borrow_mut();
+                            debug_assert!(
+                                indices.len() + frame.resources().len() <= indices.capacity()
+                            );
+                            indices.extend_from_slice(frame.resources());
+                        }
                         Ok(CallResult {
                             instance: binding.instance.clone(),
                             body: ResultBody::Value(frame),
@@ -1323,6 +1348,7 @@ pub unsafe extern "C" fn call(
                             committed,
                             poisoned: outcome.poisoned,
                             allocations,
+                            canonical_indices: binding.instance.indices.borrow().len() as u64,
                             tasks: outcome.tasks,
                             report: None,
                         })
@@ -1338,6 +1364,7 @@ pub unsafe extern "C" fn call(
                             data.config.mode,
                             binding.entry,
                             allocations,
+                            binding.instance.indices.borrow().len() as u64,
                         );
                         Ok(CallResult {
                             instance: binding.instance.clone(),
@@ -1346,6 +1373,7 @@ pub unsafe extern "C" fn call(
                             committed,
                             poisoned,
                             allocations,
+                            canonical_indices: binding.instance.indices.borrow().len() as u64,
                             tasks,
                             report,
                         })
@@ -1364,9 +1392,7 @@ pub unsafe extern "C" fn call(
     } else {
         OK
     };
-    if retain(owner).is_err() {
-        return OOM;
-    }
+    owner.handles.set(next_result_handles);
     // SAFETY: admitted completion publishes one immutable owned result handle.
     unsafe { output.write(Box::into_raw(Box::new(value)).cast()) };
     status
@@ -1389,6 +1415,13 @@ pub unsafe extern "C" fn result_info(
     }
     let (kind, records, omitted, frames) = match &value.body {
         ResultBody::Value(_) => (0, 0, 0, 0),
+        ResultBody::Cleanup { report, .. } => {
+            if let Some((wire, _)) = &value.report {
+                (1, wire.suppressed.len(), wire.omitted, wire.frames.len())
+            } else {
+                (1, report.secondary().len(), report.truncated() as u64, 0)
+            }
+        }
         ResultBody::Failure(f) => {
             if let Some((report, _)) = &value.report {
                 (
@@ -1449,7 +1482,7 @@ pub unsafe extern "C" fn result_usage(
             peak_frames: value.usage.peak_frames as u64,
             peak_live_cells: value.usage.peak_live_cells as u64,
             peak_live_tasks: value.tasks.peak_live as u64,
-            canonical_indices: 0,
+            canonical_indices: value.canonical_indices,
             reserved: [0; 2],
         }
     };
@@ -1474,7 +1507,7 @@ pub unsafe extern "C" fn result_bytes(
     }
     let bytes = match &value.body {
         ResultBody::Value(frame) => frame.bytes(),
-        ResultBody::Failure(_) => match &value.report {
+        ResultBody::Failure(_) | ResultBody::Cleanup { .. } => match &value.report {
             Some((_, bytes)) => bytes.as_slice(),
             None => return INVALID,
         },

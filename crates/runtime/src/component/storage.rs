@@ -267,13 +267,25 @@ impl<'a> Resources<'a> {
         bytes: &[u8],
         allocator: &mut dyn Memory,
     ) -> Result<Claim, Error> {
+        self.publish_aligned(kind, holder, bytes, 1, allocator)
+    }
+    /// Copy caller bytes with their requested alignment through this table's
+    /// original allocator. Every request is admitted before allocation/custody.
+    pub fn publish_aligned(
+        &mut self,
+        kind: ResourceKind<'a>,
+        holder: Holder,
+        bytes: &[u8],
+        alignment: u64,
+        allocator: &mut dyn Memory,
+    ) -> Result<Claim, Error> {
         self.idle()?;
         self.check_allocator(allocator)?;
         self.check_holder(holder)?;
         self.values.check_insert()?;
         let requests = [
             a::Request::new(HEADER_BYTES, 8)?,
-            a::Request::new(bytes.len() as u64, 1)?,
+            a::Request::new(bytes.len() as u64, alignment)?,
         ];
         allocator.check(&requests)?;
         let ticket = self.tickets(1)?;
@@ -365,6 +377,61 @@ impl<'a> Resources<'a> {
         }
         allocator.request(backing.data)?;
         Ok(backing)
+    }
+    /// Preflight retirement and retain its original implementation, validating
+    /// the live table, ticket, holder, allocator and absence of active loans.
+    pub fn retirement_kind(
+        &self,
+        claim: Claim,
+        holder: Holder,
+        allocator: &dyn Memory,
+    ) -> Result<ResourceKind<'a>, Error> {
+        self.idle()?;
+        let backing = self.backing(claim, holder, allocator)?;
+        self.values.check_release(claim.owner)?;
+        Ok(backing.kind.clone())
+    }
+    /// Preflight only this holder's live owners, newest caller publication
+    /// first. This neither detaches owners nor invokes implementation code.
+    pub fn held_claims(
+        &self,
+        holder: Holder,
+        allocator: &dyn Memory,
+        budget: &mut m::Budget,
+    ) -> Result<Vec<Claim>, Error> {
+        self.idle()?;
+        self.check_allocator(allocator)?;
+        self.check_holder(holder)?;
+        budget
+            .charge(self.values.len())
+            .map_err(|_| Error::Capacity)?;
+        let mut claims = budget
+            .vector(self.values.len())
+            .map_err(|_| Error::Capacity)?;
+        for (owner, backing) in self.values.entries() {
+            let bytes = allocator.bytes(backing.header)?;
+            if bytes.len() != HEADER_BYTES as usize {
+                return Err(Error::State);
+            }
+            if bytes[40..48] != holder.scope.to_le_bytes() {
+                continue;
+            }
+            let ticket = u64::from_le_bytes(bytes[32..40].try_into().expect("checked header"));
+            if ticket == 0 || self.next_ticket.is_some_and(|next| ticket >= next) {
+                return Err(Error::State);
+            }
+            let claim = Claim { owner, ticket };
+            self.backing(claim, holder, allocator)?;
+            self.values.check_release(owner)?;
+            claims.push(claim);
+        }
+        let work = claims
+            .len()
+            .saturating_mul(claims.len().checked_ilog2().unwrap_or(0) as usize + 1)
+            .saturating_mul(4);
+        budget.charge(work).map_err(|_| Error::Capacity)?;
+        claims.sort_unstable_by_key(|claim| std::cmp::Reverse(claim.ticket));
+        Ok(claims)
     }
     pub fn validate(
         &self,
@@ -913,11 +980,39 @@ mod tests {
         let kind = provider.resource_kind(&key, &mut session).unwrap();
         let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
         let mut budget = m::Budget::new(Default::default());
-        let mut resources = Resources::prepare(&allocator, 1, 1, &mut budget).unwrap();
+        let mut resources = Resources::prepare(&allocator, 4, 2, &mut budget).unwrap();
         let guest = resources.new_holder().unwrap();
+        let before_invalid = allocator.stats();
+        assert!(
+            resources
+                .publish_aligned(
+                    kind.clone(),
+                    guest,
+                    &41_i64.to_le_bytes(),
+                    3,
+                    &mut allocator
+                )
+                .is_err()
+        );
+        assert!(resources.is_empty());
+        assert_eq!(allocator.stats(), before_invalid);
         let claim = resources
-            .publish(kind, guest, &41_i64.to_le_bytes(), &mut allocator)
+            .publish_aligned(
+                kind.clone(),
+                guest,
+                &41_i64.to_le_bytes(),
+                64,
+                &mut allocator,
+            )
             .unwrap();
+        assert_eq!(
+            resources
+                .bytes(claim, guest, kind.clone(), &allocator)
+                .unwrap()
+                .as_ptr() as usize
+                % 64,
+            0
+        );
         let caller = resources.host();
         assert!(matches!(
             resources.scope_closed(caller, guest, &[], None, &allocator),
@@ -988,5 +1083,80 @@ mod tests {
             .unwrap();
         assert_eq!(allocator.stats().live_allocations, 0);
         assert!(resources.is_empty());
+
+        let other = resources.new_holder().unwrap();
+        let first = resources
+            .publish(kind.clone(), caller, &[1], &mut allocator)
+            .unwrap();
+        let foreign = resources
+            .publish(kind.clone(), other, &[2], &mut allocator)
+            .unwrap();
+        let latest = resources
+            .publish(kind, caller, &[3], &mut allocator)
+            .unwrap();
+        let before = allocator.stats();
+        let mut refused = m::Budget::new(m::Limits {
+            work: 0,
+            ..Default::default()
+        });
+        assert!(matches!(
+            resources.held_claims(caller, &allocator, &mut refused),
+            Err(Error::Capacity)
+        ));
+        let foreign_allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+        assert!(matches!(
+            resources.held_claims(caller, &foreign_allocator, &mut budget),
+            Err(Error::ForeignAllocator)
+        ));
+        assert_eq!(
+            resources
+                .held_claims(caller, &allocator, &mut budget)
+                .unwrap(),
+            [latest, first]
+        );
+        let inputs = [Input {
+            claim: first,
+            access: Access::Shared,
+        }];
+        let transfer = resources
+            .prepare_call(inputs.iter().copied(), caller, guest, &allocator)
+            .unwrap();
+        let mut loans = [None];
+        resources
+            .commit_call(transfer, &mut allocator, &mut loans)
+            .unwrap();
+        assert!(
+            resources
+                .held_claims(caller, &allocator, &mut budget)
+                .is_err()
+        );
+        assert_eq!(allocator.stats(), before);
+        resources.end_loan(loans[0].unwrap()).unwrap();
+        for claim in resources
+            .held_claims(caller, &allocator, &mut budget)
+            .unwrap()
+        {
+            resources
+                .detach(claim, caller, &allocator)
+                .unwrap()
+                .release(&mut allocator)
+                .unwrap();
+        }
+        resources
+            .validate(foreign, other, &key, &allocator)
+            .unwrap();
+        assert_eq!(
+            resources
+                .held_claims(other, &allocator, &mut budget)
+                .unwrap(),
+            [foreign]
+        );
+        resources
+            .detach(foreign, other, &allocator)
+            .unwrap()
+            .release(&mut allocator)
+            .unwrap();
+        assert!(resources.is_empty());
+        assert_eq!(allocator.stats().live_allocations, 0);
     }
 }

@@ -126,6 +126,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub holder: Holder,
     kind: &'scope KindResolver<'scope, 'code>,
     buffers: Vec<BufferSlot>,
+    index_limit: u32,
 }
 impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn new(
@@ -146,7 +147,12 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             holder,
             kind,
             buffers: Vec::new(),
+            index_limit: u32::MAX,
         }
+    }
+    pub fn with_index_limit(mut self, limit: u32) -> Self {
+        self.index_limit = limit;
+        self
     }
     fn slot(&self, buffer: *mut super::super::native::Buffer) -> Result<usize, u32> {
         if buffer.is_null() {
@@ -208,6 +214,9 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         key: &[u8],
         buffer: *mut super::super::native::Buffer,
     ) -> Result<u32, u32> {
+        if self.views.len() >= self.index_limit as usize {
+            return Err(12);
+        }
         self.budget.charge(self.buffers.len()).map_err(|_| 12u32)?;
         let slot = self.slot(buffer)?;
         let kind = (self.kind)(key, self.budget)?;

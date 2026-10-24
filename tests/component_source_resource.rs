@@ -1320,6 +1320,25 @@ fn run_source_registration(
     force_cleanup_failure: bool,
     owning_registration: bool,
 ) -> (bool, bool, e::Usage) {
+    run_source_namespace(
+        case,
+        stored,
+        work_limit,
+        native_flags,
+        force_cleanup_failure,
+        owning_registration,
+        None,
+    )
+}
+fn run_source_namespace(
+    case: Case,
+    stored: bool,
+    work_limit: Option<u64>,
+    native_flags: u32,
+    force_cleanup_failure: bool,
+    owning_registration: bool,
+    namespace: Option<execution::ResourceNamespace>,
+) -> (bool, bool, e::Usage) {
     let cleanup_failure = force_cleanup_failure || case.failing_cleanup();
     let return_resource = case.returns_resource();
     let extra = case.loan_extra()
@@ -2023,6 +2042,9 @@ fn run_source_registration(
             &mut budget,
         )
         .unwrap();
+        if let Some(namespace) = namespace {
+            invocation.resource_namespace(namespace).unwrap();
+        }
         let mut arguments = vec![EntryArgument::Resource(input), EntryArgument::I64(41)];
         if let Some(extra) = extra_input {
             arguments.push(EntryArgument::Resource(extra));
@@ -2997,7 +3019,7 @@ fn run_source_registration(
                     frame.values().nodes[id.0],
                     wire::Value::Resource(
                         lang_runtime::component::adapter::BoundaryResourceIndex::new(
-                            position as u32 + 1
+                            position as u32 + 1 + if namespace.is_some() { 17 } else { 0 }
                         )
                         .unwrap()
                     )
@@ -3325,6 +3347,24 @@ fn run_source_registration(
         previous = Some(evidence);
     }
     previous.unwrap()
+}
+
+#[test]
+fn external_resource_namespace_rebases_nested_native_list_and_record_results() {
+    for stored in [false, true] {
+        for shape in [NativeShape::List, NativeShape::Record] {
+            let (success, committed, _) = run_source_namespace(
+                Case::NativeAggregate(NativeCase::Owned, shape),
+                stored,
+                None,
+                0,
+                false,
+                false,
+                Some(execution::ResourceNamespace::new(17, 64)),
+            );
+            assert!(success && committed);
+        }
+    }
 }
 
 #[test]

@@ -29,6 +29,35 @@ type Normalize<'program, 'storage> =
 pub(crate) use result::read_parameters;
 pub(crate) use result::read_result;
 
+/// An already issued caller namespace. Locators never replace claim authority.
+#[derive(Clone, Copy, Debug)]
+pub struct ResourceNamespace {
+    issued: u32,
+    maximum: u32,
+}
+impl ResourceNamespace {
+    pub const fn new(issued: u32, maximum: u32) -> Self {
+        Self { issued, maximum }
+    }
+    fn check(&self, ordinal: u64) -> Result<(), Reason> {
+        if ordinal > u64::from(self.maximum) {
+            Err(Reason::ComponentIndices {
+                limit: self.maximum.into(),
+                attempted: ordinal,
+            })
+        } else {
+            Ok(())
+        }
+    }
+    fn result(&self, count: usize) -> Result<u32, Reason> {
+        if count == 0 {
+            return Ok(0);
+        }
+        self.check(u64::from(self.issued).saturating_add(count as u64))?;
+        Ok(self.issued)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
     Copy(l::Immediate),
@@ -186,6 +215,7 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     input_frame: Option<InputFrame>,
     next_frame: Option<u64>,
     output_session: Option<wire::WorkScope<'native>>,
+    resource_namespace: Option<ResourceNamespace>,
     output_claims: Vec<(Claim, Option<m::Span>)>,
     holding_output: bool,
 }
@@ -251,6 +281,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             input_frame: None,
             next_frame: Some(1),
             output_session: None,
+            resource_namespace: None,
             output_claims,
             holding_output: false,
         })
@@ -301,6 +332,20 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             .places()
             .declarations()
             .functions()[self.function.0 as usize]
+    }
+
+    /// Select an external locator namespace before any argument/result staging.
+    /// Ordinary Rust entries retain their existing call-local indices.
+    pub fn resource_namespace(&mut self, namespace: ResourceNamespace) -> Result<(), Reason> {
+        if self.committed
+            || self.input_frame.is_some()
+            || self.output_session.is_some()
+            || self.resource_namespace.is_some()
+        {
+            return Err(Reason::Entry);
+        }
+        self.resource_namespace = Some(namespace);
+        Ok(())
     }
 
     /// Reuse the caller's cumulative codec budget for rich result publication.
@@ -408,6 +453,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         let mut claims = session.vector(uses.len(), 0).map_err(Reason::from)?;
         let mut nodes = session.vector(uses.len(), 0).map_err(Reason::from)?;
         for used in uses {
+            if let Some(namespace) = self.resource_namespace {
+                namespace.check(used.index.get().into())?;
+            }
             let access = match used.access {
                 wire::ResourceAccess::Own => storage::Access::Own,
                 wire::ResourceAccess::Borrow(super::idl::Access::Shared) => storage::Access::Shared,
@@ -597,6 +645,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             if uses.len() != arguments.resources.len() {
                 return Err(Reason::Entry);
             }
+            if let Some(namespace) = self.resource_namespace {
+                namespace.check(uses.len() as u64)?;
+            }
             session
                 .charge(uses.len().saturating_mul(uses.len()).saturating_mul(9), 0)
                 .map_err(Reason::from)?;
@@ -772,6 +823,10 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 &mut owned,
                 native,
                 &kind,
+            )
+            .with_index_limit(
+                self.resource_namespace
+                    .map_or(u32::MAX, |namespace| namespace.maximum),
             );
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let decoded = (|| -> Result<NativeResult, Reason> {
@@ -1243,6 +1298,23 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 let mut session_scope = self.output_session.take().ok_or(Reason::Unsupported)?;
                 let session = &mut *session_scope;
                 let staged = (|| -> Result<_, Reason> {
+                    let resource_base = self
+                        .resource_namespace
+                        .map(|n| n.result(frame.resources.len()))
+                        .transpose()?
+                        .unwrap_or(0);
+                    if resource_base != 0 {
+                        for node in &mut frame.values.nodes {
+                            if let wire::Value::Resource(index) = node {
+                                session.value_work(1, 0).map_err(Reason::from)?;
+                                let raw = resource_base
+                                    .checked_add(index.get())
+                                    .ok_or(Reason::Entry)?;
+                                *index = super::adapter::BoundaryResourceIndex::new(raw)
+                                    .ok_or(Reason::Entry)?;
+                            }
+                        }
+                    }
                     let signature = self.frame_signature(session)?;
                     let (bytes, uses) = wire::encode_contextual_values(
                         &signature,
@@ -1264,7 +1336,13 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                         }
                         let claim = *frame
                             .resources
-                            .get((used.index.get() - 1) as usize)
+                            .get(
+                                used.index
+                                    .get()
+                                    .checked_sub(resource_base)
+                                    .and_then(|n| n.checked_sub(1))
+                                    .ok_or(Reason::Entry)? as usize,
+                            )
                             .ok_or(Reason::Entry)?;
                         self.resources
                             .validate(claim, self.guest, used.key, memory)
