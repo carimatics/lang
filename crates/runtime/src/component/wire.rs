@@ -100,6 +100,79 @@ pub struct Session {
     serialized: usize,
     service_work: Option<crate::execution::ServiceWork>,
 }
+/// One synchronous loan of the original preparation ledger. The Session keeps
+/// its local cumulative allowance; the caller ledger keeps global history.
+pub struct PreparationScope<'s> {
+    session: &'s mut Session,
+    original: &'s mut m::Budget,
+    original_limits: m::Limits,
+    initial: m::Usage,
+    local_budget: Option<m::Budget>,
+    local_elements: usize,
+    local_limits: Limits,
+}
+impl std::ops::Deref for PreparationScope<'_> {
+    type Target = Session;
+    fn deref(&self) -> &Self::Target {
+        self.session
+    }
+}
+impl std::ops::DerefMut for PreparationScope<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.session
+    }
+}
+impl Drop for PreparationScope<'_> {
+    fn drop(&mut self) {
+        let usage = self.session.preparation_usage();
+        let difference = m::Usage {
+            work: usage
+                .work
+                .checked_sub(self.initial.work)
+                .expect("preparation history is monotonic"),
+            allocation_bytes: usage
+                .allocation_bytes
+                .checked_sub(self.initial.allocation_bytes)
+                .expect("preparation history is monotonic"),
+            elements: usage
+                .elements
+                .checked_sub(self.initial.elements)
+                .expect("preparation history is monotonic"),
+        };
+        let local = self
+            .local_budget
+            .take()
+            .expect("one preparation scope exit");
+        let local_usage = m::Usage {
+            work: local
+                .work_used()
+                .checked_add(difference.work)
+                .expect("scope admitted local allowance"),
+            allocation_bytes: local
+                .allocation_bytes()
+                .checked_add(difference.allocation_bytes)
+                .expect("scope admitted local allowance"),
+            elements: local
+                .elements_used()
+                .checked_add(difference.elements)
+                .expect("scope admitted local allowance"),
+        };
+        self.session.elements = self
+            .local_elements
+            .checked_add(
+                self.session
+                    .elements
+                    .checked_sub(self.initial.elements)
+                    .expect("data history is monotonic"),
+            )
+            .expect("scope admitted element allowance");
+        self.session.budget =
+            m::Budget::with_usage(local.limits(), local_usage).expect("scope retains local limits");
+        self.session.limits = self.local_limits;
+        *self.original = m::Budget::with_usage(self.original_limits, usage)
+            .expect("scope retains original limits");
+    }
+}
 /// Restore the previous association on every exit, including Rust unwinding.
 pub(crate) struct WorkScope<'s> {
     session: &'s mut Session,
@@ -135,6 +208,60 @@ impl Session {
             serialized: 0,
             service_work: None,
         }
+    }
+    /// Lend the original preparation ledger while retaining this Session's
+    /// cumulative allowance. Charges survive every exit, including unwind.
+    pub fn scope_preparation<'s>(
+        &'s mut self,
+        original: &'s mut m::Budget,
+    ) -> Result<PreparationScope<'s>, Error> {
+        let initial = m::Usage {
+            work: original.work_used(),
+            allocation_bytes: original.allocation_bytes(),
+            elements: original.elements_used(),
+        };
+        let original_limits = original.limits();
+        let local_limits = self.limits;
+        let local_elements = self.elements;
+        let local = self.budget.limits();
+        let ceiling = |used: usize, maximum: usize, spent: usize| {
+            used.saturating_add(maximum.saturating_sub(spent))
+        };
+        let mut limits = original_limits;
+        limits.work = limits
+            .work
+            .min(ceiling(initial.work, local.work, self.budget.work_used()));
+        limits.allocations = limits.allocations.min(ceiling(
+            initial.allocation_bytes,
+            local.allocations,
+            self.budget.allocation_bytes(),
+        ));
+        limits.elements = limits
+            .elements
+            .min(ceiling(
+                initial.elements,
+                local.elements,
+                self.budget.elements_used(),
+            ))
+            .min(ceiling(
+                initial.elements,
+                local_limits.elements,
+                local_elements,
+            ));
+        let borrowed =
+            m::Budget::with_usage(limits, initial).map_err(|error| Self::budget_error(0, error))?;
+        let local_budget = std::mem::replace(&mut self.budget, borrowed);
+        self.limits.elements = limits.elements;
+        self.elements = initial.elements;
+        Ok(PreparationScope {
+            session: self,
+            original,
+            original_limits,
+            initial,
+            local_budget: Some(local_budget),
+            local_elements,
+            local_limits,
+        })
     }
     pub(crate) fn scope_work<'s>(
         &'s mut self,
@@ -533,5 +660,272 @@ mod work_tests {
             values
         );
         assert_eq!(work.used(), 12);
+    }
+}
+#[cfg(test)]
+mod preparation_scope_tests {
+    use super::*;
+    fn usage(budget: &m::Budget) -> m::Usage {
+        m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        }
+    }
+    #[test]
+    fn original_and_local_allowances_survive_repeated_refusal() {
+        for original_first in [false, true] {
+            let mut session = Session::new(Limits {
+                work: if original_first { 100 } else { 5 },
+                ..Default::default()
+            });
+            session.value_work(3, 0).unwrap();
+            let mut original = m::Budget::with_usage(
+                m::Limits {
+                    work: if original_first { 9 } else { 100 },
+                    ..Default::default()
+                },
+                m::Usage {
+                    work: 7,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let limits = original.limits();
+            {
+                let mut scope = session.scope_preparation(&mut original).unwrap();
+                scope.value_work(2, 0).unwrap();
+                assert!(scope.value_work(1, 0).is_err());
+            }
+            assert_eq!(original.work_used(), 9);
+            assert_eq!(session.usage().work, 5);
+            assert_eq!(original.limits(), limits);
+            {
+                let mut scope = session.scope_preparation(&mut original).unwrap();
+                assert!(scope.value_work(1, 0).is_err());
+            }
+            assert_eq!(original.work_used(), 9);
+            assert_eq!(session.usage().work, 5);
+        }
+    }
+    #[test]
+    fn allocation_elements_and_data_history_obey_both_caps() {
+        let mut session = Session::new(Limits {
+            allocation_bytes: 12,
+            elements: 5,
+            ..Default::default()
+        });
+        session.vector::<u32>(1, 0).unwrap();
+        session.elements = 1;
+        session.serialized = 7;
+        let mut original = m::Budget::with_usage(
+            m::Limits {
+                allocations: 28,
+                elements: 9,
+                ..Default::default()
+            },
+            m::Usage {
+                allocation_bytes: 20,
+                elements: 7,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        {
+            let mut scope = session.scope_preparation(&mut original).unwrap();
+            scope.vector::<u32>(2, 0).unwrap();
+            assert!(scope.vector::<u8>(1, 0).is_err());
+            scope.serialized += 3;
+        }
+        assert_eq!(original.allocation_bytes(), 28);
+        assert_eq!(original.elements_used(), 9);
+        assert_eq!(session.usage().allocation_bytes, 12);
+        assert_eq!(session.budget.elements_used(), 3);
+        assert_eq!(session.elements, 1);
+        assert_eq!(session.serialized, 10);
+        assert!(
+            session
+                .scope_preparation(&mut original)
+                .unwrap()
+                .vector::<()>(1, 0)
+                .is_err()
+        );
+        assert_eq!(original.elements_used(), 9);
+    }
+    #[test]
+    fn nested_scopes_preserve_each_original_history() {
+        let mut session = Session::new(Default::default());
+        let mut outer = m::Budget::new(Default::default());
+        let mut inner = m::Budget::new(Default::default());
+        outer.charge(11).unwrap();
+        inner.charge(17).unwrap();
+        {
+            let mut scope = session.scope_preparation(&mut outer).unwrap();
+            scope.value_work(2, 0).unwrap();
+            {
+                let mut nested = scope.scope_preparation(&mut inner).unwrap();
+                nested.value_work(3, 0).unwrap();
+            }
+            scope.value_work(1, 0).unwrap();
+        }
+        assert_eq!(outer.work_used(), 17);
+        assert_eq!(inner.work_used(), 20);
+        assert_eq!(session.usage().work, 6);
+    }
+    #[test]
+    fn accepted_error_and_unwind_prefixes_keep_limits_and_original_work() {
+        for unwind in [false, true] {
+            let mut session = Session::new(Default::default());
+            let mut original = m::Budget::new(Default::default());
+            original.charge(19).unwrap();
+            let limits = original.limits();
+            let work = crate::execution::ServiceWork::new(Some(20));
+            {
+                let mut accounted = session.scope_work(&work).unwrap();
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let mut scope = accounted.scope_preparation(&mut original).unwrap();
+                    scope.value_work(3, 0).unwrap();
+                    scope.vector::<u8>(4, 0).unwrap();
+                    if unwind {
+                        let _: Result<(), Error> = scope.metadata(|session, _| {
+                            session.value_work(2, 0)?;
+                            panic!("contained preparation scope");
+                        });
+                    }
+                    Err::<(), _>(scope.error(7, ErrorKind::Tag))
+                }));
+                if unwind {
+                    assert!(result.is_err());
+                } else {
+                    assert!(result.unwrap().is_err());
+                }
+            }
+            assert_eq!(original.work_used(), if unwind { 24 } else { 22 });
+            assert_eq!(session.usage().work, if unwind { 5 } else { 3 });
+            assert_eq!(original.allocation_bytes(), 4);
+            assert_eq!(original.elements_used(), 4);
+            assert_eq!(original.limits(), limits);
+            assert_eq!(session.limits.work, Limits::default().work);
+            assert!(session.service_work.is_none());
+            assert_eq!(work.used(), if unwind { 5 } else { 3 });
+        }
+    }
+    #[test]
+    fn repeated_allocation_and_metadata_element_scopes_keep_each_ceiling() {
+        for elements in [false, true] {
+            for original_first in [false, true] {
+                let limits = Limits {
+                    allocation_bytes: if !elements && !original_first { 5 } else { 100 },
+                    elements: if elements && !original_first { 5 } else { 100 },
+                    ..Default::default()
+                };
+                let mut session = Session::with_usage(
+                    limits,
+                    m::Usage {
+                        allocation_bytes: 2,
+                        elements: 2,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                let original_limits = m::Limits {
+                    allocations: if !elements && original_first { 10 } else { 100 },
+                    elements: if elements && original_first { 10 } else { 100 },
+                    ..Default::default()
+                };
+                let mut original = m::Budget::with_usage(
+                    original_limits,
+                    m::Usage {
+                        allocation_bytes: if elements { 0 } else { 7 },
+                        elements: if elements { 7 } else { 0 },
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                {
+                    let mut scope = session.scope_preparation(&mut original).unwrap();
+                    if elements {
+                        scope.vector::<()>(3, 0).unwrap();
+                        assert!(scope.vector::<()>(1, 0).is_err());
+                    } else {
+                        scope.vector::<u8>(3, 0).unwrap();
+                        assert!(scope.vector::<u8>(1, 0).is_err());
+                    }
+                }
+                assert_eq!(
+                    if elements {
+                        original.elements_used()
+                    } else {
+                        original.allocation_bytes()
+                    },
+                    10
+                );
+                assert_eq!(
+                    if elements {
+                        session.budget.elements_used()
+                    } else {
+                        session.budget.allocation_bytes()
+                    },
+                    5
+                );
+                {
+                    let mut scope = session.scope_preparation(&mut original).unwrap();
+                    if elements {
+                        assert!(scope.vector::<()>(1, 0).is_err());
+                    } else {
+                        assert!(scope.vector::<u8>(1, 0).is_err());
+                    }
+                }
+                assert_eq!(original.limits(), original_limits);
+                assert_eq!(
+                    if elements {
+                        original.elements_used()
+                    } else {
+                        original.allocation_bytes()
+                    },
+                    10
+                );
+            }
+        }
+    }
+    #[test]
+    fn overflow_refusal_never_wraps_or_refunds() {
+        for dimension in 0..3 {
+            let initial = m::Usage {
+                work: if dimension == 0 { usize::MAX - 1 } else { 0 },
+                allocation_bytes: if dimension == 1 { usize::MAX - 1 } else { 0 },
+                elements: if dimension == 2 { usize::MAX - 1 } else { 0 },
+            };
+            let limits = m::Limits {
+                work: usize::MAX,
+                allocations: usize::MAX,
+                elements: usize::MAX,
+                ..Default::default()
+            };
+            let mut original = m::Budget::with_usage(limits, initial).unwrap();
+            let mut session = Session::new(Default::default());
+            {
+                let mut scope = session.scope_preparation(&mut original).unwrap();
+                if dimension == 0 {
+                    scope.value_work(1, 0).unwrap();
+                    assert!(scope.value_work(1, 0).is_err());
+                } else if dimension == 1 {
+                    scope.vector::<u8>(1, 0).unwrap();
+                    assert!(scope.vector::<u8>(1, 0).is_err());
+                } else {
+                    scope.vector::<()>(1, 0).unwrap();
+                    assert!(scope.vector::<()>(1, 0).is_err());
+                }
+            }
+            let after = usage(&original);
+            assert_eq!(
+                match dimension {
+                    0 => after.work,
+                    1 => after.allocation_bytes,
+                    _ => after.elements,
+                },
+                usize::MAX
+            );
+        }
     }
 }

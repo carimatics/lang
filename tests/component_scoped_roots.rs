@@ -191,9 +191,39 @@ struct Child {
     value: Cell<i64>,
     budget_address: Cell<Option<usize>>,
     preparation_before: Cell<Option<m::Usage>>,
+    wire_preparation: Cell<Option<m::Usage>>,
+    wire_attempt: Cell<Option<m::Usage>>,
+    wire_work: usize,
+    wire_total: Cell<Option<wire::Usage>>,
     preparation_after: Cell<Option<m::Usage>>,
 }
 impl Child {
+    fn new(
+        resources: &mut storage::Resources<'_>,
+        compiled: bool,
+        repetitions: usize,
+        wire_work: usize,
+    ) -> Self {
+        Self {
+            unit: stored_unit(),
+            owner: RefCell::new(Weak::new()),
+            state: RefCell::new(execution::InstanceState::prepare(resources).unwrap()),
+            compiled,
+            repetitions,
+            parent: Cell::new(None),
+            nested: Cell::new(None),
+            before: Cell::new(None),
+            after: Cell::new(None),
+            value: Cell::new(0),
+            budget_address: Cell::new(None),
+            preparation_before: Cell::new(None),
+            wire_preparation: Cell::new(None),
+            wire_attempt: Cell::new(None),
+            wire_work,
+            wire_total: Cell::new(None),
+            preparation_after: Cell::new(None),
+        }
+    }
     unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
         let owner = self.owner.borrow().upgrade().ok_or(5u32)?;
         let current = unsafe { *context };
@@ -365,10 +395,16 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
         self.target
             .preparation_before
             .set(Some(preparation_usage(budget)));
-        prepared_unit(
+        let result = prepared_unit_budget(
             &self.target.unit,
             provider(self.owner.clone()),
-            |program, session| {
+            Some(&mut *budget),
+            self.target.wire_work,
+            |program, session, budget| {
+                let budget = budget.ok_or(4u32)?;
+                self.target
+                    .wire_preparation
+                    .set(Some(preparation_usage(budget)));
                 let function = entry(program, "answer");
                 let generated = self.target.compiled.then(|| {
                     lang_codegen_clif::tasks::CompiledProgram::compile_component(
@@ -424,7 +460,13 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                     })
                     .unwrap()
             },
-        )
+        );
+        self.target
+            .wire_attempt
+            .set(Some(preparation_usage(budget)));
+        let (result, wire_usage) = result?;
+        self.target.wire_total.set(Some(wire_usage));
+        result
     }
 }
 fn preparation_usage(budget: &m::Budget) -> m::Usage {
@@ -625,24 +667,60 @@ fn prepared_unit<T>(
     provider: native::Provider<'_>,
     run: impl FnOnce(&program::Program<'_>, &mut wire::Session) -> T,
 ) -> T {
-    let mut session = wire::Session::new(Default::default());
-    let contract = wire::artifact::source_contract(unit, &mut session, 65_536).unwrap();
+    prepared_unit_budget(unit, provider, None, usize::MAX, |program, session, _| {
+        run(program, session)
+    })
+    .unwrap()
+    .0
+}
+fn preparing<T, E: From<wire::Error>>(
+    session: &mut wire::Session,
+    budget: &mut Option<&mut m::Budget>,
+    run: impl FnOnce(&mut wire::Session) -> Result<T, E>,
+) -> Result<T, E> {
+    if let Some(budget) = budget.as_deref_mut() {
+        let mut scope = session.scope_preparation(budget).map_err(E::from)?;
+        run(&mut scope)
+    } else {
+        run(session)
+    }
+}
+fn prepared_unit_budget<T>(
+    unit: &bindings::Unit,
+    provider: native::Provider<'_>,
+    mut budget: Option<&mut m::Budget>,
+    wire_work: usize,
+    run: impl FnOnce(&program::Program<'_>, &mut wire::Session, Option<&mut m::Budget>) -> T,
+) -> Result<(T, wire::Usage), u32> {
+    let mut limits = wire::Limits::default();
+    if let Some(budget) = budget.as_deref() {
+        let original = budget.limits();
+        limits.work = original.work.min(wire_work);
+        limits.allocation_bytes = original.allocations;
+        limits.elements = original.elements;
+    }
+    let mut session = wire::Session::new(limits);
+    let contract = preparing(&mut session, &mut budget, |session| {
+        wire::artifact::source_contract(unit, session, 65_536)
+    })
+    .map_err(|_| 1u32)?;
     let signatures: Vec<_> = unit
         .mappings()
         .imports
         .iter()
         .map(|map| {
-            wire::Signature::new(
-                &contract,
-                &map.member.interface,
-                &map.member.member,
-                &mut session,
-            )
-            .unwrap()
-            .preimage(&mut session)
-            .unwrap()
+            preparing(&mut session, &mut budget, |session| {
+                wire::Signature::new(
+                    &contract,
+                    &map.member.interface,
+                    &map.member.member,
+                    session,
+                )?
+                .preimage(session)
+            })
         })
-        .collect();
+        .collect::<Result<_, _>>()
+        .map_err(|_| 1u32)?;
     let grants: Vec<_> = unit
         .mappings()
         .imports
@@ -661,9 +739,13 @@ fn prepared_unit<T>(
         })
         .collect();
     let providers = [provider];
-    let bound = grants::prepare(unit, &contract, &grants, || &providers, &mut session).unwrap();
-    let program = program::Program::prepare(&bound, Default::default()).unwrap();
-    run(&program, &mut session)
+    let bound = preparing(&mut session, &mut budget, |session| {
+        grants::prepare(unit, &contract, &grants, || &providers, session)
+    })
+    .map_err(|_| 1u32)?;
+    let program = program::Program::prepare(&bound, Default::default()).map_err(|_| 1u32)?;
+    let result = run(&program, &mut session, budget);
+    Ok((result, session.usage()))
 }
 fn entry(program: &program::Program<'_>, name: &str) -> m::FunctionId {
     let unit = program.bindings().unit();
@@ -1136,21 +1218,7 @@ fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
             h.preparation_limits.work = usize::MAX;
             h.preparation_limits.allocations = usize::MAX;
             h.preparation_limits.elements = usize::MAX;
-            let child = Rc::new(Child {
-                unit: stored_unit(),
-                owner: RefCell::new(Weak::new()),
-                state: RefCell::new(execution::InstanceState::prepare(&mut h.values).unwrap()),
-                compiled,
-                repetitions,
-                parent: Cell::new(None),
-                nested: Cell::new(None),
-                before: Cell::new(None),
-                after: Cell::new(None),
-                value: Cell::new(0),
-                budget_address: Cell::new(None),
-                preparation_before: Cell::new(None),
-                preparation_after: Cell::new(None),
-            });
+            let child = Rc::new(Child::new(&mut h.values, compiled, repetitions, usize::MAX));
             let (registration, watch) = h.registration_child(false, Some(child.clone()));
             let control = e::Control::with_limits(e::Limits::unbounded());
             let created = h
@@ -1165,6 +1233,10 @@ fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
             assert!(created.usage.fuel > after.fuel);
             assert_eq!(created.usage.host_calls, repetitions as u64 + 1);
             let prep_before = child.preparation_before.get().unwrap();
+            let wire = child.wire_preparation.get().unwrap();
+            assert!(wire.work > prep_before.work);
+            assert!(wire.allocation_bytes > prep_before.allocation_bytes);
+            assert!(wire.elements > prep_before.elements);
             let prep_after = child.preparation_after.get().unwrap();
             assert!(prep_after.work > prep_before.work);
             assert!(prep_after.allocation_bytes > prep_before.allocation_bytes);
@@ -1208,21 +1280,7 @@ fn private_child_profile_refuses_unconnected_finite_policies_before_native_effec
                 h.preparation_limits.allocations = usize::MAX;
                 h.preparation_limits.elements = usize::MAX;
             }
-            let child = Rc::new(Child {
-                unit: stored_unit(),
-                owner: RefCell::new(Weak::new()),
-                state: RefCell::new(execution::InstanceState::prepare(&mut h.values).unwrap()),
-                compiled,
-                repetitions: 1,
-                parent: Cell::new(None),
-                nested: Cell::new(None),
-                before: Cell::new(None),
-                after: Cell::new(None),
-                value: Cell::new(0),
-                budget_address: Cell::new(None),
-                preparation_before: Cell::new(None),
-                preparation_after: Cell::new(None),
-            });
+            let child = Rc::new(Child::new(&mut h.values, compiled, 1, usize::MAX));
             let (registration, watch) = h.registration_child(false, Some(child.clone()));
             let mut limits = e::Limits::unbounded();
             if policy == 0 {
@@ -1959,5 +2017,96 @@ fn borrowed_preparation_entry_keeps_precharges_and_refuses_mismatched_or_exhaust
             assert_eq!(h.allocator.stats().live_allocations, 0);
             assert!(!h.state.poisoned());
         }
+    }
+}
+
+#[test]
+fn child_grant_session_caps_keep_original_history_and_parent_cleanup() {
+    for compiled in [false, true] {
+        let run = |work| {
+            let mut h = Harness::new();
+            h.preparation_limits.work = usize::MAX;
+            h.preparation_limits.allocations = usize::MAX;
+            h.preparation_limits.elements = usize::MAX;
+            let child = Rc::new(Child::new(&mut h.values, compiled, 1, work));
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let result = h.call_control(
+                registration,
+                "create",
+                None,
+                compiled,
+                e::Control::with_limits(e::Limits::unbounded()),
+            );
+            let before = child.preparation_before.get().unwrap();
+            let observed = child.wire_attempt.get().unwrap();
+            assert!(
+                observed.work > before.work && observed.allocation_bytes > before.allocation_bytes
+            );
+            let metadata = child
+                .wire_preparation
+                .get()
+                .map(|used| used.work - before.work);
+            let total = child.wire_total.get().map(|used| used.work);
+            if let Some(total) = total {
+                assert!(total <= work);
+            }
+            let success = result.is_ok();
+            if success {
+                let execution::Value::Resource(claim) = result.unwrap().value else {
+                    panic!("parent resource");
+                };
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+                assert_eq!(watch.produced.get(), 1);
+                assert_eq!(watch.destroyed.get(), 1);
+            } else {
+                let failure = result.err().unwrap();
+                assert!(matches!(
+                    failure.reason,
+                    r::Reason::Native(execution::NativeFailure::Status { code: 1, .. })
+                ));
+                assert_eq!(watch.produced.get(), 0);
+                assert_eq!(watch.destroyed.get(), 0);
+                let (retry, retry_watch) = h.registration(false);
+                let execution::Value::Resource(claim) =
+                    h.call(retry, "create", None, compiled).unwrap().value
+                else {
+                    panic!("ready parent after refusal");
+                };
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+                assert_eq!(retry_watch.produced.get(), 1);
+                assert_eq!(retry_watch.destroyed.get(), 1);
+                assert_eq!(retry_watch.released.get(), 1);
+            }
+            assert_eq!(watch.released.get(), 1);
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(h.values.is_empty());
+            assert!(!h.state.poisoned(), "parent poison with wire cap {work}");
+            assert!(!child.state.borrow().poisoned());
+            assert_eq!(h.engine.check(&child.parent.get().unwrap()), 5);
+            if let Some(nested) = child.nested.get() {
+                assert_eq!(h.engine.check(&nested), 5);
+            }
+            if metadata.is_none() {
+                assert!(child.nested.get().is_none());
+            }
+            (success, total, metadata, observed.work - before.work)
+        };
+        let (success, Some(total), Some(metadata), _) = run(usize::MAX) else {
+            panic!("successful unbounded session");
+        };
+        assert!(success && total > metadata && metadata > 0);
+        let (success, Some(exact), Some(exact_metadata), _) = run(total) else {
+            panic!("exact session cap");
+        };
+        assert!(success);
+        assert_eq!((exact, exact_metadata), (total, metadata));
+        let (success, _, phase, retained) = run(metadata - 1);
+        assert!(!success && phase.is_none() && retained < metadata);
+        let (success, Some(retained), Some(_), _) = run(total - 1) else {
+            panic!("canonical refusal after metadata");
+        };
+        assert!(!success && retained < total);
     }
 }
