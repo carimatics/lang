@@ -89,9 +89,13 @@ impl<'l, 'ty> Services<'l, 'ty> {
         channel_limits: crate::channel::Limits,
         channel_cells: usize,
         work_limit: Option<u64>,
+        invocation_work: Option<e::ServiceWork>,
         budget: &mut m::Budget,
     ) -> Result<Self, Reason> {
-        let work = e::ServiceWork::new(work_limit);
+        let work = invocation_work.unwrap_or_else(|| e::ServiceWork::new(work_limit));
+        if work.limit() != work_limit {
+            return Err(Reason::Entry);
+        }
         let mut has_indirect = false;
         let mut has_shared = false;
         let mut has_arena = false;

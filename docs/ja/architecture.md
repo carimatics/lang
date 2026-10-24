@@ -57,6 +57,8 @@ Guest memoryはprovider identityとlive/cumulative上限を保持するfallible 
 
 計測付き実行はinstruction fuel、interruption/deadline、host-call、frame/live-cell、[service-work](rfcs/0013-service-byte-work-budget.md)のaccountingを共有します。1つの論理invocation内でcallとservice viewがcounterを共有します。対応するeffectの前にadmissionし、未対応の有限controlは実行前に拒否します。Service workは指定した論理eventの計数であり、すべてのCPU時間、allocator処理、任意の信頼済みcallbackを測るものではありません。
 
+Component work（2026-10-24 JST、[RFC 0029](rfcs/0029-component-adapter-work.md)）: `Invocation` の準備時に作った元 ServiceWork を Machine と全 service へ渡します。scoped wire Session は canonical value の観測・copy・UTF-8 を同じ counter へ課金し、scope 終了/unwind で以前の対応を復元します。全 function/未使用 import の有限対応検査にも現在の準備 Budget を適用し、未対応 method flag は実行前に拒否します。root 準備中の work failure を latch し、再試行/後続 control で置換せず、新 root で counter を初期化します。codec/admission は既存累積上限も維持し、必須 cleanup は非計量、destructor 失敗は元 primary の後に保持します。Session は同期 counter を保持するため Send/Sync ではありません。
+
 通常のCopy native facadeは信頼済み・同期・unmeteredです。Ownership native実行は[RFC 0012](rfcs/0012-native-ownership-continuations.md)の準備済みmanaged frameとcompiled continuationを使い、host driverはMIR評価やVM fallbackをせずnative addressをdispatchします。Guest recursionは上限付き論理frameを使います。上限やsandboxを説明するときに、これらのprofileを混同してはいけません。
 
 ## Portable形式とnative形式

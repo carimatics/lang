@@ -1,5 +1,21 @@
 use super::*;
 
+#[derive(Clone, Copy)]
+enum DataWork {
+    Framing,
+    Payload,
+    Utf8Payload,
+}
+impl DataWork {
+    fn charge(self, session: &mut Session, n: usize, at: usize) -> Result<(), Error> {
+        match self {
+            Self::Framing => session.charge(n, at),
+            Self::Payload => session.value_work(n, at),
+            Self::Utf8Payload => session.value_work(Session::add(n, n, at)?, at),
+        }
+    }
+}
+
 pub(super) struct Writer<'a> {
     pub session: &'a mut Session,
     pub bytes: Vec<u8>,
@@ -24,11 +40,17 @@ impl<'a> Writer<'a> {
         self.length
     }
     pub fn raw(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        self.raw_work(bytes, DataWork::Framing)
+    }
+    pub fn payload(&mut self, bytes: &[u8]) -> Result<(), Error> {
+        self.raw_work(bytes, DataWork::Payload)
+    }
+    fn raw_work(&mut self, bytes: &[u8], work: DataWork) -> Result<(), Error> {
         let at = self.at();
         let end = Session::add(at, bytes.len(), at)?;
         self.session
             .cap(end, self.session.limits.bytes, LimitKind::Bytes, at)?;
-        self.session.charge(bytes.len(), at)?;
+        work.charge(self.session, bytes.len(), at)?;
         self.session.serialized(bytes.len(), at)?;
         if self.measuring {
             self.length = end;
@@ -67,6 +89,12 @@ impl<'a> Writer<'a> {
         self.u32(n32)
     }
     pub fn string(&mut self, s: &str) -> Result<(), Error> {
+        self.string_work(s, DataWork::Framing)
+    }
+    pub fn value_string(&mut self, s: &str) -> Result<(), Error> {
+        self.string_work(s, DataWork::Payload)
+    }
+    fn string_work(&mut self, s: &str, work: DataWork) -> Result<(), Error> {
         let at = self.at();
         self.session.cap(
             s.len(),
@@ -77,7 +105,7 @@ impl<'a> Writer<'a> {
         let len =
             u32::try_from(s.len()).map_err(|_| self.session.error(at, ErrorKind::InvalidSchema))?;
         self.u32(len)?;
-        self.raw(s.as_bytes())
+        self.raw_work(s.as_bytes(), work)
     }
     pub fn header(&mut self, magic: &[u8; 4], version: u32, kind: u8) -> Result<(), Error> {
         self.raw(magic)?;
@@ -101,12 +129,18 @@ impl<'b, 's> Reader<'b, 's> {
         })
     }
     pub fn raw(&mut self, n: usize) -> Result<&'b [u8], Error> {
+        self.raw_work(n, DataWork::Framing)
+    }
+    pub fn payload(&mut self, n: usize) -> Result<&'b [u8], Error> {
+        self.raw_work(n, DataWork::Payload)
+    }
+    fn raw_work(&mut self, n: usize, work: DataWork) -> Result<&'b [u8], Error> {
         let end = Session::add(self.at, n, self.at)?;
         let bytes = self
             .bytes
             .get(self.at..end)
             .ok_or_else(|| self.session.error(self.at, ErrorKind::Truncated))?;
-        self.session.charge(n, self.at)?;
+        work.charge(self.session, n, self.at)?;
         self.at = end;
         Ok(bytes)
     }
@@ -143,6 +177,16 @@ impl<'b, 's> Reader<'b, 's> {
         Ok(n)
     }
     pub fn string(&mut self) -> Result<String, Error> {
+        self.string_work(DataWork::Framing)
+    }
+    pub fn value_string(&mut self) -> Result<String, Error> {
+        if self.session.service_work.is_some() {
+            self.string_work(DataWork::Utf8Payload)
+        } else {
+            self.string()
+        }
+    }
+    fn string_work(&mut self, work: DataWork) -> Result<String, Error> {
         let at = self.at;
         let n = self.u32()? as usize;
         self.session.cap(
@@ -151,12 +195,22 @@ impl<'b, 's> Reader<'b, 's> {
             LimitKind::StringBytes,
             at,
         )?;
-        let raw = self.raw(n)?;
-        self.session.charge(n, at)?;
+        let raw = self.raw_work(n, work)?;
+        if matches!(work, DataWork::Framing) {
+            self.session.charge(n, at)?;
+        }
         let s = std::str::from_utf8(raw).map_err(|_| self.session.error(at, ErrorKind::Utf8))?;
-        let mut bytes = self.session.vector(n, at)?;
-        bytes.extend_from_slice(s.as_bytes());
-        Ok(String::from_utf8(bytes).expect("checked UTF-8"))
+        self.session
+            .budget
+            .allocate::<u8>(n)
+            .map_err(|e| Session::budget_error(at, e))?;
+        let mut text = String::new();
+        text.try_reserve_exact(n).map_err(|_| {
+            self.session
+                .error(at, ErrorKind::Budget(m::ErrorKind::AllocationFailed))
+        })?;
+        text.push_str(s);
+        Ok(text)
     }
     pub fn header(&mut self, magic: &[u8; 4], version: u32, kind: u8) -> Result<(), Error> {
         if &self.array::<4>()? != magic {

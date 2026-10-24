@@ -472,7 +472,7 @@ fn encode_value_frame<'a>(
         let at = w.at();
         w.session
             .cap(depth, w.session.limits.depth, LimitKind::Depth, at)?;
-        w.session.charge(1, at)?;
+        w.session.value_work(1, at)?;
         let ty = resolve(sig.document, ty, w.session)?;
         let value_id = value;
         let value = values
@@ -507,12 +507,12 @@ fn encode_value_frame<'a>(
                 }
                 w.u32(index.get())?;
             }
-            (TypeKind::Text, Value::Text(t)) => w.string(t)?,
+            (TypeKind::Text, Value::Text(t)) => w.value_string(t)?,
             (TypeKind::Bytes, Value::Bytes(b)) => {
                 let n = u32::try_from(b.len())
                     .map_err(|_| w.session.error(at, ErrorKind::ValueType))?;
                 w.u32(n)?;
-                w.raw(b)?;
+                w.payload(b)?;
             }
             (TypeKind::List(t), Value::List(v)) => {
                 w.u32(
@@ -668,7 +668,7 @@ fn decode_value_frame<'a>(
             Work::Read(ty, depth) => {
                 r.session
                     .cap(depth, r.session.limits.depth, LimitKind::Depth, at)?;
-                r.session.charge(1, at)?;
+                r.session.value_work(1, at)?;
                 let ty = resolve(sig.document, ty, r.session)?;
                 if sig.minimum[ty.0].expect("reachable type") > r.bytes.len() - r.at {
                     return Err(r.session.error(at, ErrorKind::Truncated));
@@ -702,10 +702,10 @@ fn decode_value_frame<'a>(
                         }
                         Value::Resource(index)
                     }
-                    TypeKind::Text => Value::Text(r.string()?),
+                    TypeKind::Text => Value::Text(r.value_string()?),
                     TypeKind::Bytes => {
                         let n = r.u32()? as usize;
-                        let b = r.raw(n)?;
+                        let b = r.payload(n)?;
                         let mut v = r.session.vector(n, at)?;
                         v.extend_from_slice(b);
                         Value::Bytes(v)

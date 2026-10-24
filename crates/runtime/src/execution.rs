@@ -173,6 +173,9 @@ impl ServiceWork {
     pub fn used(&self) -> u64 {
         self.0.usage.get().service_work
     }
+    pub fn limit(&self) -> Option<u64> {
+        self.0.control.service_work_limit()
+    }
     pub fn charge(&self, requested: u64) -> Result<(), Failure> {
         self.charge_batch(&[requested])
     }

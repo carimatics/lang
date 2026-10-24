@@ -63,6 +63,8 @@ pub enum ErrorKind {
     Unresolved,
     Signature,
     ResourceContextRequired,
+    WorkContext,
+    Execution(crate::execution::Failure),
     ValueType,
     Limit {
         kind: LimitKind,
@@ -96,6 +98,28 @@ pub struct Session {
     budget: m::Budget,
     elements: usize,
     serialized: usize,
+    service_work: Option<crate::execution::ServiceWork>,
+}
+/// Restore the previous association on every exit, including Rust unwinding.
+pub(crate) struct WorkScope<'s> {
+    session: &'s mut Session,
+    previous: Option<crate::execution::ServiceWork>,
+}
+impl std::ops::Deref for WorkScope<'_> {
+    type Target = Session;
+    fn deref(&self) -> &Self::Target {
+        self.session
+    }
+}
+impl std::ops::DerefMut for WorkScope<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.session
+    }
+}
+impl Drop for WorkScope<'_> {
+    fn drop(&mut self) {
+        self.session.service_work = self.previous.take();
+    }
 }
 impl Session {
     pub fn new(limits: Limits) -> Self {
@@ -109,7 +133,60 @@ impl Session {
             }),
             elements: 0,
             serialized: 0,
+            service_work: None,
         }
+    }
+    pub(crate) fn scope_work<'s>(
+        &'s mut self,
+        work: &crate::execution::ServiceWork,
+    ) -> Result<WorkScope<'s>, Error> {
+        if self
+            .service_work
+            .as_ref()
+            .is_some_and(|old| !old.same_invocation(work))
+        {
+            return Err(self.error(0, ErrorKind::WorkContext));
+        }
+        let previous = self.service_work.replace(work.clone());
+        Ok(WorkScope {
+            session: self,
+            previous,
+        })
+    }
+    /// One value observation/copy consumes both applicable quotas atomically.
+    pub(super) fn value_work(&mut self, n: usize, at: usize) -> Result<(), Error> {
+        self.value_work_cost(n, n, at)
+    }
+    pub(super) fn text_work(&mut self, n: usize, at: usize) -> Result<(), Error> {
+        self.value_work_cost(n, Self::add(n, n, at)?, at)
+    }
+    fn value_work_cost(
+        &mut self,
+        preparation: usize,
+        service: usize,
+        at: usize,
+    ) -> Result<(), Error> {
+        let mut budget = m::Budget::with_usage(self.budget.limits(), self.budget_usage())
+            .map_err(|e| Self::budget_error(at, e))?;
+        budget
+            .charge(preparation)
+            .map_err(|e| Self::budget_error(at, e))?;
+        self.payload_work(service, at)?;
+        self.budget = budget;
+        Ok(())
+    }
+    pub(super) fn payload_work(&self, n: usize, at: usize) -> Result<(), Error> {
+        if let Some(work) = &self.service_work {
+            let n = u64::try_from(n).map_err(|_| {
+                self.error(
+                    at,
+                    ErrorKind::Execution(crate::execution::Failure::CounterOverflow),
+                )
+            })?;
+            work.charge(n)
+                .map_err(|e| self.error(at, ErrorKind::Execution(e)))?;
+        }
+        Ok(())
     }
     /// Continue preparation on the MIR/metadata loader's existing ledger.
     pub fn with_usage(limits: Limits, usage: m::Usage) -> Result<Self, Error> {
@@ -265,5 +342,175 @@ impl Session {
         }
         v.push(value);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod work_tests {
+    use super::*;
+    use crate::{
+        component::{
+            idl,
+            negotiation::{InterfaceKey, PackageKey},
+        },
+        execution as e,
+    };
+
+    fn contract() -> Contract {
+        let document = idl::check(
+            m::SourceId(0),
+            br#"{
+            "idl":1,"package":"demo:work","version":"1.0.0",
+            "interfaces":[{"key":"demo:work/api","resources":[],"types":[],
+            "functions":[{"name":"echo","effect":"sync","params":[{"name":"text","type":"text"}],
+            "result":"text","capability":"demo.work.echo"}]}],
+            "imports":[],"exports":["demo:work/api"]
+        }"#,
+            Default::default(),
+        )
+        .unwrap();
+        Contract::new(document, vec![], &mut Session::new(Default::default())).unwrap()
+    }
+    fn signature(contract: &Contract) -> Signature<'_> {
+        Signature::new(
+            contract,
+            &InterfaceKey::new(PackageKey::new("demo", "work"), "api"),
+            "echo",
+            &mut Session::new(Default::default()),
+        )
+        .unwrap()
+    }
+    fn values() -> Values {
+        Values {
+            roots: vec![ValueId(0)],
+            nodes: vec![Value::Text("寿司".into())],
+        }
+    }
+    #[test]
+    fn canonical_text_shares_observation_copy_and_utf8_work_without_changing_bytes() {
+        let contract = contract();
+        let signature = signature(&contract);
+        let expected = encode_values(
+            &signature,
+            FrameKind::Parameters,
+            &values(),
+            &mut Session::new(Default::default()),
+        )
+        .unwrap();
+        for limit in [20, 19] {
+            let work = e::ServiceWork::new(Some(limit));
+            let mut session = Session::new(Default::default());
+            {
+                let mut scope = session.scope_work(&work).unwrap();
+                let bytes = encode_values(&signature, FrameKind::Parameters, &values(), &mut scope)
+                    .unwrap();
+                assert_eq!(bytes, expected);
+                assert_eq!(work.used(), 7); // One value and six copied UTF-8 bytes.
+                let decoded = decode_values(&signature, FrameKind::Parameters, &bytes, &mut scope);
+                if limit == 20 {
+                    assert_eq!(decoded.unwrap(), values());
+                    assert_eq!(work.used(), 20); // One value, six copied and six validated bytes.
+                } else {
+                    assert!(matches!(
+                        decoded.err().unwrap().kind,
+                        ErrorKind::Execution(e::Failure::ServiceWorkLimit {
+                            limit: 19,
+                            used: 8,
+                            requested: 12
+                        })
+                    ));
+                    assert_eq!(work.used(), 8);
+                }
+            }
+            assert!(session.service_work.is_none());
+        }
+    }
+    #[test]
+    fn local_quota_precedes_global_refusal_and_overflow_keeps_original_control_identity() {
+        let contract = contract();
+        let signature = signature(&contract);
+        let mut session = Session::new(Limits {
+            work: 0,
+            ..Default::default()
+        });
+        let work = e::ServiceWork::new(Some(0));
+        let error = encode_values(
+            &signature,
+            FrameKind::Parameters,
+            &values(),
+            &mut session.scope_work(&work).unwrap(),
+        )
+        .err()
+        .unwrap();
+        assert!(matches!(error.kind, ErrorKind::Budget(_)));
+        assert_eq!(work.used(), 0);
+        let work = e::ServiceWork::new(None);
+        work.charge(u64::MAX).unwrap();
+        let mut session = Session::new(Default::default());
+        let error = encode_values(
+            &signature,
+            FrameKind::Parameters,
+            &values(),
+            &mut session.scope_work(&work).unwrap(),
+        )
+        .err()
+        .unwrap();
+        assert!(matches!(
+            crate::task::runner::Reason::from(error),
+            crate::task::runner::Reason::Control(e::Failure::CounterOverflow)
+        ));
+        assert_eq!(work.used(), u64::MAX);
+    }
+    #[test]
+    fn session_scope_refuses_foreign_counters_and_restores_association_on_unwind() {
+        let a = e::ServiceWork::new(None);
+        let b = e::ServiceWork::new(None);
+        let mut session = Session::new(Default::default());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut root = session.scope_work(&a).unwrap();
+            assert!(matches!(
+                root.scope_work(&b).err().unwrap().kind,
+                ErrorKind::WorkContext
+            ));
+            let child = root.scope_work(&a).unwrap();
+            child.payload_work(1, 0).unwrap();
+            panic!("test unwind after a shared nested scope");
+        }));
+        assert!(result.is_err());
+        assert_eq!(a.used(), 1);
+        assert_eq!(b.used(), 0);
+        assert!(session.service_work.is_none());
+        assert!(session.scope_work(&b).is_ok());
+    }
+
+    #[test]
+    fn zero_byte_unit_elements_still_consume_each_value_observation() {
+        let document = idl::check(m::SourceId(0), br#"{
+            "idl":1,"package":"demo:work","version":"1.0.0",
+            "interfaces":[{"key":"demo:work/api","resources":[],"types":[],
+            "functions":[{"name":"echo","effect":"sync","params":[{"name":"values","type":{"list":"unit"}}],
+            "result":"unit","capability":"demo.work.echo"}]}],
+            "imports":[],"exports":["demo:work/api"]
+        }"#, Default::default()).unwrap();
+        let contract =
+            Contract::new(document, vec![], &mut Session::new(Default::default())).unwrap();
+        let signature = signature(&contract);
+        let mut nodes = vec![Value::Unit; 5];
+        nodes.push(Value::List((0..5).map(ValueId).collect()));
+        let values = Values {
+            roots: vec![ValueId(5)],
+            nodes,
+        };
+        let work = e::ServiceWork::new(Some(12));
+        let mut session = Session::new(Default::default());
+        let mut scope = session.scope_work(&work).unwrap();
+        let bytes = encode_values(&signature, FrameKind::Parameters, &values, &mut scope).unwrap();
+        assert_eq!(bytes.len(), 49);
+        assert_eq!(work.used(), 6);
+        assert_eq!(
+            decode_values(&signature, FrameKind::Parameters, &bytes, &mut scope).unwrap(),
+            values
+        );
+        assert_eq!(work.used(), 12);
     }
 }

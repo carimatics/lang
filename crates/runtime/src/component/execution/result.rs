@@ -12,21 +12,18 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
     session: &mut wire::Session,
 ) -> Result<NativeArguments, Reason> {
     let mut values = wire::Values {
-        roots: session
-            .vector(roots.len(), 0)
-            .map_err(Reason::ComponentFrame)?,
+        roots: session.vector(roots.len(), 0).map_err(Reason::from)?,
         nodes: Vec::new(),
     };
-    let mut resources = session
-        .vector(roots.len(), 0)
-        .map_err(Reason::ComponentFrame)?;
+    let mut resources = session.vector(roots.len(), 0).map_err(Reason::from)?;
     for root in roots {
-        session.charge(1, 0).map_err(Reason::ComponentFrame)?;
+        session.charge(1, 0).map_err(Reason::from)?;
         let id = match root {
             ReadRoot::Resource(resource) => {
+                session.payload_work(1, 0).map_err(Reason::from)?;
                 session
                     .push(&mut resources, *resource, 0)
-                    .map_err(Reason::ComponentFrame)?;
+                    .map_err(Reason::from)?;
                 let index = u32::try_from(resources.len())
                     .ok()
                     .and_then(crate::component::adapter::BoundaryResourceIndex::new)
@@ -34,7 +31,7 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
                 let id = wire::ValueId(values.nodes.len());
                 session
                     .push(&mut values.nodes, wire::Value::Resource(index), 0)
-                    .map_err(Reason::ComponentFrame)?;
+                    .map_err(Reason::from)?;
                 id
             }
             ReadRoot::Value(root) => {
@@ -50,7 +47,7 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
                             },
                             0,
                         )
-                        .map_err(Reason::ComponentFrame)?;
+                        .map_err(Reason::from)?;
                 }
                 let base = values.nodes.len();
                 let id = wire::ValueId(
@@ -59,7 +56,7 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
                 );
                 for mut node in frame.values.nodes {
                     let mut rebase = |id: &mut wire::ValueId| -> Result<(), Reason> {
-                        session.charge(1, 0).map_err(Reason::ComponentFrame)?;
+                        session.charge(1, 0).map_err(Reason::from)?;
                         id.0 = id.0.checked_add(base).ok_or(Reason::Invariant)?;
                         Ok(())
                     };
@@ -84,7 +81,7 @@ pub(crate) fn read_parameters<'l, 't, P: a::Provider>(
                     }
                     session
                         .push(&mut values.nodes, node, 0)
-                        .map_err(Reason::ComponentFrame)?;
+                        .map_err(Reason::from)?;
                 }
                 id
             }
@@ -137,16 +134,15 @@ fn read_value<'l, 't, P: a::Provider>(
     let mut resources = Vec::new();
     session
         .push(&mut work, Work::Read(root, root.root()), 0)
-        .map_err(Reason::ComponentFrame)?;
+        .map_err(Reason::from)?;
     while let Some(next) = work.pop() {
-        session.charge(1, 0).map_err(Reason::ComponentFrame)?;
         let node = match next {
             Work::Build(kind, count) => {
+                session.charge(1, 0).map_err(Reason::from)?;
                 let start = stack.len().checked_sub(count).ok_or(Reason::Invariant)?;
                 match kind {
                     Aggregate::Record | Aggregate::List => {
-                        let mut fields =
-                            session.vector(count, 0).map_err(Reason::ComponentFrame)?;
+                        let mut fields = session.vector(count, 0).map_err(Reason::from)?;
                         fields.extend(stack.drain(start..));
                         if matches!(kind, Aggregate::List) {
                             wire::Value::List(fields)
@@ -164,6 +160,7 @@ fn read_value<'l, 't, P: a::Provider>(
                 }
             }
             Work::Read(view, at) => {
+                session.value_work(1, 0).map_err(Reason::from)?;
                 let layout = layouts.get(at.ty()).ok_or(Reason::Entry)?;
                 match &layout.kind {
                     l::Kind::Scalar | l::Kind::Error { .. } => {
@@ -179,7 +176,7 @@ fn read_value<'l, 't, P: a::Provider>(
                         let claim = Claim::from_token(token.bytes).map_err(super::fault)?;
                         session
                             .push(&mut resources, claim, 0)
-                            .map_err(Reason::ComponentFrame)?;
+                            .map_err(Reason::from)?;
                         let index = u32::try_from(resources.len())
                             .ok()
                             .and_then(crate::component::adapter::BoundaryResourceIndex::new)
@@ -191,15 +188,9 @@ fn read_value<'l, 't, P: a::Provider>(
                         let bytes = buffer::Bytes::from_token(&mut token.bytes, allocator)
                             .map_err(fault)?;
                         let bytes = bytes.as_slice(allocator).map_err(fault)?;
-                        session
-                            .value_bytes(bytes.len(), 0)
-                            .map_err(Reason::ComponentFrame)?;
-                        session
-                            .charge(bytes.len(), 0)
-                            .map_err(Reason::ComponentFrame)?;
-                        let mut copy = session
-                            .vector(bytes.len(), 0)
-                            .map_err(Reason::ComponentFrame)?;
+                        session.value_bytes(bytes.len(), 0).map_err(Reason::from)?;
+                        session.value_work(bytes.len(), 0).map_err(Reason::from)?;
+                        let mut copy = session.vector(bytes.len(), 0).map_err(Reason::from)?;
                         copy.extend_from_slice(bytes);
                         wire::Value::Bytes(copy)
                     }
@@ -207,15 +198,9 @@ fn read_value<'l, 't, P: a::Provider>(
                         let token = view.token(at, allocator)?;
                         let bytes =
                             buffer::text_token_bytes(token.bytes, allocator).map_err(fault)?;
-                        session
-                            .text_bytes(bytes.len(), 0)
-                            .map_err(Reason::ComponentFrame)?;
-                        session
-                            .charge(bytes.len(), 0)
-                            .map_err(Reason::ComponentFrame)?;
-                        let mut copy = session
-                            .vector(bytes.len(), 0)
-                            .map_err(Reason::ComponentFrame)?;
+                        session.text_bytes(bytes.len(), 0).map_err(Reason::from)?;
+                        session.text_work(bytes.len(), 0).map_err(Reason::from)?;
+                        let mut copy = session.vector(bytes.len(), 0).map_err(Reason::from)?;
                         copy.extend_from_slice(bytes);
                         wire::Value::Text(String::from_utf8(copy).map_err(|_| Reason::Invariant)?)
                     }
@@ -231,18 +216,18 @@ fn read_value<'l, 't, P: a::Provider>(
                         let count =
                             usize::try_from(vector.len(allocator).map_err(|_| Reason::Invariant)?)
                                 .map_err(|_| Reason::Invariant)?;
-                        session.count(count, 0).map_err(Reason::ComponentFrame)?;
-                        session.charge(count, 0).map_err(Reason::ComponentFrame)?;
+                        session.count(count, 0).map_err(Reason::from)?;
+                        session.charge(count, 0).map_err(Reason::from)?;
                         session
                             .push(&mut work, Work::Build(Aggregate::List, count), 0)
-                            .map_err(Reason::ComponentFrame)?;
+                            .map_err(Reason::from)?;
                         for index in (0..count).rev() {
                             let (element, _) = vector
                                 .observation(index as u64, allocator)
                                 .map_err(|_| Reason::Invariant)?;
                             session
                                 .push(&mut work, Work::Read(element, element.root()), 0)
-                                .map_err(Reason::ComponentFrame)?;
+                                .map_err(Reason::from)?;
                         }
                         continue;
                     }
@@ -254,7 +239,7 @@ fn read_value<'l, 't, P: a::Provider>(
                                 Work::Build(Aggregate::Record, fields.fields.len()),
                                 0,
                             )
-                            .map_err(Reason::ComponentFrame)?;
+                            .map_err(Reason::from)?;
                         for index in (0..fields.fields.len()).rev() {
                             session
                                 .push(
@@ -262,7 +247,7 @@ fn read_value<'l, 't, P: a::Provider>(
                                     Work::Read(view, view.child(at, index as u32, allocator)?),
                                     0,
                                 )
-                                .map_err(Reason::ComponentFrame)?;
+                                .map_err(Reason::from)?;
                         }
                         continue;
                     }
@@ -281,10 +266,8 @@ fn read_value<'l, 't, P: a::Provider>(
                                 let id = wire::ValueId(nodes.len());
                                 session
                                     .push(&mut nodes, wire::Value::None, 0)
-                                    .map_err(Reason::ComponentFrame)?;
-                                session
-                                    .push(&mut stack, id, 0)
-                                    .map_err(Reason::ComponentFrame)?;
+                                    .map_err(Reason::from)?;
+                                session.push(&mut stack, id, 0).map_err(Reason::from)?;
                                 continue;
                             }
                             Some(o::Constructor::Option(_)) => Aggregate::Some,
@@ -294,16 +277,14 @@ fn read_value<'l, 't, P: a::Provider>(
                         };
                         session
                             .push(&mut work, Work::Build(aggregate, 1), 0)
-                            .map_err(Reason::ComponentFrame)?;
+                            .map_err(Reason::from)?;
                         match fields.fields.len() {
                             0 => {
                                 let id = wire::ValueId(nodes.len());
                                 session
                                     .push(&mut nodes, wire::Value::Unit, 0)
-                                    .map_err(Reason::ComponentFrame)?;
-                                session
-                                    .push(&mut stack, id, 0)
-                                    .map_err(Reason::ComponentFrame)?;
+                                    .map_err(Reason::from)?;
+                                session.push(&mut stack, id, 0).map_err(Reason::from)?;
                             }
                             1 => session
                                 .push(
@@ -311,7 +292,7 @@ fn read_value<'l, 't, P: a::Provider>(
                                     Work::Read(view, view.child(at, 0, allocator)?),
                                     0,
                                 )
-                                .map_err(Reason::ComponentFrame)?,
+                                .map_err(Reason::from)?,
                             _ => return Err(Reason::Unsupported),
                         }
                         continue;
@@ -321,12 +302,8 @@ fn read_value<'l, 't, P: a::Provider>(
             }
         };
         let id = wire::ValueId(nodes.len());
-        session
-            .push(&mut nodes, node, 0)
-            .map_err(Reason::ComponentFrame)?;
-        session
-            .push(&mut stack, id, 0)
-            .map_err(Reason::ComponentFrame)?;
+        session.push(&mut nodes, node, 0).map_err(Reason::from)?;
+        session.push(&mut stack, id, 0).map_err(Reason::from)?;
     }
     if stack.len() != 1 {
         return Err(Reason::Invariant);

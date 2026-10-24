@@ -1286,6 +1286,24 @@ fn run_source(case: Case) -> (bool, bool) {
     run_source_mode(case, false)
 }
 fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
+    let (success, committed, _) = run_source_mode_work(case, stored, None);
+    (success, committed)
+}
+fn run_source_mode_work(
+    case: Case,
+    stored: bool,
+    work_limit: Option<u64>,
+) -> (bool, bool, e::Usage) {
+    run_source_configuration(case, stored, work_limit, 0, false)
+}
+fn run_source_configuration(
+    case: Case,
+    stored: bool,
+    work_limit: Option<u64>,
+    native_flags: u32,
+    force_cleanup_failure: bool,
+) -> (bool, bool, e::Usage) {
+    let cleanup_failure = force_cleanup_failure || case.failing_cleanup();
     let return_resource = case.returns_resource();
     let extra = case.loan_extra()
         || case.native_batch()
@@ -1775,7 +1793,7 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
         value: Cell::new(0),
         allocator: Cell::new(0),
         context: Cell::new(None),
-        fail: case.failing_cleanup(),
+        fail: cleanup_failure,
         cancelled: matches!(case.native(), Some(NativeCase::Interrupt))
             || matches!(case, Case::Cancelled | Case::LoanCancelled),
     };
@@ -1792,7 +1810,7 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
         } else {
             ptr::null_mut()
         },
-        flags: 0,
+        flags: native_flags,
     }];
     let mut resources = vec![native::ResourceType {
         interface: 0,
@@ -1941,6 +1959,7 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
             },
             ..Default::default()
         })
+        .and_service_work(work_limit)
         .and_interruption(&interruption);
         let mut engine = lang_codegen_clif::component::Engine::prepare(&mut budget).unwrap();
         let mut limited_output = wire::Session::new(wire::Limits {
@@ -1976,6 +1995,7 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
         }
         let mut expected_body = None;
         let mut replay = None;
+        let mut preparation_failure = None;
         if case.loan().is_some() || case.native_declared() {
             let mut frame_values = wire::Values {
                 roots: vec![wire::ValueId(0), wire::ValueId(1)],
@@ -2003,131 +2023,151 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
             }
             let encoded =
                 invocation.encode_arguments(&frame_values, &claims, &allocator, &mut session);
-            if matches!(case, Case::LoanCapacity | Case::LoanConflict(_)) {
-                if matches!(case, Case::LoanCapacity) {
+            if work_limit.is_some() {
+                let prepared = encoded.and_then(|bytes| {
+                    invocation.decode_arguments(&bytes, &claims, &allocator, &mut session)
+                });
+                match prepared {
+                    Ok(prepared) => arguments = prepared,
+                    Err(lang_runtime::task::runner::Reason::Control(failure)) => {
+                        preparation_failure = Some(failure);
+                        let mut retry_session = wire::Session::new(Default::default());
+                        assert!(matches!(
+                            invocation.encode_arguments(&frame_values, &claims, &allocator, &mut retry_session),
+                            Err(lang_runtime::task::runner::Reason::Control(repeated)) if repeated == failure
+                        ));
+                        assert_eq!(destroyed.method_calls.get(), 0);
+                        assert!(!execution::Host::arguments_committed(&invocation));
+                    }
+                    Err(error) => panic!("unexpected finite-work argument preparation: {error:?}"),
+                }
+            } else {
+                if matches!(case, Case::LoanCapacity | Case::LoanConflict(_)) {
+                    if matches!(case, Case::LoanCapacity) {
+                        assert!(matches!(
+                            encoded,
+                            Err(lang_runtime::task::runner::Reason::Component(
+                                storage::Error::Capacity
+                            ))
+                        ));
+                    } else {
+                        assert!(matches!(
+                            encoded,
+                            Err(lang_runtime::task::runner::Reason::Component(
+                                storage::Error::AliasedOwner
+                            ))
+                        ));
+                    }
+                    assert!(!execution::Host::arguments_committed(&invocation));
+                    assert_eq!(invocation.active_loans(), 0);
+                    drop(invocation);
+                    assert_eq!(attempts.get(), 4);
+                    assert_eq!(destroyed.calls.get(), 0);
+                    for claim in claims {
+                        release_caller(
+                            &mut values,
+                            claim,
+                            kind,
+                            &mut allocator,
+                            &mut bridge,
+                            &mut budget,
+                        );
+                    }
+                    assert_eq!(destroyed.calls.get(), 2);
+                    assert_eq!(allocator.stats().live_allocations, 0);
+                    previous = Some((false, false, Default::default()));
+                    continue;
+                }
+                let encoded = encoded.unwrap();
+                if matches!(case, Case::Native(NativeCase::Reborrow(_))) {
+                    replay = Some(encoded.clone());
+                }
+                let before = allocator.stats();
+                for index in [0_u32, 3] {
+                    let mut bad = encoded.clone();
+                    bad[45..49].copy_from_slice(&index.to_le_bytes());
+                    assert!(
+                        invocation
+                            .decode_arguments(&bad, &claims, &allocator, &mut session)
+                            .is_err()
+                    );
+                    assert_eq!(allocator.stats(), before);
+                    assert_eq!(invocation.active_loans(), 0);
+                }
+                let mut bad = encoded.clone();
+                bad[9] ^= 1;
+                assert!(matches!(
+                    invocation.decode_arguments(&bad, &claims, &allocator, &mut session),
+                    Err(lang_runtime::task::runner::Reason::ComponentFrame(
+                        wire::Error {
+                            kind: wire::ErrorKind::Signature,
+                            ..
+                        }
+                    ))
+                ));
+                if extra && !case.loan_aliases() {
+                    let mut aliased = encoded.clone();
+                    aliased[57..61].copy_from_slice(&1_u32.to_le_bytes());
                     assert!(matches!(
-                        encoded,
-                        Err(lang_runtime::task::runner::Reason::Component(
-                            storage::Error::Capacity
-                        ))
-                    ));
-                } else {
-                    assert!(matches!(
-                        encoded,
+                        invocation.decode_arguments(&aliased, &claims, &allocator, &mut session),
                         Err(lang_runtime::task::runner::Reason::Component(
                             storage::Error::AliasedOwner
                         ))
                     ));
+                    assert_eq!(attempts.get(), 4);
+                    assert_eq!(invocation.active_loans(), 0);
                 }
-                assert!(!execution::Host::arguments_committed(&invocation));
-                assert_eq!(invocation.active_loans(), 0);
-                drop(invocation);
-                assert_eq!(attempts.get(), 4);
-                assert_eq!(destroyed.calls.get(), 0);
-                for claim in claims {
-                    release_caller(
+                arguments = invocation
+                    .decode_arguments(&encoded, &claims, &allocator, &mut session)
+                    .unwrap();
+                if matches!(case, Case::SharedLoan | Case::ExclusiveLoan) {
+                    let foreign = arguments.clone();
+                    drop(invocation);
+                    invocation = execution::Invocation::prepare(
+                        &mut instance,
+                        m::FunctionId(0),
                         &mut values,
-                        claim,
-                        kind,
-                        &mut allocator,
                         &mut bridge,
                         &mut budget,
-                    );
-                }
-                assert_eq!(destroyed.calls.get(), 2);
-                assert_eq!(allocator.stats().live_allocations, 0);
-                previous = Some((false, false, Default::default()));
-                continue;
-            }
-            let encoded = encoded.unwrap();
-            if matches!(case, Case::Native(NativeCase::Reborrow(_))) {
-                replay = Some(encoded.clone());
-            }
-            let before = allocator.stats();
-            for index in [0_u32, 3] {
-                let mut bad = encoded.clone();
-                bad[45..49].copy_from_slice(&index.to_le_bytes());
-                assert!(
-                    invocation
-                        .decode_arguments(&bad, &claims, &allocator, &mut session)
-                        .is_err()
-                );
-                assert_eq!(allocator.stats(), before);
-                assert_eq!(invocation.active_loans(), 0);
-            }
-            let mut bad = encoded.clone();
-            bad[9] ^= 1;
-            assert!(matches!(
-                invocation.decode_arguments(&bad, &claims, &allocator, &mut session),
-                Err(lang_runtime::task::runner::Reason::ComponentFrame(
-                    wire::Error {
-                        kind: wire::ErrorKind::Signature,
-                        ..
-                    }
-                ))
-            ));
-            if extra && !case.loan_aliases() {
-                let mut aliased = encoded.clone();
-                aliased[57..61].copy_from_slice(&1_u32.to_le_bytes());
-                assert!(matches!(
-                    invocation.decode_arguments(&aliased, &claims, &allocator, &mut session),
-                    Err(lang_runtime::task::runner::Reason::Component(
-                        storage::Error::AliasedOwner
-                    ))
-                ));
-                assert_eq!(attempts.get(), 4);
-                assert_eq!(invocation.active_loans(), 0);
-            }
-            arguments = invocation
-                .decode_arguments(&encoded, &claims, &allocator, &mut session)
-                .unwrap();
-            if matches!(case, Case::SharedLoan | Case::ExclusiveLoan) {
-                let foreign = arguments.clone();
-                drop(invocation);
-                invocation = execution::Invocation::prepare(
-                    &mut instance,
-                    m::FunctionId(0),
-                    &mut values,
-                    &mut bridge,
-                    &mut budget,
-                )
-                .unwrap();
-                arguments = invocation
-                    .decode_arguments(&encoded, &claims, &allocator, &mut session)
+                    )
                     .unwrap();
-                let stale = arguments.clone();
-                arguments = invocation
-                    .decode_arguments(&encoded, &claims, &allocator, &mut session)
-                    .unwrap();
-                for rejected in [foreign, stale] {
-                    let failure = if compiled {
-                        native.execute_component(
-                            &mut allocator,
-                            control,
-                            Default::default(),
-                            &rejected,
-                            &mut invocation,
-                        )
-                    } else {
-                        lang_vm::unit::tasks::execute_component(
-                            &program,
-                            m::FunctionId(0),
-                            &mut allocator,
-                            control,
-                            Default::default(),
-                            &rejected,
-                            &mut invocation,
-                        )
+                    arguments = invocation
+                        .decode_arguments(&encoded, &claims, &allocator, &mut session)
+                        .unwrap();
+                    let stale = arguments.clone();
+                    arguments = invocation
+                        .decode_arguments(&encoded, &claims, &allocator, &mut session)
+                        .unwrap();
+                    for rejected in [foreign, stale] {
+                        let failure = if compiled {
+                            native.execute_component(
+                                &mut allocator,
+                                control,
+                                Default::default(),
+                                &rejected,
+                                &mut invocation,
+                            )
+                        } else {
+                            lang_vm::unit::tasks::execute_component(
+                                &program,
+                                m::FunctionId(0),
+                                &mut allocator,
+                                control,
+                                Default::default(),
+                                &rejected,
+                                &mut invocation,
+                            )
+                        }
+                        .err()
+                        .expect("foreign or replaced loan frame must be refused");
+                        assert!(matches!(
+                            failure.reason,
+                            lang_runtime::task::runner::Reason::Entry
+                        ));
+                        assert!(!execution::Host::arguments_committed(&invocation));
+                        assert_eq!(invocation.active_loans(), 0);
+                        assert_eq!(allocator.stats(), before);
                     }
-                    .err()
-                    .expect("foreign or replaced loan frame must be refused");
-                    assert!(matches!(
-                        failure.reason,
-                        lang_runtime::task::runner::Reason::Entry
-                    ));
-                    assert!(!execution::Host::arguments_committed(&invocation));
-                    assert_eq!(invocation.active_loans(), 0);
-                    assert_eq!(allocator.stats(), before);
                 }
             }
         }
@@ -2488,6 +2528,10 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
                 &mut budget,
             )
             .expect("complete non-poisoned cleanup permits the next root preparation");
+            if work_limit.is_some() {
+                assert_eq!(execution::Host::service_work(&retry).used(), 0);
+                assert!(execution::Host::work_failure(&retry).is_none());
+            }
             drop(retry);
         }
         if let Some(encoded) = replay {
@@ -2544,6 +2588,51 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
             assert!(destroyed.method_control_checked.get());
         }
         if let Err(failure) = outcome {
+            if native_flags != 0 {
+                assert!(matches!(
+                    failure.reason,
+                    lang_runtime::task::runner::Reason::Unsupported
+                ));
+                assert!(!committed);
+                assert_eq!(destroyed.method_calls.get(), 0);
+            } else if let Some(limit) = work_limit {
+                let lang_runtime::task::runner::Reason::Control(error) = failure.reason else {
+                    panic!("finite component work lost control identity: {failure:?}");
+                };
+                assert!(
+                    matches!(error, e::Failure::ServiceWorkLimit { limit: actual, used, requested }
+                    if actual == limit && used == failure.usage.service_work && used <= limit
+                        && used.checked_add(requested).is_none_or(|next| next > limit))
+                );
+                if let Some(expected) = preparation_failure {
+                    assert_eq!(error, expected);
+                    assert!(!committed);
+                    assert_eq!(destroyed.method_calls.get(), 0);
+                }
+                assert_eq!(failure.span.unwrap().source, m::SourceId(0));
+                if !cleanup_failure {
+                    assert!(
+                        !failure.poisoned,
+                        "work refusal alone poisoned the instance"
+                    );
+                } else if committed {
+                    let report = failure.report.as_ref().unwrap();
+                    assert!(matches!(
+                        report.primary().unwrap().kind,
+                        lang_runtime::cleanup::FailureKind::Execution(
+                            lang_runtime::cleanup::ExecutionFailure::ServiceWorkLimit { .. }
+                        )
+                    ));
+                    assert!(report.cleanup_failures() > 0);
+                    assert!(!report.secondary().is_empty());
+                    assert!(
+                        report
+                            .secondary()
+                            .iter()
+                            .all(|failure| failure.span.is_some())
+                    );
+                }
+            }
             if let Some(NativeCase::WrongKind | NativeCase::WrongKindOwned) = case.native() {
                 assert!(matches!(
                     failure.reason,
@@ -2618,13 +2707,10 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
                 ));
                 assert_eq!(attempts.get(), 4);
             }
-            if case.failing_cleanup() || case.native_poison() {
+            if cleanup_failure || case.native_poison() {
                 assert!(failure.poisoned);
                 assert!(failure.report.as_ref().unwrap().primary().is_some());
-                if case.native_transfer()
-                    && case.failing_cleanup()
-                    && destroyed.method_calls.get() != 0
-                {
+                if case.native_transfer() && cleanup_failure && destroyed.method_calls.get() != 0 {
                     let report = failure.report.as_ref().unwrap();
                     assert!(report.cleanup_failures() >= 1);
                     if case.native_poison() {
@@ -2776,7 +2862,7 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
                         &mut cleaner,
                     );
                     backing.release(&mut allocator).unwrap();
-                    if case.failing_cleanup() {
+                    if cleanup_failure {
                         assert!(retired.is_err());
                         assert!(cleanup.is_poisoned());
                     } else {
@@ -2808,7 +2894,7 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
             continue;
         }
         let mut outcome = outcome.unwrap_or_else(|_| unreachable!());
-        assert!(!case.failing_cleanup());
+        assert!(!cleanup_failure);
         assert!(committed);
         if matches!(case, Case::FrameOutput | Case::ReturnFrame)
             || (case.native().is_some() && !case.native_declared() && case.native_shape().is_none())
@@ -3184,13 +3270,15 @@ fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
             assert!(outcome.usage.peak_live_cells <= cap);
         }
         let evidence = (true, committed, outcome.usage);
+        if let Some(limit) = work_limit {
+            assert!(outcome.usage.service_work <= limit);
+        }
         if let Some(previous) = previous {
             assert_eq!(evidence, previous);
         }
         previous = Some(evidence);
     }
-    let (success, committed, _) = previous.unwrap();
-    (success, committed)
+    previous.unwrap()
 }
 
 #[test]
@@ -3225,4 +3313,66 @@ fn stored_component_import_failures_keep_original_cleanup_and_poison() {
     ] {
         assert_eq!(run_source_mode(case, true), (false, true));
     }
+}
+
+#[test]
+fn stored_native_import_zero_work_preserves_inputs_and_first_preparation_failure() {
+    let observed = run_source_mode_work(Case::NativeView, true, Some(0));
+    assert_eq!((observed.0, observed.1), (false, false));
+    assert_eq!(observed.2.service_work, 0);
+}
+
+#[test]
+fn stored_native_import_service_work_exact_and_every_prefix_matches_vm_and_native() {
+    let baseline = run_source_mode_work(Case::NativeView, true, Some(u64::MAX));
+    assert_eq!((baseline.0, baseline.1), (true, true));
+    let used = baseline.2.service_work;
+    assert!(used > 0);
+    eprintln!("stored native import work: {used} units; checking caps 0..={used}");
+    for limit in 0..=used {
+        let evidence = run_source_mode_work(Case::NativeView, true, Some(limit));
+        assert_eq!(evidence.0, limit == used, "work cap {limit} of {used}");
+        assert!(evidence.2.service_work <= limit);
+    }
+}
+
+#[test]
+fn finite_component_admission_refuses_an_unused_unmetered_native_method_before_effects() {
+    let observed = run_source_configuration(Case::SharedLoan, true, Some(u64::MAX), 1, false);
+    assert_eq!((observed.0, observed.1), (false, false));
+}
+
+#[test]
+fn stored_native_rich_results_and_owners_keep_custody_at_work_boundaries() {
+    for case in [
+        Case::Native(NativeCase::Shared),
+        Case::Native(NativeCase::Declared),
+        Case::NativeTransfer(NativeCase::Owned, false),
+        Case::NativeResult(NativeCase::Owned),
+        Case::NativeFresh(NativeCase::Owned),
+        Case::NativeAggregate(NativeCase::Owned, NativeShape::List),
+        Case::NativeAggregate(NativeCase::Owned, NativeShape::Record),
+    ] {
+        let baseline = run_source_mode_work(case, true, Some(u64::MAX));
+        assert_eq!((baseline.0, baseline.1), (true, true));
+        let used = baseline.2.service_work;
+        assert!(used > 0);
+        for limit in [0, used / 2, used - 1, used] {
+            let observed = run_source_mode_work(case, true, Some(limit));
+            assert_eq!(observed.0, limit == used, "cap {limit} of {used}");
+        }
+    }
+}
+
+#[test]
+fn work_refusal_remains_primary_when_mandatory_native_cleanup_also_fails() {
+    let observed = run_source_configuration(
+        Case::NativeTransfer(NativeCase::Owned, false),
+        true,
+        Some(0),
+        0,
+        true,
+    );
+    assert_eq!((observed.0, observed.1), (false, true));
+    assert_eq!(observed.2.service_work, 0);
 }

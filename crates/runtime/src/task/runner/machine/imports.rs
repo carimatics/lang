@@ -126,6 +126,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                         result.values.roots[0],
                         &result.values,
                         Some(frame::ResourceValues::Native(&result)),
+                        &self.services.work,
                         self.allocator,
                         &mut self.budget,
                         &mut ready,

@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-22
+- Last updated: 2026-10-24
 - Implemented: 2026-10-20
 - Accepted: 2026-10-19
 - Tracking issue: M2-N15, M2-N05, M2-N18
@@ -27,6 +27,20 @@ Service follow-up decision (2026-10-22 JST): [RFC 0026](0026-source-isolated-ser
 C01 follow-up decision (2026-10-21 JST): [RFC 0025](0025-bounded-channels-and-backpressure.md) assigns new channel service-work events: capacity units before queue preparation, one before explicit endpoint mint/clone/seal, one per send/receive attempt and one per commit. Resumption/wakeup does not repeat attempt/commit charges; existing publication inspection remains charged. Mandatory closure, cancellation unlink, wake notification and retirement remain unmetered bookkeeping. Source/VM/native channel execution must expose identical numeric caps/usage before promotion. Existing service event costs are unchanged.
 
 Add an optional cumulative service-work limit to the instrumented execution context. VM/native share charging events and usage. Exhaustion is a terminal control failure followed by mandatory cleanup. N15 recorded this contract; N05 implemented the managed-service integration.
+
+### Component adapter follow-up — 2026-10-24
+
+Accept [RFC 0029](0029-component-adapter-work.md) under RFC 0001's delegation, recording the catalog required by RFC 0027 before P02 admission. Existing M2 profiles remain implemented; the component extension implements original-counter sharing and scoped canonical processing. The board tracks P02's full validation/commit acceptance.
+
+| Event | Units |
+| --- | --- |
+| Observe a dynamic value node during component translation/codec traversal | 1 |
+| Runtime payload/frame/report copy | Bytes copied |
+| UTF-8 validation | Bytes validated |
+| Typed managed collection data copy/grow/replace | Existing Layout/active-extent rules |
+| Fixed header/slot/claim/loan bookkeeping and opaque handle transfer | 0 |
+
+Forward the original root invocation's same ServiceWork through argument preparation, Machine, native adapters and result publication. Metadata/signature/plans retain existing cumulative finite preparation Budget/Session limits and add no runtime event. Actual distinct value traversals/copies/validations are distinct events; do not duplicate a managed service event. Refuse finite component execution until all events use that original counter. Mandatory cleanup remains unmetered; old non-component program costs, fuel/poll order and wire/ABI fields/tags are unchanged. RFC 0029 specifies refusal, root identity, Rust API migration and validation requirements.
 
 ## Motivation
 

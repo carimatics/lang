@@ -16,6 +16,8 @@ Task artifact checkpoint（2026-10-24 JST）: `cargo run -- compile --output tar
 
 Component artifact の Rust API（2026-10-24 JST）: `lang::artifact::component::encode` は checked unit と元 IDL snapshot を受け取り、`decode` は保存 MIR・IDL document・binding map を完全に再検証します。compiler/global IDL source ID は、元 path/text/offset を保って artifact 内へ対応付けます。IDL JSON を再 parse せず、独立 vector・同期/task export・resource/native import・複合結果・失敗時 cleanup を VM/生成 native で確認します。`cargo test --test component_artifacts` と `cargo test --test component_source_resource stored_component` で実行できます。CLI は host binding の暗黙取得を拒否します。
 
+Component work checkpoint（2026-10-24 JST）: 明示 Rust component API は `Control::and_service_work(Some(limit))` に対応し、root 引数準備・guest/service・native adapter・結果公開で1つの counter を共有します。value 観測・copy・UTF-8 を副作用前に受け入れ、枯渇時は元 control failure と caller 所有権/cleanup を維持します。Session は実行 thread で作成してください。`cargo test --test component_source_resource work_` と `cargo test -p lang-runtime --lib work_tests` で厳密上限・数値・scope/overflow・destructor 失敗を確認できます。[RFC 0029](docs/ja/rfcs/0029-component-adapter-work.md) が event と移行を記録します。
+
 Channel 実行 checkpoint（2026-10-22 JST 検証）: `tests/fixtures/task_channel*.lang` 全7 program が VM CLI で42を返し、backpressure、Receiver 循環/再検査、Shared/Weak と Vec 内 Receiver、Shared Sender の publication/置換、混合取消、Text を実行します。source 26件で有限 protocol quota、loop 再利用、513段の iterative 退役、拡張6 fixture の全 fuel/work/trace/cell/provider/interruption prefix、cleanup panic/report 打切りと primary failure 保持を検証し、全 inventory は live allocation 0 へ退役します。message は独立 Send/storable proof を要し、source/MIR は payload 再利用を拒否します。native parity は下記に記録し、全 M3 gate は未完です。[実装 Todo](docs/ja/milestone-3.md) に検証証拠と残る作業を記録します。
 
 Native channel checkpoint（2026-10-22 JST 検証）: `cargo run --example native-structured-tasks -- tests/fixtures/task_channels.lang` は42を出力し、残る channel 6 fixture も42を返します。VM/native の厳密差分8件で値・event・usage・failure/cleanup・resource cap・全 control/provider/interruption prefix を検証します。別リンク object 20 profile には channel 7 fixture と fuel/work prefix を含みます。明示的で検証済みの非公開 task API と trusted exact-build object binding を使い、serialized/C/package admission の拒否を維持します。full baseline は125 suite / 1,893件 / 失敗0 / 既存 timing ignore 1件で成功し、fmt・Clippy・rustdoc・全11 fuzz target の compile/lint も成功しました。fuzz campaign は主張しません。 証拠は[実装 Todo](docs/ja/milestone-3.md)に記録します。
@@ -103,6 +105,7 @@ Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_
 - [RFC 0026: Source isolated service（accepted）](docs/ja/rfcs/0026-source-isolated-services.md)
 - [RFC 0027: Production component IDL・wire・embedding profile（accepted）](docs/ja/rfcs/0027-production-component-interface.md)
 - [RFC 0028: Task と component MIR の直列化（implemented）](docs/ja/rfcs/0028-task-component-artifacts.md)
+- [RFC 0029: Component adapter work と invocation 計量（implemented）](docs/ja/rfcs/0029-component-adapter-work.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

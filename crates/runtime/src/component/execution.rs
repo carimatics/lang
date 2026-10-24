@@ -79,6 +79,7 @@ struct InputFrame {
 /// may be supplied. Mandatory cleanup remains unmetered.
 pub trait Invoker {
     fn control_matches(&self, control: crate::execution::Control<'_>) -> bool;
+    fn service_work_limit(&self) -> Option<u64>;
     fn check_control(&self) -> Result<(), crate::execution::Failure>;
     fn invoke(
         &mut self,
@@ -98,6 +99,8 @@ pub trait Invoker {
 /// Private data/cleanup service used by both existing backends. Guest bodies
 /// remain in their interpreter/generated-code dispatchers.
 pub trait Host {
+    fn service_work(&self) -> &crate::execution::ServiceWork;
+    fn work_failure(&self) -> Option<crate::execution::Failure>;
     fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason>;
     fn read_native_arguments(
         &mut self,
@@ -167,6 +170,8 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     function: m::FunctionId,
     resources: &'resources mut Resources<'code>,
     invoker: &'native mut dyn Invoker,
+    work: crate::execution::ServiceWork,
+    work_failure: std::cell::Cell<Option<crate::execution::Failure>>,
     caller: Holder,
     guest: Holder,
     inputs: Vec<storage::Input>,
@@ -176,7 +181,7 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     committed: bool,
     input_frame: Option<InputFrame>,
     next_frame: Option<u64>,
-    output_session: Option<&'native mut wire::Session>,
+    output_session: Option<wire::WorkScope<'native>>,
     output_claims: Vec<(Claim, Option<m::Span>)>,
     holding_output: bool,
 }
@@ -204,6 +209,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         let output_claims = budget.vector(resources.capacity())?;
         let caller = resources.host();
         let guest = resources.new_holder().map_err(fault)?;
+        let work = crate::execution::ServiceWork::new(invoker.service_work_limit());
         instance.phase = Phase::Active;
         Ok(Self {
             instance,
@@ -212,6 +218,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             function,
             resources,
             invoker,
+            work,
+            work_failure: std::cell::Cell::new(None),
             caller,
             guest,
             inputs,
@@ -225,6 +233,22 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             output_claims,
             holding_output: false,
         })
+    }
+    fn check_work(&self) -> Result<(), Reason> {
+        self.work_failure
+            .get()
+            .map_or(Ok(()), |failure| Err(Reason::Control(failure)))
+    }
+    fn latch_work<T>(&self, result: Result<T, Reason>) -> Result<T, Reason> {
+        if self.work_failure.get().is_none()
+            && let Err(Reason::Control(
+                failure @ (crate::execution::Failure::ServiceWorkLimit { .. }
+                | crate::execution::Failure::CounterOverflow),
+            )) = &result
+        {
+            self.work_failure.set(Some(*failure));
+        }
+        result
     }
     fn key(&self, ty: o::Type) -> Result<&super::negotiation::ResourceTypeKey, Reason> {
         let types = self.program.proof().typed().places().declarations().types();
@@ -263,7 +287,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         if self.committed || self.transfer.is_some() || self.output_session.is_some() {
             return Err(Reason::Entry);
         }
-        self.output_session = Some(session);
+        self.output_session = Some(session.scope_work(&self.work).map_err(Reason::from)?);
         Ok(())
     }
     /// Dynamic argument loans remaining in this invocation's original table.
@@ -325,7 +349,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             &export.member.member,
             session,
         )
-        .map_err(Reason::ComponentFrame)
+        .map_err(Reason::from)
     }
 
     fn checked_resources(
@@ -353,13 +377,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
                     .saturating_add(values.roots.len()),
                 0,
             )
-            .map_err(Reason::ComponentFrame)?;
-        let mut claims = session
-            .vector(uses.len(), 0)
-            .map_err(Reason::ComponentFrame)?;
-        let mut nodes = session
-            .vector(uses.len(), 0)
-            .map_err(Reason::ComponentFrame)?;
+            .map_err(Reason::from)?;
+        let mut claims = session.vector(uses.len(), 0).map_err(Reason::from)?;
+        let mut nodes = session.vector(uses.len(), 0).map_err(Reason::from)?;
         for used in uses {
             let access = match used.access {
                 wire::ResourceAccess::Own => storage::Access::Own,
@@ -395,6 +415,18 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         memory: &dyn Memory,
         session: &mut wire::Session,
     ) -> Result<Vec<u8>, Reason> {
+        self.check_work()?;
+        self.latch_work(self.encode_arguments_inner(values, resources, memory, session))
+    }
+    fn encode_arguments_inner(
+        &self,
+        values: &wire::Values,
+        resources: &[Claim],
+        memory: &dyn Memory,
+        session: &mut wire::Session,
+    ) -> Result<Vec<u8>, Reason> {
+        let mut scope = session.scope_work(&self.work).map_err(Reason::from)?;
+        let session = &mut *scope;
         let signature = self.frame_signature(session)?;
         let (bytes, uses) = wire::encode_contextual_values(
             &signature,
@@ -402,7 +434,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             values,
             session,
         )
-        .map_err(Reason::ComponentFrame)?;
+        .map_err(Reason::from)?;
         self.checked_resources(values, &uses, resources, memory, session)?;
         Ok(bytes)
     }
@@ -416,17 +448,30 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         memory: &dyn Memory,
         session: &mut wire::Session,
     ) -> Result<Vec<EntryArgument>, Reason> {
+        self.check_work()?;
+        let result = self.decode_arguments_inner(bytes, resources, memory, session);
+        self.latch_work(result)
+    }
+    fn decode_arguments_inner(
+        &mut self,
+        bytes: &[u8],
+        resources: &[Claim],
+        memory: &dyn Memory,
+        session: &mut wire::Session,
+    ) -> Result<Vec<EntryArgument>, Reason> {
+        let mut scope = session.scope_work(&self.work).map_err(Reason::from)?;
+        let session = &mut *scope;
         let signature = self.frame_signature(session)?;
         let (values, uses) =
             wire::decode_contextual_values(&signature, wire::FrameKind::Parameters, bytes, session)
-                .map_err(Reason::ComponentFrame)?;
+                .map_err(Reason::from)?;
         let (claims, nodes) = self.checked_resources(&values, &uses, resources, memory, session)?;
         let generation = self
             .next_frame
             .ok_or_else(|| fault(storage::Error::Exhausted))?;
         let mut arguments = session
             .vector(values.roots.len(), 0)
-            .map_err(Reason::ComponentFrame)?;
+            .map_err(Reason::from)?;
         for root in &values.roots {
             arguments.push(EntryArgument::Frame(FrameArgument {
                 holder: self.guest,
@@ -489,7 +534,8 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
     ) -> Result<NativeResult, Reason> {
-        let session = self.output_session.take().ok_or(Reason::Unsupported)?;
+        let mut session_scope = self.output_session.take().ok_or(Reason::Unsupported)?;
+        let session = &mut *session_scope;
         let mut created = Vec::new();
         let mut owned = Vec::new();
         let mut native_holder = None;
@@ -513,52 +559,34 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                 &member.name.value,
                 session,
             )
-            .map_err(Reason::ComponentFrame)?;
+            .map_err(Reason::from)?;
             let (bytes, uses) = wire::encode_contextual_values(
                 &signature,
                 wire::FrameKind::Parameters,
                 &arguments.values,
                 session,
             )
-            .map_err(Reason::ComponentFrame)?;
+            .map_err(Reason::from)?;
             if uses.len() != arguments.resources.len() {
                 return Err(Reason::Entry);
             }
             session
                 .charge(uses.len().saturating_mul(uses.len()).saturating_mul(9), 0)
-                .map_err(Reason::ComponentFrame)?;
-            let mut loans = session
-                .vector(uses.len(), 0)
-                .map_err(Reason::ComponentFrame)?;
+                .map_err(Reason::from)?;
+            let mut loans = session.vector(uses.len(), 0).map_err(Reason::from)?;
             loans.resize(uses.len(), None);
-            let mut kinds = session
-                .vector(uses.len(), 0)
-                .map_err(Reason::ComponentFrame)?;
-            let mut accesses = session
-                .vector(uses.len(), 0)
-                .map_err(Reason::ComponentFrame)?;
-            let mut inputs = session
-                .vector(uses.len(), 0)
-                .map_err(Reason::ComponentFrame)?;
-            let mut positions = session
-                .vector(uses.len(), 0)
-                .map_err(Reason::ComponentFrame)?;
-            let mut seen = session
-                .vector(uses.len(), 0)
-                .map_err(Reason::ComponentFrame)?;
+            let mut kinds = session.vector(uses.len(), 0).map_err(Reason::from)?;
+            let mut accesses = session.vector(uses.len(), 0).map_err(Reason::from)?;
+            let mut inputs = session.vector(uses.len(), 0).map_err(Reason::from)?;
+            let mut positions = session.vector(uses.len(), 0).map_err(Reason::from)?;
+            let mut seen = session.vector(uses.len(), 0).map_err(Reason::from)?;
             let native_capacity = uses
                 .len()
                 .checked_add(self.resources.capacity())
                 .ok_or(Reason::Invariant)?;
-            let mut views = session
-                .vector(native_capacity, 0)
-                .map_err(Reason::ComponentFrame)?;
-            let mut accepted = session
-                .vector(native_capacity, 0)
-                .map_err(Reason::ComponentFrame)?;
-            arguments.consumed = session
-                .vector(uses.len(), 0)
-                .map_err(Reason::ComponentFrame)?;
+            let mut views = session.vector(native_capacity, 0).map_err(Reason::from)?;
+            let mut accepted = session.vector(native_capacity, 0).map_err(Reason::from)?;
+            arguments.consumed = session.vector(uses.len(), 0).map_err(Reason::from)?;
             {
                 arguments.cleanup = Some(c::Session::prepare(
                     std::num::NonZeroUsize::new(native_capacity.saturating_add(1))
@@ -640,9 +668,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
             let native = self.resources.new_holder().map_err(fault)?;
             native_holder = Some(native);
             if !inputs.is_empty() {
-                created = session
-                    .vector(inputs.len(), 0)
-                    .map_err(Reason::ComponentFrame)?;
+                created = session.vector(inputs.len(), 0).map_err(Reason::from)?;
                 created.resize(inputs.len(), None);
                 let transfer = self
                     .resources
@@ -746,22 +772,19 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                 .map_err(|error| {
                     if matches!(
                         error.kind,
-                        wire::ErrorKind::Limit { .. } | wire::ErrorKind::Budget(_)
+                        wire::ErrorKind::Limit { .. }
+                            | wire::ErrorKind::Budget(_)
+                            | wire::ErrorKind::Execution(_)
+                            | wire::ErrorKind::WorkContext
                     ) {
-                        Reason::ComponentFrame(error)
+                        Reason::from(error)
                     } else {
                         Reason::Native(NativeFailure::InvalidResult(error))
                     }
                 })?;
-                let mut nodes = session
-                    .vector(resources.len(), 0)
-                    .map_err(Reason::ComponentFrame)?;
-                let mut claims = session
-                    .vector(resources.len(), 0)
-                    .map_err(Reason::ComponentFrame)?;
-                let mut originals = session
-                    .vector(resources.len(), 0)
-                    .map_err(Reason::ComponentFrame)?;
+                let mut nodes = session.vector(resources.len(), 0).map_err(Reason::from)?;
+                let mut claims = session.vector(resources.len(), 0).map_err(Reason::from)?;
+                let mut originals = session.vector(resources.len(), 0).map_err(Reason::from)?;
                 for used in resources {
                     let failure = |kind| {
                         Reason::Native(NativeFailure::Resource {
@@ -781,7 +804,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                     }
                     session
                         .charge(originals.len().saturating_add(1), 0)
-                        .map_err(Reason::ComponentFrame)?;
+                        .map_err(Reason::from)?;
                     if originals.contains(&claim) {
                         return Err(failure(NativeResourceFailure::Aliased));
                     }
@@ -877,7 +900,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
             );
             result = Err(error);
         }
-        self.output_session = Some(session);
+        self.output_session = Some(session_scope);
         result
     }
     fn commit_native_result(
@@ -941,6 +964,12 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
     }
     fn control_matches(&self, control: crate::execution::Control<'_>) -> bool {
         self.invoker.control_matches(control)
+    }
+    fn service_work(&self) -> &crate::execution::ServiceWork {
+        &self.work
+    }
+    fn work_failure(&self) -> Option<crate::execution::Failure> {
+        self.work_failure.get()
     }
     fn corresponds(&self, proof: &o::tasks::VerifiedTasks, function: m::FunctionId) -> bool {
         std::ptr::eq(self.program.proof(), proof) && self.function == function
@@ -1150,11 +1179,11 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                 .output_session
                 .as_deref_mut()
                 .ok_or(Reason::Invariant)?;
-            let mut nodes = session.vector(1, 0).map_err(Reason::ComponentFrame)?;
-            let mut roots = session.vector(1, 0).map_err(Reason::ComponentFrame)?;
+            let mut nodes = session.vector(1, 0).map_err(Reason::from)?;
+            let mut roots = session.vector(1, 0).map_err(Reason::from)?;
             let mut resources = session
                 .vector(usize::from(matches!(value, Value::Resource(_))), 0)
-                .map_err(Reason::ComponentFrame)?;
+                .map_err(Reason::from)?;
             nodes.push(match value {
                 Value::Copy(l::Immediate::I64(value)) => wire::Value::I64(value),
                 Value::Copy(l::Immediate::Bool(value)) => wire::Value::Bool(value),
@@ -1177,7 +1206,8 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
         }
         match value {
             Value::Frame(mut frame) => {
-                let session = self.output_session.take().ok_or(Reason::Unsupported)?;
+                let mut session_scope = self.output_session.take().ok_or(Reason::Unsupported)?;
+                let session = &mut *session_scope;
                 let staged = (|| -> Result<_, Reason> {
                     let signature = self.frame_signature(session)?;
                     let (bytes, uses) = wire::encode_contextual_values(
@@ -1186,14 +1216,14 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                         &frame.values,
                         session,
                     )
-                    .map_err(Reason::ComponentFrame)?;
+                    .map_err(Reason::from)?;
                     if uses.len() != frame.resources.len() || uses.len() > self.resources.capacity()
                     {
                         return Err(Reason::Entry);
                     }
                     session
                         .charge(uses.len().saturating_mul(uses.len()).saturating_mul(3), 0)
-                        .map_err(Reason::ComponentFrame)?;
+                        .map_err(Reason::from)?;
                     for used in uses {
                         if used.access != wire::ResourceAccess::Own {
                             return Err(Reason::Entry);
@@ -1216,10 +1246,10 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                         .map_err(fault)?;
                     let caller = session
                         .vector(frame.resources.len(), 0)
-                        .map_err(Reason::ComponentFrame)?;
+                        .map_err(Reason::from)?;
                     Ok((bytes, caller))
                 })();
-                self.output_session = Some(session);
+                self.output_session = Some(session_scope);
                 let (bytes, mut caller) = staged?;
                 let transfer = self
                     .resources

@@ -176,6 +176,9 @@ impl Drop for Active {
     }
 }
 impl Invoker for Invocation<'_, '_> {
+    fn service_work_limit(&self) -> Option<u64> {
+        self.control.service_work_limit()
+    }
     fn check_control(&self) -> Result<(), e::Failure> {
         self.control.check()
     }

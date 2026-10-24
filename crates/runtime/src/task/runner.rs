@@ -92,6 +92,15 @@ impl From<e::Failure> for Reason {
         Self::Control(e)
     }
 }
+impl From<crate::component::wire::Error> for Reason {
+    fn from(error: crate::component::wire::Error) -> Self {
+        match error.kind {
+            crate::component::wire::ErrorKind::Execution(failure) => Self::Control(failure),
+            crate::component::wire::ErrorKind::WorkContext => Self::Entry,
+            _ => Self::ComponentFrame(error),
+        }
+    }
+}
 impl Reason {
     fn service(error: &(dyn std::error::Error + 'static)) -> Self {
         e::service_failure(error).map_or(Self::Invariant, Self::Control)
@@ -304,6 +313,7 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
     arguments: &[EntryArgument],
     host: &mut dyn crate::component::execution::Host,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
+    let work = host.service_work().clone();
     let result = execute_profile(
         backend,
         program.proof(),
@@ -323,7 +333,7 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
     } else {
         crate::component::execution::Completion::Clean
     };
-    match (result, host.complete(completion, allocator)) {
+    let mut result = match (result, host.complete(completion, allocator)) {
         (result, Ok(())) => result,
         (Err(mut failure), Err(_)) => {
             failure.poisoned = true;
@@ -348,7 +358,12 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
                 poisoned: true,
             })
         }
+    };
+    match &mut result {
+        Ok(outcome) => outcome.usage.service_work = work.used(),
+        Err(failure) => failure.usage.service_work = work.used(),
     }
+    result
 }
 #[allow(
     clippy::too_many_arguments,
@@ -389,14 +404,32 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
     };
     let prepared=(||->Result<_,Reason>{
         if let Some(span)=declarations.component_feature_span() && program.is_none(){return Err(Reason::Layout(l::Error::UnsupportedComponentProfile{span}));}
+        if let Some(host)=component.as_deref() && let Some(failure)=host.work_failure(){
+            if !host.corresponds(proof,entry.ok_or(Reason::Entry)?)||!host.control_matches(control)||host.service_work().limit()!=control.service_work_limit(){return Err(Reason::Entry);}
+            return Err(Reason::Control(failure));
+        }
         control.check()?;
-        if control.service_work_limit().is_some()&&(!declarations.imports().is_empty()||!e::service_work_supported(proof.plan())){return Err(Reason::Unsupported);}
+        let mut component_budget=program.map(|program|m::Budget::with_usage(limits.preparation,program.usage())).transpose()?;
+        if control.service_work_limit().is_some(){
+            let supported=if let Some(program)=program{
+                let budget=component_budget.as_mut().ok_or(Reason::Invariant)?;
+                for import in declarations.imports(){budget.charge(1)?;if import.abi!=o::declarations::ImportAbi::Component{return Err(Reason::Unsupported);}}
+                for import in program.bindings().imports(){budget.charge(1)?;if import.method().flags!=0{return Err(Reason::Unsupported);}}
+                // Admit the complete capability scan, including unused bodies.
+                for function in typed.functions(){
+                    budget.charge(1)?;
+                    for block in &function.blocks{budget.charge(1)?;budget.charge(block.instructions.len())?;}
+                }
+                e::service_work_supported_with_c_imports(proof.plan())
+            }else{declarations.imports().is_empty()&&e::service_work_supported(proof.plan())};
+            if !supported{return Err(Reason::Unsupported);}
+        }
         let entry=entry.ok_or(Reason::Entry)?;
         if program.is_some_and(|program|!program.is_export(entry)){return Err(Reason::Entry);}
         let decl=declarations.functions().get(entry.0 as usize).ok_or(Reason::Entry)?;
         if decl.parameters.len()!=arguments.len() || (program.is_none() && decl.result.ty!=o::Type::I64) {return Err(Reason::Entry);}
         if let Some(host)=component.as_deref(){
-            if !host.corresponds(proof,entry)||!host.control_matches(control){return Err(Reason::Entry);}
+            if !host.corresponds(proof,entry)||!host.control_matches(control)||host.service_work().limit()!=control.service_work_limit(){return Err(Reason::Entry);}
             host.validate(arguments,allocator)?;
         } else {for (parameter, argument) in decl.parameters.iter().zip(arguments) {
             if Some(decl.locals[parameter.0 as usize].ty.ty) != argument.ty() { return Err(Reason::Entry); }
@@ -404,7 +437,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         }
         if limits.tasks.live_tasks==0 {return Err(t::Error::LiveTaskLimit{limit:0}.into());}
         if limits.tasks.total_tasks==0 {return Err(t::Error::TotalTaskLimit{limit:0}.into());}
-        let mut budget=m::Budget::with_usage(limits.preparation, program.map(|p|p.usage()).unwrap_or(m::Usage{work:proof.plan().work_used(),allocation_bytes:proof.plan().requested_bytes(),elements:proof.plan().elements_used()}))?;
+        let mut budget=if let Some(budget)=component_budget{budget}else{m::Budget::with_usage(limits.preparation,m::Usage{work:proof.plan().work_used(),allocation_bytes:proof.plan().requested_bytes(),elements:proof.plan().elements_used()})?};
         let mut reachable=budget.vector(typed.functions().len())?;
         let mut seen=budget.vector(typed.functions().len())?; seen.resize(typed.functions().len(),false);
         reachable.push(entry.0 as usize); seen[entry.0 as usize]=true;

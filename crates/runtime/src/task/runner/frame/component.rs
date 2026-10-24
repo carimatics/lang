@@ -53,10 +53,23 @@ struct Temporary<'l, 't> {
     value: l::Reservation<'l, 't>,
     initialized: bool,
 }
+fn value_work(
+    budget: &mut m::Budget,
+    meter: &e::ServiceWork,
+    preparation: usize,
+    events: &[u64],
+) -> Result<(), Reason> {
+    let mut candidate = m::Budget::with_usage(budget.limits(), usage(budget))?;
+    candidate.charge(preparation)?;
+    meter.charge_batch(events)?;
+    *budget = candidate;
+    Ok(())
+}
 fn vector_fault(error: vector::Error) -> Reason {
     match error {
         vector::Error::Allocation(error) => Reason::Layout(l::Error::Allocation(error)),
         vector::Error::Layout(error) => Reason::Layout(error),
+        vector::Error::ServiceWork(error) => Reason::Control(error),
         _ => Reason::Invariant,
     }
 }
@@ -117,6 +130,7 @@ fn shape<P: a::Provider>(
     host: Option<ResourceValues<'_>>,
     allocator: &mut a::Allocator<P>,
     budget: &mut m::Budget,
+    service_work: &e::ServiceWork,
     span: m::Span,
     work: &mut Vec<Inline>,
     data: &mut Vec<(l::Location, wire::ValueId)>,
@@ -125,15 +139,16 @@ fn shape<P: a::Provider>(
     data.clear();
     work.push(Inline::Read(cell.root(), root));
     while let Some(next) = work.pop() {
-        budget.charge(1)?;
         let (at, id) = match next {
             Inline::Finish(at, count) => {
+                budget.charge(1)?;
                 cell.initialize_order(at, (0..count).map(|field| (field, span)), allocator)?;
                 continue;
             }
             Inline::Read(at, id) => (at, id),
         };
         let value = values.nodes.get(id.0).ok_or(Reason::Entry)?;
+        value_work(budget, service_work, 1, &[1])?;
         match value {
             wire::Value::I64(value) => {
                 cell.write_immediate(at, l::Immediate::I64(*value), allocator)?
@@ -207,6 +222,7 @@ fn shape<P: a::Provider>(
                 };
                 match cases[*case as usize].fields.len() {
                     0 if matches!(values.nodes.get(payload.0), Some(wire::Value::Unit)) => {
+                        service_work.charge(1)?;
                         work.push(Inline::Finish(at, 0))
                     }
                     1 => {
@@ -421,6 +437,7 @@ impl<'l, 't> Frame<'l, 't> {
             argument.root(),
             values,
             Some(ResourceValues::Arguments(host)),
+            host.service_work(),
             allocator,
             budget,
             ready,
@@ -438,6 +455,7 @@ impl<'l, 't> Frame<'l, 't> {
         root_value: wire::ValueId,
         values: &wire::Values,
         host: Option<ResourceValues<'_>>,
+        service_work: &e::ServiceWork,
         allocator: &mut a::Allocator<P>,
         budget: &mut m::Budget,
         ready: &mut Vec<usize>,
@@ -460,6 +478,7 @@ impl<'l, 't> Frame<'l, 't> {
             host,
             allocator,
             budget,
+            service_work,
             span,
             &mut inline,
             &mut data,
@@ -493,7 +512,18 @@ impl<'l, 't> Frame<'l, 't> {
                                     wire::Value::Bytes(bytes) => bytes.as_slice(),
                                     _ => return Err(Reason::Invariant),
                                 };
-                                budget.charge(bytes.len())?;
+                                let length =
+                                    u64::try_from(bytes.len()).map_err(|_| Reason::Invariant)?;
+                                if matches!(value, wire::Value::Text(_)) {
+                                    value_work(
+                                        budget,
+                                        service_work,
+                                        bytes.len(),
+                                        &[length, length],
+                                    )?;
+                                } else {
+                                    value_work(budget, service_work, bytes.len(), &[length])?;
+                                }
                                 let mut buffer = buffer::Bytes::from_slice(allocator, bytes)
                                     .map_err(buffer_fault)?;
                                 let token = if matches!(value, wire::Value::Text(_)) {
@@ -551,6 +581,7 @@ impl<'l, 't> Frame<'l, 't> {
                             host,
                             allocator,
                             budget,
+                            service_work,
                             span,
                             &mut inline,
                             &mut data,
@@ -587,7 +618,8 @@ impl<'l, 't> Frame<'l, 't> {
                             &mut token.bytes,
                             allocator,
                         )
-                        .map_err(vector_fault)?;
+                        .map_err(vector_fault)?
+                        .with_service_work(service_work.clone());
                         let value = temporaries[temporary].as_mut().ok_or(Reason::Invariant)?;
                         vector
                             .push_from(&mut value.value, Some(span), allocator)

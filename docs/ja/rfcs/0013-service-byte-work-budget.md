@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-22
+- Last updated: 2026-10-24
 - Implemented: 2026-10-20
 - Accepted: 2026-10-19
 - Tracking issue: M2-N15, M2-N05, M2-N18
@@ -27,6 +27,20 @@ Service follow-up 決定（2026-10-22 JST）: [RFC 0026](0026-source-isolated-se
 C01 follow-up 決定（2026-10-21 JST）: [RFC 0025](0025-bounded-channels-and-backpressure.md) で新 channel service-work event を定めます。queue preparation 前に capacity 単位、明示 endpoint mint/clone/seal 前に1、send/receive attempt ごとに1、commit 前に1を課金します。resume/wakeup で attempt/commit を再課金せず、既存 publication 検査課金を維持します。必須 closure、取消 unlink、wake 通知、retirement は非計量 bookkeeping です。source/VM/native channel を昇格する前に同じ数値 cap/usage を公開します。既存 service event 費用は変えません。
 
 Instrumented実行contextに省略可能な累積service-work上限を追加し、VM／nativeで課金eventとusageを共有します。枯渇はterminalな制御failureとし、必須cleanupを続けます。N15で契約を記録し、N05でmanaged-service統合を実装しました。
+
+### Component adapter follow-up — 2026-10-24
+
+[RFC 0029](0029-component-adapter-work.md) を RFC 0001 の委任で受理し、RFC 0027 が P02 の受入前に要求する catalog を記録します。既存 M2 profile は implemented のままで、component 拡張も元 counter と scoped canonical 処理で実装しました。P02 の全 validation/commit は実装ボードで追跡します。
+
+| Event | Units |
+| --- | --- |
+| component 変換/codec traversal 中の dynamic value node の観測 | 1 |
+| runtime の payload/frame/report copy | copy する byte 数 |
+| UTF-8 検証 | 検証する byte 数 |
+| typed managed collection data の copy/grow/replace | 既存 Layout/active extent 規則 |
+| 固定 header/slot/claim/loan bookkeeping と opaque handle transfer | 0 |
+
+元 root invocation の同じ ServiceWork を引数準備・Machine・native adapter・結果公開へ渡します。metadata/signature/plan は既存累積の有限準備 Budget/Session で制限し、runtime event を追加しません。実際の別 value traversal/copy/validation は別 event として数え、同じ managed service event を重複計量しません。元 counter を使って全 event を網羅するまで有限 component 実行を拒否します。mandatory cleanup は非計量で、旧非 component program の cost、fuel/poll 順、wire/ABI field/tag は不変です。詳細な拒否・root counter・Rust API 移行・検証条件は RFC 0029 を参照してください。
 
 ## 動機
 

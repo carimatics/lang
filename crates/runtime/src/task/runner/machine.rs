@@ -187,6 +187,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             limits.channels,
             control.limits().live_cells.unwrap_or(usize::MAX),
             control.service_work_limit(),
+            component.as_deref().map(|host| host.service_work().clone()),
             &mut budget,
         )?;
         if services.drain.is_none()

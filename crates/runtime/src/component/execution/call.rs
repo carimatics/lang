@@ -164,15 +164,9 @@ impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
             .allocation
             .ok_or(Reason::Invariant)?;
         let bytes = self.memory.bytes(allocation).map_err(|e| fault(e.into()))?;
-        session
-            .value_bytes(bytes.len(), 0)
-            .map_err(Reason::ComponentFrame)?;
-        session
-            .charge(bytes.len(), 0)
-            .map_err(Reason::ComponentFrame)?;
-        let mut out = session
-            .vector(bytes.len(), 0)
-            .map_err(Reason::ComponentFrame)?;
+        session.value_bytes(bytes.len(), 0).map_err(Reason::from)?;
+        session.value_work(bytes.len(), 0).map_err(Reason::from)?;
+        let mut out = session.vector(bytes.len(), 0).map_err(Reason::from)?;
         out.extend_from_slice(bytes);
         Ok(out)
     }
