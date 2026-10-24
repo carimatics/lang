@@ -15,7 +15,7 @@ use lang_runtime::{
 };
 use serde_json::json;
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     ffi::c_void,
     path::Path,
     ptr,
@@ -31,6 +31,7 @@ struct Owner {
     expected_engine: Cell<usize>,
     expected_gateway: Cell<usize>,
     fail: bool,
+    child: Option<Rc<Child>>,
 }
 impl Drop for Owner {
     fn drop(&mut self) {
@@ -132,8 +133,18 @@ unsafe extern "C" fn make(
         );
         let parameters = unsafe { std::slice::from_raw_parts(arguments.data, 45) };
         let (backing, view) = unsafe { buffer(context, 8, 8) }?;
+        let value = if let Some(child) = &owner.child {
+            child.parent.set(Some(unsafe { *context }));
+            let mut value = 0;
+            for _ in 0..child.repetitions {
+                value = unsafe { child.run(context) }?;
+            }
+            value - 1
+        } else {
+            41
+        };
         unsafe { std::slice::from_raw_parts_mut(view.data, 8) }
-            .copy_from_slice(&41_i64.to_le_bytes());
+            .copy_from_slice(&value.to_le_bytes());
         owner.backing.set(view.data as usize);
         let mut index = 0;
         let key = b"demo:counter/api.counter";
@@ -167,11 +178,223 @@ unsafe extern "C" fn make(
     })();
     result.map_or_else(|status| status, |()| 0)
 }
+struct Child {
+    unit: bindings::Unit,
+    owner: RefCell<Weak<Owner>>,
+    state: RefCell<execution::InstanceState>,
+    compiled: bool,
+    repetitions: usize,
+    parent: Cell<Option<native::Context>>,
+    nested: Cell<Option<native::Context>>,
+    before: Cell<Option<e::Usage>>,
+    after: Cell<Option<e::Usage>>,
+    value: Cell<i64>,
+}
+impl Child {
+    unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
+        let owner = self.owner.borrow().upgrade().ok_or(5u32)?;
+        let current = unsafe { *context };
+        assert!(matches!(
+            unsafe {
+                lang_codegen_clif::component::with_child(context, |_, _, _| Err::<(), u32>(2))
+            },
+            Err(2)
+        ));
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::context_check(context) },
+            0
+        );
+        let mut invalid = current;
+        invalid.reserved[0] = 1;
+        assert!(matches!(
+            unsafe { lang_codegen_clif::component::with_child(&invalid, |_, _, _| Ok(())) },
+            Err(2)
+        ));
+        let engine = current.engine as usize;
+        let invocation = current.invocation;
+        let scope = current.scope;
+        assert_eq!(
+            std::thread::spawn(move || {
+                let copied = native::Context {
+                    header: native::Header {
+                        size: size_of::<native::Context>() as u32,
+                        version: 1,
+                    },
+                    engine: engine as *mut native::Engine,
+                    invocation,
+                    scope,
+                    reserved: [0; 2],
+                };
+                // SAFETY: owner callback waits for this thread, retaining exact
+                // context engine bytes; refusal precedes active borrow restoration.
+                unsafe { lang_codegen_clif::component::with_child(&copied, |_, _, _| Ok(())) }
+            })
+            .join()
+            .unwrap(),
+            Err(4)
+        );
+        // SAFETY: invoked only by make with its exact live original context.
+        let value = unsafe {
+            lang_codegen_clif::component::with_child(context, |invoker, call, control| {
+                self.before
+                    .set(Some(call.accounting().ok_or(4u32)?.snapshot()));
+                assert_eq!(lang_codegen_clif::component::context_check(context), 5);
+                let mut operation = ChildOperation {
+                    target: self,
+                    owner,
+                    invoker,
+                    control,
+                    value: None,
+                };
+                call.with_storage(&mut operation)?;
+                operation.value.ok_or(17u32)
+            })
+        }?;
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::context_check(context) },
+            0
+        );
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::context_check(&self.nested.get().unwrap()) },
+            5
+        );
+        self.value.set(value);
+        Ok(value)
+    }
+}
+struct ChildOperation<'a, 'ctrl> {
+    target: &'a Child,
+    owner: Rc<Owner>,
+    invoker: &'a mut dyn execution::Invoker,
+    control: e::Control<'ctrl>,
+    value: Option<i64>,
+}
+impl execution::StorageOperation for ChildOperation<'_, '_> {
+    fn run(
+        &mut self,
+        resources: &mut storage::Resources<'_>,
+        memory: &mut dyn storage::Memory,
+        budget: &mut m::Budget,
+        _: storage::Holder,
+        accounting: &e::InvocationAccounting,
+    ) -> Result<(), u32> {
+        assert!(accounting.same_invocation(self.invoker.accounting().unwrap()));
+        assert_eq!(memory.identity().get(), self.owner.allocator);
+        let mut view = a::Allocator::borrow(memory).map_err(|_| 6u32)?;
+        let preparation = budget.limits();
+        prepared_unit(
+            &self.target.unit,
+            provider(self.owner.clone()),
+            |program, session| {
+                let function = entry(program, "answer");
+                let generated = self.target.compiled.then(|| {
+                    lang_codegen_clif::tasks::CompiledProgram::compile_component(
+                        program,
+                        function,
+                        Default::default(),
+                    )
+                    .unwrap()
+                });
+                let mut state = self.target.state.borrow_mut();
+                state
+                    .with_program(program, |instance| {
+                        let mut invocation = execution::Invocation::prepare_owned(
+                            instance,
+                            function,
+                            resources,
+                            self.invoker,
+                            budget,
+                        )
+                        .unwrap();
+                        invocation.prepare_output(session).unwrap();
+                        let outcome = execute_memory(
+                            program,
+                            function,
+                            generated.as_ref(),
+                            &mut view,
+                            CallControl {
+                                execution: self.control,
+                                preparation,
+                            },
+                            &[],
+                            &mut invocation,
+                        )
+                        .map_err(|_| 1u32)?;
+                        assert!(!outcome.poisoned);
+                        let execution::Value::Frame(frame) = outcome.value else {
+                            return Err(17);
+                        };
+                        let [wire::Value::I64(value)] = frame.values().nodes.as_slice() else {
+                            return Err(17);
+                        };
+                        self.value = Some(*value);
+                        self.target.after.set(Some(outcome.usage));
+                        Ok(())
+                    })
+                    .unwrap()
+            },
+        )
+    }
+}
+unsafe extern "C" fn tick(
+    user: *mut c_void,
+    context: *const native::Context,
+    input: native::Bytes,
+    output: *mut *mut native::Buffer,
+) -> u32 {
+    let result = (|| -> Result<(), u32> {
+        // SAFETY: registration and adapter retain the exact owner/context/views.
+        let owner = unsafe { &*user.cast::<Owner>() };
+        let child = owner.child.as_ref().ok_or(4u32)?;
+        let parent = child.parent.get().ok_or(5u32)?;
+        let current = unsafe { *context };
+        assert_eq!(current.engine, parent.engine);
+        assert_eq!(current.invocation, parent.invocation);
+        assert_ne!(current.scope, parent.scope);
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::context_check(&parent) },
+            5
+        );
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::context_check(context) },
+            0
+        );
+        assert_eq!(
+            unsafe { lang_codegen_clif::component::context_allocator_identity(context) },
+            owner.allocator
+        );
+        assert!(matches!(
+            unsafe { lang_codegen_clif::component::with_child(context, |_, _, _| Ok(())) },
+            Err(4)
+        ));
+        if let Some(previous) = child.nested.get() {
+            assert!(current.scope > previous.scope);
+        }
+        child.nested.set(Some(current));
+        if output.is_null() || input.data.is_null() || input.length != 45 {
+            return Err(2);
+        }
+        let parameters = unsafe { std::slice::from_raw_parts(input.data, 45) };
+        let (buffer, bytes) = unsafe { buffer(context, 53, 1) }?;
+        let frame = unsafe { std::slice::from_raw_parts_mut(bytes.data, 53) };
+        frame[..45].copy_from_slice(parameters);
+        frame[8] = 1;
+        frame[41..45].copy_from_slice(&8_u32.to_le_bytes());
+        frame[45..].copy_from_slice(&41_i64.to_le_bytes());
+        unsafe { output.write(buffer) };
+        Ok(())
+    })();
+    result.map_or_else(|status| status, |()| 0)
+}
+
 fn host_document() -> serde_json::Value {
     let mut doc: serde_json::Value =
         serde_json::from_slice(include_bytes!("fixtures/component_counter.idl.json")).unwrap();
     doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
         "name":"make","effect":"sync","params":[],"result":{"own":"counter"},"capability":"demo.counter.make"
+    }));
+    doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
+        "name":"tick","effect":"sync","params":[],"result":"i64","capability":"demo.counter.tick"
     }));
     doc
 }
@@ -195,6 +418,13 @@ fn provider(owner: Rc<Owner>) -> native::Provider<'static> {
                 interface: 0,
                 member: 1,
                 invoke: make,
+                user: Rc::as_ptr(&owner).cast_mut().cast(),
+                flags: u32::from(owner.child.is_some()),
+            },
+            native::Method {
+                interface: 0,
+                member: 2,
+                invoke: tick,
                 user: Rc::as_ptr(&owner).cast_mut().cast(),
                 flags: 0,
             },
@@ -220,9 +450,10 @@ fn stored_unit() -> bindings::Unit {
                     "result":{"own":"demo:counter/api.counter"},"capability":"demo.scope.relay"},
                 {"name":"consume","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}}],
                     "result":"i64","capability":"demo.scope.consume"},
-                {"name":"create","effect":"sync","params":[],"result":{"own":"demo:counter/api.counter"},"capability":"demo.scope.create"}
+                {"name":"create","effect":"sync","params":[],"result":{"own":"demo:counter/api.counter"},"capability":"demo.scope.create"},
+                {"name":"answer","effect":"sync","params":[],"result":"i64","capability":"demo.scope.answer"}
             ]}],
-        "imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":["apply","make"]}],
+        "imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":["apply","make","tick"]}],
         "exports":["demo:scope/api"]
     })).unwrap();
     let host = InterfaceKey::new(PackageKey::new("demo", "counter"), "api");
@@ -240,17 +471,21 @@ fn stored_unit() -> bindings::Unit {
                 tag: "CounterKind".into(),
                 resource: ResourceTypeKey::new(host.clone(), "counter"),
             }],
-            imports: [("host_apply", "apply"), ("host_make", "make")]
-                .into_iter()
-                .map(|(source, member)| f::Import {
-                    source: source.into(),
-                    member: bindings::MemberKey {
-                        interface: host.clone(),
-                        member: member.into(),
-                    },
-                })
-                .collect(),
-            exports: ["relay", "consume", "create"]
+            imports: [
+                ("host_apply", "apply"),
+                ("host_make", "make"),
+                ("host_tick", "tick"),
+            ]
+            .into_iter()
+            .map(|(source, member)| f::Import {
+                source: source.into(),
+                member: bindings::MemberKey {
+                    interface: host.clone(),
+                    member: member.into(),
+                },
+            })
+            .collect(),
+            exports: ["relay", "consume", "create", "answer"]
                 .into_iter()
                 .map(|name| f::Export {
                     source: name.into(),
@@ -284,8 +519,15 @@ fn prepared<T>(
     run: impl FnOnce(&program::Program<'_>, &mut wire::Session) -> T,
 ) -> T {
     let unit = stored_unit();
+    prepared_unit(&unit, provider, run)
+}
+fn prepared_unit<T>(
+    unit: &bindings::Unit,
+    provider: native::Provider<'_>,
+    run: impl FnOnce(&program::Program<'_>, &mut wire::Session) -> T,
+) -> T {
     let mut session = wire::Session::new(Default::default());
-    let contract = wire::artifact::source_contract(&unit, &mut session, 65_536).unwrap();
+    let contract = wire::artifact::source_contract(unit, &mut session, 65_536).unwrap();
     let signatures: Vec<_> = unit
         .mappings()
         .imports
@@ -311,6 +553,8 @@ fn prepared<T>(
             member: &map.member,
             capability: if map.member.member == "apply" {
                 "demo.counter.apply"
+            } else if map.member.member == "tick" {
+                "demo.counter.tick"
             } else {
                 "demo.counter.make"
             },
@@ -318,7 +562,7 @@ fn prepared<T>(
         })
         .collect();
     let providers = [provider];
-    let bound = grants::prepare(&unit, &contract, &grants, || &providers, &mut session).unwrap();
+    let bound = grants::prepare(unit, &contract, &grants, || &providers, &mut session).unwrap();
     let program = program::Program::prepare(&bound, Default::default()).unwrap();
     run(&program, &mut session)
 }
@@ -347,24 +591,34 @@ fn execute_memory<P: a::Provider>(
     function: m::FunctionId,
     generated: Option<&lang_codegen_clif::tasks::CompiledProgram<'_>>,
     allocator: &mut a::Allocator<P>,
-    control: e::Control<'_>,
+    control: CallControl<'_>,
     arguments: &[EntryArgument],
     host: &mut dyn execution::Host,
 ) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
+    let limits = r::Limits {
+        preparation: control.preparation,
+        ..Default::default()
+    };
     (if let Some(generated) = generated {
-        generated.execute_component(allocator, control, Default::default(), arguments, host)
+        generated.execute_component(allocator, control.execution, limits, arguments, host)
     } else {
         lang_vm::unit::tasks::execute_component(
             program,
             function,
             allocator,
-            control,
-            Default::default(),
+            control.execution,
+            limits,
             arguments,
             host,
         )
     })
     .map_err(Box::new)
+}
+
+#[derive(Clone, Copy)]
+struct CallControl<'a> {
+    execution: e::Control<'a>,
+    preparation: m::Limits,
 }
 
 struct Harness {
@@ -373,6 +627,7 @@ struct Harness {
     state: execution::InstanceState,
     engine: lang_codegen_clif::component::Engine,
     memory_access: MemoryAccess,
+    preparation_limits: m::Limits,
 }
 impl Harness {
     fn new() -> Self {
@@ -387,9 +642,17 @@ impl Harness {
             state,
             engine,
             memory_access: MemoryAccess::Original,
+            preparation_limits: Default::default(),
         }
     }
     fn registration(&self, fail: bool) -> (native::Provider<'static>, Watch) {
+        self.registration_child(fail, None)
+    }
+    fn registration_child(
+        &self,
+        fail: bool,
+        child: Option<Rc<Child>>,
+    ) -> (native::Provider<'static>, Watch) {
         let destroyed = Rc::new(Cell::new(0));
         let produced = Rc::new(Cell::new(0));
         let released = Rc::new(Cell::new(0));
@@ -402,7 +665,11 @@ impl Harness {
             expected_engine: Cell::new(0),
             expected_gateway: Cell::new(0),
             fail,
+            child: child.clone(),
         });
+        if let Some(child) = child {
+            child.owner.replace(Rc::downgrade(&owner));
+        }
         let watch = Watch {
             destroyed,
             produced,
@@ -479,8 +746,10 @@ impl Harness {
             state,
             engine,
             memory_access,
+            preparation_limits,
         } = self;
         let memory_access = *memory_access;
+        let preparation_limits = *preparation_limits;
         prepared(provider, |program, session| {
             let function = entry(program, name);
             let generated = compiled.then(|| {
@@ -495,7 +764,7 @@ impl Harness {
             if let Some(accounting) = accounting {
                 invoker = invoker.with_accounting(accounting).unwrap();
             }
-            let mut budget = m::Budget::new(Default::default());
+            let mut budget = m::Budget::new(preparation_limits);
             state
                 .with_program(program, |instance| {
                     let mut invocation = execution::Invocation::prepare_owned(
@@ -515,7 +784,10 @@ impl Harness {
                             function,
                             generated.as_ref(),
                             allocator,
-                            control,
+                            CallControl {
+                                execution: control,
+                                preparation: preparation_limits,
+                            },
                             &arguments,
                             &mut invocation,
                         ),
@@ -526,7 +798,10 @@ impl Harness {
                                 function,
                                 generated.as_ref(),
                                 &mut view,
-                                control,
+                                CallControl {
+                                    execution: control,
+                                    preparation: preparation_limits,
+                                },
                                 &arguments,
                                 &mut invocation,
                             )
@@ -539,7 +814,10 @@ impl Harness {
                                 function,
                                 generated.as_ref(),
                                 &mut second,
-                                control,
+                                CallControl {
+                                    execution: control,
+                                    preparation: preparation_limits,
+                                },
                                 &arguments,
                                 &mut invocation,
                             )
@@ -707,6 +985,118 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
             for compiled in [false, true] {
                 assert_eq!(retained_roundtrip_memory(compiled, fresh, access), expected);
             }
+        }
+    }
+}
+
+#[test]
+fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
+    for compiled in [false, true] {
+        for repetitions in [1, 2] {
+            let mut h = Harness::new();
+            h.preparation_limits.work = usize::MAX;
+            h.preparation_limits.allocations = usize::MAX;
+            h.preparation_limits.elements = usize::MAX;
+            let child = Rc::new(Child {
+                unit: stored_unit(),
+                owner: RefCell::new(Weak::new()),
+                state: RefCell::new(execution::InstanceState::prepare(&mut h.values).unwrap()),
+                compiled,
+                repetitions,
+                parent: Cell::new(None),
+                nested: Cell::new(None),
+                before: Cell::new(None),
+                after: Cell::new(None),
+                value: Cell::new(0),
+            });
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let control = e::Control::with_limits(e::Limits::unbounded());
+            let created = h
+                .call_control(registration, "create", None, compiled, control)
+                .unwrap();
+            assert_eq!(child.value.get(), 42);
+            let before = child.before.get().unwrap();
+            let after = child.after.get().unwrap();
+            assert_eq!(before.host_calls, repetitions as u64);
+            assert_eq!(after.host_calls, repetitions as u64 + 1);
+            assert!(after.fuel > before.fuel);
+            assert!(created.usage.fuel > after.fuel);
+            assert_eq!(created.usage.host_calls, repetitions as u64 + 1);
+            assert_eq!(after.peak_frames, 2);
+            assert_eq!(created.usage.peak_frames, 2);
+            assert!(after.peak_live_cells > before.peak_live_cells || repetitions > 1);
+            assert_eq!(h.engine.check(&child.parent.get().unwrap()), 5);
+            assert_eq!(h.engine.check(&child.nested.get().unwrap()), 5);
+            assert!(matches!(
+                unsafe {
+                    lang_codegen_clif::component::with_child(
+                        &child.parent.get().unwrap(),
+                        |_, _, _| Ok(()),
+                    )
+                },
+                Err(5)
+            ));
+            let execution::Value::Resource(claim) = created.value else {
+                panic!("original native owner")
+            };
+            let (cleanup, _) = h.registration(false);
+            h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+            assert_eq!(watch.destroyed.get(), 1);
+            assert_eq!(watch.produced.get(), 1);
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+        }
+    }
+}
+
+#[test]
+fn private_child_profile_refuses_unconnected_finite_policies_before_native_effects() {
+    for compiled in [false, true] {
+        for policy in 0..4 {
+            let mut h = Harness::new();
+            if policy != 3 {
+                h.preparation_limits.work = usize::MAX;
+                h.preparation_limits.allocations = usize::MAX;
+                h.preparation_limits.elements = usize::MAX;
+            }
+            let child = Rc::new(Child {
+                unit: stored_unit(),
+                owner: RefCell::new(Weak::new()),
+                state: RefCell::new(execution::InstanceState::prepare(&mut h.values).unwrap()),
+                compiled,
+                repetitions: 1,
+                parent: Cell::new(None),
+                nested: Cell::new(None),
+                before: Cell::new(None),
+                after: Cell::new(None),
+                value: Cell::new(0),
+            });
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let mut limits = e::Limits::unbounded();
+            if policy == 0 {
+                limits.frames = Some(256);
+            }
+            if policy == 1 {
+                limits.live_cells = Some(1000);
+            }
+            let mut control = e::Control::with_limits(limits);
+            if policy == 2 {
+                control = control.and_service_work(Some(1000));
+            }
+            let failure = h
+                .call_control(registration, "create", None, compiled, control)
+                .err()
+                .expect("unsupported private policy");
+            assert!(matches!(failure.reason, r::Reason::Unsupported));
+            assert_eq!(watch.produced.get(), 0);
+            assert_eq!(watch.destroyed.get(), 0);
+            assert_eq!(watch.released.get(), 1);
+            assert!(child.parent.get().is_none() && child.nested.get().is_none());
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().requests, 0);
+            assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
         }
     }
 }

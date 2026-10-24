@@ -72,7 +72,29 @@ pub(crate) enum ReadRoot<'l, 't> {
 
 /// The actual callback's borrowed capabilities. Raw native pointers never
 /// construct this service, and the bridge expires it before returning to guest.
+pub trait StorageOperation {
+    fn run(
+        &mut self,
+        resources: &mut Resources<'_>,
+        memory: &mut dyn Memory,
+        budget: &mut m::Budget,
+        holder: Holder,
+        accounting: &crate::execution::InvocationAccounting,
+    ) -> Result<(), u32>;
+}
 pub trait NativeContext {
+    fn parent_live(&self) -> crate::execution::LiveUsage {
+        Default::default()
+    }
+    fn accounting(&self) -> Option<&crate::execution::InvocationAccounting> {
+        None
+    }
+    fn child_profile_supported(&self) -> bool {
+        false
+    }
+    fn with_storage(&mut self, _: &mut dyn StorageOperation) -> Result<(), u32> {
+        Err(4)
+    }
     fn allocator_identity(&self) -> u64;
     fn buffer_create(
         &mut self,
@@ -127,6 +149,8 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     kind: &'scope KindResolver<'scope, 'code>,
     buffers: Vec<BufferSlot>,
     index_limit: u32,
+    accounting: Option<&'scope crate::execution::InvocationAccounting>,
+    parent_live: crate::execution::LiveUsage,
 }
 impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn new(
@@ -148,10 +172,23 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             kind,
             buffers: Vec::new(),
             index_limit: u32::MAX,
+            accounting: None,
+            parent_live: Default::default(),
         }
     }
     pub fn with_index_limit(mut self, limit: u32) -> Self {
         self.index_limit = limit;
+        self
+    }
+    pub fn with_accounting(
+        mut self,
+        accounting: &'scope crate::execution::InvocationAccounting,
+    ) -> Self {
+        self.accounting = Some(accounting);
+        self
+    }
+    pub fn with_parent_live(mut self, live: crate::execution::LiveUsage) -> Self {
+        self.parent_live = live;
         self
     }
     fn slot(&self, buffer: *mut super::super::native::Buffer) -> Result<usize, u32> {
@@ -209,6 +246,27 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
 }
 impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
+    fn parent_live(&self) -> crate::execution::LiveUsage {
+        self.parent_live
+    }
+    fn accounting(&self) -> Option<&crate::execution::InvocationAccounting> {
+        self.accounting
+    }
+    fn child_profile_supported(&self) -> bool {
+        let limits = self.budget.limits();
+        limits.work == usize::MAX
+            && limits.allocations == usize::MAX
+            && limits.elements == usize::MAX
+    }
+    fn with_storage(&mut self, operation: &mut dyn StorageOperation) -> Result<(), u32> {
+        operation.run(
+            self.resources,
+            self.memory,
+            self.budget,
+            self.holder,
+            self.accounting.ok_or(4u32)?,
+        )
+    }
     fn resource_publish(
         &mut self,
         key: &[u8],

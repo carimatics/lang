@@ -5,6 +5,7 @@ extern "component" fn host_apply(
     request: Request
 ) -> core::Result<i64, core::Text>;
 extern "component" fn host_make() -> core::ComponentResource<CounterKind>;
+extern "component" fn host_tick() -> i64;
 
 pub fn relay(value: core::ComponentResource<CounterKind>) -> core::ComponentResource<CounterKind> {
     return value;
@@ -16,4 +17,8 @@ pub fn consume(value: core::ComponentResource<CounterKind>) -> i64 {
 
 pub fn create() -> core::ComponentResource<CounterKind> {
     return host_make();
+}
+
+pub fn answer() -> i64 {
+    return host_tick() + 1;
 }

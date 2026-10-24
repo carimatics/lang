@@ -171,12 +171,18 @@ impl From<Control<'_>> for Configuration {
 /// entry, allocator, resource or loan authority. Clones retain the same counters.
 #[derive(Clone, Debug)]
 pub struct InvocationAccounting(Rc<Accounting>);
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LiveUsage {
+    pub frames: usize,
+    pub cells: usize,
+}
 #[derive(Debug)]
 struct Accounting {
     configuration: Configuration,
     usage: Cell<Usage>,
     work: ServiceWork,
     preparation_failure: Cell<Option<Failure>>,
+    parent: Cell<LiveUsage>,
 }
 impl InvocationAccounting {
     pub fn prepare(
@@ -190,6 +196,7 @@ impl InvocationAccounting {
             usage: Cell::new(Usage::default()),
             work: ServiceWork::new(control.service_work_limit()),
             preparation_failure: Cell::new(None),
+            parent: Cell::new(LiveUsage::default()),
         })))
     }
     pub fn matches(&self, control: Control<'_>) -> bool {
@@ -197,6 +204,34 @@ impl InvocationAccounting {
     }
     pub fn same_invocation(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
+    }
+    /// Lend actual suspended guest live counts for one synchronous child. This
+    /// changes no counter identity or authority, and restores the prior scope.
+    pub fn with_parent<R>(
+        &self,
+        live: LiveUsage,
+        operation: impl FnOnce() -> R,
+    ) -> Result<R, Failure> {
+        let previous = self.0.parent.get();
+        let next = LiveUsage {
+            frames: previous
+                .frames
+                .checked_add(live.frames)
+                .ok_or(Failure::CounterOverflow)?,
+            cells: previous
+                .cells
+                .checked_add(live.cells)
+                .ok_or(Failure::CounterOverflow)?,
+        };
+        struct Restore<'a>(&'a Cell<LiveUsage>, LiveUsage);
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.1);
+            }
+        }
+        let _restore = Restore(&self.0.parent, previous);
+        self.0.parent.set(next);
+        Ok(operation())
     }
     pub fn work(&self) -> &ServiceWork {
         &self.0.work
@@ -233,8 +268,13 @@ impl InvocationAccounting {
     /// entry; this counter alone does not admit nested frames or tasks.
     pub(crate) fn observe(&self, peak_frames: usize, peak_live_cells: usize) {
         let mut usage = self.0.usage.get();
-        usage.peak_frames = usage.peak_frames.max(peak_frames);
-        usage.peak_live_cells = usage.peak_live_cells.max(peak_live_cells);
+        let parent = self.0.parent.get();
+        usage.peak_frames = usage
+            .peak_frames
+            .max(parent.frames.saturating_add(peak_frames));
+        usage.peak_live_cells = usage
+            .peak_live_cells
+            .max(parent.cells.saturating_add(peak_live_cells));
         self.0.usage.set(usage);
     }
 }
@@ -507,5 +547,74 @@ impl Control<'_> {
             .checked_add(1)
             .ok_or(Failure::CounterOverflow)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod accounting_tests {
+    use super::*;
+
+    #[test]
+    fn suspended_live_usage_restores_after_error_unwind_and_overflow() {
+        let control = Control::with_limits(Limits::unbounded());
+        let accounting = InvocationAccounting::prepare(
+            control,
+            &mut lang_mir::unit::Budget::new(Default::default()),
+        )
+        .unwrap();
+        accounting.observe(1, 2);
+        let failure = accounting
+            .with_parent(
+                LiveUsage {
+                    frames: 1,
+                    cells: 2,
+                },
+                || {
+                    accounting.observe(1, 3);
+                    Err::<(), ()>(())
+                },
+            )
+            .unwrap();
+        assert!(failure.is_err());
+        assert_eq!(accounting.snapshot().peak_frames, 2);
+        assert_eq!(accounting.snapshot().peak_live_cells, 5);
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _ = accounting.with_parent(
+                    LiveUsage {
+                        frames: 10,
+                        cells: 20,
+                    },
+                    || panic!("scope unwind"),
+                );
+            }))
+            .is_err()
+        );
+        accounting.observe(1, 2);
+        assert_eq!(accounting.snapshot().peak_frames, 2);
+        assert_eq!(accounting.snapshot().peak_live_cells, 5);
+        accounting
+            .with_parent(
+                LiveUsage {
+                    frames: usize::MAX,
+                    cells: 0,
+                },
+                || {
+                    assert_eq!(
+                        accounting.with_parent(
+                            LiveUsage {
+                                frames: 1,
+                                cells: 0
+                            },
+                            || ()
+                        ),
+                        Err(Failure::CounterOverflow)
+                    );
+                },
+            )
+            .unwrap();
+        accounting.observe(1, 2);
+        assert_eq!(accounting.snapshot().peak_frames, 2);
+        assert_eq!(accounting.snapshot().peak_live_cells, 5);
     }
 }

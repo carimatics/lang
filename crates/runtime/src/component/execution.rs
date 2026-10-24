@@ -19,7 +19,7 @@ mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
     NativeArguments, NativeContext, NativeFailure, NativeResourceFailure, NativeResult,
-    NativeReturn, ResourceArgument,
+    NativeReturn, ResourceArgument, StorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -110,6 +110,9 @@ struct InputFrame {
 /// the original live invocation's context. No fabricated or null engine token
 /// may be supplied. Mandatory cleanup remains unmetered.
 pub trait Invoker {
+    fn reentry_supported(&self) -> bool {
+        false
+    }
     fn control(&self) -> crate::execution::Control<'_>;
     fn accounting(&self) -> Option<&crate::execution::InvocationAccounting> {
         None
@@ -135,6 +138,7 @@ pub trait Invoker {
 /// Private data/cleanup service used by both existing backends. Guest bodies
 /// remain in their interpreter/generated-code dispatchers.
 pub trait Host {
+    fn reentry_supported(&self) -> bool;
     fn accounting(&self) -> &crate::execution::InvocationAccounting;
     fn service_work(&self) -> &crate::execution::ServiceWork;
     fn work_failure(&self) -> Option<crate::execution::Failure>;
@@ -150,6 +154,7 @@ pub trait Host {
         span: m::Span,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
+        parent_live: crate::execution::LiveUsage,
     ) -> Result<NativeResult, Reason>;
     fn commit_native_result(
         &mut self,
@@ -582,6 +587,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
 impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
     for Invocation<'state, 'p, 'u, 'resources, 'code, 'native>
 {
+    fn reentry_supported(&self) -> bool {
+        self.invoker.reentry_supported()
+    }
     fn accounting(&self) -> &crate::execution::InvocationAccounting {
         &self.accounting
     }
@@ -621,6 +629,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         span: m::Span,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
+        parent_live: crate::execution::LiveUsage,
     ) -> Result<NativeResult, Reason> {
         let mut session_scope = self.output_session.take().ok_or(Reason::Unsupported)?;
         let session = &mut *session_scope;
@@ -630,7 +639,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         let mut result = (|| -> Result<NativeResult, Reason> {
             let bindings = self.program.bindings();
             let target = bindings.resolve(import).ok_or(Reason::Entry)?;
-            if target.method().flags != 0 {
+            if target.method().flags & !1 != 0
+                || (target.method().flags != 0 && !self.invoker.reentry_supported())
+            {
                 return Err(Reason::Unsupported);
             }
             let function = *bindings
@@ -840,7 +851,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             .with_index_limit(
                 self.resource_namespace
                     .map_or(u32::MAX, |namespace| namespace.maximum),
-            );
+            )
+            .with_accounting(&self.accounting)
+            .with_parent_live(parent_live);
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let decoded = (|| -> Result<NativeResult, Reason> {
                 self.invoker.check_control().map_err(Reason::Control)?;
@@ -1446,13 +1459,15 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         Ok(())
     }
 }
-impl<'state, 'p, 'u, 'resources, 'native> Invocation<'state, 'p, 'u, 'resources, 'static, 'native> {
+impl<'state, 'p, 'u, 'resources, 'code, 'native>
+    Invocation<'state, 'p, 'u, 'resources, 'code, 'native>
+{
     /// Prepare a root over retained storage and independently scoped program
     /// views. All native registrations must retain their original owners.
     pub fn prepare_owned(
         instance: &'state mut Instance<'p, 'u>,
         function: m::FunctionId,
-        resources: &'resources mut Resources<'static>,
+        resources: &'resources mut Resources<'code>,
         invoker: &'native mut dyn Invoker,
         budget: &mut m::Budget,
     ) -> Result<Self, Reason> {

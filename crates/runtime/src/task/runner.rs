@@ -411,6 +411,15 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         }
         control.check()?;
         let mut component_budget=program.map(|program|m::Budget::with_usage(limits.preparation,program.usage())).transpose()?;
+        if let Some(program) = program {
+            let preparation = limits.preparation;
+            let allowed = component.as_deref().is_some_and(|host| host.reentry_supported())
+                && preparation.work == usize::MAX && preparation.allocations == usize::MAX && preparation.elements == usize::MAX;
+            component_budget.as_mut().ok_or(Reason::Invariant)?.charge(program.bindings().imports().len())?;
+            if !allowed && program.bindings().imports().iter().any(|import| import.method().flags & 1 != 0) {
+                return Err(Reason::Unsupported);
+            }
+        }
         if control.service_work_limit().is_some(){
             let supported=if let Some(program)=program{
                 let budget=component_budget.as_mut().ok_or(Reason::Invariant)?;
@@ -671,7 +680,7 @@ pub fn component_import_supported(
     let Some(binding) = program.bindings().resolve(import) else {
         return Ok(false);
     };
-    if binding.method().flags != 0 {
+    if binding.method().flags & !1 != 0 {
         return Ok(false);
     }
     let declarations = program.proof().typed().places().declarations();

@@ -29,6 +29,7 @@ struct State {
     thread: ThreadId,
     invocation: u64,
     scope: Option<u64>,
+    reentry: bool,
     next_scope: Option<u64>,
     control: *const e::Control<'static>,
     memory: Option<*mut (dyn Memory + 'static)>,
@@ -47,6 +48,7 @@ impl Engine {
             thread: thread::current().id(),
             invocation: 0,
             scope: None,
+            reentry: false,
             next_scope: Some(1),
             control: ptr::null(),
             memory: None,
@@ -87,7 +89,7 @@ impl Engine {
             .map_err(|_| 2u32)?;
         state.invocation = id;
         Ok(Invocation {
-            engine: self,
+            state,
             control,
             accounting: None,
         })
@@ -202,7 +204,7 @@ pub unsafe extern "C" fn context_allocator_identity(context: *const native::Cont
 }
 
 pub struct Invocation<'a, 'ctrl> {
-    engine: &'a mut Engine,
+    state: &'a mut State,
     control: e::Control<'ctrl>,
     accounting: Option<e::InvocationAccounting>,
 }
@@ -226,12 +228,19 @@ impl Drop for Active {
         // before its unique engine borrow. No native callback is active at Drop.
         let state = unsafe { &mut *self.state };
         state.scope = None;
+        state.reentry = false;
         state.control = ptr::null();
         state.memory = None;
         state.call = None;
     }
 }
 impl Invoker for Invocation<'_, '_> {
+    fn reentry_supported(&self) -> bool {
+        let limits = self.control.limits();
+        limits.frames.is_none()
+            && limits.live_cells.is_none()
+            && self.control.service_work_limit().is_none()
+    }
     fn control(&self) -> e::Control<'_> {
         self.control
     }
@@ -253,7 +262,7 @@ impl Invoker for Invocation<'_, '_> {
         parameters: &[u8],
         call: &mut dyn NativeContext,
     ) -> Result<NativeReturn, u32> {
-        let state = &mut self.engine.state[0];
+        let state = &mut *self.state;
         if state.thread != thread::current().id() || state.scope.is_some() {
             return Err(4);
         }
@@ -270,6 +279,7 @@ impl Invoker for Invocation<'_, '_> {
             reserved: [0; 2],
         };
         state.scope = Some(scope);
+        state.reentry = method.flags & 1 != 0;
         state.last = Some(context);
         // SAFETY: Active clears both borrowed pointers before this invocation
         // or the original callback capabilities can move or be released.
@@ -304,7 +314,7 @@ impl Invoker for Invocation<'_, '_> {
         memory: &mut dyn Memory,
         _: &mut c::Context<'_>,
     ) -> Result<(), u32> {
-        let state = &mut self.engine.state[0];
+        let state = &mut *self.state;
         if state.thread != thread::current().id() || state.scope.is_some() {
             return Err(4);
         }
@@ -358,5 +368,193 @@ impl Invoker for Invocation<'_, '_> {
             1 => Err(19),
             _ => Err(18),
         }
+    }
+}
+
+/// Temporarily lend the original state and current capabilities to a checked
+/// synchronous child. This private Rust hook publishes no C API entry.
+///
+/// # Safety
+/// Context storage and its original live engine obey context_check's contract.
+/// The operation must use the supplied original capabilities, reject task
+/// exports and contain foreign unwinding. No borrowed capability may escape.
+pub unsafe fn with_child<T>(
+    context: *const native::Context,
+    operation: impl for<'scope> FnOnce(
+        &'scope mut dyn Invoker,
+        &'scope mut dyn NativeContext,
+        e::Control<'scope>,
+    ) -> Result<T, u32>,
+) -> Result<T, u32> {
+    if context.is_null() {
+        return Err(2);
+    }
+    // SAFETY: exact native context/engine liveness is the caller contract.
+    let context = unsafe { &*context };
+    if context.engine.is_null() {
+        return Err(5);
+    }
+    let pointer = context.engine.cast::<State>();
+    // SAFETY: only immutable identity fields are read on a foreign thread;
+    // no State or active-capability reference is formed until owner validation.
+    if unsafe { ptr::addr_of!((*pointer).magic).read() } != MAGIC {
+        return Err(2);
+    }
+    if unsafe { ptr::addr_of!((*pointer).thread).read() } != thread::current().id() {
+        return Err(4);
+    }
+    let state = unsafe { &mut *pointer };
+    let status = check(state, context);
+    if status != 0 {
+        return Err(status);
+    }
+    if !state.reentry {
+        return Err(4);
+    }
+    let call = state.call.ok_or(4u32)?;
+    // SAFETY: the validated active scope retains the original control/call.
+    let control = unsafe { *state.control };
+    control.check().map_err(|_| 1u32)?;
+    let limits = control.limits();
+    if limits.frames.is_some()
+        || limits.live_cells.is_some()
+        || control.service_work_limit().is_some()
+    {
+        return Err(4);
+    }
+    let call = unsafe { &mut *call };
+    if !call.child_profile_supported() {
+        return Err(4);
+    }
+    let accounting = call.accounting().ok_or(4u32)?.clone();
+    let parent_live = call.parent_live();
+    struct Restore {
+        state: *mut State,
+        scope: Option<u64>,
+        reentry: bool,
+        control: *const e::Control<'static>,
+        memory: Option<*mut (dyn Memory + 'static)>,
+        call: Option<*mut (dyn NativeContext + 'static)>,
+        last: Option<native::Context>,
+    }
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            // SAFETY: the original reserved State outlives this synchronous
+            // guard. Its child borrows have ended before restoration/unwind.
+            let state = unsafe { &mut *self.state };
+            state.scope = self.scope;
+            state.reentry = self.reentry;
+            state.control = self.control;
+            state.memory = self.memory;
+            state.call = self.call;
+            state.last = self.last;
+        }
+    }
+    let _restore = Restore {
+        state: ptr::from_mut(state),
+        scope: state.scope,
+        reentry: state.reentry,
+        control: state.control,
+        memory: state.memory,
+        call: state.call,
+        last: state.last,
+    };
+    state.scope = None;
+    state.reentry = false;
+    state.control = ptr::null();
+    state.memory = None;
+    state.call = None;
+    let mut child = Invocation {
+        state,
+        control,
+        accounting: Some(accounting.clone()),
+    };
+    accounting
+        .with_parent(parent_live, || operation(&mut child, call, control))
+        .map_err(|_| 1u32)?
+}
+
+#[cfg(test)]
+mod child_scope_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    struct Capabilities(e::InvocationAccounting);
+    impl NativeContext for Capabilities {
+        fn accounting(&self) -> Option<&e::InvocationAccounting> {
+            Some(&self.0)
+        }
+        fn child_profile_supported(&self) -> bool {
+            true
+        }
+        fn allocator_identity(&self) -> u64 {
+            1
+        }
+        fn buffer_create(&mut self, _: u64, _: u64) -> Result<*mut native::Buffer, u32> {
+            Err(4)
+        }
+        fn buffer_drop(&mut self, _: *mut native::Buffer) -> Result<(), u32> {
+            Err(4)
+        }
+        fn buffer_mut_bytes(&mut self, _: *mut native::Buffer) -> Result<native::MutBytes, u32> {
+            Err(4)
+        }
+        fn resource_read(&self, _: u32) -> Result<native::Bytes, u32> {
+            Err(4)
+        }
+        fn resource_write(&self, _: u32) -> Result<native::MutBytes, u32> {
+            Err(4)
+        }
+        fn resource_publish(&mut self, _: &[u8], _: *mut native::Buffer) -> Result<u32, u32> {
+            Err(4)
+        }
+    }
+    unsafe extern "C" fn contained_unwind(
+        user: *mut c_void,
+        context: *const native::Context,
+        _: native::Bytes,
+        _: *mut *mut native::Buffer,
+    ) -> u32 {
+        let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // SAFETY: invocation retains this exact context while this known
+            // Rust unwind is contained inside the native callback.
+            unsafe {
+                with_child(context, |_, _, _| -> Result<(), u32> {
+                    panic!("child scope unwind")
+                })
+            }
+        }));
+        assert!(failure.is_err());
+        assert_eq!(unsafe { context_check(context) }, 0);
+        // SAFETY: test retains the exact initialized cell through invoke.
+        unsafe { &*user.cast::<Cell<bool>>() }.set(true);
+        1
+    }
+
+    #[test]
+    fn child_scope_restores_original_token_before_a_contained_rust_unwind_returns() {
+        let mut budget = m::Budget::new(Default::default());
+        let mut engine = Engine::prepare(&mut budget).unwrap();
+        let control = e::Control::with_limits(e::Limits::unbounded());
+        let accounting = e::InvocationAccounting::prepare(control, &mut budget).unwrap();
+        let mut capabilities = Capabilities(accounting);
+        let restored = Cell::new(false);
+        let method = native::Method {
+            interface: 0,
+            member: 0,
+            invoke: contained_unwind,
+            user: ptr::from_ref(&restored).cast_mut().cast(),
+            flags: 1,
+        };
+        {
+            let mut invocation = engine.begin(control).unwrap();
+            let returned =
+                Invoker::invoke(&mut invocation, &method, &[], &mut capabilities).unwrap();
+            assert_eq!(returned.status, 1);
+        }
+        assert!(restored.get());
+        assert_eq!(engine.check(&engine.last_context().unwrap()), 5);
+        // Logical guest-instance host-panic poisoning remains E03; this probe
+        // has no guest instance and verifies only the original scope borrow.
     }
 }

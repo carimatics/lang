@@ -41,12 +41,23 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 .ok_or(Reason::Unsupported)?
                 .read_native_arguments(&mut read)?
         };
+        let parent_live = e::LiveUsage {
+            frames: self.live_frames,
+            cells: self.value_cells()?,
+        };
         let result = self
             .services
             .component
             .as_deref_mut()
             .ok_or(Reason::Unsupported)?
-            .invoke_native(import, &mut values, span, self.allocator, &mut self.budget);
+            .invoke_native(
+                import,
+                &mut values,
+                span,
+                self.allocator,
+                &mut self.budget,
+                parent_live,
+            );
         if let Err(reason) = &result {
             self.record_execution(task, reason, span)?;
         }

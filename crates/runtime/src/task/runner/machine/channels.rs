@@ -69,7 +69,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .ok_or(Reason::Invariant)
     }
     pub fn channel_usage(&mut self) -> Result<(), Reason> {
-        self.usage.peak_live_cells = self.usage.peak_live_cells.max(self.value_cells()?);
+        self.local_peak_cells = self.local_peak_cells.max(self.value_cells()?);
         Ok(())
     }
     fn channel_admit(&self, additional: usize) -> Result<(), Reason> {

@@ -31,6 +31,8 @@ pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub trace: bool,
     pub trace_limit: usize,
     pub usage: e::Usage,
+    local_peak_frames: usize,
+    local_peak_cells: usize,
     accounting: Option<e::InvocationAccounting>,
     pub live_frames: usize,
     pub live_cells: usize,
@@ -341,6 +343,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             trace: limits.trace_events != 0,
             trace_limit: limits.trace_events,
             usage: initial_usage,
+            local_peak_frames: 1,
+            local_peak_cells: cells,
             accounting,
             live_frames: 1,
             live_cells: cells,
@@ -372,9 +376,11 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
     }
     fn sync_usage(&mut self) {
         if let Some(accounting) = &self.accounting {
-            accounting.observe(self.usage.peak_frames, self.usage.peak_live_cells);
+            accounting.observe(self.local_peak_frames, self.local_peak_cells);
             self.usage = accounting.snapshot();
         } else {
+            self.usage.peak_frames = self.local_peak_frames;
+            self.usage.peak_live_cells = self.local_peak_cells;
             self.usage.service_work = self.services.work.used();
         }
     }
@@ -468,7 +474,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         )?;
         self.live_frames += 1;
         self.live_cells += cells;
-        self.usage.peak_frames = self.usage.peak_frames.max(self.live_frames);
+        self.local_peak_frames = self.local_peak_frames.max(self.live_frames);
         self.channel_usage()?;
         Ok(frame)
     }
