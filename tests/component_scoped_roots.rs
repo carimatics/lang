@@ -189,6 +189,9 @@ struct Child {
     before: Cell<Option<e::Usage>>,
     after: Cell<Option<e::Usage>>,
     value: Cell<i64>,
+    budget_address: Cell<Option<usize>>,
+    preparation_before: Cell<Option<m::Usage>>,
+    preparation_after: Cell<Option<m::Usage>>,
 }
 impl Child {
     unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
@@ -262,6 +265,72 @@ impl Child {
         Ok(value)
     }
 }
+struct OriginalBudget<'a>(&'a Child);
+impl execution::StorageOperation for OriginalBudget<'_> {
+    fn run(
+        &mut self,
+        _: &mut storage::Resources<'_>,
+        _: &mut dyn storage::Memory,
+        budget: &mut m::Budget,
+        _: storage::Holder,
+        _: &e::InvocationAccounting,
+    ) -> Result<(), u32> {
+        assert_eq!(
+            self.0.budget_address.get(),
+            Some(std::ptr::from_mut(&mut *budget) as usize)
+        );
+        let before = self.0.preparation_before.get().unwrap();
+        let now = preparation_usage(budget);
+        assert!(
+            now.work > before.work
+                && now.allocation_bytes > before.allocation_bytes
+                && now.elements > before.elements
+        );
+        Ok(())
+    }
+}
+struct BudgetInvoker<'a> {
+    original: &'a mut dyn execution::Invoker,
+    target: &'a Child,
+}
+impl execution::Invoker for BudgetInvoker<'_> {
+    fn reentry_supported(&self) -> bool {
+        self.original.reentry_supported()
+    }
+    fn control(&self) -> e::Control<'_> {
+        self.original.control()
+    }
+    fn accounting(&self) -> Option<&e::InvocationAccounting> {
+        self.original.accounting()
+    }
+    fn control_matches(&self, control: e::Control<'_>) -> bool {
+        self.original.control_matches(control)
+    }
+    fn service_work_limit(&self) -> Option<u64> {
+        self.original.service_work_limit()
+    }
+    fn check_control(&self) -> Result<(), e::Failure> {
+        self.original.check_control()
+    }
+    fn invoke(
+        &mut self,
+        method: &native::Method,
+        parameters: &[u8],
+        context: &mut dyn execution::NativeContext,
+    ) -> Result<execution::NativeReturn, u32> {
+        context.with_storage(&mut OriginalBudget(self.target))?;
+        self.original.invoke(method, parameters, context)
+    }
+    fn destroy(
+        &mut self,
+        kind: native::ResourceKind<'_>,
+        backing: &mut storage::Detached<'_>,
+        memory: &mut dyn storage::Memory,
+        context: &mut lang_runtime::cleanup::Context<'_>,
+    ) -> Result<(), u32> {
+        self.original.destroy(kind, backing, memory, context)
+    }
+}
 struct ChildOperation<'a, 'ctrl> {
     target: &'a Child,
     owner: Rc<Owner>,
@@ -282,6 +351,20 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
         assert_eq!(memory.identity().get(), self.owner.allocator);
         let mut view = a::Allocator::borrow(memory).map_err(|_| 6u32)?;
         let preparation = budget.limits();
+        let address = std::ptr::from_mut(&mut *budget) as usize;
+        if let Some(previous) = self.target.budget_address.get() {
+            assert_eq!(previous, address);
+        }
+        self.target.budget_address.set(Some(address));
+        if let Some(previous) = self.target.preparation_after.get() {
+            let current = preparation_usage(budget);
+            assert!(current.work >= previous.work);
+            assert!(current.allocation_bytes >= previous.allocation_bytes);
+            assert!(current.elements >= previous.elements);
+        }
+        self.target
+            .preparation_before
+            .set(Some(preparation_usage(budget)));
         prepared_unit(
             &self.target.unit,
             provider(self.owner.clone()),
@@ -295,6 +378,10 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                     )
                     .unwrap()
                 });
+                let mut invoker = BudgetInvoker {
+                    original: self.invoker,
+                    target: self.target,
+                };
                 let mut state = self.target.state.borrow_mut();
                 state
                     .with_program(program, |instance| {
@@ -302,12 +389,12 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                             instance,
                             function,
                             resources,
-                            self.invoker,
+                            &mut invoker,
                             budget,
                         )
                         .unwrap();
                         invocation.prepare_output(session).unwrap();
-                        let outcome = execute_memory(
+                        let outcome = execute_memory_with_budget(
                             program,
                             function,
                             generated.as_ref(),
@@ -318,8 +405,12 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                             },
                             &[],
                             &mut invocation,
+                            Some(budget),
                         )
                         .map_err(|_| 1u32)?;
+                        self.target
+                            .preparation_after
+                            .set(Some(preparation_usage(budget)));
                         assert!(!outcome.poisoned);
                         let execution::Value::Frame(frame) = outcome.value else {
                             return Err(17);
@@ -334,6 +425,13 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                     .unwrap()
             },
         )
+    }
+}
+fn preparation_usage(budget: &m::Budget) -> m::Usage {
+    m::Usage {
+        work: budget.work_used(),
+        allocation_bytes: budget.allocation_bytes(),
+        elements: budget.elements_used(),
     }
 }
 unsafe extern "C" fn tick(
@@ -371,6 +469,7 @@ unsafe extern "C" fn tick(
             assert!(current.scope > previous.scope);
         }
         child.nested.set(Some(current));
+
         if output.is_null() || input.data.is_null() || input.length != 45 {
             return Err(2);
         }
@@ -595,11 +694,51 @@ fn execute_memory<P: a::Provider>(
     arguments: &[EntryArgument],
     host: &mut dyn execution::Host,
 ) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
+    execute_memory_with_budget(
+        program, function, generated, allocator, control, arguments, host, None,
+    )
+}
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep original optional preparation budget explicit at the fixture's VM/native boundary."
+)]
+fn execute_memory_with_budget<P: a::Provider>(
+    program: &program::Program<'_>,
+    function: m::FunctionId,
+    generated: Option<&lang_codegen_clif::tasks::CompiledProgram<'_>>,
+    allocator: &mut a::Allocator<P>,
+    control: CallControl<'_>,
+    arguments: &[EntryArgument],
+    host: &mut dyn execution::Host,
+    budget: Option<&mut m::Budget>,
+) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
     let limits = r::Limits {
         preparation: control.preparation,
         ..Default::default()
     };
-    (if let Some(generated) = generated {
+    (if let Some(budget) = budget {
+        if let Some(generated) = generated {
+            generated.execute_component_with_budget(
+                allocator,
+                control.execution,
+                limits,
+                arguments,
+                host,
+                budget,
+            )
+        } else {
+            lang_vm::unit::tasks::execute_component_with_budget(
+                program,
+                function,
+                allocator,
+                control.execution,
+                limits,
+                arguments,
+                host,
+                budget,
+            )
+        }
+    } else if let Some(generated) = generated {
         generated.execute_component(allocator, control.execution, limits, arguments, host)
     } else {
         lang_vm::unit::tasks::execute_component(
@@ -1008,6 +1147,9 @@ fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
                 before: Cell::new(None),
                 after: Cell::new(None),
                 value: Cell::new(0),
+                budget_address: Cell::new(None),
+                preparation_before: Cell::new(None),
+                preparation_after: Cell::new(None),
             });
             let (registration, watch) = h.registration_child(false, Some(child.clone()));
             let control = e::Control::with_limits(e::Limits::unbounded());
@@ -1022,6 +1164,11 @@ fn original_native_callback_executes_a_guest_child_and_restores_both_scopes() {
             assert!(after.fuel > before.fuel);
             assert!(created.usage.fuel > after.fuel);
             assert_eq!(created.usage.host_calls, repetitions as u64 + 1);
+            let prep_before = child.preparation_before.get().unwrap();
+            let prep_after = child.preparation_after.get().unwrap();
+            assert!(prep_after.work > prep_before.work);
+            assert!(prep_after.allocation_bytes > prep_before.allocation_bytes);
+            assert!(prep_after.elements > prep_before.elements);
             assert_eq!(after.peak_frames, 2);
             assert_eq!(created.usage.peak_frames, 2);
             assert!(after.peak_live_cells > before.peak_live_cells || repetitions > 1);
@@ -1072,6 +1219,9 @@ fn private_child_profile_refuses_unconnected_finite_policies_before_native_effec
                 before: Cell::new(None),
                 after: Cell::new(None),
                 value: Cell::new(0),
+                budget_address: Cell::new(None),
+                preparation_before: Cell::new(None),
+                preparation_after: Cell::new(None),
             });
             let (registration, watch) = h.registration_child(false, Some(child.clone()));
             let mut limits = e::Limits::unbounded();
@@ -1694,5 +1844,120 @@ fn a_fresh_holder_cannot_consume_another_retained_instances_owner() {
         assert_eq!(watch.released.get(), 1);
         assert!(h.values.is_empty());
         assert_eq!(h.allocator.stats().live_allocations, 0);
+    }
+}
+#[test]
+fn borrowed_preparation_entry_keeps_precharges_and_refuses_mismatched_or_exhausted_limits() {
+    for compiled in [false, true] {
+        for case in 0..4 {
+            let mut h = Harness::new();
+            let (registration, watch) = h.registration(false);
+            let result = prepared(registration, |program, session| {
+                let function = entry(program, "create");
+                let generated = compiled.then(|| {
+                    lang_codegen_clif::tasks::CompiledProgram::compile_component(
+                        program,
+                        function,
+                        Default::default(),
+                    )
+                    .unwrap()
+                });
+                let control = e::Control::default();
+                let mut invoker = h.engine.begin(control).unwrap();
+                let mut budget = m::Budget::new(Default::default());
+                budget.charge(17).unwrap();
+                budget.bytes(23).unwrap();
+                budget.allocate::<()>(29).unwrap();
+                h.state
+                    .with_program(program, |instance| {
+                        let mut invocation = execution::Invocation::prepare_owned(
+                            instance,
+                            function,
+                            &mut h.values,
+                            &mut invoker,
+                            &mut budget,
+                        )
+                        .unwrap();
+                        invocation.prepare_output(session).unwrap();
+                        let before = preparation_usage(&budget);
+                        let address = std::ptr::from_mut(&mut budget) as usize;
+                        let checkpoint = before.work.checked_add(program.usage().work).unwrap();
+                        let mut limits = budget.limits();
+                        limits.work = match case {
+                            1 => checkpoint - 1,
+                            2 => checkpoint,
+                            _ => checkpoint + 1_000_000,
+                        };
+                        budget = m::Budget::with_usage(limits, before).unwrap();
+                        let mut requested = limits;
+                        if case == 0 {
+                            requested.depth += 1;
+                        }
+                        let result = execute_memory_with_budget(
+                            program,
+                            function,
+                            generated.as_ref(),
+                            &mut h.allocator,
+                            CallControl {
+                                execution: control,
+                                preparation: requested,
+                            },
+                            &[],
+                            &mut invocation,
+                            Some(&mut budget),
+                        );
+                        assert_eq!(std::ptr::from_mut(&mut budget) as usize, address);
+                        let after = preparation_usage(&budget);
+                        if case == 0 || case == 1 {
+                            assert_eq!(after, before);
+                        } else if case == 2 {
+                            assert_eq!(after.work, checkpoint);
+                        } else {
+                            assert!(after.work > checkpoint);
+                            assert!(
+                                after.allocation_bytes
+                                    > before.allocation_bytes + program.usage().allocation_bytes
+                            );
+                            assert!(after.elements > before.elements + program.usage().elements);
+                        }
+                        result
+                    })
+                    .unwrap()
+            });
+            if case < 3 {
+                let failure = result.err().expect("entry refusal");
+                if case == 0 {
+                    assert!(matches!(failure.reason, r::Reason::Entry));
+                } else {
+                    assert!(matches!(
+                        failure.reason,
+                        r::Reason::Resource(m::Error {
+                            kind: m::ErrorKind::Limit {
+                                kind: m::LimitKind::Work,
+                                ..
+                            },
+                            ..
+                        })
+                    ));
+                }
+                assert_eq!(watch.produced.get(), 0);
+                assert_eq!(watch.destroyed.get(), 0);
+                assert_eq!(h.allocator.stats().requests, 0);
+            } else {
+                let outcome = result.unwrap();
+                let execution::Value::Frame(frame) = outcome.value else {
+                    panic!("resource result frame")
+                };
+                let claim = frame.resources()[0];
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+                assert_eq!(watch.produced.get(), 1);
+                assert_eq!(watch.destroyed.get(), 1);
+            }
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(!h.state.poisoned());
+        }
     }
 }

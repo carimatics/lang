@@ -103,7 +103,7 @@ fn private_callback_contains_a_panic_and_records_its_source() {
         usize::MAX,
     )
     .unwrap();
-    let budget = m::Budget::with_usage(Default::default(), plan.usage()).unwrap();
+    let mut budget = m::Budget::with_usage(Default::default(), plan.usage()).unwrap();
     let plans = [Some(plan)];
     let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
     let mut machine = Machine::new(
@@ -113,7 +113,7 @@ fn private_callback_contains_a_panic_and_records_its_source() {
         &mut allocator,
         e::Control::with_limits(Default::default()),
         Default::default(),
-        budget,
+        &mut budget,
         m::FunctionId(0),
     )
     .unwrap();

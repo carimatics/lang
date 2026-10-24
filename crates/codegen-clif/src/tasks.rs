@@ -273,6 +273,36 @@ impl<'p> CompiledProgram<'p> {
             host,
         )
     }
+    /// Lend the original cumulative execution-preparation budget.
+    #[doc(hidden)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep original preparation authority explicit alongside the existing component operands."
+    )]
+    pub fn execute_component_with_budget<P: a::Provider>(
+        &self,
+        allocator: &mut a::Allocator<P>,
+        control: e::Control<'_>,
+        limits: r::Limits,
+        arguments: &[r::EntryArgument],
+        host: &mut dyn lang_runtime::component::execution::Host,
+        budget: &mut m::Budget,
+    ) -> Result<r::Outcome<lang_runtime::component::execution::Value>, r::Failure> {
+        let Some(program) = self.image.component else {
+            return self.execute_component(allocator, control, limits, arguments, host);
+        };
+        r::execute_component_with_budget(
+            &mut Adapter(&self.image),
+            program,
+            self.image.entry,
+            allocator,
+            control,
+            limits,
+            arguments,
+            host,
+            budget,
+        )
+    }
 }
 struct Adapter<'a, 'p>(&'a Image<'p>);
 impl<P: a::Provider> r::Backend<P> for Adapter<'_, '_> {

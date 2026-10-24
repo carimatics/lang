@@ -24,7 +24,7 @@ pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub plans: &'p [Option<l::FramePlan<'l, 'ty>>],
     pub allocator: &'host mut a::Allocator<P>,
     pub control: e::Control<'ctrl>,
-    pub budget: m::Budget,
+    pub budget: &'host mut m::Budget,
     pub records: Vec<Record<'l, 'ty>>,
     pub faults: Vec<Option<Fault>>,
     pub events: Vec<Event>,
@@ -54,7 +54,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         allocator: &'host mut a::Allocator<P>,
         control: e::Control<'ctrl>,
         limits: Limits,
-        budget: m::Budget,
+        budget: &'host mut m::Budget,
         entry: m::FunctionId,
     ) -> Result<Self, Reason> {
         Self::new_with_arguments(
@@ -80,7 +80,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         allocator: &'host mut a::Allocator<P>,
         control: e::Control<'ctrl>,
         limits: Limits,
-        budget: m::Budget,
+        budget: &'host mut m::Budget,
         entry: m::FunctionId,
         arguments: &[EntryArgument],
     ) -> Result<Self, Reason> {
@@ -99,7 +99,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         allocator: &'host mut a::Allocator<P>,
         control: e::Control<'ctrl>,
         limits: Limits,
-        budget: m::Budget,
+        budget: &'host mut m::Budget,
         entry: m::FunctionId,
         arguments: &[EntryArgument],
         component: &'l mut dyn crate::component::execution::Host,
@@ -128,7 +128,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         allocator: &'host mut a::Allocator<P>,
         control: e::Control<'ctrl>,
         limits: Limits,
-        mut budget: m::Budget,
+        budget: &'host mut m::Budget,
         entry: m::FunctionId,
         arguments: &[EntryArgument],
         mut component: Option<&'l mut dyn crate::component::execution::Host>,
@@ -179,7 +179,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let failure_records =
             std::num::NonZeroUsize::new(limits.cleanup_failure_records).ok_or(Reason::Invariant)?;
         let completed = budget.vector(limits.tasks.total_tasks)?;
-        let mut session = c::Session::prepare(failure_records, &mut budget)?;
+        let mut session = c::Session::prepare(failure_records, budget)?;
         let mut input_ready = budget.vector(declaration.parameters.len())?;
         let mut scheduler = t::Scheduler::new(limits.tasks)?;
         let span = proof.typed().places().declarations().functions()[entry.0 as usize].span;
@@ -195,7 +195,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             control.limits().live_cells.unwrap_or(usize::MAX),
             control.service_work_limit(),
             component.as_deref().map(|host| host.service_work().clone()),
-            &mut budget,
+            budget,
         )?;
         if services.drain.is_none()
             && component
@@ -206,13 +206,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 layouts,
                 allocator,
                 budget.limits(),
-                usage(&budget),
+                usage(budget),
             )
             .map_err(|error| match error {
                 crate::retirement::Error::Layout(error) => Reason::Layout(error),
                 _ => Reason::Invariant,
             })?;
-            budget = m::Budget::with_usage(budget.limits(), drain.usage())?;
+            *budget = m::Budget::with_usage(budget.limits(), drain.usage())?;
             services.drain = Some(drain);
         }
         let mut frame = Frame::new(
@@ -224,11 +224,11 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             frame::ActivationId(0),
             failure_records,
             allocator,
-            &mut budget,
+            budget,
         )?;
         let staged = (|| -> Result<(), Reason> {
             if let Some(host) = component.as_deref_mut() {
-                frame.prepare_component_inputs(&declaration.parameters, &mut budget)?;
+                frame.prepare_component_inputs(&declaration.parameters, budget)?;
                 host.prepare_arguments(arguments, allocator)?;
             }
             for (index, (parameter, argument)) in
@@ -242,7 +242,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         *argument,
                         component.as_deref().ok_or(Reason::Entry)?,
                         allocator,
-                        &mut budget,
+                        budget,
                         &mut input_ready,
                         &mut services.drain,
                         &mut session,
@@ -470,7 +470,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             activation,
             self.failure_records,
             self.allocator,
-            &mut self.budget,
+            self.budget,
         )?;
         self.live_frames += 1;
         self.live_cells += cells;
@@ -717,7 +717,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         next: f::NodeId,
         failure: f::NodeId,
     ) -> Result<(), Reason> {
-        reserve_push(&mut self.budget, &mut self.records[task].frames)?;
+        reserve_push(self.budget, &mut self.records[task].frames)?;
         let mut child = self.prepare_frame(function)?;
         let transferred = (|| {
             let parent = self.records[task]
@@ -761,7 +761,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .scheduler
             .check_spawn(&self.records[task].id)?;
         let mut frames = self.budget.vector(1)?;
-        let session = c::Session::prepare(self.failure_records, &mut self.budget)?;
+        let session = c::Session::prepare(self.failure_records, self.budget)?;
         let scope = self
             .frame(task)?
             .scopes

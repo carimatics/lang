@@ -55,7 +55,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 &mut values,
                 span,
                 self.allocator,
-                &mut self.budget,
+                self.budget,
                 parent_live,
             );
         if let Err(reason) = &result {
@@ -139,7 +139,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                         Some(frame::ResourceValues::Native(&result)),
                         &self.services.work,
                         self.allocator,
-                        &mut self.budget,
+                        self.budget,
                         &mut ready,
                         &mut self.services.drain,
                         record.session.as_mut().ok_or(Reason::Invariant)?,

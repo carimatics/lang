@@ -175,6 +175,30 @@ impl EntryArgument {
     }
 }
 
+/// An ordinary entry owns its budget; a scoped entry lends the actual caller
+/// budget. Replacing a validated stage checkpoint updates that same object.
+enum PreparationBudget<'a> {
+    Owned(m::Budget),
+    Borrowed(&'a mut m::Budget),
+}
+impl std::ops::Deref for PreparationBudget<'_> {
+    type Target = m::Budget;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Owned(budget) => budget,
+            Self::Borrowed(budget) => budget,
+        }
+    }
+}
+impl std::ops::DerefMut for PreparationBudget<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Owned(budget) => budget,
+            Self::Borrowed(budget) => budget,
+        }
+    }
+}
+
 fn usage(budget: &m::Budget) -> m::Usage {
     m::Usage {
         work: budget.work_used(),
@@ -290,7 +314,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
     arguments: &[EntryArgument],
 ) -> Result<Outcome, Failure> {
     execute_profile(
-        backend, proof, entry, allocator, control, limits, arguments, None,
+        backend, proof, entry, allocator, control, limits, arguments, None, None,
     )
     .map(|outcome| {
         outcome.map(|value| match value {
@@ -314,6 +338,57 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
     arguments: &[EntryArgument],
     host: &mut dyn crate::component::execution::Host,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
+    execute_component_profile(
+        backend, program, function, allocator, control, limits, arguments, host, None,
+    )
+}
+
+/// Execute against the caller's original cumulative preparation budget.
+/// The verified target-program checkpoint is charged once for this entry.
+/// This lends preparation authority only; callback/profile admission is unchanged.
+#[doc(hidden)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep original program, allocator, control, host and preparation authority explicit."
+)]
+pub fn execute_component_with_budget<P: a::Provider, B: Backend<P>>(
+    backend: &mut B,
+    program: &crate::component::program::Program<'_>,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[EntryArgument],
+    host: &mut dyn crate::component::execution::Host,
+    preparation: &mut m::Budget,
+) -> Result<Outcome<crate::component::execution::Value>, Failure> {
+    execute_component_profile(
+        backend,
+        program,
+        function,
+        allocator,
+        control,
+        limits,
+        arguments,
+        host,
+        Some(preparation),
+    )
+}
+#[allow(
+    clippy::too_many_arguments,
+    reason = "One completion path retains original accounting and optional preparation authority."
+)]
+fn execute_component_profile<P: a::Provider, B: Backend<P>>(
+    backend: &mut B,
+    program: &crate::component::program::Program<'_>,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[EntryArgument],
+    host: &mut dyn crate::component::execution::Host,
+    preparation: Option<&mut m::Budget>,
+) -> Result<Outcome<crate::component::execution::Value>, Failure> {
     let accounting = host.accounting().clone();
     let result = execute_profile(
         backend,
@@ -324,6 +399,7 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
         limits,
         arguments,
         Some((program, &mut *host)),
+        preparation,
     );
     let poisoned = match &result {
         Ok(outcome) => outcome.poisoned,
@@ -382,6 +458,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         &crate::component::program::Program<'_>,
         &mut dyn crate::component::execution::Host,
     )>,
+    preparation: Option<&mut m::Budget>,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
     let (program, component) = match component {
         Some((program, host)) => (Some(program), Some(host)),
@@ -410,7 +487,17 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
             return Err(Reason::Control(failure));
         }
         control.check()?;
-        let mut component_budget=program.map(|program|m::Budget::with_usage(limits.preparation,program.usage())).transpose()?;
+        let mut component_budget=if let Some(program)=program {
+            let budget = if let Some(budget)=preparation {
+                if budget.limits()!=limits.preparation {return Err(Reason::Entry);}
+                let initial=program.usage();
+                budget.charge(initial.work)?;
+                budget.bytes(initial.allocation_bytes)?;
+                budget.allocate::<()>(initial.elements)?;
+                PreparationBudget::Borrowed(budget)
+            } else {PreparationBudget::Owned(m::Budget::with_usage(limits.preparation,program.usage())?)};
+            Some(budget)
+        }else{None};
         if let Some(program) = program {
             let preparation = limits.preparation;
             let allowed = component.as_deref().is_some_and(|host| host.reentry_supported())
@@ -447,7 +534,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         }
         if limits.tasks.live_tasks==0 {return Err(t::Error::LiveTaskLimit{limit:0}.into());}
         if limits.tasks.total_tasks==0 {return Err(t::Error::TotalTaskLimit{limit:0}.into());}
-        let mut budget=if let Some(budget)=component_budget{budget}else{m::Budget::with_usage(limits.preparation,m::Usage{work:proof.plan().work_used(),allocation_bytes:proof.plan().requested_bytes(),elements:proof.plan().elements_used()})?};
+        let mut budget=if let Some(budget)=component_budget{budget}else{PreparationBudget::Owned(m::Budget::with_usage(limits.preparation,m::Usage{work:proof.plan().work_used(),allocation_bytes:proof.plan().requested_bytes(),elements:proof.plan().elements_used()})?)};
         let mut reachable=budget.vector(typed.functions().len())?;
         let mut seen=budget.vector(typed.functions().len())?; seen.resize(typed.functions().len(),false);
         reachable.push(entry.0 as usize); seen[entry.0 as usize]=true;
@@ -478,7 +565,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         let extra=|a:usize,b:usize,c:usize|a.checked_add(b.checked_sub(c)?);
         let previous=usage(&budget);let layout=layouts.usage();
         let initial=m::Usage {work:extra(previous.work,layout.work,types.work_used()).ok_or(Reason::Invariant)?, allocation_bytes:extra(previous.allocation_bytes,layout.allocation_bytes,types.requested_bytes()).ok_or(Reason::Invariant)?,elements:extra(previous.elements,layout.elements,types.elements_used()).ok_or(Reason::Invariant)?};
-        budget=m::Budget::with_usage(limits.preparation,initial)?;
+        *budget=m::Budget::with_usage(limits.preparation,initial)?;
         Ok((entry,layouts,budget,reachable))
     })().map_err(fail)?;
     let (entry, layouts, mut budget, reachable) = prepared;
@@ -494,17 +581,33 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
                 usize::MAX,
                 usage(&budget),
             )?;
-            budget = m::Budget::with_usage(limits.preparation, plan.usage())?;
+            *budget = m::Budget::with_usage(limits.preparation, plan.usage())?;
             plans[function] = Some(plan);
         }
         let machine = if let Some(component) = component {
             machine::Machine::new_component(
-                proof, &plans, &layouts, allocator, control, limits, budget, entry, arguments,
+                proof,
+                &plans,
+                &layouts,
+                allocator,
+                control,
+                limits,
+                &mut budget,
+                entry,
+                arguments,
                 component,
             )?
         } else {
             machine::Machine::new_with_arguments(
-                proof, &plans, &layouts, allocator, control, limits, budget, entry, arguments,
+                proof,
+                &plans,
+                &layouts,
+                allocator,
+                control,
+                limits,
+                &mut budget,
+                entry,
+                arguments,
             )?
         };
         Ok(machine.run(backend))

@@ -49,6 +49,35 @@ pub fn execute_function<P: a::Provider>(
     )
 }
 
+/// Lend the original cumulative execution-preparation budget.
+#[doc(hidden)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep original preparation authority explicit alongside the existing component operands."
+)]
+pub fn execute_component_with_budget<P: a::Provider>(
+    program: &lang_runtime::component::program::Program<'_>,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[lang_runtime::task::runner::EntryArgument],
+    host: &mut dyn lang_runtime::component::execution::Host,
+    budget: &mut m::Budget,
+) -> Result<Outcome<lang_runtime::component::execution::Value>, Failure> {
+    lang_runtime::task::runner::execute_component_with_budget(
+        &mut machine::Interpreter,
+        program,
+        function,
+        allocator,
+        control,
+        limits,
+        arguments,
+        host,
+        budget,
+    )
+}
+
 #[doc(hidden)]
 pub fn execute_function_with_arguments<P: a::Provider>(
     proof: &o::tasks::VerifiedTasks,
