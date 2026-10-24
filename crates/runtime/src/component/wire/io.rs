@@ -3,16 +3,25 @@ use super::*;
 pub(super) struct Writer<'a> {
     pub session: &'a mut Session,
     pub bytes: Vec<u8>,
+    length: usize,
+    measuring: bool,
 }
 impl<'a> Writer<'a> {
     pub fn new(session: &'a mut Session) -> Self {
         Self {
             session,
             bytes: Vec::new(),
+            length: 0,
+            measuring: false,
         }
     }
+    pub fn measuring(session: &'a mut Session) -> Self {
+        let mut value = Self::new(session);
+        value.measuring = true;
+        value
+    }
     pub fn at(&self) -> usize {
-        self.bytes.len()
+        self.length
     }
     pub fn raw(&mut self, bytes: &[u8]) -> Result<(), Error> {
         let at = self.at();
@@ -21,6 +30,10 @@ impl<'a> Writer<'a> {
             .cap(end, self.session.limits.bytes, LimitKind::Bytes, at)?;
         self.session.charge(bytes.len(), at)?;
         self.session.serialized(bytes.len(), at)?;
+        if self.measuring {
+            self.length = end;
+            return Ok(());
+        }
         if end > self.bytes.capacity() {
             let capacity = end.max(self.bytes.capacity().saturating_mul(2)).max(4);
             self.session
@@ -35,6 +48,7 @@ impl<'a> Writer<'a> {
                 })?;
         }
         self.bytes.extend_from_slice(bytes);
+        self.length = end;
         Ok(())
     }
     pub fn u8(&mut self, n: u8) -> Result<(), Error> {

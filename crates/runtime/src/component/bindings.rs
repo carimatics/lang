@@ -88,6 +88,7 @@ pub enum Section {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     Budget(m::ErrorKind),
+    PreparationUsage,
     Version(u32),
     BindingLimit,
     Depth,
@@ -131,7 +132,10 @@ impl std::error::Error for Error {}
 impl Error {
     pub const fn code(&self) -> &'static str {
         match self.kind {
-            ErrorKind::Budget(_) | ErrorKind::BindingLimit | ErrorKind::Depth => "CBND0001",
+            ErrorKind::Budget(_)
+            | ErrorKind::BindingLimit
+            | ErrorKind::Depth
+            | ErrorKind::PreparationUsage => "CBND0001",
             ErrorKind::Version(_) => "CBND0002",
             ErrorKind::InvalidSource | ErrorKind::UnknownResource | ErrorKind::UnknownMember => {
                 "CBND0003"
@@ -205,7 +209,13 @@ impl Unit {
         limits: Limits,
         prior: m::Usage,
     ) -> Result<Self> {
-        let facts = validate(&document, &code, &mappings, limits, prior)?;
+        let facts = validate(
+            &document,
+            &code,
+            &mappings,
+            limits,
+            Preparation::Independent(prior),
+        )?;
         Ok(Self {
             document,
             code,
@@ -216,6 +226,36 @@ impl Unit {
             exports: facts.exports,
             usage: facts.usage,
         })
+    }
+    /// The supplied usage is one cumulative decoding/proof ledger containing
+    /// both document and code histories, rather than independent histories.
+    pub fn with_cumulative_usage(
+        document: idl::CheckedDocument,
+        code: Code,
+        mappings: Map,
+        limits: Limits,
+        usage: m::Usage,
+    ) -> Result<Self> {
+        let facts = validate(
+            &document,
+            &code,
+            &mappings,
+            limits,
+            Preparation::Cumulative(usage),
+        )?;
+        Ok(Self {
+            document,
+            code,
+            mappings,
+            resources: facts.resources,
+            definitions: facts.definitions,
+            imports: facts.imports,
+            exports: facts.exports,
+            usage: facts.usage,
+        })
+    }
+    pub fn into_parts(self) -> (idl::CheckedDocument, Code, Map) {
+        (self.document, self.code, self.mappings)
     }
     pub fn document(&self) -> &idl::CheckedDocument {
         &self.document
@@ -601,12 +641,16 @@ impl Context<'_> {
     }
 }
 
+enum Preparation {
+    Independent(m::Usage),
+    Cumulative(m::Usage),
+}
 fn validate(
     document: &idl::CheckedDocument,
     code: &Code,
     map: &Map,
     limits: Limits,
-    prior: m::Usage,
+    preparation: Preparation,
 ) -> Result<Facts> {
     if map.version != 1 {
         return Err(error(ErrorKind::Version(map.version)));
@@ -623,21 +667,32 @@ fn validate(
     if document.usage().data_depth > limits.depth {
         return Err(error(ErrorKind::Depth));
     }
-    let base = preparation_usage(document, code)?;
-    let a = base;
-    let b = prior;
-    let add = |a: usize, b: usize| {
-        a.checked_add(b)
-            .ok_or_else(|| error(ErrorKind::BindingLimit))
+    let usage = match preparation {
+        Preparation::Independent(prior) => {
+            let base = preparation_usage(document, code)?;
+            let add = |a: usize, b: usize| {
+                a.checked_add(b)
+                    .ok_or_else(|| error(ErrorKind::BindingLimit))
+            };
+            m::Usage {
+                work: add(base.work, prior.work)?,
+                allocation_bytes: add(base.allocation_bytes, prior.allocation_bytes)?,
+                elements: add(base.elements, prior.elements)?,
+            }
+        }
+        Preparation::Cumulative(usage) => {
+            for previous in [document.usage().budget, code.usage()] {
+                if previous.work > usage.work
+                    || previous.allocation_bytes > usage.allocation_bytes
+                    || previous.elements > usage.elements
+                {
+                    return Err(error(ErrorKind::PreparationUsage));
+                }
+            }
+            usage
+        }
     };
-    let mut budget = m::Budget::with_usage(
-        limits.budget,
-        m::Usage {
-            work: add(a.work, b.work)?,
-            allocation_bytes: add(a.allocation_bytes, b.allocation_bytes)?,
-            elements: add(a.elements, b.elements)?,
-        },
-    )?;
+    let mut budget = m::Budget::with_usage(limits.budget, usage)?;
     let declarations = code.declarations();
     if matches!(code, Code::Owned(_))
         && let Some(span) = declarations.task_feature_span()

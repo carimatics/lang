@@ -109,6 +109,9 @@ pub struct CheckedDocument {
     pub(super) usage: Usage,
 }
 impl CheckedDocument {
+    pub fn into_document(self) -> Document {
+        self.document
+    }
     pub fn document(&self) -> &Document {
         &self.document
     }

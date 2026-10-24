@@ -2,6 +2,7 @@
 use lang_mir::unit as m;
 use std::fmt;
 
+pub mod artifact;
 mod contract;
 mod io;
 mod report;
@@ -109,6 +110,41 @@ impl Session {
             elements: 0,
             serialized: 0,
         }
+    }
+    /// Continue preparation on the MIR/metadata loader's existing ledger.
+    pub fn with_usage(limits: Limits, usage: m::Usage) -> Result<Self, Error> {
+        let mut value = Self::new(limits);
+        value.budget = m::Budget::with_usage(
+            m::Limits {
+                work: limits.work,
+                allocations: limits.allocation_bytes,
+                elements: limits.elements,
+                ..Default::default()
+            },
+            usage,
+        )
+        .map_err(|e| Self::budget_error(0, e))?;
+        value.elements = usage.elements;
+        Ok(value)
+    }
+    pub fn preparation_usage(&self) -> m::Usage {
+        let mut usage = self.budget_usage();
+        usage.elements = usage.elements.max(self.elements);
+        usage
+    }
+    /// Advance the same preparation history after MIR/binding verification.
+    pub fn advance(&mut self, usage: m::Usage) -> Result<(), Error> {
+        let previous = self.preparation_usage();
+        if usage.work < previous.work
+            || usage.allocation_bytes < previous.allocation_bytes
+            || usage.elements < previous.elements
+        {
+            return Err(self.error(0, ErrorKind::InvalidSchema));
+        }
+        self.budget = m::Budget::with_usage(self.budget.limits(), usage)
+            .map_err(|e| Self::budget_error(0, e))?;
+        self.elements = self.elements.max(usage.elements);
+        Ok(())
     }
     pub fn usage(&self) -> Usage {
         Usage {

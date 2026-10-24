@@ -1283,6 +1283,9 @@ fn release_caller(
 }
 
 fn run_source(case: Case) -> (bool, bool) {
+    run_source_mode(case, false)
+}
+fn run_source_mode(case: Case, stored: bool) -> (bool, bool) {
     let return_resource = case.returns_resource();
     let extra = case.loan_extra()
         || case.native_batch()
@@ -1709,8 +1712,40 @@ fn run_source(case: Case) -> (bool, bool) {
         out.diagnostics
     );
     let unit = out.result.unwrap();
+    let unit = if stored {
+        let artifact = lang::artifact::component::encode(
+            unit,
+            m::Source {
+                path: "component-consumer.idl.json".into(),
+                text: String::from_utf8(bytes.clone()).unwrap(),
+            },
+            None,
+            Default::default(),
+        )
+        .unwrap();
+        let loaded = lang::artifact::component::decode(&artifact, Default::default()).unwrap();
+        assert_eq!(
+            loaded.unit().document().document().source.0 as usize,
+            loaded
+                .unit()
+                .code()
+                .declarations()
+                .types()
+                .table()
+                .sources
+                .len()
+                - 1
+        );
+        loaded.into_unit()
+    } else {
+        unit
+    };
     let mut session = wire::Session::new(Default::default());
-    let consumer = wire::Contract::new(checked(), vec![], &mut session).unwrap();
+    let consumer = if stored {
+        wire::artifact::source_contract(&unit, &mut session, 65_536).unwrap()
+    } else {
+        wire::Contract::new(checked(), vec![], &mut session).unwrap()
+    };
     let host = wire::Contract::new(
         idl::check(
             m::SourceId(71),
@@ -3156,4 +3191,38 @@ fn run_source(case: Case) -> (bool, bool) {
     }
     let (success, committed, _) = previous.unwrap();
     (success, committed)
+}
+
+#[test]
+fn stored_components_execute_actual_resources_imports_rich_results_and_cleanup() {
+    for case in [
+        Case::Consume,
+        Case::Data,
+        Case::List,
+        Case::Some,
+        Case::SharedLoan,
+        Case::ExclusiveLoan,
+        Case::NativeView,
+        Case::Native(NativeCase::Shared),
+        Case::NativeTransfer(NativeCase::Owned, false),
+        Case::NativeResult(NativeCase::Owned),
+        Case::NativeFresh(NativeCase::Owned),
+        Case::NativeAggregate(NativeCase::Owned, NativeShape::List),
+        Case::NativeAggregate(NativeCase::Owned, NativeShape::Record),
+    ] {
+        assert_eq!(run_source_mode(case, true), (true, true));
+    }
+}
+
+#[test]
+fn stored_component_import_failures_keep_original_cleanup_and_poison() {
+    for case in [
+        Case::NativeResult(NativeCase::Malformed),
+        Case::NativeFresh(NativeCase::Interrupt),
+        Case::NativeBorrowResult(NativeCase::Owned),
+        Case::NativeWrongResultKind,
+        Case::NativeAggregate(NativeCase::Malformed, NativeShape::Record),
+    ] {
+        assert_eq!(run_source_mode(case, true), (false, true));
+    }
 }

@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0028-task-component-artifacts.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-24
 - Last updated: 2026-10-24
@@ -18,7 +18,7 @@ Accept **LANGBC schema 5** for backend-neutral task/channel/service MIR and comp
 
 Acceptance under RFC 0001's 2026-10-17 JST delegation records a format decision, not an implemented or stabilized loader. I10 decides the format; I11 must next execute the first stored task fixture; I07 completes channel/service/component integration. I08 still owns private native records, native-package/SDK admission and both-host installed execution.
 
-Implementation checkpoint (2026-10-24 JST): I11 adds Task profile 0 to the shared codec, with independent task proof, explicit entry identity, CLI execution after source deletion, VM/generated-native owned/channel/service fixtures, independent bytes and cumulative ceilings. Component profile 1 explicitly refuses as unavailable; complete document/map admission remains I07 and installed native profiles remain I08. Status stays accepted because the complete schema-5 profile is not implemented or stabilized.
+Implementation checkpoint (2026-10-24 JST): I11's Task profile 0 and I07's Component profile 1 are implemented. They use the shared MIR codec, raw IDL document/maps, original snapshot/span mapping, complete independent task/type/effect/loan/failure/binding proof and one cumulative preparation budget. Raw MIR transport itself returns no execution authority. `artifact::component::{encode, decode}` and the general artifact loader admit passive checked units; explicit host bindings execute sync/task exports, original resources/native imports, rich results and failure cleanup on VM/generated native. An independent 1903-byte vector freezes every IDL kind, definitions, versions/requirements and resource/import/export maps. The ordinary CLI still requires explicit host bindings after validation. Installed native profiles/SDKs remain I08 and public embedding/both-host conformance remain later work. Status implemented does not imply stabilization.
 
 ## Motivation
 
@@ -121,6 +121,8 @@ Type-node kind tags/payloads are **0 Unit / 1 I64 / 2 Bool / 3 Text / 4 Bytes** 
 
 The document source must identify an actual retained source snapshot; `source_bytes` must equal its UTF-8 byte length. Every document span must belong to that source, be within it and lie on UTF-8 boundaries; owner-containment rules also apply. Names, effects, keys, versions and declarations are independently checked as data; loading never reparses the snapshot to manufacture declarations.
 
+Origin mapping clarification (2026-10-24, before implementation): I06's checked document retains compiler/global IDL source IDs/spans while MIR snapshots use code-local indices. A component writer takes the explicit path/text snapshot owning the document origins, retains the existing code snapshot order/indices, reuses an identical path/text snapshot or appends it, and consistently maps document.source and every IDL span.source to that artifact-local index. Preserve path, text, start/end and mutual source identity; never invent padding snapshots to preserve an integer from another namespace. A decoder retains the artifact-local indices. This grants no source parsing or file access. Metadata declaration order is the order normalized by the existing IDL proof; a decoder must reject noncanonical order rather than silently sort it into acceptance. Existing vectors/profiles do not change; unpublished Component profile 1 needs no migration. Accept this implementation-grounded clarification under RFC 0001's delegation and verify source mapping, independent proof and cumulative budgets with executable fixtures.
+
 The binding map follows: `(u32 version = 1, resource vector, import vector, export vector)`. Resource rows are `(nominal definition ID, ResourceTypeKey)`; import rows `(source import ID, InterfaceKey, member string)`; export rows `(source function ID, InterfaceKey, member string)`. Preserve order and complete entries, including unused ones. Reapply I06's complete coverage, unique resource/member/source correspondence, ABI/effect/signature/nominal identity, public-export and direct-loan checks. An empty or omitted map cannot authorize component code. Provider selection/locks and live grant plans remain explicit host inputs, not map entries.
 
 ### Independent proofs and execution
@@ -133,7 +135,7 @@ Raw cleanup steps and binding/scope declarations express obligations and must be
 
 The complete envelope, code, IDL snapshots, metadata and maps share the artifact byte cap; default **64 MiB**. Use checked arithmetic before counts, multiplication, slicing or allocation; reject impossible lengths before reserving. Existing MIR/task/IDL/binding depth, element, table, work and requested-allocation limits all remain mandatory. Use the tightest configured common ceiling where phases overlap and carry prior usage forward; decoding, verification, matching, sizing and writing may not reset/refund counters. Repeated references, strings, unused entries and origin validation consume work. Host runtime quotas remain separate fresh invocation limits; their values are not accepted from the artifact.
 
-Writers validate first, size under the same budget and publish only a complete valid artifact. Preserve table/vector order and exact snapshots; no implicit sorting, deduplication or renumbering. Re-encoding an admitted decoded schema-5 value with sufficient limits produces the same bytes. General source compilation selects schema 5 for task/channel/service or component metadata; existing non-task/component Copy/ownership/C inputs retain schemas 1/2/3/4 and their exact bytes. A dedicated schema-5 library API may encode an empty/synchronous task-profile table; validity does not depend on finding a new opcode.
+Writers validate first, size under the same budget and publish only a complete valid artifact. Preserve table/vector order and exact snapshots; no implicit sorting, deduplication or renumbering. Re-encoding an admitted decoded schema-5 value with sufficient limits produces the same bytes. General source compilation selects schema 5 for task/channel/service. The component API requires explicit IDL and a checked binding unit; the ordinary CLI does not infer them. Existing non-task/component Copy/ownership/C inputs retain schemas 1/2/3/4 and their exact bytes. A dedicated schema-5 library API may encode an empty/synchronous task-profile table; validity does not depend on finding a new opcode.
 
 ## Execution modes
 
@@ -180,7 +182,7 @@ Execute source→artifact→decode→VM/generated-native fixtures for tasks, own
 
 ## Open questions
 
-No unresolved semantic blocker. I11's focused tests confirm the empty library table and cumulative task-codec proof. Unverified implementation assumptions remain: sharing codec traversal with schemas 2–4 stays maintainable, and existing cumulative verifier APIs can carry all IDL/map preparation charges without resetting. I07 must test these and revise this decision before changing a field, tag, proof requirement or compatibility consequence. Performance and both-host equivalence remain measurements, not assumptions treated as evidence.
+No unresolved semantic blocker. I11's focused tests confirm the empty library table and cumulative task-codec proof; I07 regressions confirm source mapping, complete IDL/map validation and cumulative preparation history. Work admission precedes long name/capability/version inspection. Long-term maintainability of shared traversal with schemas 2–4 remains unverified. Revise this decision before changing a field, tag, proof requirement or compatibility consequence. Performance and both-host equivalence remain measurements.
 
 ## Sources
 

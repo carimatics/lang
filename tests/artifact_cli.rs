@@ -482,3 +482,21 @@ fn task_artifact_survives_source_deletion_and_retains_runtime_controls() {
     assert!(!limited.status.success());
     assert!(String::from_utf8_lossy(&limited.stderr).contains("fuel"));
 }
+
+#[test]
+fn valid_component_artifact_loads_without_source_but_requires_explicit_host_bindings() {
+    let directory = Directory::new();
+    let bytes: Vec<u8> = include_str!("fixtures/component_artifact_v5.hex")
+        .split_whitespace()
+        .map(|s| u8::from_str_radix(s, 16).unwrap())
+        .collect();
+    let artifact = directory.file("component.lbc");
+    std::fs::write(&artifact, &bytes).unwrap();
+    let result = run_loaded(&artifact);
+    assert!(!result.status.success());
+    assert!(
+        String::from_utf8_lossy(&result.stderr)
+            .contains("component artifacts require explicit host bindings")
+    );
+    assert!(result.stdout.is_empty());
+}

@@ -690,6 +690,21 @@ pub(super) fn decode_tables(
     limits: CodecLimits,
     task_limits: Option<o::tasks::Limits>,
 ) -> Result<Decoded, CodecError> {
+    decode_profile(bytes, limits, task_limits, 0)
+}
+pub(super) fn decode_component(
+    bytes: &[u8],
+    limits: CodecLimits,
+    tasks: o::tasks::Limits,
+) -> Result<Decoded, CodecError> {
+    decode_profile(bytes, limits, Some(tasks), 1)
+}
+fn decode_profile(
+    bytes: &[u8],
+    limits: CodecLimits,
+    task_limits: Option<o::tasks::Limits>,
+    profile: u8,
+) -> Result<Decoded, CodecError> {
     if bytes.len() > limits.bytes {
         return Err(error(
             0,
@@ -736,8 +751,8 @@ pub(super) fn decode_tables(
     reader.charge(4)?;
     if version == 5 {
         match reader.byte()? {
-            0 => {}
-            1 => return Err(error(HEADER, CodecErrorKind::UnsupportedProfile(1))),
+            value if value == profile => {}
+            value @ 0..=1 => return Err(error(HEADER, CodecErrorKind::UnsupportedProfile(value))),
             value => {
                 return Err(error(
                     HEADER,
@@ -750,7 +765,7 @@ pub(super) fn decode_tables(
         }
     }
     let (table, entry) = reader.table()?;
-    if reader.offset != bytes.len() {
+    if profile != 1 && reader.offset != bytes.len() {
         return Err(reader.fail(CodecErrorKind::TrailingBytes));
     }
     if version < 4 && (version == 3) != reader.seen_panic {

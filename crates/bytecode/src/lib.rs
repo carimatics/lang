@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod component;
 pub mod ownership;
 pub mod tasks;
 pub mod unit;

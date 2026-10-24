@@ -149,6 +149,7 @@ pub enum CodecErrorKind {
     IntegerOverflow,
     AllocationFailed,
     InvalidEntry,
+    InvalidUsage,
     UnsupportedProfile(u8),
     Tasks(TaskError),
     UnsupportedCInterface {
@@ -438,4 +439,46 @@ fn task_error(e: o::tasks::Error) -> CodecErrorKind {
         primary: e.primary,
         secondary: e.secondary,
     })
+}
+
+pub(crate) fn decode_component(
+    bytes: &[u8],
+    limits: crate::tasks::CodecLimits,
+) -> Result<crate::component::Unverified<'_>, CodecError> {
+    let raw = reader::decode_component(bytes, limits.shared(), limits.verification)?;
+    Ok(crate::component::Unverified {
+        table: raw.table,
+        entry: raw.entry,
+        metadata: &bytes[raw.offset..],
+        metadata_offset: raw.offset,
+        usage: m::Usage {
+            work: raw.budget.work_used(),
+            allocation_bytes: raw.budget.allocation_bytes(),
+            elements: raw.budget.elements_used(),
+        },
+    })
+}
+pub(crate) fn encode_component(
+    proof: o::tasks::VerifiedTasks,
+    entry: Option<m::FunctionId>,
+    metadata: &[u8],
+    limits: crate::tasks::CodecLimits,
+    prior: m::Usage,
+) -> Result<Vec<u8>, CodecError> {
+    let p = proof.plan();
+    if prior.work < p.work_used()
+        || prior.allocation_bytes < p.requested_bytes()
+        || prior.elements < p.elements_used()
+    {
+        return Err(error(0, CodecErrorKind::InvalidUsage));
+    }
+    writer::encode_component(
+        Program {
+            flow: proof.into_plan(),
+            entry,
+        },
+        limits.shared(),
+        metadata,
+        prior,
+    )
 }

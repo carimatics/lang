@@ -5,6 +5,8 @@
     reason = "Keep structured failures inline after resource exhaustion."
 )]
 
+pub mod component;
+
 use crate::frontend::{self, CompileLimits, ScriptError};
 use lang_bytecode::{ownership as owned, tasks, unit as copy};
 use lang_diagnostics::SourceMap;
@@ -18,6 +20,7 @@ pub struct Limits {
     pub copy: m::Limits,
     pub ownership: owned::VerificationLimits,
     pub tasks: lang_mir::unit::ownership::tasks::Limits,
+    pub component: component::Limits,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -26,6 +29,7 @@ impl Default for Limits {
             copy: m::Limits::default(),
             ownership: owned::VerificationLimits::default(),
             tasks: Default::default(),
+            component: Default::default(),
         }
     }
 }
@@ -37,6 +41,7 @@ pub enum Program {
     Copy(copy::Program),
     Ownership(owned::Program),
     Tasks(tasks::Program),
+    Component(component::Program),
 }
 #[derive(Debug)]
 pub enum CompileError {
@@ -59,6 +64,7 @@ impl Display for CompileError {
 impl std::error::Error for CompileError {}
 #[derive(Debug)]
 pub enum DecodeError {
+    Component(component::Error),
     Envelope(copy::CodecError),
     Copy(copy::CodecError),
     Ownership(owned::CodecError),
@@ -67,6 +73,7 @@ pub enum DecodeError {
 impl Display for DecodeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Component(e) => Display::fmt(e, f),
             Self::Envelope(e) | Self::Copy(e) => Display::fmt(e, f),
             Self::Ownership(e) | Self::Tasks(e) => Display::fmt(e, f),
         }
@@ -192,6 +199,13 @@ pub fn decode(bytes: &[u8], limits: Limits) -> Result<Program, DecodeError> {
         )
         .map(Program::Ownership)
         .map_err(DecodeError::Ownership),
+        5 if bytes.get(16) == Some(&1) => {
+            let mut component = limits.component;
+            component.bytes = component.bytes.min(limits.bytes);
+            component::decode(bytes, component)
+                .map(Program::Component)
+                .map_err(DecodeError::Component)
+        }
         5 => tasks::decode(
             bytes,
             tasks::CodecLimits {

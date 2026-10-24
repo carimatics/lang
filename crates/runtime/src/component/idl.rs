@@ -164,7 +164,7 @@ pub(super) fn check_decoded(
         elements,
         data_depth: 0,
     };
-    let result = validate::check(&mut document, &mut c).map(|()| CheckedDocument {
+    let result = validate::check_complete(&mut document, &mut c).map(|()| CheckedDocument {
         document,
         usage: Usage {
             budget: m::Usage {

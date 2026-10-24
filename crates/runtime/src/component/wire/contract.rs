@@ -98,7 +98,7 @@ fn sorting(s: &mut Session, n: usize, bytes: usize, at: usize) -> Result<(), Err
         at,
     )
 }
-fn strict<T: Ord>(
+pub(super) fn strict<T: Ord>(
     previous: Option<&T>,
     next: &T,
     s: &mut Session,
@@ -112,7 +112,7 @@ fn strict<T: Ord>(
         Ok(())
     }
 }
-fn valid_version(v: &SemanticVersion, s: &mut Session, at: usize) -> Result<(), Error> {
+pub(super) fn valid_version(v: &SemanticVersion, s: &mut Session, at: usize) -> Result<(), Error> {
     for p in v.prerelease() {
         let (text, numeric) = match p {
             PrereleaseIdentifier::Numeric(t) => (t, true),
@@ -125,7 +125,12 @@ fn valid_version(v: &SemanticVersion, s: &mut Session, at: usize) -> Result<(), 
     }
     Ok(())
 }
-fn version_part(t: &str, numeric: Option<bool>, s: &mut Session, at: usize) -> Result<(), Error> {
+pub(super) fn version_part(
+    t: &str,
+    numeric: Option<bool>,
+    s: &mut Session,
+    at: usize,
+) -> Result<(), Error> {
     s.charge(t.len(), at)?;
     let digits = t.bytes().all(|b| b.is_ascii_digit());
     if t.is_empty()
@@ -136,7 +141,7 @@ fn version_part(t: &str, numeric: Option<bool>, s: &mut Session, at: usize) -> R
     }
     Ok(())
 }
-fn valid_key(k: &InterfaceKey, s: &mut Session, at: usize) -> Result<(), Error> {
+pub(super) fn valid_key(k: &InterfaceKey, s: &mut Session, at: usize) -> Result<(), Error> {
     s.charge(interface_bytes(k), at)?;
     if !crate::component::is_component_identifier(k.package().namespace())
         || !crate::component::is_component_identifier(k.package().package())
@@ -201,7 +206,7 @@ pub(super) fn write_value_key(w: &mut Writer<'_>, k: &ValueKey) -> Result<(), Er
     write_interface(w, &k.interface)?;
     w.string(&k.name)
 }
-fn write_version(w: &mut Writer<'_>, v: &SemanticVersion) -> Result<(), Error> {
+pub(super) fn write_version(w: &mut Writer<'_>, v: &SemanticVersion) -> Result<(), Error> {
     w.u64(v.major())?;
     w.u64(v.minor())?;
     w.u64(v.patch())?;
@@ -224,7 +229,7 @@ fn write_version(w: &mut Writer<'_>, v: &SemanticVersion) -> Result<(), Error> {
     }
     Ok(())
 }
-fn write_requirement(w: &mut Writer<'_>, v: &VersionRequirement) -> Result<(), Error> {
+pub(super) fn write_requirement(w: &mut Writer<'_>, v: &VersionRequirement) -> Result<(), Error> {
     match v {
         VersionRequirement::Exact(v) => {
             w.u8(0)?;

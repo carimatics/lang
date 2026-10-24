@@ -21,7 +21,7 @@ impl ExecutionOptions {
     }
 }
 
-const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n\nArtifact schemas: Copy/ownership/C 1-4; tasks/channels/services 5. Component artifacts are not yet supported.\n";
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n\nArtifact schemas: Copy/ownership/C 1-4; tasks/channels/services 5. Component artifacts require explicit host bindings.\n";
 enum Command {
     Check {
         file: PathBuf,
@@ -946,6 +946,9 @@ fn run_artifact(file: PathBuf, limits: ExecutionOptions) -> Result<u8, CliError>
     drop(bytes);
     match program {
         lang::artifact::Program::Copy(program) => run_copy(&program, limits),
+        lang::artifact::Program::Component(_) => Err(failure(
+            "component artifacts require explicit host bindings",
+        )),
         lang::artifact::Program::Ownership(program) => {
             let entry = program
                 .entry()

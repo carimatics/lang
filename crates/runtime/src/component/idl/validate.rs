@@ -34,6 +34,20 @@ fn names(values: &[Field], c: &mut Context, span: m::Span) -> Result<(), Error> 
 }
 
 pub(super) fn check(d: &mut Document, c: &mut Context) -> Result<(), Error> {
+    check_inner(d, c).map(|_| ())
+}
+/// A serialized dictionary can contain otherwise unreachable type nodes.
+pub(super) fn check_complete(d: &mut Document, c: &mut Context) -> Result<(), Error> {
+    let facts = check_inner(d, c)?;
+    for (id, node) in d.type_nodes.iter().enumerate() {
+        c.charge(1, node.span)?;
+        if !matches!(node.kind, TypeKind::Borrow { .. }) {
+            no_borrow(TypeId(id), d, &facts, c)?;
+        }
+    }
+    Ok(())
+}
+fn check_inner(d: &mut Document, c: &mut Context) -> Result<Vec<Facts>, Error> {
     let root = c.span(0, d.source_bytes as usize);
     c.sorting(
         d.interfaces.len(),
@@ -274,7 +288,7 @@ pub(super) fn check(d: &mut Document, c: &mut Context) -> Result<(), Error> {
             return Err(c.error(Code::Projection, Reason::InvalidProjection, export.span));
         }
     }
-    Ok(())
+    Ok(facts)
 }
 fn no_borrow(id: TypeId, d: &Document, facts: &[Facts], c: &Context) -> Result<(), Error> {
     if facts[id.0].borrow {

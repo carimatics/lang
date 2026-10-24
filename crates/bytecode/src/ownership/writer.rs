@@ -3,6 +3,7 @@ use o::{bodies as b, declarations as d, places as p};
 
 struct Writer<'a> {
     version: u16,
+    profile: u8,
     output: Option<Vec<u8>>,
     length: usize,
     maximum: usize,
@@ -190,6 +191,10 @@ impl Writer<'_> {
                 };
                 self.byte(tag)?;
                 self.ty(v)?;
+            }
+            C::ComponentResource(tag) if self.version == 5 && self.profile == 1 => {
+                self.byte(18)?;
+                self.word(tag.0)?;
             }
             C::ComponentResource(_) => {
                 return Err(error(
@@ -656,7 +661,7 @@ impl Writer<'_> {
         }
         self.span(value.span)
     }
-    fn unit(&mut self, program: &Program, payload: u32) -> Result<(), CodecError> {
+    fn unit(&mut self, program: &Program, payload: u32, suffix: &[u8]) -> Result<(), CodecError> {
         let typed = program.flow.source().activity().moved().typed();
         if let Some(span) = typed.places().declarations().types().channel_feature_span()
             && self.version < 5
@@ -690,7 +695,7 @@ impl Writer<'_> {
         self.bytes(&0_u16.to_le_bytes())?;
         self.word(payload)?;
         if self.version == 5 {
-            self.byte(0)?;
+            self.byte(self.profile)?;
         }
         let typed = program.flow.source().activity().moved().typed();
         let declarations = typed.places().declarations();
@@ -702,7 +707,7 @@ impl Writer<'_> {
         self.list(&types.definitions, Self::definition)?;
         self.list(&types.constructed, Self::constructor)?;
         self.list(declarations.imports(), |s, v| {
-            if v.abi == d::ImportAbi::Component {
+            if v.abi == d::ImportAbi::Component && s.profile != 1 {
                 return Err(error(
                     s.length,
                     CodecErrorKind::UnsupportedComponentProfile { span: v.span },
@@ -716,12 +721,19 @@ impl Writer<'_> {
             }
             s.string(&v.name)?;
             if s.version >= 4 {
-                s.byte(tags::import_abi(v.abi).ok_or_else(|| {
-                    error(
-                        s.length,
-                        CodecErrorKind::UnsupportedComponentProfile { span: v.span },
-                    )
-                })?)?;
+                s.byte(
+                    (if v.abi == d::ImportAbi::Component {
+                        Some(2)
+                    } else {
+                        tags::import_abi(v.abi)
+                    })
+                    .ok_or_else(|| {
+                        error(
+                            s.length,
+                            CodecErrorKind::UnsupportedComponentProfile { span: v.span },
+                        )
+                    })?,
+                )?;
             }
             s.span(v.span)?;
             s.list(&v.parameters, Self::type_use)?;
@@ -759,26 +771,39 @@ impl Writer<'_> {
                 s.span(v.span)
             })
         })?;
-        self.optional(program.entry.map(|v| v.0))
+        self.optional(program.entry.map(|v| v.0))?;
+        if !suffix.is_empty() {
+            self.charge(suffix.len() / 1024 + 1)?;
+            self.bytes(suffix)?;
+        }
+        Ok(())
     }
 }
 
 pub(super) fn encode(program: Program, limits: CodecLimits) -> Result<Vec<u8>, CodecError> {
-    encode_version(program, limits, None)
+    encode_version(program, limits, None, 0, &[], None)
 }
 pub(super) fn encode_tasks(program: Program, limits: CodecLimits) -> Result<Vec<u8>, CodecError> {
-    encode_version(program, limits, Some(5))
+    encode_version(program, limits, Some(5), 0, &[], None)
 }
 fn encode_version(
     program: Program,
     limits: CodecLimits,
     version: Option<u16>,
+    profile: u8,
+    suffix: &[u8],
+    prior: Option<m::Usage>,
 ) -> Result<Vec<u8>, CodecError> {
-    let mut budget = m::Budget::with_usage(limits.budget_limits(), program.usage())
-        .map_err(|e| error(0, CodecErrorKind::Budget(e)))?;
+    let mut budget = m::Budget::with_usage(
+        limits.budget_limits(),
+        prior.unwrap_or_else(|| program.usage()),
+    )
+    .map_err(|e| error(0, CodecErrorKind::Budget(e)))?;
     let typed = program.flow.source().activity().moved().typed();
     let declarations = typed.places().declarations();
-    if let Some(span) = declarations.component_feature_span() {
+    if let Some(span) = declarations.component_feature_span()
+        && profile != 1
+    {
         return Err(error(
             0,
             CodecErrorKind::UnsupportedComponentProfile { span },
@@ -807,13 +832,14 @@ fn encode_version(
     };
     let size = {
         let mut w = Writer {
+            profile,
             version,
             output: None,
             length: 0,
             maximum: limits.bytes,
             budget: &mut budget,
         };
-        w.unit(&program, 0)?;
+        w.unit(&program, 0, suffix)?;
         w.length
     };
     let payload = u32::try_from(
@@ -829,15 +855,25 @@ fn encode_version(
         .try_reserve_exact(size)
         .map_err(|_| error(0, CodecErrorKind::AllocationFailed))?;
     let mut writer = Writer {
+        profile,
         version,
         output: Some(output),
         length: 0,
         maximum: size,
         budget: &mut budget,
     };
-    writer.unit(&program, payload)?;
+    writer.unit(&program, payload, suffix)?;
     debug_assert_eq!(writer.length, size);
     Ok(writer.output.unwrap())
+}
+
+pub(super) fn encode_component(
+    program: Program,
+    limits: CodecLimits,
+    suffix: &[u8],
+    prior: m::Usage,
+) -> Result<Vec<u8>, CodecError> {
+    encode_version(program, limits, Some(5), 1, suffix, Some(prior))
 }
 
 #[cfg(test)]
@@ -845,6 +881,7 @@ pub(super) fn instruction_fixture(value: &b::Instruction) -> Vec<u8> {
     let mut budget = m::Budget::new(m::Limits::default());
     let size = {
         let mut w = Writer {
+            profile: 0,
             version: 3,
             output: None,
             length: 0,
@@ -855,6 +892,7 @@ pub(super) fn instruction_fixture(value: &b::Instruction) -> Vec<u8> {
         w.length
     };
     let mut writer = Writer {
+        profile: 0,
         version: 3,
         output: Some(Vec::with_capacity(size)),
         length: 0,
@@ -925,6 +963,7 @@ mod task_tests {
     }
     fn writer(budget: &mut m::Budget, version: u16) -> Writer<'_> {
         Writer {
+            profile: 0,
             version,
             output: Some(Vec::new()),
             length: 0,

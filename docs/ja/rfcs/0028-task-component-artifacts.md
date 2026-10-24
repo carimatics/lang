@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0028-task-component-artifacts.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-24
 - Last updated: 2026-10-24
@@ -18,7 +18,7 @@ backend に依存しない task/channel/service MIR と完全な component 宣�
 
 RFC 0001 の2026-10-17 JSTの委任に基づく受理は format の決定を記録し、loader の実装/安定化を意味しません。I10 が形式を決定し、続く I11 は最初の保存 task fixture の実行を必須とし、I07 が channel/service/component 統合を完了します。private native record・native package/SDK の受入・両 host installed 実行は引き続き I08 の範囲です。
 
-実装 checkpoint（2026-10-24 JST）: I11 は Task profile 0 を共通 codec に追加し、独立 task proof・明示 entry ID・source 削除後の CLI 実行・VM/生成 native の所有値/channel/service fixture・独立 byte vector・累積上限を検証します。Component profile 1 は未対応として明示拒否し、完全 document/map admission は I07、installed native profile は I08 の残作業です。全 schema 5 の実装/安定化を意味しないため Status は accepted を維持します。
+実装 checkpoint（2026-10-24 JST）: I11 の Task profile 0 と I07 の Component profile 1 を実装しています。共通 MIR codec、生 IDL document/map、元 snapshot/span の対応付け、完全な独立 task/type/effect/loan/failure/binding proof、単一の累積予算を使います。生 MIR の読み取り自体は実行 authority を返しません。`artifact::component::{encode, decode}` と汎用 artifact loader は受動的な検証済み unit を扱い、明示 host binding で同期/task export、元 resource/native import、rich result と失敗時 cleanup を VM/生成 native で実行します。独立1903-byte vector は全 IDL kind・定義・version/requirement・resource/import/export map を固定します。通常 CLI は検証後も host binding を明示要求します。installed native profile/SDK は I08、public embedding と両 host conformance は後続のままです。Status implemented は安定化を意味しません。
 
 ## 動機
 
@@ -121,6 +121,8 @@ type-node の kind tag/payload は **0 Unit / 1 I64 / 2 Bool / 3 Text / 4 Bytes*
 
 document source は実際に保持した source snapshot を指し、`source_bytes` はその UTF-8 byte 長と一致しなければなりません。全 document span は同じ source に属し、その範囲内かつ UTF-8 境界にあり、owner-containment 規則にも従います。名前・effect・key・version・宣言をデータとして独立検証し、snapshot の再 parse で宣言を作りません。
 
+Origin の対応付け（2026-10-24、実装前の明確化）: I06 の checked document は compiler/global IDL source ID と span を保持しますが、MIR snapshot は code-local index を使います。component writer は document origin を所有する明示的な path/text snapshot を受け取り、元の code snapshot 順序/index を維持します。同一 path/text があればその index を使い、なければ末尾へ追加し、document.source と全 IDL span.source をその artifact-local index へ一貫して写します。path・text・start/end と相互の source identity は保持し、外部 namespace の整数値を保持するための架空 snapshot は作りません。decoder は artifact-local index をそのまま保持します。これは source の再 parse や file access ではありません。metadata の宣言順は既存 IDL proof が正規化した順序であり、不正な非正規順を decoder が黙って sort して受理しません。既存 vector/profile に変更はなく、Component profile 1 は未公開なので移行はありません。実装観測に基づくこの明確化を RFC 0001 の委任で受理し、source 対応付け・独立検証・累積 budget の実行 fixture で確認します。
+
 続く binding map は `(u32 version = 1, resource vector, import vector, export vector)`。resource 行は `(nominal definition ID, ResourceTypeKey)`、import 行は `(source import ID, InterfaceKey, member string)`、export 行は `(source function ID, InterfaceKey, member string)`。未使用を含め全項目と順序を保持します。I06 の完全 coverage・resource/member/source の一意対応・ABI/effect/signature/nominal identity・public export・direct loan 検証を再適用します。空/省略 map は component code を許可しません。provider 選択/lock と live grant plan は明示的 host input のままで、map 項目ではありません。
 
 ### 独立 proof と実行
@@ -133,7 +135,7 @@ decode 先は生 MIR と宣言データであり、elaboration 済み実行 plan
 
 envelope 全体・code・IDL snapshot・metadata・map は同じ artifact byte 上限を共有し、既定は **64 MiB**です。count・乗算・slice・allocation の前に算術検査を行い、不可能な長さは reserve 前に拒否します。既存 MIR/task/IDL/binding の depth・element・table・work・requested-allocation 上限を全て必須とします。phase が重なる箇所は設定済み共通上限の最小を使い、使用量を引き継ぎ、decode・検証・matching・sizing・write で counter を reset/refund しません。反復参照・string・未使用項目・origin 検証にも work を課します。host runtime quota は別の新規 invocation 上限で、artifact から値を受け入れません。
 
-writer は先に検証し、同じ budget で size を求め、完全で有効な artifact だけを公開します。table/vector 順と正確な snapshot を保ち、暗黙の sort・重複排除・番号振り直しをしません。受入済み schema 5 を十分な上限で再 encode すると同じ byte になります。通常 source compile は task/channel/service または component metadata に schema 5 を選び、それ以外の Copy/ownership/C は schema 1/2/3/4 と正確な既存 byte を維持します。専用 schema 5 library API は空/同期 task-profile table も encode でき、新 opcode の有無で妥当性は決まりません。
+writer は先に検証し、同じ budget で size を求め、完全で有効な artifact だけを公開します。table/vector 順と正確な snapshot を保ち、暗黙の sort・重複排除・番号振り直しをしません。受入済み schema 5 を十分な上限で再 encode すると同じ byte になります。通常 source compile は task/channel/service に schema 5 を選びます。component API は明示 IDL と checked binding unit を要求し、通常 CLI がそれらを推測しません。既存の非 task/component Copy/ownership/C は schema 1/2/3/4 と正確な既存 byte を維持します。専用 schema 5 library API は空/同期 task-profile table も encode でき、新 opcode の有無で妥当性は決まりません。
 
 ## 実行モード
 
@@ -180,7 +182,7 @@ task・owned transfer・統合 channel/service・component resource/loan/import/
 
 ## 未解決事項
 
-未解決の意味論 blocker はありません。I11 の focused test で空 library table と累積 task-codec proof を確認しました。残る未検証の実装仮説は、schema 2–4 との codec traversal 共有が引き続き保守可能であること、既存累積 verifier API が全 IDL/map 準備コストを reset せず引き継げることです。I07 で検証し、field/tag/proof 要件/互換性を変える前に本決定を改訂します。性能と両 host 同等性は測定事項であり、仮定を証拠扱いしません。
+未解決の意味論 blocker はありません。I11 の focused test で空 library table と累積 task-codec proof を、I07 の回帰で source 対応付け、完全 IDL/map 検証、予算の累積履歴を確認しました。長い name/capability/version の走査前にも work 受入を行います。schema 2–4 との codec traversal 共有の長期保守性は引き続き未検証です。field/tag/proof 要件/互換性を変える前に本決定を改訂します。性能と両 host 同等性は測定事項です。
 
 ## 出典
 
