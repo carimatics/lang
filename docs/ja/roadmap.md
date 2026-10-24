@@ -12,11 +12,11 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **48 done · 1 doing · 15 todo · 46 remaining pt**です。I11 の `669cc4e` は保存 task MIR の独立検証と、source 削除後 CLI・8種類の owned/channel/service fixture の VM/生成 native 実行を実装しました（2026-10-24 07:50 JST）。**142スイート / 2,152 passed / 0 failed / 既存ignore 1件**、fmt・Clippy・rustdoc・14 fuzz target compile/lint が成功し、796入力 file の前後 hash が一致しました。**消化3 pt・追加0 pt**、I10/I11 と前提監査を合わせて**消化5 pt・新規追加5 pt**、残り **49 + 0 − 3 = 46 pt**、台帳 **110 + 66 − 130 = 46**です。次は I07 のみ doing とし、未対応の Component profile 1 の完全 document/map・元 snapshot/span・累積 budget・独立 binding proof・実 decode 後呼び出しを最小 fixture から再監査します。G01/G02 は **10/96 gate weight、2/15 gate**のままで、後続/P1・両 host 証拠・最終 guide は全て必須です。2026-10-24 JST 更新。
+**M3 は進行中です。** [実装 Todo](milestone-3.md) は **49 done · 1 doing · 14 todo · 43 remaining pt**です。I07 の `a0501f4` は schema 5 Component profile 1 の完全 IDL/map・元 snapshot/span・累積独立検証と、保存した同期/task/resource/native-import の VM/生成 native 実行を実装しました（2026-10-24 10:00 JST）。**143 suites / 2,164 passed / 0 failed / 既存ignore 1件**、fmt・Clippy・rustdoc・15 fuzz target compile/lint が成功し、805入力 file の前後 hash が一致しました。**消化3 pt・追加0 pt**、残り **46 + 0 − 3 = 43 pt**、台帳 **110 + 66 − 133 = 43**です。次は P02 のみ doing とし、RFC 0027 が要求する RFC 0013 の component service-work catalog を受入前に改訂し、metadata/adapter の上限と副作用前の拒否を最小の保存 source fixture から検証します。受入条件の監査で G06（IDL/有界 serialization）を完了し、G01/G02/G06 は **18/96 gate weight・3/15 gate**で、後続/P1・両 host 証拠・最終 guide は全て必須です。2026-10-24 JST 更新。
 
 ## 進行中 milestone の実行
 
-M3 の source/task/channel/service 契約は受理済みで、対応する VM/native profile で実行します。RFC 0027 の IDL/codec・I09 の opaque 型/拒否 proof・I06 の独立 source/MIR binding・I04 の生成・I05 の rich 交渉・P01 の typed grant/live binding 受理を、記録した scope で実装しました。R01/R02/R03/R04/R05/E05/R06 により実 resource 引数/結果・直接 loan・native backing view・instance lifecycle を実行します。**I07** の artifact 決定受理と source→artifact 実行、残る callback delivery、I08 package rollout と進みます。canonical graph/signature・version policy・既存 code-owner lifetime pattern を再利用し、prototype metadata だけを live binding と扱いません。残工数の積み上げ見積りと96点の exit-gate weight は別に扱います。M2 計測を維持し、Z01 で実 concurrency/boundary cost を計測します。
+M3 の source/task/channel/service 契約は受理済みで、対応する VM/native profile で実行します。RFC 0027 の IDL/codec・I09 の opaque 型/拒否 proof・I06 の独立 source/MIR binding・I04 の生成・I05 の rich 交渉・P01 の typed grant/live binding 受理を、記録した scope で実装しました。R01/R02/R03/R04/R05/E05/R06 により実 resource 引数/結果・直接 loan・native backing view・instance lifecycle を実行します。I10/I11/I07 により schema 5 の決定と保存 task/channel/service/component 実行を実装しました。**P02** の有界 metadata/adapter 作業、残る callback delivery、I08 package rollout と進みます。canonical graph/signature・version policy・既存 code-owner lifetime pattern を再利用し、prototype metadata だけを live binding と扱いません。残工数の積み上げ見積りと96点の exit-gate weight は別に扱います。M2 計測を維持し、Z01 で実 concurrency/boundary cost を計測します。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
@@ -28,19 +28,19 @@ M3 の source/task/channel/service 契約は受理済みで、対応する VM/na
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-22（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、現在の積み上げ残数は上記の M3 実装 Todo を参照してください。M2 の完了記録は維持します。
+2026-10-24（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、現在の積み上げ残数は上記の M3 実装 Todo を参照してください。M2 の完了記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
-| 3 — concurrencyとembedding | 10 pt | 96 pt | 10.4% |
+| 3 — concurrencyとembedding | 18 pt | 96 pt | 18.8% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **421 pt** | **764 pt** | **55.1%** |
+| **全体** | **429 pt** | **764 pt** | **56.2%** |
 
 ## Milestone 0：設計baseline
 
@@ -198,7 +198,7 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 
 ## Milestone 3：concurrencyとembedding
 
-**進捗：10 / 96 pt（10.4%）。**
+**進捗：18 / 96 pt（18.8%）。**
 
 開始条件は充足済みです。Milestone 2 は両実行経路の所有権/cleanup semantics を提供し、リポジトリレビューも完了しました。RFC 0003/0005 を受理済み意味論の基準とし、prototype で production IDL/scheduler/sandbox を完了扱いにしません。[進行中の実装 Todo](milestone-3.md)で範囲と見積りを追跡します。source VM の既存 frame/live-cell 上限を task、native code、host callback 全体へ拡張します。
 
@@ -207,7 +207,7 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 - [ ] **P0 — Structured task lifetimeとdeterministic cancellation cleanupを実装する。** — 8 pt
 - [ ] **P0 — Bounded backpressure／cancellation behavior付きchannelを実装する。** — 5 pt
 - [ ] **P0 — Actor isolationとaccept済みdata-race capability ruleを強制する。** — 8 pt
-- [ ] **P0 — Version付きcomponent IDLとbounded serializationを実装する。** — 8 pt
+- [x] **P0 — Version付きcomponent IDLとbounded serializationを実装する。** — 8 pt
 - [ ] **P0 — Canonical owned／borrowed resource adapterを実装する。** — 8 pt
 - [ ] **P0 — Capability-gated component importを強制する。** — 5 pt
 - [ ] **P0 — Typed error付きmixed native／VM call／callbackをsupportする。** — 8 pt

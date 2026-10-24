@@ -12,11 +12,11 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 M2 is complete: 18/18 gates, 113/113 historical gate weight. The [completed board](milestone-2.md) records its deliveries and estimate reconciliation; the [capability guide](milestone-2-capabilities.md) records actual source/VM/native/C/SDK/debug evidence and limits. These counts describe M2, not all future work.
 
-**M3 is active:** the [delivery board](milestone-3.md) tracks **48 done · 1 doing · 15 todo · 46 remaining pt**. I11 at `669cc4e` implements independently verified stored task MIR, CLI after source deletion and eight owned/channel/service fixtures on VM/generated native (2026-10-24 07:50 JST). **142 suites / 2,152 passed / 0 failed / 1 existing ignore**, fmt, Clippy, rustdoc and 14 fuzz-target compile/lint pass; before/after hashes match across 796 inputs. Report **3 completed pt · 0 added pt**; across I10/I11 and the prerequisite audit report **5 completed pt · 5 newly added pt**, remaining **49 + 0 − 3 = 46 pt**, ledger **110 + 66 − 130 = 46**. Only I07 is doing: re-audit unavailable Component profile 1's complete document/maps, original snapshots/spans, cumulative budgets, independent binding proof and actual decoded calls from the smallest fixture. G01/G02 remain **10/96 gate weight, 2/15 gates**. All later/P1 work, both-host evidence and the final guide remain required. Updated 2026-10-24 JST.
+**M3 is active:** the [delivery board](milestone-3.md) tracks **49 done · 1 doing · 14 todo · 43 remaining pt**. I07 at `a0501f4` implements schema-5 Component profile 1's complete IDL/maps, original snapshots/spans, cumulative independent validation and stored sync/task/resource/native-import execution on VM/generated native (2026-10-24 10:00 JST). **143 suites / 2,164 passed / 0 failed / 1 existing ignore**, fmt, Clippy, rustdoc and 15 fuzz-target compile/lint pass; before/after hashes match across 805 inputs. Report **3 completed pt · 0 added pt**, remaining **46 + 0 − 3 = 43 pt**, ledger **110 + 66 − 133 = 43**. Only P02 is doing: revise RFC 0013's component service-work catalog before admission as required by RFC 0027, then verify bounded metadata/adapter work and rejection before effects from the smallest stored source fixture. The acceptance audit completes G06 (IDL/bounded serialization); G01/G02/G06 now total **18/96 gate weight, 3/15 gates**. All later/P1 work, both-host evidence and the final guide remain required. Updated 2026-10-24 JST.
 
 ## Active milestone execution
 
-M3’s source/task/channel/service contracts are accepted and execute in the admitted VM/native profile. RFC 0027 IDL/codecs, I09 opaque-type/refusal proof, I06 independent source/MIR bindings, I04 generation, I05 rich negotiation and P01 typed grant/live binding admission are implemented at their recorded scope. Actual resource arguments/results, direct loans, native backing views and instance lifecycle execute through R01/R02/R03/R04/R05/E05/R06. Continue **I07**'s accepted artifact decision and source-to-artifact execution, then the remaining callback deliveries and I08 package rollout. Reuse the canonical graph/signatures, version policy and existing code-owner lifetime pattern; prototype metadata alone is not a live binding. Use bottom-up remaining estimates separately from the 96-point exit-gate weights. Preserve M2 measurements; Z01 measures actual concurrency/boundary costs.
+M3’s source/task/channel/service contracts are accepted and execute in the admitted VM/native profile. RFC 0027 IDL/codecs, I09 opaque-type/refusal proof, I06 independent source/MIR bindings, I04 generation, I05 rich negotiation and P01 typed grant/live binding admission are implemented at their recorded scope. Actual resource arguments/results, direct loans, native backing views and instance lifecycle execute through R01/R02/R03/R04/R05/E05/R06. I10/I11/I07 implement the schema-5 decision and stored task/channel/service/component execution. Continue **P02**'s bounded metadata/adapter work, the remaining callback deliveries and I08 package rollout. Reuse the canonical graph/signatures, version policy and existing code-owner lifetime pattern; prototype metadata alone is not a live binding. Use bottom-up remaining estimates separately from the 96-point exit-gate weights. Preserve M2 measurements; Z01 measures actual concurrency/boundary costs.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -28,19 +28,19 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Snapshot of exit-gate weights verified 2026-10-22 JST. Acceptance weights are separate from remaining-effort estimates; use the active M3 delivery board above for current bottom-up remaining work. The completed M2 record remains unchanged.
+Snapshot of exit-gate weights verified 2026-10-24 JST. Acceptance weights are separate from remaining-effort estimates; use the active M3 delivery board above for current bottom-up remaining work. The completed M2 record remains unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
-| 3 — concurrency and embedding | 10 pt | 96 pt | 10.4% |
+| 3 — concurrency and embedding | 18 pt | 96 pt | 18.8% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **421 pt** | **764 pt** | **55.1%** |
+| **Overall** | **429 pt** | **764 pt** | **56.2%** |
 
 ## Milestone 0: design baseline
 
@@ -198,7 +198,7 @@ Exit: representative command-line programs match VM semantics and performance is
 
 ## Milestone 3: concurrency and embedding
 
-**Progress: 10 / 96 pt (10.4%).**
+**Progress: 18 / 96 pt (18.8%).**
 
 Entry satisfied: Milestone 2 supplies ownership and cleanup semantics on both execution paths, and the repository review is complete. RFCs 0003 and 0005 remain the accepted semantic baseline; their prototypes do not complete production IDL, scheduler, or sandbox work. [The active delivery board](milestone-3.md) records implementation scope and estimates. The source VM already bounds frames and live cells; this milestone extends accounting across tasks, native code, and host callbacks.
 
@@ -207,7 +207,7 @@ Entry satisfied: Milestone 2 supplies ownership and cleanup semantics on both ex
 - [ ] **P0 — Implement structured task lifetimes and deterministic cancellation cleanup.** — 8 pt
 - [ ] **P0 — Implement channels with bounded backpressure and cancellation behavior.** — 5 pt
 - [ ] **P0 — Enforce actor isolation and accepted data-race capability rules.** — 8 pt
-- [ ] **P0 — Implement the versioned component IDL and bounded serialization.** — 8 pt
+- [x] **P0 — Implement the versioned component IDL and bounded serialization.** — 8 pt
 - [ ] **P0 — Implement canonical owned/borrowed resource adapters.** — 8 pt
 - [ ] **P0 — Enforce capability-gated component imports.** — 5 pt
 - [ ] **P0 — Support mixed native/VM calls and callbacks with typed errors.** — 8 pt

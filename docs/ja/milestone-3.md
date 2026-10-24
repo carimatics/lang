@@ -6,13 +6,17 @@
 
 更新日: **2026-10-24 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**48 done · 1 doing · 15 todo · 46 remaining pt**
+**49 done · 1 doing · 14 todo · 43 remaining pt**
 
-**次: M3-I07 → schema 5 Component document/map を独立検証し、保存した component を実行します。**
+**次: M3-P02 → 保存済み component の metadata/adapter 作業を制限し、副作用前の拒否を検証します。**
 
 R06 実装/検証 checkpoint（**2026-10-24 04:35 JST**、macOS AArch64 検証）: 実 native holder の custody、直接/record/list の所有引数、own/loan 混在 batch、元 backing の変更と一度だけの破棄を含む **source 回帰47件**が VM/生成 native で成功しました。宣言済み error、不正/欠落/foreign 結果、割り込み、destructor 失敗、160通りの fuel 上限と provider 失敗位置で、受入済み owner を保持または退役し、元 allocation を全解放します。消費済み token の receipt は共通の反復 container drain まで届き、直接引数の metadata 拡張も同じ有限 wire Session を使います。破棄も失敗した場合は native failure を primary に維持し、suppressed span と永続 poison を保持します。**runtime 単体151件**も成功しました。入力固定の全 baseline は **141 suites / 2,136 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **728.29 s**、test log の時間幅は test build を含め **2,840.94 s**です。workspace/fuzz fmt、warnings-denied workspace Clippy（**2m 43s**）、rustdoc（**44.90s**）、全 **14 fuzz target** の compile/lint が成功し、campaign は主張しません。**追跡対象790ファイル**の前後 hash が一致しました（`8d3a5b1d8feb3ab0f64627d0a1dbb3889f55e47deb71d6b47463c383af632bfe`）。先の修正前/中断 run は最終証拠ではありません。非公開 import profile は native 所有結果をまだ拒否し、完全 public embedding/reentry・永続 provider 所有権・installed profile・統一 control・両 host runtime 証拠は追跡済み後続作業です。code 証拠は `8914a50` です。
 
-現在の作業: **M3-I07（3 pt）**。実行 checkpoint（**2026-10-24 09:16 JST**、macOS AArch64、未 commit）: Component profile 1 の完全 raw IDL/map、元 snapshot/span の対応付け、生 MIR 接続、独立 graph/task/loan/failure/binding proof と単一累積 budget を実装しました。同期/task export、18種類の保存 resource/native-import 成功/失敗 fixture が既存 VM/生成 native 経路で動作します。独立1903-byte vector（全 IDL kind・定義・version/requirement・resource/import/export map）、複数 file の index/span 維持、全切断位置、未使用 type node、偽造 origin/ABI/binding、厳密上限/1不足、wire depth 再受入・name/version 走査前の work 受入を含む **artifact 回帰9件**が成功しました。旧 bytecode **34件**・IDL **13件**・wire **23件**、CLI の明示 host binding 要求も確認しています。残る受入条件は、監査修正後の fmt/Clippy・関連回帰・15 fuzz target compile/lint・入力固定の全 baseline・code/evidence commit です。配送完了にはまだ数えません。直近の commit 済み実行は **I11 の `669cc4e`、07:50 JST**。doing は I07 のみで、I08/public embedding・永続 provider 所有権・共有 control・両 host/P1・最終 guide は全て必須です。
+現在の作業: **M3-P02（3 pt）**。直近の commit 済み実行 checkpoint は **I07 の `a0501f4`、2026-10-24 10:00 JST**（macOS AArch64）で、保存した同期/task/resource/native-import 実行と全 baseline が成功しています。P02 の残る受入条件は、component service-work catalog の受理、metadata/adapter の共有累積計量、副作用前の拒否、VM/native の上限ちょうど/1不足と失敗位置での cleanup 証拠です。最小の decode 済み source/native-import fixture から始めます。doing は P02 のみで、I08/public embedding・永続 provider 所有権・合算 control・両 host/P1・最終 guide は全て必須です。
+
+I07 を `a0501f4` で完了（**2026-10-24 10:00 JST**、macOS AArch64 検証）: schema 5 Component profile 1 は完全 raw IDL/map、元 snapshot/span と code-local index、独立 graph/task/loan/failure/binding proof、単一累積準備 budget を保持します。明示 binding の下で同期/task export と18種類の保存 resource/native-import 成功/失敗 fixture が VM/生成 native で動作します。独立1903-byte vector・複数 file の origin・全切断位置・未使用 graph・偽造 ABI/map・厳密上限・name/capability/version 走査前の work 受入を含む **artifact 回帰9件**と既存回帰が成功しました。最終入力固定 baseline は **143 suites / 2,164 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **752.65 s**、実 test 時間 **2,266.57 s**（build 込み）です。workspace/fuzz fmt、warnings-denied workspace Clippy（**178.25 s**）、rustdoc（**52.45 s**）、全 **15 fuzz target** の check（**1.73 s**）/Clippy（**0.60 s**）が成功しました。**805入力 file**の前後 hash は一致します（`fe8bf5b2fdaa497a9b511cf22b2e4824d33aeeb3d521008a73906c17f950eb78`）。監査修正前の中断 run は最終証拠に含めず、campaign・installed package・public embedding・両 host runtime の完了は主張しません。最終見積り **3 pt** を退役し、**消化3 pt・追加/再見積り0 pt**、残り **46 + 0 − 3 = 43 pt**、台帳 **110 + 66 − 133 = 43**です。64行は **49 done · 1 doing · 14 todo**、G06 の受入監査後、G01/G02/G06 は **3/15 gate・18/96 weight**です。
+
+I07/P02 残範囲監査（2026-10-24 JST）: decode 済み unit→source contract→grant/Program 境界と、Invocation の共有 wire Session による native 引数/結果処理を確認しました。残件を確認し P02 は **3 pt** を維持します。RFC 0027 に従い受入前に RFC 0013 の component service-work catalog を改訂し、既存 program の cost を維持します。既存 Session/meter/binding/Machine を再利用して元 invocation control へ adapter 計量を接続し、未使用 import を含む不正 metadata と各上限/失敗位置が provider 副作用前に拒否され、必須 cleanup と累積履歴を保つことを検証します。最小の保存 native-import/source fixture を先に実行し、前提が不足すれば実装前に公開・再見積りします。監査による追加/再見積りは **0 pt**。P02 のみ doing とし、E/L/I08/B/Z の全成果は維持します。
 
 I07 実装範囲監査（2026-10-24 JST）: checked counter の実行 test は成功し、IDL origin 77 と code-local MIR source index の別 namespace、JSON/LCMP decoder 専用の既存 IDL graph proof、独立履歴を加算する binding budget を確認しました。残件を、(1) 元 snapshot の明示対応付けと完全 raw IDL/map codec、(2) runtime への bytecode 依存を追加しない生 MIR 接続と単一累積 proof budget、(3) decode 後の実 VM/native component 呼び出し・不正/旧 vector・全検証、に限定して **3 pt**を維持します。新しい IR/registry/evaluator は追加しません。最初に小さな checked source export を保存/実行し、同じ経路で resource/import・rich value を検証します。**消化0 pt・追加/再見積もり0 pt**で、64行・残り46 pt・台帳 **110 + 66 − 130 = 46**は不変です。I07 のみ doing とし、I08/public embedding・共有 control・両 host/P1/guide は引き続き必須です。
 
@@ -193,8 +197,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-R05 | done | 0 | M3-I04,M3-P01,M3-R04 | G07 | rich 所有値の source 引数/結果を既存 VM/native engine で transport し、入れ子 owner・元 allocator/code 所有権・staging cleanup・結果 escrow を実行 | `3a3bbc4` |
 | M3-I10 | done | 0 | M3-I06,M3-R03 | G06,G09,G14 | schema 5 の task/channel/service/component field・tag・proof・limit・互換 vector を受理 | `51459cb` |
 | M3-I11 | done | 0 | M3-I10 | G06,G09,G14 | 独立検証する task MIR を encode/decode し最初の保存 source task fixture を VM/生成 native で実行 | `669cc4e` |
-| M3-I07 | doing | 3 | M3-I06,M3-R03,M3-I10,M3-I11 | G06,G09,G14 | task/channel/service/component artifact の versioned profile を受理し、独立検証と旧 vector を保って実行する | — |
-| M3-P02 | todo | 3 | M3-P01,M3-I05,M3-I07 | G08 | metadata/adapter 作業量を制限し不正 import を副作用前に拒否 | — |
+| M3-I07 | done | 0 | M3-I06,M3-R03,M3-I10,M3-I11 | G06,G09,G14 | task/channel/service/component artifact の versioned profile を受理し、独立検証と旧 vector を保って実行する | `a0501f4` |
+| M3-P02 | doing | 3 | M3-P01,M3-I05,M3-I07 | G08 | metadata/adapter 作業量を制限し不正 import を副作用前に拒否 | — |
 | M3-E01 | todo | 3 | M3-I04,M3-P01,M3-I07 | G09 | native host が検証済み script を読み込み生成 typed API を呼び出し | — |
 | M3-E02 | todo | 3 | M3-E01 | G09 | script から native host を呼び入れ子 guest callback を受信 | — |
 | M3-E03 | todo | 3 | M3-E02,M3-R03 | G09 | typed failure、元の context、再入規則、poison を mode 間で維持 | — |
@@ -285,7 +289,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 66 − 130 = 46 pt**
+**110 + 66 − 133 = 43 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -333,13 +337,15 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +66 pt | −130 pt | 46 pt |
+| 110 pt | +66 pt | −133 pt | 43 pt |
 
 ## Exit audit
 
-**2/15 gates complete; 10/96 gate weight.** G01 の受理条件は accepted/implemented の RFC 0021–0026、すなわち厳密 source async/suspension・task scheduling・Send/Share・有界 channel/backpressure/error・service isolation/cancellation で立証します。G02 の受理条件は `1f477fa` の受理済み RFC 0027 と規範 versioned wire/C surface が、互換性・typed failure・再入・cancellation 対応を含めて満たします。これらは受理 gate です。G03–G15 は実装・合算 control・両 host runtime/conformance・安定化・example の条件を維持し、header cross-compile で G14 を満たしません。P1 は M3 外へ移しません。
+**3/15 gates complete; 18/96 gate weight.** G01 の受理条件は accepted/implemented の RFC 0021–0026、すなわち厳密 source async/suspension・task scheduling・Send/Share・有界 channel/backpressure/error・service isolation/cancellation で立証します。G02 の受理条件は `1f477fa` の受理済み RFC 0027 と規範 versioned wire/C surface が、互換性・typed failure・再入・cancellation 対応を含めて満たします。G01/G02 は受理 gate です。G06 の実装条件は、I02/I03/I04/I05/I06 の versioned IDL・canonical codec・生成/交渉/独立 binding proof と、I10/I11/I07 の保存 task/component profile により満たします。`a0501f4`（2026-10-24 10:00 JST）で全宣言、未使用 graph、origin、既存/独立 vector、累積 byte/work/storage/depth 上限を検証し、IDL/有界 serialization を実装済みと監査しました。G03–G05 と G07–G15 は実装・合算 control・両 host runtime/conformance・安定化・example の条件を維持し、header cross-compile で G14 を満たしません。P1 は M3 外へ移しません。
 
 ## Sources
+
+I07 証拠/P02 scope 監査: [RFC 0028](rfcs/0028-task-component-artifacts.md) と [RFC 0027](rfcs/0027-production-component-interface.md) は2026-10-24更新、[RFC 0013](rfcs/0013-service-byte-work-budget.md) は2026-10-22更新。完全 artifact/metadata codec・`tests/component_artifacts.rs`・`tests/component_source_resource.rs` と固定入力 baseline を `a0501f4`、2026-10-24 10:00 JST、macOS AArch64 で実行/検証しました。code に更新日の埋込みはありません。P02 は残条件の調査であり、実装完了の証拠ではありません。
 
 R03 証拠: [RFC 0027](rfcs/0027-production-component-interface.md) は2026-10-24更新。native 結果 receipt/bridge・元 resource table・共通 import/staging/drain と `tests/component_source_resource.rs` を `0e7b8ae` で実行/検証（2026-10-24 06:12 JST、macOS AArch64）。code 内の更新日は不明で、追跡対象/新規791入力の固定 hash と完了した baseline は上記に記録します。I07 実験は同 checkpoint の既存 CLI/`examples/scripts/tasks.lang` と ownership writer の constructor 拒否を確認し、artifact を公開していません。
 
