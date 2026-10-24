@@ -37,8 +37,10 @@ impl<'a> CAllocator<'a> {
     pub(crate) unsafe fn owned(context: &Context<'a>) -> Result<Self, Error> {
         let provider = Provider {
             context: context.allocator_identity(),
-            descriptor: context.allocator(),
-            lifetime: PhantomData,
+            // SAFETY: owned retains the original descriptor's foreign code,
+            // user and actual storage until every managed region is retired.
+            storage: unsafe { ForeignProvider::new(context.allocator()) }
+                .expect("checked context allocator"),
         };
         let inner =
             a::Allocator::new(provider, context.limits().allocation).map_err(Error::Allocation)?;
@@ -63,8 +65,34 @@ impl<'a> CAllocator<'a> {
 
 pub struct Provider<'a> {
     context: AllocatorIdentity,
+    storage: ForeignProvider<'a>,
+}
+/// Original foreign storage without a scalar-context identity. The component
+/// gateway can use the same allocator and Region implementation directly.
+pub struct ForeignProvider<'a> {
     descriptor: Allocator,
-    lifetime: PhantomData<&'a Context<'a>>,
+    lifetime: PhantomData<&'a ()>,
+}
+impl<'a> ForeignProvider<'a> {
+    /// # Safety
+    /// The copied allocate/deallocate code and user storage must remain live
+    /// through every returned region's final deallocation. Positive allocation
+    /// returns unique, aligned writable storage of the exact request size, or
+    /// null for OOM. Neither callback unwinds or reenters; no aliases are kept.
+    /// Descriptor pointer validity must be established before copying fields.
+    pub unsafe fn new(descriptor: Allocator) -> Option<Self> {
+        if descriptor.version != 1
+            || descriptor.size != std::mem::size_of::<Allocator>() as u32
+            || descriptor.allocate.is_none()
+            || descriptor.deallocate.is_none()
+        {
+            return None;
+        }
+        Some(Self {
+            descriptor,
+            lifetime: PhantomData,
+        })
+    }
 }
 impl lang_runtime::c_abi::context::scalar::ContextProvider for Provider<'_> {
     fn context_identity(&self) -> AllocatorIdentity {
@@ -72,7 +100,7 @@ impl lang_runtime::c_abi::context::scalar::ContextProvider for Provider<'_> {
     }
 }
 pub struct Region<'a> {
-    _context: PhantomData<&'a Context<'a>>,
+    _provider: PhantomData<&'a ()>,
     descriptor: Allocator,
     request: a::Request,
     pointer: NonNull<u8>,
@@ -80,7 +108,7 @@ pub struct Region<'a> {
 impl a::Region for Region<'_> {
     fn bytes(&self) -> &[u8] {
         // SAFETY: construction initializes every byte of unique live storage;
-        // the context borrow retains its provider's lifetime. Zero uses a
+        // the provider's constructor retains its foreign lifetime. Zero uses a
         // non-null dangling byte pointer and a zero length.
         unsafe { std::slice::from_raw_parts(self.pointer.as_ptr(), self.request.bytes() as usize) }
     }
@@ -95,11 +123,20 @@ impl a::Region for Region<'_> {
 impl<'a> a::Provider for Provider<'a> {
     type Region = Region<'a>;
     fn allocate(&mut self, request: a::Request) -> Option<Self::Region> {
+        a::Provider::allocate(&mut self.storage, request)
+    }
+    fn deallocate(&mut self, region: Self::Region, request: a::Request) {
+        a::Provider::deallocate(&mut self.storage, region, request);
+    }
+}
+impl<'a> a::Provider for ForeignProvider<'a> {
+    type Region = Region<'a>;
+    fn allocate(&mut self, request: a::Request) -> Option<Self::Region> {
         let pointer = if request.bytes() == 0 {
             NonNull::dangling()
         } else {
             let allocate = self.descriptor.allocate.expect("checked context allocator");
-            // SAFETY: CAllocator::new requires the actual storage/lifetime and
+            // SAFETY: ForeignProvider::new requires actual storage/lifetime and
             // no-unwind/reentry contract. Request already proves native bounds.
             let pointer = NonNull::new(
                 unsafe { allocate(self.descriptor.user, request.bytes(), request.alignment()) }
@@ -111,7 +148,7 @@ impl<'a> a::Provider for Provider<'a> {
             pointer
         };
         Some(Region {
-            _context: PhantomData,
+            _provider: PhantomData,
             descriptor: self.descriptor,
             request,
             pointer,
