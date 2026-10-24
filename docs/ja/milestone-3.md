@@ -10,7 +10,7 @@
 
 **次: M3-E02 → live/task制御・active-instance/typed transport・公開C callbackを完成。**
 
-E12は元台帳の準備失敗課金と局所IDL proofコストを統合し、既定の有限予算で実VM/JIT callbackを実行しました。E02だけをdoingへ戻します。次はfinite frame/cell/service-workとtask identity・親子合算live制御を接続し、active-instance policy・typed loan/grant/引数/結果・公開context_call/独立C11の完全な受入を維持します。3つの接続済み成果としてE02の残り3 ptを再確認し、行やpointは追加しません。
+E02の現在scope: 元accountingのparent offsetをframe/cell入場へ接続し、root/helper call・queue増加を確保前に合算上限で判定します。実VM/JIT callbackのゼロ/上限一致/1不足・child反復・cleanupを先に実行し、次に元ServiceWorkの合算quotaと型付き原因を検証します。task identity・active-instance/typed transport・公開C11とE03/E04/L04を維持し、E02はdoing 3 ptのままです。行・pointは追加しません。
 
 R06 実装/検証 checkpoint（**2026-10-24 04:35 JST**、macOS AArch64 検証）: 実 native holder の custody、直接/record/list の所有引数、own/loan 混在 batch、元 backing の変更と一度だけの破棄を含む **source 回帰47件**が VM/生成 native で成功しました。宣言済み error、不正/欠落/foreign 結果、割り込み、destructor 失敗、160通りの fuel 上限と provider 失敗位置で、受入済み owner を保持または退役し、元 allocation を全解放します。消費済み token の receipt は共通の反復 container drain まで届き、直接引数の metadata 拡張も同じ有限 wire Session を使います。破棄も失敗した場合は native failure を primary に維持し、suppressed span と永続 poison を保持します。**runtime 単体151件**も成功しました。入力固定の全 baseline は **141 suites / 2,136 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **728.29 s**、test log の時間幅は test build を含め **2,840.94 s**です。workspace/fuzz fmt、warnings-denied workspace Clippy（**2m 43s**）、rustdoc（**44.90s**）、全 **14 fuzz target** の compile/lint が成功し、campaign は主張しません。**追跡対象790ファイル**の前後 hash が一致しました（`8d3a5b1d8feb3ab0f64627d0a1dbb3889f55e47deb71d6b47463c383af632bfe`）。先の修正前/中断 run は最終証拠ではありません。非公開 import profile は native 所有結果をまだ拒否し、完全 public embedding/reentry・永続 provider 所有権・installed profile・統一 control・両 host runtime 証拠は追跡済み後続作業です。code 証拠は `8914a50` です。
 

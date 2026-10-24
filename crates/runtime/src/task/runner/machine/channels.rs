@@ -74,10 +74,18 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
     }
     fn channel_admit(&self, additional: usize) -> Result<(), Reason> {
         self.control.check()?;
+        let local = e::LiveUsage {
+            frames: 0,
+            cells: self
+                .value_cells()?
+                .checked_add(additional)
+                .ok_or(e::Failure::CounterOverflow)?,
+        };
         let cells = self
-            .value_cells()?
-            .checked_add(additional)
-            .ok_or(Reason::Invariant)?;
+            .accounting
+            .as_ref()
+            .map_or(Ok(local), |accounting| accounting.live_with_parent(local))?
+            .cells;
         if self
             .control
             .limits()

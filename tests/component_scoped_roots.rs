@@ -179,6 +179,24 @@ unsafe extern "C" fn make(
     // Native host-error status is 1; context-operation status codes are separate.
     result.map_or_else(|_| 1, |()| 0)
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ChildControlFailure {
+    Frames,
+    Cells,
+    Control(e::Failure),
+}
+fn control_failure(reason: &r::Reason) -> Option<ChildControlFailure> {
+    match reason {
+        r::Reason::Execution(m::ownership::failure::ExecutionFailure::FrameLimit) => {
+            Some(ChildControlFailure::Frames)
+        }
+        r::Reason::Execution(m::ownership::failure::ExecutionFailure::CellLimit) => {
+            Some(ChildControlFailure::Cells)
+        }
+        r::Reason::Control(failure) => Some(ChildControlFailure::Control(*failure)),
+        _ => None,
+    }
+}
 struct Child {
     unit: bindings::Unit,
     owner: RefCell<Weak<Owner>>,
@@ -200,6 +218,7 @@ struct Child {
     reply_before: Cell<Option<m::Usage>>,
     preparation_after: Cell<Option<m::Usage>>,
     failure: RefCell<Option<String>>,
+    control_failure: Cell<Option<ChildControlFailure>>,
 }
 impl Child {
     fn new(
@@ -229,6 +248,7 @@ impl Child {
             reply_before: Cell::new(None),
             preparation_after: Cell::new(None),
             failure: RefCell::new(None),
+            control_failure: Cell::new(None),
         }
     }
     unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
@@ -494,6 +514,9 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                         )
                         .map_err(|error| {
                             self.target.failure.replace(Some(format!("{error:?}")));
+                            self.target
+                                .control_failure
+                                .set(control_failure(&error.reason));
                             1u32
                         })?;
                         self.target
@@ -635,6 +658,9 @@ fn provider(owner: Rc<Owner>) -> native::Provider<'static> {
     .unwrap()
 }
 fn stored_unit() -> bindings::Unit {
+    stored_unit_for(include_bytes!("fixtures/component_scoped_roots.lang"))
+}
+fn stored_unit_for(source: &[u8]) -> bindings::Unit {
     let host = host_document();
     let bytes = serde_json::to_vec(&json!({
         "idl":1,"package":"demo:scope","version":"1.0.0",
@@ -655,7 +681,7 @@ fn stored_unit() -> bindings::Unit {
     let out = f::analyze(f::Request {
         sources: SourceMap::new(),
         display: Path::new("component-scoped-roots.lang"),
-        bytes: include_bytes!("fixtures/component_scoped_roots.lang"),
+        bytes: source,
         root: None,
         compile: Default::default(),
         document: idl::check(m::SourceId(82), &bytes, Default::default()).unwrap(),
@@ -1523,39 +1549,213 @@ fn finite_original_preparation_executes_guest_children_and_releases_original_own
     original_native_callback_roundtrip(false);
 }
 #[test]
-fn private_child_profile_refuses_unconnected_finite_policies_before_native_effects() {
+fn finite_callback_live_limits_include_parent_root_helper_and_repeated_children() {
+    fn run(
+        compiled: bool,
+        repetitions: usize,
+        frames: Option<usize>,
+        cells: Option<usize>,
+    ) -> (bool, e::Usage, Option<ChildControlFailure>) {
+        let mut h = Harness::new();
+        let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+        child.unit = stored_unit_for(include_bytes!("fixtures/component_scoped_roots_call.lang"));
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let control = e::Control::with_limits(e::Limits {
+            frames,
+            live_cells: cells,
+            ..e::Limits::unbounded()
+        });
+        let result = h.call_control(registration, "create", None, compiled, control);
+        let (ok, usage, failure) = match result {
+            Ok(created) => {
+                assert_eq!(child.value.get(), 42);
+                let usage = created.usage;
+                let execution::Value::Resource(claim) = created.value else {
+                    panic!("original owner")
+                };
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+                (true, usage, None)
+            }
+            Err(error) => {
+                assert!(!error.poisoned, "{error:?}");
+                let failure = control_failure(&error.reason).or(child.control_failure.get());
+                assert!(
+                    failure.is_some(),
+                    "{error:?}; child={:?}",
+                    child.failure.borrow()
+                );
+                (false, error.usage, failure)
+            }
+        };
+        if frames == Some(0) || cells == Some(0) {
+            assert_eq!(h.provider_calls.get(), 0);
+            assert!(child.parent.get().is_none());
+        }
+        assert_eq!(watch.destroyed.get(), watch.produced.get());
+        assert_eq!(watch.released.get(), 1);
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+        let (next, next_watch) = h.registration(false);
+        let next = h.call(next, "create", None, compiled).unwrap();
+        let execution::Value::Resource(claim) = next.value else {
+            panic!("next owner")
+        };
+        let (cleanup, _) = h.registration(false);
+        h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+        assert_eq!(next_watch.destroyed.get(), 1);
+        assert_eq!(next_watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        (ok, usage, failure)
+    }
+    let mut reference = None;
     for compiled in [false, true] {
-        for policy in 0..3 {
-            let mut h = Harness::new();
-            h.preparation_limits.work = usize::MAX;
-            h.preparation_limits.allocations = usize::MAX;
-            h.preparation_limits.elements = usize::MAX;
+        let baseline = run(compiled, 1, None, None);
+        assert!(baseline.0);
+        assert_eq!(baseline.1.peak_frames, 3);
+        assert!(baseline.1.peak_live_cells > 0);
+        if let Some(expected) = reference {
+            assert_eq!(baseline.1, expected);
+        } else {
+            reference = Some(baseline.1);
+        }
+        for repetitions in [1, 2] {
+            let frames = baseline.1.peak_frames;
+            let cells = baseline.1.peak_live_cells;
+            let exact = run(compiled, repetitions, Some(frames), Some(cells));
+            assert!(exact.0, "exact aggregate live bounds");
+            assert_eq!(exact.1.peak_frames, frames);
+            assert_eq!(exact.1.peak_live_cells, cells);
+            for limit in [0, 1, frames - 1] {
+                let failed = run(compiled, repetitions, Some(limit), Some(cells));
+                assert!(!failed.0);
+                assert_eq!(failed.2, Some(ChildControlFailure::Frames));
+                assert!(failed.1.peak_frames <= limit);
+            }
+            for limit in [0, 1, cells - 1] {
+                let failed = run(compiled, repetitions, Some(frames), Some(limit));
+                assert!(!failed.0);
+                assert_eq!(failed.2, Some(ChildControlFailure::Cells));
+                assert!(failed.1.peak_live_cells <= limit);
+            }
+        }
+    }
+}
 
-            let child = Rc::new(Child::new(&mut h.values, compiled, 1, usize::MAX));
-            let (registration, watch) = h.registration_child(false, Some(child.clone()));
-            let mut limits = e::Limits::unbounded();
-            if policy == 0 {
-                limits.frames = Some(256);
+#[test]
+fn finite_callback_service_work_keeps_original_prefixes_and_typed_causes() {
+    fn run(compiled: bool, repetitions: usize, limit: Option<u64>) -> (bool, e::Usage) {
+        let mut h = Harness::new();
+        let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+        child.unit = stored_unit_for(include_bytes!("fixtures/component_scoped_roots_call.lang"));
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let control = e::Control::with_limits(e::Limits {
+            frames: Some(16),
+            live_cells: Some(4096),
+            ..e::Limits::unbounded()
+        })
+        .and_service_work(limit);
+        let result = h.call_control(registration, "create", None, compiled, control);
+        let (ok, usage) = match result {
+            Ok(created) => {
+                assert_eq!(child.value.get(), 42);
+                let before = child.before.get().unwrap();
+                let after = child.after.get().unwrap();
+                assert!(after.service_work > before.service_work);
+                assert!(created.usage.service_work >= after.service_work);
+                let execution::Value::Resource(claim) = created.value else {
+                    panic!("original owner")
+                };
+                let usage = created.usage;
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+                (true, usage)
             }
-            if policy == 1 {
-                limits.live_cells = Some(1000);
+            Err(error) => {
+                let r::Reason::Control(e::Failure::ServiceWorkLimit {
+                    limit: cap,
+                    used,
+                    requested,
+                }) = error.reason
+                else {
+                    panic!(
+                        "typed original quota: {error:?}; child={:?}",
+                        child.failure.borrow()
+                    );
+                };
+                assert_eq!(Some(cap), limit);
+                assert_eq!(used, error.usage.service_work);
+                assert!(requested > cap - used);
+                assert!(!error.poisoned);
+                (false, error.usage)
             }
-            let mut control = e::Control::with_limits(limits);
-            if policy == 2 {
-                control = control.and_service_work(Some(1000));
+        };
+        assert_eq!(watch.destroyed.get(), watch.produced.get());
+        assert_eq!(watch.released.get(), 1);
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+        let (next, next_watch) = h.registration(false);
+        let next = h.call(next, "create", None, compiled).unwrap();
+        let execution::Value::Resource(claim) = next.value else {
+            panic!("fresh parent owner")
+        };
+        let (cleanup, _) = h.registration(false);
+        h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+        assert_eq!(next_watch.destroyed.get(), 1);
+        assert_eq!(next_watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        (ok, usage)
+    }
+    let mut reference = Vec::new();
+    for compiled in [false, true] {
+        let mut once = 0;
+        for repetitions in [1, 2] {
+            let baseline = run(compiled, repetitions, None);
+            assert!(baseline.0);
+            if compiled {
+                assert_eq!(
+                    baseline.1,
+                    reference[repetitions - 1],
+                    "VM/native callback work"
+                );
+            } else {
+                reference.push(baseline.1);
             }
-            let failure = h
-                .call_control(registration, "create", None, compiled, control)
-                .err()
-                .expect("unsupported private policy");
-            assert!(matches!(failure.reason, r::Reason::Unsupported));
-            assert_eq!(watch.produced.get(), 0);
-            assert_eq!(watch.destroyed.get(), 0);
-            assert_eq!(watch.released.get(), 1);
-            assert!(child.parent.get().is_none() && child.nested.get().is_none());
-            assert!(h.values.is_empty());
-            assert_eq!(h.allocator.stats().requests, 0);
-            assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+            let required = baseline.1.service_work;
+            assert!(required > once);
+            for limit in 0..=required {
+                let (ok, usage) = run(compiled, repetitions, Some(limit));
+                assert_eq!(ok, limit == required, "quota prefix {limit}/{required}");
+                assert!(usage.service_work <= limit);
+                if ok {
+                    assert_eq!(usage, baseline.1);
+                }
+            }
+            if repetitions == 2 {
+                assert!(
+                    !run(compiled, repetitions, Some(once)).0,
+                    "original counter spans both children"
+                );
+            }
+            once = required;
         }
     }
 }

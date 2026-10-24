@@ -2648,7 +2648,7 @@ fn run_source_namespace(
             assert!(destroyed.method_control_checked.get());
         }
         if let Err(failure) = outcome {
-            if native_flags != 0 {
+            if native_flags & !1 != 0 {
                 assert!(matches!(
                     failure.reason,
                     lang_runtime::task::runner::Reason::Unsupported
@@ -3423,9 +3423,21 @@ fn stored_native_import_service_work_exact_and_every_prefix_matches_vm_and_nativ
 }
 
 #[test]
-fn finite_component_admission_refuses_an_unused_unmetered_native_method_before_effects() {
-    let observed = run_source_configuration(Case::SharedLoan, true, Some(u64::MAX), 1, false);
-    assert_eq!((observed.0, observed.1), (false, false));
+fn finite_component_admission_keeps_work_limits_with_unused_reentry_methods() {
+    let baseline = run_source_configuration(Case::SharedLoan, true, Some(u64::MAX), 1, false);
+    assert_eq!((baseline.0, baseline.1), (true, true));
+    let plain = run_source_configuration(Case::SharedLoan, true, Some(u64::MAX), 0, false);
+    assert_eq!(baseline, plain, "unused reentry changes no value-work cost");
+    let used = baseline.2.service_work;
+    assert!(used > 0);
+    for limit in [0, used - 1, used] {
+        let observed = run_source_configuration(Case::SharedLoan, true, Some(limit), 1, false);
+        assert_eq!(observed.0, limit == used);
+        assert!(observed.2.service_work <= limit);
+        if limit == 0 {
+            assert!(!observed.1, "zero work preserves caller ownership");
+        }
+    }
 }
 
 #[test]

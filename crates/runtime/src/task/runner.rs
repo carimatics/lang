@@ -401,6 +401,13 @@ fn execute_component_profile<P: a::Provider, B: Backend<P>>(
         Some((program, &mut *host)),
         preparation,
     );
+    if let Err(failure) = &result
+        && let Reason::Control(
+            cause @ (e::Failure::ServiceWorkLimit { .. } | e::Failure::CounterOverflow),
+        ) = &failure.reason
+    {
+        accounting.latch_preparation_failure(*cause);
+    }
     let poisoned = match &result {
         Ok(outcome) => outcome.poisoned,
         Err(failure) => failure.poisoned,
@@ -509,7 +516,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
             let supported=if let Some(program)=program{
                 let budget=component_budget.as_mut().ok_or(Reason::Invariant)?;
                 for import in declarations.imports(){budget.charge(1)?;if import.abi!=o::declarations::ImportAbi::Component{return Err(Reason::Unsupported);}}
-                for import in program.bindings().imports(){budget.charge(1)?;if import.method().flags!=0{return Err(Reason::Unsupported);}}
+                for import in program.bindings().imports(){budget.charge(1)?;if import.method().flags & !1 != 0{return Err(Reason::Unsupported);}}
                 // Admit the complete capability scan, including unused bodies.
                 for function in typed.functions(){
                     budget.charge(1)?;

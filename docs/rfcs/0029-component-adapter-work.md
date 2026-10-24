@@ -7,11 +7,13 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-24
-- Last updated: 2026-10-24
+- Last updated: 2026-10-25
 - Implemented: 2026-10-24
 - Tracking issue: M3-P02
 - Supersedes: None; elaborates RFC 0013/0027 for the component profile
 - Superseded by: None
+
+Accepted E02 synchronous-child decision (2026-10-25 JST, RFC 0001 experimental delegation): admit finite work for reentry-opted-in native methods only after the existing complete-unit metering predicate passes and the child borrows the same original control/accounting and ServiceWork. If checked child execution fails with ServiceWorkLimit/CounterOverflow, retain the first typed cause on original accounting; the restored parent preserves existing ABI-status validation, then checks it before interpreting an ABI-valid host status or the returned buffer. A raw host-error status cannot hide quota exhaustion or publish a result. This extends the existing invocation-terminal canonical-preparation failure rule without another counter. Cleanup remains unmetered on original allocator/owners; exhaustion alone does not poison. Require actual VM/JIT callbacks with zero/every-prefix/exact caps, repeats, original first-cause numeric fields, cleanup and fresh-parent execution. General child diagnostics/stacks, task identity, active-instance/typed transport, public C and both-host conditions remain; formats do not change.
 
 ## Summary
 

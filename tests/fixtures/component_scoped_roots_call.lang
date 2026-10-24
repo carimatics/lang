@@ -1,0 +1,34 @@
+pub struct CounterKind {}
+pub struct Request { delta: i64, label: core::Text }
+extern "component" fn host_apply(
+    state: &mut core::ComponentResource<CounterKind>,
+    request: Request
+) -> core::Result<i64, core::Text>;
+extern "component" fn host_make() -> core::ComponentResource<CounterKind>;
+extern "component" fn host_tick() -> i64;
+
+pub fn relay(value: core::ComponentResource<CounterKind>) -> core::ComponentResource<CounterKind> {
+    return value;
+}
+
+pub fn consume(value: core::ComponentResource<CounterKind>) -> i64 {
+    return 42;
+}
+
+pub fn create() -> core::ComponentResource<CounterKind> {
+    return host_make();
+}
+
+pub fn answer() -> i64 {
+    return increment(host_tick());
+}
+
+fn increment(value: i64) -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 65));
+    let mut copy: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_clone(core::allocator(), bytes));
+    return value + core::bytes_len(copy);
+}

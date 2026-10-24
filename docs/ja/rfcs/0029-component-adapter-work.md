@@ -7,11 +7,13 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-24
-- Last updated: 2026-10-24
+- Last updated: 2026-10-25
 - Implemented: 2026-10-24
 - Tracking issue: M3-P02
 - Supersedes: なし。component profile について RFC 0013/0027 を具体化
 - Superseded by: なし
+
+E02同期childの受理判断（2026-10-25 JST、RFC 0001実験段階の委任）: reentry opt-inのnative methodも、完全unitの既存metering対応検査を通り、元control/accountingとServiceWorkを同一のまま借用する場合に有限workを受理します。child実行がServiceWorkLimit/CounterOverflowで失敗した場合は、元accountingに最初の型付き原因を保持し、復元した親は既存のABI status妥当性検査を維持したうえで、ABI上有効なhost statusや返却bufferを解釈する前に確認します。これによりraw host-error statusでquota原因を隠したり、結果を公開したりできません。既存のcanonical準備失敗の保持と同じinvocation単位の終端性を用い、counterを増設しません。cleanupは元allocator/ownerでunmeteredのまま行い、単なる枯渇ではpoisonしません。元counterのVM/JIT実callbackでゼロ/全prefix/上限一致・反復・最初の原因/数値・cleanup・fresh parentを検証します。一般のchild診断/stack・task identity・active-instance/typed transport・公開Cと両hostの条件は維持し、formatは変更しません。
 
 ## 概要
 

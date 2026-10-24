@@ -170,7 +170,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .checked_add(1)
             .and_then(|n| n.checked_add(component_cells))
             .ok_or(Reason::Invariant)?;
-        admit(control, 0, 0, cells)?;
+        admit(control, accounting.as_ref(), 0, 0, cells)?;
         let mut records = budget.vector(limits.tasks.total_tasks)?;
         let mut faults = budget.vector(limits.tasks.total_tasks)?;
         faults.resize_with(limits.tasks.total_tasks, || None);
@@ -449,7 +449,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .as_ref()
             .ok_or(Reason::Invariant)?;
         let cells = plan.cleanup_slots() + 1;
-        admit(self.control, self.live_frames, self.value_cells()?, cells)?;
+        admit(
+            self.control,
+            self.accounting.as_ref(),
+            self.live_frames,
+            self.value_cells()?,
+            cells,
+        )?;
         let activation = frame::ActivationId(self.next_activation);
         self.next_activation = self
             .next_activation
@@ -1280,12 +1286,27 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
     }
 }
-fn admit(control: e::Control<'_>, frames: usize, cells: usize, add: usize) -> Result<(), Reason> {
+fn admit(
+    control: e::Control<'_>,
+    accounting: Option<&e::InvocationAccounting>,
+    frames: usize,
+    cells: usize,
+    add: usize,
+) -> Result<(), Reason> {
     control.check()?;
-    if control.limits().frames.is_some_and(|limit| frames >= limit) {
+    let local = e::LiveUsage { frames, cells };
+    let live = accounting.map_or(Ok(local), |accounting| accounting.live_with_parent(local))?;
+    let frames = live
+        .frames
+        .checked_add(1)
+        .ok_or(e::Failure::CounterOverflow)?;
+    if control.limits().frames.is_some_and(|limit| frames > limit) {
         return Err(Reason::Execution(f::ExecutionFailure::FrameLimit));
     }
-    let cells = cells.checked_add(add).ok_or(Reason::Invariant)?;
+    let cells = live
+        .cells
+        .checked_add(add)
+        .ok_or(e::Failure::CounterOverflow)?;
     if control
         .limits()
         .live_cells
@@ -1294,4 +1315,101 @@ fn admit(control: e::Control<'_>, frames: usize, cells: usize, add: usize) -> Re
         return Err(Reason::Execution(f::ExecutionFailure::CellLimit));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod live_admission_tests {
+    use super::*;
+
+    #[test]
+    fn parent_live_admission_is_exact_checked_and_scope_local() {
+        let control = e::Control::with_limits(e::Limits {
+            frames: Some(3),
+            live_cells: Some(10),
+            ..e::Limits::unbounded()
+        });
+        let mut budget = m::Budget::new(Default::default());
+        let accounting = e::InvocationAccounting::prepare(control, &mut budget).unwrap();
+        let empty = e::LiveUsage::default();
+        for _ in 0..2 {
+            accounting
+                .with_parent(
+                    e::LiveUsage {
+                        frames: 1,
+                        cells: 3,
+                    },
+                    || {
+                        assert!(admit(control, Some(&accounting), 1, 4, 3).is_ok());
+                        assert!(matches!(
+                            admit(control, Some(&accounting), 1, 4, 4),
+                            Err(Reason::Execution(f::ExecutionFailure::CellLimit))
+                        ));
+                        assert!(matches!(
+                            admit(control, Some(&accounting), 2, 4, 0),
+                            Err(Reason::Execution(f::ExecutionFailure::FrameLimit))
+                        ));
+                        accounting
+                            .with_parent(
+                                e::LiveUsage {
+                                    frames: 1,
+                                    cells: 2,
+                                },
+                                || {
+                                    assert!(admit(control, Some(&accounting), 0, 0, 5).is_ok());
+                                    assert!(matches!(
+                                        admit(control, Some(&accounting), 0, 1, 5),
+                                        Err(Reason::Execution(f::ExecutionFailure::CellLimit))
+                                    ));
+                                },
+                            )
+                            .unwrap();
+                        assert_eq!(
+                            accounting.live_with_parent(empty).unwrap(),
+                            e::LiveUsage {
+                                frames: 1,
+                                cells: 3
+                            }
+                        );
+                    },
+                )
+                .unwrap();
+            assert_eq!(accounting.live_with_parent(empty).unwrap(), empty);
+        }
+        let unwind = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            accounting
+                .with_parent(
+                    e::LiveUsage {
+                        frames: 2,
+                        cells: 8,
+                    },
+                    || panic!("contained admission scope"),
+                )
+                .unwrap()
+        }));
+        assert!(unwind.is_err());
+        assert_eq!(accounting.live_with_parent(empty).unwrap(), empty);
+        let unbounded = e::Control::with_limits(e::Limits::unbounded());
+        for live in [
+            e::LiveUsage {
+                frames: usize::MAX,
+                cells: 0,
+            },
+            e::LiveUsage {
+                frames: 0,
+                cells: usize::MAX,
+            },
+        ] {
+            accounting
+                .with_parent(live, || {
+                    assert!(matches!(
+                        admit(unbounded, Some(&accounting), 0, 0, 1),
+                        Err(Reason::Control(e::Failure::CounterOverflow))
+                    ));
+                })
+                .unwrap();
+        }
+        assert_eq!(accounting.live_with_parent(empty).unwrap(), empty);
+        assert_eq!(accounting.snapshot(), e::Usage::default());
+        assert_eq!(budget.limits(), m::Limits::default());
+    }
 }

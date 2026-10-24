@@ -893,6 +893,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 if returned.status > 1 {
                     return Err(Reason::Native(NativeFailure::Invocation(returned.status)));
                 }
+                if let Some(failure) = self.accounting.preparation_failure() {
+                    return Err(Reason::Control(failure));
+                }
                 if returned.status != 0 {
                     let bytes = if returned.buffer.is_null() {
                         Vec::new()

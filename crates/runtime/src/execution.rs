@@ -171,7 +171,7 @@ impl From<Control<'_>> for Configuration {
 /// entry, allocator, resource or loan authority. Clones retain the same counters.
 #[derive(Clone, Debug)]
 pub struct InvocationAccounting(Rc<Accounting>);
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct LiveUsage {
     pub frames: usize,
     pub cells: usize,
@@ -232,6 +232,20 @@ impl InvocationAccounting {
         let _restore = Restore(&self.0.parent, previous);
         self.0.parent.set(next);
         Ok(operation())
+    }
+    /// Combine a Machine's live counts with its suspended synchronous ancestors.
+    pub(crate) fn live_with_parent(&self, local: LiveUsage) -> Result<LiveUsage, Failure> {
+        let parent = self.0.parent.get();
+        Ok(LiveUsage {
+            frames: parent
+                .frames
+                .checked_add(local.frames)
+                .ok_or(Failure::CounterOverflow)?,
+            cells: parent
+                .cells
+                .checked_add(local.cells)
+                .ok_or(Failure::CounterOverflow)?,
+        })
     }
     pub fn work(&self) -> &ServiceWork {
         &self.0.work

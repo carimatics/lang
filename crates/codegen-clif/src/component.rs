@@ -236,10 +236,7 @@ impl Drop for Active {
 }
 impl Invoker for Invocation<'_, '_> {
     fn reentry_supported(&self) -> bool {
-        let limits = self.control.limits();
-        limits.frames.is_none()
-            && limits.live_cells.is_none()
-            && self.control.service_work_limit().is_none()
+        true
     }
     fn control(&self) -> e::Control<'_> {
         self.control
@@ -415,18 +412,14 @@ pub unsafe fn with_child<T>(
     // SAFETY: the validated active scope retains the original control/call.
     let control = unsafe { *state.control };
     control.check().map_err(|_| 1u32)?;
-    let limits = control.limits();
-    if limits.frames.is_some()
-        || limits.live_cells.is_some()
-        || control.service_work_limit().is_some()
-    {
-        return Err(4);
-    }
     let call = unsafe { &mut *call };
     if !call.child_profile_supported() {
         return Err(4);
     }
     let accounting = call.accounting().ok_or(4u32)?.clone();
+    if !accounting.matches(control) {
+        return Err(4);
+    }
     let parent_live = call.parent_live();
     struct Restore {
         state: *mut State,
