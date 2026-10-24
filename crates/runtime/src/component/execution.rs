@@ -327,7 +327,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         let kind = backing.kind().map_err(|_| 17u32)?;
         let mut cleanup =
             c::Contextual::new(|_: &mut (), _: c::Reason, context: &mut c::Context<'_>| {
-                self.invoker.destroy(kind, &mut backing, memory, context)
+                self.invoker
+                    .destroy(kind.clone(), &mut backing, memory, context)
             });
         context.field((), span, &mut cleanup);
         backing.release(memory).map_err(|_| 17u32)
@@ -637,7 +638,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                         .check_loan(loan, argument.claim, self.guest, memory)
                         .map_err(fault)?;
                     self.resources
-                        .check_view(loan, kind, access)
+                        .check_view(loan, kind.clone(), access)
                         .map_err(fault)?;
                     loans[position] = Some(loan);
                 } else {
@@ -646,7 +647,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                         .map_err(fault)?;
                     // Implementation matching precedes callback/view publication.
                     self.resources
-                        .bytes(argument.claim, self.guest, kind, memory)
+                        .bytes(argument.claim, self.guest, kind.clone(), memory)
                         .map_err(fault)?;
                     inputs.push(storage::Input {
                         claim: argument.claim,
@@ -712,7 +713,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                     (
                         call::NativeAuthority::Own(claim, holder),
                         self.resources
-                            .owned_view(claim, holder, kinds[index], memory)
+                            .owned_view(claim, holder, kinds[index].clone(), memory)
                             .map_err(fault)?,
                     )
                 } else {
@@ -720,13 +721,13 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                     (
                         call::NativeAuthority::Loan(loan),
                         self.resources
-                            .view(loan, kinds[index], accesses[index], memory)
+                            .view(loan, kinds[index].clone(), accesses[index], memory)
                             .map_err(fault)?,
                     )
                 };
                 views.push(call::NativeView {
                     authority,
-                    kind: kinds[index],
+                    kind: kinds[index].clone(),
                     access: accesses[index],
                     bytes,
                 });
@@ -855,7 +856,8 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                 let kind = backing.kind().map_err(|_| 17u32)?;
                 let mut destroy =
                     c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
-                        self.invoker.destroy(kind, &mut backing, memory, context)
+                        self.invoker
+                            .destroy(kind.clone(), &mut backing, memory, context)
                     });
                 context.field((), Some(span), &mut destroy);
                 backing.release(memory).map_err(|_| 17u32)

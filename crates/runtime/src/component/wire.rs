@@ -328,6 +328,22 @@ impl Session {
         self.serialized = total;
         Ok(())
     }
+    pub(super) fn retained<T>(&mut self, n: usize, at: usize) -> Result<(), Error> {
+        self.budget
+            .allocate::<T>(n)
+            .map_err(|e| Self::budget_error(at, e))
+    }
+    pub(super) fn shared<T>(
+        &mut self,
+        value: impl FnOnce() -> T,
+        at: usize,
+    ) -> Result<std::rc::Rc<T>, Error> {
+        // Preparation storage model: retained payload plus two reference counts.
+        // All fallible admission precedes ownership acquisition in the factory.
+        self.retained::<T>(1, at)?;
+        self.retained::<usize>(2, at)?;
+        Ok(std::rc::Rc::new(value()))
+    }
     pub(super) fn vector<T>(&mut self, n: usize, at: usize) -> Result<Vec<T>, Error> {
         self.budget.vector(n).map_err(|e| Self::budget_error(at, e))
     }

@@ -186,10 +186,13 @@ impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
         let index = index.checked_sub(1).ok_or(7u32)? as usize;
         let view = self.views.get(index).ok_or(7u32)?;
         match view.authority {
-            NativeAuthority::Loan(loan) => self.resources.check_view(loan, view.kind, view.access),
+            NativeAuthority::Loan(loan) => {
+                self.resources
+                    .check_view(loan, view.kind.clone(), view.access)
+            }
             NativeAuthority::Own(claim, holder) => self
                 .resources
-                .bytes(claim, holder, view.kind, self.memory)
+                .bytes(claim, holder, view.kind.clone(), self.memory)
                 .map(|_| ()),
         }
         .map_err(|_| 7u32)?;
@@ -221,7 +224,7 @@ impl NativeContext for CallContext<'_, '_, '_, '_> {
         };
         let claim = self
             .resources
-            .publish_backing(kind, self.holder, allocation, self.memory)
+            .publish_backing(kind.clone(), self.holder, allocation, self.memory)
             .map_err(|_| 12u32)?;
         // The complete metadata capacity and index were checked before custody
         // moved; publication now performs no allocation or foreign callback.

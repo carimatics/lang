@@ -1267,7 +1267,7 @@ fn release_caller(
             .unwrap();
     let mut cleaner = lang_runtime::cleanup::Contextual::new(
         |_: &mut (), _, context: &mut lang_runtime::cleanup::Context<'_>| {
-            execution::Invoker::destroy(invoker, kind, &mut backing, allocator, context)
+            execution::Invoker::destroy(invoker, kind.clone(), &mut backing, allocator, context)
         },
     );
     let retired = cleanup.retire(
@@ -1302,6 +1302,23 @@ fn run_source_configuration(
     work_limit: Option<u64>,
     native_flags: u32,
     force_cleanup_failure: bool,
+) -> (bool, bool, e::Usage) {
+    run_source_registration(
+        case,
+        stored,
+        work_limit,
+        native_flags,
+        force_cleanup_failure,
+        false,
+    )
+}
+fn run_source_registration(
+    case: Case,
+    stored: bool,
+    work_limit: Option<u64>,
+    native_flags: u32,
+    force_cleanup_failure: bool,
+    owning_registration: bool,
 ) -> (bool, bool, e::Usage) {
     let cleanup_failure = force_cleanup_failure || case.failing_cleanup();
     let return_resource = case.returns_resource();
@@ -1776,7 +1793,7 @@ fn run_source_configuration(
     )
     .unwrap();
     let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
-    let destroyed = Destroyed {
+    let destroyed = Rc::new(Destroyed {
         calls: Cell::new(0),
         method_calls: Cell::new(0),
         method_changed: Cell::new(false),
@@ -1796,7 +1813,7 @@ fn run_source_configuration(
         fail: cleanup_failure,
         cancelled: matches!(case.native(), Some(NativeCase::Interrupt))
             || matches!(case, Case::Cancelled | Case::LoanCancelled),
-    };
+    });
     let methods = [native::Method {
         interface: 0,
         member: 0,
@@ -1806,7 +1823,7 @@ fn run_source_configuration(
             unused
         },
         user: if case.native().is_some() {
-            ptr::from_ref(&destroyed).cast_mut().cast()
+            ptr::from_ref(destroyed.as_ref()).cast_mut().cast()
         } else {
             ptr::null_mut()
         },
@@ -1816,27 +1833,48 @@ fn run_source_configuration(
         interface: 0,
         resource: 0,
         destroy,
-        user: ptr::from_ref(&destroyed).cast_mut().cast(),
+        user: ptr::from_ref(destroyed.as_ref()).cast_mut().cast(),
     }];
     if matches!(case, Case::NativeWrongResultKind) {
         resources.push(native::ResourceType {
             interface: 0,
             resource: 1,
             destroy,
-            user: ptr::from_ref(&destroyed).cast_mut().cast(),
+            user: ptr::from_ref(destroyed.as_ref()).cast_mut().cast(),
         });
     }
-    let providers = [native::Provider::with_resources(
-        wire::Provider {
-            contract: &host,
-            digest: &digest,
-        },
-        &methods,
-        &resources,
-        &destroyed,
-        &mut session,
-    )
-    .unwrap()];
+    let acquisitions = Cell::new(0);
+    let providers = [if owning_registration {
+        native::Provider::new_owned(
+            host,
+            digest.clone(),
+            methods.to_vec(),
+            resources.clone(),
+            &mut || {
+                acquisitions.set(acquisitions.get() + 1);
+                destroyed.clone()
+            },
+            &mut session,
+        )
+        .unwrap()
+    } else {
+        native::Provider::with_resources(
+            wire::Provider {
+                contract: &host,
+                digest: &digest,
+            },
+            &methods,
+            &resources,
+            destroyed.as_ref(),
+            &mut session,
+        )
+        .unwrap()
+    }];
+    assert_eq!(acquisitions.get(), usize::from(owning_registration));
+    assert_eq!(
+        Rc::strong_count(&destroyed),
+        if owning_registration { 2 } else { 1 }
+    );
     let member = &unit.mappings().imports[0].member;
     let signature =
         wire::Signature::new(&consumer, &member.interface, &member.member, &mut session)
@@ -1909,11 +1947,11 @@ fn run_source_configuration(
         .unwrap();
         let holder = values.host();
         let input = values
-            .publish(kind, holder, &41_i64.to_le_bytes(), &mut allocator)
+            .publish(kind.clone(), holder, &41_i64.to_le_bytes(), &mut allocator)
             .unwrap();
         let extra_input = extra.then(|| {
             values
-                .publish(kind, holder, &41_i64.to_le_bytes(), &mut allocator)
+                .publish(kind.clone(), holder, &41_i64.to_le_bytes(), &mut allocator)
                 .unwrap()
         });
         if let Case::Oom(offset)
@@ -2067,7 +2105,7 @@ fn run_source_configuration(
                         release_caller(
                             &mut values,
                             claim,
-                            kind,
+                            kind.clone(),
                             &mut allocator,
                             &mut bridge,
                             &mut budget,
@@ -2460,7 +2498,7 @@ fn run_source_configuration(
             release_caller(
                 &mut values,
                 input,
-                kind,
+                kind.clone(),
                 &mut allocator,
                 &mut bridge,
                 &mut budget,
@@ -2811,7 +2849,9 @@ fn run_source_configuration(
                     assert_eq!(attempts.get(), 4);
                 }
                 assert_eq!(
-                    values.bytes(input, holder, kind, &allocator).unwrap(),
+                    values
+                        .bytes(input, holder, kind.clone(), &allocator)
+                        .unwrap(),
                     (if destroyed.method_changed.get() {
                         42_i64
                     } else {
@@ -2847,7 +2887,7 @@ fn run_source_configuration(
                         |_: &mut (), _, context: &mut lang_runtime::cleanup::Context<'_>| {
                             execution::Invoker::destroy(
                                 &mut bridge,
-                                kind,
+                                kind.clone(),
                                 &mut backing,
                                 &mut allocator,
                                 context,
@@ -2964,14 +3004,14 @@ fn run_source_configuration(
                 );
                 assert_eq!(
                     values
-                        .bytes(claims[position], holder, kind, &allocator)
+                        .bytes(claims[position], holder, kind.clone(), &allocator)
                         .unwrap(),
                     42_i64.to_le_bytes()
                 );
                 release_caller(
                     &mut values,
                     claims[position],
-                    kind,
+                    kind.clone(),
                     &mut allocator,
                     &mut bridge,
                     &mut budget,
@@ -3057,7 +3097,9 @@ fn run_source_configuration(
             );
             for claim in frame.resources() {
                 assert_eq!(
-                    values.bytes(*claim, holder, kind, &allocator).unwrap(),
+                    values
+                        .bytes(*claim, holder, kind.clone(), &allocator)
+                        .unwrap(),
                     41_i64.to_le_bytes()
                 );
                 let mut backing = values.detach(*claim, holder, &allocator).unwrap();
@@ -3070,7 +3112,7 @@ fn run_source_configuration(
                     |_: &mut (), _, context: &mut lang_runtime::cleanup::Context<'_>| {
                         execution::Invoker::destroy(
                             &mut bridge,
-                            kind,
+                            kind.clone(),
                             &mut backing,
                             &mut allocator,
                             context,
@@ -3117,7 +3159,9 @@ fn run_source_configuration(
                 case.loan().is_some() && case.fresh_result()
             );
             assert_eq!(
-                values.bytes(result, holder, kind, &allocator).unwrap(),
+                values
+                    .bytes(result, holder, kind.clone(), &allocator)
+                    .unwrap(),
                 (if destroyed.method_changed.get() {
                     42_i64
                 } else {
@@ -3155,7 +3199,7 @@ fn run_source_configuration(
                 |_: &mut (), _, context: &mut lang_runtime::cleanup::Context<'_>| {
                     execution::Invoker::destroy(
                         &mut bridge,
-                        kind,
+                        kind.clone(),
                         &mut backing,
                         &mut allocator,
                         context,
@@ -3216,7 +3260,9 @@ fn run_source_configuration(
             );
             assert_eq!(values.len(), if case.loan_aliases() { 2 } else { 1 });
             assert_eq!(
-                values.bytes(input, holder, kind, &allocator).unwrap(),
+                values
+                    .bytes(input, holder, kind.clone(), &allocator)
+                    .unwrap(),
                 (if destroyed.method_changed.get() {
                     41_i64 + destroyed.method_calls.get() as i64
                 } else {
@@ -3228,7 +3274,7 @@ fn run_source_configuration(
             release_caller(
                 &mut values,
                 input,
-                kind,
+                kind.clone(),
                 &mut allocator,
                 &mut bridge,
                 &mut budget,
@@ -3237,7 +3283,7 @@ fn run_source_configuration(
                 release_caller(
                     &mut values,
                     extra_input.unwrap(),
-                    kind,
+                    kind.clone(),
                     &mut allocator,
                     &mut bridge,
                     &mut budget,
@@ -3375,4 +3421,31 @@ fn work_refusal_remains_primary_when_mandatory_native_cleanup_also_fails() {
     );
     assert_eq!((observed.0, observed.1), (false, true));
     assert_eq!(observed.2.service_work, 0);
+}
+
+#[test]
+fn owning_native_registrations_execute_stored_source_and_keep_original_costs() {
+    for case in [
+        Case::Native(NativeCase::Shared),
+        Case::NativeResult(NativeCase::OwnedReturn),
+        Case::NativeFresh(NativeCase::OwnedReturn),
+        Case::NativeAggregate(NativeCase::OwnedReturn, NativeShape::Record),
+        Case::DestructorFailure,
+    ] {
+        let borrowed = run_source_registration(case, true, None, 0, false, false);
+        let owning = run_source_registration(case, true, None, 0, false, true);
+        assert_eq!(borrowed, owning);
+        if matches!(case, Case::NativeFresh(NativeCase::OwnedReturn)) {
+            for limit in [
+                0,
+                borrowed.2.service_work.saturating_sub(1),
+                borrowed.2.service_work,
+            ] {
+                assert_eq!(
+                    run_source_registration(case, true, Some(limit), 0, false, false),
+                    run_source_registration(case, true, Some(limit), 0, false, true),
+                );
+            }
+        }
+    }
 }

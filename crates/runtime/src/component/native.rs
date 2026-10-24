@@ -1,11 +1,12 @@
 //! Trusted native registrations for the fixed component-v1 callback ABI.
 //!
-//! Preparation never invokes a callback or dereferences a native pointer. The
-//! caller must keep the code and user storage valid through the borrowed owner;
-//! the eventual native adapter must enforce the context and buffer contracts.
+//! Validation never invokes native methods/destructors or dereferences native
+//! pointers. The borrowed constructor requires live code/user storage through its owner lease.
+//! The owning constructor retains all registration data and the original owner;
+//! the native adapter still enforces the context and buffer contracts.
 use super::wire;
 use crate::c_abi::context::CodeOwner;
-use std::{ffi::c_void, fmt};
+use std::{ffi::c_void, fmt, rc::Rc};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -68,25 +69,39 @@ pub struct ResourceType {
 
 /// A live implementation identity. Equal static keys from separately registered
 /// providers cannot authorize access to one another's backing storage.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct ResourceKind<'a> {
-    provider: &'a Provider<'a>,
+    provider: Provider<'a>,
     registration: usize,
 }
 impl<'a> ResourceKind<'a> {
-    pub fn key(&self) -> &'a super::negotiation::ResourceTypeKey {
+    pub fn key(&self) -> &super::negotiation::ResourceTypeKey {
         let r = self.registration();
-        &self.provider.metadata.contract.document().interfaces[r.interface].resources[r.resource]
+        &self.provider.metadata().contract.document().interfaces[r.interface].resources[r.resource]
             .value
     }
-    pub const fn provider(&self) -> &'a Provider<'a> {
-        self.provider
+    pub const fn provider(&self) -> &Provider<'a> {
+        &self.provider
     }
-    pub fn registration(&self) -> &'a ResourceType {
-        &self.provider.resources[self.registration]
+    pub fn registration(&self) -> &ResourceType {
+        &self.provider.resources()[self.registration]
     }
-    pub fn same_implementation(&self, other: ResourceKind<'_>) -> bool {
-        std::ptr::eq(self.provider, other.provider) && self.registration == other.registration
+    pub fn same_implementation(&self, other: &ResourceKind<'_>) -> bool {
+        self.provider.same_registration(&other.provider) && self.registration == other.registration
+    }
+    /// Retain an owning registration without borrowing its public handle.
+    /// Borrowed registrations return the unchanged lease on refusal.
+    pub fn into_owned(self) -> Result<ResourceKind<'static>, Self> {
+        match self.provider.into_owned() {
+            Ok(provider) => Ok(ResourceKind {
+                provider,
+                registration: self.registration,
+            }),
+            Err(provider) => Err(Self {
+                provider,
+                registration: self.registration,
+            }),
+        }
     }
 }
 
@@ -126,11 +141,27 @@ impl std::error::Error for RegistrationError {}
 
 /// An immutable registration retaining the actual code/user owner. Metadata
 /// identity alone cannot construct one. This is trusted native code, not a sandbox.
+#[derive(Clone)]
 pub struct Provider<'a> {
+    data: Registration<'a>,
+}
+#[derive(Clone)]
+enum Registration<'a> {
+    Borrowed(Rc<Borrowed<'a>>),
+    Owned(Rc<Owned>),
+}
+struct Borrowed<'a> {
     metadata: wire::Provider<'a>,
     methods: &'a [Method],
     resources: &'a [ResourceType],
     owner: &'a dyn CodeOwner,
+}
+struct Owned {
+    contract: wire::Contract,
+    digest: super::serialization::VersionedDigest,
+    methods: Vec<Method>,
+    resources: Vec<ResourceType>,
+    owner: Rc<dyn CodeOwner>,
 }
 impl<'a> Provider<'a> {
     pub fn new(
@@ -148,128 +179,63 @@ impl<'a> Provider<'a> {
         owner: &'a dyn CodeOwner,
         session: &mut wire::Session,
     ) -> Result<Self, RegistrationError> {
-        wire::encode_contract(metadata.contract, session)?;
-        session.count(methods.len(), 0)?;
-        session.count(resources.len(), 0)?;
-        let d = metadata.contract.document();
-        for (index, method) in methods.iter().enumerate() {
-            let error = |kind| RegistrationError::Method { kind, index };
-            if method.flags & !1 != 0 {
-                return Err(error(RegistrationErrorKind::Flags));
-            }
-            let interface = d
-                .interfaces
-                .get(method.interface)
-                .filter(|i| method.member < i.functions.len())
-                .ok_or_else(|| error(RegistrationErrorKind::UnknownMember))?;
-            let mut exported = false;
-            for key in &d.exports {
-                session.charge(
-                    key.value.package().namespace().len()
-                        + key.value.package().package().len()
-                        + key.value.interface().len()
-                        + 1,
-                    0,
-                )?;
-                exported |= key.value == interface.key.value;
-            }
-            if !exported {
-                return Err(error(RegistrationErrorKind::UnknownMember));
-            }
-            session.charge(index, 0)?;
-            if methods[..index]
-                .iter()
-                .any(|m| m.interface == method.interface && m.member == method.member)
-            {
-                return Err(error(RegistrationErrorKind::DuplicateMember));
-            }
-        }
-        for (index, resource) in resources.iter().enumerate() {
-            let error = |kind| RegistrationError::Resource { kind, index };
-            let interface = d
-                .interfaces
-                .get(resource.interface)
-                .filter(|i| resource.resource < i.resources.len())
-                .ok_or_else(|| error(RegistrationErrorKind::UnknownResource))?;
-            let mut exported = false;
-            for key in &d.exports {
-                session.charge(
-                    key.value.package().namespace().len()
-                        + key.value.package().package().len()
-                        + key.value.interface().len()
-                        + 1,
-                    0,
-                )?;
-                exported |= key.value == interface.key.value;
-            }
-            if !exported {
-                return Err(error(RegistrationErrorKind::UnknownResource));
-            }
-            session.charge(index, 0)?;
-            if resources[..index]
-                .iter()
-                .any(|r| r.interface == resource.interface && r.resource == resource.resource)
-            {
-                return Err(error(RegistrationErrorKind::DuplicateResource));
-            }
-        }
-        // Every declared export must have a live implementation, including unused ones.
-        for (interface, i) in d.interfaces.iter().enumerate() {
-            session.charge(1, 0)?;
-            let mut exported = false;
-            for key in &d.exports {
-                session.charge(
-                    key.value.package().namespace().len()
-                        + key.value.package().package().len()
-                        + key.value.interface().len()
-                        + 1,
-                    0,
-                )?;
-                exported |= key.value == i.key.value;
-            }
-            if !exported {
-                continue;
-            }
-            for resource in 0..i.resources.len() {
-                session.charge(resources.len().saturating_add(1), 0)?;
-                if !resources
-                    .iter()
-                    .any(|r| r.interface == interface && r.resource == resource)
-                {
-                    return Err(RegistrationError::Resource {
-                        kind: RegistrationErrorKind::MissingResource,
-                        index: resources.len(),
-                    });
-                }
-            }
-            for member in 0..i.functions.len() {
-                session.charge(methods.len().saturating_add(1), 0)?;
-                if !methods
-                    .iter()
-                    .any(|m| m.interface == interface && m.member == member)
-                {
-                    return Err(RegistrationError::Method {
-                        kind: RegistrationErrorKind::MissingMember,
-                        index: methods.len(),
-                    });
-                }
-            }
-        }
+        validate(metadata, methods, resources, session)?;
+        let data = session.shared(
+            || Borrowed {
+                metadata,
+                methods,
+                resources,
+                owner,
+            },
+            0,
+        )?;
         Ok(Self {
-            metadata,
-            methods,
-            resources,
-            owner,
+            data: Registration::Borrowed(data),
         })
     }
-    pub const fn metadata(&self) -> wire::Provider<'a> {
-        self.metadata
+    pub fn metadata(&self) -> wire::Provider<'_> {
+        match &self.data {
+            Registration::Borrowed(data) => data.metadata,
+            Registration::Owned(data) => wire::Provider {
+                contract: &data.contract,
+                digest: &data.digest,
+            },
+        }
     }
-    pub fn methods(&self) -> &'a [Method] {
-        self.methods
+    pub fn methods(&self) -> &[Method] {
+        match &self.data {
+            Registration::Borrowed(data) => data.methods,
+            Registration::Owned(data) => &data.methods,
+        }
+    }
+    fn resources(&self) -> &[ResourceType] {
+        match &self.data {
+            Registration::Borrowed(data) => data.resources,
+            Registration::Owned(data) => &data.resources,
+        }
+    }
+    fn same_registration(&self, other: &Provider<'_>) -> bool {
+        match (&self.data, &other.data) {
+            (Registration::Borrowed(a), Registration::Borrowed(b)) => {
+                std::ptr::eq(Rc::as_ptr(a).cast::<()>(), Rc::as_ptr(b).cast::<()>())
+            }
+            (Registration::Owned(a), Registration::Owned(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
+    /// Refusal preserves the original borrowed registration lease.
+    pub fn into_owned(self) -> Result<Provider<'static>, Self> {
+        match self.data {
+            Registration::Owned(data) => Ok(Provider {
+                data: Registration::Owned(data),
+            }),
+            Registration::Borrowed(data) => Err(Self {
+                data: Registration::Borrowed(data),
+            }),
+        }
     }
     pub fn resource_kind(
-        &'a self,
+        &self,
         key: &super::negotiation::ResourceTypeKey,
         session: &mut wire::Session,
     ) -> Result<ResourceKind<'a>, RegistrationError> {
@@ -283,10 +249,10 @@ impl<'a> Provider<'a> {
             .saturating_add(key.interface().interface().len())
             .saturating_add(key.resource().len())
             .saturating_add(1);
-        for registration in 0..self.resources.len() {
+        for registration in 0..self.resources().len() {
             session.charge(bytes, 0)?;
             let kind = ResourceKind {
-                provider: self,
+                provider: self.clone(),
                 registration,
             };
             if kind.key() == key {
@@ -295,18 +261,18 @@ impl<'a> Provider<'a> {
         }
         Err(RegistrationError::Resource {
             kind: RegistrationErrorKind::UnknownResource,
-            index: self.resources.len(),
+            index: self.resources().len(),
         })
     }
     pub(crate) fn resource_kind_bytes(
-        &'a self,
+        &self,
         key: &[u8],
         budget: &mut lang_mir::unit::Budget,
     ) -> Result<ResourceKind<'a>, u32> {
         budget.charge(key.len()).map_err(|_| 12u32)?;
-        for registration in 0..self.resources.len() {
+        for registration in 0..self.resources().len() {
             let kind = ResourceKind {
-                provider: self,
+                provider: self.clone(),
                 registration,
             };
             let typed = kind.key();
@@ -333,6 +299,164 @@ impl<'a> Provider<'a> {
         Err(7)
     }
     pub fn retains_code<T>(&self, owner: &T) -> bool {
-        std::ptr::addr_eq(self.owner as *const dyn CodeOwner, owner as *const T)
+        let actual: &dyn CodeOwner = match &self.data {
+            Registration::Borrowed(data) => data.owner,
+            Registration::Owned(data) => data.owner.as_ref(),
+        };
+        std::ptr::addr_eq(actual as *const dyn CodeOwner, owner as *const T)
     }
+}
+
+impl Provider<'static> {
+    /// Admit complete immutable native registration data before acquiring its
+    /// original code/user owner. The factory is never called on refusal.
+    pub fn new_owned(
+        contract: wire::Contract,
+        digest: super::serialization::VersionedDigest,
+        methods: Vec<Method>,
+        resources: Vec<ResourceType>,
+        owner: &mut impl FnMut() -> Rc<dyn CodeOwner>,
+        session: &mut wire::Session,
+    ) -> Result<Self, RegistrationError> {
+        validate(
+            wire::Provider {
+                contract: &contract,
+                digest: &digest,
+            },
+            &methods,
+            &resources,
+            session,
+        )?;
+        session.retained::<Method>(methods.capacity(), 0)?;
+        session.retained::<ResourceType>(resources.capacity(), 0)?;
+        let data = session.shared(
+            || Owned {
+                contract,
+                digest,
+                methods,
+                resources,
+                owner: owner(),
+            },
+            0,
+        )?;
+        Ok(Self {
+            data: Registration::Owned(data),
+        })
+    }
+}
+
+fn validate(
+    metadata: wire::Provider<'_>,
+    methods: &[Method],
+    resources: &[ResourceType],
+    session: &mut wire::Session,
+) -> Result<(), RegistrationError> {
+    wire::encode_contract(metadata.contract, session)?;
+    session.count(methods.len(), 0)?;
+    session.count(resources.len(), 0)?;
+    let d = metadata.contract.document();
+    for (index, method) in methods.iter().enumerate() {
+        let error = |kind| RegistrationError::Method { kind, index };
+        if method.flags & !1 != 0 {
+            return Err(error(RegistrationErrorKind::Flags));
+        }
+        let interface = d
+            .interfaces
+            .get(method.interface)
+            .filter(|i| method.member < i.functions.len())
+            .ok_or_else(|| error(RegistrationErrorKind::UnknownMember))?;
+        let mut exported = false;
+        for key in &d.exports {
+            session.charge(
+                key.value.package().namespace().len()
+                    + key.value.package().package().len()
+                    + key.value.interface().len()
+                    + 1,
+                0,
+            )?;
+            exported |= key.value == interface.key.value;
+        }
+        if !exported {
+            return Err(error(RegistrationErrorKind::UnknownMember));
+        }
+        session.charge(index, 0)?;
+        if methods[..index]
+            .iter()
+            .any(|m| m.interface == method.interface && m.member == method.member)
+        {
+            return Err(error(RegistrationErrorKind::DuplicateMember));
+        }
+    }
+    for (index, resource) in resources.iter().enumerate() {
+        let error = |kind| RegistrationError::Resource { kind, index };
+        let interface = d
+            .interfaces
+            .get(resource.interface)
+            .filter(|i| resource.resource < i.resources.len())
+            .ok_or_else(|| error(RegistrationErrorKind::UnknownResource))?;
+        let mut exported = false;
+        for key in &d.exports {
+            session.charge(
+                key.value.package().namespace().len()
+                    + key.value.package().package().len()
+                    + key.value.interface().len()
+                    + 1,
+                0,
+            )?;
+            exported |= key.value == interface.key.value;
+        }
+        if !exported {
+            return Err(error(RegistrationErrorKind::UnknownResource));
+        }
+        session.charge(index, 0)?;
+        if resources[..index]
+            .iter()
+            .any(|r| r.interface == resource.interface && r.resource == resource.resource)
+        {
+            return Err(error(RegistrationErrorKind::DuplicateResource));
+        }
+    }
+    // Every declared export must have a live implementation, including unused ones.
+    for (interface, i) in d.interfaces.iter().enumerate() {
+        session.charge(1, 0)?;
+        let mut exported = false;
+        for key in &d.exports {
+            session.charge(
+                key.value.package().namespace().len()
+                    + key.value.package().package().len()
+                    + key.value.interface().len()
+                    + 1,
+                0,
+            )?;
+            exported |= key.value == i.key.value;
+        }
+        if !exported {
+            continue;
+        }
+        for resource in 0..i.resources.len() {
+            session.charge(resources.len().saturating_add(1), 0)?;
+            if !resources
+                .iter()
+                .any(|r| r.interface == interface && r.resource == resource)
+            {
+                return Err(RegistrationError::Resource {
+                    kind: RegistrationErrorKind::MissingResource,
+                    index: resources.len(),
+                });
+            }
+        }
+        for member in 0..i.functions.len() {
+            session.charge(methods.len().saturating_add(1), 0)?;
+            if !methods
+                .iter()
+                .any(|m| m.interface == interface && m.member == member)
+            {
+                return Err(RegistrationError::Method {
+                    kind: RegistrationErrorKind::MissingMember,
+                    index: methods.len(),
+                });
+            }
+        }
+    }
+    Ok(())
 }

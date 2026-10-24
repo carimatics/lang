@@ -84,7 +84,7 @@ impl Claim {
         })
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Backing<'a> {
     kind: ResourceKind<'a>,
     data: a::Handle,
@@ -346,10 +346,10 @@ impl<'a> Resources<'a> {
         claim: Claim,
         holder: Holder,
         allocator: &dyn Memory,
-    ) -> Result<Backing<'a>, Error> {
+    ) -> Result<&Backing<'a>, Error> {
         self.check_allocator(allocator)?;
         self.check_holder(holder)?;
-        let backing = *self.values.owned_value(claim.owner)?;
+        let backing = self.values.owned_value(claim.owner)?;
         let bytes = allocator.bytes(backing.header)?;
         if bytes.len() != HEADER_BYTES as usize
             || bytes[..8] != MAGIC.to_le_bytes()
@@ -386,7 +386,7 @@ impl<'a> Resources<'a> {
         allocator: &'b dyn Memory,
     ) -> Result<&'b [u8], Error> {
         let backing = self.backing(claim, holder, allocator)?;
-        if !backing.kind.same_implementation(implementation) {
+        if !backing.kind.same_implementation(&implementation) {
             return Err(Error::Implementation);
         }
         Ok(allocator.bytes(backing.data)?)
@@ -716,7 +716,7 @@ impl<'a> Resources<'a> {
         access: super::idl::Access,
     ) -> Result<(), Error> {
         let backing = self.values.get_borrowed(loan.borrowed)?;
-        if !backing.kind.same_implementation(kind) {
+        if !backing.kind.same_implementation(&kind) {
             return Err(Error::Implementation);
         }
         if access == super::idl::Access::Exclusive
@@ -820,19 +820,19 @@ pub struct Detached<'a> {
 }
 impl<'a> Detached<'a> {
     pub fn kind(&self) -> Result<ResourceKind<'a>, Error> {
-        Ok(self.backing.ok_or(Error::State)?.kind)
+        Ok(self.backing.as_ref().ok_or(Error::State)?.kind.clone())
     }
     pub fn bytes_mut<'b>(&self, allocator: &'b mut dyn Memory) -> Result<&'b mut [u8], Error> {
         if allocator.identity() != self.allocator {
             return Err(Error::ForeignAllocator);
         }
-        Ok(allocator.bytes_mut(self.backing.ok_or(Error::State)?.data)?)
+        Ok(allocator.bytes_mut(self.backing.as_ref().ok_or(Error::State)?.data)?)
     }
     pub fn release(&mut self, allocator: &mut dyn Memory) -> Result<(), Error> {
         if allocator.identity() != self.allocator {
             return Err(Error::ForeignAllocator);
         }
-        let backing = self.backing.ok_or(Error::State)?;
+        let backing = self.backing.as_ref().ok_or(Error::State)?;
         allocator.request(backing.data)?;
         allocator.request(backing.header)?;
         allocator.release(backing.data)?;
