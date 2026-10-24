@@ -12,7 +12,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         span: m::Span,
     ) -> Result<(), Reason> {
         self.control.check()?;
-        self.control.charge_host_call(&mut self.usage)?;
+        self.charge_host_call()?;
         let mut roots = self.budget.vector(arguments.len())?;
         {
             let frame = frame::Access::new(&mut self.records[task].frames, &mut self.services)?;

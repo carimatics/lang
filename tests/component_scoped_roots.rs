@@ -428,6 +428,17 @@ impl Harness {
         compiled: bool,
         control: e::Control<'_>,
     ) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
+        self.call_execution(provider, name, input, compiled, control, None)
+    }
+    fn call_execution(
+        &mut self,
+        provider: native::Provider<'static>,
+        name: &str,
+        input: Option<storage::Claim>,
+        compiled: bool,
+        control: e::Control<'_>,
+        accounting: Option<&e::InvocationAccounting>,
+    ) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
         let Self {
             allocator,
             values,
@@ -445,6 +456,9 @@ impl Harness {
                 .unwrap()
             });
             let mut invoker = engine.begin(control).unwrap();
+            if let Some(accounting) = accounting {
+                invoker = invoker.with_accounting(accounting).unwrap();
+            }
             let mut budget = m::Budget::new(Default::default());
             state
                 .with_program(program, |instance| {
@@ -623,6 +637,309 @@ fn stored_roots_keep_original_backing_and_code_after_each_program_scope() {
         retained_roundtrip(false, false),
         retained_roundtrip(true, false)
     );
+}
+
+#[test]
+fn shared_accounting_exhausts_cumulative_fuel_with_original_owner_cleanup() {
+    for compiled in [false, true] {
+        let baseline = retained_roundtrip(compiled, true);
+        let limit = baseline.0.fuel.max(baseline.1.fuel);
+        let control = e::Control::with_limits(e::Limits {
+            fuel: Some(limit),
+            ..Default::default()
+        });
+        let mut budget = m::Budget::new(Default::default());
+        let accounting = e::InvocationAccounting::prepare(control, &mut budget).unwrap();
+        let mut h = Harness::new();
+        let (provider, watch) = h.registration(false);
+        let created = h
+            .call_execution(
+                provider,
+                "create",
+                None,
+                compiled,
+                control,
+                Some(&accounting),
+            )
+            .unwrap();
+        let execution::Value::Resource(claim) = created.value else {
+            panic!("original owner")
+        };
+        let (cleanup, _) = h.registration(false);
+        let failure = h
+            .call_execution(
+                cleanup,
+                "consume",
+                Some(claim),
+                compiled,
+                control,
+                Some(&accounting),
+            )
+            .err()
+            .expect("expected accounted refusal");
+        assert!(matches!(
+            failure.reason,
+            r::Reason::Control(e::Failure::FuelExhausted)
+        ));
+        assert_eq!(failure.usage.fuel, limit);
+        assert_eq!(failure.usage, accounting.snapshot());
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        assert!(!h.state.poisoned());
+    }
+}
+
+#[test]
+fn shared_accounting_preserves_caller_after_combined_host_call_refusal() {
+    for compiled in [false, true] {
+        let control = e::Control::with_limits(e::Limits {
+            host_calls: Some(1),
+            ..Default::default()
+        });
+        let accounting =
+            e::InvocationAccounting::prepare(control, &mut m::Budget::new(Default::default()))
+                .unwrap();
+        let mut h = Harness::new();
+        let (provider, watch) = h.registration(false);
+        let created = h
+            .call_execution(
+                provider.clone(),
+                "create",
+                None,
+                compiled,
+                control,
+                Some(&accounting),
+            )
+            .unwrap();
+        let execution::Value::Resource(claim) = created.value else {
+            panic!("original owner")
+        };
+        let failure = h
+            .call_execution(
+                provider.clone(),
+                "create",
+                None,
+                compiled,
+                control,
+                Some(&accounting),
+            )
+            .err()
+            .expect("expected accounted refusal");
+        assert!(matches!(
+            failure.reason,
+            r::Reason::Control(e::Failure::HostCallLimit)
+        ));
+        assert_eq!(failure.usage.host_calls, 1);
+        assert_eq!(failure.usage, accounting.snapshot());
+        assert_eq!(watch.produced.get(), 1);
+        assert_eq!(watch.destroyed.get(), 0);
+        let outcome = h
+            .call_execution(
+                provider,
+                "consume",
+                Some(claim),
+                compiled,
+                control,
+                Some(&accounting),
+            )
+            .unwrap();
+        assert_eq!(outcome.usage.host_calls, 1);
+        assert_eq!(outcome.usage, accounting.snapshot());
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn shared_accounting_work_prefixes_preserve_or_retire_every_original_owner() {
+    for compiled in [false, true] {
+        let baseline = retained_roundtrip(compiled, true);
+        let first_work = baseline.0.service_work;
+        let total_work = first_work + baseline.1.service_work;
+        let mut previous: Option<(u64, bool)> = None;
+        for limit in [
+            0,
+            first_work.saturating_sub(1),
+            first_work,
+            total_work - 1,
+            total_work,
+            total_work + 1,
+        ] {
+            let control = e::Control::with_limits(Default::default()).and_service_work(Some(limit));
+            let accounting =
+                e::InvocationAccounting::prepare(control, &mut m::Budget::new(Default::default()))
+                    .unwrap();
+            let mut h = Harness::new();
+            let (provider, watch) = h.registration(false);
+            let first = h.call_execution(
+                provider.clone(),
+                "create",
+                None,
+                compiled,
+                control,
+                Some(&accounting),
+            );
+            let success = match first {
+                Err(failure) => {
+                    assert!(matches!(
+                        failure.reason,
+                        r::Reason::Control(e::Failure::ServiceWorkLimit { .. })
+                    ));
+                    assert_eq!(failure.usage, accounting.snapshot());
+                    false
+                }
+                Ok(created) => {
+                    let immutable_usage = created.usage;
+                    let execution::Value::Resource(claim) = created.value else {
+                        panic!("original owner")
+                    };
+                    match h.call_execution(
+                        provider.clone(),
+                        "consume",
+                        Some(claim),
+                        compiled,
+                        control,
+                        Some(&accounting),
+                    ) {
+                        Ok(consumed) => {
+                            assert_eq!(consumed.usage.fuel, baseline.0.fuel + baseline.1.fuel);
+                            assert_eq!(
+                                consumed.usage.host_calls,
+                                baseline.0.host_calls + baseline.1.host_calls
+                            );
+                            assert_eq!(consumed.usage.service_work, total_work);
+                            assert_eq!(consumed.usage, accounting.snapshot());
+                            assert_eq!(created.usage, immutable_usage);
+                            assert!(consumed.usage.fuel > created.usage.fuel);
+                            true
+                        }
+                        Err(failure) => {
+                            assert!(matches!(
+                                failure.reason,
+                                r::Reason::Control(e::Failure::ServiceWorkLimit { .. })
+                            ));
+                            assert_eq!(failure.usage, accounting.snapshot());
+                            let held = h
+                                .values
+                                .held_claims(
+                                    h.state.holder(),
+                                    &h.allocator,
+                                    &mut m::Budget::new(Default::default()),
+                                )
+                                .unwrap();
+                            let refused_usage = accounting.snapshot();
+                            for claim in held {
+                                h.call(provider.clone(), "consume", Some(claim), compiled)
+                                    .unwrap();
+                            }
+                            assert_eq!(accounting.snapshot(), refused_usage);
+                            false
+                        }
+                    }
+                }
+            };
+            assert_eq!(success, limit >= total_work, "mode={compiled} work={limit}");
+            assert!(accounting.snapshot().service_work <= limit);
+            assert_eq!(watch.produced.get(), watch.destroyed.get());
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(!h.state.poisoned());
+            drop(provider);
+            assert_eq!(watch.released.get(), 1);
+            if let Some((earlier, was_success)) = previous {
+                assert!(limit >= earlier && (!was_success || success));
+            }
+            previous = Some((limit, success));
+        }
+    }
+}
+
+#[test]
+fn shared_accounting_rejects_configuration_changes_and_refunds_no_preparation() {
+    let mut budget = m::Budget::new(Default::default());
+    let flag = e::InterruptionFlag::new();
+    let control = e::Control::with_limits(Default::default())
+        .and_interruption(&flag)
+        .and_service_work(Some(0));
+    let accounting = e::InvocationAccounting::prepare(control, &mut budget).unwrap();
+    let mut h = Harness::new();
+    let mismatched = e::Control::with_limits(Default::default()).and_service_work(Some(0));
+    assert!(
+        h.engine
+            .begin(mismatched)
+            .unwrap()
+            .with_accounting(&accounting)
+            .is_err()
+    );
+    assert!(accounting.same_invocation(&accounting.clone()));
+    let other = e::InvocationAccounting::prepare(control, &mut budget).unwrap();
+    assert!(!accounting.same_invocation(&other));
+    let (provider, watch) = h.registration(false);
+    let claim = h.publish(&provider, &watch);
+    {
+        let Harness {
+            allocator,
+            values,
+            state,
+            engine,
+        } = &mut h;
+        prepared(provider.clone(), |program, _| {
+            state
+                .with_program(program, |instance| {
+                    let mut invoker = engine
+                        .begin(control)
+                        .unwrap()
+                        .with_accounting(&accounting)
+                        .unwrap();
+                    let invocation = execution::Invocation::prepare_owned(
+                        instance,
+                        entry(program, "consume"),
+                        values,
+                        &mut invoker,
+                        &mut m::Budget::new(Default::default()),
+                    )
+                    .unwrap();
+                    let input = wire::Values {
+                        roots: vec![wire::ValueId(0)],
+                        nodes: vec![wire::Value::Resource(
+                            lang_runtime::component::adapter::BoundaryResourceIndex::new(1)
+                                .unwrap(),
+                        )],
+                    };
+                    for _ in 0..2 {
+                        let mut fresh_session = wire::Session::new(Default::default());
+                        assert!(matches!(
+                            invocation.encode_arguments(
+                                &input,
+                                &[claim],
+                                allocator,
+                                &mut fresh_session
+                            ),
+                            Err(r::Reason::Control(e::Failure::ServiceWorkLimit { .. }))
+                        ));
+                        assert!(accounting.preparation_failure().is_some());
+                    }
+                    assert!(!execution::Host::arguments_committed(&invocation));
+                })
+                .unwrap();
+        });
+    }
+    h.call(provider, "consume", Some(claim), false).unwrap();
+    assert_eq!(watch.destroyed.get(), 1);
+    assert_eq!(watch.released.get(), 1);
+    assert_eq!(watch.produced.get(), 0);
+    assert!(h.values.is_empty());
+    assert_eq!(h.allocator.stats().live_allocations, 0);
+    let mut refused = m::Budget::new(m::Limits {
+        allocations: 0,
+        ..Default::default()
+    });
+    assert!(e::InvocationAccounting::prepare(control, &mut refused).is_err());
+    assert_eq!(accounting.snapshot(), Default::default());
 }
 #[test]
 fn native_publication_uses_owning_kinds_beyond_the_preparing_program_scope() {

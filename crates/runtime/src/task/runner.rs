@@ -314,7 +314,7 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
     arguments: &[EntryArgument],
     host: &mut dyn crate::component::execution::Host,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
-    let work = host.service_work().clone();
+    let accounting = host.accounting().clone();
     let result = execute_profile(
         backend,
         program.proof(),
@@ -361,8 +361,8 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
         }
     };
     match &mut result {
-        Ok(outcome) => outcome.usage.service_work = work.used(),
-        Err(failure) => failure.usage.service_work = work.used(),
+        Ok(outcome) => outcome.usage = accounting.snapshot(),
+        Err(failure) => failure.usage = accounting.snapshot(),
     }
     result
 }

@@ -146,6 +146,99 @@ pub struct Usage {
     pub peak_live_cells: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Configuration {
+    limits: Limits,
+    service_work: Option<u64>,
+    interruption: Option<usize>,
+    deadline: Option<Instant>,
+}
+impl From<Control<'_>> for Configuration {
+    fn from(control: Control<'_>) -> Self {
+        Self {
+            limits: control.limits,
+            service_work: control.service_work,
+            // Identity comparison only; this address is never dereferenced.
+            interruption: control
+                .interruption
+                .map(|flag| std::ptr::from_ref(flag) as usize),
+            deadline: control.deadline,
+        }
+    }
+}
+
+/// Explicit counters for one component invocation. This grants no dynamic
+/// entry, allocator, resource or loan authority. Clones retain the same counters.
+#[derive(Clone, Debug)]
+pub struct InvocationAccounting(Rc<Accounting>);
+#[derive(Debug)]
+struct Accounting {
+    configuration: Configuration,
+    usage: Cell<Usage>,
+    work: ServiceWork,
+    preparation_failure: Cell<Option<Failure>>,
+}
+impl InvocationAccounting {
+    pub fn prepare(
+        control: Control<'_>,
+        budget: &mut lang_mir::unit::Budget,
+    ) -> Result<Self, lang_mir::unit::Error> {
+        budget.allocate::<Accounting>(1)?;
+        budget.allocate::<usize>(2)?;
+        Ok(Self(Rc::new(Accounting {
+            configuration: control.into(),
+            usage: Cell::new(Usage::default()),
+            work: ServiceWork::new(control.service_work_limit()),
+            preparation_failure: Cell::new(None),
+        })))
+    }
+    pub fn matches(&self, control: Control<'_>) -> bool {
+        self.0.configuration == control.into()
+    }
+    pub fn same_invocation(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+    pub fn work(&self) -> &ServiceWork {
+        &self.0.work
+    }
+    pub fn snapshot(&self) -> Usage {
+        Usage {
+            service_work: self.0.work.used(),
+            ..self.0.usage.get()
+        }
+    }
+    pub fn preparation_failure(&self) -> Option<Failure> {
+        self.0.preparation_failure.get()
+    }
+    pub fn latch_preparation_failure(&self, failure: Failure) {
+        if self.preparation_failure().is_none() {
+            self.0.preparation_failure.set(Some(failure));
+        }
+    }
+    pub(crate) fn charge(&self, control: Control<'_>) -> Result<(), Failure> {
+        debug_assert!(self.matches(control));
+        let mut usage = self.0.usage.get();
+        control.charge(&mut usage)?;
+        self.0.usage.set(usage);
+        Ok(())
+    }
+    pub(crate) fn charge_host_call(&self, control: Control<'_>) -> Result<(), Failure> {
+        debug_assert!(self.matches(control));
+        let mut usage = self.0.usage.get();
+        control.charge_host_call(&mut usage)?;
+        self.0.usage.set(usage);
+        Ok(())
+    }
+    /// Observe local peaks. Active-parent live offsets require checked child
+    /// entry; this counter alone does not admit nested frames or tasks.
+    pub(crate) fn observe(&self, peak_frames: usize, peak_live_cells: usize) {
+        let mut usage = self.0.usage.get();
+        usage.peak_frames = usage.peak_frames.max(peak_frames);
+        usage.peak_live_cells = usage.peak_live_cells.max(peak_live_cells);
+        self.0.usage.set(usage);
+    }
+}
+
 /// One synchronous invocation's service counter. Clones forward the same
 /// counter through prepared services and guest calls; independent constructors
 /// remain isolated. Construct before guest entry, without ambient state.

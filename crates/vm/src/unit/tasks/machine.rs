@@ -22,15 +22,13 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                 [frame.node.0 as usize];
             let next = match node.kind {
                 f::Kind::Entry { next, .. } => Some(next),
-                f::Kind::Fuel { next, failure, .. } => {
-                    match machine.control.charge(&mut machine.usage) {
-                        Ok(()) => Some(next),
-                        Err(reason) => {
-                            machine.fault(task, reason.into(), node.span)?;
-                            Some(failure)
-                        }
+                f::Kind::Fuel { next, failure, .. } => match machine.charge() {
+                    Ok(()) => Some(next),
+                    Err(reason) => {
+                        machine.fault(task, reason.into(), node.span)?;
+                        Some(failure)
                     }
-                }
+                },
                 f::Kind::Execute {
                     site,
                     next,

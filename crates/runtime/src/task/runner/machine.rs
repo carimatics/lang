@@ -31,6 +31,7 @@ pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub trace: bool,
     pub trace_limit: usize,
     pub usage: e::Usage,
+    accounting: Option<e::InvocationAccounting>,
     pub live_frames: usize,
     pub live_cells: usize,
     pub active: Option<(t::TaskId, bool)>,
@@ -130,6 +131,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         arguments: &[EntryArgument],
         mut component: Option<&'l mut dyn crate::component::execution::Host>,
     ) -> Result<Self, Reason> {
+        let accounting = component.as_deref().map(|host| host.accounting().clone());
         let declaration = &proof.typed().places().declarations().functions()[entry.0 as usize];
         if declaration.parameters.len() != arguments.len()
             || (component.is_none()
@@ -144,7 +146,10 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             return Err(Reason::Entry);
         }
         if let Some(host) = component.as_deref() {
-            if !host.corresponds(proof, entry) || !host.control_matches(control) {
+            if !host.corresponds(proof, entry)
+                || !host.control_matches(control)
+                || !host.accounting().matches(control)
+            {
                 return Err(Reason::Entry);
             }
             host.validate(arguments, allocator)?;
@@ -315,6 +320,15 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             next_result: None,
             session: Some(session),
         });
+        let mut initial_usage = e::Usage {
+            peak_frames: 1,
+            peak_live_cells: cells,
+            ..Default::default()
+        };
+        if let Some(accounting) = &accounting {
+            accounting.observe(initial_usage.peak_frames, initial_usage.peak_live_cells);
+            initial_usage = accounting.snapshot();
+        }
         Ok(Self {
             proof,
             plans,
@@ -326,11 +340,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             events,
             trace: limits.trace_events != 0,
             trace_limit: limits.trace_events,
-            usage: e::Usage {
-                peak_frames: 1,
-                peak_live_cells: cells,
-                ..Default::default()
-            },
+            usage: initial_usage,
+            accounting,
             live_frames: 1,
             live_cells: cells,
             active: None,
@@ -339,6 +350,33 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             next_activation: 1,
             services,
         })
+    }
+    /// Both guest dispatchers charge the actual original component counter.
+    pub fn charge(&mut self) -> Result<(), e::Failure> {
+        if let Some(accounting) = &self.accounting {
+            accounting.charge(self.control)?;
+            self.sync_usage();
+            Ok(())
+        } else {
+            self.control.charge(&mut self.usage)
+        }
+    }
+    fn charge_host_call(&mut self) -> Result<(), e::Failure> {
+        if let Some(accounting) = &self.accounting {
+            accounting.charge_host_call(self.control)?;
+            self.sync_usage();
+            Ok(())
+        } else {
+            self.control.charge_host_call(&mut self.usage)
+        }
+    }
+    fn sync_usage(&mut self) {
+        if let Some(accounting) = &self.accounting {
+            accounting.observe(self.usage.peak_frames, self.usage.peak_live_cells);
+            self.usage = accounting.snapshot();
+        } else {
+            self.usage.service_work = self.services.work.used();
+        }
     }
     pub fn event(&mut self, task: usize, kind: EventKind, span: m::Span) -> Result<(), Reason> {
         if !self.trace {
@@ -1121,7 +1159,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 span,
             });
         }
-        self.usage.service_work = self.services.work.used();
+        self.sync_usage();
         let outcome = self.services.scheduler.status(&self.records[0].id);
         let mut finished = (|| -> Result<(), Reason> {
             if failed {

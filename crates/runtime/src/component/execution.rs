@@ -110,6 +110,10 @@ struct InputFrame {
 /// the original live invocation's context. No fabricated or null engine token
 /// may be supplied. Mandatory cleanup remains unmetered.
 pub trait Invoker {
+    fn control(&self) -> crate::execution::Control<'_>;
+    fn accounting(&self) -> Option<&crate::execution::InvocationAccounting> {
+        None
+    }
     fn control_matches(&self, control: crate::execution::Control<'_>) -> bool;
     fn service_work_limit(&self) -> Option<u64>;
     fn check_control(&self) -> Result<(), crate::execution::Failure>;
@@ -131,6 +135,7 @@ pub trait Invoker {
 /// Private data/cleanup service used by both existing backends. Guest bodies
 /// remain in their interpreter/generated-code dispatchers.
 pub trait Host {
+    fn accounting(&self) -> &crate::execution::InvocationAccounting;
     fn service_work(&self) -> &crate::execution::ServiceWork;
     fn work_failure(&self) -> Option<crate::execution::Failure>;
     fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason>;
@@ -204,7 +209,7 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     invoker: &'native mut dyn Invoker,
     normalize: Normalize<'u, 'code>,
     work: crate::execution::ServiceWork,
-    work_failure: std::cell::Cell<Option<crate::execution::Failure>>,
+    accounting: crate::execution::InvocationAccounting,
     caller: Holder,
     guest: Holder,
     inputs: Vec<storage::Input>,
@@ -258,8 +263,13 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         let indices = budget.vector(resources.input_capacity())?;
         let loans = budget.vector(resources.input_capacity())?;
         let output_claims = budget.vector(resources.capacity())?;
+        let accounting = match invoker.accounting() {
+            Some(accounting) if accounting.matches(invoker.control()) => accounting.clone(),
+            Some(_) => return Err(Reason::Entry),
+            None => crate::execution::InvocationAccounting::prepare(invoker.control(), budget)?,
+        };
+        let work = accounting.work().clone();
         let guest = resources.new_holder().map_err(fault)?;
-        let work = crate::execution::ServiceWork::new(invoker.service_work_limit());
         instance.phase = Phase::Active;
         Ok(Self {
             instance,
@@ -270,7 +280,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             invoker,
             normalize,
             work,
-            work_failure: std::cell::Cell::new(None),
+            accounting,
             caller,
             guest,
             inputs,
@@ -287,18 +297,18 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         })
     }
     fn check_work(&self) -> Result<(), Reason> {
-        self.work_failure
-            .get()
+        self.accounting
+            .preparation_failure()
             .map_or(Ok(()), |failure| Err(Reason::Control(failure)))
     }
     fn latch_work<T>(&self, result: Result<T, Reason>) -> Result<T, Reason> {
-        if self.work_failure.get().is_none()
+        if self.accounting.preparation_failure().is_none()
             && let Err(Reason::Control(
                 failure @ (crate::execution::Failure::ServiceWorkLimit { .. }
                 | crate::execution::Failure::CounterOverflow),
             )) = &result
         {
-            self.work_failure.set(Some(*failure));
+            self.accounting.latch_preparation_failure(*failure);
         }
         result
     }
@@ -572,6 +582,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
 impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
     for Invocation<'state, 'p, 'u, 'resources, 'code, 'native>
 {
+    fn accounting(&self) -> &crate::execution::InvocationAccounting {
+        &self.accounting
+    }
     fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason> {
         self.finished = true;
         let closed = self.transfer.is_none()
@@ -1058,7 +1071,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         &self.work
     }
     fn work_failure(&self) -> Option<crate::execution::Failure> {
-        self.work_failure.get()
+        self.accounting.preparation_failure()
     }
     fn corresponds(&self, proof: &o::tasks::VerifiedTasks, function: m::FunctionId) -> bool {
         std::ptr::eq(self.program.proof(), proof) && self.function == function

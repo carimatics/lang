@@ -926,7 +926,7 @@ impl<P: a::Provider> Invocation<'_, '_, '_, '_, '_, '_, P> {
                 }
             }
             CHARGE => {
-                self.machine.control.charge(&mut self.machine.usage)?;
+                self.machine.charge()?;
                 Ok(0)
             }
             READ => {

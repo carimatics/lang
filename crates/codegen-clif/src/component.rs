@@ -89,6 +89,7 @@ impl Engine {
         Ok(Invocation {
             engine: self,
             control,
+            accounting: None,
         })
     }
     pub fn last_context(&self) -> Option<native::Context> {
@@ -203,6 +204,18 @@ pub unsafe extern "C" fn context_allocator_identity(context: *const native::Cont
 pub struct Invocation<'a, 'ctrl> {
     engine: &'a mut Engine,
     control: e::Control<'ctrl>,
+    accounting: Option<e::InvocationAccounting>,
+}
+impl Invocation<'_, '_> {
+    /// Lend counters before component preparation. This does not admit reentry
+    /// or reuse an expired dynamic context; ordinary begin remains independent.
+    pub fn with_accounting(mut self, accounting: &e::InvocationAccounting) -> Result<Self, u32> {
+        if !accounting.matches(self.control) {
+            return Err(2);
+        }
+        self.accounting = Some(accounting.clone());
+        Ok(self)
+    }
 }
 struct Active {
     state: *mut State,
@@ -219,6 +232,12 @@ impl Drop for Active {
     }
 }
 impl Invoker for Invocation<'_, '_> {
+    fn control(&self) -> e::Control<'_> {
+        self.control
+    }
+    fn accounting(&self) -> Option<&e::InvocationAccounting> {
+        self.accounting.as_ref()
+    }
     fn service_work_limit(&self) -> Option<u64> {
         self.control.service_work_limit()
     }
