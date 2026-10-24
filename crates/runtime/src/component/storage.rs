@@ -242,7 +242,7 @@ impl<'a> Resources<'a> {
             Ok(())
         }
     }
-    fn check_holder(&self, holder: Holder) -> Result<(), Error> {
+    pub(super) fn check_holder(&self, holder: Holder) -> Result<(), Error> {
         if holder.table != self.host().table {
             Err(Error::ForeignHolder)
         } else {
@@ -414,9 +414,7 @@ impl<'a> Resources<'a> {
         match (self.pending, transfer) {
             (None, None) => {}
             (Some(pending), Some(ticket))
-                if pending.ticket == ticket
-                    && pending.from == guest
-                    && pending.to == self.host() => {}
+                if pending.ticket == ticket && pending.from == guest && pending.to == caller => {}
             _ => return Err(Error::State),
         }
         for (owner, backing) in self.values.entries() {

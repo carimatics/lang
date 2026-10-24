@@ -193,6 +193,9 @@ impl<'a> Provider<'a> {
             data: Registration::Borrowed(data),
         })
     }
+    pub fn is_owned(&self) -> bool {
+        matches!(&self.data, Registration::Owned(_))
+    }
     pub fn metadata(&self) -> wire::Provider<'_> {
         match &self.data {
             Registration::Borrowed(data) => data.metadata,

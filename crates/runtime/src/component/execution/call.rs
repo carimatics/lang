@@ -114,25 +114,28 @@ impl BufferSlot {
         self.header.as_ptr().cast_mut().cast()
     }
 }
-pub(crate) struct CallContext<'r, 'm, 'b, 'a> {
-    pub resources: &'r mut Resources<'a>,
+type KindResolver<'scope, 'code> =
+    dyn Fn(&[u8], &mut m::Budget) -> Result<ResourceKind<'code>, u32> + 'scope;
+
+pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
+    pub resources: &'r mut Resources<'code>,
     pub memory: &'m mut dyn Memory,
     pub budget: &'b mut m::Budget,
-    pub views: &'r mut Vec<NativeView<'a>>,
+    pub views: &'r mut Vec<NativeView<'code>>,
     pub owners: &'r mut Vec<(Claim, usize)>,
     pub holder: Holder,
-    pub provider: &'a super::super::native::Provider<'a>,
+    kind: &'scope KindResolver<'scope, 'code>,
     buffers: Vec<BufferSlot>,
 }
-impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
+impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn new(
-        resources: &'r mut Resources<'a>,
+        resources: &'r mut Resources<'code>,
         memory: &'m mut dyn Memory,
         budget: &'b mut m::Budget,
-        views: &'r mut Vec<NativeView<'a>>,
+        views: &'r mut Vec<NativeView<'code>>,
         owners: &'r mut Vec<(Claim, usize)>,
         holder: Holder,
-        provider: &'a super::super::native::Provider<'a>,
+        kind: &'scope KindResolver<'scope, 'code>,
     ) -> Self {
         Self {
             resources,
@@ -141,7 +144,7 @@ impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
             views,
             owners,
             holder,
-            provider,
+            kind,
             buffers: Vec::new(),
         }
     }
@@ -182,7 +185,7 @@ impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
         }
         failure.map_or(Ok(()), |e| Err(fault(e.into())))
     }
-    fn view(&self, index: u32) -> Result<&NativeView<'a>, u32> {
+    fn view(&self, index: u32) -> Result<&NativeView<'code>, u32> {
         let index = index.checked_sub(1).ok_or(7u32)? as usize;
         let view = self.views.get(index).ok_or(7u32)?;
         match view.authority {
@@ -199,7 +202,7 @@ impl<'r, 'm, 'b, 'a> CallContext<'r, 'm, 'b, 'a> {
         Ok(view)
     }
 }
-impl NativeContext for CallContext<'_, '_, '_, '_> {
+impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
     fn resource_publish(
         &mut self,
         key: &[u8],
@@ -207,7 +210,7 @@ impl NativeContext for CallContext<'_, '_, '_, '_> {
     ) -> Result<u32, u32> {
         self.budget.charge(self.buffers.len()).map_err(|_| 12u32)?;
         let slot = self.slot(buffer)?;
-        let kind = self.provider.resource_kind_bytes(key, self.budget)?;
+        let kind = (self.kind)(key, self.budget)?;
         let index = u32::try_from(self.views.len())
             .ok()
             .and_then(|n| n.checked_add(1))

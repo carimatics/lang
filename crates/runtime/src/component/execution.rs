@@ -22,7 +22,10 @@ pub use call::{
     NativeReturn, ResourceArgument,
 };
 use instance::Phase;
-pub use instance::{Completion, Instance, InstanceError};
+pub use instance::{Completion, Instance, InstanceError, InstanceState};
+
+type Normalize<'program, 'storage> =
+    fn(ResourceKind<'program>) -> Result<ResourceKind<'storage>, Reason>;
 pub(crate) use result::read_parameters;
 pub(crate) use result::read_result;
 
@@ -170,6 +173,7 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     function: m::FunctionId,
     resources: &'resources mut Resources<'code>,
     invoker: &'native mut dyn Invoker,
+    normalize: Normalize<'u, 'code>,
     work: crate::execution::ServiceWork,
     work_failure: std::cell::Cell<Option<crate::execution::Failure>>,
     caller: Holder,
@@ -197,17 +201,33 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         resources: &'resources mut Resources<'code>,
         invoker: &'native mut dyn Invoker,
         budget: &mut m::Budget,
+    ) -> Result<Self, Reason>
+    where
+        'u: 'code,
+    {
+        Self::prepare_inner(instance, function, resources, invoker, budget, |kind| {
+            Ok(kind)
+        })
+    }
+    fn prepare_inner(
+        instance: &'state mut Instance<'p, 'u>,
+        function: m::FunctionId,
+        resources: &'resources mut Resources<'code>,
+        invoker: &'native mut dyn Invoker,
+        budget: &mut m::Budget,
+        normalize: Normalize<'u, 'code>,
     ) -> Result<Self, Reason> {
         instance.ready()?;
         let program = instance.program;
         if !program.is_export(function) {
             return Err(Reason::Entry);
         }
+        let caller = instance.caller.unwrap_or_else(|| resources.host());
+        resources.check_holder(caller).map_err(fault)?;
         let inputs = budget.vector(resources.input_capacity())?;
         let indices = budget.vector(resources.input_capacity())?;
         let loans = budget.vector(resources.input_capacity())?;
         let output_claims = budget.vector(resources.capacity())?;
-        let caller = resources.host();
         let guest = resources.new_holder().map_err(fault)?;
         let work = crate::execution::ServiceWork::new(invoker.service_work_limit());
         instance.phase = Phase::Active;
@@ -218,6 +238,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             function,
             resources,
             invoker,
+            normalize,
             work,
             work_failure: std::cell::Cell::new(None),
             caller,
@@ -495,7 +516,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         Ok(arguments)
     }
 }
-impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
+impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
     for Invocation<'state, 'p, 'u, 'resources, 'code, 'native>
 {
     fn complete(&mut self, completion: Completion, memory: &dyn Memory) -> Result<(), Reason> {
@@ -619,6 +640,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                     .provider()
                     .resource_kind(used.key, session)
                     .map_err(|_| Reason::Entry)?;
+                let kind = (self.normalize)(kind)?;
                 if let Some(parent) = argument.parent {
                     if matches!(used.access, wire::ResourceAccess::Own) {
                         return Err(Reason::Entry);
@@ -732,6 +754,11 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                     bytes,
                 });
             }
+            let normalize = self.normalize;
+            let kind = |key: &[u8], budget: &mut m::Budget| {
+                let kind = target.provider().resource_kind_bytes(key, budget)?;
+                normalize(kind).map_err(|_| 7u32)
+            };
             let mut context = call::CallContext::new(
                 self.resources,
                 memory,
@@ -739,7 +766,7 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
                 &mut views,
                 &mut owned,
                 native,
-                target.provider(),
+                &kind,
             );
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let decoded = (|| -> Result<NativeResult, Reason> {
@@ -1323,6 +1350,32 @@ impl<'state, 'p, 'u: 'code, 'resources, 'code, 'native> Host
         Ok(())
     }
 }
+impl<'state, 'p, 'u, 'resources, 'native> Invocation<'state, 'p, 'u, 'resources, 'static, 'native> {
+    /// Prepare a root over retained storage and independently scoped program
+    /// views. All native registrations must retain their original owners.
+    pub fn prepare_owned(
+        instance: &'state mut Instance<'p, 'u>,
+        function: m::FunctionId,
+        resources: &'resources mut Resources<'static>,
+        invoker: &'native mut dyn Invoker,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Reason> {
+        instance.ready()?;
+        if instance.caller.is_none() {
+            return Err(Reason::Entry);
+        }
+        for import in instance.program.bindings().imports() {
+            budget.charge(1)?;
+            if !import.provider().is_owned() {
+                return Err(Reason::Entry);
+            }
+        }
+        Self::prepare_inner(instance, function, resources, invoker, budget, |kind| {
+            kind.into_owned().map_err(|_| Reason::Entry)
+        })
+    }
+}
+
 impl Drop for Invocation<'_, '_, '_, '_, '_, '_> {
     fn drop(&mut self) {
         if self.committed && !self.finished {

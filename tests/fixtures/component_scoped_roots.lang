@@ -1,0 +1,19 @@
+pub struct CounterKind {}
+pub struct Request { delta: i64, label: core::Text }
+extern "component" fn host_apply(
+    state: &mut core::ComponentResource<CounterKind>,
+    request: Request
+) -> core::Result<i64, core::Text>;
+extern "component" fn host_make() -> core::ComponentResource<CounterKind>;
+
+pub fn relay(value: core::ComponentResource<CounterKind>) -> core::ComponentResource<CounterKind> {
+    return value;
+}
+
+pub fn consume(value: core::ComponentResource<CounterKind>) -> i64 {
+    return 42;
+}
+
+pub fn create() -> core::ComponentResource<CounterKind> {
+    return host_make();
+}
