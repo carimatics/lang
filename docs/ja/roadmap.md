@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装 Todo](milestone-3.md) は **52 done · 1 doing · 13 todo · 40 remaining pt**です。E01のmodule入力checkpoint `d319ab2` は元source/IDL・保存artifactの所有準備と保持source VM/nativeの生成C codec transportを実装しました（2026-10-24 16:55 JST）。**145 suites / 2,190 passed / 0 failed / 既存ignore 1件**、fmt・Clippy・rustdoc・15 fuzz target compile/lintが成功し、811入力の前後hashが一致しました。checkpointは **消化0 pt・追加/再見積り0 pt**で、台帳 **110 + 72 − 142 = 40**は不変です。E01は公開C gatewayのhandle/typed callと失敗経路を実装するdoingのままです。G01/G02/G06は **18/96 gate weight・3/15 gate**。後続/P1・両host証拠・最終guideは全て必須です。2026-10-24 JST更新。
+**M3 は進行中です。** [実装 Todo](milestone-3.md)は **52 done · 1 doing · 13 todo · 40 remaining pt**です。E01のnative-host checkpoint `7a83981` はC側からsource/artifactをloadし、元input解放後に生成typed codecで保持VM/JIT rootを計8回呼び、元C allocatorの正確な解放を検証します（2026-10-24 17:08 JST）。**146 suites / 2,192 passed / 0 failed / 既存ignore 1件**、fmt・Clippy・rustdoc・15 fuzz target compile/lintが成功し、813入力の前後hashが一致しました。**消化0 pt・追加/再見積り0 pt**、台帳 **110 + 72 − 142 = 40**。E01は公開C query/table・handle操作と失敗経路の実装を続けるdoingです。G01/G02/G06は **18/96 gate weight・3/15 gate**のままで、後続/P1・両host証拠・最終guideは全て必須です。2026-10-24 JST更新。
 
 E01 の次の寿命監査では、短い program と保持済み `Resources<'static>` の Host 接続が `'u: 'static` 制約で拒否されました。所有 kind と変換関数の単独型検査は成功したため、既存借用経路を保ち、元 table/allocator・caller holder・instance lifecycle/poison を共有して連続 source root を実行する **E07（3 pt）を前提に追加**します。E07 のみ doing とし、E01 の native C load/bind/control/result/生成 typed-call outcome は維持します。規範32 entry・完全 callback/reentry/control・package/両 host・安定化は E01–E04/I08/B02 に残り、型 probe や不完全 public table では gate を完了しません。
 
