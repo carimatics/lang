@@ -425,10 +425,37 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
     )
     .unwrap();
     let projection = wire::encode_contract(&consumer, &mut projection_session).unwrap();
+    let malformed_source = format!(
+        "// 日本語の元スナップショット\n{}",
+        source.replace("return p0 + 1;", "return missing;")
+    );
+    assert_ne!(source, malformed_source);
+    let source_error_start = malformed_source.find("missing").unwrap();
+    let source_error_end = source_error_start + "missing".len();
+    let malformed_source_digest =
+        <sha2::Sha256 as sha2::Digest>::digest(malformed_source.as_bytes());
+    let invalid_digest = <sha2::Sha256 as sha2::Digest>::digest(b"{");
+    let invalid_utf8_digest = <sha2::Sha256 as sha2::Digest>::digest([0xff]);
+    let invalid_idl = idl::check(m::SourceId(1), b"{", Default::default()).unwrap_err();
+    let invalid_idl_start = invalid_idl.span.start;
+    let invalid_idl_end = invalid_idl.span.end;
+    let invalid_artifact = match lang::artifact::component::decode(b"{", Default::default()) {
+        Err(lang::artifact::component::Error::Code(reason)) => reason.offset,
+        _ => panic!("expected the original artifact decoder failure"),
+    };
+    let mut unsupported_artifact = bytes.clone();
+    unsupported_artifact[8..10].copy_from_slice(&255_u16.to_le_bytes());
+    let unsupported_artifact_digest = <sha2::Sha256 as sha2::Digest>::digest(&unsupported_artifact);
     let declarations = array("source", source.as_bytes())
         + &array("idl", IDL)
         + &array("artifact", &bytes)
-        + &array("projection", &projection);
+        + &array("projection", &projection)
+        + &array("malformed_source", malformed_source.as_bytes())
+        + &array("malformed_source_digest", &malformed_source_digest)
+        + &array("invalid_digest", &invalid_digest)
+        + &array("invalid_utf8_digest", &invalid_utf8_digest)
+        + &array("unsupported_artifact", &unsupported_artifact)
+        + &array("unsupported_artifact_digest", &unsupported_artifact_digest);
     let c = format!(
         r#"
 #define _POSIX_C_SOURCE 200112L
@@ -473,6 +500,73 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
     options.header.size=sizeof(options);options.header.version=1;options.ceiling=config->ceiling;
     assert(api->header.version==0); /* Private fixture; no version-1 publication. */
     assert(api->engine_create(config,&engine,&error)==0);
+    {{
+        lang_component_v1_module *untouched=(lang_component_v1_module *)(uintptr_t)42;
+        assert(api->module_load(engine,99,program,contract,&untouched,&error)==2);
+        assert(untouched==(lang_component_v1_module *)(uintptr_t)42&&error.diagnostic==1);
+        assert(error.flags==0&&error.detail_code==0&&error.limit==0&&error.attempted==0);
+    }}
+    {{
+        const uint8_t invalid[]={{123}};
+        lang_component_v1_bytes bad={{invalid,sizeof(invalid)}};
+        lang_component_v1_module *untouched=(lang_component_v1_module *)(uintptr_t)42;
+        memset(&error,0xa5,sizeof(error));error.header.size=sizeof(error);error.header.version=1;
+        assert(api->module_load(engine,format,format?bad:program,format?contract:bad,&untouched,&error)==2);
+        assert(untouched==(lang_component_v1_module *)(uintptr_t)42);
+        assert(error.diagnostic==5&&error.flags==(format?7u:6u));
+        assert(error.detail_code==(format?0u:1u)&&error.source_id==(format?0u:1u));
+        assert(error.start==(format?{invalid_artifact}u:{invalid_idl_start}u));
+        assert(error.end==(format?{invalid_artifact}u:{invalid_idl_end}u));
+        assert(memcmp(error.input_digest,invalid_digest,32)==0);
+        assert(error.limit==0&&error.attempted==0&&error.limit_kind==0);
+        assert(error.reserved0==0&&error.reserved[0]==0&&error.reserved[1]==0);
+        assert(error.header.size==sizeof(error)&&error.header.version==1);
+    }}
+    if(format==0){{
+        lang_component_v1_bytes bad={{malformed_source,sizeof(malformed_source)}};
+        lang_component_v1_module *untouched=(lang_component_v1_module *)(uintptr_t)42;
+        assert(api->module_load(engine,format,bad,contract,&untouched,&error)==2);
+        assert(untouched==(lang_component_v1_module *)(uintptr_t)42);
+        assert(error.diagnostic==5&&error.flags==5&&error.detail_code==2&&error.source_id==0);
+        assert(error.start=={source_error_start}&&error.end=={source_error_end});
+        assert(memcmp(error.input_digest,malformed_source_digest,32)==0);
+        assert(error.limit==0&&error.attempted==0&&error.limit_kind==0);
+    }}
+    if(format==0){{
+        const uint8_t invalid[]={{255}};
+        lang_component_v1_bytes bad={{invalid,sizeof(invalid)}};
+        lang_component_v1_module *untouched=(lang_component_v1_module *)(uintptr_t)42;
+        assert(api->module_load(engine,format,program,bad,&untouched,&error)==2);
+        assert(untouched==(lang_component_v1_module *)(uintptr_t)42);
+        assert(error.diagnostic==5&&error.flags==6&&error.detail_code==1&&error.source_id==1);
+        assert(error.start==0&&error.end==1&&memcmp(error.input_digest,invalid_utf8_digest,32)==0);
+    }} else {{
+        lang_component_v1_bytes bad={{unsupported_artifact,sizeof(unsupported_artifact)}};
+        lang_component_v1_module *untouched=(lang_component_v1_module *)(uintptr_t)42;
+        assert(api->module_load(engine,format,bad,contract,&untouched,&error)==3);
+        assert(untouched==(lang_component_v1_module *)(uintptr_t)42);
+        assert(error.diagnostic==2&&error.flags==7&&error.source_id==0&&error.detail_code==0);
+        assert(error.start==8&&error.end==8&&error.limit==0&&error.attempted==0);
+        assert(memcmp(error.input_digest,unsupported_artifact_digest,32)==0);
+    }}
+    for(repeat=0;repeat<2;++repeat){{
+        const uint8_t zero[32]={{0}};
+        uint64_t length=repeat?config->ceiling.preparation_work*3/5:config->ceiling.metadata_bytes+1;
+        uint64_t attempted=length+contract.length;
+        uint8_t *large=(uint8_t *)calloc(1,(size_t)length);
+        lang_component_v1_bytes bad={{large,length}};
+        lang_component_v1_module *untouched=(lang_component_v1_module *)(uintptr_t)42;
+        assert(large);memset(&error,0xa5,sizeof(error));error.header.size=sizeof(error);error.header.version=1;
+        assert(api->module_load(engine,format,bad,contract,&untouched,&error)==2);
+        assert(untouched==(lang_component_v1_module *)(uintptr_t)42);
+        assert(error.diagnostic==12&&error.limit_kind==(repeat?9u:10u));
+        assert(error.limit==(repeat?config->ceiling.preparation_work-attempted:config->ceiling.metadata_bytes));
+        assert(error.attempted==attempted&&error.flags==0&&error.detail_code==0);
+        assert(error.source_id==0&&error.start==0&&error.end==0);
+        assert(memcmp(error.input_digest,zero,32)==0);
+        assert(error.reserved0==0&&error.reserved[0]==0&&error.reserved[1]==0);
+        free(large);
+    }}
     assert(api->module_load(engine,format,program,contract,&module,&error)==0);
     assert(api->instance_create(module,&options,&instance,&error)==0);
     assert(api->bind_export(instance,request,&binding,&error)==0);

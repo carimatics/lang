@@ -46,6 +46,30 @@ pub enum Diagnostic {
     Destructor,
 }
 impl Diagnostic {
+    /// Fixed C admission identity from RFC 0027, independent of enum order.
+    pub const fn c_id(self) -> u32 {
+        match self {
+            Self::InvalidRequest => 1,
+            Self::UnsupportedVersion => 2,
+            Self::MissingCapability => 3,
+            Self::IncompatibleInterface => 4,
+            Self::InvalidMetadata => 5,
+            Self::InvalidWire => 6,
+            Self::Resource => 7,
+            Self::Reentry => 8,
+            Self::UnsupportedProfile => 9,
+            Self::UnknownExport => 10,
+            Self::InstancePoisoned => 11,
+            Self::Limit => 12,
+            Self::Cancelled => 13,
+            Self::Interrupted => 14,
+            Self::HostContract => 15,
+            Self::Panic => 16,
+            Self::Trap => 17,
+            Self::Destructor => 18,
+        }
+    }
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::InvalidRequest => "component.invalid-request",

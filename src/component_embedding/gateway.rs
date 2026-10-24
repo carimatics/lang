@@ -1,4 +1,5 @@
 //! Component C operation implementations. No API query/table is published yet.
+mod admission;
 use super::{Limits as ModuleLimits, Module, ffi, load};
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component};
 use lang_mir::unit as m;
@@ -494,18 +495,61 @@ pub unsafe extern "C" fn module_load(
         (Ok(p), Ok(c)) => (p, c),
         _ => return INVALID,
     };
-    let module = match load(format, program, contract, data.limits) {
+    let input_bytes = match program.len().checked_add(contract.len()) {
+        Some(bytes) => bytes,
+        None => return INVALID,
+    };
+    let mut hash_budget = m::Budget::new(data.limits.preparation);
+    let preflight = if input_bytes > data.limits.input_bytes {
+        Some(admission::Failure::limit(
+            wire::ReportLimitKind::MetadataBytes,
+            data.limits.input_bytes,
+            input_bytes,
+        ))
+    } else {
+        hash_budget
+            .charge(input_bytes)
+            .err()
+            .map(|reason| admission::module(&super::Error::Budget(reason), None))
+    };
+    if let Some(failure) = preflight {
+        // SAFETY: the initialized error slot was checked before preparation.
+        unsafe { error.write(failure.error) };
+        return failure.status;
+    }
+    // Hash traversal is admitted before reading either complete snapshot. The
+    // loader receives only the remaining work; errors do not refund this cost.
+    let digest: [u8; 32] = Sha256::digest(program).into();
+    let idl_digest: [u8; 32] = Sha256::digest(contract).into();
+    let mut load_limits = data.limits;
+    load_limits.preparation.work -= input_bytes;
+    let module = match load(format, program, contract, load_limits) {
         Ok(module) => module,
-        Err(_) => return INVALID,
+        Err(reason) => {
+            let failure = admission::module(&reason, Some((digest, idl_digest)));
+            // SAFETY: fixed output replaces every old field only after refusal.
+            unsafe { error.write(failure.error) };
+            return failure.status;
+        }
     };
     let mut budget = match m::Budget::with_usage(data.limits.preparation, module.usage()) {
         Ok(v) => v,
-        Err(_) => return INVALID,
+        Err(reason) => {
+            let failure = admission::module(&super::Error::Budget(reason), None);
+            // SAFETY: this operation retains the checked initialized slot.
+            unsafe { error.write(failure.error) };
+            return failure.status;
+        }
     };
-    if budget.charge(program.len()).is_err() || budget.allocate::<Loaded>(1).is_err() {
-        return INVALID;
+    if let Err(reason) = budget
+        .charge(input_bytes)
+        .and_then(|()| budget.allocate::<Loaded>(1))
+    {
+        let failure = admission::module(&super::Error::Budget(reason), None);
+        // SAFETY: admission has not published any module or dependent handle.
+        unsafe { error.write(failure.error) };
+        return failure.status;
     }
-    let digest = Sha256::digest(program).into();
     let Some(count) = reference.handles.get().checked_add(1) else {
         return OOM;
     };
